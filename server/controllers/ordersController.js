@@ -5963,13 +5963,23 @@ export const returnOrder = async (req, res) => {
       throw error;
     }
     const reason = req.body.reason || (mode === "exchange" ? "استبدال" : "POS return");
+    const refundFunding = await ensureReturnRefundFunding(client, {
+      routeName,
+      orderId: loaded.order.id,
+      tenantId,
+      branchId: loaded.order.branch_id || null,
+      userId: req.user?.id || null,
+      refundMethod,
+    });
+    const originalOrderShiftId = loaded.order.shift_id || null;
+    const refundShiftId = refundMethod === "cash" ? (refundFunding.shift?.id || null) : originalOrderShiftId;
     const returnResult = await client.query(
       `
       INSERT INTO returns (tenant_id, order_id, return_number, status, reason, restock, refund_amount, created_by, shift_id, cashier_user_id)
       VALUES ($1,$2,$3,'completed',$4,true,$5,$6,$7,$8)
       RETURNING *
       `,
-      [tenantId, loaded.order.id, temporaryReturnNumber, reason, Number(req.body.refund_amount || 0), req.user?.id || null, loaded.order.shift_id || null, req.user?.id || null]
+      [tenantId, loaded.order.id, temporaryReturnNumber, reason, Number(req.body.refund_amount || 0), req.user?.id || null, refundShiftId, req.user?.id || null]
     );
     let returnRow = returnResult.rows[0];
     logReturnFlowStep(routeName, {
@@ -5997,15 +6007,34 @@ export const returnOrder = async (req, res) => {
       [returnRow.id, tenantId, returnNumberBase]
     );
     returnRow = finalReturnNumberResult.rows[0] || returnRow;
+    await client.query(
+      `
+      UPDATE returns
+      SET shift_id = COALESCE($2::bigint, shift_id),
+          metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+      WHERE id = $1
+      RETURNING *
+      `,
+      [
+        returnRow.id,
+        refundShiftId,
+        JSON.stringify({
+          original_order_shift_id: originalOrderShiftId,
+          refund_shift_id: refundShiftId,
+          order_id: loaded.order.id,
+          return_id: returnRow.id,
+        }),
+      ]
+    );
+    returnRow = (await client.query(
+      `
+      SELECT *
+      FROM returns
+      WHERE id = $1
+      `,
+      [returnRow.id]
+    )).rows[0] || returnRow;
     let refundTotal = 0;
-    const refundFunding = await ensureReturnRefundFunding(client, {
-      routeName,
-      orderId: loaded.order.id,
-      tenantId,
-      branchId: loaded.order.branch_id || null,
-      userId: req.user?.id || null,
-      refundMethod,
-    });
 
     for (const { original, quantity, refund } of validatedItems) {
       refundTotal += refund;
@@ -6131,18 +6160,18 @@ export const returnOrder = async (req, res) => {
     }
 
     if (refundMethod === "cash") {
-      logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "cash_drawer_event:before", returnId: returnRow.id });
+      logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "cash_drawer_event:before", returnId: returnRow.id, shiftId: refundShiftId });
       await recordCashDrawerEvent(client, {
         tenantId,
         branchId: loaded.order.branch_id || null,
         createdBy: req.user?.id || null,
-        shiftId: loaded.order.shift_id || null,
+        shiftId: refundShiftId,
         eventType: "refund_cash",
         sourceType: "return",
         sourceId: returnRow.id,
         amount: refundTotal || Number(req.body.refund_amount || 0),
       });
-      logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "cash_drawer_event:after", returnId: returnRow.id });
+      logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "cash_drawer_event:after", returnId: returnRow.id, shiftId: refundShiftId });
       logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "financial_account_activity:before", returnId: returnRow.id });
       await recordFinancialAccountActivity(client, {
         tenantId,
@@ -6303,6 +6332,8 @@ export const createReturn = async (req, res) => {
       userId: req.user?.id || null,
       refundMethod,
     });
+    const originalOrderShiftId = orderRow?.shift_id || null;
+    const refundShiftId = refundMethod === "cash" ? (refundFunding.shift?.id || null) : originalOrderShiftId;
 
     const returnNumberBase = buildDerivedInvoiceNumber(orderRow?.invoice_number, "RET") || `RET-${orderId}`;
     const temporaryReturnNumber = `${returnNumberBase}-${buildTemporaryInvoiceNumber()}`;
@@ -6334,7 +6365,7 @@ export const createReturn = async (req, res) => {
         Number(refundAmount || 0),
         refundMethod,
         req.user?.id || null,
-        orderRow?.shift_id || null,
+        refundShiftId,
         req.user?.id || null,
       ]
     );
@@ -6365,6 +6396,26 @@ export const createReturn = async (req, res) => {
       [returnRow.id, tenantId, returnNumberBase]
     );
     returnRow = finalReturnNumberResult.rows[0] || returnRow;
+    await client.query(
+      `
+      UPDATE returns
+      SET shift_id = COALESCE($2::bigint, shift_id),
+          metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+      WHERE id = $1
+      RETURNING *
+      `,
+      [
+        returnRow.id,
+        refundShiftId,
+        JSON.stringify({
+          original_order_shift_id: originalOrderShiftId,
+          refund_shift_id: refundShiftId,
+          order_id: orderId,
+          return_id: returnRow.id,
+        }),
+      ]
+    );
+    returnRow = (await client.query(`SELECT * FROM returns WHERE id = $1`, [returnRow.id])).rows[0] || returnRow;
 
     for (const item of items) {
       const orderItemId = item.order_item_id || item.orderItemId || item.id;
@@ -6460,18 +6511,18 @@ export const createReturn = async (req, res) => {
         error.code = "RETURN_CASH_DRAWER_REQUIRED";
         throw error;
       }
-      logReturnFlowStep(routeName, { orderId, tenantId, step: "cash_drawer_event:before", returnId: returnRow.id, shiftId: refundFunding.shift.id });
+      logReturnFlowStep(routeName, { orderId, tenantId, step: "cash_drawer_event:before", returnId: returnRow.id, shiftId: refundShiftId });
       await recordCashDrawerEvent(client, {
         tenantId,
         branchId: orderResult.rows[0]?.branch_id || null,
         createdBy: req.user?.id || null,
-        shiftId: refundFunding.shift.id,
+        shiftId: refundShiftId,
         eventType: "refund_cash",
         sourceType: "return",
         sourceId: returnRow.id,
         amount: Number(refundAmount || 0),
       });
-      logReturnFlowStep(routeName, { orderId, tenantId, step: "cash_drawer_event:after", returnId: returnRow.id, shiftId: refundFunding.shift.id });
+      logReturnFlowStep(routeName, { orderId, tenantId, step: "cash_drawer_event:after", returnId: returnRow.id, shiftId: refundShiftId });
       logReturnFlowStep(routeName, { orderId, tenantId, step: "financial_account_activity:before", returnId: returnRow.id });
       await recordFinancialAccountActivity(client, {
         tenantId,
