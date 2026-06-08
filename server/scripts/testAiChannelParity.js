@@ -649,6 +649,102 @@ const runFinalRenderedReplyGuardTest = () => {
   });
 };
 
+const runJordan4SizeFollowupSequenceTest = async () => {
+  const sequenceMemoryByChannel = Object.fromEntries(channelConfigs.map((item) => [item.key, {}]));
+  const firstStepCaptures = {};
+
+  for (const config of channelConfigs) {
+    const firstReply = await generateUnifiedConversationDecision({
+      channel: config.channel,
+      externalConversationId: `parity-sequence-${config.key}-step1`,
+      externalCustomerId: config.to,
+      customerName: "Parity Tester",
+      text: PHRASES.jordan4Images,
+      attachments: [],
+      metadata: {
+        tenant_id: 1,
+        channel: config.channel,
+        session_id: `parity-sequence-${config.key}-step1`,
+        customer_name: "Parity Tester",
+        customer_phone: config.to,
+        provider_message_id: `mid-sequence-${config.key}-step1`,
+        test_case_id: "jordan4_sequence_step1",
+        ai_memory: sequenceMemoryByChannel[config.key],
+      },
+    }, {
+      tenantId: 1,
+      memory: sequenceMemoryByChannel[config.key],
+      providerMessageId: `mid-sequence-${config.key}-step1`,
+    });
+    firstStepCaptures[config.key] = summarizeUnifiedReply(firstReply);
+    sequenceMemoryByChannel[config.key] = mergeMemory(sequenceMemoryByChannel[config.key], firstReply.memory_updates || {});
+  }
+
+  const secondStepCaptures = {};
+  for (const config of channelConfigs) {
+    const secondReply = await generateUnifiedConversationDecision({
+      channel: config.channel,
+      externalConversationId: `parity-sequence-${config.key}-step2`,
+      externalCustomerId: config.to,
+      customerName: "Parity Tester",
+      text: PHRASES.size42,
+      attachments: [],
+      metadata: {
+        tenant_id: 1,
+        channel: config.channel,
+        session_id: `parity-sequence-${config.key}-step2`,
+        customer_name: "Parity Tester",
+        customer_phone: config.to,
+        provider_message_id: `mid-sequence-${config.key}-step2`,
+        test_case_id: "jordan4_sequence_step2",
+        ai_memory: sequenceMemoryByChannel[config.key],
+      },
+    }, {
+      tenantId: 1,
+      memory: sequenceMemoryByChannel[config.key],
+      providerMessageId: `mid-sequence-${config.key}-step2`,
+    });
+    const capture = summarizeUnifiedReply(secondReply);
+    secondStepCaptures[config.key] = capture;
+    if (JSON.stringify(secondReply).includes(LEGACY_NEAREST_PHRASE)) {
+      throw new Error(`[AI_JORDAN4_SIZE_SEQUENCE_LEGACY_LEAK] ${config.key}`);
+    }
+    if (!capture.text.includes("مقاس 42")) {
+      throw new Error(`[AI_JORDAN4_SIZE_SEQUENCE_TEXT_FAIL] ${config.key} :: ${capture.text}`);
+    }
+    if (/\u0627\u062e\u062a\u0627\u0631\u0644\u0643\s+\u0623\u0646\u0647\u064a\s+\u0645\u0642\u0627\u0633|\u0623\u064a\u0648\u0647\s+42\s+\u0645\u062a\u0648\u0641\u0631/i.test(capture.text)) {
+      throw new Error(`[AI_JORDAN4_SIZE_SEQUENCE_LEGACY_TEXT_FAIL] ${config.key} :: ${capture.text}`);
+    }
+    const expectedColors = [...new Set(firstStepCaptures[config.key].product_cards.map((card) => card.color).filter(Boolean))];
+    expectedColors.forEach((color) => {
+      if (!capture.text.includes(color)) {
+        throw new Error(`[AI_JORDAN4_SIZE_SEQUENCE_COLOR_MISSING] ${config.key} :: ${color} :: ${capture.text}`);
+      }
+    });
+    const badSizeCard = capture.product_cards.find((card) => !card.available_sizes.includes("42") && !card.sizes.includes("42"));
+    if (badSizeCard) {
+      throw new Error(`[AI_JORDAN4_SIZE_SEQUENCE_CARD_FILTER_FAIL] ${config.key} :: ${JSON.stringify(badSizeCard)}`);
+    }
+    if (!capture.product_cards.length) {
+      throw new Error(`[AI_JORDAN4_SIZE_SEQUENCE_CARDS_MISSING] ${config.key}`);
+    }
+    console.log("[AI_JORDAN4_SIZE_SEQUENCE_CAPTURE]", {
+      channel: config.key,
+      step1_product_cards: firstStepCaptures[config.key].product_cards.length,
+      step2_text: capture.text,
+      step2_product_cards: capture.product_cards.map((card) => ({ color: card.color, sizes: card.available_sizes })),
+    });
+  }
+
+  const comparison = compareScenario({
+    inboundText: "Jordan4 size follow-up sequence",
+    captures: secondStepCaptures,
+  });
+  if (!comparison.decision_match) {
+    throw new Error(`[AI_JORDAN4_SIZE_SEQUENCE_PARITY_FAIL] ${JSON.stringify(comparison.differences)}`);
+  }
+};
+
 const runRealEntryDryRun = async ({ inboundText }) => {
   if (String(process.env.AI_CHANNEL_PARITY_REAL_DRY_RUN || "1").toLowerCase() === "0") return null;
   const suffix = normalizeId(inboundText);
@@ -1840,6 +1936,7 @@ globalThis.fetch = async (_input, init = {}) => {
 const run = async () => {
   const summaryRows = [];
   runFinalRenderedReplyGuardTest();
+  await runJordan4SizeFollowupSequenceTest();
 
   for (const scenario of parityScenarios) {
     const inboundText = scenario.message;

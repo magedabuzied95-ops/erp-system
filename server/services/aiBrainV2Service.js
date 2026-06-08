@@ -29,6 +29,150 @@ const normalizeArabic = (value = "") =>
     .replace(/\s+/g, " ")
     .trim();
 
+const normalizeSizeToken = (value = "") =>
+  text(value)
+    .replace(/[\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[\u06f0-\u06f9]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
+    .replace(/[^\d]/g, "")
+    .trim();
+
+const extractRequestedSize = (message = "") => {
+  const raw = text(message);
+  const normalized = normalizeArabic(raw);
+  const match = raw.match(/(?:مقاس|size|sizes?)\s*([0-9\u0660-\u0669\u06f0-\u06f9]{1,3})/i)
+    || normalized.match(/(?:مقاس|size|sizes?)\s*([0-9]{1,3})/i)
+    || raw.match(/\b([0-9\u0660-\u0669\u06f0-\u06f9]{2,3})\b/);
+  return normalizeSizeToken(match?.[1] || "");
+};
+
+const memoryCardsFromContext = (memory = {}) => normalizeProductCards([
+  ...asArray(memory?.last_product_cards),
+  ...asArray(memory?.lastProductCards),
+  ...asArray(memory?.preferences?.last_product_cards),
+  ...asArray(memory?.preferences?.lastProductCards),
+], { limit: 24 });
+
+const cardSizes = (card = {}) => [
+  ...asArray(card.available_sizes),
+  ...asArray(card.sizes),
+  ...asArray(card.inventory_profile?.available_sizes),
+].map((value) => normalizeSizeToken(value)).filter(Boolean);
+
+const cardHasRequestedSize = (card = {}, requestedSize = "") => {
+  const normalizedRequestedSize = normalizeSizeToken(requestedSize);
+  if (!normalizedRequestedSize) return false;
+  return cardSizes(card).includes(normalizedRequestedSize);
+};
+
+const uniqueColors = (cards = []) => [...new Set(asArray(cards).map((card) => text(card.color || card.matched_variant_color || card.name || card.title)).filter(Boolean))];
+
+const prettyModelName = (value = "") => {
+  const name = text(value);
+  if (/jordan\s*4|jordan4|aj4|j4/i.test(name) || /جوردن\s*4|جوردن\s*فور/i.test(name)) return "جوردن 4";
+  return name;
+};
+
+const buildSizeFollowupFromMemoryCards = ({ message = "", memory = {} } = {}) => {
+  const requestedSize = extractRequestedSize(message);
+  const rememberedCards = memoryCardsFromContext(memory);
+  if (!requestedSize || !rememberedCards.length) return null;
+
+  const matchingCards = rememberedCards.filter((card) => cardHasRequestedSize(card, requestedSize));
+  const referenceCards = matchingCards.length ? matchingCards : rememberedCards;
+  const modelName = prettyModelName(
+    referenceCards[0]?.base_name ||
+      referenceCards[0]?.model_name ||
+      referenceCards[0]?.product_name ||
+      referenceCards[0]?.name ||
+      referenceCards[0]?.title ||
+      "Jordan 4"
+  );
+  const availableSizes = [...new Set(rememberedCards.flatMap((card) => cardSizes(card)))].filter(Boolean).sort((a, b) => Number(a) - Number(b));
+  const availableSizesText = availableSizes.filter((size) => size !== requestedSize).join("، ");
+  const availableColors = uniqueColors(matchingCards);
+  const textReply = matchingCards.length
+    ? [
+        `مقاس ${requestedSize} متوفر في ${modelName} بالألوان دي:`,
+        ...availableColors.map((color) => `✅ ${color}`),
+        "",
+        "أنهي لون أحجزهولك؟",
+      ].join("\n")
+    : [
+        `مقاس ${requestedSize} مش متوفر حاليًا في ${modelName}.`,
+        availableSizesText ? `المتاح دلوقتي: ${availableSizesText}` : "",
+      ].filter(Boolean).join("\n");
+  const filteredCards = matchingCards.length ? matchingCards : [];
+  const topProductId = text(filteredCards[0]?.product_id || filteredCards[0]?.id || rememberedCards[0]?.product_id || rememberedCards[0]?.id || "");
+  const memoryUpdates = {
+    active_product_id: topProductId,
+    selected_product_id: topProductId,
+    last_product_id: topProductId,
+    activeSize: requestedSize,
+    selectedSize: requestedSize,
+    active_size: requestedSize,
+    selected_size: requestedSize,
+    buyingStage: "size_selected",
+    checkoutStage: "size_selected",
+    nextRecommendedStage: "color_selection",
+    resolvedQuestionType: "SIZE_FOLLOWUP",
+    replyDecisionReason: "v2_size_followup_from_last_cards",
+    last_intent: "size_followup",
+    ai_brain_version: "v2",
+    last_product_cards: rememberedCards,
+    lastProductCards: rememberedCards,
+  };
+  const actions = matchingCards.length
+    ? [
+        { label: "choose_color", value: "choose_color", action: "choose_color" },
+        { label: "contact_support", value: "contact_support", action: "contact_support" },
+      ]
+    : [
+        { label: "contact_support", value: "contact_support", action: "contact_support" },
+      ];
+  const images = filteredCards
+    .map((card) => ({
+      id: text(card.image_id || card.image_url || card.product_id || card.id),
+      url: text(card.image_url || card.url || card.image),
+      image_url: text(card.image_url || card.url || card.image),
+      product_id: text(card.product_id || card.id),
+    }))
+    .filter((image) => image.url);
+  return {
+    text: textReply,
+    answer: textReply,
+    intent: "size_followup",
+    detected_intent: "size_followup",
+    products: filteredCards,
+    suggested_products: filteredCards,
+    product_cards: filteredCards,
+    images,
+    image_cards: images,
+    quickReplies: availableColors.map((color) => ({ label: color, value: color })),
+    quick_replies: availableColors.map((color) => ({ label: color, value: color })),
+    actions,
+    suggested_actions: actions,
+    memoryUpdates,
+    memory_updates: memoryUpdates,
+    ai_memory_patch: { preferences: memoryUpdates },
+    handoff: { needs_human_support: false, reason: "", conversation_status: "" },
+    active_product_id: topProductId,
+    next_best_action: matchingCards.length ? "choose_color" : "contact_support",
+    reply_goal: matchingCards.length ? "help_pick_color" : "share_available_sizes",
+    sales_stage: "SIZE_COLLECTION",
+    nextRecommendedStage: "color_selection",
+    replyDecisionReason: "v2_size_followup_from_last_cards",
+    debug: {
+      source: "aiBrainV2",
+      engine: "ai_brain_v2",
+      legacy_called: false,
+      reason: "v2_size_followup_from_last_cards",
+      requested_size: requestedSize,
+      matching_card_count: matchingCards.length,
+      available_sizes: availableSizes,
+    },
+  };
+};
+
 const containsAny = (value = "", terms = []) => terms.some((term) => value.includes(term));
 
 const detectExplicitModel = (message = "") => {
@@ -418,6 +562,21 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
   const memoryActiveProductId = activeProductFromMemory(memory);
   const explicitModel = detectExplicitModel(message);
   const intent = classifyIntent({ message, attachments: normalizedInbound.attachments, explicitModel });
+  const sizeFollowupFromMemory = intent === "size_followup" ? buildSizeFollowupFromMemoryCards({ message, memory }) : null;
+  if (sizeFollowupFromMemory) {
+    console.info("AI_BRAIN_V2_DECISION", {
+      channel,
+      conversation_id: text(normalizedInbound.externalConversationId || normalizedInbound.external_conversation_id || normalizedInbound.metadata?.session_id || ""),
+      text_preview: message.slice(0, 160),
+      intent: sizeFollowupFromMemory.intent,
+      explicit_model: explicitModel?.model || "",
+      products_count: asArray(sizeFollowupFromMemory.products).length,
+      product_cards_count: asArray(sizeFollowupFromMemory.product_cards).length,
+      top_product_id: sizeFollowupFromMemory.active_product_id || "",
+      legacy_called: false,
+    });
+    return sizeFollowupFromMemory;
+  }
   const shouldSearch = ["product_search", "more_images", "visual_search"].includes(intent) || Boolean(explicitModel);
   const candidates = shouldSearch ? await loadCandidateProducts({ tenantId, message, explicitModel }) : [];
   const ranked = rankProducts({ products: candidates, message, explicitModel });

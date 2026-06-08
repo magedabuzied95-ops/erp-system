@@ -128,6 +128,8 @@ const protectedProductIntents = new Set([
   "PRODUCT_SEARCH",
   "more_images",
   "MORE_IMAGES",
+  "size_followup",
+  "SIZE_FOLLOWUP",
   "image_request",
   "IMAGE_REQUEST",
   "product_images",
