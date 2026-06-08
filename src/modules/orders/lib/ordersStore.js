@@ -117,6 +117,24 @@ export const addReturnRecord = (record) => {
   return next[0];
 };
 
+export const updateReturnRecord = (returnId, patch) => {
+  const items = getReturns();
+  const next = items.map((item) => (
+    String(item.id) === String(returnId)
+      ? { ...item, ...patch, id: item.id, updatedAt: new Date().toISOString() }
+      : item
+  ));
+  writeJson(RETURNS_KEY, next);
+  return next.find((item) => String(item.id) === String(returnId)) || null;
+};
+
+export const deleteReturnRecord = (returnId) => {
+  const items = getReturns();
+  const next = items.filter((item) => String(item.id) !== String(returnId));
+  writeJson(RETURNS_KEY, next);
+  return next;
+};
+
 export const normalizeOrder = (order, details = {}) => {
   const meta = getOrderMeta(order.id);
   const total = Number(order.total_price ?? order.total_amount ?? order.total ?? details.total ?? details.total_amount ?? 0);
