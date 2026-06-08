@@ -257,6 +257,208 @@ const buildColorAvailabilityFromMemoryCards = ({ message = "", memory = {} } = {
   };
 };
 
+const normalizeColorComparable = (value = "") =>
+  text(value)
+    .toLowerCase()
+    .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/[&+\/\\|]/g, " ")
+    .replace(/\b(and|with)\b/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const colorSelectionAliasGroups = [
+  ["black red", ["black red", "black and red", "black & red", "اسود واحمر", "أسود وأحمر", "الاسود والاحمر", "الأسود والأحمر", "الاسود واحمر", "الأسود واحمر", "black red"]],
+  ["burgundy", ["burgundy", "burdgundy", "bordeaux", "bourdeaux", "برجندي", "برجاندي", "برغندي", "البرجندي", "البرجاندي", "البرغندي"]],
+  ["black", ["black", "blac", "اسود", "أسود", "الاسود", "الأسود", "بلاك"]],
+  ["white", ["white", "whtie", "ابيض", "أبيض", "الابيض", "الأبيض", "وايت"]],
+  ["grey", ["grey", "gray", "جراي", "رمادي", "رصاصي"]],
+  ["navy", ["navy", "كحلي", "كحلى"]],
+  ["blue", ["blue", "azraq", "ازرق", "أزرق", "الازرق", "الأزرق"]],
+  ["red", ["red", "احمر", "أحمر", "الاحمر", "الأحمر", "ريد"]],
+  ["green", ["green", "اخضر", "أخضر", "الاخضر", "الأخضر"]],
+  ["beige", ["beige", "بيج"]],
+  ["brown", ["brown", "بني"]],
+];
+
+const colorKeyFromText = (value = "") => {
+  const normalized = normalizeColorComparable(value);
+  if (!normalized) return "";
+  if (/\bblack\b/.test(normalized) && /\bred\b/.test(normalized)) return "black red";
+  for (const [key, aliases] of colorSelectionAliasGroups) {
+    if (key === "black red") continue;
+    if (aliases.some((alias) => normalized.includes(normalizeColorComparable(alias)))) return key;
+  }
+  return normalized;
+};
+
+const detectSelectedColorKey = (message = "") => {
+  const normalized = normalizeColorComparable(message);
+  if (!normalized) return "";
+  if (/\bblack\b/.test(normalized) && /\bred\b/.test(normalized)) return "black red";
+  for (const [key, aliases] of colorSelectionAliasGroups) {
+    if (key === "black red") continue;
+    if (aliases.some((alias) => normalized.includes(normalizeColorComparable(alias)))) return key;
+  }
+  return "";
+};
+
+const cardMatchesRequestedColor = (card = {}, requestedColorKey = "") => {
+  const cardKey = colorKeyFromText(card.color || card.matched_variant_color || card.name || card.title || "");
+  if (!cardKey || !requestedColorKey) return false;
+  return cardKey === requestedColorKey;
+};
+
+const resolveCardDisplayPrice = (card = {}) => {
+  const candidates = [
+    card.display_price,
+    card.final_price,
+    card.price,
+    card.sale_price,
+    card.selling_price,
+    card.selected_display_price,
+    card.variant?.sale_price,
+    card.variant?.price,
+    card.variant?.selling_price,
+    card.variant?.display_price,
+  ];
+  for (const candidate of candidates) {
+    const parsed = Number(candidate);
+    if (Number.isFinite(parsed) && parsed > 0) return Math.round(parsed);
+  }
+  return 0;
+};
+
+const prettyColorLabel = (card = {}) => text(card.color || card.matched_variant_color || card.name || card.title || "");
+
+const buildColorSelectionFromMemoryCards = ({ message = "", memory = {} } = {}) => {
+  const requestedColorKey = detectSelectedColorKey(message);
+  const rememberedCards = memoryCardsFromContext(memory);
+  if (!requestedColorKey || !rememberedCards.length) return null;
+
+  const selectedSize = normalizeSizeToken(
+    extractRequestedSize(message) ||
+      memory?.activeSize ||
+      memory?.selectedSize ||
+      memory?.preferences?.activeSize ||
+      memory?.preferences?.selectedSize ||
+      ""
+  );
+
+  const sizeMatchedCards = selectedSize
+    ? rememberedCards.filter((card) => cardHasRequestedSize(card, selectedSize))
+    : rememberedCards.slice();
+  const matchingCards = sizeMatchedCards.filter((card) => cardMatchesRequestedColor(card, requestedColorKey));
+  if (!matchingCards.length) return null;
+
+  const selectedCard = matchingCards[0];
+  const modelName = prettyModelName(
+    selectedCard?.base_name ||
+      selectedCard?.model_name ||
+      selectedCard?.product_name ||
+      selectedCard?.name ||
+      selectedCard?.title ||
+      "Jordan 4"
+  );
+  const displayPrice = resolveCardDisplayPrice(selectedCard);
+  const selectedColor = prettyColorLabel(selectedCard);
+  const topProductId = text(selectedCard?.product_id || selectedCard?.id || "");
+  const topVariantId = text(selectedCard?.variant_id || selectedCard?.selected_variant_id || selectedCard?.variant?.id || "");
+  const sizeLabel = selectedSize || text(selectedCard?.sizes?.[0] || selectedCard?.available_sizes?.[0] || "");
+  const textReply = [
+    "تمام",
+    "",
+    modelName,
+    selectedColor,
+    `مقاس ${sizeLabel}`,
+    "",
+    `السعر: ${displayPrice > 0 ? `${displayPrice} جنيه` : "متاح عند الطلب"}`,
+    "",
+    "تحب أحجزهولك؟",
+  ].join("\n");
+  const normalizedCards = normalizeProductCards([selectedCard], { limit: 1 });
+  const imageCards = normalizedCards
+    .map((card) => ({
+      id: text(card.image_id || card.image_url || card.product_id || card.id),
+      url: text(card.image_url || card.url || card.image),
+      image_url: text(card.image_url || card.url || card.image),
+      product_id: text(card.product_id || card.id),
+    }))
+    .filter((image) => image.url);
+  const memoryUpdates = {
+    active_product_id: topProductId,
+    selected_product_id: topProductId,
+    last_product_id: topProductId,
+    activeVariantId: topVariantId,
+    selectedVariantId: topVariantId,
+    active_variant_id: topVariantId,
+    selected_variant_id: topVariantId,
+    activeColor: selectedColor,
+    selectedColor,
+    active_color: selectedColor,
+    selected_color: selectedColor,
+    activeSize: selectedSize,
+    selectedSize,
+    active_size: selectedSize,
+    selected_size: selectedSize,
+    buyingStage: "color_selected",
+    checkoutStage: "color_selected",
+    nextRecommendedStage: "order_confirmation",
+    selectionStage: "color_selected",
+    resolvedQuestionType: "COLOR_SELECTION_AFTER_SIZE",
+    replyDecisionReason: "v2_color_selection_from_last_cards",
+    last_intent: "color_selected",
+    ai_brain_version: "v2",
+    last_product_cards: rememberedCards,
+    lastProductCards: rememberedCards,
+  };
+  return {
+    text: textReply,
+    answer: textReply,
+    intent: "color_selected",
+    detected_intent: "color_selected",
+    products: normalizedCards,
+    suggested_products: normalizedCards,
+    product_cards: normalizedCards,
+    images: imageCards,
+    image_cards: imageCards,
+    quickReplies: [],
+    quick_replies: [],
+    actions: [
+      { label: "confirm_order", value: "confirm_order", action: "confirm_order" },
+      { label: "contact_support", value: "contact_support", action: "contact_support" },
+    ],
+    suggested_actions: [
+      { label: "confirm_order", value: "confirm_order", action: "confirm_order" },
+      { label: "contact_support", value: "contact_support", action: "contact_support" },
+    ],
+    memoryUpdates,
+    memory_updates: memoryUpdates,
+    ai_memory_patch: { preferences: memoryUpdates },
+    handoff: { needs_human_support: false, reason: "", conversation_status: "" },
+    active_product_id: topProductId,
+    active_variant_id: topVariantId,
+    active_color: selectedColor,
+    active_size: selectedSize,
+    next_best_action: "confirm_order",
+    reply_goal: "confirm_selected_variant",
+    sales_stage: "COLOR_SELECTION",
+    nextRecommendedStage: "order_confirmation",
+    replyDecisionReason: "v2_color_selection_from_last_cards",
+    debug: {
+      source: "aiBrainV2",
+      engine: "ai_brain_v2",
+      legacy_called: false,
+      reason: "v2_color_selection_from_last_cards",
+      requested_color: requestedColorKey,
+      selected_size: selectedSize,
+      selected_variant_id: topVariantId,
+      selected_product_id: topProductId,
+    },
+  };
+};
+
 const shouldUseColorAvailabilityFromMemory = ({ message = "", memory = {}, intent = "" } = {}) => {
   const normalized = normalizeArabic(message);
   const requestedSize = extractRequestedSize(message) || normalizeSizeToken(memory?.activeSize || memory?.selectedSize || memory?.preferences?.activeSize || memory?.preferences?.selectedSize || "");
@@ -663,6 +865,21 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
   const memoryActiveProductId = activeProductFromMemory(memory);
   const explicitModel = detectExplicitModel(message);
   const intent = classifyIntent({ message, attachments: normalizedInbound.attachments, explicitModel });
+  const colorSelectionFromMemory = buildColorSelectionFromMemoryCards({ message, memory });
+  if (colorSelectionFromMemory) {
+    console.info("AI_BRAIN_V2_DECISION", {
+      channel,
+      conversation_id: text(normalizedInbound.externalConversationId || normalizedInbound.external_conversation_id || normalizedInbound.metadata?.session_id || ""),
+      text_preview: message.slice(0, 160),
+      intent: colorSelectionFromMemory.intent,
+      explicit_model: explicitModel?.model || "",
+      products_count: asArray(colorSelectionFromMemory.products).length,
+      product_cards_count: asArray(colorSelectionFromMemory.product_cards).length,
+      top_product_id: colorSelectionFromMemory.active_product_id || "",
+      legacy_called: false,
+    });
+    return colorSelectionFromMemory;
+  }
   const colorAvailabilityFromMemory = shouldUseColorAvailabilityFromMemory({ message, memory, intent }) ? buildColorAvailabilityFromMemoryCards({ message, memory }) : null;
   if (colorAvailabilityFromMemory) {
     console.info("AI_BRAIN_V2_DECISION", {

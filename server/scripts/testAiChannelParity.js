@@ -803,6 +803,109 @@ const runJordan4SizeFollowupSequenceTest = async () => {
       throw new Error(`[AI_JORDAN4_COLOR_AVAILABILITY_PARITY_FAIL] ${phrase} :: ${JSON.stringify(colorComparison.differences)}`);
     }
   }
+
+  const colorSelectionPhrase = "Burgundy";
+  const colorSelectionCaptures = {};
+  for (const config of channelConfigs) {
+    const seedCard = firstStepCaptures[config.key].product_cards[0];
+    const burgundyCard = seedCard
+      ? {
+          ...seedCard,
+          color: "Burgundy",
+          name: "Jordan 4 - Burgundy",
+          title: "Jordan 4 - Burgundy",
+          variant_id: `${seedCard.product_id || seedCard.id || "jordan-4"}-burgundy-42`,
+          selected_variant_id: `${seedCard.product_id || seedCard.id || "jordan-4"}-burgundy-42`,
+          price: "1650",
+          display_price: "1650",
+          final_price: "1650",
+          sale_price: "1650",
+          sizes: ["41", "42", "43", "44", "45"],
+          available_sizes: ["41", "42", "43", "44", "45"],
+          image_url: seedCard.image_url || seedCard.image || "",
+          image: seedCard.image_url || seedCard.image || "",
+          product_url: seedCard.product_url || seedCard.url || "",
+          url: seedCard.product_url || seedCard.url || "",
+        }
+      : null;
+    const colorSelectionMemory = mergeMemory(sequenceMemoryByChannel[config.key], {
+      last_product_cards: burgundyCard ? [burgundyCard] : sequenceMemoryByChannel[config.key].last_product_cards,
+      lastProductCards: burgundyCard ? [burgundyCard] : sequenceMemoryByChannel[config.key].lastProductCards,
+      activeSize: "42",
+      selectedSize: "42",
+      active_size: "42",
+      selected_size: "42",
+    });
+    const reply = await generateUnifiedConversationDecision({
+      channel: config.channel,
+      externalConversationId: `parity-sequence-${config.key}-color-selection-${normalizeId(colorSelectionPhrase)}`,
+      externalCustomerId: config.to,
+      customerName: "Parity Tester",
+      text: colorSelectionPhrase,
+      attachments: [],
+      metadata: {
+        tenant_id: 1,
+        channel: config.channel,
+        session_id: `parity-sequence-${config.key}-color-selection-${normalizeId(colorSelectionPhrase)}`,
+        customer_name: "Parity Tester",
+        customer_phone: config.to,
+        provider_message_id: `mid-sequence-${config.key}-color-selection-${normalizeId(colorSelectionPhrase)}`,
+        test_case_id: "jordan4_sequence_color_selection",
+        ai_memory: colorSelectionMemory,
+      },
+    }, {
+      tenantId: 1,
+      memory: colorSelectionMemory,
+      providerMessageId: `mid-sequence-${config.key}-color-selection-${normalizeId(colorSelectionPhrase)}`,
+    });
+    const capture = summarizeUnifiedReply(reply);
+    colorSelectionCaptures[config.key] = capture;
+    if (JSON.stringify(reply).includes(LEGACY_NEAREST_PHRASE)) {
+      throw new Error(`[AI_JORDAN4_COLOR_SELECTION_LEGACY_LEAK] ${config.key}`);
+    }
+    if (!capture.text.includes("تمام")) {
+      throw new Error(`[AI_JORDAN4_COLOR_SELECTION_TEXT_FAIL] ${config.key} :: ${capture.text}`);
+    }
+    if (!capture.text.includes("Burgundy")) {
+      throw new Error(`[AI_JORDAN4_COLOR_SELECTION_COLOR_FAIL] ${config.key} :: ${capture.text}`);
+    }
+    if (!capture.text.includes("مقاس 42")) {
+      throw new Error(`[AI_JORDAN4_COLOR_SELECTION_SIZE_FAIL] ${config.key} :: ${capture.text}`);
+    }
+    if (!capture.text.includes("تحب أحجزهولك؟")) {
+      throw new Error(`[AI_JORDAN4_COLOR_SELECTION_CLOSE_FAIL] ${config.key} :: ${capture.text}`);
+    }
+    if (capture.text.includes("- جنيه")) {
+      throw new Error(`[AI_JORDAN4_COLOR_SELECTION_PRICE_PLACEHOLDER_FAIL] ${config.key} :: ${capture.text}`);
+    }
+    if (!capture.text.includes("1650 جنيه")) {
+      throw new Error(`[AI_JORDAN4_COLOR_SELECTION_PRICE_MISSING] ${config.key} :: ${capture.text}`);
+    }
+    if (!capture.product_cards.length) {
+      throw new Error(`[AI_JORDAN4_COLOR_SELECTION_PRODUCT_CARD_MISSING] ${config.key}`);
+    }
+    const selectedCard = capture.product_cards[0];
+    if (selectedCard.color !== "Burgundy") {
+      throw new Error(`[AI_JORDAN4_COLOR_SELECTION_CARD_COLOR_FAIL] ${config.key} :: ${selectedCard.color}`);
+    }
+    if (!selectedCard.price || selectedCard.price === "0" || selectedCard.price === "0.00") {
+      throw new Error(`[AI_JORDAN4_COLOR_SELECTION_CARD_PRICE_FAIL] ${config.key} :: ${JSON.stringify(selectedCard)}`);
+    }
+    if (capture.active_color !== "Burgundy") {
+      throw new Error(`[AI_JORDAN4_COLOR_SELECTION_ACTIVE_COLOR_FAIL] ${config.key} :: ${capture.active_color}`);
+    }
+    if (!capture.active_variant_id) {
+      throw new Error(`[AI_JORDAN4_COLOR_SELECTION_ACTIVE_VARIANT_FAIL] ${config.key}`);
+    }
+  }
+
+  const colorSelectionComparison = compareScenario({
+    inboundText: `Jordan4 color selection after size :: ${colorSelectionPhrase}`,
+    captures: colorSelectionCaptures,
+  });
+  if (!colorSelectionComparison.decision_match) {
+    throw new Error(`[AI_JORDAN4_COLOR_SELECTION_PARITY_FAIL] ${JSON.stringify(colorSelectionComparison.differences)}`);
+  }
 };
 
 const runRealEntryDryRun = async ({ inboundText }) => {

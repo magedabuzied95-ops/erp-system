@@ -132,6 +132,8 @@ const protectedProductIntents = new Set([
   "SIZE_FOLLOWUP",
   "color_followup",
   "COLOR_AVAILABILITY_FROM_SIZE",
+  "color_selected",
+  "COLOR_SELECTED",
   "image_request",
   "IMAGE_REQUEST",
   "product_images",
