@@ -8,7 +8,7 @@ import { recordEmployeeAnalytics } from "../utils/employeeAnalytics.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { ensureSingleBranchMode } from "../utils/singleBranchMode.js";
 import { adjustVariantStock, recordInventoryMovement } from "../services/inventoryService.js";
-import { ensureAccountingSchema, getCurrentCashDrawerShift, logAccountingAudit, postSaleEntry, postReturnEntry, postWalletLiabilityEntry, recordCashDrawerEvent, recordFinancialAccountActivity, reverseMoneyTransactionsForReference } from "../services/accountingService.js";
+import { ensureAccountingSchema, getCurrentCashDrawerShift, logAccountingAudit, postSaleEntry, postReturnEntry, postWalletLiabilityEntry, recordCashDrawerEvent, recordFinancialAccountActivity, resolveFinancialAccountForPayment, reverseMoneyTransactionsForReference } from "../services/accountingService.js";
 import { ensureLoyaltySchema, processOrderLoyalty, resolveOrCreateCustomerAccount, reverseOrderLoyalty } from "../services/loyaltyService.js";
 import { ensureWalletSchema, recordWalletTransaction } from "../services/walletService.js";
 import { detectMarketingAttribution, logAttributionEvent } from "../services/marketingAttributionService.js";
@@ -149,6 +149,22 @@ const normalizeMoneyPaymentMethod = (value) => {
   return key || "cash";
 };
 
+const RETURN_REFUND_METHODS = new Set(["cash", "vodafone_cash", "instapay"]);
+
+const normalizeReturnRefundMethod = (value = "") => {
+  const method = normalizeMoneyPaymentMethod(value);
+  if (RETURN_REFUND_METHODS.has(method)) return method;
+  return "";
+};
+
+const returnRefundMethodLabel = (value = "") => {
+  const method = normalizeReturnRefundMethod(value);
+  if (method === "cash") return "نقدي";
+  if (method === "vodafone_cash") return "Vodafone Cash";
+  if (method === "instapay") return "InstaPay";
+  return "";
+};
+
 const parsePaymentBreakdownRows = (value) => {
   if (Array.isArray(value)) return value;
   if (typeof value !== "string" || !value.trim()) return [];
@@ -263,6 +279,37 @@ const ensureReturnFlowAccountingReady = async ({ routeName, orderId = null, tena
   logReturnFlowStep(routeName, { orderId, tenantId, step: "accounting_schema:before" });
   await ensureAccountingSchema();
   logReturnFlowStep(routeName, { orderId, tenantId, step: "accounting_schema:after" });
+};
+
+const ensureReturnRefundFunding = async (client, { routeName, orderId = null, tenantId = null, branchId = null, userId = null, refundMethod = "" } = {}) => {
+  const method = normalizeReturnRefundMethod(refundMethod);
+  if (!method) {
+    const error = new Error("Refund method must be cash, vodafone_cash, or instapay.");
+    error.status = 400;
+    error.code = "INVALID_RETURN_REFUND_METHOD";
+    throw error;
+  }
+
+  if (method === "cash") {
+    const shift = await getCurrentCashDrawerShift(client, { tenantId, userId, branchId });
+    if (!shift) {
+      const error = new Error("لا يوجد درج نقدي نشط لهذا المرتجع. افتح وردية نقدية فعالة أولاً.");
+      error.status = 400;
+      error.code = "RETURN_CASH_DRAWER_REQUIRED";
+      throw error;
+    }
+    return { method, shift, financialAccountId: null };
+  }
+
+  const paymentLabel = method === "vodafone_cash" ? "Vodafone Cash" : "InstaPay";
+  const resolved = await resolveFinancialAccountForPayment(client, { tenantId, branchId, paymentMethod: method });
+  if (!resolved?.financialAccountId) {
+    const error = new Error(`لا يوجد حساب فعال مرتبط بـ ${paymentLabel}. قم بإعداد الحساب من إعدادات الدفع/المحاسبة.`);
+    error.status = 400;
+    error.code = "RETURN_MONEY_ACCOUNT_REQUIRED";
+    throw error;
+  }
+  return { method, shift: null, financialAccountId: resolved.financialAccountId, mapping: resolved.mapping || null };
 };
 
 const warnRuntimeSchemaExecution = (name) => {
@@ -5909,7 +5956,12 @@ export const returnOrder = async (req, res) => {
     const returnNumberBase = buildDerivedInvoiceNumber(loaded.order.invoice_number, "RET") || `RET-${loaded.order.id}`;
     const temporaryReturnNumber = `${returnNumberBase}-${buildTemporaryInvoiceNumber()}`;
     const mode = String(req.body.mode || "partial").trim().toLowerCase();
-    const refundMethod = String(req.body.refund_method || req.body.refundMethod || "cash").trim().toLowerCase();
+    const refundMethod = normalizeReturnRefundMethod(req.body.refund_method || req.body.refundMethod || "cash");
+    if (!refundMethod) {
+      const error = new Error("Refund method must be cash, vodafone_cash, or instapay.");
+      error.status = 400;
+      throw error;
+    }
     const reason = req.body.reason || (mode === "exchange" ? "استبدال" : "POS return");
     const returnResult = await client.query(
       `
@@ -5946,6 +5998,14 @@ export const returnOrder = async (req, res) => {
     );
     returnRow = finalReturnNumberResult.rows[0] || returnRow;
     let refundTotal = 0;
+    const refundFunding = await ensureReturnRefundFunding(client, {
+      routeName,
+      orderId: loaded.order.id,
+      tenantId,
+      branchId: loaded.order.branch_id || null,
+      userId: req.user?.id || null,
+      refundMethod,
+    });
 
     for (const { original, quantity, refund } of validatedItems) {
       refundTotal += refund;
@@ -6052,25 +6112,25 @@ export const returnOrder = async (req, res) => {
       }
     }
 
-    if (refundMethod !== "wallet") {
-      try {
-        logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "return_accounting:before", returnId: returnRow.id });
-        await postReturnEntry(client, {
-          tenantId,
-          amount: refundTotal || Number(req.body.refund_amount || 0),
-          direction: "out",
-          referenceType: mode === "exchange" ? "exchange_return" : "return",
-          referenceId: returnRow.id,
-          description: mode === "exchange" ? "POS exchange return" : "POS sales return",
-          createdBy: req.user?.id || null,
-          branchId: loaded.order.branch_id || null,
-          notes: `${reason}${mode === "exchange" ? ` / original invoice ${loaded.order.invoice_number || loaded.order.id}` : ""}`,
-        });
-        logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "return_accounting:after", returnId: returnRow.id });
-      } catch (accountingError) {
-        console.error("[orders] return accounting fallback", accountingError.message);
-      }
+    try {
+      logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "return_accounting:before", returnId: returnRow.id });
+      await postReturnEntry(client, {
+        tenantId,
+        amount: refundTotal || Number(req.body.refund_amount || 0),
+        direction: "out",
+        referenceType: mode === "exchange" ? "exchange_return" : "return",
+        referenceId: returnRow.id,
+        description: mode === "exchange" ? "POS exchange return" : "POS sales return",
+        createdBy: req.user?.id || null,
+        branchId: loaded.order.branch_id || null,
+        notes: `${reason}${mode === "exchange" ? ` / original invoice ${loaded.order.invoice_number || loaded.order.id}` : ""}`,
+      });
+      logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "return_accounting:after", returnId: returnRow.id });
+    } catch (accountingError) {
+      console.error("[orders] return accounting fallback", accountingError.message);
+    }
 
+    if (refundMethod === "cash") {
       logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "cash_drawer_event:before", returnId: returnRow.id });
       await recordCashDrawerEvent(client, {
         tenantId,
@@ -6098,13 +6158,37 @@ export const returnOrder = async (req, res) => {
         createdBy: req.user?.id || null,
       });
       logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "financial_account_activity:after", returnId: returnRow.id });
+    } else {
+      const financialAccountId = refundFunding?.financialAccountId || req.body.refund_financial_account_id || req.body.financial_account_id || req.body.refundFinancialAccountId || req.body.financialAccountId || refundFinancialAccountFromOrder(loaded.order, refundMethod) || null;
+      if (!financialAccountId) {
+        const label = refundMethod === "vodafone_cash" ? "Vodafone Cash" : "InstaPay";
+        const error = new Error(`لا يوجد حساب مالي نشط ومربوط بـ ${label}. قم بتكوينه من إعدادات الدفع/المحاسبة.`);
+        error.status = 400;
+        error.code = "RETURN_MONEY_ACCOUNT_REQUIRED";
+        throw error;
+      }
+      logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "financial_account_activity:before", returnId: returnRow.id, financialAccountId, refundMethod });
+      await recordFinancialAccountActivity(client, {
+        tenantId,
+        branchId: loaded.order.branch_id || null,
+        financialAccountId,
+        paymentMethod: refundMethod,
+        entryType: "refund",
+        direction: -1,
+        sourceType: "return",
+        sourceId: returnRow.id,
+        amount: refundTotal || Number(req.body.refund_amount || 0),
+        notes: `${reason}${mode === "exchange" ? ` / original invoice ${loaded.order.invoice_number || loaded.order.id}` : ""}`,
+        createdBy: req.user?.id || null,
+      });
+      logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "financial_account_activity:after", returnId: returnRow.id, financialAccountId, refundMethod });
     }
 
     logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "transaction:commit", returnId: returnRow.id });
     await client.query("COMMIT");
     try {
       io.emit("dashboard:activity", {
-        type: refundMethod === "wallet" ? "wallet_refund" : "refund",
+        type: refundMethod === "cash" ? "refund_cash" : "refund",
         title: returnRow.return_number || `Return #${returnRow.id}`,
         amount: refundTotal,
         status: refundMethod,
@@ -6204,6 +6288,21 @@ export const createReturn = async (req, res) => {
     const orderRow = orderResult.rows[0];
     const tenantId = assertReturnTenantId(resolveReturnTenantId(req, orderRow), orderId);
     logReturnFlowStep(routeName, { orderId, tenantId, step: "order_loaded" });
+    const refundMethod = normalizeReturnRefundMethod(req.body.refund_method || req.body.refundMethod || "cash");
+    if (!refundMethod) {
+      const error = new Error("Refund method must be cash, vodafone_cash, or instapay.");
+      error.status = 400;
+      error.code = "INVALID_RETURN_REFUND_METHOD";
+      throw error;
+    }
+    const refundFunding = await ensureReturnRefundFunding(client, {
+      routeName,
+      orderId,
+      tenantId,
+      branchId: orderRow?.branch_id || null,
+      userId: req.user?.id || null,
+      refundMethod,
+    });
 
     const returnNumberBase = buildDerivedInvoiceNumber(orderRow?.invoice_number, "RET") || `RET-${orderId}`;
     const temporaryReturnNumber = `${returnNumberBase}-${buildTemporaryInvoiceNumber()}`;
@@ -6217,6 +6316,7 @@ export const createReturn = async (req, res) => {
         reason,
         restock,
         refund_amount,
+        refund_method,
         created_by,
         shift_id,
         cashier_user_id
@@ -6232,6 +6332,7 @@ export const createReturn = async (req, res) => {
         reason,
         Boolean(restock),
         Number(refundAmount || 0),
+        refundMethod,
         req.user?.id || null,
         orderRow?.shift_id || null,
         req.user?.id || null,
@@ -6352,33 +6453,65 @@ export const createReturn = async (req, res) => {
     });
     logReturnFlowStep(routeName, { orderId, tenantId, step: "return_accounting:after", returnId: returnRow.id });
 
-    logReturnFlowStep(routeName, { orderId, tenantId, step: "cash_drawer_event:before", returnId: returnRow.id });
-    await recordCashDrawerEvent(client, {
-      tenantId,
-      branchId: orderResult.rows[0]?.branch_id || null,
-      createdBy: req.user?.id || null,
-      shiftId: orderResult.rows[0]?.shift_id || null,
-      eventType: "refund_cash",
-      sourceType: "return",
-      sourceId: returnRow.id,
-      amount: Number(refundAmount || 0),
-    });
-    logReturnFlowStep(routeName, { orderId, tenantId, step: "cash_drawer_event:after", returnId: returnRow.id });
-    logReturnFlowStep(routeName, { orderId, tenantId, step: "financial_account_activity:before", returnId: returnRow.id });
-    await recordFinancialAccountActivity(client, {
-      tenantId,
-      branchId: orderResult.rows[0]?.branch_id || null,
-      financialAccountId: req.body.refund_financial_account_id || req.body.financial_account_id || req.body.refundFinancialAccountId || req.body.financialAccountId || refundFinancialAccountFromOrder(orderResult.rows[0], req.body.refund_method || req.body.refundMethod || "cash") || null,
-      paymentMethod: req.body.refund_method || req.body.refundMethod || "cash",
-      entryType: "refund",
-      direction: -1,
-      sourceType: "return",
-      sourceId: returnRow.id,
-      amount: Number(refundAmount || 0),
-      notes: reason || "",
-      createdBy: req.user?.id || null,
-    });
-    logReturnFlowStep(routeName, { orderId, tenantId, step: "financial_account_activity:after", returnId: returnRow.id });
+    if (refundMethod === "cash") {
+      if (!refundFunding?.shift?.id) {
+        const error = new Error("لا يوجد درج نقدي نشط لهذا المرتجع. افتح وردية نقدية فعالة أولاً.");
+        error.status = 400;
+        error.code = "RETURN_CASH_DRAWER_REQUIRED";
+        throw error;
+      }
+      logReturnFlowStep(routeName, { orderId, tenantId, step: "cash_drawer_event:before", returnId: returnRow.id, shiftId: refundFunding.shift.id });
+      await recordCashDrawerEvent(client, {
+        tenantId,
+        branchId: orderResult.rows[0]?.branch_id || null,
+        createdBy: req.user?.id || null,
+        shiftId: refundFunding.shift.id,
+        eventType: "refund_cash",
+        sourceType: "return",
+        sourceId: returnRow.id,
+        amount: Number(refundAmount || 0),
+      });
+      logReturnFlowStep(routeName, { orderId, tenantId, step: "cash_drawer_event:after", returnId: returnRow.id, shiftId: refundFunding.shift.id });
+      logReturnFlowStep(routeName, { orderId, tenantId, step: "financial_account_activity:before", returnId: returnRow.id });
+      await recordFinancialAccountActivity(client, {
+        tenantId,
+        branchId: orderResult.rows[0]?.branch_id || null,
+        financialAccountId: req.body.refund_financial_account_id || req.body.financial_account_id || req.body.refundFinancialAccountId || req.body.financialAccountId || refundFinancialAccountFromOrder(orderResult.rows[0], refundMethod) || null,
+        paymentMethod: refundMethod,
+        entryType: "refund",
+        direction: -1,
+        sourceType: "return",
+        sourceId: returnRow.id,
+        amount: Number(refundAmount || 0),
+        notes: reason || "",
+        createdBy: req.user?.id || null,
+      });
+      logReturnFlowStep(routeName, { orderId, tenantId, step: "financial_account_activity:after", returnId: returnRow.id });
+    } else {
+      const financialAccountId = refundFunding?.financialAccountId || req.body.refund_financial_account_id || req.body.financial_account_id || req.body.refundFinancialAccountId || req.body.financialAccountId || refundFinancialAccountFromOrder(orderResult.rows[0], refundMethod) || null;
+      if (!financialAccountId) {
+        const label = refundMethod === "vodafone_cash" ? "Vodafone Cash" : "InstaPay";
+        const error = new Error(`لا يوجد حساب مالي نشط ومربوط بـ ${label}. قم بتكوينه من إعدادات الدفع/المحاسبة.`);
+        error.status = 400;
+        error.code = "RETURN_MONEY_ACCOUNT_REQUIRED";
+        throw error;
+      }
+      logReturnFlowStep(routeName, { orderId, tenantId, step: "financial_account_activity:before", returnId: returnRow.id, financialAccountId, refundMethod });
+      await recordFinancialAccountActivity(client, {
+        tenantId,
+        branchId: orderResult.rows[0]?.branch_id || null,
+        financialAccountId,
+        paymentMethod: refundMethod,
+        entryType: "refund",
+        direction: -1,
+        sourceType: "return",
+        sourceId: returnRow.id,
+        amount: Number(refundAmount || 0),
+        notes: reason || "",
+        createdBy: req.user?.id || null,
+      });
+      logReturnFlowStep(routeName, { orderId, tenantId, step: "financial_account_activity:after", returnId: returnRow.id, financialAccountId, refundMethod });
+    }
 
     logReturnFlowStep(routeName, { orderId, tenantId, step: "transaction:commit", returnId: returnRow.id });
     await client.query("COMMIT");

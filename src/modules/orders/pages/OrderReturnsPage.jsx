@@ -36,7 +36,7 @@ import {
 
 const RETURN_STATUS_OPTIONS = ["Draft", "Submitted", "Approved", "Rejected", "Returned", "Refunded"];
 const REFUND_STATUS_OPTIONS = ["pending", "processing", "refunded", "partial_refund", "rejected"];
-const REFUND_METHOD_OPTIONS = ["cash", "wallet", "bank_transfer", "card", "same_payment_method"];
+const REFUND_METHOD_OPTIONS = ["cash", "vodafone_cash", "instapay"];
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -67,6 +67,12 @@ const resolveOrderItemUnitPrice = (item = {}) => {
 const getOrderPhone = (order = {}) => text(order.customer_phone || order.phone || order.customer?.phone || "");
 const getOrderCode = (order = {}) => text(order.invoice_number || order.public_order_number || order.display_order_number || `#${order.id}`);
 const getDateInputValue = () => new Date().toISOString().slice(0, 10);
+const normalizeRefundMethod = (value = "cash") => {
+  const key = lower(value);
+  if (["cash", "vodafone_cash", "instapay"].includes(key)) return key;
+  if (["same_payment_method", "original", "wallet", "bank_transfer", "card"].includes(key)) return "cash";
+  return "cash";
+};
 
 const defaultFormState = {
   selectedOrderId: "",
@@ -77,7 +83,7 @@ const defaultFormState = {
   status: "Draft",
   shippingProvider: "",
   trackingNumber: "",
-  refundMethod: "same_payment_method",
+  refundMethod: "cash",
   refundStatus: "pending",
   originalCreatedAt: "",
 };
@@ -217,7 +223,7 @@ function OrderReturnsPage() {
       status: record.returnStatus || "Draft",
       shippingProvider: record.shippingProvider || "",
       trackingNumber: record.trackingNumber || "",
-      refundMethod: record.refundMethod || "same_payment_method",
+      refundMethod: normalizeRefundMethod(record.refundMethod || record.refund_method || "cash"),
       refundStatus: record.refundStatus || "pending",
       originalCreatedAt: record.createdAt || "",
     });
@@ -535,7 +541,7 @@ function ReturnsTable({ dir, loading, records, onView, onEdit, onDelete }) {
   return (
     <>
       <div className="mt-3 hidden overflow-auto pb-1 xl:block">
-        <div className="min-w-[1460px]">
+        <div className="min-w-[1560px]">
           <div className="sticky top-0 z-20 grid grid-cols-[11rem_12rem_12rem_minmax(18rem,1.35fr)_9rem_8.5rem_9rem_8rem_8.5rem] rounded-xl border border-white/10 bg-zinc-950/85 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-zinc-400 shadow-lg shadow-black/20 backdrop-blur-xl" dir={dir}>
             <CellHeader>الإجراء</CellHeader>
             <CellHeader>رقم المرتجع / رقم الطلب</CellHeader>
@@ -562,7 +568,12 @@ function ReturnsTable({ dir, loading, records, onView, onEdit, onDelete }) {
                 <ItemsCell record={record} />
                 <AmountCell value={record.refundAmount} />
                 <div className="flex justify-center px-2"><StatusBadge value={record.returnStatus} /></div>
-                <div className="flex justify-center px-2"><StatusBadge value={record.refundStatusLabel} /></div>
+                <div className="flex flex-col items-center justify-center gap-1 px-2">
+                  <StatusBadge value={record.refundStatusLabel} />
+                  <span className="max-w-full truncate rounded-full border border-cyan-400/25 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-bold text-cyan-100">
+                    {record.refundMethodLabel}
+                  </span>
+                </div>
                 <div className="flex justify-center px-2">
                   <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold ${record.restock ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100" : "border-zinc-500/25 bg-zinc-500/10 text-zinc-300"}`}>
                     {record.restock ? "تمت الإعادة" : "غير معاد"}
@@ -591,6 +602,7 @@ function ReturnsTable({ dir, loading, records, onView, onEdit, onDelete }) {
               <InfoPill label="الاسترداد" value={formatCurrency(record.refundAmount)} />
               <InfoPill label="المخزون" value={record.restock ? "تمت الإعادة" : "غير معاد"} />
               <InfoPill label="حالة الاسترداد" value={record.refundStatusLabel} />
+              <InfoPill label="طريقة الاسترداد" value={record.refundMethodLabel} />
               <InfoPill label="التاريخ" value={formatShortDate(record.createdAt)} />
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -1120,8 +1132,8 @@ function normalizeReturnRecord(record, orderMap) {
     returnStatusLabel: humanizeKey(returnStatus),
     refundStatus,
     refundStatusLabel: humanizeKey(refundStatus),
-    refundMethod: text(record.refundMethod || "same_payment_method"),
-    refundMethodLabel: humanizeKey(record.refundMethod || "same_payment_method"),
+    refundMethod: normalizeRefundMethod(record.refundMethod || record.refund_method || "cash"),
+    refundMethodLabel: humanizeKey(record.refundMethod || record.refund_method || "cash"),
     trackingNumber: text(record.trackingNumber || order.tracking_number),
     shippingProvider: text(record.shippingProvider || order.shipping_provider),
     restock: Boolean(record.restock),
@@ -1180,8 +1192,8 @@ function normalizeOrderReturn(order) {
     returnStatusLabel: humanizeKey(returnStatus),
     refundStatus,
     refundStatusLabel: humanizeKey(refundStatus),
-    refundMethod: text(order.refund_method || order.payment_method || "same_payment_method"),
-    refundMethodLabel: humanizeKey(order.refund_method || order.payment_method || "same_payment_method"),
+    refundMethod: normalizeRefundMethod(order.refund_method || order.refundMethod || order.payment_method || "cash"),
+    refundMethodLabel: humanizeKey(order.refund_method || order.refundMethod || order.payment_method || "cash"),
     trackingNumber: text(order.tracking_number || order.shipping_tracking_number),
     shippingProvider: text(order.shipping_provider),
     restock: Boolean(order.stock_reverted_at || order.inventory_rollback_done),
@@ -1213,7 +1225,8 @@ function buildReturnTimeline(record, returnStatus) {
     { label: "تم إنشاء المرتجع", at: record.createdAt },
     { label: `حالة المرتجع: ${humanizeKey(returnStatus)}`, at: record.updatedAt || record.createdAt },
     { label: `حالة الاسترداد: ${humanizeKey(record.refundStatus || inferRefundStatus(returnStatus))}`, at: record.updatedAt || record.createdAt },
-  ];
+    record.refundMethod ? { label: `طريقة الاسترداد: ${humanizeKey(record.refundMethod)}`, at: record.updatedAt || record.createdAt } : null,
+  ].filter(Boolean);
 }
 
 function buildOrderTimeline(order) {
@@ -1221,7 +1234,8 @@ function buildOrderTimeline(order) {
     { label: "تم إنشاء الطلب", at: order.created_at },
     { label: "تم تسجيل المرتجع", at: order.returned_at || order.return_completed_at || order.refunded_at || order.created_at },
     { label: `الحالة الحالية: ${humanizeKey(order.return_status || order.status || "returned")}`, at: order.refunded_at || order.return_completed_at || order.updated_at || order.created_at },
-  ];
+    order.refund_method ? { label: `طريقة الاسترداد: ${humanizeKey(order.refund_method)}`, at: order.refunded_at || order.return_completed_at || order.updated_at || order.created_at } : null,
+  ].filter(Boolean);
 }
 
 function buildFormReturnItems(record) {
@@ -1241,8 +1255,8 @@ function humanizeKey(value) {
   const normalized = text(value).replace(/_/g, " ");
   const labels = {
     cash: "نقدي",
-    wallet: "محفظة",
-    bank_transfer: "تحويل بنكي",
+    vodafone_cash: "Vodafone Cash",
+    instapay: "InstaPay",
     card: "بطاقة",
     same_payment_method: "نفس وسيلة الدفع",
     pending: "قيد الانتظار",

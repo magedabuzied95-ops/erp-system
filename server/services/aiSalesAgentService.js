@@ -17,6 +17,7 @@ import {
   getConversationMemory,
   updateConversationMemory,
 } from "./aiConversationMemory.js";
+import { ensureAiConversationMemorySchema } from "./aiConversationMemoryService.js";
 import { extractShoeSize } from "./aiMessageExtractors.js";
 import { guardAIReply } from "./aiSafetyGuard.js";
 import { detectEscalation } from "./aiEscalationDetector.js";
@@ -976,6 +977,7 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
 
 export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search = "", messageLimit = 30 } = {}) => {
   await ensureAiSalesAgentSchema();
+  await ensureAiConversationMemorySchema();
   const clauses = ["s.tenant_id = $1"];
   const params = [tenantId, Math.min(1000, Math.max(1, int(limit, 50)))];
   const inboxMessageLimit = Math.min(100, Math.max(1, int(messageLimit, 30)));
@@ -1048,6 +1050,13 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       c.external_conversation_id,
       c.customer_avatar_url,
       c.metadata AS channel_metadata,
+      acm.preferences AS conversation_memory_preferences,
+      acm.last_products AS conversation_memory_last_products,
+      acm.shopping_intent AS conversation_memory_shopping_intent,
+      acm.lead_quality_score AS conversation_memory_lead_quality_score,
+      acm.engagement_score AS conversation_memory_engagement_score,
+      acm.intent_score AS conversation_memory_intent_score,
+      acm.updated_at AS conversation_memory_updated_at,
       COALESCE(c.last_message_at, s.updated_at) AS last_message_at,
       e.last_webhook_event_at,
       e.last_webhook_status,
@@ -1084,6 +1093,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
     FROM ai_support_sessions s
     LEFT JOIN latest m ON m.session_id = s.session_id AND m.tenant_id = s.tenant_id
     LEFT JOIN ai_channel_conversations c ON c.tenant_id = s.tenant_id AND c.external_conversation_id = s.session_id
+    LEFT JOIN ai_conversation_memories acm ON acm.tenant_id = s.tenant_id AND acm.session_id = s.session_id
     LEFT JOIN latest_event e ON e.conversation_id = s.session_id
     LEFT JOIN latest_interaction li ON li.session_id = s.session_id
     LEFT JOIN ai_customer_profiles p ON p.id = COALESCE(c.customer_profile_id, li.profile_id) AND p.tenant_id = s.tenant_id
@@ -1300,17 +1310,32 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       },
       memories,
     });
+    const conversationAiMemory = buildDashboardAiMemory(conversation);
+    const rememberedProducts = productsFromDashboardMemory(conversationAiMemory);
+    const selectedProduct = conversation.current_product || conversation.product || conversation.channel_metadata?.current_product || conversation.channel_metadata?.last_viewed_product || rememberedProducts[0] || null;
+    const projectedCurrentIntent = text(
+      conversation.detected_intent ||
+      conversationAiMemory.preferences?.last_intent ||
+      conversationAiMemory.preferences?.lastIntent ||
+      conversationAiMemory.last_intent ||
+      conversationAiMemory.lastIntent ||
+      conversation.conversation_memory_shopping_intent ||
+      ""
+    );
     const salesIntelligence = await buildSalesConversationIntelligence({
       tenantId,
       conversation: {
         ...conversation,
         customer_profile: customerProfile,
+        current_product: selectedProduct,
+        product: selectedProduct,
+        ai_memory: conversationAiMemory,
       },
       messages,
       draftOrders,
       conversationFollowups,
-      recommendations: [],
-      selectedProduct: conversation.current_product || conversation.product || conversation.channel_metadata?.current_product || conversation.channel_metadata?.last_viewed_product || null,
+      recommendations: rememberedProducts,
+      selectedProduct,
       currentStateRow,
       existingJourneyEvents,
     }).catch(() => ({
@@ -1372,6 +1397,11 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       last_webhook_event_at: conversation.last_webhook_event_at || null,
       last_webhook_status: conversation.last_webhook_status || "",
       channel_metadata: conversation.channel_metadata || {},
+      ai_memory: conversationAiMemory,
+      current_product: selectedProduct,
+      product: selectedProduct,
+      detected_intent: projectedCurrentIntent || conversation.detected_intent || "",
+      current_intent: projectedCurrentIntent || conversation.detected_intent || "",
       customer_profile: customerProfile,
       messages,
       message_count: totalMessages,
@@ -1408,7 +1438,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       closed_at: conversation.closed_at,
       lead_type: leadType,
       lead_badge: leadBadgeKey(leadType),
-      lead_score: numeric(conversation.memory_score, 0),
+      lead_score: Math.max(numeric(conversation.memory_score, 0), numeric(conversation.conversation_memory_lead_quality_score, 0), numeric(conversation.conversation_memory_intent_score, 0)),
       unread: conversation.latest_sender_type === "customer" || conversation.needs_human_support === true || conversation.conversation_status === "human_takeover",
       waiting: conversation.due_followup_count > 0 || (conversation.updated_at && Date.now() - new Date(conversation.updated_at).getTime() > 15 * 60 * 1000),
       last_activity_at: conversation.last_message_at || conversation.updated_at,
@@ -2025,6 +2055,96 @@ const latestProducts = (messages = []) =>
     { requireProductUrl: true }
   ).slice(0, 6);
 
+const buildDashboardAiMemory = (conversation = {}) => {
+  const channelMemory = conversation.channel_metadata?.ai_memory && typeof conversation.channel_metadata.ai_memory === "object"
+    ? conversation.channel_metadata.ai_memory
+    : {};
+  const channelPreferences = channelMemory.preferences && typeof channelMemory.preferences === "object" ? channelMemory.preferences : {};
+  const storedPreferences = conversation.conversation_memory_preferences && typeof conversation.conversation_memory_preferences === "object"
+    ? conversation.conversation_memory_preferences
+    : {};
+  const preferences = {
+    ...channelPreferences,
+    ...storedPreferences,
+  };
+  const lastProducts = [
+    ...asArray(conversation.conversation_memory_last_products),
+    ...asArray(channelMemory.last_products),
+    ...asArray(channelMemory.lastProducts),
+  ];
+  const lastProductCards = [
+    ...asArray(preferences.last_product_cards),
+    ...asArray(preferences.lastProductCards),
+    ...asArray(channelMemory.last_product_cards),
+    ...asArray(channelMemory.lastProductCards),
+  ];
+  const activeProductId = text(
+    preferences.active_product_id ||
+    preferences.activeProductId ||
+    preferences.selected_product_id ||
+    preferences.selectedProductId ||
+    preferences.last_product_id ||
+    channelMemory.active_product_id ||
+    channelMemory.activeProductId ||
+    channelMemory.selectedProductId ||
+    channelMemory.last_product_id ||
+    ""
+  );
+  return {
+    ...channelMemory,
+    preferences,
+    last_products: lastProducts,
+    lastProducts,
+    last_product_cards: lastProductCards,
+    lastProductCards: lastProductCards,
+    active_product_id: activeProductId,
+    activeProductId,
+    selected_product_id: text(preferences.selected_product_id || preferences.selectedProductId || activeProductId),
+    selectedProductId: text(preferences.selectedProductId || preferences.selected_product_id || activeProductId),
+    last_product_id: text(preferences.last_product_id || activeProductId),
+    lastIntent: text(preferences.lastIntent || preferences.last_intent || conversation.conversation_memory_shopping_intent || ""),
+    last_intent: text(preferences.last_intent || preferences.lastIntent || conversation.conversation_memory_shopping_intent || ""),
+    activeSize: text(preferences.active_size || preferences.activeSize || channelMemory.activeSize || ""),
+    activeColor: text(preferences.active_color || preferences.activeColor || preferences.selected_color || preferences.selectedColor || channelMemory.activeColor || ""),
+    buyingStage: text(preferences.buying_stage || preferences.buyingStage || channelMemory.buyingStage || conversation.conversation_memory_shopping_intent || ""),
+  };
+};
+
+const productsFromDashboardMemory = (memory = {}) => {
+  const preferences = memory.preferences || {};
+  const products = [
+    ...asArray(memory.last_product_cards),
+    ...asArray(memory.lastProductCards),
+    ...asArray(preferences.last_product_cards),
+    ...asArray(preferences.lastProductCards),
+    ...asArray(memory.last_products),
+    ...asArray(memory.lastProducts),
+    preferences.selected_product_context,
+    preferences.selectedProductContext,
+    preferences.last_product,
+    preferences.lastProduct,
+    memory.last_product,
+    memory.lastProduct,
+  ].filter((product) => product && typeof product === "object" && (product.id || product.product_id || product.name || product.title));
+  const activeProductId = text(memory.active_product_id || memory.activeProductId || preferences.active_product_id || preferences.last_product_id || "");
+  if (activeProductId && !products.length) {
+    products.push({
+      id: activeProductId,
+      product_id: activeProductId,
+      name: text(preferences.last_product_name || preferences.lastProductName || memory.last_product_name || memory.lastProductName || ""),
+      title: text(preferences.last_product_name || preferences.lastProductName || memory.last_product_name || memory.lastProductName || ""),
+      product_url: text(preferences.last_product_url || preferences.product_url || ""),
+    });
+  }
+  return filterAiEligibleProducts(products, { requireProductUrl: false })
+    .reduce((items, product) => {
+      const key = String(product.product_id || product.id || "");
+      if (key && !items.some((item) => String(item.product_id || item.id || "") === key)) items.push(product);
+      return items;
+    }, [])
+    .slice(0, 8);
+};
+
 const realProductPrice = (product = {}) => {
   const resolved = resolveCustomerDisplayPrice(product);
   const raw = numeric(product.final_price || product.sale_price || product.price || product.product_price, 0);
@@ -2367,8 +2487,16 @@ export const loadAiInboxRecommendations = async ({ tenantId, conversationId, lim
   }
   const lastMessage = latestCustomerMessage(conversation.messages) || conversation.latest_message_preview || conversation.last_message || "";
   const discussed = latestProducts(conversation.messages);
+  const memory = buildDashboardAiMemory(conversation);
+  const remembered = productsFromDashboardMemory(memory);
+  const searchQuery = remembered.length
+    ? text(remembered[0]?.name || remembered[0]?.title || remembered[0]?.product_name || lastMessage)
+    : lastMessage;
   const searched = await searchAiSalesProducts({ tenantId, query: lastMessage, limit });
-  const products = filterAiEligibleProducts([...discussed, ...searched], { requireProductUrl: true })
+  const rememberedSearch = remembered.length && searchQuery !== lastMessage
+    ? await searchAiSalesProducts({ tenantId, query: searchQuery, limit }).catch(() => [])
+    : [];
+  const products = filterAiEligibleProducts([...remembered, ...discussed, ...rememberedSearch, ...searched], { requireProductUrl: false })
     .filter((product) => product?.id || product?.product_id)
     .reduce((items, product) => {
       const key = String(product.id || product.product_id);
@@ -2388,8 +2516,11 @@ export const loadAiInboxRecommendations = async ({ tenantId, conversationId, lim
   }).catch(() => null);
   return {
     conversation_id: conversationId,
-    intent: extractSalesIntent(lastMessage),
+    intent: memory.last_intent || memory.lastIntent || extractSalesIntent(lastMessage),
     products,
+    memory,
+    active_product_id: memory.active_product_id || memory.activeProductId || "",
+    projection_source: remembered.length ? "conversation_memory" : "latest_message_search",
     sales_intelligence: intelligence,
     sales_conversation_state: intelligence?.state || conversation.sales_conversation_state || null,
     conversion_probability: intelligence?.conversion || conversation.conversion_probability || {},
@@ -2735,6 +2866,8 @@ const commerceReplyForIntent = (intent = "", productContext = null, detectedSize
 };
 
 const currentProductForConversation = (conversation = {}, products = []) => {
+  const memoryProducts = productsFromDashboardMemory(conversation.ai_memory || buildDashboardAiMemory(conversation));
+  if (memoryProducts.length) return memoryProducts[0];
   const fromConversation = [
     conversation.current_product,
     conversation.product,

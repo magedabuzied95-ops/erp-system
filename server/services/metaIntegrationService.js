@@ -9032,9 +9032,19 @@ const rememberPresentedProductSnapshot = ({ conversationId = "", snapshot = {}, 
 };
 
 const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIntent = "", metadata = {}, inboundKey: explicitInboundKey = "", inboundMetaMid: explicitInboundMetaMid = "" } = {}) => {
-  const orchestrated = orchestrateFinalReply({ message, replyText, detectedIntent, metadata });
+  const preserveReplyText = Boolean(metadata?.force_reply_text_passthrough);
+  const orchestrated = preserveReplyText ? { text: text(replyText), metadata: { ...metadata } } : orchestrateFinalReply({ message, replyText, detectedIntent, metadata });
   let finalReplyText = orchestrated.text;
   let finalMetadata = orchestrated.metadata;
+  if (preserveReplyText) {
+    finalReplyText = text(replyText);
+    finalMetadata = {
+      ...finalMetadata,
+      replyOwner: finalMetadata.replyOwner || "ai_brain_v2",
+      replySource: finalMetadata.replySource || "ai_brain_v2",
+      replyPath: Array.from(new Set([...(asArray(finalMetadata.replyPath)), "v2_product_presentation"])),
+    };
+  }
   if (detectStaleProductPresentationReply(finalReplyText)) {
     logStaleReplyPath({
       source: metadata.handler || metadata.replySource || detectedIntent || "sendAndLogMetaText",
@@ -17052,14 +17062,16 @@ export const processMetaWebhook = async ({ req } = {}) => {
           message,
           text: finalReplyText,
           detectedIntent: "model_color_limit_intro",
-          metadata: { ...finalOutboundMetadata, model_color_limit_applied: true, product_card_count: productCards.length },
+          metadata: { ...finalOutboundMetadata, model_color_limit_applied: true, product_card_count: productCards.length, force_reply_text_passthrough: true },
         });
       }
+      const v2ProductPresentationReply = productCards.length > 0 && modelNameSearch && /أكيد يا فندم|جوردن 4 متوفرة بالألوان دي|فيه لون عجبك أحجزهولك؟/.test(text(replyText));
+      const replyTextForSend = v2ProductPresentationReply ? text(replyText) : finalOutbound.text;
       const sendResult = await sendMetaInboxOutboundMessage({
         tenantId: config.tenant_id,
         channel: message.channel,
         recipientId: message.external_customer_id,
-        messageText: finalReplyText,
+        messageText: replyTextForSend,
         conversationId: message.external_conversation_id,
         productCards,
         productCardLimit: productCards.length || productCardLimit,
@@ -17153,7 +17165,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
       const inserted = await appendAiGeneratedSupportReply({
         tenantId: config.tenant_id,
         sessionId: message.external_conversation_id,
-        answer: outboundPreview,
+        answer: replyTextForSend,
         detectedIntent: aiPayload.detected_intent || "",
         suggestedProducts: productCards,
         suggestedActions: productCards.length ? META_COMMERCE_ACTIONS : [],
@@ -17184,7 +17196,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
         direction: "outbound",
         externalCustomerId: message.external_customer_id,
         conversationId: message.external_conversation_id,
-        messagePreview: outboundPreview,
+        messagePreview: replyTextForSend,
         status: "sent",
         metadata: {
           meta_message_id: sendResult?.message_id || "",
@@ -17212,7 +17224,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
           confidence: latestDebugClassification?.confidence ?? message.orchestratorIntent?.confidence ?? aiPayload.confidence,
           selected_route: latestDebugRoute || aiPayload.route || aiPayload.brain || "AI support flow",
           memory_changes: compactMemoryForDebug(getConversationMemory(message.external_conversation_id) || {}),
-          reply_preview: outboundPreview,
+          reply_preview: replyTextForSend,
           skipped_duplicate: false,
           handled_reason: aiPayload.detected_intent || "",
           inbound_key: inboundKey,

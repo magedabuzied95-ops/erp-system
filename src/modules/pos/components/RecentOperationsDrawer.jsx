@@ -238,8 +238,8 @@ const returnModes = [
 
 const refundMethods = [
   { key: "cash", label: "نقدي" },
-  { key: "original", label: "نفس وسيلة الدفع" },
-  { key: "wallet", label: "محفظة العميل" },
+  { key: "vodafone_cash", label: "Vodafone Cash" },
+  { key: "instapay", label: "InstaPay" },
 ];
 
 const RECENT_ORDERS_PAGE_SIZE = 10;
@@ -918,7 +918,7 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
         exchange_difference: mode === "exchange" ? exchangeDifference : 0,
         items: selectedItems,
       });
-      toast.success(refundMethod === "wallet" ? "تم إضافة الرصيد إلى محفظة العميل" : mode === "exchange" ? "تم إنشاء استبدال" : "تم إنشاء مرتجع");
+      toast.success(mode === "exchange" ? "تم إنشاء استبدال" : "تم إنشاء مرتجع");
       onCreated?.({
         mode,
         order: response.order,
@@ -1004,11 +1004,6 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
                 </button>
               ))}
             </div>
-            {refundMethod === "wallet" && !order.customer_id ? (
-              <div className="mt-3 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-100">
-                يجب ربط الفاتورة بعميل لاستخدام محفظة العميل.
-              </div>
-            ) : null}
           </div>
 
           <div className="mt-4 overflow-hidden rounded-2xl border border-white/10">
@@ -1071,7 +1066,7 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
           <button
             type="button"
             onClick={submit}
-            disabled={submitting || (refundMethod === "wallet" && !order.customer_id)}
+            disabled={submitting}
             className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-400 text-sm font-black text-zinc-950 disabled:opacity-50"
           >
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

@@ -235,7 +235,6 @@ const isLegacyFallbackAnswer = (answer = "") => {
     "دور على أي موديل",
     "الموديل ده مش متوفر حاليا",
     "أقدر أساعدك في المقاسات أو الموديلات",
-    "ده أقرب اختيار عندي",
     "الموديل ده مش موجود دلوقتي",
     "مش نفس الموديل بالظبط",
     "أقرب اختيار بصريا",
@@ -269,12 +268,11 @@ const legacyTextKeyForAnswer = (answer = "") => {
   if (normalized.includes(normalizeArabic("دور على أي موديل"))) return "legacy_browse_any_model_fallback";
   if (normalized.includes(normalizeArabic("الموديل ده مش متوفر حاليا"))) return "legacy_unavailable_model_fallback";
   if (normalized.includes(normalizeArabic("أقدر أساعدك في المقاسات أو الموديلات"))) return "legacy_generic_support_help";
-  if (normalized.includes(normalizeArabic("ده أقرب اختيار عندي"))) return "legacy_nearest_choice_fallback";
   if (normalized.includes(normalizeArabic("الموديل ده مش موجود دلوقتي"))) return "legacy_unavailable_model_fallback";
   if (normalized.includes(normalizeArabic("مش نفس الموديل بالظبط"))) return "legacy_near_match_intro";
   if (normalized.includes(normalizeArabic("أقرب اختيار بصريا"))) return "legacy_visual_near_match";
   if (normalized.includes(normalizeArabic("أقرب بدائل شبهه"))) return "legacy_close_alternatives";
-  return "legacy_final_text_template_overridden";
+  return "legacy_nearest_match_fallback";
 };
 
 export const logLegacyTextOverrideAudit = ({
@@ -787,7 +785,12 @@ export const composeAiSalesReply = async ({
 
   const productCards = selectedProducts(output);
   const imageCards = selectedImageCards(output);
+  const isAiBrainV2ProductPresentation =
+    text(output?.debug?.source || output?.debug?.engine || output?.ai_brain_version || "").toLowerCase().includes("aibrainv2") &&
+    ["product_search", "more_images"].includes(text(output?.detected_intent || detectedIntent || intent?.type || "").toLowerCase()) &&
+    (productCards.length > 0 || imageCards.length > 0);
   if (
+    !isAiBrainV2ProductPresentation &&
     (productCards.length > 0 || imageCards.length > 0) &&
     (isLegacyFallbackAnswer(output.answer || output.text || "") || !hasCommerceSignals(output.answer || output.text || ""))
   ) {

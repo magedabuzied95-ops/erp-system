@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import { composeAiSalesReply } from "../services/aiSalesReplyComposerService.js";
 
 const productCard = {
@@ -23,8 +23,7 @@ const imageCard = {
 const legacyPhrases = [
   "لو عندك مقاس معين قولي عليه",
   "الموديل ده مش متوفر حاليًا",
-  "ده أقرب اختيار عندي",
-];
+  ];
 
 const runCase = async ({
   name,
@@ -89,14 +88,14 @@ const main = async () => {
   const case3 = await runCase({
     name: "image_cards_nearest_choice",
     response: {
-      answer: legacyPhrases[2],
+      answer: "\u062f\u0647 \u0623\u0642\u0631\u0628 \u0627\u062e\u062a\u064a\u0627\u0631 \u0628\u0635\u0631\u064a",
       detected_intent: "image_request",
       suggested_products: [],
       product_cards: [],
       image_cards: [imageCard],
       visual_attachments: [imageCard],
     },
-    expectedLegacy: legacyPhrases[2],
+    expectedLegacy: "\u062f\u0647 \u0623\u0642\u0631\u0628 \u0627\u062e\u062a\u064a\u0627\u0631 \u0628\u0635\u0631\u064a",
     expectReplaced: true,
     expectedSignals: ["لقيت", "اختيارات", "صورة", "كروت", "أطلعلك"],
   });
@@ -124,3 +123,4 @@ main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });
+

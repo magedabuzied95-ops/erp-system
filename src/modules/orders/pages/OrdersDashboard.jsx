@@ -360,6 +360,13 @@ const paymentMethodLabels = (language) => ({
   paymob: "Paymob",
   split: localizedCopy(language, "\u0645\u062a\u0639\u062f\u062f", "Split"),
 });
+const refundMethodLabel = (value = "") => {
+  const raw = lower(value);
+  if (raw === "cash") return "نقدي";
+  if (raw === "vodafone_cash") return "Vodafone Cash";
+  if (raw === "instapay") return "InstaPay";
+  return value || "-";
+};
 const paymentMethodIcon = {
   cash: Banknote,
   card: CreditCard,
@@ -519,6 +526,15 @@ const buildTimeline = (order = {}) => {
       done: true,
       tone: "rose",
     });
+    if (order.refund_method) {
+      items.push({
+        key: "refund_method",
+        label: `Refund method: ${refundMethodLabel(order.refund_method)}`,
+        at: order.returned_at || order.return_completed_at || order.refunded_at || order.updated_at,
+        done: true,
+        tone: "cyan",
+      });
+    }
   }
   return items;
 };
@@ -1346,6 +1362,7 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
             <InfoTile icon={Phone} label={t("orders.drawer.phone")} value={order.customer_phone || t("orders.fallback.noPhone")} />
             <InfoTile icon={User} label="Seller" value={getSellerDisplayName(order) || "n/a"} />
             <InfoTile icon={CreditCard} label="Payment" value={`${order.payment_method || "n/a"} · ${paymentBadgeValue(order)}`} />
+            {order.refund_method ? <InfoTile icon={RotateCcw} label="Refund method" value={refundMethodLabel(order.refund_method)} /> : null}
             <InfoTile icon={Truck} label="Shipping" value={`${order.shipping_provider || "manual"} · ${order.shipping_status || "pending"}`} />
             <InfoTile icon={DollarSign} label={t("orders.table.total")} value={formatCurrency(totalValue(order))} />
             {isEditedPaymentOrder(order) ? <InfoTile icon={Pencil} label="Invoice edit payment" value={`Original paid: ${formatCurrency(editOriginalPaidOf(order))} / Additional paid: ${formatCurrency(editAdditionalPaidOf(order))} / Final total: ${formatCurrency(totalValue(order))}`} /> : null}
@@ -1441,6 +1458,7 @@ function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate,
           <InfoTile icon={Phone} label={t("orders.drawer.phone")} value={order.customer_phone || t("orders.fallback.noPhone")} />
           <InfoTile icon={User} label="Seller" value={sellerName || "n/a"} />
           <InfoTile icon={CreditCard} label="Payment" value={`${order.payment_method || "n/a"} / ${paymentBadgeValue(order)}`} />
+          {order.refund_method ? <InfoTile icon={RotateCcw} label="Refund method" value={refundMethodLabel(order.refund_method)} /> : null}
           <InfoTile icon={DollarSign} label={t("orders.table.total")} value={formatCurrency(totalValue(order))} />
           {isEditedPaymentOrder(order) ? <InfoTile icon={Pencil} label="Invoice edit payment" value={`Original paid: ${formatCurrency(editOriginalPaidOf(order))} / Additional paid: ${formatCurrency(editAdditionalPaidOf(order))} / Final total: ${formatCurrency(totalValue(order))}`} /> : null}
           <InfoTile icon={MapPin} label={t("orders.drawer.address")} value={address || t("orders.fallback.noAddress")} />
@@ -2080,6 +2098,7 @@ const timelineDot = (tone) => ({
   emerald: "bg-emerald-300 shadow-[0_0_0_4px_rgba(52,211,153,0.12)]",
   rose: "bg-rose-300 shadow-[0_0_0_4px_rgba(251,113,133,0.12)]",
   blue: "bg-blue-300 shadow-[0_0_0_4px_rgba(96,165,250,0.12)]",
+  cyan: "bg-cyan-300 shadow-[0_0_0_4px_rgba(34,211,238,0.12)]",
 }[tone] || "bg-zinc-400");
 
 export default OrdersDashboard;
