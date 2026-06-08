@@ -7041,18 +7041,33 @@ function ShiftCloseModal({
                 Print
               </button>
             </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <ShiftReportItem label={copy.netRevenue} value={formatCurrency(netRevenue)} subtitle={copy.netRevenueHelp} />
-              <ShiftReportItem label="Invoices" value={Number(totals.invoice_count || 0).toLocaleString()} />
-              <ShiftReportItem label="Returns" value={formatCurrency(totals.returns || 0)} />
-              <ShiftReportItem label="Discounts" value={formatCurrency(totals.discounts || 0)} />
-              <ShiftReportItem label="Cash" value={formatCurrency(totals.cash || 0)} />
-              <ShiftReportItem label="Card" value={formatCurrency(totals.card || 0)} />
-              <ShiftReportItem label="Wallet" value={formatCurrency(totals.wallet || 0)} />
-              <ShiftReportItem label="POS Daily Expenses" value={formatCurrency(totals.pos_expenses || 0)} />
-              <ShiftReportItem label="Employee Advances" value={formatCurrency(totals.employee_advances || 0)} />
-              <ShiftReportItem label="Total Cash Out" value={formatCurrency(totals.total_cash_out || 0)} />
-              <ShiftReportItem label="Net cash expected" value={formatCurrency(totals.net_cash_expected ?? totals.expected_cash ?? shift.expected_cash)} />
+            <div className="mt-4 grid gap-4 xl:grid-cols-3">
+              <AccountingLedgerSection title="ملخص الكاش" subtitle="Cash flow and drawer impact" accent="amber">
+                <AccountingLedgerRow label="مبيعات نقدي" value={formatCurrency(totals.cash || 0)} />
+                <AccountingLedgerRow label="مرتجعات نقدي" value={formatCurrency(totals.returns || 0)} />
+                <AccountingLedgerRow label="مصروفات نقدية" value={formatCurrency(Number(totals.pos_expenses_cash || 0) + Number(totals.employee_advances_cash || 0))} />
+                <AccountingLedgerRow
+                  label="صافي الدرج المتوقع"
+                  value={formatCurrency(totals.net_cash_expected ?? totals.expected_cash ?? shift.expected_cash)}
+                  subtitle="Cash sales minus cash outflows"
+                  strong
+                  highlight
+                />
+              </AccountingLedgerSection>
+
+              <AccountingLedgerSection title="وسائل الدفع" subtitle="Non-cash settlement mix" accent="emerald">
+                <AccountingLedgerRow label="بطاقات" value={formatCurrency(totals.card || 0)} />
+                <AccountingLedgerRow label="محفظة" value={formatCurrency(totals.wallet || 0)} />
+                <AccountingLedgerRow label="InstaPay" value={formatCurrency(totals.wallet || 0)} subtitle="Included in wallet total" />
+                <AccountingLedgerRow label="Vodafone Cash" value={formatCurrency(0)} subtitle="Not separated in current shift report" />
+              </AccountingLedgerSection>
+
+              <AccountingLedgerSection title="النشاط" subtitle="Operational activity at a glance" accent="cyan">
+                <AccountingLedgerRow label="عدد الفواتير" value={Number(totals.invoice_count || 0).toLocaleString()} />
+                <AccountingLedgerRow label="الخصومات" value={formatCurrency(totals.discounts || 0)} />
+                <AccountingLedgerRow label="سلف الموظفين" value={formatCurrency(totals.employee_advances || 0)} />
+                <AccountingLedgerRow label="مدة الشيفت" value={shiftDuration || "-"} />
+              </AccountingLedgerSection>
             </div>
             <div className={`mt-4 rounded-2xl border p-4 ${paymentWarnings.length ? "border-amber-400/25 bg-amber-500/10 text-amber-100" : "border-emerald-400/20 bg-emerald-500/10 text-emerald-100"}`}>
               <div className="flex items-center gap-2 text-sm font-black">
