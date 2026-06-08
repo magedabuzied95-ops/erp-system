@@ -16929,9 +16929,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
       });
       productCards = [];
     }
-    const replyText = modelNameSearch && productCards.length >= 2
-      ? [modelColorLimitIntro, reply.text || aiPayload.answer || ""].filter(Boolean).join("\n")
-      : reply.text || aiPayload.answer || "";
+    const replyText = reply.text || aiPayload.answer || "";
     if (productCards.length && repeatedProductCards({ conversationId: message.external_conversation_id, productCards }) && !explicitlyAskedForProductCards(message.message_text)) {
       console.log("ai_inbox_repeated_product_card_prevented", {
         tenant_id: config.tenant_id,

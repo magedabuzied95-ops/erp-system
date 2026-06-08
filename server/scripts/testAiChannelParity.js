@@ -699,6 +699,14 @@ const runRealEntryDryRun = async ({ inboundText }) => {
     instagram: summarizeUnifiedReply(instagram),
     website: summarizeUnifiedReply(website),
   };
+  if (inboundText === PHRASES.jordan4Images) {
+    const messengerText = text(captures.messenger.text || "");
+    const badLegacyMessengerIntro = /ده أقرب اختيار عندي/i.test(messengerText);
+    const hasV2MessengerIntro = messengerText.includes("أكيد يا فندم") && messengerText.includes("جوردن 4 متوفرة بالألوان دي");
+    if (badLegacyMessengerIntro || !hasV2MessengerIntro) {
+      throw new Error(`[AI_MESSENGER_V2_TEXT_FAIL] ${JSON.stringify({ text: messengerText })}`);
+    }
+  }
   console.log("[AI_CHANNEL_REAL_ENTRY_DRY_RUN]", {
     inbound_text: inboundText,
     signatures: Object.fromEntries(Object.entries(captures).map(([channel, capture]) => [channel, normalizedDecisionSignature(capture)])),
