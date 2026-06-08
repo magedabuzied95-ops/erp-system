@@ -66,6 +66,19 @@ const safeClearScanner = (scanner) => {
   }
 };
 
+const hasBarcodeDetectorSupport = () =>
+  typeof window !== "undefined" && typeof window.BarcodeDetector === "function";
+
+const preferredBarcodeFormats = [
+  "qr_code",
+  "ean_13",
+  "code_128",
+  "code_39",
+  "upc_a",
+  "upc_e",
+  "ean_8",
+];
+
 export default function BarcodeScanner({
   onScan,
   onPermissionDenied,
@@ -76,6 +89,10 @@ export default function BarcodeScanner({
 }) {
   const scannerId = useId().replace(/:/g, "-");
   const html5QrCodeRef = useRef(null);
+  const nativeVideoRef = useRef(null);
+  const nativeStreamRef = useRef(null);
+  const nativeFrameRef = useRef(null);
+  const detectorActiveRef = useRef(false);
   const handledRef = useRef(false);
   const startedRef = useRef(false);
 
@@ -96,6 +113,150 @@ export default function BarcodeScanner({
 
     let active = true;
 
+    const handleDecodedValue = async (decodedText, stopCurrentScanner) => {
+      if (!active || handledRef.current) return;
+      handledRef.current = true;
+      try {
+        await stopCurrentScanner?.();
+      } catch {
+        // Ignore teardown errors during handoff.
+      }
+      startedRef.current = false;
+      onScan?.(String(decodedText || "").trim());
+    };
+
+    const stopNativeScanner = async () => {
+      detectorActiveRef.current = false;
+      if (nativeFrameRef.current) {
+        window.cancelAnimationFrame(nativeFrameRef.current);
+        nativeFrameRef.current = null;
+      }
+      const video = nativeVideoRef.current;
+      if (video) {
+        try {
+          video.pause();
+        } catch {
+          // noop
+        }
+        video.srcObject = null;
+        video.style.display = "none";
+      }
+      const stream = nativeStreamRef.current;
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+      nativeStreamRef.current = null;
+    };
+
+    const startBarcodeDetectorScanner = async () => {
+      if (!hasBarcodeDetectorSupport()) return false;
+      const video = nativeVideoRef.current;
+      if (!video) return false;
+
+      let detector;
+      try {
+        const supportedFormats = typeof window.BarcodeDetector.getSupportedFormats === "function"
+          ? await window.BarcodeDetector.getSupportedFormats()
+          : [];
+        const formats = preferredBarcodeFormats.filter((format) => supportedFormats.includes(format));
+        detector = new window.BarcodeDetector({
+          formats: formats.length ? formats : preferredBarcodeFormats,
+        });
+      } catch (error) {
+        console.warn("[barcode-scanner:barcode-detector-init-failed]", error);
+        return false;
+      }
+
+      const constraints = {
+        audio: false,
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      nativeStreamRef.current = stream;
+      video.srcObject = stream;
+      video.style.display = "block";
+      video.setAttribute("playsinline", "true");
+      video.muted = true;
+      await video.play();
+
+      detectorActiveRef.current = true;
+      startedRef.current = true;
+
+      const scanFrame = async () => {
+        if (!active || handledRef.current || !detectorActiveRef.current) return;
+        try {
+          const barcodes = await detector.detect(video);
+          const firstMatch = Array.isArray(barcodes) ? barcodes.find((item) => String(item?.rawValue || "").trim()) : null;
+          if (firstMatch?.rawValue) {
+            await handleDecodedValue(firstMatch.rawValue, stopNativeScanner);
+            return;
+          }
+        } catch (error) {
+          console.warn("[barcode-scanner:barcode-detector-detect-failed]", error);
+        }
+        nativeFrameRef.current = window.requestAnimationFrame(scanFrame);
+      };
+
+      nativeFrameRef.current = window.requestAnimationFrame(scanFrame);
+      return true;
+    };
+
+    const startHtml5Scanner = async () => {
+      const scanner = new Html5Qrcode(scannerId);
+      console.log("[SCANNER_INSTANCE_CREATED]");
+      html5QrCodeRef.current = scanner;
+
+      const cameras = await Html5Qrcode.getCameras();
+      console.log("[SCANNER_CAMERAS]", cameras);
+      if (!Array.isArray(cameras) || cameras.length === 0) {
+        console.error("[SCANNER_NO_CAMERAS_FOUND]", { cameras });
+        onError?.(CAMERA_START_FAILED_MESSAGE);
+        return;
+      }
+
+      const preferredCamera =
+        cameras.find((camera) => /back|rear|environment/i.test(String(camera?.label || ""))) ||
+        cameras[0] ||
+        null;
+      const cameraId = preferredCamera?.id || null;
+      const facingMode = { ideal: "environment" };
+      const fps = 12;
+      const qrbox = { width: 260, height: 260 };
+
+      console.log("[SCANNER_START_CONFIG]", {
+        cameraId,
+        facingMode,
+        fps,
+        qrbox,
+      });
+
+      await scanner.start(
+        cameraId || { facingMode },
+        {
+          fps,
+          qrbox,
+          aspectRatio: 1,
+          disableFlip: false,
+          videoConstraints: {
+            facingMode,
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+        },
+        async (decodedText) => {
+          await handleDecodedValue(decodedText, () => safeStopScanner(scanner));
+        },
+        () => {}
+      );
+
+      startedRef.current = true;
+    };
+
     const startScanner = async () => {
       try {
         console.log("[SCANNER_ENV]", {
@@ -111,56 +272,14 @@ export default function BarcodeScanner({
           return;
         }
         console.log("[SCANNER_INIT_START]");
-        const scanner = new Html5Qrcode(scannerId);
-        console.log("[SCANNER_INSTANCE_CREATED]");
-        html5QrCodeRef.current = scanner;
-
-        const cameras = await Html5Qrcode.getCameras();
-        console.log("[SCANNER_CAMERAS]", cameras);
-        if (!Array.isArray(cameras) || cameras.length === 0) {
-          console.error("[SCANNER_NO_CAMERAS_FOUND]", { cameras });
-          onError?.(CAMERA_START_FAILED_MESSAGE);
-          return;
-        }
-
-        const preferredCamera =
-          cameras.find((camera) => /back|rear|environment/i.test(String(camera?.label || ""))) ||
-          cameras[0] ||
-          null;
-        const cameraId = preferredCamera?.id || null;
-        const facingMode = { ideal: "environment" };
-        const fps = 10;
-        const qrbox = { width: 240, height: 240 };
-
-        console.log("[SCANNER_START_CONFIG]", {
-          cameraId,
-          facingMode,
-          fps,
-          qrbox,
-        });
-
         try {
-          await scanner.start(
-            cameraId || { facingMode },
-            {
-              fps,
-              qrbox,
-              aspectRatio: 1,
-              disableFlip: false,
-            },
-            async (decodedText) => {
-              if (!active || handledRef.current) return;
-              handledRef.current = true;
-              try {
-                await safeStopScanner(scanner);
-              } catch {
-                // Ignore stop errors during teardown.
-              }
-              startedRef.current = false;
-              onScan?.(String(decodedText || "").trim());
-            },
-            () => {}
-          );
+          if (hasBarcodeDetectorSupport()) {
+            console.log("[SCANNER_MODE]", { mode: "barcode-detector" });
+            const startedWithDetector = await startBarcodeDetectorScanner();
+            if (startedWithDetector) return;
+          }
+          console.log("[SCANNER_MODE]", { mode: "html5-qrcode-fallback" });
+          await startHtml5Scanner();
         } catch (error) {
           console.error("[SCANNER_START_ERROR]", {
             error,
@@ -170,8 +289,6 @@ export default function BarcodeScanner({
           });
           throw error;
         }
-
-        startedRef.current = true;
       } catch (error) {
         const classified = classifyCameraError(error);
         if (!active) return;
@@ -200,13 +317,20 @@ export default function BarcodeScanner({
     return () => {
       active = false;
       handledRef.current = false;
+      detectorActiveRef.current = false;
       const scanner = html5QrCodeRef.current;
       html5QrCodeRef.current = null;
-      if (!scanner) return;
+      const nativeCleanup = stopNativeScanner();
+      if (!scanner) {
+        Promise.resolve(nativeCleanup).finally(() => {
+          startedRef.current = false;
+        });
+        return;
+      }
 
       const cleanup = startedRef.current ? safeStopScanner(scanner) : undefined;
 
-      Promise.resolve(cleanup).finally(() => {
+      Promise.allSettled([Promise.resolve(cleanup), Promise.resolve(nativeCleanup)]).finally(() => {
         startedRef.current = false;
         safeClearScanner(scanner);
       });
@@ -215,6 +339,13 @@ export default function BarcodeScanner({
 
   return (
     <div className={className}>
+      <video
+        ref={nativeVideoRef}
+        className={`${scannerClassName} hidden`}
+        autoPlay
+        muted
+        playsInline
+      />
       <div id={scannerId} className={scannerClassName} />
     </div>
   );

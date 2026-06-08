@@ -1131,17 +1131,17 @@ export const buildBarcodePrintHtml = ({
             margin-top: 4px;
           }
           .smart-qr-svg {
-            width: 84px;
+            width: 128px;
             max-width: 100%;
             border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            background: #f8fafc;
-            padding: 6px;
+            border-radius: 14px;
+            background: #ffffff;
+            padding: 10px;
           }
           .smart-qr-compact .smart-qr-svg {
-            width: 62px;
-            padding: 4px;
-            border-radius: 10px;
+            width: 92px;
+            padding: 8px;
+            border-radius: 12px;
           }
           .smart-qr-svg svg,
           .premium-smart-qr svg {
@@ -1151,15 +1151,15 @@ export const buildBarcodePrintHtml = ({
           }
           .premium-smart-qr {
             position: absolute;
-            right: 1.2mm;
-            bottom: 9mm;
+            right: 1mm;
+            bottom: 8mm;
             z-index: 2;
-            width: 11.5mm;
+            width: 16mm;
             overflow: hidden;
             border: 1px solid #e2e8f0;
-            border-radius: 2mm;
+            border-radius: 2.2mm;
             background: #ffffff;
-            padding: 0.5mm;
+            padding: 1mm;
             box-sizing: border-box;
           }
           @media print {

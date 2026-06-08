@@ -252,18 +252,21 @@ const getLabelRenderKey = (item, index, suffix = "label") =>
     index,
   ].join("-");
 
-const buildSmartQrSvgMarkup = (value = "", size = 132) => {
+const SMART_QR_SIZE = 168;
+const SMART_QR_MARGIN_MODULES = 4;
+
+const buildSmartQrSvgMarkup = (value = "", size = SMART_QR_SIZE) => {
   const safeValue = String(value || "").trim();
   if (!safeValue) return "";
   return renderToStaticMarkup(
     <QRCodeSVG
       value={safeValue}
       size={size}
-      marginSize={0}
+      marginSize={SMART_QR_MARGIN_MODULES}
       bgColor="#ffffff"
       fgColor="#111827"
-      level="M"
-      includeMargin={false}
+      level="H"
+      includeMargin
     />
   );
 };
@@ -1268,9 +1271,9 @@ function SmartQrBlock({ item, compact = false }) {
   const qrMarkup = String(item?.smartQrSvgMarkup || "").trim();
   if (!item?.showSmartProductQr || !qrMarkup) return null;
   return (
-    <div className={`mt-3 flex items-center justify-center rounded-[16px] border border-zinc-200 bg-zinc-50 p-2 ${compact ? "max-w-[22mm] self-center" : ""}`}>
+    <div className={`mt-3 flex items-center justify-center rounded-[18px] border border-zinc-200 bg-white p-3 ${compact ? "max-w-[28mm] self-center" : ""}`}>
       <div
-        className="h-auto w-full max-w-[84px] [&_svg]:h-auto [&_svg]:w-full"
+        className={`h-auto w-full [&_svg]:h-auto [&_svg]:w-full ${compact ? "max-w-[98px]" : "max-w-[128px]"}`}
         dangerouslySetInnerHTML={{ __html: qrMarkup }}
       />
     </div>
@@ -1416,7 +1419,7 @@ function PremiumRetailLabel({ item, printSettings, print = false }) {
           {item.sku}
       </div>
       {item?.showSmartProductQr ? (
-        <div className="absolute bottom-[9mm] right-[1.2mm] z-[2] w-[11.5mm] overflow-hidden rounded-[2mm] border border-zinc-200 bg-white p-[0.5mm]">
+        <div className="absolute bottom-[8mm] right-[1mm] z-[2] w-[16mm] overflow-hidden rounded-[2.2mm] border border-zinc-200 bg-white p-[1mm]">
           <div className="[&_svg]:h-auto [&_svg]:w-full" dangerouslySetInnerHTML={{ __html: item.smartQrSvgMarkup || "" }} />
         </div>
       ) : null}
