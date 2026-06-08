@@ -763,7 +763,8 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
   const returnsResult = await client.query(
       `
       SELECT COUNT(*)::int AS return_count,
-             COALESCE(SUM(refund_amount), 0)::numeric AS return_total
+             COALESCE(SUM(refund_amount), 0)::numeric AS return_total,
+             COALESCE(SUM(refund_amount) FILTER (WHERE LOWER(COALESCE(NULLIF(refund_method, ''), 'cash')) = 'cash'), 0)::numeric AS cash_return_total
       FROM returns
       WHERE shift_id = $1
         AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
@@ -908,6 +909,26 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
   const sales = salesResult.rows[0] || {};
   const returns = returnsResult.rows[0] || {};
   const posExpenses = expensesResult.rows[0] || {};
+  const cashReturnTableTotal = money(returns.cash_return_total);
+  const cashRefundEventTotal = money(
+    events.reduce((sum, event) => sum + (String(event.event_type || "").toLowerCase() === "refund_cash" ? Number(event.amount || 0) : 0), 0)
+  );
+  const cashReturnTotal = money(Math.max(cashReturnTableTotal, cashRefundEventTotal));
+  const cashOutEventTotal = money(
+    events.reduce((sum, event) => sum + (String(event.event_type || "").toLowerCase() === "cash_out" ? Number(event.amount || 0) : 0), 0)
+  );
+  const cashInEventTotal = money(
+    events.reduce((sum, event) => sum + (String(event.event_type || "").toLowerCase() === "cash_in" ? Number(event.amount || 0) : 0), 0)
+  );
+  const netCashExpected = money(
+    Number(shift.opening_cash || 0) +
+    Number(sales.cash || 0) +
+    cashInEventTotal -
+    Number(posExpenses.pos_expenses_cash || 0) -
+    Number(posExpenses.employee_advances_cash || 0) -
+    cashReturnTotal -
+    cashOutEventTotal
+  );
   return {
     shift: {
       id: Number(shift.id),
@@ -929,6 +950,9 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
       invoice_count: Number(sales.invoice_count || 0),
       discounts: money(Number(sales.discounts || 0) + Number(sales.coupon_discounts || 0)),
       returns: money(returns.return_total),
+      cash_returns: cashReturnTotal,
+      cash_return_table_total: cashReturnTableTotal,
+      cash_refund_events: cashRefundEventTotal,
       return_count: Number(returns.return_count || 0),
       cash: money(sales.cash),
       card: money(sales.card),
@@ -939,9 +963,11 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
       employee_advances: money(posExpenses.employee_advances),
       employee_advances_cash: money(posExpenses.employee_advances_cash),
       employee_advance_count: Number(posExpenses.employee_advance_count || 0),
-      total_cash_out: money(Number(posExpenses.pos_expenses_cash || 0) + Number(posExpenses.employee_advances_cash || 0)),
-      net_cash_expected: money(shift.expected_cash),
-      expected_cash: money(shift.expected_cash),
+      total_cash_out: money(Number(posExpenses.pos_expenses_cash || 0) + Number(posExpenses.employee_advances_cash || 0) + cashReturnTotal + cashOutEventTotal),
+      cash_in_events: cashInEventTotal,
+      cash_out_events: cashOutEventTotal,
+      net_cash_expected: netCashExpected,
+      expected_cash: netCashExpected,
       opening_cash: money(shift.opening_cash),
       closing_cash: shift.closing_cash === null || shift.closing_cash === undefined ? null : money(shift.closing_cash),
       cash_difference: money(shift.cash_difference ?? shift.difference),
