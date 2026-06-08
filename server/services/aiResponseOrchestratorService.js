@@ -398,9 +398,8 @@ export const orchestrateAiResponse = ({
     selectedProduct?.name
   );
   if (["PRODUCT_PRESENTATION", "ASK_SIZE", "SIZE_AVAILABLE"].includes(replyCategory) && !confirmationGuard.confirmed && !(presentationPriorityIntent && hasPresentationContext)) {
-    const safeReplyText = productContext.weakVisualMatch ? "\u0644\u0642\u064a\u062a \u0623\u0642\u0631\u0628 \u0645\u0648\u062f\u064a\u0644 \u0634\u0628\u0647\u0647 " : "\u062f\u0647 \u0623\u0642\u0631\u0628 \u0627\u062e\u062a\u064a\u0627\u0631 \u0639\u0646\u062f\u064a ";
     return {
-      replyText: safeReplyText,
+      replyText: rawReplyText,
       replyCategory: "PRODUCT_PRESENTATION_FOLLOWUP",
       templateId: "product_confirmation_guard",
       nextConversationStage,

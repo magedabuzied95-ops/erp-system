@@ -1362,6 +1362,20 @@ const orchestrateFinalReply = ({ message = {}, replyText = "", productCards = []
     replyText: ownedReply.text,
     metadata: finalMetadata,
   });
+  const protectedV2Intent = /^(product_search|more_images|product_presentation)$/i.test(text(detectedIntent));
+  if (protectedV2Intent || metadata.preserveReplyText === true || finalMetadata.protectedV2Intent === true) {
+    return {
+      text: ownedReply.text,
+      productCards,
+      metadata: {
+        ...finalMetadata,
+        compressionApplied: false,
+        suppressedFields: [],
+        protectedV2Intent: true,
+      },
+      resolvedQuestion,
+    };
+  }
   const compressed = compactReplyTextForConversation({
     conversationId: message.external_conversation_id,
     message,
@@ -7605,8 +7619,9 @@ const buildReplyOwnershipContext = ({ message = {}, detectedIntent = "", metadat
 };
 
 const ensureResponseOrchestratorReply = ({ message = {}, replyText = "", detectedIntent = "", metadata = {} } = {}) => {
+  const protectedV2Intent = /^(product_search|more_images|product_presentation)$/i.test(text(detectedIntent));
   const alreadyOrchestrated = metadata.responseOrchestratorUsed === true || metadata.replyOwner === "response_orchestrator";
-  if (metadata.preserveReplyText === true) {
+  if (metadata.preserveReplyText === true || protectedV2Intent) {
     return {
       text: replyText,
       metadata: {
@@ -7615,6 +7630,7 @@ const ensureResponseOrchestratorReply = ({ message = {}, replyText = "", detecte
         replyOwner: "response_orchestrator",
         replySource: metadata.replySource || "response_orchestrator",
         replyPath: metadata.replyPath || [detectedIntent || metadata.trigger || "preserved_reply", "response_orchestrator"].filter(Boolean).join(">"),
+        protectedV2Intent,
       },
       owner: "response_orchestrator",
       source: metadata.replySource || "response_orchestrator",
@@ -9043,7 +9059,7 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
       ...finalMetadata,
       replyOwner: finalMetadata.replyOwner || "ai_brain_v2",
       replySource: finalMetadata.replySource || "ai_brain_v2",
-      replyPath: Array.from(new Set([...(asArray(finalMetadata.replyPath)), "v2_product_presentation"])),
+      replyPath: Array.from(new Set([...(Array.isArray(finalMetadata.replyPath) ? finalMetadata.replyPath : []), "v2_product_presentation"])),
     };
   }
   if (detectStaleProductPresentationReply(finalReplyText)) {

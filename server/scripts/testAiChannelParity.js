@@ -755,6 +755,7 @@ const runRealEntryDryRun = async ({ inboundText }) => {
   };
   const legacyPhraseHits = collectLegacyPhraseHits(rawOutputs);
   const replyPathLegacyLeaks = logLines.filter((line) => line.includes(LEGACY_NEAREST_PHRASE) && /replyPath|reply_path/i.test(line));
+  const replyPreviewLegacyLeaks = logLines.filter((line) => line.includes(LEGACY_NEAREST_PHRASE) && /reply_preview|replyPreview|unified_reply_preview|last_outbound_signature_preview/i.test(line));
   if (inboundText === PHRASES.jordan4Images) {
     const messengerText = text(captures.messenger.text || "");
     const badLegacyMessengerIntro = /\u062f\u0647\s+\u0623\u0642\u0631\u0628\s+\u0627\u062e\u062a\u064a\u0627\u0631\s+\u0639\u0646\u062f\u064a/i.test(messengerText);
@@ -767,6 +768,9 @@ const runRealEntryDryRun = async ({ inboundText }) => {
     }
     if (replyPathLegacyLeaks.length) {
       throw new Error(`[AI_LEGACY_REPLY_PATH_LEAK] ${replyPathLegacyLeaks[0]}`);
+    }
+    if (replyPreviewLegacyLeaks.length) {
+      throw new Error(`[AI_LEGACY_REPLY_PREVIEW_LEAK] ${replyPreviewLegacyLeaks[0]}`);
     }
     if (legacyPhraseHits.length) {
       throw new Error(`[AI_LEGACY_PREVIEW_LEAK_DETECTED] ${JSON.stringify(legacyPhraseHits[0])}`);
