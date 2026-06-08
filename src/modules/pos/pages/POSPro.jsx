@@ -7030,6 +7030,7 @@ function ShiftCloseAuditLayout({
   varianceState,
   VarianceIcon,
 }) {
+  const sellerPerformance = Array.isArray(getShiftSellerPerformance(report)) ? getShiftSellerPerformance(report) : [];
   return (
     <>
       <section className={`mt-5 rounded-[24px] border p-4 ${varianceState.className}`}>
@@ -7259,7 +7260,7 @@ function ShiftReportModal({ report, onClose, onPrint }) {
           </AccountingLedgerSection>
         </div>
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
-          {sellerPerformance.length ? (
+          {sellerPerformance?.length ? (
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 lg:col-span-2">
               <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Seller performance</div>
               <div className="mt-3 grid gap-2 sm:grid-cols-3">
@@ -7275,7 +7276,7 @@ function ShiftReportModal({ report, onClose, onPrint }) {
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Top products</div>
             <div className="mt-3 space-y-2">
-              {(report.top_products || []).slice(0, 8).map((item) => (
+              {(report?.top_products || []).slice(0, 8).map((item) => (
                 <div key={item.product_name} className="flex justify-between gap-3 text-sm text-zinc-200">
                   <span className="min-w-0">
                     <span className="block truncate font-black text-white">{item.product_name}</span>
@@ -7291,7 +7292,7 @@ function ShiftReportModal({ report, onClose, onPrint }) {
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Audit timeline</div>
             <div className="mt-3 max-h-56 space-y-2 overflow-auto">
-              {(report.audit_timeline || []).slice(-16).map((item, index) => (
+              {(report?.audit_timeline || []).slice(-16).map((item, index) => (
                 <div key={`${item.type}-${index}`} className="flex justify-between gap-3 rounded-xl bg-black/20 px-3 py-2 text-xs text-zinc-300">
                   <span className="min-w-0">
                     <span className="block truncate font-black text-white">{readableAuditAction(item)}</span>
