@@ -16,6 +16,7 @@ import {
   Printer,
   Maximize2,
   Minimize2,
+  Image as ImageIcon,
   Search,
   SlidersHorizontal,
   RotateCcw,
@@ -6976,6 +6977,17 @@ const getPaymentReconciliationWarnings = (report = {}) => {
   return warnings;
 };
 
+const getTopProductImageUrl = (item = {}) =>
+  resolvePosImageUrl(
+    item.image_url ||
+      item.image ||
+      item.product_image ||
+      item.thumbnail_url ||
+      item.variant_image ||
+      item.main_image ||
+      ""
+  );
+
 function ShiftCloseModal({
   report,
   actualDrawerAmount,
@@ -7159,7 +7171,7 @@ function ShiftCloseAuditLayout({
         </div>
       </section>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-[0.85fr_1.4fr]">
+      <div className="mt-5 grid gap-4 lg:grid-cols-[0.72fr_1.28fr]">
         <section className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
           <div className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">{labels.drawerSummary}</div>
           <div className="mt-3 grid gap-3">
@@ -7239,7 +7251,7 @@ function ShiftCloseAuditLayout({
               Print
             </button>
           </div>
-          <div className="mt-4 grid gap-4 xl:grid-cols-3">
+          <div className="mt-4 grid gap-4 xl:grid-cols-[1.12fr_1.12fr_0.84fr]">
             <AccountingLedgerSection title="ملخص الكاش" accent="amber">
               <AccountingLedgerRow label="مبيعات نقدية" value={formatCurrency(totals.cash || 0)} />
               <AccountingLedgerRow label="مرتجعات نقدية" value={formatCurrency(totals.returns || 0)} />
@@ -7277,14 +7289,27 @@ function ShiftCloseAuditLayout({
               <div className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Top products</div>
               <div className="space-y-2">
                 {(report?.top_products || []).slice(0, 5).map((item) => (
-                  <div key={item.product_name} className="flex items-center justify-between gap-3 text-xs font-semibold text-zinc-300">
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-black text-white">{item.product_name}</span>
+                  <div key={item.product_name} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-2.5 text-xs font-semibold text-zinc-300">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-black/40">
+                      {getTopProductImageUrl(item) ? (
+                        <img
+                          src={getTopProductImageUrl(item)}
+                          alt={item.product_name || "Product"}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      ) : (
+                        <ImageIcon className="h-5 w-5 text-zinc-600" />
+                      )}
+                    </div>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-black leading-5 text-white">{item.product_name}</span>
                       <span className="mt-0.5 block text-[11px] text-zinc-500">
                         {Number(item.quantity || 0).toLocaleString()} sales • {totalSoldItems > 0 ? Math.round((Number(item.quantity || 0) / totalSoldItems) * 100) : 0}%
                       </span>
                     </span>
-                    <span className="shrink-0 text-white">{formatCurrency(item.total || 0)}</span>
+                    <span className="shrink-0 whitespace-nowrap text-right text-sm font-black text-white">{formatCurrency(item.total || 0)}</span>
                   </div>
                 ))}
                 {!(report?.top_products || []).length ? <div className="text-xs text-zinc-500">No products</div> : null}
@@ -7628,11 +7653,12 @@ function AccountingLedgerSection({ title, accent = "amber", children }) {
 
 function AccountingLedgerRow({ label, value, subtitle = "", strong = false, highlight = false }) {
   return (
-    <div className={`flex items-center justify-between gap-4 px-4 py-3 ${highlight ? "bg-amber-400/10" : "bg-transparent"}`}>
+    <div className={`flex flex-col gap-1.5 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-5 ${highlight ? "bg-amber-400/10" : "bg-transparent"}`}>
       <div className="min-w-0 flex-1">
-        <div className={`truncate text-[11px] font-black uppercase tracking-[0.16em] ${highlight ? "text-amber-100" : "text-zinc-500"}`}>{label}</div>
+        <div className={`whitespace-normal break-words text-[12px] font-black leading-5 tracking-[0.08em] ${highlight ? "text-amber-100" : "text-zinc-500"}`}>{label}</div>
+        {subtitle ? <div className="mt-1 text-[11px] font-semibold leading-4 text-zinc-500">{subtitle}</div> : null}
       </div>
-      <div className={`shrink-0 text-end font-black leading-none ${highlight ? "text-2xl text-amber-50" : strong ? "text-xl text-white" : "text-lg text-white"}`}>
+      <div className={`shrink-0 text-end font-black leading-none tabular-nums ${highlight ? "text-[1.45rem] text-amber-50" : strong ? "text-xl text-white" : "text-[1.08rem] text-white"}`}>
         <CurrencyText value={value} />
       </div>
     </div>
