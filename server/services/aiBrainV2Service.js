@@ -1,6 +1,7 @@
 import db from "../database/db.js";
 import { AI_AGENT_CHANNELS, normalizeChannel, normalizeOutgoingChannelReply } from "./aiChannelAdapterService.js";
-import { normalizeProductCards } from "./aiProductCards.js";
+import { normalizeProductCards, resolvePublicProductImageUrl, resolvePublicProductUrl } from "./aiProductCards.js";
+import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 
 const text = (value = "", fallback = "") => String(value ?? fallback).trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -8,6 +9,14 @@ const numberOrNull = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
 };
+const money = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+};
+const truthyFlag = (value) =>
+  value === true ||
+  value === 1 ||
+  ["true", "1", "yes", "on", "active", "enabled"].includes(String(value || "").trim().toLowerCase());
 
 const normalizeArabic = (value = "") =>
   text(value)
@@ -66,6 +75,9 @@ const column = (alias = "", columns = new Set(), names = [], fallback = "NULL") 
   const match = names.find((name) => columns.has(name));
   return match ? `${alias}.${match}` : fallback;
 };
+
+const tenantClause = (alias = "", columns = new Set(), paramIndex = 2) =>
+  columns.has("tenant_id") ? `AND ($${paramIndex}::bigint IS NULL OR ${alias}.tenant_id = $${paramIndex}::bigint OR ${alias}.tenant_id IS NULL)` : "";
 
 const searchTermsForMessage = ({ message = "", explicitModel = null } = {}) => {
   if (explicitModel) return explicitModel.aliases;
@@ -165,6 +177,205 @@ const rankProducts = ({ products = [], message = "", explicitModel = null } = {}
     .sort((a, b) => Number(b.ai_brain_v2_score || 0) - Number(a.ai_brain_v2_score || 0) || Number(a.id || 0) - Number(b.id || 0));
 };
 
+const loadFullProductForPresentation = async ({ tenantId = null, productId = null } = {}) => {
+  if (!productId) return null;
+  try {
+    const [productColumns, variantColumns, variantImageColumns] = await Promise.all([
+      tableColumns("products"),
+      tableColumns("product_variants"),
+      tableColumns("product_variant_images"),
+    ]);
+    const variantSelect = {
+      id: column("pv", variantColumns, ["id"], "NULL"),
+      product_id: column("pv", variantColumns, ["product_id"], "NULL"),
+      name: column("pv", variantColumns, ["name", "edition_name"], "''"),
+      size: column("pv", variantColumns, ["size"], "''"),
+      color: column("pv", variantColumns, ["color"], "''"),
+      color_name: column("pv", variantColumns, ["color_name", "color"], "''"),
+      color_value: column("pv", variantColumns, ["color_value", "color"], "''"),
+      stock: column("pv", variantColumns, ["stock"], "0"),
+      quantity: column("pv", variantColumns, ["quantity", "available_quantity", "stock"], "NULL"),
+      image_url: column("pv", variantColumns, ["image_url", "image", "photo_url", "thumbnail_url"], "''"),
+      variant_image_url: column("pv", variantColumns, ["variant_image_url", "image_url", "image", "photo_url", "thumbnail_url"], "''"),
+      color_image_url: column("pv", variantColumns, ["color_image_url", "image_url", "image", "photo_url", "thumbnail_url"], "''"),
+      secure_url: column("pv", variantColumns, ["secure_url", "cloudinary_url", "image_url", "image", "photo_url", "thumbnail_url"], "''"),
+      sale_price: column("pv", variantColumns, ["sale_price"], "0"),
+      selling_price: column("pv", variantColumns, ["selling_price", "price"], "0"),
+      price: column("pv", variantColumns, ["price", "regular_price"], "0"),
+      sale_active: column("pv", variantColumns, ["sale_price_enabled", "sale_prices_enabled", "global_sale_enabled", "sale_mode_enabled", "sale_active", "is_sale_active", "on_sale", "sale_enabled", "discount_enabled"], "FALSE"),
+      sku: column("pv", variantColumns, ["sku"], "''"),
+      barcode: column("pv", variantColumns, ["barcode"], "''"),
+      is_active: column("pv", variantColumns, ["is_active"], "NULL"),
+      branch_id: column("pv", variantColumns, ["branch_id"], "NULL"),
+      warehouse_id: column("pv", variantColumns, ["warehouse_id"], "NULL"),
+    };
+    const variantImageSelect = {
+      id: column("pvi", variantImageColumns, ["id"], "NULL"),
+      product_id: column("pvi", variantImageColumns, ["product_id"], "NULL"),
+      variant_id: column("pvi", variantImageColumns, ["variant_id"], "NULL"),
+      color_name: column("pvi", variantImageColumns, ["color_name"], "''"),
+      color_value: column("pvi", variantImageColumns, ["color_value", "color_name"], "''"),
+      image_url: column("pvi", variantImageColumns, ["image_url"], "''"),
+      secure_url: column("pvi", variantImageColumns, ["secure_url", "cloudinary_url", "image_url"], "''"),
+      is_primary: column("pvi", variantImageColumns, ["is_primary"], "FALSE"),
+      sort_order: column("pvi", variantImageColumns, ["sort_order"], "0"),
+    };
+    const sql = `
+      SELECT
+        p.*,
+        COALESCE(
+          jsonb_agg(
+            DISTINCT jsonb_build_object(
+              'id', ${variantSelect.id},
+              'product_id', ${variantSelect.product_id},
+              'name', ${variantSelect.name},
+              'size', ${variantSelect.size},
+              'color', ${variantSelect.color},
+              'color_name', ${variantSelect.color_name},
+              'color_value', ${variantSelect.color_value},
+              'stock', ${variantSelect.stock},
+              'quantity', ${variantSelect.quantity},
+              'image_url', ${variantSelect.image_url},
+              'variant_image_url', ${variantSelect.variant_image_url},
+              'color_image_url', ${variantSelect.color_image_url},
+              'secure_url', ${variantSelect.secure_url},
+              'sale_price', ${variantSelect.sale_price},
+              'selling_price', ${variantSelect.selling_price},
+              'price', ${variantSelect.price},
+              'sale_active', ${variantSelect.sale_active},
+              'sku', ${variantSelect.sku},
+              'barcode', ${variantSelect.barcode},
+              'is_active', ${variantSelect.is_active},
+              'branch_id', ${variantSelect.branch_id},
+              'warehouse_id', ${variantSelect.warehouse_id}
+            )
+          ) FILTER (WHERE pv.id IS NOT NULL),
+          '[]'::jsonb
+        ) AS variants,
+        COALESCE(
+          jsonb_agg(
+            DISTINCT jsonb_build_object(
+              'id', ${variantImageSelect.id},
+              'product_id', ${variantImageSelect.product_id},
+              'variant_id', ${variantImageSelect.variant_id},
+              'color_name', ${variantImageSelect.color_name},
+              'color_value', ${variantImageSelect.color_value},
+              'image_url', ${variantImageSelect.image_url},
+              'secure_url', ${variantImageSelect.secure_url},
+              'is_primary', ${variantImageSelect.is_primary},
+              'sort_order', ${variantImageSelect.sort_order}
+            )
+          ) FILTER (WHERE pvi.id IS NOT NULL),
+          '[]'::jsonb
+        ) AS product_variant_images
+      FROM products p
+      LEFT JOIN product_variants pv
+        ON pv.product_id = p.id
+        ${tenantClause("pv", variantColumns, 2)}
+      LEFT JOIN product_variant_images pvi
+        ON pvi.product_id = p.id
+        ${tenantClause("pvi", variantImageColumns, 2)}
+      WHERE p.id = $1
+        ${tenantClause("p", productColumns, 2)}
+      GROUP BY p.id
+      LIMIT 1
+    `;
+    const result = await db.query(sql, [productId, numberOrNull(tenantId)]);
+    const row = result.rows[0] || null;
+    if (!row) return null;
+    row.variants = asArray(row.variants);
+    row.product_variant_images = asArray(row.product_variant_images);
+    return row;
+  } catch (error) {
+    console.warn("AI_BRAIN_V2_PRODUCT_PRESENTATION_LOAD_FAILED", {
+      tenant_id: tenantId || null,
+      product_id: productId || null,
+      message: error?.message || "load failed",
+    });
+    return null;
+  }
+};
+
+const withActiveDisplayPrice = (card = {}, fullProduct = {}) => {
+  const selectedVariant =
+    card.variant ||
+    asArray(fullProduct.variants).find((variant) => String(variant.id || variant.variant_id || "") === String(card.variant_id || card.selected_variant_id || "")) ||
+    {};
+  const resolvedPrice = resolveCustomerDisplayPrice({
+    ...fullProduct,
+    ...selectedVariant,
+    product: fullProduct,
+    variant: selectedVariant,
+    selected_variant: selectedVariant,
+  });
+  const sellingPrice = money(selectedVariant.selling_price || selectedVariant.price || fullProduct.selling_price || fullProduct.price || fullProduct.regular_price || card.selling_price || card.price);
+  const salePrice = money(selectedVariant.sale_price || fullProduct.sale_price || card.sale_price);
+  const saleModeValues = [
+    selectedVariant.sale_price_enabled,
+    selectedVariant.sale_prices_enabled,
+    selectedVariant.global_sale_enabled,
+    selectedVariant.sale_mode_enabled,
+    selectedVariant.sale_active,
+    selectedVariant.is_sale_active,
+    selectedVariant.on_sale,
+    fullProduct.sale_price_enabled,
+    fullProduct.sale_prices_enabled,
+    fullProduct.global_sale_enabled,
+    fullProduct.sale_mode_enabled,
+    fullProduct.sale_active,
+    fullProduct.is_sale_active,
+    fullProduct.on_sale,
+  ];
+  const hasSaleModeMetadata = saleModeValues.some((value) => value !== undefined && value !== null && text(value) !== "");
+  const hasSaleModeFlag = saleModeValues.some(truthyFlag);
+  const normalizerSelectedSale = String(card.price_source || "").includes("sale_price") || card.sale_active === true;
+  const saleIsCustomerFacing = salePrice > 0 && (normalizerSelectedSale || !hasSaleModeMetadata || hasSaleModeFlag);
+  const displayPrice = saleIsCustomerFacing ? salePrice : (resolvedPrice.display_price || sellingPrice || card.price || 0);
+  const priceSource = saleIsCustomerFacing ? "sale_price" : (resolvedPrice.price_source || "selling_price");
+  const imageUrl = resolvePublicProductImageUrl(card.image_url || card.image || selectedVariant.secure_url || selectedVariant.color_image_url || selectedVariant.image_url || fullProduct.secure_url || fullProduct.image_url || "");
+  const productUrl = resolvePublicProductUrl(fullProduct);
+  return {
+    ...card,
+    image_url: imageUrl || card.image_url || "",
+    image: imageUrl || card.image || "",
+    price: displayPrice,
+    final_price: displayPrice,
+    display_price: displayPrice,
+    old_price: saleIsCustomerFacing && sellingPrice > displayPrice ? sellingPrice : (resolvedPrice.old_price || card.old_price || null),
+    price_source: priceSource,
+    sale_active: saleIsCustomerFacing,
+    sale_price: salePrice || resolvedPrice.sale_price || card.sale_price || 0,
+    selling_price: sellingPrice || resolvedPrice.selling_price || card.selling_price || 0,
+    product_url: productUrl || card.product_url || card.url || "",
+    url: productUrl || card.url || card.product_url || "",
+  };
+};
+
+const buildPresentationProductCards = async ({ tenantId = null, selectedProducts = [], explicitModel = null, forceColorPresentation = false } = {}) => {
+  if (!selectedProducts.length) return [];
+  if (!explicitModel && !forceColorPresentation) return normalizeProductCards(selectedProducts, { limit: 6 });
+  const fullProducts = await Promise.all(
+    selectedProducts.slice(0, 12).map(async (product) => {
+      const fullProduct = await loadFullProductForPresentation({ tenantId, productId: product.id || product.product_id });
+      return { ...(fullProduct || product), card_reply_mode: "color_only" };
+    })
+  );
+  const cards = normalizeProductCards(fullProducts, { limit: 24 });
+  const sourceById = new Map(fullProducts.map((product) => [String(product.id || product.product_id || ""), product]));
+  const pricedCards = cards.map((card) => withActiveDisplayPrice(card, sourceById.get(String(card.product_id || card.id || "")) || fullProducts[0] || {}));
+  console.info("AI_BRAIN_V2_COLOR_PRESENTATION", {
+    tenant_id: tenantId || null,
+    model: explicitModel?.model || (forceColorPresentation ? "active_product" : ""),
+    product_ids: fullProducts.map((product) => product.id || product.product_id || null).filter(Boolean),
+    variant_count: fullProducts.reduce((total, product) => total + asArray(product.variants).length, 0),
+    color_card_count: pricedCards.length,
+    colors: pricedCards.map((card) => card.color || ""),
+    product_urls_missing: pricedCards.filter((card) => !text(card.product_url || card.url)).length,
+    images_missing: pricedCards.filter((card) => !text(card.image_url || card.image)).length,
+  });
+  return pricedCards;
+};
+
 const activeProductFromMemory = (memory = {}) => {
   const preferences = memory?.preferences || {};
   return text(
@@ -178,6 +389,13 @@ const activeProductFromMemory = (memory = {}) => {
   );
 };
 
+const presentationModelName = ({ explicitModel = null, cards = [] } = {}) => {
+  if (explicitModel?.model === "jordan4") return "جوردن 4";
+  const firstCard = cards[0] || {};
+  const rawName = text(firstCard.base_name || firstCard.product_name || firstCard.name || firstCard.title);
+  return rawName.replace(/\s+-\s+.*$/, "") || "الموديل";
+};
+
 const buildBaseText = ({ intent = "", cards = [], explicitModel = null, activeProductId = "" } = {}) => {
   if (intent === "greeting") return "\u0623\u0647\u0644\u0627 \u0628\u064a\u0643. \u0627\u0628\u0639\u062a \u0627\u0633\u0645 \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0623\u0648 \u0635\u0648\u0631\u0629 \u0648\u0623\u0633\u0627\u0639\u062f\u0643.";
   if (intent === "price_objection") {
@@ -185,7 +403,9 @@ const buildBaseText = ({ intent = "", cards = [], explicitModel = null, activePr
       ? "\u0641\u0627\u0647\u0645\u0643. \u0644\u0648 \u0627\u0644\u0633\u0639\u0631 \u0645\u0634 \u0645\u0646\u0627\u0633\u0628 \u0623\u0642\u062f\u0631 \u0623\u0637\u0644\u0639\u0644\u0643 \u0628\u062f\u064a\u0644 \u0623\u0642\u0631\u0628 \u0644\u0644\u0645\u064a\u0632\u0627\u0646\u064a\u0629."
       : "\u0641\u0627\u0647\u0645\u0643. \u0627\u0628\u0639\u062a \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0627\u0644\u0644\u064a \u0639\u0627\u064a\u0632\u0647 \u0648\u0623\u0634\u0648\u0641\u0644\u0643 \u0628\u062f\u064a\u0644 \u0623\u0631\u062e\u0635.";
   }
-  if (cards.length) return explicitModel ? "\u062f\u064a \u0623\u0642\u0631\u0628 \u0646\u062a\u064a\u062c\u0629 \u0644\u0645\u0648\u062f\u064a\u0644 Jordan 4:" : "\u062f\u064a \u0623\u0642\u0631\u0628 \u0627\u0644\u0646\u062a\u0627\u064a\u062c \u0627\u0644\u0645\u062a\u0627\u062d\u0629:";
+  if (cards.length) return (explicitModel || intent === "more_images")
+    ? `أكيد يا فندم \n${presentationModelName({ explicitModel, cards })} متوفرة بالألوان دي:\n\nفيه لون عجبك أحجزهولك؟`
+    : "\u062f\u064a \u0623\u0642\u0631\u0628 \u0627\u0644\u0646\u062a\u0627\u064a\u062c \u0627\u0644\u0645\u062a\u0627\u062d\u0629:";
   if (["product_search", "more_images"].includes(intent)) return "\u0645\u0634 \u0644\u0627\u0642\u064a \u0645\u0637\u0627\u0628\u0642\u0629 \u0648\u0627\u0636\u062d\u0629. \u0627\u0628\u0639\u062a \u0627\u0633\u0645 \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0623\u0648 \u0635\u0648\u0631\u0629 \u0623\u0648\u0636\u062d.";
   return "\u062a\u062d\u062a \u0623\u0645\u0631\u0643. \u0627\u0628\u0639\u062a \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0623\u0648 \u0627\u0644\u0633\u0624\u0627\u0644 \u0627\u0644\u0644\u064a \u0645\u062d\u062a\u0627\u062c\u0647.";
 };
@@ -195,13 +415,22 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
   const message = text(normalizedInbound.text || normalizedInbound.message_text || normalizedInbound.message || normalizedInbound.body);
   const tenantId = options.tenantId || normalizedInbound.metadata?.tenant_id || normalizedInbound.metadata?.tenantId || 1;
   const memory = options.memory || normalizedInbound.metadata?.ai_memory || {};
+  const memoryActiveProductId = activeProductFromMemory(memory);
   const explicitModel = detectExplicitModel(message);
   const intent = classifyIntent({ message, attachments: normalizedInbound.attachments, explicitModel });
   const shouldSearch = ["product_search", "more_images", "visual_search"].includes(intent) || Boolean(explicitModel);
   const candidates = shouldSearch ? await loadCandidateProducts({ tenantId, message, explicitModel }) : [];
   const ranked = rankProducts({ products: candidates, message, explicitModel });
   const selectedProducts = ranked.filter((product) => Number(product.ai_brain_v2_score || 0) > 0).slice(0, 6);
-  const productCards = normalizeProductCards(selectedProducts, { limit: 6 });
+  const presentationProducts = selectedProducts.length
+    ? selectedProducts
+    : (intent === "more_images" && memoryActiveProductId ? [{ id: memoryActiveProductId, product_id: memoryActiveProductId }] : []);
+  const productCards = await buildPresentationProductCards({
+    tenantId,
+    selectedProducts: presentationProducts,
+    explicitModel,
+    forceColorPresentation: intent === "more_images",
+  });
   const images = productCards
     .map((card) => ({
       id: text(card.image_id || card.image_url || card.product_id || card.id),
