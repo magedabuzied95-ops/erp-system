@@ -1,5 +1,6 @@
 import { ARABIC_INTENT_SYNONYMS } from "../config/arabicIntentSynonyms.js";
 
+// Do not use Arabic normalizer for UI rendering; it is only for AI/customer-message understanding.
 const ARABIC_DIACRITICS_REGEX = /[\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06ed]/g;
 const TATWEEL_REGEX = /\u0640/g;
 const BIDI_MARKS_REGEX = /[\u200f\u200e]/g;
@@ -37,11 +38,29 @@ const CHAR_MAP = Object.freeze({
   "ٱ": "ا",
   "ة": "ه",
   "ى": "ي",
+  "ء": "",
   "ؤ": "و",
   "ئ": "ي",
 });
 
 const toText = (value = "") => String(value ?? "");
+const resolveInputText = (input = "") => {
+  if (input && typeof input === "object" && !Array.isArray(input)) {
+    return toText(
+      input.originalText ||
+        input.original_text ||
+        input.original_message ||
+        input.normalized_for_intent ||
+        input.normalizedForIntent ||
+        input.message ||
+        input.message_text ||
+        input.text ||
+        input.body ||
+        ""
+    );
+  }
+  return toText(input);
+};
 
 const replaceMappedChars = (value = "") =>
   Array.from(value, (char) => DIGIT_MAP[char] || CHAR_MAP[char] || char).join("");
@@ -58,12 +77,21 @@ const normalizeBaseText = (input = "") => {
     .replace(TATWEEL_REGEX, "")
     .replace(BIDI_MARKS_REGEX, "");
   return replaceMappedChars(stripped)
+    .replace(/\u0621/g, "")
     .replace(SPACE_REGEX, " ")
     .trim();
 };
 
 const normalizeTextForIntent = (value = "") => {
   const normalized = normalizeArabicPunctuation(value)
+    .replace(/\u062c\u0648\u0631\u062f\u0646\s+\u0641\u0648\u0631/gi, "jordan 4")
+    .replace(/\bjordan\s+four\b/gi, "jordan 4")
+    .replace(/\u0634\u0648\u0643\u0633(?:\u0627\u062a)?/gi, "shox")
+    .replace(/\u0634\u0643\u0633(?:\u0627\u062a)?/gi, "shox")
+    .replace(/\u0646\u0627\u064a\u0643/gi, "nike")
+    .replace(/\u0641\u0648\u0631/g, "4")
+    .replace(/\u0627\u0631\u0628\u0639\u0647/g, "4")
+    .replace(/\u0623\u0631\u0628\u0639\u0647/g, "4")
     .replace(/\b(size|sizes?|price|prices?|cost|photo|photos?|image|images?|want|need|looking for|more images|more photos|more pictures)\b/gi, (match) => {
       const token = match.toLowerCase();
       if (/(size|sizes?)/.test(token)) return "مقاس";
@@ -140,7 +168,7 @@ export const normalizeArabicMessage = (input = "") => {
 };
 
 export const normalizeArabicIntentPayload = (input = "") => {
-  const originalText = toText(input);
+  const originalText = resolveInputText(input);
   const normalizedText = normalizeArabicMessage(originalText);
   const normalizedForIntent = normalizeTextForIntent(normalizedText);
   const intentTokens = buildIntentTokens(normalizedForIntent);
