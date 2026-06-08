@@ -1,7 +1,9 @@
 import dotenv from "dotenv";
 import { fileURLToPath } from "node:url";
 import { AI_AGENT_CHANNELS } from "../services/aiChannelAdapterService.js";
-import { generateUnifiedAiReply } from "../services/aiConversationOrchestrator.js";
+import { generateUnifiedConversationDecision } from "../services/aiUnifiedDecisionService.js";
+import { generateWhatsappAiAutoReply } from "../services/aiInboxService.js";
+import { generateMetaUnifiedDecisionDryRun } from "../services/metaIntegrationService.js";
 
 dotenv.config({ path: fileURLToPath(new URL("../.env", import.meta.url)) });
 
@@ -50,6 +52,28 @@ const normalizeQuickActionEntry = (item = {}) => ({
   label: text(item?.label || item?.text || item?.title || item?.value || item),
   value: text(item?.value || item?.label || item?.text || item?.title || item),
   action: text(item?.action || item?.type || item?.id || ""),
+});
+const memoryUpdateKeys = (updates = {}) => {
+  const keys = new Set();
+  const visit = (value, prefix = "") => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return;
+    Object.keys(value).sort().forEach((key) => {
+      const path = prefix ? `${prefix}.${key}` : key;
+      keys.add(path);
+      visit(value[key], path);
+    });
+  };
+  visit(updates);
+  return [...keys].sort();
+};
+const normalizedDecisionSignature = (capture = {}) => ({
+  intent: capture.intent,
+  top_product_id: capture.top_product_id,
+  product_ids: capture.product_ids,
+  image_ids_or_urls: capture.image_ids_or_urls,
+  base_text: capture.text,
+  next_action: capture.next_best_action || capture.actions[0]?.action || capture.actions[0]?.value || capture.quick_replies[0]?.value || "",
+  memory_update_keys: capture.memory_update_keys,
 });
 const normalizeDraftOrder = (draft = null) => {
   if (!draft) return null;
@@ -287,6 +311,7 @@ const summarizeUnifiedReply = (reply = {}) => ({
   active_color: text(reply.active_color || reply.personality_layer?.active_color || reply.memory_updates?.active_color || ""),
   active_model_family: text(reply.active_model_family || reply.personality_layer?.active_model_family || reply.memory_updates?.active_model_family || ""),
   memory_updates: stableStringify(reply.memory_updates || {}),
+  memory_update_keys: memoryUpdateKeys(reply.memory_updates || reply.memoryUpdates || {}),
   reasoning: normalizeReasoning(reply.reasoning || null),
 });
 const eq = (left, right) => stableStringify(left) === stableStringify(right);

@@ -1058,6 +1058,13 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
 
   const escalation = detectEscalation(body);
   if (escalation.shouldEscalate) {
+    logUnifiedDecisionEarlyReturn({
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      reason: escalation.reason || "local_escalation_detector",
+      intent: "escalation",
+      text: body,
+      conversationId: safeSessionId,
+    });
     await markAiSupportConversationEscalated({
       tenantId: safeTenantId,
       sessionId: safeSessionId,

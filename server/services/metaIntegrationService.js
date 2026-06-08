@@ -57,6 +57,10 @@ import {
 } from "./aiSizeAvailabilityLinkService.js";
 import { resolveProductCardLinks } from "./storefrontProductUrlService.js";
 import { generateUnifiedAiReply } from "./aiConversationOrchestrator.js";
+import {
+  generateUnifiedConversationDecision,
+  logUnifiedDecisionEarlyReturn,
+} from "./aiUnifiedDecisionService.js";
 
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || "v20.0";
 const GRAPH_BASE_URL = `https://graph.facebook.com/${GRAPH_VERSION}`;
@@ -5621,6 +5625,48 @@ const routeMessageThroughAi = async ({ req, message, config }) => {
       preferred_sizes: aiMemory.preferredSizes || customerContext?.preferredSizes || [],
       preferred_brands: aiMemory.preferredBrands || customerContext?.preferredBrands || [],
     },
+  });
+};
+
+export const generateMetaUnifiedDecisionDryRun = async ({ message = {}, config = {}, channel = "" } = {}) => {
+  const alias = channel || channelAlias(message.channel);
+  const aiMemory = persistentAiMemoryFromRuntime(getConversationMemory(message.external_conversation_id) || {});
+  const customerContext = aiMemory.customerContext || null;
+  return generateUnifiedConversationDecision({
+    channel: alias,
+    externalConversationId: message.external_conversation_id,
+    externalCustomerId: message.external_customer_id,
+    customerName: message.customer_name || aiMemory.knownName || customerContext?.fullName || "",
+    text: message.message_text || message.text || "",
+    attachments: message.attachments || [],
+    metadata: {
+      tenant_id: config.tenant_id || 1,
+      branch_id: config.branch_id || null,
+      channel: alias,
+      adapter_channel: message.channel || alias,
+      session_id: message.external_conversation_id,
+      external_conversation_id: message.external_conversation_id,
+      external_customer_id: message.external_customer_id,
+      customer_id: customerContext?.customerId || aiMemory.customerId || message.external_customer_id,
+      customer_name: message.customer_name || aiMemory.knownName || customerContext?.fullName || "",
+      customer_phone: aiMemory.knownPhone || customerContext?.phone || "",
+      ai_memory: aiMemory,
+      dry_run: true,
+    },
+  }, {
+    tenantId: config.tenant_id || 1,
+    branchId: config.branch_id || null,
+    memory: aiMemory,
+    productsContext: {
+      active_product_id: aiMemory.activeProductId || null,
+      active_variant_id: aiMemory.activeVariantId || null,
+      active_color: aiMemory.activeColor || "",
+      active_size: aiMemory.activeSize || "",
+      customer_context: customerContext,
+      preferred_sizes: aiMemory.preferredSizes || customerContext?.preferredSizes || [],
+      preferred_brands: aiMemory.preferredBrands || customerContext?.preferredBrands || [],
+    },
+    providerMessageId: message.external_message_id || message.raw?.event?.message?.mid || "",
   });
 };
 
@@ -16563,6 +16609,13 @@ export const processMetaWebhook = async ({ req } = {}) => {
           }
         }
         if (handled?.handled) {
+          logUnifiedDecisionEarlyReturn({
+            channel: message.channel,
+            reason: handled.reason || selectedHandlerName || "meta_pre_ai_handler",
+            intent: classification.intent || "",
+            text: message.message_text || "",
+            conversationId: message.external_conversation_id,
+          });
           console.log("[META_ROUTE_PRIORITY_AUDIT]", {
             message: message.message_text || "",
             classified_intent: classification.intent,
@@ -16610,6 +16663,13 @@ export const processMetaWebhook = async ({ req } = {}) => {
           continue;
         }
         if (isInboundReplyFinalized(message)) {
+          logUnifiedDecisionEarlyReturn({
+            channel: message.channel,
+            reason: "final_reply_already_generated",
+            intent: classification.intent || "",
+            text: message.message_text || "",
+            conversationId: message.external_conversation_id,
+          });
           await storeAiDebugEvent({
             tenantId: config.tenant_id,
             channel: message.channel,
