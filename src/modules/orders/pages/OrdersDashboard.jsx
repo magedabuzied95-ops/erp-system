@@ -216,6 +216,25 @@ const remainingCodAmount = (order = {}) => {
   if (shipping > 0 && shipping < total && hasApprovedShippingProof(order)) return Math.max(0, total - shipping);
   return 0;
 };
+const dueAmountOf = (order = {}) => {
+  const explicit = [
+    order.remaining_amount,
+    order.remainingAmount,
+    order.amount_due,
+    order.amountDue,
+    order.collect_on_delivery_amount,
+    order.collectOnDeliveryAmount,
+    order.cod_amount,
+    order.codAmount,
+  ]
+    .map((value) => Number(value))
+    .find((value) => Number.isFinite(value) && value >= 0 && value > 0);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+  const total = totalValue(order);
+  const paid = getPaidAmount(order);
+  if (total > 0 && paid >= 0 && paid < total) return Number((total - paid).toFixed(2));
+  return remainingCodAmount(order);
+};
 const isCodShippingPartial = (order = {}) =>
   isPartialPaymentStatus(order.payment_status || order.paymentStatus) ||
   (isCodPaymentMethod(order) && remainingCodAmount(order) > 0);
@@ -1056,9 +1075,9 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
   if (!orders.length) return empty;
   return (
     <div className="mt-3 max-h-[calc(100vh-23rem)] overflow-auto pb-1">
-      <div className="min-w-[1620px] overflow-visible">
+      <div className="min-w-[1630px] overflow-visible">
         <div
-          className="sticky top-0 z-20 grid grid-cols-[4.5rem_9rem_8.5rem_minmax(10rem,1.25fr)_8.5rem_5.5rem_7rem_10rem_7rem_7rem_8rem_6.5rem_6.5rem] rounded-xl border border-white/10 bg-zinc-950/85 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-zinc-400 shadow-lg shadow-black/20 backdrop-blur-xl"
+          className="sticky top-0 z-20 grid grid-cols-[4.5rem_9rem_8.5rem_minmax(10rem,1.25fr)_8.5rem_5.5rem_10rem_7rem_7rem_7rem_8rem_6.5rem_6.5rem] rounded-xl border border-white/10 bg-zinc-950/85 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-zinc-400 shadow-lg shadow-black/20 backdrop-blur-xl"
           dir={tableDir}
         >
           <div className="flex items-center justify-center py-1 text-center">{t("orders.table.actions")}</div>
@@ -1067,10 +1086,10 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
           <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.customer")}</div>
           <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.customerPhone", isArabicLanguage(language) ? "\u0647\u0627\u062a\u0641 \u0627\u0644\u0639\u0645\u064a\u0644" : "Phone")}</div>
           <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.items", isArabicLanguage(language) ? "\u0627\u0644\u0623\u0635\u0646\u0627\u0641" : "Items")}</div>
-          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.status")}</div>
           <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.paymentStatus", isArabicLanguage(language) ? "\u062d\u0627\u0644\u0629 \u0627\u0644\u062f\u0641\u0639" : "Payment Status")}</div>
-          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.paidAmount", isArabicLanguage(language) ? "\u0627\u0644\u0645\u062f\u0641\u0648\u0639" : "Paid")}</div>
           <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.total")}</div>
+          <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.paidAmount", isArabicLanguage(language) ? "\u0627\u0644\u0645\u062f\u0641\u0648\u0639" : "Paid")}</div>
+          <div className="flex items-center justify-center px-2 py-1 text-center">{isArabicLanguage(language) ? "\u0627\u0644\u0645\u0633\u062a\u062d\u0642" : "Due"}</div>
           <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.seller", isArabicLanguage(language) ? "\u0627\u0644\u0628\u0627\u0626\u0639" : "Seller")}</div>
           <div className="flex items-center justify-center px-2 py-1 text-center">{t("orders.table.branch")}</div>
           <div className="flex items-center justify-center px-2 py-1 text-center">{isArabicLanguage(language) ? "\u0646\u0642\u0637\u0629 \u0627\u0644\u0628\u064a\u0639" : "POS"}</div>
@@ -1088,7 +1107,7 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") openOrder(order);
                 }}
-                className={`relative z-0 grid cursor-pointer grid-cols-[4.5rem_9rem_8.5rem_minmax(10rem,1.25fr)_8.5rem_5.5rem_7rem_10rem_7rem_7rem_8rem_6.5rem_6.5rem] items-center overflow-visible rounded-xl border px-3 py-2 shadow-xl transition-all duration-200 ease-out hover:z-10 hover:border-cyan-400/30 hover:bg-white/[0.02] hover:shadow-2xl hover:shadow-cyan-950/10 ${priority.className} ${selectedIds.includes(order.id) || String(activeOrderId) === String(order.id) ? "ring-1 ring-cyan-400/35" : ""}`}
+                className={`relative z-0 grid cursor-pointer grid-cols-[4.5rem_9rem_8.5rem_minmax(10rem,1.25fr)_8.5rem_5.5rem_10rem_7rem_7rem_7rem_8rem_6.5rem_6.5rem] items-center overflow-visible rounded-xl border px-3 py-2 shadow-xl transition-all duration-200 ease-out hover:z-10 hover:border-cyan-400/30 hover:bg-white/[0.02] hover:shadow-2xl hover:shadow-cyan-950/10 ${priority.className} ${selectedIds.includes(order.id) || String(activeOrderId) === String(order.id) ? "ring-1 ring-cyan-400/35" : ""}`}
                 dir={tableDir}
               >
                 <RowMenu t={t} order={order} openOrder={openOrder} editOrder={editOrder} cancelOrder={cancelOrder} archiveOrder={archiveOrder} permanentDeleteOrder={permanentDeleteOrder} navigate={navigate} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
@@ -1100,10 +1119,10 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
                 <CustomerCell t={t} order={order} />
                 <PhoneCell t={t} order={order} />
                 <ItemsCountCell order={order} />
-                <div className="flex min-w-0 items-center justify-center px-2 text-center"><StatusBadge value={order.status} /></div>
                 <PaymentStatusCell order={order} language={language} />
-                <PaidAmountCell order={order} />
                 <TotalCell t={t} order={order} />
+                <PaidAmountCell order={order} />
+                <DueAmountCell order={order} />
                 <SellerCell order={order} />
                 <div className="flex min-w-0 items-center justify-center px-2 text-center text-xs font-medium text-zinc-300"><span className="truncate">{order.branch || "-"}</span></div>
                 <div className="flex min-w-0 items-center justify-center px-2 text-center text-xs font-medium text-zinc-300"><span className="truncate">{getPosDisplay(order) || "-"}</span></div>
@@ -1660,7 +1679,6 @@ function SellerCell({ order }) {
 }
 
 function TotalCell({ t, order }) {
-  const remaining = remainingCodAmount(order);
   return (
     <div className="flex min-w-0 flex-col items-center justify-center px-2 text-center">
       <div className="truncate text-sm font-bold text-white"><CurrencyText value={formatCurrency(totalValue(order))} /></div>
@@ -1669,11 +1687,18 @@ function TotalCell({ t, order }) {
           Total: <CurrencyText value={formatCurrency(totalValue(order))} />
         </div>
       ) : null}
-      {remaining > 0 ? (
-        <div className="mt-0.5 truncate text-[10px] font-black text-amber-200" title={t("orders.payment.remainingCodWithValue", { value: formatCurrency(remaining) })}>
-          {t("orders.payment.remainingCodWithValue", { value: formatCurrency(remaining) })}
-        </div>
-      ) : null}
+    </div>
+  );
+}
+
+function DueAmountCell({ order }) {
+  const due = Number(dueAmountOf(order) || 0);
+  const hasDue = due > 0;
+  return (
+    <div className="flex min-w-0 items-center justify-center px-2 text-center">
+      <div className={`truncate text-sm font-bold ${hasDue ? "text-amber-200" : "text-zinc-500"}`}>
+        <CurrencyText value={formatCurrency(due)} />
+      </div>
     </div>
   );
 }
