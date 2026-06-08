@@ -548,6 +548,19 @@ const analyzeCustomerImportRows = async (clientOrPool, rows, tenantId) => {
   };
 };
 
+const resolveImportTenantId = async (req, columns = null) => {
+  const resolvedColumns = columns || await ensureCustomerSchema();
+  const tenantId = getTenantId(req, req.user?.tenant_id);
+
+  if (resolvedColumns.tenantIdColumn && tenantId === null) {
+    const error = new Error("Tenant context is required for customer import");
+    error.status = req.user ? 400 : 401;
+    throw error;
+  }
+
+  return tenantId;
+};
+
 const insertImportedCustomer = async (client, columns, tenantId, row) => {
   const insertColumns = [];
   const insertValues = [];
@@ -557,6 +570,12 @@ const insertImportedCustomer = async (client, columns, tenantId, row) => {
     insertValues.push(value);
     placeholders.push(`$${insertValues.length}`);
   };
+
+  if (columns.tenantIdColumn && tenantId === null) {
+    const error = new Error("Tenant context is required for imported customer creation");
+    error.status = 400;
+    throw error;
+  }
 
   if (columns.tenantIdColumn) add(columns.tenantIdColumn, tenantId);
   add(columns.nameColumn, row.name);
@@ -1197,9 +1216,10 @@ export const adjustCustomerWallet = async (req, res) => {
 
 export const previewCustomerImport = async (req, res) => {
   try {
-    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     const pointsMode = normalizePointsMode(req.body?.pointsMode || req.body?.points_mode);
     await ensureCustomerImportSchema(pool);
+    const columns = await getCustomerColumns();
+    const tenantId = await resolveImportTenantId(req, columns);
     const rows = parseCustomersImportFile(req.file);
     const analysis = await analyzeCustomerImportRows(pool, rows, tenantId);
     return res.status(200).json({
@@ -1227,11 +1247,11 @@ export const previewCustomerImport = async (req, res) => {
 export const importCustomers = async (req, res) => {
   const client = await pool.connect();
   try {
-    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     const fileName = req.file?.originalname || "customers-import";
     const pointsMode = normalizePointsMode(req.body?.pointsMode || req.body?.points_mode);
     await ensureCustomerImportSchema(client);
     const columns = await getCustomerColumns();
+    const tenantId = await resolveImportTenantId(req, columns);
     const rows = parseCustomersImportFile(req.file);
     const analysis = await analyzeCustomerImportRows(client, rows, tenantId);
 

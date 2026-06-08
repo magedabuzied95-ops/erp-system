@@ -9,6 +9,10 @@ import {
   normalizeOutgoingChannelReply,
 } from "./aiChannelAdapterService.js";
 import { generateUnifiedAiReply } from "./aiConversationOrchestrator.js";
+import {
+  generateUnifiedConversationDecision,
+  logUnifiedDecisionEarlyReturn,
+} from "./aiUnifiedDecisionService.js";
 import { detectEscalation } from "./aiEscalationDetector.js";
 import { pushAIEvent } from "./aiEventLogger.js";
 import { getAISettings, getAIToneInstruction } from "./aiSettingsService.js";
@@ -1016,7 +1020,7 @@ const syncWhatsappLiveMemoryToChannel = async ({ tenantId, sessionId, phone = ""
   return payload;
 };
 
-export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, customerName = "", messageText = "", timestamp = "", traceId = null } = {}) => {
+export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, customerName = "", messageText = "", timestamp = "", traceId = null, dryRun = false } = {}) => {
   const safeTenantId = number(tenantId, number(process.env.WHATSAPP_TENANT_ID, 1));
   const safePhone = text(phone);
   const safeSessionId = text(sessionId || (safePhone ? `whatsapp:${safePhone}` : ""));
@@ -1118,6 +1122,51 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
     last_product_cards_count: loadedProductCards.length,
   });
   await syncWhatsappLiveMemoryToChannel({ tenantId: safeTenantId, sessionId: safeSessionId, phone: safePhone, memory: loadedMemory });
+  const unifiedDecision = await generateUnifiedConversationDecision({
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    externalConversationId: safeSessionId,
+    externalCustomerId: safePhone,
+    customerName,
+    text: body,
+    attachments: message.attachments || [],
+    metadata: {
+      tenant_id: safeTenantId,
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      session_id: safeSessionId,
+      external_conversation_id: safeSessionId,
+      external_customer_id: safePhone,
+      customer_phone: safePhone,
+      customer_name: customerName,
+      timestamp: timestamp || new Date().toISOString(),
+      ai_memory: loadedMemory,
+    },
+  }, {
+    tenantId: safeTenantId,
+    memory: loadedMemory,
+    providerMessageId: message.external_message_id || "",
+  });
+  console.info("[AI_UNIFIED_DECISION_READY]", {
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    conversation_id: safeSessionId,
+    intent: unifiedDecision.intent || "",
+    text_preview: body.slice(0, 160),
+    product_cards_count: asArray(unifiedDecision.product_cards).length,
+    dry_run: Boolean(dryRun),
+  });
+  if (dryRun) {
+    return {
+      triggered: true,
+      sent: false,
+      dryRun: true,
+      replyText: unifiedDecision.text,
+      reply: unifiedDecision.channel_reply || normalizeOutgoingChannelReply({ channel: AI_AGENT_CHANNELS.WHATSAPP, response: unifiedDecision }),
+      aiPayload: unifiedDecision,
+      unifiedDecision,
+      tenantId: safeTenantId,
+      sessionId: safeSessionId,
+      phone: safePhone,
+    };
+  }
   const cleanProductIntent = detectVisualProductIntent(body);
   const cleanProductTrace = cleanVisualProductQuery({ message: body, detectedIntent: cleanProductIntent, memory: loadedMemory });
   if (cleanProductIntent) {
@@ -1126,6 +1175,13 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
   }
   const classificationFollowupPayload = await buildClassificationFollowupPayload({ body, memory: loadedMemory });
   if (classificationFollowupPayload) {
+    logUnifiedDecisionEarlyReturn({
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      reason: "classification_followup_payload",
+      intent: classificationFollowupPayload.detected_intent || unifiedDecision.intent || "",
+      text: body,
+      conversationId: safeSessionId,
+    });
     const classificationReply = classificationFollowupPayload.channel_reply || normalizeOutgoingChannelReply({ channel: AI_AGENT_CHANNELS.WHATSAPP, response: classificationFollowupPayload });
     const classificationReplyText = classificationReply.text || classificationFollowupPayload.answer || "";
     await updateAiConversationMemory({
@@ -1158,6 +1214,13 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
   }
   const confirmationPayload = buildBareConfirmationPayload({ body, memory: loadedMemory });
   if (confirmationPayload) {
+    logUnifiedDecisionEarlyReturn({
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      reason: "bare_confirmation_payload",
+      intent: confirmationPayload.detected_intent || unifiedDecision.intent || "",
+      text: body,
+      conversationId: safeSessionId,
+    });
     const confirmationReply = confirmationPayload.channel_reply || normalizeOutgoingChannelReply({ channel: AI_AGENT_CHANNELS.WHATSAPP, response: confirmationPayload });
     const confirmationReplyText = confirmationReply.text || confirmationPayload.answer || "";
     const confirmationProducts = collectProducts(confirmationPayload);
@@ -1208,6 +1271,13 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
   }
   const followupPayload = cleanProductTrace.used_for_search ? null : await buildWhatsappFollowupPayload({ body, memory: loadedMemory, tenantId: safeTenantId, conversationId: safeSessionId });
   if (followupPayload) {
+    logUnifiedDecisionEarlyReturn({
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      reason: "whatsapp_followup_payload",
+      intent: followupPayload.detected_intent || unifiedDecision.intent || "",
+      text: body,
+      conversationId: safeSessionId,
+    });
     const productCards = collectProducts(followupPayload);
     await addTraceStep(traceId, "ai-selection-brain", {
       source: "whatsapp_live",
@@ -1278,7 +1348,7 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
   });
   let aiPayload = null;
   try {
-    aiPayload = await routeWhatsappMessageThroughAi({ tenantId: safeTenantId, message });
+    aiPayload = unifiedDecision || await routeWhatsappMessageThroughAi({ tenantId: safeTenantId, message });
     if (cleanProductTrace.used_for_search && aiPayload && typeof aiPayload === "object") {
       aiPayload.detected_intent = cleanProductTrace.detected_intent || aiPayload.detected_intent;
       aiPayload.query = cleanProductTrace.clean_query;
