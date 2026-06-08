@@ -749,10 +749,38 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
       SELECT
         COALESCE(NULLIF(oi.product_name, ''), p.name, 'Item') AS product_name,
         COALESCE(SUM(oi.quantity), 0)::numeric AS quantity,
-        COALESCE(SUM(oi.total_amount), 0)::numeric AS total
+        COALESCE(SUM(oi.total_amount), 0)::numeric AS total,
+        MAX(
+          COALESCE(
+            NULLIF(oi.image_url, ''),
+            NULLIF(oi.variant_image, ''),
+            NULLIF(oi.product_image, ''),
+            NULLIF(pv.image_url, ''),
+            NULLIF(pv.image, ''),
+            NULLIF(p.image_url, ''),
+            NULLIF(p.image, ''),
+            NULLIF(p.thumbnail_url, '')
+          )
+        ) AS image_url,
+        MAX(
+          COALESCE(
+            NULLIF(oi.product_image, ''),
+            NULLIF(p.image_url, ''),
+            NULLIF(p.image, ''),
+            NULLIF(p.thumbnail_url, '')
+          )
+        ) AS product_image_url,
+        MAX(
+          COALESCE(
+            NULLIF(oi.variant_image, ''),
+            NULLIF(pv.image_url, ''),
+            NULLIF(pv.image, '')
+          )
+        ) AS variant_image_url
       FROM order_items oi
       JOIN orders o ON o.id = oi.order_id
-      LEFT JOIN products p ON p.id = oi.product_id
+      LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+      LEFT JOIN products p ON p.id = COALESCE(oi.product_id, pv.product_id)
       WHERE o.shift_id = $1
         AND ($2::bigint IS NULL OR o.tenant_id = $2::bigint)
         AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
@@ -992,6 +1020,12 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
       product_name: row.product_name,
       quantity: Number(row.quantity || 0),
       total: money(row.total),
+      image_url: row.image_url || "",
+      image: row.image_url || "",
+      product_image_url: row.product_image_url || "",
+      product_image: row.product_image_url || "",
+      variant_image_url: row.variant_image_url || "",
+      variant_image: row.variant_image_url || "",
     })),
     audit_timeline: auditTimeline,
   };

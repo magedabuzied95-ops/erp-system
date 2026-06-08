@@ -6869,6 +6869,9 @@ const getShiftCloseCopy = (language = "en") => {
         sellerPerformance: "\u0623\u062f\u0627\u0621 \u0627\u0644\u0628\u0627\u0626\u0639\u064a\u0646",
         closingNotes: "\u0645\u0644\u0627\u062d\u0638\u0627\u062a \u0627\u0644\u0625\u063a\u0644\u0627\u0642",
         varianceReason: "\u0633\u0628\u0628 \u0641\u0631\u0642 \u0627\u0644\u062f\u0631\u062c",
+        printReport: "\u0637\u0628\u0627\u0639\u0629 \u0627\u0644\u062a\u0642\u0631\u064a\u0631",
+        refreshActualDrawer: "\u062a\u062d\u062f\u064a\u062b \u0627\u0644\u0639\u062f \u0627\u0644\u0641\u0639\u0644\u064a",
+        finalizeShiftClose: "\u0625\u0646\u0647\u0627\u0621 \u0627\u0644\u0648\u0631\u062f\u064a\u0629 / \u0625\u063a\u0644\u0627\u0642 \u0627\u0644\u0634\u064a\u0641\u062a \u0646\u0647\u0627\u0626\u064a\u064b\u0627",
         closeReady: "\u062c\u0627\u0647\u0632 \u0644\u0644\u0625\u063a\u0644\u0627\u0642",
         varianceDetected: "\u064a\u0648\u062c\u062f \u0641\u0631\u0642 \u064a\u062d\u062a\u0627\u062c \u0645\u0631\u0627\u062c\u0639\u0629",
         finalConfirm: "\u062a\u0623\u0643\u064a\u062f \u0625\u063a\u0644\u0627\u0642 \u0627\u0644\u0634\u064a\u0641\u062a",
@@ -6891,6 +6894,9 @@ const getShiftCloseCopy = (language = "en") => {
         sellerPerformance: "Seller performance",
         closingNotes: "Closing notes",
         varianceReason: "Variance reason",
+        printReport: "Print report",
+        refreshActualDrawer: "Update actual drawer",
+        finalizeShiftClose: "Finalize shift close",
         closeReady: "Ready to close",
         varianceDetected: "Variance detected",
         finalConfirm: "Confirm shift close",
@@ -6984,6 +6990,8 @@ const getTopProductImageUrl = (item = {}) =>
       item.product_image ||
       item.thumbnail_url ||
       item.variant_image ||
+      item.product_image_url ||
+      item.variant_image_url ||
       item.main_image ||
       ""
   );
@@ -7041,7 +7049,7 @@ function ShiftCloseModal({
 
   return (
     <div className="fixed inset-0 z-[95] flex items-end justify-center bg-black/75 px-2 py-2 backdrop-blur-sm sm:items-center sm:px-3 sm:py-5">
-      <div dir={isArabic ? "rtl" : "ltr"} className="max-h-[96vh] w-[92vw] max-w-[1180px] overflow-y-auto rounded-3xl border border-white/10 bg-zinc-950 p-3 shadow-2xl shadow-black/60 sm:max-h-[92vh] sm:p-5">
+      <div dir={isArabic ? "rtl" : "ltr"} className="max-h-[96vh] w-[94vw] max-w-[1260px] overflow-y-auto rounded-3xl border border-white/10 bg-zinc-950 p-3 shadow-2xl shadow-black/60 sm:max-h-[92vh] sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-200">
@@ -7171,7 +7179,7 @@ function ShiftCloseAuditLayout({
         </div>
       </section>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-[0.72fr_1.28fr]">
+      <div className="mt-5 grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
         <section className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
           <div className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">{labels.drawerSummary}</div>
           <div className="mt-3 grid gap-3">
@@ -7211,25 +7219,25 @@ function ShiftCloseAuditLayout({
               </div>
             </div>
           ) : null}
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className={`block rounded-2xl border p-3 ${difference !== 0 ? "border-amber-400/30 bg-amber-500/10" : "border-white/10 bg-black/20"}`}>
-              <span className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{copy.varianceReason}</span>
+          <div className="mt-4 grid gap-3">
+            <label className={`block rounded-2xl border p-4 ${difference !== 0 ? "border-amber-400/30 bg-amber-500/10" : "border-white/10 bg-black/20"}`}>
+              <span className="text-[12px] font-black uppercase tracking-[0.16em] text-zinc-500">{copy.varianceReason}</span>
               <textarea
                 value={varianceReason}
                 onChange={(event) => onVarianceReasonChange?.(event.target.value)}
-                rows={3}
+                rows={4}
                 placeholder="Cash drawer recount issue"
-                className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-black/40 p-3 text-sm font-semibold text-white outline-none focus:border-amber-300/50"
+                className="mt-2 min-h-28 w-full resize-none rounded-xl border border-white/10 bg-black/40 p-3.5 text-base font-semibold text-white outline-none focus:border-amber-300/50"
               />
             </label>
-            <label className="block rounded-2xl border border-white/10 bg-black/20 p-3">
-              <span className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{copy.closingNotes}</span>
+            <label className="block rounded-2xl border border-white/10 bg-black/20 p-4">
+              <span className="text-[12px] font-black uppercase tracking-[0.16em] text-zinc-500">{copy.closingNotes}</span>
               <textarea
                 value={closingNotes}
                 onChange={(event) => onClosingNotesChange?.(event.target.value)}
-                rows={3}
+                rows={4}
                 placeholder="Terminal pending settlement"
-                className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-black/40 p-3 text-sm font-semibold text-white outline-none focus:border-emerald-300/50"
+                className="mt-2 min-h-28 w-full resize-none rounded-xl border border-white/10 bg-black/40 p-3.5 text-base font-semibold text-white outline-none focus:border-emerald-300/50"
               />
             </label>
           </div>
@@ -7251,7 +7259,7 @@ function ShiftCloseAuditLayout({
               Print
             </button>
           </div>
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1.12fr_1.12fr_0.84fr]">
+          <div className="mt-4 grid gap-4 xl:grid-cols-[1.08fr_1.08fr_0.88fr]">
             <AccountingLedgerSection title="ملخص الكاش" accent="amber">
               <AccountingLedgerRow label="مبيعات نقدية" value={formatCurrency(totals.cash || 0)} />
               <AccountingLedgerRow label="مرتجعات نقدية" value={formatCurrency(totals.returns || 0)} />
@@ -7335,6 +7343,49 @@ function ShiftCloseAuditLayout({
             </div>
           </div>
         </section>
+      </div>
+      <div className="sticky bottom-0 z-20 mt-4 rounded-2xl border border-white/10 bg-zinc-950/95 p-3 shadow-2xl shadow-black/30 backdrop-blur">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={submitting}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black text-zinc-200 transition hover:bg-white/[0.08] disabled:opacity-50"
+          >
+            <X className="h-4 w-4" />
+            {labels.cancel}
+          </button>
+          <button
+            type="button"
+            onClick={() => onPrint?.({ ...(report || {}), totals: { ...totals, closing_cash: Number(actualDrawerAmount || 0), cash_difference: difference } })}
+            disabled={submitting}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 text-sm font-black text-emerald-100 transition hover:bg-emerald-400/15 disabled:opacity-50"
+          >
+            <ReceiptText className="h-4 w-4" />
+            {copy.printReport}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const nextValue = String(expectedDrawer);
+              onActualDrawerChange?.(nextValue);
+            }}
+            disabled={submitting}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 text-sm font-black text-cyan-100 transition hover:bg-cyan-400/15 disabled:opacity-50"
+          >
+            <RotateCcw className="h-4 w-4" />
+            {copy.refreshActualDrawer}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={submitting}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-4 text-sm font-black text-zinc-950 transition hover:bg-emerald-300 disabled:opacity-50"
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            {copy.finalizeShiftClose}
+          </button>
+        </div>
       </div>
     </>
   );
