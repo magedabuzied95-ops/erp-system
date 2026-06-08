@@ -44,6 +44,7 @@ import {
   relevanceExplanationAr,
 } from "./aiSalesOrchestratorService.js";
 import { findSimilarProductsForAi } from "./aiSimilarProductsService.js";
+import { expandSearchAliasTerms } from "./productAliasEngine.js";
 
 const PRODUCT_LIMIT = 18;
 const IMAGE_SEARCH_PRODUCT_LIMIT = Number(process.env.AI_IMAGE_SEARCH_PRODUCT_LIMIT || 300);
@@ -750,6 +751,102 @@ const logAiProductMatchTrace = (payload = {}) => {
   });
 };
 
+const sqlPreview = (sql = "") => toText(sql).replace(/\s+/g, " ").trim();
+
+const logAiProductSqlTrace = (payload = {}) => {
+  console.log("AI_PRODUCT_SQL_TRACE", {
+    original_text: payload.original_text || "",
+    normalized_text: payload.normalized_text || "",
+    tenant_id: payload.tenant_id ?? null,
+    strict_model_intent: payload.strict_model_intent || null,
+    searchTerms: payload.searchTerms || [],
+    generated_aliases: payload.generated_aliases || [],
+    sql_query_text: payload.sql_query_text || "",
+    sql_params: payload.sql_params || [],
+    rows_returned_count: payload.rows_returned_count || 0,
+    first_20_product_ids: payload.first_20_product_ids || [],
+    first_20_product_names: payload.first_20_product_names || [],
+    filters: payload.filters || [],
+    filter_counts: payload.filter_counts || {},
+    exclusion_reasons: payload.exclusion_reasons || [],
+    product_47_diagnostic: payload.product_47_diagnostic || null,
+  });
+};
+
+const isJordan4ProductName = (value = "") => {
+  const normalized = normalizeProductMatchText(value);
+  return /(\bjordan\s*4\b|\bjordan4\b|\bair\s+jordan\s*4\b|\baj\s*4\b|\baj4\b|\bj\s*4\b|\bj4\b)/i.test(normalized);
+};
+
+const isJordan1ProductName = (value = "") => {
+  const normalized = normalizeProductMatchText(value);
+  return /(\bjordan\s*1\b|\bjordan1\b|\bair\s+jordan\s*1\b|\baj\s*1\b|\baj1\b|\bj\s*1\b|\bj1\b)/i.test(normalized);
+};
+
+const productRankingTraceRow = ({ product = {}, index = 0, queryText = "", intent = {}, strictModelIntent = null, finalSelectedId = "" } = {}) => {
+  const strictAssessment = strictModelIntent
+    ? productModelMatchAssessment({ product, modelIntent: strictModelIntent, queryText, intent })
+    : null;
+  const score = productRankScore({ product, queryText, intent });
+  const productName = product.name || product.title || "";
+  const rejectionReason = product.rejection_reason ||
+    (strictAssessment && Number(strictAssessment.confidence || 0) < MODEL_INTENT_CONFIDENCE_THRESHOLD
+      ? "below_model_confidence_threshold"
+      : aiProductExclusionReason(product, { requireProductUrl: false }) || "");
+  return {
+    rank: index + 1,
+    product_id: product.id ?? product.product_id ?? null,
+    product_name: productName,
+    sku: product.sku || "",
+    score,
+    rejection_reason: rejectionReason,
+    strict_model_score: strictAssessment?.confidence ?? product.model_match_confidence ?? null,
+    strict_model_reason: strictAssessment?.reason || product.model_match_reason || "",
+    model_family: strictAssessment?.model_family || product.model_family || "",
+    model_match_aliases: strictAssessment?.matched_aliases || product.model_match_aliases || [],
+    total_stock: product.total_stock ?? product.stock ?? null,
+    variant_match_rank_score: product.variant_match_rank_score || 0,
+    exact_variant_available: product.exact_variant_available ?? null,
+    is_jordan4_candidate: isJordan4ProductName([productName, product.sku, product.tags, product.keywords].filter(Boolean).join(" ")),
+    is_jordan1_candidate: isJordan1ProductName([productName, product.sku, product.tags, product.keywords].filter(Boolean).join(" ")),
+    final_selected: String(product.id ?? product.product_id ?? "") === String(finalSelectedId || ""),
+  };
+};
+
+const logAiProductRankingTrace = ({ stage = "", message = "", tenantId = null, strictModelIntent = null, intent = {}, products = [], finalProducts = [] } = {}) => {
+  if (strictModelIntent?.key !== "jordan4") return;
+  const queryText = productQueryText(message, intent);
+  const finalSelectedId = finalProducts[0]?.id ?? finalProducts[0]?.product_id ?? "";
+  const rankedRows = (Array.isArray(products) ? products : []).slice(0, 20).map((product, index) =>
+    productRankingTraceRow({ product, index, queryText, intent, strictModelIntent, finalSelectedId })
+  );
+  const allRows = (Array.isArray(products) ? products : []).map((product, index) =>
+    productRankingTraceRow({ product, index, queryText, intent, strictModelIntent, finalSelectedId })
+  );
+  const jordan4Rows = allRows.filter((row) => row.is_jordan4_candidate).slice(0, 20);
+  const jordan1Rows = allRows.filter((row) => row.is_jordan1_candidate).slice(0, 20);
+  console.log("AI_PRODUCT_RANKING_TRACE", {
+    stage,
+    original_text: message,
+    normalized_text: normalizeProductMatchText(message),
+    tenant_id: tenantId,
+    strict_model_intent: strictModelIntent ? {
+      key: strictModelIntent.key,
+      displayName: strictModelIntent.displayName,
+      matchedAlias: strictModelIntent.matchedAlias,
+      confidence_threshold: MODEL_INTENT_CONFIDENCE_THRESHOLD,
+    } : null,
+    candidate_count: Array.isArray(products) ? products.length : 0,
+    final_selected_product_id: finalSelectedId || null,
+    final_selected_product_name: finalProducts[0]?.name || finalProducts[0]?.title || "",
+    jordan4_exists_in_candidate_set: jordan4Rows.length > 0,
+    jordan1_exists_in_candidate_set: jordan1Rows.length > 0,
+    top_20_ranked_candidates: rankedRows,
+    jordan4_candidates: jordan4Rows,
+    jordan1_candidates: jordan1Rows,
+  });
+};
+
 const hasAnyTerm = (message, terms) => {
   const text = message.toLowerCase();
   return terms.some((term) => text.includes(term.toLowerCase()));
@@ -1106,6 +1203,54 @@ const probeProductForAiMatchTrace = async ({ tenantId, productColumns, productId
       rejection_reason: "probe_query_failed",
       error: error?.message || String(error),
     };
+  }
+};
+
+const runJordan4ProductionProbe = async ({ productColumns, limit = 50 } = {}) => {
+  if (!productColumns?.has?.("id")) return { error: "products.id column missing", rows: [] };
+  const nameExpr = columnExpr("p", productColumns, ["name", "title", "name_en", "name_ar"], "''");
+  const probeSql = `
+    SELECT
+      p.id,
+      ${nameExpr} AS name,
+      ${columnExpr("p", productColumns, ["status"], "NULL")} AS status,
+      ${columnExpr("p", productColumns, ["is_active"], "NULL")} AS is_active,
+      ${columnExpr("p", productColumns, ["deleted_at"], "NULL")} AS deleted_at,
+      ${columnExpr("p", productColumns, ["tenant_id"], "NULL")} AS tenant_id,
+      ${columnExpr("p", productColumns, ["branch_id"], "NULL")} AS branch_id,
+      ${columnExpr("p", productColumns, ["stock"], "NULL")} AS stock,
+      ${columnExpr("p", productColumns, ["sku"], "NULL")} AS sku,
+      ${columnExpr("p", productColumns, ["article_code"], "NULL")} AS article_code
+    FROM products p
+    WHERE
+      LOWER(${nameExpr}::text) LIKE '%jordan%'
+      OR LOWER(${nameExpr}::text) LIKE '%jordan 4%'
+    LIMIT $1
+  `;
+  try {
+    const result = await db.query(probeSql, [Math.max(1, Number(limit) || 50)]);
+    const rows = result.rows.map((row) => ({
+      ...row,
+      ai_eligibility_reason: aiProductExclusionReason(row, { requireProductUrl: false }) || "",
+    }));
+    console.log("AI_JORDAN4_PROBE", {
+      sql_query_text: sqlPreview(probeSql),
+      sql_params: [Math.max(1, Number(limit) || 50)],
+      rows_returned_count: rows.length,
+      product_ids: rows.slice(0, 50).map((row) => row.id),
+      product_names: rows.slice(0, 50).map((row) => row.name),
+      rows,
+    });
+    return { rows };
+  } catch (error) {
+    const payload = {
+      sql_query_text: sqlPreview(probeSql),
+      sql_params: [Math.max(1, Number(limit) || 50)],
+      error: error?.message || String(error),
+      rows: [],
+    };
+    console.log("AI_JORDAN4_PROBE", payload);
+    return payload;
   }
 };
 
@@ -2192,6 +2337,11 @@ const searchProducts = async ({ tenantId, message, intent, req = null, memory = 
   const terms = normalizeSearchTerms(message, intent);
   const strictModelIntent = detectStrictModelIntent(message);
   const aliasMatchesForTrace = findByAlias(message);
+  const generatedAliasesForTrace = unique([
+    ...expandSearchAliasTerms(message, { limit: 80 }),
+    ...(strictModelIntent?.aliases || []),
+    ...(strictModelIntent?.searchTerms || []),
+  ]).slice(0, 120);
   const orchestratorUnderstanding = detectSalesProductUnderstanding({ message, memory, source: "product_search" });
   const styleIntent = intent.product?.intelligence?.style;
   const hasConcreteProductFilter = Boolean(
@@ -2401,6 +2551,31 @@ const searchProducts = async ({ tenantId, message, intent, req = null, memory = 
     LIMIT $${params.length}
     `;
   const result = await db.query(productVariantLoadSql, params);
+  if (strictModelIntent?.key === "jordan4") {
+    await runJordan4ProductionProbe({ productColumns, limit: 50 });
+  }
+  const sqlTraceBase = {
+    original_text: message,
+    normalized_text: normalizeProductMatchText(message),
+    tenant_id: tenantId,
+    strict_model_intent: strictModelIntent ? {
+      key: strictModelIntent.key,
+      family: strictModelIntent.family,
+      displayName: strictModelIntent.displayName,
+      matchedAlias: strictModelIntent.matchedAlias,
+    } : null,
+    searchTerms: productSearchTerms,
+    generated_aliases: generatedAliasesForTrace,
+    sql_query_text: sqlPreview(productVariantLoadSql),
+    sql_params: params,
+    rows_returned_count: result.rows.length,
+    first_20_product_ids: result.rows.slice(0, 20).map((row) => row.id),
+    first_20_product_names: result.rows.slice(0, 20).map((row) => row.name),
+    filters,
+  };
+  if (strictModelIntent?.key === "jordan4") {
+    logAiProductSqlTrace(sqlTraceBase);
+  }
   productMatchTrace.sql_candidate_count = result.rows.length;
   productMatchTrace.candidate_products = result.rows.slice(0, 12).map((product) => ({
     ...productTraceRow(product),
@@ -2418,6 +2593,11 @@ const searchProducts = async ({ tenantId, message, intent, req = null, memory = 
     countMatches(activeOnlyConditions),
     getWebsiteSettings({ tenantId }).then(normalizeStorefrontPricingSettings).catch(() => normalizeStorefrontPricingSettings()),
   ]);
+  productMatchTrace.sql_candidate_count = result.rows.length;
+  productMatchTrace.candidate_products = result.rows.slice(0, 12).map((product) => ({
+    ...productTraceRow(product),
+    stage: "sql",
+  }));
   const requestedKind = detectRequestedProductKind(message);
   const normalizedRows = result.rows.map((row) => normalizeProductRow(row, intent, pricingSettings));
   const hydratedProducts = await hydrateProductsWithStorefrontImages(
@@ -2441,6 +2621,15 @@ const searchProducts = async ({ tenantId, message, intent, req = null, memory = 
     intent,
     memory,
   });
+  logAiProductRankingTrace({
+    stage: "initial_ranked_after_productRankScore",
+    message,
+    tenantId,
+    strictModelIntent,
+    intent,
+    products,
+    finalProducts: products,
+  });
   if (requestedKind) {
     const kindMatches = products.filter((product) => requestedKind.catalog.test(productSearchBlob(product)));
     products = kindMatches.length ? kindMatches : [];
@@ -2462,6 +2651,15 @@ const searchProducts = async ({ tenantId, message, intent, req = null, memory = 
       return Number(right.variant_match_rank_score || 0) - Number(left.variant_match_rank_score || 0);
     });
   }
+  logAiProductRankingTrace({
+    stage: "pre_strict_model_filter",
+    message,
+    tenantId,
+    strictModelIntent,
+    intent,
+    products,
+    finalProducts: products,
+  });
   if (strictModelIntent) {
     const queryText = productQueryText(message, intent);
     const assessedProducts = products.map((product) => {
@@ -2505,6 +2703,24 @@ const searchProducts = async ({ tenantId, message, intent, req = null, memory = 
         if (confidenceDiff !== 0) return confidenceDiff;
         return productRankScore({ product: right, queryText, intent }) - productRankScore({ product: left, queryText, intent });
       });
+    logAiProductRankingTrace({
+      stage: "assessed_before_strong_filter",
+      message,
+      tenantId,
+      strictModelIntent,
+      intent,
+      products: assessedProducts,
+      finalProducts: strongProducts,
+    });
+    logAiProductRankingTrace({
+      stage: "post_strict_model_filter",
+      message,
+      tenantId,
+      strictModelIntent,
+      intent,
+      products: strongProducts,
+      finalProducts: strongProducts,
+    });
     const topDebug = assessedProducts.slice(0, 8).map((product) => ({
       id: product.id,
       name: product.name,
@@ -2545,6 +2761,15 @@ const searchProducts = async ({ tenantId, message, intent, req = null, memory = 
   );
   products = filterAiEligibleProducts(products, { requireProductUrl: false });
   productMatchTrace.eligible_candidate_count = products.length;
+  logAiProductRankingTrace({
+    stage: "post_ai_eligibility",
+    message,
+    tenantId,
+    strictModelIntent,
+    intent,
+    products,
+    finalProducts: products,
+  });
   const exactCount = strictModelIntent
     ? products.filter((product) => Number(product.model_match_confidence || 0) >= MODEL_INTENT_CONFIDENCE_THRESHOLD).length
     : products.length;
@@ -2570,6 +2795,15 @@ const searchProducts = async ({ tenantId, message, intent, req = null, memory = 
         }))
     );
   }
+  logAiProductRankingTrace({
+    stage: "final_selection",
+    message,
+    tenantId,
+    strictModelIntent,
+    intent,
+    products,
+    finalProducts: products,
+  });
   productMatchTrace.final_candidate_count = products.length;
   productMatchTrace.confidence_threshold = strictModelIntent ? MODEL_INTENT_CONFIDENCE_THRESHOLD : null;
   productMatchTrace.final_selected_product = products[0] ? productTraceRow(products[0]) : null;
@@ -2578,6 +2812,29 @@ const searchProducts = async ({ tenantId, message, intent, req = null, memory = 
     : strictModelIntent
       ? "strict_model_no_confident_match"
       : "no_matching_products";
+  if (strictModelIntent?.key === "jordan4") {
+    logAiProductSqlTrace({
+      ...sqlTraceBase,
+      rows_returned_count: result.rows.length,
+      filter_counts: {
+        broad_matched_before_active_storefront_filters: broadMatchedCount,
+        active_matched_before_storefront_filters: activeMatchedCount,
+        sql_rows_after_active_storefront_filters: result.rows.length,
+        hydrated_candidate_count: productMatchTrace.hydrated_candidate_count,
+        assessed_candidate_count: productMatchTrace.assessed_candidate_count,
+        strong_candidate_count: productMatchTrace.strong_candidate_count,
+        eligible_candidate_count: productMatchTrace.eligible_candidate_count,
+        final_candidate_count: productMatchTrace.final_candidate_count,
+        removed_by_active_filters: Math.max(0, broadMatchedCount - activeMatchedCount),
+        removed_by_storefront_or_sql_ai_filters: Math.max(0, activeMatchedCount - result.rows.length),
+        removed_by_model_confidence: Math.max(0, productMatchTrace.assessed_candidate_count - productMatchTrace.strong_candidate_count),
+        removed_by_ai_eligibility: Math.max(0, productMatchTrace.strong_candidate_count - productMatchTrace.eligible_candidate_count),
+        removed_by_relevance_gate: Math.max(0, productMatchTrace.eligible_candidate_count - productMatchTrace.final_candidate_count),
+      },
+      exclusion_reasons: productMatchTrace.rejection_reasons,
+      product_47_diagnostic: productMatchTrace.product_47_probe,
+    });
+  }
   if (strictModelIntent) logAiProductMatchTrace(productMatchTrace);
   console.log("[ai-orchestrator:candidates]", {
     exact_count: exactCount,
@@ -3263,6 +3520,87 @@ const conversationRecommendationState = (memory = null) => {
     pendingAlternativeSourceMessage: toText(preferences.pendingAlternativeSourceMessage || ""),
     pendingAlternativeBrand: toText(preferences.pendingAlternativeBrand || ""),
     pendingAlternativePrice: money(preferences.pendingAlternativePrice),
+  };
+};
+
+const explicitModelStalePreferenceKeys = [
+  "last_product_id",
+  "last_product",
+  "last_product_cards",
+  "lastProductCards",
+  "lastProductCard",
+  "selected_product_id",
+  "selectedProductId",
+  "selected_product",
+  "selectedProduct",
+  "activeProductId",
+  "active_product_id",
+  "lastRecommendedProductIds",
+  "lastVisualQuery",
+  "lastVisualFeatures",
+  "lastVisualMatches",
+  "rejectedVisualMatches",
+  "rejectedProductIds",
+  "rejectedModelNames",
+  "pendingAlternativeForModel",
+  "pendingAlternativeCategory",
+  "pendingAlternativeSourceMessage",
+  "pendingAlternativeBrand",
+  "pendingAlternativePrice",
+  "pending_product_search_context",
+  "pendingProductSearchContext",
+  "awaiting_alternative_choice",
+  "awaitingAlternativeChoice",
+  "awaiting_model_selection",
+  "awaitingModelSelection",
+  "awaiting_confirmation",
+  "awaitingConfirmation",
+];
+
+const explicitModelStaleRootKeys = [
+  "last_products",
+  "lastProductCards",
+  "lastProductCard",
+  "last_product_cards",
+  "last_product_id",
+  "activeProductId",
+  "activeVariantId",
+  "selectedProductId",
+  "selectedVariantId",
+  "selectedProduct",
+  "selected_product",
+  "pending_product_search_context",
+  "pendingProductSearchContext",
+  "awaiting_alternative_choice",
+  "awaitingAlternativeChoice",
+  "awaiting_model_selection",
+  "awaitingModelSelection",
+  "awaiting_confirmation",
+  "awaitingConfirmation",
+];
+
+const clearObjectKeys = (source = {}, keys = []) => {
+  if (!source || typeof source !== "object") return source;
+  const next = { ...source };
+  for (const key of keys) {
+    if (key in next) delete next[key];
+  }
+  return next;
+};
+
+const clearStaleProductMemoryForExplicitModel = ({ memory = null, message = "" } = {}) => {
+  const modelIntent = detectStrictModelIntent(message);
+  if (!modelIntent || !memory || typeof memory !== "object") return memory;
+  const preferences = memory.preferences && typeof memory.preferences === "object" ? memory.preferences : {};
+  const sanitized = clearObjectKeys(memory, explicitModelStaleRootKeys);
+  const sanitizedPreferences = clearObjectKeys(preferences, explicitModelStalePreferenceKeys);
+  return {
+    ...sanitized,
+    preferences: sanitizedPreferences,
+    explicit_model_memory_reset: {
+      model: modelIntent.displayName,
+      reason: "fresh_explicit_model_search_ignores_stale_product_context",
+    },
   };
 };
 
@@ -4801,9 +5139,12 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
       })
     : null;
   const memorySource = buildAiMemoryContextSource(conversationMemory);
-  const effectiveMemory = mergeCurrentTurnMemory({ memory: conversationMemory, message, req });
-  const recommendationState = conversationRecommendationState(effectiveMemory);
   const rawCurrentTurnModelIntent = detectStrictModelIntent(message);
+  const effectiveMemory = clearStaleProductMemoryForExplicitModel({
+    memory: mergeCurrentTurnMemory({ memory: conversationMemory, message, req }),
+    message,
+  });
+  const recommendationState = conversationRecommendationState(effectiveMemory);
   const currentTurnModelIntent = rawCurrentTurnModelIntent && recommendationState.rejectedModelNames.some((name) =>
     normalizeProductMatchText(name) === normalizeProductMatchText(rawCurrentTurnModelIntent.displayName)
   )

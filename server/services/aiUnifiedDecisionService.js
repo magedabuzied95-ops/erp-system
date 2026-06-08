@@ -88,6 +88,20 @@ const staleProductContextKeys = [
   "activeSize",
   "alternative_flow",
   "last_shown_image_cards",
+  "lastRecommendedProductIds",
+  "lastVisualQuery",
+  "lastVisualFeatures",
+  "lastVisualMatches",
+  "rejectedVisualMatches",
+  "rejectedProductIds",
+  "rejectedModelNames",
+  "currentRequestedModel",
+  "currentRequestedModelName",
+  "pendingAlternativeForModel",
+  "pendingAlternativeCategory",
+  "pendingAlternativeSourceMessage",
+  "pendingAlternativeBrand",
+  "pendingAlternativePrice",
 ];
 
 const clearKeys = (source = {}, keys = []) => {
