@@ -45,27 +45,105 @@ const hasClearProductModelRequest = (message = "") => {
   return /(\u062c\u0648\u0631\u062f\u0646\s*(?:4|\u0664|\u06f4|\u0641\u0648\u0631)|jordan\s*4|jordan4|aj4|j4)/i.test(normalized);
 };
 
+const staleFollowupKeys = [
+  "awaiting_alternative_choice",
+  "awaitingAlternativeChoice",
+  "awaiting_confirmation",
+  "awaitingConfirmation",
+  "awaiting_model_selection",
+  "awaitingModelSelection",
+  "pending_product_search_context",
+  "pendingProductSearchContext",
+  "awaiting_customer_action",
+  "awaitingCustomerAction",
+];
+
+const staleProductContextKeys = [
+  "last_product_cards",
+  "lastProductCards",
+  "last_product",
+  "lastProduct",
+  "lastProductCard",
+  "last_product_id",
+  "last_product_name",
+  "selected_product",
+  "selectedProduct",
+  "selected_product_context",
+  "selectedProductContext",
+  "selected_product_id",
+  "selectedProductId",
+  "selected_color",
+  "selectedColor",
+  "selected_size",
+  "selectedSize",
+  "active_product_id",
+  "activeProductId",
+  "active_variant_id",
+  "activeVariantId",
+  "active_color",
+  "activeColor",
+  "active_size",
+  "activeSize",
+  "alternative_flow",
+  "last_shown_image_cards",
+];
+
+const clearKeys = (source = {}, keys = []) => {
+  if (!source || typeof source !== "object") return source;
+  const next = { ...source };
+  for (const key of keys) {
+    if (key in next) delete next[key];
+  }
+  return next;
+};
+
 const sanitizeMemoryForClearProductRequest = (memory = null, inbound = {}) => {
   if (!memory || typeof memory !== "object" || !hasClearProductModelRequest(inbound.text)) return memory;
   const preferences = memory.preferences && typeof memory.preferences === "object" ? memory.preferences : {};
-  if (!preferences.pending_product_search_context && !preferences.last_clarification_type && !preferences.last_clarification_expected_values) return memory;
-  const sanitizedPreferences = { ...preferences };
-  delete sanitizedPreferences.pending_product_search_context;
-  delete sanitizedPreferences.last_clarification_type;
-  delete sanitizedPreferences.last_clarification_expected_values;
+  const sanitizedRoot = clearKeys(memory, [...staleFollowupKeys, ...staleProductContextKeys]);
+  const sanitizedPreferences = clearKeys(preferences, [
+    ...staleFollowupKeys,
+    ...staleProductContextKeys,
+    "last_clarification_type",
+    "last_clarification_expected_values",
+    "last_ai_question",
+    "last_bot_message",
+  ]);
   return {
-    ...memory,
+    ...sanitizedRoot,
     preferences: sanitizedPreferences,
   };
 };
 
 const summarizeMemoryForLog = (memory = null) => {
   const preferences = memory?.preferences || {};
+  const read = (...keys) => {
+    for (const key of keys) {
+      const value = preferences?.[key] ?? memory?.[key];
+      if (value !== undefined && value !== null && value !== "") return value;
+    }
+    return "";
+  };
+  const lastCards = read("last_product_cards", "lastProductCards");
+  const selectedProduct = read("selected_product", "selectedProduct", "selected_product_context", "selectedProductContext", "last_product", "lastProduct", "lastProductCard");
   return {
     previousIntent: text(preferences.last_intent || preferences.lastIntent || memory?.last_intent || ""),
-    hasPendingClassification: Boolean(preferences.pending_product_search_context),
-    lastProductId: text(preferences.last_product_id || preferences.last_product?.product_id || preferences.lastProductCard?.product_id || ""),
-    awaitingCustomerAction: text(preferences.awaiting_customer_action || ""),
+    pending_product_search_context: read("pending_product_search_context", "pendingProductSearchContext") || null,
+    pendingProductSearchContext: read("pending_product_search_context", "pendingProductSearchContext") || null,
+    hasPendingClassification: Boolean(read("pending_product_search_context", "pendingProductSearchContext")),
+    last_product_cards: Array.isArray(lastCards) ? lastCards.slice(0, 5) : [],
+    lastProductCardsCount: Array.isArray(lastCards) ? lastCards.length : 0,
+    selected_product: selectedProduct || null,
+    selectedProductId: text(read("selected_product_id", "selectedProductId", "last_product_id") || selectedProduct?.product_id || selectedProduct?.id || ""),
+    selected_color: text(read("selected_color", "selectedColor", "active_color", "activeColor")),
+    selected_size: text(read("selected_size", "selectedSize", "active_size", "activeSize")),
+    awaiting_alternative_choice: Boolean(read("awaiting_alternative_choice", "awaitingAlternativeChoice")),
+    awaiting_confirmation: Boolean(read("awaiting_confirmation", "awaitingConfirmation")),
+    awaiting_model_selection: Boolean(read("awaiting_model_selection", "awaitingModelSelection")),
+    awaitingCustomerAction: text(read("awaiting_customer_action", "awaitingCustomerAction")),
+    last_intent: text(read("last_intent", "lastIntent")),
+    memory_keys: memory && typeof memory === "object" ? Object.keys(memory).sort() : [],
+    preference_keys: preferences && typeof preferences === "object" ? Object.keys(preferences).sort() : [],
   };
 };
 
@@ -224,6 +302,37 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
   const effectiveMemorySummary = summarizeMemoryForLog(effectiveMemory);
   const tenantId = options.tenantId || inbound.metadata.tenant_id || inbound.metadata.tenantId || process.env.WHATSAPP_TENANT_ID || 1;
   const branchId = options.branchId ?? inbound.metadata.branch_id ?? inbound.metadata.branchId ?? null;
+
+  console.info("AI_MEMORY_SNAPSHOT", {
+    channel: inbound.channel,
+    conversation_id: inbound.externalConversationId,
+    conversationId: inbound.externalConversationId,
+    pending_product_search_context: memorySummary.pending_product_search_context,
+    last_product_cards: memorySummary.last_product_cards,
+    last_product_cards_count: memorySummary.lastProductCardsCount,
+    selected_product: memorySummary.selected_product,
+    selected_color: memorySummary.selected_color,
+    selected_size: memorySummary.selected_size,
+    awaiting_alternative_choice: memorySummary.awaiting_alternative_choice,
+    awaiting_confirmation: memorySummary.awaiting_confirmation,
+    awaiting_model_selection: memorySummary.awaiting_model_selection,
+    last_intent: memorySummary.last_intent || memorySummary.previousIntent,
+    memory_keys: memorySummary.memory_keys,
+    preference_keys: memorySummary.preference_keys,
+    effective: {
+      pending_product_search_context: effectiveMemorySummary.pending_product_search_context,
+      last_product_cards_count: effectiveMemorySummary.lastProductCardsCount,
+      selected_product: effectiveMemorySummary.selected_product,
+      selected_color: effectiveMemorySummary.selected_color,
+      selected_size: effectiveMemorySummary.selected_size,
+      awaiting_alternative_choice: effectiveMemorySummary.awaiting_alternative_choice,
+      awaiting_confirmation: effectiveMemorySummary.awaiting_confirmation,
+      awaiting_model_selection: effectiveMemorySummary.awaiting_model_selection,
+      memory_keys: effectiveMemorySummary.memory_keys,
+      preference_keys: effectiveMemorySummary.preference_keys,
+    },
+    explicit_model_request: hasClearProductModelRequest(inbound.text),
+  });
 
   console.info("AI_UNIFIED_DECISION_INPUT", {
     channel: inbound.channel,

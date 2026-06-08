@@ -553,11 +553,24 @@ const validateScenarioExpectations = ({ scenario = {}, capture = {}, channel = "
       issues.push("unexpected_gender_clarification");
     }
   }
+  if (expectations.no_alternative_flow === true) {
+    const replyText = text(capture.text || capture.reply_text || "");
+    const isAlternativeQuestion = /(\u0628\u062f\u064a\u0644\s+\u0634\u0628\u0647|\u0623\u0637\u0644\u0639\u0644\u0643\s+\u0628\u062f\u064a\u0644|alternative)/i.test(replyText);
+    if (isAlternativeQuestion || capture.intent === "alternatives") {
+      issues.push("unexpected_alternative_flow");
+    }
+  }
   if (expectations.allow_gender_clarification === true) {
     const replyText = text(capture.text || capture.reply_text || "");
     const hasClarification = /(\u0627\u0644\u062c\u0646\u0633|\u0631\u062c\u0627\u0644\u064a\s+\u0648\u0644\u0627\s+\u062d\u0631\u064a\u0645\u064a|gender)/i.test(replyText) ||
       capture.intent === "classification_clarification";
     if (!hasClarification) issues.push("expected_gender_clarification_missing");
+  }
+  if (expectations.top_product_id) {
+    const topProductId = text(capture.top_product_id || firstProductCard.id || firstProductCard.product_id || "");
+    if (topProductId !== expectations.top_product_id) {
+      issues.push(`top_product_id=${topProductId || "missing"}`);
+    }
   }
   if (issues.length) {
     throw new Error(`[AI_CHANNEL_PARITY_EXPECTATION_FAIL] ${scenario.id}:${channel} ${issues.join(" | ")}`);
@@ -676,6 +689,71 @@ const scenarios = [
 ];
 const parityScenarios = [
   { id: "requested_jordan4_images_phrase", message: PHRASES.jordan4Images, test_case_id: "product_inquiry", expectations: { no_gender_clarification: true } },
+  {
+    id: "requested_jordan4_images_with_stale_alternative_memory",
+    message: PHRASES.jordan4Images,
+    test_case_id: "product_inquiry",
+    seedMemory: {
+      awaiting_alternative_choice: true,
+      awaiting_confirmation: true,
+      awaiting_model_selection: true,
+      pending_product_search_context: {
+        model_query: "old shox",
+        missing_classification_groups: ["gender"],
+      },
+      last_intent: "alternatives",
+      selected_product_id: "old-shox",
+      selected_color: "Red",
+      selected_size: "41",
+      selected_product_context: {
+        product_id: "old-shox",
+        id: "old-shox",
+        name: "Old Shox Product",
+        color: "Red",
+      },
+      last_product_cards: [
+        {
+          product_id: "old-shox",
+          id: "old-shox",
+          name: "Old Shox Product",
+          image_url: "https://example.com/old-shox.jpg",
+        },
+      ],
+      preferences: {
+        awaiting_alternative_choice: true,
+        awaiting_confirmation: true,
+        awaiting_model_selection: true,
+        pending_product_search_context: {
+          model_query: "old shox",
+          missing_classification_groups: ["gender"],
+        },
+        last_intent: "alternatives",
+        selected_product_id: "old-shox",
+        selected_color: "Red",
+        selected_size: "41",
+        selected_product_context: {
+          product_id: "old-shox",
+          id: "old-shox",
+          name: "Old Shox Product",
+          color: "Red",
+        },
+        last_product_cards: [
+          {
+            product_id: "old-shox",
+            id: "old-shox",
+            name: "Old Shox Product",
+            image_url: "https://example.com/old-shox.jpg",
+          },
+        ],
+      },
+    },
+    expectations: {
+      no_gender_clarification: true,
+      no_alternative_flow: true,
+      top_product_id: "jordan-4-black",
+      rich_product_cards: true,
+    },
+  },
   { id: "vague_shoe_gender_clarification", message: PHRASES.vagueShoe, test_case_id: "vague_shoe_gender_clarification", expectations: { allow_gender_clarification: true } },
   { id: "product_search_jordan", message: "عندك جوردن 4؟", test_case_id: "product_inquiry" },
   {
