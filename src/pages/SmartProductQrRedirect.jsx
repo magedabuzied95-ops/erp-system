@@ -54,15 +54,20 @@ export default function SmartProductQrRedirect() {
     const employeeToken = readEmployeePortalToken();
 
     if (employeeToken) {
-      navigate(
-        `/employee-portal/${encodeURIComponent(employeeToken)}/products${buildQuery([
-          ["productId", productId],
-          ["variantId", variantId],
-          ["colorId", colorId],
-          ["action", action],
-        ])}`,
-        { replace: true }
-      );
+      const finalRedirectUrl = `/employee-portal/${encodeURIComponent(employeeToken)}/products${buildQuery([
+        ["productId", productId],
+        ["variantId", variantId],
+        ["colorId", colorId],
+        ["action", action],
+      ])}`;
+      console.info("[SMART_QR_REDIRECT]", {
+        productId,
+        variantId,
+        colorId,
+        action,
+        finalRedirectUrl,
+      });
+      navigate(finalRedirectUrl, { replace: true });
       return undefined;
     }
 

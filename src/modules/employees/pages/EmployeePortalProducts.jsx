@@ -325,6 +325,60 @@ const buildLookupParams = (directLookup) => {
   return params;
 };
 
+const parseSmartQrScan = (value = "") => {
+  const raw = text(value);
+  if (!raw) return null;
+
+  try {
+    const parsedUrl = new URL(raw, typeof window !== "undefined" ? window.location.origin : "http://localhost");
+    const match = parsedUrl.pathname.match(/\/qr\/product\/([^/?#]+)/i);
+    if (!match?.[1]) return null;
+    return {
+      productId: decodeURIComponent(match[1]),
+      variantId: text(parsedUrl.searchParams.get("variantId") || parsedUrl.searchParams.get("variant")),
+      colorId: text(parsedUrl.searchParams.get("colorId") || parsedUrl.searchParams.get("color")),
+      action: text(parsedUrl.searchParams.get("action")) || "warehouse-request",
+    };
+  } catch {
+    return null;
+  }
+};
+
+const productMatchesDirectLookup = (product = {}, directLookup = {}) => {
+  const requestedProductId = text(directLookup.productId);
+  const requestedVariantId = text(directLookup.variantId);
+  const requestedColorId = text(directLookup.colorId);
+  const productIds = [
+    product.id,
+    product.product_id,
+    product.employee_source_product_id,
+  ].map((value) => text(value)).filter(Boolean);
+
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const variantProductIds = variants
+    .map((variant) => text(variant.product_id))
+    .filter(Boolean);
+  const variantIds = variants
+    .map((variant) => text(variant.variant_id ?? variant.id))
+    .filter(Boolean);
+  const colorIds = variants
+    .map((variant) => text(variant.color_id))
+    .filter(Boolean);
+
+  const matchByProductId = requestedProductId
+    ? productIds.includes(requestedProductId) || variantProductIds.includes(requestedProductId)
+    : false;
+  const matchByVariantId = requestedVariantId ? variantIds.includes(requestedVariantId) : false;
+  const matchByColorId = requestedColorId ? colorIds.includes(requestedColorId) : false;
+
+  return {
+    matched: Boolean(matchByProductId || matchByVariantId || matchByColorId),
+    matchByProductId,
+    matchByVariantId,
+    matchByColorId,
+  };
+};
+
 function ProductCard({ product, active, onOpen }) {
   const colors = product.colors.slice(0, 4);
   const sizes = product.sizes.slice(0, 4);
@@ -624,6 +678,7 @@ export default function EmployeePortalProducts() {
     }),
     [queryKey]
   );
+  const directLookupActive = Boolean(directLookup.productId || directLookup.variantId || directLookup.colorId || directLookup.barcode || directLookup.article);
 
   const [employee, setEmployee] = useState(null);
   const [products, setProducts] = useState([]);
@@ -652,7 +707,18 @@ export default function EmployeePortalProducts() {
   const filtersPanelRef = useRef(null);
   const searchInputRef = useRef(null);
   const homePath = useMemo(() => buildEmployeePortalHomePath({ pathname: location.pathname, token }), [location.pathname, token]);
-  const openedFromDeepLink = Boolean(directLookup.productId || directLookup.variantId || directLookup.colorId || directLookup.barcode || directLookup.article);
+  const openedFromDeepLink = directLookupActive;
+
+  useEffect(() => {
+    console.info("[SMART_QR_EMPLOYEE_PARAMS]", {
+      href: typeof window !== "undefined" ? window.location.href : "",
+      searchParams: Array.from(searchParams.entries()),
+      productId: directLookup.productId,
+      variantId: directLookup.variantId,
+      colorId: directLookup.colorId,
+      action: directLookup.action,
+    });
+  }, [directLookup.action, directLookup.colorId, directLookup.productId, directLookup.variantId, searchParams]);
 
   useEffect(() => {
     if (typeof document === "undefined") return undefined;
@@ -692,7 +758,8 @@ export default function EmployeePortalProducts() {
     setSelectedSize("");
     setSelectedQuantity(1);
     setSheetOpen(false);
-  }, [token, queryKey]);
+    if (openedFromDeepLink) setSearch("");
+  }, [openedFromDeepLink, token, queryKey]);
 
   useEffect(() => {
     if (lookupDoneRef.current) return;
@@ -705,13 +772,38 @@ export default function EmployeePortalProducts() {
         if (cancelled) return;
 
         const lookupProducts = normalizeEmployeePosCatalog(response?.products);
+        const byProductId = lookupProducts.find((product) => productMatchesDirectLookup(product, directLookup).matchByProductId) || null;
+        const byVariantProductId = lookupProducts.find((product) => {
+          const variants = Array.isArray(product.variants) ? product.variants : [];
+          return variants.some((variant) => String(variant.product_id ?? "") === String(directLookup.productId ?? ""));
+        }) || null;
         if (!lookupProducts.length) return;
 
         const selection = response?.selection || {};
         const matched =
-          lookupProducts.find((product) => String(product.id) === String(selection.product_id || "")) ||
+          lookupProducts.find((product) => String(product.id) === String(selection.product_id || "") || String(product.product_id) === String(selection.product_id || "")) ||
+          byProductId ||
+          byVariantProductId ||
           lookupProducts[0] ||
           null;
+
+        console.info("[SMART_QR_PRODUCT_MATCH]", {
+          source: "lookup",
+          loadedProductsCount: lookupProducts.length,
+          firstMatchingProduct: matched ? {
+            id: matched.id,
+            product_id: matched.product_id,
+            name: matched.name || matched.product_name,
+          } : null,
+          lookupByProductId: byProductId ? {
+            id: byProductId.id,
+            product_id: byProductId.product_id,
+          } : null,
+          lookupByVariantProductId: byVariantProductId ? {
+            id: byVariantProductId.id,
+            product_id: byVariantProductId.product_id,
+          } : null,
+        });
 
         if (matched) {
           const variant = findVariant(
@@ -729,6 +821,7 @@ export default function EmployeePortalProducts() {
           setSelectedSize(nextSelection.selectedSize);
           setSelectedQuantity(1);
           setSheetOpen(directLookup.action === "warehouse-request" || Boolean(directLookup.productId));
+          setSearch("");
         }
       } finally {
         lookupDoneRef.current = true;
@@ -741,6 +834,69 @@ export default function EmployeePortalProducts() {
   }, [token, directLookup.productId, directLookup.variantId, directLookup.colorId, directLookup.barcode, directLookup.article, directLookup.action]);
 
   const normalizedProducts = useMemo(() => (Array.isArray(products) ? products : []).map(normalizeProduct), [products]);
+
+  useEffect(() => {
+    if (!directLookupActive) return;
+    if (!normalizedProducts.length) return;
+
+    const matches = normalizedProducts
+      .map((product) => ({ product, result: productMatchesDirectLookup(product, directLookup) }))
+      .filter(({ result }) => result.matched);
+    const byProductId = matches.find(({ result }) => result.matchByProductId)?.product || null;
+    const byVariantProductId = normalizedProducts.find((product) => {
+      const variants = Array.isArray(product.variants) ? product.variants : [];
+      return variants.some((variant) => String(variant.product_id ?? "") === String(directLookup.productId ?? ""));
+    }) || null;
+    const exactVariantProduct = matches.find(({ result }) => result.matchByVariantId || result.matchByColorId)?.product || null;
+    const matchedProduct = byProductId || exactVariantProduct || byVariantProductId || null;
+
+    console.info("[SMART_QR_PRODUCT_MATCH]", {
+      source: "loaded-products",
+      loadedProductsCount: normalizedProducts.length,
+      firstMatchingProduct: matchedProduct ? {
+        id: matchedProduct.id,
+        product_id: matchedProduct.product_id,
+        name: matchedProduct.name || matchedProduct.product_name,
+      } : null,
+      lookupByProductId: byProductId ? {
+        id: byProductId.id,
+        product_id: byProductId.product_id,
+      } : null,
+      lookupByVariantProductId: byVariantProductId ? {
+        id: byVariantProductId.id,
+        product_id: byVariantProductId.product_id,
+      } : null,
+    });
+
+    if (!matchedProduct) return;
+
+    const nextVariant = findVariant(
+      matchedProduct,
+      directLookup.variantId || null,
+      "",
+      "",
+      directLookup.colorId || null
+    );
+    const nextColor = nextVariant?.color || firstAvailableColor(matchedProduct);
+    const nextSelection = resolveColorSelection(matchedProduct, nextColor, nextVariant?.size || "");
+
+    setSearch("");
+    setSelectedProduct(matchedProduct);
+    setSelectedColor(nextColor);
+    setSelectedSize(nextSelection.selectedSize);
+    setSelectedQuantity(1);
+
+    if (directLookup.action === "warehouse-request" || Boolean(directLookup.productId)) {
+      console.info("[SMART_QR_OPEN_REQUEST]", {
+        productId: matchedProduct.id ?? matchedProduct.product_id ?? null,
+        variantId: nextVariant?.variant_id ?? nextVariant?.id ?? null,
+        colorId: nextVariant?.color_id ?? directLookup.colorId ?? null,
+        color: nextColor,
+        size: nextSelection.selectedSize,
+      });
+      setSheetOpen(true);
+    }
+  }, [directLookup, directLookupActive, normalizedProducts]);
 
   const filterOptions = useMemo(() => {
     const categories = uniqueValues(normalizedProducts.map((product) => product.category));
@@ -929,10 +1085,29 @@ export default function EmployeePortalProducts() {
   const handleCameraScannerResult = useCallback((decodedValue) => {
     const scannedValue = String(decodedValue || "").trim();
     if (!scannedValue) return;
+    const smartQrParams = parseSmartQrScan(scannedValue);
     setCameraScannerOpen(false);
+
+    if (smartQrParams) {
+      const nextParams = new URLSearchParams();
+      nextParams.set("productId", smartQrParams.productId);
+      if (smartQrParams.variantId) nextParams.set("variantId", smartQrParams.variantId);
+      if (smartQrParams.colorId) nextParams.set("colorId", smartQrParams.colorId);
+      if (smartQrParams.action) nextParams.set("action", smartQrParams.action);
+      const finalRedirectUrl = `/employee-portal/${encodeURIComponent(token)}/products?${nextParams.toString()}`;
+      console.info("[SMART_QR_REDIRECT]", {
+        productId: smartQrParams.productId,
+        variantId: smartQrParams.variantId,
+        colorId: smartQrParams.colorId,
+        finalRedirectUrl,
+      });
+      navigate(finalRedirectUrl, { replace: true });
+      return;
+    }
+
     setSearch(scannedValue);
     window.setTimeout(() => searchInputRef.current?.focus(), 0);
-  }, []);
+  }, [navigate, token]);
 
   const handleCameraScannerPermissionDenied = useCallback((message = barcodeScannerMessages.permissionDenied) => {
     setCameraScannerOpen(false);
