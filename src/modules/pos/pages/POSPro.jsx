@@ -7028,7 +7028,7 @@ function ShiftCloseModal({
           <section className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <div className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">Shift audit summary</div>
+                <div className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">ملخص المراجعة</div>
                 <div className="mt-1 text-sm font-semibold text-zinc-400">{shift.cashier_name || ""} / {shift.branch_name || ""}</div>
               </div>
               <button
@@ -7476,11 +7476,11 @@ function ShiftReportItem({ label, value, subtitle = "" }) {
   );
 }
 
-function AccountingLedgerSection({ title, subtitle = "", accent = "amber", children }) {
+function AccountingLedgerSection({ title, accent = "amber", children }) {
   const accents = {
-    amber: "border-amber-300/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.025))] shadow-[0_18px_42px_rgba(0,0,0,0.18)]",
-    emerald: "border-emerald-300/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.025))] shadow-[0_18px_42px_rgba(0,0,0,0.18)]",
-    cyan: "border-cyan-300/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.025))] shadow-[0_18px_42px_rgba(0,0,0,0.18)]",
+    amber: "border-amber-300/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.02))] shadow-[0_18px_42px_rgba(0,0,0,0.16)]",
+    emerald: "border-emerald-300/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.02))] shadow-[0_18px_42px_rgba(0,0,0,0.16)]",
+    cyan: "border-cyan-300/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.02))] shadow-[0_18px_42px_rgba(0,0,0,0.16)]",
   };
   const accentLabel = {
     amber: "text-amber-200",
@@ -7488,29 +7488,23 @@ function AccountingLedgerSection({ title, subtitle = "", accent = "amber", child
     cyan: "text-cyan-200",
   };
   return (
-    <section className={`rounded-[24px] border p-4 ${accents[accent] || accents.amber}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className={`text-[11px] font-black uppercase tracking-[0.18em] ${accentLabel[accent] || accentLabel.amber}`}>{title}</div>
-          {subtitle ? <div className="mt-1 text-xs font-semibold text-zinc-500">{subtitle}</div> : null}
-        </div>
+    <section className={`rounded-[24px] border px-4 py-4 ${accents[accent] || accents.amber}`}>
+      <div className={`text-[11px] font-black uppercase tracking-[0.18em] ${accentLabel[accent] || accentLabel.amber}`}>{title}</div>
+      <div className="mt-3 divide-y divide-white/8 overflow-hidden rounded-[20px] border border-white/10 bg-black/18">
+        {children}
       </div>
-      <div className="mt-4 space-y-2">{children}</div>
     </section>
   );
 }
 
 function AccountingLedgerRow({ label, value, subtitle = "", strong = false, highlight = false }) {
   return (
-    <div className={`rounded-2xl border px-4 py-3 ${highlight ? "border-amber-300/25 bg-amber-400/10 shadow-[0_0_0_1px_rgba(251,191,36,0.10),0_18px_38px_rgba(251,191,36,0.08)]" : "border-white/10 bg-black/20"}`}>
-      <div className="flex items-center justify-between gap-4">
-        <div className="min-w-0">
-          <div className={`truncate text-[11px] font-black uppercase tracking-[0.16em] ${highlight ? "text-amber-100" : "text-zinc-500"}`}>{label}</div>
-          {subtitle ? <div className={`mt-1 text-[11px] font-semibold ${highlight ? "text-amber-50/75" : "text-zinc-500"}`}>{subtitle}</div> : null}
-        </div>
-        <div className={`shrink-0 text-end ${strong ? "text-xl" : "text-lg"} font-black ${highlight ? "text-white" : "text-white"}`}>
-          {value}
-        </div>
+    <div className={`flex items-center justify-between gap-4 px-4 py-3 ${highlight ? "bg-amber-400/10" : "bg-transparent"}`}>
+      <div className="min-w-0 flex-1">
+        <div className={`truncate text-[11px] font-black uppercase tracking-[0.16em] ${highlight ? "text-amber-100" : "text-zinc-500"}`}>{label}</div>
+      </div>
+      <div className={`shrink-0 text-end font-black leading-none ${highlight ? "text-2xl text-amber-50" : strong ? "text-xl text-white" : "text-lg text-white"}`}>
+        <CurrencyText value={value} />
       </div>
     </div>
   );
