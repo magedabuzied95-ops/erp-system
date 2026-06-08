@@ -494,6 +494,7 @@ const { default: settingsRoutes } = await import("./routes/settings.js");
 const { default: whatsappGatewayRoutes } = await import("./routes/whatsappGateway.js");
 const { ensureProductSchema, ensureProductVariantSchema, warmProductsMetadataCache } = await import("./controllers/productsController.js");
 const { ensureOrdersSchema } = await import("./controllers/ordersController.js");
+const { ensureAccountingSchema } = await import("./services/accountingService.js");
 const { ensureProductClassificationSchema } = await import("./services/productClassificationsService.js");
 const { ensureProductVariantImagesSchema } = await import("./services/productVariantImagesService.js");
 const { ensureStorefrontSchema } = await import("./controllers/storefrontController.js");
@@ -1177,6 +1178,8 @@ const bootstrapStartup = async () => {
     console.log("[server] variants inventory schema ensured");
     await ensureOrdersSchema(db, null);
     console.log("[server] orders schema ensured");
+    await ensureAccountingSchema();
+    console.log("[server] accounting schema ensured");
     await repairOrdersShiftForeignKey(db, { source: "startup:after_orders_schema" });
     await repairOrdersSalesEmployeeForeignKey(db, { source: "startup:after_orders_schema" });
     await ensureProductClassificationSchema();

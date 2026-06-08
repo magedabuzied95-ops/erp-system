@@ -231,6 +231,40 @@ const refundFinancialAccountFromOrder = (order = {}, refundMethod = "") => {
   return match?.financial_account_id || match?.account_id || null;
 };
 
+const resolveReturnTenantId = (req, order = null) =>
+  getTenantId(
+    req,
+    order?.tenant_id ?? order?.tenantId ?? null
+  );
+
+const assertReturnTenantId = (tenantId, orderId = null) => {
+  if (tenantId) return tenantId;
+  const error = new Error(
+    orderId
+      ? `Unable to resolve tenant_id for return creation on order ${orderId}.`
+      : "Unable to resolve tenant_id for return creation."
+  );
+  error.status = 400;
+  error.code = "RETURN_TENANT_ID_REQUIRED";
+  throw error;
+};
+
+const logReturnFlowStep = (routeName, { orderId = null, tenantId = null, step = "", ...meta } = {}) => {
+  console.log("[orders:return-flow]", {
+    route: routeName,
+    orderId,
+    tenantId,
+    step,
+    ...meta,
+  });
+};
+
+const ensureReturnFlowAccountingReady = async ({ routeName, orderId = null, tenantId = null } = {}) => {
+  logReturnFlowStep(routeName, { orderId, tenantId, step: "accounting_schema:before" });
+  await ensureAccountingSchema();
+  logReturnFlowStep(routeName, { orderId, tenantId, step: "accounting_schema:after" });
+};
+
 const warnRuntimeSchemaExecution = (name) => {
   if (globalThis.__SCHEMA_STARTUP_RUNNING || ordersRuntimeSchemaWarningLogged) return;
   ordersRuntimeSchemaWarningLogged = true;
@@ -5801,15 +5835,27 @@ export const permanentDeleteOrder = async (req, res) => {
 export const returnOrder = async (req, res) => {
   const client = await db.connect();
   try {
-    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
-    await ensurePosShiftOrderColumns(client, tenantId);
+    const routeName = "POST /api/orders/:id/return";
+    const requestTenantId = getTenantId(req, req.user?.tenant_id ?? req.user?.tenantId ?? req?.tenantId ?? null);
+    await ensureReturnFlowAccountingReady({ routeName, orderId: req.params.id, tenantId: requestTenantId });
+    logReturnFlowStep(routeName, { orderId: req.params.id, tenantId: requestTenantId, step: "pos_shift_schema:before" });
+    await ensurePosShiftOrderColumns(client, requestTenantId);
+    logReturnFlowStep(routeName, { orderId: req.params.id, tenantId: requestTenantId, step: "pos_shift_schema:after" });
     await ensureWalletSchema(client);
+    logReturnFlowStep(routeName, { orderId: req.params.id, tenantId: requestTenantId, step: "transaction:begin" });
     await client.query("BEGIN");
-    const loaded = await loadOrderWithItems(client, { tenantId, orderId: req.params.id });
+    const loaded = await loadOrderWithItems(client, { tenantId: requestTenantId, orderId: req.params.id });
     if (!loaded) {
       await client.query("ROLLBACK");
       return res.status(404).json({ success: false, message: "Order not found" });
     }
+    const tenantId = assertReturnTenantId(resolveReturnTenantId(req, loaded.order), loaded.order?.id || req.params.id);
+    logReturnFlowStep(routeName, {
+      orderId: loaded.order?.id || req.params.id,
+      tenantId,
+      step: "order_loaded",
+      itemsCount: loaded.items.length,
+    });
     assertOrderReturnable(loaded.order);
 
     const requestedItems = Array.isArray(req.body.items) && req.body.items.length
@@ -5874,6 +5920,12 @@ export const returnOrder = async (req, res) => {
       [tenantId, loaded.order.id, temporaryReturnNumber, reason, Number(req.body.refund_amount || 0), req.user?.id || null, loaded.order.shift_id || null, req.user?.id || null]
     );
     let returnRow = returnResult.rows[0];
+    logReturnFlowStep(routeName, {
+      orderId: loaded.order.id,
+      tenantId,
+      step: "return_inserted",
+      returnId: returnRow?.id || null,
+    });
     const finalReturnNumberResult = await client.query(
       `
       UPDATE returns
@@ -5918,6 +5970,13 @@ export const returnOrder = async (req, res) => {
         userId: req.user?.id || null,
       });
     }
+    logReturnFlowStep(routeName, {
+      orderId: loaded.order.id,
+      tenantId,
+      step: "return_items_processed",
+      returnId: returnRow.id,
+      itemsCount: validatedItems.length,
+    });
 
     await client.query(`UPDATE returns SET refund_amount = $1 WHERE id = $2`, [refundTotal, returnRow.id]);
     await client.query(`UPDATE returns SET refund_method = $1, exchange_difference = $2 WHERE id = $3`, [
@@ -5940,6 +5999,13 @@ export const returnOrder = async (req, res) => {
       `,
       [loaded.order.id, status, paymentStatus]
     );
+    logReturnFlowStep(routeName, {
+      orderId: loaded.order.id,
+      tenantId,
+      step: "order_updated",
+      returnId: returnRow.id,
+      paymentStatus,
+    });
 
     if (paymentStatus === "refunded") {
       await reverseOrderLoyalty(client, {
@@ -5968,6 +6034,7 @@ export const returnOrder = async (req, res) => {
         userId: req.user?.id || null,
       });
       try {
+        logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "wallet_accounting:before", returnId: returnRow.id });
         await postWalletLiabilityEntry(client, {
           tenantId,
           amount: refundTotal,
@@ -5979,6 +6046,7 @@ export const returnOrder = async (req, res) => {
           branchId: loaded.order.branch_id || null,
           notes: `${reason} / ${loaded.order.invoice_number || loaded.order.id}`,
         });
+        logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "wallet_accounting:after", returnId: returnRow.id });
       } catch (walletAccountingError) {
         console.error("[orders] wallet refund accounting fallback", walletAccountingError.message);
       }
@@ -5986,6 +6054,7 @@ export const returnOrder = async (req, res) => {
 
     if (refundMethod !== "wallet") {
       try {
+        logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "return_accounting:before", returnId: returnRow.id });
         await postReturnEntry(client, {
           tenantId,
           amount: refundTotal || Number(req.body.refund_amount || 0),
@@ -5997,10 +6066,12 @@ export const returnOrder = async (req, res) => {
           branchId: loaded.order.branch_id || null,
           notes: `${reason}${mode === "exchange" ? ` / original invoice ${loaded.order.invoice_number || loaded.order.id}` : ""}`,
         });
+        logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "return_accounting:after", returnId: returnRow.id });
       } catch (accountingError) {
         console.error("[orders] return accounting fallback", accountingError.message);
       }
 
+      logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "cash_drawer_event:before", returnId: returnRow.id });
       await recordCashDrawerEvent(client, {
         tenantId,
         branchId: loaded.order.branch_id || null,
@@ -6011,6 +6082,8 @@ export const returnOrder = async (req, res) => {
         sourceId: returnRow.id,
         amount: refundTotal || Number(req.body.refund_amount || 0),
       });
+      logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "cash_drawer_event:after", returnId: returnRow.id });
+      logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "financial_account_activity:before", returnId: returnRow.id });
       await recordFinancialAccountActivity(client, {
         tenantId,
         branchId: loaded.order.branch_id || null,
@@ -6024,8 +6097,10 @@ export const returnOrder = async (req, res) => {
         notes: `${reason}${mode === "exchange" ? ` / original invoice ${loaded.order.invoice_number || loaded.order.id}` : ""}`,
         createdBy: req.user?.id || null,
       });
+      logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "financial_account_activity:after", returnId: returnRow.id });
     }
 
+    logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "transaction:commit", returnId: returnRow.id });
     await client.query("COMMIT");
     try {
       io.emit("dashboard:activity", {
@@ -6049,6 +6124,12 @@ export const returnOrder = async (req, res) => {
     });
   } catch (error) {
     await client.query("ROLLBACK");
+    logReturnFlowStep("POST /api/orders/:id/return", {
+      orderId: req.params.id,
+      tenantId: getTenantId(req, req.user?.tenant_id ?? req.user?.tenantId ?? req?.tenantId ?? null),
+      step: "error",
+      message: error?.message || String(error),
+    });
     console.error("[orders] return error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to return order" });
   } finally {
@@ -6078,8 +6159,8 @@ export const createReturn = async (req, res) => {
   const client = await db.connect();
 
   try {
-    await client.query("BEGIN");
-    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    const routeName = "POST /api/orders/returns";
+    const requestTenantId = getTenantId(req, req.user?.tenant_id ?? req.user?.tenantId ?? req?.tenantId ?? null);
     const {
       orderId,
       reason = "",
@@ -6099,6 +6180,10 @@ export const createReturn = async (req, res) => {
       });
     }
 
+    await ensureReturnFlowAccountingReady({ routeName, orderId, tenantId: requestTenantId });
+    logReturnFlowStep(routeName, { orderId, tenantId: requestTenantId, step: "transaction:begin" });
+    await client.query("BEGIN");
+
     const orderResult = await client.query(
       `
       SELECT *
@@ -6106,7 +6191,7 @@ export const createReturn = async (req, res) => {
       WHERE id = $1
         AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
       `,
-      [orderId, tenantId]
+      [orderId, requestTenantId]
     );
 
     if (orderResult.rows.length === 0) {
@@ -6116,8 +6201,11 @@ export const createReturn = async (req, res) => {
         message: "Order not found",
       });
     }
+    const orderRow = orderResult.rows[0];
+    const tenantId = assertReturnTenantId(resolveReturnTenantId(req, orderRow), orderId);
+    logReturnFlowStep(routeName, { orderId, tenantId, step: "order_loaded" });
 
-    const returnNumberBase = buildDerivedInvoiceNumber(orderResult.rows[0]?.invoice_number, "RET") || `RET-${orderId}`;
+    const returnNumberBase = buildDerivedInvoiceNumber(orderRow?.invoice_number, "RET") || `RET-${orderId}`;
     const temporaryReturnNumber = `${returnNumberBase}-${buildTemporaryInvoiceNumber()}`;
     const returnResult = await client.query(
       `
@@ -6145,12 +6233,18 @@ export const createReturn = async (req, res) => {
         Boolean(restock),
         Number(refundAmount || 0),
         req.user?.id || null,
-        orderResult.rows[0]?.shift_id || null,
+        orderRow?.shift_id || null,
         req.user?.id || null,
       ]
     );
 
     let returnRow = returnResult.rows[0];
+    logReturnFlowStep(routeName, {
+      orderId,
+      tenantId,
+      step: "return_inserted",
+      returnId: returnRow?.id || null,
+    });
     const finalReturnNumberResult = await client.query(
       `
       UPDATE returns
@@ -6231,12 +6325,20 @@ export const createReturn = async (req, res) => {
             reason: "Sales return restock",
             notes: reason || `Return restocked from order ${orderId}`,
             createdBy: req.user?.id || null,
-            branchId: orderResult.rows[0]?.branch_id || null,
+            branchId: orderRow?.branch_id || null,
           });
         }
       }
     }
+    logReturnFlowStep(routeName, {
+      orderId,
+      tenantId,
+      step: "return_items_processed",
+      returnId: returnRow.id,
+      itemsCount: items.length,
+    });
 
+    logReturnFlowStep(routeName, { orderId, tenantId, step: "return_accounting:before", returnId: returnRow.id });
     await postReturnEntry(client, {
       tenantId,
       referenceType: "return",
@@ -6245,10 +6347,12 @@ export const createReturn = async (req, res) => {
       amount: Number(refundAmount || 0),
       direction: restock ? "in" : "out",
       createdBy: req.user?.id || null,
-      branchId: orderResult.rows[0]?.branch_id || null,
+      branchId: orderRow?.branch_id || null,
       notes: reason || "",
     });
+    logReturnFlowStep(routeName, { orderId, tenantId, step: "return_accounting:after", returnId: returnRow.id });
 
+    logReturnFlowStep(routeName, { orderId, tenantId, step: "cash_drawer_event:before", returnId: returnRow.id });
     await recordCashDrawerEvent(client, {
       tenantId,
       branchId: orderResult.rows[0]?.branch_id || null,
@@ -6259,6 +6363,8 @@ export const createReturn = async (req, res) => {
       sourceId: returnRow.id,
       amount: Number(refundAmount || 0),
     });
+    logReturnFlowStep(routeName, { orderId, tenantId, step: "cash_drawer_event:after", returnId: returnRow.id });
+    logReturnFlowStep(routeName, { orderId, tenantId, step: "financial_account_activity:before", returnId: returnRow.id });
     await recordFinancialAccountActivity(client, {
       tenantId,
       branchId: orderResult.rows[0]?.branch_id || null,
@@ -6272,7 +6378,9 @@ export const createReturn = async (req, res) => {
       notes: reason || "",
       createdBy: req.user?.id || null,
     });
+    logReturnFlowStep(routeName, { orderId, tenantId, step: "financial_account_activity:after", returnId: returnRow.id });
 
+    logReturnFlowStep(routeName, { orderId, tenantId, step: "transaction:commit", returnId: returnRow.id });
     await client.query("COMMIT");
 
     return res.status(201).json({
@@ -6284,6 +6392,12 @@ export const createReturn = async (req, res) => {
     });
   } catch (error) {
     await client.query("ROLLBACK");
+    logReturnFlowStep("POST /api/orders/returns", {
+      orderId: req.body?.orderId || null,
+      tenantId: getTenantId(req, req.user?.tenant_id ?? req.user?.tenantId ?? req?.tenantId ?? null),
+      step: "error",
+      message: error?.message || String(error),
+    });
     console.log("Create Return Error:", error);
     return res.status(500).json({
       success: false,
