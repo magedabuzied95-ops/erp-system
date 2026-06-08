@@ -2483,6 +2483,8 @@ export const createOrder = async (req, res) => {
       amount_due_now = null,
       exchange_difference = 0,
       exchange_invoice_number = "",
+      payment_transaction_id = null,
+      paymob_terminal_transaction_id = null,
     } = normalizedPayload;
     branchIdForLog = branch_id || branchIdForLog;
     const itemsCount = Array.isArray(items) ? items.length : 0;
@@ -3077,6 +3079,26 @@ export const createOrder = async (req, res) => {
     });
 
     let order = orderResult.rows[0];
+    const linkedTerminalTransactionId = payment_transaction_id || paymob_terminal_transaction_id || null;
+    if (linkedTerminalTransactionId) {
+      const terminalTransactionResult = await client.query(
+        `
+        UPDATE payment_transactions
+        SET order_id = $2,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+          AND provider = 'paymob'
+        RETURNING *
+        `,
+        [linkedTerminalTransactionId, order.id]
+      );
+      if (terminalTransactionResult.rowCount > 0) {
+        console.info("PAYMOB_TERMINAL_PAYMENT_SUCCESS_CREATE_ORDER", {
+          transaction_id: linkedTerminalTransactionId,
+          order_id: order.id,
+        });
+      }
+    }
     console.log("[orders:discount-saved]", {
       order_id: order?.id || null,
       invoice_number: order?.invoice_number || "",

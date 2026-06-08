@@ -4040,7 +4040,7 @@ function POSPro() {
       return null;
     }
 
-    if ((paymobTerminalCheckout || paymobTerminalConfirmed) && paymobTerminalAmount <= 0) {
+    if ((paymobTerminalCheckout || paymobTerminalConfirmed) && Number(paymobTerminalConfirmed ? terminalConfirmedAmount : paymobTerminalAmount) <= 0) {
       toast.error("Invoice amount is required");
       return null;
     }
@@ -4136,9 +4136,6 @@ function POSPro() {
       const terminalManualVodafoneCashAmount = paymentMode === "split" ? Number(vodafoneCashAmount || 0) : 0;
       const terminalManualCustomerWalletAmount = paymentMode === "split" ? Number(customerWalletAmount || 0) : 0;
       const terminalManualPaidAmount = Math.max(0, terminalManualCashAmount + terminalManualWalletAmount + terminalManualVodafoneCashAmount + terminalManualCustomerWalletAmount);
-      const terminalConfirmedAmount = paymobTerminalConfirmed
-        ? Math.max(0, Number(options?.terminalAmount || paymobTerminalState?.amount || amountDueNow || cartTotals.total || 0))
-        : 0;
       const checkoutPaymentSummary = paymobTerminalConfirmed
         ? {
             paidAmount: terminalConfirmedAmount,
@@ -4237,7 +4234,9 @@ function POSPro() {
         customer_name: invoiceCustomer.name,
         customer_id: customerId || null,
         customer_phone: customer?.phone || "",
-        payment_method: paymentMode,
+        payment_method: paymobTerminalConfirmed ? "card" : paymentMode,
+        payment_transaction_id: paymobTerminalConfirmed ? options?.paymobTerminalTransactionId || null : null,
+        paymob_terminal_transaction_id: paymobTerminalConfirmed ? options?.paymobTerminalTransactionId || null : null,
         subtotal: cartTotals.subtotal,
         discount_amount: cartTotals.itemDiscountTotal + cartTotals.invoiceDiscount,
         invoice_discount_type: cartTotals.invoiceDiscount > 0 ? invoiceDiscountType : null,
@@ -5035,7 +5034,23 @@ function POSPro() {
               terminal_id: response?.transaction?.terminal_id || terminalId,
             });
             setPaymobTerminalLoading(false);
-            confirmedOrder = await handleCheckout({ paymobTerminalConfirmed: true, terminalAmount: amount });
+            confirmedOrder = await handleCheckout({
+              paymobTerminalConfirmed: true,
+              terminalAmount: amount,
+              paymobTerminalTransactionId: response?.transaction?.id || transactionId,
+            });
+            if (!confirmedOrder) {
+              setPaymobTerminalState((current) => ({
+                ...(current || {}),
+                open: true,
+                status: "failed",
+                message: "Failed to create order after terminal payment success.",
+                transaction: response?.transaction || null,
+                order: null,
+              }));
+              toast.error("Failed to create order after terminal payment success.");
+              return;
+            }
           }
           setPaymobTerminalState({
             open: true,
@@ -5128,7 +5143,14 @@ function POSPro() {
       if (transaction?.order_id) {
         applyPaymobConfirmedOrder(paymobTerminalState?.order || lastOrder || lastShareContext, confirmedOrder, transaction);
       } else {
-        confirmedOrder = await handleCheckout({ paymobTerminalConfirmed: true, terminalAmount: confirmedAmount });
+        confirmedOrder = await handleCheckout({
+          paymobTerminalConfirmed: true,
+          terminalAmount: confirmedAmount,
+          paymobTerminalTransactionId: transaction?.id || transactionId,
+        });
+        if (!confirmedOrder) {
+          throw new Error("Failed to create order after terminal payment success.");
+        }
       }
       setPaymobTerminalState({
         ...(paymobTerminalState || {}),
@@ -6711,26 +6733,6 @@ function PaymobTerminalModal({ state, loading, onClose, onRetry, onChangePayment
                 تغيير طريقة الدفع
               </button>
             </>
-          ) : null}
-          {status === "timeout" && onRetryStatus ? (
-            <button
-              type="button"
-              onClick={onRetryStatus}
-              disabled={loading}
-              className="inline-flex w-full items-center justify-center rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-cyan-300 disabled:opacity-60"
-            >
-              Retry status check
-            </button>
-          ) : null}
-          {status === "timeout" && onManualConfirm ? (
-            <button
-              type="button"
-              onClick={onManualConfirm}
-              disabled={loading}
-              className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-emerald-300 disabled:opacity-60"
-            >
-              {loading ? "Confirming..." : "Confirm terminal payment"}
-            </button>
           ) : null}
           <button type="button" onClick={onClose} className="inline-flex w-full items-center justify-center rounded-2xl bg-white px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-cyan-100">
             Close

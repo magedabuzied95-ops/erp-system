@@ -390,29 +390,31 @@ const manualConfirmPaymobTransaction = async (client, { transactionId, tenantId,
     ]
   );
 
-  const orderResult = await client.query(
-    transaction.order_id
-      ? `
-    UPDATE orders
-    SET paid_amount = COALESCE(paid_amount, 0) + $2::numeric,
-        card_amount = COALESCE(card_amount, 0) + $2::numeric,
-        payment_status = CASE
-          WHEN COALESCE(paid_amount, 0) + $2::numeric >= COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) THEN 'paid'
-          WHEN COALESCE(paid_amount, 0) + $2::numeric > 0 THEN 'partially_paid'
-          ELSE COALESCE(payment_status, 'unpaid')
-        END,
-        status = CASE
-          WHEN COALESCE(paid_amount, 0) + $2::numeric >= COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) THEN 'Paid'
-          WHEN COALESCE(paid_amount, 0) + $2::numeric > 0 THEN 'Partial'
-          ELSE status
-        END,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE id = $1
-    RETURNING *
-    `
-      : `SELECT NULL::jsonb AS dummy`,
-    [transaction.order_id, confirmedAmount]
-  );
+  let order = null;
+  if (transaction.order_id) {
+    const orderResult = await client.query(
+      `
+      UPDATE orders
+      SET paid_amount = COALESCE(paid_amount, 0) + $2::numeric,
+          card_amount = COALESCE(card_amount, 0) + $2::numeric,
+          payment_status = CASE
+            WHEN COALESCE(paid_amount, 0) + $2::numeric >= COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) THEN 'paid'
+            WHEN COALESCE(paid_amount, 0) + $2::numeric > 0 THEN 'partially_paid'
+            ELSE COALESCE(payment_status, 'unpaid')
+          END,
+          status = CASE
+            WHEN COALESCE(paid_amount, 0) + $2::numeric >= COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) THEN 'Paid'
+            WHEN COALESCE(paid_amount, 0) + $2::numeric > 0 THEN 'Partial'
+            ELSE status
+          END,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING *
+      `,
+      [transaction.order_id, confirmedAmount]
+    );
+    order = orderResult.rows[0] || null;
+  }
 
   await recordPaymobEvent(client, transaction.id, {
     status: "success_manual_confirmed",
@@ -428,7 +430,7 @@ const manualConfirmPaymobTransaction = async (client, { transactionId, tenantId,
     replay: false,
     status: "success_manual_confirmed",
     transaction: updatedTransaction.rows[0] || transaction,
-    order: transaction.order_id ? (orderResult.rows[0] || null) : null,
+    order,
     message: "Payment completed successfully.",
   };
   console.log("[paymob-pos-confirm]", {
@@ -1579,7 +1581,7 @@ export const sendPaymobTerminalPayment = async (req, res) => {
           JSON.stringify(paymobResult.responsePayload || {}),
         ]
       );
-      console.info("PAYMOB_TERMINAL_PAYMENT_STARTED", {
+      console.info("PAYMOB_TERMINAL_PAYMENT_REQUEST_SENT", {
         transaction_id: transactionId,
         provider_order_id: paymobResult.providerOrderId || null,
         transaction_reference: paymobResult.transactionReference || "",
@@ -1773,7 +1775,6 @@ export const getPaymobTerminalPaymentStatus = async (req, res) => {
         status: normalizedError.status,
         message: normalizedError.message,
       });
-      const orderResult = await client.query("SELECT * FROM orders WHERE id = $1 LIMIT 1", [transaction.order_id]);
       return res.json({
         success: true,
         status: "pending",
