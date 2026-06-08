@@ -452,6 +452,23 @@ const getPaymentSummary = (order = {}, language = "en") => {
     label,
   };
 };
+const PAYMENT_FILTER_OPTIONS = ["all", "paid", "due"];
+const PAYMENT_FILTER_LABELS = {
+  paid: "مدفوع",
+  due: "مستحق الدفع",
+};
+const matchesPaymentFilter = (order = {}, paymentFilter = "all") => {
+  if (paymentFilter === "all") return true;
+  const statusKey = normalizePaymentStatusKey(order);
+  const due = dueAmountOf(order);
+  if (paymentFilter === "paid") {
+    return statusKey === "paid" && due <= 0;
+  }
+  if (paymentFilter === "due") {
+    return due > 0 || statusKey !== "paid";
+  }
+  return true;
+};
 const isCriticalOrder = (order = {}) => {
   const combined = [order.risk_level, order.risk_status, order.status, order.payment_status, order.transfer_proof_status]
     .map(lower)
@@ -591,7 +608,7 @@ function OrdersDashboard() {
     return workspaceSource.filter((order) => {
       const matchesSearch = !query || buildSearchText(order).includes(query);
       const matchesStatus = statusFilter === "all" || order.status === statusFilter;
-      const matchesPayment = paymentFilter === "all" || order.paymentStatus === paymentFilter;
+      const matchesPayment = matchesPaymentFilter(order, paymentFilter);
       const orderSource = getOrderSource(order);
       const matchesChannel = channelFilter === "all" || orderSource === channelFilter;
       const matchesBranch = branchFilter === "all" || order.branch === branchFilter;
@@ -1048,7 +1065,7 @@ function Filters(props) {
           />
         </div>
         <Select value={statusFilter} onChange={setStatusFilter} options={["all", ...uniqueValues(orders.map((o) => o.status))]} label={t("orders.filters.status")} allLabel={t("orders.filters.all")} />
-        <Select value={paymentFilter} onChange={setPaymentFilter} options={["all", ...uniqueValues(orders.map((o) => o.paymentStatus))]} label={t("orders.filters.payment")} allLabel={t("orders.filters.all")} />
+        <Select value={paymentFilter} onChange={setPaymentFilter} options={PAYMENT_FILTER_OPTIONS} label="حالة الدفع" allLabel="الكل" labels={PAYMENT_FILTER_LABELS} />
         <Select value={channelFilter} onChange={setChannelFilter} options={SOURCE_FILTERS} label={t("orders.filters.source")} allLabel={t("orders.filters.all")} labels={SOURCE_LABELS} t={t} />
         {branchOptions.length > 1 ? <Select value={branchFilter} onChange={setBranchFilter} options={["all", ...branchOptions]} label={t("orders.filters.branch")} allLabel={t("orders.filters.all")} /> : null}
         <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
