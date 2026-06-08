@@ -532,12 +532,9 @@ function OrdersDashboard() {
   const [error, setError] = useState("");
   const [workspace, setWorkspace] = useState("table");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [channelFilter, setChannelFilter] = useState(() => searchParams.get("channel") || "all");
-  const [branchFilter, setBranchFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
-  const [priorityFilter, setPriorityFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState([]);
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -607,27 +604,17 @@ function OrdersDashboard() {
     const query = search.trim().toLowerCase();
     return workspaceSource.filter((order) => {
       const matchesSearch = !query || buildSearchText(order).includes(query);
-      const matchesStatus = statusFilter === "all" || order.status === statusFilter;
       const matchesPayment = matchesPaymentFilter(order, paymentFilter);
       const orderSource = getOrderSource(order);
       const matchesChannel = channelFilter === "all" || orderSource === channelFilter;
-      const matchesBranch = branchFilter === "all" || order.branch === branchFilter;
       const matchesDate = !dateFilter || String(order.created_at || "").slice(0, 10) === dateFilter;
-      const matchesPriority =
-        priorityFilter === "all" ||
-        (priorityFilter === "awaiting_verification" && isAwaitingVerification(order)) ||
-        (priorityFilter === "cod" && paymentStatusOf(order) === "cod") ||
-        (priorityFilter === "pending" && statusOf(order) === "pending") ||
-        (priorityFilter === "high_value" && isHighValue(order)) ||
-        (priorityFilter === "delayed" && isDelayedPending(order));
-      return matchesSearch && matchesStatus && matchesPayment && matchesChannel && matchesBranch && matchesDate && matchesPriority;
+      return matchesSearch && matchesPayment && matchesChannel && matchesDate;
     });
-  }, [workspaceSource, search, statusFilter, paymentFilter, channelFilter, branchFilter, dateFilter, priorityFilter]);
+  }, [workspaceSource, search, paymentFilter, channelFilter, dateFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const visibleOrders = filteredOrders.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const branchOptions = useMemo(() => uniqueValues(orders.map((order) => order.branch)), [orders]);
   const selectedOrders = useMemo(() => orders.filter((order) => selectedIds.includes(order.id)), [orders, selectedIds]);
   const selectedCount = selectedIds.length;
   useEffect(() => {
@@ -650,17 +637,6 @@ function OrdersDashboard() {
     }));
     console.table(itemRows);
   }, [selectedOrder]);
-  const priorityCounts = useMemo(
-    () => ({
-      awaiting: verificationOrders.length,
-      pending: orders.filter((order) => statusOf(order) === "pending").length,
-      cod: orders.filter((order) => paymentStatusOf(order) === "cod").length,
-      high: orders.filter(isHighValue).length,
-      delayed: orders.filter(isDelayedPending).length,
-    }),
-    [orders, verificationOrders.length]
-  );
-
   const updateFilter = (setter, value) => {
     setter(value);
     setPage(1);
@@ -890,23 +866,16 @@ function OrdersDashboard() {
             />
           </div>
 
-          <PriorityStrip t={t} counts={priorityCounts} priorityFilter={priorityFilter} setPriorityFilter={(value) => updateFilter(setPriorityFilter, value)} />
           <Filters
             t={t}
-            orders={orders}
             search={search}
             setSearch={(value) => updateFilter(setSearch, value)}
-            statusFilter={statusFilter}
-            setStatusFilter={(value) => updateFilter(setStatusFilter, value)}
             paymentFilter={paymentFilter}
             setPaymentFilter={(value) => updateFilter(setPaymentFilter, value)}
             channelFilter={channelFilter}
             setChannelFilter={(value) => updateFilter(setChannelFilter, value)}
-            branchFilter={branchFilter}
-            setBranchFilter={(value) => updateFilter(setBranchFilter, value)}
             dateFilter={dateFilter}
             setDateFilter={(value) => updateFilter(setDateFilter, value)}
-            branchOptions={branchOptions}
           />
 
           {loading ? <TableSkeleton /> : null}
@@ -1026,23 +995,6 @@ function ActionButton({ disabled, onClick, icon, label, tone = "zinc", title }) 
       {icon}
       {label}
     </button>
-  );
-}
-
-function PriorityStrip({ t, counts, priorityFilter, setPriorityFilter }) {
-  const items = [
-    ["awaiting_verification", t("orders.priority.awaitingVerification"), counts.awaiting, "amber"],
-    ["high_value", t("orders.priority.highValue"), counts.high, "gold"],
-    ["delayed", t("orders.priority.delayedPending"), counts.delayed, "rose"],
-    ["cod", t("orders.priority.cod"), counts.cod, "slate"],
-    ["pending", t("orders.priority.pending"), counts.pending, "blue"],
-  ];
-  return (
-    <div className="mb-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
-      {items.map(([key, label, value, tone]) => (
-        <PriorityMetric key={key} label={label} value={value} tone={tone} active={priorityFilter === key} onClick={() => setPriorityFilter(priorityFilter === key ? "all" : key)} />
-      ))}
-    </div>
   );
 }
 
@@ -1796,23 +1748,6 @@ function EmptyState({ icon: Icon, title, text: body, compact = false }) {
       <h3 className="mt-3 text-lg font-black text-white">{title}</h3>
       <p className="mt-1 text-sm text-zinc-400">{body}</p>
     </div>
-  );
-}
-
-function PriorityMetric({ label, value, tone, active, onClick }) {
-  const toneClasses = {
-    amber: "border-amber-400/25 bg-amber-400/10 text-amber-100",
-    blue: "border-blue-400/25 bg-blue-400/10 text-blue-100",
-    slate: "border-slate-400/20 bg-slate-400/10 text-slate-200",
-    rose: "border-rose-400/25 bg-rose-400/10 text-rose-100",
-    gold: "border-yellow-300/25 bg-yellow-300/10 text-yellow-100",
-  };
-
-  return (
-    <button type="button" onClick={onClick} className={`flex items-center justify-between rounded-xl border px-3 py-2 text-left transition hover:bg-white/10 ${toneClasses[tone]} ${active ? "ring-1 ring-white/30" : ""}`}>
-      <span className="truncate text-xs font-semibold">{label}</span>
-      <span className="ml-3 rounded-full bg-black/20 px-2 py-0.5 text-xs font-black">{value}</span>
-    </button>
   );
 }
 
