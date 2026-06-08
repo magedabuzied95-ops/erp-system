@@ -1,12 +1,31 @@
 import pool from "../database/db.js";
+import XLSX from "xlsx";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { getPhoneSearchVariants, normalizePhone, phoneSqlDigits } from "../utils/phoneSearch.js";
 import { ensureWalletSchema, recordWalletTransaction } from "../services/walletService.js";
-import { getCustomerLoyaltySummary } from "../services/loyaltyService.js";
+import { calculateTier, ensureLoyaltySchema, getCustomerLoyaltySummary } from "../services/loyaltyService.js";
 
 let customerColumnsPromise = null;
 
 const normalizePhoneValue = normalizePhone;
+
+const quoteIdentifier = (value) => `"${String(value).replaceAll('"', '""')}"`;
+
+const normalizePointsMode = (value = "replace") => {
+  const mode = String(value || "").trim().toLowerCase();
+  return mode === "add" ? "add" : "replace";
+};
+
+const normalizeEgyptImportPhone = (value = "") => {
+  let digits = normalizePhoneValue(value).replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("0020")) digits = digits.slice(2);
+  if (digits.startsWith("20") && digits.length >= 12) digits = `0${digits.slice(2)}`;
+  if (digits.startsWith("1") && digits.length === 10) digits = `0${digits}`;
+  return digits;
+};
+
+const isValidEgyptImportPhone = (value = "") => /^01\d{9}$/.test(String(value || ""));
 
 const resetCustomerColumnsCache = () => {
   customerColumnsPromise = null;
@@ -303,6 +322,368 @@ const ensureCustomerSchema = async () => {
   }
 
   return columns;
+};
+
+const ensureCustomerImportSchema = async (clientOrPool = pool) => {
+  await ensureCustomerSchema();
+  await ensureLoyaltySchema(clientOrPool);
+  await ensureWalletSchema(clientOrPool);
+  await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS customer_import_audit_logs (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT,
+      file_name TEXT NOT NULL,
+      imported_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+      created_count INTEGER NOT NULL DEFAULT 0,
+      updated_count INTEGER NOT NULL DEFAULT 0,
+      skipped_count INTEGER NOT NULL DEFAULT 0,
+      invalid_count INTEGER NOT NULL DEFAULT 0,
+      duplicate_phone_count INTEGER NOT NULL DEFAULT 0,
+      total_rows INTEGER NOT NULL DEFAULT 0,
+      total_points_imported NUMERIC(12,2) NOT NULL DEFAULT 0,
+      points_mode VARCHAR(20) NOT NULL DEFAULT 'replace',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customer_import_audit_logs ADD COLUMN IF NOT EXISTS points_mode VARCHAR(20) NOT NULL DEFAULT 'replace'`);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_customer_import_audit_tenant_created ON customer_import_audit_logs (tenant_id, created_at DESC)`);
+};
+
+const normalizeImportHeader = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[._-]+/g, " ")
+    .replace(/\s+/g, " ");
+
+const importColumnAliases = {
+  name: new Set(["customer name", "name", "customer", "client name", "اسم العميل", "العميل", "الاسم"]),
+  phone: new Set(["phone", "mobile", "mobile number", "phone number", "whatsapp", "رقم الهاتف", "الموبايل", "الهاتف", "رقم العميل"]),
+  email: new Set(["email", "e mail", "customer email", "البريد", "البريد الالكتروني", "الايميل"]),
+  address: new Set(["address", "customer address", "location", "العنوان", "عنوان العميل"]),
+  points: new Set([
+    "old loyalty points",
+    "legacy loyalty points",
+    "loyalty points",
+    "old points",
+    "points",
+    "old loyalty balance",
+    "loyalty balance",
+    "balance",
+    "old balance",
+    "رصيد النقاط",
+    "النقاط",
+    "نقاط الولاء",
+    "رصيد الولاء",
+    "الرصيد القديم",
+    "الرصيد",
+  ]),
+};
+
+const resolveImportColumns = (headers = []) => {
+  const resolved = {};
+  headers.forEach((header) => {
+    const normalized = normalizeImportHeader(header);
+    for (const [key, aliases] of Object.entries(importColumnAliases)) {
+      if (!resolved[key] && aliases.has(normalized)) {
+        resolved[key] = header;
+      }
+    }
+  });
+  return resolved;
+};
+
+const parseImportMoney = (value) => {
+  const normalized = String(value ?? "")
+    .trim()
+    .replace(/[,\s]/g, "")
+    .replace(/[^\d.-]/g, "");
+  if (!normalized) return 0;
+  if (!/^\d+(\.\d+)?$/.test(normalized)) return NaN;
+  const number = Number(normalized);
+  return Number.isFinite(number) ? Number(number.toFixed(2)) : NaN;
+};
+
+const parseCustomersImportFile = (file) => {
+  if (!file?.buffer?.length) {
+    const error = new Error("Import file is required");
+    error.status = 400;
+    throw error;
+  }
+
+  const workbook = XLSX.read(file.buffer, { type: "buffer", raw: false });
+  const sheetName = workbook.SheetNames[0];
+  const sheet = sheetName ? workbook.Sheets[sheetName] : null;
+  if (!sheet) {
+    const error = new Error("Import file has no readable sheets");
+    error.status = 400;
+    throw error;
+  }
+
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: "", blankrows: false });
+  const headers = rows.length ? Object.keys(rows[0]) : [];
+  const columns = resolveImportColumns(headers);
+  if (!columns.name || !columns.phone || !columns.points) {
+    const error = new Error("Required columns are missing: customer name, phone, old loyalty points / balance");
+    error.status = 400;
+    error.details = { headers, recognized_columns: columns };
+    throw error;
+  }
+
+  return rows.map((row, index) => {
+    const name = String(row[columns.name] ?? "").trim();
+    const phone = normalizeEgyptImportPhone(row[columns.phone]);
+    const email = columns.email ? String(row[columns.email] ?? "").trim() : "";
+    const address = columns.address ? String(row[columns.address] ?? "").trim() : "";
+    const points = parseImportMoney(row[columns.points]);
+    const phoneVariants = getPhoneSearchVariants(phone);
+    return {
+      row_number: index + 2,
+      name,
+      phone,
+      normalized_phone: phone,
+      phone_variants: phone ? [...new Set([phone, ...phoneVariants.map(normalizeEgyptImportPhone).filter(Boolean)])] : [],
+      email,
+      address,
+      points,
+      raw: row,
+    };
+  });
+};
+
+const buildImportErrorReport = (invalidRows = []) => {
+  const header = ["row_number", "name", "phone", "email", "address", "points", "reason"];
+  const escapeCsv = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+  return [
+    header.join(","),
+    ...invalidRows.map((row) =>
+      [
+        row.row_number,
+        row.name,
+        row.phone,
+        row.email,
+        row.address,
+        row.points,
+        row.reason,
+      ].map(escapeCsv).join(",")
+    ),
+  ].join("\n");
+};
+
+const loadCustomersByPhoneVariants = async (clientOrPool, columns, tenantId, phoneVariants = []) => {
+  const selectSql = buildSelectSql(columns);
+  const params = [phoneVariants];
+  const where = [`${phoneSqlDigits(columns.phoneColumn)} = ANY($1::text[])`];
+  if (columns.tenantIdColumn) {
+    params.push(tenantId);
+    where.push(`($${params.length}::bigint IS NULL OR tenant_id = $${params.length}::bigint)`);
+  }
+  const result = await clientOrPool.query(
+    `
+    ${selectSql}
+    WHERE ${where.join(" AND ")}
+    `,
+    params
+  );
+  return result.rows.map(normalizeCustomerRow);
+};
+
+const analyzeCustomerImportRows = async (clientOrPool, rows, tenantId) => {
+  const columns = await ensureCustomerSchema();
+  const invalidRows = [];
+  const validRows = [];
+  const seenPhones = new Set();
+  const duplicatePhones = new Set();
+
+  for (const row of rows) {
+    const reasons = [];
+    if (!row.name) reasons.push("missing_customer_name");
+    if (!isValidEgyptImportPhone(row.normalized_phone)) reasons.push("invalid_phone");
+    if (!Number.isFinite(row.points) || row.points < 0 || row.points > 100000) reasons.push("Invalid points value");
+    if (row.normalized_phone && seenPhones.has(row.normalized_phone)) {
+      reasons.push("duplicate_phone_in_file");
+      duplicatePhones.add(row.normalized_phone);
+    }
+    if (row.normalized_phone) seenPhones.add(row.normalized_phone);
+
+    if (reasons.length) {
+      invalidRows.push({ ...row, reason: reasons.join("|") });
+    } else {
+      validRows.push(row);
+    }
+  }
+
+  const allVariants = [...new Set(validRows.flatMap((row) => row.phone_variants || []).filter(Boolean))];
+  const existingCustomers = allVariants.length ? await loadCustomersByPhoneVariants(clientOrPool, columns, tenantId, allVariants) : [];
+  const byPhoneVariant = new Map();
+  for (const customer of existingCustomers) {
+    const normalizedCustomerPhone = normalizeEgyptImportPhone(customer.phone);
+    const variants = [...new Set([normalizedCustomerPhone, ...getPhoneSearchVariants(customer.phone).map(normalizeEgyptImportPhone)].filter(Boolean))];
+    for (const variant of variants) {
+      if (!byPhoneVariant.has(variant)) byPhoneVariant.set(variant, customer);
+    }
+  }
+
+  const enrichedRows = validRows.map((row) => {
+    const existing = (row.phone_variants || []).map((variant) => byPhoneVariant.get(variant)).find(Boolean) || null;
+    return { ...row, existing_customer: existing };
+  });
+
+  const newRows = enrichedRows.filter((row) => !row.existing_customer);
+  const matchedRows = enrichedRows.filter((row) => row.existing_customer);
+  const totalPoints = enrichedRows.reduce((sum, row) => sum + Number(row.points || 0), 0);
+
+  return {
+    rows: enrichedRows,
+    invalid_rows: invalidRows,
+    error_report_csv: buildImportErrorReport(invalidRows),
+    summary: {
+      total_rows: rows.length,
+      new_customers: newRows.length,
+      existing_customers_matched: matchedRows.length,
+      invalid_rows: invalidRows.length,
+      duplicate_phones: duplicatePhones.size,
+      total_points_to_import: Number(totalPoints.toFixed(2)),
+    },
+  };
+};
+
+const insertImportedCustomer = async (client, columns, tenantId, row) => {
+  const insertColumns = [];
+  const insertValues = [];
+  const placeholders = [];
+  const add = (column, value) => {
+    insertColumns.push(quoteIdentifier(column));
+    insertValues.push(value);
+    placeholders.push(`$${insertValues.length}`);
+  };
+
+  if (columns.tenantIdColumn) add(columns.tenantIdColumn, tenantId);
+  add(columns.nameColumn, row.name);
+  add(columns.phoneColumn, row.phone);
+  if (columns.emailColumn) add(columns.emailColumn, row.email || null);
+  if (columns.addressColumn) add(columns.addressColumn, row.address || null);
+  if (columns.customerSourceColumn) add(columns.customerSourceColumn, "legacy_import");
+  if (columns.leadSourceColumn) add(columns.leadSourceColumn, "legacy_import");
+  if (columns.registrationSourceColumn) add(columns.registrationSourceColumn, "legacy_import");
+  if (columns.statusColumn) add(columns.statusColumn, "active");
+
+  const result = await client.query(
+    `
+    INSERT INTO customers (${insertColumns.join(", ")})
+    VALUES (${placeholders.join(", ")})
+    RETURNING id
+    `,
+    insertValues
+  );
+  return Number(result.rows[0]?.id);
+};
+
+const updateImportedCustomer = async (client, columns, tenantId, row) => {
+  const customer = row.existing_customer;
+  const setClauses = [];
+  const params = [];
+  const addSet = (column, value) => {
+    params.push(value);
+    setClauses.push(`${quoteIdentifier(column)} = CASE WHEN NULLIF(TRIM(COALESCE(${quoteIdentifier(column)}::text, '')), '') IS NULL THEN $${params.length} ELSE ${quoteIdentifier(column)} END`);
+  };
+
+  if (columns.nameColumn) addSet(columns.nameColumn, row.name);
+  if (columns.emailColumn && row.email) addSet(columns.emailColumn, row.email);
+  if (columns.addressColumn && row.address) addSet(columns.addressColumn, row.address);
+  if (columns.updatedAtColumn) setClauses.push(`${quoteIdentifier(columns.updatedAtColumn)} = NOW()`);
+
+  if (setClauses.length) {
+    params.push(customer.id);
+    if (columns.tenantIdColumn) params.push(tenantId);
+    await client.query(
+      `
+      UPDATE customers
+      SET ${setClauses.join(", ")}
+      WHERE id = $${columns.tenantIdColumn ? params.length - 1 : params.length}
+        ${columns.tenantIdColumn ? `AND ($${params.length}::bigint IS NULL OR tenant_id = $${params.length}::bigint)` : ""}
+      `,
+      params
+    );
+  }
+
+  return Number(customer.id);
+};
+
+const applyImportedLegacyPoints = async (client, { tenantId, customerId, points, pointsMode = "replace", userId, fileName }) => {
+  const amount = Number(Number(points || 0).toFixed(2));
+  if (!customerId || amount < 0) return { before: 0, after: 0, delta: 0 };
+  const mode = normalizePointsMode(pointsMode);
+  const current = await client.query(
+    `
+    SELECT COALESCE(loyalty_points, 0) AS loyalty_points
+    FROM customers
+    WHERE id = $1
+      AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)
+    FOR UPDATE
+    `,
+    [customerId, tenantId]
+  );
+  const before = Number(current.rows[0]?.loyalty_points || 0);
+  const after = mode === "add" ? Number((before + amount).toFixed(2)) : amount;
+  const delta = Number((after - before).toFixed(2));
+  const tier = calculateTier(after);
+  const description = `Legacy points import - ${mode}: ${fileName}`;
+
+  await client.query(
+    `
+    UPDATE customers
+    SET loyalty_points = $1,
+        loyalty_tier = $2,
+        loyalty_updated_at = NOW(),
+        updated_at = NOW()
+    WHERE id = $3
+      AND ($4::bigint IS NULL OR tenant_id = $4::bigint OR tenant_id IS NULL)
+    `,
+    [after, tier, customerId, tenantId]
+  );
+
+  await client.query(
+    `
+    INSERT INTO customer_loyalty (
+      tenant_id, customer_id, tier, total_points_earned, total_points_redeemed,
+      available_points, lifetime_points, lifetime_spent, updated_at
+    )
+    VALUES ($1,$2,$3,$4,0,$4,$4,0,NOW())
+    ON CONFLICT (tenant_id, customer_id)
+    DO UPDATE SET
+      tier = EXCLUDED.tier,
+      total_points_earned = CASE
+        WHEN $6 = 'add' THEN customer_loyalty.total_points_earned + GREATEST($5::numeric, 0)
+        ELSE GREATEST(customer_loyalty.total_points_earned, $4::numeric)
+      END,
+      available_points = $4::numeric,
+      lifetime_points = CASE
+        WHEN $6 = 'add' THEN customer_loyalty.lifetime_points + GREATEST($5::numeric, 0)
+        ELSE GREATEST(customer_loyalty.lifetime_points, $4::numeric)
+      END,
+      updated_at = NOW()
+    `,
+    [tenantId, customerId, tier, after, delta, mode]
+  );
+
+  await client.query(
+    `
+    INSERT INTO customer_loyalty_history (tenant_id, customer_id, source, points_change, balance_after, reason)
+    VALUES ($1,$2,'legacy_import',$3,$4,$5)
+    `,
+    [tenantId, customerId, delta, after, description]
+  );
+
+  await client.query(
+    `
+    INSERT INTO loyalty_transactions (tenant_id, customer_id, transaction_type, points, amount_value, description, created_by)
+    VALUES ($1,$2,'legacy_import',$3,0,$4,$5)
+    `,
+    [tenantId, customerId, delta, description, userId || null]
+  );
+
+  return { before, after, delta };
 };
 
 const getCustomerById = async (id, tenantId) => {
@@ -809,6 +1190,131 @@ export const adjustCustomerWallet = async (req, res) => {
   } catch (error) {
     await client.query("ROLLBACK");
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to update wallet" });
+  } finally {
+    client.release();
+  }
+};
+
+export const previewCustomerImport = async (req, res) => {
+  try {
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    const pointsMode = normalizePointsMode(req.body?.pointsMode || req.body?.points_mode);
+    await ensureCustomerImportSchema(pool);
+    const rows = parseCustomersImportFile(req.file);
+    const analysis = await analyzeCustomerImportRows(pool, rows, tenantId);
+    return res.status(200).json({
+      success: true,
+      dry_run: true,
+      file_name: req.file?.originalname || "",
+      points_mode: pointsMode,
+      summary: analysis.summary,
+      invalid_rows: analysis.invalid_rows.slice(0, 100),
+      error_report_csv: analysis.error_report_csv,
+    });
+  } catch (error) {
+    console.error("[customers-import:preview-error]", {
+      message: error?.message || String(error),
+      details: error?.details || null,
+    });
+    return res.status(error.status || 500).json({
+      success: false,
+      message: error.message || "Failed to preview customer import",
+      details: error.details || null,
+    });
+  }
+};
+
+export const importCustomers = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    const fileName = req.file?.originalname || "customers-import";
+    const pointsMode = normalizePointsMode(req.body?.pointsMode || req.body?.points_mode);
+    await ensureCustomerImportSchema(client);
+    const columns = await getCustomerColumns();
+    const rows = parseCustomersImportFile(req.file);
+    const analysis = await analyzeCustomerImportRows(client, rows, tenantId);
+
+    let createdCount = 0;
+    let updatedCount = 0;
+    let importedPoints = 0;
+
+    await client.query("BEGIN");
+    for (const row of analysis.rows) {
+      let customerId = null;
+      if (row.existing_customer) {
+        customerId = await updateImportedCustomer(client, columns, tenantId, row);
+        updatedCount += 1;
+      } else {
+        customerId = await insertImportedCustomer(client, columns, tenantId, row);
+        createdCount += 1;
+      }
+
+      const pointResult = await applyImportedLegacyPoints(client, {
+        tenantId,
+        customerId,
+        points: row.points,
+        pointsMode,
+        userId: req.user?.id || null,
+        fileName,
+      });
+      importedPoints += Number(pointResult?.delta || 0);
+    }
+
+    const audit = await client.query(
+      `
+      INSERT INTO customer_import_audit_logs (
+        tenant_id, file_name, imported_by, created_count, updated_count,
+        skipped_count, invalid_count, duplicate_phone_count, total_rows, total_points_imported, points_mode
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      RETURNING *
+      `,
+      [
+        tenantId,
+        fileName,
+        req.user?.id || null,
+        createdCount,
+        updatedCount,
+        analysis.invalid_rows.length,
+        analysis.invalid_rows.length,
+        analysis.summary.duplicate_phones,
+        analysis.summary.total_rows,
+        Number(importedPoints.toFixed(2)),
+        pointsMode,
+      ]
+    );
+
+    await client.query("COMMIT");
+    return res.status(200).json({
+      success: true,
+      dry_run: false,
+      file_name: fileName,
+      points_mode: pointsMode,
+      summary: {
+        ...analysis.summary,
+        created_count: createdCount,
+        updated_count: updatedCount,
+        skipped_invalid_count: analysis.invalid_rows.length,
+        total_points_imported: Number(importedPoints.toFixed(2)),
+      },
+      audit_log: audit.rows[0] || null,
+      invalid_rows: analysis.invalid_rows.slice(0, 100),
+      error_report_csv: analysis.error_report_csv,
+    });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => null);
+    console.error("[customers-import:import-error]", {
+      message: error?.message || String(error),
+      details: error?.details || null,
+      code: error?.code || null,
+    });
+    return res.status(error.status || 500).json({
+      success: false,
+      message: error.message || "Failed to import customers",
+      details: error.details || null,
+      code: error.code || null,
+    });
   } finally {
     client.release();
   }
