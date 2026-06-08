@@ -1,4 +1,5 @@
 import { AI_AGENT_CHANNELS, normalizeChannel } from "./aiChannelAdapterService.js";
+import { generateAiBrainV2Decision } from "./aiBrainV2Service.js";
 import { generateUnifiedAiReply } from "./aiConversationOrchestrator.js";
 
 const text = (value = "") => String(value ?? "").trim();
@@ -46,6 +47,7 @@ const hasClearProductModelRequest = (message = "") => {
 };
 
 const hasJordan4TraceTrigger = (message = "") => hasClearProductModelRequest(message);
+const hasPriceObjectionTraceTrigger = (message = "") => /(\u063a\u0627\u0644\u064a|\u063a\u0627\u0644\u064a\u0647|expensive|price\s+high)/i.test(normalizeArabic(message));
 
 const staleFollowupKeys = [
   "awaiting_alternative_choice",
@@ -142,6 +144,14 @@ const summarizeMemoryForLog = (memory = null) => {
   };
   const lastCards = read("last_product_cards", "lastProductCards");
   const selectedProduct = read("selected_product", "selectedProduct", "selected_product_context", "selectedProductContext", "last_product", "lastProduct", "lastProductCard");
+  const selectedProductIds = [
+    read("selected_product_ids", "selectedProductIds"),
+    read("selected_product_id", "selectedProductId"),
+    read("active_product_id", "activeProductId"),
+    read("last_product_id"),
+    selectedProduct?.product_id,
+    selectedProduct?.id,
+  ].flatMap((value) => (Array.isArray(value) ? value : [value])).map(text).filter(Boolean);
   return {
     previousIntent: text(preferences.last_intent || preferences.lastIntent || memory?.last_intent || ""),
     pending_product_search_context: read("pending_product_search_context", "pendingProductSearchContext") || null,
@@ -151,6 +161,9 @@ const summarizeMemoryForLog = (memory = null) => {
     lastProductCardsCount: Array.isArray(lastCards) ? lastCards.length : 0,
     selected_product: selectedProduct || null,
     selectedProductId: text(read("selected_product_id", "selectedProductId", "last_product_id") || selectedProduct?.product_id || selectedProduct?.id || ""),
+    selected_product_ids: [...new Set(selectedProductIds)].slice(0, 12),
+    activeProductId: text(read("active_product_id", "activeProductId", "selected_product_id", "selectedProductId", "last_product_id") || selectedProduct?.product_id || selectedProduct?.id || ""),
+    last_product_id: text(read("last_product_id") || ""),
     selected_color: text(read("selected_color", "selectedColor", "active_color", "activeColor")),
     selected_size: text(read("selected_size", "selectedSize", "active_size", "activeSize")),
     awaiting_alternative_choice: Boolean(read("awaiting_alternative_choice", "awaitingAlternativeChoice")),
@@ -383,24 +396,10 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
     });
   }
 
-  const decision = await generateUnifiedAiReply({
-    tenantId,
-    branchId,
-    channel: inbound.channel,
-    conversation: {
-      id: inbound.externalConversationId,
-      session_id: inbound.externalConversationId,
-      customer_name: inbound.customerName,
-      customer_phone: inbound.externalCustomerId,
-    },
-    customer: {
-      id: inbound.metadata.customer_id || inbound.externalCustomerId,
-      name: inbound.customerName,
-      phone: inbound.metadata.customer_phone || inbound.externalCustomerId,
-    },
-    message: {
-      text: inbound.text || "Customer sent an attachment",
-      provider_message_id: inbound.metadata.provider_message_id || inbound.metadata.external_message_id || "",
+  let decision = null;
+  try {
+    decision = await generateAiBrainV2Decision({
+      ...inbound,
       metadata: {
         ...inbound.metadata,
         channel: inbound.channel,
@@ -409,12 +408,61 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
         customer_name: inbound.customerName,
         ai_memory: effectiveMemory,
       },
-    },
-    attachments: inbound.attachments,
-    memory: effectiveMemory,
-    productsContext: options.productsContext ?? inbound.metadata.products_context ?? null,
-    providerMessageId: options.providerMessageId || inbound.metadata.provider_message_id || inbound.metadata.external_message_id || "",
-  });
+    }, {
+      ...options,
+      tenantId,
+      branchId,
+      memory: effectiveMemory,
+      providerMessageId: options.providerMessageId || inbound.metadata.provider_message_id || inbound.metadata.external_message_id || "",
+    });
+  } catch (error) {
+    const allowLegacyFallback = ["1", "true", "yes", "on"].includes(String(process.env.AI_BRAIN_V2_LEGACY_FALLBACK || "").trim().toLowerCase());
+    console.error("AI_BRAIN_V2_ERROR", {
+      channel: inbound.channel,
+      conversation_id: inbound.externalConversationId,
+      text_preview: inbound.text.slice(0, 160),
+      message: error?.message || String(error),
+      legacy_fallback_enabled: allowLegacyFallback,
+    });
+    if (!allowLegacyFallback) throw error;
+    console.warn("AI_BRAIN_V2_LEGACY_FALLBACK_USED", {
+      channel: inbound.channel,
+      conversation_id: inbound.externalConversationId,
+      reason: error?.message || "v2_error",
+    });
+    decision = await generateUnifiedAiReply({
+      tenantId,
+      branchId,
+      channel: inbound.channel,
+      conversation: {
+        id: inbound.externalConversationId,
+        session_id: inbound.externalConversationId,
+        customer_name: inbound.customerName,
+        customer_phone: inbound.externalCustomerId,
+      },
+      customer: {
+        id: inbound.metadata.customer_id || inbound.externalCustomerId,
+        name: inbound.customerName,
+        phone: inbound.metadata.customer_phone || inbound.externalCustomerId,
+      },
+      message: {
+        text: inbound.text || "Customer sent an attachment",
+        provider_message_id: inbound.metadata.provider_message_id || inbound.metadata.external_message_id || "",
+        metadata: {
+          ...inbound.metadata,
+          channel: inbound.channel,
+          external_conversation_id: inbound.externalConversationId,
+          external_customer_id: inbound.externalCustomerId,
+          customer_name: inbound.customerName,
+          ai_memory: effectiveMemory,
+        },
+      },
+      attachments: inbound.attachments,
+      memory: effectiveMemory,
+      productsContext: options.productsContext ?? inbound.metadata.products_context ?? null,
+      providerMessageId: options.providerMessageId || inbound.metadata.provider_message_id || inbound.metadata.external_message_id || "",
+    });
+  }
 
   const output = normalizeUnifiedDecisionOutput(applySharedShortcutMetadata({ decision, inbound }), inbound);
   console.info("AI_UNIFIED_DECISION_OUTPUT", {
@@ -428,6 +476,42 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
     reason: text(output.debug?.shared_shortcut_handler || output.debug?.reason || output.reason || output.debug?.source || ""),
     debugSource: text(output.debug?.source || ""),
   });
+  if (hasPriceObjectionTraceTrigger(inbound.text)) {
+    const outputProductIds = productIds([...(output.products || []), ...(output.product_cards || []), ...(output.channel_reply?.product_cards || [])]);
+    const outputImageCards = asArray(output.images || output.image_cards || output.channel_reply?.image_cards);
+    console.info("AI_PRICE_OBJECTION_CONTEXT", {
+      message_text: inbound.text,
+      channel: inbound.channel,
+      conversation_id: inbound.externalConversationId,
+      activeProductId: text(
+        output.activeProductId ||
+        output.active_product_id ||
+        output.memoryUpdates?.active_product_id ||
+        output.memory_updates?.active_product_id ||
+        effectiveMemorySummary.activeProductId ||
+        memorySummary.activeProductId ||
+        ""
+      ),
+      last_product_id: text(
+        output.memoryUpdates?.last_product_id ||
+        output.memory_updates?.last_product_id ||
+        effectiveMemorySummary.last_product_id ||
+        memorySummary.last_product_id ||
+        ""
+      ),
+      selected_product_ids: outputProductIds.length ? outputProductIds : effectiveMemorySummary.selected_product_ids || memorySummary.selected_product_ids || [],
+      product_cards_sent: outputProductIds.length || outputImageCards.length,
+      reply_reason: text(
+        output.debug?.shared_shortcut_handler ||
+        output.debug?.reason ||
+        output.reason ||
+        output.reply_reason ||
+        output.replyReason ||
+        output.debug?.source ||
+        ""
+      ),
+    });
+  }
   if (
     hasJordan4TraceTrigger(inbound.text) &&
     !asArray(output.products).length &&

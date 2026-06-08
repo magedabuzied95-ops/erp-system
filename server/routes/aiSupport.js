@@ -41,6 +41,7 @@ import {
   normalizeIncomingChannelMessage,
   normalizeOutgoingChannelReply,
 } from "../services/aiChannelAdapterService.js";
+import { generateAiBrainV2Decision } from "../services/aiBrainV2Service.js";
 import { buildUnifiedAiReplyPayload } from "../services/aiConversationOrchestrator.js";
 import {
   humanizeSalesResponse,
@@ -2173,6 +2174,71 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
       locale: req.body?.metadata?.locale || req.headers?.["accept-language"] || null,
       tenant_id: tenantId,
     };
+
+    const v2Identity = resolveAiConversationIdentity({ req, tenantId, metadata });
+    const v2PreviousMemory = tenantId && v2Identity.sessionId
+      ? await loadAiConversationMemory({
+          tenantId,
+          sessionId: v2Identity.sessionId,
+          customerPhone: v2Identity.customerPhone,
+        }).catch((error) => {
+          console.warn("[ai-brain-v2] route memory load skipped", {
+            requestId: req.id,
+            tenantId,
+            message: error?.message,
+          });
+          return null;
+        })
+      : null;
+    const v2Response = await generateAiBrainV2Decision({
+      channel: normalizedMessage.channel,
+      externalConversationId: normalizedMessage.external_conversation_id || metadata.session_id || "",
+      externalCustomerId: normalizedMessage.external_customer_id || metadata.customer_phone || metadata.customer_id || "",
+      customerName: normalizedMessage.customer_name || metadata.customer_name || "",
+      text: message,
+      attachments: normalizedMessage.attachments || [],
+      metadata: {
+        ...metadata,
+        ai_memory: v2PreviousMemory,
+      },
+    }, {
+      tenantId,
+      branchId: req.body?.branch_id || metadata.branch_id || null,
+      memory: v2PreviousMemory,
+      providerMessageId: metadata.provider_message_id || metadata.external_message_id || "",
+    });
+    await logSupportExchange({
+      req,
+      tenantId,
+      metadata,
+      message,
+      context: {
+        intent: { type: v2Response.detected_intent || v2Response.intent || "general" },
+        trustedContext: { tenant_id: tenantId, sources: [] },
+        fallbackReason: "",
+        unknown_product_terms: [],
+      },
+      response: v2Response,
+    });
+    console.log("[AI_CHANNEL_ADAPTER_RESULT]", {
+      channel: normalizedMessage.channel,
+      adapter_used: "websiteChatAdapter",
+      conversation_id: normalizedMessage.external_conversation_id || metadata.session_id || "",
+      provider_message_id: metadata.provider_message_id || metadata.external_message_id || "",
+      inbound_text: message,
+      intent: v2Response.intent || v2Response.detected_intent || "",
+      products_count: Array.isArray(v2Response.products) ? v2Response.products.length : 0,
+      product_cards_count: Array.isArray(v2Response.product_cards) ? v2Response.product_cards.length : 0,
+      image_cards_count: Array.isArray(v2Response.image_cards) ? v2Response.image_cards.length : 0,
+      actions_count: Array.isArray(v2Response.actions) ? v2Response.actions.length : 0,
+      send_result: { sent: true, status: 200, ai_brain_version: "v2" },
+    });
+    return res.json({
+      success: true,
+      ...v2Response,
+      unified_reply: v2Response,
+      channel_reply: v2Response.channel_reply || channelReplyPayload(req, v2Response),
+    });
 
     if (tenantId && metadata.session_id) {
       const requestedConversationStatus = toText(metadata.conversation_status || "");

@@ -8,7 +8,6 @@ import {
   logChannelEvent,
   normalizeOutgoingChannelReply,
 } from "./aiChannelAdapterService.js";
-import { generateUnifiedAiReply } from "./aiConversationOrchestrator.js";
 import {
   generateUnifiedConversationDecision,
   logUnifiedDecisionEarlyReturn,
@@ -960,36 +959,29 @@ const routeWhatsappMessageThroughAi = async ({ tenantId, message = {} } = {}) =>
   const globalSettings = await getAISettings();
   const channelAISettings = await getAIChannelSettings(AI_AGENT_CHANNELS.WHATSAPP, AI_AGENT_CHANNELS.WHATSAPP);
   const effectiveTone = channelAISettings.tone || globalSettings.tone || "casual";
-  return generateUnifiedAiReply({
-    tenantId,
+  return generateUnifiedConversationDecision({
     channel: AI_AGENT_CHANNELS.WHATSAPP,
-    conversation: {
-      id: message.external_conversation_id,
-      session_id: message.external_conversation_id,
-      customer_name: message.customer_name,
-    },
-    customer: {
-      name: message.customer_name,
-      phone: message.external_customer_id,
-    },
-    message: {
-      text: message.message_text || "Customer sent an attachment",
-      provider_message_id: message.external_message_id || message.raw?.event?.message?.mid || "",
-      metadata: {
-        session_id: message.external_conversation_id,
-        customer_id: message.external_customer_id,
-        customer_phone: message.external_customer_id,
-        customer_name: message.customer_name,
-        channel: AI_AGENT_CHANNELS.WHATSAPP,
-        external_conversation_id: message.external_conversation_id,
-        external_customer_id: message.external_customer_id,
-        ai_tone: effectiveTone,
-        ai_tone_instruction: getAIToneInstruction(effectiveTone),
-        attachments: message.attachments || [],
-        timestamp: message.timestamp,
-      },
-    },
+    externalConversationId: message.external_conversation_id,
+    externalCustomerId: message.external_customer_id,
+    customerName: message.customer_name,
+    text: message.message_text || "Customer sent an attachment",
     attachments: message.attachments || [],
+    metadata: {
+      session_id: message.external_conversation_id,
+      customer_id: message.external_customer_id,
+      customer_phone: message.external_customer_id,
+      customer_name: message.customer_name,
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      external_conversation_id: message.external_conversation_id,
+      external_customer_id: message.external_customer_id,
+      ai_tone: effectiveTone,
+      ai_tone_instruction: getAIToneInstruction(effectiveTone),
+      attachments: message.attachments || [],
+      timestamp: message.timestamp,
+      provider_message_id: message.external_message_id || message.raw?.event?.message?.mid || "",
+    },
+  }, {
+    tenantId,
     providerMessageId: message.external_message_id || message.raw?.event?.message?.mid || "",
   });
 };

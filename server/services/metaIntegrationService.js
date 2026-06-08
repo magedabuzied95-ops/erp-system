@@ -56,7 +56,6 @@ import {
   sizeAvailabilityReplyText,
 } from "./aiSizeAvailabilityLinkService.js";
 import { resolveProductCardLinks } from "./storefrontProductUrlService.js";
-import { generateUnifiedAiReply } from "./aiConversationOrchestrator.js";
 import {
   generateUnifiedConversationDecision,
   logUnifiedDecisionEarlyReturn,
@@ -5572,48 +5571,41 @@ const routeMessageThroughAi = async ({ req, message, config }) => {
   const channel = channelAlias(message.channel);
   const aiMemory = persistentAiMemoryFromRuntime(getConversationMemory(message.external_conversation_id) || {});
   const customerContext = aiMemory.customerContext || null;
-  return generateUnifiedAiReply({
+  return generateUnifiedConversationDecision({
+    channel,
+    externalConversationId: message.external_conversation_id,
+    externalCustomerId: message.external_customer_id,
+    customerName: message.customer_name,
+    text: message.message_text || "Customer sent an attachment",
+    attachments: message.attachments || [],
+    metadata: {
+      tenant_id: config.tenant_id,
+      branch_id: config.branch_id || null,
+      session_id: message.external_conversation_id,
+      customer_id: customerContext?.customerId || aiMemory.customerId || message.external_customer_id,
+      customer_name: message.customer_name,
+      channel,
+      adapter_channel: message.channel,
+      external_conversation_id: message.external_conversation_id,
+      external_customer_id: message.external_customer_id,
+      attachments: message.attachments || [],
+      timestamp: message.timestamp,
+      ai_memory: aiMemory,
+      active_product_id: aiMemory.activeProductId || null,
+      active_variant_id: aiMemory.activeVariantId || null,
+      active_color: aiMemory.activeColor || "",
+      active_size: aiMemory.activeSize || "",
+      buying_stage: aiMemory.buyingStage || "",
+      customer_context: customerContext,
+      known_name: aiMemory.knownName || customerContext?.fullName || "",
+      known_phone: aiMemory.knownPhone || customerContext?.phone || "",
+      preferred_sizes: aiMemory.preferredSizes || customerContext?.preferredSizes || [],
+      preferred_brands: aiMemory.preferredBrands || customerContext?.preferredBrands || [],
+      provider_message_id: message.external_message_id || message.raw?.event?.message?.mid || "",
+    },
+  }, {
     tenantId: config.tenant_id,
     branchId: config.branch_id || null,
-    channel,
-    conversation: {
-      id: message.external_conversation_id,
-      session_id: message.external_conversation_id,
-      customer_name: message.customer_name,
-    },
-    customer: {
-      id: customerContext?.customerId || aiMemory.customerId || message.external_customer_id,
-      name: aiMemory.knownName || customerContext?.fullName || message.customer_name || "",
-      phone: aiMemory.knownPhone || customerContext?.phone || message.external_customer_id || "",
-    },
-    message: {
-      text: message.message_text || "Customer sent an attachment",
-      provider_message_id: message.external_message_id || message.raw?.event?.message?.mid || "",
-      metadata: {
-        session_id: message.external_conversation_id,
-        customer_id: message.external_customer_id,
-        customer_name: message.customer_name,
-        channel,
-        adapter_channel: message.channel,
-        external_conversation_id: message.external_conversation_id,
-        external_customer_id: message.external_customer_id,
-        attachments: message.attachments || [],
-        timestamp: message.timestamp,
-        ai_memory: aiMemory,
-        active_product_id: aiMemory.activeProductId || null,
-        active_variant_id: aiMemory.activeVariantId || null,
-        active_color: aiMemory.activeColor || "",
-        active_size: aiMemory.activeSize || "",
-        buying_stage: aiMemory.buyingStage || "",
-        customer_context: customerContext,
-        customer_id: customerContext?.customerId || aiMemory.customerId || message.external_customer_id,
-        known_name: aiMemory.knownName || customerContext?.fullName || "",
-        known_phone: aiMemory.knownPhone || customerContext?.phone || "",
-        preferred_sizes: aiMemory.preferredSizes || customerContext?.preferredSizes || [],
-        preferred_brands: aiMemory.preferredBrands || customerContext?.preferredBrands || [],
-      },
-    },
-    attachments: message.attachments || [],
     memory: aiMemory,
     providerMessageId: message.external_message_id || message.raw?.event?.message?.mid || "",
     productsContext: {
