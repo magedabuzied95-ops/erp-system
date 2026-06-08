@@ -42,7 +42,10 @@ import {
 } from "./aiAgentOrderService.js";
 import { searchAiVisualProductsPro } from "./aiVisualSearchProService.js";
 import { getConversationMemory, updateConversationMemory } from "./aiConversationMemory.js";
-import { updateAiConversationMemory as updatePersistentCustomerConversationMemory } from "./aiConversationMemoryService.js";
+import {
+  loadAiConversationMemory,
+  updateAiConversationMemory as updatePersistentCustomerConversationMemory,
+} from "./aiConversationMemoryService.js";
 import { extractShoeSize } from "./aiMessageExtractors.js";
 import { ensureAiSalesAgentSchema, getAiAgentSettings, upsertAiCustomerProfile } from "./aiSalesAgentService.js";
 import { evaluateProductDecisionGate } from "./aiProductDecisionGate.js";
@@ -1773,18 +1776,47 @@ const maskPhoneForDebug = (value = "") => {
   return `${"*".repeat(Math.max(0, digits.length - 3))}${digits.slice(-3)}`;
 };
 
-const compactMemoryForDebug = (memory = {}) => ({
+const compactMemoryForDebug = (memory = {}) => {
+  const preferences = memory?.preferences && typeof memory.preferences === "object" ? memory.preferences : {};
+  const activeProductId = text(
+    memory.activeProductId ||
+    memory.active_product_id ||
+    memory.selectedProductId ||
+    memory.selected_product_id ||
+    preferences.active_product_id ||
+    preferences.activeProductId ||
+    preferences.selected_product_id ||
+    preferences.selectedProductId ||
+    preferences.last_product_id ||
+    ""
+  );
+  const lastProductCards = [
+    ...(Array.isArray(memory.lastProductCards) ? memory.lastProductCards : []),
+    ...(Array.isArray(memory.last_product_cards) ? memory.last_product_cards : []),
+    ...(Array.isArray(preferences.lastProductCards) ? preferences.lastProductCards : []),
+    ...(Array.isArray(preferences.last_product_cards) ? preferences.last_product_cards : []),
+    ...(Array.isArray(memory.last_products) ? memory.last_products : []),
+  ];
+  return ({
   currentConversationStage: text(memory.currentConversationStage || memory.conversationStage || ""),
   stageReason: text(memory.stageReason || ""),
   nextRecommendedStage: text(memory.nextRecommendedStage || ""),
-  buyingStage: text(memory.buyingStage || memory.checkoutStage || ""),
+  buyingStage: text(memory.buyingStage || memory.checkoutStage || preferences.buying_stage || preferences.buyingStage || ""),
   activeTopic: text(memory.activeTopic || ""),
-  activeProductId: memory.activeProductId || memory.selectedProductId || null,
-  activeVariantId: memory.activeVariantId || memory.selectedVariantId || null,
-  activeSize: text(memory.activeSize || ""),
-  activeColor: text(memory.activeColor || memory.selectedColor || ""),
-  activeBrand: text(memory.activeBrand || ""),
-  activeCategory: text(memory.activeCategory || ""),
+  activeProductId: activeProductId || null,
+  active_product_id: activeProductId || null,
+  selectedProductId: text(memory.selectedProductId || memory.selected_product_id || preferences.selected_product_id || preferences.selectedProductId || activeProductId) || null,
+  last_product_id: text(memory.last_product_id || preferences.last_product_id || activeProductId) || null,
+  activeVariantId: memory.activeVariantId || memory.active_variant_id || memory.selectedVariantId || memory.selected_variant_id || preferences.active_variant_id || preferences.selected_variant_id || null,
+  activeSize: text(memory.activeSize || memory.active_size || preferences.active_size || preferences.activeSize || ""),
+  activeColor: text(memory.activeColor || memory.active_color || memory.selectedColor || memory.selected_color || preferences.active_color || preferences.selected_color || ""),
+  activeBrand: text(memory.activeBrand || memory.active_brand || preferences.active_brand || ""),
+  activeCategory: text(memory.activeCategory || memory.active_category || preferences.active_category || ""),
+  lastIntent: text(memory.lastIntent || memory.last_intent || preferences.lastIntent || preferences.last_intent || ""),
+  last_intent: text(memory.last_intent || memory.lastIntent || preferences.last_intent || preferences.lastIntent || ""),
+  lastProductCards: lastProductCards.slice(0, 6),
+  last_product_cards: lastProductCards.slice(0, 6),
+  lastProductCardsCount: lastProductCards.length,
   activeVisualSession: text(memory.activeVisualSession || memory.visualSearchSession?.id || ""),
   lastTopicChangeAt: text(memory.lastTopicChangeAt || ""),
   contextSwitchConfidence: memory.contextSwitchConfidence ?? null,
@@ -1797,7 +1829,7 @@ const compactMemoryForDebug = (memory = {}) => ({
   lastPresentedSizes: Array.isArray(memory.lastPresentedSizes) ? memory.lastPresentedSizes.slice(0, 12) : [],
   lastPresentedColors: Array.isArray(memory.lastPresentedColors) ? memory.lastPresentedColors.slice(0, 12) : [],
   lastPresentationTimestamp: text(memory.lastPresentationTimestamp || ""),
-  lastShownProductIds: Array.isArray(memory.lastShownProductIds) ? memory.lastShownProductIds.slice(0, 12) : [],
+  lastShownProductIds: Array.isArray(memory.lastShownProductIds) ? memory.lastShownProductIds.slice(0, 12) : lastProductCards.map((card) => card?.product_id || card?.id).filter(Boolean).slice(0, 12),
   conversationCompression: Object.fromEntries(
     Object.entries(compressionMemory(memory)).slice(-6).map(([key, value]) => [key, {
       shownPrice: value?.shownPrice === true,
@@ -1816,6 +1848,7 @@ const compactMemoryForDebug = (memory = {}) => ({
   lastImageUrl: text(memory.lastImageUrl || ""),
   lastVisualConfidence: memory.lastVisualConfidence ?? memory.lastVisualAttributes?.confidence ?? null,
 });
+};
 
 const storeAiDebugEvent = async ({ tenantId, channel = "", conversationId = "", event = {} } = {}) => {
   if (!tenantId || !conversationId) return null;
@@ -1974,19 +2007,37 @@ export const getAiInboxConversationDebug = async ({ tenantId, channel = "", conv
     throw Object.assign(new Error("tenant_id and conversation_id are required"), { status: 400 });
   }
   const metadata = await loadConversationMetadata({ tenantId, channel, conversationId });
-  const memory = metadata.ai_memory && typeof metadata.ai_memory === "object" ? metadata.ai_memory : {};
+  const channelMemory = metadata.ai_memory && typeof metadata.ai_memory === "object" ? metadata.ai_memory : {};
+  const persistentMemory = await loadAiConversationMemory({
+    tenantId,
+    sessionId: conversationId,
+    customerPhone: metadata.customer_phone || metadata.external_customer_id || "",
+  }).catch(() => null);
+  const memory = {
+    ...channelMemory,
+    ...(persistentMemory || {}),
+    preferences: {
+      ...(channelMemory.preferences || {}),
+      ...(persistentMemory?.preferences || {}),
+    },
+  };
   const health = metadata.meta_health && typeof metadata.meta_health === "object" ? metadata.meta_health : {};
   const debugEvents = recentMetaArray(metadata, "ai_debug_events").slice(0, 20);
   const inboundKeys = recentMetaArray(metadata, "ai_processed_inbound_keys");
   const outboundSignatures = recentMetaArray(metadata, "ai_recent_outbound_signatures");
   const latestOutboundSignature = outboundSignatures[outboundSignatures.length - 1] || {};
   const latestEvent = debugEvents[0] || {};
+  const compactMemory = compactMemoryForDebug(memory);
+  const memoryHasProductContext = Boolean(compactMemory.activeProductId || compactMemory.lastProductCardsCount);
+  const projectedIntent = memoryHasProductContext
+    ? text(compactMemory.last_intent || compactMemory.lastIntent || latestEvent.classified_intent || "")
+    : text(latestEvent.classified_intent || compactMemory.last_intent || compactMemory.lastIntent || "");
   const data = {
     conversation_id: conversationId,
-    current_intent: text(latestEvent.classified_intent || memory.lastIntent || ""),
+    current_intent: projectedIntent,
     confidence: latestEvent.confidence ?? null,
     route: text(latestEvent.selected_route || latestEvent.handled_reason || ""),
-    memory: compactMemoryForDebug(memory),
+    memory: compactMemory,
     processed_inbound_key_count: inboundKeys.length,
     unified_reply_preview: text(latestOutboundSignature?.preview || latestEvent.reply_preview || latestEvent.reply || ""),
     last_outbound_signature_preview: text(latestOutboundSignature?.preview || latestOutboundSignature?.signature || ""),
@@ -16829,7 +16880,8 @@ export const processMetaWebhook = async ({ req } = {}) => {
     }
     const reply = aiPayload.channel_reply || normalizeOutgoingChannelReply({ channel: message.channel, response: aiPayload });
     const modelNameSearch = detectModelNameSearch(message.message_text || "") && !detectAllColorsRequest(message.message_text || "");
-    const productCardLimit = Number(metadata.product_card_limit || 0) || (modelNameSearch ? 12 : 6);
+    const aiPayloadMetadata = aiPayload?.metadata && typeof aiPayload.metadata === "object" ? aiPayload.metadata : {};
+    const productCardLimit = Number(aiPayloadMetadata.product_card_limit || aiPayloadMetadata.productCardLimit || 0) || (modelNameSearch ? 12 : 6);
     let productCards = normalizeProductCards(reply.product_cards || aiPayload.suggested_products || [], { limit: productCardLimit });
     const firstCard = productCards[0] || {};
     console.info("[CHANNEL_CARD_PAYLOAD]", {
@@ -17176,6 +17228,12 @@ export const processMetaWebhook = async ({ req } = {}) => {
       }).catch(() => {});
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: true });
     } catch (error) {
+      console.error("META_REPLY_PIPELINE_ERROR", {
+        stack: error?.stack || "",
+        conversation_id: message.external_conversation_id || "",
+        product_id: text(productCards?.[0]?.product_id || productCards?.[0]?.id || aiPayload?.active_product_id || ""),
+        intent: text(aiPayload?.detected_intent || aiPayload?.intent || latestDebugClassification?.intent || ""),
+      });
       console.error("[meta-inbox] auto_reply_send_failed", {
         tenant_id: config.tenant_id,
         config_id: config.id || null,
