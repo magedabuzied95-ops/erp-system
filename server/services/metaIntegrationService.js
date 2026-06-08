@@ -6,6 +6,10 @@ import db from "../database/db.js";
 import { resolveCustomerDisplayPrice, formatCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 import { emitToRooms } from "../utils/socket.js";
+import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
+import { resolveProductAlias } from "../utils/productAliasResolver.js";
+import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
+import { resolveFollowupContext, summarizeConversationMemoryV2 } from "../utils/aiConversationMemoryV2.js";
 import {
   appendAiGeneratedSupportReply,
   ensureAiSupportLogSchema,
@@ -5641,12 +5645,82 @@ const routeMessageThroughAi = async ({ req, message, config }) => {
   const channel = channelAlias(message.channel);
   const aiMemory = persistentAiMemoryFromRuntime(getConversationMemory(message.external_conversation_id) || {});
   const customerContext = aiMemory.customerContext || null;
+  const conversationMemoryV2 = aiMemory?.preferences?.aiConversationMemoryV2 || aiMemory?.aiConversationMemoryV2 || null;
+  const originalMessage = text(message.original_message || message.message_text || message.text || "");
+  const intentPayload = normalizeArabicIntentPayload(originalMessage);
+  const normalizedMessage = text(message.normalized_message || intentPayload.normalizedText || normalizeArabicMessage(originalMessage));
+  const normalizedForIntent = text(message.normalized_for_intent || intentPayload.normalizedForIntent || normalizeArabicForIntent(originalMessage));
+  const productAlias = resolveProductAlias(originalMessage || normalizedForIntent);
+  const aliasSearchHints = buildAliasAwareSearchHints({ text: originalMessage || normalizedForIntent, aliasResult: productAlias });
+  const followupContextV2 = resolveFollowupContext({
+    memory: conversationMemoryV2,
+    messageText: originalMessage,
+    normalizedPayload: intentPayload,
+    intentPayload,
+  });
+  console.log("[arabic-normalizer]", {
+    channel,
+    original: originalMessage,
+    normalized: normalizedMessage,
+    normalizedForIntent,
+    canonicalSignals: intentPayload.canonicalSignals,
+  });
+  console.log("[arabic-intent-signals]", {
+    channel,
+    original: originalMessage,
+    normalizedText: normalizedMessage,
+    normalizedForIntent,
+    canonicalSignals: intentPayload.canonicalSignals,
+  });
+  console.log("[product-alias]", {
+    channel,
+    original: originalMessage,
+    normalizedText: normalizedMessage,
+    canonicalProduct: productAlias.canonicalProduct,
+    matchedAlias: productAlias.matchedAlias,
+    confidence: productAlias.confidence,
+  });
+  console.log("[alias-aware-product-search]", {
+    original: originalMessage,
+    canonicalProduct: aliasSearchHints.canonicalProduct,
+    searchTerms: aliasSearchHints.searchTerms,
+    productQueryHints: aliasSearchHints.productQueryHints,
+    usedAliasHint: aliasSearchHints.hasAliasHint,
+    fallbackUsed: true,
+    matchedProductId: null,
+    matchedProductName: "",
+    confidence: productAlias.confidence || 0,
+    channel,
+  });
+  console.log("[conversation-memory-v2]", {
+    conversationId: message.external_conversation_id,
+    channel,
+    original: originalMessage,
+    normalizedText: normalizedMessage,
+    memoryBeforeSummary: summarizeConversationMemoryV2(conversationMemoryV2),
+    followupType: followupContextV2.type || "none",
+    resolvedProductId: followupContextV2.productId || null,
+    resolvedColor: followupContextV2.color || "",
+    resolvedSize: followupContextV2.size || "",
+    memoryUpdated: Boolean(followupContextV2.type && followupContextV2.type !== "none"),
+  });
   return generateUnifiedConversationDecision({
     channel,
     externalConversationId: message.external_conversation_id,
     externalCustomerId: message.external_customer_id,
     customerName: message.customer_name,
-    text: message.message_text || "Customer sent an attachment",
+    text: normalizedForIntent || "Customer sent an attachment",
+    original_message: originalMessage || "Customer sent an attachment",
+    normalized_message: normalizedMessage,
+    normalized_for_intent: normalizedForIntent,
+    canonical_signals: intentPayload.canonicalSignals,
+    intent_tokens: intentPayload.intentTokens,
+    productAliasDetected: Boolean(productAlias.canonicalProduct),
+    canonicalProduct: productAlias.canonicalProduct,
+    matchedAlias: productAlias.matchedAlias,
+    aliasConfidence: productAlias.confidence,
+    productQueryHints: aliasSearchHints.productQueryHints,
+    aliasSearchTerms: aliasSearchHints.searchTerms,
     attachments: message.attachments || [],
     metadata: {
       tenant_id: config.tenant_id,
@@ -5661,6 +5735,8 @@ const routeMessageThroughAi = async ({ req, message, config }) => {
       attachments: message.attachments || [],
       timestamp: message.timestamp,
       ai_memory: aiMemory,
+      aiConversationMemoryV2: conversationMemoryV2,
+      followup_context_v2: followupContextV2,
       active_product_id: aiMemory.activeProductId || null,
       active_variant_id: aiMemory.activeVariantId || null,
       active_color: aiMemory.activeColor || "",
@@ -5672,6 +5748,17 @@ const routeMessageThroughAi = async ({ req, message, config }) => {
       preferred_sizes: aiMemory.preferredSizes || customerContext?.preferredSizes || [],
       preferred_brands: aiMemory.preferredBrands || customerContext?.preferredBrands || [],
       provider_message_id: message.external_message_id || message.raw?.event?.message?.mid || "",
+      original_message: originalMessage,
+      normalized_message: normalizedMessage,
+      normalized_for_intent: normalizedForIntent,
+      canonical_signals: intentPayload.canonicalSignals,
+      intent_tokens: intentPayload.intentTokens,
+      productAliasDetected: Boolean(productAlias.canonicalProduct),
+      canonicalProduct: productAlias.canonicalProduct,
+      matchedAlias: productAlias.matchedAlias,
+      aliasConfidence: productAlias.confidence,
+      productQueryHints: aliasSearchHints.productQueryHints,
+      aliasSearchTerms: aliasSearchHints.searchTerms,
     },
   }, {
     tenantId: config.tenant_id,
@@ -5686,6 +5773,7 @@ const routeMessageThroughAi = async ({ req, message, config }) => {
       customer_context: customerContext,
       preferred_sizes: aiMemory.preferredSizes || customerContext?.preferredSizes || [],
       preferred_brands: aiMemory.preferredBrands || customerContext?.preferredBrands || [],
+      aiConversationMemoryV2: conversationMemoryV2,
     },
   });
 };
@@ -5694,12 +5782,36 @@ export const generateMetaUnifiedDecisionDryRun = async ({ message = {}, config =
   const alias = channel || channelAlias(message.channel);
   const aiMemory = persistentAiMemoryFromRuntime(getConversationMemory(message.external_conversation_id) || {});
   const customerContext = aiMemory.customerContext || null;
+  const originalMessage = text(message.original_message || message.message_text || message.text || "");
+  const intentPayload = normalizeArabicIntentPayload(originalMessage);
+  const normalizedMessage = text(message.normalized_message || intentPayload.normalizedText || normalizeArabicMessage(originalMessage));
+  const normalizedForIntent = text(message.normalized_for_intent || intentPayload.normalizedForIntent || normalizeArabicForIntent(originalMessage));
+  const productAlias = resolveProductAlias(originalMessage || normalizedForIntent);
+  const aliasSearchHints = buildAliasAwareSearchHints({ text: originalMessage || normalizedForIntent, aliasResult: productAlias });
+  const conversationMemoryV2 = aiMemory?.preferences?.aiConversationMemoryV2 || aiMemory?.aiConversationMemoryV2 || null;
+  const followupContextV2 = resolveFollowupContext({
+    memory: conversationMemoryV2,
+    messageText: originalMessage,
+    normalizedPayload: intentPayload,
+    intentPayload,
+  });
   return generateUnifiedConversationDecision({
     channel: alias,
     externalConversationId: message.external_conversation_id,
     externalCustomerId: message.external_customer_id,
     customerName: message.customer_name || aiMemory.knownName || customerContext?.fullName || "",
-    text: message.message_text || message.text || "",
+    text: normalizedForIntent,
+    original_message: originalMessage,
+    normalized_message: normalizedMessage,
+    normalized_for_intent: normalizedForIntent,
+    canonical_signals: intentPayload.canonicalSignals,
+    intent_tokens: intentPayload.intentTokens,
+    productAliasDetected: Boolean(productAlias.canonicalProduct),
+    canonicalProduct: productAlias.canonicalProduct,
+    matchedAlias: productAlias.matchedAlias,
+    aliasConfidence: productAlias.confidence,
+    productQueryHints: aliasSearchHints.productQueryHints,
+    aliasSearchTerms: aliasSearchHints.searchTerms,
     attachments: message.attachments || [],
     metadata: {
       tenant_id: config.tenant_id || 1,
@@ -5713,7 +5825,20 @@ export const generateMetaUnifiedDecisionDryRun = async ({ message = {}, config =
       customer_name: message.customer_name || aiMemory.knownName || customerContext?.fullName || "",
       customer_phone: aiMemory.knownPhone || customerContext?.phone || "",
       ai_memory: aiMemory,
+      aiConversationMemoryV2: conversationMemoryV2,
+      followup_context_v2: followupContextV2,
       dry_run: true,
+      original_message: originalMessage,
+      normalized_message: normalizedMessage,
+      normalized_for_intent: normalizedForIntent,
+      canonical_signals: intentPayload.canonicalSignals,
+      intent_tokens: intentPayload.intentTokens,
+      productAliasDetected: Boolean(productAlias.canonicalProduct),
+      canonicalProduct: productAlias.canonicalProduct,
+      matchedAlias: productAlias.matchedAlias,
+      aliasConfidence: productAlias.confidence,
+      productQueryHints: aliasSearchHints.productQueryHints,
+      aliasSearchTerms: aliasSearchHints.searchTerms,
     },
   }, {
     tenantId: config.tenant_id || 1,
@@ -5727,6 +5852,7 @@ export const generateMetaUnifiedDecisionDryRun = async ({ message = {}, config =
       customer_context: customerContext,
       preferred_sizes: aiMemory.preferredSizes || customerContext?.preferredSizes || [],
       preferred_brands: aiMemory.preferredBrands || customerContext?.preferredBrands || [],
+      aiConversationMemoryV2: conversationMemoryV2,
     },
     providerMessageId: message.external_message_id || message.raw?.event?.message?.mid || "",
   });
@@ -11852,6 +11978,13 @@ const handleAlternativesIfMatched = async ({ config, message } = {}) => {
   if (!keyword) return null;
   const memory = getConversationMemory(message.external_conversation_id) || {};
   const baseCard = lastProductCardFromMemory(message.external_conversation_id);
+  const originalMessage = text(message.original_message || message.message_text || message.text || "");
+  const intentPayload = normalizeArabicIntentPayload(originalMessage);
+  const normalizedMessage = text(message.normalized_message || intentPayload.normalizedText || normalizeArabicMessage(originalMessage));
+  const normalizedForIntent = text(message.normalized_for_intent || intentPayload.normalizedForIntent || normalizeArabicForIntent(originalMessage));
+  const productAlias = resolveProductAlias(originalMessage || normalizedForIntent);
+  const aliasSearchHints = buildAliasAwareSearchHints({ text: originalMessage || normalizedForIntent, aliasResult: productAlias });
+  const conversationMemoryV2 = memory?.preferences?.aiConversationMemoryV2 || memory?.aiConversationMemoryV2 || null;
   if (!baseCard && !memory.selectedProductId && !memory.activeProductId) {
     console.log("[ai-memory] missing active product", {
       tenant_id: config.tenant_id,
@@ -11876,6 +12009,9 @@ const handleAlternativesIfMatched = async ({ config, message } = {}) => {
     tenant_id: config.tenant_id,
     conversation_id: message.external_conversation_id,
     contextual_intent: "alternatives",
+    original: originalMessage,
+    normalizedText: normalizedMessage,
+    normalizedForIntent,
     product_id: activeProductId,
     variant_id: activeVariantId,
     color: activeColor,
@@ -11888,6 +12024,14 @@ const handleAlternativesIfMatched = async ({ config, message } = {}) => {
     activeColor,
     customerSize,
     limit: 6,
+    normalizedPayload: intentPayload,
+    intentPayload,
+    aliasResult: productAlias,
+    searchHints: aliasSearchHints,
+    confidenceResult: null,
+    memoryV2: conversationMemoryV2,
+    usedInAlternatives: true,
+    channel: message.channel || "",
   });
   const cards = oneCardPerProduct(normalizeProductCards(alternatives.products, { limit: 6 })).slice(0, 4);
   if (!cards.length) {

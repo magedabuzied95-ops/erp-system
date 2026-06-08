@@ -225,7 +225,6 @@ const applyPaymobConfirmation = async (client, normalized, options = {}) => {
     : 0;
 
   if (terminalFinalStatuses.has(String(transaction.status || "").toLowerCase())) {
-    const orderResult = await client.query("SELECT * FROM orders WHERE id = $1 LIMIT 1", [transaction.order_id]);
     console.log("[paymob-pos-confirm]", {
       transaction_id: transaction.id,
       order_id: transaction.order_id,
@@ -236,7 +235,7 @@ const applyPaymobConfirmation = async (client, normalized, options = {}) => {
     return {
       replay: true,
       transaction,
-      order: orderResult.rows[0] || null,
+      order: transaction.order_id ? (await client.query("SELECT * FROM orders WHERE id = $1 LIMIT 1", [transaction.order_id])).rows[0] || null : null,
       status: transaction.status,
       message: "Paymob payment was already confirmed",
     };
@@ -270,7 +269,7 @@ const applyPaymobConfirmation = async (client, normalized, options = {}) => {
   );
 
   let order = null;
-  if (nextStatus === "success") {
+  if (nextStatus === "success" && transaction.order_id) {
     const confirmedAmount = money(confirmedCents / 100);
     const orderResult = await client.query(
       `
@@ -294,7 +293,7 @@ const applyPaymobConfirmation = async (client, normalized, options = {}) => {
       [transaction.order_id, confirmedAmount]
     );
     order = orderResult.rows[0] || null;
-  } else {
+  } else if (transaction.order_id) {
     const orderResult = await client.query("SELECT * FROM orders WHERE id = $1 LIMIT 1", [transaction.order_id]);
     order = orderResult.rows[0] || null;
   }
@@ -346,7 +345,6 @@ const manualConfirmPaymobTransaction = async (client, { transactionId, tenantId,
   }
 
   if (terminalFinalStatuses.has(String(transaction.status || "").toLowerCase())) {
-    const orderResult = await client.query("SELECT * FROM orders WHERE id = $1 LIMIT 1", [transaction.order_id]);
     console.log("[paymob-pos-confirm]", {
       transaction_id: transaction.id,
       order_id: transaction.order_id,
@@ -358,7 +356,7 @@ const manualConfirmPaymobTransaction = async (client, { transactionId, tenantId,
       replay: true,
       status: transaction.status,
       transaction,
-      order: orderResult.rows[0] || null,
+      order: transaction.order_id ? (await client.query("SELECT * FROM orders WHERE id = $1 LIMIT 1", [transaction.order_id])).rows[0] || null : null,
       message: "Terminal payment was already confirmed.",
     };
   }
@@ -393,7 +391,8 @@ const manualConfirmPaymobTransaction = async (client, { transactionId, tenantId,
   );
 
   const orderResult = await client.query(
-    `
+    transaction.order_id
+      ? `
     UPDATE orders
     SET paid_amount = COALESCE(paid_amount, 0) + $2::numeric,
         card_amount = COALESCE(card_amount, 0) + $2::numeric,
@@ -410,7 +409,8 @@ const manualConfirmPaymobTransaction = async (client, { transactionId, tenantId,
         updated_at = CURRENT_TIMESTAMP
     WHERE id = $1
     RETURNING *
-    `,
+    `
+      : `SELECT NULL::jsonb AS dummy`,
     [transaction.order_id, confirmedAmount]
   );
 
@@ -428,7 +428,7 @@ const manualConfirmPaymobTransaction = async (client, { transactionId, tenantId,
     replay: false,
     status: "success_manual_confirmed",
     transaction: updatedTransaction.rows[0] || transaction,
-    order: orderResult.rows[0] || null,
+    order: transaction.order_id ? (orderResult.rows[0] || null) : null,
     message: "Payment completed successfully.",
   };
   console.log("[paymob-pos-confirm]", {
@@ -1429,62 +1429,95 @@ export const sendPaymobTerminalPayment = async (req, res) => {
     await ensurePaymentTransactionsSchema(client);
     const tenantId = resolveTenantId(req);
     const orderId = numberOrNull(req.body?.order_id || req.body?.orderId);
-    if (!orderId) return res.status(400).json({ success: false, message: "order_id is required" });
-
-    const orderResult = await client.query(
-      `
-      SELECT id, tenant_id, branch_id, shift_id, invoice_number, total, total_amount, status, payment_status
-      FROM orders
-      WHERE id = $1
-        AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
-        AND deleted_at IS NULL
-      LIMIT 1
-      `,
-      [orderId, tenantId]
-    );
-    const order = orderResult.rows[0];
-    if (!order) return res.status(404).json({ success: false, message: "POS order not found" });
-
-    const branchId = numberOrNull(order.branch_id || req.body?.branch_id || req.body?.branchId);
-    if (!branchId) return res.status(400).json({ success: false, message: "Order branch is required for Paymob terminal payment" });
-
-    const shift = await getCurrentCashDrawerShift(client, {
-      tenantId,
-      userId: req.user?.id,
-      branchId,
-    });
-    if (!shift) return res.status(409).json({ success: false, message: "An active POS shift is required before sending Paymob terminal payment" });
-
-    if (String(shift.branch_id || "") !== String(branchId || "")) {
-      return res.status(409).json({ success: false, message: "Active POS shift branch does not match this order" });
-    }
-
-    const requestedAmount = req.body?.amount ?? order.total ?? order.total_amount;
-    const amountCents = centsFromAmount(requestedAmount);
-    if (!amountCents) return res.status(400).json({ success: false, message: "amount must be greater than zero" });
-
+    const draftItems = Array.isArray(req.body?.items) ? req.body.items : [];
+    const requestedBranchId = numberOrNull(req.body?.branch_id || req.body?.branchId || req.user?.branch_id || req.user?.branchId);
     const currency = String(req.body?.currency || await getSetting("general.default_currency", "EGP")).trim().toUpperCase();
     const terminalId = req.body?.terminal_id || req.body?.terminalId || undefined;
     const preferredPaymentMethod = req.body?.preferred_payment_method || req.body?.preferredPaymentMethod || undefined;
-    console.log("[paymob-pos-send]", {
-      stage: "received",
-      tenant_id: tenantId,
-      order_id: orderId,
-      invoice_number: order.invoice_number || "",
+    const paymentMethod = req.body?.payment_method || req.body?.paymentMethod || "card";
+
+    let order = null;
+    if (orderId) {
+      const orderResult = await client.query(
+        `
+        SELECT id, tenant_id, branch_id, shift_id, invoice_number, total, total_amount, subtotal, status, payment_status, customer_id, customer_name, customer_phone
+        FROM orders
+        WHERE id = $1
+          AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+          AND deleted_at IS NULL
+        LIMIT 1
+        `,
+        [orderId, tenantId]
+      );
+      order = orderResult.rows[0] || null;
+      if (!order) return res.status(404).json({ success: false, message: "POS order not found" });
+    }
+
+    const branchId = numberOrNull(order?.branch_id || requestedBranchId);
+    const shift = await getCurrentCashDrawerShift(client, {
+      tenantId,
+      userId: req.user?.id,
+      branchId: branchId || undefined,
+    });
+    if (!shift) return res.status(409).json({ success: false, message: "An active POS shift is required before sending Paymob terminal payment" });
+
+    const resolvedBranchId = branchId || numberOrNull(shift.branch_id || req.user?.branch_id || req.user?.branchId);
+    if (!resolvedBranchId) {
+      return res.status(400).json({ success: false, message: "Branch is required for Paymob terminal payment" });
+    }
+    if (String(shift.branch_id || "") !== String(resolvedBranchId || "")) {
+      return res.status(409).json({ success: false, message: "Active POS shift branch does not match this payment request" });
+    }
+
+    const requestedAmount = req.body?.amount ?? req.body?.total ?? order?.total ?? order?.total_amount;
+    const amountCents = centsFromAmount(requestedAmount);
+    if (!amountCents) return res.status(400).json({ success: false, message: "amount must be greater than zero" });
+
+    const itemsForTerminal = orderId
+      ? (await client.query(
+          `
+          SELECT product_name, variant_name, sku, barcode, quantity, sale_price AS price, total_amount
+          FROM order_items
+          WHERE order_id = $1
+            AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+          ORDER BY id ASC
+          `,
+          [orderId, tenantId]
+        )).rows
+      : draftItems;
+
+    const requestPayload = {
+      order_id: orderId || null,
+      draft_session: !orderId,
+      invoice_number: order?.invoice_number || "",
       amount_cents: amountCents,
       currency,
       terminal_id: terminalId || process.env.PAYMOB_TERMINAL_ID || "",
+      preferred_payment_method: preferredPaymentMethod || process.env.PAYMOB_PREFERRED_METHOD || "card",
+      payment_method: paymentMethod,
+      branch_id: resolvedBranchId,
+      shift_id: order?.shift_id || req.body?.shift_id || shift?.id || null,
+      customer_id: req.body?.customer_id || req.body?.customerId || order?.customer_id || null,
+      customer_name: req.body?.customer_name || req.body?.customerName || order?.customer_name || "",
+      customer_phone: req.body?.customer_phone || req.body?.customerPhone || order?.customer_phone || "",
+      subtotal: Number(req.body?.subtotal ?? order?.subtotal ?? 0),
+      total: Number(req.body?.total ?? order?.total ?? order?.total_amount ?? 0),
+      payment_breakdown: Array.isArray(req.body?.payment_breakdown) ? req.body.payment_breakdown : [],
+      seller_user_id: req.body?.seller_user_id || null,
+      seller_id: req.body?.seller_id || null,
+      cashier_user_id: req.user?.id || null,
+      items: itemsForTerminal,
+    };
+
+    console.info("PAYMOB_TERMINAL_PAYMENT_STARTED", {
+      tenant_id: tenantId,
+      order_id: orderId || null,
+      draft_session: !orderId,
+      branch_id: resolvedBranchId,
+      amount_cents: amountCents,
+      currency,
+      terminal_id: requestPayload.terminal_id,
     });
-    const itemsResult = await client.query(
-      `
-      SELECT product_name, variant_name, sku, barcode, quantity, sale_price AS price, total_amount
-      FROM order_items
-      WHERE order_id = $1
-        AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
-      ORDER BY id ASC
-      `,
-      [orderId, tenantId]
-    );
 
     await client.query("BEGIN");
     const transactionResult = await client.query(
@@ -1498,19 +1531,12 @@ export const sendPaymobTerminalPayment = async (req, res) => {
       `,
       [
         tenantId,
-        branchId,
-        orderId,
-        terminalId || process.env.PAYMOB_TERMINAL_ID || "",
+        resolvedBranchId,
+        orderId || null,
+        requestPayload.terminal_id,
         amountCents,
         currency,
-        JSON.stringify({
-          order_id: orderId,
-          invoice_number: order.invoice_number || "",
-          amount_cents: amountCents,
-          currency,
-          terminal_id: terminalId || process.env.PAYMOB_TERMINAL_ID || "",
-          preferred_payment_method: preferredPaymentMethod || process.env.PAYMOB_PREFERRED_METHOD || "card",
-        }),
+        JSON.stringify(requestPayload),
         req.user?.id || null,
       ]
     );
@@ -1520,11 +1546,11 @@ export const sendPaymobTerminalPayment = async (req, res) => {
     try {
       const paymobResult = await createTerminalOrder({
         tenantId,
-        branchId,
-        localOrderId: orderId,
+        branchId: resolvedBranchId,
+        localOrderId: orderId || `draft-${transactionId}`,
         amountCents,
         currency,
-        items: itemsResult.rows,
+        items: itemsForTerminal,
         terminalId,
         preferredPaymentMethod,
       });
@@ -1553,13 +1579,10 @@ export const sendPaymobTerminalPayment = async (req, res) => {
           JSON.stringify(paymobResult.responsePayload || {}),
         ]
       );
-      console.log("[paymob-pos-send]", {
-        stage: "sent",
+      console.info("PAYMOB_TERMINAL_PAYMENT_STARTED", {
         transaction_id: transactionId,
-        order_id: orderId,
         provider_order_id: paymobResult.providerOrderId || null,
         transaction_reference: paymobResult.transactionReference || "",
-        terminal_id: paymobResult.terminalId || terminalId || process.env.PAYMOB_TERMINAL_ID || "",
         status: nextStatus,
       });
       return res.status(200).json({
@@ -1574,13 +1597,15 @@ export const sendPaymobTerminalPayment = async (req, res) => {
         terminal_id: paymobResult.terminalId,
         amount_cents: amountCents,
         currency,
+        draft_session: !orderId,
+        order: order || null,
       });
     } catch (paymobError) {
       const normalized = normalizePaymobError(paymobError);
       console.error("[paymob-pos-error]", {
         status: normalized.status,
         message: normalized.message,
-        order_id: orderId,
+        order_id: orderId || null,
         transaction_id: transactionId,
       });
       const updated = transactionId
@@ -1603,10 +1628,16 @@ export const sendPaymobTerminalPayment = async (req, res) => {
             ]
           )
         : { rows: [] };
+      console.info("PAYMOB_TERMINAL_PAYMENT_FAILED_KEEP_CART", {
+        transaction_id: transactionId,
+        order_id: orderId || null,
+        message: normalized.message,
+      });
       return res.status(normalized.status || 500).json({
         success: false,
         message: normalized.message,
         transaction: updated.rows[0] || null,
+        draft_session: !orderId,
       });
     }
   } catch (error) {
@@ -1715,14 +1746,13 @@ export const getPaymobTerminalPaymentStatus = async (req, res) => {
     });
 
     if ([...terminalFinalStatuses, "failed", "cancelled"].includes(localStatus)) {
-      const orderResult = await client.query("SELECT * FROM orders WHERE id = $1 LIMIT 1", [transaction.order_id]);
       return res.json({
         success: true,
         status: transaction.status,
         local_status: transaction.status,
         message: terminalFinalStatuses.has(localStatus) ? "Payment completed successfully." : `Paymob payment ${transaction.status}.`,
         transaction,
-        order: orderResult.rows[0] || null,
+        order: transaction.order_id ? (await client.query("SELECT * FROM orders WHERE id = $1 LIMIT 1", [transaction.order_id])).rows[0] || null : null,
       });
     }
 
@@ -1751,7 +1781,7 @@ export const getPaymobTerminalPaymentStatus = async (req, res) => {
         confirmation_available: false,
         message: "Waiting for terminal payment confirmation. Paymob status lookup is unavailable or inconclusive.",
         transaction,
-        order: orderResult.rows[0] || null,
+        order: transaction.order_id ? (await client.query("SELECT * FROM orders WHERE id = $1 LIMIT 1", [transaction.order_id])).rows[0] || null : null,
         lookup_error: normalizedError.message,
       });
     }
@@ -1788,7 +1818,6 @@ export const getPaymobTerminalPaymentStatus = async (req, res) => {
         order_id: transaction.order_id,
         reason: "provider_status_pending_or_inconclusive",
       });
-      const orderResult = await client.query("SELECT * FROM orders WHERE id = $1 LIMIT 1", [transaction.order_id]);
       return res.json({
         success: true,
         status: "pending",
@@ -1796,7 +1825,7 @@ export const getPaymobTerminalPaymentStatus = async (req, res) => {
         confirmation_available: false,
         message: "Waiting for terminal payment confirmation...",
         transaction,
-        order: orderResult.rows[0] || null,
+        order: transaction.order_id ? (await client.query("SELECT * FROM orders WHERE id = $1 LIMIT 1", [transaction.order_id])).rows[0] || null : null,
         provider_payload: statusResult.payload,
       });
     }

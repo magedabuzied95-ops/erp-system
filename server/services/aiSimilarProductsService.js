@@ -7,6 +7,7 @@ import {
   detectSalesProductUnderstanding,
   gateRelevantProducts,
 } from "./aiSalesOrchestratorService.js";
+import { normalizeArabicIntentPayload } from "../utils/arabicTextNormalizer.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -137,6 +138,117 @@ const tokenOverlap = (left = [], right = []) => {
   return right.filter((token) => leftSet.has(token)).length;
 };
 
+const uniqueText = (items = [], limit = 12) => [...new Set(items.map((item) => text(item)).filter(Boolean))].slice(0, limit);
+const normalizeHintText = (value = "") =>
+  normalizeArabicIntentPayload(value).normalizedForIntent
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+export const buildAiBrainUnificationContext = ({
+  messageText = "",
+  normalizedPayload = null,
+  intentPayload = null,
+  aliasResult = null,
+  searchHints = null,
+  confidenceResult = null,
+  memoryV2 = null,
+  usedInAlternatives = false,
+  channel = "",
+} = {}) => {
+  const hasNormalizedPayload = Boolean(normalizedPayload && typeof normalizedPayload === "object");
+  const hasIntentPayload = Boolean(intentPayload && typeof intentPayload === "object");
+  const hasAliasResult = Boolean(aliasResult && typeof aliasResult === "object");
+  const hasSearchHints = Boolean(searchHints && typeof searchHints === "object");
+  const hasConfidenceResult = Boolean(confidenceResult && typeof confidenceResult === "object");
+  const hasMemoryV2 = Boolean(memoryV2 && typeof memoryV2 === "object");
+  const normalized = hasNormalizedPayload
+    ? normalizedPayload
+    : normalizeArabicIntentPayload(messageText);
+  const intent = hasIntentPayload ? intentPayload : normalized;
+  const alias = hasAliasResult ? aliasResult : null;
+  const hints = hasSearchHints ? searchHints : null;
+  const searchHintsHasAlias = Boolean(hints?.hasAliasHint);
+  const memory = hasMemoryV2 ? memoryV2 : null;
+  const canonicalProduct = text(alias?.canonicalProduct || hints?.canonicalProduct || memory?.lastMentionedCanonicalProduct || "");
+  const searchTerms = uniqueText([
+    ...(Array.isArray(alias?.searchTerms) ? alias.searchTerms : []),
+    ...(searchHintsHasAlias && Array.isArray(hints?.searchTerms) ? hints.searchTerms : []),
+    ...(searchHintsHasAlias && Array.isArray(hints?.productQueryHints) ? hints.productQueryHints : []),
+  ], 12);
+  const canonicalSignals = uniqueText([
+    ...(Array.isArray(normalized?.canonicalSignals) ? normalized.canonicalSignals : []),
+    ...(Array.isArray(intent?.canonicalSignals) ? intent.canonicalSignals : []),
+  ], 12);
+  const memoryProductId = text(
+    memory?.lastMentionedProductId ||
+      memory?.lastShownProductCards?.[0]?.productId ||
+      ""
+  );
+  return {
+    messageText: text(messageText),
+    normalizedPayload: normalized,
+    intentPayload: intent,
+    aliasResult: alias,
+    searchHints: hints,
+    confidenceResult: confidenceResult && typeof confidenceResult === "object" ? confidenceResult : null,
+    memoryV2: memory,
+    usedInAlternatives: Boolean(usedInAlternatives),
+    channel: text(channel),
+    hasNormalizedPayload: Boolean(normalized),
+    canonicalSignals,
+    canonicalProduct: canonicalProduct || null,
+    searchTerms,
+    searchHintsCount: searchTerms.length,
+    memoryProductId: memoryProductId || null,
+    hasContextHints: Boolean(hasAliasResult || searchHintsHasAlias || hasConfidenceResult || hasMemoryV2 || canonicalProduct || canonicalSignals.length || memoryProductId),
+  };
+};
+
+export const scoreAiBrainUnificationBoost = ({
+  product = {},
+  brainContext = null,
+} = {}) => {
+  const context = brainContext && typeof brainContext === "object" ? brainContext : null;
+  if (!context) return { boost: 0, reasons: [] };
+
+  const blob = normalizeHintText(productHaystack(product));
+  const reasons = [];
+  let boost = 0;
+
+  const canonicalProduct = normalizeHintText(context.canonicalProduct || "");
+  if (canonicalProduct) {
+    const normalizedCanonical = canonicalProduct.replace(/_/g, " ");
+    if (normalizedCanonical && blob.includes(normalizedCanonical)) {
+      boost += 45;
+      reasons.push("canonical_product_hint");
+    }
+  }
+
+  for (const term of context.searchTerms || []) {
+    const normalizedTerm = normalizeHintText(term);
+    if (!normalizedTerm) continue;
+    if (blob.includes(normalizedTerm)) {
+      boost += 12;
+      reasons.push(`search_term_match:${normalizedTerm}`);
+      if (boost >= 60) break;
+    }
+  }
+
+  if (context.memoryProductId && String(product.id || product.product_id || "") === String(context.memoryProductId)) {
+    boost += 20;
+    reasons.push("memory_product_context");
+  }
+
+  if (context.confidenceResult && String(context.confidenceResult.productId || "") === String(product.id || product.product_id || "")) {
+    boost += 30;
+    reasons.push("confidence_result_match");
+  }
+
+  return { boost, reasons };
+};
+
 const scoreCandidate = ({ active = {}, candidate = {}, activeVariantId = null, activeColor = "", requestedSize = "" } = {}) => {
   const activeId = String(active.id || active.product_id || "");
   const candidateId = String(candidate.id || candidate.product_id || "");
@@ -249,10 +361,29 @@ export const findSimilarProductsForAi = async ({
   activeColor = "",
   customerSize = "",
   limit = 4,
+  normalizedPayload = null,
+  intentPayload = null,
+  aliasResult = null,
+  searchHints = null,
+  confidenceResult = null,
+  memoryV2 = null,
+  usedInAlternatives = false,
+  channel = "",
 } = {}) => {
   const scopedTenantId = numberOrNull(tenantId);
   const activeId = numberOrNull(activeProductId);
   if (!scopedTenantId || !activeId) return { activeProduct: null, products: [], scoredCandidates: [] };
+  const brainContext = buildAiBrainUnificationContext({
+    messageText: "",
+    normalizedPayload,
+    intentPayload,
+    aliasResult,
+    searchHints,
+    confidenceResult,
+    memoryV2,
+    usedInAlternatives,
+    channel,
+  });
 
   const [productColumns, variantColumns] = await Promise.all([tableColumns("products"), tableColumns("product_variants")]);
   const productPriceSql = priceExpr(productColumns);
@@ -347,12 +478,30 @@ export const findSimilarProductsForAi = async ({
       const productForScoring = sameProduct ? filterActiveProductVariants(candidate, { activeVariantId, activeColor }) : candidate;
       if (sameProduct && !productForScoring.variants.length) return null;
       const score = scoreCandidate({ active: activeProduct, candidate: productForScoring, activeVariantId, activeColor, requestedSize: customerSize });
-      return { ...productForScoring, similarity_score: score.score, similarity_reasons: score.reasons, requested_size_available: score.sizeOk };
+      const brainBoost = scoreAiBrainUnificationBoost({ product: productForScoring, brainContext });
+      return {
+        ...productForScoring,
+        similarity_score: score.score + brainBoost.boost,
+        similarity_reasons: [...score.reasons, ...brainBoost.reasons],
+        requested_size_available: score.sizeOk,
+        contextual_similarity_boost: brainBoost.boost,
+        contextual_similarity_reasons: brainBoost.reasons,
+      };
     })
     .filter(Boolean)
     .filter((candidate) => Number(candidate.id) !== activeId || candidate.variants.length > 0)
     .sort((left, right) => numeric(right.similarity_score, 0) - numeric(left.similarity_score, 0) || numeric(right.total_stock, 0) - numeric(left.total_stock, 0));
 
+  console.log("[ai-brain-unification]", {
+    hasNormalizedPayload: brainContext.hasNormalizedPayload,
+    canonicalSignals: brainContext.canonicalSignals,
+    canonicalProduct: brainContext.canonicalProduct,
+    searchHintsCount: brainContext.searchHintsCount,
+    memoryProductId: brainContext.memoryProductId,
+    usedInAlternatives: brainContext.usedInAlternatives,
+    fallbackUsed: !brainContext.hasContextHints,
+    channel: brainContext.channel || "",
+  });
   console.log("[ai-alternatives] scored candidates", {
     tenant_id: scopedTenantId,
     active_product_id: activeId,

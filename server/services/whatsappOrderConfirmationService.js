@@ -7,6 +7,8 @@ import {
 import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 import { normalizeEgyptPhone, sendTextMessage } from "./whatsappGatewayService.js";
 import { buildInvoiceReceiptWhatsappMessage, buildPublicInvoiceUrl, buildWhatsappTextDebug } from "../utils/whatsapp.js";
+import { normalizeArabicIntentPayload } from "../utils/arabicTextNormalizer.js";
+import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { getSetting } from "./settingsService.js";
 
 const CONFIRM_WORDS = new Set(["1", "تأكيد", "تاكيد", "confirm", "yes", "تمام"]);
@@ -523,7 +525,25 @@ const tenantIdForMessage = (message = {}, order = null) => number(message.tenant
 
 const forwardToAiInbox = async ({ message = {}, order = null } = {}) => {
   const phone = normalizeEgyptPhone(message.phone || message.from || message.sender || "");
-  const body = text(message.text || message.message_text || message.body);
+  const body = text(message.normalized_for_intent || message.text || message.message_text || message.body);
+  const originalBody = text(message.original_message || message.text || message.message_text || message.body);
+  const intentPayload = normalizeArabicIntentPayload(originalBody);
+  const productAlias = resolveProductAlias(originalBody || body);
+  console.log("[arabic-intent-signals]", {
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    original: originalBody,
+    normalizedText: intentPayload.normalizedText,
+    normalizedForIntent: body,
+    canonicalSignals: intentPayload.canonicalSignals,
+  });
+  console.log("[product-alias]", {
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    original: originalBody,
+    normalizedText: intentPayload.normalizedText,
+    canonicalProduct: productAlias.canonicalProduct,
+    matchedAlias: productAlias.matchedAlias,
+    confidence: productAlias.confidence,
+  });
   const tenantId = tenantIdForMessage(message, order);
   const conversationId = text(message.external_conversation_id || message.conversation_id || (phone ? `whatsapp:${phone}` : ""));
   if (!phone || !body || !conversationId) return { forwarded: false, reason: "missing_message" };
@@ -539,7 +559,16 @@ const forwardToAiInbox = async ({ message = {}, order = null } = {}) => {
       channel: AI_AGENT_CHANNELS.WHATSAPP,
       source: "evolution_api",
       order_id: order?.id || null,
-      last_message: body,
+      last_message: originalBody,
+      original_message: originalBody,
+      normalized_message: text(message.normalized_message || ""),
+      normalized_for_intent: body,
+      canonical_signals: intentPayload.canonicalSignals,
+      intent_tokens: intentPayload.intentTokens,
+      productAliasDetected: Boolean(productAlias.canonicalProduct),
+      canonicalProduct: productAlias.canonicalProduct,
+      matchedAlias: productAlias.matchedAlias,
+      aliasConfidence: productAlias.confidence,
     },
     lastMessageAt: message.received_at || new Date().toISOString(),
   });
@@ -554,7 +583,7 @@ const forwardToAiInbox = async ({ message = {}, order = null } = {}) => {
       updated_at = NOW()
     WHERE tenant_id = $1 AND session_id = $2
     `,
-    [tenantId, conversationId, text(order?.customer_name), body]
+    [tenantId, conversationId, text(order?.customer_name), originalBody]
   );
   if (!sessionUpdate.rowCount) {
     await db.query(
@@ -562,7 +591,7 @@ const forwardToAiInbox = async ({ message = {}, order = null } = {}) => {
       INSERT INTO ai_support_sessions (tenant_id, session_id, source, channel, customer_name, last_message, status, updated_at)
       VALUES ($1, $2, 'whatsapp', 'whatsapp', $3, $4, 'ai_active', NOW())
       `,
-      [tenantId, conversationId, text(order?.customer_name), body]
+      [tenantId, conversationId, text(order?.customer_name), originalBody]
     );
   }
   await db.query(
@@ -574,7 +603,7 @@ const forwardToAiInbox = async ({ message = {}, order = null } = {}) => {
     )
     VALUES ($1, $2, $3, $3, '', 0, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'whatsapp_customer_reply', 'whatsapp_order_confirmation_other_reply', 'customer', 'whatsapp', $4, $3, $5)
     `,
-    [tenantId, conversationId, body, text(order?.customer_name), "whatsapp_order_confirmation"]
+    [tenantId, conversationId, originalBody, text(order?.customer_name), "whatsapp_order_confirmation"]
   );
   console.info("[ai-support-insert]", {
     source: "whatsapp_order_confirmation",
@@ -587,7 +616,7 @@ const forwardToAiInbox = async ({ message = {}, order = null } = {}) => {
     direction: "inbound",
     externalCustomerId: phone,
     conversationId,
-    messagePreview: body,
+    messagePreview: originalBody,
     status: "forwarded_to_ai",
     metadata: { source: "evolution_api", order_id: order?.id || null },
   }).catch(() => {});
@@ -602,21 +631,40 @@ const forwardToAiInbox = async ({ message = {}, order = null } = {}) => {
 
 export const processConfirmationReply = async (message = {}) => {
   const phone = normalizeEgyptPhone(message.phone || message.from || message.sender || "");
-  const body = text(message.text || message.message_text || message.body);
+  const originalBody = text(message.original_message || message.text || message.message_text || message.body);
+  const intentPayload = normalizeArabicIntentPayload(originalBody);
+  const body = text(message.normalized_for_intent || intentPayload.normalizedForIntent || message.text || message.message_text || message.body);
   const reply = normalizedReply(body);
+  const productAlias = resolveProductAlias(originalBody || body);
+  console.log("[arabic-intent-signals]", {
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    original: originalBody,
+    normalizedText: intentPayload.normalizedText,
+    normalizedForIntent: body,
+    canonicalSignals: intentPayload.canonicalSignals,
+  });
+  console.log("[product-alias]", {
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    original: originalBody,
+    normalizedText: intentPayload.normalizedText,
+    canonicalProduct: productAlias.canonicalProduct,
+    matchedAlias: productAlias.matchedAlias,
+    confidence: productAlias.confidence,
+  });
   const order = await findPendingOrderByPhone(phone);
-  if (order && CONFIRM_WORDS.has(reply)) {
+  const hasSignal = (...names) => names.some((name) => (intentPayload.canonicalSignals || []).includes(name));
+  if (order && (CONFIRM_WORDS.has(reply) || hasSignal("yes", "confirm"))) {
     const confirmed = await markOrderConfirmed(order.id);
     return { action: "confirmed", order: confirmed };
   }
-  if (order && CANCEL_WORDS.has(reply)) {
+  if (order && (CANCEL_WORDS.has(reply) || hasSignal("no", "reject", "cancel"))) {
     const cancelled = await markOrderCancelled(order.id);
     return { action: "cancelled", order: cancelled };
   }
   if (message.inbox?.saved || message.inbox_saved) {
     return { action: "already_saved_to_ai_inbox", order, forwarded: true, conversation_id: message.inbox?.session_id || message.conversation_id || message.external_conversation_id || "" };
   }
-  const forwarded = await forwardToAiInbox({ message: { ...message, phone, text: body }, order });
+  const forwarded = await forwardToAiInbox({ message: { ...message, phone, text: originalBody, original_message: originalBody, normalized_for_intent: body, canonical_signals: intentPayload.canonicalSignals, intent_tokens: intentPayload.intentTokens }, order });
   return { action: "forwarded_to_ai", order, ...forwarded };
 };
 

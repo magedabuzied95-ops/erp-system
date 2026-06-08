@@ -1,0 +1,35 @@
+﻿=== Similar Products Service ===
+True
+=== References ===
+
+server\services\aiSimilarProductsService.js:245:export const findSimilarProductsForAi = async ({
+server\services\aiSupportContextService.js:51:import { findSimilarProductsForAi } from "./aiSimilarProductsService.js";
+server\services\aiSupportContextService.js:3792:    ? await findSimilarProductsForAi({
+server\services\metaIntegrationService.js:57:import { findSimilarProductsForAi } from "./aiSimilarProductsService.js";
+server\services\metaIntegrationService.js:12010:  const alternatives = await findSimilarProductsForAi({
+=== Alternative Flow ===
+server\services\aiSupportContextService.js:3597:    pendingAlternativeForModel: toText(preferences.pendingAlternativeForModel || ""),
+server\services\aiSupportContextService.js:3624:  "pendingAlternativeForModel",
+server\services\aiSupportContextService.js:3631:  "awaiting_alternative_choice",
+server\services\aiSupportContextService.js:3653:  "awaiting_alternative_choice",
+server\services\aiSupportContextService.js:3718:  pendingAlternativeForModel: modelIntent?.displayName || toText(message),
+server\services\aiSupportContextService.js:3726:  pendingAlternativeForModel: "",
+server\services\aiSupportContextService.js:3749:const scoreAlternativeProduct = ({ product = {}, state = {}, modelIntent = null } = {}) => {
+server\services\aiSupportContextService.js:3775:const buildAlternativeProducts = async ({ tenantId, state = {}, req = null, memory = null } = {}) => {
+server\services\aiSupportContextService.js:3776:  const modelIntent = detectStrictModelIntent(state.pendingAlternativeForModel || 
+state.pendingAlternativeSourceMessage);
+server\services\aiSupportContextService.js:3778:    message: state.pendingAlternativeForModel || state.pendingAlternativeSourceMessage || "",
+server\services\aiSupportContextService.js:3824:    .sort((left, right) => scoreAlternativeProduct({ product: right, state, modelIntent }) - 
+scoreAlternativeProduct({ product: left, state, modelIntent }));
+server\services\aiSupportContextService.js:5289:  if (tenantId && confirmationDetected && recommendationState.pendingAlternativeForModel) {
+server\services\aiSupportContextService.js:5290:    const alternativeResult = await buildAlternativeProducts({
+server\services\aiSupportContextService.js:5301:      pendingAlternativeForModel: recommendationState.pendingAlternativeForModel,
+server\services\aiSupportContextService.js:5353:    pendingAlternativeForModel: recommendationState.pendingAlternativeForModel || "",
+server\services\aiSupportContextService.js:5356:    no_alternatives_reason: confirmationDetected && !recommendationState.pendingAlternativeForModel ? 
+"confirmation_without_pending_model" : "",
+=== Git History ===
+7b104e4 Harden AI product relevance and no-random recommendations
+fb52a85 Add WhatsApp AI commerce automation
+7b9bc22 Add AI similar products service
+
+

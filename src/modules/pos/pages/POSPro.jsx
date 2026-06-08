@@ -3969,6 +3969,10 @@ function POSPro() {
 
   const handleCheckout = async (options = {}) => {
     const paymobTerminalCheckout = options?.paymobTerminal === true;
+    const paymobTerminalConfirmed = options?.paymobTerminalConfirmed === true;
+    const terminalConfirmedAmount = paymobTerminalConfirmed
+      ? Math.max(0, Number(options?.terminalAmount || paymobTerminalState?.amount || 0))
+      : 0;
     const editActive = Boolean(editingOrder?.id);
     const editSettlementType = editActive
       ? (editRefundOrCreditDue > 0 ? "refund" : editAmountDueNow > 0 ? "extra_payment" : "none")
@@ -4036,7 +4040,7 @@ function POSPro() {
       return null;
     }
 
-    if (paymobTerminalCheckout && paymobTerminalAmount <= 0) {
+    if ((paymobTerminalCheckout || paymobTerminalConfirmed) && paymobTerminalAmount <= 0) {
       toast.error("Invoice amount is required");
       return null;
     }
@@ -4065,7 +4069,7 @@ function POSPro() {
       toast.error("Payment total cannot exceed amount due now");
       return null;
     }
-    if (!paymobTerminalCheckout && Math.abs(enteredPaymentTotal - paymentTarget) > 0.009) {
+    if (!paymobTerminalCheckout && !paymobTerminalConfirmed && Math.abs(enteredPaymentTotal - paymentTarget) > 0.009) {
       toast.error(`Payment mismatch. Remaining: ${formatCurrency(Math.max(0, paymentTarget - enteredPaymentTotal))}`);
       return null;
     }
@@ -4132,7 +4136,17 @@ function POSPro() {
       const terminalManualVodafoneCashAmount = paymentMode === "split" ? Number(vodafoneCashAmount || 0) : 0;
       const terminalManualCustomerWalletAmount = paymentMode === "split" ? Number(customerWalletAmount || 0) : 0;
       const terminalManualPaidAmount = Math.max(0, terminalManualCashAmount + terminalManualWalletAmount + terminalManualVodafoneCashAmount + terminalManualCustomerWalletAmount);
-      const checkoutPaymentSummary = paymobTerminalCheckout
+      const terminalConfirmedAmount = paymobTerminalConfirmed
+        ? Math.max(0, Number(options?.terminalAmount || paymobTerminalState?.amount || amountDueNow || cartTotals.total || 0))
+        : 0;
+      const checkoutPaymentSummary = paymobTerminalConfirmed
+        ? {
+            paidAmount: terminalConfirmedAmount,
+            changeAmount: 0,
+            dueAmount: 0,
+            paymentStatus: "Paid",
+          }
+        : paymobTerminalCheckout
         ? {
             paidAmount: terminalManualPaidAmount,
             changeAmount: Math.max(0, terminalManualPaidAmount - Number(amountDueNow || 0)),
@@ -4147,35 +4161,45 @@ function POSPro() {
                   : "Pending",
           }
         : paymentSummary;
-      const payloadCashAmount = paymobTerminalCheckout
+      const payloadCashAmount = paymobTerminalConfirmed
+        ? 0
+        : paymobTerminalCheckout
         ? terminalManualCashAmount
         : paymentMode === "cash"
           ? paymentSummary.paidAmount
           : paymentMode === "split"
             ? Number(cashAmount || 0)
             : 0;
-      const payloadCardAmount = paymobTerminalCheckout
-        ? 0
+      const payloadCardAmount = paymobTerminalConfirmed
+        ? terminalConfirmedAmount
+        : paymobTerminalCheckout
+          ? 0
         : paymentMode === "card"
           ? paymentSummary.paidAmount
           : paymentMode === "split"
             ? Number(cardAmount || 0)
             : 0;
-      const payloadWalletAmount = paymobTerminalCheckout
+      const payloadWalletAmount = paymobTerminalConfirmed
+        ? 0
+        : paymobTerminalCheckout
         ? terminalManualWalletAmount
         : paymentMode === "instapay" || paymentMode === "wallet"
           ? paymentSummary.paidAmount
           : paymentMode === "split"
             ? Number(walletAmount || 0)
             : 0;
-      const payloadVodafoneCashAmount = paymobTerminalCheckout
+      const payloadVodafoneCashAmount = paymobTerminalConfirmed
+        ? 0
+        : paymobTerminalCheckout
         ? terminalManualVodafoneCashAmount
         : paymentMode === "vodafone_cash"
           ? paymentSummary.paidAmount
           : paymentMode === "split"
             ? Number(vodafoneCashAmount || 0)
             : 0;
-      const payloadCustomerWalletAmount = paymobTerminalCheckout
+      const payloadCustomerWalletAmount = paymobTerminalConfirmed
+        ? 0
+        : paymobTerminalCheckout
         ? terminalManualCustomerWalletAmount
         : paymentMode === "customer_wallet"
           ? paymentSummary.paidAmount
@@ -4505,7 +4529,9 @@ function POSPro() {
           walletBalanceAfter: Number(loyaltyResult?.walletBalance ?? walletResult?.balance ?? 0),
           cashAmount: payloadCashAmount,
           cardAmount: payloadCardAmount,
-          paymobTerminalAmount: paymobTerminalCheckout ? paymobTerminalAmount : 0,
+          paymobTerminalAmount: paymobTerminalCheckout || paymobTerminalConfirmed
+            ? (paymobTerminalConfirmed ? terminalConfirmedAmount : paymobTerminalAmount)
+            : 0,
           exchangeMode: Boolean(exchangeState?.active),
           exchangeInvoiceNumber: exchangeState?.invoiceNumber || "",
           exchangeCreditAmount,
@@ -4541,7 +4567,7 @@ function POSPro() {
       setLastOrder(normalizedOrder);
       setLastShareContext(normalizedOrder);
       const modalRenderStartedAt = performance.now();
-      if (!paymobTerminalCheckout) setCheckoutSuccessOpen(true);
+      if (!paymobTerminalCheckout || paymobTerminalConfirmed) setCheckoutSuccessOpen(true);
       requestAnimationFrame(() => {
         if (POS_CHECKOUT_DEBUG) {
           console.log("[pos-checkout-ui-timing]", {
@@ -4556,14 +4582,14 @@ function POSPro() {
       if (POS_CHECKOUT_DEBUG) console.log("[saved normalized order]", normalizedOrder);
       setInvoiceNumber(nextInvoice);
       handleRemoveCoupon();
-      if (!paymobTerminalCheckout) {
+      if (!paymobTerminalCheckout || paymobTerminalConfirmed) {
         emitFeedback("payment_success", {
           title: t("pos.toasts.paymentSuccess"),
           message: nextInvoice || "",
         });
       }
 
-      if (!paymobTerminalCheckout) toast.success(t("pos.toasts.invoiceCreated"));
+      if (!paymobTerminalCheckout || paymobTerminalConfirmed) toast.success(t("pos.toasts.invoiceCreated"));
       if (Number(loyaltyResult?.pointsEarned || 0) > 0) {
         toast.success(t("pos.toasts.loyaltyPointsEarned", { points: Number(loyaltyResult.pointsEarned).toLocaleString() }));
       }
@@ -4966,6 +4992,12 @@ function POSPro() {
         if (import.meta.env.DEV) {
           console.warn("[paymob-pos-poll-result]", { transactionId, status: "timeout" });
         }
+        console.info("PAYMOB_TERMINAL_PAYMENT_FAILED_KEEP_CART", {
+          transaction_id: transactionId,
+          order_id: sourceOrder?.order_id || sourceOrder?.orderId || sourceOrder?.id || null,
+          status: "timeout",
+        });
+        setPaymobTerminalLoading(false);
         setPaymobTerminalState((current) => ({
           ...(current || {}),
           open: true,
@@ -4991,7 +5023,20 @@ function POSPro() {
         }
         if (status === "success" || status === "success_manual_confirmed") {
           stopPaymobPolling();
-          applyPaymobConfirmedOrder(sourceOrder, response.order, response.transaction);
+          setPaymobTerminalLoading(false);
+          let confirmedOrder = response.order || sourceOrder || null;
+          if (response?.transaction?.order_id) {
+            applyPaymobConfirmedOrder(sourceOrder, response.order, response.transaction);
+          } else {
+            console.info("PAYMOB_TERMINAL_PAYMENT_SUCCESS_CREATE_ORDER", {
+              transaction_id: response?.transaction?.id || transactionId,
+              amount,
+              currency,
+              terminal_id: response?.transaction?.terminal_id || terminalId,
+            });
+            setPaymobTerminalLoading(false);
+            confirmedOrder = await handleCheckout({ paymobTerminalConfirmed: true, terminalAmount: amount });
+          }
           setPaymobTerminalState({
             open: true,
             status: "success",
@@ -5000,12 +5045,12 @@ function POSPro() {
             terminalId: response?.transaction?.terminal_id || terminalId,
             message: "Payment completed successfully.",
             transaction: response?.transaction || null,
-            order: response?.order || sourceOrder,
+            order: confirmedOrder || response?.order || sourceOrder,
           });
           toast.success("Payment completed successfully.");
           emitFeedback("payment_success", {
             title: "Payment completed successfully.",
-            message: response?.order?.invoice_number || sourceOrder?.invoice_number || "",
+            message: confirmedOrder?.invoice_number || response?.order?.invoice_number || sourceOrder?.invoice_number || "",
           });
           window.setTimeout(() => {
             setPaymobTerminalState((current) => (String(current?.status || "").toLowerCase() === "success" ? null : current));
@@ -5014,6 +5059,12 @@ function POSPro() {
         }
         if (status === "failed" || status === "cancelled") {
           stopPaymobPolling();
+          console.info("PAYMOB_TERMINAL_PAYMENT_FAILED_KEEP_CART", {
+            transaction_id: response?.transaction?.id || transactionId,
+            order_id: response?.transaction?.order_id || sourceOrder?.order_id || sourceOrder?.orderId || sourceOrder?.id || null,
+            status,
+          });
+          setPaymobTerminalLoading(false);
           setPaymobTerminalState((current) => ({
             ...(current || {}),
             open: true,
@@ -5071,14 +5122,21 @@ function POSPro() {
       const response = await api.post(`/pos/payments/paymob-terminal/${transactionId}/manual-confirm`, {
         note: "Terminal showed Approved; cashier manually confirmed in POS.",
       }, { timeoutMs: 20000 });
-      applyPaymobConfirmedOrder(paymobTerminalState?.order || lastOrder || lastShareContext, response.order, response.transaction);
+      const transaction = response?.transaction || paymobTerminalState?.transaction || null;
+      const confirmedAmount = Number(paymobTerminalState?.amount || 0) || (Number(response?.transaction?.confirmed_amount_cents || response?.transaction?.amount_cents || 0) / 100);
+      let confirmedOrder = response?.order || paymobTerminalState?.order || null;
+      if (transaction?.order_id) {
+        applyPaymobConfirmedOrder(paymobTerminalState?.order || lastOrder || lastShareContext, confirmedOrder, transaction);
+      } else {
+        confirmedOrder = await handleCheckout({ paymobTerminalConfirmed: true, terminalAmount: confirmedAmount });
+      }
       setPaymobTerminalState({
         ...(paymobTerminalState || {}),
         open: true,
         status: response?.status || "success_manual_confirmed",
         message: "Payment completed successfully.",
-        transaction: response?.transaction || paymobTerminalState?.transaction || null,
-        order: response?.order || paymobTerminalState?.order || null,
+        transaction,
+        order: confirmedOrder || response?.order || paymobTerminalState?.order || null,
         audit: response?.audit || null,
       });
       toast.success("Payment completed successfully.");
@@ -5120,6 +5178,45 @@ function POSPro() {
       return;
     }
 
+    const terminalItems = cart.map((item) => {
+      const quantity = Number(item.quantity || 0);
+      const unitPrice = resolveCheckoutItemUnitPrice(item);
+      const lineTotal = Math.max(0, unitPrice * quantity - Number(item.discount_amount ?? Number(item.lineDiscount || 0) * quantity));
+      return {
+        product_name: item.product_name || item.name || "",
+        variant_name: [item.color || item.variant_color || item.selected_color, item.size || item.variant_size || item.selected_size].filter(Boolean).join(" / "),
+        sku: item.sku || "",
+        barcode: item.barcode || "",
+        quantity,
+        price: unitPrice,
+        total_amount: lineTotal,
+      };
+    });
+    const checkoutBranchId = activePosShift?.branch_id || posShiftBranch?.id || currentUser?.branch_id || null;
+    const invoiceCustomer = customer || WALK_IN_CUSTOMER;
+    const customerId = customer ? customer.id || customer.customer_id : null;
+    const selectedSeller = salesEmployees.find((employee) => String(employee.id) === String(selectedSalespersonId));
+    const resolvedSellerUserId = selectedSeller?.user_id || null;
+    const resolvedSalesEmployeeId = selectedSeller?.employee_id || selectedSeller?.id || null;
+    const resolvedSellerName = selectedSeller?.name || selectedSeller?.full_name || selectedSeller?.pos_alias || "";
+    const terminalPayload = {
+      amount: initialAmount,
+      currency: "EGP",
+      branch_id: checkoutBranchId,
+      shift_id: activePosShift?.id || null,
+      customer_id: customerId || null,
+      customer_name: invoiceCustomer?.name || "",
+      customer_phone: customer?.phone || "",
+      payment_method: paymentMode,
+      subtotal: cartTotals.subtotal,
+      total: cartTotals.total,
+      payment_breakdown: paymentSummary?.paidAmount > 0 ? [{ method: paymentMode, amount: paymentSummary.paidAmount }] : [],
+      seller_user_id: resolvedSellerUserId,
+      seller_id: resolvedSalesEmployeeId,
+      seller_name: resolvedSellerName,
+      items: terminalItems,
+    };
+
     setPaymobTerminalLoading(true);
     setPaymobTerminalState({
       open: true,
@@ -5127,60 +5224,59 @@ function POSPro() {
       amount: initialAmount,
       currency: "EGP",
       terminalId: "",
-      message: existingOrderId ? "Sending payment to Paymob terminal..." : "Creating invoice...",
+      message: "Sending payment to Paymob terminal...",
       transaction: null,
       order: existingOrder || null,
     });
     try {
-      const sourceOrder = existingOrderId
-        ? existingOrder
-        : await handleCheckout({ paymobTerminal: true });
-      const orderId = sourceOrder?.order_id || sourceOrder?.orderId || sourceOrder?.id;
-      const amount = Number(sourceOrder?.payment?.paymobTerminalAmount || initialAmount || 0);
-      if (!orderId) {
-        throw new Error("Invoice was not created");
+      if (String(paymobTerminalState?.status || "").toLowerCase() === "failed" || String(paymobTerminalState?.status || "").toLowerCase() === "cancelled" || String(paymobTerminalState?.status || "").toLowerCase() === "timeout") {
+        console.info("PAYMOB_TERMINAL_PAYMENT_RETRY", {
+          transaction_id: paymobTerminalState?.transaction?.id || null,
+          order_id: paymobTerminalState?.transaction?.order_id || null,
+          amount: initialAmount,
+        });
       }
-      setPaymobTerminalState((current) => ({
-        ...(current || {}),
-        open: true,
-        status: "processing",
-        amount,
-        message: "Sending payment to Paymob terminal...",
-        order: sourceOrder,
-      }));
-      const response = await api.post("/pos/payments/paymob-terminal", {
-        order_id: orderId,
-        amount,
-        currency: "EGP",
-      }, { timeoutMs: 30000 });
+      console.info("PAYMOB_TERMINAL_PAYMENT_STARTED", {
+        order_id: existingOrderId || null,
+        branch_id: checkoutBranchId,
+        amount: initialAmount,
+        cart_count: cart.length,
+      });
+      const response = await api.post("/pos/payments/paymob-terminal", terminalPayload, { timeoutMs: 30000 });
       const terminalId = response?.terminal_id || response?.transaction?.terminal_id || "";
       const transactionId = response?.transaction?.id || response?.transaction_id || response?.id || null;
       setPaymobTerminalState({
         open: true,
         status: "waiting",
-        amount,
+        amount: initialAmount,
         currency: response?.currency || "EGP",
         terminalId,
         message: "Waiting for terminal payment confirmation...",
         transaction: response?.transaction || null,
-        order: sourceOrder,
+        order: response?.order || null,
       });
       toast.success("Payment request sent to terminal. Complete payment on the machine.");
       startPaymobTerminalPolling({
         transactionId,
-        sourceOrder,
-        amount,
+        sourceOrder: response?.order || null,
+        amount: initialAmount,
         currency: response?.currency || "EGP",
         terminalId,
       });
     } catch (err) {
       const message = getErrorMessage(err, "Failed to send Paymob terminal payment");
+      console.info("PAYMOB_TERMINAL_PAYMENT_FAILED_KEEP_CART", {
+        transaction_id: err?.response?.data?.transaction?.id || null,
+        order_id: existingOrderId || null,
+        message,
+      });
       setPaymobTerminalState((current) => ({
         ...(current || {}),
         open: true,
         status: "failed",
         message,
         transaction: err?.response?.data?.transaction || null,
+        order: err?.response?.data?.order || current?.order || null,
       }));
       toast.error(message);
     } finally {
@@ -5673,6 +5769,10 @@ function POSPro() {
               setPaymobTerminalState(null);
             }}
             onRetry={handlePaymobTerminalPayment}
+            onChangePaymentMethod={() => {
+              stopPaymobPolling();
+              setPaymobTerminalState(null);
+            }}
             onRetryStatus={handlePaymobRetryStatusCheck}
             onManualConfirm={handlePaymobManualConfirm}
           />
@@ -6535,18 +6635,13 @@ function SuccessMeta({ label, value }) {
   );
 }
 
-function PaymobTerminalModal({ state, loading, onClose, onRetry, onRetryStatus, onManualConfirm }) {
+function PaymobTerminalModal({ state, loading, onClose, onRetry, onChangePaymentMethod, onRetryStatus, onManualConfirm }) {
   const status = String(state?.status || "processing").toLowerCase();
   const isFailed = status === "failed" || status === "cancelled" || status === "timeout";
-  const isTimeout = status === "timeout";
   const isSuccess = status === "success" || status === "success_manual_confirmed";
   const isProcessing = loading || status === "processing" || status === "waiting" || status === "sent";
   const title = isFailed
-    ? status === "cancelled"
-      ? "Paymob terminal payment cancelled"
-      : status === "timeout"
-        ? "Paymob terminal confirmation timed out"
-        : "Paymob terminal payment failed"
+    ? "فشل الدفع"
     : isSuccess
       ? "Payment completed successfully."
       : isProcessing
@@ -6597,33 +6692,44 @@ function PaymobTerminalModal({ state, loading, onClose, onRetry, onRetryStatus, 
           ) : null}
         </div>
         <div className="mt-5 grid gap-2">
-          {isTimeout ? (
+          {isFailed ? (
             <>
               <button
                 type="button"
-                onClick={onManualConfirm}
-                disabled={loading}
-                className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-emerald-300 disabled:opacity-60"
-              >
-                {loading ? "Confirming..." : "Confirm terminal payment"}
-              </button>
-              <button
-                type="button"
-                onClick={onRetryStatus}
+                onClick={onRetry}
                 disabled={loading}
                 className="inline-flex w-full items-center justify-center rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-cyan-300 disabled:opacity-60"
               >
-                Retry status check
+                {loading ? "Sending..." : "إعادة المحاولة بباي موب"}
+              </button>
+              <button
+                type="button"
+                onClick={onChangePaymentMethod}
+                disabled={loading}
+                className="inline-flex w-full items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-60"
+              >
+                تغيير طريقة الدفع
               </button>
             </>
-          ) : isFailed ? (
+          ) : null}
+          {status === "timeout" && onRetryStatus ? (
             <button
               type="button"
-              onClick={onRetry}
+              onClick={onRetryStatus}
               disabled={loading}
               className="inline-flex w-full items-center justify-center rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-cyan-300 disabled:opacity-60"
             >
-              {loading ? "Sending..." : "Retry Paymob payment"}
+              Retry status check
+            </button>
+          ) : null}
+          {status === "timeout" && onManualConfirm ? (
+            <button
+              type="button"
+              onClick={onManualConfirm}
+              disabled={loading}
+              className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-emerald-300 disabled:opacity-60"
+            >
+              {loading ? "Confirming..." : "Confirm terminal payment"}
             </button>
           ) : null}
           <button type="button" onClick={onClose} className="inline-flex w-full items-center justify-center rounded-2xl bg-white px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-cyan-100">

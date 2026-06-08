@@ -30,6 +30,16 @@ import {
   markAiSupportConversationEscalated,
 } from "./aiSupportLogService.js";
 import { addTraceStep, failTrace, finishTrace } from "./aiReplyTraceService.js";
+import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
+import { resolveProductAlias } from "../utils/productAliasResolver.js";
+import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
+import { rankProductCandidates } from "../utils/productMatchConfidence.js";
+import {
+  buildConversationMemoryV2,
+  mergeConversationMemoryV2,
+  resolveFollowupContext,
+  summarizeConversationMemoryV2,
+} from "../utils/aiConversationMemoryV2.js";
 
 const text = (value = "", fallback = "") => String(value ?? fallback).trim();
 const number = (value, fallback = 0) => {
@@ -52,16 +62,7 @@ const COLOR_CONTEXT_REPLY = "\u062a\u0642\u0635\u062f \u0623\u0644\u0648\u0627\u
 const IMAGE_READY_REPLY = "\u0623\u0643\u064a\u062f \u064a\u0627 \u0641\u0646\u062f\u0645\u060c \u0647\u0628\u0639\u062a\u0644\u0643 \u0627\u0644\u0635\u0648\u0631 \u0627\u0644\u0645\u062a\u0627\u062d\u0629.";
 const VISUAL_PRODUCT_INTENTS = new Set(["image_request", "more_images", "color_question", "size_check", "size_question"]);
 
-const normalizeArabicText = (value = "") =>
-  text(value)
-    .toLowerCase()
-    .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
-    .replace(/[\u0623\u0625\u0622]/g, "\u0627")
-    .replace(/\u0649/g, "\u064a")
-    .replace(/\u0629/g, "\u0647")
-    .replace(/[؟?]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
+const normalizeArabicText = (value = "") => normalizeArabicForIntent(value).replace(/[؟?]/g, "").trim();
 
 const isBareConfirmation = (message = "") => {
   const normalized = normalizeArabicText(message);
@@ -148,17 +149,58 @@ const memoryProductContext = (memory = null) => {
   const cards = [
     ...asArray(preferences.last_product_cards),
     ...asArray(preferences.lastProductCards),
+    ...asArray(preferences.aiConversationMemoryV2?.lastShownProductCards),
+    ...asArray(memory?.aiConversationMemoryV2?.lastShownProductCards),
     ...asArray(memory?.last_products),
     ...asArray(memory?.lastProductCards),
   ];
   const product = [
     preferences.last_product,
     preferences.lastProductCard,
+    preferences.aiConversationMemoryV2?.lastMentionedProductId ? { product_id: preferences.aiConversationMemoryV2.lastMentionedProductId, name: preferences.aiConversationMemoryV2.lastMentionedProductName || "" } : null,
     memory?.last_product,
     memory?.lastProductCard,
     cards[0],
   ].find((item) => item && (item.product_id || item.id || item.name || item.title)) || null;
   return { product, cards };
+};
+
+const conversationMemoryV2FromMemory = (memory = null) =>
+  mergeConversationMemoryV2(
+    memory?.preferences?.aiConversationMemoryV2 || memory?.aiConversationMemoryV2 || null,
+    null
+  );
+
+const buildConversationMemoryV2Patch = ({
+  existingMemory = null,
+  messageText = "",
+  normalizedPayload = null,
+  intentPayload = null,
+  aliasResult = null,
+  searchHints = null,
+  confidenceResult = null,
+  shownProducts = [],
+  selectedProduct = null,
+  selectedColor = "",
+  selectedSize = "",
+  followupContext = null,
+} = {}) => {
+  const currentMemoryV2 = conversationMemoryV2FromMemory(existingMemory);
+  const resolvedProduct = selectedProduct || shownProducts[0] || null;
+  const nextMemoryV2 = buildConversationMemoryV2({
+    existingMemory: currentMemoryV2,
+    messageText,
+    normalizedPayload,
+    intentPayload,
+    aliasResult,
+    searchHints,
+    confidenceResult,
+    shownProducts,
+    selectedProduct: resolvedProduct,
+    selectedColor: selectedColor || followupContext?.color || "",
+    selectedSize: selectedSize || followupContext?.size || "",
+  });
+  return nextMemoryV2;
 };
 
 const selectionIndexFromMessage = (message = "") => {
@@ -959,6 +1001,9 @@ const routeWhatsappMessageThroughAi = async ({ tenantId, message = {} } = {}) =>
   const globalSettings = await getAISettings();
   const channelAISettings = await getAIChannelSettings(AI_AGENT_CHANNELS.WHATSAPP, AI_AGENT_CHANNELS.WHATSAPP);
   const effectiveTone = channelAISettings.tone || globalSettings.tone || "casual";
+  const originalMessage = text(message.message_text || "");
+  const productAlias = resolveProductAlias(originalMessage);
+  const aliasSearchHints = buildAliasAwareSearchHints({ text: originalMessage, aliasResult: productAlias });
   return generateUnifiedConversationDecision({
     channel: AI_AGENT_CHANNELS.WHATSAPP,
     externalConversationId: message.external_conversation_id,
@@ -979,6 +1024,8 @@ const routeWhatsappMessageThroughAi = async ({ tenantId, message = {} } = {}) =>
       attachments: message.attachments || [],
       timestamp: message.timestamp,
       provider_message_id: message.external_message_id || message.raw?.event?.message?.mid || "",
+      productQueryHints: aliasSearchHints.productQueryHints,
+      aliasSearchTerms: aliasSearchHints.searchTerms,
     },
   }, {
     tenantId,
@@ -1016,7 +1063,46 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
   const safeTenantId = number(tenantId, number(process.env.WHATSAPP_TENANT_ID, 1));
   const safePhone = text(phone);
   const safeSessionId = text(sessionId || (safePhone ? `whatsapp:${safePhone}` : ""));
-  const body = text(messageText);
+  const originalBody = text(messageText);
+  const intentPayload = normalizeArabicIntentPayload(originalBody);
+  const normalizedBody = intentPayload.normalizedText || normalizeArabicMessage(originalBody);
+  const body = intentPayload.normalizedForIntent || normalizeArabicForIntent(originalBody);
+  const productAlias = resolveProductAlias(originalBody || body);
+  const aliasSearchHints = buildAliasAwareSearchHints({ text: originalBody || body, aliasResult: productAlias });
+  console.log("[arabic-normalizer]", {
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    original: originalBody,
+    normalized: normalizedBody,
+    normalizedForIntent: body,
+    canonicalSignals: intentPayload.canonicalSignals,
+  });
+  console.log("[arabic-intent-signals]", {
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    original: originalBody,
+    normalizedText: normalizedBody,
+    normalizedForIntent: body,
+    canonicalSignals: intentPayload.canonicalSignals,
+  });
+  console.log("[product-alias]", {
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    original: originalBody,
+    normalizedText: normalizedBody,
+    canonicalProduct: productAlias.canonicalProduct,
+    matchedAlias: productAlias.matchedAlias,
+    confidence: productAlias.confidence,
+  });
+  console.log("[alias-aware-product-search]", {
+    original: originalBody,
+    canonicalProduct: aliasSearchHints.canonicalProduct,
+    searchTerms: aliasSearchHints.searchTerms,
+    productQueryHints: aliasSearchHints.productQueryHints,
+    usedAliasHint: aliasSearchHints.hasAliasHint,
+    fallbackUsed: true,
+    matchedProductId: null,
+    matchedProductName: "",
+    confidence: productAlias.confidence || 0,
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+  });
   if (!safeTenantId || !safePhone || !safeSessionId || !body) {
     console.info("[whatsapp:ai-skipped]", { reason: "missing_required_input", tenantId: safeTenantId, sessionId: safeSessionId, phoneSuffix: safePhone.slice(-4) });
     await addTraceStep(traceId, "ai_mode_check", { reason: "missing_required_input", shouldAutoSend: false, conversationMode: "", effectiveMode: "", globalMode: "", channelMode: "" });
@@ -1088,12 +1174,40 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
     ...asArray(loadedMemory?.last_products),
   ];
   const loadedLastProduct = loadedPreferences.last_product || loadedPreferences.lastProductCard || loadedMemory?.last_product || loadedProductCards[0] || null;
+  const loadedMemoryV2 = conversationMemoryV2FromMemory(loadedMemory);
+  const followupContextV2 = resolveFollowupContext({
+    memory: loadedMemoryV2,
+    messageText: originalBody,
+    normalizedPayload: intentPayload,
+    intentPayload,
+  });
+  const loadedMemoryWithV2 = loadedMemory
+    ? {
+        ...loadedMemory,
+        preferences: {
+          ...loadedPreferences,
+          aiConversationMemoryV2: loadedMemoryV2,
+        },
+      }
+    : loadedMemory;
   console.log("[ai-followup:memory-load]", {
     conversation_id: safeSessionId,
     session_id: safeSessionId,
     has_last_product: Boolean(loadedLastProduct),
     last_product_id: loadedPreferences.last_product_id || loadedLastProduct?.product_id || loadedLastProduct?.id || null,
     last_product_cards_count: loadedProductCards.length,
+  });
+  console.log("[conversation-memory-v2]", {
+    conversationId: safeSessionId,
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    original: originalBody,
+    normalizedText: normalizedBody,
+    memoryBeforeSummary: summarizeConversationMemoryV2(loadedMemoryV2),
+    followupType: followupContextV2.type || "none",
+    resolvedProductId: followupContextV2.productId || null,
+    resolvedColor: followupContextV2.color || "",
+    resolvedSize: followupContextV2.size || "",
+    memoryUpdated: Boolean(followupContextV2.type && followupContextV2.type !== "none"),
   });
   await addTraceStep(traceId, "followup_memory_load", {
     conversation_id: safeSessionId,
@@ -1102,7 +1216,7 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
     last_product_id: loadedPreferences.last_product_id || loadedLastProduct?.product_id || loadedLastProduct?.id || null,
     last_product_cards_count: loadedProductCards.length,
   });
-  await syncWhatsappLiveMemoryToChannel({ tenantId: safeTenantId, sessionId: safeSessionId, phone: safePhone, memory: loadedMemory });
+  await syncWhatsappLiveMemoryToChannel({ tenantId: safeTenantId, sessionId: safeSessionId, phone: safePhone, memory: loadedMemoryWithV2 });
   const unifiedDecision = await generateUnifiedConversationDecision({
     channel: AI_AGENT_CHANNELS.WHATSAPP,
     externalConversationId: safeSessionId,
@@ -1119,12 +1233,64 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
       customer_phone: safePhone,
       customer_name: customerName,
       timestamp: timestamp || new Date().toISOString(),
-      ai_memory: loadedMemory,
+      ai_memory: loadedMemoryWithV2,
+      aiConversationMemoryV2: loadedMemoryV2,
+      followup_context_v2: followupContextV2,
+      productQueryHints: aliasSearchHints.productQueryHints,
+      aliasSearchTerms: aliasSearchHints.searchTerms,
     },
   }, {
     tenantId: safeTenantId,
-    memory: loadedMemory,
+    memory: loadedMemoryWithV2,
     providerMessageId: message.external_message_id || "",
+  });
+  const unifiedDecisionCandidates = asArray(unifiedDecision.products?.length ? unifiedDecision.products : unifiedDecision.suggested_products);
+  const confidenceRanking = unifiedDecisionCandidates.length
+    ? rankProductCandidates({
+        candidates: unifiedDecisionCandidates,
+        text: originalBody || body,
+        normalizedPayload: intentPayload,
+        aliasResult: productAlias,
+        searchHints: aliasSearchHints,
+        intentPayload,
+      })
+    : { bestMatch: null, rankedCandidates: [], confidence: 0, fallbackRecommended: true };
+  if (confidenceRanking.bestMatch) {
+    unifiedDecision.products = confidenceRanking.rankedCandidates;
+    unifiedDecision.suggested_products = confidenceRanking.rankedCandidates;
+    unifiedDecision.product_cards = confidenceRanking.rankedCandidates;
+  }
+  const conversationMemoryV2Patch = ({
+    shownProducts = [],
+    selectedProduct = null,
+    selectedColor = "",
+    selectedSize = "",
+    messageText = originalBody,
+  } = {}) => buildConversationMemoryV2Patch({
+    existingMemory: loadedMemoryWithV2,
+    messageText,
+    normalizedPayload: intentPayload,
+    intentPayload,
+    aliasResult: productAlias,
+    searchHints: aliasSearchHints,
+    confidenceResult: confidenceRanking,
+    shownProducts,
+    selectedProduct,
+    selectedColor,
+    selectedSize,
+    followupContext: followupContextV2,
+  });
+  console.log("[product-match-confidence]", {
+    original: originalBody,
+    normalizedText: intentPayload.normalizedText,
+    canonicalProduct: productAlias.canonicalProduct,
+    candidateCount: unifiedDecisionCandidates.length,
+    bestMatchId: confidenceRanking.bestMatch?.id || confidenceRanking.bestMatch?.product_id || null,
+    bestMatchName: confidenceRanking.bestMatch?.name || confidenceRanking.bestMatch?.title || confidenceRanking.bestMatch?.product_name || "",
+    confidence: confidenceRanking.confidence,
+    reasons: confidenceRanking.bestMatch?.product_match_reasons || [],
+    fallbackRecommended: confidenceRanking.fallbackRecommended,
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
   });
   console.info("[AI_UNIFIED_DECISION_READY]", {
     channel: AI_AGENT_CHANNELS.WHATSAPP,
@@ -1200,15 +1366,33 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
       sessionId: safeSessionId,
       customerPhone: safePhone,
       customerName,
-      message: body,
+      message: originalBody,
       metadata: {
         channel: AI_AGENT_CHANNELS.WHATSAPP,
         session_id: safeSessionId,
         customer_phone: safePhone,
         customer_name: customerName,
+        original_message: originalBody,
+        normalized_message: normalizedBody,
+        normalized_for_intent: body,
+        canonical_signals: intentPayload.canonicalSignals,
+        intent_tokens: intentPayload.intentTokens,
+        productAliasDetected: Boolean(productAlias.canonicalProduct),
+        canonicalProduct: productAlias.canonicalProduct,
+        matchedAlias: productAlias.matchedAlias,
+        aliasConfidence: productAlias.confidence,
       },
       suggestedProducts: classificationFollowupPayload.suggested_products || classificationFollowupPayload.product_cards || [],
-      preferencesPatch: classificationFollowupPayload.ai_memory_patch?.preferences || {},
+      preferencesPatch: {
+        ...(classificationFollowupPayload.ai_memory_patch?.preferences || {}),
+        aiConversationMemoryV2: conversationMemoryV2Patch({
+          shownProducts: classificationFollowupPayload.suggested_products || classificationFollowupPayload.product_cards || [],
+          selectedProduct: classificationFollowupPayload.product_context || null,
+          selectedColor: classificationFollowupPayload.product_context?.color || "",
+          selectedSize: classificationFollowupPayload.product_context?.size || "",
+          messageText: originalBody,
+        }),
+      },
     }).then((memory) => syncWhatsappLiveMemoryToChannel({ tenantId: safeTenantId, sessionId: safeSessionId, phone: safePhone, memory })).catch(() => {});
     await addAiPayloadTraceSteps({ traceId, aiPayload: classificationFollowupPayload, messageText: body, replyText: classificationReplyText, replyDecision: { ok: true } });
     logAiWhatsappCardsOutput({ aiPayload: classificationFollowupPayload, reply: classificationReply, productCards: collectProducts(classificationFollowupPayload) });
@@ -1252,12 +1436,21 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
       sessionId: safeSessionId,
       customerPhone: safePhone,
       customerName,
-      message: body,
+      message: originalBody,
       metadata: {
         channel: AI_AGENT_CHANNELS.WHATSAPP,
         session_id: safeSessionId,
         customer_phone: safePhone,
         customer_name: customerName,
+        original_message: originalBody,
+        normalized_message: normalizedBody,
+        normalized_for_intent: body,
+        canonical_signals: intentPayload.canonicalSignals,
+        intent_tokens: intentPayload.intentTokens,
+        productAliasDetected: Boolean(productAlias.canonicalProduct),
+        canonicalProduct: productAlias.canonicalProduct,
+        matchedAlias: productAlias.matchedAlias,
+        aliasConfidence: productAlias.confidence,
       },
       suggestedProducts: confirmationPayload.suggested_products || confirmationPayload.product_cards || [],
       preferencesPatch: {
@@ -1267,6 +1460,13 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
         last_product_name: confirmationPayload.product_context?.name || confirmationPayload.product_context?.title || loadedPreferences.last_product_name || "",
         last_product_cards: confirmationPayload.suggested_products?.length ? confirmationPayload.suggested_products : loadedPreferences.last_product_cards || [],
         lastProductCard: confirmationPayload.product_context || loadedPreferences.lastProductCard || null,
+        aiConversationMemoryV2: conversationMemoryV2Patch({
+          shownProducts: confirmationPayload.suggested_products || confirmationPayload.product_cards || [],
+          selectedProduct: confirmationPayload.product_context || null,
+          selectedColor: confirmationPayload.product_context?.color || "",
+          selectedSize: confirmationPayload.product_context?.size || "",
+          messageText: originalBody,
+        }),
       },
     }).then((memory) => syncWhatsappLiveMemoryToChannel({ tenantId: safeTenantId, sessionId: safeSessionId, phone: safePhone, memory })).catch(() => {});
     await addAiPayloadTraceSteps({ traceId, aiPayload: confirmationPayload, messageText: body, replyText: confirmationReplyText, replyDecision: { ok: true } });
@@ -1315,7 +1515,7 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
       sessionId: safeSessionId,
       customerPhone: safePhone,
       customerName,
-      message: body,
+      message: originalBody,
       metadata: {
         channel: AI_AGENT_CHANNELS.WHATSAPP,
         session_id: safeSessionId,
@@ -1323,6 +1523,15 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
         customer_name: customerName,
         last_selected_color: followupPayload.product_context?.color || loadedPreferences.last_selected_color || "",
         last_selected_size: loadedPreferences.last_selected_size || "",
+        original_message: originalBody,
+        normalized_message: normalizedBody,
+        normalized_for_intent: body,
+        canonical_signals: intentPayload.canonicalSignals,
+        intent_tokens: intentPayload.intentTokens,
+        productAliasDetected: Boolean(productAlias.canonicalProduct),
+        canonicalProduct: productAlias.canonicalProduct,
+        matchedAlias: productAlias.matchedAlias,
+        aliasConfidence: productAlias.confidence,
       },
       suggestedProducts: followupPayload.suggested_products || followupPayload.product_cards || [],
       preferencesPatch: followupPayload.product_context ? {
@@ -1332,7 +1541,20 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
         last_model_family: followupPayload.product_context.model_family || loadedPreferences.last_model_family || "",
         last_product_cards: followupPayload.suggested_products || followupPayload.product_cards || loadedPreferences.last_product_cards || [],
         lastProductCard: followupPayload.product_context,
-      } : {},
+        aiConversationMemoryV2: conversationMemoryV2Patch({
+          shownProducts: followupPayload.suggested_products || followupPayload.product_cards || [],
+          selectedProduct: followupPayload.product_context || null,
+          selectedColor: followupPayload.product_context?.color || "",
+          selectedSize: followupPayload.product_context?.size || "",
+          messageText: originalBody,
+        }),
+      } : {
+        aiConversationMemoryV2: conversationMemoryV2Patch({
+          shownProducts: followupPayload.suggested_products || followupPayload.product_cards || [],
+          selectedProduct: null,
+          messageText: originalBody,
+        }),
+      },
     }).catch(() => {});
     await addAiPayloadTraceSteps({ traceId, aiPayload: followupPayload, messageText: body, replyText: followupReplyText, replyDecision: { ok: true } });
     logAiWhatsappCardsOutput({ aiPayload: followupPayload, reply: followupReply, productCards });
@@ -1485,7 +1707,14 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
         customer_name: customerName,
       },
       suggestedProducts: aiSuggestedProducts,
-      preferencesPatch: awaitingPatch,
+      preferencesPatch: {
+        ...awaitingPatch,
+        aiConversationMemoryV2: conversationMemoryV2Patch({
+          shownProducts: aiSuggestedProducts,
+          selectedProduct: aiPayload?.product_cards?.[0] || aiPayload?.suggested_products?.[0] || null,
+          messageText: body,
+        }),
+      },
     }).then((memory) => syncWhatsappLiveMemoryToChannel({ tenantId: safeTenantId, sessionId: safeSessionId, phone: safePhone, memory })).catch((error) => {
       console.warn("[ai-followup:memory-persist-skipped]", {
         conversation_id: safeSessionId,
@@ -1507,7 +1736,14 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
         customer_name: customerName,
       },
       suggestedProducts: [],
-      preferencesPatch: awaitingPatch,
+      preferencesPatch: {
+        ...awaitingPatch,
+        aiConversationMemoryV2: conversationMemoryV2Patch({
+          shownProducts: [],
+          selectedProduct: null,
+          messageText: body,
+        }),
+      },
     }).then((memory) => syncWhatsappLiveMemoryToChannel({ tenantId: safeTenantId, sessionId: safeSessionId, phone: safePhone, memory })).catch((error) => {
       console.warn("[ai-followup:memory-persist-skipped]", {
         conversation_id: safeSessionId,

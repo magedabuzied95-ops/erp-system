@@ -43,6 +43,7 @@ import {
 } from "../services/aiChannelAdapterService.js";
 import { generateAiBrainV2Decision } from "../services/aiBrainV2Service.js";
 import { buildUnifiedAiReplyPayload } from "../services/aiConversationOrchestrator.js";
+import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import {
   humanizeSalesResponse,
   scheduleAiFollowupIfNeeded,
@@ -2092,7 +2093,7 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
     });
   }
   const tenantId = resolveTenantId(req);
-  const earlyIntent = detectAiSupportIntent(req.body?.message);
+  const earlyIntent = detectAiSupportIntent(req.body?.normalized_for_intent || req.body?.message);
   if (!tenantId && earlyIntent.type !== "conversational" && earlyIntent.type !== "greeting_only") {
     console.warn("[AI_SUPPORT_CHAT_ERROR]", {
       tenant_id: null,
@@ -2144,7 +2145,24 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
       ...req.body,
       ...flowPayload,
     };
-    const message = toText(normalizedMessage.message_text);
+    const originalMessage = toText(normalizedMessage.original_message || normalizedMessage.message_text);
+    const intentPayload = normalizeArabicIntentPayload(originalMessage);
+    const normalizedRuntimeMessage = toText(normalizedMessage.normalized_for_intent || intentPayload.normalizedForIntent || normalizeArabicForIntent(originalMessage));
+    console.log("[arabic-normalizer]", {
+      channel: normalizedMessage.channel,
+      original: originalMessage,
+      normalized: toText(normalizedMessage.normalized_message || intentPayload.normalizedText || normalizeArabicMessage(originalMessage)),
+      normalizedForIntent: normalizedRuntimeMessage,
+      canonicalSignals: intentPayload.canonicalSignals,
+    });
+    console.log("[arabic-intent-signals]", {
+      channel: normalizedMessage.channel,
+      original: originalMessage,
+      normalizedText: intentPayload.normalizedText,
+      normalizedForIntent: normalizedRuntimeMessage,
+      canonicalSignals: intentPayload.canonicalSignals,
+    });
+    const message = normalizedRuntimeMessage;
     if (!message) {
       console.warn("[AI_SUPPORT_CHAT_ERROR]", {
         ...aiSupportChatLogContext(req, {}, 400, new Error("Customer message is required.")),
@@ -2173,6 +2191,11 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
       attachments: normalizedMessage.attachments,
       locale: req.body?.metadata?.locale || req.headers?.["accept-language"] || null,
       tenant_id: tenantId,
+      original_message: originalMessage,
+      normalized_message: toText(normalizedMessage.normalized_message || intentPayload.normalizedText || normalizeArabicMessage(originalMessage)),
+      normalized_for_intent: normalizedRuntimeMessage,
+      canonical_signals: intentPayload.canonicalSignals,
+      intent_tokens: intentPayload.intentTokens,
     };
 
     const v2Identity = resolveAiConversationIdentity({ req, tenantId, metadata });
@@ -2211,7 +2234,7 @@ router.post("/chat", attachOptionalUser, (req, res, next) => {
       req,
       tenantId,
       metadata,
-      message,
+      message: originalMessage,
       context: {
         intent: { type: v2Response.detected_intent || v2Response.intent || "general" },
         trustedContext: { tenant_id: tenantId, sources: [] },

@@ -3,7 +3,16 @@ import { generateAiBrainV2Decision } from "./aiBrainV2Service.js";
 import { generateUnifiedAiReply } from "./aiConversationOrchestrator.js";
 import { normalizeProductCards } from "./aiProductCards.js";
 import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
-import { normalizeArabicForIntent, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
+import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
+import { resolveProductAlias } from "../utils/productAliasResolver.js";
+import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
+import { rankProductCandidates } from "../utils/productMatchConfidence.js";
+import {
+  buildConversationMemoryV2,
+  mergeConversationMemoryV2,
+  resolveFollowupContext,
+  summarizeConversationMemoryV2,
+} from "../utils/aiConversationMemoryV2.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -25,8 +34,26 @@ const normalizeArabic = (value = "") => normalizeArabicForIntent(value).replace(
 
 const classifySharedShortcutIntent = (message = "") => {
   const raw = text(message);
-  const normalized = normalizeArabic(raw);
-  if (/^(\u0627\u064a\u0648\u0647|\u0627\u064a\u0648\u0629|\u0627\u0647|\u0646\u0639\u0645|\u062a\u0645\u0627\u0645|\u0645\u0627\u0634\u064a|ok|okay|yes|yep)$/i.test(normalized)) return "bare_confirmation";
+  const intentPayload = normalizeArabicIntentPayload(raw);
+  const normalized = intentPayload.normalizedForIntent;
+  const signals = new Set(intentPayload.canonicalSignals || []);
+  const hasSignal = (...names) => names.some((name) => signals.has(name));
+  console.log("[arabic-intent-signals]", {
+    original: intentPayload.originalText,
+    normalizedText: intentPayload.normalizedText,
+    normalizedForIntent: normalized,
+    canonicalSignals: intentPayload.canonicalSignals,
+  });
+  if (hasSignal("yes", "confirm")) return "bare_confirmation";
+  if (hasSignal("more_images")) return "more_images";
+  if (hasSignal("color")) return "color_followup";
+  if (hasSignal("size")) return "size_followup";
+  if (hasSignal("buy")) return "buying_intent";
+  if (hasSignal("price")) return "product_search";
+  if (hasSignal("order_tracking")) return "product_search";
+  if (hasSignal("thanks")) return "thanks";
+  if (hasSignal("greeting")) return "greeting";
+  if (hasSignal("no", "reject", "cancel")) return "bare_confirmation";
   if (/(\u0635\u0648\u0631|\u0635\u0648\u0631\u0647|\u0635\u0648\u0631\u0629|\u0627\u0628\u0639\u062a.*\u0635\u0648\u0631|\u0648\u0631\u064a\u0646\u064a|more\s+(photos|images)|photos?|images?)/i.test(raw)) return normalized.includes("\u0627\u0643\u062a\u0631") || /more\s+(photos|images)/i.test(raw) ? "more_images" : "image_request";
   if (/(\u0644\u0648\u0646|\u0627\u0644\u0648\u0627\u0646|\u0623\u0644\u0648\u0627\u0646|color|colors|colour|colours)/i.test(raw)) return "color_followup";
   if (/(\u0645\u0642\u0627\u0633|\u0645\u0642\u0627\u0633\u0627\u062a|size|sizes|available|availability)/i.test(raw)) return "size_followup";
@@ -431,7 +458,7 @@ const actionNames = (items = []) => asArray(items)
   .slice(0, 8);
 
 const applySharedShortcutMetadata = ({ decision = {}, inbound = {} } = {}) => {
-  const shortcutIntent = classifySharedShortcutIntent(inbound.text);
+  const shortcutIntent = classifySharedShortcutIntent(inbound.text || inbound.normalized_for_intent || inbound.originalText || "");
   if (!shortcutIntent) return decision;
   const debug = {
     ...(decision.debug || {}),
@@ -443,6 +470,19 @@ const applySharedShortcutMetadata = ({ decision = {}, inbound = {} } = {}) => {
     ...decision,
     debug,
   };
+};
+
+const logProductAliasDetection = ({ channel = "", original = "", normalizedText = "" } = {}) => {
+  const alias = resolveProductAlias(original || normalizedText || "");
+  console.log("[product-alias]", {
+    channel,
+    original,
+    normalizedText,
+    canonicalProduct: alias.canonicalProduct,
+    matchedAlias: alias.matchedAlias,
+    confidence: alias.confidence,
+  });
+  return alias;
 };
 
 export const normalizeUnifiedInbound = (normalizedInbound = {}) => {
@@ -490,19 +530,40 @@ export const normalizeUnifiedInbound = (normalizedInbound = {}) => {
       metadata.customerName ||
       metadata.customer_name
   );
+  const intentPayload = normalizeArabicIntentPayload(
+    originalText ||
+      normalizedInbound.normalized_for_intent ||
+      metadata.normalized_for_intent ||
+      normalizedInbound.text ||
+      ""
+  );
+  const productAlias = logProductAliasDetection({
+    channel: normalizeChannel(normalizedInbound.channel || metadata.channel || AI_AGENT_CHANNELS.WEB_CHAT),
+    original: originalText,
+    normalizedText: intentPayload.normalizedText,
+  });
+  const aliasSearchHints = buildAliasAwareSearchHints({ text: originalText || intentPayload.normalizedForIntent, aliasResult: productAlias });
   return {
     channel,
     externalConversationId,
     externalCustomerId,
     customerName,
-    text: normalizedText,
+    text: normalizedText || intentPayload.normalizedForIntent,
     originalText,
     normalized_message: text(
       normalizedInbound.normalized_message ||
         metadata.normalized_message ||
         normalizeArabicMessage(originalText)
     ),
-    normalized_for_intent: normalizedText,
+    normalized_for_intent: normalizedText || intentPayload.normalizedForIntent,
+    canonical_signals: intentPayload.canonicalSignals,
+    intent_tokens: intentPayload.intentTokens,
+    productAliasDetected: Boolean(productAlias.canonicalProduct),
+    canonicalProduct: productAlias.canonicalProduct,
+    matchedAlias: productAlias.matchedAlias,
+    aliasConfidence: productAlias.confidence,
+    productQueryHints: aliasSearchHints.productQueryHints,
+    aliasSearchTerms: aliasSearchHints.searchTerms,
     attachments: asArray(normalizedInbound.attachments),
     metadata: {
       ...metadata,
@@ -512,7 +573,15 @@ export const normalizeUnifiedInbound = (normalizedInbound = {}) => {
           metadata.normalized_message ||
           normalizeArabicMessage(originalText)
       ),
-      normalized_for_intent: normalizedText,
+      normalized_for_intent: normalizedText || intentPayload.normalizedForIntent,
+      canonical_signals: intentPayload.canonicalSignals,
+      intent_tokens: intentPayload.intentTokens,
+      productAliasDetected: Boolean(productAlias.canonicalProduct),
+      canonicalProduct: productAlias.canonicalProduct,
+      matchedAlias: productAlias.matchedAlias,
+      aliasConfidence: productAlias.confidence,
+      productQueryHints: aliasSearchHints.productQueryHints,
+      aliasSearchTerms: aliasSearchHints.searchTerms,
     },
   };
 };
@@ -549,6 +618,59 @@ export const normalizeUnifiedDecisionOutput = (decision = {}, context = {}) => {
       decision.detected_intent ||
       decision.detectedIntent
   );
+  const normalizedPayload = normalizeArabicIntentPayload(
+    context.originalText ||
+      decision.originalText ||
+      decision.text ||
+      decision.answer ||
+      channelReply.text ||
+      ""
+  );
+  const aliasResult = {
+    canonicalProduct: decision.canonicalProduct ?? context.canonicalProduct ?? null,
+    matchedAlias: decision.matchedAlias ?? context.matchedAlias ?? null,
+    confidence: decision.aliasConfidence ?? context.aliasConfidence ?? 0,
+    searchTerms: decision.aliasSearchTerms ?? context.aliasSearchTerms ?? [],
+  };
+  const searchHints = {
+    canonicalProduct: aliasResult.canonicalProduct,
+    searchTerms: aliasResult.searchTerms,
+    productQueryHints: decision.productQueryHints ?? context.productQueryHints ?? [],
+  };
+  const rankedProducts = products.length
+    ? rankProductCandidates({
+        candidates: products,
+        text: normalizedPayload.originalText || "",
+        normalizedPayload,
+        aliasResult,
+        searchHints,
+        intentPayload: normalizedPayload,
+      })
+    : { bestMatch: null, rankedCandidates: [], confidence: 0, fallbackRecommended: true };
+  const rankedProductCards = productCards.length
+    ? rankProductCandidates({
+        candidates: productCards,
+        text: normalizedPayload.originalText || "",
+        normalizedPayload,
+        aliasResult,
+        searchHints,
+        intentPayload: normalizedPayload,
+      })
+    : { bestMatch: null, rankedCandidates: [], confidence: 0, fallbackRecommended: true };
+  const finalProducts = rankedProducts.bestMatch ? rankedProducts.rankedCandidates : products;
+  const finalProductCards = rankedProductCards.bestMatch ? rankedProductCards.rankedCandidates : productCards;
+  console.log("[product-match-confidence]", {
+    original: normalizedPayload.originalText || "",
+    normalizedText: normalizedPayload.normalizedText || "",
+    canonicalProduct: aliasResult.canonicalProduct,
+    candidateCount: Math.max(products.length, productCards.length),
+    bestMatchId: rankedProducts.bestMatch?.id || rankedProductCards.bestMatch?.id || rankedProducts.bestMatch?.product_id || rankedProductCards.bestMatch?.product_id || null,
+    bestMatchName: rankedProducts.bestMatch?.name || rankedProductCards.bestMatch?.name || rankedProducts.bestMatch?.title || rankedProductCards.bestMatch?.title || "",
+    confidence: Math.max(rankedProducts.confidence || 0, rankedProductCards.confidence || 0),
+    reasons: rankedProducts.bestMatch?.product_match_reasons || rankedProductCards.bestMatch?.product_match_reasons || [],
+    fallbackRecommended: rankedProducts.fallbackRecommended && rankedProductCards.fallbackRecommended,
+    channel: context.channel || decision.channel || "",
+  });
 
   return {
     ...decision,
@@ -556,8 +678,12 @@ export const normalizeUnifiedDecisionOutput = (decision = {}, context = {}) => {
     answer: text(decision.answer || decision.text || channelReply.text),
     intent,
     detected_intent: text(decision.detected_intent || intent),
-    products,
-    suggested_products: asArray(decision.suggested_products?.length ? decision.suggested_products : products),
+    products: finalProducts,
+    suggested_products: asArray(
+      decision.suggested_products?.length
+        ? (rankedProducts.bestMatch ? finalProducts : decision.suggested_products)
+        : finalProducts
+    ),
     images,
     image_cards: images,
     quickReplies,
@@ -572,9 +698,17 @@ export const normalizeUnifiedDecisionOutput = (decision = {}, context = {}) => {
       channel: context.channel || decision.channel || "",
       conversation_id: context.externalConversationId || decision.conversation_id || decision.session_id || "",
       source: "aiUnifiedDecisionService",
+      product_alias: {
+        detected: decision.productAliasDetected ?? context.productAliasDetected ?? false,
+        canonicalProduct: decision.canonicalProduct ?? context.canonicalProduct ?? null,
+        matchedAlias: decision.matchedAlias ?? context.matchedAlias ?? null,
+        confidence: decision.aliasConfidence ?? context.aliasConfidence ?? 0,
+        searchTerms: decision.aliasSearchTerms ?? context.aliasSearchTerms ?? [],
+        productQueryHints: decision.productQueryHints ?? context.productQueryHints ?? [],
+      },
       rawDecision: decision,
     },
-    product_cards: productCards,
+    product_cards: finalProductCards,
   };
 };
 
@@ -600,6 +734,35 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
   const inbound = normalizeUnifiedInbound(normalizedInbound);
   const rawMemory = options.memory ?? inbound.metadata.ai_memory ?? null;
   const effectiveMemory = sanitizeMemoryForClearProductRequest(rawMemory, inbound);
+  const memoryV2 = rawMemory?.preferences?.aiConversationMemoryV2 || rawMemory?.aiConversationMemoryV2 || null;
+  const intentPayload = normalizeArabicIntentPayload(inbound.text);
+  const followupContextV2 = resolveFollowupContext({
+    memory: memoryV2,
+    messageText: inbound.text,
+    normalizedPayload: intentPayload,
+    intentPayload,
+  });
+  const effectiveMemoryWithV2 = followupContextV2.type !== "none"
+    ? {
+        ...effectiveMemory,
+        preferences: {
+          ...(effectiveMemory?.preferences || {}),
+          aiConversationMemoryV2: mergeConversationMemoryV2(
+            memoryV2,
+            buildConversationMemoryV2({
+              existingMemory: memoryV2,
+              messageText: inbound.text,
+              normalizedPayload: intentPayload,
+              intentPayload,
+              shownProducts: Array.isArray(effectiveMemory?.last_products) ? effectiveMemory.last_products : [],
+              selectedProduct: Array.isArray(effectiveMemory?.last_products) ? effectiveMemory.last_products[0] || null : null,
+              selectedColor: followupContextV2.color || "",
+              selectedSize: followupContextV2.size || "",
+            })
+          ),
+        },
+      }
+    : effectiveMemory;
   const memorySummary = summarizeMemoryForLog(rawMemory);
   const effectiveMemorySummary = summarizeMemoryForLog(effectiveMemory);
   const tenantId = options.tenantId || inbound.metadata.tenant_id || inbound.metadata.tenantId || process.env.WHATSAPP_TENANT_ID || 1;
@@ -634,6 +797,18 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
       preference_keys: effectiveMemorySummary.preference_keys,
     },
     explicit_model_request: hasClearProductModelRequest(inbound.text),
+  });
+  console.info("[conversation-memory-v2]", {
+    conversationId: inbound.externalConversationId,
+    channel: inbound.channel,
+    original: inbound.text,
+    normalizedText: normalizeArabic(inbound.text),
+    memoryBeforeSummary: summarizeConversationMemoryV2(memoryV2),
+    followupType: followupContextV2.type || "none",
+    resolvedProductId: followupContextV2.productId || null,
+    resolvedColor: followupContextV2.color || "",
+    resolvedSize: followupContextV2.size || "",
+    memoryUpdated: Boolean(followupContextV2.type && followupContextV2.type !== "none"),
   });
 
   console.info("AI_UNIFIED_DECISION_INPUT", {
@@ -670,7 +845,7 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
   }
 
   let decision = null;
-  const directColorSelectionDecision = buildDirectColorSelectionDecision({ message: inbound.text, memory: rawMemory || effectiveMemory });
+  const directColorSelectionDecision = buildDirectColorSelectionDecision({ message: inbound.text, memory: rawMemory || effectiveMemoryWithV2 });
   if (directColorSelectionDecision) {
     console.info("AI_V2_DIRECT_COLOR_SELECTION_MATCH", {
       channel: inbound.channel,
@@ -696,13 +871,15 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
           external_conversation_id: inbound.externalConversationId,
           external_customer_id: inbound.externalCustomerId,
           customer_name: inbound.customerName,
-          ai_memory: effectiveMemory,
+          ai_memory: effectiveMemoryWithV2,
+          aiConversationMemoryV2: memoryV2,
+          followup_context_v2: followupContextV2,
         },
       }, {
         ...options,
         tenantId,
         branchId,
-        memory: effectiveMemory,
+        memory: effectiveMemoryWithV2,
         providerMessageId: options.providerMessageId || inbound.metadata.provider_message_id || inbound.metadata.external_message_id || "",
       });
     } catch (error) {
@@ -744,11 +921,13 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
           external_conversation_id: inbound.externalConversationId,
           external_customer_id: inbound.externalCustomerId,
           customer_name: inbound.customerName,
-          ai_memory: effectiveMemory,
+          ai_memory: effectiveMemoryWithV2,
+          aiConversationMemoryV2: memoryV2,
+          followup_context_v2: followupContextV2,
         },
       },
       attachments: inbound.attachments,
-      memory: effectiveMemory,
+      memory: effectiveMemoryWithV2,
       productsContext: options.productsContext ?? inbound.metadata.products_context ?? null,
       providerMessageId: options.providerMessageId || inbound.metadata.provider_message_id || inbound.metadata.external_message_id || "",
     });

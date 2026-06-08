@@ -13,6 +13,11 @@ import { debugAiImagesLog, normalizeProductCards } from "./aiProductCards.js";
 import { appendAiGeneratedSupportReply } from "./aiSupportLogService.js";
 import { addTraceStep, failTrace, finishTrace, setTraceInboundMessage, startTrace } from "./aiReplyTraceService.js";
 import { emitToRooms } from "../utils/socket.js";
+import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
+import { resolveProductAlias } from "../utils/productAliasResolver.js";
+import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
+import { getConversationMemory } from "./aiConversationMemory.js";
+import { resolveFollowupContext, summarizeConversationMemoryV2 } from "../utils/aiConversationMemoryV2.js";
 
 const provider = () => String(process.env.WHATSAPP_GATEWAY_PROVIDER || "evolution").trim().toLowerCase();
 const apiUrl = () => String(process.env.EVOLUTION_API_URL || "").trim().replace(/\/+$/g, "");
@@ -1799,6 +1804,74 @@ const extractIncomingWhatsapp = async (payload = {}) => {
       findFirstString(data, ["pushName", "pushname", "profileName", "profile_name", "senderName", "sender_name"])
   );
   const messageText = extractMessageText(data, payload);
+  const intentPayload = normalizeArabicIntentPayload(messageText);
+  const normalizedMessage = intentPayload.normalizedText || normalizeArabicMessage(messageText);
+  const normalizedForIntent = intentPayload.normalizedForIntent || normalizeArabicForIntent(messageText);
+  const productAlias = resolveProductAlias(messageText || normalizedForIntent);
+  const aliasSearchHints = buildAliasAwareSearchHints({ text: messageText || normalizedForIntent, aliasResult: productAlias });
+  const conversationId = text(
+    payload?.external_conversation_id ||
+    payload?.conversation_id ||
+    data?.conversationId ||
+    data?.conversation_id ||
+    data?.sessionId ||
+    data?.chatId ||
+    ""
+  );
+  const runtimeConversationMemory = conversationId ? getConversationMemory(conversationId) || {} : {};
+  const conversationMemoryV2 = runtimeConversationMemory?.preferences?.aiConversationMemoryV2 || runtimeConversationMemory?.aiConversationMemoryV2 || null;
+  const followupContextV2 = resolveFollowupContext({
+    memory: conversationMemoryV2,
+    messageText,
+    normalizedPayload: intentPayload,
+    intentPayload,
+  });
+  console.log("[arabic-normalizer]", {
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    original: messageText,
+    normalized: normalizedMessage,
+    normalizedForIntent,
+    canonicalSignals: intentPayload.canonicalSignals,
+  });
+  console.log("[arabic-intent-signals]", {
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    original: messageText,
+    normalizedText: normalizedMessage,
+    normalizedForIntent,
+    canonicalSignals: intentPayload.canonicalSignals,
+  });
+  console.log("[product-alias]", {
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    original: messageText,
+    normalizedText: normalizedMessage,
+    canonicalProduct: productAlias.canonicalProduct,
+    matchedAlias: productAlias.matchedAlias,
+    confidence: productAlias.confidence,
+  });
+  console.log("[alias-aware-product-search]", {
+    original: messageText,
+    canonicalProduct: aliasSearchHints.canonicalProduct,
+    searchTerms: aliasSearchHints.searchTerms,
+    productQueryHints: aliasSearchHints.productQueryHints,
+    usedAliasHint: aliasSearchHints.hasAliasHint,
+    fallbackUsed: true,
+    matchedProductId: null,
+    matchedProductName: "",
+    confidence: productAlias.confidence || 0,
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+  });
+  console.log("[conversation-memory-v2]", {
+    conversationId,
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    original: messageText,
+    normalizedText: normalizedMessage,
+    memoryBeforeSummary: summarizeConversationMemoryV2(conversationMemoryV2),
+    followupType: followupContextV2.type || "none",
+    resolvedProductId: followupContextV2.productId || null,
+    resolvedColor: followupContextV2.color || "",
+    resolvedSize: followupContextV2.size || "",
+    memoryUpdated: Boolean(followupContextV2.type && followupContextV2.type !== "none"),
+  });
   if (!messageId && messageText) {
     messageId = `synthetic:${crypto.createHash("sha256").update([normalizedEvent || rawEvent, remoteJid, phone, messageText].map(text).join("|")).digest("hex").slice(0, 24)}`;
   }
@@ -1820,11 +1893,25 @@ const extractIncomingWhatsapp = async (payload = {}) => {
     isGroup: replyTarget.isGroup,
     isLid: replyTarget.isLid,
     text: messageText,
+    original_message: messageText,
+    normalized_message: normalizedMessage,
+    normalized_for_intent: normalizedForIntent,
+    canonical_signals: intentPayload.canonicalSignals,
+    intent_tokens: intentPayload.intentTokens,
+    productAliasDetected: Boolean(productAlias.canonicalProduct),
+    canonicalProduct: productAlias.canonicalProduct,
+    matchedAlias: productAlias.matchedAlias,
+    aliasConfidence: productAlias.confidence,
+    productQueryHints: aliasSearchHints.productQueryHints,
+    aliasSearchTerms: aliasSearchHints.searchTerms,
+    aiConversationMemoryV2: conversationMemoryV2,
+    followup_context_v2: followupContextV2,
     senderName,
     messageId,
     timestamp,
     instance,
     fromMe,
+    conversationId,
     raw: payload,
   };
 };

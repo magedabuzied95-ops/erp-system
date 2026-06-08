@@ -74,6 +74,7 @@ import {
   updateAiSupportConversationState,
 } from "../services/aiSupportLogService.js";
 import { loadAiReplyTraces } from "../services/aiReplyTraceService.js";
+import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 
 const router = express.Router();
 const ERP_PERF_DEBUG = ["1", "true", "yes", "on"].includes(String(process.env.ERP_PERF_DEBUG || "").toLowerCase());
@@ -207,6 +208,24 @@ const routeChannelMessageThroughAi = async ({ req, tenantId, message, channel })
   const globalSettings = await getAISettings();
   const channelAISettings = await getAIChannelSettings(channel, channel);
   const effectiveTone = channelAISettings.tone || globalSettings.tone || "casual";
+  const originalMessage = envText(message.original_message || message.message_text || "");
+  const intentPayload = normalizeArabicIntentPayload(originalMessage);
+  const normalizedMessage = envText(message.normalized_message || intentPayload.normalizedText || normalizeArabicMessage(originalMessage));
+  const normalizedForIntent = envText(message.normalized_for_intent || intentPayload.normalizedForIntent || normalizeArabicForIntent(originalMessage));
+  console.log("[arabic-normalizer]", {
+    channel,
+    original: originalMessage,
+    normalized: normalizedMessage,
+    normalizedForIntent,
+    canonicalSignals: intentPayload.canonicalSignals,
+  });
+  console.log("[arabic-intent-signals]", {
+    channel,
+    original: originalMessage,
+    normalizedText: normalizedMessage,
+    normalizedForIntent,
+    canonicalSignals: intentPayload.canonicalSignals,
+  });
   const response = await fetch(`${aiSupportBaseUrl(req).replace(/\/+$/, "")}/api/ai-support/chat`, {
     method: "POST",
     headers: {
@@ -215,7 +234,12 @@ const routeChannelMessageThroughAi = async ({ req, tenantId, message, channel })
     },
     body: JSON.stringify({
       tenant_id: tenantId,
-      message: message.message_text || "Customer sent an attachment",
+      message: originalMessage || "Customer sent an attachment",
+      original_message: originalMessage || "",
+      normalized_message: normalizedMessage,
+      normalized_for_intent: normalizedForIntent,
+      canonical_signals: intentPayload.canonicalSignals,
+      intent_tokens: intentPayload.intentTokens,
       session_id: message.external_conversation_id,
       metadata: {
         session_id: message.external_conversation_id,
@@ -229,6 +253,11 @@ const routeChannelMessageThroughAi = async ({ req, tenantId, message, channel })
         ai_tone_instruction: getAIToneInstruction(effectiveTone),
         attachments: message.attachments || [],
         timestamp: message.timestamp,
+        original_message: originalMessage || "",
+        normalized_message: normalizedMessage,
+        normalized_for_intent: normalizedForIntent,
+        canonical_signals: intentPayload.canonicalSignals,
+        intent_tokens: intentPayload.intentTokens,
       },
     }),
   });
@@ -848,7 +877,8 @@ router.post("/channels/whatsapp/webhook", async (req, res) => {
       }).catch((error) => {
         console.warn("[ai-agent:whatsapp] mapping upsert skipped", { tenantId, message: error?.message });
       });
-      const escalation = detectEscalation(message.message_text || "");
+      const intentMessage = envText(message.normalized_for_intent || message.message_text || "");
+      const escalation = detectEscalation(intentMessage);
       if (escalation.shouldEscalate) {
         const escalated = await escalateToHuman({
           tenantId,
@@ -1006,7 +1036,7 @@ router.post("/channels/meta/webhook", async (req, res) => {
     for (const message of messages) {
       const channel = message.channel;
       const conversationId = message.external_conversation_id;
-      const customerMessage = message.message_text || "";
+      const customerMessage = envText(message.normalized_for_intent || message.message_text || "");
       const messageId = envText(message.external_message_id || message.dedupe_key || "");
       const { inboundKey, inboundMetaMid } = resolveMetaInboundDedupeContext({ channel, conversationId, message });
       if (isDuplicateMessage(messageId)) {
@@ -1027,7 +1057,7 @@ router.post("/channels/meta/webhook", async (req, res) => {
         });
         continue;
       }
-      const intent = resolveIntent(message.message_text || "");
+      const intent = resolveIntent(customerMessage);
       const detectedSize = extractShoeSize(customerMessage);
       updateConversationMemory(conversationId, {
         lastIntent: intent,
@@ -1082,7 +1112,7 @@ router.post("/channels/meta/webhook", async (req, res) => {
       }).catch((error) => {
         console.warn("[ai-agent:meta] mapping upsert skipped", { tenantId, channel, message: error?.message });
       });
-      const escalation = detectEscalation(message.message_text || "");
+      const escalation = detectEscalation(customerMessage);
       if (escalation.shouldEscalate) {
         const escalated = await escalateToHuman({
           tenantId,

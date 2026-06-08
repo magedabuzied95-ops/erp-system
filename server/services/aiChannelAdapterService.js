@@ -1,6 +1,7 @@
 import crypto from "crypto";
 
 import db from "../database/db.js";
+import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { resolveAIStatus } from "./aiStatusResolver.js";
 import {
   normalizeProductCards as normalizeStructuredProductCards,
@@ -11,6 +12,15 @@ const toText = (value = "", fallback = "") => String(value ?? fallback).trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const json = (value) => JSON.stringify(value === undefined ? null : value);
 const dedupeHash = (value = "") => crypto.createHash("sha256").update(toText(value)).digest("hex");
+
+const logArabicNormalizerDebug = ({ channel, original, normalized, normalizedForIntent } = {}) => {
+  console.log("[arabic-normalizer]", {
+    channel: toText(channel),
+    original: toText(original),
+    normalized: toText(normalized),
+    normalizedForIntent: toText(normalizedForIntent),
+  });
+};
 
 export const AI_AGENT_CHANNELS = Object.freeze({
   WEB_CHAT: "web_chat",
@@ -250,20 +260,45 @@ const normalizeBaseIncomingMessage = ({
   externalMessageId = "",
   replyToMessageId = "",
   dedupeKey = "",
-} = {}) => ({
-  tenant_id: numberOrNull(tenantId),
-  channel: normalizeChannel(channel),
-  external_conversation_id: toText(externalConversationId),
-  external_customer_id: toText(externalCustomerId),
-  customer_name: toText(customerName),
-  message_text: toText(messageText),
-  attachments: normalizeAttachments(attachments),
-  timestamp: timestamp || new Date().toISOString(),
-  external_message_id: toText(externalMessageId),
-  reply_to_message_id: toText(replyToMessageId),
-  dedupe_key: toText(dedupeKey || externalMessageId) || dedupeHash([channel, externalConversationId, externalCustomerId, messageText, timestamp].map(toText).join("|")),
-  raw,
-});
+} = {}) => {
+  const originalMessage = toText(messageText);
+  const intentPayload = normalizeArabicIntentPayload(originalMessage);
+  const normalizedMessage = intentPayload.normalizedText || normalizeArabicMessage(originalMessage);
+  const normalizedForIntent = intentPayload.normalizedForIntent || normalizeArabicForIntent(originalMessage);
+  const normalizedChannel = normalizeChannel(channel);
+  logArabicNormalizerDebug({
+    channel: normalizedChannel,
+    original: originalMessage,
+    normalized: normalizedMessage,
+    normalizedForIntent,
+  });
+  console.log("[arabic-intent-signals]", {
+    channel: normalizedChannel,
+    original: originalMessage,
+    normalizedText: normalizedMessage,
+    normalizedForIntent,
+    canonicalSignals: intentPayload.canonicalSignals,
+  });
+  return {
+    tenant_id: numberOrNull(tenantId),
+    channel: normalizedChannel,
+    external_conversation_id: toText(externalConversationId),
+    external_customer_id: toText(externalCustomerId),
+    customer_name: toText(customerName),
+    message_text: originalMessage,
+    original_message: originalMessage,
+    normalized_message: normalizedMessage,
+    normalized_for_intent: normalizedForIntent,
+    canonical_signals: intentPayload.canonicalSignals,
+    intent_tokens: intentPayload.intentTokens,
+    attachments: normalizeAttachments(attachments),
+    timestamp: timestamp || new Date().toISOString(),
+    external_message_id: toText(externalMessageId),
+    reply_to_message_id: toText(replyToMessageId),
+    dedupe_key: toText(dedupeKey || externalMessageId) || dedupeHash([channel, externalConversationId, externalCustomerId, originalMessage, timestamp].map(toText).join("|")),
+    raw,
+  };
+};
 
 export const normalizeWebChatIncomingMessage = ({ tenantId, body = {}, headers = {} } = {}) => {
   const metadata = body?.metadata && typeof body.metadata === "object" ? body.metadata : {};
@@ -501,11 +536,16 @@ export const normalizeIncomingChannelMessage = ({ channel = AI_AGENT_CHANNELS.WE
 export const buildAiFlowPayloadFromNormalizedMessage = ({ normalizedMessage = {}, body = {}, headers = {} } = {}) => {
   const metadata = body?.metadata && typeof body.metadata === "object" ? body.metadata : {};
   return {
-    message: normalizedMessage.message_text,
+    message: normalizedMessage.original_message || normalizedMessage.message_text,
     tenant_id: normalizedMessage.tenant_id,
     tenantId: normalizedMessage.tenant_id,
     session_id: normalizedMessage.external_conversation_id,
     attachments: normalizedMessage.attachments,
+    original_message: normalizedMessage.original_message || normalizedMessage.message_text,
+    normalized_message: normalizedMessage.normalized_message || "",
+    normalized_for_intent: normalizedMessage.normalized_for_intent || "",
+    canonical_signals: normalizedMessage.canonical_signals || [],
+    intent_tokens: normalizedMessage.intent_tokens || [],
     metadata: {
       ...metadata,
       session_id: normalizedMessage.external_conversation_id || metadata.session_id || body.session_id || headers["x-session-id"] || null,
@@ -516,6 +556,11 @@ export const buildAiFlowPayloadFromNormalizedMessage = ({ normalizedMessage = {}
       external_customer_id: normalizedMessage.external_customer_id,
       attachments: normalizedMessage.attachments,
       timestamp: normalizedMessage.timestamp,
+      original_message: normalizedMessage.original_message || normalizedMessage.message_text,
+      normalized_message: normalizedMessage.normalized_message || "",
+      normalized_for_intent: normalizedMessage.normalized_for_intent || "",
+      canonical_signals: normalizedMessage.canonical_signals || [],
+      intent_tokens: normalizedMessage.intent_tokens || [],
     },
   };
 };

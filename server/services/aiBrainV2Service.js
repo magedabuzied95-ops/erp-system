@@ -2,9 +2,20 @@ import db from "../database/db.js";
 import { AI_AGENT_CHANNELS, normalizeChannel, normalizeOutgoingChannelReply } from "./aiChannelAdapterService.js";
 import { normalizeProductCards, resolvePublicProductImageUrl, resolvePublicProductUrl } from "./aiProductCards.js";
 import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
+import { normalizeArabicForIntent, normalizeArabicIntentPayload } from "../utils/arabicTextNormalizer.js";
+import { resolveProductAlias } from "../utils/productAliasResolver.js";
+import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
+import { rankProductCandidates, scoreProductCandidate } from "../utils/productMatchConfidence.js";
+import {
+  buildConversationMemoryV2,
+  mergeConversationMemoryV2,
+  resolveFollowupContext,
+  summarizeConversationMemoryV2,
+} from "../utils/aiConversationMemoryV2.js";
 
 const text = (value = "", fallback = "") => String(value ?? fallback).trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
+const unique = (items = []) => [...new Set(asArray(items).map((item) => text(item)).filter(Boolean))];
 const numberOrNull = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
@@ -19,12 +30,7 @@ const truthyFlag = (value) =>
   ["true", "1", "yes", "on", "active", "enabled"].includes(String(value || "").trim().toLowerCase());
 
 const normalizeArabic = (value = "") =>
-  text(value)
-    .toLowerCase()
-    .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
-    .replace(/[\u0623\u0625\u0622]/g, "\u0627")
-    .replace(/\u0649/g, "\u064a")
-    .replace(/\u0629/g, "\u0647")
+  normalizeArabicForIntent(value)
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -48,6 +54,8 @@ const extractRequestedSize = (message = "") => {
 const memoryCardsFromContext = (memory = {}) => normalizeProductCards([
   ...asArray(memory?.last_product_cards),
   ...asArray(memory?.lastProductCards),
+  ...asArray(memory?.preferences?.aiConversationMemoryV2?.lastShownProductCards),
+  ...asArray(memory?.aiConversationMemoryV2?.lastShownProductCards),
   ...asArray(memory?.preferences?.last_product_cards),
   ...asArray(memory?.preferences?.lastProductCards),
 ], { limit: 24 });
@@ -673,6 +681,106 @@ const buildPostProductFsmDecision = ({ message = "", memory = {}, intent = "" } 
   return null;
 };
 
+const buildFollowupDecisionFromMemoryV2 = ({ message = "", memory = {}, followupContext = null } = {}) => {
+  const type = text(followupContext?.type || "");
+  if (!type || type === "none") return null;
+  const rememberedCards = memoryCardsFromContext(memory);
+  if (!rememberedCards.length) return null;
+
+  const v2 = memory?.preferences?.aiConversationMemoryV2 || memory?.aiConversationMemoryV2 || null;
+
+  if (type === "more_images_followup" || type === "alternative_followup") {
+    const productCards = normalizeProductCards(rememberedCards.slice(0, 6), { limit: 6 });
+    const activeProductId = text(productCards[0]?.product_id || productCards[0]?.id || activeProductFromMemory(memory));
+    const intentName = type === "more_images_followup" ? "more_images" : "product_search";
+    const responseText = buildBaseText({ intent: intentName, cards: productCards, activeProductId });
+    const memoryUpdates = {
+      active_product_id: activeProductId,
+      selected_product_id: activeProductId,
+      last_product_id: activeProductId,
+      last_product_cards: productCards,
+      lastProductCards: productCards,
+      ai_brain_version: "v2",
+      last_intent: type,
+    };
+    return {
+      text: responseText,
+      answer: responseText,
+      intent: intentName,
+      detected_intent: intentName,
+      products: productCards,
+      suggested_products: productCards,
+      product_cards: productCards,
+      images: productCards
+        .map((card) => ({
+          id: text(card.image_id || card.image_url || card.product_id || card.id),
+          url: text(card.image_url || card.url || card.image),
+          image_url: text(card.image_url || card.url || card.image),
+          product_id: text(card.product_id || card.id),
+        }))
+        .filter((image) => image.url),
+      image_cards: productCards
+        .map((card) => ({
+          id: text(card.image_id || card.image_url || card.product_id || card.id),
+          url: text(card.image_url || card.url || card.image),
+          image_url: text(card.image_url || card.url || card.image),
+          product_id: text(card.product_id || card.id),
+        }))
+        .filter((image) => image.url),
+      quickReplies: [],
+      quick_replies: [],
+      actions: [{ label: "contact_support", value: "contact_support", action: "contact_support" }],
+      suggested_actions: [{ label: "contact_support", value: "contact_support", action: "contact_support" }],
+      memoryUpdates,
+      memory_updates: memoryUpdates,
+      ai_memory_patch: {
+        preferences: {
+          ...memoryUpdates,
+          aiConversationMemoryV2: buildConversationMemoryV2({
+            existingMemory: v2,
+            messageText: message,
+            shownProducts: productCards,
+            selectedProduct: productCards[0] || null,
+            aliasResult: null,
+          }),
+        },
+      },
+      handoff: { needs_human_support: false, reason: "", conversation_status: "" },
+      active_product_id: activeProductId,
+      next_best_action: "contact_support",
+      reply_goal: type === "more_images_followup" ? "show_more_images" : "show_alternatives",
+      sales_stage: "PRODUCT_PRESENTATION",
+      nextRecommendedStage: "contact_support",
+      replyDecisionReason: type === "more_images_followup" ? "v2_more_images_from_memory" : "v2_alternative_from_memory",
+      debug: {
+        source: "aiBrainV2",
+        engine: "ai_brain_v2",
+        legacy_called: false,
+        reason: type === "more_images_followup" ? "v2_more_images_from_memory" : "v2_alternative_from_memory",
+        followup_type: type,
+        memory_v2: summarizeConversationMemoryV2(v2),
+      },
+    };
+  }
+
+  if (type === "color_followup") {
+    const colorDecision = buildColorSelectionFromMemoryCards({ message: followupContext?.color ? followupContext.color : message, memory });
+    if (colorDecision) return colorDecision;
+  }
+
+  if (type === "size_followup") {
+    const sizeDecision = buildSizeFollowupFromMemoryCards({ message: followupContext?.size ? `مقاس ${followupContext.size}` : message, memory });
+    if (sizeDecision) return sizeDecision;
+  }
+
+  if (type === "buying_followup") {
+    const confirmation = buildPostProductOrderConfirmationFromMemoryV2({ message: "تمام", memory });
+    if (confirmation) return confirmation;
+  }
+
+  return null;
+};
+
 const shouldUseColorAvailabilityFromMemory = ({ message = "", memory = {}, intent = "" } = {}) => {
   const normalized = normalizeArabic(message);
   const requestedSize = extractRequestedSize(message) || normalizeSizeToken(memory?.activeSize || memory?.selectedSize || memory?.preferences?.activeSize || memory?.preferences?.selectedSize || "");
@@ -706,9 +814,21 @@ const detectExplicitModel = (message = "") => {
   return null;
 };
 
-const classifyIntent = ({ message = "", attachments = [], explicitModel = null } = {}) => {
+const classifyIntent = ({ message = "", attachments = [], explicitModel = null, canonicalSignals = [] } = {}) => {
   const normalized = normalizeArabic(message);
+  const signalSet = new Set(asArray(canonicalSignals));
+  const hasSignal = (...names) => names.some((name) => signalSet.has(name));
   if (asArray(attachments).length) return "visual_search";
+  if (hasSignal("more_images")) return explicitModel ? "product_search" : "more_images";
+  if (hasSignal("price")) return "price_objection";
+  if (hasSignal("color")) return "color_followup";
+  if (hasSignal("size")) return "size_followup";
+  if (hasSignal("yes", "confirm")) return "bare_confirmation";
+  if (hasSignal("no", "reject", "cancel")) return "bare_confirmation";
+  if (hasSignal("buy")) return "buying_intent";
+  if (hasSignal("alternatives")) return "product_search";
+  if (hasSignal("greeting", "thanks")) return "greeting";
+  if (hasSignal("order_tracking")) return "general";
   if (/(\u0635\u0648\u0631|\u0635\u0648\u0631\u0647|\u0635\u0648\u0631\u0629|photo|image)/i.test(normalized)) return explicitModel ? "product_search" : "more_images";
   if (/(\u063a\u0627\u0644\u064a|\u063a\u0627\u0644\u064a\u0647|expensive|price high)/i.test(normalized)) return "price_objection";
   if (/(\u0644\u0648\u0646|\u0627\u0644\u0648\u0627\u0646|color)/i.test(normalized)) return "color_followup";
@@ -741,11 +861,23 @@ const tenantClause = (alias = "", columns = new Set(), paramIndex = 2) =>
   columns.has("tenant_id") ? `AND ($${paramIndex}::bigint IS NULL OR ${alias}.tenant_id = $${paramIndex}::bigint OR ${alias}.tenant_id IS NULL)` : "";
 
 const searchTermsForMessage = ({ message = "", explicitModel = null } = {}) => {
-  if (explicitModel) return explicitModel.aliases;
-  return normalizeArabic(message)
+  const aliasResult = resolveProductAlias(message);
+  const aliasHints = buildAliasAwareSearchHints({ text: message, aliasResult });
+  if (explicitModel) {
+    return unique([
+      ...explicitModel.aliases,
+      ...(aliasHints.hasAliasHint ? aliasHints.searchTerms : []),
+      ...(aliasHints.hasAliasHint ? aliasHints.productQueryHints : []),
+    ]);
+  }
+  return unique([
+    ...(aliasHints.hasAliasHint ? aliasHints.searchTerms : []),
+    ...(aliasHints.hasAliasHint ? aliasHints.productQueryHints : []),
+    ...normalizeArabic(message)
     .split(/\s+/)
     .filter((term) => term.length >= 2)
-    .slice(0, 8);
+    .slice(0, 8),
+  ]);
 };
 
 const scoreProduct = ({ product = {}, normalizedMessage = "", explicitModel = null } = {}) => {
@@ -796,6 +928,8 @@ const loadCandidateProducts = async ({ tenantId = null, message = "", explicitMo
     column("p", productColumns, ["description"], "''"),
   ];
   const terms = searchTermsForMessage({ message, explicitModel });
+  const aliasResult = resolveProductAlias(message);
+  const aliasHints = buildAliasAwareSearchHints({ text: message, aliasResult });
   const likeClauses = terms.map((_, index) => searchable.map((expr) => `${expr} ILIKE $${index + 2}`).join(" OR "));
   const sql = `
     SELECT p.*
@@ -817,16 +951,29 @@ const loadCandidateProducts = async ({ tenantId = null, message = "", explicitMo
     normalized_text: normalizeArabic(message),
     explicit_model: explicitModel?.model || "",
     search_terms: terms,
+    alias_search_hints: aliasHints,
     rows_returned: result.rows.length,
     first_product_ids: result.rows.slice(0, 20).map((row) => row.id),
     first_product_names: result.rows.slice(0, 20).map((row) => row.name || row.title || row.product_name || ""),
   });
+  console.log("[alias-aware-product-search]", {
+    original: message,
+    canonicalProduct: aliasHints.canonicalProduct,
+    searchTerms: aliasResult.searchTerms || [],
+    productQueryHints: aliasHints.productQueryHints,
+    usedAliasHint: aliasHints.hasAliasHint,
+    fallbackUsed: true,
+    matchedProductId: result.rows[0]?.id || null,
+    matchedProductName: result.rows[0]?.name || result.rows[0]?.title || "",
+    confidence: aliasResult.confidence || 0,
+    channel: "ai_brain_v2",
+  });
   return result.rows || [];
 };
 
-const rankProducts = ({ products = [], message = "", explicitModel = null } = {}) => {
+const rankProducts = ({ products = [], message = "", explicitModel = null, aliasResult = null, searchHints = null, intentPayload = null } = {}) => {
   const normalizedMessage = normalizeArabic(message);
-  return asArray(products)
+  const legacyRanked = asArray(products)
     .map((product) => {
       const scored = scoreProduct({ product, normalizedMessage, explicitModel });
       return {
@@ -836,6 +983,50 @@ const rankProducts = ({ products = [], message = "", explicitModel = null } = {}
       };
     })
     .sort((a, b) => Number(b.ai_brain_v2_score || 0) - Number(a.ai_brain_v2_score || 0) || Number(a.id || 0) - Number(b.id || 0));
+
+  const normalizedPayload = intentPayload || normalizeArabicIntentPayload(message);
+  const confidenceRanking = rankProductCandidates({
+    candidates: legacyRanked,
+    text: message,
+    normalizedPayload,
+    aliasResult,
+    searchHints,
+    intentPayload: normalizedPayload,
+  });
+  console.log("[product-match-confidence]", {
+    original: message,
+    normalizedText: normalizedPayload.normalizedText || "",
+    canonicalProduct: aliasResult?.canonicalProduct || searchHints?.canonicalProduct || null,
+    candidateCount: legacyRanked.length,
+    bestMatchId: confidenceRanking.bestMatch?.id || confidenceRanking.bestMatch?.product_id || null,
+    bestMatchName: confidenceRanking.bestMatch?.name || confidenceRanking.bestMatch?.title || confidenceRanking.bestMatch?.product_name || "",
+    confidence: confidenceRanking.confidence,
+    reasons: confidenceRanking.bestMatch?.product_match_reasons || [],
+    fallbackRecommended: confidenceRanking.fallbackRecommended,
+    channel: "ai_brain_v2",
+  });
+
+  if (confidenceRanking.bestMatch) {
+    return confidenceRanking.rankedCandidates;
+  }
+
+  return legacyRanked.map((product) => {
+    const productConfidence = scoreProductCandidate({
+      product,
+      text: message,
+      normalizedPayload,
+      aliasResult,
+      searchHints,
+      intentPayload: normalizedPayload,
+    });
+    return {
+      ...product,
+      product_match_confidence: productConfidence.confidence,
+      product_match_score: productConfidence.score,
+      product_match_reasons: productConfidence.reasons,
+      product_match_signals: productConfidence.matchedSignals,
+    };
+  });
 };
 
 const loadFullProductForPresentation = async ({ tenantId = null, productId = null } = {}) => {
@@ -1043,9 +1234,11 @@ const activeProductFromMemory = (memory = {}) => {
     preferences.active_product_id ||
     preferences.selected_product_id ||
     preferences.last_product_id ||
+    preferences.aiConversationMemoryV2?.lastMentionedProductId ||
     memory.activeProductId ||
     memory.selectedProductId ||
     memory.last_product_id ||
+    memory.aiConversationMemoryV2?.lastMentionedProductId ||
     ""
   );
 };
@@ -1073,22 +1266,110 @@ const buildBaseText = ({ intent = "", cards = [], explicitModel = null, activePr
 
 export const generateAiBrainV2Decision = async (normalizedInbound = {}, options = {}) => {
   const channel = normalizeChannel(normalizedInbound.channel || normalizedInbound.metadata?.channel || AI_AGENT_CHANNELS.WEB_CHAT);
-  const message = text(normalizedInbound.text || normalizedInbound.message_text || normalizedInbound.message || normalizedInbound.body);
+  const originalMessage = text(
+    normalizedInbound.original_message ||
+      normalizedInbound.metadata?.original_message ||
+      normalizedInbound.message_text ||
+      normalizedInbound.message ||
+      normalizedInbound.body ||
+      normalizedInbound.text
+  );
+  const intentPayload = normalizeArabicIntentPayload(
+    normalizedInbound.normalized_for_intent ||
+      normalizedInbound.metadata?.normalized_for_intent ||
+      normalizedInbound.text ||
+      originalMessage
+  );
+  const message = text(intentPayload.normalizedForIntent || normalizeArabicForIntent(originalMessage));
+  const productAlias = resolveProductAlias(originalMessage || message);
   const tenantId = options.tenantId || normalizedInbound.metadata?.tenant_id || normalizedInbound.metadata?.tenantId || 1;
   const memory = options.memory || normalizedInbound.metadata?.ai_memory || {};
   const memoryActiveProductId = activeProductFromMemory(memory);
+  const memoryV2 = memory?.preferences?.aiConversationMemoryV2 || memory?.aiConversationMemoryV2 || null;
   const explicitModel = detectExplicitModel(message);
-  const intent = classifyIntent({ message, attachments: normalizedInbound.attachments, explicitModel });
+  const followupContextV2 = resolveFollowupContext({
+    memory: memoryV2,
+    messageText: originalMessage,
+    normalizedPayload: intentPayload,
+    intentPayload,
+  });
+  const memoryForTurn = followupContextV2.type !== "none"
+    ? {
+        ...memory,
+        preferences: {
+          ...(memory?.preferences || {}),
+          aiConversationMemoryV2: mergeConversationMemoryV2(
+            memoryV2,
+            buildConversationMemoryV2({
+              existingMemory: memoryV2,
+              messageText: originalMessage,
+              normalizedPayload: intentPayload,
+              intentPayload,
+              aliasResult: productAlias,
+              searchHints: buildAliasAwareSearchHints({ text: originalMessage || message, aliasResult: productAlias }),
+              shownProducts: memoryCardsFromContext(memory),
+              selectedProduct: memoryCardsFromContext(memory)[0] || null,
+              selectedColor: followupContextV2.color || "",
+              selectedSize: followupContextV2.size || "",
+            })
+          ),
+        },
+      }
+    : memory;
+  const intent = classifyIntent({ message, attachments: normalizedInbound.attachments, explicitModel, canonicalSignals: intentPayload.canonicalSignals });
   const activeSize = text(memory?.activeSize || memory?.selectedSize || memory?.preferences?.activeSize || memory?.preferences?.selectedSize || "");
   const activeColor = text(memory?.activeColor || memory?.selectedColor || memory?.preferences?.activeColor || memory?.preferences?.selectedColor || "");
+  console.log("[arabic-intent-signals]", {
+    channel,
+    original: originalMessage,
+    normalizedText: intentPayload.normalizedText,
+    normalizedForIntent: intentPayload.normalizedForIntent,
+    canonicalSignals: intentPayload.canonicalSignals,
+  });
+  console.log("[product-alias]", {
+    channel,
+    original: originalMessage,
+    normalizedText: intentPayload.normalizedText,
+    canonicalProduct: productAlias.canonicalProduct,
+    matchedAlias: productAlias.matchedAlias,
+    confidence: productAlias.confidence,
+  });
+  console.log("[conversation-memory-v2]", {
+    conversationId: text(normalizedInbound.externalConversationId || normalizedInbound.external_conversation_id || normalizedInbound.metadata?.session_id || ""),
+    channel,
+    original: originalMessage,
+    normalizedText: intentPayload.normalizedText,
+    memoryBeforeSummary: summarizeConversationMemoryV2(memoryV2),
+    followupType: followupContextV2.type || "none",
+    resolvedProductId: followupContextV2.productId || null,
+    resolvedColor: followupContextV2.color || "",
+    resolvedSize: followupContextV2.size || "",
+    memoryUpdated: Boolean(followupContextV2.type && followupContextV2.type !== "none"),
+  });
   console.info("AI_V2_FSM_ENTRY", {
     intent,
     message,
+    originalMessage,
     activeProductId: memoryActiveProductId || "",
     activeSize,
     activeColor,
   });
-  const postProductFsmDecision = buildPostProductFsmDecision({ message, memory, intent });
+  const followupDecision = buildFollowupDecisionFromMemoryV2({ message: originalMessage, memory: memoryForTurn, followupContext: followupContextV2 });
+  if (followupDecision) {
+    console.info("AI_BRAIN_V2_DECISION", {
+      channel,
+      conversation_id: text(normalizedInbound.externalConversationId || normalizedInbound.external_conversation_id || normalizedInbound.metadata?.session_id || ""),
+      text_preview: message.slice(0, 160),
+      intent: followupDecision.intent || "",
+      explicit_model: explicitModel?.model || "",
+      products_count: asArray(followupDecision.products).length,
+      product_cards_count: asArray(followupDecision.product_cards).length,
+      top_product_id: followupDecision.active_product_id || "",
+      legacy_called: false,
+    });
+    return followupDecision;
+  }
+  const postProductFsmDecision = buildPostProductFsmDecision({ message, memory: memoryForTurn, intent });
   if (postProductFsmDecision) {
     console.info("AI_BRAIN_V2_DECISION", {
       channel,
@@ -1105,7 +1386,10 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
   }
   const shouldSearch = ["product_search", "more_images", "visual_search"].includes(intent) || Boolean(explicitModel);
   const candidates = shouldSearch ? await loadCandidateProducts({ tenantId, message, explicitModel }) : [];
-  const ranked = rankProducts({ products: candidates, message, explicitModel });
+  const normalizedPayload = normalizeArabicIntentPayload(message);
+  const aliasResult = resolveProductAlias(message);
+  const searchHints = buildAliasAwareSearchHints({ text: message, aliasResult });
+  const ranked = rankProducts({ products: candidates, message, explicitModel, aliasResult, searchHints, intentPayload: normalizedPayload });
   const selectedProducts = ranked.filter((product) => Number(product.ai_brain_v2_score || 0) > 0).slice(0, 6);
   const presentationProducts = selectedProducts.length
     ? selectedProducts
@@ -1161,6 +1445,12 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
       source: "aiBrainV2",
       engine: "ai_brain_v2",
       legacy_called: false,
+      product_alias: {
+        detected: Boolean(productAlias.canonicalProduct),
+        canonicalProduct: productAlias.canonicalProduct,
+        matchedAlias: productAlias.matchedAlias,
+        confidence: productAlias.confidence,
+      },
       explicit_model: explicitModel,
       ranked_candidates: ranked.slice(0, 20).map((product, index) => ({
         rank: index + 1,
