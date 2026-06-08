@@ -1501,13 +1501,11 @@ function OrderDateTimeCell({ value, language }) {
 }
 
 function CustomerCell({ t, order }) {
-  const sourceLabel = SOURCE_LABELS[getOrderSource(order)] ? t(SOURCE_LABELS[getOrderSource(order)]) : order.source || order.channel || "";
   const attribution = getAttributionLabel(order);
   return (
     <div className="min-w-0 pr-3">
       <div className="truncate text-sm font-semibold text-white" title={getCustomerPhone(order)}>{getCustomerDisplayName(order, t("orders.fallback.customer"))}</div>
       <div className="mt-1 flex max-w-full flex-wrap gap-1">
-        {sourceLabel ? <div className="inline-flex max-w-[8rem] truncate rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-bold text-zinc-200">{sourceLabel}</div> : null}
         {attribution ? <div className="inline-flex max-w-[9rem] truncate rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-bold text-cyan-200">{attribution}</div> : null}
       </div>
     </div>
