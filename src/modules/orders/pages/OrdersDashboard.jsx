@@ -366,7 +366,7 @@ const normalizePaymentStatusKey = (order = {}) => {
   if (["paid", "completed", "complete", "settled", "success", "succeeded"].includes(raw)) return "paid";
   if (isShippingPartialDisplayStatus(raw)) return "partially_paid";
   if (["partially_paid", "partially paid", "partial"].includes(raw) || (total > 0 && paid > 0 && paid < total)) return "partially_paid";
-  if (["pending", "unpaid", "awaiting_verification", "shipping_paid"].includes(raw)) return "pending";
+  if (["pending", "unpaid", "awaiting_verification"].includes(raw)) return "pending";
   if (["deferred", "credit", "on_credit", "postpaid"].includes(raw) || ["deferred", "credit"].includes(method)) return "deferred";
   if (["refunded", "refund", "fully_refunded"].includes(raw)) return "refunded";
   if (raw === "cod" || ["cod", "cash_on_delivery", "cash on delivery"].includes(method)) return "cod";
@@ -402,7 +402,11 @@ const getPaymentSummary = (order = {}, language = "en") => {
     : methodLabel && statusKey !== "deferred"
       ? `${statusLabel} \u2022 ${methodLabel}`
       : statusLabel || methodLabel || "-";
-  return { statusKey, methodKey: methodKey || statusKey, label };
+  return {
+    statusKey,
+    methodKey: isShippingPartial ? "partially_paid" : (methodKey || statusKey),
+    label,
+  };
 };
 const isCriticalOrder = (order = {}) => {
   const combined = [order.risk_level, order.risk_status, order.status, order.payment_status, order.transfer_proof_status]
