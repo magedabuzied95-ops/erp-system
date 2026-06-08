@@ -5,6 +5,36 @@ import { sendLoginTaskDigestIfNeeded } from "../services/staffTaskEmailNotificat
 import { ensureStaffTasksSchema, resolveEmployeeForUser } from "../services/staffTasksService.js";
 import { ensureDefaultTenantAndBackfillUsers } from "../utils/tenantBootstrap.js";
 
+export const ensureUsersLoginSchema = async () => {
+  const before = await db.query(
+    `
+    SELECT column_name, data_type, is_nullable
+    FROM information_schema.columns
+    WHERE table_name = 'users'
+      AND column_name = 'last_login_at'
+    LIMIT 1
+    `
+  );
+  console.log("[schema] users.last_login_at before", {
+    exists: before.rows.length > 0,
+    definition: before.rows[0] || null,
+  });
+  await db.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP NULL`);
+  const after = await db.query(
+    `
+    SELECT column_name, data_type, is_nullable
+    FROM information_schema.columns
+    WHERE table_name = 'users'
+      AND column_name = 'last_login_at'
+    LIMIT 1
+    `
+  );
+  console.log("[schema] users.last_login_at after", {
+    exists: after.rows.length > 0,
+    definition: after.rows[0] || null,
+  });
+};
+
 const generateToken = (user) =>
   jwt.sign(
     {
@@ -133,6 +163,11 @@ export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
     await ensureDefaultTenantAndBackfillUsers();
+    await ensureUsersLoginSchema().catch((error) => {
+      console.warn("[schema] users.last_login_at ensure skipped during login", {
+        message: error?.message || String(error),
+      });
+    });
 
     if (!email || !password) {
       return res.status(400).json({

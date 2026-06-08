@@ -25,6 +25,7 @@ import { getEvolutionInstanceEventsDebug, syncEvolutionWebhookOnStartup } from "
 import { protect } from "./middleware/authMiddleware.js";
 import permit from "./middleware/permissionMiddleware.js";
 import { listRecentDisplayRefillAlerts } from "./services/displayRefillAlertService.js";
+import { ensureUsersLoginSchema } from "./controllers/authController.js";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -1163,6 +1164,8 @@ const bootstrapStartup = async () => {
     console.log("[server] database connected");
     await ensureDefaultTenantAndBackfillUsers();
     console.log("[server] default tenant bootstrap ensured");
+    await ensureUsersLoginSchema();
+    console.log("[server] users.last_login_at schema ensured");
     await ensureBranchSchema();
     await ensureSingleBranchModeOnce();
     console.log("[server] single branch mode ensured");
