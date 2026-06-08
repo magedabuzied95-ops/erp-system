@@ -860,6 +860,7 @@ const runJordan4SizeFollowupSequenceTest = async () => {
     });
     const capture = summarizeUnifiedReply(reply);
     colorSelectionCaptures[config.key] = capture;
+    sequenceMemoryByChannel[config.key] = mergeMemory(sequenceMemoryByChannel[config.key], reply.memory_updates || {});
     if (JSON.stringify(reply).includes(LEGACY_NEAREST_PHRASE)) {
       throw new Error(`[AI_JORDAN4_COLOR_SELECTION_LEGACY_LEAK] ${config.key}`);
     }
@@ -905,6 +906,56 @@ const runJordan4SizeFollowupSequenceTest = async () => {
   });
   if (!colorSelectionComparison.decision_match) {
     throw new Error(`[AI_JORDAN4_COLOR_SELECTION_PARITY_FAIL] ${JSON.stringify(colorSelectionComparison.differences)}`);
+  }
+
+  const confirmationCaptures = {};
+  for (const config of channelConfigs) {
+    const reply = await generateUnifiedConversationDecision({
+      channel: config.channel,
+      externalConversationId: `parity-sequence-${config.key}-confirmation`,
+      externalCustomerId: config.to,
+      customerName: "Parity Tester",
+      text: PHRASES.yes,
+      attachments: [],
+      metadata: {
+        tenant_id: 1,
+        channel: config.channel,
+        session_id: `parity-sequence-${config.key}-confirmation`,
+        customer_name: "Parity Tester",
+        customer_phone: config.to,
+        provider_message_id: `mid-sequence-${config.key}-confirmation`,
+        test_case_id: "jordan4_sequence_confirmation",
+        ai_memory: sequenceMemoryByChannel[config.key],
+      },
+    }, {
+      tenantId: 1,
+      memory: sequenceMemoryByChannel[config.key],
+      providerMessageId: `mid-sequence-${config.key}-confirmation`,
+    });
+    const capture = summarizeUnifiedReply(reply);
+    confirmationCaptures[config.key] = capture;
+    if (JSON.stringify(reply).includes(LEGACY_NEAREST_PHRASE)) {
+      throw new Error(`[AI_JORDAN4_CONFIRMATION_LEGACY_LEAK] ${config.key}`);
+    }
+    if (!/الاسم\s+ورقم\s+الموبايل\s+والعنوان/.test(capture.text)) {
+      throw new Error(`[AI_JORDAN4_CONFIRMATION_TEXT_FAIL] ${config.key} :: ${capture.text}`);
+    }
+    if (/موجود معايا|ابعت الموديل أو السؤال اللي محتاجه|السعر:\s*-\s*جنيه|اختارلك أنهي مقاس|أيوه متوفر/i.test(capture.text)) {
+      throw new Error(`[AI_JORDAN4_CONFIRMATION_LEGACY_TEXT_FAIL] ${config.key} :: ${capture.text}`);
+    }
+    console.log("[AI_JORDAN4_CONFIRMATION_CAPTURE]", {
+      channel: config.key,
+      text: capture.text,
+      intent: capture.intent,
+    });
+  }
+
+  const confirmationComparison = compareScenario({
+    inboundText: "Jordan4 order confirmation after color selection",
+    captures: confirmationCaptures,
+  });
+  if (!confirmationComparison.decision_match) {
+    throw new Error(`[AI_JORDAN4_CONFIRMATION_PARITY_FAIL] ${JSON.stringify(confirmationComparison.differences)}`);
   }
 };
 

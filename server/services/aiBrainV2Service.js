@@ -114,9 +114,9 @@ const buildSizeFollowupFromMemoryCards = ({ message = "", memory = {} } = {}) =>
     buyingStage: "size_selected",
     checkoutStage: "size_selected",
     nextRecommendedStage: "color_selection",
-    resolvedQuestionType: "SIZE_FOLLOWUP",
-    replyDecisionReason: "v2_size_followup_from_last_cards",
-    last_intent: "size_followup",
+    resolvedQuestionType: "POST_PRODUCT_SIZE_SELECTED",
+    replyDecisionReason: "v2_post_product_size_selected_from_last_cards",
+    last_intent: "post_product_size_selected",
     ai_brain_version: "v2",
     last_product_cards: rememberedCards,
     lastProductCards: rememberedCards,
@@ -140,8 +140,8 @@ const buildSizeFollowupFromMemoryCards = ({ message = "", memory = {} } = {}) =>
   return {
     text: textReply,
     answer: textReply,
-    intent: "size_followup",
-    detected_intent: "size_followup",
+    intent: "post_product_size_selected",
+    detected_intent: "post_product_size_selected",
     products: filteredCards,
     suggested_products: filteredCards,
     product_cards: filteredCards,
@@ -160,12 +160,12 @@ const buildSizeFollowupFromMemoryCards = ({ message = "", memory = {} } = {}) =>
     reply_goal: matchingCards.length ? "help_pick_color" : "share_available_sizes",
     sales_stage: "SIZE_COLLECTION",
     nextRecommendedStage: "color_selection",
-    replyDecisionReason: "v2_size_followup_from_last_cards",
+    replyDecisionReason: "v2_post_product_size_selected_from_last_cards",
     debug: {
       source: "aiBrainV2",
       engine: "ai_brain_v2",
       legacy_called: false,
-      reason: "v2_size_followup_from_last_cards",
+      reason: "v2_post_product_size_selected_from_last_cards",
       requested_size: requestedSize,
       matching_card_count: matchingCards.length,
       available_sizes: availableSizes,
@@ -202,9 +202,9 @@ const buildColorAvailabilityFromMemoryCards = ({ message = "", memory = {} } = {
     buyingStage: "color_selection",
     checkoutStage: "color_selection",
     nextRecommendedStage: "color_selection",
-    resolvedQuestionType: "COLOR_AVAILABILITY_FROM_SIZE",
-    replyDecisionReason: "v2_color_availability_from_last_cards",
-    last_intent: "color_followup",
+    resolvedQuestionType: "POST_PRODUCT_COLOR_LIST",
+    replyDecisionReason: "v2_post_product_color_list_from_last_cards",
+    last_intent: "post_product_color_list",
     ai_brain_version: "v2",
     last_product_cards: rememberedCards,
     lastProductCards: rememberedCards,
@@ -218,8 +218,8 @@ const buildColorAvailabilityFromMemoryCards = ({ message = "", memory = {} } = {
   return {
     text: textReply,
     answer: textReply,
-    intent: "color_followup",
-    detected_intent: "color_followup",
+    intent: "post_product_color_list",
+    detected_intent: "post_product_color_list",
     products: [],
     suggested_products: [],
     product_cards: [],
@@ -244,12 +244,12 @@ const buildColorAvailabilityFromMemoryCards = ({ message = "", memory = {} } = {
     reply_goal: "show_available_colors",
     sales_stage: "COLOR_COLLECTION",
     nextRecommendedStage: "color_selection",
-    replyDecisionReason: "v2_color_availability_from_last_cards",
+    replyDecisionReason: "v2_post_product_color_list_from_last_cards",
     debug: {
       source: "aiBrainV2",
       engine: "ai_brain_v2",
       legacy_called: false,
-      reason: "v2_color_availability_from_last_cards",
+      reason: "v2_post_product_color_list_from_last_cards",
       requested_size: requestedSize,
       matching_card_count: matchingCards.length,
       colors,
@@ -406,9 +406,9 @@ const buildColorSelectionFromMemoryCards = ({ message = "", memory = {} } = {}) 
     checkoutStage: "color_selected",
     nextRecommendedStage: "order_confirmation",
     selectionStage: "color_selected",
-    resolvedQuestionType: "COLOR_SELECTION_AFTER_SIZE",
-    replyDecisionReason: "v2_color_selection_from_last_cards",
-    last_intent: "color_selected",
+    resolvedQuestionType: "POST_PRODUCT_COLOR_SELECTED",
+    replyDecisionReason: "v2_post_product_color_selected_from_last_cards",
+    last_intent: "post_product_color_selected",
     ai_brain_version: "v2",
     last_product_cards: rememberedCards,
     lastProductCards: rememberedCards,
@@ -416,8 +416,8 @@ const buildColorSelectionFromMemoryCards = ({ message = "", memory = {} } = {}) 
   return {
     text: textReply,
     answer: textReply,
-    intent: "color_selected",
-    detected_intent: "color_selected",
+    intent: "post_product_color_selected",
+    detected_intent: "post_product_color_selected",
     products: normalizedCards,
     suggested_products: normalizedCards,
     product_cards: normalizedCards,
@@ -445,18 +445,232 @@ const buildColorSelectionFromMemoryCards = ({ message = "", memory = {} } = {}) 
     reply_goal: "confirm_selected_variant",
     sales_stage: "COLOR_SELECTION",
     nextRecommendedStage: "order_confirmation",
-    replyDecisionReason: "v2_color_selection_from_last_cards",
+    replyDecisionReason: "v2_post_product_color_selected_from_last_cards",
     debug: {
       source: "aiBrainV2",
       engine: "ai_brain_v2",
       legacy_called: false,
-      reason: "v2_color_selection_from_last_cards",
+      reason: "v2_post_product_color_selected_from_last_cards",
       requested_color: requestedColorKey,
       selected_size: selectedSize,
       selected_variant_id: topVariantId,
       selected_product_id: topProductId,
     },
   };
+};
+
+const buildPostProductOrderConfirmationFromMemory = ({ message = "", memory = {} } = {}) => {
+  const normalized = normalizeArabic(message);
+  if (!/^(\u0627\u064a\u0648\u0647|\u0627\u064a\u0648\u0629|\u0627\u0647|\u0646\u0639\u0645|\u062a\u0645\u0627\u0645|\u0645\u0627\u0634\u064a|ok|yes)$/i.test(normalized)) {
+    return null;
+  }
+  const rememberedCards = memoryCardsFromContext(memory);
+  if (!rememberedCards.length) return null;
+
+  const activeProductId = text(activeProductFromMemory(memory));
+  const activeSize = normalizeSizeToken(memory?.activeSize || memory?.selectedSize || memory?.preferences?.activeSize || memory?.preferences?.selectedSize || "");
+  const activeColor = text(memory?.activeColor || memory?.selectedColor || memory?.preferences?.activeColor || memory?.preferences?.selectedColor || "");
+  if (!activeProductId || !activeSize || !activeColor) return null;
+
+  const productCard = rememberedCards.find((card) => text(card.product_id || card.id || "") === activeProductId) || rememberedCards[0] || {};
+  const modelName = prettyModelName(
+    productCard?.base_name ||
+      productCard?.model_name ||
+      productCard?.product_name ||
+      productCard?.name ||
+      productCard?.title ||
+      "Jordan 4"
+  );
+  const replyText = [
+    "طھظ…ط§ظ…",
+    "",
+    modelName,
+    activeColor,
+    `ظ…ظ‚ط§ط³ ${activeSize}`,
+    "",
+    "ط§ط¨ط¹طھظ„ظٹ ط§ظ„ط§ط³ظ… وط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ظˆط§ظ„ط¹ظ†ظˆط§ظ† ط¹ط´ط§ظ† ط£ط¬ظ‡ط²ظ„ظƒ ط§ظ„ط·ظ„ط¨.",
+  ].join("\n");
+  const memoryUpdates = {
+    active_product_id: activeProductId,
+    selected_product_id: activeProductId,
+    last_product_id: activeProductId,
+    activeSize,
+    selectedSize: activeSize,
+    active_size: activeSize,
+    selected_size: activeSize,
+    activeColor,
+    selectedColor: activeColor,
+    active_color: activeColor,
+    selected_color: activeColor,
+    buyingStage: "collecting_customer_info",
+    checkoutStage: "collecting_customer_info",
+    nextRecommendedStage: "collect_customer_details",
+    resolvedQuestionType: "POST_PRODUCT_ORDER_CONFIRMATION",
+    replyDecisionReason: "v2_post_product_order_confirmation",
+    last_intent: "post_product_order_confirmation",
+    ai_brain_version: "v2",
+    last_product_cards: rememberedCards,
+    lastProductCards: rememberedCards,
+  };
+  return {
+    text: replyText,
+    answer: replyText,
+    intent: "post_product_order_confirmation",
+    detected_intent: "post_product_order_confirmation",
+    products: [],
+    suggested_products: [],
+    product_cards: [],
+    images: [],
+    image_cards: [],
+    quickReplies: [],
+    quick_replies: [],
+    actions: [
+      { label: "collect_customer_details", value: "collect_customer_details", action: "collect_customer_details" },
+      { label: "contact_support", value: "contact_support", action: "contact_support" },
+    ],
+    suggested_actions: [
+      { label: "collect_customer_details", value: "collect_customer_details", action: "collect_customer_details" },
+      { label: "contact_support", value: "contact_support", action: "contact_support" },
+    ],
+    memoryUpdates,
+    memory_updates: memoryUpdates,
+    ai_memory_patch: { preferences: memoryUpdates },
+    handoff: { needs_human_support: false, reason: "", conversation_status: "" },
+    active_product_id: activeProductId,
+    active_size: activeSize,
+    active_color: activeColor,
+    next_best_action: "collect_customer_details",
+    reply_goal: "collect_customer_details",
+    sales_stage: "ORDER_COLLECTION",
+    nextRecommendedStage: "collect_customer_details",
+    replyDecisionReason: "v2_post_product_order_confirmation",
+    debug: {
+      source: "aiBrainV2",
+      engine: "ai_brain_v2",
+      legacy_called: false,
+      reason: "v2_post_product_order_confirmation",
+      active_product_id: activeProductId,
+      active_size: activeSize,
+      active_color: activeColor,
+    },
+  };
+};
+
+const buildPostProductOrderConfirmationFromMemoryV2 = ({ message = "", memory = {} } = {}) => {
+  const normalized = normalizeArabic(message);
+  if (!/^(\u0627\u064a\u0648\u0647|\u0627\u064a\u0648\u0629|\u0627\u0647|\u0646\u0639\u0645|\u062a\u0645\u0627\u0645|\u0645\u0627\u0634\u064a|ok|yes)$/i.test(normalized)) return null;
+
+  const rememberedCards = memoryCardsFromContext(memory);
+  if (!rememberedCards.length) return null;
+
+  const activeProductId = text(activeProductFromMemory(memory));
+  const activeSize = normalizeSizeToken(memory?.activeSize || memory?.selectedSize || memory?.preferences?.activeSize || memory?.preferences?.selectedSize || "");
+  const activeColor = text(memory?.activeColor || memory?.selectedColor || memory?.preferences?.activeColor || memory?.preferences?.selectedColor || "");
+  if (!activeProductId || !activeSize || !activeColor) return null;
+
+  const productCard = rememberedCards.find((card) => text(card.product_id || card.id || "") === activeProductId) || rememberedCards[0] || {};
+  const modelName = prettyModelName(
+    productCard?.base_name ||
+      productCard?.model_name ||
+      productCard?.product_name ||
+      productCard?.name ||
+      productCard?.title ||
+      "Jordan 4"
+  );
+  const replyText = [
+    "\u062a\u0645\u0627\u0645",
+    "",
+    modelName,
+    activeColor,
+    `\u0627\u0644\u0645\u0642\u0627\u0633: ${activeSize}`,
+    "",
+    "\u0627\u0628\u0639\u062a\u0644\u064a \u0627\u0644\u0627\u0633\u0645 \u0648\u0631\u0642\u0645 \u0627\u0644\u0645\u0648\u0628\u0627\u064a\u0644 \u0648\u0627\u0644\u0639\u0646\u0648\u0627\u0646 \u0639\u0634\u0627\u0646 \u0623\u062c\u0647\u0632\u0644\u0643 \u0627\u0644\u0637\u0644\u0628.",
+  ].join("\n");
+  const memoryUpdates = {
+    active_product_id: activeProductId,
+    selected_product_id: activeProductId,
+    last_product_id: activeProductId,
+    activeSize,
+    selectedSize: activeSize,
+    active_size: activeSize,
+    selected_size: activeSize,
+    activeColor,
+    selectedColor: activeColor,
+    active_color: activeColor,
+    selected_color: activeColor,
+    buyingStage: "collecting_customer_info",
+    checkoutStage: "collecting_customer_info",
+    nextRecommendedStage: "collect_customer_details",
+    resolvedQuestionType: "POST_PRODUCT_ORDER_CONFIRMATION",
+    replyDecisionReason: "v2_post_product_order_confirmation",
+    last_intent: "post_product_order_confirmation",
+    ai_brain_version: "v2",
+    last_product_cards: rememberedCards,
+    lastProductCards: rememberedCards,
+  };
+  return {
+    text: replyText,
+    answer: replyText,
+    intent: "post_product_order_confirmation",
+    detected_intent: "post_product_order_confirmation",
+    products: [],
+    suggested_products: [],
+    product_cards: [],
+    images: [],
+    image_cards: [],
+    quickReplies: [],
+    quick_replies: [],
+    actions: [
+      { label: "collect_customer_details", value: "collect_customer_details", action: "collect_customer_details" },
+      { label: "contact_support", value: "contact_support", action: "contact_support" },
+    ],
+    suggested_actions: [
+      { label: "collect_customer_details", value: "collect_customer_details", action: "collect_customer_details" },
+      { label: "contact_support", value: "contact_support", action: "contact_support" },
+    ],
+    memoryUpdates,
+    memory_updates: memoryUpdates,
+    ai_memory_patch: { preferences: memoryUpdates },
+    handoff: { needs_human_support: false, reason: "", conversation_status: "" },
+    active_product_id: activeProductId,
+    active_size: activeSize,
+    active_color: activeColor,
+    next_best_action: "collect_customer_details",
+    reply_goal: "collect_customer_details",
+    sales_stage: "ORDER_COLLECTION",
+    nextRecommendedStage: "collect_customer_details",
+    replyDecisionReason: "v2_post_product_order_confirmation",
+    debug: {
+      source: "aiBrainV2",
+      engine: "ai_brain_v2",
+      legacy_called: false,
+      reason: "v2_post_product_order_confirmation",
+      active_product_id: activeProductId,
+      active_size: activeSize,
+      active_color: activeColor,
+    },
+  };
+};
+
+const buildPostProductFsmDecision = ({ message = "", memory = {}, intent = "" } = {}) => {
+  const rememberedCards = memoryCardsFromContext(memory);
+  const activeProductId = activeProductFromMemory(memory);
+  if (!rememberedCards.length || !activeProductId) return null;
+
+  const confirmation = buildPostProductOrderConfirmationFromMemoryV2({ message, memory });
+  if (confirmation) return confirmation;
+
+  const colorSelection = buildColorSelectionFromMemoryCards({ message, memory });
+  if (colorSelection) return colorSelection;
+
+  const colorAvailability = shouldUseColorAvailabilityFromMemory({ message, memory, intent }) ? buildColorAvailabilityFromMemoryCards({ message, memory }) : null;
+  if (colorAvailability) return colorAvailability;
+
+  if (text(intent).toLowerCase() === "size_followup") {
+    return buildSizeFollowupFromMemoryCards({ message, memory });
+  }
+
+  return null;
 };
 
 const shouldUseColorAvailabilityFromMemory = ({ message = "", memory = {}, intent = "" } = {}) => {
@@ -865,51 +1079,20 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
   const memoryActiveProductId = activeProductFromMemory(memory);
   const explicitModel = detectExplicitModel(message);
   const intent = classifyIntent({ message, attachments: normalizedInbound.attachments, explicitModel });
-  const colorSelectionFromMemory = buildColorSelectionFromMemoryCards({ message, memory });
-  if (colorSelectionFromMemory) {
+  const postProductFsmDecision = buildPostProductFsmDecision({ message, memory, intent });
+  if (postProductFsmDecision) {
     console.info("AI_BRAIN_V2_DECISION", {
       channel,
       conversation_id: text(normalizedInbound.externalConversationId || normalizedInbound.external_conversation_id || normalizedInbound.metadata?.session_id || ""),
       text_preview: message.slice(0, 160),
-      intent: colorSelectionFromMemory.intent,
+      intent: postProductFsmDecision.intent,
       explicit_model: explicitModel?.model || "",
-      products_count: asArray(colorSelectionFromMemory.products).length,
-      product_cards_count: asArray(colorSelectionFromMemory.product_cards).length,
-      top_product_id: colorSelectionFromMemory.active_product_id || "",
+      products_count: asArray(postProductFsmDecision.products).length,
+      product_cards_count: asArray(postProductFsmDecision.product_cards).length,
+      top_product_id: postProductFsmDecision.active_product_id || "",
       legacy_called: false,
     });
-    return colorSelectionFromMemory;
-  }
-  const colorAvailabilityFromMemory = shouldUseColorAvailabilityFromMemory({ message, memory, intent }) ? buildColorAvailabilityFromMemoryCards({ message, memory }) : null;
-  if (colorAvailabilityFromMemory) {
-    console.info("AI_BRAIN_V2_DECISION", {
-      channel,
-      conversation_id: text(normalizedInbound.externalConversationId || normalizedInbound.external_conversation_id || normalizedInbound.metadata?.session_id || ""),
-      text_preview: message.slice(0, 160),
-      intent: colorAvailabilityFromMemory.intent,
-      explicit_model: explicitModel?.model || "",
-      products_count: asArray(colorAvailabilityFromMemory.products).length,
-      product_cards_count: asArray(colorAvailabilityFromMemory.product_cards).length,
-      top_product_id: colorAvailabilityFromMemory.active_product_id || "",
-      legacy_called: false,
-    });
-    return colorAvailabilityFromMemory;
-  }
-
-  const sizeFollowupFromMemory = intent === "size_followup" ? buildSizeFollowupFromMemoryCards({ message, memory }) : null;
-  if (sizeFollowupFromMemory) {
-    console.info("AI_BRAIN_V2_DECISION", {
-      channel,
-      conversation_id: text(normalizedInbound.externalConversationId || normalizedInbound.external_conversation_id || normalizedInbound.metadata?.session_id || ""),
-      text_preview: message.slice(0, 160),
-      intent: sizeFollowupFromMemory.intent,
-      explicit_model: explicitModel?.model || "",
-      products_count: asArray(sizeFollowupFromMemory.products).length,
-      product_cards_count: asArray(sizeFollowupFromMemory.product_cards).length,
-      top_product_id: sizeFollowupFromMemory.active_product_id || "",
-      legacy_called: false,
-    });
-    return sizeFollowupFromMemory;
+    return postProductFsmDecision;
   }
   const shouldSearch = ["product_search", "more_images", "visual_search"].includes(intent) || Boolean(explicitModel);
   const candidates = shouldSearch ? await loadCandidateProducts({ tenantId, message, explicitModel }) : [];

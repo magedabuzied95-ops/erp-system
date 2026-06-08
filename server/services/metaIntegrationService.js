@@ -1362,7 +1362,7 @@ const orchestrateFinalReply = ({ message = {}, replyText = "", productCards = []
     replyText: ownedReply.text,
     metadata: finalMetadata,
   });
-  const protectedV2Intent = /^(product_search|more_images|product_presentation|size_followup|SIZE_FOLLOWUP|color_followup|COLOR_AVAILABILITY_FROM_SIZE|color_selected|COLOR_SELECTED)$/i.test(text(detectedIntent));
+  const protectedV2Intent = /^(product_search|more_images|product_presentation|size_followup|SIZE_FOLLOWUP|color_followup|COLOR_AVAILABILITY_FROM_SIZE|color_selected|COLOR_SELECTED|post_product_size_selected|POST_PRODUCT_SIZE_SELECTED|post_product_color_list|POST_PRODUCT_COLOR_LIST|post_product_color_selected|POST_PRODUCT_COLOR_SELECTED|post_product_order_confirmation|POST_PRODUCT_ORDER_CONFIRMATION)$/i.test(text(detectedIntent));
   if (protectedV2Intent || metadata.preserveReplyText === true || finalMetadata.protectedV2Intent === true) {
     return {
       text: ownedReply.text,
@@ -7619,7 +7619,7 @@ const buildReplyOwnershipContext = ({ message = {}, detectedIntent = "", metadat
 };
 
 const ensureResponseOrchestratorReply = ({ message = {}, replyText = "", detectedIntent = "", metadata = {} } = {}) => {
-  const protectedV2Intent = /^(product_search|more_images|product_presentation|size_followup|SIZE_FOLLOWUP|color_followup|COLOR_AVAILABILITY_FROM_SIZE|color_selected|COLOR_SELECTED)$/i.test(text(detectedIntent));
+  const protectedV2Intent = /^(product_search|more_images|product_presentation|size_followup|SIZE_FOLLOWUP|color_followup|COLOR_AVAILABILITY_FROM_SIZE|color_selected|COLOR_SELECTED|post_product_size_selected|POST_PRODUCT_SIZE_SELECTED|post_product_color_list|POST_PRODUCT_COLOR_LIST|post_product_color_selected|POST_PRODUCT_COLOR_SELECTED|post_product_order_confirmation|POST_PRODUCT_ORDER_CONFIRMATION)$/i.test(text(detectedIntent));
   const alreadyOrchestrated = metadata.responseOrchestratorUsed === true || metadata.replyOwner === "response_orchestrator";
   if (metadata.preserveReplyText === true || protectedV2Intent) {
     return {
@@ -9344,12 +9344,8 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
   }
   const guardedVisualIntroText = visualCards ? closestVisualIntroText({ guard: topConfirmationGuard, replyType: metadata.final_reply_type }) : "";
   const baseIntroText = visualCards ? guardedVisualIntroText : (gate.introText || introText);
-  const v2ProductPresentationIntent = /^(product_search|more_images|product_presentation|size_followup|SIZE_FOLLOWUP|color_followup|COLOR_AVAILABILITY_FROM_SIZE|color_selected|COLOR_SELECTED)$/i.test(text(detectedIntent));
-  const finalIntroText = v2ProductPresentationIntent
-    ? ""
-    : (modelNameSearch && guardedCards.length >= 2
-      ? [modelColorLimitIntro, baseIntroText].filter(Boolean).join("\n")
-      : baseIntroText);
+  const protectedV2ProductIntent = /^(product_search|more_images|product_presentation|size_followup|SIZE_FOLLOWUP|color_followup|COLOR_AVAILABILITY_FROM_SIZE|color_selected|COLOR_SELECTED|post_product_size_selected|POST_PRODUCT_SIZE_SELECTED|post_product_color_list|POST_PRODUCT_COLOR_LIST|post_product_color_selected|POST_PRODUCT_COLOR_SELECTED|post_product_order_confirmation|POST_PRODUCT_ORDER_CONFIRMATION)$/i.test(text(detectedIntent));
+  const finalIntroText = protectedV2ProductIntent ? "" : baseIntroText;
   const productCardsPipelineId = finalReplyPipelineId({
     message,
     owner: "response_orchestrator",
@@ -10179,8 +10175,6 @@ const familyLabelForCard = (card = {}) =>
       card?.product_name ||
       ""
   );
-
-const modelColorLimitIntro = "\u0639\u0646\u062f\u064a \u0645\u0646\u0647 \u0643\u0630\u0627 \u0644\u0648\u0646. \u0623\u0628\u062f\u0623\u0644\u0643 \u0628\u0623\u0642\u0631\u0628 \u0644\u0648\u0646\u064a\u0646\u060c \u0648\u0644\u0648 \u062a\u062d\u0628 \u0623\u0628\u0639\u062a\u0647\u0645\u0644\u0643 \u0643\u0644\u0647\u0645.";
 
 const answerFaqIfMatched = async ({ config, message } = {}) => {
   const faqIntent = detectFaqIntent(message.message_text);
@@ -17052,7 +17046,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
           replyType: productCards.length ? "ai_product_response" : "ai_text_response",
         },
       });
-      const finalReplyText = finalOutbound.text;
+      const finalReplyText = protectedV2ProductIntent ? text(replyText) : finalOutbound.text;
       const finalOutboundMetadata = finalOutbound.metadata;
       const outboundPreview = productCards.length ? productCards.map(productCardReplyText).join("\n\n").slice(0, 500) : finalReplyText;
       if (productCards.length) {
@@ -17081,11 +17075,10 @@ export const processMetaWebhook = async ({ req } = {}) => {
           message,
           text: finalReplyText,
           detectedIntent: "model_color_limit_intro",
-          metadata: { ...finalOutboundMetadata, model_color_limit_applied: true, product_card_count: productCards.length, force_reply_text_passthrough: true },
+          metadata: { ...finalOutboundMetadata, model_color_limit_applied: true, product_card_count: productCards.length, force_reply_text_passthrough: protectedV2ProductIntent },
         });
       }
-      const v2ProductPresentationReply = productCards.length > 0 && modelNameSearch && /أكيد يا فندم|جوردن 4 متوفرة بالألوان دي|فيه لون عجبك أحجزهولك؟/.test(text(replyText));
-      const replyTextForSend = v2ProductPresentationReply ? text(replyText) : finalOutbound.text;
+      const replyTextForSend = protectedV2ProductIntent ? text(replyText) : finalOutbound.text;
       const sendResult = await sendMetaInboxOutboundMessage({
         tenantId: config.tenant_id,
         channel: message.channel,
