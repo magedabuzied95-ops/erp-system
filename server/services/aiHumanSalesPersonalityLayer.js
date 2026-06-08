@@ -1,4 +1,5 @@
 import { resolveActiveProductContext } from "./aiConversationMemoryService.js";
+import { buildAiPriceGuard } from "../utils/aiProductReplyGuards.js";
 
 const text = (value = "", fallback = "") => String(value ?? fallback).trim();
 const asArray = (value) => (Array.isArray(value) ? value : [value]).flat().filter(Boolean);
@@ -639,12 +640,20 @@ const buildSalesReplyReasoning = ({
         productColorText ? `تمام، ${productColorText}. لو تحب أطلعلك صورة لون معين أبعتهالك.` : "أبعتلك الألوان المتاحة؟",
       ],
       PRICE_DISCUSSION: [
-        priceLabel ? `سعره ${priceLabel}. تحب أشوفلك مقاسك؟` : `سعر ${productLabel} موجود. تحب أشوفلك المقاس؟`,
-        priceLabel ? `أيوه، ${productLabel} سعره ${priceLabel}. لو تحب أطلعلك المقاسات كمان.` : `أيوه، ${productLabel} متاح. تحب أقولك السعر والمقاسات؟`,
-        priceLabel ? `سعره ${priceLabel} يا باشا. لو عايز بديل أرخص أطلعلك واحد قريب.` : "أقولك أقرب بديل بسعر أهدى؟",
+        priceGuard.shouldUseSafeReply
+          ? safePriceFallback
+          : priceLabel ? `سعره ${priceLabel}. تحب أشوفلك مقاسك؟` : `سعر ${productLabel} موجود. تحب أشوفلك المقاس؟`,
+        priceGuard.shouldUseSafeReply
+          ? safePriceFallback
+          : priceLabel ? `أيوه، ${productLabel} سعره ${priceLabel}. لو تحب أطلعلك المقاسات كمان.` : `أيوه، ${productLabel} متاح. تحب أقولك السعر والمقاسات؟`,
+        priceGuard.shouldUseSafeReply
+          ? safePriceFallback
+          : priceLabel ? `سعره ${priceLabel} يا باشا. لو عايز بديل أرخص أطلعلك واحد قريب.` : "أقولك أقرب بديل بسعر أهدى؟",
       ],
       OBJECTION_HANDLING: [
-        priceLabel ? `فاهمك يا باشا، ${productLabel} سعره ${priceLabel} عشان خامته أعلى شوية. أطلعلك بديل أرخص؟` : "فاهمك يا باشا، أطلعلك بديل أقرب للمزانية؟",
+        priceGuard.shouldUseSafeReply
+          ? safePriceFallback
+          : priceLabel ? `فاهمك يا باشا، ${productLabel} سعره ${priceLabel} عشان خامته أعلى شوية. أطلعلك بديل أرخص؟` : "فاهمك يا باشا، أطلعلك بديل أقرب للمزانية؟",
         "معاك حق، لو السعر مش مناسب أقدر أرشحلك حاجة قريبة وأهدى.",
         "تمام، لو عايز سعر أهدى أطلعلك بديل شبهه جدًا.",
       ],
@@ -766,6 +775,17 @@ const buildReasoningReplyEngine = ({
   });
   const productLabel = text(productName || inferProductName(response, memory) || activeContext.selected_product_context?.name || activeContext.selected_product_context?.title || "الموديل ده");
   const priceLabel = Number.isFinite(Number(price)) && Number(price) > 0 ? `${Math.round(Number(price)).toLocaleString("en-US")} جنيه` : "";
+  const priceGuard = buildAiPriceGuard({
+    productId: activeContext?.selected_product_context?.product_id || activeContext?.selected_product_context?.id || activeContext?.active_product_id || response?.product_context?.product_id || response?.product_context?.id || null,
+    variantId: activeContext?.selected_product_context?.variant_id || response?.product_context?.variant_id || null,
+    rawPrice: price,
+    product: response?.product_context || asArray(response?.suggested_products)[0] || asArray(response?.product_cards)[0] || activeContext?.selected_product_context || {},
+    productContext: activeContext,
+    memory,
+    messageText: message,
+    route: "ai_human_sales_personality_layer_reasoning",
+  });
+  const safePriceFallback = priceGuard.safeReplyText || "السعر محتاج يتأكد من السيستم قبل التأكيد. ابعتلي اسمك ورقمك لو تحب نكمل.";
   const productColors = productColorList(response?.product_context || asArray(response?.suggested_products)[0] || asArray(response?.product_cards)[0] || activeContext.selected_product_context || {}, memory);
   const selectedProduct = productLabel || text(response?.draft_order?.product_name || response?.draft_order?.product?.name || "");
   const missingFields = asArray(closerMeta?.missing_order_fields || response?.missing_order_fields || response?.closer?.missing_order_fields || []);
@@ -793,8 +813,8 @@ const buildReasoningReplyEngine = ({
   const askPhone = "ابعتلي رقم الموبايل بس عشان أكمّل.";
   const askAddress = "ابعتلي العنوان بالتفصيل وهجهزهولك.";
   const askFollowUp = productLabel && productLabel !== "الموديل ده"
-    ? `أيوه يا باشا، ${productLabel} موجود. تحب المقاس ولا السعر؟`
-    : "أيوه يا باشا، تحب المقاس ولا السعر؟";
+    ? (priceGuard.shouldUseSafeReply ? safePriceFallback : `أيوه يا باشا، ${productLabel} موجود. تحب المقاس ولا السعر؟`)
+    : (priceGuard.shouldUseSafeReply ? safePriceFallback : "أيوه يا باشا، تحب المقاس ولا السعر؟");
   const askAlternative = `تمام يا باشا، أطلعلك بديل شبه ${productLabel && productLabel !== "الموديل ده" ? productLabel : "ده"}؟`;
   const askImages = `حاضر يا باشا، أبعتلك صور أكتر لنفس ${productLabel && productLabel !== "الموديل ده" ? productLabel : "الموديل"}؟`;
   const askPriceAlternative = priceLabel
@@ -841,9 +861,11 @@ const buildReasoningReplyEngine = ({
   } else if (hasImageSignal) {
     primaryText = askImages;
   } else if (hasPriceSignal) {
-    primaryText = priceLabel
-      ? `فاهمك يا باشا، ${productLabel && productLabel !== "الموديل ده" ? productLabel : "ده"} سعره ${priceLabel} عشان خامته أعلى وشكله أقوى شوية. لو تحب أطلعلك حاجة أهدى في السعر.`
-      : "فاهمك يا باشا، لو السعر مش مناسب أشرحلك القيمة الأول، ولو تحب أطلعلك حاجة أهدى.";
+    primaryText = priceGuard.shouldUseSafeReply
+      ? safePriceFallback
+      : priceLabel
+        ? `فاهمك يا باشا، ${productLabel && productLabel !== "الموديل ده" ? productLabel : "ده"} سعره ${priceLabel} عشان خامته أعلى وشكله أقوى شوية. لو تحب أطلعلك حاجة أهدى في السعر.`
+        : "فاهمك يا باشا، لو السعر مش مناسب أشرحلك القيمة الأول، ولو تحب أطلعلك حاجة أهدى.";
   } else if (salesStage === "SIZE_COLLECTION") {
     primaryText = askSize;
   } else if (salesStage === "COLOR_COLLECTION") {
@@ -853,7 +875,7 @@ const buildReasoningReplyEngine = ({
       ? `فاهمك يا باشا، ${productLabel && productLabel !== "الموديل ده" ? productLabel : "ده"} سعره ${priceLabel} عشان خامته أعلى وشكله أقوى شوية. لو السعر هو المشكلة أقدر أطلعلك حاجة أقرب للمزانية.`
       : "فاهمك يا باشا، لو السعر مش مناسب أشرحلك ليه المنتج ده مختلف، وبعدها أطلعلك بديل قريب.";
   } else if (salesStage === "PRODUCT_MATCHED" || salesStage === "PRODUCT_PRESENTATION") {
-    primaryText = askFollowUp;
+    primaryText = priceGuard.shouldUseSafeReply ? safePriceFallback : askFollowUp;
   } else if (salesStage === "DISCOVERY") {
     primaryText = askProduct;
   } else if (salesStage === "BUYING_INTENT") {
@@ -890,9 +912,9 @@ const buildReasoningReplyEngine = ({
                             ? `فاهمك يا باشا، تحب بديل أخف ولا نكمّل على ده؟`
                             : askFollowUp,
     hasPriceSignal
-      ? `سعره ${priceLabel || "موجود"} يا باشا، تحب بديل أخف؟`
+      ? (priceGuard.shouldUseSafeReply ? safePriceFallback : `سعره ${priceLabel || "موجود"} يا باشا، تحب بديل أخف؟`)
       : salesStage === "PRODUCT_MATCHED"
-        ? `أيوه يا باشا، ${productLabel && productLabel !== "الموديل ده" ? productLabel : "ده"} موجود. تحب المقاس ولا السعر؟`
+        ? (priceGuard.shouldUseSafeReply ? safePriceFallback : `أيوه يا باشا، ${productLabel && productLabel !== "الموديل ده" ? productLabel : "ده"} موجود. تحب المقاس ولا السعر؟`)
         : `تمام يا باشا، ابعتلي اللي ناقص وأنا أجهزهولك.`,
   ].map((item) => sanitizeForbiddenPhrases(text(item))).filter(Boolean);
 
@@ -927,9 +949,22 @@ const buildReplyVariations = ({
   size = "",
   response = {},
   message = "",
+  memory = {},
+  activeContext = {},
 } = {}) => {
   const productLabel = productName || "الموديل ده";
   const priceLabel = Number.isFinite(Number(price)) && Number(price) > 0 ? `${Math.round(Number(price)).toLocaleString("en-US")} جنيه` : "";
+  const priceGuard = buildAiPriceGuard({
+    productId: activeContext?.selected_product_context?.product_id || activeContext?.selected_product_context?.id || activeContext?.active_product_id || response?.product_context?.product_id || response?.product_context?.id || null,
+    variantId: activeContext?.selected_product_context?.variant_id || response?.product_context?.variant_id || null,
+    rawPrice: price,
+    product: response?.product_context || asArray(response?.suggested_products)[0] || asArray(response?.product_cards)[0] || activeContext?.selected_product_context || {},
+    productContext: activeContext,
+    memory,
+    messageText: message,
+    route: "ai_human_sales_personality_layer",
+  });
+  const safePriceFallback = priceGuard.safeReplyText || "السعر محتاج يتأكد من السيستم قبل التأكيد. ابعتلي اسمك ورقمك لو تحب نكمل.";
   const base = sanitizeForbiddenPhrases(baseText);
 
   const templates = {
@@ -938,11 +973,17 @@ const buildReplyVariations = ({
       "نورتنا، ابعت الاسم أو الصورة وأنا أظبطهولك.",
       "تمام، لو عندك موديل معين ابعته وأنا أقولك المتاح.",
     ],
-    PRODUCT_PRESENTATION: [
-      [productLabel !== "الموديل ده" ? `${productLabel} موجود` : "أيوه موجود", priceLabel ? `سعره ${priceLabel}.` : "", "تحب أشوفلك الألوان والمقاسات؟"].filter(Boolean).join(" "),
-      [productLabel !== "الموديل ده" ? `${productLabel} موجود عندي` : "أيوه، موجود عندي", priceLabel ? `وسعره ${priceLabel}.` : "", "أطلعلك المتاح منه؟"].filter(Boolean).join(" "),
-      [productLabel !== "الموديل ده" ? `تمام، ${productLabel} موجود` : "تمام، الموجود هو ده", priceLabel ? `وسعره ${priceLabel}.` : "", "أبعتهولك بالألوان والمقاسات؟"].filter(Boolean).join(" "),
-    ],
+      PRODUCT_PRESENTATION: [
+        priceGuard.shouldUseSafeReply
+          ? safePriceFallback
+          : [productLabel !== "الموديل ده" ? `${productLabel} موجود` : "أيوه موجود", `سعره ${priceLabel}.`, "تحب أشوفلك الألوان والمقاسات؟"].filter(Boolean).join(" "),
+        priceGuard.shouldUseSafeReply
+          ? safePriceFallback
+          : [productLabel !== "الموديل ده" ? `${productLabel} موجود عندي` : "أيوه، موجود عندي", `وسعره ${priceLabel}.`, "أطلعلك المتاح منه؟"].filter(Boolean).join(" "),
+        priceGuard.shouldUseSafeReply
+          ? safePriceFallback
+          : [productLabel !== "الموديل ده" ? `تمام، ${productLabel} موجود` : "تمام، الموجود هو ده", `وسعره ${priceLabel}.`, "أبعتهولك بالألوان والمقاسات؟"].filter(Boolean).join(" "),
+      ],
     PRODUCT_PRESENTATION_FOLLOWUP: [
       "حاضر يا باشا، أبعتلك صور زيادة لنفس الموديل.",
       "أهو شوية صور كمان لنفس الستايل.",
@@ -1060,6 +1101,8 @@ export function applyHumanSalesPersonalityLayer({
           size,
           response,
           message,
+          memory,
+          activeContext,
         });
   const picked = deterministicPick(buildReasonedVariations, [conversationId, message, productName, price || "", templateStage, reasoning.reply_goal || ""].join("|"));
   let selectedText = sanitizeForbiddenPhrases(text(reasonedReply.text || picked?.text || closerMeta?.closer_text || buildReasonedVariations[0]?.text || baseText));
