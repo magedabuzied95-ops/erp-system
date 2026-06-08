@@ -1032,7 +1032,17 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
     return { triggered: false, sent: false, reason: "missing_required_input" };
   }
 
-  const decision = await shouldAutoReplyToWhatsapp({ tenantId: safeTenantId, conversationId: safeSessionId });
+  const decision = dryRun
+    ? {
+        ok: true,
+        reason: "dry_run",
+        globalMode: "dry_run",
+        channelMode: "dry_run",
+        runtimeMode: "dry_run",
+        effectiveMode: "dry_run",
+        shouldAutoSend: false,
+      }
+    : await shouldAutoReplyToWhatsapp({ tenantId: safeTenantId, conversationId: safeSessionId });
   await addTraceStep(traceId, "ai_mode_check", {
     globalMode: decision.globalMode,
     channelMode: decision.channelMode,
@@ -1054,34 +1064,6 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
     });
     await finishTrace(traceId, { status: "skipped", reason: decision.reason });
     return { triggered: false, sent: false, reason: decision.reason };
-  }
-
-  const escalation = detectEscalation(body);
-  if (escalation.shouldEscalate) {
-    logUnifiedDecisionEarlyReturn({
-      channel: AI_AGENT_CHANNELS.WHATSAPP,
-      reason: escalation.reason || "local_escalation_detector",
-      intent: "escalation",
-      text: body,
-      conversationId: safeSessionId,
-    });
-    await markAiSupportConversationEscalated({
-      tenantId: safeTenantId,
-      sessionId: safeSessionId,
-      reason: escalation.reason || "CUSTOMER_RISK_OR_COMPLAINT",
-      keyword: escalation.keyword || "",
-      source: "whatsapp_ai_auto_reply",
-    });
-    console.info("[whatsapp:ai-skipped]", { reason: escalation.reason || "escalated_to_human", tenantId: safeTenantId, sessionId: safeSessionId, keyword: escalation.keyword || "" });
-    await addTraceStep(traceId, "reply_generation", {
-      generated_text: "",
-      response_type: "escalation",
-      detectedIntent: "escalation",
-      confidence: escalation.confidence || null,
-      skip_reason: escalation.reason || "escalated_to_human",
-    });
-    await finishTrace(traceId, { status: "skipped", reason: escalation.reason || "escalated_to_human" });
-    return { triggered: false, sent: false, reason: escalation.reason || "escalated_to_human" };
   }
 
   const message = {
@@ -1173,6 +1155,33 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
       sessionId: safeSessionId,
       phone: safePhone,
     };
+  }
+  const escalation = detectEscalation(body);
+  if (escalation.shouldEscalate) {
+    logUnifiedDecisionEarlyReturn({
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      reason: escalation.reason || "local_escalation_detector",
+      intent: "escalation",
+      text: body,
+      conversationId: safeSessionId,
+    });
+    await markAiSupportConversationEscalated({
+      tenantId: safeTenantId,
+      sessionId: safeSessionId,
+      reason: escalation.reason || "CUSTOMER_RISK_OR_COMPLAINT",
+      keyword: escalation.keyword || "",
+      source: "whatsapp_ai_auto_reply",
+    });
+    console.info("[whatsapp:ai-skipped]", { reason: escalation.reason || "escalated_to_human", tenantId: safeTenantId, sessionId: safeSessionId, keyword: escalation.keyword || "" });
+    await addTraceStep(traceId, "reply_generation", {
+      generated_text: "",
+      response_type: "escalation",
+      detectedIntent: "escalation",
+      confidence: escalation.confidence || null,
+      skip_reason: escalation.reason || "escalated_to_human",
+    });
+    await finishTrace(traceId, { status: "skipped", reason: escalation.reason || "escalated_to_human" });
+    return { triggered: false, sent: false, reason: escalation.reason || "escalated_to_human" };
   }
   const cleanProductIntent = detectVisualProductIntent(body);
   const cleanProductTrace = cleanVisualProductQuery({ message: body, detectedIntent: cleanProductIntent, memory: loadedMemory });

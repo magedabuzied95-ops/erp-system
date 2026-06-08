@@ -287,6 +287,21 @@ const summarizeUnifiedReply = (reply = {}) => ({
   products: Array.isArray(reply.products) ? reply.products.map(normalizeProductEntry) : [],
   product_cards: Array.isArray(reply.product_cards) ? reply.product_cards.map(normalizeCardEntry) : [],
   image_cards: Array.isArray(reply.image_cards) ? reply.image_cards.map(normalizeImageCardEntry) : [],
+  top_product_id: text(
+    reply.product_cards?.[0]?.product_id ||
+      reply.product_cards?.[0]?.id ||
+      reply.products?.[0]?.product_id ||
+      reply.products?.[0]?.id ||
+      ""
+  ),
+  product_ids: [
+    ...(Array.isArray(reply.product_cards) ? reply.product_cards : []),
+    ...(Array.isArray(reply.products) ? reply.products : []),
+  ].map((item) => text(item.product_id || item.id || item.variant_id || item.sku)).filter(Boolean),
+  image_ids_or_urls: [
+    ...(Array.isArray(reply.image_cards) ? reply.image_cards : []),
+    ...(Array.isArray(reply.images) ? reply.images : []),
+  ].map((item) => text(item.id || item.image_id || item.url || item.image_url || item.image || item.main_image)).filter(Boolean),
   quick_replies: Array.isArray(reply.quick_replies) ? reply.quick_replies.map(normalizeQuickActionEntry) : [],
   actions: Array.isArray(reply.actions) ? reply.actions.map(normalizeQuickActionEntry) : [],
   closer: normalizeCloser(reply.closer),
@@ -335,6 +350,10 @@ const compareScenario = ({ inboundText, captures }) => {
 
   for (const [channel, capture] of entries.slice(1)) {
     const channelDiffs = [];
+    if (!eq(normalizedDecisionSignature(capture), normalizedDecisionSignature(baseline))) {
+      decisionMatch = false;
+      channelDiffs.push("normalized_decision_signature");
+    }
     if (!eq(capture.text, baseline.text)) {
       textMatch = false;
       decisionMatch = false;
@@ -509,6 +528,73 @@ const validateScenarioExpectations = ({ scenario = {}, capture = {}, channel = "
     throw new Error(`[AI_CHANNEL_PARITY_EXPECTATION_FAIL] ${scenario.id}:${channel} ${issues.join(" | ")}`);
   }
 };
+
+const runRealEntryDryRun = async ({ inboundText }) => {
+  if (String(process.env.AI_CHANNEL_PARITY_REAL_DRY_RUN || "1").toLowerCase() === "0") return null;
+  const suffix = normalizeId(inboundText);
+  const whatsapp = await generateWhatsappAiAutoReply({
+    tenantId: 1,
+    phone: "201000000000",
+    sessionId: `parity-real-whatsapp-${suffix}`,
+    customerName: "Parity Tester",
+    messageText: inboundText,
+    dryRun: true,
+  });
+  const messenger = await generateMetaUnifiedDecisionDryRun({
+    config: { tenant_id: 1, branch_id: null },
+    channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+    message: {
+      channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+      external_conversation_id: `parity-real-messenger-${suffix}`,
+      external_customer_id: "100000000000000",
+      customer_name: "Parity Tester",
+      message_text: inboundText,
+      attachments: [],
+      external_message_id: `mid-real-messenger-${suffix}`,
+    },
+  });
+  const instagram = await generateMetaUnifiedDecisionDryRun({
+    config: { tenant_id: 1, branch_id: null },
+    channel: AI_AGENT_CHANNELS.INSTAGRAM,
+    message: {
+      channel: AI_AGENT_CHANNELS.INSTAGRAM,
+      external_conversation_id: `parity-real-instagram-${suffix}`,
+      external_customer_id: "100000000000000",
+      customer_name: "Parity Tester",
+      message_text: inboundText,
+      attachments: [],
+      external_message_id: `mid-real-instagram-${suffix}`,
+    },
+  });
+  const website = await generateUnifiedConversationDecision({
+    channel: AI_AGENT_CHANNELS.WEB_CHAT,
+    externalConversationId: `parity-real-website-${suffix}`,
+    externalCustomerId: "web-chat-runtime",
+    customerName: "Parity Tester",
+    text: inboundText,
+    attachments: [],
+    metadata: {
+      tenant_id: 1,
+      channel: AI_AGENT_CHANNELS.WEB_CHAT,
+      session_id: `parity-real-website-${suffix}`,
+      customer_name: "Parity Tester",
+      customer_phone: "web-chat-runtime",
+      dry_run: true,
+    },
+  }, { tenantId: 1 });
+
+  const captures = {
+    whatsapp: summarizeUnifiedReply(whatsapp.unifiedDecision || whatsapp.aiPayload || {}),
+    messenger: summarizeUnifiedReply(messenger),
+    instagram: summarizeUnifiedReply(instagram),
+    website: summarizeUnifiedReply(website),
+  };
+  console.log("[AI_CHANNEL_REAL_ENTRY_DRY_RUN]", {
+    inbound_text: inboundText,
+    signatures: Object.fromEntries(Object.entries(captures).map(([channel, capture]) => [channel, normalizedDecisionSignature(capture)])),
+  });
+  return compareScenario({ inboundText: `${inboundText} [real-entry-dry-run]`, captures });
+};
 const channelConfigs = [
   { key: "whatsapp", channel: AI_AGENT_CHANNELS.WHATSAPP, to: "201000000000" },
   { key: "messenger", channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, to: "100000000000000" },
@@ -533,6 +619,7 @@ const parityScenarios = [
       rich_product_cards: true,
     },
   },
+  { id: "requested_jordan4_typo_phrase", message: "ممكن ثور جوردن فور", test_case_id: "product_inquiry" },
   { id: "more_images", message: "صور أكتر", test_case_id: "more_images" },
   { id: "price_objection", message: "غالي شوية", test_case_id: "price_objection" },
   { id: "size_only", message: "عايز مقاس 42", test_case_id: "size_availability" },
@@ -1412,34 +1499,25 @@ const run = async () => {
     const memoryByChannel = Object.fromEntries(channelConfigs.map((item) => [item.key, { ...(scenario.seedMemory || {}) }]));
 
     for (const config of channelConfigs) {
-      const reply = await generateUnifiedAiReply({
-        tenantId: 1,
+      const reply = await generateUnifiedConversationDecision({
         channel: config.channel,
-        conversation: {
-          id: `parity-${config.key}-${normalizeId(inboundText)}`,
+        externalConversationId: `parity-${config.key}-${normalizeId(inboundText)}`,
+        externalCustomerId: config.to,
+        customerName: "Parity Tester",
+        text: inboundText,
+        attachments: [],
+        metadata: {
+          tenant_id: 1,
+          channel: config.channel,
           session_id: `parity-${config.key}-${normalizeId(inboundText)}`,
           customer_name: "Parity Tester",
           customer_phone: config.to,
-        },
-        customer: {
-          id: `customer-${config.key}`,
-          name: "Parity Tester",
-          phone: config.to,
-        },
-        message: {
-          text: inboundText,
           provider_message_id: `mid-${config.key}-${normalizeId(inboundText)}`,
-          metadata: {
-            channel: config.channel,
-            session_id: `parity-${config.key}-${normalizeId(inboundText)}`,
-            customer_name: "Parity Tester",
-            customer_phone: config.to,
-            provider_message_id: `mid-${config.key}-${normalizeId(inboundText)}`,
-            test_case_id: scenario.test_case_id || scenario.id || "",
-            ai_memory: memoryByChannel[config.key],
-          },
+          test_case_id: scenario.test_case_id || scenario.id || "",
+          ai_memory: memoryByChannel[config.key],
         },
-        attachments: [],
+      }, {
+        tenantId: 1,
         memory: memoryByChannel[config.key],
         providerMessageId: `mid-${config.key}-${normalizeId(inboundText)}`,
       });
@@ -1475,6 +1553,7 @@ const run = async () => {
         confidence: capture.confidence,
         why_this_reply: capture.why_this_reply,
         memory_updates: capture.memory_updates,
+        normalized_decision_signature: normalizedDecisionSignature(capture),
       });
     }
 
@@ -1508,6 +1587,7 @@ const run = async () => {
 
   console.log("\nParity Report");
   console.table(summaryRows);
+  await runRealEntryDryRun({ inboundText: "ممكن ثور جوردن فور" });
 };
 
 run().catch((error) => {

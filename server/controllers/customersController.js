@@ -1344,8 +1344,12 @@ export const listCustomers = async (req, res) => {
   try {
     await ensureCustomerSchema();
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 10;
+    const rawPage = Number(req.query.page);
+    const rawLimit = Number(req.query.limit);
+    const page = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1;
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0
+      ? Math.min(200, Math.floor(rawLimit))
+      : 50;
     const search = String(req.query.search || "").trim();
     const offset = (page - 1) * limit;
     const columns = await getCustomerColumns();
@@ -1439,6 +1443,7 @@ export const listCustomers = async (req, res) => {
         page,
         limit,
         totalPages: Math.ceil(Number(total.rows[0].count) / limit),
+        hasMore: offset + data.length < Number(total.rows[0].count),
       },
     });
   } catch (error) {
