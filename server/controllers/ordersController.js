@@ -417,6 +417,7 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
       refund_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
       refund_method VARCHAR(50),
       exchange_difference NUMERIC(12,2) NOT NULL DEFAULT 0,
+      metadata JSONB NULL,
       created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -438,6 +439,7 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS returns ADD COLUMN IF NOT EXISTS exchange_difference NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS returns ADD COLUMN IF NOT EXISTS shift_id BIGINT NULL`);
   await client.query(`ALTER TABLE IF EXISTS returns ADD COLUMN IF NOT EXISTS cashier_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL`);
+  await client.query(`ALTER TABLE IF EXISTS returns ADD COLUMN IF NOT EXISTS metadata JSONB NULL`);
   await client.query(`
     UPDATE orders
     SET invoice_number = 'INV-' || id::text
@@ -6294,6 +6296,9 @@ export const createReturn = async (req, res) => {
     }
 
     await ensureReturnFlowAccountingReady({ routeName, orderId, tenantId: requestTenantId });
+    logReturnFlowStep(routeName, { orderId, tenantId: requestTenantId, step: "orders_schema:before" });
+    await ensurePosShiftOrderColumns(client, requestTenantId);
+    logReturnFlowStep(routeName, { orderId, tenantId: requestTenantId, step: "orders_schema:after" });
     logReturnFlowStep(routeName, { orderId, tenantId: requestTenantId, step: "transaction:begin" });
     await client.query("BEGIN");
 
