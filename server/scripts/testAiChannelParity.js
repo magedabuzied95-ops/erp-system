@@ -9,6 +9,20 @@ dotenv.config({ path: fileURLToPath(new URL("../.env", import.meta.url)) });
 
 process.env.AI_SUPPORT_DEBUG = process.env.AI_SUPPORT_DEBUG || "1";
 
+const PHRASES = {
+  jordan4Images: "\u0645\u0645\u0643\u0646 \u0635\u0648\u0631 \u062c\u0648\u0631\u062f\u0646 \u0641\u0648\u0631",
+  jordan4Bare: "\u062c\u0648\u0631\u062f\u0646 \u0641\u0648\u0631",
+  jordan4Typo: "\u0645\u0645\u0643\u0646 \u062b\u0648\u0631 \u062c\u0648\u0631\u062f\u0646 \u0641\u0648\u0631",
+  vagueShoe: "\u0639\u0627\u064a\u0632 \u0643\u0648\u062a\u0634\u064a",
+  moreImages: "\u0635\u0648\u0631 \u0623\u0643\u062a\u0631",
+  size42: "\u0639\u0627\u064a\u0632 \u0645\u0642\u0627\u0633 42",
+  yes: "\u0623\u064a\u0648\u0647",
+  otherColor: "\u0644\u0648\u0646 \u062a\u0627\u0646\u064a",
+  price: "\u0628\u0643\u0627\u0645",
+  available: "\u0645\u062a\u0627\u062d\u061f",
+  buy: "\u0639\u0627\u064a\u0632 \u0627\u0634\u062a\u0631\u064a",
+};
+
 const text = (value = "") => String(value ?? "").trim();
 const divergenceEvents = [];
 const originalConsoleWarn = console.warn.bind(console);
@@ -532,6 +546,19 @@ const validateScenarioExpectations = ({ scenario = {}, capture = {}, channel = "
       issues.push("first_card_missing_rich_fields");
     }
   }
+  if (expectations.no_gender_clarification === true) {
+    const replyText = text(capture.text || capture.reply_text || "");
+    const isGenderQuestion = /(\u0627\u0644\u062c\u0646\u0633|\u0631\u062c\u0627\u0644\u064a\s+\u0648\u0644\u0627\s+\u062d\u0631\u064a\u0645\u064a|gender)/i.test(replyText);
+    if (isGenderQuestion || capture.intent === "classification_clarification") {
+      issues.push("unexpected_gender_clarification");
+    }
+  }
+  if (expectations.allow_gender_clarification === true) {
+    const replyText = text(capture.text || capture.reply_text || "");
+    const hasClarification = /(\u0627\u0644\u062c\u0646\u0633|\u0631\u062c\u0627\u0644\u064a\s+\u0648\u0644\u0627\s+\u062d\u0631\u064a\u0645\u064a|gender)/i.test(replyText) ||
+      capture.intent === "classification_clarification";
+    if (!hasClarification) issues.push("expected_gender_clarification_missing");
+  }
   if (issues.length) {
     throw new Error(`[AI_CHANNEL_PARITY_EXPECTATION_FAIL] ${scenario.id}:${channel} ${issues.join(" | ")}`);
   }
@@ -601,6 +628,24 @@ const runRealEntryDryRun = async ({ inboundText }) => {
     inbound_text: inboundText,
     signatures: Object.fromEntries(Object.entries(captures).map(([channel, capture]) => [channel, normalizedDecisionSignature(capture)])),
   });
+  if (inboundText === PHRASES.jordan4Images) {
+    for (const [channel, capture] of Object.entries(captures)) {
+      validateScenarioExpectations({
+        scenario: { id: "requested_jordan4_images_phrase_real_entry", expectations: { no_gender_clarification: true } },
+        capture,
+        channel,
+      });
+    }
+  }
+  if (inboundText === PHRASES.vagueShoe) {
+    for (const [channel, capture] of Object.entries(captures)) {
+      validateScenarioExpectations({
+        scenario: { id: "vague_shoe_gender_clarification_real_entry", expectations: { allow_gender_clarification: true } },
+        capture,
+        channel,
+      });
+    }
+  }
   return compareScenario({ inboundText: `${inboundText} [real-entry-dry-run]`, captures });
 };
 const channelConfigs = [
@@ -610,6 +655,8 @@ const channelConfigs = [
   { key: "website_chat", channel: AI_AGENT_CHANNELS.WEB_CHAT, to: "web-chat-runtime" },
 ];
 const requiredUnifiedPhrases = [
+  PHRASES.jordan4Images,
+  PHRASES.vagueShoe,
   "ممكن ثور جوردن فور",
   "صور أكتر",
   "عايز مقاس 42",
@@ -628,6 +675,8 @@ const scenarios = [
   "كلم بني آدم",
 ];
 const parityScenarios = [
+  { id: "requested_jordan4_images_phrase", message: PHRASES.jordan4Images, test_case_id: "product_inquiry", expectations: { no_gender_clarification: true } },
+  { id: "vague_shoe_gender_clarification", message: PHRASES.vagueShoe, test_case_id: "vague_shoe_gender_clarification", expectations: { allow_gender_clarification: true } },
   { id: "product_search_jordan", message: "عندك جوردن 4؟", test_case_id: "product_inquiry" },
   {
     id: "rich_cards_jordan4",
@@ -972,6 +1021,15 @@ const makeReasoning = ({
 globalThis.fetch = async (_input, init = {}) => {
   const body = JSON.parse(init.body || "{}");
   const messageText = text(body.message || "");
+  const unicodeHasJordan = /(\u062c\u0648\u0631\u062f\u0646|jordan|aj4|j4)/i.test(messageText);
+  const unicodeWantsImages = /(\u0635\u0648\u0631|image|photo)/i.test(messageText);
+  const unicodeVagueShoe = /(\u0639\u0627\u064a\u0632\s+\u0643\u0648\u062a\u0634\u064a|\u0639\u0646\u062f\u0643\s+\u0634\u0648\u0632|\u0643\u0648\u062a\u0634\u064a|shoes?)/i.test(messageText);
+  const unicodeWantsPriceQuestion = /(\u0628\u0643\u0627\u0645|\u0643\u0627\u0645|\u0627\u0644\u0633\u0639\u0631|\u0633\u0639\u0631|price)/i.test(messageText);
+  const unicodeWantsSize = /(\u0645\u0642\u0627\u0633|size)/i.test(messageText);
+  const unicodeWantsColor = /(\u0644\u0648\u0646|\u0627\u0644\u0648\u0627\u0646|\u0623\u0644\u0648\u0627\u0646|color)/i.test(messageText);
+  const unicodeWantsAvailability = /(\u0645\u062a\u0627\u062d|\u0645\u0648\u062c\u0648\u062f|available)/i.test(messageText);
+  const unicodeWantsBuy = /(\u0639\u0627\u064a\u0632\s*[\u0627\u0623]?\u0634\u062a\u0631\u064a|[\u0627\u0623]?\u0634\u062a\u0631\u064a|buy|order)/i.test(messageText);
+  const unicodeBareConfirmation = /^(\u0623\u064a\u0648\u0647|\u0627\u064a\u0648\u0647|\u0627\u064a\u0648\u0629|\u0627\u0647|\u0646\u0639\u0645|\u062a\u0645\u0627\u0645|\u0645\u0627\u0634\u064a|ok|okay|yes|yep)$/i.test(messageText.trim());
   const memory = body?.metadata?.ai_memory || {};
   const testCaseId = text(body?.metadata?.test_case_id || body?.metadata?.testCaseId || "");
   const activeProduct = memory.selected_product_id === catalog.jordan4Grey.id ? catalog.jordan4Grey : catalog.jordan4;
@@ -987,79 +1045,92 @@ globalThis.fetch = async (_input, init = {}) => {
   const wantsAlternatives = /بدائل|alternatives|مش عاجبني/i.test(messageText);
   const wantsBuy = /عايز\s*[اأ]?شتري|[اأ]شتري|buy|order/i.test(messageText);
   const bareConfirmation = /^(?:أيوه|ايوه|ايوة|اه|نعم|تمام|ماشي|ok|okay|yes|yep)$/i.test(messageText.trim());
+  const effectiveHasJordan = hasJordan || unicodeHasJordan;
+  const effectiveWantsImages = wantsImages || unicodeWantsImages;
+  const effectiveWantsVagueShoe = unicodeVagueShoe;
+  const effectiveWantsPriceQuestion = wantsPriceQuestion || unicodeWantsPriceQuestion;
+  const effectiveWantsSize = wantsSize || unicodeWantsSize;
+  const effectiveWantsColor = wantsColor || unicodeWantsColor;
+  const effectiveWantsAvailability = wantsAvailability || unicodeWantsAvailability;
+  const effectiveWantsBuy = wantsBuy || unicodeWantsBuy;
+  const effectiveBareConfirmation = bareConfirmation || unicodeBareConfirmation;
   const reply = {
     answer: takeover
       ? "تمام، هحوّلك لبني آدم من الفريق."
-      : hasJordan
+      : effectiveHasJordan
         ? "أيوه، Jordan 4 متاح. أوريك الصور والمقاسات؟"
-        : wantsImages
+        : effectiveWantsImages
           ? "أكيد، دي صور أكتر لنفس الموديل."
-          : wantsColor
+          : effectiveWantsVagueShoe
+            ? "\u0627\u0644\u062c\u0646\u0633: \u0631\u062c\u0627\u0644\u064a \u0648\u0644\u0627 \u062d\u0631\u064a\u0645\u064a \u0648\u0644\u0627 \u0623\u0637\u0641\u0627\u0644\u061f"
+          : effectiveWantsColor
             ? "موجود ألوان تانية. تحب أوريك المتاح؟"
-          : wantsPriceQuestion
+          : effectiveWantsPriceQuestion
             ? "سعره 4200 جنيه. تحب أشوفلك المقاس؟"
           : wantsPriceObjection
             ? "فاهمك يا باشا، أطلعلك بديل أقرب على الميزانية."
-          : wantsSize
+          : effectiveWantsSize
             ? "مقاس 42 متاح على نفس الموديل."
-            : wantsAvailability
+            : effectiveWantsAvailability
               ? "أيوه متاح. تحب أشوفلك المقاس؟"
             : wantsAlternatives
               ? "دي بدائل قريبة من نفس الشكل."
-              : wantsBuy
+              : effectiveWantsBuy
                 ? "تمام، نبدأ تجهيز الطلب."
-                : bareConfirmation
+                : effectiveBareConfirmation
                   ? "تمام. أوريك الصور والمقاسات؟"
                 : "أقدر أساعدك في الموديلات والمقاسات.",
     detected_intent: takeover
       ? "human_takeover"
-      : hasJordan
+      : effectiveHasJordan
         ? "product_search"
-        : wantsImages
+        : effectiveWantsImages
           ? "more_images"
-          : wantsColor
+          : effectiveWantsVagueShoe
+            ? "classification_clarification"
+          : effectiveWantsColor
             ? "color_followup"
-          : wantsPriceQuestion
+          : effectiveWantsPriceQuestion
             ? "price_check"
           : wantsPriceObjection
             ? "price_objection"
-          : wantsSize
+          : effectiveWantsSize
             ? "size_check"
-            : wantsAvailability
+            : effectiveWantsAvailability
               ? "availability_check"
             : wantsAlternatives
               ? "alternatives"
-              : wantsBuy
+              : effectiveWantsBuy
                 ? "buying_intent"
-                : bareConfirmation
+                : effectiveBareConfirmation
                   ? "bare_confirmation"
                 : "faq",
     confidence: takeover ? 0.99 : 0.94,
     detected_language: "ar",
     tone: "sales",
-    suggested_products: takeover ? [] : hasJordan
+    suggested_products: takeover ? [] : effectiveHasJordan
       ? [activeProduct]
-      : wantsColor || wantsPriceQuestion || wantsAvailability
+      : effectiveWantsColor || effectiveWantsPriceQuestion || effectiveWantsAvailability
         ? [activeProduct]
       : wantsPriceObjection
         ? [catalog.jordan4Grey]
       : wantsAlternatives
         ? [catalog.jordan4Grey, catalog.jordan1Low]
-        : wantsBuy
+        : effectiveWantsBuy
           ? [activeProduct]
           : [],
-    product_cards: takeover ? [] : hasJordan
+    product_cards: takeover ? [] : effectiveHasJordan
       ? [activeProduct]
-      : wantsColor || wantsPriceQuestion || wantsAvailability
+      : effectiveWantsColor || effectiveWantsPriceQuestion || effectiveWantsAvailability
         ? [activeProduct]
       : wantsPriceObjection
         ? [catalog.jordan4Grey]
       : wantsAlternatives
         ? [catalog.jordan4Grey, catalog.jordan1Low]
-        : wantsBuy
+        : effectiveWantsBuy
           ? [activeProduct]
           : [],
-    visual_attachments: takeover ? [] : wantsImages
+    visual_attachments: takeover ? [] : effectiveWantsImages
       ? [{
           type: "image_card",
           product_id: activeProduct.id,
@@ -1080,20 +1151,20 @@ globalThis.fetch = async (_input, init = {}) => {
     ],
     memory_updates: takeover
       ? { status: "human_takeover" }
-      : hasJordan
+      : effectiveHasJordan
         ? {
             selected_product_id: activeProduct.id,
             selected_color: activeProduct.color,
             selected_size: memory.selected_size || "",
             last_intent: "product_search",
           }
-        : wantsColor
+        : effectiveWantsColor
           ? {
               selected_product_id: activeProduct.id,
               selected_color: activeProduct.color,
               last_intent: "color_followup",
             }
-        : wantsPriceQuestion
+        : effectiveWantsPriceQuestion
           ? {
               selected_product_id: activeProduct.id,
               last_intent: "price_check",
@@ -1103,19 +1174,19 @@ globalThis.fetch = async (_input, init = {}) => {
               selected_product_id: catalog.jordan4Grey.id,
               last_intent: "price_objection",
             }
-        : wantsImages
+        : effectiveWantsImages
           ? {
               selected_product_id: activeProduct.id,
               last_intent: "more_images",
               last_shown_image_cards: [activeProduct.id],
             }
-            : wantsSize
+            : effectiveWantsSize
               ? {
                 selected_product_id: activeProduct.id,
                 selected_size: "42",
                 last_intent: "size_check",
               }
-            : wantsAvailability
+            : effectiveWantsAvailability
               ? {
                   selected_product_id: activeProduct.id,
                   last_intent: "availability_check",
@@ -1125,18 +1196,18 @@ globalThis.fetch = async (_input, init = {}) => {
                   last_intent: "alternatives",
                   alternative_flow: true,
                 }
-              : wantsBuy
+              : effectiveWantsBuy
                 ? {
                     buying_stage: "draft_created",
                     draft_order_id: `draft-${activeProduct.id}`,
                   }
-                : bareConfirmation
+                : effectiveBareConfirmation
                   ? {
                       selected_product_id: activeProduct.id,
                       last_intent: "bare_confirmation",
                     }
                 : {},
-    draft_order: wantsBuy && !takeover
+    draft_order: effectiveWantsBuy && !takeover
       ? {
           draft_order_id: `draft-${activeProduct.id}`,
           product_id: activeProduct.id,
