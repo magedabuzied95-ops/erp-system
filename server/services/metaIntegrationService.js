@@ -1362,7 +1362,7 @@ const orchestrateFinalReply = ({ message = {}, replyText = "", productCards = []
     replyText: ownedReply.text,
     metadata: finalMetadata,
   });
-  const protectedV2Intent = /^(product_search|more_images|product_presentation|size_followup|SIZE_FOLLOWUP)$/i.test(text(detectedIntent));
+  const protectedV2Intent = /^(product_search|more_images|product_presentation|size_followup|SIZE_FOLLOWUP|color_followup|COLOR_AVAILABILITY_FROM_SIZE)$/i.test(text(detectedIntent));
   if (protectedV2Intent || metadata.preserveReplyText === true || finalMetadata.protectedV2Intent === true) {
     return {
       text: ownedReply.text,
@@ -7619,7 +7619,7 @@ const buildReplyOwnershipContext = ({ message = {}, detectedIntent = "", metadat
 };
 
 const ensureResponseOrchestratorReply = ({ message = {}, replyText = "", detectedIntent = "", metadata = {} } = {}) => {
-  const protectedV2Intent = /^(product_search|more_images|product_presentation|size_followup|SIZE_FOLLOWUP)$/i.test(text(detectedIntent));
+  const protectedV2Intent = /^(product_search|more_images|product_presentation|size_followup|SIZE_FOLLOWUP|color_followup|COLOR_AVAILABILITY_FROM_SIZE)$/i.test(text(detectedIntent));
   const alreadyOrchestrated = metadata.responseOrchestratorUsed === true || metadata.replyOwner === "response_orchestrator";
   if (metadata.preserveReplyText === true || protectedV2Intent) {
     return {
@@ -9344,7 +9344,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
   }
   const guardedVisualIntroText = visualCards ? closestVisualIntroText({ guard: topConfirmationGuard, replyType: metadata.final_reply_type }) : "";
   const baseIntroText = visualCards ? guardedVisualIntroText : (gate.introText || introText);
-  const v2ProductPresentationIntent = /^(product_search|more_images|product_presentation|size_followup|SIZE_FOLLOWUP)$/i.test(text(detectedIntent));
+  const v2ProductPresentationIntent = /^(product_search|more_images|product_presentation|size_followup|SIZE_FOLLOWUP|color_followup|COLOR_AVAILABILITY_FROM_SIZE)$/i.test(text(detectedIntent));
   const finalIntroText = v2ProductPresentationIntent
     ? ""
     : (modelNameSearch && guardedCards.length >= 2

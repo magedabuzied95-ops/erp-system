@@ -743,6 +743,66 @@ const runJordan4SizeFollowupSequenceTest = async () => {
   if (!comparison.decision_match) {
     throw new Error(`[AI_JORDAN4_SIZE_SEQUENCE_PARITY_FAIL] ${JSON.stringify(comparison.differences)}`);
   }
+
+  const colorAvailabilityPhrases = [
+    "\u0627\u0644\u0623\u0644\u0648\u0627\u0646 \u0627\u0644\u0645\u062a\u0627\u062d\u0629 42",
+    "\u0645\u062a\u0627\u062d 42 \u0641\u064a \u0625\u064a\u0647\u061f",
+    "\u0627\u0628\u0639\u062a \u0627\u0644\u0623\u0644\u0648\u0627\u0646 \u0627\u0644\u0645\u062a\u0627\u062d\u0629 42",
+    "\u0641\u064a\u0647 42 \u0641\u064a \u0623\u0646\u0647\u064a \u0644\u0648\u0646\u061f",
+  ];
+
+  for (const phrase of colorAvailabilityPhrases) {
+    const colorAvailabilityCaptures = {};
+    for (const config of channelConfigs) {
+      const reply = await generateUnifiedConversationDecision({
+        channel: config.channel,
+        externalConversationId: `parity-sequence-${config.key}-color-${normalizeId(phrase)}`,
+        externalCustomerId: config.to,
+        customerName: "Parity Tester",
+        text: phrase,
+        attachments: [],
+        metadata: {
+          tenant_id: 1,
+          channel: config.channel,
+          session_id: `parity-sequence-${config.key}-color-${normalizeId(phrase)}`,
+          customer_name: "Parity Tester",
+          customer_phone: config.to,
+          provider_message_id: `mid-sequence-${config.key}-color-${normalizeId(phrase)}`,
+          test_case_id: "jordan4_sequence_color_availability",
+          ai_memory: sequenceMemoryByChannel[config.key],
+        },
+      }, {
+        tenantId: 1,
+        memory: sequenceMemoryByChannel[config.key],
+        providerMessageId: `mid-sequence-${config.key}-color-${normalizeId(phrase)}`,
+      });
+      const capture = summarizeUnifiedReply(reply);
+      colorAvailabilityCaptures[config.key] = capture;
+      if (JSON.stringify(reply).includes(LEGACY_NEAREST_PHRASE)) {
+        throw new Error(`[AI_JORDAN4_COLOR_AVAILABILITY_LEGACY_LEAK] ${config.key} :: ${phrase}`);
+      }
+      if (!capture.text.includes("مقاس 42 متوفر في")) {
+        throw new Error(`[AI_JORDAN4_COLOR_AVAILABILITY_TEXT_FAIL] ${config.key} :: ${phrase} :: ${capture.text}`);
+      }
+      if (/\u0627\u062e\u062a\u0627\u0631\u0644\u0643\s+\u0623\u0646\u0647\u064a\s+\u0645\u0642\u0627\u0633|\u0623\u064a\u0648\u0647\s+42\s+\u0645\u062a\u0648\u0641\u0631/i.test(capture.text)) {
+        throw new Error(`[AI_JORDAN4_COLOR_AVAILABILITY_LEGACY_TEXT_FAIL] ${config.key} :: ${phrase} :: ${capture.text}`);
+      }
+      const expectedColors = [...new Set(firstStepCaptures[config.key].product_cards.map((card) => card.color).filter(Boolean))];
+      expectedColors.forEach((color) => {
+        if (!capture.text.includes(color)) {
+          throw new Error(`[AI_JORDAN4_COLOR_AVAILABILITY_COLOR_MISSING] ${config.key} :: ${phrase} :: ${color} :: ${capture.text}`);
+        }
+      });
+    }
+
+    const colorComparison = compareScenario({
+      inboundText: `Jordan4 color availability after size :: ${phrase}`,
+      captures: colorAvailabilityCaptures,
+    });
+    if (!colorComparison.decision_match) {
+      throw new Error(`[AI_JORDAN4_COLOR_AVAILABILITY_PARITY_FAIL] ${phrase} :: ${JSON.stringify(colorComparison.differences)}`);
+    }
+  }
 };
 
 const runRealEntryDryRun = async ({ inboundText }) => {

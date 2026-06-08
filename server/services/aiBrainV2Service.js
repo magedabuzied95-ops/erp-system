@@ -173,6 +173,107 @@ const buildSizeFollowupFromMemoryCards = ({ message = "", memory = {} } = {}) =>
   };
 };
 
+const buildColorAvailabilityFromMemoryCards = ({ message = "", memory = {} } = {}) => {
+  const requestedSize = extractRequestedSize(message) || normalizeSizeToken(memory?.activeSize || memory?.selectedSize || memory?.preferences?.activeSize || memory?.preferences?.selectedSize || "");
+  const rememberedCards = memoryCardsFromContext(memory);
+  if (!requestedSize || !rememberedCards.length) return null;
+
+  const matchingCards = rememberedCards.filter((card) => cardHasRequestedSize(card, requestedSize));
+  if (!matchingCards.length) return null;
+
+  const modelName = prettyModelName(
+    matchingCards[0]?.base_name ||
+      matchingCards[0]?.model_name ||
+      matchingCards[0]?.product_name ||
+      matchingCards[0]?.name ||
+      matchingCards[0]?.title ||
+      "Jordan 4"
+  );
+  const colors = uniqueColors(matchingCards);
+  const topProductId = text(matchingCards[0]?.product_id || matchingCards[0]?.id || "");
+  const memoryUpdates = {
+    active_product_id: topProductId,
+    selected_product_id: topProductId,
+    last_product_id: topProductId,
+    activeSize: requestedSize,
+    selectedSize: requestedSize,
+    active_size: requestedSize,
+    selected_size: requestedSize,
+    buyingStage: "color_selection",
+    checkoutStage: "color_selection",
+    nextRecommendedStage: "color_selection",
+    resolvedQuestionType: "COLOR_AVAILABILITY_FROM_SIZE",
+    replyDecisionReason: "v2_color_availability_from_last_cards",
+    last_intent: "color_followup",
+    ai_brain_version: "v2",
+    last_product_cards: rememberedCards,
+    lastProductCards: rememberedCards,
+  };
+  const textReply = [
+    `مقاس ${requestedSize} متوفر في ${modelName} بالألوان دي:`,
+    ...colors.map((color) => `✅ ${color}`),
+    "",
+    "أنهي لون يعجبك؟",
+  ].join("\n");
+  return {
+    text: textReply,
+    answer: textReply,
+    intent: "color_followup",
+    detected_intent: "color_followup",
+    products: [],
+    suggested_products: [],
+    product_cards: [],
+    images: [],
+    image_cards: [],
+    quickReplies: colors.map((color) => ({ label: color, value: color })),
+    quick_replies: colors.map((color) => ({ label: color, value: color })),
+    actions: [
+      { label: "choose_color", value: "choose_color", action: "choose_color" },
+      { label: "contact_support", value: "contact_support", action: "contact_support" },
+    ],
+    suggested_actions: [
+      { label: "choose_color", value: "choose_color", action: "choose_color" },
+      { label: "contact_support", value: "contact_support", action: "contact_support" },
+    ],
+    memoryUpdates,
+    memory_updates: memoryUpdates,
+    ai_memory_patch: { preferences: memoryUpdates },
+    handoff: { needs_human_support: false, reason: "", conversation_status: "" },
+    active_product_id: topProductId,
+    next_best_action: "choose_color",
+    reply_goal: "show_available_colors",
+    sales_stage: "COLOR_COLLECTION",
+    nextRecommendedStage: "color_selection",
+    replyDecisionReason: "v2_color_availability_from_last_cards",
+    debug: {
+      source: "aiBrainV2",
+      engine: "ai_brain_v2",
+      legacy_called: false,
+      reason: "v2_color_availability_from_last_cards",
+      requested_size: requestedSize,
+      matching_card_count: matchingCards.length,
+      colors,
+    },
+  };
+};
+
+const shouldUseColorAvailabilityFromMemory = ({ message = "", memory = {}, intent = "" } = {}) => {
+  const normalized = normalizeArabic(message);
+  const requestedSize = extractRequestedSize(message) || normalizeSizeToken(memory?.activeSize || memory?.selectedSize || memory?.preferences?.activeSize || memory?.preferences?.selectedSize || "");
+  if (!requestedSize) return false;
+
+  const hasColorCue =
+    /(\u0644\u0648\u0646|\u0627\u0644\u0648\u0627\u0646|\u0623\u0644\u0648\u0627\u0646|color|colors|colour|colours|available colors|available colour|available colours|colors available|colors are available|الالوان المتاحة|الألوان المتاحة|الوان متاحة|ألوان متاحة|في أي لون|في انهي لون|في أنهي لون|أنهي لون|انهي لون)/i.test(message) ||
+    /(\u0645\u062a\u0627\u062d|\u0645\u0648\u062c\u0648\u062f|available|availability)/i.test(normalized);
+
+  if (hasColorCue) return true;
+
+  if (text(intent).toLowerCase() === "color_followup") return true;
+
+  const hasSizeContext = Boolean(normalizeSizeToken(memory?.activeSize || memory?.selectedSize || memory?.preferences?.activeSize || memory?.preferences?.selectedSize || ""));
+  return hasSizeContext && /(\u0645\u062a\u0627\u062d|\u0645\u0648\u062c\u0648\u062f|available|availability)/i.test(normalized);
+};
+
 const containsAny = (value = "", terms = []) => terms.some((term) => value.includes(term));
 
 const detectExplicitModel = (message = "") => {
@@ -562,6 +663,22 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
   const memoryActiveProductId = activeProductFromMemory(memory);
   const explicitModel = detectExplicitModel(message);
   const intent = classifyIntent({ message, attachments: normalizedInbound.attachments, explicitModel });
+  const colorAvailabilityFromMemory = shouldUseColorAvailabilityFromMemory({ message, memory, intent }) ? buildColorAvailabilityFromMemoryCards({ message, memory }) : null;
+  if (colorAvailabilityFromMemory) {
+    console.info("AI_BRAIN_V2_DECISION", {
+      channel,
+      conversation_id: text(normalizedInbound.externalConversationId || normalizedInbound.external_conversation_id || normalizedInbound.metadata?.session_id || ""),
+      text_preview: message.slice(0, 160),
+      intent: colorAvailabilityFromMemory.intent,
+      explicit_model: explicitModel?.model || "",
+      products_count: asArray(colorAvailabilityFromMemory.products).length,
+      product_cards_count: asArray(colorAvailabilityFromMemory.product_cards).length,
+      top_product_id: colorAvailabilityFromMemory.active_product_id || "",
+      legacy_called: false,
+    });
+    return colorAvailabilityFromMemory;
+  }
+
   const sizeFollowupFromMemory = intent === "size_followup" ? buildSizeFollowupFromMemoryCards({ message, memory }) : null;
   if (sizeFollowupFromMemory) {
     console.info("AI_BRAIN_V2_DECISION", {
