@@ -1000,27 +1000,30 @@ function ActionButton({ disabled, onClick, icon, label, tone = "zinc", title }) 
 
 function Filters(props) {
   const {
-    t, orders, search, setSearch, statusFilter, setStatusFilter, paymentFilter, setPaymentFilter, channelFilter, setChannelFilter,
-    branchFilter, setBranchFilter, dateFilter, setDateFilter, branchOptions,
+    t, search, setSearch, paymentFilter, setPaymentFilter, channelFilter, setChannelFilter, dateFilter, setDateFilter,
   } = props;
 
   return (
     <>
-      <div className="grid gap-2.5 lg:grid-cols-2 xl:grid-cols-[minmax(22rem,2fr)_repeat(5,minmax(8.5rem,1fr))]">
-        <div className="relative">
-          <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("orders.searchPlaceholder")}
-            className="w-full rounded-xl border border-cyan-400/20 bg-white/[0.07] py-2.5 pe-3 ps-10 text-sm font-medium text-white outline-none shadow-[0_0_24px_rgba(34,211,238,0.05)] placeholder:text-zinc-500 focus:border-cyan-300/40"
-          />
-        </div>
-        <Select value={statusFilter} onChange={setStatusFilter} options={["all", ...uniqueValues(orders.map((o) => o.status))]} label={t("orders.filters.status")} allLabel={t("orders.filters.all")} />
+      <div className="grid gap-3 xl:grid-cols-[minmax(20rem,2.3fr)_repeat(3,minmax(9rem,1fr))]">
+        <label className="block">
+          <div className="mb-1.5 text-[11px] font-bold text-zinc-300">البحث</div>
+          <div className="relative">
+            <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("orders.searchPlaceholder")}
+              className="w-full rounded-xl border border-cyan-400/20 bg-white/[0.07] py-2.5 pe-3 ps-10 text-sm font-medium text-white outline-none shadow-[0_0_24px_rgba(34,211,238,0.05)] placeholder:text-zinc-500 focus:border-cyan-300/40"
+            />
+          </div>
+        </label>
         <Select value={paymentFilter} onChange={setPaymentFilter} options={PAYMENT_FILTER_OPTIONS} label="حالة الدفع" allLabel="الكل" labels={PAYMENT_FILTER_LABELS} />
-        <Select value={channelFilter} onChange={setChannelFilter} options={SOURCE_FILTERS} label={t("orders.filters.source")} allLabel={t("orders.filters.all")} labels={SOURCE_LABELS} t={t} />
-        {branchOptions.length > 1 ? <Select value={branchFilter} onChange={setBranchFilter} options={["all", ...branchOptions]} label={t("orders.filters.branch")} allLabel={t("orders.filters.all")} /> : null}
-        <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+        <Select value={channelFilter} onChange={setChannelFilter} options={SOURCE_FILTERS} label="المصدر" allLabel="الكل" labels={SOURCE_LABELS} t={t} />
+        <label className="block">
+          <div className="mb-1.5 text-[11px] font-bold text-zinc-300">التاريخ</div>
+          <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none" />
+        </label>
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
         <QuickFilterButton active={dateFilter === getDateInputValue()} onClick={() => setDateFilter(dateFilter === getDateInputValue() ? "" : getDateInputValue())} label={t("orders.filters.today")} />
