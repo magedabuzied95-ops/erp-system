@@ -1437,6 +1437,11 @@ export const listCustomers = async (req, res) => {
 
     res.status(200).json({
       success: true,
+      customers: data,
+      total: Number(total.rows[0].count),
+      page,
+      limit,
+      hasMore: offset + data.length < Number(total.rows[0].count),
       data,
       pagination: {
         total: Number(total.rows[0].count),

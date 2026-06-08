@@ -12,17 +12,28 @@ const inputClass =
   "h-12 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-500 focus:border-emerald-400/50 focus:bg-slate-950";
 
 const normalizeCustomersPayload = (response) => {
-  const payload = response?.data ?? response;
+  const rootPayload = response && typeof response === "object" ? response : {};
+  const payload = rootPayload?.pagination || Array.isArray(rootPayload?.customers)
+    ? rootPayload
+    : (rootPayload?.data ?? rootPayload);
   const data = Array.isArray(payload)
     ? payload
-    : Array.isArray(payload?.data)
-      ? payload.data
-      : Array.isArray(payload?.customers)
-        ? payload.customers
+    : Array.isArray(payload?.customers)
+      ? payload.customers
+      : Array.isArray(payload?.data)
+        ? payload.data
         : [];
   return {
     data,
-    pagination: payload?.pagination && typeof payload.pagination === "object" ? payload.pagination : null,
+    pagination: rootPayload?.pagination && typeof rootPayload.pagination === "object"
+      ? rootPayload.pagination
+      : payload?.pagination && typeof payload.pagination === "object"
+        ? payload.pagination
+        : null,
+    total: Number(rootPayload?.total),
+    page: Number(rootPayload?.page),
+    limit: Number(rootPayload?.limit),
+    hasMore: rootPayload?.hasMore,
   };
 };
 
@@ -32,10 +43,10 @@ const normalizeCustomersResponse = (response) => {
 };
 
 const normalizeCustomersPagination = (response, fallbackLimit = DEFAULT_CUSTOMERS_PAGE_SIZE) => {
-  const { data, pagination } = normalizeCustomersPayload(response);
-  const total = Number(pagination?.total);
-  const page = Number(pagination?.page);
-  const limit = Number(pagination?.limit);
+  const { data, pagination, total: topLevelTotal, page: topLevelPage, limit: topLevelLimit, hasMore: topLevelHasMore } = normalizeCustomersPayload(response);
+  const total = Number.isFinite(topLevelTotal) ? topLevelTotal : Number(pagination?.total);
+  const page = Number.isFinite(topLevelPage) ? topLevelPage : Number(pagination?.page);
+  const limit = Number.isFinite(topLevelLimit) ? topLevelLimit : Number(pagination?.limit);
   const totalPages = Number(pagination?.totalPages);
   const safeLimit = Number.isFinite(limit) && limit > 0 ? limit : fallbackLimit;
   const safeTotal = Number.isFinite(total) ? total : data.length;
@@ -44,7 +55,7 @@ const normalizeCustomersPagination = (response, fallbackLimit = DEFAULT_CUSTOMER
     page: Number.isFinite(page) && page > 0 ? page : 1,
     limit: safeLimit,
     totalPages: Number.isFinite(totalPages) && totalPages > 0 ? totalPages : Math.max(1, Math.ceil(safeTotal / safeLimit)),
-    hasMore: Boolean(pagination?.hasMore),
+    hasMore: typeof topLevelHasMore === "boolean" ? topLevelHasMore : Boolean(pagination?.hasMore),
   };
 };
 
@@ -171,8 +182,18 @@ function Customers() {
           search: String(searchValue || "").trim(),
         },
       });
-      setCustomers(normalizeCustomersResponse(response));
-      setPagination(normalizeCustomersPagination(response, limit));
+      const nextCustomers = normalizeCustomersResponse(response);
+      const nextPagination = normalizeCustomersPagination(response, limit);
+      console.log("[customers-page] /customers response", {
+        total: nextPagination.total,
+        customersLength: nextCustomers.length,
+        page: nextPagination.page,
+        limit: nextPagination.limit,
+        hasMore: nextPagination.hasMore,
+        raw: response,
+      });
+      setCustomers(nextCustomers);
+      setPagination(nextPagination);
     } catch (error) {
       console.error("[customers] failed to load customers:", error);
       setCustomers([]);
