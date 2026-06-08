@@ -7195,25 +7195,33 @@ function ShiftReportModal({ report, onClose, onPrint }) {
             </button>
           </div>
         </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <ShiftReportItem label="Cashier" value={shift.cashier_name || ""} />
-          <ShiftReportItem label="Branch" value={shift.branch_name || ""} />
-          <ShiftReportItem label="Net Revenue" value={formatCurrency(netRevenue)} subtitle="After returns and discounts" />
-          <ShiftReportItem label={t("pos.shift.sales")} value={formatCurrency(totals.total_sales)} />
-          <ShiftReportItem label="Invoices" value={Number(totals.invoice_count || 0).toLocaleString()} />
-          <ShiftReportItem label="Returns" value={formatCurrency(totals.returns)} />
-          <ShiftReportItem label="Discounts" value={formatCurrency(totals.discounts)} />
-          <ShiftReportItem label={t("pos.shift.cash")} value={formatCurrency(totals.cash)} />
-          <ShiftReportItem label={t("pos.shift.card")} value={formatCurrency(totals.card)} />
-          <ShiftReportItem label={t("pos.shift.wallet")} value={formatCurrency(totals.wallet)} />
-          <ShiftReportItem label="POS Daily Expenses" value={formatCurrency(totals.pos_expenses || 0)} subtitle={`${Number(totals.pos_expense_count || 0).toLocaleString()} expense records`} />
-          <ShiftReportItem label="Employee Advances" value={formatCurrency(totals.employee_advances || 0)} subtitle={`${Number(totals.employee_advance_count || 0).toLocaleString()} advance records`} />
-          <ShiftReportItem label="Total Cash Out" value={formatCurrency(totals.total_cash_out || 0)} subtitle="Cash expenses plus cash advances" />
-          <ShiftReportItem label="Net cash expected" value={formatCurrency(totals.net_cash_expected ?? totals.expected_cash ?? shift.expected_cash)} subtitle="Cash sales minus cash POS expenses and employee advances" />
-          <ShiftReportItem label="Opening cash" value={formatCurrency(totals.opening_cash ?? shift.opening_cash)} />
-          <ShiftReportItem label={t("pos.shift.expectedDrawer")} value={formatCurrency(totals.expected_cash ?? shift.expected_cash)} />
-          <ShiftReportItem label={t("pos.shift.actualDrawer")} value={totals.closing_cash === null || totals.closing_cash === undefined ? t("common.notAvailable") : formatCurrency(totals.closing_cash)} />
-          <ShiftReportItem label={t("pos.shift.difference")} value={formatCurrency(totals.cash_difference ?? shift.cash_difference)} />
+        <div className="mt-5 grid gap-4 xl:grid-cols-3">
+          <AccountingLedgerSection title="ملخص الكاش" subtitle="Cash flow and drawer impact" accent="amber">
+            <AccountingLedgerRow label="مبيعات نقدي" value={formatCurrency(totals.cash || 0)} />
+            <AccountingLedgerRow label="مرتجعات نقدي" value={formatCurrency(totals.returns || 0)} />
+            <AccountingLedgerRow label="مصروفات نقدية" value={formatCurrency(Number(totals.pos_expenses_cash || 0) + Number(totals.employee_advances_cash || 0))} />
+            <AccountingLedgerRow
+              label="صافي الدرج المتوقع"
+              value={formatCurrency(totals.net_cash_expected ?? totals.expected_cash ?? shift.expected_cash)}
+              subtitle="Cash sales minus cash outflows"
+              strong
+              highlight
+            />
+          </AccountingLedgerSection>
+
+          <AccountingLedgerSection title="وسائل الدفع" subtitle="Non-cash settlement mix" accent="emerald">
+            <AccountingLedgerRow label="بطاقات" value={formatCurrency(totals.card || 0)} />
+            <AccountingLedgerRow label="محفظة" value={formatCurrency(totals.wallet || 0)} />
+            <AccountingLedgerRow label="InstaPay" value={formatCurrency(totals.wallet || 0)} subtitle="Included in wallet total" />
+            <AccountingLedgerRow label="Vodafone Cash" value={formatCurrency(0)} subtitle="Not separated in current shift report" />
+          </AccountingLedgerSection>
+
+          <AccountingLedgerSection title="النشاط" subtitle="Operational activity at a glance" accent="cyan">
+            <AccountingLedgerRow label="عدد الفواتير" value={Number(totals.invoice_count || 0).toLocaleString()} />
+            <AccountingLedgerRow label="الخصومات" value={formatCurrency(totals.discounts || 0)} />
+            <AccountingLedgerRow label="سلف الموظفين" value={formatCurrency(totals.employee_advances || 0)} />
+            <AccountingLedgerRow label="مدة الشيفت" value={shiftDuration || "-"} />
+          </AccountingLedgerSection>
         </div>
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
           {sellerPerformance.length ? (
@@ -7449,6 +7457,46 @@ function ShiftReportItem({ label, value, subtitle = "" }) {
       <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{label}</div>
       <div className="mt-2 text-lg font-black text-white"><CurrencyText value={value} /></div>
       {subtitle ? <div className="mt-1 text-[11px] font-semibold text-zinc-500">{subtitle}</div> : null}
+    </div>
+  );
+}
+
+function AccountingLedgerSection({ title, subtitle = "", accent = "amber", children }) {
+  const accents = {
+    amber: "border-amber-300/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.025))] shadow-[0_18px_42px_rgba(0,0,0,0.18)]",
+    emerald: "border-emerald-300/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.025))] shadow-[0_18px_42px_rgba(0,0,0,0.18)]",
+    cyan: "border-cyan-300/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.025))] shadow-[0_18px_42px_rgba(0,0,0,0.18)]",
+  };
+  const accentLabel = {
+    amber: "text-amber-200",
+    emerald: "text-emerald-200",
+    cyan: "text-cyan-200",
+  };
+  return (
+    <section className={`rounded-[24px] border p-4 ${accents[accent] || accents.amber}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className={`text-[11px] font-black uppercase tracking-[0.18em] ${accentLabel[accent] || accentLabel.amber}`}>{title}</div>
+          {subtitle ? <div className="mt-1 text-xs font-semibold text-zinc-500">{subtitle}</div> : null}
+        </div>
+      </div>
+      <div className="mt-4 space-y-2">{children}</div>
+    </section>
+  );
+}
+
+function AccountingLedgerRow({ label, value, subtitle = "", strong = false, highlight = false }) {
+  return (
+    <div className={`rounded-2xl border px-4 py-3 ${highlight ? "border-amber-300/25 bg-amber-400/10 shadow-[0_0_0_1px_rgba(251,191,36,0.10),0_18px_38px_rgba(251,191,36,0.08)]" : "border-white/10 bg-black/20"}`}>
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <div className={`truncate text-[11px] font-black uppercase tracking-[0.16em] ${highlight ? "text-amber-100" : "text-zinc-500"}`}>{label}</div>
+          {subtitle ? <div className={`mt-1 text-[11px] font-semibold ${highlight ? "text-amber-50/75" : "text-zinc-500"}`}>{subtitle}</div> : null}
+        </div>
+        <div className={`shrink-0 text-end ${strong ? "text-xl" : "text-lg"} font-black ${highlight ? "text-white" : "text-white"}`}>
+          {value}
+        </div>
+      </div>
     </div>
   );
 }
