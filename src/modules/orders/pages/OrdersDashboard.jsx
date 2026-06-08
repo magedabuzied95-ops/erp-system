@@ -304,6 +304,29 @@ const getSellerDisplayName = (order = {}) =>
 
 const isArabicLanguage = (language = "") => String(language || "").toLowerCase().startsWith("ar");
 const localizedCopy = (language, ar, en) => (isArabicLanguage(language) ? ar : en);
+const formatNumericOrderDate = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+};
+const isShippingPartialDisplayStatus = (value = "") =>
+  ["partially_paid_shipping", "shipping_paid", "partial_shipping"].includes(lower(value));
+const getPosDisplay = (order = {}) =>
+  firstValue(
+    order.pos_name,
+    order.posName,
+    order.pos_alias,
+    order.posAlias,
+    order.cash_register_name,
+    order.cashRegisterName,
+    order.register_name,
+    order.registerName,
+    order.terminal_name,
+    order.terminalName,
+    order.channel,
+    order.source
+  );
 const paymentStatusLabels = (language) => ({
   paid: localizedCopy(language, "\u0645\u062f\u0641\u0648\u0639", "Paid"),
   partially_paid: localizedCopy(language, "\u062c\u0632\u0626\u064a", "Partial"),
@@ -341,6 +364,7 @@ const normalizePaymentStatusKey = (order = {}) => {
   const paid = getPaidAmount(order);
   const total = totalValue(order);
   if (["paid", "completed", "complete", "settled", "success", "succeeded"].includes(raw)) return "paid";
+  if (isShippingPartialDisplayStatus(raw)) return "partially_paid";
   if (["partially_paid", "partially paid", "partial"].includes(raw) || (total > 0 && paid > 0 && paid < total)) return "partially_paid";
   if (["pending", "unpaid", "awaiting_verification", "shipping_paid"].includes(raw)) return "pending";
   if (["deferred", "credit", "on_credit", "postpaid"].includes(raw) || ["deferred", "credit"].includes(method)) return "deferred";
@@ -361,6 +385,7 @@ const normalizePaymentMethodKey = (order = {}) => {
   return raw || "";
 };
 const getPaymentSummary = (order = {}, language = "en") => {
+  const isShippingPartial = isShippingPartialDisplayStatus(order.payment_status || order.paymentStatus);
   const statusKey = normalizePaymentStatusKey(order);
   const methodKey = normalizePaymentMethodKey(order);
   const statuses = paymentStatusLabels(language);
@@ -369,8 +394,14 @@ const getPaymentSummary = (order = {}, language = "en") => {
   const methodLabel = methodKey === "split" && parts.length
     ? parts.map((part) => methods[part.key]).join(" + ")
     : methods[methodKey] || text(order.payment_method || order.paymentMethod);
-  const statusLabel = statuses[statusKey] || text(order.payment_status || order.paymentStatus);
-  const label = methodLabel && statusKey !== "deferred" ? `${statusLabel} \u2022 ${methodLabel}` : statusLabel || methodLabel || "-";
+  const statusLabel = isShippingPartial
+    ? "\u062c\u0632\u0626\u064a"
+    : statuses[statusKey] || text(order.payment_status || order.paymentStatus);
+  const label = isShippingPartial
+    ? statusLabel
+    : methodLabel && statusKey !== "deferred"
+      ? `${statusLabel} \u2022 ${methodLabel}`
+      : statusLabel || methodLabel || "-";
   return { statusKey, methodKey: methodKey || statusKey, label };
 };
 const isCriticalOrder = (order = {}) => {
@@ -1007,8 +1038,8 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
           <div>{t("orders.table.paidAmount", isArabicLanguage(language) ? "\u0627\u0644\u0645\u062f\u0641\u0648\u0639" : "Paid")}</div>
           <div>{t("orders.table.total")}</div>
           <div>{t("orders.table.seller", isArabicLanguage(language) ? "\u0627\u0644\u0628\u0627\u0626\u0639" : "Seller")}</div>
-          <div>{t("orders.table.channel")}</div>
           <div>{t("orders.table.branch")}</div>
+          <div>{isArabicLanguage(language) ? "\u0646\u0642\u0637\u0629 \u0627\u0644\u0628\u064a\u0639" : "POS"}</div>
         </div>
         <div className="relative z-10 mt-1.5 space-y-1.5 overflow-visible">
           {orders.map((order) => {
@@ -1040,8 +1071,8 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
                 <PaidAmountCell order={order} />
                 <TotalCell t={t} order={order} />
                 <SellerCell order={order} />
-                <div className="truncate pr-3 text-xs font-medium text-zinc-300">{SOURCE_LABELS[getOrderSource(order)] ? t(SOURCE_LABELS[getOrderSource(order)]) : order.source || order.channel}</div>
-                <div className="truncate pr-3 text-xs font-medium text-zinc-300">{order.branch}</div>
+                <div className="truncate pr-3 text-xs font-medium text-zinc-300">{order.branch || "-"}</div>
+                <div className="truncate pr-3 text-xs font-medium text-zinc-300">{getPosDisplay(order) || "-"}</div>
               </div>
             );
           })}
@@ -1451,11 +1482,7 @@ function OrderDateTimeCell({ value, language }) {
   }
 
   const locale = isArabicLanguage(language) ? "ar-EG" : "en-US";
-  const dateLabel = new Intl.DateTimeFormat(locale, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(date);
+  const dateLabel = formatNumericOrderDate(value);
   const timeLabel = new Intl.DateTimeFormat(locale, {
     hour: "numeric",
     minute: "2-digit",
