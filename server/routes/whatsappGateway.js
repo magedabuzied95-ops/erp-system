@@ -46,9 +46,10 @@ router.get("/status", protect, permit("settings", "view"), async (req, res) => {
 });
 
 router.get("/webhook/debug-events", protect, permit("settings", "view"), async (req, res) => {
+  const debugEvents = getRecentEvolutionWebhookEvents();
   return res.json({
     success: true,
-    events: getRecentEvolutionWebhookEvents(),
+    ...debugEvents,
   });
 });
 

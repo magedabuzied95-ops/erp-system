@@ -21,6 +21,7 @@ const instanceName = () => String(process.env.WHATSAPP_INSTANCE_NAME || process.
 const webhookSecret = () => String(process.env.WHATSAPP_WEBHOOK_SECRET || "").trim();
 const sentImageDuplicateCache = new Map();
 const recentEvolutionWebhookEvents = [];
+const evolutionWebhookEventCounts = new Map();
 
 const text = (value, fallback = "") => String(value ?? fallback).trim();
 const money = (value) => {
@@ -54,6 +55,8 @@ const redactSensitive = (value, seen = new WeakSet()) => {
 };
 
 const rememberEvolutionWebhookEvent = (entry = {}) => {
+  const eventName = String(entry.event || entry.rawEvent || "unknown").trim() || "unknown";
+  evolutionWebhookEventCounts.set(eventName, (evolutionWebhookEventCounts.get(eventName) || 0) + 1);
   recentEvolutionWebhookEvents.unshift({
     received_at: new Date().toISOString(),
     ...entry,
@@ -61,7 +64,10 @@ const rememberEvolutionWebhookEvent = (entry = {}) => {
   recentEvolutionWebhookEvents.splice(20);
 };
 
-export const getRecentEvolutionWebhookEvents = () => recentEvolutionWebhookEvents;
+export const getRecentEvolutionWebhookEvents = () => ({
+  events: recentEvolutionWebhookEvents,
+  event_counts: Object.fromEntries(evolutionWebhookEventCounts.entries()),
+});
 
 const gatewayError = (message, code = "WHATSAPP_GATEWAY_ERROR", status = 500, extra = {}) =>
   Object.assign(new Error(message), { code, status, ...extra });
@@ -2393,6 +2399,20 @@ export const handleIncomingWebhook = async (payload = {}) => {
   };
   console.info("[evolution:webhook-full-payload]", fullPayloadLog);
   rememberEvolutionWebhookEvent(fullPayloadLog);
+  console.info("[evolution:webhook-outgoing-event-received]", {
+    event: envelope.event || "unknown",
+    rawEvent: envelope.rawEvent || "",
+    instance: envelope.instance,
+    eventCounts: Object.fromEntries(evolutionWebhookEventCounts.entries()),
+    recentEvents: recentEvolutionWebhookEvents.map((entry) => ({
+      received_at: entry.received_at,
+      event: entry.event || "unknown",
+      rawEvent: entry.rawEvent || "",
+      remoteJid: entry.remoteJid || "",
+      messageId: entry.messageId || entry.key?.id || "",
+      hasText: Boolean(entry.text),
+    })),
+  });
   console.info("[evolution:webhook-event]", {
     event: envelope.event,
     rawEvent: envelope.rawEvent || "",

@@ -217,6 +217,8 @@ export const getEvolutionInstanceEventsDebug = async () => {
     webhook_enabled: Boolean(webhook?.enabled),
     webhook_url: String(webhook?.url || "").trim(),
     webhook_events: normalizeEventList(webhook?.events),
+    required_webhook_events: requiredWebhookEvents,
+    missing_required_webhook_events: missingRequiredEvents(webhook?.events),
     webhook_record_id: webhookRecordIdFrom(webhook) || "",
     instance_webhook_fields: Object.fromEntries(Object.entries(instance).filter(([key]) => /webhook/i.test(key))),
     raw_webhook_find: webhook,
@@ -278,11 +280,32 @@ const normalizeEventList = (value = []) =>
     .map((event) => String(event || "").trim())
     .filter(Boolean);
 
-const requiredWebhookEvents = ["MESSAGES_UPSERT", "MESSAGES_SET", "MESSAGES_UPDATE"];
+const requiredWebhookEvents = [
+  "MESSAGES_SET",
+  "MESSAGES_UPSERT",
+  "MESSAGES_EDITED",
+  "MESSAGES_UPDATE",
+  "MESSAGES_DELETE",
+  "SEND_MESSAGE",
+  "SEND_MESSAGE_UPDATE",
+  "CONTACTS_SET",
+  "CONTACTS_UPSERT",
+  "CONTACTS_UPDATE",
+  "CHATS_SET",
+  "CHATS_UPSERT",
+  "CHATS_UPDATE",
+  "CHATS_DELETE",
+  "PRESENCE_UPDATE",
+  "CONNECTION_UPDATE",
+];
+
+const missingRequiredEvents = (events = []) => {
+  const normalized = normalizeEventList(events).map((event) => event.toUpperCase());
+  return requiredWebhookEvents.filter((event) => !normalized.includes(event));
+};
 
 const hasAllRequiredEvents = (events = []) => {
-  const normalized = normalizeEventList(events).map((event) => event.toUpperCase());
-  return requiredWebhookEvents.every((event) => normalized.includes(event));
+  return missingRequiredEvents(events).length === 0;
 };
 
 const readWebhookRecord = async (current) => {
@@ -399,6 +422,8 @@ export const syncEvolutionWebhookOnStartup = async () => {
       webhook_enabled: Boolean(currentWebhook?.enabled),
       webhook_events: normalizeEventList(currentWebhook?.events),
       desired_webhook_url: desiredUrl,
+      required_webhook_events: requiredWebhookEvents,
+      missing_required_webhook_events: missingRequiredEvents(currentWebhook?.events),
       webhook_record_id: webhookRecordIdFrom(currentWebhook) || "",
       webhook_by_events: Boolean(currentWebhook?.webhookByEvents ?? currentWebhook?.webhook_by_events ?? currentWebhook?.webhook_byevents),
     });
@@ -407,6 +432,7 @@ export const syncEvolutionWebhookOnStartup = async () => {
       enabled: Boolean(currentWebhook?.enabled),
       events: normalizeEventList(currentWebhook?.events),
       required_events: requiredWebhookEvents,
+      missing_required_events: missingRequiredEvents(currentWebhook?.events),
       has_required_events: hasAllRequiredEvents(currentWebhook?.events),
       webhook_by_events: Boolean(currentWebhook?.webhookByEvents ?? currentWebhook?.webhook_by_events ?? currentWebhook?.webhook_byevents),
       webhook_record_id: webhookRecordIdFrom(currentWebhook) || "",
@@ -434,6 +460,7 @@ export const syncEvolutionWebhookOnStartup = async () => {
       enabled: Boolean(refreshedWebhook?.enabled),
       events: normalizeEventList(refreshedWebhook?.events),
       required_events: requiredWebhookEvents,
+      missing_required_events: missingRequiredEvents(refreshedWebhook?.events),
       has_required_events: hasAllRequiredEvents(refreshedWebhook?.events),
       webhook_by_events: Boolean(refreshedWebhook?.webhookByEvents ?? refreshedWebhook?.webhook_by_events ?? refreshedWebhook?.webhookByevents),
       webhook_record_id: webhookRecordIdFrom(refreshedWebhook) || "",
