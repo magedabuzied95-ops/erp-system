@@ -286,6 +286,8 @@ function CartSidebar({
   canUseCustomerCredit = false,
   paymentMode,
   setPaymentMode,
+  editRefundMethod = "cash",
+  setEditRefundMethod,
   activeSplitMethod = "cash",
   setActiveSplitMethod,
   cashAmount,
@@ -372,6 +374,7 @@ function CartSidebar({
   const hasSelectedCustomer = Boolean(selectedCustomerId || customer?.id || customer?.customer_id);
   const showReturnCreditControl = !editActive && (hasSelectedCustomer || exchangeActive);
   const editRefundOrCreditDue = Math.max(0, Number(editPaymentSummary?.refundOrCreditDue || 0));
+  const editRefundSelectionMissing = editActive && editRefundOrCreditDue > 0.009 && !String(editRefundMethod || "").trim();
   const walletApplicable = Math.max(0, Math.min(customerWalletBalance, totalAmount));
   const customerCreditHelpText = POS_ARABIC_TEXT.customerCreditHelp;
   const appliedCredit = Math.min(Math.max(0, Number(customerWalletAmount || 0)), walletApplicable);
@@ -673,6 +676,9 @@ function CartSidebar({
             newTotal={editPaymentSummary.newTotal}
             amountDue={editPaymentSummary.amountDueNow}
             refundOrCreditDue={editRefundOrCreditDue}
+            refundMethod={editRefundMethod}
+            onRefundMethodChange={setEditRefundMethod}
+            showRefundSelectionError={editRefundSelectionMissing}
             invoiceNumber={editPaymentSummary.originalInvoiceNumber}
           />
         ) : null}
@@ -775,6 +781,9 @@ function CartSidebar({
               newTotal={editPaymentSummary.newTotal}
               amountDue={editPaymentSummary.amountDueNow}
               refundOrCreditDue={editRefundOrCreditDue}
+              refundMethod={editRefundMethod}
+              onRefundMethodChange={setEditRefundMethod}
+              showRefundSelectionError={editRefundSelectionMissing}
               invoiceNumber={editPaymentSummary.originalInvoiceNumber}
             />
           ) : null}
@@ -873,8 +882,14 @@ function CartSidebar({
           <button
             type="button"
             onClick={onCheckout}
-            disabled={checkoutLoading || cart.length === 0 || paymentMismatch}
-            title={paymentMismatch ? posLabel("cart.completePaymentFirst", "Remaining must be zero before creating the order.") : undefined}
+            disabled={checkoutLoading || cart.length === 0 || paymentMismatch || editRefundSelectionMissing}
+            title={
+              editRefundSelectionMissing
+                ? posLabel("cart.selectRefundMethodFirst", "Select a refund method before saving the invoice edit.")
+                : paymentMismatch
+                  ? posLabel("cart.completePaymentFirst", "Remaining must be zero before creating the order.")
+                  : undefined
+            }
             className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {checkoutLoading ? posLabel("cart.savingInvoice", "جارٍ حفظ الفاتورة...") : `${checkoutLabel} • ${formatCurrency(totalAmount)}`}
@@ -2163,7 +2178,17 @@ function ExchangeSummaryCard({ oldCredit, newTotal, amountDue, remainingCredit =
   );
 }
 
-function EditPaymentDifferenceCard({ alreadyPaid, newTotal, amountDue, refundOrCreditDue = 0, invoiceNumber = "", compact = false }) {
+function EditPaymentDifferenceCard({
+  alreadyPaid,
+  newTotal,
+  amountDue,
+  refundOrCreditDue = 0,
+  refundMethod = "cash",
+  onRefundMethodChange,
+  showRefundSelectionError = false,
+  invoiceNumber = "",
+  compact = false,
+}) {
   const noExtraPayment = Number(amountDue || 0) <= 0.009 && Number(refundOrCreditDue || 0) <= 0.009;
   return (
     <div className={`rounded-xl border border-cyan-300/20 bg-cyan-400/10 ${compact ? "p-2" : "mt-2 p-3"}`}>
@@ -2177,14 +2202,52 @@ function EditPaymentDifferenceCard({ alreadyPaid, newTotal, amountDue, refundOrC
         <BreakdownTotalRow label={posLabel("cart.alreadyPaid", "Already paid")} value={alreadyPaid} tone="emerald" />
         <BreakdownTotalRow label={posLabel("cart.newInvoiceTotal", "New invoice total")} value={newTotal} />
         <BreakdownTotalRow label={posLabel("cart.customerPaysNow", "Customer pays now")} value={amountDue} tone={amountDue > 0 ? "amber" : "emerald"} />
+        {amountDue > 0 ? (
+          <div className="rounded-lg border border-cyan-300/15 bg-cyan-400/10 px-2 py-1.5 text-[10px] font-black text-cyan-100">
+            {posLabel("cart.selectPaymentMethodBelow", "Choose the payment method below to collect the extra amount.")}
+          </div>
+        ) : null}
         {noExtraPayment ? (
           <div className="rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-2 py-1.5 text-[10px] font-black text-emerald-100">
             {posLabel("cart.noExtraPaymentRequired", "No extra payment required")}
           </div>
         ) : null}
         {refundOrCreditDue > 0 ? (
-          <div className="rounded-lg border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-[10px] font-black text-amber-100">
-            {posLabel("cart.refundCustomerCreditDue", "Refund / customer credit due")}: {formatCurrency(refundOrCreditDue)}
+          <div className="space-y-2 rounded-lg border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-[10px] font-black text-amber-100">
+            <div>
+              {posLabel("cart.refundCustomerCreditDue", "Refund / customer credit due")}: {formatCurrency(refundOrCreditDue)}
+            </div>
+            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-100/80">
+              {posLabel("cart.selectRefundMethod", "Select refund method")}
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              <ModeButton
+                active={String(refundMethod || "").toLowerCase() === "cash"}
+                onClick={() => onRefundMethodChange?.("cash")}
+                icon={<Banknote className="h-4 w-4" />}
+                label="نقدي"
+                tone="green"
+              />
+              <ModeButton
+                active={String(refundMethod || "").toLowerCase() === "vodafone_cash"}
+                onClick={() => onRefundMethodChange?.("vodafone_cash")}
+                icon={<Smartphone className="h-4 w-4" />}
+                label="Vodafone Cash"
+                tone="red"
+              />
+              <ModeButton
+                active={String(refundMethod || "").toLowerCase() === "instapay"}
+                onClick={() => onRefundMethodChange?.("instapay")}
+                icon={<Wallet className="h-4 w-4" />}
+                label="InstaPay"
+                tone="purple"
+              />
+            </div>
+            {showRefundSelectionError ? (
+              <div className="rounded-md border border-rose-300/20 bg-rose-400/10 px-2 py-1 text-[10px] font-black text-rose-100">
+                {posLabel("cart.selectRefundMethodFirst", "Select a refund method before saving the invoice edit.")}
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>

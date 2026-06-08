@@ -8,7 +8,7 @@ import { recordEmployeeAnalytics } from "../utils/employeeAnalytics.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { ensureSingleBranchMode } from "../utils/singleBranchMode.js";
 import { adjustVariantStock, recordInventoryMovement } from "../services/inventoryService.js";
-import { ensureAccountingSchema, getCurrentCashDrawerShift, logAccountingAudit, postSaleEntry, postReturnEntry, postWalletLiabilityEntry, recordCashDrawerEvent, recordFinancialAccountActivity, resolveFinancialAccountForPayment, reverseMoneyTransactionsForReference } from "../services/accountingService.js";
+import { createJournalEntry, ensureAccountingSchema, getCurrentCashDrawerShift, logAccountingAudit, postSaleEntry, postReturnEntry, postWalletLiabilityEntry, recordCashDrawerEvent, recordFinancialAccountActivity, resolveFinancialAccountForPayment, reverseMoneyTransactionsForReference } from "../services/accountingService.js";
 import { ensureLoyaltySchema, processOrderLoyalty, resolveOrCreateCustomerAccount, reverseOrderLoyalty } from "../services/loyaltyService.js";
 import { ensureWalletSchema, recordWalletTransaction } from "../services/walletService.js";
 import { detectMarketingAttribution, logAttributionEvent } from "../services/marketingAttributionService.js";
@@ -247,6 +247,8 @@ const refundFinancialAccountFromOrder = (order = {}, refundMethod = "") => {
   return match?.financial_account_id || match?.account_id || null;
 };
 
+const EDIT_REFUND_METHODS = new Set(["cash", "vodafone_cash", "instapay"]);
+
 const resolveReturnTenantId = (req, order = null) =>
   getTenantId(
     req,
@@ -310,6 +312,45 @@ const ensureReturnRefundFunding = async (client, { routeName, orderId = null, te
     throw error;
   }
   return { method, shift: null, financialAccountId: resolved.financialAccountId, mapping: resolved.mapping || null };
+};
+
+const normalizeEditSettlementMethod = (value = "") => normalizeMoneyPaymentMethod(value);
+
+const buildEditSettlementJournalLines = async (client, { tenantId, settlementMethod = "", settlementType = "", amount = 0, paymentBreakdown = [] }) => {
+  const normalizedMethod = normalizeEditSettlementMethod(settlementMethod);
+  const normalizedType = String(settlementType || "").trim().toLowerCase();
+  const settlementAmount = normalizeInvoiceMoney(amount);
+  if (settlementAmount <= 0) return [];
+  if (normalizedType === "refund") {
+    return [
+      { accountCode: "4020", debit: settlementAmount, credit: 0, notes: "POS invoice edit refund" },
+      { accountCode: normalizedMethod === "cash" ? "1000" : "1100", debit: 0, credit: settlementAmount, notes: "POS invoice edit refund" },
+    ];
+  }
+
+  if (Array.isArray(paymentBreakdown) && paymentBreakdown.length) {
+    const debitLines = paymentBreakdown
+      .map((payment) => ({
+        method: normalizeEditSettlementMethod(payment.method || payment.payment_method),
+        amount: normalizeInvoiceMoney(payment.amount || 0),
+      }))
+      .filter((payment) => payment.amount > 0)
+      .map((payment) => ({
+        accountCode: payment.method === "cash" ? "1000" : "1100",
+        debit: payment.amount,
+        credit: 0,
+        notes: "POS invoice edit payment",
+      }));
+    return [
+      ...debitLines,
+      { accountCode: "4000", debit: 0, credit: settlementAmount, notes: "POS invoice edit payment" },
+    ];
+  }
+
+  return [
+    { accountCode: normalizedMethod === "cash" ? "1000" : "1100", debit: settlementAmount, credit: 0, notes: "POS invoice edit payment" },
+    { accountCode: "4000", debit: 0, credit: settlementAmount, notes: "POS invoice edit payment" },
+  ];
 };
 
 const warnRuntimeSchemaExecution = (name) => {
@@ -4933,15 +4974,34 @@ const restoreOrderInventory = async (client, { tenantId, order, items, movementT
 export const editOrder = async (req, res) => {
   const client = await db.connect();
   try {
-    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    let tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id ?? req.user?.tenantId ?? req.tenantId ?? null);
+    const editRouteName = "PATCH /api/orders/:id/edit";
+    const logEditFlowStep = (step, meta = {}) => {
+      console.log("[orders:edit-flow]", {
+        route: editRouteName,
+        orderId: req.params.id,
+        tenantId,
+        step,
+        ...meta,
+      });
+    };
     await ensurePosShiftOrderColumns(client, tenantId);
     await client.query("BEGIN");
 
+    logEditFlowStep("order_load:before");
     const loaded = await loadOrderWithItems(client, { tenantId, orderId: req.params.id });
     if (!loaded) {
       await client.query("ROLLBACK");
       return res.status(404).json({ success: false, message: "Order not found" });
     }
+    if (!tenantId) {
+      tenantId = getTenantId(req, loaded.order?.tenant_id ?? loaded.order?.tenantId ?? null);
+    }
+    if (!tenantId) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ success: false, message: "Tenant context missing" });
+    }
+    logEditFlowStep("order_load:after", { resolvedTenantId: tenantId, originalOrderTenantId: loaded.order?.tenant_id ?? null });
     assertOrderBranchScope(req, loaded.order);
     assertOrderEditable(loaded.order);
 
@@ -5301,10 +5361,11 @@ export const editOrder = async (req, res) => {
       userId: req.user?.id || null,
     });
 
-    await client.query(
+    const editAuditResult = await client.query(
       `
       INSERT INTO order_edit_audits (tenant_id, order_id, old_items, new_items, old_total, new_total, user_id, reason)
       VALUES ($1,$2,$3::jsonb,$4::jsonb,$5,$6,$7,$8)
+      RETURNING id
       `,
       [
         tenantId,
@@ -5317,41 +5378,220 @@ export const editOrder = async (req, res) => {
         req.body.reason || "POS invoice edit",
       ]
     );
+    const editAuditId = editAuditResult.rows[0]?.id || loaded.order.id;
 
-    if (tenantId !== null) {
-      try {
-        const difference = totalValue - Number(loaded.order.total_amount || loaded.order.total || 0);
-        if (difference > 0) {
-          await postSaleEntry(client, {
-            tenantId,
-            saleAmount: difference,
-            cogsAmount: 0,
-            referenceType: "order_edit",
-            referenceId: loaded.order.id,
-            description: "POS invoice edit increase",
-            createdBy: req.user?.id || null,
-            branchId: loaded.order.branch_id || null,
-            notes: req.body.reason || "",
-          });
-        } else if (difference < 0) {
-          await postReturnEntry(client, {
-            tenantId,
-            amount: Math.abs(difference),
-            direction: "out",
-            referenceType: "order_edit",
-            referenceId: loaded.order.id,
-            description: "POS invoice edit decrease",
-            createdBy: req.user?.id || null,
-            branchId: loaded.order.branch_id || null,
-            notes: req.body.reason || "",
+    const originalOrderTotal = Number(loaded.order.total_amount || loaded.order.total || 0);
+    const difference = normalizeInvoiceMoney(totalValue - originalOrderTotal);
+    const settlementType = difference > 0 ? "extra_payment" : difference < 0 ? "refund" : "none";
+    const settlementBranchId = loaded.order.branch_id || req.body.branch_id || null;
+    const settlementMethodInput = String(
+      req.body.edit_refund_method ||
+      req.body.refund_method ||
+      req.body.edit_settlement_method ||
+      req.body.payment_method ||
+      loaded.order.payment_method ||
+      "cash"
+    ).trim();
+    const settlementMethod = normalizeEditSettlementMethod(settlementMethodInput || "cash");
+    const settlementMetadata = {
+      edit_order_id: loaded.order.id,
+      original_invoice_number: req.body.original_invoice_number || loaded.order.invoice_number || "",
+      original_paid_amount: originalPaidAmount,
+      new_total: totalValue,
+      amount_due_now: amountDueNow,
+      refund_or_credit_due: refundOrCreditDue,
+      settlement_type: settlementType,
+      settlement_method: settlementMethod,
+      settlement_shift_id: null,
+      original_order_shift_id: loaded.order.shift_id || null,
+      additional_payment_breakdown: additionalPaymentBreakdown,
+      edit_audit_id: editAuditId,
+    };
+    logEditFlowStep("settlement:before", { settlementType, settlementMethod, difference, amountDueNow, refundOrCreditDue });
+
+    if (settlementType === "refund") {
+      if (!EDIT_REFUND_METHODS.has(settlementMethod)) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          success: false,
+          message: "Refund method must be cash, vodafone_cash, or instapay.",
+        });
+      }
+
+      const refundAmount = Math.abs(difference);
+      const refundFunding = await ensureReturnRefundFunding(client, {
+        routeName: editRouteName,
+        orderId: loaded.order.id,
+        tenantId,
+        branchId: settlementBranchId,
+        userId: req.user?.id || null,
+        refundMethod: settlementMethod,
+      });
+      settlementMetadata.settlement_shift_id = refundFunding.shift?.id || null;
+
+      if (settlementMethod === "cash") {
+        logEditFlowStep("settlement:cash_refund:before", { refundAmount, shiftId: refundFunding.shift?.id || null });
+        await recordCashDrawerEvent(client, {
+          tenantId,
+          branchId: settlementBranchId,
+          createdBy: req.user?.id || null,
+          shiftId: refundFunding.shift?.id || null,
+          eventType: "refund_cash",
+          sourceType: "order_edit",
+          sourceId: editAuditId,
+          amount: refundAmount,
+        });
+        logEditFlowStep("settlement:cash_refund:after", { refundAmount, shiftId: refundFunding.shift?.id || null });
+      } else {
+        logEditFlowStep("settlement:account_refund:before", { refundAmount, financialAccountId: refundFunding.financialAccountId || null });
+        await recordFinancialAccountActivity(client, {
+          tenantId,
+          branchId: settlementBranchId,
+          financialAccountId: refundFunding.financialAccountId,
+          paymentMethod: settlementMethod,
+          entryType: "refund",
+          direction: -1,
+          sourceType: "order_edit",
+          sourceId: editAuditId,
+          amount: refundAmount,
+          notes: req.body.reason || `POS invoice edit refund for ${loaded.order.invoice_number || loaded.order.id}`,
+          createdBy: req.user?.id || null,
+        });
+        logEditFlowStep("settlement:account_refund:after", { refundAmount, financialAccountId: refundFunding.financialAccountId || null });
+      }
+
+      const journalLines = await buildEditSettlementJournalLines(client, {
+        tenantId,
+        settlementMethod,
+        settlementType,
+        amount: refundAmount,
+      });
+      if (journalLines.length) {
+        logEditFlowStep("settlement:journal_refund:before");
+        await createJournalEntry(client, {
+          tenantId,
+          description: "POS invoice edit refund",
+          referenceType: "order_edit",
+          referenceId: loaded.order.id,
+          createdBy: req.user?.id || null,
+          branchId: settlementBranchId,
+          notes: req.body.reason || "",
+          lines: journalLines,
+        });
+        logEditFlowStep("settlement:journal_refund:after");
+      }
+    } else if (settlementType === "extra_payment") {
+      const normalizedBreakdown = (Array.isArray(additionalPaymentBreakdown) ? additionalPaymentBreakdown : []).filter((payment) => Number(payment.amount || 0) > 0);
+      const breakdownTotal = normalizeInvoiceMoney(normalizedBreakdown.reduce((sum, payment) => sum + Number(payment.amount || 0), 0));
+      if (Math.abs(breakdownTotal - amountDueNow) > 0.009) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          success: false,
+          message: "Additional payment must equal the amount due now.",
+        });
+      }
+
+      const cashPayments = normalizedBreakdown.filter((payment) => normalizeEditSettlementMethod(payment.method || payment.payment_method) === "cash");
+      let currentCashShift = null;
+      if (cashPayments.length) {
+        currentCashShift = await getCurrentCashDrawerShift(client, {
+          tenantId,
+          userId: req.user?.id || null,
+          branchId: settlementBranchId,
+        });
+        if (!currentCashShift) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({
+            success: false,
+            message: "No active cash drawer shift found for this branch. Open a shift before recording cash payment on the invoice edit.",
           });
         }
-      } catch (accountingError) {
-        console.error("[orders] edit accounting fallback", accountingError.message);
+        settlementMetadata.settlement_shift_id = currentCashShift.id;
+      }
+
+      for (const payment of normalizedBreakdown) {
+        const paymentMethod = normalizeEditSettlementMethod(payment.method || payment.payment_method);
+        const paymentAmount = normalizeInvoiceMoney(payment.amount || 0);
+        if (paymentAmount <= 0) continue;
+        if (paymentMethod === "cash") {
+          logEditFlowStep("settlement:cash_payment:before", { paymentAmount, shiftId: currentCashShift?.id || null });
+          await recordCashDrawerEvent(client, {
+            tenantId,
+            branchId: settlementBranchId,
+          createdBy: req.user?.id || null,
+          shiftId: currentCashShift?.id || null,
+          eventType: "cash_in",
+          sourceType: "order_edit",
+          sourceId: editAuditId,
+          amount: paymentAmount,
+        });
+          logEditFlowStep("settlement:cash_payment:after", { paymentAmount, shiftId: currentCashShift?.id || null });
+          continue;
+        }
+
+        const mappedAccount = await resolveFinancialAccountForPayment(client, {
+          tenantId,
+          branchId: settlementBranchId,
+          paymentMethod,
+        });
+        if (!mappedAccount?.financialAccountId) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({
+            success: false,
+            message: `No financial account mapping for ${paymentMethod}. Configure the account in payment/accounting settings.`,
+          });
+        }
+        logEditFlowStep("settlement:account_payment:before", { paymentAmount, paymentMethod, financialAccountId: mappedAccount.financialAccountId });
+        await recordFinancialAccountActivity(client, {
+          tenantId,
+          branchId: settlementBranchId,
+          financialAccountId: mappedAccount.financialAccountId,
+          paymentMethod,
+          entryType: "sale",
+          direction: 1,
+          sourceType: "order_edit",
+          sourceId: editAuditId,
+          amount: paymentAmount,
+          notes: req.body.reason || `POS invoice edit extra payment for ${loaded.order.invoice_number || loaded.order.id}`,
+          createdBy: req.user?.id || null,
+        });
+        logEditFlowStep("settlement:account_payment:after", { paymentAmount, paymentMethod, financialAccountId: mappedAccount.financialAccountId });
+      }
+
+      const journalLines = await buildEditSettlementJournalLines(client, {
+        tenantId,
+        settlementMethod: cashPayments.length && normalizedBreakdown.some((payment) => normalizeEditSettlementMethod(payment.method || payment.payment_method) !== "cash")
+          ? "split"
+          : (cashPayments.length ? "cash" : (normalizedBreakdown[0]?.method || normalizedBreakdown[0]?.payment_method || settlementMethod)),
+        settlementType,
+        amount: amountDueNow,
+        paymentBreakdown: normalizedBreakdown,
+      });
+      if (journalLines.length) {
+        logEditFlowStep("settlement:journal_payment:before");
+        await createJournalEntry(client, {
+          tenantId,
+          description: "POS invoice edit extra payment",
+          referenceType: "order_edit",
+          referenceId: loaded.order.id,
+          createdBy: req.user?.id || null,
+          branchId: settlementBranchId,
+          notes: req.body.reason || "",
+          lines: journalLines,
+        });
+        logEditFlowStep("settlement:journal_payment:after");
       }
     }
 
+    logEditFlowStep("settlement:after", settlementMetadata);
+    await client.query(
+      `UPDATE orders SET edit_payment_difference = $1::jsonb WHERE id = $2`,
+      [JSON.stringify(settlementMetadata), loaded.order.id]
+    );
+
+    logEditFlowStep("commit:before");
     await client.query("COMMIT");
+    logEditFlowStep("commit:after");
     const updated = await loadOrderWithItems(db, { tenantId, orderId: loaded.order.id });
     return res.status(200).json({ success: true, message: "تم حفظ تعديل الفاتورة", order: orderResult.rows[0], items: updated?.items || [] });
   } catch (error) {

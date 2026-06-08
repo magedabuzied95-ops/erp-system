@@ -913,6 +913,14 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
   const cashRefundEventTotal = money(
     events.reduce((sum, event) => sum + (String(event.event_type || "").toLowerCase() === "refund_cash" ? Number(event.amount || 0) : 0), 0)
   );
+  const editCashInEventTotal = money(
+    events.reduce((sum, event) => {
+      const isEditCashIn =
+        String(event.event_type || "").toLowerCase() === "cash_in" &&
+        String(event.source_type || "").toLowerCase() === "order_edit";
+      return sum + (isEditCashIn ? Number(event.amount || 0) : 0);
+    }, 0)
+  );
   const cashReturnTotal = money(Math.max(cashReturnTableTotal, cashRefundEventTotal));
   const cashOutEventTotal = money(
     events.reduce((sum, event) => sum + (String(event.event_type || "").toLowerCase() === "cash_out" ? Number(event.amount || 0) : 0), 0)
@@ -953,8 +961,9 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
       cash_returns: cashReturnTotal,
       cash_return_table_total: cashReturnTableTotal,
       cash_refund_events: cashRefundEventTotal,
+      edit_cash_in_events: editCashInEventTotal,
       return_count: Number(returns.return_count || 0),
-      cash: money(sales.cash),
+      cash: money(Number(sales.cash || 0) + editCashInEventTotal),
       card: money(sales.card),
       wallet: money(sales.wallet),
       pos_expenses: money(posExpenses.pos_expenses),

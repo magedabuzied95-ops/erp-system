@@ -1294,6 +1294,7 @@ function POSPro() {
   const [loyaltyRedeemPoints, setLoyaltyRedeemPoints] = useState(0);
   const [, setLoyaltyLoading] = useState(false);
   const [paymentMode, setPaymentMode] = useState(defaultState.paymentMode);
+  const [editRefundMethod, setEditRefundMethod] = useState("cash");
   const [activeSplitMethod, setActiveSplitMethod] = useState("cash");
   const [cashAmount, setCashAmount] = useState(defaultState.cashAmount);
   const [cardAmount, setCardAmount] = useState(defaultState.cardAmount);
@@ -3488,6 +3489,7 @@ function POSPro() {
       setInvoiceDiscountReason(loadedOrder.invoice_discount_reason || "");
       setInvoiceDiscount(Number(loadedOrder.invoice_discount_amount || 0));
       setServiceFee(Number(loadedOrder.service_fee || 0));
+      setEditRefundMethod("cash");
 
       const loadedCustomerId = loadedOrder.customer_id || loadedOrder.customer?.id || null;
       if (loadedCustomerId) {
@@ -3614,6 +3616,7 @@ function POSPro() {
       setInvoiceDiscountReason(loadedOrder.invoice_discount_reason || "");
       setInvoiceDiscount(Number(loadedOrder.invoice_discount_amount || 0));
       setServiceFee(Number(loadedOrder.service_fee || 0));
+      setEditRefundMethod("cash");
       setSelectedCustomerId(loadedOrder.customer_id || null);
       setCustomerSearch(loadedOrder.customer_name || "");
       const openStartedAt = performance.now();
@@ -3697,6 +3700,7 @@ function POSPro() {
   const clearEditMode = () => {
     setEditingOrder(null);
     setInvoiceNumber(generateInvoiceNumber());
+    setEditRefundMethod("cash");
     loadedRouteEditOrderIdRef.current = "";
     if (routeEditOrderId) {
       navigate("/pos", { replace: true });
@@ -3713,6 +3717,7 @@ function POSPro() {
     setWalletAmount(0);
     setVodafoneCashAmount(0);
     setCustomerWalletAmount(0);
+    setEditRefundMethod("cash");
     setExchangeState(null);
     setInvoiceDiscountType(defaultState.invoiceDiscountType);
     setInvoiceDiscountValue(defaultState.invoiceDiscountValue);
@@ -4081,7 +4086,7 @@ function POSPro() {
       console.log("[pos-checkout:frontend-submit]", {
         checkout_branch_id: checkoutBranchId,
         cart_count: cart.length,
-        payment_method: paymentMode,
+        payment_method: resolvedEditPaymentMethod,
         paymob_terminal: paymobTerminalCheckout,
       });
       const checkoutStartedAt = performance.now();
@@ -4170,6 +4175,12 @@ function POSPro() {
           : paymentMode === "split"
             ? Number(customerWalletAmount || 0)
             : 0;
+      const editSettlementType = editingOrder?.id
+        ? (editRefundOrCreditDue > 0 ? "refund" : editAmountDueNow > 0 ? "extra_payment" : "none")
+        : null;
+      const resolvedEditPaymentMethod = editingOrder?.id
+        ? (editRefundOrCreditDue > 0 ? editRefundMethod : paymentMode)
+        : paymentMode;
       const paymentBreakdown = [
         exchangeState?.active && !editingOrder?.id
           ? {
@@ -4225,6 +4236,9 @@ function POSPro() {
         new_total: editingOrder?.id ? cartTotals.total : null,
         amount_due_now: amountDueNow,
         refund_or_credit_due: editingOrder?.id ? editRefundOrCreditDue : 0,
+        edit_settlement_type: editSettlementType,
+        edit_settlement_method: editingOrder?.id ? resolvedEditPaymentMethod : null,
+        edit_refund_method: editingOrder?.id ? editRefundMethod : null,
         additional_payment_breakdown: additionalPaymentBreakdown,
         exchange_mode: Boolean(exchangeState?.active && !editingOrder?.id),
         original_order_id: !editingOrder?.id ? exchangeState?.originalOrderId || null : null,
@@ -4405,6 +4419,7 @@ function POSPro() {
         setWalletAmount(0);
         setVodafoneCashAmount(0);
         setCustomerWalletAmount(0);
+        setEditRefundMethod("cash");
         setExchangeState(null);
         setInvoiceDiscountType(defaultState.invoiceDiscountType);
         setInvoiceDiscountValue(defaultState.invoiceDiscountValue);
@@ -5771,6 +5786,8 @@ function POSPro() {
             canUseCustomerCredit={canUseCustomerCredit}
             paymentMode={paymentMode}
             setPaymentMode={setPaymentMode}
+            editRefundMethod={editRefundMethod}
+            setEditRefundMethod={setEditRefundMethod}
             activeSplitMethod={activeSplitMethod}
             setActiveSplitMethod={setActiveSplitMethod}
             cashAmount={cashAmount}
@@ -5907,6 +5924,8 @@ function POSPro() {
             canUseCustomerCredit={canUseCustomerCredit}
             paymentMode={paymentMode}
             setPaymentMode={setPaymentMode}
+            editRefundMethod={editRefundMethod}
+            setEditRefundMethod={setEditRefundMethod}
             activeSplitMethod={activeSplitMethod}
             setActiveSplitMethod={setActiveSplitMethod}
             cashAmount={cashAmount}
