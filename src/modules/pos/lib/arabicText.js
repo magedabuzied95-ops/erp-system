@@ -2,7 +2,7 @@ export const POS_ARABIC_TEXT = {
   account: "الحساب",
   accountSelected: "الحساب المحدد",
   available: "المتاح",
-  customerCreditHelp: "رصيد محفوظ للعميل من مرتجعات أو رصيد سابق",
+  customerCreditHelp: "رصيد محجوز للعميل من المرتجعات أو رصيد سابق",
   customerService: "خدمة العملاء",
   defaultVariant: "افتراضي",
   discounts: "الخصومات",
@@ -39,11 +39,11 @@ export const POS_ARABIC_TEXT = {
   walletPaid: "المدفوع من المحفظة",
   walletRemaining: "المتبقي نقدي/بطاقة",
   walletBalanceAfter: "رصيد المحفظة بعد العملية",
-  followInstagram: "تابعنا على إنستجرام",
+  followInstagram: "تابعنا على إنستغرام",
 };
 
 const MOJIBAKE_PATTERN =
-  /[ØÙÃÂâ]|(?:ط[±µ§¹­®¯£¥©¨¬؛؟])|(?:ظ[‚ƒ„…†‡ˆ‰‹ٹپچژکگںھہۃیې])/;
+  /[أکأ™أƒأ‚أ¢]|(?:ط·[آ±آµآ§آ¹آ­آ®آ¯آ£آ¥آ©آ¨آ¬ط›طں])|(?:ط¸[â€ڑئ’â€‍â€¦â€ â€،ث†â€°â€¹ظ¹ظ¾ع†عکع©ع¯ع؛ع¾غپغƒغŒغگ])/;
 
 export const hasArabicMojibake = (value) =>
   MOJIBAKE_PATTERN.test(String(value ?? ""));

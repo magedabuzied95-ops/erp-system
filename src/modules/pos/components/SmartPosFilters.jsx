@@ -113,8 +113,8 @@ export default function SmartPosFilters({
             type="button"
             onClick={onClose}
             className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
-            aria-label="Close filters"
-            title="Close filters"
+            aria-label="إغلاق الفلاتر"
+            title="إغلاق الفلاتر"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -131,13 +131,13 @@ export default function SmartPosFilters({
 
             <div className="grid gap-2">
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-2.5 py-2 sm:px-3 sm:py-2.5">
-                <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">Brand</div>
+                <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">العلامة التجارية</div>
                 <select
                   value={selectedBrandId}
                   onChange={(event) => onBrandChange(event.target.value)}
                   className="h-10 w-full rounded-[1.1rem] border border-white/10 bg-black/70 px-3 text-[13px] font-semibold text-white outline-none transition focus:border-emerald-400/50"
                 >
-                  <option value="all">All brands</option>
+                  <option value="all">كل العلامات التجارية</option>
                   {(brandOptions || []).map((brand) => (
                     <option key={brand.id || brand.name} value={brand.id}>
                       {brand.name}
@@ -147,13 +147,13 @@ export default function SmartPosFilters({
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-2.5 py-2 sm:px-3 sm:py-2.5">
-                <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">Manufacturer</div>
+                <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">الشركة المصنعة</div>
                 <select
                   value={selectedManufacturerId}
                   onChange={(event) => onManufacturerChange(event.target.value)}
                   className="h-10 w-full rounded-[1.1rem] border border-white/10 bg-black/70 px-3 text-[13px] font-semibold text-white outline-none transition focus:border-emerald-400/50"
                 >
-                  <option value="all">All manufacturers</option>
+                  <option value="all">كل الشركات المصنعة</option>
                   {(manufacturerOptions || []).map((manufacturer) => (
                     <option key={manufacturer.id || manufacturer.name} value={manufacturer.id}>
                       {manufacturer.name}
@@ -172,7 +172,7 @@ export default function SmartPosFilters({
               onClick={onClose}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-emerald-500/90 px-4 text-sm font-black text-black transition hover:bg-emerald-400"
             >
-              Apply Filters
+              تطبيق الفلاتر
             </button>
             <button
               type="button"
@@ -183,14 +183,14 @@ export default function SmartPosFilters({
                   : "border-white/10 bg-white/[0.03] text-zinc-500"
               }`}
             >
-              Reset
+              إعادة الضبط
             </button>
             <button
               type="button"
               onClick={onClose}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-transparent px-4 text-sm font-black text-zinc-300 transition hover:bg-white/[0.05] hover:text-white"
             >
-              Cancel
+              إلغاء
             </button>
           </div>
         </div>

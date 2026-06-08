@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+﻿import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -129,17 +129,17 @@ const POS_CHECKOUT_DEBUG = Boolean(
   String(import.meta.env?.VITE_POS_DEBUG || "").trim().toLowerCase() === "true"
 );
 const quickExpenseDefaults = { category: "delivery", employee_id: "", amount: "", payment_method: "cash", notes: "" };
-const quickExpenseEmployeeAdvanceOption = { value: "employee_advance", label: "طآ³لفطآ© مظث†طآ¸ف / Employee Advance" };
+const quickExpenseEmployeeAdvanceOption = { value: "employee_advance", label: "سلفة موظف / Employee Advance" };
 const quickExpenseCategories = [
-  { value: "delivery", label: "طع¾ظث†طآµيل / Delivery" },
-  { value: "snacks", label: "طآ³نطآ§ظئ’طآ³ / Snacks" },
-  { value: "cleaning", label: "طع¾نطآ¸يف / Cleaning" },
-  { value: "small_purchases", label: "مطآ´طع¾طآ±يطآ§طع¾ طآ¨طآ³يطآ·طآ©" },
-  { value: "water", label: "ميطآ§ه / Water" },
-  { value: "electricity", label: "ظئ’هطآ±طآ¨طآ§ء / Electricity" },
-  { value: "shipping", label: "طآ´طآ­ن / Shipping" },
-  { value: "maintenance", label: "طآµيطآ§نطآ© / Maintenance" },
-  { value: "other", label: "طآ£طآ®طآ±ى / Other" },
+  { value: "delivery", label: "توصيل / Delivery" },
+  { value: "snacks", label: "سناكس / Snacks" },
+  { value: "cleaning", label: "تنظيف / Cleaning" },
+  { value: "small_purchases", label: "مشتريات بسيطة" },
+  { value: "water", label: "مياه / Water" },
+  { value: "electricity", label: "كهرباء / Electricity" },
+  { value: "shipping", label: "شحن / Shipping" },
+  { value: "maintenance", label: "صيانة / Maintenance" },
+  { value: "other", label: "أخرى / Other" },
 ];
 
 const readLastSalespersonId = () => {
@@ -1390,7 +1390,7 @@ function POSPro() {
           `#${activeSalesperson.id || ""}`
       ).trim();
     }
-    return salesSettings.allow_sale_without_salesperson ? "طآ¨طآ¯ظث†ن طآ¨طآ§طآ¦طآ¹" : "طآ§طآ®طع¾طآ± طآ¨طآ§طآ¦طآ¹";
+    return salesSettings.allow_sale_without_salesperson ? "بدون بائع" : "اختر بائع";
   }, [activeSalesperson, salesSettings.allow_sale_without_salesperson]);
   const canOverrideSeller = useMemo(
     () => sellerOverrideAllowed || isAdminUser(currentUser) || hasPermission("pos.override_seller", currentUser) || hasPermission("orders.edit", currentUser),
@@ -1536,7 +1536,7 @@ function POSPro() {
       setInvoiceDiscount(savedSession.invoiceDiscount ?? defaultState.invoiceDiscount);
       setServiceFee(savedSession.serviceFee ?? defaultState.serviceFee);
       if (savedSession.selectedSalespersonId) setSelectedSalespersonId(String(savedSession.selectedSalespersonId));
-      toast.success("طع¾م طآ§طآ³طع¾طآ±طآ¬طآ§طآ¹ طآ¬لطآ³طآ© طآ§لطآ¨يطآ¹ طآ§لمطآ­فظث†طآ¸طآ©");
+      toast.success("تم استرجاع جلسة البيع المحفوظة");
     }
   }, [activePosShift?.id, routeEditOrderId]);
 
@@ -1922,7 +1922,7 @@ function POSPro() {
     [customers, selectedCustomerId]
   );
   const mobileSelectedCustomerLabel = useMemo(
-    () => String(customer?.name || customer?.customer_name || customerSearch?.trim() || "طآ¹ميل غيطآ± مطآ­طآ¯طآ¯").trim() || "طآ¹ميل غيطآ± مطآ­طآ¯طآ¯",
+    () => String(customer?.name || customer?.customer_name || customerSearch?.trim() || "عميل غير محدد").trim() || "عميل غير محدد",
     [customer?.customer_name, customer?.name, customerSearch]
   );
   const customerCreditBalance = useMemo(
@@ -2109,7 +2109,7 @@ function POSPro() {
     const currentUserSeller = salesEmployees.find((employee) => currentUserId && String(employee.user_id || "") === currentUserId);
     const currentEmployeeId = currentUserSeller?.id ? String(currentUserSeller.id) : "";
     if (!canOverrideSeller && nextId && currentEmployeeId && nextId !== currentEmployeeId) {
-      toast.error("لطآ§ طع¾ملظئ’ طآµلطآ§طآ­يطآ© طآ§لطآ¨يطآ¹ طآ¨طآ§طآ³م مطآ³طع¾طآ®طآ¯م طآ¢طآ®طآ±");
+      toast.error("لا تملك صلاحية البيع باسم مستخدم آخر");
       return;
     }
     if (!canOverrideSeller && !nextId && currentEmployeeId) {
@@ -2782,9 +2782,9 @@ function POSPro() {
   const activeSmartFilters = useMemo(
     () =>
       [
-        { key: "gender", label: "طآ§لطآ¬نطآ³", value: selectedGender, setValue: setSelectedGender, options: smartFilterOptions.gender },
-        { key: "type", label: "نظث†طآ¹ طآ§لمنطع¾طآ¬", value: selectedProductType, setValue: setSelectedProductType, options: smartFilterOptions.productType },
-        { key: "grade", label: "طآ§لفطآ¦طآ©", value: selectedGrade, setValue: setSelectedGrade, options: smartFilterOptions.grade },
+        { key: "gender", label: "الجنس", value: selectedGender, setValue: setSelectedGender, options: smartFilterOptions.gender },
+        { key: "type", label: "نوع المنتج", value: selectedProductType, setValue: setSelectedProductType, options: smartFilterOptions.productType },
+        { key: "grade", label: "الفئة", value: selectedGrade, setValue: setSelectedGrade, options: smartFilterOptions.grade },
       ]
         .filter((item) => item.value !== "all")
         .map((item) => ({
@@ -3236,10 +3236,10 @@ function POSPro() {
       [
         `Only ${availableStock} unit${Number(availableStock) === 1 ? "" : "s"} is available for the selected size.`,
         `Quantity was automatically adjusted from ${oldQuantity} to ${newQuantity}.`,
-        `طآ§لمطآ®طآ²ظث†ن طآ§لمطع¾طآ§طآ­ للمقطآ§طآ³ طآ§لمطآ­طآ¯طآ¯ هظث† ${availableStock} فقطآ·.`,
-        `طع¾م طع¾طآ¹طآ¯يل طآ§لظئ’ميطآ© طع¾لقطآ§طآ¦يًطآ§ من ${oldQuantity} طآ¥لى ${newQuantity}.`,
+        `الكمية المتاحة للمقاس المحدد هي ${availableStock} فقط.`,
+        `تم تعديل الكمية تلقائياً من ${oldQuantity} إلى ${newQuantity}.`,
       ].join("\n"),
-      { icon: "أ¢ع‘آ أ¯آ¸عˆ" }
+      { icon: "!" }
     );
   }, []);
   const handleCartVariantChange = useCallback((key, variantId) => {
@@ -3258,13 +3258,13 @@ function POSPro() {
         );
 
       if (!targetVariant) {
-        toast.error("Variant not found / لم يطع¾م طآ§لطآ¹طآ«ظث†طآ± طآ¹لى طآ§لمقطآ§طآ³ طآ£ظث† طآ§للظث†ن");
+        toast.error("Variant not found / لم يتم العثور على المقاس أو اللون");
         return prev;
       }
 
       const liveStock = normalizeStockQuantity(targetVariant.stock_quantity ?? targetVariant.stock);
       if (liveStock <= 0) {
-        toast.error("Out of stock / غيطآ± مطع¾ظث†فطآ± طآ¨طآ§لمطآ®طآ²ظث†ن");
+        toast.error("Out of stock / غير متوفر بالمخزون");
         return prev;
       }
 
@@ -3393,8 +3393,8 @@ function POSPro() {
       order_item_id: item.id || item.order_item_id || item.invoice_item_id || null,
       product_id: productId,
       variant_id: variantId,
-      name: item.product_name || item.name || item.product?.name || catalogProduct.name || "منطع¾طآ¬",
-      product_name: item.product_name || item.name || item.product?.name || catalogProduct.name || "منطع¾طآ¬",
+      name: item.product_name || item.name || item.product?.name || catalogProduct.name || "منتج",
+      product_name: item.product_name || item.name || item.product?.name || catalogProduct.name || "منتج",
       sku: item.sku || catalogVariant.sku || catalogProduct.sku || "",
       barcode: item.barcode || catalogVariant.barcode || catalogProduct.barcode || "",
       color: item.color || item.variant_color || catalogVariant.color || "",
@@ -3630,9 +3630,9 @@ function POSPro() {
           total_ms: Math.round(performance.now() - editStartedAt),
         });
       }
-      toast.success(`طآ£نطع¾ طآ§لطآ¢ن طع¾طآ¹طآ¯ل فطآ§طع¾ظث†طآ±طآ© طآ±قم ${loadedOrder.invoice_number || order.invoice_number}`);
+      toast.success(`أنت الآن تعدل فاتورة رقم ${loadedOrder.invoice_number || order.invoice_number}`);
     } catch (err) {
-      toast.error(getErrorMessage(err, "طع¾طآ¹طآ°طآ± طع¾طآ­ميل طآ§لفطآ§طع¾ظث†طآ±طآ© للطع¾طآ¹طآ¯يل"));
+      toast.error(getErrorMessage(err, "تعذر تحميل الفاتورة للتعديل"));
     }
   };
 
@@ -3673,7 +3673,7 @@ function POSPro() {
     setServiceFee(0);
     handleClearSelectedCustomer();
     setRecentOperationsOpen(false);
-    toast.success(`طع¾م طآ¥نطآ´طآ§ء طآ§لطآ§طآ³طع¾طآ¨طآ¯طآ§ل للفطآ§طع¾ظث†طآ±طآ© ${order?.invoice_number || order?.id || ""}. طآ£طآ¶ف طآ§لمنطع¾طآ¬ طآ§لطآ¨طآ¯يل طآ¥لى طآ§لطآ³لطآ© ظئ’طآ¨يطآ¹ طآ¬طآ¯يطآ¯ طآ¨قيمطآ© مطآ±طع¾طآ¬طآ¹ ${formatCurrency(returnTotal, "ar")}`);
+    toast.success(`تم إنشاء استبدال للفاتورة ${order?.invoice_number || order?.id || ""}. أضف المنتج البديل إلى السلة ثم بيع جديد بقيمة مرتجع ${formatCurrency(returnTotal, "ar")}`);
   };
 
   const lookupExchangeOrder = async (query) => {
@@ -3838,7 +3838,7 @@ function POSPro() {
 
   const handleCloseShift = async () => {
     if (!activePosShift?.id) {
-      toast.error("لطآ§ طع¾ظث†طآ¬طآ¯ ظث†طآ±طآ¯يطآ© مفطع¾ظث†طآ­طآ©");
+      toast.error("لا توجد نردية مفتوحة");
       return;
     }
 
@@ -3997,7 +3997,7 @@ function POSPro() {
     }
 
     if (!isShiftActive) {
-      toast.error("يطآ¬طآ¨ فطع¾طآ­ ظث†طآ±طآ¯يطآ© قطآ¨ل طآ§لطآ¨يطآ¹");
+      toast.error("يجب فتح نردية قبل البيع");
       return null;
     }
 
@@ -4027,7 +4027,7 @@ function POSPro() {
     const currentUserSeller = salesEmployees.find((employee) => currentUserId && String(employee.user_id || "") === currentUserId);
     const currentEmployeeId = currentUserSeller?.id ? String(currentUserSeller.id) : "";
     if (!canOverrideSeller && selectedSalespersonId && currentEmployeeId && String(selectedSalespersonId) !== currentEmployeeId) {
-      toast.error("لطآ§ طع¾ملظئ’ طآµلطآ§طآ­يطآ© طآ§لطآ¨يطآ¹ طآ¨طآ§طآ³م مطآ³طع¾طآ®طآ¯م طآ¢طآ®طآ±");
+      toast.error("لا تملك صلاحية البيع باسم مستخدم آخر");
       return null;
     }
 
@@ -4048,13 +4048,13 @@ function POSPro() {
         : 0;
     const availableCustomerWalletBalance = canUseCustomerCredit ? customerCreditBalance : 0;
     if (requestedCustomerWalletAmount > 0 && !canUseCustomerCredit) {
-      toast.error("طآ±طآµيطآ¯ طآ§لطآ¹ميل مطع¾طآ§طآ­ فقطآ· طآ¹نطآ¯ طآ§طآ®طع¾يطآ§طآ± طآ¹ميل لطآ¯يه طآ±طآµيطآ¯ مظث†طآ¬طآ¨.");
+      toast.error("رصيد العميل متاح فقط عند اختيار عميل لديه رصيد موجب.");
       return null;
     }
     if (requestedCustomerWalletAmount > availableCustomerWalletBalance) {
       const shortage = Math.max(0, requestedCustomerWalletAmount - availableCustomerWalletBalance);
       toast.error(
-        `${POS_ARABIC_TEXT.notEnoughCredit}.\nطآ§لطآ±طآµيطآ¯ طآ§لطآ­طآ§لي: ${formatCurrency(availableCustomerWalletBalance)}\n${POS_ARABIC_TEXT.required}: ${formatCurrency(requestedCustomerWalletAmount)}\n${POS_ARABIC_TEXT.shortage}: ${formatCurrency(shortage)}`
+        `${POS_ARABIC_TEXT.notEnoughCredit}.\nالرصيد الحالي: ${formatCurrency(availableCustomerWalletBalance)}\n${POS_ARABIC_TEXT.required}: ${formatCurrency(requestedCustomerWalletAmount)}\n${POS_ARABIC_TEXT.shortage}: ${formatCurrency(shortage)}`
       );
       return null;
     }
@@ -4074,17 +4074,17 @@ function POSPro() {
     if (selectedTreasuryRequiresBalance && paymentAccountStatus?.account && paymentAccountStatus.sufficient === false && paymentAccountStatus.allow_negative_balance !== true) {
       const accountName = safeArabicText(paymentAccountStatus.account.name, POS_ARABIC_TEXT.accountSelected);
       const fallback = Array.isArray(paymentAccountStatus.fallback_accounts) && paymentAccountStatus.fallback_accounts[0]
-        ? `\nيظث†طآ¬طآ¯ طآ±طآµيطآ¯ ظئ’طآ§ف في ${safeArabicText(paymentAccountStatus.fallback_accounts[0].name, POS_ARABIC_TEXT.account)}`
+        ? `\nيوجد رصيد إضافي في ${safeArabicText(paymentAccountStatus.fallback_accounts[0].name, POS_ARABIC_TEXT.account)}`
         : "";
       toast.error(
-        `طآ±طآµيطآ¯ ${accountName} غيطآ± ظئ’طآ§ف.\nطآ§لطآ±طآµيطآ¯ طآ§لطآ­طآ§لي: ${formatCurrency(paymentAccountStatus.available_balance || 0)}\n${POS_ARABIC_TEXT.required}: ${formatCurrency(activePaymentAccountAmount || cartTotals.total || 0)}\n${POS_ARABIC_TEXT.shortage}: ${formatCurrency(paymentAccountStatus.shortage_amount || 0)}${fallback}`
+        `رصيد ${accountName} غير كاف.\nالرصيد الحالي: ${formatCurrency(paymentAccountStatus.available_balance || 0)}\n${POS_ARABIC_TEXT.required}: ${formatCurrency(activePaymentAccountAmount || cartTotals.total || 0)}\n${POS_ARABIC_TEXT.shortage}: ${formatCurrency(paymentAccountStatus.shortage_amount || 0)}${fallback}`
       );
       return null;
     }
     if (selectedTreasuryRequiresBalance && paymentAccountStatus?.account && paymentAccountStatus.shortage_amount > 0 && paymentAccountStatus.allow_negative_balance === true) {
       const accountName = safeArabicText(paymentAccountStatus.account.name, POS_ARABIC_TEXT.accountSelected);
       toast(
-        `طع¾نطآ¨يه: طآ³يطآµطآ¨طآ­ طآ±طآµيطآ¯ ${accountName} طآ³طآ§لطآ¨طآ§ً.\nطآ§لطآ±طآµيطآ¯ طآ§لطآ­طآ§لي: ${formatCurrency(paymentAccountStatus.available_balance || 0)}\n${POS_ARABIC_TEXT.required}: ${formatCurrency(activePaymentAccountAmount || cartTotals.total || 0)}\n${POS_ARABIC_TEXT.shortage}: ${formatCurrency(paymentAccountStatus.shortage_amount || 0)}`,
+        `تنبيه: سيصبح رصيد ${accountName} سالباً.\nالرصيد الحالي: ${formatCurrency(paymentAccountStatus.available_balance || 0)}\n${POS_ARABIC_TEXT.required}: ${formatCurrency(activePaymentAccountAmount || cartTotals.total || 0)}\n${POS_ARABIC_TEXT.shortage}: ${formatCurrency(paymentAccountStatus.shortage_amount || 0)}`,
         { icon: "!" }
       );
     }
@@ -4651,7 +4651,7 @@ function POSPro() {
       } else if (err?.response?.data?.code === "INSUFFICIENT_CUSTOMER_WALLET_BALANCE" || err?.responseBody?.code === "INSUFFICIENT_CUSTOMER_WALLET_BALANCE") {
         const payload = err?.response?.data || err?.responseBody || {};
         toast.error(
-          `${POS_ARABIC_TEXT.notEnoughCredit}.\nطآ§لطآ±طآµيطآ¯ طآ§لطآ­طآ§لي: ${formatCurrency(payload.available_balance || 0)}\n${POS_ARABIC_TEXT.required}: ${formatCurrency(payload.attempted_amount || 0)}\n${POS_ARABIC_TEXT.shortage}: ${formatCurrency(payload.shortage_amount || 0)}`
+          `${POS_ARABIC_TEXT.notEnoughCredit}.\nالرصيد الحالي: ${formatCurrency(payload.available_balance || 0)}\n${POS_ARABIC_TEXT.required}: ${formatCurrency(payload.attempted_amount || 0)}\n${POS_ARABIC_TEXT.shortage}: ${formatCurrency(payload.shortage_amount || 0)}`
         );
       } else {
         toast.error(t("pos.toasts.checkoutFailedWithMessage", { message }));
@@ -4833,7 +4833,7 @@ function POSPro() {
     }
 
     if (!invoiceUrl) {
-      toast.error("طع¾طآ¹طآ°طآ± طآ¥نطآ´طآ§ء طآ±طآ§طآ¨طآ· طآ§لفطآ§طع¾ظث†طآ±طآ©");
+      toast.error("تعذر إنشاء رابط الفاتورة");
       return;
     }
 
@@ -5459,7 +5459,7 @@ function POSPro() {
 
         <div className={`hidden shrink-0 items-center justify-between gap-2 overflow-x-hidden ${isRtl ? "flex-row-reverse" : ""} lg:flex`}>
           <div className="hidden shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-zinc-200 lg:block">
-            ظث†طآ±طآ¯يطآ© مفطع¾ظث†طآ­طآ©: {currentUser?.name || currentUser?.email || "User"} | {posShiftBranch?.name || activePosShift?.branch_name || "Branch"} | {activePosShift?.opened_at ? new Date(activePosShift.opened_at).toLocaleString() : ""}
+            نافذة مفتوحة: {currentUser?.name || currentUser?.email || "المستخدم"} | {posShiftBranch?.name || activePosShift?.branch_name || "الفرع"} | {activePosShift?.opened_at ? new Date(activePosShift.opened_at).toLocaleString() : ""}
           </div>
           <div className={`flex shrink-0 items-center gap-2 ${isRtl ? "flex-row-reverse" : ""}`}>
           <button
@@ -5726,8 +5726,8 @@ function POSPro() {
                     type="button"
                     onClick={() => setCameraScannerOpen(true)}
                     className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 xl:hidden"
-                    aria-label="فطع¾طآ­ مطآ§طآ³طآ­ طآ§لظئ’طآ§ميطآ±طآ§"
-                    title="فطع¾طآ­ مطآ§طآ³طآ­ طآ§لظئ’طآ§ميطآ±طآ§"
+                    aria-label="فتح ماسح الكاميرا"
+                    title="فتح ماسح الكاميرا"
                   >
                     <Camera className="h-4 w-4" />
                   </button>
@@ -5761,7 +5761,7 @@ function POSPro() {
                   dir="rtl"
                 >
                   <History className="h-4 w-4" />
-                  طآ§لطآ¹مليطآ§طع¾ طآ§لطآ£طآ®يطآ±طآ©
+                  العمليات الأخيرة
                 </button>
                 {canCreatePosExpense ? (
                   <button
@@ -5769,10 +5769,10 @@ function POSPro() {
                     onClick={() => setQuickExpenseOpen(true)}
                     disabled={!activePosShift?.id}
                     className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-amber-300/20 bg-amber-400/10 px-2.5 text-xs font-black text-amber-100 transition hover:border-amber-200/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
-                    title="مطآµطآ±ظث†ف / Expense"
+                    title="مصروف / Expense"
                   >
                     <ReceiptText className="h-4 w-4" />
-                    <span>مطآµطآ±ظث†ف</span>
+                    <span>مصروف</span>
                   </button>
                 ) : null}
             </div>
@@ -5907,7 +5907,7 @@ function POSPro() {
                   className="inline-flex min-h-14 items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-white transition active:scale-[0.99] hover:bg-white/[0.08]"
                 >
                   <ReceiptText className="h-4 w-4" />
-                  فطع¾طآ­ طآ§لفطآ§طع¾ظث†طآ±طآ©
+                  فتح الفاتورة
                 </button>
                 <button
                   type="button"
@@ -5916,7 +5916,7 @@ function POSPro() {
                   className="inline-flex min-h-14 items-center justify-center gap-1.5 rounded-2xl bg-emerald-500 px-3 text-xs font-black text-black transition active:scale-[0.99] hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {checkoutLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
-                  طآ§لطآ¯فطآ¹
+                  الدفع
                 </button>
               </div>
             </div>
@@ -6051,7 +6051,7 @@ function POSPro() {
                 className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <CheckCircle2 className="h-4 w-4" />
-                {t("pos.labels.addToInvoiceArabic", "طآ¥طآ¶طآ§فطآ© للفطآ§طع¾ظث†طآ±طآ©")}
+                {t("pos.labels.addToInvoiceArabic", "إضافة إلى الفاتورة")}
               </button>
             }
           >
@@ -6413,7 +6413,7 @@ function POSPro() {
                       className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-3xl bg-emerald-500 px-4 py-4 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 sm:hidden"
                     >
                       <span className="truncate">
-                        {t("pos.labels.addToInvoiceArabic", "طآ¥طآ¶طآ§فطآ© للفطآ§طع¾ظث†طآ±طآ©")}
+                        {t("pos.labels.addToInvoiceArabic", "إضافة إلى الفاتورة")}
                       </span>
                     </button>
                   </div>
@@ -6660,7 +6660,7 @@ function ShiftGate({
             </div>
             <h1 className="mt-3 text-3xl font-black text-white">{t("pos.shift.openShift")}</h1>
             <p className="mt-2 text-sm text-zinc-400">
-              يطآ¬طآ¨ فطع¾طآ­ ظث†طآ±طآ¯يطآ© قطآ¨ل طآ§لطآ¨يطآ¹. طآ³يطع¾م فطع¾طآ­ طآ§لظث†طآ±طآ¯يطآ© طآ¨طآ§طآ³م طآ§لمطآ³طع¾طآ®طآ¯م طآ§لمطآ³طآ¬ل طآ¯طآ®ظث†له.
+              يجب فتح الشيفت قبل البيع. سيتم فتح الشيفت باسم المستخدم المسجل دخوله.
             </p>
           </div>
           <Clock3 className="h-6 w-6 text-emerald-300" />
@@ -6671,10 +6671,10 @@ function ShiftGate({
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">
                 <UserCheck className="h-4 w-4" />
-                طآ§لظئ’طآ§طآ´يطآ±
+                المستخدم
               </div>
-              <div className="mt-2 text-lg font-black text-white">{userName || "Current user"}</div>
-              <div className="mt-1 text-xs text-zinc-500">طع¾لقطآ§طآ¦ي من طآ§لطآ­طآ³طآ§طآ¨ طآ§لطآ­طآ§لي</div>
+              <div className="mt-2 text-lg font-black text-white">{userName || "المستخدم الحالي"}</div>
+              <div className="mt-1 text-xs text-zinc-500">متعلق من الحساب الحالي</div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">
@@ -6712,7 +6712,7 @@ function ShiftGate({
             className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {attendanceLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
-            فطع¾طآ­ طآ§لظث†طآ±طآ¯يطآ©
+            فتح الشيفت
           </button>
         </div>
       </section>
@@ -6723,13 +6723,13 @@ function ShiftGate({
 function getShiftRotationLabels(language = "en") {
   const isArabic = String(language || "").toLowerCase().startsWith("ar");
   return isArabic
-    ? {
-        shiftClose: "طآ¥غلطآ§ق طآ§لطآ´يفطع¾",
-        drawerSummary: "ملطآ®طآµ طآ§لطآ¯طآ±طآ¬",
-        expectedDrawer: "طآ§لمطع¾ظث†قطآ¹ في طآ§لطآ¯طآ±طآ¬",
-        actualDrawer: "طآ§لمطآ¨لغ طآ§لفطآ¹لي",
-        cancel: "طآ¥لغطآ§ء",
-        closeShift: "طآ¥غلطآ§ق طآ§لطآ´يفطع¾",
+      ? {
+        shiftClose: "إغلاق الشيفت",
+        drawerSummary: "ملخص الدرج",
+        expectedDrawer: "المتوقع في الدرج",
+        actualDrawer: "المبلغ الفعلي",
+        cancel: "إلغاء",
+        closeShift: "إغلاق الشيفت",
       }
     : {
         shiftClose: "Shift close",
@@ -7232,12 +7232,12 @@ function ShiftReportModal({ report, onClose, onPrint }) {
           </div>
         </div>
         <div className="mt-5 grid gap-4 xl:grid-cols-3">
-          <AccountingLedgerSection title="ملطآ®طآµ طآ§لظئ’طآ§طآ´" subtitle="Cash flow and drawer impact" accent="amber">
-            <AccountingLedgerRow label="مطآ¨يطآ¹طآ§طع¾ نقطآ¯ي" value={formatCurrency(totals.cash || 0)} />
-            <AccountingLedgerRow label="مطآ±طع¾طآ¬طآ¹طآ§طع¾ نقطآ¯ي" value={formatCurrency(totals.returns || 0)} />
-            <AccountingLedgerRow label="مطآµطآ±ظث†فطآ§طع¾ نقطآ¯يطآ©" value={formatCurrency(Number(totals.pos_expenses_cash || 0) + Number(totals.employee_advances_cash || 0))} />
+          <AccountingLedgerSection title="ملخص الدرج" subtitle="Cash flow and drawer impact" accent="amber">
+            <AccountingLedgerRow label="مبيعات نقدية" value={formatCurrency(totals.cash || 0)} />
+            <AccountingLedgerRow label="مرتجعات نقدية" value={formatCurrency(totals.returns || 0)} />
+            <AccountingLedgerRow label="مصروفات نقدية" value={formatCurrency(Number(totals.pos_expenses_cash || 0) + Number(totals.employee_advances_cash || 0))} />
             <AccountingLedgerRow
-              label="طآµطآ§في طآ§لطآ¯طآ±طآ¬ طآ§لمطع¾ظث†قطآ¹"
+              label="صافي الدرج المتوقع"
               value={formatCurrency(totals.net_cash_expected ?? totals.expected_cash ?? shift.expected_cash)}
               subtitle="Cash sales minus cash outflows"
               strong
@@ -7245,18 +7245,18 @@ function ShiftReportModal({ report, onClose, onPrint }) {
             />
           </AccountingLedgerSection>
 
-          <AccountingLedgerSection title="ظث†طآ³طآ§طآ¦ل طآ§لطآ¯فطآ¹" subtitle="Non-cash settlement mix" accent="emerald">
-            <AccountingLedgerRow label="طآ¨طآ·طآ§قطآ§طع¾" value={formatCurrency(totals.card || 0)} />
-            <AccountingLedgerRow label="مطآ­فطآ¸طآ©" value={formatCurrency(totals.wallet || 0)} />
+          <AccountingLedgerSection title="وسائل الدفع" subtitle="Non-cash settlement mix" accent="emerald">
+            <AccountingLedgerRow label="بطاقات" value={formatCurrency(totals.card || 0)} />
+            <AccountingLedgerRow label="محفظة" value={formatCurrency(totals.wallet || 0)} />
             <AccountingLedgerRow label="InstaPay" value={formatCurrency(totals.wallet || 0)} subtitle="Included in wallet total" />
             <AccountingLedgerRow label="Vodafone Cash" value={formatCurrency(0)} subtitle="Not separated in current shift report" />
           </AccountingLedgerSection>
 
-          <AccountingLedgerSection title="طآ§لنطآ´طآ§طآ·" subtitle="Operational activity at a glance" accent="cyan">
-            <AccountingLedgerRow label="طآ¹طآ¯طآ¯ طآ§لفظث†طآ§طع¾يطآ±" value={Number(totals.invoice_count || 0).toLocaleString()} />
-            <AccountingLedgerRow label="طآ§لطآ®طآµظث†مطآ§طع¾" value={formatCurrency(totals.discounts || 0)} />
-            <AccountingLedgerRow label="طآ³لف طآ§لمظث†طآ¸فين" value={formatCurrency(totals.employee_advances || 0)} />
-            <AccountingLedgerRow label="مطآ¯طآ© طآ§لطآ´يفطع¾" value={shiftDuration || "-"} />
+          <AccountingLedgerSection title="النشاط" subtitle="Operational activity at a glance" accent="cyan">
+            <AccountingLedgerRow label="عدد الفواتير" value={Number(totals.invoice_count || 0).toLocaleString()} />
+            <AccountingLedgerRow label="الخصومات" value={formatCurrency(totals.discounts || 0)} />
+            <AccountingLedgerRow label="سلف الموظفين" value={formatCurrency(totals.employee_advances || 0)} />
+            <AccountingLedgerRow label="مدة الشيفت" value={shiftDuration || "-"} />
           </AccountingLedgerSection>
         </div>
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
@@ -7281,7 +7281,7 @@ function ShiftReportModal({ report, onClose, onPrint }) {
                   <span className="min-w-0">
                     <span className="block truncate font-black text-white">{item.product_name}</span>
                     <span className="text-xs text-zinc-500">
-                      {Number(item.quantity || 0).toLocaleString()} sales أ¢€آ¢ {totalSoldItems > 0 ? Math.round((Number(item.quantity || 0) / totalSoldItems) * 100) : 0}%
+                      {Number(item.quantity || 0).toLocaleString()} مبيعات • {totalSoldItems > 0 ? Math.round((Number(item.quantity || 0) / totalSoldItems) * 100) : 0}%
                     </span>
                   </span>
                   <span>{formatCurrency(item.total || 0)}</span>
@@ -7331,14 +7331,14 @@ function PosCameraScannerModal({ onClose, onScan, onPermissionDenied, onUnsuppor
         <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4">
           <div className="min-w-0">
             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">POS SCANNER</div>
-            <h3 id="pos-camera-scanner-title" className="mt-1 text-lg font-black text-white">طآ§مطآ³طآ­ طآ§لطآ¨طآ§طآ±ظئ’ظث†طآ¯ طآ£ظث† QR طآ¨طآ§لظئ’طآ§ميطآ±طآ§</h3>
-            <p className="mt-1 text-xs font-semibold text-zinc-500">ظث†طآ¬ّه طآ§لظئ’طآ§ميطآ±طآ§ نطآ­ظث† طآ§لظئ’ظث†طآ¯ ظث†طآ³يطع¾م طآ§لطع¾نفيطآ° مطآ¨طآ§طآ´طآ±طآ©.</p>
+            <h3 id="pos-camera-scanner-title" className="mt-1 text-lg font-black text-white">امسح الباركود أو QR بالكاميرا</h3>
+            <p className="mt-1 text-xs font-semibold text-zinc-500">وجّه الكاميرا نحو الباركود أو QR الخاص بالمنتج وسيتم التنفيذ مباشرة.</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08]"
-            aria-label="طآ¥غلطآ§ق مطآ§طآ³طآ­ طآ§لظئ’طآ§ميطآ±طآ§"
+            aria-label="إغلاق ماسح الكاميرا"
           >
             <X className="h-4 w-4" />
           </button>
@@ -7356,7 +7356,7 @@ function PosCameraScannerModal({ onClose, onScan, onPermissionDenied, onUnsuppor
             />
           </div>
           <div className="mt-3 text-center text-xs font-semibold text-zinc-500">
-            يطآ¯طآ¹م طآ¨طآ§طآ±ظئ’ظث†طآ¯ طآ§لمنطع¾طآ¬طآ§طع¾ ظث†QR طآ§لطآ®طآ§طآµ طآ¨منطع¾طآ¬طآ§طع¾ طآ§لـ POS.
+            يدعم باركود المنتج و QR الخاص بمنتجات الـ POS.
           </div>
         </div>
       </section>
@@ -7393,9 +7393,9 @@ function QuickExpenseModal({ value, onChange, onClose, onSave, saving, branchNam
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200">POS EXPENSE</div>
-            <h3 className="mt-1 text-xl font-black">مطآµطآ±ظث†ف / Expense</h3>
+            <h3 className="mt-1 text-xl font-black">مصروف / Expense</h3>
             <p className="mt-1 text-xs font-semibold text-zinc-500">
-              {branchName || "Current branch"} {shiftId ? `#${shiftId}` : ""}
+              {branchName || "الفرع الحالي"} {shiftId ? `#${shiftId}` : ""}
             </p>
           </div>
           <button type="button" onClick={onClose} disabled={saving} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/[0.08] disabled:opacity-50">
