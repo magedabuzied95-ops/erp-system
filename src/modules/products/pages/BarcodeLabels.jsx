@@ -1,8 +1,9 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 
+import { renderToStaticMarkup } from "react-dom/server";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { QRCodeCanvas } from "qrcode.react";
+import { QRCodeCanvas, QRCodeSVG } from "qrcode.react";
 
 import {
   Download,
@@ -29,6 +30,7 @@ import {
   getLabelQuantity,
   buildProductLabelItems,
   buildBarcodeShopLabelItem,
+  buildSmartProductQrUrl,
   openBarcodePrintWindow,
 } from "../lib/barcodeLabels";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -221,6 +223,7 @@ const preserveVariantImageFields = (product, variant) => {
   return {
     ...merged,
     variant_id: variant?.variant_id ?? merged.variant_id,
+    color_id: variant?.color_id ?? variant?.colorId ?? merged.color_id ?? null,
     image_url: variantImage || "",
         variant_image_url: safeText(variant?.variant_image_url || variantImage),
         color_image_url: safeText(variant?.color_image_url || variant?.variant_image_url || variantImage),
@@ -248,6 +251,48 @@ const getLabelRenderKey = (item, index, suffix = "label") =>
     item.copyIndex || index,
     index,
   ].join("-");
+
+const buildSmartQrSvgMarkup = (value = "", size = 132) => {
+  const safeValue = String(value || "").trim();
+  if (!safeValue) return "";
+  return renderToStaticMarkup(
+    <QRCodeSVG
+      value={safeValue}
+      size={size}
+      marginSize={0}
+      bgColor="#ffffff"
+      fgColor="#111827"
+      level="M"
+      includeMargin={false}
+    />
+  );
+};
+
+const enrichLabelWithSmartQr = (item, enabled) => {
+  const smartQrUrl = String(
+    item?.smartQrUrl ||
+      buildSmartProductQrUrl({
+        productId: item?.productId,
+        variantId: item?.variantId,
+        colorId: item?.colorId,
+      }) ||
+      ""
+  ).trim();
+  if (!enabled || !smartQrUrl) {
+    return {
+      ...item,
+      showSmartProductQr: false,
+      smartQrUrl,
+      smartQrSvgMarkup: "",
+    };
+  }
+  return {
+    ...item,
+    showSmartProductQr: true,
+    smartQrUrl,
+    smartQrSvgMarkup: buildSmartQrSvgMarkup(smartQrUrl),
+  };
+};
 
 const toSearchText = (row) =>
   [
@@ -317,6 +362,7 @@ function BarcodeLabels() {
   const [activeProductNotice, setActiveProductNotice] = useState("");
   const [routeLocked, setRouteLocked] = useState(false);
   const [barcodeShopQuantity, setBarcodeShopQuantity] = useState(1);
+  const [includeSmartProductQr, setIncludeSmartProductQr] = useState(false);
   const productId = Number(searchParams.get("productId"));
   const mode = searchParams.get("mode");
   const isBarcodeShopMode = mode === "barcode-shop";
@@ -499,6 +545,11 @@ function BarcodeLabels() {
     [catalog, selectedQuantities, routeLocked, activeProduct, availableOnly, isBarcodeShopMode, barcodeShopQuantity, selectedProductPriceFallbackVariant]
   );
 
+  const qrReadyItems = useMemo(
+    () => selectedItems.map((item) => enrichLabelWithSmartQr(item, includeSmartProductQr && !isBarcodeShopMode)),
+    [includeSmartProductQr, isBarcodeShopMode, selectedItems]
+  );
+
   console.log("[barcode-shop] mode/productId", { mode, productId });
   console.log("[barcode-shop] selectedProduct", selectedProduct);
   console.log(
@@ -509,7 +560,7 @@ function BarcodeLabels() {
   );
   console.log("[barcode-shop] selectedProductVariants", selectedProductVariants);
 
-  const expandedLabels = useMemo(() => expandLabelCopies(selectedItems), [selectedItems]);
+  const expandedLabels = useMemo(() => expandLabelCopies(qrReadyItems), [qrReadyItems]);
   const templateContext = useMemo(
     () => resolveTemplatePrintContext(labelTemplate, barcodePrintSettings, sheetMode),
     [barcodePrintSettings, labelTemplate, sheetMode]
@@ -547,10 +598,10 @@ function BarcodeLabels() {
   ]);
 
   useEffect(() => {
-    if (!selectedItems.length) return;
+    if (!qrReadyItems.length) return;
     console.log(
       "[barcode-labels] final label items:",
-      selectedItems.map((item) => ({
+      qrReadyItems.map((item) => ({
         productName: item.productName,
         color: item.color,
         size: item.size,
@@ -558,17 +609,19 @@ function BarcodeLabels() {
         productImage: item.sourceProductImage,
         resolvedImage: item.imageUrl || item.resolvedImage,
         quantity: item.quantity,
+        smartQrUrl: item.smartQrUrl || "",
+        showSmartProductQr: Boolean(item.showSmartProductQr),
       }))
     );
-  }, [selectedItems]);
+  }, [qrReadyItems]);
 
   const totals = useMemo(
     () => ({
-      variants: selectedItems.length,
+      variants: qrReadyItems.length,
       labels: expandedLabels.length,
-      products: new Set(selectedItems.map((item) => item.productId)).size,
+      products: new Set(qrReadyItems.map((item) => item.productId)).size,
     }),
-    [selectedItems, expandedLabels]
+    [qrReadyItems, expandedLabels]
   );
 
   const updateQuantity = (key, nextValue) => {
@@ -914,6 +967,32 @@ function BarcodeLabels() {
                     </div>
                   </div>
 
+                  <label className="flex items-center justify-between gap-4 rounded-[28px] border border-white/10 bg-white/[0.04] px-4 py-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-black text-white">طباعة QR ذكي للمنتج</div>
+                      <div className="mt-1 text-xs text-zinc-400">
+                        يضيف QR لفتح المنتج من الهاتف بدون التأثير على باركود الـ SKU.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={includeSmartProductQr}
+                      onClick={() => setIncludeSmartProductQr((value) => !value)}
+                      className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition ${
+                        includeSmartProductQr
+                          ? "border-emerald-300/50 bg-emerald-500/80"
+                          : "border-white/10 bg-white/10"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-5 w-5 rounded-full bg-white shadow transition ${
+                          includeSmartProductQr ? "translate-x-[1.35rem]" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </label>
+
                   <div className="flex items-center justify-between gap-3">
                     <div>
                     <h2 className="text-xl font-black tracking-tight text-white">{t("products.barcodeLabels.previewBeforePrint")}</h2>
@@ -1185,6 +1264,19 @@ function VariantRow({ product, variant, imageUrl, quantity, onQuantityChange, sh
   );
 }
 
+function SmartQrBlock({ item, compact = false }) {
+  const qrMarkup = String(item?.smartQrSvgMarkup || "").trim();
+  if (!item?.showSmartProductQr || !qrMarkup) return null;
+  return (
+    <div className={`mt-3 flex items-center justify-center rounded-[16px] border border-zinc-200 bg-zinc-50 p-2 ${compact ? "max-w-[22mm] self-center" : ""}`}>
+      <div
+        className="h-auto w-full max-w-[84px] [&_svg]:h-auto [&_svg]:w-full"
+        dangerouslySetInnerHTML={{ __html: qrMarkup }}
+      />
+    </div>
+  );
+}
+
 function LabelCard({ item, printSettings, template = LABEL_TEMPLATE_STANDARD, preview = false }) {
   if (template === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100) {
     return <ThermalLandscapeLabel item={item} printSettings={printSettings} preview={preview} />;
@@ -1235,6 +1327,7 @@ function LabelCard({ item, printSettings, template = LABEL_TEMPLATE_STANDARD, pr
           <div className="mt-4 rounded-[20px] border border-zinc-200 bg-white p-2">
             <div dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
           </div>
+          <SmartQrBlock item={item} />
         </div>
       </div>
     </article>
@@ -1279,7 +1372,7 @@ function PremiumRetailLabel({ item, printSettings, print = false }) {
 
   return (
     <article
-      className={`grid overflow-hidden border border-zinc-200 bg-white text-zinc-900 ${print ? "shadow-none" : "shadow-[0_12px_30px_rgba(15,23,42,0.08)]"}`}
+      className={`relative grid overflow-hidden border border-zinc-200 bg-white text-zinc-900 ${print ? "shadow-none" : "shadow-[0_12px_30px_rgba(15,23,42,0.08)]"}`}
       data-premium-label-root="true"
       style={{
         boxSizing: "border-box",
@@ -1322,6 +1415,11 @@ function PremiumRetailLabel({ item, printSettings, print = false }) {
       <div className="min-h-0 overflow-hidden px-[0.5mm] pt-0 text-center text-[8px] font-black leading-none text-zinc-800" data-premium-label-part="sku">
           {item.sku}
       </div>
+      {item?.showSmartProductQr ? (
+        <div className="absolute bottom-[9mm] right-[1.2mm] z-[2] w-[11.5mm] overflow-hidden rounded-[2mm] border border-zinc-200 bg-white p-[0.5mm]">
+          <div className="[&_svg]:h-auto [&_svg]:w-full" dangerouslySetInnerHTML={{ __html: item.smartQrSvgMarkup || "" }} />
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -1375,6 +1473,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
         <div className="flex min-h-0 flex-col items-center justify-center rounded-[10px] border border-zinc-200 bg-white px-[2.5mm] pb-[1.2mm] pt-[1.2mm]">
           <div className="w-[94%] max-w-full" style={{ minHeight: "22.5mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
           <div className="mt-[0.8mm] text-center text-[9px] font-black leading-none text-zinc-800">{item.sku}</div>
+          <SmartQrBlock item={item} compact />
         </div>
       </div>
     </article>
@@ -1425,6 +1524,7 @@ function PrintLabel({ item, printSettings, template = LABEL_TEMPLATE_STANDARD })
           <div className="mt-auto rounded-[16px] border border-zinc-200 bg-white p-1">
             <div dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
           </div>
+          <SmartQrBlock item={item} />
         </div>
       </div>
     </article>

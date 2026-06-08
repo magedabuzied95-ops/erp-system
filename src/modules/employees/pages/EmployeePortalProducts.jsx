@@ -47,6 +47,7 @@ const variantStockValue = (variant = {}) => Math.max(0, Number(variant.stock ?? 
 const normalizeVariant = (variant = {}) => ({
   id: variant.variant_id ?? variant.id ?? null,
   variant_id: variant.variant_id ?? variant.id ?? null,
+  color_id: variant.color_id ?? variant.colorId ?? null,
   product_id: variant.product_id ?? null,
   color: text(variant.color || ""),
   size: variantSizeValue(variant),
@@ -111,12 +112,16 @@ const variantsForColor = (product = {}, color = "") =>
 const firstVariantForColor = (product = {}, color = "") =>
   variantsForColor(product, color)[0] || null;
 
-const findVariant = (product = {}, variantId = null, color = "", size = "") => {
+const findVariant = (product = {}, variantId = null, color = "", size = "", colorId = null) => {
   const allVariants = Array.isArray(product.variants) ? product.variants : [];
   const variants = color ? variantsForColor(product, color) : allVariants;
   if (variantId) {
     const byId = variants.find((variant) => String(variant.variant_id ?? variant.id ?? "") === String(variantId));
     if (byId) return byId;
+  }
+  if (colorId) {
+    const byColorId = variants.find((variant) => String(variant.color_id ?? "") === String(colorId));
+    if (byColorId) return byColorId;
   }
   if (color || size) {
     const byCombo = variants.find((variant) => text(variant.color) === text(color) && text(variant.size) === text(size));
@@ -611,8 +616,11 @@ export default function EmployeePortalProducts() {
   const directLookup = useMemo(
     () => ({
       productId: text(searchParams.get("productId") || searchParams.get("product_id") || ""),
+      variantId: text(searchParams.get("variantId") || searchParams.get("variant_id") || ""),
+      colorId: text(searchParams.get("colorId") || searchParams.get("color_id") || ""),
       barcode: text(searchParams.get("barcode") || ""),
       article: text(searchParams.get("article") || searchParams.get("article_code") || searchParams.get("articleCode") || ""),
+      action: text(searchParams.get("action") || ""),
     }),
     [queryKey]
   );
@@ -644,7 +652,7 @@ export default function EmployeePortalProducts() {
   const filtersPanelRef = useRef(null);
   const searchInputRef = useRef(null);
   const homePath = useMemo(() => buildEmployeePortalHomePath({ pathname: location.pathname, token }), [location.pathname, token]);
-  const openedFromDeepLink = Boolean(directLookup.productId || directLookup.barcode || directLookup.article);
+  const openedFromDeepLink = Boolean(directLookup.productId || directLookup.variantId || directLookup.colorId || directLookup.barcode || directLookup.article);
 
   useEffect(() => {
     if (typeof document === "undefined") return undefined;
@@ -706,7 +714,13 @@ export default function EmployeePortalProducts() {
           null;
 
         if (matched) {
-          const variant = findVariant(matched, selection.variant_id, selection.color, selection.size);
+          const variant = findVariant(
+            matched,
+            directLookup.variantId || selection.variant_id,
+            selection.color,
+            selection.size,
+            directLookup.colorId
+          );
           const nextColor = variant?.color || firstAvailableColor(matched);
           const nextSelection = resolveColorSelection(matched, nextColor, variant?.size || selection.size || "");
           setProducts(lookupProducts);
@@ -714,7 +728,7 @@ export default function EmployeePortalProducts() {
           setSelectedColor(nextColor);
           setSelectedSize(nextSelection.selectedSize);
           setSelectedQuantity(1);
-          setSheetOpen(true);
+          setSheetOpen(directLookup.action === "warehouse-request" || Boolean(directLookup.productId));
         }
       } finally {
         lookupDoneRef.current = true;
@@ -724,7 +738,7 @@ export default function EmployeePortalProducts() {
     return () => {
       cancelled = true;
     };
-  }, [token, directLookup.productId, directLookup.barcode, directLookup.article]);
+  }, [token, directLookup.productId, directLookup.variantId, directLookup.colorId, directLookup.barcode, directLookup.article, directLookup.action]);
 
   const normalizedProducts = useMemo(() => (Array.isArray(products) ? products : []).map(normalizeProduct), [products]);
 

@@ -99,10 +99,13 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
       const requestedVariantId = routeSearchParams.get("variant") || routeSearchParams.get("variantId") || "";
       const requestedSize = routeSearchParams.get("size") || "";
       const requestedColor = routeSearchParams.get("color") || "";
+      const requestedColorId = routeSearchParams.get("colorId") || "";
       const requestedColorKey = String(requestedColor || "").trim().toLowerCase();
       const requested = productVariants.find((variant) => requestedVariantId && String(variant.id) === String(requestedVariantId) && variantHasStock(variant))
         || productVariants.find((variant) => requestedVariantId && String(variant.edition_slug || "") === String(requestedVariantId) && variantHasStock(variant))
+        || productVariants.find((variant) => requestedColorId && String(variant.color_id || "") === String(requestedColorId) && variantHasStock(variant))
         || productVariants.find((variant) => requestedSize && String(variant.size) === requestedSize && (!requestedColor || variantColorKey(variant) === requestedColorKey || variantColorName(variant).toLowerCase() === requestedColorKey) && variantHasStock(variant))
+        || productVariants.find((variant) => requestedColorId && String(variant.color_id || "") === String(requestedColorId))
         || productVariants.find((variant) => requestedSize && String(variant.size) === requestedSize && variantHasStock(variant));
       const first = requested || firstDisplayVariant(productVariants);
       if (!cancelled) {

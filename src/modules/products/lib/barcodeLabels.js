@@ -85,6 +85,18 @@ const resolveStorefrontOrigin = () => {
   return win?.location?.origin ? win.location.origin.replace(/\/$/, "") : "http://localhost:5174";
 };
 
+const buildQueryString = (entries = []) => {
+  const params = new URLSearchParams();
+  entries.forEach(([key, value]) => {
+    if (value === null || value === undefined) return;
+    const normalized = String(value).trim();
+    if (!normalized) return;
+    params.set(key, normalized);
+  });
+  const query = params.toString();
+  return query ? `?${query}` : "";
+};
+
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const stripDigits = (value = "") => String(value).replace(/\D/g, "");
@@ -271,6 +283,21 @@ export const getLabelQuantity = (selectedQuantity) => {
   return Number.isFinite(value) ? clamp(Math.floor(value), 0, 999) : 0;
 };
 
+export const buildSmartProductQrPath = ({ productId, variantId = null, colorId = null } = {}) => {
+  const normalizedProductId = String(productId || "").trim();
+  if (!normalizedProductId) return "";
+  return `/qr/product/${encodeURIComponent(normalizedProductId)}${buildQueryString([
+    ["variantId", variantId],
+    ["colorId", colorId],
+  ])}`;
+};
+
+export const buildSmartProductQrUrl = ({ productId, variantId = null, colorId = null } = {}) => {
+  const path = buildSmartProductQrPath({ productId, variantId, colorId });
+  if (!path) return "";
+  return `${resolveStorefrontOrigin()}${path}`;
+};
+
 export const buildLabelItem = (product, variant = null, quantity = 1) => {
   const displayBarcode = getLabelDisplayBarcode(product, variant);
   const sourceVariantImage = firstText(variant?.variant_image_url, variant?.color_image_url, variant?.image_url, variant?.image);
@@ -292,6 +319,8 @@ export const buildLabelItem = (product, variant = null, quantity = 1) => {
     key: getLabelIdentity(product, variant),
     productId: product?.id,
     variantId: variant?.variant_id ?? variant?.id ?? null,
+    colorId: variant?.color_id ?? variant?.colorId ?? null,
+    slug: product?.slug || product?.canonical_slug || "",
     productName: product?.name || "Unnamed product",
     brand: product?.brand || "Brand",
     category: product?.category || "Category",
@@ -313,6 +342,11 @@ export const buildLabelItem = (product, variant = null, quantity = 1) => {
     companyName: product?.companyName || APP_NAME,
     companyTagline: product?.companyTagline || "Retail barcode label system",
     quantity: getLabelQuantity(quantity),
+    smartQrUrl: buildSmartProductQrUrl({
+      productId: product?.id,
+      variantId: variant?.variant_id ?? variant?.id ?? null,
+      colorId: variant?.color_id ?? variant?.colorId ?? null,
+    }),
   };
 };
 
@@ -367,24 +401,33 @@ export const buildProductLabelItems = ({
 export const getBarcodeShopQrValue = (product = {}) =>
   product?.slug || product?.canonical_slug || (product?.id ? String(product.id) : "");
 
-export const getBarcodeShopQrUrl = (product = {}) => {
-  const identifier = getBarcodeShopQrValue(product);
-  if (!identifier) return "";
-  return `${resolveStorefrontOrigin()}/shop/product/${String(identifier).replace(/^\/+/, "")}`;
+export const getBarcodeShopQrUrl = (product = {}, options = {}) => {
+  const productId = product?.id ?? product?.product_id ?? "";
+  if (!productId) return "";
+  return buildSmartProductQrUrl({
+    productId,
+    variantId: options?.variantId ?? null,
+    colorId: options?.colorId ?? null,
+  });
 };
 
 export const buildBarcodeShopLabelItem = (product = null, quantity = 1, variantFallback = null) => {
   if (!product) return null;
   const qrToken = getBarcodeShopQrValue(product);
+  const variantId = variantFallback?.variant_id ?? variantFallback?.id ?? null;
+  const colorId = variantFallback?.color_id ?? variantFallback?.colorId ?? null;
   const priceInfo = getProductFirstLabelPriceInfo(product, variantFallback);
   return {
     key: `barcode-shop:${product.id}`,
     productId: product.id,
+    variantId,
+    colorId,
+    slug: product?.slug || product?.canonical_slug || "",
     productName: product.name || "Unnamed product",
     brand: product.brand || "Brand",
     category: product.category || "Category",
     qrToken,
-    qrValue: getBarcodeShopQrUrl(product),
+    qrValue: getBarcodeShopQrUrl(product, { variantId, colorId }),
     salePrice: priceInfo.price,
     effectivePrice: priceInfo.price,
     displayPrice: priceInfo.price,
@@ -394,6 +437,7 @@ export const buildBarcodeShopLabelItem = (product = null, quantity = 1, variantF
     imageUrl: product.product_image_url || product.image_url || "",
     companyName: product.companyName || APP_NAME,
     quantity: getLabelQuantity(quantity) || 1,
+    smartQrUrl: buildSmartProductQrUrl({ productId: product.id, variantId, colorId }),
   };
 };
 
@@ -541,7 +585,15 @@ export const buildBarcodePrintHtml = ({
     ? Math.max(134, Number(normalizedSettings.barcodeHeight || 88))
     : resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100
       ? PREMIUM_RETAIL_BARCODE_HEIGHT
-    : Number(normalizedSettings.barcodeHeight || 88);
+      : Number(normalizedSettings.barcodeHeight || 88);
+  const buildSmartQrMarkup = (item, { compact = false } = {}) => {
+    if (!item?.showSmartProductQr || !item?.smartQrSvgMarkup) return "";
+    return `
+      <div class="smart-qr ${compact ? "smart-qr-compact" : ""}">
+        <div class="smart-qr-svg">${item.smartQrSvgMarkup}</div>
+      </div>
+    `;
+  };
 
   const buildLabelMarkup = (item) => {
       const safeImage = getSafeLabelImageUrl(item);
@@ -576,6 +628,7 @@ export const buildBarcodePrintHtml = ({
             <div class="thermal-barcode">
               <div class="thermal-barcode-svg">${barcodeSvg}</div>
               <div class="thermal-sku-bottom">${item.sku}</div>
+              ${buildSmartQrMarkup(item, { compact: true })}
             </div>
           </article>
         `;
@@ -612,6 +665,7 @@ export const buildBarcodePrintHtml = ({
               <div class="premium-barcode-svg">${barcodeSvg}</div>
             </div>
             <div class="premium-sku" data-premium-label-part="sku">${item.sku}</div>
+            ${item?.showSmartProductQr && item?.smartQrSvgMarkup ? `<div class="premium-smart-qr">${item.smartQrSvgMarkup}</div>` : ""}
           </article>
         `;
       }
@@ -653,6 +707,7 @@ export const buildBarcodePrintHtml = ({
               ${normalizedSettings.showProductName ? `<h2>${item.productName}</h2>` : ""}
               ${metaRows.join("")}
               <div class="barcode">${barcodeSvg}</div>
+              ${buildSmartQrMarkup(item)}
             </div>
           </div>
         </article>
@@ -817,6 +872,7 @@ export const buildBarcodePrintHtml = ({
           }
           .premium-retail {
             display: grid;
+            position: relative;
             grid-template-rows: ${PREMIUM_RETAIL_GRID_ROWS};
             gap: 0;
             padding: 0;
@@ -1065,6 +1121,46 @@ export const buildBarcodePrintHtml = ({
             width: 100%;
             height: auto;
             display: block;
+          }
+          .smart-qr {
+            margin-top: 10px;
+            display: flex;
+            justify-content: center;
+          }
+          .smart-qr-compact {
+            margin-top: 4px;
+          }
+          .smart-qr-svg {
+            width: 84px;
+            max-width: 100%;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            background: #f8fafc;
+            padding: 6px;
+          }
+          .smart-qr-compact .smart-qr-svg {
+            width: 62px;
+            padding: 4px;
+            border-radius: 10px;
+          }
+          .smart-qr-svg svg,
+          .premium-smart-qr svg {
+            width: 100%;
+            height: auto;
+            display: block;
+          }
+          .premium-smart-qr {
+            position: absolute;
+            right: 1.2mm;
+            bottom: 9mm;
+            z-index: 2;
+            width: 11.5mm;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            border-radius: 2mm;
+            background: #ffffff;
+            padding: 0.5mm;
+            box-sizing: border-box;
           }
           @media print {
             body { background: #ffffff; }

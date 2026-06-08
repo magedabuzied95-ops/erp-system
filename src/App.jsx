@@ -191,6 +191,7 @@ import { TenantProvider } from "./modules/saas/context/TenantContext";
 const RegisterCompany = lazy(() => import("./modules/saas/pages/RegisterCompany"));
 const PublicInvoice = lazy(() => import("./pages/PublicInvoice"));
 const PublicProduct = lazy(() => import("./pages/PublicProduct"));
+const SmartProductQrRedirect = lazy(() => import("./pages/SmartProductQrRedirect"));
 const Storefront = lazy(() => import("./storefront/Storefront"));
 
 const Workspace = lazy(() => import("./modules/saas/pages/Workspace"));
@@ -305,6 +306,11 @@ function App() {
       <Route
         path="/p/:productId"
         element={<PublicProduct />}
+      />
+
+      <Route
+        path="/qr/product/:productId"
+        element={<SmartProductQrRedirect />}
       />
 
       <Route
