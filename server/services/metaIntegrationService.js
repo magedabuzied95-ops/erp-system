@@ -92,6 +92,7 @@ const META_WEBHOOK_REQUIRED_FIELDS = META_WEBHOOK_MINIMAL_FIELDS;
 const META_FULLY_CONNECTED_STATUS = "fully_connected";
 
 const text = (value = "") => String(value ?? "").trim();
+const asArray = (value) => (Array.isArray(value) ? value : []);
 const bool = (value) => value === true || value === "true" || value === 1 || value === "1";
 const numberOrNull = (value) => {
   const parsed = Number(value);
@@ -9327,10 +9328,12 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
   }
   const guardedVisualIntroText = visualCards ? closestVisualIntroText({ guard: topConfirmationGuard, replyType: metadata.final_reply_type }) : "";
   const baseIntroText = visualCards ? guardedVisualIntroText : (gate.introText || introText);
-  const productPresentationReply = detectedIntent === "product_search" && !detectOtherColorsRequest(message.message_text || "") && !detectAllColorsRequest(message.message_text || "");
-  const finalIntroText = modelNameSearch && guardedCards.length >= 2 && !productPresentationReply
-    ? [modelColorLimitIntro, baseIntroText].filter(Boolean).join("\n")
-    : baseIntroText;
+  const v2ProductPresentationIntent = /^(product_search|more_images|product_presentation)$/i.test(text(detectedIntent));
+  const finalIntroText = v2ProductPresentationIntent
+    ? ""
+    : (modelNameSearch && guardedCards.length >= 2
+      ? [modelColorLimitIntro, baseIntroText].filter(Boolean).join("\n")
+      : baseIntroText);
   const productCardsPipelineId = finalReplyPipelineId({
     message,
     owner: "response_orchestrator",
@@ -9454,7 +9457,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
       message,
       text: finalCardIntroText,
       detectedIntent,
-      metadata: { ...metadata, ...finalCardMetadata, intro: true, replyPipelineId: productCardsPipelineId, replyType: "product_search" },
+      metadata: { ...metadata, ...finalCardMetadata, intro: true, replyPipelineId: productCardsPipelineId, replyType: "product_search", force_reply_text_passthrough: v2ProductPresentationIntent },
     });
   }
   const result = await sendMetaInboxOutboundMessage({
