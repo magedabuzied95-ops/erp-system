@@ -16956,7 +16956,8 @@ export const processMetaWebhook = async ({ req } = {}) => {
       productCards = [];
     }
     const replyText = reply.text || aiPayload.answer || "";
-    if (productCards.length && repeatedProductCards({ conversationId: message.external_conversation_id, productCards }) && !explicitlyAskedForProductCards(message.message_text)) {
+    const replyIntent = text(aiPayload.detected_intent || aiPayload.intent || reply.intent || latestDebugClassification?.intent || "");
+    if (productCards.length && !protectedV2ProductIntent(replyIntent) && repeatedProductCards({ conversationId: message.external_conversation_id, productCards }) && !explicitlyAskedForProductCards(message.message_text)) {
       console.log("ai_inbox_repeated_product_card_prevented", {
         tenant_id: config.tenant_id,
         channel: message.channel,

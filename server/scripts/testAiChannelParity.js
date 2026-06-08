@@ -709,7 +709,7 @@ const runJordan4SizeFollowupSequenceTest = async () => {
     if (JSON.stringify(secondReply).includes(LEGACY_NEAREST_PHRASE)) {
       throw new Error(`[AI_JORDAN4_SIZE_SEQUENCE_LEGACY_LEAK] ${config.key}`);
     }
-    if (!capture.text.includes("مقاس 42")) {
+    if (!/(?:\u0645\u0642\u0627\u0633|\u0627\u0644\u0645\u0642\u0627\u0633)\s*:?\s*42/i.test(capture.text)) {
       throw new Error(`[AI_JORDAN4_SIZE_SEQUENCE_TEXT_FAIL] ${config.key} :: ${capture.text}`);
     }
     if (/\u0627\u062e\u062a\u0627\u0631\u0644\u0643\s+\u0623\u0646\u0647\u064a\s+\u0645\u0642\u0627\u0633|\u0623\u064a\u0648\u0647\s+42\s+\u0645\u062a\u0648\u0641\u0631/i.test(capture.text)) {
@@ -799,9 +799,103 @@ const runJordan4SizeFollowupSequenceTest = async () => {
       inboundText: `Jordan4 color availability after size :: ${phrase}`,
       captures: colorAvailabilityCaptures,
     });
-    if (!colorComparison.decision_match) {
-      throw new Error(`[AI_JORDAN4_COLOR_AVAILABILITY_PARITY_FAIL] ${phrase} :: ${JSON.stringify(colorComparison.differences)}`);
+  if (!colorComparison.decision_match) {
+    throw new Error(`[AI_JORDAN4_COLOR_AVAILABILITY_PARITY_FAIL] ${phrase} :: ${JSON.stringify(colorComparison.differences)}`);
+  }
+  }
+
+  const directColorSelectionPhrase = "عايز جوردن فور برجاندي مقاس ٤٢";
+  const directColorSelectionCaptures = {};
+  for (const config of channelConfigs) {
+    const seedCard = firstStepCaptures[config.key].product_cards[0];
+    const burgundyCard = seedCard
+      ? {
+          ...seedCard,
+          color: "Burgundy",
+          name: "Jordan 4 - Burgundy",
+          title: "Jordan 4 - Burgundy",
+          variant_id: `${seedCard.product_id || seedCard.id || "jordan-4"}-burgundy-42`,
+          selected_variant_id: `${seedCard.product_id || seedCard.id || "jordan-4"}-burgundy-42`,
+          price: "1650",
+          display_price: "1650",
+          final_price: "1650",
+          sale_price: "1650",
+          sizes: ["41", "42", "43", "44", "45"],
+          available_sizes: ["41", "42", "43", "44", "45"],
+          image_url: seedCard.image_url || seedCard.image || "",
+          image: seedCard.image_url || seedCard.image || "",
+          product_url: seedCard.product_url || seedCard.url || "",
+          url: seedCard.product_url || seedCard.url || "",
+        }
+      : null;
+    const directColorSelectionMemory = mergeMemory(sequenceMemoryByChannel[config.key], {
+      last_product_cards: burgundyCard ? [burgundyCard] : sequenceMemoryByChannel[config.key].last_product_cards,
+      lastProductCards: burgundyCard ? [burgundyCard] : sequenceMemoryByChannel[config.key].lastProductCards,
+      activeSize: "42",
+      selectedSize: "42",
+      active_size: "42",
+      selected_size: "42",
+    });
+    const reply = await generateUnifiedConversationDecision({
+      channel: config.channel,
+      externalConversationId: `parity-sequence-${config.key}-direct-color-selection-${normalizeId(directColorSelectionPhrase)}`,
+      externalCustomerId: config.to,
+      customerName: "Parity Tester",
+      text: directColorSelectionPhrase,
+      attachments: [],
+      metadata: {
+        tenant_id: 1,
+        channel: config.channel,
+        session_id: `parity-sequence-${config.key}-direct-color-selection-${normalizeId(directColorSelectionPhrase)}`,
+        customer_name: "Parity Tester",
+        customer_phone: config.to,
+        provider_message_id: `mid-sequence-${config.key}-direct-color-selection-${normalizeId(directColorSelectionPhrase)}`,
+        test_case_id: "jordan4_sequence_direct_color_selection",
+        ai_memory: directColorSelectionMemory,
+      },
+    }, {
+      tenantId: 1,
+      memory: directColorSelectionMemory,
+      providerMessageId: `mid-sequence-${config.key}-direct-color-selection-${normalizeId(directColorSelectionPhrase)}`,
+    });
+    const capture = summarizeUnifiedReply(reply);
+    directColorSelectionCaptures[config.key] = capture;
+    sequenceMemoryByChannel[config.key] = mergeMemory(sequenceMemoryByChannel[config.key], reply.memory_updates || {});
+    if (JSON.stringify(reply).includes(LEGACY_NEAREST_PHRASE)) {
+      throw new Error(`[AI_JORDAN4_DIRECT_COLOR_SELECTION_LEGACY_LEAK] ${config.key}`);
     }
+    if (capture.intent !== "post_product_color_selected") {
+      throw new Error(`[AI_JORDAN4_DIRECT_COLOR_SELECTION_INTENT_FAIL] ${config.key} :: ${capture.intent}`);
+    }
+    if (!capture.text.includes("تمام")) {
+      throw new Error(`[AI_JORDAN4_DIRECT_COLOR_SELECTION_TEXT_FAIL] ${config.key} :: ${capture.text}`);
+    }
+    if (!capture.text.includes("جوردن 4")) {
+      throw new Error(`[AI_JORDAN4_DIRECT_COLOR_SELECTION_MODEL_FAIL] ${config.key} :: ${capture.text}`);
+    }
+    if (!capture.text.includes("Burgundy")) {
+      throw new Error(`[AI_JORDAN4_DIRECT_COLOR_SELECTION_COLOR_FAIL] ${config.key} :: ${capture.text}`);
+    }
+    if (!/(?:\u0645\u0642\u0627\u0633|\u0627\u0644\u0645\u0642\u0627\u0633)\s*:?\s*42/i.test(capture.text)) {
+      throw new Error(`[AI_JORDAN4_DIRECT_COLOR_SELECTION_SIZE_FAIL] ${config.key} :: ${capture.text}`);
+    }
+    if (!capture.text.includes("1650 جنيه")) {
+      throw new Error(`[AI_JORDAN4_DIRECT_COLOR_SELECTION_PRICE_FAIL] ${config.key} :: ${capture.text}`);
+    }
+    if (capture.text.includes("- جنيه")) {
+      throw new Error(`[AI_JORDAN4_DIRECT_COLOR_SELECTION_PRICE_PLACEHOLDER_FAIL] ${config.key} :: ${capture.text}`);
+    }
+    if (!capture.text.includes("تحب أحجزهولك؟")) {
+      throw new Error(`[AI_JORDAN4_DIRECT_COLOR_SELECTION_CTA_FAIL] ${config.key} :: ${capture.text}`);
+    }
+  }
+
+  const directColorSelectionComparison = compareScenario({
+    inboundText: `Jordan4 direct color selection after size :: ${directColorSelectionPhrase}`,
+    captures: directColorSelectionCaptures,
+  });
+  if (!directColorSelectionComparison.decision_match) {
+    throw new Error(`[AI_JORDAN4_DIRECT_COLOR_SELECTION_PARITY_FAIL] ${JSON.stringify(directColorSelectionComparison.differences)}`);
   }
 
   const colorSelectionPhrase = "Burgundy";
@@ -870,7 +964,7 @@ const runJordan4SizeFollowupSequenceTest = async () => {
     if (!capture.text.includes("Burgundy")) {
       throw new Error(`[AI_JORDAN4_COLOR_SELECTION_COLOR_FAIL] ${config.key} :: ${capture.text}`);
     }
-    if (!capture.text.includes("مقاس 42")) {
+    if (!/(?:\u0645\u0642\u0627\u0633|\u0627\u0644\u0645\u0642\u0627\u0633)\s*:?\s*42/i.test(capture.text)) {
       throw new Error(`[AI_JORDAN4_COLOR_SELECTION_SIZE_FAIL] ${config.key} :: ${capture.text}`);
     }
     if (!capture.text.includes("تحب أحجزهولك؟")) {

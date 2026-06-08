@@ -1,6 +1,9 @@
 import { AI_AGENT_CHANNELS, normalizeChannel } from "./aiChannelAdapterService.js";
 import { generateAiBrainV2Decision } from "./aiBrainV2Service.js";
 import { generateUnifiedAiReply } from "./aiConversationOrchestrator.js";
+import { normalizeProductCards } from "./aiProductCards.js";
+import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
+import { normalizeArabicForIntent, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -18,16 +21,7 @@ const normalizeAction = (item = {}) => (
     : { label: text(item), value: text(item) }
 );
 
-const normalizeArabic = (value = "") =>
-  text(value)
-    .toLowerCase()
-    .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
-    .replace(/[\u0623\u0625\u0622]/g, "\u0627")
-    .replace(/\u0649/g, "\u064a")
-    .replace(/\u0629/g, "\u0647")
-    .replace(/[\u061f?]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
+const normalizeArabic = (value = "") => normalizeArabicForIntent(value).replace(/[\u061f?]/g, "").trim();
 
 const classifySharedShortcutIntent = (message = "") => {
   const raw = text(message);
@@ -48,6 +42,256 @@ const hasClearProductModelRequest = (message = "") => {
 
 const hasJordan4TraceTrigger = (message = "") => hasClearProductModelRequest(message);
 const hasPriceObjectionTraceTrigger = (message = "") => /(\u063a\u0627\u0644\u064a|\u063a\u0627\u0644\u064a\u0647|expensive|price\s+high)/i.test(normalizeArabic(message));
+
+const normalizeSizeToken = (value = "") =>
+  text(value)
+    .replace(/[\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[\u06f0-\u06f9]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
+    .replace(/[^\d]/g, "")
+    .trim();
+
+const extractRequestedSize = (message = "") => {
+  const raw = text(message);
+  const normalized = normalizeArabic(raw);
+  const match =
+    raw.match(/(?:\u0645\u0642\u0627\u0633|size|sizes?)\s*([0-9\u0660-\u0669\u06f0-\u06f9]{1,3})/i) ||
+    normalized.match(/(?:\u0645\u0642\u0627\u0633|size|sizes?)\s*([0-9]{1,3})/i) ||
+    raw.match(/\b([0-9\u0660-\u0669\u06f0-\u06f9]{2,3})\b/);
+  return normalizeSizeToken(match?.[1] || "");
+};
+
+const memoryCardsFromContext = (memory = {}) => normalizeProductCards(
+  [
+    ...asArray(memory?.last_product_cards),
+    ...asArray(memory?.lastProductCards),
+    ...asArray(memory?.preferences?.last_product_cards),
+    ...asArray(memory?.preferences?.lastProductCards),
+  ],
+  { limit: 24 }
+);
+
+const activeProductIdFromMemory = (memory = {}) =>
+  text(
+    memory?.active_product_id ||
+      memory?.activeProductId ||
+      memory?.selected_product_id ||
+      memory?.selectedProductId ||
+      memory?.last_product_id ||
+      memory?.lastProductId ||
+      memory?.selected_product?.product_id ||
+      memory?.selected_product?.id ||
+      memory?.selectedProduct?.product_id ||
+      memory?.selectedProduct?.id ||
+      memory?.preferences?.active_product_id ||
+      memory?.preferences?.activeProductId ||
+      memory?.preferences?.selected_product_id ||
+      memory?.preferences?.selectedProductId ||
+      memory?.preferences?.last_product_id ||
+      memory?.preferences?.lastProductId ||
+      ""
+  );
+
+const cardSizes = (card = {}) => [
+  ...asArray(card.available_sizes),
+  ...asArray(card.sizes),
+  ...asArray(card.inventory_profile?.available_sizes),
+].map((value) => normalizeSizeToken(value)).filter(Boolean);
+
+const cardHasRequestedSize = (card = {}, requestedSize = "") => {
+  const normalizedRequestedSize = normalizeSizeToken(requestedSize);
+  if (!normalizedRequestedSize) return false;
+  return cardSizes(card).includes(normalizedRequestedSize);
+};
+
+const normalizeColorComparable = (value = "") =>
+  text(value)
+    .toLowerCase()
+    .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
+    .replace(/[\u0623\u0625\u0622]/g, "\u0627")
+    .replace(/\u0649/g, "\u064a")
+    .replace(/\u0629/g, "\u0647")
+    .replace(/[&+\/\\|]/g, " ")
+    .replace(/\b(and|with)\b/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const colorSelectionAliasGroups = [
+  ["black red", ["black red", "black and red", "black & red", "\u0627\u0633\u0648\u062f \u0648\u0627\u062d\u0645\u0631", "\u0623\u0633\u0648\u062f \u0648\u0623\u062d\u0645\u0631", "\u0627\u0644\u0627\u0633\u0648\u062f \u0648\u0627\u0644\u0627\u062d\u0645\u0631", "\u0627\u0644\u0623\u0633\u0648\u062f \u0648\u0627\u0644\u0623\u062d\u0645\u0631", "\u0627\u0644\u0627\u0633\u0648\u062f \u0648\u0627\u062d\u0645\u0631", "\u0627\u0644\u0623\u0633\u0648\u062f \u0648\u0627\u062d\u0645\u0631"]],
+  ["burgundy", ["burgundy", "burdgundy", "bordeaux", "bourdeaux", "\u0628\u0631\u062c\u0646\u062f\u064a", "\u0628\u0631\u062c\u0627\u0646\u062f\u064a", "\u0628\u0631\u063a\u0646\u062f\u064a", "\u0628\u0631\u062c\u0627\u0646\u062f\u0649", "\u0627\u0644\u0628\u0631\u062c\u0646\u062f\u064a", "\u0627\u0644\u0628\u0631\u062c\u0627\u0646\u062f\u064a", "\u0627\u0644\u0628\u0631\u063a\u0646\u062f\u064a", "\u0628\u0631\u062c\u0627\u0646\u062f\u064a"]],
+  ["black", ["black", "blac", "\u0627\u0633\u0648\u062f", "\u0623\u0633\u0648\u062f", "\u0627\u0644\u0627\u0633\u0648\u062f", "\u0627\u0644\u0623\u0633\u0648\u062f", "\u0628\u0644\u0627\u0643"]],
+  ["white", ["white", "whtie", "\u0627\u0628\u064a\u0636", "\u0623\u0628\u064a\u0636", "\u0627\u0644\u0627\u0628\u064a\u0636", "\u0627\u0644\u0623\u0628\u064a\u0636", "\u0648\u0627\u064a\u062a"]],
+  ["grey", ["grey", "gray", "\u062c\u0631\u0627\u064a", "\u0631\u0645\u0627\u062f\u064a", "\u0631\u0635\u0627\u0635\u064a"]],
+  ["navy", ["navy", "\u0643\u062d\u0644\u064a", "\u0643\u062d\u0644\u0649"]],
+  ["blue", ["blue", "azraq", "\u0627\u0632\u0631\u0642", "\u0623\u0632\u0631\u0642", "\u0627\u0644\u0627\u0632\u0631\u0642", "\u0627\u0644\u0623\u0632\u0631\u0642"]],
+  ["red", ["red", "\u0627\u062d\u0645\u0631", "\u0623\u062d\u0645\u0631", "\u0627\u0644\u0627\u062d\u0645\u0631", "\u0627\u0644\u0623\u062d\u0645\u0631", "\u0631\u064a\u062f"]],
+  ["green", ["green", "\u0627\u062e\u0636\u0631", "\u0623\u062e\u0636\u0631", "\u0627\u0644\u0627\u062e\u0636\u0631", "\u0627\u0644\u0623\u062e\u0636\u0631"]],
+  ["beige", ["beige", "\u0628\u064a\u062c"]],
+  ["brown", ["brown", "\u0628\u0646\u064a"]],
+];
+
+const colorKeyFromText = (value = "") => {
+  const normalized = normalizeColorComparable(value);
+  if (!normalized) return "";
+  if (/\bblack\b/.test(normalized) && /\bred\b/.test(normalized)) return "black red";
+  for (const [key, aliases] of colorSelectionAliasGroups) {
+    if (key === "black red") continue;
+    if (aliases.some((alias) => normalized.includes(normalizeColorComparable(alias)))) return key;
+  }
+  return normalized;
+};
+
+const detectSelectedColorKey = (message = "") => {
+  const normalized = normalizeColorComparable(message);
+  if (!normalized) return "";
+  if (/\bblack\b/.test(normalized) && /\bred\b/.test(normalized)) return "black red";
+  for (const [key, aliases] of colorSelectionAliasGroups) {
+    if (key === "black red") continue;
+    if (aliases.some((alias) => normalized.includes(normalizeColorComparable(alias)))) return key;
+  }
+  return "";
+};
+
+const cardMatchesRequestedColor = (card = {}, requestedColorKey = "") => {
+  const cardKey = colorKeyFromText(card.color || card.matched_variant_color || card.name || card.title || "");
+  if (!cardKey || !requestedColorKey) return false;
+  return cardKey === requestedColorKey;
+};
+
+const prettyModelName = (value = "") => {
+  const name = text(value);
+  if (/jordan\s*4|jordan4|aj4|j4/i.test(name) || /\u062c\u0648\u0631\u062f\u0646\s*4|\u062c\u0648\u0631\u062f\u0646\s*\u0641\u0648\u0631/i.test(name)) return "جوردن 4";
+  return name;
+};
+
+const buildDirectColorSelectionDecision = ({ message = "", memory = {} } = {}) => {
+  const requestedColorKey = detectSelectedColorKey(message);
+  const rememberedCards = memoryCardsFromContext(memory);
+  const activeProductId = activeProductIdFromMemory(memory);
+  if (!requestedColorKey || !rememberedCards.length || !activeProductId) return null;
+
+  const requestedSize = normalizeSizeToken(
+    extractRequestedSize(message) ||
+      memory?.activeSize ||
+      memory?.selectedSize ||
+      memory?.preferences?.activeSize ||
+      memory?.preferences?.selectedSize ||
+      ""
+  );
+  if (!requestedSize) return null;
+
+  const sizeMatchedCards = rememberedCards.filter((card) => cardHasRequestedSize(card, requestedSize));
+  const matchingCards = sizeMatchedCards.filter((card) => cardMatchesRequestedColor(card, requestedColorKey));
+  if (!matchingCards.length) return null;
+
+  const selectedCard = matchingCards[0];
+  const modelName = prettyModelName(
+    selectedCard?.base_name ||
+      selectedCard?.model_name ||
+      selectedCard?.product_name ||
+      selectedCard?.name ||
+      selectedCard?.title ||
+      "Jordan 4"
+  );
+  const priceInfo = resolveCustomerDisplayPrice(selectedCard);
+  const displayPrice = Number(priceInfo?.display_price || priceInfo?.selected_display_price || priceInfo?.price || 0);
+  const selectedColor = text(selectedCard?.color || selectedCard?.matched_variant_color || selectedCard?.name || selectedCard?.title || "");
+  const topProductId = text(selectedCard?.product_id || selectedCard?.id || activeProductId || "");
+  const topVariantId = text(selectedCard?.variant_id || selectedCard?.selected_variant_id || selectedCard?.variant?.id || "");
+  const sizeLabel = requestedSize;
+  const replyText = [
+    "تمام",
+    "",
+    modelName,
+    `اللون: ${selectedColor}`,
+    `المقاس: ${sizeLabel}`,
+    "",
+    `السعر: ${displayPrice > 0 ? `${displayPrice} جنيه` : "متاح عند الطلب"}`,
+    "",
+    "تحب أحجزهولك؟",
+  ].join("\n");
+  const normalizedCards = normalizeProductCards([selectedCard], { limit: 1 });
+  const images = normalizedCards
+    .map((card) => ({
+      id: text(card.image_id || card.image_url || card.product_id || card.id),
+      url: text(card.image_url || card.url || card.image),
+      image_url: text(card.image_url || card.url || card.image),
+      product_id: text(card.product_id || card.id),
+    }))
+    .filter((image) => image.url);
+  const memoryUpdates = {
+    active_product_id: topProductId,
+    selected_product_id: topProductId,
+    last_product_id: topProductId,
+    activeVariantId: topVariantId,
+    selectedVariantId: topVariantId,
+    active_variant_id: topVariantId,
+    selected_variant_id: topVariantId,
+    activeColor: selectedColor,
+    selectedColor,
+    active_color: selectedColor,
+    selected_color: selectedColor,
+    activeSize: sizeLabel,
+    selectedSize: sizeLabel,
+    active_size: sizeLabel,
+    selected_size: sizeLabel,
+    buyingStage: "color_selected",
+    checkoutStage: "color_selected",
+    nextRecommendedStage: "order_confirmation",
+    selectionStage: "color_selected",
+    resolvedQuestionType: "POST_PRODUCT_COLOR_SELECTED",
+    replyDecisionReason: "v2_post_product_color_selected_direct_match",
+    last_intent: "post_product_color_selected",
+    ai_brain_version: "v2",
+    last_product_cards: rememberedCards,
+    lastProductCards: rememberedCards,
+  };
+  return {
+    text: replyText,
+    answer: replyText,
+    intent: "post_product_color_selected",
+    detected_intent: "post_product_color_selected",
+    products: normalizedCards,
+    suggested_products: normalizedCards,
+    product_cards: normalizedCards,
+    images,
+    image_cards: images,
+    quickReplies: [],
+    quick_replies: [],
+    actions: [
+      { label: "confirm_order", value: "confirm_order", action: "confirm_order" },
+      { label: "contact_support", value: "contact_support", action: "contact_support" },
+    ],
+    suggested_actions: [
+      { label: "confirm_order", value: "confirm_order", action: "confirm_order" },
+      { label: "contact_support", value: "contact_support", action: "contact_support" },
+    ],
+    memoryUpdates,
+    memory_updates: memoryUpdates,
+    ai_memory_patch: { preferences: memoryUpdates },
+    handoff: { needs_human_support: false, reason: "", conversation_status: "" },
+    active_product_id: topProductId,
+    active_variant_id: topVariantId,
+    active_color: selectedColor,
+    active_size: sizeLabel,
+    next_best_action: "confirm_order",
+    reply_goal: "confirm_selected_variant",
+    sales_stage: "COLOR_SELECTION",
+    nextRecommendedStage: "order_confirmation",
+    replyDecisionReason: "v2_post_product_color_selected_direct_match",
+    debug: {
+      source: "aiUnifiedDecisionService",
+      engine: "ai_brain_v2",
+      legacy_called: false,
+      reason: "v2_post_product_color_selected_direct_match",
+      requested_color: requestedColorKey,
+      requested_size: sizeLabel,
+      selected_variant_id: topVariantId,
+      selected_product_id: topProductId,
+      direct_color_selection_match: true,
+    },
+  };
+};
 
 const staleFollowupKeys = [
   "awaiting_alternative_choice",
@@ -205,6 +449,19 @@ export const normalizeUnifiedInbound = (normalizedInbound = {}) => {
   const metadata = normalizedInbound.metadata && typeof normalizedInbound.metadata === "object"
     ? normalizedInbound.metadata
     : {};
+  const originalText = text(
+    normalizedInbound.original_message ||
+      metadata.original_message ||
+      normalizedInbound.message_text ||
+      normalizedInbound.message ||
+      normalizedInbound.body ||
+      normalizedInbound.text
+  );
+  const normalizedText = text(
+    normalizedInbound.normalized_for_intent ||
+      metadata.normalized_for_intent ||
+      normalizeArabicForIntent(originalText)
+  );
   const channel = normalizeChannel(
     normalizedInbound.channel ||
       metadata.channel ||
@@ -238,9 +495,25 @@ export const normalizeUnifiedInbound = (normalizedInbound = {}) => {
     externalConversationId,
     externalCustomerId,
     customerName,
-    text: text(normalizedInbound.text || normalizedInbound.message_text || normalizedInbound.message || normalizedInbound.body),
+    text: normalizedText,
+    originalText,
+    normalized_message: text(
+      normalizedInbound.normalized_message ||
+        metadata.normalized_message ||
+        normalizeArabicMessage(originalText)
+    ),
+    normalized_for_intent: normalizedText,
     attachments: asArray(normalizedInbound.attachments),
-    metadata,
+    metadata: {
+      ...metadata,
+      original_message: originalText,
+      normalized_message: text(
+        normalizedInbound.normalized_message ||
+          metadata.normalized_message ||
+          normalizeArabicMessage(originalText)
+      ),
+      normalized_for_intent: normalizedText,
+    },
   };
 };
 
@@ -397,25 +670,42 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
   }
 
   let decision = null;
-  try {
-    decision = await generateAiBrainV2Decision({
-      ...inbound,
-      metadata: {
-        ...inbound.metadata,
-        channel: inbound.channel,
-        external_conversation_id: inbound.externalConversationId,
-        external_customer_id: inbound.externalCustomerId,
-        customer_name: inbound.customerName,
-        ai_memory: effectiveMemory,
-      },
-    }, {
-      ...options,
-      tenantId,
-      branchId,
-      memory: effectiveMemory,
-      providerMessageId: options.providerMessageId || inbound.metadata.provider_message_id || inbound.metadata.external_message_id || "",
+  const directColorSelectionDecision = buildDirectColorSelectionDecision({ message: inbound.text, memory: rawMemory || effectiveMemory });
+  if (directColorSelectionDecision) {
+    console.info("AI_V2_DIRECT_COLOR_SELECTION_MATCH", {
+      channel: inbound.channel,
+      message: inbound.text,
+      normalizedText: normalizeArabic(inbound.text),
+      conversation_id: inbound.externalConversationId,
+      activeProductId: activeProductIdFromMemory(rawMemory || effectiveMemory),
+      activeSize: normalizeSizeToken((rawMemory || effectiveMemory)?.activeSize || (rawMemory || effectiveMemory)?.selectedSize || (rawMemory || effectiveMemory)?.preferences?.activeSize || (rawMemory || effectiveMemory)?.preferences?.selectedSize || ""),
+      activeColor: text((rawMemory || effectiveMemory)?.activeColor || (rawMemory || effectiveMemory)?.selectedColor || (rawMemory || effectiveMemory)?.preferences?.activeColor || (rawMemory || effectiveMemory)?.preferences?.selectedColor || ""),
+      matchedColor: text(directColorSelectionDecision.active_color || ""),
+      matchedSize: text(directColorSelectionDecision.active_size || ""),
+      productCardsCount: asArray(directColorSelectionDecision.product_cards).length,
+      productIds: productIds(directColorSelectionDecision.product_cards || []),
     });
-  } catch (error) {
+    decision = directColorSelectionDecision;
+  } else {
+    try {
+      decision = await generateAiBrainV2Decision({
+        ...inbound,
+        metadata: {
+          ...inbound.metadata,
+          channel: inbound.channel,
+          external_conversation_id: inbound.externalConversationId,
+          external_customer_id: inbound.externalCustomerId,
+          customer_name: inbound.customerName,
+          ai_memory: effectiveMemory,
+        },
+      }, {
+        ...options,
+        tenantId,
+        branchId,
+        memory: effectiveMemory,
+        providerMessageId: options.providerMessageId || inbound.metadata.provider_message_id || inbound.metadata.external_message_id || "",
+      });
+    } catch (error) {
     const allowLegacyFallback = ["1", "true", "yes", "on"].includes(String(process.env.AI_BRAIN_V2_LEGACY_FALLBACK || "").trim().toLowerCase());
     console.error("AI_BRAIN_V2_ERROR", {
       channel: inbound.channel,
@@ -462,6 +752,7 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
       productsContext: options.productsContext ?? inbound.metadata.products_context ?? null,
       providerMessageId: options.providerMessageId || inbound.metadata.provider_message_id || inbound.metadata.external_message_id || "",
     });
+    }
   }
 
   const output = normalizeUnifiedDecisionOutput(applySharedShortcutMetadata({ decision, inbound }), inbound);
