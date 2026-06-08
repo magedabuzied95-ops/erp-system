@@ -330,28 +330,26 @@ const getPosDisplay = (order = {}) =>
 const paymentStatusLabels = (language) => ({
   paid: localizedCopy(language, "\u0645\u062f\u0641\u0648\u0639", "Paid"),
   partially_paid: localizedCopy(language, "\u062c\u0632\u0626\u064a", "Partial"),
-  pending: localizedCopy(language, "\u0645\u0639\u0644\u0642", "Pending"),
   deferred: localizedCopy(language, "\u0622\u062c\u0644", "Deferred"),
-  refunded: localizedCopy(language, "\u0645\u0633\u062a\u0631\u062f", "Refunded"),
-  cod: "COD",
 });
 const paymentMethodLabels = (language) => ({
   cash: localizedCopy(language, "\u0643\u0627\u0634", "Cash"),
   card: localizedCopy(language, "\u0641\u064a\u0632\u0627", "Visa"),
   wallet: localizedCopy(language, "\u0645\u062d\u0641\u0638\u0629", "Wallet"),
+  instapay: "InstaPay",
+  transfer: localizedCopy(language, "\u062a\u062d\u0648\u064a\u0644", "Transfer"),
   paymob: "Paymob",
   split: localizedCopy(language, "\u0645\u062a\u0639\u062f\u062f", "Split"),
-  deferred: localizedCopy(language, "\u0622\u062c\u0644", "Credit"),
-  cod: "COD",
 });
 const paymentMethodIcon = {
   cash: Banknote,
   card: CreditCard,
   wallet: Wallet,
+  instapay: Wallet,
+  transfer: CreditCard,
   paymob: CreditCard,
   split: SplitSquareHorizontal,
   deferred: Clock3,
-  cod: Truck,
 };
 const paymentMethodParts = (order = {}) => [
   { key: "cash", value: numberValue(order.cash_amount, order.cashAmount) },
@@ -366,45 +364,72 @@ const normalizePaymentStatusKey = (order = {}) => {
   if (["paid", "completed", "complete", "settled", "success", "succeeded"].includes(raw)) return "paid";
   if (isShippingPartialDisplayStatus(raw)) return "partially_paid";
   if (["partially_paid", "partially paid", "partial"].includes(raw) || (total > 0 && paid > 0 && paid < total)) return "partially_paid";
-  if (["pending", "unpaid", "awaiting_verification"].includes(raw)) return "pending";
-  if (["deferred", "credit", "on_credit", "postpaid"].includes(raw) || ["deferred", "credit"].includes(method)) return "deferred";
-  if (["refunded", "refund", "fully_refunded"].includes(raw)) return "refunded";
-  if (raw === "cod" || ["cod", "cash_on_delivery", "cash on delivery"].includes(method)) return "cod";
-  return paid > 0 ? "paid" : "pending";
+  if (
+    ["pending", "unpaid", "awaiting_verification", "deferred", "credit", "on_credit", "postpaid", "refunded", "refund", "fully_refunded", "rejected", "cod"].includes(raw) ||
+    ["deferred", "credit", "cod", "cash_on_delivery", "cash on delivery"].includes(method)
+  ) return "deferred";
+  return paid > 0 ? "paid" : "deferred";
 };
-const normalizePaymentMethodKey = (order = {}) => {
-  const parts = paymentMethodParts(order);
-  const raw = lower(order.payment_method || order.paymentMethod || order.payment_type || order.paymentType);
-  if (parts.length > 1 || ["split", "multiple", "mixed"].includes(raw)) return "split";
-  if (["cash", "cash_payment"].includes(raw) || parts[0]?.key === "cash") return "cash";
-  if (["visa", "card", "credit_card", "debit_card"].includes(raw) || parts[0]?.key === "card") return "card";
-  if (["wallet", "customer_wallet"].includes(raw) || parts[0]?.key === "wallet") return "wallet";
+const normalizeRawPaymentMethodKey = (value = "") => {
+  const raw = lower(value);
+  if (!raw) return "";
+  if (["shipping", "shipping_confirmed", "shipping_paid"].includes(raw)) return "";
+  if (["cod", "cash_on_delivery", "cash on delivery"].includes(raw)) return "";
+  if (raw.includes("instapay")) return "instapay";
   if (raw.includes("paymob") || raw.includes("terminal")) return "paymob";
-  if (["deferred", "credit", "on_credit", "postpaid"].includes(raw)) return "deferred";
-  if (["cod", "cash_on_delivery", "cash on delivery"].includes(raw)) return "cod";
-  return raw || "";
+  if (raw.includes("transfer") || raw.includes("bank")) return "transfer";
+  if (["visa", "card", "credit_card", "debit_card"].includes(raw)) return "card";
+  if (["cash", "cash_payment"].includes(raw)) return "cash";
+  if (["wallet", "customer_wallet"].includes(raw)) return "wallet";
+  if (["split", "multiple", "mixed"].includes(raw)) return "split";
+  return "";
+};
+const normalizePaymentMethodKey = (order = {}, options = {}) => {
+  const { statusKey = normalizePaymentStatusKey(order), isShippingPartial = isShippingPartialDisplayStatus(order.payment_status || order.paymentStatus) } = options;
+  if (statusKey === "deferred") return "";
+  const parts = paymentMethodParts(order);
+  if (parts.length > 1) return "split";
+  if (parts[0]?.key) return parts[0].key;
+  const candidates = isShippingPartial
+    ? [
+        order.shipping_payment_method,
+        order.shippingPaymentMethod,
+        order.payment_method,
+        order.paymentMethod,
+        order.payment_type,
+        order.paymentType,
+      ]
+    : [
+        order.payment_method,
+        order.paymentMethod,
+        order.payment_type,
+        order.paymentType,
+        order.shipping_payment_method,
+        order.shippingPaymentMethod,
+      ];
+  for (const candidate of candidates) {
+    const normalized = normalizeRawPaymentMethodKey(candidate);
+    if (normalized) return normalized;
+  }
+  return "";
 };
 const getPaymentSummary = (order = {}, language = "en") => {
   const isShippingPartial = isShippingPartialDisplayStatus(order.payment_status || order.paymentStatus);
   const statusKey = normalizePaymentStatusKey(order);
-  const methodKey = normalizePaymentMethodKey(order);
+  const methodKey = normalizePaymentMethodKey(order, { statusKey, isShippingPartial });
   const statuses = paymentStatusLabels(language);
   const methods = paymentMethodLabels(language);
   const parts = paymentMethodParts(order);
   const methodLabel = methodKey === "split" && parts.length
     ? parts.map((part) => methods[part.key]).join(" + ")
-    : methods[methodKey] || text(order.payment_method || order.paymentMethod);
-  const statusLabel = isShippingPartial
-    ? "\u062c\u0632\u0626\u064a"
-    : statuses[statusKey] || text(order.payment_status || order.paymentStatus);
-  const label = isShippingPartial
-    ? statusLabel
-    : methodLabel && statusKey !== "deferred"
-      ? `${statusLabel} \u2022 ${methodLabel}`
-      : statusLabel || methodLabel || "-";
+    : methods[methodKey] || "";
+  const statusLabel = statuses[statusKey] || "\u0622\u062c\u0644";
+  const label = methodLabel && statusKey !== "deferred"
+    ? `${statusLabel} - ${methodLabel}`
+    : statusLabel || "-";
   return {
     statusKey,
-    methodKey: isShippingPartial ? "partially_paid" : (methodKey || statusKey),
+    methodKey: methodKey || statusKey,
     label,
   };
 };
@@ -1017,6 +1042,8 @@ function Filters(props) {
 }
 
 function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder, editOrder, cancelOrder, archiveOrder, permanentDeleteOrder, navigate, openMenuId, setOpenMenuId, activeOrderId, empty }) {
+  const isRtl = isArabicLanguage(language);
+  const tableDir = isRtl ? "rtl" : "ltr";
   useEffect(() => {
     if (!ORDERS_DEBUG) return;
     console.log("[orders-dashboard] table actions debug", {
@@ -1030,7 +1057,10 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
   return (
     <div className="mt-3 max-h-[calc(100vh-23rem)] overflow-auto pb-1">
       <div className="min-w-[1620px] overflow-visible">
-        <div className="sticky top-0 z-20 grid grid-cols-[4.5rem_9rem_8.5rem_minmax(10rem,1.25fr)_8.5rem_5.5rem_7rem_10rem_7rem_7rem_8rem_6.5rem_6.5rem] rounded-xl border border-white/10 bg-zinc-950/85 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-zinc-400 shadow-lg shadow-black/20 backdrop-blur-xl" dir="ltr">
+        <div
+          className="sticky top-0 z-20 grid grid-cols-[4.5rem_9rem_8.5rem_minmax(10rem,1.25fr)_8.5rem_5.5rem_7rem_10rem_7rem_7rem_8rem_6.5rem_6.5rem] rounded-xl border border-white/10 bg-zinc-950/85 px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-zinc-400 shadow-lg shadow-black/20 backdrop-blur-xl [&>div:not(:last-child)]:border-s [&>div:not(:last-child)]:border-white/[0.06]"
+          dir={tableDir}
+        >
           <div className="flex justify-center py-1 text-center">{t("orders.table.actions")}</div>
           <div>{t("orders.table.invoice")}</div>
           <div>{t("orders.table.date")}</div>
@@ -1058,8 +1088,8 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") openOrder(order);
                 }}
-                className={`relative z-0 grid cursor-pointer grid-cols-[4.5rem_9rem_8.5rem_minmax(10rem,1.25fr)_8.5rem_5.5rem_7rem_10rem_7rem_7rem_8rem_6.5rem_6.5rem] items-center overflow-visible rounded-xl border px-3 py-2 shadow-xl transition-all duration-200 ease-out hover:z-10 hover:border-cyan-400/30 hover:bg-white/[0.02] hover:shadow-2xl hover:shadow-cyan-950/10 ${priority.className} ${selectedIds.includes(order.id) || String(activeOrderId) === String(order.id) ? "ring-1 ring-cyan-400/35" : ""}`}
-                dir="ltr"
+                className={`relative z-0 grid cursor-pointer grid-cols-[4.5rem_9rem_8.5rem_minmax(10rem,1.25fr)_8.5rem_5.5rem_7rem_10rem_7rem_7rem_8rem_6.5rem_6.5rem] items-center overflow-visible rounded-xl border px-3 py-2 shadow-xl transition-all duration-200 ease-out hover:z-10 hover:border-cyan-400/30 hover:bg-white/[0.02] hover:shadow-2xl hover:shadow-cyan-950/10 [&>div:not(:last-child)]:border-s [&>div:not(:last-child)]:border-white/[0.05] ${priority.className} ${selectedIds.includes(order.id) || String(activeOrderId) === String(order.id) ? "ring-1 ring-cyan-400/35" : ""}`}
+                dir={tableDir}
               >
                 <RowMenu t={t} order={order} openOrder={openOrder} editOrder={editOrder} cancelOrder={cancelOrder} archiveOrder={archiveOrder} permanentDeleteOrder={permanentDeleteOrder} navigate={navigate} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
                 <div className="flex min-w-0 items-center gap-2 pr-3">
@@ -1548,10 +1578,7 @@ function PaymentStatusCell({ order, language }) {
   const toneClass = {
     paid: "border-emerald-400/25 bg-emerald-400/10 text-emerald-100",
     partially_paid: "border-amber-400/25 bg-amber-400/10 text-amber-100",
-    pending: "border-blue-400/20 bg-blue-400/10 text-blue-100",
-    deferred: "border-violet-400/20 bg-violet-400/10 text-violet-100",
-    refunded: "border-rose-400/25 bg-rose-400/10 text-rose-100",
-    cod: "border-slate-400/20 bg-slate-400/10 text-slate-100",
+    deferred: "border-slate-400/20 bg-slate-400/10 text-slate-100",
   }[summary.statusKey] || "border-white/10 bg-white/5 text-zinc-100";
 
   return (
