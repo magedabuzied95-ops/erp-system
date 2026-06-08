@@ -129,17 +129,17 @@ const POS_CHECKOUT_DEBUG = Boolean(
   String(import.meta.env?.VITE_POS_DEBUG || "").trim().toLowerCase() === "true"
 );
 const quickExpenseDefaults = { category: "delivery", employee_id: "", amount: "", payment_method: "cash", notes: "" };
-const quickExpenseEmployeeAdvanceOption = { value: "employee_advance", label: "سلفة موظف / Employee Advance" };
+const quickExpenseEmployeeAdvanceOption = { value: "employee_advance", label: "ط³ظ„ظپط© ظ…ظˆط¸ظپ / Employee Advance" };
 const quickExpenseCategories = [
-  { value: "delivery", label: "توصيل / Delivery" },
-  { value: "snacks", label: "سناكس / Snacks" },
-  { value: "cleaning", label: "تنظيف / Cleaning" },
-  { value: "small_purchases", label: "مشتريات بسيطة" },
-  { value: "water", label: "مياه / Water" },
-  { value: "electricity", label: "كهرباء / Electricity" },
-  { value: "shipping", label: "شحن / Shipping" },
-  { value: "maintenance", label: "صيانة / Maintenance" },
-  { value: "other", label: "أخرى / Other" },
+  { value: "delivery", label: "طھظˆطµظٹظ„ / Delivery" },
+  { value: "snacks", label: "ط³ظ†ط§ظƒط³ / Snacks" },
+  { value: "cleaning", label: "طھظ†ط¸ظٹظپ / Cleaning" },
+  { value: "small_purchases", label: "ظ…ط´طھط±ظٹط§طھ ط¨ط³ظٹط·ط©" },
+  { value: "water", label: "ظ…ظٹط§ظ‡ / Water" },
+  { value: "electricity", label: "ظƒظ‡ط±ط¨ط§ط، / Electricity" },
+  { value: "shipping", label: "ط´ط­ظ† / Shipping" },
+  { value: "maintenance", label: "طµظٹط§ظ†ط© / Maintenance" },
+  { value: "other", label: "ط£ط®ط±ظ‰ / Other" },
 ];
 
 const readLastSalespersonId = () => {
@@ -1008,9 +1008,9 @@ const normalizeSmartText = (value) =>
   String(value ?? "")
     .normalize("NFKD")
     .replace(/[\u064B-\u065F\u0670]/g, "")
-    .replace(/[أإآ]/g, "ا")
-    .replace(/ة/g, "ه")
-    .replace(/ى/g, "ي")
+    .replace(/[ط£ط¥ط¢]/g, "ط§")
+    .replace(/ط©/g, "ظ‡")
+    .replace(/ظ‰/g, "ظٹ")
     .toLowerCase()
     .trim();
 
@@ -1390,7 +1390,7 @@ function POSPro() {
           `#${activeSalesperson.id || ""}`
       ).trim();
     }
-    return salesSettings.allow_sale_without_salesperson ? "بدون بائع" : "اختر بائع";
+    return salesSettings.allow_sale_without_salesperson ? "ط¨ط¯ظˆظ† ط¨ط§ط¦ط¹" : "ط§ط®طھط± ط¨ط§ط¦ط¹";
   }, [activeSalesperson, salesSettings.allow_sale_without_salesperson]);
   const canOverrideSeller = useMemo(
     () => sellerOverrideAllowed || isAdminUser(currentUser) || hasPermission("pos.override_seller", currentUser) || hasPermission("orders.edit", currentUser),
@@ -1536,7 +1536,7 @@ function POSPro() {
       setInvoiceDiscount(savedSession.invoiceDiscount ?? defaultState.invoiceDiscount);
       setServiceFee(savedSession.serviceFee ?? defaultState.serviceFee);
       if (savedSession.selectedSalespersonId) setSelectedSalespersonId(String(savedSession.selectedSalespersonId));
-      toast.success("تم استرجاع جلسة البيع المحفوظة");
+      toast.success("طھظ… ط§ط³طھط±ط¬ط§ط¹ ط¬ظ„ط³ط© ط§ظ„ط¨ظٹط¹ ط§ظ„ظ…ط­ظپظˆط¸ط©");
     }
   }, [activePosShift?.id, routeEditOrderId]);
 
@@ -1922,7 +1922,7 @@ function POSPro() {
     [customers, selectedCustomerId]
   );
   const mobileSelectedCustomerLabel = useMemo(
-    () => String(customer?.name || customer?.customer_name || customerSearch?.trim() || "عميل غير محدد").trim() || "عميل غير محدد",
+    () => String(customer?.name || customer?.customer_name || customerSearch?.trim() || "ط¹ظ…ظٹظ„ ط؛ظٹط± ظ…ط­ط¯ط¯").trim() || "ط¹ظ…ظٹظ„ ط؛ظٹط± ظ…ط­ط¯ط¯",
     [customer?.customer_name, customer?.name, customerSearch]
   );
   const customerCreditBalance = useMemo(
@@ -2109,7 +2109,7 @@ function POSPro() {
     const currentUserSeller = salesEmployees.find((employee) => currentUserId && String(employee.user_id || "") === currentUserId);
     const currentEmployeeId = currentUserSeller?.id ? String(currentUserSeller.id) : "";
     if (!canOverrideSeller && nextId && currentEmployeeId && nextId !== currentEmployeeId) {
-      toast.error("لا تملك صلاحية البيع باسم مستخدم آخر");
+      toast.error("ظ„ط§ طھظ…ظ„ظƒ طµظ„ط§ط­ظٹط© ط§ظ„ط¨ظٹط¹ ط¨ط§ط³ظ… ظ…ط³طھط®ط¯ظ… ط¢ط®ط±");
       return;
     }
     if (!canOverrideSeller && !nextId && currentEmployeeId) {
@@ -2782,9 +2782,9 @@ function POSPro() {
   const activeSmartFilters = useMemo(
     () =>
       [
-        { key: "gender", label: "الجنس", value: selectedGender, setValue: setSelectedGender, options: smartFilterOptions.gender },
-        { key: "type", label: "نوع المنتج", value: selectedProductType, setValue: setSelectedProductType, options: smartFilterOptions.productType },
-        { key: "grade", label: "الفئة", value: selectedGrade, setValue: setSelectedGrade, options: smartFilterOptions.grade },
+        { key: "gender", label: "ط§ظ„ط¬ظ†ط³", value: selectedGender, setValue: setSelectedGender, options: smartFilterOptions.gender },
+        { key: "type", label: "ظ†ظˆط¹ ط§ظ„ظ…ظ†طھط¬", value: selectedProductType, setValue: setSelectedProductType, options: smartFilterOptions.productType },
+        { key: "grade", label: "ط§ظ„ظپط¦ط©", value: selectedGrade, setValue: setSelectedGrade, options: smartFilterOptions.grade },
       ]
         .filter((item) => item.value !== "all")
         .map((item) => ({
@@ -3125,7 +3125,7 @@ function POSPro() {
     if (!silent) {
       toast.success(
         requestedQuantity > 1
-          ? t("pos.toasts.addedToCart", { name: `${product.name || product.product_name} ×${requestedQuantity}` })
+          ? t("pos.toasts.addedToCart", { name: `${product.name || product.product_name} أ—${requestedQuantity}` })
           : t("pos.toasts.addedToCart", { name: product.name || product.product_name })
       );
     }
@@ -3236,10 +3236,10 @@ function POSPro() {
       [
         `Only ${availableStock} unit${Number(availableStock) === 1 ? "" : "s"} is available for the selected size.`,
         `Quantity was automatically adjusted from ${oldQuantity} to ${newQuantity}.`,
-        `المخزون المتاح للمقاس المحدد هو ${availableStock} فقط.`,
-        `تم تعديل الكمية تلقائيًا من ${oldQuantity} إلى ${newQuantity}.`,
+        `ط§ظ„ظ…ط®ط²ظˆظ† ط§ظ„ظ…طھط§ط­ ظ„ظ„ظ…ظ‚ط§ط³ ط§ظ„ظ…ط­ط¯ط¯ ظ‡ظˆ ${availableStock} ظپظ‚ط·.`,
+        `طھظ… طھط¹ط¯ظٹظ„ ط§ظ„ظƒظ…ظٹط© طھظ„ظ‚ط§ط¦ظٹظ‹ط§ ظ…ظ† ${oldQuantity} ط¥ظ„ظ‰ ${newQuantity}.`,
       ].join("\n"),
-      { icon: "⚠️" }
+      { icon: "âڑ ï¸ڈ" }
     );
   }, []);
   const handleCartVariantChange = useCallback((key, variantId) => {
@@ -3258,13 +3258,13 @@ function POSPro() {
         );
 
       if (!targetVariant) {
-        toast.error("Variant not found / لم يتم العثور على المقاس أو اللون");
+        toast.error("Variant not found / ظ„ظ… ظٹطھظ… ط§ظ„ط¹ط«ظˆط± ط¹ظ„ظ‰ ط§ظ„ظ…ظ‚ط§ط³ ط£ظˆ ط§ظ„ظ„ظˆظ†");
         return prev;
       }
 
       const liveStock = normalizeStockQuantity(targetVariant.stock_quantity ?? targetVariant.stock);
       if (liveStock <= 0) {
-        toast.error("Out of stock / غير متوفر بالمخزون");
+        toast.error("Out of stock / ط؛ظٹط± ظ…طھظˆظپط± ط¨ط§ظ„ظ…ط®ط²ظˆظ†");
         return prev;
       }
 
@@ -3393,8 +3393,8 @@ function POSPro() {
       order_item_id: item.id || item.order_item_id || item.invoice_item_id || null,
       product_id: productId,
       variant_id: variantId,
-      name: item.product_name || item.name || item.product?.name || catalogProduct.name || "منتج",
-      product_name: item.product_name || item.name || item.product?.name || catalogProduct.name || "منتج",
+      name: item.product_name || item.name || item.product?.name || catalogProduct.name || "ظ…ظ†طھط¬",
+      product_name: item.product_name || item.name || item.product?.name || catalogProduct.name || "ظ…ظ†طھط¬",
       sku: item.sku || catalogVariant.sku || catalogProduct.sku || "",
       barcode: item.barcode || catalogVariant.barcode || catalogProduct.barcode || "",
       color: item.color || item.variant_color || catalogVariant.color || "",
@@ -3630,9 +3630,9 @@ function POSPro() {
           total_ms: Math.round(performance.now() - editStartedAt),
         });
       }
-      toast.success(`أنت الآن تعدل فاتورة رقم ${loadedOrder.invoice_number || order.invoice_number}`);
+      toast.success(`ط£ظ†طھ ط§ظ„ط¢ظ† طھط¹ط¯ظ„ ظپط§طھظˆط±ط© ط±ظ‚ظ… ${loadedOrder.invoice_number || order.invoice_number}`);
     } catch (err) {
-      toast.error(getErrorMessage(err, "تعذر تحميل الفاتورة للتعديل"));
+      toast.error(getErrorMessage(err, "طھط¹ط°ط± طھط­ظ…ظٹظ„ ط§ظ„ظپط§طھظˆط±ط© ظ„ظ„طھط¹ط¯ظٹظ„"));
     }
   };
 
@@ -3673,7 +3673,7 @@ function POSPro() {
     setServiceFee(0);
     handleClearSelectedCustomer();
     setRecentOperationsOpen(false);
-    toast.success(`تم إنشاء الاستبدال للفاتورة ${order?.invoice_number || order?.id || ""}. أضف المنتج البديل إلى السلة كبيع جديد بقيمة مرتجع ${formatCurrency(returnTotal, "ar")}`);
+    toast.success(`طھظ… ط¥ظ†ط´ط§ط، ط§ظ„ط§ط³طھط¨ط¯ط§ظ„ ظ„ظ„ظپط§طھظˆط±ط© ${order?.invoice_number || order?.id || ""}. ط£ط¶ظپ ط§ظ„ظ…ظ†طھط¬ ط§ظ„ط¨ط¯ظٹظ„ ط¥ظ„ظ‰ ط§ظ„ط³ظ„ط© ظƒط¨ظٹط¹ ط¬ط¯ظٹط¯ ط¨ظ‚ظٹظ…ط© ظ…ط±طھط¬ط¹ ${formatCurrency(returnTotal, "ar")}`);
   };
 
   const lookupExchangeOrder = async (query) => {
@@ -3838,7 +3838,7 @@ function POSPro() {
 
   const handleCloseShift = async () => {
     if (!activePosShift?.id) {
-      toast.error("لا توجد وردية مفتوحة");
+      toast.error("ظ„ط§ طھظˆط¬ط¯ ظˆط±ط¯ظٹط© ظ…ظپطھظˆط­ط©");
       return;
     }
 
@@ -3997,7 +3997,7 @@ function POSPro() {
     }
 
     if (!isShiftActive) {
-      toast.error("يجب فتح وردية قبل البيع");
+      toast.error("ظٹط¬ط¨ ظپطھط­ ظˆط±ط¯ظٹط© ظ‚ط¨ظ„ ط§ظ„ط¨ظٹط¹");
       return null;
     }
 
@@ -4027,7 +4027,7 @@ function POSPro() {
     const currentUserSeller = salesEmployees.find((employee) => currentUserId && String(employee.user_id || "") === currentUserId);
     const currentEmployeeId = currentUserSeller?.id ? String(currentUserSeller.id) : "";
     if (!canOverrideSeller && selectedSalespersonId && currentEmployeeId && String(selectedSalespersonId) !== currentEmployeeId) {
-      toast.error("لا تملك صلاحية البيع باسم مستخدم آخر");
+      toast.error("ظ„ط§ طھظ…ظ„ظƒ طµظ„ط§ط­ظٹط© ط§ظ„ط¨ظٹط¹ ط¨ط§ط³ظ… ظ…ط³طھط®ط¯ظ… ط¢ط®ط±");
       return null;
     }
 
@@ -4048,13 +4048,13 @@ function POSPro() {
         : 0;
     const availableCustomerWalletBalance = canUseCustomerCredit ? customerCreditBalance : 0;
     if (requestedCustomerWalletAmount > 0 && !canUseCustomerCredit) {
-      toast.error("رصيد العميل متاح فقط عند اختيار عميل لديه رصيد موجب.");
+      toast.error("ط±طµظٹط¯ ط§ظ„ط¹ظ…ظٹظ„ ظ…طھط§ط­ ظپظ‚ط· ط¹ظ†ط¯ ط§ط®طھظٹط§ط± ط¹ظ…ظٹظ„ ظ„ط¯ظٹظ‡ ط±طµظٹط¯ ظ…ظˆط¬ط¨.");
       return null;
     }
     if (requestedCustomerWalletAmount > availableCustomerWalletBalance) {
       const shortage = Math.max(0, requestedCustomerWalletAmount - availableCustomerWalletBalance);
       toast.error(
-        `${POS_ARABIC_TEXT.notEnoughCredit}.\nالرصيد الحالي: ${formatCurrency(availableCustomerWalletBalance)}\n${POS_ARABIC_TEXT.required}: ${formatCurrency(requestedCustomerWalletAmount)}\n${POS_ARABIC_TEXT.shortage}: ${formatCurrency(shortage)}`
+        `${POS_ARABIC_TEXT.notEnoughCredit}.\nط§ظ„ط±طµظٹط¯ ط§ظ„ط­ط§ظ„ظٹ: ${formatCurrency(availableCustomerWalletBalance)}\n${POS_ARABIC_TEXT.required}: ${formatCurrency(requestedCustomerWalletAmount)}\n${POS_ARABIC_TEXT.shortage}: ${formatCurrency(shortage)}`
       );
       return null;
     }
@@ -4074,17 +4074,17 @@ function POSPro() {
     if (selectedTreasuryRequiresBalance && paymentAccountStatus?.account && paymentAccountStatus.sufficient === false && paymentAccountStatus.allow_negative_balance !== true) {
       const accountName = safeArabicText(paymentAccountStatus.account.name, POS_ARABIC_TEXT.accountSelected);
       const fallback = Array.isArray(paymentAccountStatus.fallback_accounts) && paymentAccountStatus.fallback_accounts[0]
-        ? `\nيوجد رصيد كاف في ${safeArabicText(paymentAccountStatus.fallback_accounts[0].name, POS_ARABIC_TEXT.account)}`
+        ? `\nظٹظˆط¬ط¯ ط±طµظٹط¯ ظƒط§ظپ ظپظٹ ${safeArabicText(paymentAccountStatus.fallback_accounts[0].name, POS_ARABIC_TEXT.account)}`
         : "";
       toast.error(
-        `رصيد ${accountName} غير كاف.\nالرصيد الحالي: ${formatCurrency(paymentAccountStatus.available_balance || 0)}\n${POS_ARABIC_TEXT.required}: ${formatCurrency(activePaymentAccountAmount || cartTotals.total || 0)}\n${POS_ARABIC_TEXT.shortage}: ${formatCurrency(paymentAccountStatus.shortage_amount || 0)}${fallback}`
+        `ط±طµظٹط¯ ${accountName} ط؛ظٹط± ظƒط§ظپ.\nط§ظ„ط±طµظٹط¯ ط§ظ„ط­ط§ظ„ظٹ: ${formatCurrency(paymentAccountStatus.available_balance || 0)}\n${POS_ARABIC_TEXT.required}: ${formatCurrency(activePaymentAccountAmount || cartTotals.total || 0)}\n${POS_ARABIC_TEXT.shortage}: ${formatCurrency(paymentAccountStatus.shortage_amount || 0)}${fallback}`
       );
       return null;
     }
     if (selectedTreasuryRequiresBalance && paymentAccountStatus?.account && paymentAccountStatus.shortage_amount > 0 && paymentAccountStatus.allow_negative_balance === true) {
       const accountName = safeArabicText(paymentAccountStatus.account.name, POS_ARABIC_TEXT.accountSelected);
       toast(
-        `تنبيه: سيصبح رصيد ${accountName} سالباً.\nالرصيد الحالي: ${formatCurrency(paymentAccountStatus.available_balance || 0)}\n${POS_ARABIC_TEXT.required}: ${formatCurrency(activePaymentAccountAmount || cartTotals.total || 0)}\n${POS_ARABIC_TEXT.shortage}: ${formatCurrency(paymentAccountStatus.shortage_amount || 0)}`,
+        `طھظ†ط¨ظٹظ‡: ط³ظٹطµط¨ط­ ط±طµظٹط¯ ${accountName} ط³ط§ظ„ط¨ط§ظ‹.\nط§ظ„ط±طµظٹط¯ ط§ظ„ط­ط§ظ„ظٹ: ${formatCurrency(paymentAccountStatus.available_balance || 0)}\n${POS_ARABIC_TEXT.required}: ${formatCurrency(activePaymentAccountAmount || cartTotals.total || 0)}\n${POS_ARABIC_TEXT.shortage}: ${formatCurrency(paymentAccountStatus.shortage_amount || 0)}`,
         { icon: "!" }
       );
     }
@@ -4651,7 +4651,7 @@ function POSPro() {
       } else if (err?.response?.data?.code === "INSUFFICIENT_CUSTOMER_WALLET_BALANCE" || err?.responseBody?.code === "INSUFFICIENT_CUSTOMER_WALLET_BALANCE") {
         const payload = err?.response?.data || err?.responseBody || {};
         toast.error(
-          `${POS_ARABIC_TEXT.notEnoughCredit}.\nالرصيد الحالي: ${formatCurrency(payload.available_balance || 0)}\n${POS_ARABIC_TEXT.required}: ${formatCurrency(payload.attempted_amount || 0)}\n${POS_ARABIC_TEXT.shortage}: ${formatCurrency(payload.shortage_amount || 0)}`
+          `${POS_ARABIC_TEXT.notEnoughCredit}.\nط§ظ„ط±طµظٹط¯ ط§ظ„ط­ط§ظ„ظٹ: ${formatCurrency(payload.available_balance || 0)}\n${POS_ARABIC_TEXT.required}: ${formatCurrency(payload.attempted_amount || 0)}\n${POS_ARABIC_TEXT.shortage}: ${formatCurrency(payload.shortage_amount || 0)}`
         );
       } else {
         toast.error(t("pos.toasts.checkoutFailedWithMessage", { message }));
@@ -4833,7 +4833,7 @@ function POSPro() {
     }
 
     if (!invoiceUrl) {
-      toast.error("تعذر إنشاء رابط الفاتورة");
+      toast.error("طھط¹ط°ط± ط¥ظ†ط´ط§ط، ط±ط§ط¨ط· ط§ظ„ظپط§طھظˆط±ط©");
       return;
     }
 
@@ -5459,7 +5459,7 @@ function POSPro() {
 
         <div className={`hidden shrink-0 items-center justify-between gap-2 overflow-x-hidden ${isRtl ? "flex-row-reverse" : ""} lg:flex`}>
           <div className="hidden shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-zinc-200 lg:block">
-            وردية مفتوحة: {currentUser?.name || currentUser?.email || "User"} | {posShiftBranch?.name || activePosShift?.branch_name || "Branch"} | {activePosShift?.opened_at ? new Date(activePosShift.opened_at).toLocaleString() : ""}
+            ظˆط±ط¯ظٹط© ظ…ظپطھظˆط­ط©: {currentUser?.name || currentUser?.email || "User"} | {posShiftBranch?.name || activePosShift?.branch_name || "Branch"} | {activePosShift?.opened_at ? new Date(activePosShift.opened_at).toLocaleString() : ""}
           </div>
           <div className={`flex shrink-0 items-center gap-2 ${isRtl ? "flex-row-reverse" : ""}`}>
           <button
@@ -5726,8 +5726,8 @@ function POSPro() {
                     type="button"
                     onClick={() => setCameraScannerOpen(true)}
                     className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 xl:hidden"
-                    aria-label="فتح ماسح الكاميرا"
-                    title="فتح ماسح الكاميرا"
+                    aria-label="ظپطھط­ ظ…ط§ط³ط­ ط§ظ„ظƒط§ظ…ظٹط±ط§"
+                    title="ظپطھط­ ظ…ط§ط³ط­ ط§ظ„ظƒط§ظ…ظٹط±ط§"
                   >
                     <Camera className="h-4 w-4" />
                   </button>
@@ -5761,7 +5761,7 @@ function POSPro() {
                   dir="rtl"
                 >
                   <History className="h-4 w-4" />
-                  العمليات الأخيرة
+                  ط§ظ„ط¹ظ…ظ„ظٹط§طھ ط§ظ„ط£ط®ظٹط±ط©
                 </button>
                 {canCreatePosExpense ? (
                   <button
@@ -5769,10 +5769,10 @@ function POSPro() {
                     onClick={() => setQuickExpenseOpen(true)}
                     disabled={!activePosShift?.id}
                     className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-amber-300/20 bg-amber-400/10 px-2.5 text-xs font-black text-amber-100 transition hover:border-amber-200/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
-                    title="مصروف / Expense"
+                    title="ظ…طµط±ظˆظپ / Expense"
                   >
                     <ReceiptText className="h-4 w-4" />
-                    <span>مصروف</span>
+                    <span>ظ…طµط±ظˆظپ</span>
                   </button>
                 ) : null}
             </div>
@@ -5907,7 +5907,7 @@ function POSPro() {
                   className="inline-flex min-h-14 items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-white transition active:scale-[0.99] hover:bg-white/[0.08]"
                 >
                   <ReceiptText className="h-4 w-4" />
-                  فتح الفاتورة
+                  ظپطھط­ ط§ظ„ظپط§طھظˆط±ط©
                 </button>
                 <button
                   type="button"
@@ -5916,7 +5916,7 @@ function POSPro() {
                   className="inline-flex min-h-14 items-center justify-center gap-1.5 rounded-2xl bg-emerald-500 px-3 text-xs font-black text-black transition active:scale-[0.99] hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {checkoutLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
-                  الدفع
+                  ط§ظ„ط¯ظپط¹
                 </button>
               </div>
             </div>
@@ -5925,7 +5925,7 @@ function POSPro() {
 
         <MobileBottomSheet
           open={mobileCartOpen}
-          title={`${t("pos.cart.title", "Cart")} · ${formatCurrency(cartTotals.total)}`}
+          title={`${t("pos.cart.title", "Cart")} آ· ${formatCurrency(cartTotals.total)}`}
           onClose={() => setMobileCartOpen(false)}
           className="xl:hidden"
         >
@@ -6051,7 +6051,7 @@ function POSPro() {
                 className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <CheckCircle2 className="h-4 w-4" />
-                {t("pos.labels.addToInvoiceArabic", "إضافة للفاتورة")}
+                {t("pos.labels.addToInvoiceArabic", "ط¥ط¶ط§ظپط© ظ„ظ„ظپط§طھظˆط±ط©")}
               </button>
             }
           >
@@ -6413,7 +6413,7 @@ function POSPro() {
                       className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-3xl bg-emerald-500 px-4 py-4 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 sm:hidden"
                     >
                       <span className="truncate">
-                        {t("pos.labels.addToInvoiceArabic", "إضافة للفاتورة")}
+                        {t("pos.labels.addToInvoiceArabic", "ط¥ط¶ط§ظپط© ظ„ظ„ظپط§طھظˆط±ط©")}
                       </span>
                     </button>
                   </div>
@@ -6660,7 +6660,7 @@ function ShiftGate({
             </div>
             <h1 className="mt-3 text-3xl font-black text-white">{t("pos.shift.openShift")}</h1>
             <p className="mt-2 text-sm text-zinc-400">
-              يجب فتح وردية قبل البيع. سيتم فتح الوردية باسم المستخدم المسجل دخوله.
+              ظٹط¬ط¨ ظپطھط­ ظˆط±ط¯ظٹط© ظ‚ط¨ظ„ ط§ظ„ط¨ظٹط¹. ط³ظٹطھظ… ظپطھط­ ط§ظ„ظˆط±ط¯ظٹط© ط¨ط§ط³ظ… ط§ظ„ظ…ط³طھط®ط¯ظ… ط§ظ„ظ…ط³ط¬ظ„ ط¯ط®ظˆظ„ظ‡.
             </p>
           </div>
           <Clock3 className="h-6 w-6 text-emerald-300" />
@@ -6671,10 +6671,10 @@ function ShiftGate({
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">
                 <UserCheck className="h-4 w-4" />
-                الكاشير
+                ط§ظ„ظƒط§ط´ظٹط±
               </div>
               <div className="mt-2 text-lg font-black text-white">{userName || "Current user"}</div>
-              <div className="mt-1 text-xs text-zinc-500">تلقائي من الحساب الحالي</div>
+              <div className="mt-1 text-xs text-zinc-500">طھظ„ظ‚ط§ط¦ظٹ ظ…ظ† ط§ظ„ط­ط³ط§ط¨ ط§ظ„ط­ط§ظ„ظٹ</div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">
@@ -6712,7 +6712,7 @@ function ShiftGate({
             className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {attendanceLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
-            فتح الوردية
+            ظپطھط­ ط§ظ„ظˆط±ط¯ظٹط©
           </button>
         </div>
       </section>
@@ -6724,12 +6724,12 @@ function getShiftRotationLabels(language = "en") {
   const isArabic = String(language || "").toLowerCase().startsWith("ar");
   return isArabic
     ? {
-        shiftClose: "إغلاق الشيفت",
-        drawerSummary: "ملخص الدرج",
-        expectedDrawer: "المتوقع في الدرج",
-        actualDrawer: "المبلغ الفعلي",
-        cancel: "إلغاء",
-        closeShift: "إغلاق الشيفت",
+        shiftClose: "ط¥ط؛ظ„ط§ظ‚ ط§ظ„ط´ظٹظپطھ",
+        drawerSummary: "ظ…ظ„ط®طµ ط§ظ„ط¯ط±ط¬",
+        expectedDrawer: "ط§ظ„ظ…طھظˆظ‚ط¹ ظپظٹ ط§ظ„ط¯ط±ط¬",
+        actualDrawer: "ط§ظ„ظ…ط¨ظ„ط؛ ط§ظ„ظپط¹ظ„ظٹ",
+        cancel: "ط¥ظ„ط؛ط§ط،",
+        closeShift: "ط¥ط؛ظ„ط§ظ‚ ط§ظ„ط´ظٹظپطھ",
       }
     : {
         shiftClose: "Shift close",
@@ -6921,7 +6921,7 @@ function ShiftCloseModal({
 
   return (
     <div className="fixed inset-0 z-[95] flex items-end justify-center bg-black/75 px-2 py-2 backdrop-blur-sm sm:items-center sm:px-3 sm:py-5">
-      <div dir={isArabic ? "rtl" : "ltr"} className="max-h-[96vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-zinc-950 p-3 shadow-2xl shadow-black/60 sm:max-h-[92vh] sm:p-5">
+      <div dir={isArabic ? "rtl" : "ltr"} className="max-h-[96vh] w-[92vw] max-w-[1180px] overflow-y-auto rounded-3xl border border-white/10 bg-zinc-950 p-3 shadow-2xl shadow-black/60 sm:max-h-[92vh] sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-200">
@@ -6929,9 +6929,7 @@ function ShiftCloseModal({
               {labels.shiftClose}
             </div>
             <h2 className="mt-2 text-xl font-black text-white sm:text-2xl">{copy.title}</h2>
-            <p className="mt-1 text-sm font-semibold text-zinc-400">
-              {copy.subtitle}
-            </p>
+            <p className="mt-1 text-sm font-semibold text-zinc-400">{copy.subtitle}</p>
           </div>
           <button
             type="button"
@@ -6943,209 +6941,31 @@ function ShiftCloseModal({
           </button>
         </div>
 
-        <section className={`mt-5 rounded-[24px] border p-4 ${varianceState.className}`}>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-black/25">
-                <VarianceIcon className="h-6 w-6" />
-              </div>
-              <div>
-                <div className="text-xl font-black">{varianceState.title}</div>
-                <div className="mt-0.5 text-sm font-semibold opacity-80">{varianceState.help}</div>
-              </div>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-end">
-              <div className="text-[10px] font-black uppercase tracking-[0.16em] opacity-60">Variance</div>
-              <div className="mt-1 text-2xl font-black">{formatCurrency(difference)}</div>
-            </div>
-          </div>
-        </section>
+        <ShiftCloseAuditLayout
+          report={report}
+          totals={totals}
+          shift={shift}
+          expectedDrawer={expectedDrawer}
+          difference={difference}
+          actualDrawerAmount={actualDrawerAmount}
+          onActualDrawerChange={onActualDrawerChange}
+          closingNotes={closingNotes}
+          onClosingNotesChange={onClosingNotesChange}
+          varianceReason={varianceReason}
+          onVarianceReasonChange={onVarianceReasonChange}
+          onPrint={onPrint}
+          onCancel={onCancel}
+          onConfirm={() => setConfirmClose(true)}
+          submitting={submitting}
+          copy={copy}
+          labels={labels}
+          paymentWarnings={paymentWarnings}
+          shiftDuration={shiftDuration}
+          totalSoldItems={totalSoldItems}
+          varianceState={varianceState}
+          VarianceIcon={VarianceIcon}
+        />
 
-        <div className="mt-5 grid gap-4 lg:grid-cols-[0.85fr_1.4fr]">
-          <section className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">{labels.drawerSummary}</div>
-            <div className="mt-3 grid gap-3">
-              <div className="rounded-2xl border border-white/10 bg-black/35 p-4">
-                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{labels.expectedDrawer}</div>
-                <div className="mt-2 text-2xl font-black text-white">{formatCurrency(expectedDrawer)}</div>
-              </div>
-              <label className="block rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-4">
-                <span className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{labels.actualDrawer}</span>
-                <input
-                  type="number"
-                  value={actualDrawerAmount}
-                  onChange={(event) => onActualDrawerChange(event.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/50 px-3 text-base font-black text-white outline-none transition focus:border-emerald-400/60"
-                />
-              </label>
-              <div className={`rounded-2xl border p-4 ${difference === 0 ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100" : difference > 0 ? "border-amber-400/25 bg-amber-500/10 text-amber-100" : "border-rose-400/25 bg-rose-500/10 text-rose-100"}`}>
-                <div className="text-[11px] font-black uppercase tracking-[0.16em] opacity-70">Variance result</div>
-                <div className="mt-2 text-2xl font-black">{formatCurrency(difference)}</div>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <ShiftReportItem label="Opening cash" value={formatCurrency(totals.opening_cash ?? shift.opening_cash)} />
-                <ShiftReportItem label="Shift duration" value={shiftDuration || "-"} />
-              </div>
-            </div>
-            {sellerPerformance.length ? (
-              <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-                <div className="mb-3 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{copy.sellerPerformance}</div>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {sellerPerformance.slice(0, 6).map((seller) => (
-                    <div key={seller.name} className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
-                      <div className="truncate text-sm font-black text-white">{seller.name}</div>
-                      <div className="mt-1 text-xs font-semibold text-zinc-400">{formatCurrency(seller.total)}</div>
-                      <div className="mt-0.5 text-[11px] text-zinc-500">{Number(seller.count || 0).toLocaleString()} invoices</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <label className={`block rounded-2xl border p-3 ${difference !== 0 ? "border-amber-400/30 bg-amber-500/10" : "border-white/10 bg-black/20"}`}>
-                <span className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{copy.varianceReason}</span>
-                <textarea
-                  value={varianceReason}
-                  onChange={(event) => onVarianceReasonChange?.(event.target.value)}
-                  rows={3}
-                  placeholder="Cash drawer recount issue"
-                  className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-black/40 p-3 text-sm font-semibold text-white outline-none focus:border-amber-300/50"
-                />
-              </label>
-              <label className="block rounded-2xl border border-white/10 bg-black/20 p-3">
-                <span className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{copy.closingNotes}</span>
-                <textarea
-                  value={closingNotes}
-                  onChange={(event) => onClosingNotesChange?.(event.target.value)}
-                  rows={3}
-                  placeholder="Terminal pending settlement"
-                  className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-black/40 p-3 text-sm font-semibold text-white outline-none focus:border-emerald-300/50"
-                />
-              </label>
-            </div>
-          </section>
-
-          <section className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">ملخص المراجعة</div>
-                <div className="mt-1 text-sm font-semibold text-zinc-400">{shift.cashier_name || ""} / {shift.branch_name || ""}</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => onPrint?.({ ...(report || {}), totals: { ...totals, closing_cash: Number(actualDrawerAmount || 0), cash_difference: difference } })}
-                disabled={submitting}
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 text-xs font-black text-zinc-200 transition hover:bg-white/[0.08] disabled:opacity-50"
-              >
-                <ReceiptText className="h-3.5 w-3.5" />
-                Print
-              </button>
-            </div>
-            <div className="mt-4 grid gap-4 xl:grid-cols-3">
-              <AccountingLedgerSection title="ملخص الكاش" subtitle="Cash flow and drawer impact" accent="amber">
-                <AccountingLedgerRow label="مبيعات نقدي" value={formatCurrency(totals.cash || 0)} />
-                <AccountingLedgerRow label="مرتجعات نقدي" value={formatCurrency(totals.returns || 0)} />
-                <AccountingLedgerRow label="مصروفات نقدية" value={formatCurrency(Number(totals.pos_expenses_cash || 0) + Number(totals.employee_advances_cash || 0))} />
-                <AccountingLedgerRow
-                  label="صافي الدرج المتوقع"
-                  value={formatCurrency(totals.net_cash_expected ?? totals.expected_cash ?? shift.expected_cash)}
-                  subtitle="Cash sales minus cash outflows"
-                  strong
-                  highlight
-                />
-              </AccountingLedgerSection>
-
-              <AccountingLedgerSection title="وسائل الدفع" subtitle="Non-cash settlement mix" accent="emerald">
-                <AccountingLedgerRow label="بطاقات" value={formatCurrency(totals.card || 0)} />
-                <AccountingLedgerRow label="محفظة" value={formatCurrency(totals.wallet || 0)} />
-                <AccountingLedgerRow label="InstaPay" value={formatCurrency(totals.wallet || 0)} subtitle="Included in wallet total" />
-                <AccountingLedgerRow label="Vodafone Cash" value={formatCurrency(0)} subtitle="Not separated in current shift report" />
-              </AccountingLedgerSection>
-
-              <AccountingLedgerSection title="النشاط" subtitle="Operational activity at a glance" accent="cyan">
-                <AccountingLedgerRow label="عدد الفواتير" value={Number(totals.invoice_count || 0).toLocaleString()} />
-                <AccountingLedgerRow label="الخصومات" value={formatCurrency(totals.discounts || 0)} />
-                <AccountingLedgerRow label="سلف الموظفين" value={formatCurrency(totals.employee_advances || 0)} />
-                <AccountingLedgerRow label="مدة الشيفت" value={shiftDuration || "-"} />
-              </AccountingLedgerSection>
-            </div>
-            <div className={`mt-4 rounded-2xl border p-4 ${paymentWarnings.length ? "border-amber-400/25 bg-amber-500/10 text-amber-100" : "border-emerald-400/20 bg-emerald-500/10 text-emerald-100"}`}>
-              <div className="flex items-center gap-2 text-sm font-black">
-                {paymentWarnings.length ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-                {paymentWarnings.length ? copy.paymentsNeedReview : copy.paymentsReconciled}
-              </div>
-              {paymentWarnings.length ? (
-                <div className="mt-2 space-y-1 text-xs font-semibold opacity-85">
-                  {paymentWarnings.map((warning, index) => <div key={`${warning}-${index}`}>{warning}</div>)}
-                </div>
-              ) : null}
-            </div>
-            <div className="mt-4 grid gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                <div className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Top products</div>
-                <div className="space-y-2">
-                  {(report?.top_products || []).slice(0, 5).map((item) => (
-                    <div key={item.product_name} className="flex items-center justify-between gap-3 text-xs font-semibold text-zinc-300">
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-black text-white">{item.product_name}</span>
-                        <span className="mt-0.5 block text-[11px] text-zinc-500">
-                          {Number(item.quantity || 0).toLocaleString()} sales • {totalSoldItems > 0 ? Math.round((Number(item.quantity || 0) / totalSoldItems) * 100) : 0}%
-                        </span>
-                      </span>
-                      <span className="shrink-0 text-white">{formatCurrency(item.total || 0)}</span>
-                    </div>
-                  ))}
-                  {!(report?.top_products || []).length ? <div className="text-xs text-zinc-500">No products</div> : null}
-                </div>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                <div className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Audit timeline</div>
-                <div className="max-h-44 space-y-2 overflow-auto pr-1">
-                  {(report?.audit_timeline || []).slice(-12).map((item, index) => (
-                    <div key={`${item.type}-${item.source_id}-${index}`} className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] px-3 py-2 text-xs font-semibold text-zinc-300">
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-black text-white">{readableAuditAction(item)}</span>
-                        <span className="mt-0.5 block truncate text-[11px] text-zinc-500">{auditReference(item) || item.label || ""}</span>
-                      </span>
-                      <span className="shrink-0 text-end">
-                        <span className="block text-white">{formatCurrency(item.amount || 0)}</span>
-                        <span className="mt-0.5 block text-[11px] text-zinc-500">{item.at ? new Date(item.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : ""}</span>
-                      </span>
-                    </div>
-                  ))}
-                  {!(report?.audit_timeline || []).length ? <div className="text-xs text-zinc-500">No events</div> : null}
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
-
-        <div className="sticky bottom-0 -mx-3 mt-5 flex flex-col gap-3 border-t border-white/10 bg-zinc-950/95 px-3 py-4 backdrop-blur sm:-mx-5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-          <div className="text-sm font-bold text-zinc-300">
-            <span className={difference === 0 ? "text-emerald-200" : "text-amber-200"}>{difference === 0 ? copy.closeReady : copy.varianceDetected}</span>
-            <span className="mx-2 text-zinc-600">/</span>
-            <span>{formatCurrency(difference)}</span>
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:flex">
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={submitting}
-              className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 text-sm font-black text-zinc-200 transition hover:bg-white/[0.08] disabled:opacity-50"
-            >
-              {labels.cancel}
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirmClose(true)}
-              disabled={submitting}
-              className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black text-black shadow-lg transition disabled:cursor-not-allowed disabled:opacity-50 ${difference === 0 ? "bg-emerald-400 shadow-emerald-950/30 hover:bg-emerald-300" : "bg-amber-400 shadow-amber-950/30 hover:bg-amber-300"}`}
-            >
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : difference === 0 ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
-              {labels.closeShift}
-            </button>
-          </div>
-        </div>
         {confirmClose ? (
           <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center">
             <section className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-950 p-5 text-white shadow-2xl shadow-black/60">
@@ -7186,6 +7006,243 @@ function ShiftCloseModal({
   );
 }
 
+function ShiftCloseAuditLayout({
+  report,
+  totals,
+  shift,
+  expectedDrawer,
+  difference,
+  actualDrawerAmount,
+  onActualDrawerChange,
+  closingNotes,
+  onClosingNotesChange,
+  varianceReason,
+  onVarianceReasonChange,
+  onPrint,
+  onCancel,
+  onConfirm,
+  submitting,
+  copy,
+  labels,
+  paymentWarnings,
+  shiftDuration,
+  totalSoldItems,
+  varianceState,
+  VarianceIcon,
+}) {
+  return (
+    <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(340px,0.85fr)]">
+      <section className="min-w-0 rounded-[22px] border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">ملخص المراجعة</div>
+            <div className="mt-1 text-sm font-semibold text-zinc-400">
+              {shift.cashier_name || ""}
+              {shift.cashier_name && shift.branch_name ? " / " : ""}
+              {shift.branch_name || ""}
+            </div>
+          </div>
+          <div className={`rounded-2xl border px-3 py-2 text-end ${difference === 0 ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100" : difference > 0 ? "border-amber-400/25 bg-amber-500/10 text-amber-100" : "border-rose-400/25 bg-rose-500/10 text-rose-100"}`}>
+            <div className="text-[10px] font-black uppercase tracking-[0.16em] opacity-60">الفارق</div>
+            <div className="mt-1 text-xl font-black">{formatCurrency(difference)}</div>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 xl:grid-cols-3">
+          <AccountingLedgerSection title="ملخص الكاش" accent="amber">
+            <AccountingLedgerRow label="مبيعات نقدية" value={formatCurrency(totals.cash || 0)} />
+            <AccountingLedgerRow label="مرتجعات نقدية" value={formatCurrency(totals.returns || 0)} />
+            <AccountingLedgerRow label="مصروفات نقدية" value={formatCurrency(Number(totals.pos_expenses_cash || 0) + Number(totals.employee_advances_cash || 0))} />
+            <AccountingLedgerRow label="صافي الدرج المتوقع" value={formatCurrency(totals.net_cash_expected ?? totals.expected_cash ?? shift.expected_cash)} strong highlight />
+          </AccountingLedgerSection>
+
+          <AccountingLedgerSection title="وسائل الدفع" accent="emerald">
+            <AccountingLedgerRow label="بطاقات" value={formatCurrency(totals.card || 0)} />
+            <AccountingLedgerRow label="محفظة" value={formatCurrency(totals.wallet || 0)} />
+            <AccountingLedgerRow label="InstaPay" value={formatCurrency(totals.wallet || 0)} />
+            <AccountingLedgerRow label="Vodafone Cash" value={formatCurrency(0)} />
+          </AccountingLedgerSection>
+
+          <AccountingLedgerSection title="النشاط" accent="cyan">
+            <AccountingLedgerRow label="عدد الفواتير" value={Number(totals.invoice_count || 0).toLocaleString()} />
+            <AccountingLedgerRow label="الخصومات" value={formatCurrency(totals.discounts || 0)} />
+            <AccountingLedgerRow label="سلف الموظفين" value={formatCurrency(totals.employee_advances || 0)} />
+            <AccountingLedgerRow label="مدة الشيفت" value={shiftDuration || "-"} />
+          </AccountingLedgerSection>
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="rounded-[18px] border border-white/10 bg-black/15 p-3 sm:p-4">
+            <div className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">أعلى المنتجات</div>
+            <div className="space-y-2">
+              {(report?.top_products || []).slice(0, 5).map((item) => (
+                <div key={item.product_name} className="flex items-center justify-between gap-3 text-xs font-semibold text-zinc-300">
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-black text-white">{item.product_name}</span>
+                    <span className="mt-0.5 block text-[11px] text-zinc-500">
+                      {Number(item.quantity || 0).toLocaleString()} بيع • {totalSoldItems > 0 ? Math.round((Number(item.quantity || 0) / totalSoldItems) * 100) : 0}%
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-white">{formatCurrency(item.total || 0)}</span>
+                </div>
+              ))}
+              {!(report?.top_products || []).length ? <div className="text-xs text-zinc-500">لا توجد منتجات</div> : null}
+            </div>
+          </div>
+          <div className="rounded-[18px] border border-white/10 bg-black/15 p-3 sm:p-4">
+            <div className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">الخط الزمني للمراجعة</div>
+            <div className="max-h-56 space-y-2 overflow-auto pr-1">
+              {(report?.audit_timeline || []).slice(-12).map((item, index) => (
+                <div key={`${item.type}-${item.source_id}-${index}`} className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] px-3 py-2 text-xs font-semibold text-zinc-300">
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-black text-white">{readableAuditAction(item)}</span>
+                    <span className="mt-0.5 block truncate text-[11px] text-zinc-500">{auditReference(item) || item.label || ""}</span>
+                  </span>
+                  <span className="shrink-0 text-end">
+                    <span className="block text-white">{formatCurrency(item.amount || 0)}</span>
+                    <span className="mt-0.5 block text-[11px] text-zinc-500">{item.at ? new Date(item.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : ""}</span>
+                  </span>
+                </div>
+              ))}
+              {!(report?.audit_timeline || []).length ? <div className="text-xs text-zinc-500">لا توجد أحداث</div> : null}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside className="flex min-w-0 flex-col gap-4">
+        <section className={`rounded-[22px] border p-4 sm:p-5 ${varianceState.className}`}>
+          <div className="flex items-center gap-3">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-black/25">
+              <VarianceIcon className="h-6 w-6" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xl font-black">{varianceState.title}</div>
+              <div className="mt-0.5 text-sm font-semibold opacity-80">{varianceState.help}</div>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">الدرج الفعلي</div>
+              <div className="mt-1 text-sm font-semibold text-zinc-400">
+                {shift.cashier_name || ""}
+                {shift.cashier_name && shift.branch_name ? " / " : ""}
+                {shift.branch_name || ""}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onPrint?.({ ...(report || {}), totals: { ...totals, closing_cash: Number(actualDrawerAmount || 0), cash_difference: difference } })}
+              disabled={submitting}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 text-xs font-black text-zinc-200 transition hover:bg-white/[0.08] disabled:opacity-50"
+            >
+              <ReceiptText className="h-3.5 w-3.5" />
+              طباعة
+            </button>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+              <span className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">الدرج المتوقع</span>
+              <span className="text-lg font-black text-white">{formatCurrency(expectedDrawer)}</span>
+            </div>
+
+            <label className="block rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3">
+              <span className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">الكاش الفعلي</span>
+              <input
+                type="number"
+                value={actualDrawerAmount}
+                onChange={(event) => onActualDrawerChange(event.target.value)}
+                className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/50 px-3 text-base font-black text-white outline-none transition focus:border-emerald-400/60"
+              />
+            </label>
+
+            <div className={`rounded-2xl border px-4 py-3 ${difference === 0 ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100" : difference > 0 ? "border-amber-400/25 bg-amber-500/10 text-amber-100" : "border-rose-400/25 bg-rose-500/10 text-rose-100"}`}>
+              <div className="text-[11px] font-black uppercase tracking-[0.16em] opacity-70">نتيجة الفارق</div>
+              <div className="mt-1 text-2xl font-black">{formatCurrency(difference)}</div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">فتح الدرج</div>
+                <div className="mt-1 text-lg font-black text-white">{formatCurrency(totals.opening_cash ?? shift.opening_cash)}</div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">مدة الشيفت</div>
+                <div className="mt-1 text-lg font-black text-white">{shiftDuration || "-"}</div>
+              </div>
+            </div>
+
+            {paymentWarnings.length ? (
+              <div className="rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-amber-100">
+                <div className="flex items-center gap-2 text-sm font-black">
+                  <AlertTriangle className="h-4 w-4" />
+                  {copy.paymentsNeedReview}
+                </div>
+                <div className="mt-2 space-y-1 text-xs font-semibold opacity-85">
+                  {paymentWarnings.map((warning, index) => <div key={`${warning}-${index}`}>{warning}</div>)}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-emerald-100">
+                <div className="flex items-center gap-2 text-sm font-black">
+                  <CheckCircle2 className="h-4 w-4" />
+                  {copy.paymentsReconciled}
+                </div>
+              </div>
+            )}
+
+            <label className={`block rounded-2xl border p-3 ${difference !== 0 ? "border-amber-400/30 bg-amber-500/10" : "border-white/10 bg-black/20"}`}>
+              <span className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{copy.varianceReason}</span>
+              <textarea
+                value={varianceReason}
+                onChange={(event) => onVarianceReasonChange?.(event.target.value)}
+                rows={3}
+                placeholder="سبب الفارق إن وجد"
+                className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-black/40 p-3 text-sm font-semibold text-white outline-none focus:border-amber-300/50"
+              />
+            </label>
+
+            <label className="block rounded-2xl border border-white/10 bg-black/20 p-3">
+              <span className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{copy.closingNotes}</span>
+              <textarea
+                value={closingNotes}
+                onChange={(event) => onClosingNotesChange?.(event.target.value)}
+                rows={3}
+                placeholder="ملاحظات اختيارية"
+                className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-black/40 p-3 text-sm font-semibold text-white outline-none focus:border-emerald-300/50"
+              />
+            </label>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={onCancel}
+                disabled={submitting}
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 text-sm font-black text-zinc-200 transition hover:bg-white/[0.08] disabled:opacity-50"
+              >
+                {labels.cancel}
+              </button>
+              <button
+                type="button"
+                onClick={onConfirm}
+                disabled={submitting}
+                className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black text-black shadow-lg transition disabled:cursor-not-allowed disabled:opacity-50 ${difference === 0 ? "bg-emerald-400 shadow-emerald-950/30 hover:bg-emerald-300" : "bg-amber-400 shadow-amber-950/30 hover:bg-amber-300"}`}
+              >
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : difference === 0 ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+                {labels.closeShift}
+              </button>
+            </div>
+          </div>
+        </section>
+      </aside>
+    </div>
+  );
+}
+
 function ShiftReportModal({ report, onClose, onPrint }) {
   const { t } = useTranslation();
   const totals = report?.totals || {};
@@ -7211,12 +7268,12 @@ function ShiftReportModal({ report, onClose, onPrint }) {
           </div>
         </div>
         <div className="mt-5 grid gap-4 xl:grid-cols-3">
-          <AccountingLedgerSection title="ملخص الكاش" subtitle="Cash flow and drawer impact" accent="amber">
-            <AccountingLedgerRow label="مبيعات نقدي" value={formatCurrency(totals.cash || 0)} />
-            <AccountingLedgerRow label="مرتجعات نقدي" value={formatCurrency(totals.returns || 0)} />
-            <AccountingLedgerRow label="مصروفات نقدية" value={formatCurrency(Number(totals.pos_expenses_cash || 0) + Number(totals.employee_advances_cash || 0))} />
+          <AccountingLedgerSection title="ظ…ظ„ط®طµ ط§ظ„ظƒط§ط´" subtitle="Cash flow and drawer impact" accent="amber">
+            <AccountingLedgerRow label="ظ…ط¨ظٹط¹ط§طھ ظ†ظ‚ط¯ظٹ" value={formatCurrency(totals.cash || 0)} />
+            <AccountingLedgerRow label="ظ…ط±طھط¬ط¹ط§طھ ظ†ظ‚ط¯ظٹ" value={formatCurrency(totals.returns || 0)} />
+            <AccountingLedgerRow label="ظ…طµط±ظˆظپط§طھ ظ†ظ‚ط¯ظٹط©" value={formatCurrency(Number(totals.pos_expenses_cash || 0) + Number(totals.employee_advances_cash || 0))} />
             <AccountingLedgerRow
-              label="صافي الدرج المتوقع"
+              label="طµط§ظپظٹ ط§ظ„ط¯ط±ط¬ ط§ظ„ظ…طھظˆظ‚ط¹"
               value={formatCurrency(totals.net_cash_expected ?? totals.expected_cash ?? shift.expected_cash)}
               subtitle="Cash sales minus cash outflows"
               strong
@@ -7224,18 +7281,18 @@ function ShiftReportModal({ report, onClose, onPrint }) {
             />
           </AccountingLedgerSection>
 
-          <AccountingLedgerSection title="وسائل الدفع" subtitle="Non-cash settlement mix" accent="emerald">
-            <AccountingLedgerRow label="بطاقات" value={formatCurrency(totals.card || 0)} />
-            <AccountingLedgerRow label="محفظة" value={formatCurrency(totals.wallet || 0)} />
+          <AccountingLedgerSection title="ظˆط³ط§ط¦ظ„ ط§ظ„ط¯ظپط¹" subtitle="Non-cash settlement mix" accent="emerald">
+            <AccountingLedgerRow label="ط¨ط·ط§ظ‚ط§طھ" value={formatCurrency(totals.card || 0)} />
+            <AccountingLedgerRow label="ظ…ط­ظپط¸ط©" value={formatCurrency(totals.wallet || 0)} />
             <AccountingLedgerRow label="InstaPay" value={formatCurrency(totals.wallet || 0)} subtitle="Included in wallet total" />
             <AccountingLedgerRow label="Vodafone Cash" value={formatCurrency(0)} subtitle="Not separated in current shift report" />
           </AccountingLedgerSection>
 
-          <AccountingLedgerSection title="النشاط" subtitle="Operational activity at a glance" accent="cyan">
-            <AccountingLedgerRow label="عدد الفواتير" value={Number(totals.invoice_count || 0).toLocaleString()} />
-            <AccountingLedgerRow label="الخصومات" value={formatCurrency(totals.discounts || 0)} />
-            <AccountingLedgerRow label="سلف الموظفين" value={formatCurrency(totals.employee_advances || 0)} />
-            <AccountingLedgerRow label="مدة الشيفت" value={shiftDuration || "-"} />
+          <AccountingLedgerSection title="ط§ظ„ظ†ط´ط§ط·" subtitle="Operational activity at a glance" accent="cyan">
+            <AccountingLedgerRow label="ط¹ط¯ط¯ ط§ظ„ظپظˆط§طھظٹط±" value={Number(totals.invoice_count || 0).toLocaleString()} />
+            <AccountingLedgerRow label="ط§ظ„ط®طµظˆظ…ط§طھ" value={formatCurrency(totals.discounts || 0)} />
+            <AccountingLedgerRow label="ط³ظ„ظپ ط§ظ„ظ…ظˆط¸ظپظٹظ†" value={formatCurrency(totals.employee_advances || 0)} />
+            <AccountingLedgerRow label="ظ…ط¯ط© ط§ظ„ط´ظٹظپطھ" value={shiftDuration || "-"} />
           </AccountingLedgerSection>
         </div>
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
@@ -7260,7 +7317,7 @@ function ShiftReportModal({ report, onClose, onPrint }) {
                   <span className="min-w-0">
                     <span className="block truncate font-black text-white">{item.product_name}</span>
                     <span className="text-xs text-zinc-500">
-                      {Number(item.quantity || 0).toLocaleString()} sales • {totalSoldItems > 0 ? Math.round((Number(item.quantity || 0) / totalSoldItems) * 100) : 0}%
+                      {Number(item.quantity || 0).toLocaleString()} sales â€¢ {totalSoldItems > 0 ? Math.round((Number(item.quantity || 0) / totalSoldItems) * 100) : 0}%
                     </span>
                   </span>
                   <span>{formatCurrency(item.total || 0)}</span>
@@ -7310,14 +7367,14 @@ function PosCameraScannerModal({ onClose, onScan, onPermissionDenied, onUnsuppor
         <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4">
           <div className="min-w-0">
             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">POS SCANNER</div>
-            <h3 id="pos-camera-scanner-title" className="mt-1 text-lg font-black text-white">امسح الباركود أو QR بالكاميرا</h3>
-            <p className="mt-1 text-xs font-semibold text-zinc-500">وجّه الكاميرا نحو الكود وسيتم التنفيذ مباشرة.</p>
+            <h3 id="pos-camera-scanner-title" className="mt-1 text-lg font-black text-white">ط§ظ…ط³ط­ ط§ظ„ط¨ط§ط±ظƒظˆط¯ ط£ظˆ QR ط¨ط§ظ„ظƒط§ظ…ظٹط±ط§</h3>
+            <p className="mt-1 text-xs font-semibold text-zinc-500">ظˆط¬ظ‘ظ‡ ط§ظ„ظƒط§ظ…ظٹط±ط§ ظ†ط­ظˆ ط§ظ„ظƒظˆط¯ ظˆط³ظٹطھظ… ط§ظ„طھظ†ظپظٹط° ظ…ط¨ط§ط´ط±ط©.</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08]"
-            aria-label="إغلاق ماسح الكاميرا"
+            aria-label="ط¥ط؛ظ„ط§ظ‚ ظ…ط§ط³ط­ ط§ظ„ظƒط§ظ…ظٹط±ط§"
           >
             <X className="h-4 w-4" />
           </button>
@@ -7335,7 +7392,7 @@ function PosCameraScannerModal({ onClose, onScan, onPermissionDenied, onUnsuppor
             />
           </div>
           <div className="mt-3 text-center text-xs font-semibold text-zinc-500">
-            يدعم باركود المنتجات وQR الخاص بمنتجات الـ POS.
+            ظٹط¯ط¹ظ… ط¨ط§ط±ظƒظˆط¯ ط§ظ„ظ…ظ†طھط¬ط§طھ ظˆQR ط§ظ„ط®ط§طµ ط¨ظ…ظ†طھط¬ط§طھ ط§ظ„ظ€ POS.
           </div>
         </div>
       </section>
@@ -7372,7 +7429,7 @@ function QuickExpenseModal({ value, onChange, onClose, onSave, saving, branchNam
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200">POS EXPENSE</div>
-            <h3 className="mt-1 text-xl font-black">مصروف / Expense</h3>
+            <h3 className="mt-1 text-xl font-black">ظ…طµط±ظˆظپ / Expense</h3>
             <p className="mt-1 text-xs font-semibold text-zinc-500">
               {branchName || "Current branch"} {shiftId ? `#${shiftId}` : ""}
             </p>
