@@ -123,6 +123,66 @@ const productColorList = (product = {}, memory = {}) => {
   return [...new Set(direct.map((value) => text(value)).filter(Boolean))];
 };
 
+const protectedProductIntents = new Set([
+  "product_search",
+  "PRODUCT_SEARCH",
+  "more_images",
+  "MORE_IMAGES",
+  "image_request",
+  "IMAGE_REQUEST",
+  "product_images",
+  "PRODUCT_IMAGES",
+  "product_presentation",
+  "PRODUCT_PRESENTATION",
+]);
+
+const hasExplicitModelRequest = (message = "") =>
+  /(\u062c\u0648\u0631\u062f\u0646\s*(?:4|\u0664|\u06f4|\u0641\u0648\u0631)|jordan\s*4|jordan4|aj4|j4)/i.test(text(message));
+
+const hasProductPayload = ({ response = {}, activeContext = {} } = {}) =>
+  asArray(response?.suggested_products).length > 0 ||
+  asArray(response?.product_cards).length > 0 ||
+  asArray(response?.products).length > 0 ||
+  asArray(response?.channel_reply?.product_cards).length > 0 ||
+  asArray(response?.images).length > 0 ||
+  asArray(response?.image_cards).length > 0 ||
+  asArray(response?.visual_attachments).length > 0 ||
+  asArray(response?.channel_reply?.image_cards).length > 0 ||
+  Boolean(response?.activeProductId || response?.active_product_id || activeContext?.active_product_id);
+
+const shouldProtectProductReply = ({ response = {}, intent = "", message = "", activeContext = {} } = {}) => {
+  const detectedIntent = text(intent?.type || intent || response?.detected_intent || response?.intent?.type || response?.intent);
+  return protectedProductIntents.has(detectedIntent) ||
+    protectedProductIntents.has(detectedIntent.toUpperCase()) ||
+    hasProductPayload({ response, activeContext }) ||
+    (hasExplicitModelRequest(message) && hasProductPayload({ response, activeContext }));
+};
+
+const isGenericOverrideText = (value = "") =>
+  /(\u062a\u0642\u0635\u062f\s+\u0623?ن?ه?ي?\s+\u0645\u0648\u062f\u064a\u0644|\u0623\u0637\u0644\u0639\u0644\u0643\s+\u0628\u062f\u064a\u0644|\u0628\u062f\u064a\u0644\s+\u0634\u0628\u0647|\u062a\u062d\u0628\s+\u062a\u0633\u0623\u0644\s+\u0639\u0646\s+\u0645\u0648\u062f\u064a\u0644\s+\u0645\u0639\u064a\u0646|which\s+model|similar\s+alternative|ask\s+about\s+a\s+model)/i.test(text(value));
+
+const buildProtectedProductReplyText = ({ response = {}, productName = "", baseText = "" } = {}) => {
+  const safeBase = sanitizeForbiddenPhrases(baseText);
+  if (looksLikeMeaningfulReply(safeBase) && !isGenericOverrideText(safeBase)) return safeBase;
+  const product =
+    asArray(response?.suggested_products)[0] ||
+    asArray(response?.product_cards)[0] ||
+    asArray(response?.products)[0] ||
+    asArray(response?.channel_reply?.product_cards)[0] ||
+    response?.product_context ||
+    {};
+  const name = text(productName || product?.name || product?.title || product?.product_name || "Jordan 4");
+  const hasImages =
+    asArray(response?.images).length > 0 ||
+    asArray(response?.image_cards).length > 0 ||
+    asArray(response?.visual_attachments).length > 0 ||
+    asArray(response?.channel_reply?.image_cards).length > 0 ||
+    Boolean(product?.image_url || product?.image || product?.main_image);
+  return hasImages
+    ? `\u0623\u064a\u0648\u0647\u060c ${name} \u0645\u062a\u0627\u062d. \u0647\u0628\u0639\u062a\u0644\u0643 \u0627\u0644\u0635\u0648\u0631 \u0648\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a.`
+    : `\u0623\u064a\u0648\u0647\u060c ${name} \u0645\u062a\u0627\u062d. \u0623\u0648\u0631\u064a\u0643 \u0627\u0644\u0635\u0648\u0631 \u0648\u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a\u061f`;
+};
+
 const inferBuyingIntentCloser = ({
   response = {},
   memory = {},
@@ -943,6 +1003,7 @@ export function applyHumanSalesPersonalityLayer({
   const price = inferPrice(response, baseText, memory);
   const size = inferSize(response, message, memory);
   const existingCloser = response?.closer || response?.proactive_closer || {};
+  const protectProductReply = shouldProtectProductReply({ response, intent, message, activeContext });
   const reasoning = buildSalesReplyReasoning({
     response,
     message,
@@ -987,7 +1048,18 @@ export function applyHumanSalesPersonalityLayer({
           message,
         });
   const picked = deterministicPick(buildReasonedVariations, [conversationId, message, productName, price || "", templateStage, reasoning.reply_goal || ""].join("|"));
-  const selectedText = sanitizeForbiddenPhrases(text(reasonedReply.text || picked?.text || closerMeta?.closer_text || buildReasonedVariations[0]?.text || baseText));
+  let selectedText = sanitizeForbiddenPhrases(text(reasonedReply.text || picked?.text || closerMeta?.closer_text || buildReasonedVariations[0]?.text || baseText));
+  if (protectProductReply && (!text(selectedText) || isGenericOverrideText(selectedText))) {
+    selectedText = buildProtectedProductReplyText({ response, productName, baseText });
+    console.info("[AI_PERSONALITY_PRODUCT_REPLY_PRESERVED]", {
+      channel,
+      conversation_id: conversationId,
+      intent: text(intent?.type || intent || response?.detected_intent || response?.intent?.type || response?.intent || ""),
+      product_cards_count: asArray(response?.product_cards).length || asArray(response?.channel_reply?.product_cards).length,
+      images_count: asArray(response?.images).length || asArray(response?.image_cards).length || asArray(response?.visual_attachments).length,
+      reason: "protected_product_payload",
+    });
+  }
   const buyingIntentAwareness = {
     detected: stageAwareness.is_buying_intent,
     stage: templateStage,
@@ -1038,10 +1110,10 @@ export function applyHumanSalesPersonalityLayer({
     text(finalText) === text(baseText) ||
     text(finalText).length <= 3 ||
     /^(?:أيوه|ايوه|موجود|متاح|available)/i.test(normalizeArabic(finalText));
-  if (fallbackReplyUsed) {
+  if (fallbackReplyUsed && !protectProductReply) {
     console.log("[REASONING_FAILURE_ROOT_CAUSE]", {
       stage: "applyHumanSalesPersonalityLayer",
-      intent: text(intent || response?.detected_intent || response?.intent?.type || response?.intent || ""),
+      intent: text(intent?.type || intent || response?.detected_intent || response?.intent?.type || response?.intent || ""),
       active_product_id: activeContext.active_product_id || "",
       active_variant_id: activeContext.active_variant_id || "",
       generated_reasoning_text: generatedReasoningText,

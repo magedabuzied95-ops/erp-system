@@ -4,6 +4,7 @@ import { AI_AGENT_CHANNELS } from "../services/aiChannelAdapterService.js";
 import { generateUnifiedConversationDecision } from "../services/aiUnifiedDecisionService.js";
 import { generateWhatsappAiAutoReply } from "../services/aiInboxService.js";
 import { generateMetaUnifiedDecisionDryRun } from "../services/metaIntegrationService.js";
+import { applyHumanSalesPersonalityLayer } from "../services/aiHumanSalesPersonalityLayer.js";
 
 dotenv.config({ path: fileURLToPath(new URL("../.env", import.meta.url)) });
 
@@ -575,6 +576,67 @@ const validateScenarioExpectations = ({ scenario = {}, capture = {}, channel = "
   if (issues.length) {
     throw new Error(`[AI_CHANNEL_PARITY_EXPECTATION_FAIL] ${scenario.id}:${channel} ${issues.join(" | ")}`);
   }
+};
+
+const assertNoBadFinalProductReply = ({ text: replyText = "", context = "" } = {}) => {
+  const badFinalReply = /(\u062a\u0642\u0635\u062f\s+\u0623?\u0646?\u0647?\u064a?\s+\u0645\u0648\u062f\u064a\u0644|\u0623\u0637\u0644\u0639\u0644\u0643\s+\u0628\u062f\u064a\u0644|\u0628\u062f\u064a\u0644\s+\u0634\u0628\u0647|\u062a\u062d\u0628\s+\u062a\u0633\u0623\u0644\s+\u0639\u0646\s+\u0645\u0648\u062f\u064a\u0644\s+\u0645\u0639\u064a\u0646)/i;
+  if (badFinalReply.test(text(replyText))) {
+    throw new Error(`[AI_FINAL_REPLY_GUARD_FAIL] ${context} ${replyText}`);
+  }
+};
+
+const runFinalRenderedReplyGuardTest = () => {
+  const response = {
+    answer: "\u062a\u0645\u0627\u0645 \u064a\u0627 \u0628\u0627\u0634\u0627\u060c \u062a\u0642\u0635\u062f \u0623\u0646\u0647\u064a \u0645\u0648\u062f\u064a\u0644 \u0628\u0627\u0644\u0638\u0628\u0637\u061f",
+    text: "\u062a\u0645\u0627\u0645 \u064a\u0627 \u0628\u0627\u0634\u0627\u060c \u062a\u0642\u0635\u062f \u0623\u0646\u0647\u064a \u0645\u0648\u062f\u064a\u0644 \u0628\u0627\u0644\u0638\u0628\u0637\u061f",
+    detected_intent: "product_search",
+    suggested_products: [catalog.jordan4],
+    product_cards: [catalog.jordan4],
+    image_cards: [{
+      product_id: catalog.jordan4.id,
+      url: catalog.jordan4.image,
+      color: catalog.jordan4.color,
+    }],
+    visual_attachments: [{
+      product_id: catalog.jordan4.id,
+      url: catalog.jordan4.image,
+      color: catalog.jordan4.color,
+    }],
+  };
+  const personality = applyHumanSalesPersonalityLayer({
+    response,
+    message: PHRASES.jordan4Images,
+    intent: { type: "product_search" },
+    memory: {
+      awaiting_alternative_choice: true,
+      last_product_cards: [{ id: "old-product", name: "Old Product" }],
+    },
+    source: "parity_final_reply_guard",
+    conversationId: "parity-final-reply-jordan4",
+    channel: "whatsapp",
+  });
+  const finalOutput = {
+    ...response,
+    answer: personality.text,
+    text: personality.text,
+    personality_layer: personality.personality_layer,
+  };
+  assertNoBadFinalProductReply({ text: finalOutput.text, context: "jordan4_images_final_reply" });
+  if (!Array.isArray(finalOutput.product_cards) || !finalOutput.product_cards.length) {
+    throw new Error("[AI_FINAL_REPLY_GUARD_FAIL] product_cards_missing");
+  }
+  if (!Array.isArray(finalOutput.image_cards) || !finalOutput.image_cards.length) {
+    throw new Error("[AI_FINAL_REPLY_GUARD_FAIL] image_cards_missing");
+  }
+  if (text(finalOutput.product_cards[0]?.id || finalOutput.product_cards[0]?.product_id) !== "jordan-4-black") {
+    throw new Error("[AI_FINAL_REPLY_GUARD_FAIL] jordan4_card_missing");
+  }
+  console.log("[AI_FINAL_REPLY_GUARD_PASS]", {
+    inbound_text: PHRASES.jordan4Images,
+    final_text: finalOutput.text,
+    product_cards_count: finalOutput.product_cards.length,
+    image_cards_count: finalOutput.image_cards.length,
+  });
 };
 
 const runRealEntryDryRun = async ({ inboundText }) => {
@@ -1709,6 +1771,7 @@ globalThis.fetch = async (_input, init = {}) => {
 
 const run = async () => {
   const summaryRows = [];
+  runFinalRenderedReplyGuardTest();
 
   for (const scenario of parityScenarios) {
     const inboundText = scenario.message;
