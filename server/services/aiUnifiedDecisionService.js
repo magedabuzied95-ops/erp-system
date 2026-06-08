@@ -17,6 +17,43 @@ const normalizeAction = (item = {}) => (
     : { label: text(item), value: text(item) }
 );
 
+const normalizeArabic = (value = "") =>
+  text(value)
+    .toLowerCase()
+    .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
+    .replace(/[\u0623\u0625\u0622]/g, "\u0627")
+    .replace(/\u0649/g, "\u064a")
+    .replace(/\u0629/g, "\u0647")
+    .replace(/[؟?]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const classifySharedShortcutIntent = (message = "") => {
+  const raw = text(message);
+  const normalized = normalizeArabic(raw);
+  if (/^(ايوه|ايوة|اه|نعم|تمام|ماشي|ok|okay|yes|yep)$/i.test(normalized)) return "bare_confirmation";
+  if (/(صور|صوره|صورة|ابعت.*صور|وريني|more\s+(photos|images)|photos?|images?)/i.test(raw)) return normalized.includes("اكتر") || /more\s+(photos|images)/i.test(raw) ? "more_images" : "image_request";
+  if (/(لون|الوان|ألوان|color|colors|colour|colours)/i.test(raw)) return "color_followup";
+  if (/(مقاس|مقاسات|size|sizes|available|availability)/i.test(raw)) return "size_followup";
+  if (/(عايز اشتري|عايز اشتري|اشتري|أشتري|buy|order|احجز|حجز)/i.test(raw)) return "buying_intent";
+  if (/(بكام|كام|السعر|سعر|price|متاح|موجود|available|in stock|جوردن|jordan|aj4|j4)/i.test(raw)) return "product_search";
+  return "";
+};
+
+const applySharedShortcutMetadata = ({ decision = {}, inbound = {} } = {}) => {
+  const shortcutIntent = classifySharedShortcutIntent(inbound.text);
+  if (!shortcutIntent) return decision;
+  const debug = {
+    ...(decision.debug || {}),
+    shared_shortcut_handler: shortcutIntent,
+    shared_shortcut_owner: "aiUnifiedDecisionService",
+  };
+  return {
+    ...decision,
+    debug,
+  };
+};
+
 export const normalizeUnifiedInbound = (normalizedInbound = {}) => {
   const metadata = normalizedInbound.metadata && typeof normalizedInbound.metadata === "object"
     ? normalizedInbound.metadata
@@ -175,7 +212,7 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
     providerMessageId: options.providerMessageId || inbound.metadata.provider_message_id || inbound.metadata.external_message_id || "",
   });
 
-  return normalizeUnifiedDecisionOutput(decision, inbound);
+  return normalizeUnifiedDecisionOutput(applySharedShortcutMetadata({ decision, inbound }), inbound);
 };
 
 export default {

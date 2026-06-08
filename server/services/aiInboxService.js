@@ -1189,8 +1189,11 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
     console.log("[ai-clean-product-query]", cleanProductTrace);
     await addTraceStep(traceId, "ai-clean-product-query", cleanProductTrace);
   }
-  const classificationFollowupPayload = await buildClassificationFollowupPayload({ body, memory: loadedMemory });
-  if (classificationFollowupPayload) {
+  const legacyWhatsappShortcutReturnsEnabled = false;
+  const classificationFollowupPayload = legacyWhatsappShortcutReturnsEnabled
+    ? await buildClassificationFollowupPayload({ body, memory: loadedMemory })
+    : null;
+  if (legacyWhatsappShortcutReturnsEnabled && classificationFollowupPayload) {
     logUnifiedDecisionEarlyReturn({
       channel: AI_AGENT_CHANNELS.WHATSAPP,
       reason: "classification_followup_payload",
@@ -1228,8 +1231,10 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
       phone: safePhone,
     };
   }
-  const confirmationPayload = buildBareConfirmationPayload({ body, memory: loadedMemory });
-  if (confirmationPayload) {
+  const confirmationPayload = legacyWhatsappShortcutReturnsEnabled
+    ? buildBareConfirmationPayload({ body, memory: loadedMemory })
+    : null;
+  if (legacyWhatsappShortcutReturnsEnabled && confirmationPayload) {
     logUnifiedDecisionEarlyReturn({
       channel: AI_AGENT_CHANNELS.WHATSAPP,
       reason: "bare_confirmation_payload",
@@ -1285,8 +1290,10 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
       phone: safePhone,
     };
   }
-  const followupPayload = cleanProductTrace.used_for_search ? null : await buildWhatsappFollowupPayload({ body, memory: loadedMemory, tenantId: safeTenantId, conversationId: safeSessionId });
-  if (followupPayload) {
+  const followupPayload = legacyWhatsappShortcutReturnsEnabled && !cleanProductTrace.used_for_search
+    ? await buildWhatsappFollowupPayload({ body, memory: loadedMemory, tenantId: safeTenantId, conversationId: safeSessionId })
+    : null;
+  if (legacyWhatsappShortcutReturnsEnabled && followupPayload) {
     logUnifiedDecisionEarlyReturn({
       channel: AI_AGENT_CHANNELS.WHATSAPP,
       reason: "whatsapp_followup_payload",

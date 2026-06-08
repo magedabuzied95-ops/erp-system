@@ -15285,6 +15285,19 @@ const handleGreetingIfMatched = async ({ config, message } = {}) => {
 
 const handlerNames = (handlers = []) => handlers.map((handler) => handler?.name || "anonymous_handler").filter(Boolean);
 
+const UNIFIED_DECISION_ONLY_META_INTENTS = new Set([
+  AI_INTENTS.PRODUCT_SEARCH,
+  AI_INTENTS.PRICE_CHECK,
+  AI_INTENTS.SIZE_CHECK,
+  AI_INTENTS.COLOR_REQUEST,
+  AI_INTENTS.MORE_IMAGES,
+  AI_INTENTS.ALTERNATIVES,
+  AI_INTENTS.PRODUCT_PRESENTATION,
+  AI_INTENTS.BUYING_INTENT,
+  AI_INTENTS.CHECKOUT,
+  AI_INTENTS.ORDER_CONFIRMATION,
+]);
+
 const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
   const fallbackHandlers = [
     handleGreetingIfMatched,
@@ -15330,6 +15343,15 @@ const routeMetaIntentHandlers = ({ classification = {} } = {}) => {
     [AI_INTENTS.UNKNOWN]: [],
   };
   const primary = routeMap[classification.intent] || [];
+  if (UNIFIED_DECISION_ONLY_META_INTENTS.has(classification.intent)) {
+    logIntentRoutingAudit({
+      intent: classification.intent,
+      reason: classification.reason || "",
+      selectedRoute: "generateUnifiedConversationDecision",
+      handledReason: "unified_decision_only",
+    });
+    return [];
+  }
   logIntentRoutingAudit({
     intent: classification.intent,
     reason: classification.reason || "",

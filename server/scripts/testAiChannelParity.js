@@ -10,6 +10,14 @@ dotenv.config({ path: fileURLToPath(new URL("../.env", import.meta.url)) });
 process.env.AI_SUPPORT_DEBUG = process.env.AI_SUPPORT_DEBUG || "1";
 
 const text = (value = "") => String(value ?? "").trim();
+const divergenceEvents = [];
+const originalConsoleWarn = console.warn.bind(console);
+console.warn = (...args) => {
+  if (args.some((arg) => String(arg).includes("AI_CHANNEL_DIVERGENCE_EARLY_RETURN"))) {
+    divergenceEvents.push(args.map((arg) => (typeof arg === "string" ? arg : JSON.stringify(arg))).join(" "));
+  }
+  originalConsoleWarn(...args);
+};
 const stableStringify = (value) => {
   const seen = new WeakSet();
   const sortValue = (input) => {
@@ -601,6 +609,16 @@ const channelConfigs = [
   { key: "instagram", channel: AI_AGENT_CHANNELS.INSTAGRAM, to: "100000000000000" },
   { key: "website_chat", channel: AI_AGENT_CHANNELS.WEB_CHAT, to: "web-chat-runtime" },
 ];
+const requiredUnifiedPhrases = [
+  "ممكن ثور جوردن فور",
+  "صور أكتر",
+  "عايز مقاس 42",
+  "أيوه",
+  "لون تاني",
+  "بكام",
+  "متاح؟",
+  "عايز اشتري",
+];
 const scenarios = [
   "عندك جوردن 4؟",
   "صور أكتر",
@@ -621,9 +639,14 @@ const parityScenarios = [
   },
   { id: "requested_jordan4_typo_phrase", message: "ممكن ثور جوردن فور", test_case_id: "product_inquiry" },
   { id: "more_images", message: "صور أكتر", test_case_id: "more_images" },
+  { id: "color_followup", message: "لون تاني", test_case_id: "color_followup" },
+  { id: "bare_confirmation", message: "أيوه", test_case_id: "bare_confirmation" },
+  { id: "price_question", message: "بكام", test_case_id: "price_question" },
+  { id: "availability_question", message: "متاح؟", test_case_id: "availability_question" },
   { id: "price_objection", message: "غالي شوية", test_case_id: "price_objection" },
   { id: "size_only", message: "عايز مقاس 42", test_case_id: "size_availability" },
   { id: "alternatives", message: "مش عاجبني وريني بدائل" },
+  { id: "buying_intent_plain", message: "عايز اشتري", test_case_id: "buying_intent" },
   { id: "buying_intent_generic", message: "عايز أشتري", test_case_id: "buying_intent" },
   { id: "human_takeover", message: "كلم بني آدم", test_case_id: "human_takeover" },
   { id: "buying_missing_size", message: "عايز أشتري", test_case_id: "buying_missing_size" },
@@ -956,10 +979,14 @@ globalThis.fetch = async (_input, init = {}) => {
   const takeover = /بني\s*آدم|human_takeover|كلم\s*بني\s*آدم/i.test(messageText) || memory.status === "human_takeover";
   const hasJordan = /جوردن|jordan|aj4|j4/i.test(messageText);
   const wantsImages = /صور|image|photo/i.test(messageText);
+  const wantsPriceQuestion = /بكام|كام|السعر|سعر|price/i.test(messageText);
   const wantsPriceObjection = /غالي|سعره عالي|ارخص|أرخص|خصم|ميزانيه|مش عاجبني|مش مناسب/i.test(messageText);
   const wantsSize = /مقاس|size/i.test(messageText);
+  const wantsColor = /لون|الوان|ألوان|color/i.test(messageText);
+  const wantsAvailability = /متاح|موجود|available/i.test(messageText);
   const wantsAlternatives = /بدائل|alternatives|مش عاجبني/i.test(messageText);
-  const wantsBuy = /عايز أشتري|أشتري|buy|order/i.test(messageText);
+  const wantsBuy = /عايز\s*[اأ]?شتري|[اأ]شتري|buy|order/i.test(messageText);
+  const bareConfirmation = /^(?:أيوه|ايوه|ايوة|اه|نعم|تمام|ماشي|ok|okay|yes|yep)$/i.test(messageText.trim());
   const reply = {
     answer: takeover
       ? "تمام، هحوّلك لبني آدم من الفريق."
@@ -967,14 +994,22 @@ globalThis.fetch = async (_input, init = {}) => {
         ? "أيوه، Jordan 4 متاح. أوريك الصور والمقاسات؟"
         : wantsImages
           ? "أكيد، دي صور أكتر لنفس الموديل."
+          : wantsColor
+            ? "موجود ألوان تانية. تحب أوريك المتاح؟"
+          : wantsPriceQuestion
+            ? "سعره 4200 جنيه. تحب أشوفلك المقاس؟"
           : wantsPriceObjection
             ? "فاهمك يا باشا، أطلعلك بديل أقرب على الميزانية."
           : wantsSize
             ? "مقاس 42 متاح على نفس الموديل."
+            : wantsAvailability
+              ? "أيوه متاح. تحب أشوفلك المقاس؟"
             : wantsAlternatives
               ? "دي بدائل قريبة من نفس الشكل."
               : wantsBuy
                 ? "تمام، نبدأ تجهيز الطلب."
+                : bareConfirmation
+                  ? "تمام. أوريك الصور والمقاسات؟"
                 : "أقدر أساعدك في الموديلات والمقاسات.",
     detected_intent: takeover
       ? "human_takeover"
@@ -982,20 +1017,30 @@ globalThis.fetch = async (_input, init = {}) => {
         ? "product_search"
         : wantsImages
           ? "more_images"
+          : wantsColor
+            ? "color_followup"
+          : wantsPriceQuestion
+            ? "price_check"
           : wantsPriceObjection
             ? "price_objection"
           : wantsSize
             ? "size_check"
+            : wantsAvailability
+              ? "availability_check"
             : wantsAlternatives
               ? "alternatives"
               : wantsBuy
                 ? "buying_intent"
+                : bareConfirmation
+                  ? "bare_confirmation"
                 : "faq",
     confidence: takeover ? 0.99 : 0.94,
     detected_language: "ar",
     tone: "sales",
     suggested_products: takeover ? [] : hasJordan
       ? [activeProduct]
+      : wantsColor || wantsPriceQuestion || wantsAvailability
+        ? [activeProduct]
       : wantsPriceObjection
         ? [catalog.jordan4Grey]
       : wantsAlternatives
@@ -1005,6 +1050,8 @@ globalThis.fetch = async (_input, init = {}) => {
           : [],
     product_cards: takeover ? [] : hasJordan
       ? [activeProduct]
+      : wantsColor || wantsPriceQuestion || wantsAvailability
+        ? [activeProduct]
       : wantsPriceObjection
         ? [catalog.jordan4Grey]
       : wantsAlternatives
@@ -1040,6 +1087,17 @@ globalThis.fetch = async (_input, init = {}) => {
             selected_size: memory.selected_size || "",
             last_intent: "product_search",
           }
+        : wantsColor
+          ? {
+              selected_product_id: activeProduct.id,
+              selected_color: activeProduct.color,
+              last_intent: "color_followup",
+            }
+        : wantsPriceQuestion
+          ? {
+              selected_product_id: activeProduct.id,
+              last_intent: "price_check",
+            }
         : wantsPriceObjection
           ? {
               selected_product_id: catalog.jordan4Grey.id,
@@ -1051,14 +1109,19 @@ globalThis.fetch = async (_input, init = {}) => {
               last_intent: "more_images",
               last_shown_image_cards: [activeProduct.id],
             }
-          : wantsSize
-            ? {
+            : wantsSize
+              ? {
                 selected_product_id: activeProduct.id,
                 selected_size: "42",
                 last_intent: "size_check",
               }
-            : wantsAlternatives
+            : wantsAvailability
               ? {
+                  selected_product_id: activeProduct.id,
+                  last_intent: "availability_check",
+                }
+              : wantsAlternatives
+                ? {
                   last_intent: "alternatives",
                   alternative_flow: true,
                 }
@@ -1067,6 +1130,11 @@ globalThis.fetch = async (_input, init = {}) => {
                     buying_stage: "draft_created",
                     draft_order_id: `draft-${activeProduct.id}`,
                   }
+                : bareConfirmation
+                  ? {
+                      selected_product_id: activeProduct.id,
+                      last_intent: "bare_confirmation",
+                    }
                 : {},
     draft_order: wantsBuy && !takeover
       ? {
@@ -1587,7 +1655,12 @@ const run = async () => {
 
   console.log("\nParity Report");
   console.table(summaryRows);
-  await runRealEntryDryRun({ inboundText: "ممكن ثور جوردن فور" });
+  for (const phrase of requiredUnifiedPhrases) {
+    await runRealEntryDryRun({ inboundText: phrase });
+  }
+  if (divergenceEvents.length) {
+    throw new Error(`[AI_CHANNEL_DIVERGENCE_EARLY_RETURN_DETECTED] ${divergenceEvents.join(" | ")}`);
+  }
 };
 
 run().catch((error) => {
