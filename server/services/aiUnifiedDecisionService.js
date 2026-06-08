@@ -45,6 +45,8 @@ const hasClearProductModelRequest = (message = "") => {
   return /(\u062c\u0648\u0631\u062f\u0646\s*(?:4|\u0664|\u06f4|\u0641\u0648\u0631)|jordan\s*4|jordan4|aj4|j4)/i.test(normalized);
 };
 
+const hasJordan4TraceTrigger = (message = "") => hasClearProductModelRequest(message);
+
 const staleFollowupKeys = [
   "awaiting_alternative_choice",
   "awaitingAlternativeChoice",
@@ -352,6 +354,21 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
     clearedPendingClassification: memorySummary.hasPendingClassification && !effectiveMemorySummary.hasPendingClassification,
   });
 
+  if (hasJordan4TraceTrigger(inbound.text)) {
+    console.log("AI_PRODUCT_MATCH_TRACE", {
+      stage: "unified_decision_entry",
+      raw_text: inbound.text,
+      normalized_text: normalizeArabic(inbound.text),
+      channel: inbound.channel,
+      tenant_id: tenantId,
+      conversation_id: inbound.externalConversationId,
+      external_customer_id: inbound.externalCustomerId,
+      entered_product_matcher: false,
+      failure_reason: "",
+      note: "earliest unified entry trace before orchestrator/product matching",
+    });
+  }
+
   const decision = await generateUnifiedAiReply({
     tenantId,
     branchId,
@@ -397,6 +414,20 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
     reason: text(output.debug?.shared_shortcut_handler || output.debug?.reason || output.reason || output.debug?.source || ""),
     debugSource: text(output.debug?.source || ""),
   });
+  if (
+    hasJordan4TraceTrigger(inbound.text) &&
+    !asArray(output.products).length &&
+    !asArray(output.product_cards).length &&
+    !asArray(output.images || output.image_cards).length
+  ) {
+    console.warn("AI_EARLY_RETURN_BEFORE_PRODUCT_TRACE", {
+      channel: inbound.channel,
+      message_text: inbound.text,
+      intent: output.intent || output.detected_intent || "",
+      reason: text(output.debug?.early_return_reason || output.fallbackReason || output.fallback_reason || output.reason || "no_product_payload_after_unified_decision"),
+      conversation_id: inbound.externalConversationId,
+    });
+  }
   return output;
 };
 

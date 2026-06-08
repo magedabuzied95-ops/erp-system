@@ -1612,6 +1612,23 @@ const detectStrictModelIntent = (message = "") => {
   return null;
 };
 
+const hasJordan4ProductTraceTrigger = (message = "") => {
+  const normalized = normalizeProductMatchText(message);
+  return /(\bjordan\s*4\b|\bjordan4\b|\baj\s*4\b|\baj4\b|\bj\s*4\b|\bj4\b)/i.test(normalized);
+};
+
+const logEarlyReturnBeforeProductTrace = ({ channel = "", message = "", intent = "", reason = "", tenantId = null } = {}) => {
+  if (!hasJordan4ProductTraceTrigger(message)) return;
+  console.warn("AI_EARLY_RETURN_BEFORE_PRODUCT_TRACE", {
+    channel: channel || "",
+    message_text: message,
+    normalized_text: normalizeProductMatchText(message),
+    tenant_id: tenantId,
+    intent: typeof intent === "string" ? intent : intent?.type || "",
+    reason,
+  });
+};
+
 const productModelMatchAssessment = ({ product = {}, modelIntent = null, queryText = "", intent = {} } = {}) => {
   if (!modelIntent) {
     const score = productRankScore({ product, queryText, intent });
@@ -4753,7 +4770,9 @@ export const buildAiSupportImageRankingDebug = async ({ tenantId, query = "jorda
 
 export const buildAiSupportTrustedContext = async ({ tenantId, message, req = null } = {}) => {
   const intent = detectAiSupportIntent(message);
+  const traceChannel = toText(req?.body?.channel || req?.body?.metadata?.channel || req?.body?.metadata?.source || "");
   if (intent.type === "greeting_only") {
+    logEarlyReturnBeforeProductTrace({ channel: traceChannel, message, intent, reason: "greeting_only", tenantId });
     return {
       intent,
       trustedContext: { tenant_id: tenantId, sources: [] },
@@ -4819,6 +4838,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
       no_alternatives_reason: alternativeResult.noAlternativeReason || "",
     });
     const explanation = products[0] ? relevanceExplanationAr(products[0], alternativeResult.understanding) : "";
+    logEarlyReturnBeforeProductTrace({ channel: traceChannel, message, intent, reason: "pending_alternative_confirmation", tenantId });
     return {
       intent: {
         ...intent,
@@ -4865,6 +4885,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
 
   if (hasClearBuyingIntent(message)) {
     const rememberedProducts = Array.isArray(effectiveMemory?.last_products) ? effectiveMemory.last_products : [];
+    logEarlyReturnBeforeProductTrace({ channel: traceChannel, message, intent, reason: "clear_buying_intent", tenantId });
     return {
       intent,
       trustedContext: { tenant_id: tenantId, sources: memorySource ? [memorySource] : [] },
@@ -4894,6 +4915,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
   }
 
   if (intent.type === "conversational") {
+    logEarlyReturnBeforeProductTrace({ channel: traceChannel, message, intent, reason: "conversational", tenantId });
     return {
       intent,
       trustedContext: { tenant_id: tenantId, sources: [] },
@@ -4909,6 +4931,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
   }
 
   if (!tenantId) {
+    logEarlyReturnBeforeProductTrace({ channel: traceChannel, message, intent, reason: "missing_tenant", tenantId });
     return {
       intent,
       trustedContext: { tenant_id: tenantId, sources: [] },
@@ -4921,6 +4944,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
   }
 
   if (intent.type === "internal_data") {
+    logEarlyReturnBeforeProductTrace({ channel: traceChannel, message, intent, reason: "internal_data", tenantId });
     const internalAnswer = shouldReplyInArabic(message)
       ? "\u0645\u0634 \u0647\u0642\u062f\u0631 \u0623\u0634\u0627\u0631\u0643 \u0628\u064a\u0627\u0646\u0627\u062a \u062f\u0627\u062e\u0644\u064a\u0629 \u0632\u064a \u0633\u0639\u0631 \u0627\u0644\u062a\u0643\u0644\u0641\u0629 \u0623\u0648 \u0627\u0644\u0645\u0648\u0631\u062f\u064a\u0646. \u0623\u0642\u062f\u0631 \u0623\u0633\u0627\u0639\u062f\u0643 \u0641\u064a \u0627\u0644\u0633\u0639\u0631 \u0627\u0644\u0645\u0639\u0631\u0648\u0636\u060c \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a\u060c \u0623\u0648 \u0627\u0644\u062a\u0648\u0641\u0631."
       : "I cannot share internal ERP, admin, supplier, cost, margin, credential, or private data. I can help with public prices, sizes, availability, and store policies.";
@@ -4944,6 +4968,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
   }
 
   if (intent.type === "human_support") {
+    logEarlyReturnBeforeProductTrace({ channel: traceChannel, message, intent, reason: "human_support", tenantId });
     return {
       intent,
       trustedContext: { tenant_id: tenantId, sources: [] },

@@ -9067,12 +9067,22 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
     return { dedupe_skipped: true, delivery_status: "skipped", signature, skip_reason: dedupe.reason || "duplicate_outbound", graph_api_called: false };
   }
   const adapterUsed = text(message.channel) === AI_AGENT_CHANNELS.INSTAGRAM ? "instagramAdapter" : "messengerAdapter";
+  const originalInboundText = text(
+    message.message_text ||
+      message.text ||
+      message.body ||
+      message.raw?.event?.message?.text ||
+      message.raw?.message?.text ||
+      message.raw?.text ||
+      ""
+  );
   console.log("[AI_CHANNEL_ADAPTER_SEND]", {
     channel: message.channel,
     adapter_used: adapterUsed,
     conversation_id: message.external_conversation_id,
     provider_message_id: text(message.external_message_id || message.raw?.event?.message?.mid || ""),
-    inbound_text: finalReplyText,
+    inbound_text: originalInboundText,
+    outbound_text_preview: finalReplyText.slice(0, 180),
     intent: text(detectedIntent || finalMetadata.trigger || ""),
     products_count: Number(metadata.product_card_count || 0),
     product_cards_count: Number(metadata.product_card_count || 0),
@@ -9108,7 +9118,8 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
     adapter_used: adapterUsed,
     conversation_id: message.external_conversation_id,
     provider_message_id: text(message.external_message_id || message.raw?.event?.message?.mid || ""),
-    inbound_text: finalReplyText,
+    inbound_text: originalInboundText,
+    outbound_text_preview: finalReplyText.slice(0, 180),
     intent: text(detectedIntent || finalMetadata.trigger || ""),
     products_count: Number(metadata.product_card_count || 0),
     product_cards_count: Number(metadata.product_card_count || 0),

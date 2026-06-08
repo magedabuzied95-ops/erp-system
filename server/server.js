@@ -46,6 +46,12 @@ const buildInfo = {
   environment: process.env.NODE_ENV || "development",
 };
 console.log("[build] version", buildInfo);
+console.log("APP_STARTUP_VERSION", {
+  app_version: buildInfo.version,
+  git_commit: buildInfo.commit,
+  render_git_commit: process.env.RENDER_GIT_COMMIT || "",
+  node_env: buildInfo.environment,
+});
 console.log("[env] META_APP_ID loaded:", Boolean(process.env.META_APP_ID));
 console.log("[env] META_APP_SECRET loaded:", Boolean(process.env.META_APP_SECRET));
 console.log("[env] PUBLIC_BACKEND_URL:", process.env.PUBLIC_BACKEND_URL || "missing");
