@@ -3969,6 +3969,13 @@ function POSPro() {
 
   const handleCheckout = async (options = {}) => {
     const paymobTerminalCheckout = options?.paymobTerminal === true;
+    const editActive = Boolean(editingOrder?.id);
+    const editSettlementType = editActive
+      ? (editRefundOrCreditDue > 0 ? "refund" : editAmountDueNow > 0 ? "extra_payment" : "none")
+      : null;
+    const resolvedEditPaymentMethod = editActive
+      ? (editRefundOrCreditDue > 0 ? editRefundMethod : paymentMode)
+      : paymentMode;
     console.log("[pos-checkout:clicked]", {
       checkoutLoading,
       cart_count: cart.length,
@@ -4175,12 +4182,6 @@ function POSPro() {
           : paymentMode === "split"
             ? Number(customerWalletAmount || 0)
             : 0;
-      const editSettlementType = editingOrder?.id
-        ? (editRefundOrCreditDue > 0 ? "refund" : editAmountDueNow > 0 ? "extra_payment" : "none")
-        : null;
-      const resolvedEditPaymentMethod = editingOrder?.id
-        ? (editRefundOrCreditDue > 0 ? editRefundMethod : paymentMode)
-        : paymentMode;
       const paymentBreakdown = [
         exchangeState?.active && !editingOrder?.id
           ? {
@@ -4199,6 +4200,15 @@ function POSPro() {
       const additionalPaymentBreakdown = editingOrder?.id
         ? paymentBreakdown.filter((item) => item.method !== "exchange_credit")
         : [];
+      console.log("[pos-checkout:edit-settlement-payload]", {
+        editing_order_id: editingOrder?.id || null,
+        edit_settlement_type: editSettlementType,
+        edit_settlement_method: editActive ? resolvedEditPaymentMethod : null,
+        edit_refund_method: editActive ? editRefundMethod : null,
+        refund_or_credit_due: editRefundOrCreditDue,
+        amount_due_now: editAmountDueNow,
+        additional_payment_breakdown: additionalPaymentBreakdown,
+      });
       const payload = {
         customer_name: invoiceCustomer.name,
         customer_id: customerId || null,
@@ -4308,6 +4318,14 @@ function POSPro() {
         }),
       };
 
+      console.log("[pos-checkout:payload-built]", {
+        editing_order_id: editingOrder?.id || null,
+        payment_method: payload.payment_method,
+        edit_settlement_type: payload.edit_settlement_type,
+        edit_settlement_method: payload.edit_settlement_method,
+        edit_refund_method: payload.edit_refund_method,
+        additional_payment_breakdown_count: Array.isArray(payload.additional_payment_breakdown) ? payload.additional_payment_breakdown.length : 0,
+      });
       console.log("[pos:discount-checkout-payload]", {
         subtotal: payload.subtotal,
         item_discount_amount: cartTotals.itemDiscountTotal,
