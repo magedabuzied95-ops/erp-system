@@ -606,6 +606,17 @@ const buildSalesReplyReasoning = ({
   const priceLabel = Number.isFinite(Number(price)) && Number(price) > 0 ? `${Math.round(Number(price)).toLocaleString("en-US")} جنيه` : "";
   const productLabel = productContextName || "الموديل ده";
   const productColorText = productColors.length ? `الألوان المتاحة: ${productColors.slice(0, 3).join("، ")}` : "";
+  const priceGuard = buildAiPriceGuard({
+    productId: activeContext?.selected_product_context?.product_id || activeContext?.selected_product_context?.id || activeContext?.active_product_id || response?.product_context?.product_id || response?.product_context?.id || null,
+    variantId: activeContext?.selected_product_context?.variant_id || response?.product_context?.variant_id || null,
+    rawPrice: price,
+    product: response?.product_context || asArray(response?.suggested_products)[0] || asArray(response?.product_cards)[0] || activeContext?.selected_product_context || {},
+    productContext: activeContext,
+    memory,
+    messageText: message,
+    route: "ai_human_sales_personality_layer_reasoning",
+  });
+  const safePriceFallback = priceGuard.safeReplyText || "السعر محتاج يتأكد من السيستم قبل التأكيد. ابعتلي اسمك ورقمك لو تحب نكمل.";
 
   const replyVariations = (() => {
     const variants = {
