@@ -614,6 +614,10 @@ const asksPrice = (message = "", response = {}, intent = {}) => {
   if (isGreetingOnly(message, response, intent)) return false;
   return /(بكام|السعر|سعره|price|cost)/i.test(message);
 };
+const asksDiscountOrOffer = (message = "") => {
+  const normalized = normalizeArabic(message);
+  return /(خصم|عرض|offer|discount|sale|آخره\s*كام|اخره\s*كام|آخره|اخره|فيه\s*خصم|فيه\s*عرض|عليه\s*خصم|عليه\s*عرض)/i.test(normalized);
+};
 const asksColor = (message = "") => {
   const normalized = normalizeArabic(message).replace(/[؟?]/g, "").trim();
   return /(الوان|الألوان|لونه|لون|colors?|colour)/i.test(message) ||
@@ -880,6 +884,25 @@ export const composeAiSalesReply = async ({
         stage: "",
       });
       return withAnswer(response, "مش متاح حاليًا.");
+    }
+
+    if (asksDiscountOrOffer(message)) {
+      const discountReply = regressionPrice
+        ? `السعر الحالي ${regressionPrice} جنيه، ولو فيه خصم أو عرض متاح هأكدّهولك من السيستم.`
+        : "السعر محتاج يتأكد من السيستم، ولو فيه خصم أو عرض متاح هأكدّهولك من السيستم.";
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_discount_or_offer",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_discount_or_offer",
+        answerLength: text(discountReply).length,
+        stage: "",
+      });
+      return withAnswer(response, discountReply);
     }
 
     if (asksPrice(message, response, intent)) {
