@@ -1,4 +1,14 @@
+import { buildAiPriceGuard } from "../utils/aiProductReplyGuards.js";
 const text = (value = "") => String(value ?? "").trim();
+const normalizeArabic = (value = "") =>
+  text(value)
+    .toLowerCase()
+    .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/\s+/g, " ")
+    .trim();
 
 export const RESPONSE_CONVERSATION_STAGES = Object.freeze({
   GREETING: "GREETING",
@@ -352,7 +362,17 @@ export const orchestrateAiResponse = ({
   contextSwitchDetected = false,
   newProductDetected = false,
   newImageDetected = false,
+  source = "",
+  channel = "",
 } = {}) => {
+  console.info("[ai-orchestrator-input]", {
+    channel: text(channel),
+    source: text(source),
+    normalized_message: normalizeArabic(customerMessage),
+    detected_intent: text(intent),
+    reply_preview: "",
+    produced_by: "aiResponseOrchestratorService",
+  });
   let replyCategory = inferReplyCategory({ intent, customerMessage, selectedSize, availableSizes, productContext });
   const recentReplyTemplateIds = asArray(customerMemory.recentReplyTemplateIds || previousReplies.map((reply) => reply.templateId)).slice(-8);
   const recentReplyCategories = asArray(customerMemory.recentReplyCategories).slice(-8);
@@ -388,6 +408,16 @@ export const orchestrateAiResponse = ({
     customerName: customerProfile?.firstName || customerProfile?.name || "",
   });
   const confirmationGuard = productConfirmationGuard({ selectedProduct, productContext, price });
+  const priceGuard = buildAiPriceGuard({
+    productId: selectedProduct?.product_id || selectedProduct?.id || productContext.productId || null,
+    variantId: selectedProduct?.variant_id || productContext.variantId || null,
+    rawPrice: price,
+    product: selectedProduct || {},
+    productContext,
+    memory: customerMemory,
+    messageText: customerMessage,
+    route: "ai_response_orchestrator",
+  });
   const presentationPriorityIntent = ["PRODUCT_SEARCH", "VISUAL_SEARCH"].includes(text(intent).toUpperCase());
   const hasPresentationContext = Boolean(
     selectedProduct?.product_id ||
@@ -397,9 +427,10 @@ export const orchestrateAiResponse = ({
     selectedProduct?.title ||
     selectedProduct?.name
   );
-  if (["PRODUCT_PRESENTATION", "ASK_SIZE", "SIZE_AVAILABLE"].includes(replyCategory) && !confirmationGuard.confirmed && !(presentationPriorityIntent && hasPresentationContext)) {
+  const safePresentationReply = priceGuard.safeReplyText || rawReplyText;
+  if (["PRODUCT_PRESENTATION", "ASK_SIZE", "SIZE_AVAILABLE"].includes(replyCategory) && !confirmationGuard.confirmed && !(presentationPriorityIntent && hasPresentationContext && priceGuard.renderedPrice)) {
     return {
-      replyText: rawReplyText,
+      replyText: safePresentationReply,
       replyCategory: "PRODUCT_PRESENTATION_FOLLOWUP",
       templateId: "product_confirmation_guard",
       nextConversationStage,
@@ -452,6 +483,14 @@ export const orchestrateAiResponse = ({
     });
   }
   const replyText = compressed.replyText;
+  console.info("[ai-orchestrator-output]", {
+    channel: text(channel),
+    source: text(source),
+    normalized_message: normalizeArabic(customerMessage),
+    detected_intent: text(intent),
+    reply_preview: text(replyText).slice(0, 180),
+    produced_by: "aiResponseOrchestratorService",
+  });
   const shouldSuggestAlternatives = ["OBJECTION_PRICE", "SIZE_UNAVAILABLE"].includes(replyCategory) || productContext.weakVisualMatch === true || productContext.productUnavailable === true;
   const shouldAskSize = replyCategory === "ASK_SIZE" || (replyCategory === "PRODUCT_PRESENTATION" && asArray(availableSizes).length > 0);
   const shouldStartCheckout = replyCategory === "CHECKOUT_COLLECTING";

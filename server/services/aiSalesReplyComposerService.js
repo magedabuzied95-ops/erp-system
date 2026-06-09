@@ -1317,6 +1317,14 @@ export const composeAiSalesReply = async ({
     conversationId: text(context?.conversationId || context?.conversation_id || context?.id || context?.session_id || ""),
     channel: text(context?.channel || context?.source || ""),
   });
+  console.info("[ai-personality-output]", {
+    channel: text(context?.channel || context?.source || ""),
+    source,
+    normalized_message: normalizeArabic(message),
+    detected_intent: text(detectedIntent),
+    reply_preview: text(personality.text).slice(0, 180),
+    produced_by: "aiHumanSalesPersonalityLayer",
+  });
   const activeProductMemoryPatch = buildActiveProductMemoryPatch({ personality, response: output, memory });
 
   output = withAnswer(output, personality.text, {
@@ -1367,6 +1375,14 @@ export const composeAiSalesReply = async ({
     decision,
     answerLength: text(output.answer || output.text).length,
     stage: personality.conversation_stage_awareness?.stage || "",
+  });
+  console.info("[ai-composer-output]", {
+    channel: text(context?.channel || context?.source || ""),
+    source,
+    normalized_message: normalizeArabic(message),
+    detected_intent: text(detectedIntent),
+    reply_preview: text(output.answer || output.text).slice(0, 180),
+    produced_by: "aiSalesReplyComposerService",
   });
   return output;
 };

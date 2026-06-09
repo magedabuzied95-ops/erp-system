@@ -10,6 +10,7 @@ import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabic
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
 import { resolveFollowupContext, summarizeConversationMemoryV2 } from "../utils/aiConversationMemoryV2.js";
+import { buildAiPriceGuard, guardAiNameCapture } from "../utils/aiProductReplyGuards.js";
 import {
   appendAiGeneratedSupportReply,
   ensureAiSupportLogSchema,
@@ -102,6 +103,38 @@ if (typeof protectedV2ProductIntent !== "function") {
 const text = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const bool = (value) => value === true || value === "true" || value === 1 || value === "1";
+const previewText = (value = "", limit = 180) => text(value).replace(/\s+/g, " ").slice(0, limit);
+const normalizedTraceMessage = (value = "") => normalizeArabicMessage(text(value));
+const logAiTraceStep = ({ tag = "", channel = "", source = "", messageText = "", detectedIntent = "", replyText = "", service = "" } = {}) => {
+  console.info(tag, {
+    channel: text(channel),
+    source: text(source),
+    normalized_message: normalizedTraceMessage(messageText),
+    detected_intent: text(detectedIntent),
+    reply_preview: previewText(replyText),
+    produced_by: text(service),
+  });
+};
+const applyMetaGreetingGuard = ({ channel = "", source = "", customerMessageText = "", replyText = "" } = {}) => {
+  const normalizedMessage = normalizedTraceMessage(customerMessageText);
+  const normalizedReply = text(replyText);
+  const greetingSignal = /(السلام عليكم|سلام عليكم|السلام عليكم ورحمة الله)/i.test(normalizedMessage);
+  const hasWaAlaykum = /وعليكم\s*السلام/i.test(normalizedReply);
+  if (!greetingSignal || hasWaAlaykum) return normalizedReply;
+  const strippedReply = normalizedReply
+    .replace(/^(اهلا|أهلا|اهلا بيك|أهلا بيك|نورتنا|تحت أمرك|تحت امرك|مرحبا|مرحبًا)\s*[،,.-]?\s*/i, "")
+    .trim();
+  const nextReply = `وعليكم السلام ورحمة الله${strippedReply ? `، ${strippedReply}` : "، أهلاً بيك يا فندم"}`;
+  console.info("[ai-greeting-guard-applied]", {
+    channel: text(channel),
+    source: text(source),
+    normalized_message: normalizedMessage,
+    detected_intent: "greeting",
+    reply_preview: previewText(nextReply),
+    produced_by: "metaIntegrationService",
+  });
+  return nextReply;
+};
 const numberOrNull = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
@@ -999,8 +1032,9 @@ const parseCheckoutCustomerDetails = (messageText = "") => {
       : lines.filter((line) => line !== nameCandidate).join(" ")
   );
   const fallbackAddress = withoutPhone(raw).replace(nameCandidate, "").trim();
+  const nameGuard = guardAiNameCapture({ messageText: nameCandidate || raw, route: "meta_checkout_parser" });
   return {
-    customer_name: nameCandidate.slice(0, 120),
+    customer_name: nameGuard.blockedAsName ? "" : nameCandidate.slice(0, 120),
     customer_phone: phone,
     customer_address: (addressCandidate || fallbackAddress).slice(0, 500),
   };
@@ -7689,6 +7723,8 @@ const buildOrchestratedReply = ({ message = {}, intent = "", categoryContext = {
     newImageDetected: hasNewImage,
     ...categoryContext,
     ...overrides,
+    source: message.channel || message.source || "meta_integration",
+    channel: message.channel || "",
   });
   applyOrchestratedReplyMemory({ conversationId, orchestrated });
   return orchestrated;
@@ -9295,6 +9331,7 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
     channel: message.channel,
     recipientId: message.external_customer_id,
     messageText: finalReplyText,
+    customerMessageText: originalInboundText,
     conversationId: message.external_conversation_id,
     facebookPageId: config.facebook_page_id,
     instagramBusinessAccountId: config.instagram_business_account_id,
@@ -9605,6 +9642,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     tenantId: config.tenant_id,
     channel: message.channel,
     recipientId: message.external_customer_id,
+    customerMessageText: message.message_text || "",
     conversationId: message.external_conversation_id,
     productCards: guardedCards,
     productCardLimit: guardedCards.length,
@@ -11745,6 +11783,7 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
         tenantId: config.tenant_id,
         channel: message.channel,
         recipientId: message.external_customer_id,
+        customerMessageText: message.message_text || "",
         conversationId: message.external_conversation_id,
         productCards: richMoreImageCards,
         productCardLimit: richMoreImageCards.length,
@@ -13203,6 +13242,7 @@ const extractSalesGovernorate = (value = "") => {
 const splitFirstName = (name = "") => text(name).split(/\s+/).filter(Boolean)[0] || "";
 
 const isSalesControlWordName = (value = "") =>
+  guardAiNameCapture({ messageText: value, route: "meta_sales_name_guard" }).blockedAsName ||
   ["تمام", "ماشي", "احجز", "احجزه", "عايزه", "عايزة", "هطلب", "اكد", "أكد"].includes(text(value).toLowerCase());
 
 const mergeSalesCustomerInfo = ({ known = {}, parsed = {}, messageText = "" } = {}) => {
@@ -15812,6 +15852,7 @@ export const sendMetaInboxOutboundMessage = async ({
   channel = "",
   recipientId = "",
   messageText = "",
+  customerMessageText = "",
   conversationId = "",
   attachments = [],
   productCards = [],
@@ -15838,6 +15879,12 @@ export const sendMetaInboxOutboundMessage = async ({
   const normalizedChannel = adapterChannel(channelAlias(channel) === "instagram" || channel === AI_AGENT_CHANNELS.INSTAGRAM ? "instagram" : "facebook");
   let safeRecipientId = text(recipientId);
   let safeMessage = text(messageText);
+  safeMessage = applyMetaGreetingGuard({
+    channel: normalizedChannel,
+    source: replySource || replyOwner || "sendMetaInboxOutboundMessage",
+    customerMessageText,
+    replyText: safeMessage,
+  });
   if (detectStaleProductPresentationReply(safeMessage)) {
     logStaleReplyPath({
       source: replySource || replyOwner || "sendMetaInboxOutboundMessage",
@@ -15851,6 +15898,14 @@ export const sendMetaInboxOutboundMessage = async ({
     throw Object.assign(new Error("tenant_id, recipient id, and message are required"), { status: 400, code: "META_SEND_INPUT_REQUIRED" });
   }
   const payloadType = metaSendPayloadType({ messageText: safeMessage, attachments, productCards: cards });
+  console.info("[ai-final-channel-reply]", {
+    channel: normalizedChannel,
+    source: replySource || replyOwner || "response_orchestrator",
+    normalized_message: normalizedTraceMessage(customerMessageText),
+    detected_intent: text(resolvedQuestionType || ""),
+    reply_preview: previewText(safeMessage),
+    produced_by: "metaIntegrationService",
+  });
   logReplyPath({
     handler: text(replyOwner || replySource) === "response_orchestrator" ? "response_orchestrator" : text(replyOwner || replySource),
     intent: resolvedQuestionType || "",
@@ -16447,6 +16502,14 @@ export const processMetaWebhook = async ({ req } = {}) => {
       instagramBusinessAccountId: instagramBusinessAccountIds[0] || "",
     });
     assignInboundMessageLifecycle(message);
+    console.info("[meta-inbound-message]", {
+      channel: text(message.channel || ""),
+      source: "metaIntegrationService",
+      normalized_message: normalizedTraceMessage(message.message_text || ""),
+      detected_intent: text(message.orchestratorIntent?.intent || message.resolvedQuestion?.intent || ""),
+      reply_preview: "",
+      produced_by: "metaIntegrationService",
+    });
     const alias = channelAlias(message.channel);
     const messageId = text(message.external_message_id || message.dedupe_key || "");
     const { inboundKey, inboundMetaMid } = outboundDedupeContextFromMessage(message);
@@ -16957,7 +17020,23 @@ export const processMetaWebhook = async ({ req } = {}) => {
     }
     let aiPayload;
     try {
+      console.info("[ai-orchestrator-input]", {
+        channel: text(message.channel || ""),
+        source: "metaIntegrationService",
+        normalized_message: normalizedTraceMessage(message.message_text || ""),
+        detected_intent: text(message.orchestratorIntent?.intent || message.resolvedQuestion?.intent || ""),
+        reply_preview: "",
+        produced_by: "routeMessageThroughAi",
+      });
       aiPayload = await routeMessageThroughAi({ req, message, config });
+      console.info("[ai-brain-output]", {
+        channel: text(message.channel || ""),
+        source: "metaIntegrationService",
+        normalized_message: normalizedTraceMessage(message.message_text || ""),
+        detected_intent: text(aiPayload?.detected_intent || message.orchestratorIntent?.intent || ""),
+        reply_preview: previewText(aiPayload?.answer || aiPayload?.channel_reply?.text || ""),
+        produced_by: "routeMessageThroughAi",
+      });
       await storeMetaConversationHealth({
         tenantId: config.tenant_id,
         channel: message.channel,
@@ -17101,6 +17180,14 @@ export const processMetaWebhook = async ({ req } = {}) => {
     }
     const replyText = reply.text || aiPayload.answer || "";
     const replyIntent = text(aiPayload.detected_intent || aiPayload.intent || reply.intent || latestDebugClassification?.intent || "");
+    console.info("[ai-composer-output]", {
+      channel: text(message.channel || ""),
+      source: "metaIntegrationService",
+      normalized_message: normalizedTraceMessage(message.message_text || ""),
+      detected_intent: replyIntent,
+      reply_preview: previewText(replyText),
+      produced_by: "metaIntegrationService",
+    });
     if (productCards.length && !protectedV2ProductIntent(replyIntent) && repeatedProductCards({ conversationId: message.external_conversation_id, productCards }) && !explicitlyAskedForProductCards(message.message_text)) {
       console.log("ai_inbox_repeated_product_card_prevented", {
         tenant_id: config.tenant_id,
@@ -17232,6 +17319,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
         channel: message.channel,
         recipientId: message.external_customer_id,
         messageText: replyTextForSend,
+        customerMessageText: message.message_text || "",
         conversationId: message.external_conversation_id,
         productCards,
         productCardLimit: productCards.length || productCardLimit,
