@@ -616,7 +616,40 @@ const asksPrice = (message = "", response = {}, intent = {}) => {
 };
 const asksDiscountOrOffer = (message = "") => {
   const normalized = normalizeArabic(message);
-  return /(خصم|عرض|offer|discount|sale|آخره\s*كام|اخره\s*كام|آخره|اخره|فيه\s*خصم|فيه\s*عرض|عليه\s*خصم|عليه\s*عرض)/i.test(normalized);
+  return /(خصم|عرض|offer|discount|sale|آخره\s*كام|اخره\s*كام|آخره|اخره|آخر\s*سعر|اخر\s*سعر|آخر\s*سعره|اخر\s*سعره|فيه\s*خصم|فيه\s*عرض|عليه\s*خصم|عليه\s*عرض)/i.test(normalized);
+};
+const isObjectionMessage = (message = "") => {
+  const normalized = normalizeArabic(message);
+  return /(غالي|غالية|أرخص|ارخص|ليه\s*أغلى|ليه\s*اغلى|ليه\s*اغلي|شفته\s*أرخص|شفته\s*ارخص|هفكر|هرجعلك|مش\s*متأكد|مش\s*متاكد|محتار|مش\s*مقتنع|مش\s*عاجبني|ما\s*عجبنيش|ماعجبنيش|ما\s*عجبني|ماعجبني|خايف|مش\s*مناسب|استبدال|استرجاع|ضمان|الخامة|الخامه|جودة|الجودة|صور\s*طبيعية|صور\s*طبيعيه|بديل|مستني\s*المرتب|ممكن\s*تتأكد\s*تاني|ممكن\s*تتاكد\s*تاني|تأكد\s*تاني|تتاكد\s*تاني|راجع\s*تاني)/i.test(normalized);
+};
+const buildObjectionReply = ({ message = "", priceText = "", sizeText = "", colorText = "" } = {}) => {
+  const normalized = normalizeArabic(message);
+  const priceLine = priceText ? `السعر الحالي ${priceText} جنيه.` : "السعر محتاج يتأكد من السيستم.";
+  if (/(غالي|غالية|أرخص|ارخص|ليه\s*أغلى|ليه\s*اغلى|شفته\s*أرخص|شفته\s*ارخص|مستني\s*المرتب)/i.test(normalized)) {
+    return `فاهمك يا فندم، ${priceLine} أقدر أطلعلك بديل أقرب لو تحب.`;
+  }
+  if (/(هفكر|هرجعلك|مش\s*متأكد|محتار|مش\s*مقتنع|مش\s*عاجبني)/i.test(normalized)) {
+    return "فاهمك يا فندم، خُد وقتك. أقدر أطلعلك بديل أقرب أو أراجعلك التفاصيل من السيستم.";
+  }
+  if (/(خايف|مش\s*مناسب|استبدال|استرجاع|ضمان)/i.test(normalized)) {
+    return "فاهمك يا فندم، لو المقاس أو الاختيار ما ناسبكش فيه استبدال واسترجاع حسب السياسة.";
+  }
+  if (/(الخامة|الخامه|جودة|الجودة|صور\s*طبيعية|صور\s*طبيعيه)/i.test(normalized)) {
+    return "فاهمك يا فندم، أقدر أبعتلك صور طبيعية وأراجعلك الخامة والجودة.";
+  }
+  if (/(لون)/i.test(normalized)) {
+    return "فاهمك يا فندم، أقدر أطلعلك لون تاني من نفس الموديل أو بديل قريب.";
+  }
+  if (/(بديل)/i.test(normalized)) {
+    return "فاهمك يا فندم، أقدر أطلعلك بديل أقرب أو أراجعلك الأنسب.";
+  }
+  if (sizeText) {
+    return `فاهمك يا فندم، مقاس ${sizeText} موجود ولو ما ناسبكش فيه استبدال حسب السياسة.`;
+  }
+  if (colorText) {
+    return `فاهمك يا فندم، أقدر أطلعلك لون تاني أو بديل قريب.`;
+  }
+  return `فاهمك يا فندم، أقدر أراجعلك التفاصيل أو أطلعلك بديل قريب لو تحب.`;
 };
 const asksColor = (message = "") => {
   const normalized = normalizeArabic(message).replace(/[؟?]/g, "").trim();
@@ -888,8 +921,8 @@ export const composeAiSalesReply = async ({
 
     if (asksDiscountOrOffer(message)) {
       const discountReply = regressionPrice
-        ? `السعر الحالي ${regressionPrice} جنيه، ولو فيه خصم أو عرض متاح هأكدّهولك من السيستم.`
-        : "السعر محتاج يتأكد من السيستم، ولو فيه خصم أو عرض متاح هأكدّهولك من السيستم.";
+        ? `السعر الحالي ${regressionPrice} جنيه، ولو فيه خصم أو عرض متاح أراجعهولك من السيستم.`
+        : "السعر محتاج يتأكد من السيستم، ولو فيه خصم أو عرض متاح أراجعهولك من السيستم.";
       console.info("[ai-reply-composer:decision]", {
         source,
         decision: "regression_discount_or_offer",
@@ -903,6 +936,28 @@ export const composeAiSalesReply = async ({
         stage: "",
       });
       return withAnswer(response, discountReply);
+    }
+
+    if (isObjectionMessage(message)) {
+      const objectionReply = buildObjectionReply({
+        message,
+        priceText: regressionPrice ? regressionPrice.toLocaleString("en-US") : "",
+        sizeText: size || state.rememberedSize || sizes[0] || "",
+        colorText: requestedColor || colors[0] || "",
+      });
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_objection",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_objection",
+        answerLength: text(objectionReply).length,
+        stage: "",
+      });
+      return withAnswer(response, objectionReply);
     }
 
     if (asksPrice(message, response, intent)) {
@@ -1166,6 +1221,14 @@ export const composeAiSalesReply = async ({
       decision = "yes_without_context";
       output = withAnswer(stripProductPayload(response), "تمام يا باشا، تقصد موديل معين ولا مقاس معين؟");
     }
+  } else if (isObjectionMessage(message)) {
+    decision = "objection_handling";
+    output = withAnswer(stripProductPayload(response), buildObjectionReply({
+      message,
+      priceText: priceLabel,
+      sizeText: size || state.rememberedSize || "",
+      colorText: requestedColor || colors[0] || "",
+    }));
   } else if (!isExplicitProductFollowup(message, response, intent) && ["general", "conversational", ""].includes(detectedIntent)) {
     decision = "block_general_product_cards";
     output = withAnswer(stripProductPayload(response), buildGreetingReply(message, text(context?.conversationId || context?.session_id || context?.id || "")), {
