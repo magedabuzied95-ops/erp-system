@@ -192,7 +192,7 @@ const groupForSidebarItem = (sectionTitle, item) => {
   if (to === "/dashboard" || to === "/workspace" || to === "/notifications") return "Main";
   if (to === "/pos" || to === "/orders" || to === "/orders?channel=website" || to === "/orders/returns" || to === "/customers") return "Sales";
   if (to === "/operations/shipping") return "Operations";
-  if (to === "/products" || to === "/products/add" || to === "/inventory" || to === "/warehouses" || to === "/stock-transfers") return "Products & Inventory";
+  if (to === "/products" || to === "/products/add" || to === "/inventory" || to === "/inventory/count" || to === "/warehouses" || to === "/stock-transfers") return "Products & Inventory";
   if (to === "/purchases" || to === "/suppliers") return "Purchasing";
   if (to === "/employees" || to.startsWith("/employees/")) return "Employees";
   if (to === "/accounting" || to === "/expenses" || to === "/reports") return "Finance";
@@ -253,7 +253,7 @@ const buildEnterpriseSidebarGroups = (sections) => {
     Main: ["/dashboard", "/workspace", "/notifications"],
     Sales: ["/pos", "/orders", "/orders?channel=website", "/orders/returns", "/customers"],
     Operations: ["/operations/shipping"],
-    "Products & Inventory": ["/products", "/products/add", "/inventory", "/warehouses", "/stock-transfers"],
+    "Products & Inventory": ["/products", "/products/add", "/inventory", "/inventory/count", "/warehouses", "/stock-transfers"],
     Purchasing: ["/purchases", "/suppliers"],
     Employees: ["/employees", "/employees/attendance", "/reports"],
     Finance: ["/accounting", "/expenses"],

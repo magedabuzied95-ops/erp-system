@@ -40,6 +40,7 @@ function StockMovements() {
         { to: "/inventory", label: "Inventory", end: true },
         { to: "/inventory/movements", label: "Movements", end: true },
         { to: "/inventory/adjustments", label: "Adjustments" },
+        { to: "/inventory/count", label: "الجرد" },
         { to: "/stock-transfers", label: "Transfers" },
         { to: "/warehouses", label: "Warehouses" },
       ]}

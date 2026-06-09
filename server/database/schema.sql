@@ -351,6 +351,52 @@ CREATE INDEX IF NOT EXISTS idx_inventory_movements_variant_id ON inventory_movem
 CREATE INDEX IF NOT EXISTS idx_inventory_movements_movement_type ON inventory_movements (movement_type);
 CREATE INDEX IF NOT EXISTS idx_inventory_movements_created_at ON inventory_movements (created_at);
 
+CREATE TABLE IF NOT EXISTS inventory_count_sessions (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NULL REFERENCES tenants(id) ON DELETE SET NULL,
+  branch_id BIGINT NULL REFERENCES branches(id) ON DELETE SET NULL,
+  warehouse_id BIGINT NULL REFERENCES warehouses(id) ON DELETE SET NULL,
+  title VARCHAR(255) NOT NULL DEFAULT 'جرد جديد',
+  status VARCHAR(30) NOT NULL DEFAULT 'draft',
+  notes TEXT NOT NULL DEFAULT '',
+  opened_at TIMESTAMP NULL,
+  completed_at TIMESTAMP NULL,
+  cancelled_at TIMESTAMP NULL,
+  created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+  opened_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+  completed_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+  cancelled_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS inventory_count_items (
+  id BIGSERIAL PRIMARY KEY,
+  inventory_count_id BIGINT NULL,
+  inventory_count_session_id BIGINT NULL REFERENCES inventory_count_sessions(id) ON DELETE CASCADE,
+  product_id BIGINT NULL REFERENCES products(id) ON DELETE SET NULL,
+  product_variant_id BIGINT NULL REFERENCES product_variants(id) ON DELETE CASCADE,
+  variant_id BIGINT NULL REFERENCES product_variants(id) ON DELETE CASCADE,
+  system_quantity INTEGER NOT NULL DEFAULT 0,
+  counted_quantity INTEGER NOT NULL DEFAULT 0,
+  difference_quantity INTEGER NOT NULL DEFAULT 0,
+  expected_qty INTEGER NOT NULL DEFAULT 0,
+  actual_qty INTEGER NOT NULL DEFAULT 0,
+  difference_qty INTEGER NOT NULL DEFAULT 0,
+  reason TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_inventory_count_sessions_tenant_created ON inventory_count_sessions (tenant_id, created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_inventory_count_sessions_status ON inventory_count_sessions (status, created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_inventory_count_sessions_branch_id ON inventory_count_sessions (branch_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_count_sessions_warehouse_id ON inventory_count_sessions (warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_count_items_session_id ON inventory_count_items (inventory_count_session_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_count_items_variant_id ON inventory_count_items (product_variant_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_count_items_inventory_count_id ON inventory_count_items (inventory_count_id);
+
   CREATE TABLE IF NOT EXISTS customers (
     id BIGSERIAL PRIMARY KEY,
     tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

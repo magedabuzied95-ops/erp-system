@@ -108,6 +108,7 @@ function StockTransfers() {
         { to: "/inventory", label: "Inventory", end: true },
         { to: "/inventory/movements", label: "Movements" },
         { to: "/inventory/adjustments", label: "Adjustments" },
+        { to: "/inventory/count", label: "الجرد" },
         { to: "/stock-transfers", label: "Transfers", end: true },
         { to: "/warehouses", label: "Warehouses" },
       ]}

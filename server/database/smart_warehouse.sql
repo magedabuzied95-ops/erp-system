@@ -33,7 +33,14 @@ CREATE TABLE IF NOT EXISTS inventory_count_items (
   expected_qty INTEGER NOT NULL DEFAULT 0,
   actual_qty INTEGER NOT NULL DEFAULT 0,
   difference_qty INTEGER NOT NULL DEFAULT 0,
-  notes TEXT
+  inventory_count_session_id BIGINT,
+  product_variant_id BIGINT,
+  system_quantity INTEGER NOT NULL DEFAULT 0,
+  counted_quantity INTEGER NOT NULL DEFAULT 0,
+  difference_quantity INTEGER NOT NULL DEFAULT 0,
+  reason TEXT NOT NULL DEFAULT '',
+  notes TEXT,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS master_qr_models (
@@ -60,6 +67,8 @@ CREATE INDEX IF NOT EXISTS idx_inventory_counts_section_id ON inventory_counts (
 CREATE INDEX IF NOT EXISTS idx_inventory_counts_status ON inventory_counts (status);
 CREATE INDEX IF NOT EXISTS idx_inventory_count_items_count_id ON inventory_count_items (inventory_count_id);
 CREATE INDEX IF NOT EXISTS idx_inventory_count_items_variant_id ON inventory_count_items (variant_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_count_items_session_id ON inventory_count_items (inventory_count_session_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_count_items_product_variant_id ON inventory_count_items (product_variant_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_master_qr_models_product_id ON master_qr_models (product_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_master_qr_models_qr_value ON master_qr_models (qr_value);
 CREATE INDEX IF NOT EXISTS idx_products_sku_perf ON products (sku);

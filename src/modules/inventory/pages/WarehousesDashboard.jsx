@@ -172,6 +172,7 @@ function WarehousesDashboard() {
         { to: "/inventory", label: t("warehouses.tabs.inventory"), end: true },
         { to: "/inventory/movements", label: t("warehouses.tabs.movements") },
         { to: "/inventory/adjustments", label: t("warehouses.tabs.adjustments") },
+        { to: "/inventory/count", label: "الجرد" },
         { to: "/stock-transfers", label: t("warehouses.tabs.transfers") },
         { to: "/warehouses", label: t("warehouses.tabs.warehouses"), end: true },
       ]}

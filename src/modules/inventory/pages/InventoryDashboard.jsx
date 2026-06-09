@@ -133,6 +133,7 @@ function InventoryDashboard() {
         { to: "/inventory", label: t("inventory.tabs.inventory"), end: true },
         { to: "/inventory/movements", label: t("inventory.tabs.movements") },
         { to: "/inventory/adjustments", label: t("inventory.tabs.adjustments") },
+        { to: "/inventory/count", label: t("inventory.tabs.count", "الجرد") },
         { to: "/stock-transfers", label: t("inventory.tabs.transfers") },
         { to: "/warehouses", label: t("inventory.tabs.warehouses") },
       ]}

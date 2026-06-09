@@ -1,0 +1,12 @@
+import { api } from "../../../shared/api/api";
+
+export const listInventoryCountSessions = (params = {}) => api.get("/inventory-count/sessions", { params });
+export const createInventoryCountSession = (body = {}) => api.post("/inventory-count/sessions", body);
+export const getInventoryCountSession = (id) => api.get(`/inventory-count/sessions/${encodeURIComponent(id)}`);
+export const updateInventoryCountSession = (id, body = {}) => api.patch(`/inventory-count/sessions/${encodeURIComponent(id)}`, body);
+export const openInventoryCountSession = (id) => api.post(`/inventory-count/sessions/${encodeURIComponent(id)}/open`);
+export const searchInventoryCountVariants = (id, params = {}) => api.get(`/inventory-count/sessions/${encodeURIComponent(id)}/lookup`, { params });
+export const upsertInventoryCountItem = (id, body = {}) => api.put(`/inventory-count/sessions/${encodeURIComponent(id)}/items`, body);
+export const approveInventoryCountSession = (id) => api.post(`/inventory-count/sessions/${encodeURIComponent(id)}/approve`);
+export const cancelInventoryCountSession = (id, body = {}) => api.post(`/inventory-count/sessions/${encodeURIComponent(id)}/cancel`, body);
+

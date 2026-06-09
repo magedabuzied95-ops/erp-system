@@ -22,6 +22,7 @@ const MOVEMENT_TYPES = [
   "damaged",
   "product_stock_edit",
   "edit_variant_stock",
+  "inventory_adjustment",
 ];
 
 function InventoryHistory() {
@@ -115,6 +116,7 @@ function InventoryHistory() {
         { to: "/inventory/history", label: "History", end: true },
         { to: "/inventory/movements", label: "Movements" },
         { to: "/inventory/adjustments", label: "Adjustments" },
+        { to: "/inventory/count", label: "الجرد" },
         { to: "/stock-transfers", label: "Transfers" },
       ]}
     >

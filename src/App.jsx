@@ -55,6 +55,7 @@ const Inventory = lazy(() => import("./modules/inventory/pages/InventoryDashboar
 const InventoryMovements = lazy(() => import("./modules/inventory/pages/StockMovements"));
 const InventoryAdjustments = lazy(() => import("./modules/inventory/pages/StockAdjustments"));
 const InventoryHistory = lazy(() => import("./modules/inventory/pages/InventoryHistory"));
+const InventoryCount = lazy(() => import("./modules/inventory/pages/InventoryCount"));
 
 const SmartWarehouse = lazy(() => import("./modules/smartWarehouse/pages/SmartWarehouse"));
 const WarehouseLivePicks = lazy(() => import("./modules/warehouse/pages/WarehouseLivePicks"));
@@ -691,6 +692,16 @@ function App() {
         <Route
           path="inventory/adjustments"
           element={<InventoryAdjustments />}
+        />
+
+        <Route
+          path="inventory/count"
+          element={<InventoryCount />}
+        />
+
+        <Route
+          path="inventory/count/:id"
+          element={<InventoryCount />}
         />
 
         <Route

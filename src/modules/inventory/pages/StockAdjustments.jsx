@@ -127,6 +127,7 @@ function StockAdjustments() {
         { to: "/inventory", label: "Inventory", end: true },
         { to: "/inventory/movements", label: "Movements" },
         { to: "/inventory/adjustments", label: "Adjustments", end: true },
+        { to: "/inventory/count", label: "الجرد" },
         { to: "/stock-transfers", label: "Transfers" },
         { to: "/warehouses", label: "Warehouses" },
       ]}
