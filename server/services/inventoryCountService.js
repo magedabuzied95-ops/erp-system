@@ -301,6 +301,7 @@ const fetchSessionRow = async (clientOrPool, { tenantId, sessionId, lock = false
     item_count: totalsResult.rows[0]?.item_count || 0,
     difference_total: totalsResult.rows[0]?.difference_total || 0,
   });
+  });
 };
 
 const fetchSessionItems = async (clientOrPool, { tenantId, sessionId, lock = false }) => {
@@ -354,6 +355,7 @@ const fetchSessionItems = async (clientOrPool, { tenantId, sessionId, lock = fal
     params
   );
   return result.rows.map((row) => applyRowAliases(row));
+  });
 };
 
 const fetchVariantForSession = async (clientOrPool, { tenantId, productVariantId }) => {
@@ -380,6 +382,7 @@ const fetchVariantForSession = async (clientOrPool, { tenantId, productVariantId
     [productVariantId, tenantId]
   );
   return result.rows[0] || null;
+  });
 };
 
 export const listInventoryCountSessions = async (clientOrPool, { tenantId = null, search = "", status = "", branchId = null, warehouseId = null, page = 1, limit = 25 } = {}) => {
@@ -498,7 +501,6 @@ export const createInventoryCountSession = async (clientOrPool, data = {}) => {
     ]
   );
   return applyRowAliases(result.rows[0]);
-  });
 };
 
 export const updateInventoryCountSession = async (clientOrPool, data = {}) => {
