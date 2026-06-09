@@ -845,6 +845,8 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
       v.id AS product_variant_id,
       v.product_id,
       p.name AS product_name,
+      p.sku AS product_sku,
+      p.barcode AS product_barcode,
       v.color,
       v.size,
       v.sku,
@@ -855,8 +857,10 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
       CASE
         WHEN LOWER(TRIM(COALESCE(v.barcode, ''))) = LOWER(TRIM($2))
           OR LOWER(TRIM(COALESCE(v.sku, ''))) = LOWER(TRIM($2))
-          OR LOWER(TRIM(COALESCE(v.article_code, ''))) = LOWER(TRIM($2)) THEN 0
-        WHEN COALESCE(v.barcode, '') ILIKE $3 OR COALESCE(v.sku, '') ILIKE $3 THEN 1
+          OR LOWER(TRIM(COALESCE(v.article_code, ''))) = LOWER(TRIM($2))
+          OR LOWER(TRIM(COALESCE(p.barcode, ''))) = LOWER(TRIM($2))
+          OR LOWER(TRIM(COALESCE(p.sku, ''))) = LOWER(TRIM($2)) THEN 0
+        WHEN COALESCE(v.barcode, '') ILIKE $3 OR COALESCE(v.sku, '') ILIKE $3 OR COALESCE(p.barcode, '') ILIKE $3 OR COALESCE(p.sku, '') ILIKE $3 THEN 1
         ELSE 2
       END AS match_rank
     FROM product_variants v
@@ -866,6 +870,8 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
         LOWER(TRIM(COALESCE(v.barcode, ''))) = LOWER(TRIM($2))
         OR LOWER(TRIM(COALESCE(v.sku, ''))) = LOWER(TRIM($2))
         OR LOWER(TRIM(COALESCE(v.article_code, ''))) = LOWER(TRIM($2))
+        OR LOWER(TRIM(COALESCE(p.barcode, ''))) = LOWER(TRIM($2))
+        OR LOWER(TRIM(COALESCE(p.sku, ''))) = LOWER(TRIM($2))
         OR p.name ILIKE $3
         OR COALESCE(v.color, '') ILIKE $3
         OR COALESCE(v.size, '') ILIKE $3
@@ -876,11 +882,33 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
     [tenantId, queryText, like, limit]
   );
 
-  return result.rows.map((row) => ({
-    ...row,
-    product_variant_id: row.product_variant_id ?? row.id,
-    stock: toNumber(row.stock, 0),
-  }));
+  const rows = result.rows.map((row) => {
+    const normalizedRow = {
+      ...row,
+      product_variant_id: row.product_variant_id ?? row.id,
+      stock: toNumber(row.stock, 0),
+    };
+    return normalizedRow;
+  });
+
+  const exactRow = rows.find((row) => Number(row.match_rank) === 0);
+  if (exactRow) {
+    const scannedCode = queryText;
+    const matchedBy = [
+      [exactRow.barcode, "variant.barcode"],
+      [exactRow.sku, "variant.sku"],
+      [exactRow.article_code, "variant.article_code"],
+      [exactRow.product_barcode, "product.barcode"],
+      [exactRow.product_sku, "product.sku"],
+    ].find(([value]) => normalizeText(value).toLowerCase() === scannedCode.toLowerCase())?.[1] || "unknown";
+    console.log("[inventory-count:lookup:exact]", {
+      scannedCode,
+      matchedBy,
+      productVariantId: exactRow.product_variant_id ?? exactRow.id ?? null,
+    });
+  }
+
+  return rows;
 };
 
 export const upsertInventoryCountItem = async (clientOrPool, data = {}) => {

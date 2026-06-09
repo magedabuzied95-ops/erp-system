@@ -92,6 +92,8 @@ const normalizeCountVariant = (record = {}) => {
   const productId = record.product_id ?? record.productId ?? record.product?.id ?? null;
   const variantId = record.product_variant_id ?? record.variant_id ?? record.variantId ?? record.id ?? null;
   const productName = normalizeText(record.product_name ?? record.productName ?? record.name ?? "");
+  const productSku = normalizeText(record.product_sku ?? record.productSku ?? record.sku ?? "");
+  const productBarcode = normalizeText(record.product_barcode ?? record.productBarcode ?? record.barcode ?? "");
   const color = normalizeText(record.color ?? record.variant_color ?? record.color_name ?? "");
   const size = normalizeText(record.size ?? record.variant_size ?? record.size_name ?? "");
   const sku = normalizeText(record.sku ?? record.variant_sku ?? "");
@@ -107,6 +109,8 @@ const normalizeCountVariant = (record = {}) => {
     product_id: productId,
     product_variant_id: variantId,
     product_name: productName,
+    product_sku: productSku,
+    product_barcode: productBarcode,
     color,
     size,
     sku,
@@ -123,6 +127,8 @@ const normalizeCountVariant = (record = {}) => {
     variant_sku: sku,
     variant_barcode: barcode,
     variant_article_code: articleCode,
+    variant_product_sku: productSku,
+    variant_product_barcode: productBarcode,
     variant_image_url: imageUrl,
     actual_qty: countedQuantity,
     expected_qty: systemQuantity,
@@ -174,7 +180,13 @@ const groupCountVariants = (records = []) => {
 const isExactIdentifierMatch = (query, variant) => {
   const normalizedQuery = normalizeText(query).toLowerCase();
   if (!normalizedQuery) return false;
-  return [variant.barcode, variant.sku, variant.article_code].some((value) => normalizeText(value).toLowerCase() === normalizedQuery);
+  return [
+    variant.barcode,
+    variant.sku,
+    variant.article_code,
+    variant.product_barcode,
+    variant.product_sku,
+  ].some((value) => normalizeText(value).toLowerCase() === normalizedQuery);
 };
 
 function InventoryCountPage() {
