@@ -838,71 +838,101 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
 
   if (!queryText) return [];
 
-  const like = `%${queryText}%`;
-  const result = await dbClient.query(
-    `
-    SELECT
-      v.id AS product_variant_id,
-      v.product_id,
-      p.name AS product_name,
-      p.sku AS product_sku,
-      p.barcode AS product_barcode,
-      v.color,
-      v.size,
-      v.sku,
-      v.barcode,
-      v.article_code,
-      COALESCE(v.stock, 0)::int AS stock,
-      COALESCE(NULLIF(v.image_url, ''), NULLIF(p.image_url, ''), NULLIF(p.image, ''), '') AS image_url,
-      CASE
-        WHEN LOWER(TRIM(COALESCE(v.barcode, ''))) = LOWER(TRIM($2))
+  const executeSearch = async (searchText) => {
+    const like = `%${searchText}%`;
+    const result = await dbClient.query(
+      `
+      SELECT
+        v.id AS product_variant_id,
+        v.product_id,
+        p.name AS product_name,
+        p.sku AS product_sku,
+        p.barcode AS product_barcode,
+        v.color,
+        v.size,
+        v.sku,
+        v.barcode,
+        v.article_code,
+        COALESCE(v.stock, 0)::int AS stock,
+        COALESCE(NULLIF(v.image_url, ''), NULLIF(p.image_url, ''), NULLIF(p.image, ''), '') AS image_url,
+        CASE
+          WHEN LOWER(TRIM(COALESCE(v.barcode, ''))) = LOWER(TRIM($2))
+            OR LOWER(TRIM(COALESCE(v.sku, ''))) = LOWER(TRIM($2))
+            OR LOWER(TRIM(COALESCE(v.article_code, ''))) = LOWER(TRIM($2))
+            OR LOWER(TRIM(COALESCE(p.barcode, ''))) = LOWER(TRIM($2))
+            OR LOWER(TRIM(COALESCE(p.sku, ''))) = LOWER(TRIM($2)) THEN 0
+          WHEN COALESCE(v.barcode, '') ILIKE $3 OR COALESCE(v.sku, '') ILIKE $3 OR COALESCE(p.barcode, '') ILIKE $3 OR COALESCE(p.sku, '') ILIKE $3 THEN 1
+          ELSE 2
+        END AS match_rank
+      FROM product_variants v
+      JOIN products p ON p.id = v.product_id
+      WHERE ($1::bigint IS NULL OR v.tenant_id = $1::bigint OR v.tenant_id IS NULL)
+        AND (
+          LOWER(TRIM(COALESCE(v.barcode, ''))) = LOWER(TRIM($2))
           OR LOWER(TRIM(COALESCE(v.sku, ''))) = LOWER(TRIM($2))
           OR LOWER(TRIM(COALESCE(v.article_code, ''))) = LOWER(TRIM($2))
           OR LOWER(TRIM(COALESCE(p.barcode, ''))) = LOWER(TRIM($2))
-          OR LOWER(TRIM(COALESCE(p.sku, ''))) = LOWER(TRIM($2)) THEN 0
-        WHEN COALESCE(v.barcode, '') ILIKE $3 OR COALESCE(v.sku, '') ILIKE $3 OR COALESCE(p.barcode, '') ILIKE $3 OR COALESCE(p.sku, '') ILIKE $3 THEN 1
-        ELSE 2
-      END AS match_rank
-    FROM product_variants v
-    JOIN products p ON p.id = v.product_id
-    WHERE ($1::bigint IS NULL OR v.tenant_id = $1::bigint OR v.tenant_id IS NULL)
-      AND (
-        LOWER(TRIM(COALESCE(v.barcode, ''))) = LOWER(TRIM($2))
-        OR LOWER(TRIM(COALESCE(v.sku, ''))) = LOWER(TRIM($2))
-        OR LOWER(TRIM(COALESCE(v.article_code, ''))) = LOWER(TRIM($2))
-        OR LOWER(TRIM(COALESCE(p.barcode, ''))) = LOWER(TRIM($2))
-        OR LOWER(TRIM(COALESCE(p.sku, ''))) = LOWER(TRIM($2))
-        OR p.name ILIKE $3
-        OR COALESCE(v.color, '') ILIKE $3
-        OR COALESCE(v.size, '') ILIKE $3
-      )
-    ORDER BY match_rank ASC, p.name ASC, v.color ASC NULLS LAST, v.size ASC NULLS LAST, v.id ASC
-    LIMIT $4
-    `,
-    [tenantId, queryText, like, limit]
-  );
+          OR LOWER(TRIM(COALESCE(p.sku, ''))) = LOWER(TRIM($2))
+          OR p.name ILIKE $3
+          OR COALESCE(v.color, '') ILIKE $3
+          OR COALESCE(v.size, '') ILIKE $3
+        )
+      ORDER BY match_rank ASC, p.name ASC, v.color ASC NULLS LAST, v.size ASC NULLS LAST, v.id ASC
+      LIMIT $4
+      `,
+      [tenantId, searchText, like, limit]
+    );
 
-  const rows = result.rows.map((row) => {
-    const normalizedRow = {
+    return result.rows.map((row) => ({
       ...row,
       product_variant_id: row.product_variant_id ?? row.id,
       stock: toNumber(row.stock, 0),
-    };
-    return normalizedRow;
-  });
+    }));
+  };
 
-  const exactRow = rows.find((row) => Number(row.match_rank) === 0);
+  const findExactRow = (rows, searchText) => {
+    const normalizedSearch = normalizeText(searchText).toLowerCase();
+    return rows.find((row) => Number(row.match_rank) === 0 && [
+      row.barcode,
+      row.sku,
+      row.article_code,
+      row.product_barcode,
+      row.product_sku,
+    ].some((value) => normalizeText(value).toLowerCase() === normalizedSearch));
+  };
+
+  let rows = await executeSearch(queryText);
+  let exactRow = findExactRow(rows, queryText);
+  let matchedBy = exactRow
+    ? [
+        [exactRow.barcode, "variant.barcode"],
+        [exactRow.sku, "variant.sku"],
+        [exactRow.article_code, "variant.article_code"],
+        [exactRow.product_barcode, "product.barcode"],
+        [exactRow.product_sku, "product.sku"],
+      ].find(([value]) => normalizeText(value).toLowerCase() === normalizeText(queryText).toLowerCase())?.[1] || "unknown"
+    : "";
+
+  const digitsOnly = String(queryText).replace(/\D/g, "");
+  if (!exactRow && digitsOnly.length === 13) {
+    const fallbackQuery = digitsOnly.slice(0, -1);
+    const fallbackRows = await executeSearch(fallbackQuery);
+    const fallbackExactRow = findExactRow(fallbackRows, fallbackQuery);
+    if (fallbackExactRow) {
+      rows = fallbackRows;
+      exactRow = fallbackExactRow;
+      matchedBy = "barcode_without_check_digit";
+      console.log("[inventory-count:lookup:fallback]", {
+        scannedCode: queryText,
+        fallbackQuery,
+        productVariantId: fallbackExactRow.product_variant_id ?? fallbackExactRow.id ?? null,
+      });
+    }
+  }
+
   if (exactRow) {
-    const scannedCode = queryText;
-    const matchedBy = [
-      [exactRow.barcode, "variant.barcode"],
-      [exactRow.sku, "variant.sku"],
-      [exactRow.article_code, "variant.article_code"],
-      [exactRow.product_barcode, "product.barcode"],
-      [exactRow.product_sku, "product.sku"],
-    ].find(([value]) => normalizeText(value).toLowerCase() === scannedCode.toLowerCase())?.[1] || "unknown";
     console.log("[inventory-count:lookup:exact]", {
-      scannedCode,
+      scannedCode: queryText,
       matchedBy,
       productVariantId: exactRow.product_variant_id ?? exactRow.id ?? null,
     });

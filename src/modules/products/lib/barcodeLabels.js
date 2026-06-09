@@ -1,6 +1,7 @@
 import { APP_NAME } from "../../../shared/constants/app";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { normalizeBarcodePrintSettings, paginateBarcodeLabels, resolveBarcodePrintPaper } from "../../../../shared/barcodePrintSettings.js";
+import Code128Reader from "@zxing/library/esm/core/oned/Code128Reader";
 
 const LABEL_TEMPLATE_STANDARD = "standard";
 const LABEL_TEMPLATE_THERMAL_PORTRAIT = "thermal_portrait";
@@ -11,58 +12,6 @@ const PREMIUM_RETAIL_LABEL_HEIGHT_MM = 100;
 const PREMIUM_RETAIL_BARCODE_WIDTH = 680;
 const PREMIUM_RETAIL_BARCODE_HEIGHT = 288;
 const PREMIUM_RETAIL_GRID_ROWS = "33mm 12mm 11mm 11mm 20.8mm 7mm";
-
-const EAN13_L = [
-  "0001101",
-  "0011001",
-  "0010011",
-  "0111101",
-  "0100011",
-  "0110001",
-  "0101111",
-  "0111011",
-  "0110111",
-  "0001011",
-];
-
-const EAN13_G = [
-  "0100111",
-  "0110011",
-  "0011011",
-  "0100001",
-  "0011101",
-  "0111001",
-  "0000101",
-  "0010001",
-  "0001001",
-  "0010111",
-];
-
-const EAN13_R = [
-  "1110010",
-  "1100110",
-  "1101100",
-  "1000010",
-  "1011100",
-  "1001110",
-  "1010000",
-  "1000100",
-  "1001000",
-  "1110100",
-];
-
-const EAN13_PARITY = [
-  "LLLLLL",
-  "LLGLGG",
-  "LLGGLG",
-  "LLGGGL",
-  "LGLLGG",
-  "LGGLLG",
-  "LGGGLL",
-  "LGLGLG",
-  "LGLGGL",
-  "LGGLGL",
-];
 
 const safeWindow = () => (typeof window !== "undefined" ? window : null);
 
@@ -99,43 +48,10 @@ const buildQueryString = (entries = []) => {
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-const stripDigits = (value = "") => String(value).replace(/\D/g, "");
-
-const hashString = (value = "") => {
-  let hash = 0;
-  for (let index = 0; index < String(value).length; index += 1) {
-    hash = (hash << 5) - hash + String(value).charCodeAt(index);
-    hash |= 0;
-  }
-  return Math.abs(hash);
-};
-
-const checksumEan13 = (digits12) => {
-  const sum = String(digits12)
-    .split("")
-    .reduce((acc, digit, index) => {
-      const numeric = Number(digit || 0);
-      const multiplier = index % 2 === 0 ? 1 : 3;
-      return acc + numeric * multiplier;
-    }, 0);
-  return (10 - (sum % 10)) % 10;
-};
-
 const normalizeBarcode = (value, fallbackSeed = "") => {
-  const digits = stripDigits(value);
-
-  if (digits.length === 13) {
-    return digits;
-  }
-
-  if (digits.length === 12) {
-    return `${digits}${checksumEan13(digits)}`;
-  }
-
-  const seed = stripDigits(fallbackSeed) || String(hashString(value || fallbackSeed || "000000000000"));
-  const padded = `${seed}${String(hashString(`${value}-${fallbackSeed}`)).padStart(12, "0")}`;
-  const numeric = stripDigits(padded).padStart(12, "0").slice(0, 12);
-  return `${numeric}${checksumEan13(numeric)}`;
+  const text = String(value ?? "").trim();
+  if (text) return text;
+  return String(fallbackSeed ?? "").trim();
 };
 
 const firstText = (...values) =>
@@ -453,37 +369,45 @@ export const getBarcodeSvg = (value, { width = 360, height = 92, displayText = "
   const safeWidth = Math.max(1, Number(width || 360));
   const safeHeight = Math.max(34, Number(height || 92));
   const barcode = normalizeBarcode(value, displayText);
-  const digitString = barcode.padEnd(13, "0").slice(0, 13);
-  const first = Number(digitString[0]);
-  const parity = EAN13_PARITY[first];
-  const pattern = ["101"];
-
-  for (let index = 1; index <= 6; index += 1) {
-    const digit = Number(digitString[index]);
-    pattern.push(parity[index - 1] === "L" ? EAN13_L[digit] : EAN13_G[digit]);
-  }
-
-  pattern.push("01010");
-
-  for (let index = 7; index <= 12; index += 1) {
-    const digit = Number(digitString[index]);
-    pattern.push(EAN13_R[digit]);
-  }
-
-  pattern.push("101");
-  const bits = pattern.join("");
+  const text = displayText || barcode;
   const quietZone = 10;
-  const moduleWidth = Math.max(0.1, (safeWidth - quietZone * 2) / bits.length);
+  const codes = [Code128Reader.CODE_START_B];
+
+  for (const char of barcode) {
+    const charCode = char.charCodeAt(0);
+    const codeValue = charCode >= 32 && charCode <= 126 ? charCode - 32 : 0;
+    codes.push(codeValue);
+  }
+
+  const checksum = codes.reduce((sum, code, index) => {
+    if (index === 0) return code;
+    return sum + (code * index);
+  }, 0) % 103;
+  codes.push(checksum, Code128Reader.CODE_STOP);
+
+  const moduleCount = codes.reduce((sum, code) => {
+    const pattern = Code128Reader.CODE_PATTERNS[code] || [];
+    return sum + pattern.reduce((widthSum, moduleWidth) => widthSum + moduleWidth, 0);
+  }, 0);
+  const moduleWidth = Math.max(0.8, (safeWidth - quietZone * 2) / Math.max(1, moduleCount));
   const barTop = 14;
   const barHeight = Math.max(0, safeHeight - 30);
 
+  let cursorX = quietZone;
   let bars = "";
-  for (let index = 0; index < bits.length; index += 1) {
-    if (bits[index] !== "1") continue;
-    bars += `<rect x="${(quietZone + index * moduleWidth).toFixed(3)}" y="${barTop}" width="${moduleWidth.toFixed(3)}" height="${barHeight}" fill="#111827" />`;
-  }
-
-  const text = displayText || barcode;
+  codes.forEach((code, codeIndex) => {
+    const pattern = Code128Reader.CODE_PATTERNS[code] || [];
+    pattern.forEach((segmentWidth, segmentIndex) => {
+      const widthPx = segmentWidth * moduleWidth;
+      if (segmentIndex % 2 === 0) {
+        bars += `<rect x="${cursorX.toFixed(3)}" y="${barTop}" width="${widthPx.toFixed(3)}" height="${barHeight}" fill="#111827" />`;
+      }
+      cursorX += widthPx;
+    });
+    if (codeIndex < codes.length - 1) {
+      cursorX += 0;
+    }
+  });
 
   return `
     <svg viewBox="0 0 ${safeWidth} ${safeHeight}" width="${safeWidth}" height="${safeHeight}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${text}">
