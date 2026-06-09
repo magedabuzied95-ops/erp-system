@@ -15,6 +15,7 @@ import {
 const scopedTenantId = (req) => (isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id));
 
 const parseLimit = (value, fallback = 25, max = 200) => Math.min(Math.max(Number(value || fallback), 1), max);
+const resolveSessionId = (req) => req.params?.id ?? req.body?.sessionId ?? req.body?.session_id ?? req.body?.inventoryCountSessionId ?? req.body?.inventory_count_session_id ?? req.body?.inventoryCountId ?? req.body?.inventory_count_id ?? null;
 
 export const listSessions = async (req, res) => {
   try {
@@ -69,7 +70,7 @@ export const getSession = async (req, res) => {
     const tenantId = scopedTenantId(req);
     const result = await getInventoryCountSession(db, {
       tenantId,
-      sessionId: req.params.id,
+      sessionId: resolveSessionId(req),
     });
     if (!result) {
       return res.status(404).json({ success: false, message: "Inventory count session not found" });
@@ -86,7 +87,7 @@ export const updateSession = async (req, res) => {
     const tenantId = scopedTenantId(req);
     const session = await updateInventoryCountSession(db, {
       tenantId,
-      sessionId: req.params.id,
+      sessionId: resolveSessionId(req),
       branchId: req.body?.branchId ?? req.body?.branch_id ?? null,
       warehouseId: req.body?.warehouseId ?? req.body?.warehouse_id ?? null,
       title: req.body?.title ?? req.body?.session_title,
@@ -104,7 +105,7 @@ export const openSession = async (req, res) => {
     const tenantId = scopedTenantId(req);
     const session = await openInventoryCountSession(db, {
       tenantId,
-      sessionId: req.params.id,
+      sessionId: resolveSessionId(req),
       openedBy: req.user?.id || null,
     });
     return res.json({ success: true, session });
@@ -134,7 +135,7 @@ export const upsertItem = async (req, res) => {
     const tenantId = scopedTenantId(req);
     const result = await upsertInventoryCountItem(db, {
       tenantId,
-      sessionId: req.params.id,
+      sessionId: resolveSessionId(req),
       productVariantId: req.body?.productVariantId ?? req.body?.product_variant_id ?? req.body?.variantId ?? req.body?.variant_id,
       countedQuantity: req.body?.countedQuantity ?? req.body?.counted_quantity,
       systemQuantity: req.body?.systemQuantity ?? req.body?.system_quantity,
@@ -159,7 +160,7 @@ export const approveSession = async (req, res) => {
     const tenantId = scopedTenantId(req);
     const result = await approveInventoryCountSession(db, {
       tenantId,
-      sessionId: req.params.id,
+      sessionId: resolveSessionId(req),
       completedBy: req.user?.id || null,
     });
 
@@ -179,7 +180,7 @@ export const cancelSession = async (req, res) => {
     const tenantId = scopedTenantId(req);
     const result = await cancelInventoryCountSession(db, {
       tenantId,
-      sessionId: req.params.id,
+      sessionId: resolveSessionId(req),
       cancelledBy: req.user?.id || null,
       notes: req.body?.notes || "",
     });
@@ -193,4 +194,3 @@ export const cancelSession = async (req, res) => {
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to cancel inventory count session" });
   }
 };
-

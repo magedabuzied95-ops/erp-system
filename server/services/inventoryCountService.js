@@ -638,7 +638,19 @@ export const upsertInventoryCountItem = async (clientOrPool, data = {}) => {
   await ensureInventoryCountSchema();
   return withTransaction(clientOrPool, async (dbClient) => {
   const tenantId = data.tenantId ?? data.tenant_id ?? null;
-  const sessionId = data.sessionId ?? data.session_id;
+  const sessionId = normalizeNullableId(
+    data.sessionId ??
+    data.session_id ??
+    data.inventoryCountId ??
+    data.inventory_count_id ??
+    data.inventoryCountSessionId ??
+    data.inventory_count_session_id
+  );
+  console.log("[inventory-count] upsert item payload", JSON.stringify({
+    tenantId,
+    sessionId,
+    ...data,
+  }));
   const session = await fetchSessionRow(dbClient, { tenantId, sessionId, lock: true });
   if (!session) {
     const error = new Error("Inventory count session not found");
@@ -729,7 +741,7 @@ export const upsertInventoryCountItem = async (clientOrPool, data = {}) => {
       `,
       [
         sessionId,
-        existing.inventory_count_id ?? null,
+        sessionId,
         variant.product_id,
         variantId,
         variantId,
@@ -766,7 +778,7 @@ export const upsertInventoryCountItem = async (clientOrPool, data = {}) => {
       RETURNING *
       `,
       [
-        null,
+        sessionId,
         sessionId,
         variant.product_id,
         variantId,
