@@ -301,7 +301,7 @@ function InventoryCountPage() {
   const currentRole = getUserRole(currentUser);
   const canReviewInventoryCount = isAdminUser(currentUser) || ["manager", "branch manager"].includes(String(currentRole || "").toLowerCase());
   const sessionIsLockedForEditing = ["pending_review", "rejected", "completed", "cancelled"].includes(session?.status || "");
-  const isCompactInventoryLayout = useMediaQuery("(max-width: 1279px)");
+  const isCompactInventoryLayout = useMediaQuery("(max-width: 1366px)");
 
   const groupedLookupResults = useMemo(() => groupLookupModels(lookupResults), [lookupResults]);
   const groupedItems = useMemo(() => groupCountVariants(items), [items]);
