@@ -660,6 +660,38 @@ const asksImages = (message = "") => {
   const normalized = normalizeArabic(message);
   return /(صوره|صور|صورة|image|images|photo|photos|picture|pictures|ابعث الصور|ابعت الصور|شوف الصور|show images)/i.test(normalized);
 };
+const asksVideo = (message = "") => {
+  const normalized = normalizeArabic(message);
+  return /(فيديو|vid|video|مقطع|لقطة|مشهد)/i.test(normalized);
+};
+const asksMaterial = (message = "") => {
+  const normalized = normalizeArabic(message);
+  return /(خامة|خامه|خامت|الخامت|المادة|material|mesh|جلد|شمواه|سير|قماش|جودة|quality)/i.test(normalized);
+};
+const asksAuthenticity = (message = "") => {
+  const normalized = normalizeArabic(message);
+  return /(أصلي|اصلي|ميرور|mirror|first\s*copy|تقليد|authentic|authenticity)/i.test(normalized);
+};
+const asksOrigin = (message = "") => {
+  const normalized = normalizeArabic(message);
+  return /(vietnam|محلي|منشأ|بلد|origin|made\s*in)/i.test(normalized);
+};
+const asksRunningSuitability = (message = "") => {
+  const normalized = normalizeArabic(message);
+  return /(جري|running|رننج|sport|رياضة|يلعب|تمرين)/i.test(normalized);
+};
+const asksWorkSuitability = (message = "") => {
+  const normalized = normalizeArabic(message);
+  return /(شغل|work|daily|يومي|استخدام\s*يومي|دايلي|مكتبي)/i.test(normalized);
+};
+const asksComfort = (message = "") => {
+  const normalized = normalizeArabic(message);
+  return /(مريح|راحة|راحة\s*القدم|ريح|comfortable|comfort)/i.test(normalized);
+};
+const asksWeight = (message = "") => {
+  const normalized = normalizeArabic(message);
+  return /(خفيف|تقيل|ثقيل|weight|وزن)/i.test(normalized);
+};
 const asksSize = (message = "") => Boolean(explicitMessageSize(message) || /(مقاس|مقاسات|size)/i.test(message));
 const asksAvailability = (message = "") => /(فيه|موجود|متاح|available|stock|عندكم)/i.test(message);
 const isBuyingIntentMessage = (message = "") => /(عايز اشتري|عاوز اشتري|اشتريه|اشتريه|احجزه|احجزها|كمل الطلب|اوردر|order|checkout|buy)/i.test(normalizeArabic(message));
@@ -938,6 +970,25 @@ export const composeAiSalesReply = async ({
       return withAnswer(response, discountReply);
     }
 
+    if (asksVideo(message)) {
+      const videoReply = regressionImageUrls.length
+        ? `حاليًا المتاح صور، ولو فيه فيديو للموديل هأراجعهولك من السيستم.`
+        : "حاليًا المتاح صور، ولو فيه فيديو هأراجعهولك من السيستم.";
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_video",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_video",
+        answerLength: text(videoReply).length,
+        stage: "",
+      });
+      return withAnswer(response, videoReply);
+    }
+
     if (requestedColor && !asksImages(message) && !asksSize(message, response) && !asksPrice(message, response, intent)) {
       const regressionColorReply = [
         `أيوه اللون ${requestedColor} موجود حاليًا.`,
@@ -957,6 +1008,138 @@ export const composeAiSalesReply = async ({
         stage: "",
       });
       return withAnswer(response, regressionColorReply);
+    }
+
+    if (asksMaterial(message)) {
+      const regressionMaterial = text(top.material || top.fabric || top.material_name || top.selected_variant?.material || "");
+      const materialReply = regressionMaterial
+        ? `الخامة الظاهرة من بيانات المنتج هي ${regressionMaterial}، والجودة مناسبة للاستخدام اليومي.`
+        : "الخامة والجودة ظاهرين من بيانات المنتج، ولو تحب أراجعلك التفاصيل من السيستم.";
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_material",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_material",
+        answerLength: text(materialReply).length,
+        stage: "",
+      });
+      return withAnswer(response, materialReply);
+    }
+
+    if (asksAuthenticity(message)) {
+      const regressionOrigin = text(top.origin || top.country || top.made_in || top.manufacturing_country || "");
+      const authenticityReply = regressionOrigin
+        ? `مش هأكد أصلي أو ميرور إلا لو السيستم مؤكد، لكن الظاهر من بيانات المنتج ${regressionOrigin}.`
+        : "مش هأكد أصلي أو ميرور إلا لو السيستم مؤكد، وأقدر أراجعلك التصنيف من السيستم.";
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_authenticity",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_authenticity",
+        answerLength: text(authenticityReply).length,
+        stage: "",
+      });
+      return withAnswer(response, authenticityReply);
+    }
+
+    if (asksOrigin(message)) {
+      const regressionOrigin = text(top.origin || top.country || top.made_in || top.manufacturing_country || "");
+      const originReply = regressionOrigin
+        ? `المنشأ الظاهر من بيانات المنتج ${regressionOrigin}.`
+        : "المنشأ مش ظاهر بوضوح في البيانات، وأقدر أراجعهولك من السيستم.";
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_origin",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_origin",
+        answerLength: text(originReply).length,
+        stage: "",
+      });
+      return withAnswer(response, originReply);
+    }
+
+    if (asksRunningSuitability(message)) {
+      const runningReply = /running|جري|رننج/i.test(text(top.use_case || top.category || top.type || "")) || /running|جري|رننج/i.test(text(top.name || top.title || ""))
+        ? "أيوه مناسب للجري، وسهل تمشي به في التمرين كمان."
+        : "ممكن يكون مناسب للاستخدام اليومي، ولو تحب أراجعلك ملاءمته للجري من السيستم.";
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_running",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_running",
+        answerLength: text(runningReply).length,
+        stage: "",
+      });
+      return withAnswer(response, runningReply);
+    }
+
+    if (asksWorkSuitability(message)) {
+      const workReply = /casual|daily|work|office|يومي|دايلي|casual/i.test(text(top.use_case || top.category || top.type || ""))
+        ? "أيوه مناسب للشغل والاستخدام اليومي، وبيطلع ستايل محترم."
+        : "ممكن يناسب الشغل والاستخدام اليومي، ولو تحب أراجعلك التفاصيل من السيستم.";
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_work",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_work",
+        answerLength: text(workReply).length,
+        stage: "",
+      });
+      return withAnswer(response, workReply);
+    }
+
+    if (asksComfort(message)) {
+      const comfortReply = "أيوه مريح للاستخدام اليومي، ولو تحب أراجعلك الخامة والتفاصيل أكتر من السيستم.";
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_comfort",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_comfort",
+        answerLength: text(comfortReply).length,
+        stage: "",
+      });
+      return withAnswer(response, comfortReply);
+    }
+
+    if (asksWeight(message)) {
+      const weightReply = "مش ظاهر وزن دقيق في البيانات، لكن شكله مريح للاستخدام اليومي.";
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_weight",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_weight",
+        answerLength: text(weightReply).length,
+        stage: "",
+      });
+      return withAnswer(response, weightReply);
     }
 
     if (isObjectionMessage(message)) {
