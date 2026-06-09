@@ -85,6 +85,30 @@ const logPortalTokenDebug = ({ req, token, employee = null, reason = "" }) => {
 const portalRoutePath = (req) => `${req.baseUrl || ""}${req.route?.path || req.path || ""}`;
 const clean = (value = "") => String(value || "").trim();
 const normalizeId = (value) => (value === null || value === undefined || value === "" ? null : String(value));
+const enrichInventoryImageFields = (row = {}) => {
+  const imageUrl = clean(
+    row.image_url ||
+      row.image ||
+      row.product_image ||
+      row.color_image ||
+      row.variant_image ||
+      row.variant_image_url ||
+      row.product_image_url ||
+      row.color_image_url ||
+      row.thumbnail_url ||
+      row.photo_url ||
+      ""
+  );
+  return {
+    ...row,
+    image_url: imageUrl,
+    image: row.image || imageUrl,
+    product_image: row.product_image || imageUrl,
+    color_image: row.color_image || imageUrl,
+    variant_image: row.variant_image || imageUrl,
+    images: Array.isArray(row.images) && row.images.length ? row.images : imageUrl ? [imageUrl] : [],
+  };
+};
 const normalizeColorKey = (value = "") => {
   const aliases = {
     black: "black",
@@ -321,7 +345,11 @@ const loadEmployeeInventorySession = async (req, res) => {
     return null;
   }
 
-  return { employee, ...result };
+  return {
+    employee,
+    session: result.session,
+    items: Array.isArray(result.items) ? result.items.map(enrichInventoryImageFields) : [],
+  };
 };
 
 const loadEmployeePortalInventoryColorGroup = async ({ tenantId, productId, color }) => {
@@ -358,6 +386,152 @@ const loadEmployeePortalInventoryColorGroup = async ({ tenantId, productId, colo
       stock: Number(row.stock || 0),
     }))
     .filter((row) => normalizeColorKey(row.color) === targetColorKey);
+};
+
+const buildEmployeePortalFallbackPayload = (employee, timeZone = "Africa/Cairo", warnings = []) => {
+  const now = new Date();
+  const currentPeriod = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+  }).format(now);
+  const fallbackEmployee = {
+    id: employee.id,
+    tenant_id: employee.tenant_id || null,
+    tenantId: employee.tenant_id || null,
+    name: employee.full_name || "",
+    code: employee.employee_code || "",
+    job_title: employee.job_title || employee.position || "",
+    branch_id: employee.branch_id || null,
+    branchId: employee.branch_id || null,
+    branch: employee.branch_name || "",
+    photo_url: "",
+    avatar_url: "",
+    image_url: "",
+    profile_image: "",
+    image: "",
+    photo: "",
+    employee_image: "",
+    currentShift: null,
+    shiftName: "",
+    startTime: "",
+    endTime: "",
+    expectedHours: 0,
+    workingDays: [],
+  };
+  return {
+    employee_profile: {
+      ...fallbackEmployee,
+      avatar_initials: clean(employee.full_name).split(/\s+/).slice(0, 2).map((part) => part?.[0] || "").join("").toUpperCase(),
+    },
+    employee: fallbackEmployee,
+    currentShift: null,
+    shiftName: "",
+    startTime: "",
+    endTime: "",
+    expectedHours: 0,
+    workingDays: [],
+    wallet_summary: {
+      current_net_salary: null,
+      total_advances: 0,
+      pending_commissions: 0,
+      total_deductions: 0,
+      payroll_status: "not_generated",
+    },
+    recent_wallet_transactions: [],
+    payslip: {
+      employee_name: employee.full_name || "",
+      employee_code: employee.employee_code || "",
+      job_title: employee.job_title || employee.position || "",
+      branch: employee.branch_name || "",
+      payroll_period: currentPeriod,
+      period_start: `${currentPeriod}-01`,
+      period_end: `${currentPeriod}-01`,
+      base_salary: Number(employee.salary || 0),
+      commissions: 0,
+      bonuses: 0,
+      advances: 0,
+      penalties: 0,
+      absence_deduction: 0,
+      other_deductions: 0,
+      total_deductions: 0,
+      net_salary: null,
+      payroll_status: "not_generated",
+      finalized_at: null,
+      payroll_reference: "",
+    },
+    attendance: {
+      summary: {
+        records_count: 0,
+        attended_days: 0,
+        absence_days: 0,
+        late_days: 0,
+        missing_checkout_days: 0,
+        overtime_hours: 0,
+        late_minutes: 0,
+        expected_working_days: 0,
+        period_start: `${currentPeriod}-01`,
+        period_end: `${currentPeriod}-01`,
+        deducted_absence_amount: 0,
+      },
+      timeline: [],
+    },
+    employee_requests: [],
+    notifications: [],
+    unread_notifications_count: 0,
+    tasks: [],
+    task_summary: {
+      today: 0,
+      pending: 0,
+      completed: 0,
+      critical: 0,
+    },
+    qr_attendance: {
+      enabled: true,
+      branch_id: employee.branch_id || null,
+      branch: employee.branch_name || "",
+    },
+    performance: {
+      period: currentPeriod,
+      score: { overall: 0, attendance: 0, sales: 0, punctuality: 0, customer_service: 0, penalties_impact: 0 },
+      goals: { monthly_sales_target: 0, attendance_target_days: 0, branch_kpi_target: 0, sales_total: 0, attendance_days: 0, sales_progress: 0, attendance_progress: 0, branch_kpi_progress: 0 },
+      reward_points: { points_balance: 0, rewards: [], badges: [], lazy: true, points_earned_this_month: 0 },
+      achievements: [],
+    },
+    leaderboard: [],
+    warnings,
+    current_payroll_period: currentPeriod,
+    payroll_generated: false,
+    payroll_status: "not_generated",
+    payment_status: "not_generated",
+    base_salary: Number(employee.salary || 0),
+    sales_commission: 0,
+    commissions: 0,
+    bonuses: 0,
+    advances: 0,
+    penalties: 0,
+    absence_deduction: 0,
+    other_deductions: 0,
+    total_deductions: 0,
+    net_salary: null,
+    finalized_at: null,
+    recent_advances: [],
+    recent_attendance_summary: {
+      records_count: 0,
+      attended_days: 0,
+      absence_days: 0,
+      late_days: 0,
+      missing_checkout_days: 0,
+      overtime_hours: 0,
+      late_minutes: 0,
+      expected_working_days: 0,
+      period_start: `${currentPeriod}-01`,
+      period_end: `${currentPeriod}-01`,
+      deducted_absence_amount: 0,
+      missing_hours: 0,
+      late_hours: 0,
+    },
+  };
 };
 
 router.get("/:token/chat", async (req, res) => {
@@ -441,7 +615,11 @@ router.get("/:token/inventory/sessions/:sessionId", async (req, res) => {
   try {
     const scoped = await loadEmployeeInventorySession(req, res);
     if (!scoped) return;
-    return res.json({ success: true, session: scoped.session, items: scoped.items });
+    return res.json({
+      success: true,
+      session: scoped.session,
+      items: Array.isArray(scoped.items) ? scoped.items.map(enrichInventoryImageFields) : [],
+    });
   } catch (error) {
     console.error("[employee-payroll-portal] inventory session load error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load inventory session" });
@@ -501,10 +679,16 @@ router.get("/:token/inventory/sessions/:sessionId/lookup", async (req, res) => {
         color: exactRow.color,
       });
       if (colorGroup.length) {
-        return res.json({ success: true, items: colorGroup });
+        return res.json({
+          success: true,
+          items: colorGroup.map(enrichInventoryImageFields),
+        });
       }
     }
-    return res.json({ success: true, items });
+    return res.json({
+      success: true,
+      items: Array.isArray(items) ? items.map(enrichInventoryImageFields) : [],
+    });
   } catch (error) {
     console.error("[employee-payroll-portal] inventory lookup error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to search inventory session" });
@@ -715,19 +899,57 @@ router.get("/:token", async (req, res) => {
       return await employeeNotFoundResponse(req, res, token);
     }
 
-    await recordEmployeePortalAudit({
-      employee,
-      action: "token_login",
-      audit: auditContextFromRequest(req),
-      metadata: { matched_field: "employee_portal_token" },
-    });
+    try {
+      await recordEmployeePortalAudit({
+        employee,
+        action: "token_login",
+        audit: auditContextFromRequest(req),
+        metadata: { matched_field: "employee_portal_token" },
+      });
+    } catch (auditError) {
+      console.error("[employee-payroll-portal] public audit skipped", {
+        requestId: req.id,
+        employeeId: employee.id,
+        message: auditError?.message || "",
+        stack: auditError?.stack || "",
+      });
+    }
     const includeOptional = ["1", "true", "yes", "on"].includes(String(req.query.include_optional || req.query.includeOptional || "").toLowerCase());
-    const portal = await buildEmployeePayrollPortalPayload({
-      employee,
-      includeOptional,
-      timings,
-      timeZone: req.query.timezone || req.query.time_zone || req.query.tz || "Africa/Cairo",
-    });
+    const portalTimeZone = req.query.timezone || req.query.time_zone || req.query.tz || "Africa/Cairo";
+    let portal;
+    try {
+      portal = await buildEmployeePayrollPortalPayload({
+        employee,
+        includeOptional,
+        timings,
+        timeZone: portalTimeZone,
+      });
+    } catch (portalError) {
+      console.error("[employee-payroll-portal] public portal payload failed", {
+        requestId: req.id,
+        employeeId: employee.id,
+        message: portalError?.message || "",
+        stack: portalError?.stack || "",
+      });
+      const fallbackWarnings = [
+        {
+          section: "portal",
+          code: "fallback",
+          message: "Portal payload fallback was used after a runtime error.",
+        },
+      ];
+      try {
+        portal = buildEmployeePortalFallbackPayload(employee, portalTimeZone, fallbackWarnings);
+      } catch (fallbackError) {
+        console.error("[employee-payroll-portal] public portal fallback failed", {
+          requestId: req.id,
+          employeeId: employee.id,
+          message: fallbackError?.message || "",
+          stack: fallbackError?.stack || "",
+        });
+        portal = buildEmployeePortalFallbackPayload(employee, "Africa/Cairo", fallbackWarnings);
+      }
+    }
     timings.total_ms = nowMs() - totalStartedAt;
     logPortalPerf("GET /api/employee-portal/:token", timings, {
       requestId: req.id,
@@ -746,7 +968,11 @@ router.get("/:token", async (req, res) => {
       requestId: req.id,
       failed: true,
     });
-    console.error("[employee-payroll-portal] public load error", error);
+    console.error("[employee-payroll-portal] public load error", {
+      requestId: req.id,
+      message: error?.message || "",
+      stack: error?.stack || "",
+    });
     return res.status(500).json({ success: false, message: "Failed to load employee portal" });
   }
 });

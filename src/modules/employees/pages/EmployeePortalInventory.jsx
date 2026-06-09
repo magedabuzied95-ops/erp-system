@@ -20,6 +20,7 @@ import {
 import toast from "react-hot-toast";
 
 import BarcodeScanner from "../../../components/BarcodeScanner";
+import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import {
   createEmployeePortalInventorySession,
@@ -38,6 +39,58 @@ const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
+const firstNonEmpty = (...values) => values.map((value) => clean(value)).find(Boolean) || "";
+const readImageValue = (value) => {
+  if (!value) return "";
+  if (typeof value === "string") return clean(value);
+  if (Array.isArray(value)) return readImageValue(value[0]);
+  if (typeof value === "object") {
+    return firstNonEmpty(
+      value.image_url,
+      value.image,
+      value.product_image,
+      value.color_image,
+      value.variant_image,
+      value.url,
+      value.src,
+      value.path,
+      value.thumbnail_url,
+      value.photo_url,
+      value.secure_url,
+      value.cloudinary_url
+    );
+  }
+  return "";
+};
+const resolveInventoryImageUrl = (...sources) => {
+  for (const source of sources) {
+    const candidate = readImageValue(source);
+    const resolved = resolveProductImageUrl(candidate);
+    if (resolved) return resolved;
+  }
+  return "";
+};
+const getInventoryImageCandidates = (record = {}) => [
+  record.image_url,
+  record.image,
+  record.product_image,
+  record.product_image_url,
+  record.color_image,
+  record.color_image_url,
+  record.variant_image,
+  record.variant_image_url,
+  record.thumbnail_url,
+  record.photo_url,
+  record.thumbnail,
+  record.photo,
+  record.images,
+  record.product_images,
+  record.gallery_images,
+];
+const createInventoryImagePlaceholder = (label = "") => ({
+  src: "",
+  alt: label,
+});
 const normalizeColorKey = (value = "") => {
   const aliases = {
     black: "black",
@@ -141,7 +194,7 @@ const normalizeVariant = (record = {}) => {
   const sku = clean(record.sku ?? record.variant_sku ?? "");
   const barcode = clean(record.barcode ?? record.variant_barcode ?? "");
   const articleCode = clean(record.article_code ?? record.variant_article_code ?? "");
-  const imageUrl = clean(record.image_url ?? record.variant_image_url ?? "");
+  const imageUrl = resolveInventoryImageUrl(...getInventoryImageCandidates(record));
   const systemQuantity = toNumber(record.system_quantity ?? record.stock ?? record.expected_qty ?? 0);
   const countedQuantity = toNumber(record.counted_quantity ?? record.actual_qty ?? 0);
   const differenceQuantity = toNumber(record.difference_quantity ?? record.difference_qty ?? countedQuantity - systemQuantity);
@@ -159,6 +212,11 @@ const normalizeVariant = (record = {}) => {
     barcode,
     article_code: articleCode,
     image_url: imageUrl,
+    image: imageUrl,
+    product_image: imageUrl,
+    color_image: imageUrl,
+    variant_image: imageUrl,
+    images: imageUrl ? [imageUrl] : [],
     system_quantity: systemQuantity,
     counted_quantity: countedQuantity,
     difference_quantity: differenceQuantity,
@@ -182,6 +240,11 @@ const groupVariants = (records = []) => {
         color: variant.color,
         color_key: colorKey,
         image_url: variant.image_url,
+        image: variant.image_url,
+        product_image: variant.image_url,
+        color_image: variant.image_url,
+        variant_image: variant.image_url,
+        images: variant.image_url ? [variant.image_url] : [],
         variants: [],
         system_total: 0,
         counted_total: 0,
@@ -189,7 +252,14 @@ const groupVariants = (records = []) => {
       });
     }
     const group = groups.get(key);
-    if (!group.image_url && variant.image_url) group.image_url = variant.image_url;
+    if (!group.image_url && variant.image_url) {
+      group.image_url = variant.image_url;
+      group.image = variant.image_url;
+      group.product_image = variant.image_url;
+      group.color_image = variant.image_url;
+      group.variant_image = variant.image_url;
+      group.images = variant.image_url ? [variant.image_url] : group.images;
+    }
     group.variants.push(variant);
     group.system_total += toNumber(variant.system_quantity, 0);
     group.counted_total += toNumber(variant.counted_quantity, 0);
@@ -208,6 +278,43 @@ const isExactVariantMatch = (query, variant) => {
   return [variant.barcode, variant.sku, variant.article_code, variant.product_barcode, variant.product_sku]
     .some((value) => clean(value).toLowerCase() === normalized);
 };
+
+function InventoryImage({ src, alt = "", className = "" }) {
+  const safeSrc = resolveProductImageUrl(src);
+  if (safeSrc) {
+    return <img src={safeSrc} alt={alt} className={`h-full w-full object-cover ${className}`.trim()} loading="lazy" />;
+  }
+
+  const adjustVariantCount = useCallback(async (variant, delta) => {
+    if (!isEditable) return;
+    const variantId = String(variant.product_variant_id ?? variant.variant_id ?? variant.id ?? "");
+    if (!variantId) return;
+    const currentValue = toNumber(variant.counted_quantity, 0);
+    const nextValue = Math.max(0, currentValue + Number(delta || 0));
+    handleVariantCountChange(variantId, nextValue);
+    await saveItem(variant, { countedQuantity: nextValue, systemQuantity: variant.system_quantity });
+  }, [handleVariantCountChange, isEditable, saveItem]);
+
+  const resolveCardImage = useCallback((record) => resolveInventoryImageUrl(
+    record?.image_url,
+    record?.image,
+    record?.product_image,
+    record?.product_image_url,
+    record?.color_image,
+    record?.color_image_url,
+    record?.variant_image,
+    record?.variant_image_url,
+    record?.images,
+    record?.product_images,
+    record?.gallery_images
+  ), []);
+
+  return (
+    <div className={`flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 ${className}`.trim()}>
+      <Warehouse className="h-5 w-5" />
+    </div>
+  );
+}
 
 function ScannerModal({ onClose, onScan }) {
   return createPortal(
@@ -489,7 +596,29 @@ export default function EmployeePortalInventory() {
           current.map((row) => {
             const currentId = String(row.product_variant_id ?? row.variant_id ?? row.id ?? "");
             const savedId = String(saved.product_variant_id ?? saved.variant_id ?? saved.id ?? "");
-            return currentId === savedId ? { ...row, ...saved } : row;
+            if (currentId !== savedId) return row;
+            const mergedImageUrl = resolveInventoryImageUrl(
+              saved.image_url,
+              saved.image,
+              saved.product_image,
+              saved.color_image,
+              saved.variant_image,
+              row.image_url,
+              row.image,
+              row.product_image,
+              row.color_image,
+              row.variant_image
+            );
+            return {
+              ...row,
+              ...saved,
+              image_url: mergedImageUrl || row.image_url || saved.image_url || "",
+              image: mergedImageUrl || row.image || saved.image || "",
+              product_image: mergedImageUrl || row.product_image || saved.product_image || "",
+              color_image: mergedImageUrl || row.color_image || saved.color_image || "",
+              variant_image: mergedImageUrl || row.variant_image || saved.variant_image || "",
+              images: mergedImageUrl ? [mergedImageUrl] : row.images || saved.images || [],
+            };
           })
         );
       }
@@ -907,22 +1036,25 @@ export default function EmployeePortalInventory() {
                     <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-2">
                       {lookupGroups.map((group) => (
                         <div key={group.key} className="inventory-wrap rounded-2xl border border-slate-200 bg-white p-3">
-                          <div className="flex min-w-0 items-start justify-between gap-3">
-                            <div className="inventory-product-title min-w-0">
+                          <div className="flex min-w-0 items-start gap-3">
+                            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+                              <InventoryImage src={resolveCardImage(group)} alt={group.product_name || "منتج"} />
+                            </div>
+                            <div className="min-w-0 flex-1">
                               <div className="truncate text-sm font-black text-slate-950">{group.product_name || "منتج"}</div>
                               <div className="mt-1 text-xs font-semibold text-slate-500">
                                 {group.color || "لون غير محدد"} • {group.variants.length} قطع
                               </div>
+                              <button
+                                type="button"
+                                onClick={() => addColorGroup(group)}
+                                disabled={!isEditable}
+                                className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-xs font-black text-white disabled:opacity-60"
+                              >
+                                <Plus className="h-4 w-4" />
+                                إضافة اللون
+                              </button>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => addColorGroup(group)}
-                              disabled={!isEditable}
-                              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-xs font-black text-white disabled:opacity-60"
-                            >
-                              <Plus className="h-4 w-4" />
-                              إضافة اللون
-                            </button>
                           </div>
                         </div>
                       ))}
@@ -946,15 +1078,18 @@ export default function EmployeePortalInventory() {
                   <div className="mt-4 space-y-3">
                     {groupedItems.length ? groupedItems.map((group) => (
                       <div key={group.key} className="inventory-wrap rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                        <div className="flex min-w-0 items-start justify-between gap-3">
-                          <div className="inventory-product-title min-w-0">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+                            <InventoryImage src={resolveCardImage(group)} alt={group.product_name || "منتج"} />
+                          </div>
+                          <div className="min-w-0 flex-1">
                             <div className="truncate text-sm font-black text-slate-950">{group.product_name || "منتج"}</div>
                             <div className="mt-1 text-xs font-semibold text-slate-500">
                               {group.color || "لون غير محدد"} • المتوقع {group.system_total} • الفعلي {group.counted_total}
                             </div>
-                          </div>
-                          <div className="text-left text-xs font-black text-slate-500">
-                            {group.difference_total === 0 ? "متوازن" : group.difference_total > 0 ? `زيادة ${group.difference_total}` : `عجز ${Math.abs(group.difference_total)}`}
+                            <div className="mt-2 text-xs font-black text-slate-500">
+                              {group.difference_total === 0 ? "متوازن" : group.difference_total > 0 ? `زيادة ${group.difference_total}` : `عجز ${Math.abs(group.difference_total)}`}
+                            </div>
                           </div>
                         </div>
                         <div className="mt-3 space-y-2">
@@ -962,30 +1097,49 @@ export default function EmployeePortalInventory() {
                             const variantId = String(variant.product_variant_id ?? variant.variant_id ?? variant.id ?? "");
                             const saving = itemSavingId === variantId;
                             return (
-                              <div key={variantId} className="inventory-item inventory-grid-columns grid min-w-0 gap-2 rounded-2xl border border-white/80 bg-white p-3 md:items-center">
-                                <div className="inventory-item-main min-w-0">
-                                  <div className="truncate text-sm font-black text-slate-950">{variant.size || variant.sku || "مقاس غير محدد"}</div>
-                                  <div className="mt-1 text-xs font-semibold text-slate-500">
-                                    {variant.sku ? `SKU: ${variant.sku}` : variant.barcode ? `Barcode: ${variant.barcode}` : "بدون SKU"}
+                              <div key={variantId} className="inventory-item min-w-0 rounded-2xl border border-white/80 bg-white p-3">
+                                <div className="flex min-w-0 items-start gap-3">
+                                  <div className="h-12 w-12 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+                                    <InventoryImage src={resolveCardImage(variant)} alt={`${group.product_name || "منتج"} ${variant.color || ""}`} />
+                                  </div>
+                                  <div className="inventory-item-main min-w-0 flex-1">
+                                    <div className="truncate text-sm font-black text-slate-950">{variant.size || variant.sku || "مقاس غير محدد"}</div>
+                                    <div className="mt-1 text-xs font-semibold text-slate-500">
+                                      {variant.sku ? `SKU: ${variant.sku}` : variant.barcode ? `Barcode: ${variant.barcode}` : "بدون SKU"}
+                                    </div>
+                                  </div>
+                                  <div className="text-left text-xs font-black">
+                                    <span className={variant.difference_quantity === 0 ? "text-emerald-700" : variant.difference_quantity > 0 ? "text-amber-700" : "text-rose-700"}>
+                                      {variant.difference_quantity === 0 ? "متوازن" : variant.difference_quantity > 0 ? `زيادة ${variant.difference_quantity}` : `عجز ${Math.abs(variant.difference_quantity)}`}
+                                    </span>
                                   </div>
                                 </div>
-                                <label className="block">
-                                  <div className="text-[11px] font-black text-slate-400">الكمية</div>
+                                <div className="mt-3 grid grid-cols-[56px_minmax(0,1fr)_56px] gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => adjustVariantCount(variant, -1)}
+                                    disabled={!isEditable || saving}
+                                    className="inline-flex h-14 items-center justify-center rounded-2xl border border-slate-200 bg-white text-2xl font-black text-slate-700 disabled:opacity-50"
+                                    aria-label="إنقاص الكمية"
+                                  >
+                                    -
+                                  </button>
                                   <input
-                                    type="number"
-                                    min="0"
+                                    type="text"
+                                    readOnly
+                                    inputMode="numeric"
                                     value={variant.counted_quantity}
-                                    disabled={!isEditable}
-                                    onChange={(event) => handleVariantCountChange(variantId, event.target.value)}
-                                    onBlur={() => saveItem(variant, { countedQuantity: variant.counted_quantity })}
-                                    className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-base font-black text-slate-950 outline-none disabled:opacity-70"
+                                    className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-center text-base font-black text-slate-950 outline-none"
                                   />
-                                </label>
-                                <div className="flex items-center justify-between gap-2 text-xs font-black">
-                                  <span className={variant.difference_quantity === 0 ? "text-emerald-700" : variant.difference_quantity > 0 ? "text-amber-700" : "text-rose-700"}>
-                                    {variant.difference_quantity === 0 ? "متوازن" : variant.difference_quantity > 0 ? `زيادة ${variant.difference_quantity}` : `عجز ${Math.abs(variant.difference_quantity)}`}
-                                  </span>
-                                  {saving ? <Loader2 className="h-4 w-4 animate-spin text-slate-400" /> : <CheckCircle2 className="h-4 w-4 text-slate-300" />}
+                                  <button
+                                    type="button"
+                                    onClick={() => adjustVariantCount(variant, 1)}
+                                    disabled={!isEditable || saving}
+                                    className="inline-flex h-14 items-center justify-center rounded-2xl bg-emerald-600 text-2xl font-black text-white disabled:opacity-50"
+                                    aria-label="زيادة الكمية"
+                                  >
+                                    +
+                                  </button>
                                 </div>
                               </div>
                             );
