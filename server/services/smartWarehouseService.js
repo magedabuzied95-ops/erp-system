@@ -79,7 +79,14 @@ export const ensureSmartWarehouseSchema = async () => {
         await client.query(`ALTER TABLE warehouse_sections ADD COLUMN IF NOT EXISTS qr_code TEXT`);
         await client.query(`ALTER TABLE warehouse_sections ADD COLUMN IF NOT EXISTS barcode VARCHAR(160)`);
         await client.query(`ALTER TABLE warehouse_sections ADD COLUMN IF NOT EXISTS color VARCHAR(40) DEFAULT '#2563eb'`);
+        await client.query(`ALTER TABLE inventory_count_items ADD COLUMN IF NOT EXISTS inventory_count_session_id BIGINT`);
+        await client.query(`ALTER TABLE inventory_count_items ADD COLUMN IF NOT EXISTS product_variant_id BIGINT`);
+        await client.query(`ALTER TABLE inventory_count_items ADD COLUMN IF NOT EXISTS system_quantity INTEGER NOT NULL DEFAULT 0`);
+        await client.query(`ALTER TABLE inventory_count_items ADD COLUMN IF NOT EXISTS counted_quantity INTEGER NOT NULL DEFAULT 0`);
+        await client.query(`ALTER TABLE inventory_count_items ADD COLUMN IF NOT EXISTS difference_quantity INTEGER NOT NULL DEFAULT 0`);
+        await client.query(`ALTER TABLE inventory_count_items ADD COLUMN IF NOT EXISTS reason TEXT NOT NULL DEFAULT ''`);
         await client.query(`ALTER TABLE inventory_count_items ADD COLUMN IF NOT EXISTS notes TEXT`);
+        await client.query(`ALTER TABLE inventory_count_items ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
         await client.query(`ALTER TABLE warehouse_inventory ADD COLUMN IF NOT EXISTS branch_id BIGINT`);
         await client.query(`ALTER TABLE warehouse_inventory ADD COLUMN IF NOT EXISTS section_id BIGINT`);
         await client.query(`ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
@@ -92,6 +99,8 @@ export const ensureSmartWarehouseSchema = async () => {
         await client.query(`CREATE INDEX IF NOT EXISTS idx_inventory_counts_status ON inventory_counts (status)`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_inventory_count_items_count_id ON inventory_count_items (inventory_count_id)`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_inventory_count_items_variant_id ON inventory_count_items (variant_id)`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_inventory_count_items_session_id ON inventory_count_items (inventory_count_session_id)`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_inventory_count_items_product_variant_id ON inventory_count_items (product_variant_id)`);
         await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_master_qr_models_product_id ON master_qr_models (product_id)`);
         await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_master_qr_models_qr_value ON master_qr_models (qr_value)`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_products_sku_perf ON products (sku)`);

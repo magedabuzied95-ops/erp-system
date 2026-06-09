@@ -68,7 +68,7 @@ export const getVariantStockReconciliation = async (clientOrPool = db, options =
         COALESCE(SUM(CASE WHEN movement_type IN ('transfer', 'transfer_in', 'transfer_out') THEN quantity_change ELSE 0 END), 0)::int AS transfer_total,
         COALESCE(SUM(CASE WHEN movement_type IN ('sale', 'website_order') OR reference_type IN ('order', 'sale') THEN quantity_change ELSE 0 END), 0)::int AS sale_total,
         COALESCE(SUM(CASE WHEN movement_type IN ('return', 'return_in') OR reference_type = 'return' THEN quantity_change ELSE 0 END), 0)::int AS return_total,
-        COALESCE(SUM(CASE WHEN movement_type IN ('manual_adjustment', 'product_stock_edit', 'inventory_count', 'undo_adjustment', 'order_edit', 'order_cancel') THEN quantity_change ELSE 0 END), 0)::int AS adjustment_total,
+        COALESCE(SUM(CASE WHEN movement_type IN ('manual_adjustment', 'product_stock_edit', 'inventory_count', 'inventory_adjustment', 'undo_adjustment', 'order_edit', 'order_cancel') THEN quantity_change ELSE 0 END), 0)::int AS adjustment_total,
         COUNT(*)::int AS movement_count
       FROM active_movements
       GROUP BY variant_id

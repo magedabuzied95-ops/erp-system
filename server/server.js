@@ -26,6 +26,7 @@ import { protect } from "./middleware/authMiddleware.js";
 import permit from "./middleware/permissionMiddleware.js";
 import { listRecentDisplayRefillAlerts } from "./services/displayRefillAlertService.js";
 import { ensureUsersLoginSchema } from "./controllers/authController.js";
+import { ensureInventoryCountSchema } from "./services/inventoryCountService.js";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -450,6 +451,7 @@ const { default: ordersRoutes } = await import("./routes/orders.js");
 const { default: posRoutes } = await import("./routes/pos.js");
 const { default: paymobRoutes } = await import("./routes/paymob.js");
 const { default: inventoryRoutes } = await import("./routes/inventoryRoutes.js");
+const { default: inventoryCountRoutes } = await import("./routes/inventoryCount.js");
 const { default: uploadRoutes } = await import("./routes/uploadRoutes.js");
 const { default: variantRoutes } = await import("./routes/variantRoutes.js");
 const { default: customerRoutes } = await import("./routes/customers.js");
@@ -851,6 +853,8 @@ app.use("/api", employeePenaltyRoutes);
 console.log("[employee-penalties] routes mounted at /api", {
   routes: collectRouterEndpoints(employeePenaltyRoutes, "/api"),
 });
+app.use("/api/inventory-count", inventoryCountRoutes);
+console.log("[server] inventory count routes mounted at /api/inventory-count");
 app.use("/api/sales-employees", salesEmployeesRoutes);
 app.use("/api/sales-commissions", salesCommissionsRoutes);
 app.use("/api/attendance", attendanceRoutes);
@@ -1179,6 +1183,8 @@ const bootstrapStartup = async () => {
     console.log("[server] products metadata cache warmed");
     await ensureVariantsInventorySchema(db);
     console.log("[server] variants inventory schema ensured");
+    await ensureInventoryCountSchema();
+    console.log("[server] inventory count schema ensured");
     await ensureOrdersSchema(db, null);
     console.log("[server] orders schema ensured");
     await ensureAccountingSchema();

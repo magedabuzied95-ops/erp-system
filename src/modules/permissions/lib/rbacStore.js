@@ -20,6 +20,7 @@ import {
   Warehouse,
   Wallet,
   CalendarClock,
+  ClipboardList,
   CircleDollarSign,
   Megaphone,
   Share2,
@@ -418,6 +419,7 @@ const RAW_SIDEBAR_SECTIONS = [
     title: "Inventory",
     items: [
       { label: "Inventory", to: "/inventory", permission: "inventory.view", icon: Boxes },
+      { label: "الجرد", to: "/inventory/count", permission: "inventory.view", icon: ClipboardList },
       { label: "Warehouses", to: "/warehouses", permission: "warehouses.view", icon: Warehouse },
       { label: "Stock Transfers", to: "/stock-transfers", permission: "warehouses.view", icon: Warehouse },
     ],
