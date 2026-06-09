@@ -838,6 +838,12 @@ export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
     error.status = 404;
     throw error;
   }
+  const effectiveTenantId = session.tenant_id ?? tenantId ?? null;
+  console.log("[inventory-count:approve:tenant]", JSON.stringify({
+    requestedTenantId: tenantId,
+    sessionTenantId: session.tenant_id ?? null,
+    effectiveTenantId,
+  }));
   if (session.status === "completed") {
     return { session, adjustments: [] };
   }
@@ -879,7 +885,7 @@ export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
         AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)
       FOR UPDATE
       `,
-      [productVariantId, tenantId]
+      [productVariantId, effectiveTenantId]
     );
     const variant = variantResult.rows[0];
     if (!variant) continue;
@@ -890,8 +896,8 @@ export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
       `جلسة جرد #${session.id}${item.reason ? ` - السبب: ${item.reason}` : ""}${item.notes ? ` - ملاحظات: ${item.notes}` : ""}`
     );
 
-    const movement = await recordInventoryMovement(dbClient, {
-      tenantId,
+      const movement = await recordInventoryMovement(dbClient, {
+      tenantId: effectiveTenantId,
       productId: variant.product_id,
       variantId: productVariantId,
       branchId: session.branch_id ?? null,

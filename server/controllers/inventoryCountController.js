@@ -157,7 +157,14 @@ export const upsertItem = async (req, res) => {
 
 export const approveSession = async (req, res) => {
   try {
-    const tenantId = scopedTenantId(req);
+    console.log("[inventory-count:approve:request]", JSON.stringify({
+      tenant: req.tenant ?? null,
+      tenantId: req.tenantId ?? null,
+      user: req.user ?? null,
+      company: req.company ?? null,
+      headers: req.headers ?? null,
+    }));
+    const tenantId = getTenantId(req, req.user?.tenant_id);
     const result = await approveInventoryCountSession(db, {
       tenantId,
       sessionId: resolveSessionId(req),
