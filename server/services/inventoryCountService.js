@@ -292,6 +292,7 @@ const fetchSessionRow = async (clientOrPool, { tenantId, sessionId, lock = false
       COALESCE(SUM(ABS(difference_quantity)), 0)::int AS difference_total
     FROM inventory_count_items
     WHERE inventory_count_session_id = $1
+       OR inventory_count_id = $1
     `,
     [sessionId]
   );
@@ -319,6 +320,7 @@ const fetchSessionItems = async (clientOrPool, { tenantId, sessionId, lock = fal
       SELECT id
       FROM inventory_count_items
       WHERE inventory_count_session_id = $1
+         OR inventory_count_id = $1
       ${tenantClause}
       ORDER BY created_at ASC, id ASC
       FOR UPDATE
@@ -345,10 +347,11 @@ const fetchSessionItems = async (clientOrPool, { tenantId, sessionId, lock = fal
       v.article_code AS variant_article_code,
       COALESCE(NULLIF(v.image_url, ''), NULLIF(p.image_url, ''), NULLIF(p.image, ''), '') AS variant_image_url
     FROM inventory_count_items i
-    JOIN inventory_count_sessions s ON s.id = i.inventory_count_session_id
+    LEFT JOIN inventory_count_sessions s ON s.id = COALESCE(i.inventory_count_session_id, i.inventory_count_id)
     LEFT JOIN product_variants v ON v.id = COALESCE(i.product_variant_id, i.variant_id)
     LEFT JOIN products p ON p.id = COALESCE(i.product_id, v.product_id)
     WHERE i.inventory_count_session_id = $1
+       OR i.inventory_count_id = $1
       ${tenantClause}
     ORDER BY i.created_at ASC, i.id ASC
     `,
@@ -508,6 +511,8 @@ export const updateInventoryCountSession = async (clientOrPool, data = {}) => {
   return withTransaction(clientOrPool, async (dbClient) => {
   const tenantId = data.tenantId ?? data.tenant_id ?? null;
   const sessionId = data.sessionId ?? data.session_id;
+  const completedBy = data.completedBy ?? data.completed_by ?? data.userId ?? data.user_id ?? null;
+  console.log("[inventory-count:approve:start]", JSON.stringify({ tenantId, sessionId, completedBy }));
   const session = await fetchSessionRow(dbClient, { tenantId, sessionId, lock: true });
   if (!session) {
     const error = new Error("Inventory count session not found");
@@ -849,9 +854,20 @@ export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
     const productVariantId = normalizeNullableId(item.product_variant_id ?? item.variant_id);
     if (!productVariantId) continue;
 
-    const countedQuantity = toNumber(item.counted_quantity, 0);
-    const systemQuantity = toNumber(item.system_quantity, 0);
-    const differenceQuantity = toNumber(item.difference_quantity, countedQuantity - systemQuantity);
+    const systemQuantity = toNumber(item.system_quantity ?? item.expected_qty ?? item.quantity_before ?? item.before_qty ?? 0, 0);
+    const countedQuantity = toNumber(item.counted_quantity ?? item.actual_qty ?? item.quantity_after ?? item.after_qty ?? 0, 0);
+    const differenceQuantity = countedQuantity - systemQuantity;
+
+    console.log("[inventory-count:approve:item]", JSON.stringify({
+      sessionId,
+      itemId: item.id ?? null,
+      productVariantId,
+      systemQuantity,
+      countedQuantity,
+      differenceQuantity,
+      reason: item.reason || "",
+      notes: item.notes || "",
+    }));
 
     if (differenceQuantity === 0) continue;
 
@@ -868,22 +884,36 @@ export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
     const variant = variantResult.rows[0];
     if (!variant) continue;
 
-    await recordInventoryMovement(dbClient, {
+    const currentStock = toNumber(variant.stock, 0);
+    const newStock = currentStock + differenceQuantity;
+    const movementNotes = normalizeText(
+      `جلسة جرد #${session.id}${item.reason ? ` - السبب: ${item.reason}` : ""}${item.notes ? ` - ملاحظات: ${item.notes}` : ""}`
+    );
+
+    const movement = await recordInventoryMovement(dbClient, {
       tenantId,
       productId: variant.product_id,
       variantId: productVariantId,
       branchId: session.branch_id ?? null,
       warehouseId: session.warehouse_id ?? null,
       movementType: "inventory_adjustment",
-      quantityBefore: systemQuantity,
+      quantityBefore: currentStock,
       quantityChange: differenceQuantity,
-      quantityAfter: countedQuantity,
-      referenceType: "inventory_count_session",
+      quantityAfter: newStock,
+      referenceType: "inventory_count",
       referenceId: session.id,
       reason: normalizeText(item.reason || session.title || "جرد مخزون") || "جرد مخزون",
-      notes: normalizeText(item.notes || session.notes || ""),
+      notes: movementNotes,
       createdBy: data.completedBy ?? data.completed_by ?? data.userId ?? data.user_id ?? null,
     });
+
+    console.log("[inventory-count:approve:movement-created]", JSON.stringify({
+      sessionId,
+      itemId: item.id ?? null,
+      movementId: movement?.id ?? null,
+      productVariantId,
+      differenceQuantity,
+    }));
 
     await dbClient.query(
       `
@@ -892,8 +922,15 @@ export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
           updated_at = NOW()
       WHERE id = $2
       `,
-      [countedQuantity, productVariantId]
+      [newStock, productVariantId]
     );
+
+    console.log("[inventory-count:approve:variant-updated]", JSON.stringify({
+      sessionId,
+      productVariantId,
+      currentStock,
+      newStock,
+    }));
 
     adjustments.push({
       variant_id: productVariantId,
@@ -903,7 +940,6 @@ export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
     });
   }
 
-  const completedBy = data.completedBy ?? data.completed_by ?? data.userId ?? data.user_id ?? null;
   const sessionUpdate = await dbClient.query(
     `
     UPDATE inventory_count_sessions
@@ -932,6 +968,12 @@ export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
       adjustments,
     }
   );
+
+  console.log("[inventory-count:approve:done]", JSON.stringify({
+    sessionId: session.id,
+    completedBy,
+    adjustments: adjustments.length,
+  }));
 
   return { session: completedSession, adjustments };
   });
