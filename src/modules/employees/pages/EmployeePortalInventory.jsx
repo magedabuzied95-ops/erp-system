@@ -87,6 +87,21 @@ const getInventoryImageCandidates = (record = {}) => [
   record.product_images,
   record.gallery_images,
 ];
+const resolveCardImage = (record = {}) => {
+  const images = Array.isArray(record.images) ? record.images : [];
+  return (
+    resolveInventoryImageUrl(
+      record.color_image,
+      record.variant_image,
+      record.product_image,
+      record.image_url,
+      record.image,
+      images[0],
+      record.product_images,
+      record.gallery_images
+    ) || null
+  );
+};
 const createInventoryImagePlaceholder = (label = "") => ({
   src: "",
   alt: label,
@@ -284,30 +299,6 @@ function InventoryImage({ src, alt = "", className = "" }) {
   if (safeSrc) {
     return <img src={safeSrc} alt={alt} className={`h-full w-full object-cover ${className}`.trim()} loading="lazy" />;
   }
-
-  const adjustVariantCount = useCallback(async (variant, delta) => {
-    if (!isEditable) return;
-    const variantId = String(variant.product_variant_id ?? variant.variant_id ?? variant.id ?? "");
-    if (!variantId) return;
-    const currentValue = toNumber(variant.counted_quantity, 0);
-    const nextValue = Math.max(0, currentValue + Number(delta || 0));
-    handleVariantCountChange(variantId, nextValue);
-    await saveItem(variant, { countedQuantity: nextValue, systemQuantity: variant.system_quantity });
-  }, [handleVariantCountChange, isEditable, saveItem]);
-
-  const resolveCardImage = useCallback((record) => resolveInventoryImageUrl(
-    record?.image_url,
-    record?.image,
-    record?.product_image,
-    record?.product_image_url,
-    record?.color_image,
-    record?.color_image_url,
-    record?.variant_image,
-    record?.variant_image_url,
-    record?.images,
-    record?.product_images,
-    record?.gallery_images
-  ), []);
 
   return (
     <div className={`flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 ${className}`.trim()}>
@@ -703,6 +694,16 @@ export default function EmployeePortalInventory() {
       })
     );
   };
+
+  const adjustVariantCount = useCallback(async (variant, delta) => {
+    if (!isEditable) return;
+    const variantId = String(variant.product_variant_id ?? variant.variant_id ?? variant.id ?? "");
+    if (!variantId) return;
+    const currentValue = toNumber(variant.counted_quantity, 0);
+    const nextValue = Math.max(0, currentValue + Number(delta || 0));
+    handleVariantCountChange(variantId, nextValue);
+    await saveItem(variant, { countedQuantity: nextValue, systemQuantity: variant.system_quantity });
+  }, [handleVariantCountChange, isEditable, saveItem]);
 
   const currentBalance = differenceTotal === 0
     ? "متوازن"
