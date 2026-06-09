@@ -46,31 +46,6 @@ const getDbQueryContext = () => dbRequestContext.getStore?.() || {};
 
 export const runWithDbQueryContext = (context = {}, fn = () => {}) => dbRequestContext.run(context || {}, fn);
 
-export const withReadOnlyDbSession = async (fn = async () => {}, context = {}) => {
-  const client = await originalConnect();
-  const sessionContext = {
-    ...getDbQueryContext(),
-    ...context,
-    db_read_only: true,
-    db_session_mode: "read_only",
-    db_client: client,
-    db_session_started_at: Date.now(),
-  };
-  try {
-    await client.query("BEGIN READ ONLY");
-    return await runWithDbQueryContext(sessionContext, async () => fn(client));
-  } catch (error) {
-    try {
-      await client.query("ROLLBACK");
-    } catch {}
-    throw error;
-  } finally {
-    try {
-      client.release();
-    } catch {}
-  }
-};
-
 const isSchemaMaintenanceSql = (text = "") =>
   /\b(CREATE\s+(TABLE|INDEX|TRIGGER|EXTENSION|FUNCTION)|DROP\s+TRIGGER|ALTER\s+TABLE|information_schema)\b/i.test(String(text || ""));
 
@@ -194,6 +169,40 @@ const withQueryLogging = (target, label) => {
 withQueryLogging(pool, "pool");
 
 const originalConnect = pool.connect.bind(pool);
+
+export const withReadOnlyDbSession = async (fn = async () => {}, context = {}) => {
+  const client = await originalConnect();
+
+  try {
+    try {
+      await client.query("ROLLBACK");
+    } catch {}
+
+    const sessionContext = {
+      ...getDbQueryContext(),
+      ...context,
+      db_read_only: true,
+      db_session_mode: "read_only",
+      db_client: client,
+      db_session_started_at: Date.now(),
+    };
+
+    await client.query("BEGIN READ ONLY");
+
+    try {
+      return await runWithDbQueryContext(sessionContext, async () => fn(client));
+    } finally {
+      try {
+        await client.query("ROLLBACK");
+      } catch {}
+    }
+  } finally {
+    try {
+      client.release();
+    } catch {}
+  }
+};
+
 const wrapClient = (client, startedAt) => {
   if (!client) return client;
   withQueryLogging(client, "client");
