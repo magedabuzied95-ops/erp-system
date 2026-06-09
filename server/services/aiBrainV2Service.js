@@ -381,7 +381,7 @@ const buildColorSelectionFromMemoryCards = ({ message = "", memory = {} } = {}) 
     selectedColor,
     `مقاس ${sizeLabel}`,
     "",
-    `السعر: ${displayPrice > 0 ? `${displayPrice} جنيه` : "متاح عند الطلب"}`,
+    `السعر: ${displayPrice > 0 ? `${displayPrice} جنيه` : "السعر محتاج يتأكد من السيستم قبل التأكيد"}`,
     "",
     "تحب أحجزهولك؟",
   ].join("\n");
@@ -1251,7 +1251,7 @@ const presentationModelName = ({ explicitModel = null, cards = [] } = {}) => {
 };
 
 const buildBaseText = ({ intent = "", cards = [], explicitModel = null, activeProductId = "" } = {}) => {
-  if (intent === "greeting") return "\u0623\u0647\u0644\u0627 \u0628\u064a\u0643. \u0627\u0628\u0639\u062a \u0627\u0633\u0645 \u0627\u0644\u0645\u0648\u062f\u064a\u0644 \u0623\u0648 \u0635\u0648\u0631\u0629 \u0648\u0623\u0633\u0627\u0639\u062f\u0643.";
+  if (intent === "greeting") return "\u0648\u0639\u0644\u064a\u0643\u0645 \u0627\u0644\u0633\u0644\u0627\u0645 \u0648\u0631\u062d\u0645\u0629 \u0627\u0644\u0644\u0647\u060c \u0623\u0647\u0644\u0627\u064b \u0628\u064a\u0643 \u064a\u0627 \u0641\u0646\u062f\u0645.";
   if (intent === "price_objection") {
     return activeProductId
       ? "\u0641\u0627\u0647\u0645\u0643. \u0644\u0648 \u0627\u0644\u0633\u0639\u0631 \u0645\u0634 \u0645\u0646\u0627\u0633\u0628 \u0623\u0642\u062f\u0631 \u0623\u0637\u0644\u0639\u0644\u0643 \u0628\u062f\u064a\u0644 \u0623\u0642\u0631\u0628 \u0644\u0644\u0645\u064a\u0632\u0627\u0646\u064a\u0629."

@@ -500,26 +500,99 @@ const explicitMessageSize = (message = "") => {
   return match ? match[1] : "";
 };
 
-const isGreetingOnly = (message = "", response = {}, intent = {}) => {
-  const normalized = normalizeArabic(message);
-  if (response.greeting_only_mode || response.detected_intent === "greeting_only" || intent.type === "greeting_only") return true;
-  if (!normalized) return false;
-  return /^(السلام عليكم|سلام عليكم|وعليكم السلام|اهلا|اهلا بيك|هلا|هاي|hello|hi)( ورحمه الله)?( وبركاته)?$/.test(normalized);
+const deterministicIndex = (seed = "", modulo = 1) => {
+  const basis = text(seed) || "greeting";
+  const score = [...basis].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return modulo > 0 ? score % modulo : 0;
 };
 
-const greetingReplyText = "������ ������ ����� ���� ����� ��� �� ���� ";
+const pickDeterministicText = (choices = [], seed = "") => {
+  const list = asArray(choices).map((value) => text(value)).filter(Boolean);
+  if (!list.length) return "";
+  return list[deterministicIndex(seed, list.length)];
+};
+
+const greetingKind = (message = "") => {
+  const normalized = normalizeArabic(message);
+  if (!normalized) return "";
+  if (/^(السلام عليكم|سلام عليكم|السلاام عليكم|السلامو عليكم|وعليكم السلام)( ورحمة الله)?( وبركاته)?$/.test(normalized)) return "islamic";
+  if (/^(صباح الخير|صباحو|صباح الفل|صباح الورد|صباح النور)$/.test(normalized)) return "morning";
+  if (/^(مساء الخير|مساء الفل|مساء الورد|مساء النور)$/.test(normalized)) return "evening";
+  if (/^(اهلا|أهلا|اهلا بيك|أهلا بيك|هاي|hello|hi|hey|هلا)$/.test(normalized)) return "casual";
+  if (/^(عامل ايه|عامل ايه؟|ازيك|ازيك؟|اخبارك|أخبارك)$/.test(normalized)) return "checkin";
+  if (/^(في حد موجود|في حد موجود؟|انتوا فاتحين|انتوا فاتحين؟)$/.test(normalized)) return "store_status";
+  if (/^(ممكن مساعده|ممكن مساعدة|محتاج مساعده|محتاج مساعدة)$/.test(normalized)) return "support";
+  return "";
+};
+
+const buildGreetingReply = (message = "", seed = "") => {
+  const kind = greetingKind(message);
+  if (kind === "islamic") return "وعليكم السلام ورحمة الله، أهلاً بيك يا فندم.";
+  if (kind === "morning") {
+    return pickDeterministicText([
+      "صباح الفل يا فندم، تحت أمرك.",
+      "صباح الورد، نورتنا.",
+      "صباح النور يا باشا، قولّي أساعدك في إيه.",
+      "صباح الجمال، تحت أمرك.",
+    ], `morning|${seed}|${message}`);
+  }
+  if (kind === "evening") {
+    return pickDeterministicText([
+      "مساء الفل، تحت أمرك.",
+      "مساء الورد، نورتنا.",
+      "مساء النور يا فندم، قولّي أساعدك في إيه.",
+      "مساء الجمال، تحت أمرك.",
+    ], `evening|${seed}|${message}`);
+  }
+  if (kind === "casual") {
+    return pickDeterministicText([
+      "أهلاً بيك يا فندم، تحت أمرك.",
+      "نورتنا، قولّي أساعدك في إيه.",
+      "تحت أمرك يا باشا.",
+    ], `casual|${seed}|${message}`);
+  }
+  if (kind === "checkin") {
+    return pickDeterministicText([
+      "الحمد لله يا باشا، تحت أمرك.",
+      "تمام يا فندم، نورتنا.",
+      "كله تمام، قولّي أساعدك في إيه.",
+    ], `checkin|${seed}|${message}`);
+  }
+  if (kind === "store_status") {
+    return pickDeterministicText([
+      "أيوه يا فندم، موجودين وتحت أمرك.",
+      "أيوه يا باشا، موجودين. قولّي محتاج إيه.",
+      "موجودين يا فندم، نساعدك في إيه؟",
+    ], `status|${seed}|${message}`);
+  }
+  if (kind === "support") {
+    return pickDeterministicText([
+      "أكيد يا فندم، تحت أمرك.",
+      "طبعًا، قولّي محتاج إيه وأنا أساعدك.",
+      "أكيد يا باشا، نقدر نساعدك.",
+    ], `support|${seed}|${message}`);
+  }
+  return pickDeterministicText([
+    "أهلاً بيك يا فندم، تحت أمرك.",
+    "نورتنا، قولّي أساعدك في إيه.",
+    "تحت أمرك يا باشا.",
+  ], `default|${seed}|${message}`);
+};
+
+const isGreetingOnly = (message = "", response = {}, intent = {}) => {
+  if (response.greeting_only_mode || response.detected_intent === "greeting_only" || intent.type === "greeting_only") return true;
+  return Boolean(greetingKind(message));
+};
 
 const isGreetingIntent = (message = "", response = {}, intent = {}) => {
-  const normalized = normalizeArabic(message);
   if (response.greeting_only_mode || response.detected_intent === "greeting_only" || intent.type === "greeting_only") return true;
-  if (!normalized) return false;
-  return /^(������ �����|���� �����|������ ������|����|���� ���|�����|�����|����� ���|���� �����|���� �����|���|���|hello|hi)( �����? ����)?( �������)?$/.test(normalized);
+  return Boolean(greetingKind(message));
 };
 
 const isExplicitProductFollowup = (message = "", response = {}, intent = {}) => {
   if (isGreetingIntent(message, response, intent)) return false;
   const normalized = normalizeArabic(message);
-  return /(����|�����|����|price|cost|����|�����|������|�����|���|����|��� ����|����|�����|����|��������|���� ��|��� ���|��� ��|���� ������|�����)/i.test(normalized);
+  return /(بكام|السعر|سعره|price|cost|مقاس|مقاسات|size|لون|الوان|الألوان|صور|صورة|image|photo|متاح|موجود|stock|خصم|شحن|رجوع|استبدال)/i.test(normalized);
 };
 const isYesOnly = (message = "") => {
   const normalized = normalizeArabic(message);
@@ -980,7 +1053,7 @@ export const composeAiSalesReply = async ({
 
   if (isGreetingOnly(message, response, intent)) {
     decision = "greeting_only";
-    output = withAnswer(stripProductPayload(response), greetingReplyText, {
+    output = withAnswer(stripProductPayload(response), buildGreetingReply(message, text(context?.conversationId || context?.session_id || context?.id || "")), {
       detected_intent: "greeting_only",
       greeting_only_mode: true,
       needs_human_support: false,
@@ -1051,7 +1124,7 @@ export const composeAiSalesReply = async ({
     }
   } else if (!isExplicitProductFollowup(message, response, intent) && ["general", "conversational", ""].includes(detectedIntent)) {
     decision = "block_general_product_cards";
-    output = withAnswer(stripProductPayload(response), "وعليكم السلام ورحمة الله، أهلاً بيك يا باشا", {
+    output = withAnswer(stripProductPayload(response), buildGreetingReply(message, text(context?.conversationId || context?.session_id || context?.id || "")), {
       needs_human_support: false,
     });
   } else if (

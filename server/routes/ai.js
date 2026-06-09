@@ -28,7 +28,7 @@ const regressionKeyFromRequest = (req) =>
 
 const toText = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
-const REGRESSION_RATE_LIMIT_MAX = 100;
+const REGRESSION_RATE_LIMIT_MAX = 250;
 const REGRESSION_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 const regressionRateLimitBucketsByIp = new Map();
 const regressionRateLimitBucketsByKey = new Map();
