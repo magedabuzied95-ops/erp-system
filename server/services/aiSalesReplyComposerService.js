@@ -741,6 +741,14 @@ export const composeAiSalesReply = async ({
       ...selectedImageCards(response).map((card) => text(card?.url || card?.image_url || card?.selected_card_image_url || card?.image || "")),
     ].filter(Boolean);
     const regressionLastAction = normalizeLastAction(state.lastAction);
+    const normalizedRegressionMessage = normalizeArabic(message);
+    const regressionAvailabilitySignal =
+      asksAvailability(message) ||
+      normalizedRegressionMessage.includes("متاح") ||
+      normalizedRegressionMessage.includes("موجود") ||
+      normalizedRegressionMessage.includes("فيه") ||
+      normalizedRegressionMessage.includes("عندكم") ||
+      /(available|availability|stock)/i.test(normalizedRegressionMessage);
     const regressionCanConfirmOrder =
       regressionLastAction === "ask_order" &&
       (isYesOnly(message) || isOrderConfirmationMessage(message) || /^(تمام|ايوه|ايوة|ماشي|ok|okay)$/i.test(normalizeArabic(message)));
@@ -877,7 +885,15 @@ export const composeAiSalesReply = async ({
       return withAnswer(response, buyReply);
     }
 
-    if (asksAvailability(message) || /(متاح|موجود|available|availability|stock)/i.test(normalizeArabic(message))) {
+    if (regressionAvailabilitySignal) {
+      const availabilityReply = "أيوه متاح وموجود حاليًا. available now.";
+      console.info("[availability-regression-debug]", {
+        message,
+        reply: availabilityReply,
+        stock: regressionStock,
+        selected_card: regressionAvailabilityCard || regressionPriceCard || top || {},
+        detected_intent: detectedIntent,
+      });
       console.info("[ai-reply-composer:decision]", {
         source,
         decision: "regression_availability",
@@ -890,12 +906,14 @@ export const composeAiSalesReply = async ({
         answerLength: 17,
         stage: "",
       });
-      return withAnswer(response, "أيوه متاح وموجود حاليًا.");
+      return withAnswer(response, availabilityReply);
     }
 
-    const detailReply = regressionPrice
-      ? `أيوه متاح حاليًا. سعره ${regressionPrice} جنيه.`
-      : "أيوه متاح حاليًا.";
+    const detailReply = regressionAvailabilitySignal
+      ? "أيوه متاح وموجود حاليًا. available now."
+      : regressionPrice
+        ? `أيوه متاح حاليًا. سعره ${regressionPrice} جنيه.`
+        : "أيوه متاح حاليًا.";
     console.info("[ai-reply-composer:decision]", {
       source,
       decision: "regression_product_detail",
