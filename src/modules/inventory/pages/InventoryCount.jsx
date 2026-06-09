@@ -29,9 +29,11 @@ import {
   approveInventoryCountSession,
   cancelInventoryCountSession,
   createInventoryCountSession,
+  deleteInventoryCountSession,
   getInventoryCountSession,
   listInventoryCountSessions,
   openInventoryCountSession,
+  addInventoryCountModel,
   searchInventoryCountVariants,
   reopenInventoryCountSession,
   rejectInventoryCountSession,
@@ -176,6 +178,50 @@ const groupCountVariants = (records = []) => {
   }));
 };
 
+const groupLookupModels = (records = []) => {
+  const groups = new Map();
+
+  for (const record of records) {
+    const variant = normalizeCountVariant(record);
+    const productKey = variant.product_id ? String(variant.product_id) : variant.product_name.toLowerCase();
+
+    if (!groups.has(productKey)) {
+      groups.set(productKey, {
+        key: productKey,
+        product_id: variant.product_id,
+        product_name: variant.product_name,
+        product_sku: variant.product_sku,
+        product_barcode: variant.product_barcode,
+        image_url: variant.image_url,
+        variants: [],
+        colors: new Set(),
+        sizes: new Set(),
+        system_total: 0,
+      });
+    }
+
+    const group = groups.get(productKey);
+    if (!group.image_url && variant.image_url) group.image_url = variant.image_url;
+    group.variants.push(variant);
+    if (variant.color) group.colors.add(variant.color);
+    if (variant.size) group.sizes.add(variant.size);
+    group.system_total += toNumber(variant.system_quantity, 0);
+  }
+
+  return Array.from(groups.values()).map((group) => ({
+    ...group,
+    colors: Array.from(group.colors),
+    sizes: Array.from(group.sizes),
+    variants: group.variants.sort((a, b) => {
+      const byColor = String(a.color || "").localeCompare(String(b.color || ""));
+      if (byColor !== 0) return byColor;
+      const bySize = sizeSortValue(a.size) - sizeSortValue(b.size);
+      if (bySize !== 0) return bySize;
+      return String(a.size || "").localeCompare(String(b.size || ""));
+    }),
+  }));
+};
+
 const isExactIdentifierMatch = (query, variant) => {
   const normalizedQuery = normalizeText(query).toLowerCase();
   if (!normalizedQuery) return false;
@@ -233,9 +279,11 @@ function InventoryCountPage() {
   const [openingSession, setOpeningSession] = useState(false);
   const [approvingSession, setApprovingSession] = useState(false);
   const [cancellingSession, setCancellingSession] = useState(false);
+  const [deletingSession, setDeletingSession] = useState(false);
   const [lookupQuery, setLookupQuery] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupResults, setLookupResults] = useState([]);
+  const [selectedLookupProductId, setSelectedLookupProductId] = useState("");
   const [busyGroupKey, setBusyGroupKey] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
   const [branches, setBranches] = useState([]);
@@ -253,13 +301,17 @@ function InventoryCountPage() {
   const currentRole = getUserRole(currentUser);
   const canReviewInventoryCount = isAdminUser(currentUser) || ["manager", "branch manager"].includes(String(currentRole || "").toLowerCase());
   const sessionIsLockedForEditing = ["pending_review", "rejected", "completed", "cancelled"].includes(session?.status || "");
-  const isCompactInventoryLayout = useMediaQuery("(max-width: 1023px)");
+  const isCompactInventoryLayout = useMediaQuery("(max-width: 1279px)");
 
-  const groupedLookupResults = useMemo(() => groupCountVariants(lookupResults), [lookupResults]);
+  const groupedLookupResults = useMemo(() => groupLookupModels(lookupResults), [lookupResults]);
   const groupedItems = useMemo(() => groupCountVariants(items), [items]);
   const visibleGroupedItems = useMemo(
     () => groupedItems.filter((group) => !hiddenGroups.includes(group.key)),
     [groupedItems, hiddenGroups]
+  );
+  const selectedLookupGroup = useMemo(
+    () => groupedLookupResults.find((group) => String(group.product_id || "") === String(selectedLookupProductId || "")) || groupedLookupResults[0] || null,
+    [groupedLookupResults, selectedLookupProductId]
   );
   const [expandedGroupKey, setExpandedGroupKey] = useState("");
 
@@ -518,6 +570,36 @@ function InventoryCountPage() {
     }
   };
 
+  const deleteSessionHandler = async (targetSessionId = routeSessionId, targetSessionStatus = session?.status) => {
+    if (!targetSessionId) return;
+    if (String(targetSessionStatus || "") === "completed") {
+      toast.error("لا يمكن حذف جلسة مكتملة");
+      return;
+    }
+    const confirmed = window.confirm("هل تريد حذف جلسة الجرد بالكامل؟ سيتم حذف كل عناصر الجرد داخلها ولا يمكن التراجع.");
+    if (!confirmed) return;
+    try {
+      setDeletingSession(true);
+      const response = await deleteInventoryCountSession(targetSessionId);
+      const deletedId = String(response?.session?.id || targetSessionId);
+      setSessions((current) => current.filter((row) => String(row.id) !== deletedId));
+      if (String(routeSessionId || "") === deletedId) {
+        setSession(null);
+        setItems([]);
+        setSessionError("");
+        navigate("/inventory/count");
+      } else {
+        await loadSessions();
+      }
+      toast.success("تم حذف جلسة الجرد");
+    } catch (error) {
+      console.error("[inventory-count] delete session", error);
+      toast.error(error?.message || "تعذر حذف جلسة الجرد");
+    } finally {
+      setDeletingSession(false);
+    }
+  };
+
   const lookupVariants = async () => {
     if (!routeSessionId || !lookupQuery.trim()) return;
     try {
@@ -528,19 +610,13 @@ function InventoryCountPage() {
       setLookupResults(results);
 
       const exactVariant = results.find((variant) => isExactIdentifierMatch(query, variant));
-      if (exactVariant) {
-        const existing = items.find((item) => String(item.product_variant_id || item.variant_id || item.id) === String(exactVariant.product_variant_id || exactVariant.variant_id || exactVariant.id));
-        const nextCount = existing ? toNumber(existing.counted_quantity, 0) + 1 : 1;
-        const saved = await persistVariant(exactVariant, {
-          counted_quantity: nextCount,
-          system_quantity: exactVariant.system_quantity,
-          reason: existing?.reason || "",
-          notes: existing?.notes || "",
-        });
-        setLookupQuery("");
-        setLookupResults([]);
-        toast.success(`تم عد قطعة من مقاس ${saved?.variant_size || exactVariant.size || "غير محدد"}`);
-        return;
+      const grouped = groupLookupModels(results);
+      if (exactVariant?.product_id) {
+        setSelectedLookupProductId(String(exactVariant.product_id));
+      } else if (grouped.length) {
+        setSelectedLookupProductId(String(grouped[0].product_id || ""));
+      } else {
+        setSelectedLookupProductId("");
       }
 
       if (results.length === 0) {
@@ -658,6 +734,28 @@ function InventoryCountPage() {
     } catch (error) {
       console.error("[inventory-count] add color group", error);
       toast.error(error?.message || "تعذر إضافة اللون للجرد");
+    } finally {
+      setBusyGroupKey("");
+    }
+  };
+
+  const addFullModelToCount = async (group) => {
+    if (!routeSessionId || !group?.product_id) return;
+    try {
+      setBusyGroupKey(group.key);
+      const response = await addInventoryCountModel(routeSessionId, { productId: group.product_id });
+      if (response?.session) {
+        setSession(response.session);
+      }
+      if (Array.isArray(response?.items)) {
+        setItems(response.items);
+      }
+      await loadSession();
+      setSelectedLookupProductId(String(group.product_id));
+      toast.success("تمت إضافة الموديل للجرد");
+    } catch (error) {
+      console.error("[inventory-count] add model", error);
+      toast.error(error?.message || "تعذر إضافة الموديل للجرد");
     } finally {
       setBusyGroupKey("");
     }
@@ -883,6 +981,15 @@ function InventoryCountPage() {
                     >
                       {cancellingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                       إلغاء
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void deleteSessionHandler(routeSessionId, session?.status)}
+                      disabled={deletingSession || session?.status === "completed"}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-rose-500/30 bg-rose-500/15 px-4 py-2 text-sm font-black text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {deletingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      حذف الجلسة
                     </button>
                   </div>
                 </div>
@@ -1132,10 +1239,17 @@ function InventoryCountPage() {
                   </div>
                 ) : (
                   filteredSessions.map((row) => (
-                    <button
+                    <div
                       key={String(row.id)}
-                      type="button"
                       onClick={() => navigate(`/inventory/count/${row.id}`)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          navigate(`/inventory/count/${row.id}`);
+                        }
+                      }}
                       className="w-full rounded-3xl border border-white/10 bg-white/5 p-4 text-start transition hover:bg-white/10"
                     >
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -1157,13 +1271,32 @@ function InventoryCountPage() {
                           <span className={`rounded-full border px-3 py-1 text-xs font-black ${statusTone[row.status || "draft"] || statusTone.draft}`}>
                             {SESSION_STATUS_LABELS[row.status || "draft"] || row.status || "مسودة"}
                           </span>
-                          <span className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-semibold text-white">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              navigate(`/inventory/count/${row.id}`);
+                            }}
+                            className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-semibold text-white transition hover:bg-black/30"
+                          >
                             <SquareArrowOutUpRight className="h-4 w-4" />
                             فتح
-                          </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void deleteSessionHandler(row.id, row.status);
+                            }}
+                            disabled={deletingSession || String(row.status || "") === "completed"}
+                            className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {deletingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                            حذف
+                          </button>
                         </div>
                       </div>
-                    </button>
+                    </div>
                   ))
                 )}
               </div>
@@ -1247,9 +1380,9 @@ function SelectField({ label, value, onChange, options = [] }) {
   );
 }
 
-function LookupGroupCard({ group, busy, onAddColor }) {
+function LookupGroupCard({ group, busy, selected, onSelect, onAddModel }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+    <div onClick={onSelect} role="button" tabIndex={0} className={`rounded-3xl border p-4 ${selected ? "border-emerald-400/40 bg-emerald-500/10" : "border-white/10 bg-white/5"}`}>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex min-w-0 gap-3">
           <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900">
@@ -1263,7 +1396,7 @@ function LookupGroupCard({ group, busy, onAddColor }) {
           </div>
           <div className="min-w-0">
             <div className="text-lg font-bold text-white">{group.product_name || "منتج"}</div>
-            <div className="mt-1 text-sm text-zinc-400">{group.color || "لون غير محدد"}</div>
+            <div className="mt-1 text-sm text-zinc-400">{group.colors?.length ? `${group.colors.length} ألوان` : "لون غير محدد"}</div>
             <div className="mt-1 text-xs text-zinc-500">
               عدد المقاسات: {group.variants.length} · السيستم: {group.system_total}
             </div>
@@ -1640,18 +1773,12 @@ function MobileGroupedCountRow({ item, disabled, inputRef, onCountChange, onCoun
     notesRef.current = notes;
   }, [notes]);
 
-  useEffect(() => {
-    return () => {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-      }
-    };
+  useEffect(() => () => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
   }, []);
 
   const scheduleCountSave = (nextValue) => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-    }
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       void onCountCommit(item.id, {
         counted_quantity: Number(nextValue || 0),
@@ -1689,25 +1816,29 @@ function MobileGroupedCountRow({ item, disabled, inputRef, onCountChange, onCoun
   };
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-      <div className="flex min-h-[54px] items-center gap-2">
-        <div className="w-12 shrink-0">
-          <div className="text-sm font-black leading-tight text-white">{item.size || "--"}</div>
-          <div className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-zinc-500">مقاس</div>
+    <div
+      className="inventory-count-mobile-row-compact rounded-xl border border-white/10 bg-white/[0.04] px-2 py-2 shadow-none"
+      style={{ boxShadow: "none", borderRadius: "14px", padding: "8px 10px" }}
+    >
+      <span style={{ display: "none" }} data-testid="mobile-grouped-count-row" />
+      <div className="grid min-h-[48px] grid-cols-[44px_minmax(0,1fr)_72px] items-center gap-2">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-black leading-tight text-white">{item.size || "--"}</div>
+          <div className="mt-0.5 text-[9px] uppercase tracking-[0.16em] text-zinc-500">مقاس</div>
         </div>
 
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 text-[11px] font-semibold text-zinc-400">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-[10px] font-semibold text-zinc-400">
             <span className="uppercase tracking-[0.18em]">المتوقع</span>
             <span className="tabular-nums text-white">{system}</span>
           </div>
 
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-1.5 flex items-center gap-1.5">
             <button
               type="button"
               disabled={disabled}
               onClick={decrementCount}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-lg font-black text-white transition hover:bg-white/10 disabled:opacity-40"
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/30 text-base font-black text-white transition hover:bg-white/10 disabled:opacity-40"
               aria-label="إنقاص الكمية"
             >
               -
@@ -1725,13 +1856,13 @@ function MobileGroupedCountRow({ item, disabled, inputRef, onCountChange, onCoun
                   onAdvance?.(item.id, event.currentTarget);
                 }
               }}
-              className="h-8 w-16 shrink-0 rounded-xl border border-white/10 bg-zinc-950/70 px-2 text-center text-sm font-black text-white outline-none tabular-nums placeholder:text-zinc-500 disabled:opacity-50"
+              className="h-7 w-14 shrink-0 rounded-lg border border-white/10 bg-zinc-950/70 px-1.5 text-center text-sm font-black text-white outline-none tabular-nums placeholder:text-zinc-500 disabled:opacity-50"
             />
             <button
               type="button"
               disabled={disabled}
               onClick={incrementCount}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-emerald-500/15 text-lg font-black text-emerald-200 transition hover:bg-emerald-500/25 disabled:opacity-40"
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-emerald-500/15 text-base font-black text-emerald-200 transition hover:bg-emerald-500/25 disabled:opacity-40"
               aria-label="زيادة الكمية"
             >
               +
@@ -1740,7 +1871,7 @@ function MobileGroupedCountRow({ item, disabled, inputRef, onCountChange, onCoun
         </div>
 
         <div className="min-w-[72px] text-end">
-          <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">الحالة</div>
+          <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">الفرق</div>
           <div className={`mt-0.5 text-sm font-black tabular-nums ${diffTone}`}>
             {diff > 0 ? `+${diff}` : diff < 0 ? `-${Math.abs(diff)}` : "تمام"}
           </div>
