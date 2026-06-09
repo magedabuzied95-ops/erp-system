@@ -23,6 +23,7 @@ import {
   reopenInventoryCountSession,
   searchInventoryCountVariants,
   submitInventoryCountSession,
+  deleteInventoryCountColorGroup,
   updateInventoryCountSession,
   upsertInventoryCountItem,
 } from "../services/inventoryCountService.js";
@@ -713,6 +714,28 @@ router.put("/:token/inventory/sessions/:sessionId/items", async (req, res) => {
   } catch (error) {
     console.error("[employee-payroll-portal] inventory item save error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to save inventory item" });
+  }
+});
+
+router.delete("/:token/inventory/sessions/:sessionId/color-groups", async (req, res) => {
+  try {
+    const scoped = await loadEmployeeInventorySession(req, res);
+    if (!scoped) return;
+    const result = await deleteInventoryCountColorGroup(db, {
+      tenantId: scoped.employee.tenant_id ?? null,
+      sessionId: scoped.session.id,
+      productId: req.body?.productId ?? req.body?.product_id ?? req.query?.productId ?? req.query?.product_id,
+      color: req.body?.color ?? req.body?.color_name ?? req.query?.color ?? req.query?.color_name ?? "",
+    });
+    return res.json({
+      success: true,
+      session: result.session,
+      items: Array.isArray(result.items) ? result.items.map(enrichInventoryImageFields) : [],
+      deletedCount: result.deletedCount || 0,
+    });
+  } catch (error) {
+    console.error("[employee-payroll-portal] inventory color group delete error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to delete inventory color group" });
   }
 });
 

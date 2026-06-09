@@ -1136,6 +1136,82 @@ export const upsertInventoryCountItem = async (clientOrPool, data = {}) => {
   });
 };
 
+export const deleteInventoryCountColorGroup = async (clientOrPool, data = {}) => {
+  await ensureInventoryCountSchema();
+  return withTransaction(clientOrPool, async (dbClient) => {
+  const tenantId = data.tenantId ?? data.tenant_id ?? null;
+  const sessionId = normalizeNullableId(
+    data.sessionId ??
+    data.session_id ??
+    data.inventoryCountId ??
+    data.inventory_count_id ??
+    data.inventoryCountSessionId ??
+    data.inventory_count_session_id
+  );
+  const productId = normalizeNullableId(data.productId ?? data.product_id ?? data.productID ?? data.product);
+  const color = normalizeText(data.color ?? data.colorName ?? data.color_name ?? data.variantColor ?? data.groupColor ?? "");
+
+  if (!sessionId) {
+    const error = new Error("Inventory count session is required");
+    error.status = 400;
+    throw error;
+  }
+  if (!productId || !color) {
+    const error = new Error("productId and color are required");
+    error.status = 400;
+    throw error;
+  }
+
+  const session = await fetchSessionRow(dbClient, { tenantId, sessionId, lock: true });
+  if (!session) {
+    const error = new Error("Inventory count session not found");
+    error.status = 404;
+    throw error;
+  }
+  if (session.status === "pending_review" || session.status === "completed" || session.status === "cancelled") {
+    const error = new Error("Cannot modify a finished inventory count session");
+    error.status = 409;
+    throw error;
+  }
+
+  const matchingResult = await dbClient.query(
+    `
+    SELECT i.id
+    FROM inventory_count_items i
+    LEFT JOIN product_variants v ON v.id = COALESCE(i.product_variant_id, i.variant_id)
+    WHERE (i.inventory_count_session_id = $1 OR i.inventory_count_id = $1)
+      AND i.product_id = $2
+      AND LOWER(TRIM(COALESCE(v.color, ''))) = LOWER(TRIM($3))
+    FOR UPDATE
+    `,
+    [sessionId, productId, color]
+  );
+
+  const itemIds = matchingResult.rows
+    .map((row) => normalizeNullableId(row.id))
+    .filter((value) => value !== null);
+
+  if (itemIds.length) {
+    await dbClient.query(
+      `
+      DELETE FROM inventory_count_items
+      WHERE id = ANY($1::bigint[])
+      `,
+      [itemIds]
+    );
+  }
+
+  const updatedSession = await fetchSessionRow(dbClient, { tenantId, sessionId, lock: false });
+  const remainingItems = await fetchSessionItems(dbClient, { tenantId, sessionId, lock: false });
+
+  return {
+    session: updatedSession,
+    items: remainingItems,
+    deletedCount: itemIds.length,
+  };
+  });
+};
+
 export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
   await ensureInventoryCountSchema();
   return withTransaction(clientOrPool, async (dbClient) => {

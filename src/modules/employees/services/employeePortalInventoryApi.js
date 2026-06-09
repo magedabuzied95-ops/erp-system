@@ -21,6 +21,9 @@ export const lookupEmployeePortalInventoryVariants = (token, sessionId, params =
 export const upsertEmployeePortalInventoryItem = (token, sessionId, body = {}) =>
   api.put(`/employee-portal/${encodeURIComponent(token)}/inventory/sessions/${encodeURIComponent(sessionId)}/items`, body);
 
+export const deleteEmployeePortalInventoryColorGroup = (token, sessionId, body = {}) =>
+  api.delete(`/employee-portal/${encodeURIComponent(token)}/inventory/sessions/${encodeURIComponent(sessionId)}/color-groups`, { body });
+
 export const submitEmployeePortalInventorySession = (token, sessionId) =>
   api.post(`/employee-portal/${encodeURIComponent(token)}/inventory/sessions/${encodeURIComponent(sessionId)}/submit`);
 
