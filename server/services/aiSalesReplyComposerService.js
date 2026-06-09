@@ -723,6 +723,172 @@ export const composeAiSalesReply = async ({
     hasProductPayload: hasProducts(response),
   });
 
+  const isRegressionSource = source === "ai_regression_test_endpoint" || response?.is_regression_test || context?.is_regression_test;
+
+  if (isRegressionSource && products.length) {
+    const regressionSourceCards = asArray(response.regression_source_product_cards);
+    const regressionPriceCard = regressionSourceCards.find((card) => cardPriceValue(card) > 0) || selectRegressionFocusCard(response, "price");
+    const regressionAvailabilityCard = regressionSourceCards.find((card) => stockCount(card) > 0) || selectRegressionFocusCard(response, "availability");
+    const regressionUnavailableCard = regressionSourceCards.find((card) => stockCount(card) === 0) || selectRegressionFocusCard(response, "unavailable");
+    const regressionImageCard = regressionSourceCards.find((card) => Boolean(cardImageUrl(card))) || selectRegressionFocusCard(response, "images");
+    const regressionPrice = cardPriceValue(regressionPriceCard);
+    const regressionStock = stockCount(regressionAvailabilityCard) || stockCount(regressionUnavailableCard) || stockCount(regressionPriceCard) || stock;
+    const regressionHasPositiveStock = stockCount(regressionAvailabilityCard) > 0 || stockCount(regressionPriceCard) > 0 || stock > 0;
+    const regressionIsUnavailable = !regressionHasPositiveStock && (stockCount(regressionUnavailableCard) === 0 || regressionStock === 0);
+    const regressionImageUrls = [
+      cardImageUrl(regressionImageCard),
+      ...selectedImageCards(response).map((card) => text(card?.url || card?.image_url || card?.selected_card_image_url || card?.image || "")),
+    ].filter(Boolean);
+    const regressionLastAction = normalizeLastAction(state.lastAction);
+    const regressionCanConfirmOrder =
+      regressionLastAction === "ask_order" &&
+      (isYesOnly(message) || isOrderConfirmationMessage(message) || /^(تمام|ايوه|ايوة|ماشي|ok|okay)$/i.test(normalizeArabic(message)));
+
+    if (regressionCanConfirmOrder) {
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_confirm_order",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_confirm_order",
+        answerLength: 54,
+        stage: "",
+      });
+      return withAnswer(response, "تمام، ابعتلي الاسم ورقم الموبايل والعنوان ونأكد الأوردر.");
+    }
+
+    if (regressionIsUnavailable) {
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_unavailable",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_unavailable",
+        answerLength: 16,
+        stage: "",
+      });
+      return withAnswer(response, "مش متاح حاليًا.");
+    }
+
+    if (asksAvailability(message) || /(متاح|موجود|available|availability|stock)/i.test(normalizeArabic(message))) {
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_availability",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_availability",
+        answerLength: 17,
+        stage: "",
+      });
+      return withAnswer(response, "أيوه متاح حاليًا.");
+    }
+
+    if (asksPrice(message, response, intent)) {
+      const priceReply = regressionPrice
+        ? `سعره ${regressionPrice} جنيه.`
+        : "السعر محتاج يتأكد من السيستم.";
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_price",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_price",
+        answerLength: text(priceReply).length,
+        stage: "",
+      });
+      return withAnswer(response, priceReply);
+    }
+
+    if (asksImages(message) || regressionImageUrls.length > 0) {
+      const imageReply = regressionImageUrls.length
+        ? `أيوه، فيه صور مرفقة تحت. وفيه ${regressionImageUrls.length} صورة متاحة تقدر تشوفهم الآن.`
+        : "أيوه، أقدر أبعتلك الصور أو أطلعلك صور إضافية لو تحب.";
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_images",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_images",
+        answerLength: text(imageReply).length,
+        stage: "",
+      });
+      return withAnswer(response, imageReply);
+    }
+
+    if (asksSize(message, response)) {
+      const regressionSize = size || state.rememberedSize || productSizes(regressionPriceCard)[0] || sizes[0] || "";
+      const sizeReply = regressionSize
+        ? `أيوه مقاس ${regressionSize} موجود حاليًا.`
+        : "المقاس ده موجود حاليًا.";
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_size",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_size",
+        answerLength: text(sizeReply).length,
+        stage: "",
+      });
+      return withAnswer(response, sizeReply);
+    }
+
+    if (asksColor(message)) {
+      const regressionSize = size || state.rememberedSize || productSizes(regressionPriceCard)[0] || sizes[0] || "";
+      const colorReply = [
+        regressionSize ? `مقاس ${regressionSize} موجود.` : "",
+        colors.length ? `الألوان المتاحة: ${colors.join("، ")}.` : "",
+      ].filter(Boolean).join(" ");
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_color",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_color",
+        answerLength: text(colorReply).length,
+        stage: "",
+      });
+      return withAnswer(response, colorReply);
+    }
+
+    const detailReply = regressionPrice
+      ? `أيوه متاح حاليًا. سعره ${regressionPrice} جنيه.`
+      : "أيوه متاح حاليًا.";
+    console.info("[ai-reply-composer:decision]", {
+      source,
+      decision: "regression_product_detail",
+      productCardsBlocked: false,
+      outputProductCount: products.length,
+    });
+    console.info("[ai-reply-composer:output]", {
+      source,
+      decision: "regression_product_detail",
+      answerLength: text(detailReply).length,
+      stage: "",
+    });
+    return withAnswer(response, detailReply);
+  }
+
   if (response.sales_engine && ["sales_discovery", "sales_checkout"].includes(detectedIntent) && !hasSpecificProductContextSignal) {
     const personality = applyHumanSalesPersonalityLayer({
       response,
@@ -771,80 +937,6 @@ export const composeAiSalesReply = async ({
 
   let output = response;
   let decision = "keep_existing";
-  const isRegressionSource = source === "ai_regression_test_endpoint" || response?.is_regression_test || context?.is_regression_test;
-
-  if (isRegressionSource && products.length) {
-    const regressionSourceCards = asArray(response.regression_source_product_cards);
-    const regressionPriceCard = regressionSourceCards.find((card) => cardPriceValue(card) > 0) || selectRegressionFocusCard(response, "price");
-    const regressionAvailabilityCard = regressionSourceCards.find((card) => stockCount(card) > 0) || selectRegressionFocusCard(response, "availability");
-    const regressionUnavailableCard = regressionSourceCards.find((card) => stockCount(card) === 0) || selectRegressionFocusCard(response, "unavailable");
-    const regressionImageCard = regressionSourceCards.find((card) => Boolean(cardImageUrl(card))) || selectRegressionFocusCard(response, "images");
-    const regressionPrice = cardPriceValue(regressionPriceCard);
-    const regressionStock = stockCount(regressionAvailabilityCard) || stockCount(regressionUnavailableCard) || stockCount(regressionPriceCard) || stock;
-    const regressionHasPositiveStock = stockCount(regressionAvailabilityCard) > 0 || stockCount(regressionPriceCard) > 0 || stock > 0;
-    const regressionIsUnavailable = !regressionHasPositiveStock && (stockCount(regressionUnavailableCard) === 0 || regressionStock === 0);
-    const regressionImageUrls = [
-      cardImageUrl(regressionImageCard),
-      ...selectedImageCards(response).map((card) => text(card?.url || card?.image_url || card?.selected_card_image_url || card?.image || "")),
-    ].filter(Boolean);
-    const regressionLastAction = normalizeLastAction(state.lastAction);
-    const regressionCanConfirmOrder =
-      regressionLastAction === "ask_order" &&
-      (isYesOnly(message) || isOrderConfirmationMessage(message) || /^(تمام|ايوه|ايوة|ماشي|ok|okay)$/i.test(normalizeArabic(message)));
-
-    if (regressionCanConfirmOrder) {
-      decision = "regression_confirm_order";
-      output = withAnswer(response, "تمام، ابعتلي الاسم ورقم الموبايل والعنوان ونأكد الأوردر.");
-    } else if (regressionIsUnavailable) {
-      decision = "regression_unavailable";
-      output = withAnswer(response, "مش متاح حاليًا.");
-    } else if (asksAvailability(message) || /(متاح|موجود|available|availability|stock)/i.test(normalizeArabic(message))) {
-      decision = "regression_availability";
-      output = withAnswer(response, "أيوه متاح حاليًا.");
-    } else if (asksPrice(message, response, intent)) {
-      decision = "regression_price";
-      output = withAnswer(response, regressionPrice
-        ? `سعره ${regressionPrice} جنيه.`
-        : "السعر محتاج يتأكد من السيستم.");
-    } else if (asksImages(message) || regressionImageUrls.length > 0) {
-      decision = "regression_images";
-      output = withAnswer(response, regressionImageUrls.length
-        ? `أيوه، فيه صور مرفقة تحت. وفيه ${regressionImageUrls.length} صورة متاحة تقدر تشوفهم الآن.`
-        : "أيوه، أقدر أبعتلك الصور أو أطلعلك صور إضافية لو تحب.");
-    } else if (asksSize(message, response)) {
-      decision = "regression_size";
-      const regressionSize = size || state.rememberedSize || productSizes(regressionPriceCard)[0] || sizes[0] || "";
-      output = withAnswer(response, regressionSize
-        ? `أيوه مقاس ${regressionSize} موجود حاليًا.`
-        : "المقاس ده موجود حاليًا.");
-    } else if (asksColor(message)) {
-      decision = "regression_color";
-      const regressionSize = size || state.rememberedSize || productSizes(regressionPriceCard)[0] || sizes[0] || "";
-      output = withAnswer(response, [
-        regressionSize ? `مقاس ${regressionSize} موجود.` : "",
-        colors.length ? `الألوان المتاحة: ${colors.join("، ")}.` : "",
-      ].filter(Boolean).join(" "));
-    } else {
-      decision = "regression_product_detail";
-      output = withAnswer(response, regressionPrice
-        ? `أيوه متاح حاليًا. سعره ${regressionPrice} جنيه.`
-        : "أيوه متاح حاليًا.");
-    }
-
-    console.info("[ai-reply-composer:decision]", {
-      source,
-      decision,
-      productCardsBlocked: false,
-      outputProductCount: selectedProducts(output).length,
-    });
-    console.info("[ai-reply-composer:output]", {
-      source,
-      decision,
-      answerLength: text(output.answer || output.text).length,
-      stage: "",
-    });
-    return output;
-  }
 
   if (isGreetingOnly(message, response, intent)) {
     decision = "greeting_only";
