@@ -149,6 +149,21 @@ const productColors = (product = {}) => [
   .map((value) => toText(value))
   .filter(Boolean);
 
+const asksPrice = (message = "") =>
+  /(بكام|السعر|سعره|كام|price|cost)/i.test(String(message || ""));
+
+const asksAvailability = (message = "") =>
+  /(فيه|موجود|متاح|available|stock|عندكم)/i.test(String(message || ""));
+
+const asksColor = (message = "") => {
+  const normalized = normalizeArabic(message);
+  return /(الوان|الألوان|لونه|لون|colors?|colour)/i.test(String(message || "")) ||
+    /(الوانه ايه|الوانها ايه|فيه الوان|في الوان|ايه الالوان|ايه الوانه|ايه الوانها|available colors|colors?)/i.test(normalized);
+};
+
+const asksSize = (message = "") =>
+  Boolean(extractExplicitSize(message) || /(مقاس|مقاسات|size)/i.test(String(message || "")));
+
 const primaryImage = (product = {}) =>
   toText(product?.image_url || product?.image || product?.url || product?.main_image || product?.thumbnail);
 
