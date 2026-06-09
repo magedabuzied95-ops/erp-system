@@ -1178,11 +1178,14 @@ export const deleteInventoryCountColorGroup = async (clientOrPool, data = {}) =>
     `
     SELECT i.id
     FROM inventory_count_items i
-    LEFT JOIN product_variants v ON v.id = COALESCE(i.product_variant_id, i.variant_id)
     WHERE (i.inventory_count_session_id = $1 OR i.inventory_count_id = $1)
       AND i.product_id = $2
-      AND LOWER(TRIM(COALESCE(v.color, ''))) = LOWER(TRIM($3))
-    FOR UPDATE
+      AND EXISTS (
+        SELECT 1
+        FROM product_variants v
+        WHERE v.id = COALESCE(i.product_variant_id, i.variant_id)
+          AND LOWER(TRIM(COALESCE(v.color, ''))) = LOWER(TRIM($3))
+      )
     `,
     [sessionId, productId, color]
   );
