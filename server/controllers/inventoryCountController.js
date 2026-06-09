@@ -3,7 +3,9 @@ import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import {
   approveInventoryCountSession,
   cancelInventoryCountSession,
+  deleteInventoryCountSession,
   createInventoryCountSession,
+  addProductModelToCount,
   getInventoryCountSession,
   listInventoryCountSessions,
   openInventoryCountSession,
@@ -230,6 +232,29 @@ export const upsertItem = async (req, res) => {
   }
 };
 
+export const addModel = async (req, res) => {
+  try {
+    const tenantId = scopedTenantId(req);
+    const result = await addProductModelToCount(db, {
+      tenantId,
+      sessionId: resolveSessionId(req),
+      productId: req.body?.productId ?? req.body?.product_id ?? req.body?.productID ?? req.body?.product ?? null,
+      userId: req.user?.id || null,
+    });
+
+    return res.json({
+      success: true,
+      session: result.session,
+      items: result.items,
+      insertedCount: result.insertedCount || 0,
+      skippedCount: result.skippedCount || 0,
+    });
+  } catch (error) {
+    console.error("[inventory-count] add model", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to add product model to inventory count" });
+  }
+};
+
 export const approveSession = async (req, res) => {
   try {
     console.log("[inventory-count:approve:request]", JSON.stringify({
@@ -278,5 +303,26 @@ export const cancelSession = async (req, res) => {
   } catch (error) {
     console.error("[inventory-count] cancel session", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to cancel inventory count session" });
+  }
+};
+
+export const deleteSession = async (req, res) => {
+  try {
+    const tenantId = scopedTenantId(req);
+    const result = await deleteInventoryCountSession(db, {
+      tenantId,
+      sessionId: resolveSessionId(req),
+      deletedBy: req.user?.id || null,
+    });
+
+    return res.json({
+      success: true,
+      deleted: result.deleted === true,
+      deletedItemsCount: result.deletedItemsCount || 0,
+      session: result.session,
+    });
+  } catch (error) {
+    console.error("[inventory-count] delete session", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to delete inventory count session" });
   }
 };

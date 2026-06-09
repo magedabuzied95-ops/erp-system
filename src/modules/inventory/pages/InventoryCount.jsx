@@ -752,6 +752,9 @@ function InventoryCountPage() {
       }
       await loadSession();
       setSelectedLookupProductId(String(group.product_id));
+      setLookupQuery("");
+      setLookupResults([]);
+      setSelectedLookupProductId("");
       toast.success("تمت إضافة الموديل للجرد");
     } catch (error) {
       console.error("[inventory-count] add model", error);
@@ -1045,6 +1048,27 @@ function InventoryCountPage() {
                   </button>
                 </div>
 
+                {selectedLookupGroup ? (
+                  <div className="mt-3 flex flex-col gap-3 rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">Selected Model</div>
+                      <div className="mt-1 truncate text-sm font-bold text-white">{selectedLookupGroup.product_name || "منتج"}</div>
+                      <div className="mt-1 text-xs text-emerald-100/80">
+                        {selectedLookupGroup.colors?.length || 0} ألوان · {selectedLookupGroup.variants.length} مقاسات
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => addFullModelToCount(selectedLookupGroup)}
+                      disabled={busyGroupKey === selectedLookupGroup.key}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:opacity-40"
+                    >
+                      {busyGroupKey === selectedLookupGroup.key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                      إضافة الموديل للجرد
+                    </button>
+                  </div>
+                ) : null}
+
                 <div className="mt-4 space-y-3">
                   {groupedLookupResults.length === 0 && lookupQuery.trim() && !lookupLoading ? (
                     <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-8 text-center text-zinc-400">
@@ -1057,7 +1081,8 @@ function InventoryCountPage() {
                       key={group.key}
                       group={group}
                       busy={busyGroupKey === group.key}
-                      onAddColor={() => addColorGroupToCount(group)}
+                      selected={String(selectedLookupGroup?.product_id || "") === String(group.product_id || "")}
+                      onAddModel={() => addFullModelToCount(group)}
                     />
                   ))}
                 </div>
@@ -1380,9 +1405,9 @@ function SelectField({ label, value, onChange, options = [] }) {
   );
 }
 
-function LookupGroupCard({ group, busy, selected, onSelect, onAddModel }) {
+function LookupGroupCard({ group, busy, selected, onAddModel }) {
   return (
-    <div onClick={onSelect} role="button" tabIndex={0} className={`rounded-3xl border p-4 ${selected ? "border-emerald-400/40 bg-emerald-500/10" : "border-white/10 bg-white/5"}`}>
+    <div className={`rounded-3xl border p-4 ${selected ? "border-emerald-400/40 bg-emerald-500/10" : "border-white/10 bg-white/5"}`}>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex min-w-0 gap-3">
           <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900">
@@ -1405,9 +1430,19 @@ function LookupGroupCard({ group, busy, selected, onSelect, onAddModel }) {
 
         <button
           type="button"
-          onClick={onAddColor}
+          onClick={onAddModel}
           disabled={busy}
           className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:opacity-40"
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          إضافة الموديل للجرد
+        </button>
+
+        <button
+          type="button"
+          onClick={onAddModel}
+          disabled={busy}
+          className="hidden inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:opacity-40"
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
           إضافة اللون للجرد

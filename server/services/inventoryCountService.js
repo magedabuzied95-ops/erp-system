@@ -948,6 +948,38 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
   return rows;
 };
 
+const fetchInventoryCountProductVariants = async (dbClient, { tenantId, productId }) => {
+  const result = await dbClient.query(
+    `
+    SELECT
+      v.id AS product_variant_id,
+      v.product_id,
+      p.name AS product_name,
+      p.sku AS product_sku,
+      p.barcode AS product_barcode,
+      v.color,
+      v.size,
+      v.sku,
+      v.barcode,
+      v.article_code,
+      COALESCE(v.stock, 0)::int AS stock,
+      COALESCE(NULLIF(v.image_url, ''), NULLIF(p.image_url, ''), NULLIF(p.image, ''), '') AS image_url
+    FROM product_variants v
+    JOIN products p ON p.id = v.product_id
+    WHERE ($1::bigint IS NULL OR v.tenant_id = $1::bigint OR v.tenant_id IS NULL)
+      AND v.product_id = $2
+    ORDER BY COALESCE(NULLIF(v.color, ''), ''), COALESCE(NULLIF(v.size, ''), ''), v.id ASC
+    `,
+    [tenantId, productId]
+  );
+
+  return result.rows.map((row) => ({
+    ...row,
+    product_variant_id: row.product_variant_id ?? row.id,
+    stock: toNumber(row.stock, 0),
+  }));
+};
+
 export const upsertInventoryCountItem = async (clientOrPool, data = {}) => {
   await ensureInventoryCountSchema();
   return withTransaction(clientOrPool, async (dbClient) => {
@@ -1136,6 +1168,156 @@ export const upsertInventoryCountItem = async (clientOrPool, data = {}) => {
   });
 };
 
+export const addProductModelToCount = async (clientOrPool, data = {}) => {
+  await ensureInventoryCountSchema();
+  return withTransaction(clientOrPool, async (dbClient) => {
+  const tenantId = data.tenantId ?? data.tenant_id ?? null;
+  const sessionId = normalizeNullableId(
+    data.sessionId ??
+    data.session_id ??
+    data.inventoryCountId ??
+    data.inventory_count_id ??
+    data.inventoryCountSessionId ??
+    data.inventory_count_session_id
+  );
+  const productId = normalizeNullableId(data.productId ?? data.product_id ?? data.productID ?? data.product);
+
+  if (!sessionId) {
+    const error = new Error("Inventory count session is required");
+    error.status = 400;
+    throw error;
+  }
+  if (!productId) {
+    const error = new Error("productId is required");
+    error.status = 400;
+    throw error;
+  }
+
+  const session = await fetchSessionRow(dbClient, { tenantId, sessionId, lock: true });
+  if (!session) {
+    const error = new Error("Inventory count session not found");
+    error.status = 404;
+    throw error;
+  }
+  if (session.status === "pending_review" || session.status === "completed" || session.status === "cancelled") {
+    const error = new Error("Cannot modify a finished inventory count session");
+    error.status = 409;
+    throw error;
+  }
+
+  const variants = await fetchInventoryCountProductVariants(dbClient, { tenantId, productId });
+  if (!variants.length) {
+    const error = new Error("Product not found");
+    error.status = 404;
+    throw error;
+  }
+
+  if (session.status === "draft") {
+    await dbClient.query(
+      `
+      UPDATE inventory_count_sessions
+      SET status = 'in_progress',
+          opened_at = COALESCE(opened_at, NOW()),
+          opened_by = COALESCE(opened_by, $2),
+          updated_at = NOW()
+      WHERE id = $1
+      `,
+      [sessionId, data.userId ?? data.createdBy ?? data.created_by ?? null]
+    );
+  }
+
+  const existingResult = await dbClient.query(
+    `
+    SELECT DISTINCT COALESCE(product_variant_id, variant_id) AS variant_key
+    FROM inventory_count_items
+    WHERE (inventory_count_session_id = $1 OR inventory_count_id = $1)
+      AND product_id = $2
+    `,
+    [sessionId, productId]
+  );
+  const existingVariantIds = new Set(
+    existingResult.rows
+      .map((row) => normalizeNullableId(row.variant_key))
+      .filter((value) => value !== null)
+      .map((value) => String(value))
+  );
+
+  const insertedVariants = [];
+  for (const variant of variants) {
+    const variantId = normalizeNullableId(variant.product_variant_id ?? variant.variant_id ?? variant.id);
+    if (!variantId || existingVariantIds.has(String(variantId))) continue;
+    const systemQuantity = toNumber(variant.stock, 0);
+    const differenceQuantity = 0 - systemQuantity;
+    const result = await dbClient.query(
+      `
+      INSERT INTO inventory_count_items (
+        inventory_count_id,
+        inventory_count_session_id,
+        product_id,
+        product_variant_id,
+        variant_id,
+        system_quantity,
+        counted_quantity,
+        difference_quantity,
+        expected_qty,
+        actual_qty,
+        difference_qty,
+        reason,
+        notes,
+        created_at,
+        updated_at
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$6,$7,$8,$9,$10,NOW(),NOW())
+      RETURNING *
+      `,
+      [
+        sessionId,
+        sessionId,
+        variant.product_id,
+        variantId,
+        variantId,
+        systemQuantity,
+        0,
+        differenceQuantity,
+        "",
+        "",
+      ]
+    );
+    insertedVariants.push(
+      applyRowAliases({
+        ...result.rows[0],
+        product_name: variant.product_name,
+        variant_color: variant.color,
+        variant_size: variant.size,
+        variant_sku: variant.sku,
+        variant_barcode: variant.barcode,
+        variant_article_code: variant.article_code,
+        variant_image_url: variant.image_url,
+        product_variant_id: variantId,
+        product_id: variant.product_id,
+        system_quantity: systemQuantity,
+        counted_quantity: 0,
+        difference_quantity: differenceQuantity,
+        expected_qty: systemQuantity,
+        actual_qty: 0,
+        difference_qty: differenceQuantity,
+      })
+    );
+    existingVariantIds.add(String(variantId));
+  }
+
+  const updatedSession = await fetchSessionRow(dbClient, { tenantId, sessionId, lock: false });
+  const updatedItems = await fetchSessionItems(dbClient, { tenantId, sessionId, lock: false });
+
+  return {
+    session: updatedSession,
+    items: updatedItems,
+    insertedCount: insertedVariants.length,
+    skippedCount: Math.max(variants.length - insertedVariants.length, 0),
+  };
+  });
+};
+
 export const deleteInventoryCountColorGroup = async (clientOrPool, data = {}) => {
   await ensureInventoryCountSchema();
   return withTransaction(clientOrPool, async (dbClient) => {
@@ -1211,6 +1393,91 @@ export const deleteInventoryCountColorGroup = async (clientOrPool, data = {}) =>
     session: updatedSession,
     items: remainingItems,
     deletedCount: itemIds.length,
+  };
+  });
+};
+
+export const deleteInventoryCountSession = async (clientOrPool, data = {}) => {
+  await ensureInventoryCountSchema();
+  return withTransaction(clientOrPool, async (dbClient) => {
+  const tenantId = data.tenantId ?? data.tenant_id ?? null;
+  const sessionId = normalizeNullableId(
+    data.sessionId ?? data.session_id ?? data.inventoryCountId ?? data.inventory_count_id ?? data.inventoryCountSessionId ?? data.inventory_count_session_id
+  );
+  const deletedBy = data.deletedBy ?? data.deleted_by ?? data.userId ?? data.user_id ?? null;
+
+  if (!sessionId) {
+    const error = new Error("Inventory count session is required");
+    error.status = 400;
+    throw error;
+  }
+
+  const session = await fetchSessionRow(dbClient, { tenantId, sessionId, lock: true });
+  if (!session) {
+    const error = new Error("Inventory count session not found");
+    error.status = 404;
+    throw error;
+  }
+
+  if (session.status === "completed") {
+    const error = new Error("Completed inventory count sessions cannot be deleted");
+    error.status = 409;
+    throw error;
+  }
+
+  const countResult = await dbClient.query(
+    `
+    SELECT COUNT(*)::int AS item_count
+    FROM inventory_count_items
+    WHERE inventory_count_session_id = $1
+       OR inventory_count_id = $1
+    `,
+    [sessionId]
+  );
+  const deletedItemsCount = Number(countResult.rows[0]?.item_count || 0);
+
+  if (deletedItemsCount > 0) {
+    await dbClient.query(
+      `
+      DELETE FROM inventory_count_items
+      WHERE inventory_count_session_id = $1
+         OR inventory_count_id = $1
+      `,
+      [sessionId]
+    );
+  }
+
+  const deletedSessionResult = await dbClient.query(
+    `
+    DELETE FROM inventory_count_sessions
+    WHERE id = $1
+    RETURNING *
+    `,
+    [sessionId]
+  );
+
+  const deletedSession = applyRowAliases(deletedSessionResult.rows[0] || session);
+
+  await logActivity(
+    dbClient,
+    deletedBy,
+    "inventory_count.delete",
+    "inventory_count_session",
+    session.id,
+    {
+      session_id: session.id,
+      session_title: session.title,
+      branch_id: session.branch_id ?? null,
+      warehouse_id: session.warehouse_id ?? null,
+      deleted_items_count: deletedItemsCount,
+      status: session.status,
+    }
+  );
+
+  return {
+    session: deletedSession,
+    deletedItemsCount,
+    deleted: true,
   };
   });
 };
