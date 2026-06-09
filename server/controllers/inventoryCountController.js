@@ -7,12 +7,20 @@ import {
   getInventoryCountSession,
   listInventoryCountSessions,
   openInventoryCountSession,
+  rejectInventoryCountSession,
+  reopenInventoryCountSession,
   searchInventoryCountVariants,
+  submitInventoryCountSession,
   updateInventoryCountSession,
   upsertInventoryCountItem,
 } from "../services/inventoryCountService.js";
 
 const scopedTenantId = (req) => (isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id));
+const isReviewerUser = (user = {}) =>
+  Boolean(user?.is_super_admin) ||
+  ["admin", "super_admin", "super admin", "superadmin", "platform_admin", "manager", "branch manager"].includes(
+    String(user?.role || user?.role_name || "").trim().toLowerCase().replace(/[_-]+/g, " ")
+  );
 
 const parseLimit = (value, fallback = 25, max = 200) => Math.min(Math.max(Number(value || fallback), 1), max);
 const resolveSessionId = (req) => req.params?.id ?? req.body?.sessionId ?? req.body?.session_id ?? req.body?.inventoryCountSessionId ?? req.body?.inventory_count_session_id ?? req.body?.inventoryCountId ?? req.body?.inventory_count_id ?? null;
@@ -115,6 +123,73 @@ export const openSession = async (req, res) => {
   }
 };
 
+export const submitSession = async (req, res) => {
+  try {
+    const tenantId = scopedTenantId(req);
+    const result = await submitInventoryCountSession(db, {
+      tenantId,
+      sessionId: resolveSessionId(req),
+      submittedBy: req.user?.id || null,
+      user: req.user || {},
+    });
+    return res.json({
+      success: true,
+      session: result.session,
+      submitted: result.submitted === true,
+    });
+  } catch (error) {
+    console.error("[inventory-count] submit session", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to submit inventory count session" });
+  }
+};
+
+export const rejectSession = async (req, res) => {
+  try {
+    if (!isReviewerUser(req.user)) {
+      return res.status(403).json({ success: false, message: "Manager approval required" });
+    }
+    const tenantId = getTenantId(req, req.user?.tenant_id);
+    const result = await rejectInventoryCountSession(db, {
+      tenantId,
+      sessionId: resolveSessionId(req),
+      rejectedBy: req.user?.id || null,
+      rejectionReason: req.body?.rejectionReason || req.body?.rejection_reason || req.body?.reason || "",
+      user: req.user || {},
+    });
+    return res.json({
+      success: true,
+      session: result.session,
+      rejected: result.rejected === true,
+    });
+  } catch (error) {
+    console.error("[inventory-count] reject session", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to reject inventory count session" });
+  }
+};
+
+export const reopenSession = async (req, res) => {
+  try {
+    if (!isReviewerUser(req.user)) {
+      return res.status(403).json({ success: false, message: "Manager approval required" });
+    }
+    const tenantId = getTenantId(req, req.user?.tenant_id);
+    const result = await reopenInventoryCountSession(db, {
+      tenantId,
+      sessionId: resolveSessionId(req),
+      reopenedBy: req.user?.id || null,
+      user: req.user || {},
+    });
+    return res.json({
+      success: true,
+      session: result.session,
+      reopened: result.reopened === true,
+    });
+  } catch (error) {
+    console.error("[inventory-count] reopen session", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to reopen inventory count session" });
+  }
+};
+
 export const lookupVariants = async (req, res) => {
   try {
     const tenantId = scopedTenantId(req);
@@ -164,11 +239,15 @@ export const approveSession = async (req, res) => {
       company: req.company ?? null,
       headers: req.headers ?? null,
     }));
+    if (!isReviewerUser(req.user)) {
+      return res.status(403).json({ success: false, message: "Manager approval required" });
+    }
     const tenantId = getTenantId(req, req.user?.tenant_id);
     const result = await approveInventoryCountSession(db, {
       tenantId,
       sessionId: resolveSessionId(req),
-      completedBy: req.user?.id || null,
+      approvedBy: req.user?.id || null,
+      user: req.user || {},
     });
 
     return res.json({

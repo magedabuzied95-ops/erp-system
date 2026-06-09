@@ -1,8 +1,10 @@
 import db from "../database/db.js";
 import { recordInventoryMovement } from "./inventoryMovementService.js";
+import { createNotification } from "./notificationsService.js";
 import logActivity from "../utils/logActivity.js";
 
-const SESSION_STATUSES = new Set(["draft", "in_progress", "completed", "cancelled"]);
+const SESSION_STATUSES = new Set(["draft", "in_progress", "pending_review", "completed", "cancelled", "rejected"]);
+const REVIEW_ROLES = new Set(["admin", "super admin", "superadmin", "super_admin", "platform admin", "manager", "branch manager"]);
 export const INVENTORY_COUNT_REASONS = [
   "خطأ بيع",
   "خطأ استلام",
@@ -33,6 +35,90 @@ const normalizeNullableId = (value) => {
   if (value === undefined || value === null || value === "") return null;
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+const normalizeRoleName = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ");
+
+const isInventoryCountReviewer = (user = {}) =>
+  Boolean(user?.is_super_admin) || REVIEW_ROLES.has(normalizeRoleName(user?.role || user?.role_name));
+
+const inventoryCountSessionUrl = (sessionId) => `/inventory/count/${encodeURIComponent(String(sessionId || ""))}`;
+
+const sendInventoryCountNotification = async (payload = {}) => {
+  try {
+    return await createNotification(payload);
+  } catch (error) {
+    console.warn("[inventory-count:notification]", error?.message || error);
+    return null;
+  }
+};
+
+const notifyInventoryCountSubmitted = async ({ session, actor = {} } = {}) => {
+  if (!session?.id) return;
+  const basePayload = {
+    tenant_id: session.tenant_id ?? actor.tenantId ?? null,
+    branch_id: session.branch_id ?? null,
+    action_url: inventoryCountSessionUrl(session.id),
+    action_label: "فتح الجرد",
+    entity_type: "inventory_count_session",
+    entity_id: String(session.id),
+    metadata: {
+      session_id: session.id,
+      branch_id: session.branch_id ?? null,
+      warehouse_id: session.warehouse_id ?? null,
+      status: session.status,
+    },
+  };
+
+  await Promise.all([
+    sendInventoryCountNotification({
+      ...basePayload,
+      type: "inventory_count_submitted_manager",
+      role_key: "manager",
+      category: "inventory",
+      priority: "high",
+      title: "طلب اعتماد جرد جديد",
+      message: `يوجد جرد جديد${session.branch_name ? ` من فرع ${session.branch_name}` : ""}${session.warehouse_name ? ` / مخزن ${session.warehouse_name}` : ""} في انتظار المراجعة.`,
+    }),
+    sendInventoryCountNotification({
+      ...basePayload,
+      type: "inventory_count_submitted_admin",
+      role_key: "admin",
+      category: "inventory",
+      priority: "high",
+      title: "طلب اعتماد جرد جديد",
+      message: `يوجد جرد جديد${session.branch_name ? ` من فرع ${session.branch_name}` : ""}${session.warehouse_name ? ` / مخزن ${session.warehouse_name}` : ""} في انتظار المراجعة.`,
+    }),
+  ]);
+};
+
+const notifyInventoryCountCreator = async ({ session, type, title, message, actionLabel = "فتح الجرد" } = {}) => {
+  const userId = session?.submitted_by ?? session?.created_by ?? null;
+  if (!session?.id || !userId) return;
+  await sendInventoryCountNotification({
+    tenant_id: session.tenant_id ?? null,
+    user_id: userId,
+    branch_id: session.branch_id ?? null,
+    type,
+    category: "inventory",
+    priority: "high",
+    title,
+    message,
+    action_url: inventoryCountSessionUrl(session.id),
+    action_label: actionLabel,
+    entity_type: "inventory_count_session",
+    entity_id: String(session.id),
+    metadata: {
+      session_id: session.id,
+      branch_id: session.branch_id ?? null,
+      warehouse_id: session.warehouse_id ?? null,
+      status: session.status,
+    },
+  });
 };
 
 const ensureColumn = async (client, table, columnSql) => {
@@ -79,6 +165,13 @@ const ensureInventoryCountItemsCompatibility = async (client) => {
       opened_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
       completed_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
       cancelled_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+      submitted_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+      submitted_at TIMESTAMP NULL,
+      approved_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+      approved_at TIMESTAMP NULL,
+      rejected_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+      rejected_at TIMESTAMP NULL,
+      rejection_reason TEXT NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
@@ -97,6 +190,13 @@ const ensureInventoryCountItemsCompatibility = async (client) => {
   await ensureColumn(client, "inventory_count_sessions", "opened_by BIGINT NULL");
   await ensureColumn(client, "inventory_count_sessions", "completed_by BIGINT NULL");
   await ensureColumn(client, "inventory_count_sessions", "cancelled_by BIGINT NULL");
+  await ensureColumn(client, "inventory_count_sessions", "submitted_by BIGINT NULL");
+  await ensureColumn(client, "inventory_count_sessions", "submitted_at TIMESTAMP NULL");
+  await ensureColumn(client, "inventory_count_sessions", "approved_by BIGINT NULL");
+  await ensureColumn(client, "inventory_count_sessions", "approved_at TIMESTAMP NULL");
+  await ensureColumn(client, "inventory_count_sessions", "rejected_by BIGINT NULL");
+  await ensureColumn(client, "inventory_count_sessions", "rejected_at TIMESTAMP NULL");
+  await ensureColumn(client, "inventory_count_sessions", "rejection_reason TEXT NULL");
   await ensureColumn(client, "inventory_count_sessions", "created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP");
   await ensureColumn(client, "inventory_count_sessions", "updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP");
 
@@ -268,7 +368,10 @@ const fetchSessionRow = async (clientOrPool, { tenantId, sessionId, lock = false
       uc.name AS created_by_name,
       uo.name AS opened_by_name,
       uu.name AS completed_by_name,
-      ux.name AS cancelled_by_name
+      ux.name AS cancelled_by_name,
+      us.name AS submitted_by_name,
+      ua.name AS approved_by_name,
+      ur.name AS rejected_by_name
     FROM inventory_count_sessions s
     LEFT JOIN branches b ON b.id = s.branch_id
     LEFT JOIN warehouses w ON w.id = s.warehouse_id
@@ -276,6 +379,9 @@ const fetchSessionRow = async (clientOrPool, { tenantId, sessionId, lock = false
     LEFT JOIN users uo ON uo.id = s.opened_by
     LEFT JOIN users uu ON uu.id = s.completed_by
     LEFT JOIN users ux ON ux.id = s.cancelled_by
+    LEFT JOIN users us ON us.id = s.submitted_by
+    LEFT JOIN users ua ON ua.id = s.approved_by
+    LEFT JOIN users ur ON ur.id = s.rejected_by
     WHERE s.id = $1
       ${tenantClause}
     LIMIT 1
@@ -441,6 +547,9 @@ export const listInventoryCountSessions = async (clientOrPool, { tenantId = null
         b.name AS branch_name,
         w.name AS warehouse_name,
         uc.name AS created_by_name,
+        us.name AS submitted_by_name,
+        ua.name AS approved_by_name,
+        ur.name AS rejected_by_name,
         COALESCE(items.item_count, 0)::int AS item_count,
         COALESCE(items.adjusted_items, 0)::int AS adjusted_items,
         COALESCE(items.difference_total, 0)::int AS difference_total
@@ -448,6 +557,9 @@ export const listInventoryCountSessions = async (clientOrPool, { tenantId = null
       LEFT JOIN branches b ON b.id = s.branch_id
       LEFT JOIN warehouses w ON w.id = s.warehouse_id
       LEFT JOIN users uc ON uc.id = s.created_by
+      LEFT JOIN users us ON us.id = s.submitted_by
+      LEFT JOIN users ua ON ua.id = s.approved_by
+      LEFT JOIN users ur ON ur.id = s.rejected_by
       LEFT JOIN (
         SELECT
           inventory_count_session_id,
@@ -514,7 +626,7 @@ export const updateInventoryCountSession = async (clientOrPool, data = {}) => {
   const tenantId = data.tenantId ?? data.tenant_id ?? null;
   const sessionId = data.sessionId ?? data.session_id;
   const completedBy = data.completedBy ?? data.completed_by ?? data.userId ?? data.user_id ?? null;
-  console.log("[inventory-count:approve:start]", JSON.stringify({ tenantId, sessionId, completedBy }));
+  console.log("[inventory-count:update]", JSON.stringify({ tenantId, sessionId, completedBy }));
   const session = await fetchSessionRow(dbClient, { tenantId, sessionId, lock: true });
   if (!session) {
     const error = new Error("Inventory count session not found");
@@ -522,7 +634,7 @@ export const updateInventoryCountSession = async (clientOrPool, data = {}) => {
     throw error;
   }
 
-  if (session.status === "completed" || session.status === "cancelled") {
+  if (session.status === "pending_review" || session.status === "completed" || session.status === "cancelled") {
     const error = new Error("Cannot update a finished inventory count session");
     error.status = 409;
     throw error;
@@ -584,6 +696,128 @@ export const openInventoryCountSession = async (clientOrPool, data = {}) => {
     [sessionId, data.openedBy ?? data.opened_by ?? null]
   );
   return applyRowAliases(result.rows[0]);
+  });
+};
+
+export const submitInventoryCountSession = async (clientOrPool, data = {}) => {
+  await ensureInventoryCountSchema();
+  return withTransaction(clientOrPool, async (dbClient) => {
+  const tenantId = data.tenantId ?? data.tenant_id ?? null;
+  const sessionId = data.sessionId ?? data.session_id;
+  const submittedBy = data.submittedBy ?? data.submitted_by ?? data.userId ?? data.user_id ?? null;
+  console.log("[inventory-count:submit]", JSON.stringify({ tenantId, sessionId, submittedBy }));
+  const session = await fetchSessionRow(dbClient, { tenantId, sessionId, lock: true });
+  if (!session) {
+    const error = new Error("Inventory count session not found");
+    error.status = 404;
+    throw error;
+  }
+  if (session.status === "completed" || session.status === "cancelled") {
+    const error = new Error("Finished inventory count sessions cannot be submitted");
+    error.status = 409;
+    throw error;
+  }
+  if (session.status === "pending_review") {
+    return { session, submitted: false };
+  }
+
+  const result = await dbClient.query(
+    `
+    UPDATE inventory_count_sessions
+    SET status = 'pending_review',
+        submitted_by = COALESCE(submitted_by, $2),
+        submitted_at = COALESCE(submitted_at, NOW()),
+        updated_at = NOW()
+    WHERE id = $1
+    RETURNING *
+    `,
+    [sessionId, submittedBy]
+  );
+
+  const submittedSession = applyRowAliases(result.rows[0]);
+  await notifyInventoryCountSubmitted({ session: submittedSession, actor: { tenantId } });
+  return { session: submittedSession, submitted: true };
+  });
+};
+
+export const rejectInventoryCountSession = async (clientOrPool, data = {}) => {
+  await ensureInventoryCountSchema();
+  return withTransaction(clientOrPool, async (dbClient) => {
+  const tenantId = data.tenantId ?? data.tenant_id ?? null;
+  const sessionId = data.sessionId ?? data.session_id;
+  const rejectedBy = data.rejectedBy ?? data.rejected_by ?? data.userId ?? data.user_id ?? null;
+  const rejectionReason = normalizeText(data.rejectionReason ?? data.rejection_reason ?? data.reason ?? "");
+  console.log("[inventory-count:reject]", JSON.stringify({ tenantId, sessionId, rejectedBy, rejectionReason }));
+  const session = await fetchSessionRow(dbClient, { tenantId, sessionId, lock: true });
+  if (!session) {
+    const error = new Error("Inventory count session not found");
+    error.status = 404;
+    throw error;
+  }
+  if (session.status !== "pending_review") {
+    const error = new Error("Only pending review sessions can be rejected");
+    error.status = 409;
+    throw error;
+  }
+
+  const result = await dbClient.query(
+    `
+    UPDATE inventory_count_sessions
+    SET status = 'rejected',
+        rejected_by = $2,
+        rejected_at = NOW(),
+        rejection_reason = $3,
+        updated_at = NOW()
+    WHERE id = $1
+    RETURNING *
+    `,
+    [sessionId, rejectedBy, rejectionReason]
+  );
+
+  const rejectedSession = applyRowAliases(result.rows[0]);
+  await notifyInventoryCountCreator({
+    session: rejectedSession,
+    type: "inventory_count_rejected",
+    title: "تم رفض الجرد",
+    message: rejectionReason ? `تم رفض الجرد بسبب: ${rejectionReason}` : "تم رفض الجرد ويحتاج إلى تعديل.",
+    actionLabel: "فتح الجرد",
+  });
+  return { session: rejectedSession, rejected: true };
+  });
+};
+
+export const reopenInventoryCountSession = async (clientOrPool, data = {}) => {
+  await ensureInventoryCountSchema();
+  return withTransaction(clientOrPool, async (dbClient) => {
+  const tenantId = data.tenantId ?? data.tenant_id ?? null;
+  const sessionId = data.sessionId ?? data.session_id;
+  const reopenedBy = data.reopenedBy ?? data.reopened_by ?? data.userId ?? data.user_id ?? null;
+  console.log("[inventory-count:reopen]", JSON.stringify({ tenantId, sessionId, reopenedBy }));
+  const session = await fetchSessionRow(dbClient, { tenantId, sessionId, lock: true });
+  if (!session) {
+    const error = new Error("Inventory count session not found");
+    error.status = 404;
+    throw error;
+  }
+  if (session.status !== "rejected") {
+    const error = new Error("Only rejected sessions can be reopened");
+    error.status = 409;
+    throw error;
+  }
+
+  const result = await dbClient.query(
+    `
+    UPDATE inventory_count_sessions
+    SET status = 'draft',
+        updated_at = NOW()
+    WHERE id = $1
+    RETURNING *
+    `,
+    [sessionId]
+  );
+
+  const reopenedSession = applyRowAliases(result.rows[0]);
+  return { session: reopenedSession, reopened: true };
   });
 };
 
@@ -664,7 +898,7 @@ export const upsertInventoryCountItem = async (clientOrPool, data = {}) => {
     error.status = 404;
     throw error;
   }
-  if (session.status === "completed" || session.status === "cancelled") {
+  if (session.status === "pending_review" || session.status === "completed" || session.status === "cancelled") {
     const error = new Error("Cannot modify a finished inventory count session");
     error.status = 409;
     throw error;
@@ -834,7 +1068,9 @@ export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
   return withTransaction(clientOrPool, async (dbClient) => {
   const tenantId = data.tenantId ?? data.tenant_id ?? null;
   const sessionId = data.sessionId ?? data.session_id;
-  const completedBy = data.completedBy ?? data.completed_by ?? data.userId ?? data.user_id ?? null;
+  const approvedBy = data.approvedBy ?? data.approved_by ?? data.completedBy ?? data.completed_by ?? data.userId ?? data.user_id ?? null;
+  const actor = data.user || data.actor || {};
+  console.log("[inventory-count:approve:start]", JSON.stringify({ tenantId, sessionId, approvedBy, actorRole: actor?.role || actor?.role_name || null }));
   const session = await fetchSessionRow(dbClient, { tenantId, sessionId, lock: true });
   if (!session) {
     const error = new Error("Inventory count session not found");
@@ -853,6 +1089,16 @@ export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
   if (session.status === "cancelled") {
     const error = new Error("Cancelled inventory count sessions cannot be approved");
     error.status = 409;
+    throw error;
+  }
+  if (session.status !== "pending_review") {
+    const error = new Error("Inventory count session must be submitted for review before approval");
+    error.status = 409;
+    throw error;
+  }
+  if (!isInventoryCountReviewer(actor)) {
+    const error = new Error("Manager approval required");
+    error.status = 403;
     throw error;
   }
 
@@ -913,7 +1159,7 @@ export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
       referenceId: session.id,
       reason: normalizeText(item.reason || session.title || "جرد مخزون") || "جرد مخزون",
       notes: movementNotes,
-      createdBy: completedBy,
+      createdBy: approvedBy,
     });
 
     console.log("[inventory-count:approve:movement-created]", JSON.stringify({
@@ -953,19 +1199,21 @@ export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
     `
     UPDATE inventory_count_sessions
     SET status = 'completed',
-        completed_at = NOW(),
-        completed_by = $2,
+        approved_by = COALESCE(approved_by, $2),
+        approved_at = COALESCE(approved_at, NOW()),
+        completed_at = COALESCE(completed_at, NOW()),
+        completed_by = COALESCE(completed_by, $2),
         updated_at = NOW()
     WHERE id = $1
     RETURNING *
     `,
-    [sessionId, completedBy]
+    [sessionId, approvedBy]
   );
 
   const completedSession = applyRowAliases(sessionUpdate.rows[0]);
   await logActivity(
     dbClient,
-    completedBy,
+    approvedBy,
     "inventory_count.approve",
     "inventory_count_session",
     session.id,
@@ -978,9 +1226,17 @@ export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
     }
   );
 
+  await notifyInventoryCountCreator({
+    session: completedSession,
+    type: "inventory_count_approved",
+    title: "تم اعتماد الجرد",
+    message: "تم اعتماد الجرد وتحديث المخزون.",
+    actionLabel: "فتح الجرد",
+  });
+
   console.log("[inventory-count:approve:done]", JSON.stringify({
     sessionId: session.id,
-    completedBy,
+    approvedBy,
     adjustments: adjustments.length,
   }));
 

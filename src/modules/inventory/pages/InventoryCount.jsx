@@ -22,6 +22,7 @@ import toast from "react-hot-toast";
 
 import BarcodeScanner from "../../../components/BarcodeScanner";
 import { api } from "../../../shared/api/api";
+import { getCurrentUser, getUserRole, isAdminUser } from "../../../shared/auth/authStorage";
 import InventoryShell from "../components/InventoryShell";
 import StatusBadge from "../../purchases/components/StatusBadge";
 import { formatDateTime, normalizeWarehouse } from "../../purchases/lib/flowStore";
@@ -33,6 +34,9 @@ import {
   listInventoryCountSessions,
   openInventoryCountSession,
   searchInventoryCountVariants,
+  reopenInventoryCountSession,
+  rejectInventoryCountSession,
+  submitInventoryCountSession,
   updateInventoryCountSession,
   upsertInventoryCountItem,
 } from "../services/inventoryCountApi";
@@ -59,6 +63,16 @@ const statusTone = {
   completed: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100",
   cancelled: "border-rose-500/25 bg-rose-500/10 text-rose-100",
 };
+
+Object.assign(SESSION_STATUS_LABELS, {
+  pending_review: "قيد المراجعة",
+  rejected: "مرفوض",
+});
+
+Object.assign(statusTone, {
+  pending_review: "border-sky-500/25 bg-sky-500/10 text-sky-100",
+  rejected: "border-rose-500/25 bg-rose-500/10 text-rose-100",
+});
 
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -172,6 +186,7 @@ function InventoryCountPage() {
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [sessionsError, setSessionsError] = useState("");
   const [sessionSearch, setSessionSearch] = useState("");
+  const [sessionStatusFilter, setSessionStatusFilter] = useState("all");
   const [session, setSession] = useState(null);
   const [items, setItems] = useState([]);
   const [sessionLoading, setSessionLoading] = useState(false);
@@ -195,6 +210,12 @@ function InventoryCountPage() {
     warehouseId: "",
     notes: "",
   });
+
+  const currentUser = getCurrentUser();
+  const currentRole = getUserRole(currentUser);
+  const canReviewInventoryCount = isAdminUser(currentUser) || ["manager", "branch manager"].includes(String(currentRole || "").toLowerCase());
+  const canFinalApproveInventoryCount = canReviewInventoryCount;
+  const sessionIsLockedForEditing = ["pending_review", "rejected", "completed", "cancelled"].includes(session?.status || "");
 
   const groupedLookupResults = useMemo(() => groupCountVariants(lookupResults), [lookupResults]);
   const groupedItems = useMemo(() => groupCountVariants(items), [items]);
@@ -297,6 +318,10 @@ function InventoryCountPage() {
 
   const persistVariant = async (variant, patch = {}) => {
     if (!routeSessionId || !variant) return null;
+    if (sessionIsLockedForEditing) {
+      toast.error("الجرد في انتظار موافقة المدير");
+      return null;
+    }
     const response = await upsertInventoryCountItem(routeSessionId, {
       productVariantId: variant.product_variant_id || variant.variant_id || variant.id,
       countedQuantity: patch.counted_quantity ?? patch.countedQuantity ?? variant.counted_quantity,
@@ -367,9 +392,25 @@ function InventoryCountPage() {
     }
   };
 
+  const submitSessionHandler = async () => {
+    if (!routeSessionId) return;
+    try {
+      setApprovingSession(true);
+      const response = await submitInventoryCountSession(routeSessionId);
+      setSession(response?.session || session);
+      await loadSession();
+      toast.success("تم إرسال الجرد للمراجعة");
+    } catch (error) {
+      console.error("[inventory-count] submit session", error);
+      toast.error(error?.message || "تعذر إرسال الجرد للمراجعة");
+    } finally {
+      setApprovingSession(false);
+    }
+  };
+
   const approveSessionHandler = async () => {
     if (!routeSessionId) return;
-    const confirmed = window.confirm("هل تريد اعتماد الجرد؟ سيتم إنشاء حركات المخزون لكل فرق.");
+    const confirmed = window.confirm("هل تريد موافقة واعتماد الجرد؟ سيتم إنشاء حركات المخزون لكل فرق.");
     if (!confirmed) return;
     try {
       setApprovingSession(true);
@@ -382,6 +423,40 @@ function InventoryCountPage() {
       toast.error(error?.message || "تعذر اعتماد الجرد");
     } finally {
       setApprovingSession(false);
+    }
+  };
+
+  const rejectSessionHandler = async () => {
+    if (!routeSessionId) return;
+    const rejectionReason = window.prompt("ما سبب رفض الجرد؟", session?.rejection_reason || "");
+    if (rejectionReason === null) return;
+    try {
+      setApprovingSession(true);
+      const response = await rejectInventoryCountSession(routeSessionId, { rejectionReason });
+      setSession(response?.session || session);
+      await loadSession();
+      toast.success("تم رفض الجرد");
+    } catch (error) {
+      console.error("[inventory-count] reject session", error);
+      toast.error(error?.message || "تعذر رفض الجرد");
+    } finally {
+      setApprovingSession(false);
+    }
+  };
+
+  const reopenSessionHandler = async () => {
+    if (!routeSessionId) return;
+    try {
+      setOpeningSession(true);
+      const response = await reopenInventoryCountSession(routeSessionId);
+      setSession(response?.session || session);
+      await loadSession();
+      toast.success("تمت إعادة فتح الجرد للتعديل");
+    } catch (error) {
+      console.error("[inventory-count] reopen session", error);
+      toast.error(error?.message || "تعذر إعادة فتح الجرد");
+    } finally {
+      setOpeningSession(false);
     }
   };
 
@@ -487,6 +562,7 @@ function InventoryCountPage() {
   };
 
   const handleCountedChange = (itemId, value) => {
+    if (sessionIsLockedForEditing) return;
     const parsed = Number(value || 0);
     updateLocalItem(itemId, (row) => ({
       counted_quantity: parsed,
@@ -609,24 +685,29 @@ function InventoryCountPage() {
           const status = String(row.status || "draft");
           if (status === "draft") acc.draft += 1;
           if (status === "in_progress") acc.inProgress += 1;
+          if (status === "pending_review") acc.pendingReview += 1;
           if (status === "completed") acc.completed += 1;
           if (status === "cancelled") acc.cancelled += 1;
+          if (status === "rejected") acc.rejected += 1;
           return acc;
         },
-        { total: 0, draft: 0, inProgress: 0, completed: 0, cancelled: 0 }
+        { total: 0, draft: 0, inProgress: 0, pendingReview: 0, completed: 0, cancelled: 0, rejected: 0 }
       ),
     [sessions]
   );
 
   const filteredSessions = useMemo(() => {
     const query = sessionSearch.trim().toLowerCase();
-    if (!query) return sessions;
-    return sessions.filter((row) =>
-      `${row.title || ""} ${row.branch_name || ""} ${row.warehouse_name || ""} ${row.status || ""} ${row.notes || ""} ${row.id || ""}`
+    return sessions.filter((row) => {
+      const status = String(row.status || "draft");
+      const matchesStatus = sessionStatusFilter === "all" || status === sessionStatusFilter;
+      if (!matchesStatus) return false;
+      if (!query) return true;
+      return `${row.title || ""} ${row.branch_name || ""} ${row.warehouse_name || ""} ${row.status || ""} ${row.notes || ""} ${row.id || ""}`
         .toLowerCase()
-        .includes(query)
-    );
-  }, [sessionSearch, sessions]);
+        .includes(query);
+    });
+  }, [sessionSearch, sessionStatusFilter, sessions]);
 
   const itemSummary = useMemo(() => {
     const visibleItems = visibleGroupedItems.flatMap((group) => group.variants);
@@ -688,7 +769,7 @@ function InventoryCountPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <StatusBadge value={SESSION_STATUS_LABELS[session?.status || "draft"] || session?.status || "مسودة"} />
                       <span className={`rounded-full border px-3 py-1 text-xs font-black ${statusTone[session?.status || "draft"] || statusTone.draft}`}>
-                        {session?.status === "completed" ? "مغلق" : session?.status === "cancelled" ? "ملغي" : session?.status === "in_progress" ? "نشط" : "مسودة"}
+                        {SESSION_STATUS_LABELS[session?.status || "draft"] || "مسودة"}
                       </span>
                     </div>
                     <h1 className="mt-3 text-3xl font-black tracking-tight text-white">{newSessionForm.title || "جرد جديد"}</h1>
@@ -703,7 +784,7 @@ function InventoryCountPage() {
                     <button
                       type="button"
                       onClick={saveDraftHandler}
-                      disabled={savingDraft || session?.status === "completed" || session?.status === "cancelled"}
+                      disabled={savingDraft || sessionIsLockedForEditing}
                       className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-40"
                     >
                       {savingDraft ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -712,7 +793,7 @@ function InventoryCountPage() {
                     <button
                       type="button"
                       onClick={openSessionHandler}
-                      disabled={openingSession || session?.status === "completed" || session?.status === "cancelled"}
+                      disabled={openingSession || sessionIsLockedForEditing}
                       className="inline-flex items-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/15 disabled:opacity-40"
                     >
                       {openingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <SquareArrowOutUpRight className="h-4 w-4" />}
@@ -720,17 +801,44 @@ function InventoryCountPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={approveSessionHandler}
-                      disabled={approvingSession || session?.status === "completed" || session?.status === "cancelled"}
+                      onClick={session?.status === "pending_review" && canReviewInventoryCount ? approveSessionHandler : submitSessionHandler}
+                      disabled={
+                        approvingSession ||
+                        session?.status === "completed" ||
+                        session?.status === "cancelled" ||
+                        session?.status === "rejected" ||
+                        (session?.status === "pending_review" && !canReviewInventoryCount)
+                      }
                       className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-black text-black transition hover:bg-emerald-400 disabled:opacity-40"
                     >
                       {approvingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                       اعتماد الجرد
                     </button>
+                    {session?.status === "pending_review" && canReviewInventoryCount ? (
+                      <button
+                        type="button"
+                        onClick={rejectSessionHandler}
+                        disabled={approvingSession}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:opacity-40"
+                      >
+                        رفض وإرجاع للتعديل
+                      </button>
+                    ) : null}
+                    {session?.status === "rejected" && canReviewInventoryCount ? (
+                      <button
+                        type="button"
+                        onClick={reopenSessionHandler}
+                        disabled={openingSession}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-sky-400/20 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-500/15 disabled:opacity-40"
+                      >
+                        {openingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                        إعادة فتح للتعديل
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={cancelSessionHandler}
-                      disabled={cancellingSession || session?.status === "completed" || session?.status === "cancelled"}
+                      disabled={cancellingSession || sessionIsLockedForEditing}
                       className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:opacity-40"
                     >
                       {cancellingSession ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
@@ -824,7 +932,7 @@ function InventoryCountPage() {
                       <GroupedCountCard
                         key={group.key}
                         group={group}
-                        disabled={session?.status === "completed" || session?.status === "cancelled"}
+                        disabled={sessionIsLockedForEditing}
                         busy={busyGroupKey === group.key}
                         onAddColor={() => addColorGroupToCount(group)}
                         onMatchSystem={() => matchGroupToSystem(group)}
@@ -909,6 +1017,29 @@ function InventoryCountPage() {
                 <div>
                   <h2 className="text-2xl font-black text-white">جلسات الجرد</h2>
                   <p className="mt-1 text-sm text-zinc-400">راجع الجلسات الحالية وافتح أي جلسة لمتابعة الأصناف أو اعتماد الفروقات.</p>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {[
+                    { key: "all", label: "الكل" },
+                    { key: "draft", label: "مسودة" },
+                    { key: "in_progress", label: "قيد الجرد" },
+                    { key: "pending_review", label: "قيد المراجعة" },
+                    { key: "completed", label: "مكتملة" },
+                    { key: "rejected", label: "مرفوضة" },
+                  ].map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => setSessionStatusFilter(item.key)}
+                      className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
+                        sessionStatusFilter === item.key
+                          ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-100"
+                          : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
                 </div>
                 <button
                   type="button"
