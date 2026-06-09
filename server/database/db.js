@@ -1,4 +1,5 @@
 import pkg from "pg";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { getPerfContext } from "../utils/perfDebug.js";
 
 const { Pool } = pkg;
@@ -9,6 +10,7 @@ const DB_IDLE_TIMEOUT_MS = Number(process.env.PG_IDLE_TIMEOUT_MS) || 30000;
 const DB_POOL_MAX = Number(process.env.PG_POOL_MAX) || 30;
 const DB_SLOW_QUERY_MS = Number(process.env.PG_SLOW_QUERY_MS) || 750;
 let runtimeSchemaWarningLogged = false;
+const dbRequestContext = new AsyncLocalStorage();
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || undefined,
@@ -31,6 +33,43 @@ const previewSql = (text = "") =>
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 220);
+
+const isMutatingSql = (text = "") => {
+  const normalized = String(text || "").trim().toUpperCase();
+  if (!normalized) return false;
+  if (/^(BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE|SET\s+TRANSACTION|SET\s+SESSION\s+CHARACTERISTICS|SHOW|SELECT|WITH)\b/.test(normalized)) return false;
+  return /\b(INSERT|UPDATE|DELETE|MERGE|CREATE|ALTER|DROP|TRUNCATE|COPY|GRANT|REVOKE|VACUUM|REINDEX|LOCK|REFRESH)\b/.test(normalized) ||
+    /\bON\s+CONFLICT\b.*\bDO\s+UPDATE\b/.test(normalized);
+};
+
+const getDbQueryContext = () => dbRequestContext.getStore?.() || {};
+
+export const runWithDbQueryContext = (context = {}, fn = () => {}) => dbRequestContext.run(context || {}, fn);
+
+export const withReadOnlyDbSession = async (fn = async () => {}, context = {}) => {
+  const client = await originalConnect();
+  const sessionContext = {
+    ...getDbQueryContext(),
+    ...context,
+    db_read_only: true,
+    db_session_mode: "read_only",
+    db_client: client,
+    db_session_started_at: Date.now(),
+  };
+  try {
+    await client.query("BEGIN READ ONLY");
+    return await runWithDbQueryContext(sessionContext, async () => fn(client));
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {}
+    throw error;
+  } finally {
+    try {
+      client.release();
+    } catch {}
+  }
+};
 
 const isSchemaMaintenanceSql = (text = "") =>
   /\b(CREATE\s+(TABLE|INDEX|TRIGGER|EXTENSION|FUNCTION)|DROP\s+TRIGGER|ALTER\s+TABLE|information_schema)\b/i.test(String(text || ""));
@@ -73,17 +112,33 @@ const withQueryLogging = (target, label) => {
   target.query = (...args) => {
     const { text, values, callback } = normalizeQueryArgs(args);
     const startedAt = Date.now();
+    const perfContext = getPerfContext();
+    const dbContext = getDbQueryContext();
     const meta = {
       label,
       query_label: typeof args[0] === "object" && args[0]?.name ? args[0].name : label,
-      requestId: getPerfContext().requestId || null,
-      route: getPerfContext().route || "",
+      requestId: perfContext.requestId || null,
+      route: perfContext.route || "",
+      regression_test: Boolean(perfContext.is_regression_test || dbContext.is_regression_test),
+      dry_run: Boolean(perfContext.dry_run || dbContext.dry_run || dbContext.db_read_only),
       sql: previewSql(text),
       params: values.length,
       pool: poolStats(),
     };
 
     warnRuntimeSchemaExecution(text);
+    if ((perfContext.is_regression_test || dbContext.is_regression_test || dbContext.dry_run || dbContext.db_read_only) && isMutatingSql(text)) {
+      const error = Object.assign(new Error("READ_ONLY_DB_SESSION_BLOCKED_WRITE"), {
+        code: "READ_ONLY_DB_SESSION_BLOCKED_WRITE",
+      });
+      if (callback) {
+        return callback(error);
+      }
+      throw error;
+    }
+    if (target === pool && dbContext.db_client?.query) {
+      return dbContext.db_client.query(...args);
+    }
     if (queryDebugEnabled()) console.log("[db] query start", meta);
 
     if (callback) {

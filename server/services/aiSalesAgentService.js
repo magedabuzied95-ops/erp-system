@@ -1,5 +1,6 @@
 import db from "../database/db.js";
 import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
+import { getPerfContext } from "../utils/perfDebug.js";
 import { emitToRooms } from "../utils/socket.js";
 import { resolveAiProductUrl } from "./aiProductEligibilityService.js";
 import {
@@ -58,6 +59,7 @@ const int = (value, fallback = 0) => {
 const json = (value) => JSON.stringify(value === undefined ? null : value);
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const uniqueArray = (items = []) => [...new Set(asArray(items).map((item) => text(item)).filter(Boolean))];
+const isRegressionTestContext = () => Boolean(getPerfContext()?.is_regression_test || getPerfContext()?.dry_run);
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, numeric(value, 0)));
 const maskIdForLog = (value = "") => {
   const safe = text(value);
@@ -710,6 +712,10 @@ const summarizeProducts = (products = []) =>
   })).filter((product) => product.id || product.name);
 
 export const upsertAiCustomerProfile = async ({ tenantId, sessionId = "", metadata = {}, message = "", response = {} } = {}) => {
+  if (isRegressionTestContext()) {
+    console.info("[ai-agent:dry-run-skip]", { action: "upsertAiCustomerProfile" });
+    return null;
+  }
   await ensureAiSalesAgentSchema();
   const phone = text(metadata.customer_phone || metadata.phone || "").replace(/[^\d+]/g, "");
   if (!tenantId || !phone) return null;
@@ -883,6 +889,10 @@ export const humanizeSalesResponse = async ({ tenantId, message = "", response =
 };
 
 export const scheduleAiFollowupIfNeeded = async ({ tenantId, sessionId = "", metadata = {}, response = {} } = {}) => {
+  if (isRegressionTestContext()) {
+    console.info("[ai-agent:dry-run-skip]", { action: "scheduleAiFollowupIfNeeded" });
+    return null;
+  }
   await ensureAiSalesAgentSchema();
   if (!tenantId || !sessionId) return null;
   if (response.needs_human_support || response.ai_order?.status === "confirmed") return null;
@@ -1614,6 +1624,10 @@ export const sendAiFollowupManual = async ({
   staffUserName = "",
   force = false,
 } = {}) => {
+  if (isRegressionTestContext()) {
+    console.info("[ai-agent:dry-run-skip]", { action: "sendAiFollowupManual" });
+    return { skipped: true, dry_run: true };
+  }
   await ensureAiSalesAgentSchema();
   const task = await loadFollowupForAction({ tenantId, id });
   const settings = await getAiAgentSettings({ tenantId }).catch(() => DEFAULT_SETTINGS);
@@ -2570,6 +2584,10 @@ export const createAiStockReservation = async ({
   minutes = 20,
   metadata = {},
 } = {}) => {
+  if (isRegressionTestContext()) {
+    console.info("[ai-agent:dry-run-skip]", { action: "createAiStockReservation" });
+    return null;
+  }
   const safeTenantId = Number(tenantId);
   const safeProductId = Number(productId);
   if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !Number.isFinite(safeProductId) || safeProductId <= 0) return null;

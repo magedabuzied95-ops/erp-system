@@ -258,3 +258,18 @@ Create the directories on the server and rotate them with logrotate if you are n
 4. Verify `/health`.
 5. Start the frontend or nginx static container.
 6. Point the domain and issue SSL.
+
+## 14. AI regression testing on Render
+
+Enable the test-only AI regression route on Render with:
+
+- `ENABLE_AI_REGRESSION_TEST_ENDPOINT=true`
+- `AI_REGRESSION_TEST_KEY=<shared-secret>`
+
+Run the regression suite locally against Render with:
+
+```bash
+RENDER_API_BASE_URL=https://erp-system-0qhp.onrender.com AI_REGRESSION_TEST_KEY=<shared-secret> npm run test:ai-sales-render
+```
+
+The endpoint is test-only and must not send WhatsApp, Meta, or Evolution messages, create orders, reserve stock, or mutate customer data.

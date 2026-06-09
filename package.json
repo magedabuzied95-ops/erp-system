@@ -21,6 +21,7 @@
     "test:ai-inbox": "node server/scripts/testAiInboxFlows.js",
     "test:ai-channel-parity": "node server/scripts/testAiChannelParity.js",
     "test:ai-commerce-cards": "node server/scripts/testAiCommerceCardReplies.js",
+    "test:ai-sales-render": "node server/scripts/runAiSalesRegressionSuite.js",
     "test:ai-marketing": "node --test tests/ai-marketing/*.test.js",
     "start": "npm --prefix \"./server\" run start"
   },
