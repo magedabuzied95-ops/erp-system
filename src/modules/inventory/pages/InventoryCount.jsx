@@ -1518,25 +1518,25 @@ function MobileGroupedCountCard({
   return (
     <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
       <button type="button" onClick={onToggleExpanded} className="w-full text-start" aria-expanded={expanded}>
-        <div className="min-w-0">
-          <div className="text-lg font-black leading-snug text-white">
-            {group.product_name || "منتج"} - {group.color || "لون"}
-          </div>
-          <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">السيستم</div>
-              <div className="mt-1 text-lg font-black text-white">{group.system_total}</div>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">الفعلي</div>
-              <div className="mt-1 text-lg font-black text-white">{group.counted_total}</div>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">الفرق</div>
-              <div className={`mt-1 text-lg font-black ${group.difference_total > 0 ? "text-emerald-300" : group.difference_total < 0 ? "text-rose-300" : "text-zinc-300"}`}>
-                {group.difference_total > 0 ? "+" : ""}
-                {group.difference_total}
+        <div className="flex items-start gap-3">
+          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900">
+            {group.image_url ? (
+              <img src={group.image_url} alt={group.product_name || "منتج"} className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-zinc-500">
+                <ClipboardList className="h-6 w-6" />
               </div>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-lg font-black leading-snug text-white">
+              {group.product_name || "منتج"} - {group.color || "لون"}
+            </div>
+            <div className="mt-1 text-sm text-zinc-400">
+              {group.variants.length} مقاس · السيستم: {group.system_total} · الفعلي: {group.counted_total}
+            </div>
+            <div className={`mt-1 text-sm font-black ${group.difference_total > 0 ? "text-rose-300" : group.difference_total < 0 ? "text-amber-300" : "text-emerald-300"}`}>
+              {group.difference_total > 0 ? `زيادة ${group.difference_total}` : group.difference_total < 0 ? `عجز ${Math.abs(group.difference_total)}` : "تمام"}
             </div>
           </div>
         </div>
@@ -1575,7 +1575,7 @@ function MobileGroupedCountCard({
               className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:opacity-40"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              إضافة اللون
+              إضافة اللون للجرد
             </button>
             <button
               type="button"
@@ -1615,8 +1615,8 @@ function MobileGroupedCountRow({ item, disabled, inputRef, onCountChange, onCoun
   const counted = Number(item.counted_quantity || 0);
   const system = Number(item.system_quantity || 0);
   const diff = Number(item.difference_quantity || counted - system);
-  const diffTone = diff > 0 ? "text-emerald-300" : diff < 0 ? "text-rose-300" : "text-zinc-300";
-  const showVarianceFields = diff !== 0;
+  const diffTone = diff > 0 ? "text-rose-300" : diff < 0 ? "text-amber-300" : "text-emerald-300";
+  const hasDetails = Boolean(item.variant_sku || item.variant_barcode || item.variant_article_code || item.product_id || item.product_variant_id || item.id);
   const [reasonDraft, setReasonDraft] = useState(item.reason || "أخرى");
   const [notes, setNotes] = useState(item.notes || "");
   const [showDetails, setShowDetails] = useState(false);
@@ -1652,20 +1652,30 @@ function MobileGroupedCountRow({ item, disabled, inputRef, onCountChange, onCoun
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
     }
-      saveTimerRef.current = setTimeout(() => {
-        void onCountCommit(item.id, {
-          counted_quantity: Number(nextValue || 0),
-          reason: reasonDraftRef.current || "",
-          notes: notesRef.current || "",
-        });
-      }, 250);
-    };
+    saveTimerRef.current = setTimeout(() => {
+      void onCountCommit(item.id, {
+        counted_quantity: Number(nextValue || 0),
+        reason: reasonDraftRef.current || "",
+        notes: notesRef.current || "",
+      });
+    }, 250);
+  };
 
   const handleCountChange = (value) => {
     if (disabled) return;
     onCountChange(item.id, value);
     scheduleCountSave(value);
   };
+
+  const commitCount = (nextValue) => {
+    if (disabled) return;
+    const normalized = Math.max(0, Number(nextValue || 0));
+    onCountChange(item.id, String(normalized));
+    scheduleCountSave(normalized);
+  };
+
+  const incrementCount = () => commitCount(counted + 1);
+  const decrementCount = () => commitCount(Math.max(0, counted - 1));
 
   const handleReasonChange = (reason) => {
     if (disabled) return;
@@ -1679,40 +1689,81 @@ function MobileGroupedCountRow({ item, disabled, inputRef, onCountChange, onCoun
   };
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-      <div className="grid grid-cols-[40px_minmax(0,1fr)] items-start gap-2">
-        <div className="pt-2 text-base font-black text-white">{item.size || "--"}</div>
-        <div className="min-w-0">
-          <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 rounded-2xl border border-white/10 bg-zinc-950/70 px-3 py-2">
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">سيستم</div>
-            <div className="min-w-0 text-sm font-black text-white tabular-nums">{system}</div>
-            <label className="flex min-w-0 items-center gap-2">
-              <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">فعلي</span>
-              <input
-                ref={inputRef}
-                type="number"
-                inputMode="numeric"
-                disabled={disabled}
-                value={counted}
-                onChange={(event) => handleCountChange(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    onAdvance?.(item.id, event.currentTarget);
-                  }
-                }}
-                className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/30 px-2 py-1.5 text-sm font-black text-white outline-none placeholder:text-zinc-500 disabled:opacity-50"
-              />
-            </label>
-            <div className={`text-right text-sm font-black tabular-nums ${diffTone}`}>
-              {diff > 0 ? "+" : ""}
-              {diff}
-            </div>
+    <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+      <div className="flex min-h-[54px] items-center gap-2">
+        <div className="w-12 shrink-0">
+          <div className="text-sm font-black leading-tight text-white">{item.size || "--"}</div>
+          <div className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-zinc-500">مقاس</div>
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 text-[11px] font-semibold text-zinc-400">
+            <span className="uppercase tracking-[0.18em]">المتوقع</span>
+            <span className="tabular-nums text-white">{system}</span>
           </div>
 
-          {showVarianceFields ? (
-            <div className="mt-2 space-y-2">
-              <label className="block">
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={decrementCount}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/30 text-lg font-black text-white transition hover:bg-white/10 disabled:opacity-40"
+              aria-label="إنقاص الكمية"
+            >
+              -
+            </button>
+            <input
+              ref={inputRef}
+              type="number"
+              inputMode="numeric"
+              disabled={disabled}
+              value={counted}
+              onChange={(event) => handleCountChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  onAdvance?.(item.id, event.currentTarget);
+                }
+              }}
+              className="h-8 w-16 shrink-0 rounded-xl border border-white/10 bg-zinc-950/70 px-2 text-center text-sm font-black text-white outline-none tabular-nums placeholder:text-zinc-500 disabled:opacity-50"
+            />
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={incrementCount}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-emerald-500/15 text-lg font-black text-emerald-200 transition hover:bg-emerald-500/25 disabled:opacity-40"
+              aria-label="زيادة الكمية"
+            >
+              +
+            </button>
+          </div>
+        </div>
+
+        <div className="min-w-[72px] text-end">
+          <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">الحالة</div>
+          <div className={`mt-0.5 text-sm font-black tabular-nums ${diffTone}`}>
+            {diff > 0 ? `+${diff}` : diff < 0 ? `-${Math.abs(diff)}` : "تمام"}
+          </div>
+        </div>
+      </div>
+
+      {hasDetails ? (
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => setShowDetails((current) => !current)}
+            className="inline-flex items-center rounded-xl border border-white/10 bg-black/20 px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-white/10"
+          >
+            {showDetails ? "إخفاء التفاصيل" : "تفاصيل اختيارية"}
+          </button>
+          {showDetails ? (
+            <div className="mt-2 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs leading-6 text-zinc-400">
+              {item.variant_sku ? <div className="truncate">SKU: {item.variant_sku}</div> : null}
+              {item.variant_barcode ? <div className="truncate">Barcode: {item.variant_barcode}</div> : null}
+              {item.variant_article_code ? <div className="truncate">Article: {item.variant_article_code}</div> : null}
+              {item.product_id ? <div className="truncate">Product ID: {item.product_id}</div> : null}
+              {item.product_variant_id || item.id ? <div className="truncate">Variant ID: {item.product_variant_id || item.id}</div> : null}
+              <label className="mt-2 block">
                 <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">السبب</div>
                 <select
                   disabled={disabled}
@@ -1727,8 +1778,7 @@ function MobileGroupedCountRow({ item, disabled, inputRef, onCountChange, onCoun
                   ))}
                 </select>
               </label>
-
-              <label className="block">
+              <label className="mt-2 block">
                 <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">ملاحظات</div>
                 <input
                   disabled={disabled}
@@ -1741,28 +1791,8 @@ function MobileGroupedCountRow({ item, disabled, inputRef, onCountChange, onCoun
               </label>
             </div>
           ) : null}
-
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowDetails((current) => !current)}
-              className="inline-flex items-center rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
-            >
-              تفاصيل
-            </button>
-          </div>
-
-          {showDetails ? (
-            <div className="mt-2 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs leading-6 text-zinc-400">
-              <div className="truncate">SKU: {item.variant_sku || "n/a"}</div>
-              <div className="truncate">Barcode: {item.variant_barcode || "n/a"}</div>
-              <div className="truncate">Product ID: {item.product_id || "n/a"}</div>
-              <div className="truncate">Variant ID: {item.product_variant_id || item.id || "n/a"}</div>
-              <div className="truncate">Article: {item.variant_article_code || "n/a"}</div>
-            </div>
-          ) : null}
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }
