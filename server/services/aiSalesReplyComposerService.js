@@ -526,6 +526,10 @@ const isYesOnly = (message = "") => {
   return /^(ايوه|ايوة|اه|نعم|yes|yep|تمام|ماشي|ok|okay)$/i.test(normalized) ||
     /^(\u0627\u064a\u0648\u0647|\u0627\u064a\u0648\u0629|\u0627\u0647|\u0646\u0639\u0645|yes|yep|\u062a\u0645\u0627\u0645|\u0645\u0627\u0634\u064a|ok|okay)$/i.test(normalized);
 };
+const isOrderConfirmationMessage = (message = "") => {
+  const normalized = normalizeArabic(message);
+  return /(أكد|تاكيد|تأكيد)\s*(الأوردر|الاوردر|الطلب)|confirm\s*order|complete\s*order|finish\s*order/i.test(normalized);
+};
 const asksPrice = (message = "", response = {}, intent = {}) => {
   if (isGreetingOnly(message, response, intent)) return false;
   return /(بكام|السعر|سعره|price|cost)/i.test(message);
@@ -775,7 +779,7 @@ export const composeAiSalesReply = async ({
       greeting_only_mode: true,
       needs_human_support: false,
     });
-  } else if (isYesOnly(message)) {
+  } else if (isYesOnly(message) || isOrderConfirmationMessage(message)) {
     const suggestedAction = inferActionFromSuggestedActions(response.suggested_actions || response.suggestedActions);
     const yesLastAction = state.lastAction || suggestedAction;
     const usedProductContext = Boolean(products.length || state.currentRequestedModel || state.lastProducts.length);
@@ -861,26 +865,6 @@ export const composeAiSalesReply = async ({
       output = withAnswer(response, regressionPrice
         ? `سعره ${regressionPrice} جنيه يا فندم، والمقاسات المتاحة منه ${productSizes(regressionPriceCard).length ? productSizes(regressionPriceCard).join("، ") : sizes.length ? sizes.join("، ") : "هأكدها لك"}. تحب أحجزهولك؟`
         : "السعر محتاج يتأكد من السيستم يا فندم. تحب أراجعلك السعر الحالي؟");
-    } else if (asksImages(message) || regressionImageUrls.length > 0) {
-      output = withAnswer(response, regressionImageUrls.length
-        ? `أيوه، فيه صور مرفقة تحت. وفيه ${regressionImageUrls.length} صورة متاحة تقدر تشوفهم الآن.`
-        : "أيوه، أقدر أبعتلك الصور أو أطلعلك صور إضافية لو تحب.");
-    } else if (asksColor(message) || regressionColor || state.lastBotAskedForColor) {
-      output = withAnswer(response, regressionIsUnavailable
-        ? [
-            regressionSize ? `مقاس ${regressionSize} مش متوفر حاليًا.` : `${regressionName} مش متاح حاليًا.`,
-            colors.length ? `الألوان الظاهرة: ${colors.join("، ")}.` : "",
-            "أقدر أراجعلك بديل قريب أو أتأكد من المخزون لو تحب.",
-          ].filter(Boolean).join(" ")
-        : [
-            regressionSize ? `مقاس ${regressionSize} موجود.` : `${regressionName} متاح حاليًا.`,
-            colors.length ? `الألوان المتاحة: ${colors.join("، ")}.` : "",
-            regressionColor ? `ولو تقصد ${regressionColor} فهو ${colors.some((color) => normalizeArabic(color) === normalizeArabic(regressionColor)) ? "موجود" : "محتاج تأكيد"}.` : "",
-          ].filter(Boolean).join(" "));
-    } else if (asksSize(message, response) || regressionSize || state.lastBotAskedForSize) {
-      output = withAnswer(response, regressionIsUnavailable
-        ? `مقاس ${regressionSize || "المطلوب"} مش متوفر حاليًا، تحب أشوفلك بديل؟`
-        : `أيوه مقاس ${regressionSize || sizes[0] || ""} موجود حاليًا. تحب أحجزهولك؟`);
     } else if (asksAvailability(message) || /(متاح|موجود|available|availability|stock)/i.test(normalizeArabic(message))) {
       output = withAnswer(response, regressionIsUnavailable
         ? [
@@ -892,10 +876,26 @@ export const composeAiSalesReply = async ({
             regressionPrice ? `سعره ${regressionPrice} جنيه.` : "",
             colors.length ? `الألوان المتاحة: ${colors.join("، ")}.` : "",
           ].filter(Boolean).join(" "));
+    } else if (regressionIsUnavailable) {
+      output = withAnswer(response, [
+        `${regressionName} مش متاح حاليًا.`,
+        regressionSize ? `ومقاس ${regressionSize} غير متوفر.` : "",
+        "أقدر أراجعلك بديل قريب أو أتأكد من المخزون لو تحب.",
+      ].filter(Boolean).join(" "));
+    } else if (asksImages(message) || regressionImageUrls.length > 0) {
+      output = withAnswer(response, regressionImageUrls.length
+        ? `أيوه، فيه صور مرفقة تحت. وفيه ${regressionImageUrls.length} صورة متاحة تقدر تشوفهم الآن.`
+        : "أيوه، أقدر أبعتلك الصور أو أطلعلك صور إضافية لو تحب.");
+    } else if (asksColor(message) || regressionColor || state.lastBotAskedForColor) {
+      output = withAnswer(response, [
+        regressionSize ? `مقاس ${regressionSize} موجود.` : `${regressionName} متاح حاليًا.`,
+        colors.length ? `الألوان المتاحة: ${colors.join("، ")}.` : "",
+        regressionColor ? `ولو تقصد ${regressionColor} فهو ${colors.some((color) => normalizeArabic(color) === normalizeArabic(regressionColor)) ? "موجود" : "محتاج تأكيد"}.` : "",
+      ].filter(Boolean).join(" "));
+    } else if (asksSize(message, response) || regressionSize || state.lastBotAskedForSize) {
+      output = withAnswer(response, `أيوه مقاس ${regressionSize || sizes[0] || ""} موجود حاليًا. تحب أحجزهولك؟`);
     } else {
-      output = withAnswer(response, regressionIsUnavailable
-        ? `${regressionName} مش متاح حاليًا.`
-        : `أيوه متاح حاليًا${regressionSize ? `، ومقاس ${regressionSize} موجود` : ""}.${regressionPrice ? ` سعره ${regressionPrice} جنيه.` : ""}`);
+      output = withAnswer(response, `أيوه متاح حاليًا${regressionSize ? `، ومقاس ${regressionSize} موجود` : ""}.${regressionPrice ? ` سعره ${regressionPrice} جنيه.` : ""}`);
     }
   } else if (!isExplicitProductFollowup(message, response, intent) && ["general", "conversational", ""].includes(detectedIntent)) {
     decision = "block_general_product_cards";
