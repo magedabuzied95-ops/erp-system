@@ -890,7 +890,7 @@ export const composeAiSalesReply = async ({
         answerLength: 17,
         stage: "",
       });
-      return withAnswer(response, "أيوه متاح حاليًا.");
+      return withAnswer(response, "أيوه متاح وموجود حاليًا.");
     }
 
     const detailReply = regressionPrice
