@@ -7430,104 +7430,53 @@ function ShiftCloseAuditLayout({
 }
 
 function ShiftReportModal({ report, onClose, onPrint }) {
-  const { t } = useTranslation();
   const totals = report?.totals || {};
   const shift = report?.shift || {};
-  const shiftDuration = formatShiftDuration(shift.opened_at, shift.closed_at || new Date());
-  const safeShiftDuration = shiftDuration || report?.shift_duration || report?.duration || "-";
-  const netRevenue = Number(totals.total_sales || 0) - Number(totals.returns || 0) - Number(totals.discounts || 0);
-  const totalSoldItems = (report?.top_products || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-  const sellerPerformance = getShiftSellerPerformance(report);
+  const expectedCash = Number(totals.net_cash_expected ?? totals.expected_cash ?? shift.expected_cash ?? report?.expectedDrawer ?? 0);
+  const actualCashRaw = totals.closing_cash ?? report?.actual_cash ?? shift.closing_cash ?? shift.actual_cash ?? report?.actualDrawerAmount;
+  const actualCash = actualCashRaw === null || actualCashRaw === undefined || actualCashRaw === "" ? null : Number(actualCashRaw);
+  const varianceRaw = totals.cash_difference ?? shift.cash_difference ?? (actualCash === null ? null : actualCash - expectedCash);
+  const variance = varianceRaw === null || varianceRaw === undefined || Number.isNaN(Number(varianceRaw)) ? 0 : Number(varianceRaw);
+  const invoiceCount = Number(totals.invoice_count || 0);
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
-      <div className="w-full max-w-2xl rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black/50">
+      <div dir="rtl" className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black/50">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-200">{t("pos.shift.report")}</div>
-            <h2 className="mt-1 text-2xl font-black text-white">{t("pos.shift.closeSummary")}</h2>
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-200">إغلاق وردية</div>
+            <h2 className="mt-1 text-2xl font-black text-white">تم إغلاق الوردية بنجاح</h2>
           </div>
           <div className="flex gap-2">
             <button type="button" onClick={() => onPrint?.(report)} className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-sm font-bold text-emerald-100">
-              Print
+              طباعة التقرير
             </button>
             <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-300">
-              {t("pos.shift.close")}
+              إغلاق
             </button>
           </div>
         </div>
-        <div className="mt-5 grid gap-4 xl:grid-cols-3">
-          <AccountingLedgerSection title="ملخص الدرج" subtitle="Cash flow and drawer impact" accent="amber">
-            <AccountingLedgerRow label="مبيعات نقدية" value={formatCurrency(totals.cash || 0)} />
-            <AccountingLedgerRow label="مرتجعات نقدية" value={formatCurrency(totals.returns || 0)} />
-            <AccountingLedgerRow label="مصروفات نقدية" value={formatCurrency(Number(totals.pos_expenses_cash || 0) + Number(totals.employee_advances_cash || 0))} />
-            <AccountingLedgerRow
-              label="صافي الدرج المتوقع"
-              value={formatCurrency(totals.net_cash_expected ?? totals.expected_cash ?? shift.expected_cash)}
-              subtitle="Cash sales minus cash outflows"
-              strong
-              highlight
-            />
-          </AccountingLedgerSection>
-
-          <AccountingLedgerSection title="وسائل الدفع" subtitle="Non-cash settlement mix" accent="emerald">
-            <AccountingLedgerRow label="بطاقات" value={formatCurrency(totals.card || 0)} />
-            <AccountingLedgerRow label="محفظة" value={formatCurrency(totals.wallet || 0)} />
-            <AccountingLedgerRow label="InstaPay" value={formatCurrency(totals.wallet || 0)} subtitle="Included in wallet total" />
-            <AccountingLedgerRow label="Vodafone Cash" value={formatCurrency(0)} subtitle="Not separated in current shift report" />
-          </AccountingLedgerSection>
-
-          <AccountingLedgerSection title="النشاط" subtitle="Operational activity at a glance" accent="cyan">
-            <AccountingLedgerRow label="عدد الفواتير" value={Number(totals.invoice_count || 0).toLocaleString()} />
-            <AccountingLedgerRow label="الخصومات" value={formatCurrency(totals.discounts || 0)} />
-            <AccountingLedgerRow label="سلف الموظفين" value={formatCurrency(totals.employee_advances || 0)} />
-            <AccountingLedgerRow label="مدة الشيفت" value={safeShiftDuration} />
-          </AccountingLedgerSection>
-        </div>
-        <div className="mt-5 grid gap-4 lg:grid-cols-2">
-          {sellerPerformance?.length ? (
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 lg:col-span-2">
-              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Seller performance</div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                {sellerPerformance.slice(0, 6).map((seller) => (
-                  <div key={seller.name} className="rounded-xl border border-white/10 bg-black/20 p-3">
-                    <div className="truncate text-sm font-black text-white">{seller.name}</div>
-                    <div className="mt-1 text-xs text-zinc-400">{formatCurrency(seller.total)} / {Number(seller.count || 0).toLocaleString()} invoices</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Top products</div>
-            <div className="mt-3 space-y-2">
-              {(report?.top_products || []).slice(0, 8).map((item) => (
-                <div key={item.product_name} className="flex justify-between gap-3 text-sm text-zinc-200">
-                  <span className="min-w-0">
-                    <span className="block truncate font-black text-white">{item.product_name}</span>
-                    <span className="text-xs text-zinc-500">
-                      {Number(item.quantity || 0).toLocaleString()} مبيعات • {totalSoldItems > 0 ? Math.round((Number(item.quantity || 0) / totalSoldItems) * 100) : 0}%
-                    </span>
-                  </span>
-                  <span>{formatCurrency(item.total || 0)}</span>
-                </div>
-              ))}
-            </div>
+        <div className="mt-5 space-y-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100">
+            تم إغلاق الوردية بنجاح
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">Audit timeline</div>
-            <div className="mt-3 max-h-56 space-y-2 overflow-auto">
-              {(report?.audit_timeline || []).slice(-16).map((item, index) => (
-                <div key={`${item.type}-${index}`} className="flex justify-between gap-3 rounded-xl bg-black/20 px-3 py-2 text-xs text-zinc-300">
-                  <span className="min-w-0">
-                    <span className="block truncate font-black text-white">{readableAuditAction(item)}</span>
-                    <span className="text-xs text-zinc-500">{auditReference(item) || item.label || ""}</span>
-                  </span>
-                  <span className="shrink-0 text-end">
-                    <span className="block">{formatCurrency(item.amount || 0)}</span>
-                    <span className="text-xs text-zinc-500">{item.at ? new Date(item.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : ""}</span>
-                  </span>
-                </div>
-              ))}
+          <div className="space-y-2 text-sm text-zinc-200">
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-black/20 px-3 py-2">
+              <span className="font-semibold text-zinc-400">صافي الدرج المتوقع</span>
+              <span className="font-black text-white">{formatCurrency(expectedCash)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-black/20 px-3 py-2">
+              <span className="font-semibold text-zinc-400">العد الفعلي</span>
+              <span className="font-black text-white">{actualCash === null ? "-" : formatCurrency(actualCash)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-black/20 px-3 py-2">
+              <span className="font-semibold text-zinc-400">الفرق</span>
+              <span className={variance === 0 ? "font-black text-emerald-200" : variance > 0 ? "font-black text-amber-200" : "font-black text-rose-200"}>
+                {variance === 0 ? "✅ متوازن" : variance > 0 ? `✅ زيادة: ${formatCurrency(Math.abs(variance))}` : `⚠️ عجز: ${formatCurrency(Math.abs(variance))}`}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-black/20 px-3 py-2">
+              <span className="font-semibold text-zinc-400">عدد الفواتير</span>
+              <span className="font-black text-white">{invoiceCount.toLocaleString()}</span>
             </div>
           </div>
         </div>

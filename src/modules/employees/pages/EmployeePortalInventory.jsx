@@ -38,6 +38,69 @@ const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
+const normalizeColorKey = (value = "") => {
+  const aliases = {
+    black: "black",
+    اسود: "black",
+    "أسود": "black",
+    white: "white",
+    ابيض: "white",
+    "أبيض": "white",
+    red: "red",
+    احمر: "red",
+    "أحمر": "red",
+    blue: "blue",
+    ازرق: "blue",
+    "أزرق": "blue",
+    green: "green",
+    اخضر: "green",
+    "أخضر": "green",
+    yellow: "yellow",
+    اصفر: "yellow",
+    "أصفر": "yellow",
+    orange: "orange",
+    purple: "purple",
+    pink: "pink",
+    brown: "brown",
+    beige: "beige",
+    gray: "gray",
+    grey: "gray",
+    رمادي: "gray",
+    silver: "silver",
+    فضي: "silver",
+    gold: "gold",
+    ذهبي: "gold",
+    navy: "navy",
+    كحلي: "navy",
+    burgundy: "burgundy",
+    maroon: "maroon",
+    olive: "olive",
+    زيتي: "olive",
+    cream: "cream",
+    كريمي: "cream",
+    ivory: "ivory",
+    camel: "camel",
+    tan: "tan",
+    mocha: "mocha",
+    coffee: "coffee",
+    charcoal: "charcoal",
+    volt: "volt",
+    cobalt: "cobalt",
+    aqua: "aqua",
+    mint: "mint",
+    rose: "rose",
+  };
+  const normalized = clean(value)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[إأآا]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/\s+/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+  return aliases[normalized] || normalized;
+};
 
 const sessionStatusLabels = {
   draft: "مسودة",
@@ -109,13 +172,15 @@ const groupVariants = (records = []) => {
   for (const record of Array.isArray(records) ? records : []) {
     const variant = normalizeVariant(record);
     const productKey = variant.product_id ?? variant.product_name ?? "product";
-    const key = `${productKey}::${variant.color || "default"}`;
+    const colorKey = normalizeColorKey(variant.color);
+    const key = `${productKey}::${colorKey || "default"}`;
     if (!groups.has(key)) {
       groups.set(key, {
         key,
         product_id: variant.product_id,
         product_name: variant.product_name,
         color: variant.color,
+        color_key: colorKey,
         image_url: variant.image_url,
         variants: [],
         system_total: 0,
@@ -456,6 +521,13 @@ export default function EmployeePortalInventory() {
     }
   }, [isEditable, items, refreshCurrentSession, saveItem, session?.id]);
 
+  const findColorGroupForVariant = useCallback((variant, records = []) => {
+    const productId = variant?.product_id ?? null;
+    const colorKey = normalizeColorKey(variant?.color ?? "");
+    if (!productId || !colorKey) return null;
+    return groupVariants(records).find((entry) => String(entry.product_id ?? "") === String(productId) && normalizeColorKey(entry.color || "") === colorKey) || null;
+  }, []);
+
   const handleScan = useCallback(async (value) => {
     setScannerOpen(false);
     const query = clean(value);
@@ -466,19 +538,23 @@ export default function EmployeePortalInventory() {
       const response = await lookupEmployeePortalInventoryVariants(token, session.id, { query, limit: 20 });
       const results = Array.isArray(response?.items) ? response.items : [];
       setLookupResults(results);
-      const exact = results.find((variant) => isExactVariantMatch(query, normalizeVariant(variant)));
+      const normalizedResults = results.map((variant) => normalizeVariant(variant));
+      const exact = normalizedResults.find((variant) => isExactVariantMatch(query, variant));
       if (exact) {
-        const normalized = normalizeVariant(exact);
-        const existing = items.find((row) => String(row.product_variant_id ?? row.variant_id ?? row.id ?? "") === String(normalized.product_variant_id ?? normalized.variant_id ?? normalized.id ?? ""));
-        await saveItem(normalized, { countedQuantity: toNumber(existing?.counted_quantity, 0) + 1, systemQuantity: normalized.system_quantity });
-        toast.success("تمت إضافة قطعة عبر الباركود");
+        const group = findColorGroupForVariant(exact, normalizedResults);
+        if (group) {
+          await addColorGroup(group);
+        }
+        const existing = items.find((row) => String(row.product_variant_id ?? row.variant_id ?? row.id ?? "") === String(exact.product_variant_id ?? exact.variant_id ?? exact.id ?? ""));
+        await saveItem(exact, { countedQuantity: toNumber(existing?.counted_quantity, 0) + 1, systemQuantity: exact.system_quantity });
+        toast.success(`تم عد قطعة من مقاس ${exact.size || exact.sku || ""}`.trim());
       }
     } catch (error) {
       toast.error(error?.responseBody?.message || error?.message || "تعذر قراءة الباركود");
     } finally {
       setLookupLoading(false);
     }
-  }, [items, saveItem, session?.id, token]);
+  }, [addColorGroup, findColorGroupForVariant, items, saveItem, session?.id, token]);
 
   const handleVariantCountChange = (variantId, value) => {
     if (!isEditable) return;
@@ -587,7 +663,7 @@ export default function EmployeePortalInventory() {
                 value={sessionSearch}
                 onChange={(event) => setSessionSearch(event.target.value)}
                 placeholder="ابحث باسم الجرد أو الفرع"
-                className="mt-1 w-full bg-transparent text-sm font-semibold text-slate-950 outline-none placeholder:text-slate-400"
+                className="mt-1 w-full bg-transparent text-base font-semibold text-slate-950 outline-none placeholder:text-slate-400"
               />
             </label>
 
@@ -721,7 +797,7 @@ export default function EmployeePortalInventory() {
                       value={titleDraft}
                       onChange={(event) => setTitleDraft(event.target.value)}
                       disabled={!isEditable}
-                      className="mt-2 w-full bg-transparent text-sm font-semibold text-slate-950 outline-none disabled:opacity-70"
+                      className="mt-2 w-full bg-transparent text-base font-semibold text-slate-950 outline-none disabled:opacity-70"
                     />
                   </label>
                   <label className="block rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
@@ -730,7 +806,7 @@ export default function EmployeePortalInventory() {
                       value={notesDraft}
                       onChange={(event) => setNotesDraft(event.target.value)}
                       disabled={!isEditable}
-                      className="mt-2 w-full bg-transparent text-sm font-semibold text-slate-950 outline-none disabled:opacity-70"
+                      className="mt-2 w-full bg-transparent text-base font-semibold text-slate-950 outline-none disabled:opacity-70"
                     />
                   </label>
                 </div>
@@ -758,7 +834,7 @@ export default function EmployeePortalInventory() {
                       onChange={(event) => setLookupQuery(event.target.value)}
                       disabled={!isEditable}
                       placeholder="ابحث بالاسم أو الباركود"
-                      className="w-full bg-transparent text-sm font-semibold text-slate-950 outline-none placeholder:text-slate-400 disabled:opacity-70"
+                      className="w-full bg-transparent text-base font-semibold text-slate-950 outline-none placeholder:text-slate-400 disabled:opacity-70"
                     />
                   </label>
                   {lookupLoading ? (
@@ -842,7 +918,7 @@ export default function EmployeePortalInventory() {
                                     disabled={!isEditable}
                                     onChange={(event) => handleVariantCountChange(variantId, event.target.value)}
                                     onBlur={() => saveItem(variant, { countedQuantity: variant.counted_quantity })}
-                                    className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-950 outline-none disabled:opacity-70"
+                                    className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-base font-black text-slate-950 outline-none disabled:opacity-70"
                                   />
                                 </label>
                                 <div className="flex items-center justify-between gap-2 text-xs font-black">

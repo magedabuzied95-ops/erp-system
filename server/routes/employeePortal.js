@@ -85,6 +85,83 @@ const logPortalTokenDebug = ({ req, token, employee = null, reason = "" }) => {
 const portalRoutePath = (req) => `${req.baseUrl || ""}${req.route?.path || req.path || ""}`;
 const clean = (value = "") => String(value || "").trim();
 const normalizeId = (value) => (value === null || value === undefined || value === "" ? null : String(value));
+const normalizeColorKey = (value = "") => {
+  const aliases = {
+    black: "black",
+    اسود: "black",
+    أسود: "black",
+    white: "white",
+    ابيض: "white",
+    أبيض: "white",
+    red: "red",
+    احمر: "red",
+    أحمر: "red",
+    blue: "blue",
+    ازرق: "blue",
+    أزرق: "blue",
+    green: "green",
+    اخضر: "green",
+    أخضر: "green",
+    yellow: "yellow",
+    اصفر: "yellow",
+    أصفر: "yellow",
+    orange: "orange",
+    purple: "purple",
+    pink: "pink",
+    brown: "brown",
+    beige: "beige",
+    gray: "gray",
+    grey: "gray",
+    رمادي: "gray",
+    silver: "silver",
+    فضي: "silver",
+    gold: "gold",
+    ذهبي: "gold",
+    navy: "navy",
+    كحلي: "navy",
+    burgundy: "burgundy",
+    maroon: "maroon",
+    olive: "olive",
+    زيتي: "olive",
+    cream: "cream",
+    كريمي: "cream",
+    ivory: "ivory",
+    camel: "camel",
+    tan: "tan",
+    mocha: "mocha",
+    coffee: "coffee",
+    charcoal: "charcoal",
+    volt: "volt",
+    cobalt: "cobalt",
+    aqua: "aqua",
+    mint: "mint",
+    rose: "rose",
+  };
+  const normalized = clean(value)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[إأآا]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/\s+/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+  return aliases[normalized] || normalized;
+};
+
+const findExactInventoryLookupRow = (rows = [], query = "") => {
+  const normalizedSearch = clean(query).toLowerCase();
+  if (!normalizedSearch) return null;
+  return (
+    rows.find((row) => Number(row.match_rank) === 0 && [
+      row.barcode,
+      row.sku,
+      row.article_code,
+      row.product_barcode,
+      row.product_sku,
+    ].some((value) => clean(value).toLowerCase() === normalizedSearch)) || null
+  );
+};
 
 const logInvalidTokenFailure = async ({ req, token, reason = "" }) => {
   const matched = token ? await inspectEmployeePortalTokenMatch(token).catch(() => null) : null;
@@ -247,6 +324,42 @@ const loadEmployeeInventorySession = async (req, res) => {
   return { employee, ...result };
 };
 
+const loadEmployeePortalInventoryColorGroup = async ({ tenantId, productId, color }) => {
+  if (!productId) return [];
+  const result = await db.query(
+    `
+    SELECT
+      v.id AS product_variant_id,
+      v.product_id,
+      p.name AS product_name,
+      p.sku AS product_sku,
+      p.barcode AS product_barcode,
+      v.color,
+      v.size,
+      v.sku,
+      v.barcode,
+      v.article_code,
+      COALESCE(v.stock, 0)::int AS stock,
+      COALESCE(NULLIF(v.image_url, ''), NULLIF(p.image_url, ''), NULLIF(p.image, ''), '') AS image_url
+    FROM product_variants v
+    JOIN products p ON p.id = v.product_id
+    WHERE ($1::bigint IS NULL OR v.tenant_id = $1::bigint OR v.tenant_id IS NULL)
+      AND v.product_id = $2
+    ORDER BY COALESCE(NULLIF(v.size, ''), ''), v.id ASC
+    `,
+    [tenantId, productId]
+  );
+
+  const targetColorKey = normalizeColorKey(color);
+  return result.rows
+    .map((row) => ({
+      ...row,
+      product_variant_id: row.product_variant_id ?? row.id,
+      stock: Number(row.stock || 0),
+    }))
+    .filter((row) => normalizeColorKey(row.color) === targetColorKey);
+};
+
 router.get("/:token/chat", async (req, res) => {
   try {
     const employee = await loadVerifiedEmployee(req, res);
@@ -379,6 +492,18 @@ router.get("/:token/inventory/sessions/:sessionId/lookup", async (req, res) => {
       query: req.query?.query || req.query?.search || req.query?.term || "",
       limit: req.query?.limit || 15,
     });
+    const queryText = clean(req.query?.query || req.query?.search || req.query?.term || "");
+    const exactRow = findExactInventoryLookupRow(items, queryText);
+    if (exactRow?.product_id) {
+      const colorGroup = await loadEmployeePortalInventoryColorGroup({
+        tenantId: scoped.employee.tenant_id ?? null,
+        productId: exactRow.product_id,
+        color: exactRow.color,
+      });
+      if (colorGroup.length) {
+        return res.json({ success: true, items: colorGroup });
+      }
+    }
     return res.json({ success: true, items });
   } catch (error) {
     console.error("[employee-payroll-portal] inventory lookup error", error);

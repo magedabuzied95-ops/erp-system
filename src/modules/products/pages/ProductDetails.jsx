@@ -468,7 +468,7 @@ const movementTypeLabel = (value) => {
   if (type === "transfer") return "Transfer";
   if (type === "sale" || type === "website_order") return "Sale";
   if (type === "return" || type === "return_in") return "Return";
-  if (type === "manual_adjustment" || type === "product_stock_edit" || type === "inventory_count") return "Adjustment";
+  if (type === "manual_adjustment" || type === "product_stock_edit" || type === "inventory_count" || type === "inventory_adjustment") return "Adjustment";
   if (type === "undo_adjustment") return "Undo adjustment";
   if (type === "order_cancel") return "Order cancel";
   if (type === "order_edit") return "Order edit";

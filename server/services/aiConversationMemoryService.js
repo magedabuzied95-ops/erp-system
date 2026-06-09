@@ -1,5 +1,6 @@
 import db from "../database/db.js";
 import { getPhoneSearchVariants, normalizePhone, phoneSqlDigits } from "../utils/phoneSearch.js";
+import { guardAiNameCapture } from "../utils/aiProductReplyGuards.js";
 
 let schemaReadyPromise = null;
 
@@ -202,13 +203,15 @@ export const extractAiConversationMemory = ({ message = "", metadata = {}, sugge
         /(\+?20?1[0125][\d\s().-]{8,12})/,
       ])
   );
-  const name = toText(
+  const nameCandidate = toText(
     metadata.customer_name ||
       firstMatch(raw, [
         /(?:اسمي|انا اسمي|معاك|معاكي)\s+([\p{L}\s]{2,40})/iu,
         /(?:my name is|i am|i'm)\s+([A-Za-z\s]{2,40})/i,
       ])
   ).slice(0, 80);
+  const nameGuard = guardAiNameCapture({ messageText: nameCandidate || raw, route: "ai_conversation_memory" });
+  const name = nameGuard.blockedAsName ? "" : nameCandidate;
 
   const size = firstMatch(raw, [
     /(?:مقاسي|مقاس(?:ي)?|size)\s*(?:هو|=|:)?\s*(3[0-9]|4[0-9]|5[0-5]|xs|s|m|l|xl|xxl|xxxl)\b/i,

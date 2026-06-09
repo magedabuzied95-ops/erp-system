@@ -233,7 +233,7 @@ const buildDirectColorSelectionDecision = ({ message = "", memory = {} } = {}) =
     `اللون: ${selectedColor}`,
     `المقاس: ${sizeLabel}`,
     "",
-    `السعر: ${displayPrice > 0 ? `${displayPrice} جنيه` : "متاح عند الطلب"}`,
+    `السعر: ${displayPrice > 0 ? `${displayPrice} جنيه` : "السعر محتاج يتأكد من السيستم قبل التأكيد"}`,
     "",
     "تحب أحجزهولك؟",
   ].join("\n");
