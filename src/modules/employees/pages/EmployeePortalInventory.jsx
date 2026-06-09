@@ -582,8 +582,68 @@ export default function EmployeePortalInventory() {
       : `عجز: ${Math.abs(differenceTotal)}`;
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.10),_transparent_28%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)] px-3 py-3 text-slate-950 sm:px-4 sm:py-4">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
+    <div dir="rtl" className="employee-portal-inventory min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.10),_transparent_28%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)] px-3 py-3 text-slate-950 sm:px-4 sm:py-4">
+      <style>{`
+        .employee-portal-inventory {
+          width: 100%;
+          max-width: 100vw;
+          overflow-x: hidden;
+          overscroll-behavior-x: contain;
+          -webkit-text-size-adjust: 100%;
+          touch-action: manipulation;
+        }
+        .employee-portal-inventory,
+        .employee-portal-inventory * {
+          box-sizing: border-box;
+        }
+        .employee-portal-inventory input,
+        .employee-portal-inventory select,
+        .employee-portal-inventory textarea {
+          font-size: 16px !important;
+          max-width: 100%;
+        }
+        .employee-portal-inventory button {
+          min-width: 0;
+          max-width: 100%;
+        }
+        .employee-portal-inventory .inventory-wrap {
+          min-width: 0;
+          max-width: 100%;
+        }
+        .employee-portal-inventory .inventory-actions {
+          flex-wrap: wrap;
+        }
+        .employee-portal-inventory .inventory-actions > * {
+          min-width: 0;
+          max-width: 100%;
+          flex: 1 1 140px;
+        }
+        .employee-portal-inventory .inventory-title,
+        .employee-portal-inventory .inventory-meta,
+        .employee-portal-inventory .inventory-product-title,
+        .employee-portal-inventory .inventory-item-main {
+          min-width: 0;
+          max-width: 100%;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+        }
+        .employee-portal-inventory .inventory-grid-columns {
+          grid-template-columns: minmax(0, 1fr) 110px 90px;
+        }
+        @media (max-width: 640px) {
+          .employee-portal-inventory {
+            padding-left: 12px;
+            padding-right: 12px;
+          }
+          .employee-portal-inventory .inventory-actions > * {
+            flex: 1 1 100%;
+          }
+          .employee-portal-inventory .inventory-grid-columns {
+            grid-template-columns: minmax(0, 1fr);
+          }
+        }
+      `}</style>
+      <div className="inventory-wrap mx-auto flex w-full max-w-6xl flex-col gap-4">
         <EmployeePortalNavControls
           onBack={() => {
             if (canNavigateEmployeePortalBack()) navigate(-1);
@@ -595,7 +655,7 @@ export default function EmployeePortalInventory() {
         />
 
         <section className="rounded-[2rem] border border-white/70 bg-white/95 p-4 shadow-2xl shadow-slate-200/60 backdrop-blur">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="inventory-wrap flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="flex items-center gap-2 text-emerald-700">
                 <Warehouse className="h-5 w-5" />
@@ -606,7 +666,7 @@ export default function EmployeePortalInventory() {
                 أمين المخزن ينشئ الجرد ويعد الكميات ويرسله للمراجعة فقط. لا يظهر اعتماد نهائي هنا.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="inventory-actions flex min-w-0 gap-2">
               <button
                 type="button"
                 onClick={loadSessions}
@@ -645,16 +705,16 @@ export default function EmployeePortalInventory() {
           </div>
         </section>
 
-        <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="rounded-[2rem] border border-white/70 bg-white/95 p-4 shadow-2xl shadow-slate-200/60 backdrop-blur">
-            <div className="flex items-center justify-between gap-3">
-              <div>
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+          <aside className="inventory-wrap rounded-[2rem] border border-white/70 bg-white/95 p-4 shadow-2xl shadow-slate-200/60 backdrop-blur">
+            <div className="flex min-w-0 items-center justify-between gap-3">
+              <div className="min-w-0">
                 <h2 className="text-lg font-black text-slate-950">جردات الفرع</h2>
                 <p className="text-xs font-semibold text-slate-500">المسودة، قيد التنفيذ، المراجعة والمرفوضة.</p>
               </div>
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">{visibleSessions.length}</span>
             </div>
-            <label className="mt-3 block rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+            <label className="inventory-wrap mt-3 block rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
               <div className="flex items-center gap-2 text-xs font-black text-slate-400">
                 <Search className="h-4 w-4" />
                 بحث
@@ -685,8 +745,8 @@ export default function EmployeePortalInventory() {
                         active ? "border-emerald-500 bg-emerald-50 shadow-sm" : "border-slate-200 bg-white hover:bg-slate-50"
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0">
                           <div className="truncate text-sm font-black text-slate-950">{row.title || "جرد جديد"}</div>
                           <div className="mt-1 text-xs font-semibold text-slate-500">
                             {row.branch_name || "الفرع"}{row.warehouse_name ? ` • ${row.warehouse_name}` : ""}
@@ -707,7 +767,7 @@ export default function EmployeePortalInventory() {
             </div>
           </aside>
 
-          <main className="rounded-[2rem] border border-white/70 bg-white/95 p-4 shadow-2xl shadow-slate-200/60 backdrop-blur">
+          <main className="inventory-wrap rounded-[2rem] border border-white/70 bg-white/95 p-4 shadow-2xl shadow-slate-200/60 backdrop-blur">
             {!session && sessionLoading ? (
               <div className="flex min-h-[420px] items-center justify-center gap-2 text-sm font-black text-slate-500">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -723,9 +783,9 @@ export default function EmployeePortalInventory() {
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="flex flex-col gap-3 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="inventory-wrap flex min-w-0 flex-col gap-3 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <h2 className="text-2xl font-black text-slate-950">{titleDraft || session.title || "جرد جديد"}</h2>
                       <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${sessionStatusTone[session.status] || sessionStatusTone.draft}`}>
                         {sessionStatusLabels[session.status] || session.status}
@@ -735,7 +795,7 @@ export default function EmployeePortalInventory() {
                       {session.branch_name || "الفرع"}{session.warehouse_name ? ` • ${session.warehouse_name}` : ""}
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="inventory-actions flex min-w-0 gap-2">
                     {session.status === "draft" ? (
                       <button
                         type="button"
@@ -790,8 +850,8 @@ export default function EmployeePortalInventory() {
                   </div>
                 ) : null}
 
-                <div className="grid gap-3 lg:grid-cols-[1fr_1fr]">
-                  <label className="block rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                <div className="grid min-w-0 gap-3 lg:grid-cols-[1fr_1fr]">
+                  <label className="inventory-wrap block rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
                     <div className="text-xs font-black text-slate-400">اسم الجرد</div>
                     <input
                       value={titleDraft}
@@ -800,7 +860,7 @@ export default function EmployeePortalInventory() {
                       className="mt-2 w-full bg-transparent text-base font-semibold text-slate-950 outline-none disabled:opacity-70"
                     />
                   </label>
-                  <label className="block rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <label className="inventory-wrap block rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
                     <div className="text-xs font-black text-slate-400">ملاحظات</div>
                     <input
                       value={notesDraft}
@@ -812,8 +872,8 @@ export default function EmployeePortalInventory() {
                 </div>
 
                 <section className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
+                  <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="inventory-wrap">
                       <h3 className="text-lg font-black text-slate-950">البحث والباركود</h3>
                       <p className="text-xs font-semibold text-slate-500">ابحث عن المنتج أو امسح الباركود لإضافة الكمية.</p>
                     </div>
@@ -827,7 +887,7 @@ export default function EmployeePortalInventory() {
                       سكان
                     </button>
                   </div>
-                  <label className="mt-3 flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                  <label className="inventory-search mt-3 flex min-w-0 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
                     <Search className="h-4 w-4 shrink-0 text-slate-400" />
                     <input
                       value={lookupQuery}
@@ -844,11 +904,11 @@ export default function EmployeePortalInventory() {
                     </div>
                   ) : null}
                   {lookupGroups.length ? (
-                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-2">
                       {lookupGroups.map((group) => (
-                        <div key={group.key} className="rounded-2xl border border-slate-200 bg-white p-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
+                        <div key={group.key} className="inventory-wrap rounded-2xl border border-slate-200 bg-white p-3">
+                          <div className="flex min-w-0 items-start justify-between gap-3">
+                            <div className="inventory-product-title min-w-0">
                               <div className="truncate text-sm font-black text-slate-950">{group.product_name || "منتج"}</div>
                               <div className="mt-1 text-xs font-semibold text-slate-500">
                                 {group.color || "لون غير محدد"} • {group.variants.length} قطع
@@ -870,9 +930,9 @@ export default function EmployeePortalInventory() {
                   ) : null}
                 </section>
 
-                <section className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
+                <section className="inventory-wrap rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="inventory-title">
                       <h3 className="text-lg font-black text-slate-950">عناصر الجرد</h3>
                       <p className="text-xs font-semibold text-slate-500">
                         المتوقع: {expectedTotal} • الفعلي: {countedTotal} • الفرق: {currentBalance}
@@ -885,9 +945,9 @@ export default function EmployeePortalInventory() {
 
                   <div className="mt-4 space-y-3">
                     {groupedItems.length ? groupedItems.map((group) => (
-                      <div key={group.key} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
+                      <div key={group.key} className="inventory-wrap rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex min-w-0 items-start justify-between gap-3">
+                          <div className="inventory-product-title min-w-0">
                             <div className="truncate text-sm font-black text-slate-950">{group.product_name || "منتج"}</div>
                             <div className="mt-1 text-xs font-semibold text-slate-500">
                               {group.color || "لون غير محدد"} • المتوقع {group.system_total} • الفعلي {group.counted_total}
@@ -902,8 +962,8 @@ export default function EmployeePortalInventory() {
                             const variantId = String(variant.product_variant_id ?? variant.variant_id ?? variant.id ?? "");
                             const saving = itemSavingId === variantId;
                             return (
-                              <div key={variantId} className="grid gap-2 rounded-2xl border border-white/80 bg-white p-3 md:grid-cols-[minmax(0,1fr)_110px_90px] md:items-center">
-                                <div className="min-w-0">
+                              <div key={variantId} className="inventory-item inventory-grid-columns grid min-w-0 gap-2 rounded-2xl border border-white/80 bg-white p-3 md:items-center">
+                                <div className="inventory-item-main min-w-0">
                                   <div className="truncate text-sm font-black text-slate-950">{variant.size || variant.sku || "مقاس غير محدد"}</div>
                                   <div className="mt-1 text-xs font-semibold text-slate-500">
                                     {variant.sku ? `SKU: ${variant.sku}` : variant.barcode ? `Barcode: ${variant.barcode}` : "بدون SKU"}
