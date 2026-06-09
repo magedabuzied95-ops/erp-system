@@ -52,8 +52,15 @@ const productSizes = (product = {}) => {
     product.size,
     product.requested_size,
     product.matched_variant_size,
+    product.selected_size,
+    product.selected_variant?.size,
+    product.selected_variant?.requested_size,
     ...(asArray(product.available_sizes || product.sizes || product.inventory_profile?.available_sizes)),
-    ...asArray(product.variants).map((variant) => variant?.size),
+    ...asArray(product.variants).flatMap((variant) => [
+      variant?.size,
+      variant?.requested_size,
+      variant?.size_name,
+    ]),
   ];
   return [...new Set(direct.map(text).filter(Boolean))].slice(0, 8);
 };
@@ -63,8 +70,12 @@ const productColors = (product = {}) => {
     product.color,
     product.requested_color,
     product.matched_variant_color,
+    product.selected_color,
+    product.selected_variant?.color,
+    product.selected_variant?.color_name,
+    product.selected_variant?.color_value,
     ...(asArray(product.available_colors || product.colors)),
-    ...asArray(product.variants).flatMap((variant) => [variant?.color, variant?.color_name]),
+    ...asArray(product.variants).flatMap((variant) => [variant?.color, variant?.color_name, variant?.color_value]),
   ];
   return [...new Set(direct.map(text).filter(Boolean))].slice(0, 8);
 };
@@ -74,6 +85,9 @@ const stockCount = (product = {}) => {
     product.requested_size_stock,
     product.total_stock,
     product.stock,
+    product.selected_variant?.stock,
+    product.selected_variant?.quantity,
+    product.selected_variant?.available_quantity,
     product.inventory_profile?.requested_size_stock,
     product.inventory_profile?.total_stock,
   ];
@@ -81,7 +95,58 @@ const stockCount = (product = {}) => {
     const parsed = Number(value);
     if (Number.isFinite(parsed)) return parsed;
   }
+  const variantStocks = asArray(product.variants)
+    .flatMap((variant) => [variant?.stock, variant?.quantity, variant?.available_quantity, variant?.requested_size_stock])
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value));
+  if (variantStocks.length) {
+    return variantStocks.reduce((sum, value) => sum + value, 0);
+  }
   return 0;
+};
+
+const normalizeStockStatus = (value = "") => normalizeArabic(value).replace(/\s+/g, "_");
+
+const productAvailabilityState = (product = {}) => {
+  const stock = stockCount(product);
+  const status = normalizeStockStatus(
+    product.stock_status ||
+      product.availability ||
+      product.inventory_profile?.stock_status ||
+      product.inventory_profile?.availability ||
+      product.selected_variant?.stock_status ||
+      product.selected_variant?.availability ||
+      ""
+  );
+  if (stock > 0) return "available";
+  if (stock === 0) {
+    if (!status) return "unavailable";
+    if (["in_stock", "instock", "available", "available_now"].includes(status)) return "unavailable";
+    return "unavailable";
+  }
+  if (["out_of_stock", "outofstock", "sold_out", "soldout", "unavailable", "not_available", "notavailable"].includes(status)) {
+    return "unavailable";
+  }
+  if (["in_stock", "instock", "available", "available_now"].includes(status)) {
+    return "available";
+  }
+  return "unknown";
+};
+
+const detectColorFromMessage = (message = "") => {
+  const normalized = normalizeArabic(message);
+  if (!normalized) return "";
+  if (/(ابيض|بيضاء|white)/i.test(normalized)) return "أبيض";
+  if (/(اسود|سوده|black)/i.test(normalized)) return "أسود";
+  if (/(احمر|حمر|red)/i.test(normalized)) return "أحمر";
+  if (/(ازرق|blue)/i.test(normalized)) return "أزرق";
+  if (/(اخضر|green)/i.test(normalized)) return "أخضر";
+  if (/(رمادي|grey|gray)/i.test(normalized)) return "رمادي";
+  if (/(بيج|beige)/i.test(normalized)) return "بيج";
+  if (/(بني|brown)/i.test(normalized)) return "بني";
+  if (/(وردي|pink)/i.test(normalized)) return "وردي";
+  if (/(اصفر|أصفر|yellow)/i.test(normalized)) return "أصفر";
+  return "";
 };
 
 const buildActiveProductMemoryPatch = ({ personality = {}, response = {}, memory = {} } = {}) => {
@@ -108,6 +173,14 @@ const buildActiveProductMemoryPatch = ({ personality = {}, response = {}, memory
       response?.ai_memory_patch?.preferences?.active_color ||
       memory?.active_color ||
       memory?.preferences?.active_color ||
+      ""
+    ),
+    active_size: text(
+      personality?.personality_layer?.active_size ||
+      response?.memory_updates?.active_size ||
+      response?.ai_memory_patch?.preferences?.active_size ||
+      memory?.active_size ||
+      memory?.preferences?.active_size ||
       ""
     ),
     active_model_family: text(
@@ -150,6 +223,14 @@ const buildActiveProductMemoryPatch = ({ personality = {}, response = {}, memory
       memory?.preferences?.selected_color ||
       ""
     ),
+    selected_size: text(
+      personality?.personality_layer?.active_size ||
+      response?.memory_updates?.selected_size ||
+      response?.ai_memory_patch?.preferences?.selected_size ||
+      memory?.selected_size ||
+      memory?.preferences?.selected_size ||
+      ""
+    ),
     last_product_id: text(
       personality?.personality_layer?.active_product_id ||
       response?.memory_updates?.last_product_id ||
@@ -181,6 +262,14 @@ const buildActiveProductMemoryPatch = ({ personality = {}, response = {}, memory
       response?.ai_memory_patch?.preferences?.last_selected_color ||
       memory?.last_selected_color ||
       memory?.preferences?.last_selected_color ||
+      ""
+    ),
+    last_selected_size: text(
+      personality?.personality_layer?.active_size ||
+      response?.memory_updates?.last_selected_size ||
+      response?.ai_memory_patch?.preferences?.last_selected_size ||
+      memory?.last_selected_size ||
+      memory?.preferences?.last_selected_size ||
       ""
     ),
   };
@@ -485,7 +574,30 @@ const memoryState = (context = {}, memory = {}) => {
       inferActionFromText(lastBotMessage)
   );
   return {
-    rememberedSize: text(preferences.size || preferences.preferred_size || source.preferred_size || context.customer_profile?.preferred_size),
+    rememberedSize: text(
+      preferences.size ||
+        preferences.selected_size ||
+        preferences.active_size ||
+        preferences.preferred_size ||
+        source.size ||
+        source.selected_size ||
+        source.activeSize ||
+        source.active_size ||
+        source.preferred_size ||
+        context.customer_profile?.preferred_size
+    ),
+    rememberedColor: text(
+      preferences.color ||
+        preferences.selected_color ||
+        preferences.active_color ||
+        preferences.preferred_color ||
+        source.color ||
+        source.selected_color ||
+        source.activeColor ||
+        source.active_color ||
+        source.last_selected_color ||
+        context.customer_profile?.preferred_color
+    ),
     pendingAlternativeForModel: text(preferences.pendingAlternativeForModel),
     currentRequestedModel: text(preferences.currentRequestedModel),
     lastProducts: asArray(source.last_products),
@@ -497,6 +609,13 @@ const memoryState = (context = {}, memory = {}) => {
         source.lastAction === "ask_size" ||
         lastAction === "ask_size" ||
         /مقاسك|مقاس كام|مقاس معين|which size|what size/i.test(text(source.last_bot_message || source.lastBotMessage || preferences.last_bot_message))
+    ),
+    lastBotAskedForColor: Boolean(
+      preferences.last_ai_action === "ask_color" ||
+        preferences.pending_action === "ask_color" ||
+        source.lastAction === "ask_color" ||
+        lastAction === "ask_color" ||
+        /لون|الوان|which color|what color/i.test(text(source.last_bot_message || source.lastBotMessage || preferences.last_bot_message))
     ),
   };
 };
@@ -518,6 +637,21 @@ export const composeAiSalesReply = async ({
   const canUseRememberedSize = Boolean(currentMessageSize || detectedIntent === "size_question" || (state.lastBotAskedForSize && currentMessageSize));
   const size = currentMessageSize || (canUseRememberedSize ? state.rememberedSize : "");
   const sizePrompt = size ? `مقاس ${size}` : "مقاسك";
+  const colors = productColors(top);
+  const sizes = productSizes(top);
+  const stock = stockCount(top);
+  const availabilityState = productAvailabilityState(top);
+  const requestedColor = detectColorFromMessage(message) || state.rememberedColor;
+  const hasSpecificProductContextSignal = Boolean(
+    asksAvailability(message) ||
+      asksColor(message) ||
+      asksSize(message, response) ||
+      currentMessageSize ||
+      size ||
+      requestedColor ||
+      state.rememberedSize ||
+      state.rememberedColor
+  );
   console.info("[ai-reply-composer:input]", {
     source,
     detectedIntent,
@@ -526,7 +660,7 @@ export const composeAiSalesReply = async ({
     hasProductPayload: hasProducts(response),
   });
 
-  if (response.sales_engine && ["sales_discovery", "sales_checkout"].includes(detectedIntent)) {
+  if (response.sales_engine && ["sales_discovery", "sales_checkout"].includes(detectedIntent) && !hasSpecificProductContextSignal) {
     const personality = applyHumanSalesPersonalityLayer({
       response,
       message,
@@ -680,27 +814,64 @@ export const composeAiSalesReply = async ({
       },
     });
   } else if (asksColor(message) && products.length) {
-    const colors = productColors(top);
+    const availableSize = size || state.rememberedSize || sizes[0] || "";
+    const colorMatch = requestedColor
+      ? colors.some((color) => {
+          const normalizedColor = normalizeArabic(color);
+          const normalizedRequestedColor = normalizeArabic(requestedColor);
+          return Boolean(normalizedColor && normalizedRequestedColor && (normalizedColor === normalizedRequestedColor || normalizedColor.includes(normalizedRequestedColor)));
+        })
+      : false;
+    const colorLead = requestedColor ? `لو تقصد ${requestedColor} فهو ${colorMatch ? "موجود" : "محتاج تأكيد"}` : "";
     decision = "color_question";
-    output = withAnswer(response, colors.length ? `الألوان المتاحة منه: ${colors.join("، ")}. تحب أبعتلك صور كل لون؟` : "الألوان محتاجة تتأكد من المخزون يا فندم. تحب أحددلك لون معين؟");
+    output = withAnswer(response, colors.length
+      ? [
+          availableSize ? `مقاس ${availableSize} موجود` : "",
+          `الألوان المتاحة منه: ${colors.join("، ")}.`,
+          colorLead,
+          "تحب أبعتلك صور كل لون؟",
+        ].filter(Boolean).join(" ")
+      : [
+          availableSize ? `مقاس ${availableSize} موجود` : "",
+          "الألوان محتاجة تتأكد من المخزون يا فندم.",
+          requestedColor ? `لو تقصد ${requestedColor} أراجعلك تأكيده.` : "",
+        ].filter(Boolean).join(" "));
   } else if (asksSize(message, response) && products.length) {
+    const requestedSize = size || sizes[0] || "";
     decision = "size_question";
-    output = withAnswer(response, availableForSize(top, size)
-      ? `أيوه مقاس ${size || productSizes(top)[0] || ""} موجود  تحب أحجزهولك؟`.replace(/\s+/g, " ").trim()
-      : "المقاس ده مش متوفر حاليًا، تحب أشوفلك أقرب مقاس أو موديل شبهه؟");
+    output = withAnswer(response, availableForSize(top, requestedSize)
+      ? `أيوه مقاس ${requestedSize} موجود حاليًا. تحب أحجزهولك؟`.replace(/\s+/g, " ").trim()
+      : requestedSize
+        ? `مقاس ${requestedSize} مش متوفر حاليًا، تحب أشوفلك أقرب مقاس أو موديل شبهه؟`
+        : "المقاس ده مش متوفر حاليًا، تحب أشوفلك أقرب مقاس أو موديل شبهه؟");
   } else if (asksPrice(message, response, intent) && products.length) {
     const price = productPrice(top);
-    const sizes = productSizes(top);
     decision = "price_question";
     output = withAnswer(response, price
       ? `سعره ${price} جنيه يا فندم، والمقاسات المتاحة منه ${sizes.length ? sizes.join("، ") : "هأكدها لك"}. تحب أحجزهولك؟`
       : "السعر محتاج يتأكد يا فندم. تحب أراجعلك السعر والمقاسات؟");
   } else if ((asksAvailability(message) || detectedIntent === "product" || detectedIntent === "product_discovery") && products.length) {
     const price = productPrice(top);
-    decision = "exact_product_available";
-    output = withAnswer(response, price
-      ? `أيوه موجود يا فندم  سعره ${price} جنيه، تحب أشوفلك ${sizePrompt}؟`.replace(/\s+\؟/, "؟")
-      : `أيوه موجود يا فندم  تحب أشوفلك ${sizePrompt}؟`);
+    const preferredSize = size || state.rememberedSize || sizes[0] || "";
+    const preferredColor = requestedColor || state.rememberedColor || colors[0] || "";
+    decision = availabilityState === "unavailable" ? "exact_product_unavailable" : "exact_product_available";
+    output = withAnswer(stripProductPayload(response), availabilityState === "unavailable"
+      ? [
+          preferredSize ? `مقاس ${preferredSize} مش متوفر حاليًا.` : "الموديل ده مش متاح حاليًا.",
+          "أقدر أطلعلك أقرب بديل أو أراجع تأكيد المخزون لو تحب.",
+        ].join(" ")
+      : availabilityState === "available"
+        ? [
+            `أيوه متاح حاليًا${preferredSize ? `، ومقاس ${preferredSize} موجود` : ""}.`,
+            price ? `سعره ${price} جنيه.` : "",
+            colors.length ? `الألوان المتاحة: ${colors.join("، ")}.` : "",
+            preferredColor ? `ولو تقصد ${preferredColor} أقدر أركز عليه.` : "",
+          ].filter(Boolean).join(" ")
+        : [
+            "الموديل ده محتاج تأكيد من السيستم قبل ما أقول متاح.",
+            preferredSize ? `لو تقصد مقاس ${preferredSize} أراجعهولك.` : "",
+            colors.length ? `والألوان المتاحة الظاهرة: ${colors.join("، ")}.` : "",
+          ].filter(Boolean).join(" "));
     output = withActionAnswer(output, output.answer || output.text, "ask_size", {
       suggested_actions: ["ask_size"],
     });

@@ -176,6 +176,14 @@ const shouldProtectProductReply = ({ response = {}, intent = "", message = "", a
 const isGenericOverrideText = (value = "") =>
   /(\u062a\u0642\u0635\u062f\s+\u0623?ن?ه?ي?\s+\u0645\u0648\u062f\u064a\u0644|\u0623\u0637\u0644\u0639\u0644\u0643\s+\u0628\u062f\u064a\u0644|\u0628\u062f\u064a\u0644\s+\u0634\u0628\u0647|\u062a\u062d\u0628\s+\u062a\u0633\u0623\u0644\s+\u0639\u0646\s+\u0645\u0648\u062f\u064a\u0644\s+\u0645\u0639\u064a\u0646|which\s+model|similar\s+alternative|ask\s+about\s+a\s+model)/i.test(text(value));
 
+const hasSpecificProductDetail = (value = "") => {
+  const normalized = normalizeArabic(value);
+  return Boolean(
+    /(?:\b3[5-9]\b|\b4[0-9]\b|\b5[0-2]\b)/.test(text(value)) ||
+      /(مقاس|size|لون|الوان|الألوان|متاح|موجود|غير متاح|مش متاح|غير متوفر|مش متوفر|stock|available)/i.test(normalized)
+  );
+};
+
 const buildProtectedProductReplyText = ({ response = {}, productName = "", baseText = "" } = {}) => {
   const safeBase = sanitizeForbiddenPhrases(baseText);
   if (looksLikeMeaningfulReply(safeBase) && !isGenericOverrideText(safeBase)) return safeBase;
@@ -237,6 +245,9 @@ const inferBuyingIntentCloser = ({
     draftOrder?.color,
     draftOrder?.selected_color,
     draftOrder?.requested_color,
+    memory?.active_color,
+    memory?.selected_color,
+    memory?.preferences?.active_color,
     memory?.preferences?.selected_color,
     memory?.preferences?.selected_color_key
   );
@@ -1117,6 +1128,13 @@ export function applyHumanSalesPersonalityLayer({
         });
   const picked = deterministicPick(buildReasonedVariations, [conversationId, message, productName, price || "", templateStage, reasoning.reply_goal || ""].join("|"));
   let selectedText = sanitizeForbiddenPhrases(text(reasonedReply.text || picked?.text || closerMeta?.closer_text || buildReasonedVariations[0]?.text || baseText));
+  if (
+    looksLikeMeaningfulReply(baseText) &&
+    hasSpecificProductDetail(baseText) &&
+    (!hasSpecificProductDetail(selectedText) || text(selectedText).length + 12 < text(baseText).length)
+  ) {
+    selectedText = sanitizeForbiddenPhrases(baseText);
+  }
   if (protectProductReply && (!text(selectedText) || isGenericOverrideText(selectedText))) {
     selectedText = buildProtectedProductReplyText({ response, productName, baseText });
     console.info("[AI_PERSONALITY_PRODUCT_REPLY_PRESERVED]", {
@@ -1156,6 +1174,7 @@ export function applyHumanSalesPersonalityLayer({
     active_product_id: activeContext.active_product_id || "",
     active_variant_id: activeContext.active_variant_id || "",
     active_color: activeContext.active_color || "",
+    active_size: size || activeContext.active_size || "",
     active_model_family: activeContext.active_model_family || "",
   };
   const closer = closerMeta?.closer
