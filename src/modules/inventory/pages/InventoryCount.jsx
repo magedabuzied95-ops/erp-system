@@ -81,6 +81,77 @@ const toNumber = (value, fallback = 0) => {
 };
 
 const normalizeText = (value = "") => String(value || "").trim();
+const isDevEnvironment = typeof import.meta !== "undefined" && import.meta.env?.DEV;
+
+const normalizeImageValue = (value = "") => {
+  if (!value) return "";
+  if (Array.isArray(value)) return normalizeImageValue(value[0]);
+  if (typeof value === "object") {
+    return normalizeImageValue(
+      value.image_url ||
+        value.imageUrl ||
+        value.url ||
+        value.path ||
+        value.src ||
+        value.image ||
+        value.photo_url ||
+        value.thumbnail_url ||
+        value.secure_url ||
+        ""
+    );
+  }
+  return normalizeText(value);
+};
+
+const resolveCountVariantImageData = (record = {}) => {
+  const colorImage = normalizeImageValue(
+    record.color_image_url ||
+      record.primary_image_url ||
+      record.color?.image_url ||
+      record.color?.image ||
+      record.color?.url ||
+      ""
+  );
+  const variantImage = normalizeImageValue(
+    record.variant_image_url ||
+      record.product_variant_image_url ||
+      record.image_url ||
+      record.image ||
+      record.variant?.image_url ||
+      record.variant?.image ||
+      record.variant?.url ||
+      ""
+  );
+  const productImage = normalizeImageValue(
+    record.product_image ||
+      record.product_image_url ||
+      record.product?.image_url ||
+      record.product?.product_image_url ||
+      record.product?.image ||
+      ""
+  );
+  const firstProductImage = normalizeImageValue(
+    record.product_images?.[0] ||
+      record.gallery_images?.[0] ||
+      record.product?.images?.[0] ||
+      record.product?.gallery_images?.[0] ||
+      record.images?.[0] ||
+      ""
+  );
+
+  const imageUrl = colorImage || variantImage || productImage || firstProductImage || "";
+  const imageSourceRank = colorImage ? 1 : variantImage ? 2 : productImage ? 3 : firstProductImage ? 4 : 0;
+
+  return {
+    image_url: imageUrl,
+    color_image_url: colorImage || "",
+    variant_image_url: variantImage || "",
+    product_image: productImage || "",
+    product_image_url: productImage || "",
+    primary_image_url: colorImage || variantImage || productImage || firstProductImage || "",
+    image_source_rank: imageSourceRank,
+  };
+};
 
 const sizeSortValue = (value) => {
   const text = normalizeText(value);
@@ -100,7 +171,7 @@ const normalizeCountVariant = (record = {}) => {
   const sku = normalizeText(record.sku ?? record.variant_sku ?? "");
   const barcode = normalizeText(record.barcode ?? record.variant_barcode ?? "");
   const articleCode = normalizeText(record.article_code ?? record.variant_article_code ?? "");
-  const imageUrl = normalizeText(record.image_url ?? record.variant_image_url ?? "");
+  const imageData = resolveCountVariantImageData(record);
   const systemQuantity = toNumber(record.system_quantity ?? record.stock ?? record.expected_qty ?? 0);
   const countedQuantity = toNumber(record.counted_quantity ?? record.actual_qty ?? 0);
   const differenceQuantity = toNumber(record.difference_quantity ?? record.difference_qty ?? countedQuantity - systemQuantity);
@@ -117,7 +188,7 @@ const normalizeCountVariant = (record = {}) => {
     sku,
     barcode,
     article_code: articleCode,
-    image_url: imageUrl,
+    ...imageData,
     system_quantity: systemQuantity,
     counted_quantity: countedQuantity,
     difference_quantity: differenceQuantity,
@@ -130,7 +201,7 @@ const normalizeCountVariant = (record = {}) => {
     variant_article_code: articleCode,
     variant_product_sku: productSku,
     variant_product_barcode: productBarcode,
-    variant_image_url: imageUrl,
+    variant_image_url: imageData.variant_image_url || imageData.image_url,
     actual_qty: countedQuantity,
     expected_qty: systemQuantity,
     difference_qty: differenceQuantity,
@@ -153,6 +224,10 @@ const groupCountVariants = (records = []) => {
         product_name: variant.product_name,
         color: variant.color,
         image_url: variant.image_url,
+        image_source_rank: variant.image_source_rank || 0,
+        color_image_url: variant.color_image_url || "",
+        variant_image_url: variant.variant_image_url || "",
+        product_image: variant.product_image || "",
         variants: [],
         system_total: 0,
         counted_total: 0,
@@ -161,7 +236,15 @@ const groupCountVariants = (records = []) => {
     }
 
     const group = groups.get(key);
-    if (!group.image_url && variant.image_url) group.image_url = variant.image_url;
+    const currentRank = Number(group.image_source_rank || 0);
+    const candidateRank = Number(variant.image_source_rank || 0);
+    if (!group.image_url || (candidateRank > 0 && (currentRank === 0 || candidateRank < currentRank))) {
+      group.image_url = variant.image_url;
+      group.image_source_rank = candidateRank || currentRank || 0;
+      group.color_image_url = variant.color_image_url || group.color_image_url || "";
+      group.variant_image_url = variant.variant_image_url || group.variant_image_url || "";
+      group.product_image = variant.product_image || group.product_image || "";
+    }
     group.variants.push(variant);
     group.system_total += toNumber(variant.system_quantity, 0);
     group.counted_total += toNumber(variant.counted_quantity, 0);
@@ -193,6 +276,10 @@ const groupLookupModels = (records = []) => {
         product_sku: variant.product_sku,
         product_barcode: variant.product_barcode,
         image_url: variant.image_url,
+        image_source_rank: variant.image_source_rank || 0,
+        color_image_url: variant.color_image_url || "",
+        variant_image_url: variant.variant_image_url || "",
+        product_image: variant.product_image || "",
         variants: [],
         colors: new Set(),
         sizes: new Set(),
@@ -201,7 +288,15 @@ const groupLookupModels = (records = []) => {
     }
 
     const group = groups.get(productKey);
-    if (!group.image_url && variant.image_url) group.image_url = variant.image_url;
+    const currentRank = Number(group.image_source_rank || 0);
+    const candidateRank = Number(variant.image_source_rank || 0);
+    if (!group.image_url || (candidateRank > 0 && (currentRank === 0 || candidateRank < currentRank))) {
+      group.image_url = variant.image_url;
+      group.image_source_rank = candidateRank || currentRank || 0;
+      group.color_image_url = variant.color_image_url || group.color_image_url || "";
+      group.variant_image_url = variant.variant_image_url || group.variant_image_url || "";
+      group.product_image = variant.product_image || group.product_image || "";
+    }
     group.variants.push(variant);
     if (variant.color) group.colors.add(variant.color);
     if (variant.size) group.sizes.add(variant.size);
@@ -364,6 +459,18 @@ function InventoryCountPage() {
       const response = await getInventoryCountSession(routeSessionId);
       const nextSession = response?.session || null;
       const nextItems = Array.isArray(response?.items) ? response.items : [];
+      if (isDevEnvironment) {
+        console.log("[inventory-count] session items reloaded", nextItems.map((item) => ({
+          id: item.id,
+          product_variant_id: item.product_variant_id,
+          product_id: item.product_id,
+          color: item.color || item.variant_color || "",
+          image_url: item.image_url || "",
+          color_image_url: item.color_image_url || "",
+          variant_image_url: item.variant_image_url || "",
+          product_image: item.product_image || "",
+        })));
+      }
       setSession(nextSession);
       setItems(nextItems);
       setNewSessionForm({
@@ -743,11 +850,48 @@ function InventoryCountPage() {
     if (!routeSessionId || !group?.product_id) return;
     try {
       setBusyGroupKey(group.key);
-      const response = await addInventoryCountModel(routeSessionId, { productId: group.product_id });
+      if (isDevEnvironment) {
+        console.log("[inventory-count] add model selected group", {
+          product_id: group.product_id,
+          product_name: group.product_name,
+          color: group.color || "",
+          image_url: group.image_url || "",
+          color_image_url: group.color_image_url || "",
+          variant_image_url: group.variant_image_url || "",
+          product_image: group.product_image || "",
+          variants: group.variants.map((variant) => ({
+            id: variant.id,
+            product_variant_id: variant.product_variant_id,
+            color: variant.color,
+            size: variant.size,
+            image_url: variant.image_url || "",
+            color_image_url: variant.color_image_url || "",
+            variant_image_url: variant.variant_image_url || "",
+            product_image: variant.product_image || "",
+          })),
+        });
+      }
+      const payload = { productId: group.product_id };
+      if (isDevEnvironment) {
+        console.log("[inventory-count] add model payload", payload);
+      }
+      const response = await addInventoryCountModel(routeSessionId, payload);
       if (response?.session) {
         setSession(response.session);
       }
       if (Array.isArray(response?.items)) {
+        if (isDevEnvironment) {
+          console.log("[inventory-count] add model response items", response.items.map((item) => ({
+            id: item.id,
+            product_variant_id: item.product_variant_id,
+            product_id: item.product_id,
+            color: item.color || item.variant_color || "",
+            image_url: item.image_url || "",
+            color_image_url: item.color_image_url || "",
+            variant_image_url: item.variant_image_url || "",
+            product_image: item.product_image || "",
+          })));
+        }
         setItems(response.items);
       }
       await loadSession();

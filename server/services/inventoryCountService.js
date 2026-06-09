@@ -1,4 +1,9 @@
 import db from "../database/db.js";
+import {
+  attachVariantImages,
+  ensureProductVariantImagesSchema,
+  loadProductVariantImages,
+} from "./productVariantImagesService.js";
 import { recordInventoryMovement } from "./inventoryMovementService.js";
 import { createNotification } from "./notificationsService.js";
 import logActivity from "../utils/logActivity.js";
@@ -35,6 +40,104 @@ const normalizeNullableId = (value) => {
   if (value === undefined || value === null || value === "") return null;
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+const normalizeImageValue = (value = "") => {
+  if (!value) return "";
+  if (Array.isArray(value)) return normalizeImageValue(value[0]);
+  if (typeof value === "object") {
+    return normalizeImageValue(
+      value.image_url ||
+        value.imageUrl ||
+        value.url ||
+        value.path ||
+        value.src ||
+        value.image ||
+        value.photo_url ||
+        value.thumbnail_url ||
+        value.secure_url ||
+        ""
+    );
+  }
+  return normalizeText(value);
+};
+
+const resolveInventoryCountImageFields = (row = {}) => {
+  const colorImage = normalizeImageValue(
+    row.color_image_url ||
+      row.primary_image_url ||
+      row.color?.image_url ||
+      row.color?.image ||
+      row.color?.url ||
+      ""
+  );
+  const variantImage = normalizeImageValue(
+    row.variant_image_url ||
+      row.image_url ||
+      row.product_variant_image_url ||
+      row.variant?.image_url ||
+      row.variant?.image ||
+      row.variant?.url ||
+      ""
+  );
+  const productImage = normalizeImageValue(
+    row.product_image ||
+      row.product_image_url ||
+      row.product?.image_url ||
+      row.product?.image ||
+      row.product?.url ||
+      ""
+  );
+  const firstProductImage = normalizeImageValue(
+    row.product_images?.[0] ||
+      row.gallery_images?.[0] ||
+      row.product?.images?.[0] ||
+      row.images?.[0] ||
+      row.product?.gallery_images?.[0] ||
+      ""
+  );
+  const imageUrl = colorImage || variantImage || productImage || firstProductImage || "";
+
+  return {
+    ...row,
+    color_image_url: colorImage || variantImage || productImage || firstProductImage || "",
+    variant_image_url: variantImage || colorImage || productImage || firstProductImage || "",
+    product_image: productImage || "",
+    product_image_url: row.product_image_url || productImage || "",
+    image_url: imageUrl,
+    primary_image_url: row.primary_image_url || colorImage || variantImage || productImage || firstProductImage || "",
+  };
+};
+
+const hydrateInventoryCountVariants = async (clientOrPool, variants = []) => {
+  const rows = Array.isArray(variants) ? variants : [];
+  if (!rows.length) return [];
+
+  const productIds = [...new Set(rows.map((row) => normalizeNullableId(row.product_id)).filter((value) => value !== null))];
+  if (!productIds.length) {
+    return rows.map((row) => resolveInventoryCountImageFields(row));
+  }
+
+  await ensureProductVariantImagesSchema(clientOrPool).catch((error) => {
+    console.warn("[inventory-count:images] ensure product variant images schema failed", error?.message || error);
+  });
+
+  const imageBundle = await loadProductVariantImages(clientOrPool, productIds).catch((error) => {
+    console.warn("[inventory-count:images] load product variant images failed", error?.message || error);
+    return new Map();
+  });
+
+  return rows.map((row) => {
+    const variantKey = normalizeNullableId(row.product_variant_id ?? row.variant_id ?? row.id);
+    const productKey = normalizeNullableId(row.product_id);
+    const bundle = productKey ? imageBundle.get(String(productKey)) || null : null;
+    const hydrated = bundle ? attachVariantImages([row], bundle)[0] || row : row;
+    return resolveInventoryCountImageFields({
+      ...hydrated,
+      product_variant_id: hydrated.product_variant_id ?? variantKey ?? null,
+      product_id: hydrated.product_id ?? productKey ?? null,
+    });
+  });
 };
 
 const normalizeRoleName = (value = "") =>
@@ -452,12 +555,14 @@ const fetchSessionItems = async (clientOrPool, { tenantId, sessionId, lock = fal
     SELECT
       i.*,
       p.name AS product_name,
+      COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image,
+      COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url,
       v.color AS variant_color,
       v.size AS variant_size,
       v.sku AS variant_sku,
       v.barcode AS variant_barcode,
       v.article_code AS variant_article_code,
-      COALESCE(NULLIF(v.image_url, ''), NULLIF(p.image_url, ''), NULLIF(p.image, ''), '') AS variant_image_url
+      COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS variant_image_url
     FROM inventory_count_items i
     LEFT JOIN inventory_count_sessions s ON s.id = COALESCE(i.inventory_count_session_id, i.inventory_count_id)
     LEFT JOIN product_variants v ON v.id = COALESCE(i.product_variant_id, i.variant_id)
@@ -469,7 +574,10 @@ const fetchSessionItems = async (clientOrPool, { tenantId, sessionId, lock = fal
     `,
     params
   );
-    return result.rows.map((row) => applyRowAliases(row));
+    return hydrateInventoryCountVariants(
+      dbClient,
+      result.rows.map((row) => applyRowAliases(row))
+    );
   });
 };
 
@@ -487,7 +595,10 @@ const fetchVariantForSession = async (clientOrPool, { tenantId, productVariantId
       v.article_code,
       COALESCE(v.stock, 0)::int AS stock,
       p.name AS product_name,
-      COALESCE(NULLIF(v.image_url, ''), NULLIF(p.image_url, ''), NULLIF(p.image, ''), '') AS image_url
+      COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image,
+      COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url,
+      COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS variant_image_url,
+      COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS image_url
     FROM product_variants v
     JOIN products p ON p.id = v.product_id
     WHERE v.id = $1
@@ -496,7 +607,9 @@ const fetchVariantForSession = async (clientOrPool, { tenantId, productVariantId
     `,
     [productVariantId, tenantId]
   );
-  return result.rows[0] || null;
+  const row = result.rows[0] || null;
+  if (!row) return null;
+  return (await hydrateInventoryCountVariants(dbClient, [row]))[0] || null;
   });
 };
 
@@ -861,7 +974,9 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
         v.barcode,
         v.article_code,
         COALESCE(v.stock, 0)::int AS stock,
-        COALESCE(NULLIF(v.image_url, ''), NULLIF(p.image_url, ''), NULLIF(p.image, ''), '') AS image_url,
+        COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image,
+        COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url,
+        COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS image_url,
         CASE
           WHEN LOWER(TRIM(COALESCE(v.barcode, ''))) = LOWER(TRIM($2))
             OR LOWER(TRIM(COALESCE(v.sku, ''))) = LOWER(TRIM($2))
@@ -945,7 +1060,7 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
     });
   }
 
-  return rows;
+  return hydrateInventoryCountVariants(dbClient, rows);
 };
 
 const fetchInventoryCountProductVariants = async (dbClient, { tenantId, productId }) => {
@@ -963,7 +1078,10 @@ const fetchInventoryCountProductVariants = async (dbClient, { tenantId, productI
       v.barcode,
       v.article_code,
       COALESCE(v.stock, 0)::int AS stock,
-      COALESCE(NULLIF(v.image_url, ''), NULLIF(p.image_url, ''), NULLIF(p.image, ''), '') AS image_url
+      COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image,
+      COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url,
+      COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS variant_image_url,
+      COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS image_url
     FROM product_variants v
     JOIN products p ON p.id = v.product_id
     WHERE ($1::bigint IS NULL OR v.tenant_id = $1::bigint OR v.tenant_id IS NULL)
@@ -973,11 +1091,14 @@ const fetchInventoryCountProductVariants = async (dbClient, { tenantId, productI
     [tenantId, productId]
   );
 
-  return result.rows.map((row) => ({
-    ...row,
-    product_variant_id: row.product_variant_id ?? row.id,
-    stock: toNumber(row.stock, 0),
-  }));
+  return hydrateInventoryCountVariants(
+    dbClient,
+    result.rows.map((row) => ({
+      ...row,
+      product_variant_id: row.product_variant_id ?? row.id,
+      stock: toNumber(row.stock, 0),
+    }))
+  );
 };
 
 export const upsertInventoryCountItem = async (clientOrPool, data = {}) => {
@@ -1284,15 +1405,30 @@ export const addProductModelToCount = async (clientOrPool, data = {}) => {
       ]
     );
     insertedVariants.push(
-      applyRowAliases({
-        ...result.rows[0],
-        product_name: variant.product_name,
-        variant_color: variant.color,
-        variant_size: variant.size,
-        variant_sku: variant.sku,
-        variant_barcode: variant.barcode,
-        variant_article_code: variant.article_code,
-        variant_image_url: variant.image_url,
+      resolveInventoryCountImageFields({
+        ...applyRowAliases({
+          ...result.rows[0],
+          product_name: variant.product_name,
+          variant_color: variant.color,
+          variant_size: variant.size,
+          variant_sku: variant.sku,
+          variant_barcode: variant.barcode,
+          variant_article_code: variant.article_code,
+          variant_image_url: variant.variant_image_url || variant.image_url || "",
+          color_image_url: variant.color_image_url || variant.primary_image_url || variant.variant_image_url || variant.image_url || "",
+          product_image: variant.product_image || variant.product_image_url || "",
+          product_image_url: variant.product_image_url || variant.product_image || "",
+          image_url: variant.image_url || variant.variant_image_url || variant.product_image || variant.product_image_url || "",
+          primary_image_url: variant.primary_image_url || variant.color_image_url || variant.variant_image_url || variant.image_url || "",
+          product_variant_id: variantId,
+          product_id: variant.product_id,
+          system_quantity: systemQuantity,
+          counted_quantity: 0,
+          difference_quantity: differenceQuantity,
+          expected_qty: systemQuantity,
+          actual_qty: 0,
+          difference_qty: differenceQuantity,
+        }),
         product_variant_id: variantId,
         product_id: variant.product_id,
         system_quantity: systemQuantity,
