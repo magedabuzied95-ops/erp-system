@@ -87,34 +87,53 @@ const buildShiftCloseWhatsappMessage = ({ report = {}, closingNotes = "", varian
   const closingCash = totals.closing_cash ?? shift.closing_cash ?? null;
   const topProductsSummary = topProducts.length
     ? topProducts
-      .map((item, index) => {
+      .slice(0, 2)
+      .map((item) => {
         const name = String(item.product_name || item.name || "منتج").trim() || "منتج";
         const quantity = Number(item.quantity || item.units_sold || 0);
-        const total = Number(item.total || item.total_revenue || 0);
-        return `${index + 1}. ${name} - ${quantity.toLocaleString("en-US")} × ${formatShiftMoney(total)}`;
+        return `• ${name} × ${quantity.toLocaleString("en-US")}`;
       })
       .join("\n")
-    : "لا توجد منتجات";
+    : "• لا توجد منتجات";
 
-  return [
-    "تقرير إغلاق وردية",
-    `الفرع: ${shift.branch_name || "-"}`,
-    `المسؤول: ${shift.cashier_name || "-"}`,
-    `وقت بداية الوردية: ${shift.opened_at ? new Date(shift.opened_at).toLocaleString("ar-EG") : "-"}`,
-    `وقت إغلاق الوردية: ${shift.closed_at ? new Date(shift.closed_at).toLocaleString("ar-EG") : "-"}`,
-    `مدة الوردية: ${formatShiftDurationLabel(shift.opened_at, shift.closed_at)}`,
-    `مبيعات نقدية: ${formatShiftMoney(totals.cash ?? 0)}`,
-    `مرتجعات نقدية: ${formatShiftMoney(totals.cash_returns ?? 0)}`,
-    `إجمالي الخروج النقدي: ${formatShiftMoney(totals.total_cash_out ?? 0)}`,
-    `صافي الدرج المتوقع: ${formatShiftMoney(totals.expected_cash ?? shift.expected_cash ?? 0)}`,
-    `المبلغ الفعلي في الدرج: ${formatShiftMoney(closingCash ?? 0)}`,
-    `الفرق: ${formatShiftCloseDifference(difference)}`,
-    `عدد الفواتير: ${Number(totals.invoice_count || 0).toLocaleString("en-US")}`,
-    "ملخص أعلى المنتجات:",
+  const lines = [
+    "إغلاق وردية",
+    "",
+    `${shift.branch_name || "-"}`,
+    `${shift.cashier_name || "-"}`,
+    "",
+    `المتوقع: ${formatShiftMoney(totals.expected_cash ?? shift.expected_cash ?? 0)}`,
+    `الفعلي: ${formatShiftMoney(closingCash ?? 0)}`,
+    "",
+  ];
+
+  if (difference === 0) {
+    lines.push("✅ متوازن");
+  } else if (difference < 0) {
+    lines.push(`⚠️ عجز: ${formatShiftMoney(Math.abs(difference))}`);
+  } else {
+    lines.push(`✅ زيادة: ${formatShiftMoney(difference)}`);
+  }
+
+  lines.push(
+    "",
+    `الفواتير: ${Number(totals.invoice_count || 0).toLocaleString("en-US")}`,
+    `المبيعات: ${formatShiftMoney(totals.cash ?? 0)}`,
+    `↩️ المرتجعات: ${formatShiftMoney(totals.cash_returns ?? 0)}`,
+    "",
+    "الأكثر مبيعًا:",
     topProductsSummary,
-    `سبب النقص: ${difference < 0 ? (clean(varianceReason) || "غير مذكور") : "-"}`,
-    `ملاحظات الإغلاق: ${clean(closingNotes) || "-"}`,
-  ].join("\n");
+    "",
+    `⏱️ مدة الوردية: ${formatShiftDurationLabel(shift.opened_at, shift.closed_at)}`
+  );
+
+  const notes = clean(closingNotes);
+  if (notes) lines.push(`ملاحظات: ${notes}`);
+
+  const reason = clean(varianceReason);
+  if (reason && difference !== 0) lines.push(`سبب الفرق: ${reason}`);
+
+  return lines.join("\n");
 };
 
 const resolveBranchManagerEmployee = async (clientOrPool, { tenantId = null, branchId = null } = {}) => {

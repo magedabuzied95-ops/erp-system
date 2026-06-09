@@ -7196,6 +7196,7 @@ function ShiftCloseAuditLayout({
   VarianceIcon,
 }) {
   const sellerPerformance = Array.isArray(getShiftSellerPerformance(report)) ? getShiftSellerPerformance(report) : [];
+  const safeShiftDuration = shiftDuration || report?.shift_duration || report?.duration || "-";
   return (
     <>
       <section className={`mt-5 rounded-[24px] border p-4 ${varianceState.className}`}>
@@ -7239,7 +7240,7 @@ function ShiftCloseAuditLayout({
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <ShiftReportItem label="Opening cash" value={formatCurrency(totals.opening_cash ?? shift.opening_cash)} />
-              <ShiftReportItem label="Shift duration" value={shiftDuration || "-"} />
+              <ShiftReportItem label="Shift duration" value={safeShiftDuration} />
             </div>
           </div>
           {sellerPerformance.length ? (
@@ -7313,10 +7314,10 @@ function ShiftCloseAuditLayout({
 
             <AccountingLedgerSection title="النشاط" accent="cyan">
               <AccountingLedgerRow label="عدد الفواتير" value={Number(totals.invoice_count || 0).toLocaleString()} />
-              <AccountingLedgerRow label="الخصومات" value={formatCurrency(totals.discounts || 0)} />
-              <AccountingLedgerRow label="سلف الموظفين" value={formatCurrency(totals.employee_advances || 0)} />
-              <AccountingLedgerRow label="مدة الشيفت" value={shiftDuration || "-"} />
-            </AccountingLedgerSection>
+            <AccountingLedgerRow label="الخصومات" value={formatCurrency(totals.discounts || 0)} />
+            <AccountingLedgerRow label="سلف الموظفين" value={formatCurrency(totals.employee_advances || 0)} />
+            <AccountingLedgerRow label="مدة الشيفت" value={safeShiftDuration} />
+          </AccountingLedgerSection>
           </div>
           <div className={`mt-4 rounded-2xl border p-4 ${paymentWarnings.length ? "border-amber-400/25 bg-amber-500/10 text-amber-100" : "border-emerald-400/20 bg-emerald-500/10 text-emerald-100"}`}>
             <div className="flex items-center gap-2 text-sm font-black">
@@ -7432,6 +7433,8 @@ function ShiftReportModal({ report, onClose, onPrint }) {
   const { t } = useTranslation();
   const totals = report?.totals || {};
   const shift = report?.shift || {};
+  const shiftDuration = formatShiftDuration(shift.opened_at, shift.closed_at || new Date());
+  const safeShiftDuration = shiftDuration || report?.shift_duration || report?.duration || "-";
   const netRevenue = Number(totals.total_sales || 0) - Number(totals.returns || 0) - Number(totals.discounts || 0);
   const totalSoldItems = (report?.top_products || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const sellerPerformance = getShiftSellerPerformance(report);
@@ -7477,7 +7480,7 @@ function ShiftReportModal({ report, onClose, onPrint }) {
             <AccountingLedgerRow label="عدد الفواتير" value={Number(totals.invoice_count || 0).toLocaleString()} />
             <AccountingLedgerRow label="الخصومات" value={formatCurrency(totals.discounts || 0)} />
             <AccountingLedgerRow label="سلف الموظفين" value={formatCurrency(totals.employee_advances || 0)} />
-            <AccountingLedgerRow label="مدة الشيفت" value={shiftDuration || "-"} />
+            <AccountingLedgerRow label="مدة الشيفت" value={safeShiftDuration} />
           </AccountingLedgerSection>
         </div>
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
