@@ -92,16 +92,6 @@ const getInventoryImageCandidates = (record = {}) => [
 ];
 const resolveCardImage = (record = {}) => {
   const images = Array.isArray(record.images) ? record.images : [];
-  useEffect(() => {
-    if (!branchDrawerOpen || typeof document === "undefined") return undefined;
-    const { body } = document;
-    const previousOverflow = body.style.overflow;
-    body.style.overflow = "hidden";
-    return () => {
-      body.style.overflow = previousOverflow;
-    };
-  }, [branchDrawerOpen]);
-
   return (
     resolveInventoryImageUrl(
       record.color_image,
@@ -750,6 +740,16 @@ export default function EmployeePortalInventory() {
     }
   }, [isEditable, refreshCurrentSession, session?.id, token]);
 
+  useEffect(() => {
+    if (!branchDrawerOpen || typeof document === "undefined") return undefined;
+    const { body } = document;
+    const previousOverflow = body.style.overflow;
+    body.style.overflow = "hidden";
+    return () => {
+      body.style.overflow = previousOverflow;
+    };
+  }, [branchDrawerOpen]);
+
   const currentBalance = differenceTotal === 0
     ? "متوازن"
     : differenceTotal > 0
@@ -844,8 +844,17 @@ export default function EmployeePortalInventory() {
             <div className="inventory-actions flex min-w-0 gap-2">
               <button
                 type="button"
+                onClick={() => setBranchDrawerOpen(true)}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 lg:hidden"
+                aria-label="جردات الفرع"
+              >
+                <Menu className="h-4 w-4" />
+                جردات الفرع
+              </button>
+              <button
+                type="button"
                 onClick={loadSessions}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700"
+                className="hidden min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 lg:inline-flex"
               >
                 <RefreshCw className="h-4 w-4" />
                 تحديث
@@ -854,7 +863,7 @@ export default function EmployeePortalInventory() {
                 type="button"
                 onClick={handleCreateSession}
                 disabled={sessionSaving}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-60"
+                className="hidden min-h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-60 lg:inline-flex"
               >
                 {sessionSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 جرد جديد
@@ -862,7 +871,7 @@ export default function EmployeePortalInventory() {
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 hidden flex-wrap gap-2 lg:flex">
             {sessionFilters.map((filter) => (
               <button
                 key={filter.value}
@@ -881,7 +890,7 @@ export default function EmployeePortalInventory() {
         </section>
 
         <div className="grid min-w-0 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="inventory-wrap rounded-[2rem] border border-white/70 bg-white/95 p-4 shadow-2xl shadow-slate-200/60 backdrop-blur">
+          <aside className="inventory-wrap hidden rounded-[2rem] border border-white/70 bg-white/95 p-4 shadow-2xl shadow-slate-200/60 backdrop-blur lg:block">
             <div className="flex min-w-0 items-center justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="text-lg font-black text-slate-950">جردات الفرع</h2>
@@ -1225,6 +1234,166 @@ export default function EmployeePortalInventory() {
       </div>
 
       {scannerOpen ? <ScannerModal onClose={() => setScannerOpen(false)} onScan={handleScan} /> : null}
+      {branchDrawerOpen ? (
+        <BranchInventoryDrawer
+          sessionsLoading={sessionsLoading}
+          sessionsError={sessionsError}
+          visibleSessions={visibleSessions}
+          selectedSessionId={selectedSessionId}
+          sessionStatusTone={sessionStatusTone}
+          sessionStatusLabels={sessionStatusLabels}
+          sessionSearch={sessionSearch}
+          setSessionSearch={setSessionSearch}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          sessionFilters={sessionFilters}
+          onClose={() => setBranchDrawerOpen(false)}
+          onSelectSession={(sessionId) => {
+            setBranchDrawerOpen(false);
+            selectSession(sessionId);
+          }}
+          onCreateSession={handleCreateSession}
+          sessionSaving={sessionSaving}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function BranchInventoryDrawer({
+  sessionsLoading,
+  sessionsError,
+  visibleSessions,
+  selectedSessionId,
+  sessionStatusTone,
+  sessionStatusLabels,
+  sessionSearch,
+  setSessionSearch,
+  statusFilter,
+  setStatusFilter,
+  sessionFilters,
+  onClose,
+  onSelectSession,
+  onCreateSession,
+  sessionSaving,
+}) {
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[2147483001] bg-black/60 backdrop-blur-sm"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <aside
+        className="absolute inset-y-0 end-0 flex h-full w-[min(100vw,22rem)] flex-col border-s border-white/10 bg-white shadow-2xl shadow-black/30"
+        dir="rtl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="branch-inventory-drawer-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-4">
+          <div className="min-w-0">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">Employee Portal</div>
+            <h2 id="branch-inventory-drawer-title" className="mt-1 text-lg font-black text-slate-950">جردات الفرع</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm"
+            aria-label="إغلاق"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 py-4" style={{ WebkitOverflowScrolling: "touch" }}>
+          <div className="flex flex-wrap gap-2">
+            {sessionFilters.map((filter) => (
+              <button
+                key={filter.value}
+                type="button"
+                onClick={() => setStatusFilter(filter.value)}
+                className={`rounded-full border px-3 py-2 text-xs font-black transition ${
+                  statusFilter === filter.value
+                    ? "border-emerald-500 bg-emerald-500 text-white"
+                    : "border-slate-200 bg-white text-slate-600"
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={onCreateSession}
+            disabled={sessionSaving}
+            className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-60"
+          >
+            {sessionSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            جرد جديد
+          </button>
+
+          <label className="mt-4 block rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+            <div className="flex items-center gap-2 text-xs font-black text-slate-400">
+              <Search className="h-4 w-4" />
+              بحث
+            </div>
+            <input
+              value={sessionSearch}
+              onChange={(event) => setSessionSearch(event.target.value)}
+              placeholder="ابحث باسم الجرد أو الفرع"
+              className="mt-1 w-full bg-transparent text-base font-semibold text-slate-950 outline-none placeholder:text-slate-400"
+            />
+          </label>
+
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <div className="text-sm font-black text-slate-950">القائمة</div>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">{visibleSessions.length}</span>
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {sessionsLoading ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-500">جارِ التحميل...</div>
+            ) : sessionsError ? (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold leading-6 text-rose-700">{sessionsError}</div>
+            ) : visibleSessions.length ? (
+              visibleSessions.map((row) => {
+                const active = String(row.id) === String(selectedSessionId);
+                const status = String(row.status || "draft");
+                return (
+                  <button
+                    key={row.id}
+                    type="button"
+                    onClick={() => onSelectSession(row.id)}
+                    className={`w-full rounded-2xl border p-3 text-right transition ${
+                      active ? "border-emerald-500 bg-emerald-50 shadow-sm" : "border-slate-200 bg-white hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex min-w-0 items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-black text-slate-950">{row.title || "جرد جديد"}</div>
+                        <div className="mt-1 text-xs font-semibold text-slate-500">
+                          {row.branch_name || "الفرع"}{row.warehouse_name ? ` • ${row.warehouse_name}` : ""}
+                        </div>
+                      </div>
+                      <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${sessionStatusTone[status] || sessionStatusTone.draft}`}>
+                        {sessionStatusLabels[status] || status}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })
+            ) : (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold leading-6 text-slate-500">
+                لا توجد جردات مطابقة لهذا الفلتر.
+              </div>
+            )}
+          </div>
+        </div>
+      </aside>
+    </div>,
+    document.body
   );
 }
