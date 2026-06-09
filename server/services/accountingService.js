@@ -44,6 +44,38 @@ const centsToMoney = (value) => roundMoney((Number(value || 0) || 0) / 100);
 
 const queryable = (clientOrPool = db) => clientOrPool || db;
 const tableColumnCache = new Map();
+const trimSlashes = (value = "") => String(value || "").trim().replace(/^\/+|\/+$/g, "");
+const sanitizePublicOrigin = (value = "") => {
+  const raw = String(value || "").trim().replace(/\/+$/g, "");
+  if (!/^https?:\/\//i.test(raw)) return "";
+  if (/localhost|127\.0\.0\.1/i.test(raw)) return "";
+  return raw;
+};
+const getPublicBackendUrl = () =>
+  [
+    process.env.PUBLIC_BACKEND_URL,
+    process.env.API_PUBLIC_URL,
+    process.env.PUBLIC_APP_URL,
+    process.env.FRONTEND_URL,
+    process.env.VITE_API_URL,
+  ]
+    .map(sanitizePublicOrigin)
+    .find(Boolean) || "";
+const resolveReportImageUrl = (value = "") => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("data:") || raw.startsWith("blob:")) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^\/\//.test(raw)) return `https:${raw}`;
+  const publicBackendUrl = getPublicBackendUrl();
+  const joinPublicUrl = (path) => `${publicBackendUrl}/${trimSlashes(path)}`;
+  if (raw.startsWith("/uploads/")) return publicBackendUrl ? joinPublicUrl(raw) : raw;
+  if (raw.startsWith("uploads/")) return publicBackendUrl ? joinPublicUrl(raw) : `/${trimSlashes(raw)}`;
+  if (raw.startsWith("products/")) return publicBackendUrl ? joinPublicUrl(`/uploads/${raw}`) : `/uploads/${trimSlashes(raw)}`;
+  if (raw.startsWith("/products/")) return publicBackendUrl ? joinPublicUrl(`/uploads${raw}`) : `/uploads${raw}`;
+  if (raw.startsWith("/")) return publicBackendUrl ? joinPublicUrl(raw) : raw;
+  return publicBackendUrl ? joinPublicUrl(`/uploads/products/${raw}`) : `/uploads/products/${trimSlashes(raw)}`;
+};
 
 const tableExists = async (clientOrPool, tableName) => {
   const dbClient = queryable(clientOrPool);
@@ -4073,12 +4105,13 @@ export const getFinancialReportsSummary = async (clientOrPool, data = {}) => {
   const toDate = parseDateFilter(data.toDate || data.to_date || data.to);
   const branchId = numericFilter(data.branchId || data.branch_id);
 
-  const [orderColumns, itemColumns, expenseColumns, productColumns, variantColumns, customerColumns] = await Promise.all([
+  const [orderColumns, itemColumns, expenseColumns, productColumns, variantColumns, productVariantImagesColumns, customerColumns] = await Promise.all([
     getTableColumns(dbClient, "orders"),
     getTableColumns(dbClient, "order_items"),
     getTableColumns(dbClient, "expenses"),
     getTableColumns(dbClient, "products"),
     getTableColumns(dbClient, "product_variants"),
+    getTableColumns(dbClient, "product_variant_images"),
     getTableColumns(dbClient, "customers"),
   ]);
 
@@ -4087,6 +4120,7 @@ export const getFinancialReportsSummary = async (clientOrPool, data = {}) => {
   const expenseTableExists = expenseColumns.size > 0;
   const productTableExists = productColumns.size > 0;
   const variantTableExists = variantColumns.size > 0;
+  const productVariantImagesTableExists = productVariantImagesColumns.size > 0;
 
   let revenue = 0;
   let ordersCount = 0;
@@ -4166,31 +4200,102 @@ export const getFinancialReportsSummary = async (clientOrPool, data = {}) => {
       : `COALESCE(NULLIF(${columnExpr("oi", itemColumns, ["product_name", "name"], "''")}, ''), 'Unknown Product')`;
     const variantJoin = variantTableExists && itemColumns.has("variant_id") ? "LEFT JOIN product_variants pv ON pv.id = oi.variant_id" : "";
     const productJoin = productTableExists ? `LEFT JOIN products p ON p.id = ${productIdExpr}` : "";
-    topProducts = (await dbClient.query(
+    const productVariantImageJoin = productVariantImagesTableExists && productJoin
+      ? `
+        LEFT JOIN LATERAL (
+          SELECT
+            (array_agg(image_url ORDER BY is_primary DESC, sort_order ASC, id ASC))[1] AS image_url,
+            COALESCE(jsonb_agg(image_url ORDER BY is_primary DESC, sort_order ASC, id ASC) FILTER (WHERE NULLIF(image_url, '') IS NOT NULL), '[]'::jsonb) AS images
+          FROM product_variant_images pvi
+          WHERE NULLIF(pvi.image_url, '') IS NOT NULL
+            AND (
+              ${variantJoin ? "pvi.variant_id = pv.id OR" : ""}
+              (
+                pvi.product_id = p.id
+                AND (
+                  NULLIF(pvi.color_name, '') IS NULL
+                  ${variantJoin ? "OR LOWER(pvi.color_name) = LOWER(COALESCE(pv.color, ''))" : ""}
+                )
+              )
+            )
+        ) pvi ON TRUE
+      `
+      : "";
+    const orderExpr = "o.created_at";
+    const itemImageCandidates = [];
+    const addImageCandidate = (expr) => {
+      itemImageCandidates.push(`(ARRAY_AGG(NULLIF(${expr}, '') ORDER BY ${orderExpr} DESC, oi.id ASC) FILTER (WHERE NULLIF(${expr}, '') IS NOT NULL))[1]`);
+    };
+    if (itemColumns.has("image_url")) addImageCandidate("oi.image_url");
+    if (itemColumns.has("image")) addImageCandidate("oi.image");
+    if (itemColumns.has("main_image")) addImageCandidate("oi.main_image");
+    if (itemColumns.has("product_image")) addImageCandidate("oi.product_image");
+    if (itemColumns.has("product_image_url")) addImageCandidate("oi.product_image_url");
+    if (itemColumns.has("variant_image")) addImageCandidate("oi.variant_image");
+    if (itemColumns.has("variant_image_url")) addImageCandidate("oi.variant_image_url");
+    if (variantTableExists && variantColumns.has("image_url")) addImageCandidate("pv.image_url");
+    if (variantTableExists && variantColumns.has("image")) addImageCandidate("pv.image");
+    if (variantTableExists && variantColumns.has("main_image")) addImageCandidate("pv.main_image");
+    if (productTableExists && productColumns.has("image_url")) addImageCandidate("p.image_url");
+    if (productTableExists && productColumns.has("image")) addImageCandidate("p.image");
+    if (productTableExists && productColumns.has("main_image")) addImageCandidate("p.main_image");
+    if (productVariantImageJoin) addImageCandidate("pvi.image_url");
+    const topProductImageExpr = itemImageCandidates.length ? `COALESCE(${itemImageCandidates.join(", ")}, '')` : "''";
+    const topProductsResult = await dbClient.query(
       `
       SELECT
-        ${productIdExpr} AS product_id,
-        ${productNameExpr} AS name,
-        COALESCE(SUM(${netQuantityExpr}), 0)::numeric AS units_sold,
-        COALESCE(SUM(
-          CASE
-            WHEN (${quantityExpr}) > 0 THEN (${itemTotalExpr}) * (${netQuantityExpr}) / NULLIF((${quantityExpr}), 0)
-            ELSE 0
-          END
-        ), 0)::numeric AS total_revenue
-      FROM order_items oi
-      JOIN orders o ON o.id = oi.order_id
-      ${variantJoin}
-      ${productJoin}
-      ${whereSql(clauses)}
-      GROUP BY ${productIdExpr}, ${productNameExpr}
+        product_id,
+        product_name,
+        units_sold,
+        total_revenue,
+        image_url,
+        image,
+        product_image_url,
+        product_image,
+        variant_image_url,
+        variant_image
+      FROM (
+        SELECT
+          ${productIdExpr} AS product_id,
+          ${productNameExpr} AS product_name,
+          COALESCE(SUM(${netQuantityExpr}), 0)::numeric AS units_sold,
+          COALESCE(SUM(
+            CASE
+              WHEN (${quantityExpr}) > 0 THEN (${itemTotalExpr}) * (${netQuantityExpr}) / NULLIF((${quantityExpr}), 0)
+              ELSE 0
+            END
+          ), 0)::numeric AS total_revenue,
+          ${topProductImageExpr} AS image_url,
+          ${topProductImageExpr} AS image,
+          ${topProductImageExpr} AS product_image_url,
+          ${topProductImageExpr} AS product_image,
+          ${topProductImageExpr} AS variant_image_url,
+          ${topProductImageExpr} AS variant_image
+        FROM order_items oi
+        JOIN orders o ON o.id = oi.order_id
+        ${variantJoin}
+        ${productJoin}
+        ${productVariantImageJoin}
+        ${whereSql(clauses)}
+        GROUP BY ${productIdExpr}, ${productNameExpr}
+      ) top_products
       ORDER BY total_revenue DESC, units_sold DESC
       LIMIT 5
       `,
       params
-    )).rows.map((row) => ({
+    );
+    topProducts = topProductsResult.rows.map((row) => ({
       product_id: row.product_id ?? null,
-      name: row.name || "Unknown Product",
+      product_name: row.product_name || "Unknown Product",
+      name: row.product_name || "Unknown Product",
+      quantity: Number(row.units_sold || 0),
+      total: roundMoney(row.total_revenue || 0),
+      image_url: resolveReportImageUrl(row.image_url || row.image || row.product_image_url || row.product_image || row.variant_image_url || row.variant_image),
+      image: resolveReportImageUrl(row.image || row.image_url || row.product_image || row.product_image_url || row.variant_image || row.variant_image_url),
+      product_image_url: resolveReportImageUrl(row.product_image_url || row.product_image || row.image_url || row.image),
+      product_image: resolveReportImageUrl(row.product_image || row.product_image_url || row.image_url || row.image),
+      variant_image_url: resolveReportImageUrl(row.variant_image_url || row.variant_image || row.image_url || row.image),
+      variant_image: resolveReportImageUrl(row.variant_image || row.variant_image_url || row.image_url || row.image),
       units_sold: Number(row.units_sold || 0),
       total_revenue: roundMoney(row.total_revenue || 0),
     }));

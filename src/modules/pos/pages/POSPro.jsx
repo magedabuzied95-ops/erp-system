@@ -729,6 +729,33 @@ const firstTextValue = (...values) => {
   return "";
 };
 
+const firstImageValue = (...values) => {
+  for (const value of values) {
+    if (!value) continue;
+    if (Array.isArray(value)) {
+      const nested = firstImageValue(...value);
+      if (nested) return nested;
+      continue;
+    }
+    if (typeof value === "object") {
+      const nested = firstImageValue(
+        value.image_url,
+        value.image,
+        value.url,
+        value.path,
+        value.preview,
+        value.thumbnail,
+        value.secure_url
+      );
+      if (nested) return nested;
+      continue;
+    }
+    const text = String(value || "").trim();
+    if (text) return text;
+  }
+  return "";
+};
+
 const getDisplayImageUrl = (...values) => resolvePosImageUrl(firstTextValue(...values));
 
 const getProductVisibleStock = (product = {}) => {
@@ -6985,15 +7012,25 @@ const getPaymentReconciliationWarnings = (report = {}) => {
 
 const getTopProductImageUrl = (item = {}) =>
   resolvePosImageUrl(
-    item.image_url ||
-      item.image ||
-      item.product_image ||
-      item.thumbnail_url ||
-      item.variant_image ||
-      item.product_image_url ||
-      item.variant_image_url ||
-      item.main_image ||
-      ""
+    firstImageValue(
+      item.image_url,
+      item.image,
+      item.product_image_url,
+      item.product_image,
+      item.variant_image_url,
+      item.variant_image,
+      item.main_image,
+      item.thumbnail_url,
+      item.thumbnail,
+      item.product_images?.[0]?.image_url,
+      item.product_images?.[0]?.url,
+      item.product_images?.[0]?.path,
+      item.product_images?.[0],
+      item.variant_images?.[0]?.image_url,
+      item.variant_images?.[0]?.url,
+      item.variant_images?.[0]?.path,
+      item.variant_images?.[0]
+    )
   );
 
 function ShiftCloseModal({

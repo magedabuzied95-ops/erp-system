@@ -22,6 +22,7 @@ import {
   ensureSalesCommissionSchema,
   getSalesSettings,
 } from "../services/salesCommissionService.js";
+import { sendTextMessage } from "../services/whatsappGatewayService.js";
 import { getSetting } from "../services/settingsService.js";
 
 const numberOrNull = (value) => {
@@ -30,10 +31,146 @@ const numberOrNull = (value) => {
   return Number.isFinite(number) && number > 0 ? number : null;
 };
 
+const employeeColumnsCache = new Map();
+const getTableColumns = async (clientOrPool, tableName) => {
+  const cacheKey = String(tableName || "");
+  if (employeeColumnsCache.has(cacheKey)) return employeeColumnsCache.get(cacheKey);
+  const queryPromise = clientOrPool.query(
+    `
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = $1
+    `,
+    [cacheKey]
+  )
+    .then((result) => new Set(result.rows.map((row) => row.column_name)))
+    .catch((error) => {
+      employeeColumnsCache.delete(cacheKey);
+      throw error;
+    });
+  employeeColumnsCache.set(cacheKey, queryPromise);
+  return queryPromise;
+};
+
 const money = (value) => Number(Number(value || 0).toFixed(2));
 const clean = (value = "") => String(value || "").trim();
 const quickExpenseTypes = new Set(["shipping", "maintenance", "groceries_supplies", "marketing", "electricity", "water", "rent", "other", "employee_advance"]);
 const quickExpensePayments = new Set(["cash", "card", "wallet"]);
+const formatShiftMoney = (value) => {
+  const amount = Number(value || 0);
+  const safeAmount = Number.isFinite(amount) ? amount : 0;
+  return `${safeAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج.م`;
+};
+
+const formatShiftDurationLabel = (openedAt, closedAt) => {
+  const start = openedAt ? new Date(openedAt).getTime() : 0;
+  const end = closedAt ? new Date(closedAt).getTime() : 0;
+  if (!start || !end || end <= start) return "-";
+  const totalMinutes = Math.max(0, Math.round((end - start) / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}h ${minutes}m`;
+};
+
+const formatShiftCloseDifference = (value) => {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount) || amount === 0) return "متوازن";
+  return amount > 0 ? `زيادة ${formatShiftMoney(amount)}` : `عجز ${formatShiftMoney(Math.abs(amount))}`;
+};
+
+const buildShiftCloseWhatsappMessage = ({ report = {}, closingNotes = "", varianceReason = "" } = {}) => {
+  const shift = report.shift || {};
+  const totals = report.totals || {};
+  const topProducts = (report.top_products || []).slice(0, 5);
+  const difference = Number(totals.cash_difference ?? shift.cash_difference ?? 0);
+  const closingCash = totals.closing_cash ?? shift.closing_cash ?? null;
+  const topProductsSummary = topProducts.length
+    ? topProducts
+      .map((item, index) => {
+        const name = String(item.product_name || item.name || "منتج").trim() || "منتج";
+        const quantity = Number(item.quantity || item.units_sold || 0);
+        const total = Number(item.total || item.total_revenue || 0);
+        return `${index + 1}. ${name} - ${quantity.toLocaleString("en-US")} × ${formatShiftMoney(total)}`;
+      })
+      .join("\n")
+    : "لا توجد منتجات";
+
+  return [
+    "تقرير إغلاق وردية",
+    `الفرع: ${shift.branch_name || "-"}`,
+    `المسؤول: ${shift.cashier_name || "-"}`,
+    `وقت بداية الوردية: ${shift.opened_at ? new Date(shift.opened_at).toLocaleString("ar-EG") : "-"}`,
+    `وقت إغلاق الوردية: ${shift.closed_at ? new Date(shift.closed_at).toLocaleString("ar-EG") : "-"}`,
+    `مدة الوردية: ${formatShiftDurationLabel(shift.opened_at, shift.closed_at)}`,
+    `مبيعات نقدية: ${formatShiftMoney(totals.cash ?? 0)}`,
+    `مرتجعات نقدية: ${formatShiftMoney(totals.cash_returns ?? 0)}`,
+    `إجمالي الخروج النقدي: ${formatShiftMoney(totals.total_cash_out ?? 0)}`,
+    `صافي الدرج المتوقع: ${formatShiftMoney(totals.expected_cash ?? shift.expected_cash ?? 0)}`,
+    `المبلغ الفعلي في الدرج: ${formatShiftMoney(closingCash ?? 0)}`,
+    `الفرق: ${formatShiftCloseDifference(difference)}`,
+    `عدد الفواتير: ${Number(totals.invoice_count || 0).toLocaleString("en-US")}`,
+    "ملخص أعلى المنتجات:",
+    topProductsSummary,
+    `سبب النقص: ${difference < 0 ? (clean(varianceReason) || "غير مذكور") : "-"}`,
+    `ملاحظات الإغلاق: ${clean(closingNotes) || "-"}`,
+  ].join("\n");
+};
+
+const resolveBranchManagerEmployee = async (clientOrPool, { tenantId = null, branchId = null } = {}) => {
+  if (!branchId) return null;
+  const employeeColumns = await getTableColumns(clientOrPool, "employees");
+  const selectFields = [
+    "e.id",
+    "e.full_name",
+    "e.role",
+    "e.job_title",
+    "e.position",
+    "e.phone",
+    "e.manager_portal_enabled",
+    "b.name AS branch_name",
+  ];
+  if (employeeColumns.has("whatsapp")) selectFields.push("e.whatsapp");
+  if (employeeColumns.has("mobile")) selectFields.push("e.mobile");
+  const result = await clientOrPool.query(
+    `
+    SELECT ${selectFields.join(", ")}
+    FROM employees e
+    LEFT JOIN branches b ON b.id = e.branch_id
+    WHERE ($1::bigint IS NULL OR e.tenant_id = $1::bigint)
+      AND e.branch_id = $2::bigint
+      AND COALESCE(e.is_deleted, FALSE) = FALSE
+      AND LOWER(COALESCE(e.status, 'active')) NOT IN ('inactive', 'disabled', 'false', '0', 'deleted')
+      AND (
+        COALESCE(e.manager_portal_enabled, FALSE) = TRUE
+        OR LOWER(COALESCE(e.role, '')) IN ('manager', 'branch manager', 'branch_manager', 'admin', 'super_admin', 'superadmin', 'super admin')
+        OR LOWER(COALESCE(e.job_title, '')) IN ('manager', 'branch manager', 'branch_manager', 'admin', 'super_admin', 'superadmin', 'super admin', 'مدير', 'مدير فرع', 'مدير الفرع')
+        OR LOWER(COALESCE(e.position, '')) IN ('manager', 'branch manager', 'branch_manager', 'admin', 'super_admin', 'superadmin', 'super admin', 'مدير', 'مدير فرع', 'مدير الفرع')
+      )
+    ORDER BY
+      COALESCE(e.manager_portal_enabled, FALSE) DESC,
+      CASE
+        WHEN LOWER(COALESCE(e.role, '')) IN ('manager', 'branch manager', 'branch_manager') THEN 0
+        WHEN LOWER(COALESCE(e.job_title, '')) IN ('manager', 'branch manager', 'branch_manager') THEN 1
+        WHEN LOWER(COALESCE(e.position, '')) IN ('manager', 'branch manager', 'branch_manager') THEN 2
+        ELSE 3
+      END ASC,
+      e.updated_at DESC,
+      e.id ASC
+    LIMIT 1
+    `,
+    [tenantId, branchId]
+  );
+  const row = result.rows[0] || null;
+  if (!row) return null;
+  const phone = [employeeColumns.has("whatsapp") ? row.whatsapp : "", employeeColumns.has("mobile") ? row.mobile : "", row.phone]
+    .map((value) => String(value || "").trim())
+    .find(Boolean) || "";
+  return {
+    ...row,
+    whatsapp_phone: phone,
+  };
+};
 
 const normalizeQuickExpenseType = (value = "") => {
   const normalized = clean(value).toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
@@ -1150,16 +1287,49 @@ export const closePosShift = async (req, res) => {
     if (!ownsShift) return res.status(403).json({ success: false, message: "You cannot close another user's POS shift" });
 
     await client.query("BEGIN");
+    const closingNotes = req.body?.closing_notes || req.body?.closingNotes || req.body?.notes || "";
+    const varianceReason = req.body?.variance_reason || req.body?.varianceReason || "";
     const shift = await closeCashDrawerShift(client, {
       tenantId,
       shiftId,
       actualCash: req.body?.closing_cash ?? req.body?.closingCash ?? req.body?.actual_cash ?? req.body?.actualCash ?? 0,
-      notes: req.body?.notes || "",
+      notes: closingNotes,
       closedBy: req.user?.id || null,
     });
     const events = await getCashDrawerShiftEvents(client, { tenantId, shiftId: shift.id });
     const report = await buildPosShiftReport(client, { tenantId, shiftId: shift.id });
     await client.query("COMMIT");
+
+    try {
+      const manager = await resolveBranchManagerEmployee(client, { tenantId, branchId: report?.shift?.branch_id || shiftRow.branch_id || null });
+      const managerPhone = String(manager?.whatsapp_phone || "").trim();
+      if (managerPhone) {
+        const message = buildShiftCloseWhatsappMessage({
+          report,
+          closingNotes,
+          varianceReason,
+        });
+        await sendTextMessage({ phone: managerPhone, message });
+        console.log("[pos] shift close whatsapp sent", {
+          shift_id: shift.id,
+          branch_id: report?.shift?.branch_id || shiftRow.branch_id || null,
+          manager_employee_id: manager.id || null,
+          phone_suffix: managerPhone.slice(-4),
+        });
+      } else {
+        console.warn("[pos] shift close whatsapp skipped: manager phone missing", {
+          shift_id: shift.id,
+          branch_id: report?.shift?.branch_id || shiftRow.branch_id || null,
+        });
+      }
+    } catch (whatsappError) {
+      console.warn("[pos] shift close whatsapp send failed", {
+        shift_id: shift.id,
+        branch_id: report?.shift?.branch_id || shiftRow.branch_id || null,
+        message: whatsappError?.message || String(whatsappError),
+      });
+    }
+
     return res.status(200).json({ success: true, shift, events, report });
   } catch (error) {
     await client.query("ROLLBACK");
