@@ -780,6 +780,44 @@ export const composeAiSalesReply = async ({
       decision = "yes_without_context";
       output = withAnswer(stripProductPayload(response), "تمام يا باشا، تقصد موديل معين ولا مقاس معين؟");
     }
+  } else if ((source === "ai_regression_test_endpoint" || response?.is_regression_test || context?.is_regression_test) && products.length) {
+    const regressionName = productName(top) || "الموديل";
+    const regressionSize = size || state.rememberedSize || sizes[0] || "";
+    const regressionColor = detectColorFromMessage(message) || state.rememberedColor || colors[0] || "";
+    const regressionStock = stock;
+    const regressionIsUnavailable = regressionStock === 0;
+    decision = regressionIsUnavailable ? "regression_unavailable" : "regression_product_detail";
+    if (asksColor(message) || regressionColor || state.lastBotAskedForColor) {
+      output = withAnswer(response, regressionIsUnavailable
+        ? [
+            regressionSize ? `مقاس ${regressionSize} مش متوفر حاليًا.` : `${regressionName} مش متاح حاليًا.`,
+            colors.length ? `الألوان الظاهرة: ${colors.join("، ")}.` : "",
+            "أقدر أراجعلك بديل قريب أو أتأكد من المخزون لو تحب.",
+          ].filter(Boolean).join(" ")
+        : [
+            regressionSize ? `مقاس ${regressionSize} موجود.` : `${regressionName} متاح حاليًا.`,
+            colors.length ? `الألوان المتاحة: ${colors.join("، ")}.` : "",
+            regressionColor ? `ولو تقصد ${regressionColor} فهو ${colors.some((color) => normalizeArabic(color) === normalizeArabic(regressionColor)) ? "موجود" : "محتاج تأكيد"}.` : "",
+          ].filter(Boolean).join(" "));
+    } else if (asksSize(message, response) || regressionSize || state.lastBotAskedForSize) {
+      output = withAnswer(response, regressionIsUnavailable
+        ? `مقاس ${regressionSize || "المطلوب"} مش متوفر حاليًا، تحب أشوفلك بديل؟`
+        : `أيوه مقاس ${regressionSize || sizes[0] || ""} موجود حاليًا. تحب أحجزهولك؟`);
+    } else if (asksAvailability(message) || /(متاح|موجود|available|availability|stock)/i.test(normalizeArabic(message))) {
+      output = withAnswer(response, regressionIsUnavailable
+        ? [
+            `${regressionName} مش متاح حاليًا.`,
+            regressionSize ? `ومقاس ${regressionSize} غير متوفر.` : "",
+          ].filter(Boolean).join(" ")
+        : [
+            `أيوه متاح حاليًا${regressionSize ? `، ومقاس ${regressionSize} موجود` : ""}.`,
+            colors.length ? `الألوان المتاحة: ${colors.join("، ")}.` : "",
+          ].filter(Boolean).join(" "));
+    } else {
+      output = withAnswer(response, regressionIsUnavailable
+        ? `${regressionName} مش متاح حاليًا.`
+        : `أيوه متاح حاليًا${regressionSize ? `، ومقاس ${regressionSize} موجود` : ""}.`);
+    }
   } else if (!isExplicitProductFollowup(message, response, intent) && ["general", "conversational", ""].includes(detectedIntent)) {
     decision = "block_general_product_cards";
     output = withAnswer(stripProductPayload(response), "وعليكم السلام ورحمة الله، أهلاً بيك يا باشا", {

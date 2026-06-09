@@ -123,6 +123,13 @@ const productSizes = (product = {}) => [
   .map((value) => toText(value))
   .filter(Boolean);
 
+const extractExplicitSize = (message = "") => {
+  const raw = toText(message);
+  const normalized = normalizeArabic(raw);
+  const match = raw.match(/\b(3[5-9]|4[0-9]|5[0-2])\b/) || normalized.match(/\b(3[5-9]|4[0-9]|5[0-2])\b/);
+  return toText(match?.[1] || "");
+};
+
 const productColors = (product = {}) => [
   ...(Array.isArray(product?.colors) ? product.colors : []),
   ...(Array.isArray(product?.available_colors) ? product.available_colors : []),
@@ -202,11 +209,18 @@ const buildRegressionAnalysis = ({
   composedResponse = {},
   source = "ai_regression_test_endpoint",
 } = {}) => {
-  const topProduct = productCards[0] || {};
+  const cardList = asArray(productCards);
+  const topProduct = cardList[0] || {};
   const currentPrice = primaryPrice(topProduct);
-  const currentStock = primaryStock(topProduct);
-  const currentSizes = productSizes(topProduct);
-  const currentColors = productColors(topProduct);
+  const currentStock = cardList.length
+    ? Math.max(
+        ...cardList
+          .map((card) => primaryStock(card))
+          .filter((value) => Number.isFinite(value))
+      )
+    : primaryStock(topProduct);
+  const currentSizes = [...new Set(cardList.flatMap((card) => productSizes(card)).filter(Boolean))];
+  const currentColors = [...new Set(cardList.flatMap((card) => productColors(card)).filter(Boolean))];
   const imageCards = productCards.filter((card) => primaryImage(card));
   const mentionedPrices = extractMentionedPrices(reply);
   const memorySummary = summarizeMemory(memory);
@@ -238,6 +252,47 @@ const buildRegressionAnalysis = ({
     composed_detected_intent: toText(composedResponse?.detected_intent || composedResponse?.intent || ""),
     composed_sales_stage: toText(composedResponse?.sales_stage || ""),
   };
+};
+
+const detectRegressionFailureTypes = ({ message = "", reply = "", analysis = {}, composedResponse = {}, responseForComposer = {}, brainDecision = {}, normalizedProductCards = [] } = {}) => {
+  const failures = [];
+  const normalizedMessage = normalizeArabic(message);
+  const replyText = toText(reply);
+  const currentStock = Number(analysis?.current_stock ?? 0);
+  const currentSizes = asArray(analysis?.current_sizes);
+  const currentColors = asArray(analysis?.current_colors);
+  const memorySize = toText(analysis?.memory_before?.remembered_size || responseForComposer?.memory_updates?.selected_size || responseForComposer?.memory_updates?.active_size || "");
+  const memoryColor = toText(analysis?.memory_before?.remembered_color || responseForComposer?.memory_updates?.selected_color || responseForComposer?.memory_updates?.active_color || "");
+  const requestedSize = extractExplicitSize(message);
+  const availabilitySignal = /(متاح|موجود|available|availability|stock|فيه|available now)/i.test(normalizedMessage);
+  const sizeSignal = /(مقاس|size|نمرة|نمره)/i.test(normalizedMessage);
+  const colorSignal = /(لون|الوان|الألوان|colors?|colour|white|ابيض|أبيض|black|اسود|أسود)/i.test(normalizedMessage);
+
+  if (availabilitySignal && !(analysis?.reply_mentions_availability || /(?:\bمتاح\b|\bموجود\b|\bin stock\b|\bavailable\b)/i.test(replyText))) failures.push("availability");
+  if (sizeSignal && requestedSize && !new RegExp(`\\b${String(requestedSize).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(replyText)) failures.push("size");
+  if (colorSignal && currentColors.length < 2) failures.push("colors");
+  if ((currentStock === 0 || /(?:out of stock|unavailable|غير متاح|مش متاح|غير متوفر|نفد)/i.test(replyText)) && !analysis?.reply_mentions_unavailable) failures.push("stock-unavailable");
+  if (memorySize && !new RegExp(`\\b${String(memorySize).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(replyText)) failures.push("context-memory-step1");
+  if (memoryColor && !new RegExp(String(memoryColor).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i").test(replyText)) failures.push("context-memory-step2");
+
+  if (failures.length) {
+    console.info("[ai-regression-test:failed-types]", {
+      message,
+      detected_intent: toText(composedResponse?.detected_intent || composedResponse?.intent || brainDecision?.intent || brainDecision?.detected_intent || ""),
+      reply: replyText,
+      failed_types: failures,
+      analysis_current_stock: currentStock,
+      analysis_current_sizes: currentSizes,
+      analysis_current_colors: currentColors,
+      composed_answer: toText(composedResponse?.answer || composedResponse?.text || ""),
+      composed_product_cards: asArray(composedResponse?.product_cards),
+      brainDecision_intent: toText(brainDecision?.intent || brainDecision?.detected_intent || ""),
+      responseForComposer_product_cards: asArray(responseForComposer?.product_cards),
+      normalized_product_cards: asArray(normalizedProductCards),
+    });
+  }
+
+  return failures;
 };
 
 const requireRegressionTestKey = (req, res, next) => {
@@ -399,13 +454,12 @@ router.post("/regression-test/message", requireRegressionTestKey, async (req, re
 
       const tenantId = Number(req.body?.tenant_id || req.body?.tenantId || 1);
       const baseMemory = req.body?.memory && typeof req.body.memory === "object" ? req.body.memory : {};
-      const seedProductCards = normalizeProductCards(
-        req.body?.product_cards ||
-          req.body?.fixture?.product_cards ||
-          req.body?.fixture?.productCards ||
-          [],
-        { limit: 24 }
-      );
+      const rawSeedProductCards = req.body?.product_cards ||
+        req.body?.fixture?.product_cards ||
+        req.body?.fixture?.productCards ||
+        [];
+      const seedProductCards = normalizeProductCards(rawSeedProductCards, { limit: 24, preserveUnavailableCards: true });
+      const composerProductCards = seedProductCards.length ? seedProductCards : asArray(rawSeedProductCards);
       const effectiveMemory = {
         ...baseMemory,
         preferences: {
@@ -451,16 +505,17 @@ router.post("/regression-test/message", requireRegressionTestKey, async (req, re
         source: "ai_regression_test_endpoint",
       });
 
-      const responseForComposer = seedProductCards.length
+      const responseForComposer = composerProductCards.length
         ? {
             ...brainDecision,
             is_regression_test: true,
             dry_run: DRY_RUN_MODE,
             source: "ai_regression_test_endpoint",
-            products: seedProductCards,
-            suggested_products: seedProductCards,
-            product_cards: seedProductCards,
-            visual_attachments: seedProductCards
+            regression_source_product_cards: rawSeedProductCards,
+            products: composerProductCards,
+            suggested_products: composerProductCards,
+            product_cards: composerProductCards,
+            visual_attachments: composerProductCards
               .filter((card) => primaryImage(card))
               .map((card) => ({
                 id: String(card.id || card.product_id || primaryImage(card)),
@@ -513,8 +568,21 @@ router.post("/regression-test/message", requireRegressionTestKey, async (req, re
         brainIntent: brainDecision.intent || brainDecision.detected_intent || "",
         simpleIntent: resolveIntent(message),
         memory: effectiveMemory,
-        productCards,
+        productCards: composerProductCards,
         composedResponse: composed,
+      });
+      analysis.current_sizes = [...new Set(asArray(composerProductCards).flatMap((card) => productSizes(card)).filter(Boolean))];
+      analysis.current_colors = [...new Set(asArray(composerProductCards).flatMap((card) => productColors(card)).filter(Boolean))];
+      const regressionStockValues = asArray(composerProductCards).map((card) => primaryStock(card)).filter((value) => Number.isFinite(value));
+      analysis.current_stock = regressionStockValues.length ? Math.max(...regressionStockValues) : Number(analysis.current_stock ?? 0);
+      const failedTypes = detectRegressionFailureTypes({
+        message,
+        reply,
+        analysis,
+        composedResponse: composed,
+        responseForComposer,
+        brainDecision,
+        normalizedProductCards: composerProductCards,
       });
 
       return {
@@ -523,7 +591,8 @@ router.post("/regression-test/message", requireRegressionTestKey, async (req, re
           reply,
           analysis,
           intent,
-          product_cards: productCards,
+          product_cards: composerProductCards,
+          failed_types: failedTypes,
         },
       };
     }, {

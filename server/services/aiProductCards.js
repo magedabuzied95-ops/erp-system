@@ -593,6 +593,36 @@ const buildBaseCard = (product = {}, overrides = {}) => {
     color,
     image_url: product?.cloudinary_url || product?.secure_url || cardImageUrl || "",
   });
+  const allVariants = asArray(product.variants).filter((variant) => variant && typeof variant === "object");
+  const allColors = unique([
+    ...splitSizes(product.available_colors),
+    ...splitSizes(product.availableColors),
+    ...splitSizes(product.colors),
+    ...splitSizes(product.color),
+    ...splitSizes(product.inventory_profile?.available_colors),
+    ...splitSizes(product.inventory_profile?.colors),
+    ...allVariants.flatMap((variant) => [variant?.color, variant?.color_name, variant?.color_value]),
+  ]);
+  const variantStocks = allVariants
+    .flatMap((variant) => [variant?.stock, variant?.quantity, variant?.available_quantity])
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value));
+  const productStock = Number.isFinite(Number(overrides.stock)) ? Number(overrides.stock) : (Number.isFinite(Number(selectedVariant?.stock)) ? Number(selectedVariant.stock) : Number.isFinite(Number(product?.stock)) ? Number(product.stock) : null);
+  const totalStock = Number.isFinite(Number(overrides.total_stock))
+    ? Number(overrides.total_stock)
+    : Number.isFinite(Number(product?.total_stock))
+      ? Number(product.total_stock)
+      : Number.isFinite(Number(product?.inventory_profile?.total_stock))
+        ? Number(product.inventory_profile.total_stock)
+        : (variantStocks.length ? variantStocks.reduce((sum, value) => sum + value, 0) : null);
+  const availability = text(
+    overrides.availability ||
+      product?.availability ||
+      product?.stock_status ||
+      selectedVariant?.availability ||
+      selectedVariant?.stock_status ||
+      (Number.isFinite(productStock) && productStock > 0 ? "available" : Number.isFinite(productStock) && productStock === 0 ? "out_of_stock" : "")
+  );
   return {
     id,
     product_id: id,
@@ -606,16 +636,23 @@ const buildBaseCard = (product = {}, overrides = {}) => {
     price: selectedDisplayPrice,
     available_sizes: sortSizes(overrides.available_sizes || availableProductSizes(product)),
     sizes: sortSizes(overrides.sizes || overrides.available_sizes || availableProductSizes(product)),
+    available_colors: allColors,
+    colors: allColors,
+    stock: Number.isFinite(productStock) ? productStock : (variantStocks.length ? variantStocks.reduce((sum, value) => sum + value, 0) : 0),
+    total_stock: Number.isFinite(totalStock) ? totalStock : (variantStocks.length ? variantStocks.reduce((sum, value) => sum + value, 0) : 0),
+    availability,
+    stock_status: availability,
     image_url: product?.cloudinary_url || product?.secure_url || cardImageUrl,
     image: product?.cloudinary_url || product?.secure_url || cardImageUrl,
     main_image: resolveProductMainImage(product) || cardImageUrl,
     variant: selectedVariant,
+    selected_variant: selectedVariant || undefined,
+    variants: allVariants,
     variant_image: selectedVariant?.cloudinary_url || selectedVariant?.secure_url || overrides.image_url || product?.matched_variant_image || product?.variant_image || product?.variant_image_url || cardImageUrl,
     color_image: product?.color?.cloudinary_url || product?.color?.secure_url || overrides.image_url || product?.color_image || product?.color_image_url || product?.matched_variant_image || cardImageUrl,
     cloudinary_url: product?.cloudinary_url || product?.secure_url || product?.variant?.cloudinary_url || product?.variant?.secure_url || product?.color?.cloudinary_url || product?.color?.secure_url || product?.matched_visual_candidate?.secure_url || "",
     product_url: productUrl,
     url: productUrl,
-    availability: text(product?.stock_status || product?.availability),
     product_source_confirmed: product?.product_source_confirmed,
     product_confirmation_confidence: product?.product_confirmation_confidence,
     visual_confidence_score: product?.visual_confidence_score ?? product?.confidence ?? null,
@@ -631,7 +668,7 @@ const buildBaseCard = (product = {}, overrides = {}) => {
   };
 };
 
-const colorVariantCardsForProduct = (product = {}, { limit = 6 } = {}) => {
+const colorVariantCardsForProduct = (product = {}, { limit = 6, preserveUnavailableCards = false } = {}) => {
   const expansionDebug = debugProductColorExpansion(product, { limit });
   const colorGroups = new Map();
   for (const group of expansionDebug.color_groups || []) {
@@ -649,7 +686,8 @@ const colorVariantCardsForProduct = (product = {}, { limit = 6 } = {}) => {
   }
 
   const totalAvailableColors = expansionDebug.expanded_color_count;
-  const cards = (expansionDebug.color_groups || []).filter((group) => group.sent).map((group) => {
+  const sourceGroups = preserveUnavailableCards ? (expansionDebug.color_groups || []) : (expansionDebug.color_groups || []).filter((group) => group.sent);
+  const cards = sourceGroups.map((group) => {
     const firstVariant = group.canonical_variant || {};
     return buildBaseCard(product, {
       color: group.color_name,
@@ -659,6 +697,9 @@ const colorVariantCardsForProduct = (product = {}, { limit = 6 } = {}) => {
       price: resolveCardPrice(product, firstVariant, firstVariant) || resolveCustomerDisplayPrice({ ...product, ...firstVariant, product, variant: firstVariant, selected_variant: firstVariant }).display_price || numericPrice(firstVariant.final_price) || numericPrice(firstVariant.price) || numericPrice(firstVariant.sale_price) || numericPrice(firstVariant.product_price),
       available_sizes: group.available_sizes,
       sizes: group.available_sizes,
+      availability: group.skipped ? "out_of_stock" : (text(product?.availability || product?.stock_status) || ""),
+      stock: group.skipped ? 0 : undefined,
+      total_stock: group.skipped ? 0 : undefined,
     });
   }).map((card) => ({
     ...card,
@@ -700,11 +741,12 @@ const colorVariantCardsForProduct = (product = {}, { limit = 6 } = {}) => {
   return uniqueCards;
 };
 
-export const normalizeProductCards = (products = [], { limit = 6 } = {}) =>
+export const normalizeProductCards = (products = [], options = {}) =>
   (() => {
+    const { limit = 6, preserveUnavailableCards = false } = options || {};
     productUrlCache.clear();
     const eligible = filterAiEligibleProducts(asArray(products), { requireProductUrl: false });
-    const expanded = eligible.flatMap((product) => colorVariantCardsForProduct(product, { limit }));
+    const expanded = eligible.flatMap((product) => colorVariantCardsForProduct(product, { limit, preserveUnavailableCards }));
     const beforeCount = expanded.length;
     const seen = new Set();
     const deduped = [];
@@ -732,12 +774,7 @@ export const normalizeProductCards = (products = [], { limit = 6 } = {}) =>
       removed_count: beforeCount - deduped.length,
       removed_keys: removedKeys,
     });
-    const urlEligible = [];
-    for (const card of deduped) {
-      if (filterAiEligibleProducts([card], { requireProductUrl: true }).length) {
-        urlEligible.push(card);
-      }
-    }
+    const urlEligible = preserveUnavailableCards ? deduped : deduped.filter((card) => filterAiEligibleProducts([card], { requireProductUrl: true }).length);
     const namedCards = [];
     for (const card of urlEligible) {
       if (card.name || card.product_id) {
