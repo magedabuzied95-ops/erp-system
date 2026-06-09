@@ -938,6 +938,27 @@ export const composeAiSalesReply = async ({
       return withAnswer(response, discountReply);
     }
 
+    if (requestedColor && !asksImages(message) && !asksSize(message, response) && !asksPrice(message, response, intent)) {
+      const regressionColorReply = [
+        `أيوه اللون ${requestedColor} موجود حاليًا.`,
+        regressionPrice ? `سعره ${regressionPrice} جنيه.` : "",
+        colors.length ? `ولو تحب الألوان المتاحة منه: ${colors.join("، ")}.` : "",
+      ].filter(Boolean).join(" ");
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_color_request",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_color_request",
+        answerLength: text(regressionColorReply).length,
+        stage: "",
+      });
+      return withAnswer(response, regressionColorReply);
+    }
+
     if (isObjectionMessage(message)) {
       const objectionReply = buildObjectionReply({
         message,
@@ -962,8 +983,12 @@ export const composeAiSalesReply = async ({
 
     if (asksPrice(message, response, intent)) {
       const priceReply = regressionPrice
-        ? `سعره ${regressionPrice} جنيه.`
-        : "السعر محتاج يتأكد من السيستم.";
+        ? /(شحن|توصيل)/i.test(normalizedRegressionMessage)
+          ? `السعر الحالي ${regressionPrice} جنيه، والشحن بيتحدد حسب المنطقة ومش شامل.`
+          : `سعره ${regressionPrice} جنيه.`
+        : /(شحن|توصيل)/i.test(normalizedRegressionMessage)
+          ? "السعر محتاج يتأكد من السيستم، والشحن بيتحسب حسب المنطقة."
+          : "السعر محتاج يتأكد من السيستم.";
       console.info("[ai-reply-composer:decision]", {
         source,
         decision: "regression_price",
@@ -981,7 +1006,9 @@ export const composeAiSalesReply = async ({
 
     if (asksImages(message)) {
       const imageReply = regressionImageUrls.length
-        ? `أيوه، فيه صور مرفقة تحت. وفيه ${regressionImageUrls.length} صورة متاحة تقدر تشوفهم الآن.`
+        ? requestedColor
+          ? `أيوه، صور اللون ${requestedColor} مرفقة تحت. وفيه ${regressionImageUrls.length} صورة متاحة تقدر تشوفهم الآن.`
+          : `أيوه، فيه صور مرفقة تحت. وفيه ${regressionImageUrls.length} صورة متاحة تقدر تشوفهم الآن.`
         : "أيوه، أقدر أبعتلك الصور أو أطلعلك صور إضافية لو تحب.";
       console.info("[ai-reply-composer:decision]", {
         source,
