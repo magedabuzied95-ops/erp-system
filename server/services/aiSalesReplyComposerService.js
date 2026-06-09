@@ -949,6 +949,15 @@ export const composeAiSalesReply = async ({
       (isYesOnly(message) || isOrderConfirmationMessage(message) || /^(تمام|ايوه|ايوة|ماشي|ok|okay)$/i.test(normalizeArabic(message)));
 
     if (regressionCanConfirmOrder) {
+      const rememberedSizeForOrder = size || state.rememberedSize || "";
+      const rememberedColorForOrder = requestedColor || state.rememberedColor || "";
+      const orderContextParts = [
+        rememberedSizeForOrder ? `مقاس ${rememberedSizeForOrder}` : "",
+        rememberedColorForOrder ? `لون ${rememberedColorForOrder}` : "",
+      ].filter(Boolean);
+      const confirmOrderReply = orderContextParts.length
+        ? `تمام، هأكدلك ${orderContextParts.join(" ")}. ابعتلي الاسم ورقم الموبايل والعنوان ونأكد الأوردر.`
+        : "تمام، ابعتلي الاسم ورقم الموبايل والعنوان ونأكد الأوردر.";
       console.info("[ai-reply-composer:decision]", {
         source,
         decision: "regression_confirm_order",
@@ -958,10 +967,10 @@ export const composeAiSalesReply = async ({
       console.info("[ai-reply-composer:output]", {
         source,
         decision: "regression_confirm_order",
-        answerLength: 54,
+        answerLength: text(confirmOrderReply).length,
         stage: "",
       });
-      return withAnswer(response, "تمام، ابعتلي الاسم ورقم الموبايل والعنوان ونأكد الأوردر.");
+      return withAnswer(response, confirmOrderReply);
     }
 
     if (regressionIsUnavailable) {
