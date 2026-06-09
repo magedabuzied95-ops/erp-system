@@ -309,24 +309,26 @@ const fetchSessionItems = async (clientOrPool, { tenantId, sessionId, lock = fal
   return withTransaction(clientOrPool, async (dbClient) => {
   if (lock) {
     const lockParams = [sessionId];
-    let tenantClause = "";
-    if (tenantId !== null && tenantId !== undefined) {
-      lockParams.push(tenantId);
-      tenantClause = "AND (tenant_id = $2::bigint OR tenant_id IS NULL)";
+    try {
+      await dbClient.query(
+        `
+        SELECT id
+        FROM inventory_count_items
+        WHERE inventory_count_session_id = $1
+           OR inventory_count_id = $1
+        ORDER BY created_at ASC, id ASC
+        FOR UPDATE
+        `,
+        lockParams
+      );
+    } catch (error) {
+      error.checkoutDbContext = {
+        ...(error.checkoutDbContext || {}),
+        table: "inventory_count_items",
+        operation: "lock inventory count items",
+      };
+      throw error;
     }
-
-    await dbClient.query(
-      `
-      SELECT id
-      FROM inventory_count_items
-      WHERE inventory_count_session_id = $1
-         OR inventory_count_id = $1
-      ${tenantClause}
-      ORDER BY created_at ASC, id ASC
-      FOR UPDATE
-      `,
-      lockParams
-    );
   }
 
   const params = [sessionId];
@@ -357,7 +359,7 @@ const fetchSessionItems = async (clientOrPool, { tenantId, sessionId, lock = fal
     `,
     params
   );
-  return result.rows.map((row) => applyRowAliases(row));
+    return result.rows.map((row) => applyRowAliases(row));
   });
 };
 
