@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import {
@@ -10,7 +10,6 @@ import {
   PackageSearch,
   Plus,
   RotateCcw,
-  ScanBarcode,
   Search,
   Save,
   SquareArrowOutUpRight,
@@ -189,6 +188,33 @@ const isExactIdentifierMatch = (query, variant) => {
   ].some((value) => normalizeText(value).toLowerCase() === normalizedQuery);
 };
 
+const useMediaQuery = (query) => {
+  const getMatches = () => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+    return window.matchMedia(query).matches;
+  };
+
+  const [matches, setMatches] = useState(getMatches);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
+
+    const mediaQuery = window.matchMedia(query);
+    const onChange = (event) => setMatches(event.matches);
+
+    setMatches(mediaQuery.matches);
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", onChange);
+      return () => mediaQuery.removeEventListener("change", onChange);
+    }
+
+    mediaQuery.addListener(onChange);
+    return () => mediaQuery.removeListener(onChange);
+  }, [query]);
+
+  return matches;
+};
+
 function InventoryCountPage() {
   const { id: routeSessionId } = useParams();
   const navigate = useNavigate();
@@ -226,8 +252,8 @@ function InventoryCountPage() {
   const currentUser = getCurrentUser();
   const currentRole = getUserRole(currentUser);
   const canReviewInventoryCount = isAdminUser(currentUser) || ["manager", "branch manager"].includes(String(currentRole || "").toLowerCase());
-  const canFinalApproveInventoryCount = canReviewInventoryCount;
   const sessionIsLockedForEditing = ["pending_review", "rejected", "completed", "cancelled"].includes(session?.status || "");
+  const isCompactInventoryLayout = useMediaQuery("(max-width: 1023px)");
 
   const groupedLookupResults = useMemo(() => groupCountVariants(lookupResults), [lookupResults]);
   const groupedItems = useMemo(() => groupCountVariants(items), [items]);
@@ -235,6 +261,7 @@ function InventoryCountPage() {
     () => groupedItems.filter((group) => !hiddenGroups.includes(group.key)),
     [groupedItems, hiddenGroups]
   );
+  const [expandedGroupKey, setExpandedGroupKey] = useState("");
 
   const loadLookups = async () => {
     try {
@@ -261,7 +288,7 @@ function InventoryCountPage() {
     }
   };
 
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     try {
       setSessionsLoading(true);
       setSessionsError("");
@@ -275,9 +302,9 @@ function InventoryCountPage() {
     } finally {
       setSessionsLoading(false);
     }
-  };
+  }, []);
 
-  const loadSession = async () => {
+  const loadSession = useCallback(async () => {
     if (!routeSessionId) return;
     try {
       setSessionLoading(true);
@@ -302,7 +329,7 @@ function InventoryCountPage() {
     } finally {
       setSessionLoading(false);
     }
-  };
+  }, [routeSessionId]);
 
   useEffect(() => {
     void loadLookups();
@@ -314,10 +341,11 @@ function InventoryCountPage() {
     } else {
       void loadSessions();
     }
-  }, [isDetail, routeSessionId]);
+  }, [isDetail, loadSession, loadSessions]);
 
   useEffect(() => {
     setHiddenGroups([]);
+    setExpandedGroupKey("");
   }, [routeSessionId]);
 
   const mergeSavedItem = (savedItem) => {
@@ -944,6 +972,7 @@ function InventoryCountPage() {
                       <GroupedCountCard
                         key={group.key}
                         group={group}
+                        compact={isCompactInventoryLayout}
                         disabled={sessionIsLockedForEditing}
                         busy={busyGroupKey === group.key}
                         onAddColor={() => addColorGroupToCount(group)}
@@ -954,6 +983,8 @@ function InventoryCountPage() {
                         onCountCommit={handlePersistCounted}
                         onReasonCommit={handlePersistReason}
                         onNotesCommit={handlePersistNotes}
+                        expanded={expandedGroupKey === group.key}
+                        onToggleExpanded={() => setExpandedGroupKey((current) => (current === group.key ? "" : group.key))}
                       />
                     ))
                   )}
@@ -1262,7 +1293,42 @@ function LookupGroupCard({ group, busy, onAddColor }) {
   );
 }
 
-function GroupedCountCard({ group, disabled, busy, onAddColor, onMatchSystem, onZero, onRemove, onCountChange, onCountCommit, onReasonCommit, onNotesCommit }) {
+function GroupedCountCard({
+  group,
+  compact,
+  disabled,
+  busy,
+  onAddColor,
+  onMatchSystem,
+  onZero,
+  onRemove,
+  onCountChange,
+  onCountCommit,
+  onReasonCommit,
+  onNotesCommit,
+  expanded,
+  onToggleExpanded,
+}) {
+  if (compact) {
+    return (
+      <MobileGroupedCountCard
+        group={group}
+        disabled={disabled}
+        busy={busy}
+        onAddColor={onAddColor}
+        onMatchSystem={onMatchSystem}
+        onZero={onZero}
+        onRemove={onRemove}
+        onCountChange={onCountChange}
+        onCountCommit={onCountCommit}
+        onReasonCommit={onReasonCommit}
+        onNotesCommit={onNotesCommit}
+        expanded={expanded}
+        onToggleExpanded={onToggleExpanded}
+      />
+    );
+  }
+
   return (
     <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -1414,6 +1480,287 @@ function GroupedCountRow({ item, disabled, onCountChange, onCountCommit, onReaso
           >
             <Save className="h-4 w-4" />
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MobileGroupedCountCard({
+  group,
+  disabled,
+  busy,
+  onAddColor,
+  onMatchSystem,
+  onZero,
+  onRemove,
+  onCountChange,
+  onCountCommit,
+  onReasonCommit,
+  onNotesCommit,
+  expanded,
+  onToggleExpanded,
+}) {
+  const inputRefs = useRef(new Map());
+
+  const focusNextSize = (itemId, currentInput) => {
+    const currentIndex = group.variants.findIndex((variant) => String(variant.id) === String(itemId));
+    const nextVariant = group.variants[currentIndex + 1];
+    if (!nextVariant) {
+      currentInput?.blur?.();
+      return;
+    }
+    const nextInput = inputRefs.current.get(String(nextVariant.id));
+    nextInput?.focus?.();
+    nextInput?.select?.();
+  };
+
+  return (
+    <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
+      <button type="button" onClick={onToggleExpanded} className="w-full text-start" aria-expanded={expanded}>
+        <div className="min-w-0">
+          <div className="text-lg font-black leading-snug text-white">
+            {group.product_name || "منتج"} - {group.color || "لون"}
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">السيستم</div>
+              <div className="mt-1 text-lg font-black text-white">{group.system_total}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">الفعلي</div>
+              <div className="mt-1 text-lg font-black text-white">{group.counted_total}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">الفرق</div>
+              <div className={`mt-1 text-lg font-black ${group.difference_total > 0 ? "text-emerald-300" : group.difference_total < 0 ? "text-rose-300" : "text-zinc-300"}`}>
+                {group.difference_total > 0 ? "+" : ""}
+                {group.difference_total}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
+          {expanded ? "إخفاء المقاسات" : "عرض المقاسات"}
+        </div>
+      </button>
+
+      {expanded ? (
+        <div className="mt-4 space-y-2">
+          {group.variants.map((variant) => (
+            <MobileGroupedCountRow
+              key={String(variant.id)}
+              item={variant}
+              disabled={disabled}
+              inputRef={(node) => {
+                if (node) {
+                  inputRefs.current.set(String(variant.id), node);
+                } else {
+                  inputRefs.current.delete(String(variant.id));
+                }
+              }}
+              onCountChange={onCountChange}
+              onCountCommit={onCountCommit}
+              onReasonCommit={onReasonCommit}
+              onNotesCommit={onNotesCommit}
+              onAdvance={focusNextSize}
+            />
+          ))}
+
+          <div className="flex flex-wrap gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onAddColor}
+              disabled={disabled || busy}
+              className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:opacity-40"
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              إضافة اللون
+            </button>
+            <button
+              type="button"
+              onClick={onMatchSystem}
+              disabled={disabled || busy}
+              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:opacity-40"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              مطابق
+            </button>
+            <button
+              type="button"
+              onClick={onZero}
+              disabled={disabled || busy}
+              className="inline-flex items-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/15 disabled:opacity-40"
+            >
+              <RotateCcw className="h-4 w-4" />
+              تصفير
+            </button>
+            <button
+              type="button"
+              onClick={onRemove}
+              disabled={disabled || busy}
+              className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:opacity-40"
+            >
+              <Trash2 className="h-4 w-4" />
+              حذف اللون
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function MobileGroupedCountRow({ item, disabled, inputRef, onCountChange, onCountCommit, onReasonCommit, onNotesCommit, onAdvance }) {
+  const counted = Number(item.counted_quantity || 0);
+  const system = Number(item.system_quantity || 0);
+  const diff = Number(item.difference_quantity || counted - system);
+  const diffTone = diff > 0 ? "text-emerald-300" : diff < 0 ? "text-rose-300" : "text-zinc-300";
+  const showVarianceFields = diff !== 0;
+  const [reasonDraft, setReasonDraft] = useState(item.reason || "أخرى");
+  const [notes, setNotes] = useState(item.notes || "");
+  const [showDetails, setShowDetails] = useState(false);
+  const saveTimerRef = useRef(null);
+  const reasonDraftRef = useRef(reasonDraft);
+  const notesRef = useRef(notes);
+
+  useEffect(() => {
+    setReasonDraft(item.reason || "أخرى");
+  }, [item.reason]);
+
+  useEffect(() => {
+    setNotes(item.notes || "");
+  }, [item.notes]);
+
+  useEffect(() => {
+    reasonDraftRef.current = reasonDraft;
+  }, [reasonDraft]);
+
+  useEffect(() => {
+    notesRef.current = notes;
+  }, [notes]);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, []);
+
+  const scheduleCountSave = (nextValue) => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+      saveTimerRef.current = setTimeout(() => {
+        void onCountCommit(item.id, {
+          counted_quantity: Number(nextValue || 0),
+          reason: reasonDraftRef.current || "",
+          notes: notesRef.current || "",
+        });
+      }, 250);
+    };
+
+  const handleCountChange = (value) => {
+    if (disabled) return;
+    onCountChange(item.id, value);
+    scheduleCountSave(value);
+  };
+
+  const handleReasonChange = (reason) => {
+    if (disabled) return;
+    setReasonDraft(reason);
+    void onReasonCommit(item.id, { reason });
+  };
+
+  const handleNotesBlur = (value) => {
+    if (disabled) return;
+    void onNotesCommit(item.id, { notes: value });
+  };
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+      <div className="grid grid-cols-[40px_minmax(0,1fr)] items-start gap-2">
+        <div className="pt-2 text-base font-black text-white">{item.size || "--"}</div>
+        <div className="min-w-0">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 rounded-2xl border border-white/10 bg-zinc-950/70 px-3 py-2">
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">سيستم</div>
+            <div className="min-w-0 text-sm font-black text-white tabular-nums">{system}</div>
+            <label className="flex min-w-0 items-center gap-2">
+              <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">فعلي</span>
+              <input
+                ref={inputRef}
+                type="number"
+                inputMode="numeric"
+                disabled={disabled}
+                value={counted}
+                onChange={(event) => handleCountChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    onAdvance?.(item.id, event.currentTarget);
+                  }
+                }}
+                className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/30 px-2 py-1.5 text-sm font-black text-white outline-none placeholder:text-zinc-500 disabled:opacity-50"
+              />
+            </label>
+            <div className={`text-right text-sm font-black tabular-nums ${diffTone}`}>
+              {diff > 0 ? "+" : ""}
+              {diff}
+            </div>
+          </div>
+
+          {showVarianceFields ? (
+            <div className="mt-2 space-y-2">
+              <label className="block">
+                <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">السبب</div>
+                <select
+                  disabled={disabled}
+                  value={reasonDraft}
+                  onChange={(event) => handleReasonChange(event.target.value)}
+                  className="w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none disabled:opacity-50"
+                >
+                  {COUNT_REASONS.map((reason) => (
+                    <option key={reason} value={reason} className="bg-zinc-950 text-white">
+                      {reason}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">ملاحظات</div>
+                <input
+                  disabled={disabled}
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
+                  onBlur={(event) => handleNotesBlur(event.target.value)}
+                  placeholder="ملاحظات"
+                  className="w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500 disabled:opacity-50"
+                />
+              </label>
+            </div>
+          ) : null}
+
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowDetails((current) => !current)}
+              className="inline-flex items-center rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+            >
+              تفاصيل
+            </button>
+          </div>
+
+          {showDetails ? (
+            <div className="mt-2 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs leading-6 text-zinc-400">
+              <div className="truncate">SKU: {item.variant_sku || "n/a"}</div>
+              <div className="truncate">Barcode: {item.variant_barcode || "n/a"}</div>
+              <div className="truncate">Product ID: {item.product_id || "n/a"}</div>
+              <div className="truncate">Variant ID: {item.product_variant_id || item.id || "n/a"}</div>
+              <div className="truncate">Article: {item.variant_article_code || "n/a"}</div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
