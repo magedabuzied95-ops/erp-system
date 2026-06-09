@@ -123,6 +123,16 @@ const productSizes = (product = {}) => [
   .map((value) => toText(value))
   .filter(Boolean);
 
+const normalizeArabic = (value = "") =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/\s+/g, " ")
+    .trim();
+
 const extractExplicitSize = (message = "") => {
   const raw = toText(message);
   const normalized = normalizeArabic(raw);
