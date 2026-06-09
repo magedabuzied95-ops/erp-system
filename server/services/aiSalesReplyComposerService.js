@@ -545,6 +545,7 @@ const asksImages = (message = "") => {
 };
 const asksSize = (message = "") => Boolean(explicitMessageSize(message) || /(مقاس|مقاسات|size)/i.test(message));
 const asksAvailability = (message = "") => /(فيه|موجود|متاح|available|stock|عندكم)/i.test(message);
+const isBuyingIntentMessage = (message = "") => /(عايز اشتري|عاوز اشتري|اشتريه|اشتريه|احجزه|احجزها|كمل الطلب|اوردر|order|checkout|buy)/i.test(normalizeArabic(message));
 
 const explicitProductRequest = ({ message = "", response = {}, intent = {} } = {}) => {
   if (isGreetingOnly(message, response, intent)) return false;
@@ -776,22 +777,6 @@ export const composeAiSalesReply = async ({
       return withAnswer(response, "مش متاح حاليًا.");
     }
 
-    if (asksAvailability(message) || /(متاح|موجود|available|availability|stock)/i.test(normalizeArabic(message))) {
-      console.info("[ai-reply-composer:decision]", {
-        source,
-        decision: "regression_availability",
-        productCardsBlocked: false,
-        outputProductCount: products.length,
-      });
-      console.info("[ai-reply-composer:output]", {
-        source,
-        decision: "regression_availability",
-        answerLength: 17,
-        stage: "",
-      });
-      return withAnswer(response, "أيوه متاح حاليًا.");
-    }
-
     if (asksPrice(message, response, intent)) {
       const priceReply = regressionPrice
         ? `سعره ${regressionPrice} جنيه.`
@@ -811,7 +796,7 @@ export const composeAiSalesReply = async ({
       return withAnswer(response, priceReply);
     }
 
-    if (asksImages(message) || regressionImageUrls.length > 0) {
+    if (asksImages(message)) {
       const imageReply = regressionImageUrls.length
         ? `أيوه، فيه صور مرفقة تحت. وفيه ${regressionImageUrls.length} صورة متاحة تقدر تشوفهم الآن.`
         : "أيوه، أقدر أبعتلك الصور أو أطلعلك صور إضافية لو تحب.";
@@ -830,7 +815,7 @@ export const composeAiSalesReply = async ({
       return withAnswer(response, imageReply);
     }
 
-    if (asksSize(message, response)) {
+    if (asksSize(message, response) || (state.lastBotAskedForSize && currentMessageSize)) {
       const regressionSize = size || state.rememberedSize || productSizes(regressionPriceCard)[0] || sizes[0] || "";
       const sizeReply = regressionSize
         ? `أيوه مقاس ${regressionSize} موجود حاليًا.`
@@ -850,11 +835,13 @@ export const composeAiSalesReply = async ({
       return withAnswer(response, sizeReply);
     }
 
-    if (asksColor(message)) {
+    if (asksColor(message) || (state.lastBotAskedForColor && requestedColor)) {
       const regressionSize = size || state.rememberedSize || productSizes(regressionPriceCard)[0] || sizes[0] || "";
+      const replyColors = colors.length ? colors : productColors(regressionPriceCard);
       const colorReply = [
         regressionSize ? `مقاس ${regressionSize} موجود.` : "",
-        colors.length ? `الألوان المتاحة: ${colors.join("، ")}.` : "",
+        requestedColor ? `اللون ${requestedColor} موجود.` : "",
+        replyColors.length ? `الألوان المتاحة: ${replyColors.join("، ")}.` : "",
       ].filter(Boolean).join(" ");
       console.info("[ai-reply-composer:decision]", {
         source,
@@ -869,6 +856,41 @@ export const composeAiSalesReply = async ({
         stage: "",
       });
       return withAnswer(response, colorReply);
+    }
+
+    if (isBuyingIntentMessage(message)) {
+      const buyReply = size
+        ? `تمام، مقاس ${size} موجود. تحب أكمل الحجز وأجهز الأوردر؟`
+        : "تمام، تحب أقولك المقاسات المتاحة ولا أبدأ الحجز؟";
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_buy_intent",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_buy_intent",
+        answerLength: text(buyReply).length,
+        stage: "",
+      });
+      return withAnswer(response, buyReply);
+    }
+
+    if (asksAvailability(message) || /(متاح|موجود|available|availability|stock)/i.test(normalizeArabic(message))) {
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_availability",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_availability",
+        answerLength: 17,
+        stage: "",
+      });
+      return withAnswer(response, "أيوه متاح حاليًا.");
     }
 
     const detailReply = regressionPrice
