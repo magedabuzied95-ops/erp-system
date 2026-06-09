@@ -2461,6 +2461,15 @@ export default function EmployeePayrollPortal() {
                 <span>طلب من المخزن</span>
               </button>
 
+              <button
+                type="button"
+                onClick={() => window.location.assign(`/employee-portal/${encodeURIComponent(token)}/inventory`)}
+                className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                <ClipboardList className="h-4 w-4" />
+                <span>الجرد</span>
+              </button>
+
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {[
                   { key: "notifications", count: badgeCounts.unreadNotifications || 0, label: ui("notificationsShort"), Icon: Bell, tone: "emerald" },

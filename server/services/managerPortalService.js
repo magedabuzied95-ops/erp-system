@@ -10,6 +10,12 @@ import {
   markAdminEmployeeChatThreadRead,
 } from "./employeeChatService.js";
 import { getUnreadCount, listNotifications, markAsRead, markAllAsRead, createNotification } from "./notificationsService.js";
+import {
+  approveInventoryCountSession,
+  getInventoryCountSession,
+  listInventoryCountSessions,
+  rejectInventoryCountSession,
+} from "./inventoryCountService.js";
 import { listRecentDisplayRefillAlerts } from "./displayRefillAlertService.js";
 import { getRolePermissions } from "./rolesService.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
@@ -1072,6 +1078,85 @@ export const getManagerPortalStockAlerts = async ({ manager = {} } = {}) => {
     low_stock: lowStock,
     refill_alerts: refillAlerts,
   };
+};
+
+export const getManagerPortalInventoryApprovals = async ({ manager = {}, query = {} } = {}) => {
+  const tenantId = numberOrNull(manager.tenant_id);
+  const page = Math.max(1, Number(query.page || 1) || 1);
+  const limit = Math.min(Math.max(Number(query.limit || 10) || 10, 1), 50);
+  const search = clean(query.search || "");
+  const [sessionsResult, countsResult] = await Promise.all([
+    listInventoryCountSessions(db, {
+      tenantId,
+      status: "pending_review",
+      search,
+      page,
+      limit,
+    }),
+    db.query(
+      `
+      WITH item_totals AS (
+        SELECT
+          s.id,
+          COALESCE(SUM(ABS(COALESCE(i.difference_quantity, i.difference_qty, 0))), 0) AS abs_diff_total
+        FROM inventory_count_sessions s
+        LEFT JOIN inventory_count_items i ON i.inventory_count_session_id = s.id OR i.inventory_count_id = s.id
+        WHERE ($1::bigint IS NULL OR s.tenant_id = $1::bigint OR s.tenant_id IS NULL)
+        GROUP BY s.id
+      )
+      SELECT
+        COUNT(*) FILTER (WHERE s.status = 'pending_review')::int AS pending_review_count,
+        COUNT(*) FILTER (WHERE s.status = 'rejected')::int AS rejected_count,
+        COUNT(*) FILTER (WHERE s.status = 'completed' AND s.completed_at >= date_trunc('day', NOW()))::int AS completed_today_count,
+        COALESCE(SUM(CASE WHEN s.status = 'completed' AND s.completed_at >= date_trunc('day', NOW()) THEN item_totals.abs_diff_total ELSE 0 END), 0)::int AS today_difference_total
+      FROM inventory_count_sessions s
+      LEFT JOIN item_totals ON item_totals.id = s.id
+      WHERE ($1::bigint IS NULL OR s.tenant_id = $1::bigint OR s.tenant_id IS NULL)
+      `,
+      [tenantId]
+    ),
+  ]);
+
+  const summary = countsResult.rows[0] || {};
+  return {
+    summary: {
+      pending_review_count: Number(summary.pending_review_count || 0),
+      rejected_count: Number(summary.rejected_count || 0),
+      completed_today_count: Number(summary.completed_today_count || 0),
+      today_difference_total: Number(summary.today_difference_total || 0),
+    },
+    sessions: sessionsResult.sessions || [],
+    pagination: {
+      total: sessionsResult.total,
+      page: sessionsResult.page,
+      limit: sessionsResult.limit,
+      totalPages: sessionsResult.totalPages,
+    },
+  };
+};
+
+export const getManagerPortalInventoryApprovalSession = async ({ manager = {}, sessionId } = {}) => {
+  const tenantId = numberOrNull(manager.tenant_id);
+  return getInventoryCountSession(db, { tenantId, sessionId });
+};
+
+export const approveManagerPortalInventoryApproval = async ({ manager = {}, sessionId } = {}) => {
+  return approveInventoryCountSession(db, {
+    tenantId: numberOrNull(manager.tenant_id),
+    sessionId,
+    approvedBy: manager.user_id || manager.id || null,
+    user: manager,
+  });
+};
+
+export const rejectManagerPortalInventoryApproval = async ({ manager = {}, sessionId, rejectionReason = "" } = {}) => {
+  return rejectInventoryCountSession(db, {
+    tenantId: numberOrNull(manager.tenant_id),
+    sessionId,
+    rejectedBy: manager.user_id || manager.id || null,
+    rejectionReason,
+    user: manager,
+  });
 };
 
 export const getManagerPortalNotifications = async ({ manager = {}, query = {} } = {}) => {

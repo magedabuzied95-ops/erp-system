@@ -10,6 +10,8 @@ import {
   getManagerPortalMe,
   getManagerPortalTasks,
   getManagerPortalNotifications,
+  getManagerPortalInventoryApprovals,
+  getManagerPortalInventoryApprovalSession,
   getManagerPortalSales,
   getManagerPortalStaff,
   getManagerPortalStockAlerts,
@@ -17,7 +19,9 @@ import {
   markManagerPortalNotificationRead,
   markManagerPortalNotificationsRead,
   noteManagerPortalTask,
+  approveManagerPortalInventoryApproval,
   reopenManagerPortalTask,
+  rejectManagerPortalInventoryApproval,
   rejectManagerPortalTask,
   sendManagerPortalChat,
   updateManagerPortalSettings,
@@ -329,6 +333,59 @@ router.get("/:token/stock-alerts", async (req, res) => {
   } catch (error) {
     console.error("[manager-portal] stock alerts error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load stock alerts" });
+  }
+});
+
+router.get("/:token/inventory-approvals", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const inventoryApprovals = await getManagerPortalInventoryApprovals({ manager, query: req.query || {} });
+    return res.json({ success: true, inventoryApprovals });
+  } catch (error) {
+    console.error("[manager-portal] inventory approvals error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load inventory approvals" });
+  }
+});
+
+router.get("/:token/inventory-approvals/:sessionId", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const approval = await getManagerPortalInventoryApprovalSession({ manager, sessionId: req.params.sessionId });
+    if (!approval) return res.status(404).json({ success: false, message: "Inventory count session not found" });
+    return res.json({ success: true, approval });
+  } catch (error) {
+    console.error("[manager-portal] inventory approval detail error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load inventory approval" });
+  }
+});
+
+router.post("/:token/inventory-approvals/:sessionId/approve", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const result = await approveManagerPortalInventoryApproval({ manager, sessionId: req.params.sessionId });
+    return res.json({ success: true, session: result.session, adjustments: result.adjustments || [] });
+  } catch (error) {
+    console.error("[manager-portal] inventory approval approve error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to approve inventory count session" });
+  }
+});
+
+router.post("/:token/inventory-approvals/:sessionId/reject", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const result = await rejectManagerPortalInventoryApproval({
+      manager,
+      sessionId: req.params.sessionId,
+      rejectionReason: req.body?.rejectionReason || req.body?.rejection_reason || req.body?.reason || "",
+    });
+    return res.json({ success: true, session: result.session, rejected: result.rejected === true });
+  } catch (error) {
+    console.error("[manager-portal] inventory approval reject error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to reject inventory count session" });
   }
 });
 

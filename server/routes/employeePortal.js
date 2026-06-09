@@ -1,4 +1,5 @@
 import express from "express";
+import db from "../database/db.js";
 import employeeChatUpload from "../config/employeeChatUpload.js";
 import {
   buildEmployeePayrollPortalPayload,
@@ -14,6 +15,17 @@ import {
   updateEmployeeWalletTaskStatus,
 } from "../services/employeePayrollPortalService.js";
 import { loadEmployeePortalProducts } from "../services/employeePortalProductsService.js";
+import {
+  createInventoryCountSession,
+  getInventoryCountSession,
+  listInventoryCountSessions,
+  openInventoryCountSession,
+  reopenInventoryCountSession,
+  searchInventoryCountVariants,
+  submitInventoryCountSession,
+  updateInventoryCountSession,
+  upsertInventoryCountItem,
+} from "../services/inventoryCountService.js";
 import { getEmployeeChat, sendEmployeeChatMessage } from "../services/employeeChatService.js";
 import {
   listDisplayRefillAlertsForEmployee,
@@ -72,6 +84,7 @@ const logPortalTokenDebug = ({ req, token, employee = null, reason = "" }) => {
 
 const portalRoutePath = (req) => `${req.baseUrl || ""}${req.route?.path || req.path || ""}`;
 const clean = (value = "") => String(value || "").trim();
+const normalizeId = (value) => (value === null || value === undefined || value === "" ? null : String(value));
 
 const logInvalidTokenFailure = async ({ req, token, reason = "" }) => {
   const matched = token ? await inspectEmployeePortalTokenMatch(token).catch(() => null) : null;
@@ -201,6 +214,39 @@ const uploadEmployeeChatAttachment = (req, res, next) => {
   });
 };
 
+const loadEmployeeInventorySession = async (req, res) => {
+  const employee = await loadVerifiedEmployee(req, res);
+  if (!employee) return null;
+  if (!employee.branch_id) {
+    res.status(400).json({
+      success: false,
+      code: "employee_branch_required",
+      message: "Employee branch is required",
+    });
+    return null;
+  }
+
+  const sessionId = req.params?.sessionId || req.params?.id || req.body?.sessionId || req.body?.session_id;
+  if (!sessionId) {
+    res.status(400).json({ success: false, code: "inventory_count_session_required", message: "Inventory count session is required" });
+    return null;
+  }
+  const result = await getInventoryCountSession(db, {
+    tenantId: employee.tenant_id ?? null,
+    sessionId,
+  });
+  if (!result?.session) {
+    res.status(404).json({ success: false, code: "inventory_count_not_found", message: "Inventory count session not found" });
+    return null;
+  }
+  if (normalizeId(result.session.branch_id) !== normalizeId(employee.branch_id)) {
+    res.status(404).json({ success: false, code: "inventory_count_not_found", message: "Inventory count session not found" });
+    return null;
+  }
+
+  return { employee, ...result };
+};
+
 router.get("/:token/chat", async (req, res) => {
   try {
     const employee = await loadVerifiedEmployee(req, res);
@@ -227,6 +273,171 @@ router.get("/:token/products", async (req, res) => {
   } catch (error) {
     console.error("[employee-payroll-portal] product browser load error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load employee products" });
+  }
+});
+
+router.get("/:token/inventory/sessions", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    if (!employee.branch_id) {
+      return res.status(400).json({ success: false, code: "employee_branch_required", message: "Employee branch is required" });
+    }
+
+    const result = await listInventoryCountSessions(db, {
+      tenantId: employee.tenant_id ?? null,
+      branchId: employee.branch_id,
+      search: req.query?.search || "",
+      status: req.query?.status || "",
+      page: req.query?.page || 1,
+      limit: req.query?.limit || 50,
+    });
+
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    console.error("[employee-payroll-portal] inventory sessions load error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load inventory sessions" });
+  }
+});
+
+router.post("/:token/inventory/sessions", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    if (!employee.branch_id) {
+      return res.status(400).json({ success: false, code: "employee_branch_required", message: "Employee branch is required" });
+    }
+
+    const session = await createInventoryCountSession(db, {
+      tenantId: employee.tenant_id ?? null,
+      branchId: employee.branch_id,
+      warehouseId: req.body?.warehouseId ?? req.body?.warehouse_id ?? null,
+      title: req.body?.title || req.body?.session_title || "جرد جديد",
+      notes: req.body?.notes || "",
+      createdBy: employee.id || null,
+    });
+
+    return res.status(201).json({ success: true, session });
+  } catch (error) {
+    console.error("[employee-payroll-portal] inventory create error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to create inventory session" });
+  }
+});
+
+router.get("/:token/inventory/sessions/:sessionId", async (req, res) => {
+  try {
+    const scoped = await loadEmployeeInventorySession(req, res);
+    if (!scoped) return;
+    return res.json({ success: true, session: scoped.session, items: scoped.items });
+  } catch (error) {
+    console.error("[employee-payroll-portal] inventory session load error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load inventory session" });
+  }
+});
+
+router.patch("/:token/inventory/sessions/:sessionId", async (req, res) => {
+  try {
+    const scoped = await loadEmployeeInventorySession(req, res);
+    if (!scoped) return;
+    const session = await updateInventoryCountSession(db, {
+      tenantId: scoped.employee.tenant_id ?? null,
+      sessionId: scoped.session.id,
+      branchId: scoped.employee.branch_id,
+      warehouseId: req.body?.warehouseId ?? req.body?.warehouse_id ?? null,
+      title: req.body?.title ?? req.body?.session_title,
+      notes: req.body?.notes,
+    });
+    return res.json({ success: true, session });
+  } catch (error) {
+    console.error("[employee-payroll-portal] inventory update error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to update inventory session" });
+  }
+});
+
+router.post("/:token/inventory/sessions/:sessionId/open", async (req, res) => {
+  try {
+    const scoped = await loadEmployeeInventorySession(req, res);
+    if (!scoped) return;
+    const session = await openInventoryCountSession(db, {
+      tenantId: scoped.employee.tenant_id ?? null,
+      sessionId: scoped.session.id,
+      openedBy: scoped.employee.id || null,
+    });
+    return res.json({ success: true, session });
+  } catch (error) {
+    console.error("[employee-payroll-portal] inventory open error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to open inventory session" });
+  }
+});
+
+router.get("/:token/inventory/sessions/:sessionId/lookup", async (req, res) => {
+  try {
+    const scoped = await loadEmployeeInventorySession(req, res);
+    if (!scoped) return;
+    const items = await searchInventoryCountVariants(db, {
+      tenantId: scoped.employee.tenant_id ?? null,
+      query: req.query?.query || req.query?.search || req.query?.term || "",
+      limit: req.query?.limit || 15,
+    });
+    return res.json({ success: true, items });
+  } catch (error) {
+    console.error("[employee-payroll-portal] inventory lookup error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to search inventory session" });
+  }
+});
+
+router.put("/:token/inventory/sessions/:sessionId/items", async (req, res) => {
+  try {
+    const scoped = await loadEmployeeInventorySession(req, res);
+    if (!scoped) return;
+    const result = await upsertInventoryCountItem(db, {
+      tenantId: scoped.employee.tenant_id ?? null,
+      sessionId: scoped.session.id,
+      productVariantId: req.body?.productVariantId ?? req.body?.product_variant_id ?? req.body?.variantId ?? req.body?.variant_id,
+      countedQuantity: req.body?.countedQuantity ?? req.body?.counted_quantity,
+      systemQuantity: req.body?.systemQuantity ?? req.body?.system_quantity,
+      reason: req.body?.reason || "",
+      notes: req.body?.notes || "",
+      userId: scoped.employee.id || null,
+    });
+    return res.json({ success: true, session: result.session, item: result.item });
+  } catch (error) {
+    console.error("[employee-payroll-portal] inventory item save error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to save inventory item" });
+  }
+});
+
+router.post("/:token/inventory/sessions/:sessionId/submit", async (req, res) => {
+  try {
+    const scoped = await loadEmployeeInventorySession(req, res);
+    if (!scoped) return;
+    const result = await submitInventoryCountSession(db, {
+      tenantId: scoped.employee.tenant_id ?? null,
+      sessionId: scoped.session.id,
+      submittedBy: scoped.employee.id || null,
+      user: { id: scoped.employee.id || null, role: scoped.employee.role || scoped.employee.role_name || "" },
+    });
+    return res.json({ success: true, session: result.session, submitted: result.submitted === true });
+  } catch (error) {
+    console.error("[employee-payroll-portal] inventory submit error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to submit inventory session" });
+  }
+});
+
+router.post("/:token/inventory/sessions/:sessionId/reopen", async (req, res) => {
+  try {
+    const scoped = await loadEmployeeInventorySession(req, res);
+    if (!scoped) return;
+    const result = await reopenInventoryCountSession(db, {
+      tenantId: scoped.employee.tenant_id ?? null,
+      sessionId: scoped.session.id,
+      reopenedBy: scoped.employee.id || null,
+      user: { id: scoped.employee.id || null, role: scoped.employee.role || scoped.employee.role_name || "" },
+    });
+    return res.json({ success: true, session: result.session, reopened: result.reopened === true });
+  } catch (error) {
+    console.error("[employee-payroll-portal] inventory reopen error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to reopen inventory session" });
   }
 });
 

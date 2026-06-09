@@ -825,6 +825,13 @@ export const reopenInventoryCountSession = async (clientOrPool, data = {}) => {
   );
 
   const reopenedSession = applyRowAliases(result.rows[0]);
+  await notifyInventoryCountCreator({
+    session: reopenedSession,
+    type: "inventory_count_reopened",
+    title: "طھظ… ط¥ط¹ط§ط¯ط© ط¤ظپطھط­ ط§ظ„ط¬ط±ط¯",
+    message: "طھظ… ط¥ط¹ط§ط¯ط© ط§ظ„ط¬ط±ط¯ ظ„ظ„طھط¹ط¯ظٹظ„ ظ…ط±ط© ط£ط®ط±ظ‰.",
+    actionLabel: "ط§ظپطھط­ ط§ظ„ط¬ط±ط¯",
+  });
   return { session: reopenedSession, reopened: true };
   });
 };

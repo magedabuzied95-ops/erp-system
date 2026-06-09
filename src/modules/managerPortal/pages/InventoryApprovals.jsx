@@ -1,0 +1,531 @@
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Building2,
+  CalendarDays,
+  CheckCircle2,
+  ClipboardList,
+  Loader2,
+  Package,
+  RefreshCw,
+  Search,
+  Store,
+  TrendingDown,
+  TrendingUp,
+  Users,
+  X,
+} from "lucide-react";
+import toast from "react-hot-toast";
+
+import { managerPortalApi } from "../services/managerPortalApi";
+
+const resolveStoredToken = () => {
+  if (typeof window === "undefined") return "";
+  const directToken = new URLSearchParams(window.location.search).get("token") || "";
+  if (directToken) return directToken;
+  const lastUrl = String(window.localStorage.getItem("manager_portal_last_url") || "").trim();
+  if (!lastUrl) return "";
+  try {
+    const parsed = new URL(lastUrl, window.location.origin);
+    const token = parsed.pathname.split("/").filter(Boolean)[1] || "";
+    return token;
+  } catch {
+    return "";
+  }
+};
+
+const text = (value = "", fallback = "-") => {
+  const next = String(value ?? "").trim();
+  return next || fallback;
+};
+
+const formatNumber = (value) => new Intl.NumberFormat("ar-EG").format(Number(value || 0));
+
+const formatDateTime = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("ar-EG", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+};
+
+const statusTone = (status = "") => {
+  const normalized = String(status || "").toLowerCase();
+  if (normalized === "pending_review") return "bg-sky-500/10 text-sky-100 border-sky-400/20";
+  if (normalized === "rejected") return "bg-rose-500/10 text-rose-100 border-rose-400/20";
+  if (normalized === "completed") return "bg-emerald-500/10 text-emerald-100 border-emerald-400/20";
+  return "bg-white/5 text-slate-100 border-white/10";
+};
+
+export default function InventoryApprovalsPage() {
+  const navigate = useNavigate();
+  const { token: routeToken = "" } = useParams();
+  const [searchParams] = useSearchParams();
+  const token = routeToken || searchParams.get("token") || resolveStoredToken();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [summary, setSummary] = useState({});
+  const [sessions, setSessions] = useState([]);
+  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 5, totalPages: 1 });
+  const [search, setSearch] = useState("");
+  const [selectedSessionId, setSelectedSessionId] = useState("");
+  const [selectedApproval, setSelectedApproval] = useState(null);
+  const [selectedLoading, setSelectedLoading] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejecting, setRejecting] = useState(false);
+  const lastPortalUrl = typeof window !== "undefined" ? String(window.localStorage.getItem("manager_portal_last_url") || "").trim() : "";
+
+  const selectedSession = selectedApproval?.session || null;
+  const selectedItems = Array.isArray(selectedApproval?.items) ? selectedApproval.items : [];
+  const sessionSummary = useMemo(() => {
+    const totals = selectedItems.reduce((acc, item) => {
+      const system = Number(item.system_quantity || item.expected_qty || 0);
+      const counted = Number(item.counted_quantity || item.actual_qty || 0);
+      const diff = Number(item.difference_quantity || item.difference_qty || counted - system);
+      if (diff > 0) acc.increase += diff;
+      if (diff < 0) acc.shortage += Math.abs(diff);
+      acc.total += Math.abs(diff);
+      acc.items += 1;
+      return acc;
+    }, { items: 0, increase: 0, shortage: 0, total: 0 });
+    return totals;
+  }, [selectedItems]);
+
+  const loadApprovals = async (nextSessionId = "") => {
+    if (!token) return;
+    try {
+      setLoading(true);
+      setError("");
+      const response = await managerPortalApi.inventoryApprovals(token, { page: pagination.page || 1, limit: pagination.limit || 5, search });
+      const payload = response?.inventoryApprovals || {};
+      setSummary(payload.summary || {});
+      setSessions(Array.isArray(payload.sessions) ? payload.sessions : []);
+      setPagination(payload.pagination || { total: 0, page: 1, limit: 5, totalPages: 1 });
+      const firstSessionId = nextSessionId || payload.sessions?.[0]?.id || "";
+      if (firstSessionId) setSelectedSessionId(String(firstSessionId));
+      else setSelectedApproval(null);
+    } catch (err) {
+      setError(err?.responseBody?.message || err?.message || "تعذر تحميل اعتمادات الجرد");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadDetail = async (sessionId) => {
+    if (!token || !sessionId) return;
+    try {
+      setSelectedLoading(true);
+      const response = await managerPortalApi.inventoryApproval(token, sessionId);
+      setSelectedApproval(response?.approval || null);
+    } catch (err) {
+      toast.error(err?.responseBody?.message || err?.message || "تعذر تحميل تفاصيل الجرد");
+    } finally {
+      setSelectedLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!token) return;
+    void loadApprovals();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  useEffect(() => {
+    if (!selectedSessionId) return;
+    void loadDetail(selectedSessionId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSessionId]);
+
+  const handleSearch = async (event) => {
+    event.preventDefault();
+    await loadApprovals();
+  };
+
+  const handleApprove = async () => {
+    if (!token || !selectedSessionId) return;
+    try {
+      setApproving(true);
+      const response = await managerPortalApi.approveInventoryApproval(token, selectedSessionId);
+      toast.success("تم اعتماد الجرد");
+      setSelectedApproval(response?.session ? { ...selectedApproval, session: response.session } : selectedApproval);
+      await loadApprovals(selectedSessionId);
+      await loadDetail(selectedSessionId);
+    } catch (err) {
+      toast.error(err?.responseBody?.message || err?.message || "تعذر اعتماد الجرد");
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const openRejectDialog = () => {
+    setRejectReason("");
+    setRejectOpen(true);
+  };
+
+  const handleReject = async () => {
+    if (!token || !selectedSessionId || !rejectReason.trim()) {
+      toast.error("سبب الرفض مطلوب");
+      return;
+    }
+    try {
+      setRejecting(true);
+      await managerPortalApi.rejectInventoryApproval(token, selectedSessionId, { rejectionReason: rejectReason.trim() });
+      toast.success("تم رفض الجرد");
+      setRejectOpen(false);
+      setRejectReason("");
+      await loadApprovals();
+      await loadDetail(selectedSessionId);
+    } catch (err) {
+      toast.error(err?.responseBody?.message || err?.message || "تعذر رفض الجرد");
+    } finally {
+      setRejecting(false);
+    }
+  };
+
+  if (!token) {
+    return (
+      <main dir="rtl" className="min-h-[100dvh] bg-[linear-gradient(180deg,#0f172a_0%,#111827_55%,#0b1220_100%)] px-4 py-6 text-white">
+        <div className="mx-auto max-w-2xl rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur">
+          <div className="flex items-center gap-3">
+            <ClipboardList className="h-8 w-8 text-amber-300" />
+            <div>
+              <h1 className="text-2xl font-black">اعتمادات الجرد</h1>
+              <p className="mt-1 text-sm text-slate-300">لا يوجد رمز بوابة صالح. افتح بوابة المدير ثم أعد المحاولة.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate(lastPortalUrl || "/")}
+            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-black transition hover:bg-amber-300"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            العودة للبوابة
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main dir="rtl" className="min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.16),_transparent_30%),radial-gradient(circle_at_85%_0%,_rgba(245,158,11,0.12),_transparent_18%),linear-gradient(180deg,#0f172a_0%,#111827_46%,#0b1220_100%)] px-4 py-4 text-white">
+      <div className="mx-auto max-w-[96rem] space-y-4">
+        <header className="rounded-[2rem] border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">مركز اعتماد الجرد</div>
+              <h1 className="mt-2 text-3xl font-black">اعتمادات الجرد</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+                راجع الجلسات قيد المراجعة، وافق على الفروقات أو ارفضها مع سبب واضح قبل تعديل المخزون.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => loadApprovals(selectedSessionId)}
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                تحديث
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate(`/manager-portal/${encodeURIComponent(token)}`)}
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                العودة للبوابة
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard title="جردات بانتظار المراجعة" value={summary.pending_review_count || 0} icon={ClipboardList} tone="amber" />
+          <StatCard title="جردات مرفوضة" value={summary.rejected_count || 0} icon={X} tone="rose" />
+          <StatCard title="جردات مكتملة اليوم" value={summary.completed_today_count || 0} icon={CheckCircle2} tone="emerald" />
+          <StatCard title="إجمالي فروقات اليوم" value={summary.today_difference_total || 0} icon={Package} tone="sky" />
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <div className="rounded-[2rem] border border-white/10 bg-white/5 p-4 shadow-xl backdrop-blur">
+            <form onSubmit={handleSearch} className="mb-4">
+              <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-400">بحث</label>
+              <div className="flex gap-2">
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="ابحث باسم الجرد أو الفرع أو المخزن"
+                  className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm font-semibold outline-none placeholder:text-slate-500"
+                />
+                <button type="submit" className="inline-flex items-center justify-center rounded-2xl bg-amber-400 px-4 text-sm font-black text-black">
+                  <Search className="h-4 w-4" />
+                </button>
+              </div>
+            </form>
+
+            <div className="flex items-center justify-between text-xs font-bold text-slate-400">
+              <span>الجلسات المعروضة</span>
+              <span>{formatNumber(pagination.total || sessions.length || 0)}</span>
+            </div>
+
+            <div className="mt-3 space-y-3">
+              {loading ? (
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-center text-sm text-slate-300">
+                  <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+                  <div className="mt-2">جاري تحميل الجردات...</div>
+                </div>
+              ) : sessions.length ? (
+                sessions.map((session) => (
+                  <button
+                    key={session.id}
+                    type="button"
+                    onClick={() => setSelectedSessionId(String(session.id))}
+                    className={`w-full rounded-3xl border p-4 text-right transition ${
+                      String(selectedSessionId) === String(session.id)
+                        ? "border-amber-300/40 bg-amber-400/10"
+                        : "border-white/10 bg-white/5 hover:bg-white/10"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-base font-black text-white">{text(session.title, "جرد")}</div>
+                        <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-300">
+                          <span className="inline-flex items-center gap-1"><Building2 className="h-3.5 w-3.5" /> {text(session.branch_name, "الفرع غير محدد")}</span>
+                          <span className="inline-flex items-center gap-1"><Store className="h-3.5 w-3.5" /> {text(session.warehouse_name, "المخزن غير محدد")}</span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-400">
+                          <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {text(session.created_by_name, "غير معروف")}</span>
+                          <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" /> {formatDateTime(session.created_at)}</span>
+                        </div>
+                      </div>
+                      <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${statusTone(session.status)}`}>
+                        {session.status === "pending_review" ? "قيد المراجعة" : session.status === "rejected" ? "مرفوض" : session.status === "completed" ? "مكتمل" : session.status}
+                      </span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-300">
+                      <span className="rounded-full bg-white/5 px-2.5 py-1">الأصناف: {formatNumber(session.item_count || 0)}</span>
+                      <span className="rounded-full bg-white/5 px-2.5 py-1">إجمالي الفروقات: {formatNumber(session.difference_total || 0)}</span>
+                    </div>
+                  </button>
+                ))
+              ) : (
+                <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-8 text-center text-sm text-slate-300">
+                  <ClipboardList className="mx-auto h-8 w-8 text-slate-500" />
+                  <div className="mt-3 font-bold">لا توجد جلسات قيد المراجعة الآن</div>
+                  <div className="mt-1 text-xs text-slate-400">ستظهر هنا الجردات التي أرسلها أمين المخزن للمراجعة.</div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-[2rem] border border-white/10 bg-white/5 p-4 shadow-xl backdrop-blur">
+            {selectedLoading ? (
+              <div className="flex min-h-[28rem] items-center justify-center text-slate-300">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span className="mr-2">جاري تحميل تفاصيل الجرد...</span>
+              </div>
+            ) : selectedSession ? (
+              <>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">تفاصيل الجلسة</div>
+                    <h2 className="mt-1 text-2xl font-black text-white">{text(selectedSession.title, "جرد")}</h2>
+                    <div className="mt-2 flex flex-wrap gap-2 text-sm text-slate-300">
+                      <span className="inline-flex items-center gap-1"><Building2 className="h-4 w-4" /> {text(selectedSession.branch_name, "الفرع غير محدد")}</span>
+                      <span className="inline-flex items-center gap-1"><Store className="h-4 w-4" /> {text(selectedSession.warehouse_name, "المخزن غير محدد")}</span>
+                      <span className="inline-flex items-center gap-1"><Users className="h-4 w-4" /> {text(selectedSession.created_by_name, "غير معروف")}</span>
+                      <span className="inline-flex items-center gap-1"><CalendarDays className="h-4 w-4" /> {formatDateTime(selectedSession.created_at)}</span>
+                    </div>
+                  </div>
+                  <span className={`rounded-full border px-3 py-1 text-xs font-black ${statusTone(selectedSession.status)}`}>
+                    {selectedSession.status === "pending_review" ? "في انتظار موافقة المدير" : selectedSession.status === "rejected" ? "مرفوض" : selectedSession.status === "completed" ? "مكتمل" : selectedSession.status}
+                  </span>
+                </div>
+
+                {selectedSession.status === "rejected" && selectedSession.rejection_reason ? (
+                  <div className="mt-4 rounded-3xl border border-rose-400/20 bg-rose-500/10 p-4 text-sm text-rose-50">
+                    <div className="font-black">سبب الرفض</div>
+                    <div className="mt-1 leading-6">{selectedSession.rejection_reason}</div>
+                  </div>
+                ) : null}
+
+                <section className="mt-4 grid gap-3 sm:grid-cols-4">
+                  <InfoStat title="عدد الأصناف" value={sessionSummary.items || 0} icon={Package} tone="sky" />
+                  <InfoStat title="إجمالي الزيادة" value={sessionSummary.increase || 0} icon={TrendingUp} tone="emerald" />
+                  <InfoStat title="إجمالي العجز" value={sessionSummary.shortage || 0} icon={TrendingDown} tone="rose" />
+                  <InfoStat title="إجمالي الفروقات" value={sessionSummary.total || 0} icon={ClipboardList} tone="amber" />
+                </section>
+
+                <div className="mt-4 overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/45">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-right text-sm">
+                      <thead className="bg-white/5 text-xs uppercase tracking-[0.18em] text-slate-300">
+                        <tr>
+                          <th className="px-4 py-3">المنتج</th>
+                          <th className="px-4 py-3">اللون</th>
+                          <th className="px-4 py-3">المقاس</th>
+                          <th className="px-4 py-3">كمية السيستم</th>
+                          <th className="px-4 py-3">الكمية الفعلية</th>
+                          <th className="px-4 py-3">الفرق</th>
+                          <th className="px-4 py-3">السبب</th>
+                          <th className="px-4 py-3">الملاحظات</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedItems.length ? selectedItems.map((item) => {
+                          const system = Number(item.system_quantity || item.expected_qty || 0);
+                          const counted = Number(item.counted_quantity || item.actual_qty || 0);
+                          const diff = Number(item.difference_quantity || item.difference_qty || counted - system);
+                          return (
+                            <tr key={item.id || `${item.product_variant_id || item.variant_id}-${item.color}-${item.size}`} className="border-t border-white/5">
+                              <td className="px-4 py-3 font-semibold text-white">{text(item.product_name, "منتج")}</td>
+                              <td className="px-4 py-3 text-slate-300">{text(item.color, "-")}</td>
+                              <td className="px-4 py-3 text-slate-300">{text(item.size, "-")}</td>
+                              <td className="px-4 py-3 font-semibold text-slate-200">{formatNumber(system)}</td>
+                              <td className="px-4 py-3 font-semibold text-slate-200">{formatNumber(counted)}</td>
+                              <td className={`px-4 py-3 font-black ${diff > 0 ? "text-emerald-300" : diff < 0 ? "text-rose-300" : "text-slate-300"}`}>{diff > 0 ? `+${formatNumber(diff)}` : formatNumber(diff)}</td>
+                              <td className="px-4 py-3 text-slate-300">{text(item.reason, "-")}</td>
+                              <td className="px-4 py-3 text-slate-300">{text(item.notes, "-")}</td>
+                            </tr>
+                          );
+                        }) : (
+                          <tr>
+                            <td colSpan={8} className="px-4 py-10 text-center text-slate-400">لا توجد أصناف داخل الجرد.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/inventory/count/${selectedSessionId}`)}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
+                  >
+                    فتح الجرد
+                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={openRejectDialog}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500 px-4 py-3 text-sm font-black text-white transition hover:bg-rose-400"
+                    >
+                      <X className="h-4 w-4" />
+                      رفض
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleApprove()}
+                      disabled={approving || selectedSession.status !== "pending_review"}
+                      className="inline-flex items-center gap-2 rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {approving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                      موافقة واعتماد
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex min-h-[28rem] items-center justify-center rounded-[1.75rem] border border-dashed border-white/10 bg-white/5 text-center text-slate-300">
+                <div>
+                  <ClipboardList className="mx-auto h-10 w-10 text-slate-500" />
+                  <div className="mt-3 text-lg font-black">اختر جلسة من القائمة</div>
+                  <div className="mt-1 text-sm">سيظهر ملخص الأصناف والفروقات هنا.</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+
+      {rejectOpen ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 px-4">
+          <div className="w-full max-w-xl rounded-[2rem] border border-white/10 bg-slate-950 p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">رفض الجرد</div>
+                <h3 className="mt-1 text-2xl font-black">أدخل سبب الرفض</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-300">السبب إلزامي وسيصل إلى أمين المخزن مع إشعار الرفض.</p>
+              </div>
+              <button type="button" onClick={() => setRejectOpen(false)} className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <textarea
+              value={rejectReason}
+              onChange={(event) => setRejectReason(event.target.value)}
+              placeholder="مثال: توجد فروقات غير مبررة أو تحتاج مراجعة ميدانية"
+              rows={5}
+              className="mt-4 w-full rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold outline-none placeholder:text-slate-500"
+            />
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => setRejectOpen(false)} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white">
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleReject()}
+                disabled={rejecting}
+                className="inline-flex items-center gap-2 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-black text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {rejecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
+                تأكيد الرفض
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </main>
+  );
+}
+
+function StatCard({ title, value, icon: Icon, tone = "sky" }) {
+  const toneClasses = {
+    amber: "from-amber-400/15 to-amber-500/5 text-amber-100 border-amber-300/20",
+    rose: "from-rose-400/15 to-rose-500/5 text-rose-100 border-rose-300/20",
+    emerald: "from-emerald-400/15 to-emerald-500/5 text-emerald-100 border-emerald-300/20",
+    sky: "from-sky-400/15 to-sky-500/5 text-sky-100 border-sky-300/20",
+  };
+  return (
+    <div className={`rounded-[1.75rem] border bg-gradient-to-br p-4 shadow-xl backdrop-blur ${toneClasses[tone] || toneClasses.sky}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.18em] opacity-70">{title}</div>
+          <div className="mt-2 text-3xl font-black">{formatNumber(value)}</div>
+        </div>
+        <Icon className="h-6 w-6 opacity-90" />
+      </div>
+    </div>
+  );
+}
+
+function InfoStat({ title, value, icon: Icon, tone = "sky" }) {
+  const toneClasses = {
+    amber: "border-amber-300/20 bg-amber-500/10 text-amber-100",
+    rose: "border-rose-300/20 bg-rose-500/10 text-rose-100",
+    emerald: "border-emerald-300/20 bg-emerald-500/10 text-emerald-100",
+    sky: "border-sky-300/20 bg-sky-500/10 text-sky-100",
+  };
+  return (
+    <div className={`rounded-[1.5rem] border p-4 ${toneClasses[tone] || toneClasses.sky}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.16em] opacity-70">{title}</div>
+          <div className="mt-2 text-2xl font-black">{formatNumber(value)}</div>
+        </div>
+        <Icon className="h-5 w-5 opacity-90" />
+      </div>
+    </div>
+  );
+}

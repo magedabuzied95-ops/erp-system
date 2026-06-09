@@ -149,9 +149,11 @@ const EmployeeShiftAnalytics = lazy(() => import("./modules/employees/pages/Shif
 const StaffTasks = lazy(() => import("./modules/employees/pages/StaffTasks"));
 const EmployeePortal = lazy(() => import("./modules/employees/pages/EmployeePortal"));
 const EmployeePortalProducts = lazy(() => import("./modules/employees/pages/EmployeePortalProducts"));
+const EmployeePortalInventory = lazy(() => import("./modules/employees/pages/EmployeePortalInventory"));
 const EmployeeAppShell = lazy(() => import("./modules/employees/pages/EmployeeAppShell"));
 const EmployeePayrollPortal = lazy(() => import("./modules/employees/pages/EmployeePayrollPortal"));
 const ManagerPortal = lazy(() => import("./modules/managerPortal/pages/ManagerPortal"));
+const ManagerInventoryApprovals = lazy(() => import("./modules/managerPortal/pages/InventoryApprovals"));
 const AttendanceDashboard = lazy(() => import("./modules/attendance/pages/AttendanceDashboard"));
 const AttendanceEmployees = lazy(() => import("./modules/attendance/pages/EmployeesAttendance"));
 const AttendanceReports = lazy(() => import("./modules/attendance/pages/AttendanceReports"));
@@ -340,6 +342,16 @@ function App() {
       />
 
       <Route
+        path="/employee/portal/:token/inventory"
+        element={<EmployeePortalInventory />}
+      />
+
+      <Route
+        path="/employee/portal/:token/inventory/:sessionId"
+        element={<EmployeePortalInventory />}
+      />
+
+      <Route
         path="/employee-portal/:token"
         element={<EmployeePayrollPortal />}
       />
@@ -350,8 +362,26 @@ function App() {
       />
 
       <Route
+        path="/employee-portal/:token/inventory"
+        element={<EmployeePortalInventory />}
+      />
+
+      <Route
+        path="/employee-portal/:token/inventory/:sessionId"
+        element={<EmployeePortalInventory />}
+      />
+
+      <Route
         path="/manager-portal/:token"
         element={<ManagerPortal />}
+      />
+      <Route
+        path="/manager/inventory-approvals"
+        element={<ManagerInventoryApprovals />}
+      />
+      <Route
+        path="/manager-portal/:token/inventory-approvals"
+        element={<ManagerInventoryApprovals />}
       />
 
       <Route

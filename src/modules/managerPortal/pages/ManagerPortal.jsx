@@ -415,6 +415,7 @@ export default function ManagerPortal() {
   const [tasks, setTasks] = useState(null);
   const [sales, setSales] = useState(null);
   const [stockAlerts, setStockAlerts] = useState(null);
+  const [inventoryApprovals, setInventoryApprovals] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [managerChatState, setManagerChatState] = useState({ employee: null, thread: null, messages: [] });
@@ -541,6 +542,8 @@ export default function ManagerPortal() {
   const paymentBreakdown = dashboard?.payment_breakdown || [];
   const lowStock = dashboard?.low_stock || stockAlerts?.low_stock || [];
   const refillAlerts = dashboard?.refill_alerts || stockAlerts?.refill_alerts || [];
+  const inventoryApprovalsSummary = inventoryApprovals?.summary || {};
+  const pendingInventoryApprovalsCount = Number(inventoryApprovalsSummary.pending_review_count || 0);
   const aiInsights = dashboard?.ai_insights || sales?.ai_insights || [];
   const topProducts = sales?.top_products || [];
   const salesComparison = sales?.comparison || {};
@@ -722,7 +725,7 @@ export default function ManagerPortal() {
       if (!silent) setLoading(true);
       setRefreshing(Boolean(silent));
       setError("");
-      const [meRes, dashboardRes, staffRes, tasksRes, salesRes, stockRes, notificationsRes] = await Promise.all([
+      const [meRes, dashboardRes, staffRes, tasksRes, salesRes, stockRes, notificationsRes, approvalsRes] = await Promise.all([
         managerPortalApi.me(token),
         managerPortalApi.dashboard(token),
         managerPortalApi.staff(token),
@@ -730,6 +733,7 @@ export default function ManagerPortal() {
         managerPortalApi.sales(token),
         managerPortalApi.stockAlerts(token),
         managerPortalApi.notifications(token, { limit: 40 }),
+        managerPortalApi.inventoryApprovals(token, { limit: 5 }),
       ]);
       setMe(normalizeManagerPortalPayload("me", meRes?.manager || meRes?.data?.manager || null));
       setDashboard(normalizeManagerPortalPayload("dashboard", dashboardRes?.dashboard || null));
@@ -740,6 +744,7 @@ export default function ManagerPortal() {
       setNotifications(normalizeManagerPortalPayload("notifications", Array.isArray(notificationsRes?.notifications) ? notificationsRes.notifications : []));
       setUnreadCount(Number(notificationsRes?.unread_count || 0));
       setSettings(mergeSettings(normalizeManagerPortalPayload("settings", notificationsRes?.settings || meRes?.notification_settings || {})));
+      setInventoryApprovals(normalizeManagerPortalPayload("inventoryApprovals", approvalsRes?.inventoryApprovals || null));
     } catch (loadError) {
       setError(loadError?.responseBody?.message || loadError?.message || "تعذر تحميل بوابة المدير.");
     } finally {
@@ -837,9 +842,13 @@ export default function ManagerPortal() {
       void notifyClient(next);
     });
     socket.on("notification:count:refresh", () => {
-      managerPortalApi.notifications(token, { limit: 40 }).then((response) => {
+      Promise.all([
+        managerPortalApi.notifications(token, { limit: 40 }),
+        managerPortalApi.inventoryApprovals(token, { limit: 5 }),
+      ]).then(([response, approvalsResponse]) => {
         setNotifications(normalizeManagerPortalPayload("socketNotifications", Array.isArray(response?.notifications) ? response.notifications : []));
         setUnreadCount(Number(response?.unread_count || 0));
+        setInventoryApprovals(normalizeManagerPortalPayload("socketApprovals", approvalsResponse?.inventoryApprovals || null));
       }).catch(() => null);
     });
 
@@ -1193,6 +1202,11 @@ export default function ManagerPortal() {
     }
   };
 
+  const openInventoryApprovals = () => {
+    if (!token) return;
+    navigate(`/manager/inventory-approvals?token=${encodeURIComponent(token)}`);
+  };
+
   const renderTaskCard = (task) => {
     const note = taskNotes[task.id] || "";
     const statusMeta = taskStatusMeta(task);
@@ -1334,6 +1348,17 @@ export default function ManagerPortal() {
               <div className="flex flex-col items-end gap-2">
                 <Badge className="border-slate-700 bg-slate-800 text-slate-100">مباشر</Badge>
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={openInventoryApprovals}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-amber-300/30 bg-amber-400 px-3 py-2 text-sm font-black text-black shadow-sm transition hover:bg-amber-300"
+                  >
+                    <ClipboardList className="h-4 w-4" />
+                    <span>جردات بانتظار الاعتماد</span>
+                    {pendingInventoryApprovalsCount ? (
+                      <span className="rounded-full bg-black/10 px-2 py-0.5 text-xs font-black">{formatNumber(pendingInventoryApprovalsCount)}</span>
+                    ) : null}
+                  </button>
                   <button
                     ref={notificationButtonRef}
                     type="button"
