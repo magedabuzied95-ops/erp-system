@@ -29,6 +29,28 @@ const recentEvolutionWebhookEvents = [];
 const evolutionWebhookEventCounts = new Map();
 
 const text = (value, fallback = "") => String(value ?? fallback).trim();
+const previewText = (value = "", limit = 180) => text(value).replace(/\s+/g, " ").slice(0, limit);
+const normalizedTraceMessage = (value = "") => normalizeArabicMessage(text(value));
+const applyWhatsappGreetingGuard = ({ customerMessageText = "", replyText = "" } = {}) => {
+  const normalizedMessage = normalizedTraceMessage(customerMessageText);
+  const normalizedReply = text(replyText);
+  const greetingSignal = /(السلام عليكم|سلام عليكم|السلام عليكم ورحمة الله)/i.test(normalizedMessage);
+  const hasWaAlaykum = /وعليكم\s*السلام/i.test(normalizedReply);
+  if (!greetingSignal || hasWaAlaykum) return normalizedReply;
+  const strippedReply = normalizedReply
+    .replace(/^(اهلا|أهلا|اهلا بيك|أهلا بيك|نورتنا|تحت أمرك|تحت امرك|مرحبا|مرحبًا)\s*[،,.-]?\s*/i, "")
+    .trim();
+  const guardedReply = `وعليكم السلام ورحمة الله${strippedReply ? `، ${strippedReply}` : "، أهلاً بيك يا فندم"}`;
+  console.info("[whatsapp-greeting-guard-applied]", {
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    source: "whatsappGatewayService",
+    normalized_message: normalizedMessage,
+    detected_intent: "greeting",
+    reply_preview: previewText(guardedReply),
+    produced_by: "whatsappGatewayService",
+  });
+  return guardedReply;
+};
 const money = (value) => {
   const amount = Number(value || 0);
   return Number.isFinite(amount) ? amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00";
@@ -3049,9 +3071,21 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       });
     }
     if (shouldSendTextOnly) {
-      const safeText = /(^|\s)(سعره|السعر|جنيه|egp|\d+\s*جنيه)/i.test(outboundPlan.text) && !explicitProductFollowup && !isImageFollowup
+      const rawText = /(^|\s)(سعره|السعر|جنيه|egp|\d+\s*جنيه)/i.test(outboundPlan.text) && !explicitProductFollowup && !isImageFollowup
         ? "وعليكم السلام ورحمة الله، أهلاً بيك يا فندم "
         : outboundPlan.text;
+      const safeText = applyWhatsappGreetingGuard({
+        customerMessageText: message.message_text || "",
+        replyText: rawText,
+      });
+      console.info("[whatsapp-final-channel-reply]", {
+        channel: AI_AGENT_CHANNELS.WHATSAPP,
+        source: "whatsappGatewayService",
+        normalized_message: normalizedTraceMessage(message.message_text || ""),
+        detected_intent: currentIntent,
+        reply_preview: previewText(safeText),
+        produced_by: "whatsappGatewayService",
+      });
       if (safeText !== outboundPlan.text) {
         console.warn("[ai-standalone-price-text-blocked]", {
           conversation_id: outboundPlan.conversation_id,
@@ -3226,7 +3260,18 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       successful_urls_count: new Set(imageMessages.map((item) => text(item.image_url)).filter(Boolean)).size,
       invalid_urls_count: skippedImageCards.length,
     });
-    let finalReplyText = outboundPlan.text || "";
+    let finalReplyText = applyWhatsappGreetingGuard({
+      customerMessageText: message.message_text || "",
+      replyText: outboundPlan.text || "",
+    });
+    console.info("[whatsapp-final-channel-reply]", {
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      source: "whatsappGatewayService",
+      normalized_message: normalizedTraceMessage(message.message_text || ""),
+      detected_intent: currentIntent,
+      reply_preview: previewText(finalReplyText),
+      produced_by: "whatsappGatewayService",
+    });
     if (["image_request", "more_images"].includes(text(generated.aiPayload?.detected_intent))) {
       console.info("[SOURCE_A]", {
         used_memory: generated.aiPayload?.followup_memory_used === true,
