@@ -912,7 +912,7 @@ export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
       referenceId: session.id,
       reason: normalizeText(item.reason || session.title || "جرد مخزون") || "جرد مخزون",
       notes: movementNotes,
-      createdBy: data.completedBy ?? data.completed_by ?? data.userId ?? data.user_id ?? null,
+      createdBy: completedBy,
     });
 
     console.log("[inventory-count:approve:movement-created]", JSON.stringify({
