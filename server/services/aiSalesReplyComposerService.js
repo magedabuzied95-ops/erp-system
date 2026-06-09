@@ -1088,10 +1088,15 @@ export const composeAiSalesReply = async ({
     }
 
     if (asksModelRequest(message)) {
-      const modelText = text(top.name || top.title || top.model_name || top.product_name || "");
-      const modelReply = modelText
-        ? `أيوه، ${modelText} موجود.`
-        : "أيوه، الموديل ده موجود وأقدر أراجعلك النسخة الأقرب.";
+      const modelText = text(top.base_name || top.model_name || top.name || top.title || top.product_name || "");
+      const normalizedModelText = normalizeArabic(modelText);
+      const jordan4Label = /(jordan\s*4|j4|aj4|جوردن\s*4|جوردن)/i.test(normalizedModelText)
+        ? "Jordan 4"
+        : "";
+      const modelLabel = jordan4Label || text(modelText.replace(/^nike\s+/i, "").replace(/^air\s+/i, ""));
+      const modelReply = modelLabel
+        ? `أيوه متاح عندنا ${modelLabel}، تحب أقولك السعر والمقاسات؟`
+        : "أيوه متاح عندنا، تحب أقولك السعر والمقاسات؟";
       console.info("[ai-reply-composer:decision]", {
         source,
         decision: "regression_model",

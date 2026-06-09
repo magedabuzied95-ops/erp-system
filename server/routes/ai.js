@@ -611,29 +611,69 @@ router.post("/regression-test/message", requireRegressionTestKey, async (req, re
           brainDecision.intent ||
           resolveIntent(message)
       );
-      const analysis = buildRegressionAnalysis({
-        message,
-        reply,
-        intent,
-        brainIntent: brainDecision.intent || brainDecision.detected_intent || "",
-        simpleIntent: resolveIntent(message),
-        memory: effectiveMemory,
-        productCards: composerProductCards,
-        composedResponse: composed,
-      });
-      analysis.current_sizes = [...new Set(asArray(composerProductCards).flatMap((card) => productSizes(card)).filter(Boolean))];
-      analysis.current_colors = [...new Set(asArray(composerProductCards).flatMap((card) => productColors(card)).filter(Boolean))];
-      const regressionStockValues = asArray(composerProductCards).map((card) => primaryStock(card)).filter((value) => Number.isFinite(value));
-      analysis.current_stock = regressionStockValues.length ? Math.max(...regressionStockValues) : Number(analysis.current_stock ?? 0);
-      const failedTypes = detectRegressionFailureTypes({
-        message,
-        reply,
-        analysis,
-        composedResponse: composed,
-        responseForComposer,
-        brainDecision,
-        normalizedProductCards: composerProductCards,
-      });
+      let analysis;
+      let failedTypes;
+      try {
+        analysis = buildRegressionAnalysis({
+          message,
+          reply,
+          intent,
+          brainIntent: brainDecision.intent || brainDecision.detected_intent || "",
+          simpleIntent: resolveIntent(message),
+          memory: effectiveMemory,
+          productCards: composerProductCards,
+          composedResponse: composed,
+        });
+        analysis.current_sizes = [...new Set(asArray(composerProductCards).flatMap((card) => productSizes(card)).filter(Boolean))];
+        analysis.current_colors = [...new Set(asArray(composerProductCards).flatMap((card) => productColors(card)).filter(Boolean))];
+        const regressionStockValues = asArray(composerProductCards).map((card) => primaryStock(card)).filter((value) => Number.isFinite(value));
+        analysis.current_stock = regressionStockValues.length ? Math.max(...regressionStockValues) : Number(analysis.current_stock ?? 0);
+        failedTypes = detectRegressionFailureTypes({
+          message,
+          reply,
+          analysis,
+          composedResponse: composed,
+          responseForComposer,
+          brainDecision,
+          normalizedProductCards: composerProductCards,
+        });
+      } catch (analysisError) {
+        console.error("[ai-regression-test:analysis-error]", {
+          message: analysisError?.message || String(analysisError || ""),
+          stack: analysisError?.stack || "",
+          phase: "build-analysis-or-detect-failures",
+        });
+        const regressionStockValues = asArray(composerProductCards).map((card) => primaryStock(card)).filter((value) => Number.isFinite(value));
+        analysis = {
+          source: "ai_regression_test_endpoint",
+          message_length: toText(message).length,
+          reply_length: toText(reply).length,
+          intent,
+          brain_intent: brainDecision.intent || brainDecision.detected_intent || "",
+          simple_intent: resolveIntent(message),
+          product_card_count: composerProductCards.length,
+          image_card_count: asArray(composerProductCards).filter((card) => primaryImage(card)).length,
+          current_price: primaryPrice(composerProductCards[0] || {}),
+          current_stock: regressionStockValues.length ? Math.max(...regressionStockValues) : Number(primaryStock(composerProductCards[0] || {}) || 0),
+          current_sizes: [...new Set(asArray(composerProductCards).flatMap((card) => productSizes(card)).filter(Boolean))],
+          current_colors: [...new Set(asArray(composerProductCards).flatMap((card) => productColors(card)).filter(Boolean))],
+          current_image_urls: asArray(composerProductCards).map((card) => primaryImage(card)).filter(Boolean),
+          memory_before: summarizeMemory(effectiveMemory),
+          memory_patch: composed?.memory_updates || composed?.ai_memory_patch?.preferences || null,
+          customer_name_candidate: extractCustomerNameCandidate(message),
+          reply_mentions_bare_currency: hasBareCurrencyWord(reply),
+          reply_mentions_current_price: false,
+          reply_mentioned_prices: extractMentionedPrices(reply),
+          reply_mentions_availability: false,
+          reply_mentions_unavailable: false,
+          reply_mentions_size: false,
+          reply_mentions_color: false,
+          reply_mentions_image: false,
+          composed_detected_intent: toText(composed?.detected_intent || composed?.intent || ""),
+          composed_sales_stage: toText(composed?.sales_stage || ""),
+        };
+        failedTypes = [];
+      }
 
       return {
         status: 200,
