@@ -834,6 +834,7 @@ export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
   return withTransaction(clientOrPool, async (dbClient) => {
   const tenantId = data.tenantId ?? data.tenant_id ?? null;
   const sessionId = data.sessionId ?? data.session_id;
+  const completedBy = data.completedBy ?? data.completed_by ?? data.userId ?? data.user_id ?? null;
   const session = await fetchSessionRow(dbClient, { tenantId, sessionId, lock: true });
   if (!session) {
     const error = new Error("Inventory count session not found");
