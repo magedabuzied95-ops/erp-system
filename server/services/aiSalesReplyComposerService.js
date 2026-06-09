@@ -579,6 +579,13 @@ const buildGreetingReply = (message = "", seed = "") => {
   ], `default|${seed}|${message}`);
 };
 
+const buildGreetingOnlyOutput = ({ response = {}, message = "", context = {} } = {}) =>
+  withAnswer(stripProductPayload(response), buildGreetingReply(message, text(context?.conversationId || context?.session_id || context?.id || "")), {
+    detected_intent: "greeting_only",
+    greeting_only_mode: true,
+    needs_human_support: false,
+  });
+
 const isGreetingOnly = (message = "", response = {}, intent = {}) => {
   if (response.greeting_only_mode || response.detected_intent === "greeting_only" || intent.type === "greeting_only") return true;
   return Boolean(greetingKind(message));
@@ -798,6 +805,23 @@ export const composeAiSalesReply = async ({
   });
 
   const isRegressionSource = source === "ai_regression_test_endpoint" || response?.is_regression_test || context?.is_regression_test;
+
+  if (isGreetingOnly(message, response, intent)) {
+    console.info("[ai-reply-composer:decision]", {
+      source,
+      decision: "greeting_only",
+      productCardsBlocked: false,
+      outputProductCount: products.length,
+    });
+    const output = buildGreetingOnlyOutput({ response, message, context });
+    console.info("[ai-reply-composer:output]", {
+      source,
+      decision: "greeting_only",
+      answerLength: text(output.answer || output.text).length,
+      stage: "",
+    });
+    return output;
+  }
 
   if (isRegressionSource && products.length) {
     const regressionSourceCards = asArray(response.regression_source_product_cards);
@@ -1053,11 +1077,8 @@ export const composeAiSalesReply = async ({
 
   if (isGreetingOnly(message, response, intent)) {
     decision = "greeting_only";
-    output = withAnswer(stripProductPayload(response), buildGreetingReply(message, text(context?.conversationId || context?.session_id || context?.id || "")), {
-      detected_intent: "greeting_only",
-      greeting_only_mode: true,
-      needs_human_support: false,
-    });
+    output = buildGreetingOnlyOutput({ response, message, context });
+    return output;
   } else if (isYesOnly(message) || isOrderConfirmationMessage(message)) {
     const suggestedAction = inferActionFromSuggestedActions(response.suggested_actions || response.suggestedActions);
     const yesLastAction = state.lastAction || suggestedAction;
