@@ -292,6 +292,8 @@ const detectRegressionFailureTypes = ({ message = "", reply = "", analysis = {},
   const availabilitySignal = /(متاح|موجود|available|availability|stock|فيه|available now)/i.test(normalizedMessage);
   const sizeSignal = /(مقاس|size|نمرة|نمره)/i.test(normalizedMessage);
   const colorSignal = /(لون|الوان|الألوان|colors?|colour|white|ابيض|أبيض|black|اسود|أسود)/i.test(normalizedMessage);
+  const asksPriceResult = asksPrice(message, responseForComposer, { type: analysis?.intent || "" });
+  const asksAvailabilityResult = asksAvailability(message);
 
   if (availabilitySignal && !(analysis?.reply_mentions_availability || /(?:\bمتاح\b|\bموجود\b|\bin stock\b|\bavailable\b)/i.test(replyText))) failures.push("availability");
   if (sizeSignal && requestedSize && !new RegExp(`\\b${String(requestedSize).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(replyText)) failures.push("size");
@@ -306,6 +308,9 @@ const detectRegressionFailureTypes = ({ message = "", reply = "", analysis = {},
       detected_intent: toText(composedResponse?.detected_intent || composedResponse?.intent || brainDecision?.intent || brainDecision?.detected_intent || ""),
       reply: replyText,
       failed_types: failures,
+      asks_price: asksPriceResult,
+      asks_availability: asksAvailabilityResult,
+      memory_last_ai_action: toText(analysis?.memory_before?.last_ai_action || responseForComposer?.memory_updates?.last_ai_action || responseForComposer?.ai_memory_patch?.preferences?.last_ai_action || ""),
       analysis_current_stock: currentStock,
       analysis_current_sizes: currentSizes,
       analysis_current_colors: currentColors,

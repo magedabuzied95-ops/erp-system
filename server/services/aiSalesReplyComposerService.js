@@ -626,6 +626,7 @@ const memoryState = (context = {}, memory = {}) => {
   const lastBotMessage = text(source.last_bot_message || source.lastBotMessage || preferences.last_bot_message);
   const lastAction = normalizeLastAction(
     preferences.last_ai_action ||
+      source.last_ai_action ||
       preferences.pending_action ||
       source.lastAction ||
       source.last_action ||
@@ -839,16 +840,18 @@ export const composeAiSalesReply = async ({
       output = withAnswer(stripProductPayload(response), "تمام يا باشا، تقصد موديل معين ولا مقاس معين؟");
     }
   } else if ((source === "ai_regression_test_endpoint" || response?.is_regression_test || context?.is_regression_test) && products.length) {
-    const regressionPriceCard = selectRegressionFocusCard(response, "price");
-    const regressionAvailabilityCard = selectRegressionFocusCard(response, "availability");
-    const regressionUnavailableCard = selectRegressionFocusCard(response, "unavailable");
-    const regressionImageCard = selectRegressionFocusCard(response, "images");
+    const regressionSourceCards = asArray(response.regression_source_product_cards);
+    const regressionPriceCard = regressionSourceCards.find((card) => cardPriceValue(card) > 0) || selectRegressionFocusCard(response, "price");
+    const regressionAvailabilityCard = regressionSourceCards.find((card) => stockCount(card) > 0) || selectRegressionFocusCard(response, "availability");
+    const regressionUnavailableCard = regressionSourceCards.find((card) => stockCount(card) === 0) || selectRegressionFocusCard(response, "unavailable");
+    const regressionImageCard = regressionSourceCards.find((card) => Boolean(cardImageUrl(card))) || selectRegressionFocusCard(response, "images");
     const regressionName = productName(regressionPriceCard) || productName(regressionAvailabilityCard) || productName(top) || "الموديل";
     const regressionSize = size || state.rememberedSize || productSizes(regressionPriceCard)[0] || sizes[0] || "";
     const regressionColor = detectColorFromMessage(message) || state.rememberedColor || productColors(regressionPriceCard)[0] || colors[0] || "";
-    const regressionPrice = productPrice(regressionPriceCard);
+    const regressionPrice = cardPriceValue(regressionPriceCard);
     const regressionStock = stockCount(regressionAvailabilityCard) || stockCount(regressionUnavailableCard) || stockCount(regressionPriceCard) || stock;
-    const regressionIsUnavailable = regressionStock === 0;
+    const regressionHasPositiveStock = stockCount(regressionAvailabilityCard) > 0 || stockCount(regressionPriceCard) > 0 || stock > 0;
+    const regressionIsUnavailable = !regressionHasPositiveStock && (stockCount(regressionUnavailableCard) === 0 || regressionStock === 0);
     const regressionImageUrls = [
       cardImageUrl(regressionImageCard),
       ...selectedImageCards(response).map((card) => text(card?.url || card?.image_url || card?.selected_card_image_url || card?.image || "")),
