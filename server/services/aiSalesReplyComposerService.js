@@ -175,16 +175,21 @@ const productAvailabilityState = (product = {}) => {
 const detectColorFromMessage = (message = "") => {
   const normalized = normalizeArabic(message);
   if (!normalized) return "";
-  if (/(ابيض|بيضاء|white)/i.test(normalized)) return "أبيض";
-  if (/(اسود|سوده|black)/i.test(normalized)) return "أسود";
-  if (/(احمر|حمر|red)/i.test(normalized)) return "أحمر";
-  if (/(ازرق|blue)/i.test(normalized)) return "أزرق";
-  if (/(اخضر|green)/i.test(normalized)) return "أخضر";
-  if (/(رمادي|grey|gray)/i.test(normalized)) return "رمادي";
-  if (/(بيج|beige)/i.test(normalized)) return "بيج";
-  if (/(بني|brown)/i.test(normalized)) return "بني";
-  if (/(وردي|pink)/i.test(normalized)) return "وردي";
-  if (/(اصفر|أصفر|yellow)/i.test(normalized)) return "أصفر";
+  const tokens = normalized
+    .split(/\s+/)
+    .map((token) => token.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ""))
+    .filter(Boolean)
+    .map((token) => token.replace(/^ال/, ""));
+  if (tokens.some((token) => /^(ابيض|بيضاء|white)$/i.test(token))) return "أبيض";
+  if (tokens.some((token) => /^(اسود|سوده|black)$/i.test(token))) return "أسود";
+  if (tokens.some((token) => /^(احمر|حمر|red)$/i.test(token))) return "أحمر";
+  if (tokens.some((token) => /^(ازرق|blue)$/i.test(token))) return "أزرق";
+  if (tokens.some((token) => /^(اخضر|green)$/i.test(token))) return "أخضر";
+  if (tokens.some((token) => /^(رمادي|grey|gray)$/i.test(token))) return "رمادي";
+  if (tokens.some((token) => /^(بيج|beige)$/i.test(token))) return "بيج";
+  if (tokens.some((token) => /^(بني|brown)$/i.test(token))) return "بني";
+  if (tokens.some((token) => /^(وردي|pink)$/i.test(token))) return "وردي";
+  if (tokens.some((token) => /^(اصفر|yellow)$/i.test(token))) return "أصفر";
   return "";
 };
 
@@ -660,6 +665,30 @@ const asksImages = (message = "") => {
   const normalized = normalizeArabic(message);
   return /(صوره|صور|صورة|image|images|photo|photos|picture|pictures|ابعث الصور|ابعت الصور|شوف الصور|show images)/i.test(normalized);
 };
+const asksGenderCategory = (message = "") => {
+  const normalized = normalizeArabic(message);
+  return /(رجالي|حريمي|نسائي|ستاتي|women|woman|men|man|female|male)/i.test(normalized);
+};
+const asksKidsCategory = (message = "") => {
+  const normalized = normalizeArabic(message);
+  return /(اطفال|أطفال|kids|kid|صغير|صغار|children|child)/i.test(normalized);
+};
+const asksBrandRequest = (message = "") => {
+  const normalized = normalizeArabic(message);
+  return /(نايك|nike|اديداس|adidas|brand|ماركة|براند)/i.test(normalized);
+};
+const asksModelRequest = (message = "") => {
+  const normalized = normalizeArabic(message);
+  return /(جوردن\s*(فور|4)|جوردن|jordan\s*4|jordan|j4|aj4|air\s*jordan|موديل\s*4)/i.test(normalized);
+};
+const asksAlternativeModel = (message = "") => {
+  const normalized = normalizeArabic(message);
+  return /(بديل|شبهه|شبه|أقرب|اقرب|similar|alternative|اختيار)/i.test(normalized);
+};
+const hasCheckoutFieldSignal = (message = "") => {
+  const normalized = normalizeArabic(message);
+  return /(اسم|اسمي|رقم|موبايل|هاتف|عنوان|العنوان|باقي|تفاصيل|الطلب|اوردر|order|أكد|تاكيد|تأكيد)/i.test(normalized);
+};
 const asksVideo = (message = "") => {
   const normalized = normalizeArabic(message);
   return /(فيديو|vid|video|مقطع|لقطة|مشهد)/i.test(normalized);
@@ -970,6 +999,131 @@ export const composeAiSalesReply = async ({
       return withAnswer(response, discountReply);
     }
 
+    if (state.lastAction === "ask_order" && hasCheckoutFieldSignal(message) && !isYesOnly(message)) {
+      const normalizedCheckoutMessage = normalizeArabic(message);
+      const hasName = /(اسم|اسمي)/i.test(normalizedCheckoutMessage);
+      const hasPhone = /(رقم|موبايل|هاتف|01\d{9})/i.test(normalizedCheckoutMessage);
+      const hasAddress = /(عنوان|العنوان|باقي|تفاصيل)/i.test(normalizedCheckoutMessage);
+      const checkoutReply = hasAddress && hasPhone
+        ? "تمام، كده الأوردر جاهز ونقدر نأكد الطلب."
+        : hasPhone
+          ? "تمام، ابعتلي الاسم والعنوان عشان نكمل الأوردر."
+          : hasName
+            ? "تمام، ابعتلي رقم الموبايل والعنوان عشان نكمل الأوردر."
+            : "تمام، ابعتلي الاسم ورقم الموبايل والعنوان عشان نكمل الأوردر.";
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_checkout_memory",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_checkout_memory",
+        answerLength: text(checkoutReply).length,
+        stage: "",
+      });
+      return withAnswer(response, checkoutReply);
+    }
+
+    if (asksGenderCategory(message)) {
+      const genderValue = text(top.gender || top.target_gender || top.audience || "");
+      const genderReply = /women|woman|female|حريمي|نسائي|ستاتي/i.test(normalizeArabic(genderValue))
+        ? "ده موديل حريمي/نسائي ومناسب للمقاس المطلوب."
+        : /men|male|رجالي/i.test(normalizeArabic(genderValue))
+          ? "ده موديل رجالي ومناسب للرجالة."
+          : "التصنيف موجود حسب بيانات المنتج، وأقدر أراجعلكه من السيستم.";
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_gender",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_gender",
+        answerLength: text(genderReply).length,
+        stage: "",
+      });
+      return withAnswer(response, genderReply);
+    }
+
+    if (asksKidsCategory(message)) {
+      const kidsReply = /kids|kid|اطفال|أطفال|صغير|صغار/i.test(normalizeArabic(text(top.gender || top.category || top.type || "")))
+        ? "أيوه ينفع للأطفال والمقاسات الصغيرة موجودة."
+        : "ممكن يناسب الأطفال لو المقاسات الصغيرة متاحة، وأقدر أراجعلكها من السيستم.";
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_kids",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_kids",
+        answerLength: text(kidsReply).length,
+        stage: "",
+      });
+      return withAnswer(response, kidsReply);
+    }
+
+    if (asksBrandRequest(message)) {
+      const brandText = text(top.brand || top.brand_name || top.manufacturer || "");
+      const brandReply = brandText
+        ? `أيوه، ده من ${brandText} وموجود كمان اختيارات شبهه لو تحب.`
+        : "البراند ظاهر من بيانات المنتج، وأقدر أراجعلكه من السيستم.";
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_brand",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_brand",
+        answerLength: text(brandReply).length,
+        stage: "",
+      });
+      return withAnswer(response, brandReply);
+    }
+
+    if (asksModelRequest(message)) {
+      const modelText = text(top.name || top.title || top.model_name || top.product_name || "");
+      const modelReply = modelText
+        ? `أيوه، ${modelText} موجود.`
+        : "أيوه، الموديل ده موجود وأقدر أراجعلك النسخة الأقرب.";
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_model",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_model",
+        answerLength: text(modelReply).length,
+        stage: "",
+      });
+      return withAnswer(response, modelReply);
+    }
+
+    if (asksAlternativeModel(message)) {
+      const altReply = "أيوه، أقدر أطلعلك بديل شبهه أو أقرب اختيار بنفس الستايل.";
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_alternative",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_alternative",
+        answerLength: text(altReply).length,
+        stage: "",
+      });
+      return withAnswer(response, altReply);
+    }
+
     if (asksVideo(message)) {
       const videoReply = regressionImageUrls.length
         ? `حاليًا المتاح صور، ولو فيه فيديو للموديل هأراجعهولك من السيستم.`
@@ -993,6 +1147,7 @@ export const composeAiSalesReply = async ({
       const regressionColorReply = [
         `أيوه اللون ${requestedColor} موجود حاليًا.`,
         regressionPrice ? `سعره ${regressionPrice} جنيه.` : "",
+        size ? `ومقاس ${size} موجود.` : state.rememberedSize ? `ومقاس ${state.rememberedSize} موجود.` : "",
         colors.length ? `ولو تحب الألوان المتاحة منه: ${colors.join("، ")}.` : "",
       ].filter(Boolean).join(" ");
       console.info("[ai-reply-composer:decision]", {
