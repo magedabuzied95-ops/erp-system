@@ -226,9 +226,7 @@ const fetchSessionRow = async (clientOrPool, { tenantId, sessionId, lock = false
       uc.name AS created_by_name,
       uo.name AS opened_by_name,
       uu.name AS completed_by_name,
-      ux.name AS cancelled_by_name,
-      COALESCE(items.item_count, 0)::int AS item_count,
-      COALESCE(items.difference_total, 0)::int AS difference_total
+      ux.name AS cancelled_by_name
     FROM inventory_count_sessions s
     LEFT JOIN branches b ON b.id = s.branch_id
     LEFT JOIN warehouses w ON w.id = s.warehouse_id
@@ -236,14 +234,6 @@ const fetchSessionRow = async (clientOrPool, { tenantId, sessionId, lock = false
     LEFT JOIN users uo ON uo.id = s.opened_by
     LEFT JOIN users uu ON uu.id = s.completed_by
     LEFT JOIN users ux ON ux.id = s.cancelled_by
-    LEFT JOIN (
-      SELECT
-        inventory_count_session_id,
-        COUNT(*)::int AS item_count,
-        COALESCE(SUM(ABS(difference_quantity)), 0)::int AS difference_total
-      FROM inventory_count_items
-      GROUP BY inventory_count_session_id
-    ) items ON items.inventory_count_session_id = s.id
     WHERE s.id = $1
       ${tenantClause}
     ${lock ? "FOR UPDATE" : ""}
@@ -251,7 +241,25 @@ const fetchSessionRow = async (clientOrPool, { tenantId, sessionId, lock = false
     `,
     params
   );
-  return result.rows[0] ? applyRowAliases(result.rows[0]) : null;
+  const row = result.rows[0];
+  if (!row) return null;
+
+  const totalsResult = await dbClient.query(
+    `
+    SELECT
+      COUNT(*)::int AS item_count,
+      COALESCE(SUM(ABS(difference_quantity)), 0)::int AS difference_total
+    FROM inventory_count_items
+    WHERE inventory_count_session_id = $1
+    `,
+    [sessionId]
+  );
+
+  return applyRowAliases({
+    ...row,
+    item_count: totalsResult.rows[0]?.item_count || 0,
+    difference_total: totalsResult.rows[0]?.difference_total || 0,
+  });
 };
 
 const fetchSessionItems = async (clientOrPool, { tenantId, sessionId, lock = false }) => {
@@ -914,4 +922,3 @@ export const getInventoryCountSession = async (clientOrPool, { tenantId = null, 
   const items = await fetchSessionItems(clientOrPool, { tenantId, sessionId, lock: false });
   return { session, items };
 };
-
