@@ -359,6 +359,10 @@ const fetchSessionRow = async (clientOrPool, { tenantId, sessionId, lock = false
     params.push(tenantId);
     tenantClause = `AND (s.tenant_id = $2::bigint OR s.tenant_id IS NULL)`;
   }
+  const readOnlyResult = await dbClient.query(`SELECT current_setting('transaction_read_only') AS transaction_read_only`);
+  console.log("[inventory-count:create:tx]", JSON.stringify({
+    transaction_read_only: readOnlyResult.rows[0]?.transaction_read_only ?? null,
+  }));
   const result = await dbClient.query(
     `
     SELECT
@@ -589,8 +593,11 @@ export const listInventoryCountSessions = async (clientOrPool, { tenantId = null
 };
 
 export const createInventoryCountSession = async (clientOrPool, data = {}) => {
-  await ensureInventoryCountSchema();
-  const dbClient = queryable(clientOrPool);
+  return withTransaction(clientOrPool, async (dbClient) => {
+  const readOnlyResult = await dbClient.query(`SELECT current_setting('transaction_read_only') AS transaction_read_only`);
+  console.log("[inventory-count:create:tx]", JSON.stringify({
+    transaction_read_only: readOnlyResult.rows[0]?.transaction_read_only ?? null,
+  }));
   const result = await dbClient.query(
     `
     INSERT INTO inventory_count_sessions (
@@ -618,6 +625,7 @@ export const createInventoryCountSession = async (clientOrPool, data = {}) => {
     ]
   );
   return applyRowAliases(result.rows[0]);
+  });
 };
 
 export const updateInventoryCountSession = async (clientOrPool, data = {}) => {
