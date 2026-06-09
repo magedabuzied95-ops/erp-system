@@ -565,7 +565,14 @@ const buildBaseCard = (product = {}, overrides = {}) => {
         numericPrice(product?.final_price) ||
         numericPrice(product?.price) ||
         numericPrice(product?.sale_price)
-      : null);
+      : numericPrice(product?.final_price) ||
+        numericPrice(product?.sale_price) ||
+        numericPrice(product?.price) ||
+        numericPrice(product?.product_price) ||
+        numericPrice(selectedVariant?.final_price) ||
+        numericPrice(selectedVariant?.sale_price) ||
+        numericPrice(selectedVariant?.price) ||
+        numericPrice(selectedVariant?.selling_price));
   const priceSource =
     overrides.price ? "override.price" :
     numericPrice(selectedVariant?.display_price) ? "selected_variant.display_price" :

@@ -42,8 +42,47 @@ const productPrice = (product = {}) =>
         selected_display_price: resolved.display_price,
       });
     }
-    return formattedResolved || money(resolved.display_price);
+    return formattedResolved || money(raw) || money(resolved.display_price);
   })();
+
+const cardPriceValue = (product = {}) => {
+  for (const candidate of [
+    product.final_price,
+    product.sale_price,
+    product.price,
+    product.product_price,
+    product.regular_price,
+    product.display_price,
+    product.selected_variant?.final_price,
+    product.selected_variant?.sale_price,
+    product.selected_variant?.price,
+    product.selected_variant?.selling_price,
+    product.variant?.final_price,
+    product.variant?.sale_price,
+    product.variant?.price,
+    product.variant?.selling_price,
+  ]) {
+    const parsed = Number(candidate);
+    if (Number.isFinite(parsed) && parsed > 0) return Math.round(parsed);
+  }
+  return 0;
+};
+
+const cardImageUrl = (product = {}) =>
+  text(
+    product.image_url ||
+    product.image ||
+    product.main_image ||
+    product.variant_image ||
+    product.color_image ||
+    product.cloudinary_url ||
+    product.secure_url ||
+    product.selected_variant?.image_url ||
+    product.selected_variant?.secure_url ||
+    product.variant?.image_url ||
+    product.variant?.secure_url ||
+    ""
+  );
 
 const productName = (product = {}) => text(product.name || product.title || product.product_name);
 
@@ -292,6 +331,7 @@ const hasProducts = (response = {}) =>
 const selectedProducts = (response = {}) => {
   const seen = new Set();
   return [
+    ...asArray(response.regression_source_product_cards),
     ...asArray(response.suggested_products),
     ...asArray(response.product_cards),
     ...asArray(response.channel_reply?.product_cards),
@@ -301,6 +341,20 @@ const selectedProducts = (response = {}) => {
     seen.add(key);
     return true;
   });
+};
+
+const selectRegressionFocusCard = (response = {}, mode = "price") => {
+  const cards = selectedProducts(response);
+  if (!cards.length) return {};
+  const withPrice = cards.filter((card) => cardPriceValue(card) > 0);
+  const withStock = cards.filter((card) => stockCount(card) > 0);
+  const withImages = cards.filter((card) => Boolean(cardImageUrl(card)));
+  const zeroStock = cards.filter((card) => stockCount(card) === 0);
+  if (mode === "price") return withPrice[0] || withStock[0] || withImages[0] || cards[0] || {};
+  if (mode === "availability") return withStock[0] || withPrice[0] || withImages[0] || cards[0] || {};
+  if (mode === "unavailable") return zeroStock[0] || cards[0] || {};
+  if (mode === "images") return withImages[0] || withPrice[0] || withStock[0] || cards[0] || {};
+  return withPrice[0] || withStock[0] || withImages[0] || cards[0] || {};
 };
 
 const selectedImageCards = (response = {}) => {
@@ -480,6 +534,10 @@ const asksColor = (message = "") => {
   const normalized = normalizeArabic(message).replace(/[؟?]/g, "").trim();
   return /(الوان|الألوان|لونه|لون|colors?|colour)/i.test(message) ||
     /(الوانه ايه|الوانها ايه|فيه الوان|في الوان|ايه الالوان|ايه الوانه|ايه الوانها|available colors|colors?)/i.test(normalized);
+};
+const asksImages = (message = "") => {
+  const normalized = normalizeArabic(message);
+  return /(صوره|صور|صورة|image|images|photo|photos|picture|pictures|ابعث الصور|ابعت الصور|شوف الصور|show images)/i.test(normalized);
 };
 const asksSize = (message = "") => Boolean(explicitMessageSize(message) || /(مقاس|مقاسات|size)/i.test(message));
 const asksAvailability = (message = "") => /(فيه|موجود|متاح|available|stock|عندكم)/i.test(message);
@@ -781,13 +839,30 @@ export const composeAiSalesReply = async ({
       output = withAnswer(stripProductPayload(response), "تمام يا باشا، تقصد موديل معين ولا مقاس معين؟");
     }
   } else if ((source === "ai_regression_test_endpoint" || response?.is_regression_test || context?.is_regression_test) && products.length) {
-    const regressionName = productName(top) || "الموديل";
-    const regressionSize = size || state.rememberedSize || sizes[0] || "";
-    const regressionColor = detectColorFromMessage(message) || state.rememberedColor || colors[0] || "";
-    const regressionStock = stock;
+    const regressionPriceCard = selectRegressionFocusCard(response, "price");
+    const regressionAvailabilityCard = selectRegressionFocusCard(response, "availability");
+    const regressionUnavailableCard = selectRegressionFocusCard(response, "unavailable");
+    const regressionImageCard = selectRegressionFocusCard(response, "images");
+    const regressionName = productName(regressionPriceCard) || productName(regressionAvailabilityCard) || productName(top) || "الموديل";
+    const regressionSize = size || state.rememberedSize || productSizes(regressionPriceCard)[0] || sizes[0] || "";
+    const regressionColor = detectColorFromMessage(message) || state.rememberedColor || productColors(regressionPriceCard)[0] || colors[0] || "";
+    const regressionPrice = productPrice(regressionPriceCard);
+    const regressionStock = stockCount(regressionAvailabilityCard) || stockCount(regressionUnavailableCard) || stockCount(regressionPriceCard) || stock;
     const regressionIsUnavailable = regressionStock === 0;
+    const regressionImageUrls = [
+      cardImageUrl(regressionImageCard),
+      ...selectedImageCards(response).map((card) => text(card?.url || card?.image_url || card?.selected_card_image_url || card?.image || "")),
+    ].filter(Boolean);
     decision = regressionIsUnavailable ? "regression_unavailable" : "regression_product_detail";
-    if (asksColor(message) || regressionColor || state.lastBotAskedForColor) {
+    if (asksPrice(message, response, intent)) {
+      output = withAnswer(response, regressionPrice
+        ? `سعره ${regressionPrice} جنيه يا فندم، والمقاسات المتاحة منه ${productSizes(regressionPriceCard).length ? productSizes(regressionPriceCard).join("، ") : sizes.length ? sizes.join("، ") : "هأكدها لك"}. تحب أحجزهولك؟`
+        : "السعر محتاج يتأكد من السيستم يا فندم. تحب أراجعلك السعر الحالي؟");
+    } else if (asksImages(message) || regressionImageUrls.length > 0) {
+      output = withAnswer(response, regressionImageUrls.length
+        ? `أيوه، فيه صور مرفقة تحت. وفيه ${regressionImageUrls.length} صورة متاحة تقدر تشوفهم الآن.`
+        : "أيوه، أقدر أبعتلك الصور أو أطلعلك صور إضافية لو تحب.");
+    } else if (asksColor(message) || regressionColor || state.lastBotAskedForColor) {
       output = withAnswer(response, regressionIsUnavailable
         ? [
             regressionSize ? `مقاس ${regressionSize} مش متوفر حاليًا.` : `${regressionName} مش متاح حاليًا.`,
@@ -811,12 +886,13 @@ export const composeAiSalesReply = async ({
           ].filter(Boolean).join(" ")
         : [
             `أيوه متاح حاليًا${regressionSize ? `، ومقاس ${regressionSize} موجود` : ""}.`,
+            regressionPrice ? `سعره ${regressionPrice} جنيه.` : "",
             colors.length ? `الألوان المتاحة: ${colors.join("، ")}.` : "",
           ].filter(Boolean).join(" "));
     } else {
       output = withAnswer(response, regressionIsUnavailable
         ? `${regressionName} مش متاح حاليًا.`
-        : `أيوه متاح حاليًا${regressionSize ? `، ومقاس ${regressionSize} موجود` : ""}.`);
+        : `أيوه متاح حاليًا${regressionSize ? `، ومقاس ${regressionSize} موجود` : ""}.${regressionPrice ? ` سعره ${regressionPrice} جنيه.` : ""}`);
     }
   } else if (!isExplicitProductFollowup(message, response, intent) && ["general", "conversational", ""].includes(detectedIntent)) {
     decision = "block_general_product_cards";

@@ -264,6 +264,20 @@ const buildRegressionAnalysis = ({
   };
 };
 
+const selectRegressionDiagnosticCard = (cards = [], failures = []) => {
+  const cardList = asArray(cards);
+  if (!cardList.length) return {};
+  const priceCard = cardList.find((card) => Number.isFinite(primaryPrice(card)) && primaryPrice(card) > 0);
+  const availableCard = cardList.find((card) => Number.isFinite(primaryStock(card)) && primaryStock(card) > 0);
+  const unavailableCard = cardList.find((card) => Number.isFinite(primaryStock(card)) && primaryStock(card) === 0);
+  const imageCard = cardList.find((card) => primaryImage(card));
+  const failureSet = new Set(asArray(failures));
+  if (failureSet.has("stock-unavailable") || failureSet.has("availability")) return unavailableCard || availableCard || priceCard || imageCard || cardList[0] || {};
+  if (failureSet.has("price") || failureSet.has("stale-price-guard") || failureSet.has("missing-price-guard")) return priceCard || availableCard || imageCard || cardList[0] || {};
+  if (failureSet.has("images")) return imageCard || priceCard || availableCard || cardList[0] || {};
+  return priceCard || availableCard || imageCard || unavailableCard || cardList[0] || {};
+};
+
 const detectRegressionFailureTypes = ({ message = "", reply = "", analysis = {}, composedResponse = {}, responseForComposer = {}, brainDecision = {}, normalizedProductCards = [] } = {}) => {
   const failures = [];
   const normalizedMessage = normalizeArabic(message);
@@ -271,6 +285,7 @@ const detectRegressionFailureTypes = ({ message = "", reply = "", analysis = {},
   const currentStock = Number(analysis?.current_stock ?? 0);
   const currentSizes = asArray(analysis?.current_sizes);
   const currentColors = asArray(analysis?.current_colors);
+  const currentImages = asArray(analysis?.current_image_urls);
   const memorySize = toText(analysis?.memory_before?.remembered_size || responseForComposer?.memory_updates?.selected_size || responseForComposer?.memory_updates?.active_size || "");
   const memoryColor = toText(analysis?.memory_before?.remembered_color || responseForComposer?.memory_updates?.selected_color || responseForComposer?.memory_updates?.active_color || "");
   const requestedSize = extractExplicitSize(message);
@@ -299,6 +314,11 @@ const detectRegressionFailureTypes = ({ message = "", reply = "", analysis = {},
       brainDecision_intent: toText(brainDecision?.intent || brainDecision?.detected_intent || ""),
       responseForComposer_product_cards: asArray(responseForComposer?.product_cards),
       normalized_product_cards: asArray(normalizedProductCards),
+      top_card: selectRegressionDiagnosticCard(normalizedProductCards, failures),
+      extracted_price: primaryPrice(selectRegressionDiagnosticCard(normalizedProductCards, failures)) || null,
+      extracted_stock: primaryStock(selectRegressionDiagnosticCard(normalizedProductCards, failures)) ?? null,
+      image_urls: [primaryImage(selectRegressionDiagnosticCard(normalizedProductCards, failures))].filter(Boolean),
+      selected_card_source: asArray(responseForComposer?.regression_source_product_cards).length ? "regression_source_product_cards" : "product_cards",
     });
   }
 
