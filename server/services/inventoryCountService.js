@@ -43,6 +43,25 @@ const ensureIndex = async (client, indexSql) => {
   await client.query(indexSql);
 };
 
+const withTransaction = async (clientOrPool, handler) => {
+  if (isTransactionClient(clientOrPool)) {
+    return handler(clientOrPool);
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await handler(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 const ensureInventoryCountItemsCompatibility = async (client) => {
   await client.query(`
     CREATE TABLE IF NOT EXISTS inventory_count_sessions (
@@ -210,7 +229,30 @@ const getTenantClause = (alias = "s", tenantId = null, params = []) => {
 };
 
 const fetchSessionRow = async (clientOrPool, { tenantId, sessionId, lock = false }) => {
-  const dbClient = queryable(clientOrPool);
+  return withTransaction(clientOrPool, async (dbClient) => {
+  if (lock) {
+    const lockParams = [sessionId];
+    let tenantClause = "";
+    if (tenantId !== null && tenantId !== undefined) {
+      lockParams.push(tenantId);
+      tenantClause = `AND (tenant_id = $2::bigint OR tenant_id IS NULL)`;
+    }
+
+    const lockResult = await dbClient.query(
+      `
+      SELECT *
+      FROM inventory_count_sessions
+      WHERE id = $1
+        ${tenantClause}
+      FOR UPDATE
+      LIMIT 1
+      `,
+      lockParams
+    );
+    const lockedRow = lockResult.rows[0];
+    if (!lockedRow) return null;
+  }
+
   const params = [sessionId];
   let tenantClause = "";
   if (tenantId !== null && tenantId !== undefined) {
@@ -236,7 +278,6 @@ const fetchSessionRow = async (clientOrPool, { tenantId, sessionId, lock = false
     LEFT JOIN users ux ON ux.id = s.cancelled_by
     WHERE s.id = $1
       ${tenantClause}
-    ${lock ? "FOR UPDATE" : ""}
     LIMIT 1
     `,
     params
@@ -263,7 +304,28 @@ const fetchSessionRow = async (clientOrPool, { tenantId, sessionId, lock = false
 };
 
 const fetchSessionItems = async (clientOrPool, { tenantId, sessionId, lock = false }) => {
-  const dbClient = queryable(clientOrPool);
+  return withTransaction(clientOrPool, async (dbClient) => {
+  if (lock) {
+    const lockParams = [sessionId];
+    let tenantClause = "";
+    if (tenantId !== null && tenantId !== undefined) {
+      lockParams.push(tenantId);
+      tenantClause = "AND (tenant_id = $2::bigint OR tenant_id IS NULL)";
+    }
+
+    await dbClient.query(
+      `
+      SELECT id
+      FROM inventory_count_items
+      WHERE inventory_count_session_id = $1
+      ${tenantClause}
+      ORDER BY created_at ASC, id ASC
+      FOR UPDATE
+      `,
+      lockParams
+    );
+  }
+
   const params = [sessionId];
   let tenantClause = "";
   if (tenantId !== null && tenantId !== undefined) {
@@ -288,7 +350,6 @@ const fetchSessionItems = async (clientOrPool, { tenantId, sessionId, lock = fal
     WHERE i.inventory_count_session_id = $1
       ${tenantClause}
     ORDER BY i.created_at ASC, i.id ASC
-    ${lock ? "FOR UPDATE" : ""}
     `,
     params
   );
@@ -296,7 +357,7 @@ const fetchSessionItems = async (clientOrPool, { tenantId, sessionId, lock = fal
 };
 
 const fetchVariantForSession = async (clientOrPool, { tenantId, productVariantId }) => {
-  const dbClient = queryable(clientOrPool);
+  return withTransaction(clientOrPool, async (dbClient) => {
   const result = await dbClient.query(
     `
     SELECT
@@ -437,11 +498,12 @@ export const createInventoryCountSession = async (clientOrPool, data = {}) => {
     ]
   );
   return applyRowAliases(result.rows[0]);
+  });
 };
 
 export const updateInventoryCountSession = async (clientOrPool, data = {}) => {
   await ensureInventoryCountSchema();
-  const dbClient = queryable(clientOrPool);
+  return withTransaction(clientOrPool, async (dbClient) => {
   const tenantId = data.tenantId ?? data.tenant_id ?? null;
   const sessionId = data.sessionId ?? data.session_id;
   const session = await fetchSessionRow(dbClient, { tenantId, sessionId, lock: true });
@@ -479,11 +541,12 @@ export const updateInventoryCountSession = async (clientOrPool, data = {}) => {
   );
 
   return applyRowAliases(result.rows[0]);
+  });
 };
 
 export const openInventoryCountSession = async (clientOrPool, data = {}) => {
   await ensureInventoryCountSchema();
-  const dbClient = queryable(clientOrPool);
+  return withTransaction(clientOrPool, async (dbClient) => {
   const tenantId = data.tenantId ?? data.tenant_id ?? null;
   const sessionId = data.sessionId ?? data.session_id;
   const session = await fetchSessionRow(dbClient, { tenantId, sessionId, lock: true });
@@ -512,6 +575,7 @@ export const openInventoryCountSession = async (clientOrPool, data = {}) => {
     [sessionId, data.openedBy ?? data.opened_by ?? null]
   );
   return applyRowAliases(result.rows[0]);
+  });
 };
 
 export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
@@ -570,7 +634,7 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
 
 export const upsertInventoryCountItem = async (clientOrPool, data = {}) => {
   await ensureInventoryCountSchema();
-  const dbClient = queryable(clientOrPool);
+  return withTransaction(clientOrPool, async (dbClient) => {
   const tenantId = data.tenantId ?? data.tenant_id ?? null;
   const sessionId = data.sessionId ?? data.session_id;
   const session = await fetchSessionRow(dbClient, { tenantId, sessionId, lock: true });
@@ -741,11 +805,12 @@ export const upsertInventoryCountItem = async (clientOrPool, data = {}) => {
       notes,
     }),
   };
+  });
 };
 
 export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
   await ensureInventoryCountSchema();
-  const dbClient = queryable(clientOrPool);
+  return withTransaction(clientOrPool, async (dbClient) => {
   const tenantId = data.tenantId ?? data.tenant_id ?? null;
   const sessionId = data.sessionId ?? data.session_id;
   const session = await fetchSessionRow(dbClient, { tenantId, sessionId, lock: true });
@@ -855,11 +920,12 @@ export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
   );
 
   return { session: completedSession, adjustments };
+  });
 };
 
 export const cancelInventoryCountSession = async (clientOrPool, data = {}) => {
   await ensureInventoryCountSchema();
-  const dbClient = queryable(clientOrPool);
+  return withTransaction(clientOrPool, async (dbClient) => {
   const tenantId = data.tenantId ?? data.tenant_id ?? null;
   const sessionId = data.sessionId ?? data.session_id;
   const session = await fetchSessionRow(dbClient, { tenantId, sessionId, lock: true });
@@ -913,6 +979,7 @@ export const cancelInventoryCountSession = async (clientOrPool, data = {}) => {
   );
 
   return { session: cancelledSession };
+  });
 };
 
 export const getInventoryCountSession = async (clientOrPool, { tenantId = null, sessionId } = {}) => {
