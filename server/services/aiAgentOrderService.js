@@ -938,7 +938,7 @@ export const confirmAiOrder = async (payload = {}) => {
         variantId: item.variant_id,
         productId: item.product_id,
         quantityChange: numeric(item.quantity, 0) * -1,
-        movementType: "sale",
+        movementType: "SALE_OUT",
         referenceType: "order",
         referenceId: order.id,
         reason: "AI agent order confirmed",

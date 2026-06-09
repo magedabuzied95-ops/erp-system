@@ -11,6 +11,7 @@ import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { adjustVariantStock } from "../services/inventoryService.js";
+import { recordInventoryMovement } from "../services/inventoryMovementService.js";
 import { createJournalEntry, ensureAccountingSchema, postInventoryAdjustment, postMoneyTransaction, postPurchaseEntry, recordFinancialAccountActivity, reverseMoneyTransactionsForReference } from "../services/accountingService.js";
 import { ensureSmartReorderSchema, getSmartReorderSuggestions } from "../services/smartReorderService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
@@ -1197,19 +1198,6 @@ const batchApplyVariantPurchaseStock = async (client, { tenantId, warehouseId, p
     .filter((item) => item.variant_id > 0 && item.quantity > 0);
   if (!variantItems.length) return { movementCount: 0, stockRows: [] };
   const variantIds = [...new Set(variantItems.map((item) => item.variant_id))];
-  console.time("[purchase:create] variant lookup/create/update stock lock");
-  const locked = await client.query(
-    `
-    SELECT id, product_id, stock
-    FROM product_variants
-    WHERE id = ANY($1::bigint[])
-      AND ($2::bigint IS NULL OR tenant_id = $2 OR tenant_id IS NULL)
-    FOR UPDATE
-    `,
-    [variantIds, tenantId]
-  );
-  console.timeEnd("[purchase:create] variant lookup/create/update stock lock");
-  const stockById = new Map(locked.rows.map((row) => [Number(row.id), row]));
   const deltaByVariant = new Map();
   for (const item of variantItems) {
     const current = deltaByVariant.get(item.variant_id) || { quantity: 0, items: [], product_id: item.product_id || null, unit_cost: item.unit_cost };
@@ -1219,58 +1207,26 @@ const batchApplyVariantPurchaseStock = async (client, { tenantId, warehouseId, p
     current.unit_cost = item.unit_cost || current.unit_cost;
     deltaByVariant.set(item.variant_id, current);
   }
-  const updateValues = [];
-  const updateTuples = [];
   const movementRows = [];
   for (const [variantId, delta] of deltaByVariant.entries()) {
-    const stockRow = stockById.get(variantId);
-    if (!stockRow) {
-      const error = new Error(`Variant not found: ${variantId}`);
-      error.status = 409;
-      throw error;
-    }
-    const before = Number(stockRow.stock || 0);
     const quantity = Number(delta.quantity || 0);
-    const after = before + quantity;
-    updateValues.push(variantId, quantity);
-    updateTuples.push(`($${updateValues.length - 1}::bigint, $${updateValues.length}::numeric)`);
-    movementRows.push({
-      tenant_id: tenantId,
-      product_id: stockRow.product_id || delta.product_id || null,
-      variant_id: variantId,
-      warehouse_id: warehouseId,
-      movement_type: "purchase",
-      quantity,
-      before_qty: before,
-      after_qty: after,
-      quantity_before: before,
-      quantity_change: quantity,
-      quantity_after: after,
-      unit_cost: delta.unit_cost || null,
-      total_cost: delta.items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_cost || 0), 0),
-      reference_type: "purchase",
-      reference_id: purchaseId,
+    const movement = await adjustVariantStock(client, {
+      tenantId,
+      variantId,
+      productId: delta.product_id || null,
+      quantityChange: quantity,
+      movementType: "PURCHASE_IN",
+      referenceType: "purchase",
+      referenceId: purchaseId,
+      unitCost: delta.unit_cost || null,
+      totalCost: delta.items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_cost || 0), 0),
       reason: "Purchase receiving",
       notes: `Purchase received variant ${variantId}`,
-      note: `Purchase received variant ${variantId}`,
-      created_by: userId || null,
+      createdBy: userId || null,
+      warehouseId,
     });
+    movementRows.push(movement?.movement || movement);
   }
-  updateValues.push(tenantId);
-  console.time("[purchase:create] stock update variants batch");
-  await client.query(
-    `
-    WITH incoming(id, quantity) AS (VALUES ${updateTuples.join(", ")})
-    UPDATE product_variants pv
-    SET stock = COALESCE(pv.stock, 0) + incoming.quantity,
-        updated_at = CURRENT_TIMESTAMP
-    FROM incoming
-    WHERE pv.id = incoming.id
-      AND ($${updateValues.length}::bigint IS NULL OR pv.tenant_id = $${updateValues.length} OR pv.tenant_id IS NULL)
-    `,
-    updateValues
-  );
-  console.timeEnd("[purchase:create] stock update variants batch");
   console.time("[purchase:create] warehouse_inventory updates");
   await bulkAdjustWarehouseVariantStock(client, {
     tenantId,
@@ -1278,9 +1234,6 @@ const batchApplyVariantPurchaseStock = async (client, { tenantId, warehouseId, p
     adjustments: [...deltaByVariant.entries()].map(([variantId, delta]) => ({ variantId, quantity: Number(delta.quantity || 0) })),
   });
   console.timeEnd("[purchase:create] warehouse_inventory updates");
-  console.time("[purchase:create] inventory movement insert");
-  await bulkInsertInventoryMovements(client, movementRows);
-  console.timeEnd("[purchase:create] inventory movement insert");
   return { movementCount: movementRows.length, stockRows: movementRows };
 };
 
@@ -1904,6 +1857,18 @@ const updateProductFallbackStock = async (client, { tenantId, productId, quantit
     const tenantParam = push(tenantId);
     where.push(`(${tenantParam}::bigint IS NULL OR tenant_id = ${tenantParam}::bigint OR tenant_id IS NULL)`);
   }
+  const stockBeforeResult = stockColumn
+    ? await client.query(
+        `
+        SELECT ${stockColumn} AS stock
+        FROM products p
+        WHERE ${where.join(" AND ")}
+        FOR UPDATE
+        `,
+        values
+      )
+    : null;
+  const stockBefore = Number(stockBeforeResult?.rows[0]?.stock || 0);
   console.log("[purchase:create] product fallback update columns:", sets);
   const result = await client.query(
     `
@@ -1913,6 +1878,21 @@ const updateProductFallbackStock = async (client, { tenantId, productId, quantit
     `,
     values
   );
+  if (stockColumn && Number(quantity || 0) !== 0) {
+    await recordInventoryMovement(client, {
+      tenantId,
+      productId: numericProductId,
+      quantityBefore: stockBefore,
+      quantityChange: Number(quantity || 0),
+      quantityAfter: stockBefore + Number(quantity || 0),
+      movementType: "PURCHASE_IN",
+      referenceType: "purchase",
+      referenceId: invoiceId,
+      reason: "Purchase receiving",
+      notes: `Purchase received product ${numericProductId}`,
+      createdBy: null,
+    });
+  }
   logPurchaseSalePriceSync({
     invoice_id: invoiceId,
     product_id: numericProductId,
@@ -3446,7 +3426,7 @@ const applyReceivedPurchaseLineDeltas = async (client, { tenantId, purchase, nex
         product_id: row.product_id || delta.item.product_id || null,
         variant_id: variantId,
         warehouse_id: warehouseId,
-        movement_type: change > 0 ? "purchase_edit_stock_in" : "purchase_edit_stock_out",
+        movement_type: change > 0 ? "PURCHASE_EDIT_STOCK_IN" : "PURCHASE_EDIT_STOCK_OUT",
         quantity: change,
         before_qty: before,
         after_qty: before + change,
@@ -3607,7 +3587,7 @@ const reverseReceivedPurchase = async (client, { tenantId, purchase, userId, rea
         product_id: row.product_id || reversal.item?.product_id || null,
         variant_id: variantId,
         warehouse_id: warehouseId,
-        movement_type: "purchase_reverse_stock_out",
+        movement_type: "PURCHASE_REVERSE_STOCK_OUT",
         quantity: -quantity,
         before_qty: before,
         after_qty: before - quantity,
@@ -3686,7 +3666,7 @@ const reverseReceivedPurchase = async (client, { tenantId, purchase, userId, rea
         product_id: productId,
         variant_id: null,
         warehouse_id: warehouseId,
-        movement_type: "purchase_reverse_stock_out",
+        movement_type: "PURCHASE_REVERSE_STOCK_OUT",
         quantity: -quantity,
         before_qty: before,
         after_qty: before - quantity,
@@ -4287,7 +4267,7 @@ router.post(
             tenantId,
             variantId: item.variant_id,
             quantityChange: quantity,
-            movementType: "purchase",
+            movementType: "PURCHASE_IN",
             referenceType: "purchase",
             referenceId: purchase.id,
             warehouseId,
@@ -4498,7 +4478,7 @@ router.post(
             tenantId,
             variantId: item.variant_id,
             quantityChange: quantity,
-            movementType: "purchase_adjustment",
+            movementType: "PURCHASE_IN",
             referenceType: "purchase_adjustment",
             referenceId: purchase.id,
             warehouseId,

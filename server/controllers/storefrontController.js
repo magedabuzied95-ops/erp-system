@@ -3511,7 +3511,7 @@ export const createWebsiteOrder = async (req, res) => {
         tenantId: checkoutColumns.variants.has("tenant_id") ? tenantId : null,
         variantId: item.variant_id,
         quantityChange: item.quantity * -1,
-        movementType: "website_order",
+        movementType: "SALE_OUT",
         referenceType: "order",
         referenceId: order.id,
         reason: "Website order",

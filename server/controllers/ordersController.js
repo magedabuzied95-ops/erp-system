@@ -1666,7 +1666,7 @@ const adjustProductStock = async (client, data = {}) => {
     variantId: null,
     branchId: data.branchId ?? null,
     warehouseId: data.warehouseId ?? null,
-    movementType: data.movementType ?? "sale",
+    movementType: data.movementType ?? "SALE_OUT",
     quantityBefore,
     quantityChange,
     quantityAfter,
@@ -5157,7 +5157,7 @@ export const editOrder = async (req, res) => {
         order: loaded.order,
         stockLine,
         delta: quantity,
-        movementType: "order_edit_restore",
+        movementType: "ORDER_EDIT_RESTORE",
         reason: "POS invoice edit restore old quantity",
         userId: req.user?.id || null,
       });
@@ -5172,7 +5172,7 @@ export const editOrder = async (req, res) => {
         order: loaded.order,
         stockLine,
         delta: quantity * -1,
-        movementType: "order_edit_deduct",
+        movementType: "ORDER_EDIT_DEDUCT",
         reason: "POS invoice edit deduct new quantity",
         userId: req.user?.id || null,
       });
@@ -5796,7 +5796,7 @@ export const cancelOrder = async (req, res) => {
       tenantId,
       order: loaded.order,
       items: loaded.items,
-      movementType: "order_cancel",
+      movementType: "ORDER_CANCEL_RESTORE",
       reason: "POS invoice cancel",
       userId: req.user?.id || null,
     });
@@ -5907,7 +5907,7 @@ export const deleteOrder = async (req, res) => {
           tenantId,
           order: loaded.order,
           items: loaded.items,
-          movementType: "order_cancel",
+          movementType: "ORDER_CANCEL_RESTORE",
           reason: "Order cancelled from dashboard",
           userId: req.user?.id || null,
         });
@@ -6086,7 +6086,7 @@ export const permanentDeleteOrder = async (req, res) => {
           tenantId,
           order: loaded.order,
           items: netItems,
-          movementType: "order_hard_delete_restore",
+          movementType: "ORDER_CANCEL_RESTORE",
           reason: "Permanent invoice delete stock restore",
           userId: req.user?.id || null,
         });
@@ -6318,7 +6318,7 @@ export const returnOrder = async (req, res) => {
         order: loaded.order,
         stockLine,
         delta: quantity,
-        movementType: "return",
+        movementType: "RETURN_IN",
         reason: "POS invoice return",
         userId: req.user?.id || null,
       });
@@ -6736,7 +6736,7 @@ export const createReturn = async (req, res) => {
             tenantId,
             variantId,
             quantityChange: quantity,
-            movementType: "return_in",
+            movementType: "RETURN_IN",
             referenceType: "return",
             referenceId: returnRow.id,
             unitCost: variant.cost_price || null,

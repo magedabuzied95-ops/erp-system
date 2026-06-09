@@ -263,15 +263,6 @@ export const completeInventoryCount = async (client, { tenantId, branchId, wareh
     if (differenceQty !== 0) {
       await client.query(
         `
-        UPDATE product_variants
-        SET stock = $1, updated_at = NOW()
-        WHERE id = $2
-        `,
-        [actualQty, variant.id]
-      );
-
-      await client.query(
-        `
         INSERT INTO warehouse_inventory (tenant_id, branch_id, warehouse_id, section_id, variant_id, stock)
         VALUES ($1,$2,$3,$4,$5,$6)
         ON CONFLICT (tenant_id, warehouse_id, variant_id)
@@ -287,10 +278,8 @@ export const completeInventoryCount = async (client, { tenantId, branchId, wareh
         branchId,
         warehouseId,
         sectionId,
-        movementType: "inventory_count",
-        quantityBefore: expectedQty,
-        quantityChange: differenceQty,
-        quantityAfter: actualQty,
+        movementType: "COUNT_ADJUSTMENT",
+        quantityDelta: differenceQty,
         referenceType: "inventory_count",
         referenceId: count.id,
         reason: "Inventory count difference",

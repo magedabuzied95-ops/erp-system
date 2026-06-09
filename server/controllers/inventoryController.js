@@ -84,7 +84,7 @@ export const updateStock = async (req, res) => {
       tenantId,
       variantId,
       quantityAfter: Number(quantity || 0),
-      movementType: "manual_adjustment",
+      movementType: "ADJUSTMENT",
       referenceType: "manual_adjustment",
       referenceId: null,
       reason: reason || "Manual stock adjustment",
@@ -165,10 +165,14 @@ export const getInventoryMovementsLedger = async (req, res) => {
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     const productId = req.query.product_id || req.query.productId || null;
     const variantId = req.query.variant_id || req.query.variantId || null;
+    const branchId = req.query.branch_id || req.query.branchId || null;
+    const warehouseId = req.query.warehouse_id || req.query.warehouseId || null;
     const result = await getInventoryMovements(db, {
       tenantId,
       productId,
       variantId,
+      branchId,
+      warehouseId,
       movementType: req.query.movement_type || req.query.movementType || null,
       search: req.query.search || "",
       dateFrom: req.query.date_from || req.query.dateFrom || req.query.from || null,

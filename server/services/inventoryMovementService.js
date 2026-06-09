@@ -24,6 +24,89 @@ const tableColumns = async (clientOrPool, tableName) => {
   return new Set(result.rows.map((row) => row.column_name));
 };
 
+const normalizeMovementType = (value, fallback = "ADJUSTMENT") => {
+  const text = String(value ?? fallback).trim();
+  return text ? text.toUpperCase() : fallback;
+};
+
+const buildMovementPayload = (data = {}, { quantityBefore, quantityChange, quantityAfter }) => {
+  const reason = String(data.reason ?? "").trim();
+  const notes = String(data.notes ?? data.note ?? "").trim();
+
+  return {
+    tenant_id: data.tenantId ?? data.tenant_id ?? null,
+    product_id: data.productId ?? data.product_id ?? null,
+    variant_id: data.variantId ?? data.variant_id ?? null,
+    branch_id: data.branchId ?? data.branch_id ?? null,
+    warehouse_id: data.warehouseId ?? data.warehouse_id ?? null,
+    movement_type: normalizeMovementType(data.movementType ?? data.movement_type),
+    quantity: quantityChange,
+    before_qty: quantityBefore,
+    after_qty: quantityAfter,
+    quantity_before: quantityBefore,
+    quantity_delta: quantityChange,
+    quantity_change: quantityChange,
+    quantity_after: quantityAfter,
+    unit_cost: data.unitCost ?? data.unit_cost ?? null,
+    total_cost: data.totalCost ?? data.total_cost ?? null,
+    reference_type: data.referenceType ?? data.reference_type ?? null,
+    reference_id: data.referenceId ?? data.reference_id ?? null,
+    reason,
+    notes,
+    note: notes,
+    created_by: data.createdBy ?? data.created_by ?? null,
+  };
+};
+
+const maybeBackfillOpeningBalances = async (client) => {
+  const movementsCount = await client.query(`SELECT COUNT(*)::int AS count FROM inventory_movements`);
+  if (Number(movementsCount.rows[0]?.count || 0) > 0) return;
+
+  await client.query(
+    `
+    INSERT INTO inventory_movements (
+      tenant_id,
+      product_id,
+      variant_id,
+      warehouse_id,
+      branch_id,
+      movement_type,
+      quantity,
+      quantity_before,
+      quantity_delta,
+      quantity_change,
+      quantity_after,
+      reference_type,
+      reference_id,
+      reason,
+      notes,
+      created_by,
+      created_at
+    )
+    SELECT
+      v.tenant_id,
+      v.product_id,
+      v.id,
+      NULL::bigint,
+      NULL::bigint,
+      'OPENING_BALANCE',
+      COALESCE(v.stock, 0)::int,
+      0,
+      COALESCE(v.stock, 0)::int,
+      COALESCE(v.stock, 0)::int,
+      COALESCE(v.stock, 0)::int,
+      'opening_balance',
+      v.id,
+      'رصيد افتتاحي',
+      'Backfilled from existing product variant stock',
+      NULL,
+      NOW()
+    FROM product_variants v
+    WHERE COALESCE(v.stock, 0) > 0
+    `
+  );
+};
+
 const runSchema = async (client) => {
   await client.query(`
     CREATE TABLE IF NOT EXISTS inventory_movements (
@@ -36,11 +119,12 @@ const runSchema = async (client) => {
       section_id BIGINT NULL,
       movement_type VARCHAR(50) NOT NULL,
       quantity INTEGER NOT NULL DEFAULT 0,
-      before_qty INTEGER NOT NULL DEFAULT 0,
-      after_qty INTEGER NOT NULL DEFAULT 0,
       quantity_before INTEGER NOT NULL DEFAULT 0,
+      quantity_delta INTEGER NOT NULL DEFAULT 0,
       quantity_change INTEGER NOT NULL DEFAULT 0,
       quantity_after INTEGER NOT NULL DEFAULT 0,
+      before_qty INTEGER NOT NULL DEFAULT 0,
+      after_qty INTEGER NOT NULL DEFAULT 0,
       unit_cost NUMERIC(12,2) NULL,
       total_cost NUMERIC(12,2) NULL,
       reference_type VARCHAR(100),
@@ -64,11 +148,12 @@ const runSchema = async (client) => {
   await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS section_id BIGINT`);
   await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS movement_type VARCHAR(50)`);
   await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS quantity INTEGER NOT NULL DEFAULT 0`);
-  await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS before_qty INTEGER NOT NULL DEFAULT 0`);
-  await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS after_qty INTEGER NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS quantity_before INTEGER NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS quantity_delta INTEGER NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS quantity_change INTEGER NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS quantity_after INTEGER NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS before_qty INTEGER NOT NULL DEFAULT 0`);
+  await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS after_qty INTEGER NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS unit_cost NUMERIC(12,2)`);
   await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS total_cost NUMERIC(12,2)`);
   await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS reference_type VARCHAR(100)`);
@@ -128,6 +213,7 @@ const runSchema = async (client) => {
   await client.query(`CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_variant_created ON inventory_movements (tenant_id, variant_id, created_at DESC, id DESC)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_inventory_movements_tenant_type_created ON inventory_movements (tenant_id, movement_type, created_at DESC, id DESC)`);
   await ensureSingleBranchMode(client);
+  await maybeBackfillOpeningBalances(client);
 };
 
 export const ensureInventoryMovementSchema = async () => {
@@ -158,38 +244,95 @@ export const recordInventoryMovement = async (clientOrPool, data = {}) => {
 
   const dbClient = queryable(clientOrPool);
   const columns = await tableColumns(dbClient, "inventory_movements");
-  const quantityBefore = toNumber(data.quantityBefore ?? data.quantity_before, 0);
-  const quantityChange = toNumber(data.quantityChange ?? data.quantity_change, 0);
-  const quantityAfter = toNumber(data.quantityAfter ?? data.quantity_after, quantityBefore + quantityChange);
-  const reason = String(data.reason ?? "").trim();
-  const notes = String(data.notes ?? data.note ?? "").trim();
+  const quantityDelta = toNumber(data.quantityDelta ?? data.quantity_delta ?? data.quantityChange ?? data.quantity_change, 0);
+  const hasExplicitQuantities =
+    data.quantityBefore !== undefined ||
+    data.quantity_before !== undefined ||
+    data.quantityAfter !== undefined ||
+    data.quantity_after !== undefined;
 
-  const values = {
-    tenant_id: data.tenantId ?? data.tenant_id ?? null,
-    product_id: data.productId ?? data.product_id ?? null,
-    variant_id: data.variantId ?? data.variant_id ?? null,
-    branch_id: data.branchId ?? data.branch_id ?? null,
-    warehouse_id: data.warehouseId ?? data.warehouse_id ?? null,
-    section_id: data.sectionId ?? data.section_id ?? null,
-    movement_type: data.movementType ?? data.movement_type ?? "manual_adjustment",
-    quantity: quantityChange,
-    before_qty: quantityBefore,
-    after_qty: quantityAfter,
-    quantity_before: quantityBefore,
-    quantity_change: quantityChange,
-    quantity_after: quantityAfter,
-    unit_cost: data.unitCost ?? data.unit_cost ?? null,
-    total_cost: data.totalCost ?? data.total_cost ?? null,
-    reference_type: data.referenceType ?? data.reference_type ?? null,
-    reference_id: data.referenceId ?? data.reference_id ?? null,
-    reason,
-    notes,
-    note: notes,
-    created_by: data.createdBy ?? data.created_by ?? null,
-  };
-  if (columns.has("tenant_id") && !values.tenant_id) {
-    throw Object.assign(new Error("Tenant context missing"), { status: 400, code: "TENANT_CONTEXT_MISSING" });
+  let quantityBefore = toNumber(data.quantityBefore ?? data.quantity_before, 0);
+  let quantityAfter = toNumber(data.quantityAfter ?? data.quantity_after, quantityBefore + quantityDelta);
+  let movementVariant = null;
+  let movementProductId = data.productId ?? data.product_id ?? null;
+
+  if (data.variantId ?? data.variant_id) {
+    movementProductId = data.productId ?? data.product_id ?? movementProductId;
   }
+
+  if (!hasExplicitQuantities && (data.variantId ?? data.variant_id) !== undefined && (data.variantId ?? data.variant_id) !== null && Number.isFinite(quantityDelta)) {
+    const tenantId = data.tenantId ?? data.tenant_id ?? null;
+    const variantId = data.variantId ?? data.variant_id;
+    const variantColumns = await tableColumns(dbClient, "product_variants");
+    const tenantClause = variantColumns.has("tenant_id")
+      ? "AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)"
+      : "";
+    const activeClause = variantColumns.has("is_active") && variantColumns.has("deleted_at")
+      ? "AND is_active IS DISTINCT FROM FALSE AND deleted_at IS NULL"
+      : "";
+    const updateTimestamp = variantColumns.has("updated_at") ? ", updated_at = NOW()" : "";
+
+    const variantResult = await dbClient.query(
+      `
+      SELECT id, product_id, stock, ${variantColumns.has("cost_price") ? "cost_price" : "0 AS cost_price"}
+      FROM product_variants
+      WHERE id = $1
+        ${tenantClause}
+        ${activeClause}
+      FOR UPDATE
+      `,
+      [variantId, tenantId]
+    );
+
+    const variant = variantResult.rows[0];
+    if (!variant) {
+      const error = new Error("Variant not found");
+      error.status = 404;
+      throw error;
+    }
+
+    quantityBefore = toNumber(variant.stock, 0);
+    quantityAfter = quantityBefore + quantityDelta;
+    if (quantityAfter < 0) {
+      const error = new Error("Not enough stock");
+      error.status = 400;
+      throw error;
+    }
+
+    await dbClient.query(
+      `
+      UPDATE product_variants
+      SET stock = $1
+          ${updateTimestamp}
+      WHERE id = $2
+        ${tenantClause ? "AND ($3::bigint IS NULL OR tenant_id = $3::bigint OR tenant_id IS NULL)" : ""}
+      `,
+      tenantClause
+        ? [quantityAfter, variantId, tenantId]
+        : [quantityAfter, variantId]
+    );
+
+    movementVariant = {
+      ...variant,
+      stock: quantityAfter,
+    };
+    movementProductId = movementProductId ?? variant.product_id;
+  }
+
+  const values = buildMovementPayload(data, {
+    quantityBefore,
+    quantityChange: quantityDelta,
+    quantityAfter,
+  });
+
+  if (!values.tenant_id && !columns.has("tenant_id")) {
+    values.tenant_id = null;
+  }
+
+  if (movementProductId !== null && movementProductId !== undefined) {
+    values.product_id = movementProductId;
+  }
+
   const entries = Object.entries(values).filter(([column]) => columns.has(column));
   const columnSql = entries.map(([column]) => column).join(", ");
   const placeholders = entries.map((_, index) => `$${index + 1}`).join(", ");
@@ -209,7 +352,21 @@ export const recordInventoryMovement = async (clientOrPool, data = {}) => {
     throw error;
   }
 
-  return result.rows[0] || null;
+  const movement = result.rows[0] || null;
+  return movement
+    ? {
+        ...movement,
+        quantity_before: toNumber(movement.quantity_before ?? movement.before_qty, quantityBefore),
+        quantity_delta: toNumber(movement.quantity_delta ?? movement.quantity_change, quantityDelta),
+        quantity_change: toNumber(movement.quantity_change ?? movement.quantity_delta, quantityDelta),
+        quantity_after: toNumber(movement.quantity_after ?? movement.after_qty, quantityAfter),
+        quantityBefore: toNumber(movement.quantity_before ?? movement.before_qty, quantityBefore),
+        quantityChange: toNumber(movement.quantity_change ?? movement.quantity_delta, quantityDelta),
+        quantityAfter: toNumber(movement.quantity_after ?? movement.after_qty, quantityAfter),
+        variant: movementVariant,
+        productId: movementProductId,
+      }
+    : null;
 };
 
 export const getInventoryMovements = async (clientOrPool, data = {}) => {
@@ -219,6 +376,8 @@ export const getInventoryMovements = async (clientOrPool, data = {}) => {
   const tenantId = data.tenantId ?? data.tenant_id ?? null;
   const variantId = data.variantId ?? data.variant_id ?? null;
   const productId = data.productId ?? data.product_id ?? null;
+  const branchId = data.branchId ?? data.branch_id ?? null;
+  const warehouseId = data.warehouseId ?? data.warehouse_id ?? null;
   const movementType = String(data.movementType ?? data.movement_type ?? "").trim();
   const search = String(data.search ?? "").trim();
   const dateFrom = data.dateFrom ?? data.date_from ?? null;
@@ -239,20 +398,26 @@ export const getInventoryMovements = async (clientOrPool, data = {}) => {
   if (tenantId !== null && tenantId !== undefined) clauses.push(`m.tenant_id = ${push(tenantId)}`);
   if (variantId) clauses.push(`m.variant_id = ${push(variantId)}`);
   if (productId) clauses.push(`m.product_id = ${push(productId)}`);
-  if (movementType) clauses.push(`m.movement_type = ${push(movementType)}`);
-  if (dateFrom) clauses.push(`DATE(m.created_at) >= ${push(dateFrom)}`);
-  if (dateTo) clauses.push(`DATE(m.created_at) <= ${push(dateTo)}`);
+  if (branchId) clauses.push(`m.branch_id = ${push(branchId)}`);
+  if (warehouseId) clauses.push(`m.warehouse_id = ${push(warehouseId)}`);
+  if (movementType) clauses.push(`UPPER(m.movement_type) = UPPER(${push(movementType)})`);
+  if (dateFrom) clauses.push(`m.created_at::date >= ${push(dateFrom)}`);
+  if (dateTo) clauses.push(`m.created_at::date <= ${push(dateTo)}`);
   if (search) {
     clauses.push(
       `(
         COALESCE(p.name, '') ILIKE ${push(`%${search}%`)} OR
         COALESCE(v.color, '') ILIKE ${push(`%${search}%`)} OR
         COALESCE(v.size, '') ILIKE ${push(`%${search}%`)} OR
+        COALESCE(v.sku, '') ILIKE ${push(`%${search}%`)} OR
+        COALESCE(v.barcode, '') ILIKE ${push(`%${search}%`)} OR
         COALESCE(m.movement_type, '') ILIKE ${push(`%${search}%`)} OR
         COALESCE(m.reference_type, '') ILIKE ${push(`%${search}%`)} OR
         COALESCE(m.reason, '') ILIKE ${push(`%${search}%`)} OR
         COALESCE(m.notes, '') ILIKE ${push(`%${search}%`)} OR
-        COALESCE(u.name, '') ILIKE ${push(`%${search}%`)}
+        COALESCE(u.name, '') ILIKE ${push(`%${search}%`)} OR
+        COALESCE(w.name, '') ILIKE ${push(`%${search}%`)} OR
+        COALESCE(b.name, '') ILIKE ${push(`%${search}%`)}
       )`
     );
   }
@@ -266,6 +431,8 @@ export const getInventoryMovements = async (clientOrPool, data = {}) => {
       FROM inventory_movements m
       LEFT JOIN products p ON p.id = m.product_id
       LEFT JOIN product_variants v ON v.id = m.variant_id
+      LEFT JOIN warehouses w ON w.id = m.warehouse_id
+      LEFT JOIN branches b ON b.id = m.branch_id
       LEFT JOIN users u ON u.id = m.created_by
       ${whereClause}
       `,
@@ -276,15 +443,18 @@ export const getInventoryMovements = async (clientOrPool, data = {}) => {
       SELECT
         m.*,
         p.name AS product_name,
-        p.brand AS product_brand,
-        v.color AS variant_color,
-        v.size AS variant_size,
-        v.sku AS variant_sku,
-        v.image_url AS variant_image_url,
-        u.name AS created_by_name
+        v.color AS color,
+        v.size AS size,
+        v.sku AS sku,
+        v.barcode AS barcode,
+        COALESCE(w.name, '') AS warehouse_name,
+        COALESCE(b.name, '') AS branch_name,
+        COALESCE(u.name, u.email, '') AS created_by_name
       FROM inventory_movements m
       LEFT JOIN products p ON p.id = m.product_id
       LEFT JOIN product_variants v ON v.id = m.variant_id
+      LEFT JOIN warehouses w ON w.id = m.warehouse_id
+      LEFT JOIN branches b ON b.id = m.branch_id
       LEFT JOIN users u ON u.id = m.created_by
       ${whereClause}
       ORDER BY m.created_at DESC, m.id DESC
@@ -295,8 +465,19 @@ export const getInventoryMovements = async (clientOrPool, data = {}) => {
     ),
   ]);
 
+  const rows = rowsResult.rows.map((row) => ({
+    ...row,
+    quantity_before: toNumber(row.quantity_before ?? row.before_qty ?? 0),
+    quantity_delta: toNumber(row.quantity_delta ?? row.quantity_change ?? row.quantity ?? 0),
+    quantity_change: toNumber(row.quantity_change ?? row.quantity_delta ?? row.quantity ?? 0),
+    quantity_after: toNumber(row.quantity_after ?? row.after_qty ?? 0),
+    quantityBefore: toNumber(row.quantity_before ?? row.before_qty ?? 0),
+    quantityChange: toNumber(row.quantity_change ?? row.quantity_delta ?? row.quantity ?? 0),
+    quantityAfter: toNumber(row.quantity_after ?? row.after_qty ?? 0),
+  }));
+
   return {
-    rows: rowsResult.rows,
+    rows,
     total: Number(countResult.rows[0]?.count || 0),
     limit,
     offset,

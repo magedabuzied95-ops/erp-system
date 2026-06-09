@@ -62,13 +62,13 @@ export const getVariantStockReconciliation = async (clientOrPool = db, options =
       SELECT
         variant_id,
         COALESCE(SUM(quantity_change), 0)::int AS movement_stock,
-        COALESCE(SUM(CASE WHEN movement_type IN ('purchase', 'purchase_receive', 'purchase_receiving') OR reference_type = 'purchase' THEN quantity_change ELSE 0 END), 0)::int AS purchase_receiving_total,
-        COALESCE(SUM(CASE WHEN movement_type IN ('transfer_in') THEN quantity_change ELSE 0 END), 0)::int AS transfer_in_total,
-        COALESCE(SUM(CASE WHEN movement_type IN ('transfer_out') THEN quantity_change ELSE 0 END), 0)::int AS transfer_out_total,
-        COALESCE(SUM(CASE WHEN movement_type IN ('transfer', 'transfer_in', 'transfer_out') THEN quantity_change ELSE 0 END), 0)::int AS transfer_total,
-        COALESCE(SUM(CASE WHEN movement_type IN ('sale', 'website_order') OR reference_type IN ('order', 'sale') THEN quantity_change ELSE 0 END), 0)::int AS sale_total,
-        COALESCE(SUM(CASE WHEN movement_type IN ('return', 'return_in') OR reference_type = 'return' THEN quantity_change ELSE 0 END), 0)::int AS return_total,
-        COALESCE(SUM(CASE WHEN movement_type IN ('manual_adjustment', 'product_stock_edit', 'inventory_count', 'inventory_adjustment', 'undo_adjustment', 'order_edit', 'order_cancel') THEN quantity_change ELSE 0 END), 0)::int AS adjustment_total,
+        COALESCE(SUM(CASE WHEN UPPER(movement_type) IN ('PURCHASE_IN', 'PURCHASE', 'PURCHASE_RECEIVE', 'PURCHASE_RECEIVING') OR reference_type = 'purchase' THEN quantity_change ELSE 0 END), 0)::int AS purchase_receiving_total,
+        COALESCE(SUM(CASE WHEN UPPER(movement_type) IN ('TRANSFER_IN') THEN quantity_change ELSE 0 END), 0)::int AS transfer_in_total,
+        COALESCE(SUM(CASE WHEN UPPER(movement_type) IN ('TRANSFER_OUT') THEN quantity_change ELSE 0 END), 0)::int AS transfer_out_total,
+        COALESCE(SUM(CASE WHEN UPPER(movement_type) IN ('TRANSFER', 'TRANSFER_IN', 'TRANSFER_OUT') THEN quantity_change ELSE 0 END), 0)::int AS transfer_total,
+        COALESCE(SUM(CASE WHEN UPPER(movement_type) IN ('SALE_OUT', 'SALE', 'WEBSITE_ORDER') OR reference_type IN ('order', 'sale') THEN quantity_change ELSE 0 END), 0)::int AS sale_total,
+        COALESCE(SUM(CASE WHEN UPPER(movement_type) IN ('RETURN_IN', 'RETURN') OR reference_type = 'return' THEN quantity_change ELSE 0 END), 0)::int AS return_total,
+        COALESCE(SUM(CASE WHEN UPPER(movement_type) IN ('ADJUSTMENT', 'MANUAL_ADJUSTMENT', 'PRODUCT_STOCK_EDIT', 'INVENTORY_COUNT', 'INVENTORY_ADJUSTMENT', 'COUNT_ADJUSTMENT', 'UNDO_ADJUSTMENT', 'ORDER_EDIT', 'ORDER_CANCEL', 'ORDER_EDIT_RESTORE', 'ORDER_EDIT_DEDUCT', 'ORDER_CANCEL_RESTORE', 'ORDER_HARD_DELETE_RESTORE', 'PURCHASE_EDIT_STOCK_IN', 'PURCHASE_EDIT_STOCK_OUT', 'PURCHASE_REVERSE_STOCK_OUT') THEN quantity_change ELSE 0 END), 0)::int AS adjustment_total,
         COUNT(*)::int AS movement_count
       FROM active_movements
       GROUP BY variant_id
@@ -84,7 +84,7 @@ export const getVariantStockReconciliation = async (clientOrPool = db, options =
           reference_id,
           GREATEST(COUNT(*) - 1, 0)::int AS extra_rows
         FROM active_movements
-        WHERE (movement_type IN ('purchase', 'purchase_receive', 'purchase_receiving') OR reference_type = 'purchase')
+        WHERE (UPPER(movement_type) IN ('PURCHASE_IN', 'PURCHASE', 'PURCHASE_RECEIVE', 'PURCHASE_RECEIVING') OR reference_type = 'purchase')
           AND reference_id IS NOT NULL
         GROUP BY variant_id, reference_id
         HAVING COUNT(*) > 1

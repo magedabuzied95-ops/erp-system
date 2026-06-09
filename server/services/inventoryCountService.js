@@ -1706,10 +1706,8 @@ export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
       variantId: productVariantId,
       branchId: session.branch_id ?? null,
       warehouseId: session.warehouse_id ?? null,
-      movementType: "inventory_adjustment",
-      quantityBefore: currentStock,
-      quantityChange: differenceQuantity,
-      quantityAfter: newStock,
+      movementType: "COUNT_ADJUSTMENT",
+      quantityDelta: differenceQuantity,
       referenceType: "inventory_count",
       referenceId: session.id,
       reason: normalizeText(item.reason || session.title || "جرد مخزون") || "جرد مخزون",
@@ -1724,16 +1722,6 @@ export const approveInventoryCountSession = async (clientOrPool, data = {}) => {
       productVariantId,
       differenceQuantity,
     }));
-
-    await dbClient.query(
-      `
-      UPDATE product_variants
-      SET stock = $1,
-          updated_at = NOW()
-      WHERE id = $2
-      `,
-      [newStock, productVariantId]
-    );
 
     console.log("[inventory-count:approve:variant-updated]", JSON.stringify({
       sessionId,
