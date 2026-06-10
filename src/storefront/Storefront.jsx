@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { lazy, Suspense } from "react";
 import i18n, { applyDocumentLanguage, normalizeLanguage, persistApplicationLanguage } from "../i18n/i18n";
 import { logPagePerf } from "../shared/lib/perfDebug";
+import { safeSetSessionStorage } from "../utils/safeStorage";
 import {
   Bell,
   BadgePercent,
@@ -926,6 +927,25 @@ const imageFor = (value) => {
 };
 const money = (value) => formatCurrency(Number(value || 0));
 const sfText = (key, fallback, options = {}) => i18n.t(String(key || ""), { defaultValue: fallback, ...options });
+const couponErrorKeyMap = {
+  "Coupon code is required": "storefront.checkout.couponErrors.required",
+  "Coupon not found": "storefront.checkout.couponErrors.notFound",
+  "Coupon is inactive": "storefront.checkout.couponErrors.inactive",
+  "Campaign is inactive": "storefront.checkout.couponErrors.inactive",
+  "Campaign has not started": "storefront.checkout.couponErrors.notStarted",
+  "Campaign has expired": "storefront.checkout.couponErrors.expired",
+  "Coupon has expired": "storefront.checkout.couponErrors.expired",
+  "Coupon usage limit reached": "storefront.checkout.couponErrors.limitReached",
+  "Minimum order amount not reached": "storefront.checkout.couponErrors.minimumNotReached",
+  "Coupon is not valid for this channel": "storefront.checkout.couponErrors.channelMismatch",
+  "Coupon is assigned to another customer": "storefront.checkout.couponErrors.assignedCustomer",
+  "Fixed coupon discount exceeds order total": "storefront.checkout.couponErrors.discountTooHigh",
+  "Coupon is invalid": "storefront.checkout.couponErrors.invalid",
+};
+const couponErrorText = (reason = "") => {
+  const key = couponErrorKeyMap[String(reason || "").trim()] || "storefront.checkout.couponErrors.invalid";
+  return sfText(key, String(reason || "").trim() || sfText("storefront.checkout.couponErrors.invalid", "Invalid coupon code"));
+};
 const truthyFlag = (value) => value === true || value === 1 || String(value || "").toLowerCase() === "true";
 const BODY_SCROLL_LOCK_ATTR = "data-storefront-scroll-lock-count";
 const BODY_SCROLL_LOCK_Y_ATTR = "data-storefront-scroll-lock-y";
@@ -1421,6 +1441,37 @@ const mergeAiSupportContext = (current = {}, patch = {}) => {
   if (patch?.rejected_product_context === null) next.rejected_product_context = null;
   return next;
 };
+const compactStorefrontOrderItem = (item = {}) => ({
+  id: item.id || item.product_id || item.variant_id || null,
+  product_name: item.product_name || item.name || item.title || "",
+  name: item.name || item.product_name || item.title || "",
+  variant_id: item.variant_id || item.id || null,
+  color: item.color || item.color_name || "",
+  size: item.size || "",
+  quantity: Number(item.quantity || 0),
+  price: Number(item.price ?? item.unit_price ?? item.sale_price ?? 0),
+  subtotal: Number(item.total_amount ?? item.line_total ?? item.total ?? 0),
+});
+const compactStorefrontReceipt = (successPayload = {}, fallback = {}) => ({
+  order: {
+    id: successPayload.order?.id || fallback.id || null,
+    invoice_number: successPayload.order?.invoice_number || fallback.invoice_number || "",
+    public_order_number: successPayload.order?.public_order_number || fallback.public_order_number || "",
+    total: Number(successPayload.order?.total ?? fallback.total ?? 0),
+    customer_name: successPayload.order?.customer_name || fallback.customer_name || "",
+    customer_phone: successPayload.order?.customer_phone || fallback.customer_phone || "",
+  },
+  items: Array.isArray(successPayload.items) ? successPayload.items.map(compactStorefrontOrderItem).slice(0, 50) : [],
+  customer: {
+    full_name: successPayload.customer?.full_name || fallback.customer_name || "",
+    phone: successPayload.customer?.phone || fallback.customer_phone || "",
+  },
+  checkout: {
+    shipping_payment_method: successPayload.checkout?.shipping_payment_method || "",
+    coupon_code: successPayload.checkout?.coupon_code || "",
+    coupon_discount_amount: Number(successPayload.checkout?.coupon_discount_amount || 0),
+  },
+});
 const textOrEmpty = (value = "") => cleanDisplayText(String(value || ""));
 const rememberAiSuggestedProductClick = ({ tenantId, sessionId, productId }) => {
   if (typeof window === "undefined" || !tenantId || !sessionId || !productId) return;
@@ -5854,6 +5905,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const [shippingTransferMethod, setShippingTransferMethod] = useState("instapay");
   const [paymentProofDragActive, setPaymentProofDragActive] = useState(false);
   const [paymentProofUploaded, setPaymentProofUploaded] = useState(false);
+  const [couponValidation, setCouponValidation] = useState(null);
+  const [couponLoading, setCouponLoading] = useState(false);
   const [latestAddressApplied, setLatestAddressApplied] = useState(false);
   const [latestAddressRestore, setLatestAddressRestore] = useState({ token: 0, candidate: null, status: "idle", stage: "idle" });
   const [shippingQuote, setShippingQuote] = useState(normalizeShippingQuote());
@@ -5863,9 +5916,11 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const editedCheckoutFieldsRef = useRef(new Set());
   const latestAddressLookupsRef = useRef(new Set());
   const latestAddressRestoreTokenRef = useRef(0);
+  const couponValidationKeyRef = useRef("");
   const pricedCart = useMemo(() => cart.map((item) => ({ ...item, price: displayCartItemPrice(item) })), [cart]);
   const subtotal = pricedCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const discount = 0;
+  const couponDiscount = couponValidation?.valid ? Math.max(0, Number(couponValidation.discount_amount || 0)) : 0;
+  const discount = couponDiscount;
   const deliveryFee = form.governorate ? shippingQuote.price : 0;
   const total = Math.max(0, subtotal - discount + deliveryFee);
   const isDamietta = ["دمياط", "دمياط"].some((name) => String(form.governorate || "").includes(name));
@@ -5880,7 +5935,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const shippingProofRequired = isShippingConfirmation && shippingQuote.requires_shipping_proof !== false;
   const hasShippingPaymentProof = Boolean(shippingPaymentFile);
   const isFinalCheckoutStep = checkoutStep === 3;
-  const submitDisabled = isFinalCheckoutStep && (submitting || shippingQuote.loading || (shippingProofRequired && !hasShippingPaymentProof));
+  const couponCode = String(form.coupon || "").trim().toUpperCase();
+  const submitDisabled = isFinalCheckoutStep && (submitting || couponLoading || shippingQuote.loading || (shippingProofRequired && !hasShippingPaymentProof));
   const checkoutActionLabel = checkoutStep === 1
     ? t("storefront.checkout.actions.continueToAddress", "Continue to address")
     : checkoutStep === 2
@@ -6104,6 +6160,53 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     if (options.markDirty !== false) editedCheckoutFieldsRef.current.add(key);
     setForm((prev) => ({ ...prev, [key]: value }));
     setErrors((prev) => ({ ...prev, [key]: "" }));
+    if (key === "coupon") {
+      setCouponValidation(null);
+      couponValidationKeyRef.current = "";
+    }
+  };
+
+  useEffect(() => {
+    if (!couponValidation) return;
+    const validationKey = `${couponCode}::${Math.max(0, subtotal + deliveryFee).toFixed(2)}`;
+    if (couponValidationKeyRef.current !== validationKey) {
+      setCouponValidation(null);
+      couponValidationKeyRef.current = "";
+    }
+  }, [couponValidation, couponCode, subtotal, deliveryFee]);
+
+  const applyCoupon = async ({ silent = false } = {}) => {
+    const trimmedCode = String(form.coupon || "").trim().toUpperCase();
+    if (!trimmedCode) {
+      setCouponValidation(null);
+      if (!silent) toast.error(couponErrorText("Coupon code is required"));
+      return null;
+    }
+    setCouponLoading(true);
+    try {
+      const response = await api.post("/coupons/validate", {
+        code: trimmedCode,
+        orderTotal: Math.max(0, subtotal + deliveryFee),
+        source: "website",
+        customerId: profile?.customer_id || profile?.id || null,
+      });
+      if (!response?.valid) {
+        setCouponValidation(null);
+        if (!silent) toast.error(couponErrorText(response?.reason || response?.message));
+        return null;
+      }
+      setCouponValidation(response);
+      couponValidationKeyRef.current = `${trimmedCode}::${Math.max(0, subtotal + deliveryFee).toFixed(2)}`;
+      if (!silent) toast.success(sfText("storefront.checkout.couponApplied", "Coupon applied"));
+      return response;
+    } catch (error) {
+      setCouponValidation(null);
+      const reason = error?.responseBody?.reason || error?.responseBody?.message || error?.message;
+      if (!silent) toast.error(couponErrorText(reason));
+      return null;
+    } finally {
+      setCouponLoading(false);
+    }
   };
 
   const setGovernorate = (value, options = {}) => {
@@ -6718,6 +6821,18 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     }
     setSubmitting(true);
     try {
+      const activeCouponCode = String(form.coupon || "").trim().toUpperCase();
+      const currentCouponKey = `${activeCouponCode}::${Math.max(0, subtotal + deliveryFee).toFixed(2)}`;
+      let activeCouponValidation = couponValidation;
+      if (activeCouponCode && couponValidationKeyRef.current !== currentCouponKey) {
+        activeCouponValidation = await applyCoupon();
+        if (!activeCouponValidation?.valid) {
+          setSubmitting(false);
+          return;
+        }
+      }
+      const couponCodeToSend = activeCouponValidation?.valid ? String(activeCouponValidation.coupon?.code || activeCouponCode).trim().toUpperCase() : "";
+      const couponDiscountToSend = activeCouponValidation?.valid ? Math.max(0, Number(activeCouponValidation.discount_amount || 0)) : 0;
       const cleanPhone = form.primary_phone.replace(/\s/g, "");
       const paymentMethod = normalizeCheckoutPaymentMethod(form.payment_method);
       const shippingPaymentMethod = normalizeShippingPaymentMethod(shippingTransferMethod);
@@ -6769,6 +6884,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
         shipping_address: shippingProviderAddress,
         shipping_provider_address: shippingProviderAddress,
         shipping_payment_method: shippingPaymentMethod,
+        coupon_code: couponCodeToSend,
+        coupon_discount_amount: couponDiscountToSend,
       };
       const requestBody = shippingPaymentFile
         ? (() => {
@@ -6776,7 +6893,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
             formData.append("checkout", JSON.stringify(checkoutPayload));
             formData.append("items", JSON.stringify(pricedCart));
             formData.append("delivery_fee", String(deliveryFee));
-            formData.append("discount", String(discount));
+            formData.append("discount", "0");
             formData.append("shipping_payment_screenshot", shippingPaymentFile);
             return formData;
           })()
@@ -6784,14 +6901,27 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
             checkout: checkoutPayload,
             items: pricedCart,
             delivery_fee: deliveryFee,
-            discount,
+            discount: 0,
       };
       const data = await api.post("/storefront/checkout", requestBody);
-      const successPayload = { order: data.order, items: data.items || pricedCart, customer: { full_name: form.full_name, phone: cleanPhone }, checkout: { ...checkoutPayload, shipping_payment_method: shippingPaymentMethod } };
+      const successPayload = {
+        order: data.order,
+        items: data.items || pricedCart,
+        customer: { full_name: form.full_name, phone: cleanPhone },
+        checkout: { ...checkoutPayload, shipping_payment_method: shippingPaymentMethod, coupon_code: couponCodeToSend, coupon_discount_amount: couponDiscountToSend },
+      };
       const publicNumber = displayOrderNumber(data.order);
-      sessionStorage.setItem(`storefront.order.${publicNumber}`, JSON.stringify(successPayload));
+      const receiptPayload = compactStorefrontReceipt(successPayload, {
+        id: data.order?.id,
+        invoice_number: data.order?.invoice_number,
+        public_order_number: publicNumber,
+        total: data.order?.total,
+        customer_name: form.full_name,
+        customer_phone: cleanPhone,
+      });
+      safeSetSessionStorage(`storefront.order.${publicNumber}`, receiptPayload, { maxBytes: 24 * 1024 });
       if (data.order?.invoice_number && data.order.invoice_number !== publicNumber) {
-        sessionStorage.setItem(`storefront.order.${data.order.invoice_number}`, JSON.stringify(successPayload));
+        safeSetSessionStorage(`storefront.order.${data.order.invoice_number}`, receiptPayload, { maxBytes: 24 * 1024 });
       }
       setProfile({
         full_name: form.full_name,
@@ -6817,7 +6947,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
         });
       }
       const backendMessage = error?.responseBody?.message || error?.message;
-      toast.error(backendMessage || sfText("storefront.toasts.checkoutFailed", "Something went wrong. Try again or contact us on WhatsApp."));
+      const couponReason = error?.responseBody?.details?.coupon?.reason || error?.responseBody?.coupon?.reason || backendMessage;
+      const field = String(error?.responseBody?.field || "").toLowerCase();
+      toast.error(field === "coupon_code" ? couponErrorText(couponReason) : (backendMessage || sfText("storefront.toasts.checkoutFailed", "Something went wrong. Try again or contact us on WhatsApp.")));
     } finally {
       setSubmitting(false);
     }
@@ -7056,7 +7188,44 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     {errors.shipping_payment_screenshot ? <span className="text-xs font-bold text-rose-200">{errors.shipping_payment_screenshot}</span> : null}
 
                     <div className="checkout-payment-notes grid gap-2 sm:grid-cols-2">
-                      <Field label={sfText("storefront.checkout.coupon", "Discount coupon")} placeholder={sfText("storefront.checkout.couponPlaceholder", "If you have a discount code")} value={form.coupon} onChange={(v) => setField("coupon", v)} />
+                      <div className="space-y-2">
+                        <Field label={sfText("storefront.checkout.coupon", "Discount coupon")} placeholder={sfText("storefront.checkout.couponPlaceholder", "If you have a discount code")} value={form.coupon} onChange={(v) => setField("coupon", v)} />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => applyCoupon()}
+                            disabled={couponLoading || !String(form.coupon || "").trim()}
+                            className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-[#a78bfa]/25 bg-[#7c3aed] px-4 text-sm font-black text-white transition hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {couponLoading ? sfText("common.loading", "Loading...") : sfText("storefront.checkout.applyCoupon", "Apply coupon")}
+                          </button>
+                          {couponValidation?.valid ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setForm((current) => ({ ...current, coupon: "" }));
+                                setCouponValidation(null);
+                                couponValidationKeyRef.current = "";
+                              }}
+                              className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm font-black text-white/85 transition hover:bg-white/[0.08]"
+                            >
+                              {sfText("storefront.checkout.removeCoupon", "Remove coupon")}
+                            </button>
+                          ) : null}
+                        </div>
+                        {couponValidation?.valid ? (
+                          <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black text-emerald-100">
+                            {sfText("storefront.checkout.couponAppliedSummary", "Coupon applied: {{code}} - {{discount}}", {
+                              code: couponValidation?.coupon?.code || couponCode,
+                              discount: money(couponDiscount),
+                            })}
+                          </div>
+                        ) : couponCode ? (
+                          <div className="rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100">
+                            {sfText("storefront.checkout.couponNeedsApply", "Coupon entered. Apply it to calculate the discount.")}
+                          </div>
+                        ) : null}
+                      </div>
                       <TextField label={sfText("storefront.checkout.orderNotes", "Order notes")} placeholder={sfText("storefront.checkout.orderNotesPlaceholder", "Alternative size or special note")} value={form.order_notes} onChange={(v) => setField("order_notes", v)} compact />
                     </div>
 

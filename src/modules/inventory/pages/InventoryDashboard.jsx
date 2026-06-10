@@ -25,6 +25,7 @@ import {
   normalizeWarehouse,
   seedWarehouses,
 } from "../../purchases/lib/flowStore";
+import { safeSetLocalStorage } from "../../../utils/safeStorage";
 
 const resolveImageUrl = (value) => {
   const imageUrl = String(value || "").trim();
@@ -213,7 +214,7 @@ function InventoryDashboard() {
 
       const draftPayload = response?.draft_payload || response?.purchase || response?.data || null;
       if (draftPayload) {
-        window.localStorage.setItem(SMART_PURCHASE_DRAFT_STORAGE_KEY, JSON.stringify(draftPayload));
+        safeSetLocalStorage(SMART_PURCHASE_DRAFT_STORAGE_KEY, draftPayload, { maxBytes: 48 * 1024 });
         toast.success(t("inventory.purchaseAlerts.messages.draftQueued"));
         navigate("/purchases/create", { state: { purchaseDraftPayload: draftPayload } });
         return;

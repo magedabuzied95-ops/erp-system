@@ -10,6 +10,7 @@ import {
   isValidWhatsappPhone,
   normalizePhoneNumber,
 } from "../../../shared/utils/whatsapp.js";
+import { safeSetLocalStorage, safeSetSessionStorage } from "../../../utils/safeStorage";
 
 const CART_STORAGE_KEY = "erp.pos.cart";
 const STATE_STORAGE_KEY = "erp.pos.state";
@@ -40,7 +41,7 @@ export const readPosPersistedState = () => {
 
 export const writePosPersistedState = (state) => {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(STATE_STORAGE_KEY, JSON.stringify(omitCustomerState(state)));
+  safeSetLocalStorage(STATE_STORAGE_KEY, omitCustomerState(state), { maxBytes: 48 * 1024 });
 };
 
 export const readPosCart = () => {
@@ -56,9 +57,9 @@ export const readPosCart = () => {
 
 export const writePosCart = (cart) => {
   if (typeof window === "undefined") return;
-  const value = JSON.stringify(cart);
-  window.localStorage.setItem(CART_STORAGE_KEY, value);
-  window.sessionStorage.setItem(CART_STORAGE_KEY, value);
+  const trimCart = (items = []) => (Array.isArray(items) ? items.slice(-50) : []);
+  safeSetLocalStorage(CART_STORAGE_KEY, cart, { maxBytes: 96 * 1024, trim: trimCart });
+  safeSetSessionStorage(CART_STORAGE_KEY, cart, { maxBytes: 96 * 1024, trim: trimCart });
 };
 
 export const readPosSession = () => {
@@ -73,9 +74,9 @@ export const readPosSession = () => {
 
 export const writePosSession = (session) => {
   if (typeof window === "undefined") return;
-  const value = JSON.stringify({ ...(session || {}), updatedAt: new Date().toISOString() });
-  window.localStorage.setItem(SESSION_STORAGE_KEY, value);
-  window.sessionStorage.setItem(SESSION_STORAGE_KEY, value);
+  const nextSession = { ...(session || {}), updatedAt: new Date().toISOString() };
+  safeSetLocalStorage(SESSION_STORAGE_KEY, nextSession, { maxBytes: 32 * 1024 });
+  safeSetSessionStorage(SESSION_STORAGE_KEY, nextSession, { maxBytes: 32 * 1024 });
 };
 
 export const clearPosPersistedState = () => {

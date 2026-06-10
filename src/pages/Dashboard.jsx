@@ -47,6 +47,7 @@ import LiveActivityFeed from "../components/activity/LiveActivityFeed";
 import { api } from "../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../shared/auth/authStorage";
 import { formatCurrency } from "../shared/lib/currency";
+import { safeSetLocalStorage } from "../utils/safeStorage";
 import { normalizeSaleModeSettings, resolveSaleModePrice } from "../shared/lib/saleMode";
 
 const emptyDashboard = {
@@ -186,7 +187,7 @@ function Dashboard() {
       order: next.order ?? order,
       sizes: next.sizes ?? sizes,
     };
-    localStorage.setItem(layoutStorageKey(user), JSON.stringify(payload));
+    safeSetLocalStorage(layoutStorageKey(user), payload, { maxBytes: 16 * 1024 });
   }, [hidden, order, sizes, user]);
 
   const queryString = React.useMemo(() => {
