@@ -88,6 +88,9 @@ const lowStockCardClasses = {
 };
 
 const SMART_PURCHASE_DRAFT_STORAGE_KEY = "erp.purchases.smartPurchaseDraft";
+const InlineLtrValue = ({ children, className = "" }) => (
+  <span dir="ltr" style={{ unicodeBidi: "isolate" }} className={`inline-block tabular-nums ${className}`}>{children}</span>
+);
 
 function InventoryDashboard() {
   const { t } = useTranslation();
@@ -447,10 +450,10 @@ function InventoryDashboard() {
       ) : null}
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Kpi label={t("inventory.kpis.inventoryValue")} value={formatCurrency(kpis.inventoryValue)} tone="blue" />
-        <Kpi label={t("inventory.kpis.lowStockAlerts")} value={lowStockAlerts.length} tone="amber" />
-        <Kpi label={t("inventory.kpis.inboundMoves")} value={kpis.inbound} tone="emerald" />
-        <Kpi label={t("inventory.kpis.outboundMoves")} value={kpis.outbound} tone="rose" />
+        <Kpi label={t("inventory.kpis.inventoryValue")} value={<InlineLtrValue>{formatCurrency(kpis.inventoryValue)}</InlineLtrValue>} tone="blue" />
+        <Kpi label={t("inventory.kpis.lowStockAlerts")} value={<InlineLtrValue>{lowStockAlerts.length}</InlineLtrValue>} tone="amber" />
+        <Kpi label={t("inventory.kpis.inboundMoves")} value={<InlineLtrValue>{kpis.inbound}</InlineLtrValue>} tone="emerald" />
+        <Kpi label={t("inventory.kpis.outboundMoves")} value={<InlineLtrValue>{kpis.outbound}</InlineLtrValue>} tone="rose" />
       </div>
 
       <section className="rounded-3xl border border-amber-400/15 bg-gradient-to-br from-amber-400/10 via-white/[0.03] to-orange-400/10 p-4 shadow-2xl shadow-black/10">
@@ -567,7 +570,7 @@ function InventoryDashboard() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h4 className="text-lg font-black text-white">{group.title}</h4>
                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-black text-zinc-200">
-                  {group.items.length}
+                  <InlineLtrValue>{group.items.length}</InlineLtrValue>
                 </span>
               </div>
 
@@ -609,7 +612,7 @@ function InventoryDashboard() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
+                              <div className="min-w-0 flex-1">
                                 <div className="truncate text-base font-black text-white">{alert.product_name}</div>
                                 {cardColor ? <div className="mt-1 text-sm font-semibold text-amber-100">{cardColor}</div> : null}
                               </div>
@@ -668,18 +671,18 @@ function InventoryDashboard() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+            <Search className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t("inventory.searchPlaceholder")}
-              className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
+              className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pr-11 pl-4 text-right text-sm text-white outline-none placeholder:text-zinc-500"
             />
           </div>
 
           <div className="mt-4 overflow-x-auto">
             <div className="min-w-[980px]">
-              <div className="grid grid-cols-[1.6fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr] rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs uppercase tracking-[0.18em] text-zinc-500">
+              <div className="grid grid-cols-[1.6fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr] rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-right text-xs uppercase tracking-[0.18em] text-zinc-500">
                 <div>{t("inventory.tableHeaders.product")}</div>
                 <div>{t("inventory.tableHeaders.variant")}</div>
                 <div>{t("inventory.tableHeaders.sku")}</div>
@@ -705,17 +708,17 @@ function InventoryDashboard() {
                   filtered.map((variant) => {
                     const low = Number(variant.stock || 0) <= 10;
                     return (
-                      <div key={String(variant.id)} className="grid grid-cols-[1.6fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr] items-center rounded-2xl border border-white/10 bg-zinc-950/90 px-4 py-3">
-                        <div>
-                          <div className="font-semibold text-white">{variant.product_name || variant.name}</div>
-                          <div className="text-xs text-zinc-500">{variant.color || t("inventory.labels.default")} / {variant.size || t("inventory.labels.oneSize")}</div>
+                      <div key={String(variant.id)} className="grid grid-cols-[1.6fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr] items-center rounded-2xl border border-white/10 bg-zinc-950/90 px-4 py-3 text-right">
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold text-white">{variant.product_name || variant.name}</div>
+                          <div className="mt-1 truncate text-xs text-zinc-500">{variant.color || t("inventory.labels.default")} / {variant.size || t("inventory.labels.oneSize")}</div>
                         </div>
-                        <div className="text-sm text-zinc-300">{variant.color || t("inventory.labels.notAvailable")}</div>
-                        <div className="text-sm text-zinc-300">{variant.sku}</div>
-                        <div className="font-bold text-white">{variant.stock}</div>
-                        <div className="text-sm text-zinc-300">{formatCurrency(Number(variant.stock || 0) * Number(variant.price || 0))}</div>
+                        <div className="truncate text-sm text-zinc-300">{variant.color || t("inventory.labels.notAvailable")}</div>
+                        <div className="truncate text-sm text-zinc-300"><InlineLtrValue>{variant.sku || "—"}</InlineLtrValue></div>
+                        <div className="font-bold text-white"><InlineLtrValue>{variant.stock}</InlineLtrValue></div>
+                        <div className="truncate text-sm text-zinc-300"><InlineLtrValue>{formatCurrency(Number(variant.stock || 0) * Number(variant.price || 0))}</InlineLtrValue></div>
                         <StatusBadge value={low ? t("inventory.status.low") : t("inventory.status.active")} />
-                        <div className="text-right">
+                        <div className="flex justify-end">
                           <Link to={`/inventory/variant/${variant.id}/history`} className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-white">
                             <Clock3 className="h-4 w-4" />
                           </Link>
@@ -800,7 +803,7 @@ function InventoryDashboard() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <div className="truncate text-base font-black text-white">{card.product_name}</div>
                             <div className="mt-1 line-clamp-2 text-sm leading-6 text-zinc-100/85">
                               {card.color ? `اللون: ${card.color}` : "اللون: -"}
@@ -814,11 +817,11 @@ function InventoryDashboard() {
                         <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-zinc-100 sm:grid-cols-3">
                           <div className="rounded-2xl border border-white/10 bg-zinc-950/25 px-3 py-2">
                             <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300">إجمالي المخزون</span>
-                            <span className="mt-1 block text-base font-black text-white">{card.total_stock}</span>
+                            <span className="mt-1 block text-base font-black text-white"><InlineLtrValue>{card.total_stock}</InlineLtrValue></span>
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-zinc-950/25 px-3 py-2">
                             <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300">إجمالي القيمة</span>
-                            <span className="mt-1 block text-base font-black text-white">{formatCurrency(card.total_value)}</span>
+                            <span className="mt-1 block text-base font-black text-white"><InlineLtrValue>{formatCurrency(card.total_value)}</InlineLtrValue></span>
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-zinc-950/25 px-3 py-2">
                             <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300">الحالة</span>
@@ -828,11 +831,11 @@ function InventoryDashboard() {
 
                         <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-zinc-100/80">
                           <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                            {card.rows.length} قطعة
+                            <InlineLtrValue>{card.rows.length}</InlineLtrValue> قطعة
                           </span>
                           {card.colors.length > 1 ? (
                             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                              {card.colors.length} ألوان
+                              <InlineLtrValue>{card.colors.length}</InlineLtrValue> ألوان
                             </span>
                           ) : null}
                         </div>
@@ -853,10 +856,10 @@ function InventoryDashboard() {
                                   key={`${card.key}-${row.variant_id || row.id || row.sku || row.size}`}
                                   className="grid grid-cols-[1.05fr_1.15fr_0.75fr_0.95fr_0.8fr] gap-2 px-3 py-2 text-sm text-white"
                                 >
-                                  <div className="font-semibold text-white">{row.size || t("inventory.labels.oneSize")}</div>
-                                  <div className="truncate text-zinc-300">{row.sku || "—"}</div>
-                                  <div className="font-black tabular-nums text-white">{row.stock}</div>
-                                  <div className="font-bold text-zinc-200">{formatCurrency(Number(row.stock || 0) * Number(row.price || 0))}</div>
+                                  <div className="min-w-0 truncate font-semibold text-white">{row.size || t("inventory.labels.oneSize")}</div>
+                                  <div className="truncate text-zinc-300"><InlineLtrValue>{row.sku || "—"}</InlineLtrValue></div>
+                                  <div className="font-black text-white"><InlineLtrValue>{row.stock}</InlineLtrValue></div>
+                                  <div className="font-bold text-zinc-200"><InlineLtrValue>{formatCurrency(Number(row.stock || 0) * Number(row.price || 0))}</InlineLtrValue></div>
                                   <div>
                                     <span
                                       className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black ${
@@ -992,10 +995,12 @@ function Kpi({ label, value, tone = "zinc" }) {
 }
 
 function MetaPill({ label, value }) {
+  const normalizedValue = String(value ?? "");
+  const isNumericValue = /^-?[\d.,]+$/.test(normalizedValue.trim());
   return (
     <div className="rounded-xl border border-white/10 bg-zinc-950/50 px-3 py-2">
       <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">{label}</div>
-      <div className="mt-1 text-sm font-black text-white">{value}</div>
+      <div className="mt-1 text-sm font-black text-white">{isNumericValue ? <InlineLtrValue>{normalizedValue}</InlineLtrValue> : value}</div>
     </div>
   );
 }
