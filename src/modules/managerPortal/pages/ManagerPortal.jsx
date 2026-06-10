@@ -310,6 +310,24 @@ const renderInsightBody = (item = {}) => {
   }
   return portalText(item.body || "-");
 };
+const insightActionabilityScore = (item = {}) => {
+  const text = normalizeText([item.type, item.title, item.body, item.message].filter(Boolean).join(" "));
+  if (!text) return 0;
+
+  const noiseOnly = /(summary|overview|report|snapshot|insight|metrics?|statistics?|daily|general|informational|info)/i.test(text);
+  const hasActionSignal = /(stock|inventory|reorder|refill|low stock|low_stock|out of stock|shortage|urgent|critical|warning|risk|lead|conversion|sales|revenue|drop|decline|review|follow up|follow-up|branch|peak|hour|trend|action)/i.test(text);
+
+  if (!hasActionSignal) return 0;
+
+  let score = 0;
+  if (/(stock|inventory|reorder|refill|low stock|low_stock|out of stock|shortage|urgent|critical|warning|risk)/i.test(text)) score += 5;
+  if (/(lead|conversion|sales|revenue|drop|decline|branch|peak|hour|trend|follow up|follow-up)/i.test(text)) score += 3;
+  if (/\b\d+/.test(text)) score += 1;
+  if (/(review|watch|monitor|action|needs|need to|should|must|improve|fix)/i.test(text)) score += 2;
+  if (noiseOnly && score < 5) return 0;
+  return score;
+};
+const isActionableInsight = (item = {}) => insightActionabilityScore(item) > 0;
 const leadIdentity = (lead = {}) =>
   [
     lead.customer_id,
@@ -323,6 +341,103 @@ const leadIdentity = (lead = {}) =>
 const leadName = (lead = {}) => portalText(lead.customer_name || lead.name || lead.contact_name || "عميل محتمل");
 const leadChannel = (lead = {}) => portalText(lead.channel || lead.platform || lead.source || "قناة غير محددة");
 const leadPreview = (lead = {}) => portalText(lead.last_message || lead.last_message_preview || lead.ai_insight || "لا توجد رسالة أخيرة");
+const leadPrimaryProduct = (lead = {}) => {
+  const direct = [
+    lead.primary_product_name,
+    lead.product_name,
+    lead.product,
+    lead.product_title,
+    lead.product_label,
+    lead.matched_product_name,
+    lead.interest_product_name,
+    lead.favorite_product_name,
+    lead.primary_product,
+    lead.recommended_product,
+  ].find((value) => String(value || "").trim());
+  if (direct) return portalText(direct);
+
+  const insightText = String(lead.ai_insight || lead.last_message || lead.last_message_preview || "").trim();
+  if (!insightText) return "";
+
+  const match = insightText.match(/(?:منتج|product|item|الصنف|السلعة)\s*[:：-]?\s*([^\n|·•]{2,40})/i);
+  return match?.[1] ? portalText(match[1].trim()) : "";
+};
+const leadLastInteractionAt = (lead = {}) => lead.last_message_at || lead.last_activity_at || lead.updated_at || lead.created_at || null;
+const isMeaningfulLead = (lead = {}) => {
+  const name = normalizeText(lead.customer_name || lead.name || lead.contact_name || "");
+  const score = Number(lead.lead_score || 0);
+  return Boolean(
+    (name && name !== "عميل محتمل") ||
+    score > 0 ||
+    leadPrimaryProduct(lead) ||
+    leadLastInteractionAt(lead) ||
+    lead.last_message ||
+    lead.last_message_preview ||
+    lead.ai_insight,
+  );
+};
+const formatCompactDateTime = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("ar-EG", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+};
+const normalizeAlertKey = (value = "") => String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+const uniqueBySignature = (items = [], getSignature, seen = new Set()) => {
+  const nextSeen = seen;
+  return (Array.isArray(items) ? items : []).filter((item) => {
+    const signature = getSignature?.(item);
+    if (!signature) return true;
+    if (nextSeen.has(signature)) return false;
+    nextSeen.add(signature);
+    return true;
+  });
+};
+const notificationAlertSignature = (notification = {}) => {
+  const category = categoryFromNotification(notification);
+  const entityId =
+    notification.metadata?.task_id ||
+    notification.metadata?.invoice_id ||
+    notification.metadata?.order_id ||
+    notification.metadata?.lead_id ||
+    notification.metadata?.product_id ||
+    notification.entity_id ||
+    notification.id ||
+    "";
+  const title = normalizeAlertKey(notification.title || notificationTypeLabel(notification));
+  const body = normalizeAlertKey(notification.message || notification.body || "");
+  return [category, entityId, title, body].filter(Boolean).join("|");
+};
+const taskAlertSignature = (task = {}) => [
+  "task",
+  normalizeAlertKey(task.id || task.task_id || task.title || task.title_ar || ""),
+  normalizeAlertKey(task.status || ""),
+  normalizeAlertKey(task.assignee_name || task.employee_name || ""),
+].filter(Boolean).join("|");
+const insightAlertSignature = (item = {}) => [
+  "insight",
+  normalizeAlertKey(item.type || item.title || ""),
+  normalizeAlertKey(item.title || ""),
+  normalizeAlertKey(item.body || item.message || ""),
+].filter(Boolean).join("|");
+const leadAlertSignature = (lead = {}) => [
+  "lead",
+  normalizeAlertKey(lead.customer_id || lead.customer_phone || lead.customer_name || lead.session_id || lead.conversation_id || lead.id || ""),
+  normalizeAlertKey(lead.lead_score || ""),
+  normalizeAlertKey(lead.last_message || lead.last_message_preview || lead.ai_insight || ""),
+].filter(Boolean).join("|");
+const stockAlertSignature = (item = {}) => [
+  "stock",
+  normalizeAlertKey(item.id || item.product_id || item.product_name || item.name || ""),
+  normalizeAlertKey(item.color_name || item.color || ""),
+  normalizeAlertKey(item.replacement_size || item.size || ""),
+  normalizeAlertKey(item.stock ?? item.current_stock ?? ""),
+].filter(Boolean).join("|");
 
 const Badge = ({ children, className = "" }) => (
   <span className={`inline-flex items-center rounded-full border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-2.5 py-1 text-[11px] font-black text-slate-700 ${className}`}>{children}</span>
@@ -361,6 +476,72 @@ const MiniMetric = ({ label, value, icon: Icon, tone = "slate", sub = "" }) => {
           {sub ? <div className="mt-0.5 truncate text-[11px] font-bold text-slate-500">{sub}</div> : null}
         </div>
         {Icon ? <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 shadow-sm"><Icon className="h-4 w-4" /></div> : null}
+      </div>
+    </div>
+  );
+};
+
+const CompactStatCard = ({ label, value, icon: Icon, tone = "slate", emphasis = false }) => {
+  const tones = {
+    slate: {
+      shell: "border-slate-200 bg-white text-slate-950",
+      icon: "bg-slate-100 text-slate-700",
+      label: "text-slate-500",
+      value: "text-slate-950",
+    },
+    green: {
+      shell: "border-emerald-200 bg-white text-slate-950",
+      icon: "bg-emerald-50 text-emerald-700",
+      label: "text-emerald-700/70",
+      value: "text-slate-950",
+    },
+    cyan: {
+      shell: "border-sky-200 bg-white text-slate-950",
+      icon: "bg-sky-50 text-sky-700",
+      label: "text-sky-700/70",
+      value: "text-slate-950",
+    },
+    amber: {
+      shell: "border-amber-200 bg-white text-slate-950",
+      icon: "bg-amber-50 text-amber-700",
+      label: "text-amber-700/70",
+      value: "text-slate-950",
+    },
+    red: {
+      shell: "border-rose-200 bg-white text-slate-950",
+      icon: "bg-rose-50 text-rose-700",
+      label: "text-rose-700/70",
+      value: "text-slate-950",
+    },
+    blue: {
+      shell: "border-blue-200 bg-white text-slate-950",
+      icon: "bg-blue-50 text-blue-700",
+      label: "text-blue-700/70",
+      value: "text-slate-950",
+    },
+  };
+  const theme = tones[tone] || tones.slate;
+  if (emphasis) {
+    return (
+      <div className="min-h-[5.75rem] rounded-2xl border border-slate-900 bg-[linear-gradient(180deg,#020617,#0f172a)] p-3 text-white shadow-[0_14px_30px_rgba(15,23,42,0.18)]">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-300">{label}</div>
+            <div className="mt-1 text-[1.25rem] font-black leading-none text-white">{value || formatNumber(0)}</div>
+          </div>
+          {Icon ? <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white"><Icon className="h-4 w-4" /></div> : null}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className={`min-h-[5.75rem] rounded-2xl border p-3 shadow-[0_10px_22px_rgba(15,23,42,0.06)] ${theme.shell}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className={`text-[10px] font-black uppercase tracking-[0.12em] ${theme.label}`}>{label}</div>
+          <div className={`mt-1 text-[1.15rem] font-black leading-none ${theme.value}`}>{value || formatNumber(0)}</div>
+        </div>
+        {Icon ? <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${theme.icon}`}><Icon className="h-4 w-4" /></div> : null}
       </div>
     </div>
   );
@@ -642,16 +823,66 @@ export default function ManagerPortal() {
       return true;
     });
   }, [dashboard?.new_leads]);
+  const realLeads = useMemo(() => dedupedLeads.filter((lead) => isMeaningfulLead(lead)), [dedupedLeads]);
+  const actionableAiInsights = useMemo(() => {
+    const seen = new Set();
+    return uniqueBySignature(aiInsights, insightAlertSignature, seen)
+      .map((item) => ({
+        ...item,
+        __importance: insightActionabilityScore(item),
+        __timestamp: new Date(item.created_at || item.updated_at || item.timestamp || 0).getTime() || 0,
+      }))
+      .filter((item) => isActionableInsight(item))
+      .sort((a, b) => b.__importance - a.__importance || b.__timestamp - a.__timestamp)
+      .map(({ __importance, __timestamp, ...item }) => item);
+  }, [aiInsights]);
+  const isMobilePortal = isBrowser() ? window.matchMedia("(max-width: 1023px)").matches : false;
+  const managerNotificationAlertSignatures = useMemo(
+    () => new Set(managerNotifications.map((item) => notificationAlertSignature(item))),
+    [managerNotifications],
+  );
+  const mobileAlertBuckets = useMemo(() => {
+    const seen = new Set(managerNotificationAlertSignatures);
+    return {
+      operationalEvents: isMobilePortal ? operationalEvents.filter((event) => event.kind === "invoice") : operationalEvents,
+      aiInsights: isMobilePortal ? actionableAiInsights.slice(0, 3) : actionableAiInsights,
+      leads: isMobilePortal ? realLeads.slice(0, 3) : realLeads,
+      lowStock: isMobilePortal ? uniqueBySignature(lowStock, stockAlertSignature, seen) : lowStock,
+      refillAlerts: isMobilePortal ? uniqueBySignature(refillAlerts, stockAlertSignature, seen) : refillAlerts,
+      overdueTasks: isMobilePortal ? uniqueBySignature(overdueTasks, taskAlertSignature, seen) : overdueTasks,
+    };
+  }, [actionableAiInsights, isMobilePortal, lowStock, managerNotificationAlertSignatures, operationalEvents, overdueTasks, realLeads, refillAlerts]);
   const visibleNotifications = showMoreNotifications ? filteredManagerNotifications : filteredManagerNotifications.slice(0, 5);
   const visibleLiveFeed = managerNotifications.slice(0, 5);
   const hasMoreNotifications = filteredManagerNotifications.length > visibleNotifications.length;
   const showInstallCard = !standalone && (Boolean(installPrompt) || isIosDevice());
-  const visibleAiInsights = showMoreAiInsights ? aiInsights : aiInsights.slice(0, 3);
-  const hasMoreAiInsights = aiInsights.length > visibleAiInsights.length;
-  const visibleLeads = showMoreLeads ? dedupedLeads : dedupedLeads.slice(0, 3);
-  const hasMoreLeads = dedupedLeads.length > visibleLeads.length;
-  const visibleLowStock = showMoreLowStock ? lowStock : lowStock.slice(0, 3);
-  const hasMoreLowStock = lowStock.length > visibleLowStock.length;
+  const visibleAiInsights = showMoreAiInsights ? mobileAlertBuckets.aiInsights : mobileAlertBuckets.aiInsights.slice(0, 3);
+  const hasMoreAiInsights = mobileAlertBuckets.aiInsights.length > visibleAiInsights.length;
+  const visibleLeads = showMoreLeads ? mobileAlertBuckets.leads : mobileAlertBuckets.leads.slice(0, 3);
+  const hasMoreLeads = mobileAlertBuckets.leads.length > visibleLeads.length;
+  const visibleLowStock = showMoreLowStock ? [...mobileAlertBuckets.refillAlerts, ...mobileAlertBuckets.lowStock] : [...mobileAlertBuckets.refillAlerts, ...mobileAlertBuckets.lowStock].slice(0, 3);
+  const hasMoreLowStock = [...mobileAlertBuckets.refillAlerts, ...mobileAlertBuckets.lowStock].length > visibleLowStock.length;
+  const mobileDashboardStats = useMemo(() => (
+    isMobilePortal
+      ? [
+          { label: "مبيعات اليوم", value: formatCurrency(dashboard?.today_sales_total || 0), icon: ShoppingCart, tone: "green", emphasis: true },
+          { label: "الفواتير اليوم", value: formatNumber(dashboard?.invoice_count || 0), icon: ClipboardList, tone: "cyan", emphasis: true },
+          { label: "الحضور الآن", value: formatNumber(dashboard?.active_employees_now || 0), icon: Users, tone: "blue" },
+          { label: "اعتمادات معلقة", value: formatNumber(pendingInventoryApprovalsCount || 0), icon: CheckCircle2, tone: "amber" },
+          { label: "العملاء الساخنون", value: formatNumber(mobileAlertBuckets.leads.length || 0), icon: Bot, tone: "red" },
+          { label: "المخزون المنخفض", value: formatNumber((mobileAlertBuckets.lowStock.length || 0) + (mobileAlertBuckets.refillAlerts.length || 0)), icon: Package, tone: "slate" },
+        ]
+      : []
+  ), [
+    dashboard?.today_sales_total,
+    dashboard?.invoice_count,
+    dashboard?.active_employees_now,
+    isMobilePortal,
+    mobileAlertBuckets.leads.length,
+    mobileAlertBuckets.lowStock.length,
+    mobileAlertBuckets.refillAlerts.length,
+    pendingInventoryApprovalsCount,
+  ]);
   const selectedChatThread = managerChatState.thread || null;
   const selectedChatEmployee = useMemo(() => {
     if (managerChatState.employee) return managerChatState.employee;
@@ -1293,8 +1524,8 @@ export default function ManagerPortal() {
   }
 
   return (
-    <main data-testid="manager-portal-root" dir="rtl" className="manager-portal-readable-v2 min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.12),_transparent_26%),radial-gradient(circle_at_80%_0%,_rgba(245,158,11,0.10),_transparent_18%),radial-gradient(circle_at_15%_20%,_rgba(99,102,241,0.08),_transparent_20%),linear-gradient(180deg,#f8fafc_0%,#eef2f7_52%,#e2e8f0_100%)] px-3 py-3 pb-[calc(8rem+env(safe-area-inset-bottom))] text-right text-slate-950 dark:bg-slate-950 dark:text-white md:px-4 md:py-4">
-      <div className="mx-auto grid max-w-[96rem] gap-4 lg:grid-cols-[240px_minmax(0,1.55fr)_320px]">
+    <main data-testid="manager-portal-root" dir="rtl" className="manager-portal-readable-v2 manager-portal-shell min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.12),_transparent_26%),radial-gradient(circle_at_80%_0%,_rgba(245,158,11,0.10),_transparent_18%),radial-gradient(circle_at_15%_20%,_rgba(99,102,241,0.08),_transparent_20%),linear-gradient(180deg,#f8fafc_0%,#eef2f7_52%,#e2e8f0_100%)] px-3 py-2.5 text-right text-slate-950 dark:bg-slate-950 dark:text-white md:px-4 md:py-4">
+      <div className="mx-auto grid max-w-[96rem] gap-3 lg:grid-cols-[240px_minmax(0,1.55fr)_320px] lg:gap-4">
         <aside className="hidden min-h-[calc(100dvh-2rem)] rounded-[2rem] border border-slate-200 bg-white p-4 shadow-xl shadow-slate-200/50 lg:block">
           <div className="flex items-center gap-3">
             <div className="rounded-2xl bg-slate-950 p-3 text-white">
@@ -1334,55 +1565,79 @@ export default function ManagerPortal() {
           </div>
         </aside>
 
-        <section className="space-y-4">
-          <header className="rounded-[2rem] border border-slate-200 bg-slate-950 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-300">بوابة المدير</div>
-                <h1 className="mt-1 text-2xl font-black leading-8 text-white">{portalText(me?.full_name || me?.name || "المدير")}</h1>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-300">
-                  <span className="inline-flex items-center gap-1"><Building2 className="h-4 w-4" /> {portalText(me?.branch_name || "كل الفروع")}</span>
-                  <span className="inline-flex items-center gap-1"><Users className="h-4 w-4" /> {portalText(me?.role || "مدير")}</span>
+        <section className="space-y-3 sm:space-y-4">
+          {isMobilePortal ? (
+            <header className="rounded-[1.5rem] border border-slate-200 bg-slate-950 p-3 shadow-[0_14px_30px_rgba(15,23,42,0.16)]">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-300">بوابة المدير</div>
+                  <h1 className="mt-1 truncate text-lg font-black leading-6 text-white">{portalText(me?.full_name || me?.name || "المدير")}</h1>
+                  <div className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-slate-300">
+                    <Building2 className="h-3.5 w-3.5 shrink-0" />
+                    <span className="min-w-0 truncate">{portalText(me?.branch_name || "كل الفروع")}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  data-testid="refresh-button"
+                  onClick={() => void loadAll({ silent: true })}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white text-slate-950 shadow-sm transition hover:bg-slate-100"
+                  aria-label="تحديث"
+                >
+                  <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                </button>
+              </div>
+            </header>
+          ) : (
+            <header className="rounded-[2rem] border border-slate-200 bg-slate-950 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-300">بوابة المدير</div>
+                  <h1 className="mt-1 text-2xl font-black leading-8 text-white">{portalText(me?.full_name || me?.name || "المدير")}</h1>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-300">
+                    <span className="inline-flex items-center gap-1"><Building2 className="h-4 w-4" /> {portalText(me?.branch_name || "كل الفروع")}</span>
+                    <span className="inline-flex items-center gap-1"><Users className="h-4 w-4" /> {portalText(me?.role || "مدير")}</span>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  <Badge className="border-slate-700 bg-slate-800 text-slate-100">مباشر</Badge>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={openInventoryApprovals}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-amber-300/30 bg-amber-400 px-3 py-2 text-sm font-black text-black shadow-sm transition hover:bg-amber-300"
+                    >
+                      <ClipboardList className="h-4 w-4" />
+                      <span>جردات بانتظار الاعتماد</span>
+                      {pendingInventoryApprovalsCount ? (
+                        <span className="rounded-full bg-black/10 px-2 py-0.5 text-xs font-black">{formatNumber(pendingInventoryApprovalsCount)}</span>
+                      ) : null}
+                    </button>
+                    <button
+                      ref={notificationButtonRef}
+                      type="button"
+                      data-testid="manager-notifications-button"
+                      aria-label="Open notifications"
+                      aria-expanded={notificationsOpen}
+                      onClick={() => setNotificationsOpen((current) => !current)}
+                      className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-700 bg-[linear-gradient(180deg,#0f172a,#111827)] text-white transition hover:border-slate-500 hover:bg-[linear-gradient(180deg,#111827,#1e293b)]"
+                    >
+                      <Bell className="h-4 w-4" />
+                      {(unreadCount || notificationsUnread) ? (
+                        <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-black leading-4 text-white shadow-sm">
+                          {formatNumber(unreadCount || notificationsUnread)}
+                        </span>
+                      ) : null}
+                    </button>
+                    <button type="button" data-testid="refresh-button" onClick={() => void loadAll({ silent: true })} className="inline-flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-sm font-black text-slate-950 shadow-sm">
+                      <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                      تحديث
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-2">
-                <Badge className="border-slate-700 bg-slate-800 text-slate-100">مباشر</Badge>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={openInventoryApprovals}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-amber-300/30 bg-amber-400 px-3 py-2 text-sm font-black text-black shadow-sm transition hover:bg-amber-300"
-                  >
-                    <ClipboardList className="h-4 w-4" />
-                    <span>جردات بانتظار الاعتماد</span>
-                    {pendingInventoryApprovalsCount ? (
-                      <span className="rounded-full bg-black/10 px-2 py-0.5 text-xs font-black">{formatNumber(pendingInventoryApprovalsCount)}</span>
-                    ) : null}
-                  </button>
-                  <button
-                    ref={notificationButtonRef}
-                    type="button"
-                    data-testid="manager-notifications-button"
-                    aria-label="Open notifications"
-                    aria-expanded={notificationsOpen}
-                    onClick={() => setNotificationsOpen((current) => !current)}
-                    className="relative inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-700 bg-[linear-gradient(180deg,#0f172a,#111827)] text-white transition hover:border-slate-500 hover:bg-[linear-gradient(180deg,#111827,#1e293b)]"
-                  >
-                    <Bell className="h-4 w-4" />
-                    {(unreadCount || notificationsUnread) ? (
-                      <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-black leading-4 text-white shadow-sm">
-                        {formatNumber(unreadCount || notificationsUnread)}
-                      </span>
-                    ) : null}
-                  </button>
-                  <button type="button" data-testid="refresh-button" onClick={() => void loadAll({ silent: true })} className="inline-flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-sm font-black text-slate-950 shadow-sm">
-                    <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-                    تحديث
-                  </button>
-                </div>
-              </div>
-            </div>
-          </header>
+            </header>
+          )}
 
           {showInstallCard ? (
             <div className="rounded-3xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm">
@@ -1592,25 +1847,36 @@ export default function ManagerPortal() {
 
           {activeTab === "today" ? (
             <div data-testid="manager-dashboard-panel" className="space-y-4">
-              <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-                <MiniMetric label="مبيعات اليوم" value={formatCurrency(dashboard?.today_sales_total || 0)} icon={ShoppingCart} tone="green" />
-                <MiniMetric label="عدد الفواتير" value={formatNumber(dashboard?.invoice_count || 0)} icon={ClipboardList} tone="cyan" />
-                <MiniMetric label="العملاء الساخنون" value={formatNumber(dedupedLeads.length || 0)} icon={Bot} tone="red" />
-                <MiniMetric label="رسائل الموظفين" value={formatNumber(employeeMessageNotifications.length || 0)} icon={MessageSquare} tone="blue" />
-              </div>
+              {isMobilePortal ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {mobileDashboardStats.map((item) => (
+                    <CompactStatCard key={item.label} label={item.label} value={item.value} icon={item.icon} tone={item.tone} emphasis={item.emphasis} />
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                    <MiniMetric label="مبيعات اليوم" value={formatCurrency(dashboard?.today_sales_total || 0)} icon={ShoppingCart} tone="green" />
+                    <MiniMetric label="عدد الفواتير" value={formatNumber(dashboard?.invoice_count || 0)} icon={ClipboardList} tone="cyan" />
+                    <MiniMetric label="العملاء الساخنون" value={formatNumber(dedupedLeads.length || 0)} icon={Bot} tone="red" />
+                    <MiniMetric label="رسائل الموظفين" value={formatNumber(employeeMessageNotifications.length || 0)} icon={MessageSquare} tone="blue" />
+                  </div>
 
-              <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-                <MiniMetric label="الحاضرون الآن" value={formatNumber(dashboard?.active_employees_now || 0)} icon={Users} tone="green" />
-                <MiniMetric label="الغائبون" value={formatNumber(dashboard?.absent_employees || 0)} icon={X} tone="slate" />
-                <MiniMetric label="المتأخرون" value={formatNumber(dashboard?.late_employees || 0)} icon={Clock3} tone="amber" />
-                <MiniMetric label="المهام المفتوحة" value={formatNumber(dashboard?.pending_tasks || 0)} icon={ClipboardList} tone="blue" />
-                <MiniMetric label="المهام المتأخرة" value={formatNumber(dashboard?.overdue_tasks || 0)} icon={AlertTriangle} tone="red" />
-              </div>
+                  <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+                    <MiniMetric label="الحاضرون الآن" value={formatNumber(dashboard?.active_employees_now || 0)} icon={Users} tone="green" />
+                    <MiniMetric label="الغائبون" value={formatNumber(dashboard?.absent_employees || 0)} icon={X} tone="slate" />
+                    <MiniMetric label="المتأخرون" value={formatNumber(dashboard?.late_employees || 0)} icon={Clock3} tone="amber" />
+                    <MiniMetric label="المهام المفتوحة" value={formatNumber(dashboard?.pending_tasks || 0)} icon={ClipboardList} tone="blue" />
+                    <MiniMetric label="المهام المتأخرة" value={formatNumber(dashboard?.overdue_tasks || 0)} icon={AlertTriangle} tone="red" />
+                  </div>
+                </>
+              )}
 
-              <Card title="الأحداث التشغيلية" subtitle="آخر ٥ أحداث" icon={Bell}>
-                {operationalEvents.length ? (
-                  <div className="space-y-2">
-                    {operationalEvents.map((event) => (
+              {mobileAlertBuckets.operationalEvents.length || !isMobilePortal ? (
+                <Card title="الأحداث التشغيلية" subtitle="آخر ٥ أحداث" icon={Bell}>
+                  {mobileAlertBuckets.operationalEvents.length ? (
+                    <div className="space-y-2">
+                    {mobileAlertBuckets.operationalEvents.map((event) => (
                       <button
                         key={event.key}
                         type="button"
@@ -1628,10 +1894,11 @@ export default function ManagerPortal() {
                       </button>
                     ))}
                   </div>
-                ) : (
-                  <EmptyState compact title="لا توجد أحداث بعد" body="ستظهر هنا الفواتير والمهام والعملاء الساخنون وتنبيهات إعادة العرض." />
-                )}
-              </Card>
+                  ) : (
+                    <EmptyState compact title="لا توجد أحداث بعد" body="ستظهر هنا الفواتير والمهام والعملاء الساخنون وتنبيهات إعادة العرض." />
+                  )}
+                </Card>
+              ) : null}
 
               <Card title="توزيع الدفع" subtitle="توزيع الدفع" icon={ArrowLeftRight}>
                 {paymentBreakdown.length ? (
@@ -1648,41 +1915,37 @@ export default function ManagerPortal() {
                 )}
               </Card>
 
-              <Card title="تنبيهات المخزون" subtitle="تنبيهات المخزون" icon={Package}>
-                {lowStock.length || refillAlerts.length ? (
+              {mobileAlertBuckets.lowStock.length || mobileAlertBuckets.refillAlerts.length ? (
+                <Card title="تنبيهات المخزون" subtitle="تنبيهات المخزون" icon={Package}>
                   <div className="space-y-2">
-                    {refillAlerts.slice(0, 3).map((alert) => (
+                    {mobileAlertBuckets.refillAlerts.slice(0, 3).map((alert) => (
                       <div key={`refill-${alert.id}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800">
                         <div className="font-black text-slate-950">إعادة عرض منتج: <InlineName>{portalText(alert.product_name || "منتج")}</InlineName></div>
                         <div className="mt-1 text-xs font-bold text-slate-500">{portalText(alert.color_name || alert.color || "")} {alert.replacement_size ? `· ${portalText(alert.replacement_size)}` : ""}</div>
                       </div>
                     ))}
-                    {lowStock.slice(0, 3).map((item) => (
+                    {mobileAlertBuckets.lowStock.slice(0, 3).map((item) => (
                       <div key={`low-${item.id}-${item.name}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800">
                         <div className="font-black text-slate-950">مطلوب إعادة طلب: <InlineName>{portalText(item.name || "منتج")}</InlineName></div>
                         <div className="mt-1 text-xs font-bold text-slate-500">{formatNumber(item.stock || 0)} قطعة متبقية</div>
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <EmptyState compact title="لا توجد تنبيهات مخزون" body="سيظهر المخزون المنخفض وإعادة العرض عند اكتشافهما." />
-                )}
-              </Card>
+                </Card>
+              ) : null}
 
-              <Card title="رؤى الذكاء الاصطناعي" subtitle="التحليلات الذكية" icon={Bot}>
-                {aiInsights.length ? (
+              {mobileAlertBuckets.aiInsights.length ? (
+                <Card title="رؤى الذكاء الاصطناعي" subtitle="التحليلات الذكية" icon={Bot}>
                   <div className="grid gap-2 md:grid-cols-2">
-                    {aiInsights.map((item, index) => (
+                    {mobileAlertBuckets.aiInsights.map((item, index) => (
                       <div key={`${item.title || item.body || index}`} className="rounded-2xl border border-slate-200 bg-white p-3 text-sm font-semibold leading-6 text-slate-800">
                         <div className="text-xs font-black text-slate-600">{insightTitleLabel(item.type, item.title)}</div>
                         <div className="mt-1">{renderInsightBody(item)}</div>
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <EmptyState compact title="لا توجد رؤى مباشرة" body="ستظهر الإشارات المهمة عند توفر بيانات تشغيل كافية." />
-                )}
-              </Card>
+                </Card>
+              ) : null}
 
               <Card title="الإشعارات المباشرة" subtitle="الإشعارات المباشرة" icon={Bell}>
                 {visibleLiveFeed.length ? (
@@ -1704,48 +1967,84 @@ export default function ManagerPortal() {
                 )}
               </Card>
 
-              <Card title="المخزون المنخفض" subtitle="المخزون المنخفض" icon={Package}>
-                {visibleLowStock.length ? (
-                  <div className="space-y-2">
-                    {visibleLowStock.map((item) => (
-                      <div key={`low-only-${item.id}-${item.name}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800">
-                        <div className="font-black text-slate-950"><InlineName>{portalText(item.name || "منتج")}</InlineName></div>
-                        <div className="mt-1 text-xs font-bold text-slate-500">{portalText(item.color || "")} {item.size ? `· ${portalText(item.size)}` : ""} · {formatNumber(item.stock || 0)} قطعة</div>
-                      </div>
-                    ))}
-                    {hasMoreLowStock ? (
-                      <button type="button" onClick={() => setShowMoreLowStock((current) => !current)} className="inline-flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800">
-                        {showMoreLowStock ? "عرض أقل" : "عرض المزيد"}
-                      </button>
-                    ) : null}
-                  </div>
-                ) : (
-                  <EmptyState compact title="لا يوجد مخزون منخفض" body="لا توجد عناصر منخفضة حالياً." />
-                )}
-              </Card>
+              {mobileAlertBuckets.aiInsights.length || mobileAlertBuckets.lowStock.length || mobileAlertBuckets.refillAlerts.length || mobileAlertBuckets.leads.length || mobileAlertBuckets.operationalEvents.length ? null : (
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-500 shadow-sm">
+                  لا توجد تنبيهات إضافية حالياً
+                </div>
+              )}
             </div>
           ) : null}
 
           {activeTab === "staff" ? (
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               {staffList.length ? staffList.map((employee) => (
-                <Card key={employee.employee_id} title={portalText(employee.employee_name || "موظف")} subtitle={portalText(employee.department || employee.job_title || "الفريق")} icon={Users}>
-                  <div className="flex flex-wrap gap-2">
-                    <StatusPill tone={employee.attendance_status === "checked_in" ? "green" : employee.attendance_status === "online" ? "blue" : "slate"} value={portalText(employee.attendance_status || "absent")} />
-                    <StatusPill tone="blue" value={`المهام ${formatNumber(employee.open_tasks || 0)}/${formatNumber(employee.completed_tasks || 0)}`} />
-                    <StatusPill tone="amber" value={`المبيعات ${formatCurrency(employee.sales_today || 0)}`} />
+                isMobilePortal ? (
+                  <div
+                    key={employee.employee_id}
+                    className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] p-3 shadow-[0_10px_22px_rgba(15,23,42,0.06)]"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[15px] font-black leading-5 text-slate-950">
+                          {portalText(employee.employee_name || "موظف")}
+                        </div>
+                        <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-black text-slate-800">
+                          <span
+                            className={`h-2 w-2 rounded-full ${
+                              employee.attendance_status === "checked_in"
+                                ? "bg-emerald-500"
+                                : employee.attendance_status === "online"
+                                  ? "bg-sky-500"
+                                  : employee.attendance_status === "late"
+                                    ? "bg-amber-500"
+                                    : "bg-slate-400"
+                            }`}
+                          />
+                          {portalText(employee.attendance_status || "absent")}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-left">
+                        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">مبيعات اليوم</div>
+                        <div className="mt-0.5 text-[17px] font-black leading-none text-slate-950">
+                          {formatCurrency(employee.sales_today || 0)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-3 gap-2">
+                      <div className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-right">
+                        <div className="text-[10px] font-black text-slate-500">الفواتير</div>
+                        <div className="mt-0.5 text-sm font-black text-slate-950">{formatNumber(employee.invoices_count || 0)}</div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-right">
+                        <div className="text-[10px] font-black text-slate-500">الوردية</div>
+                        <div className="mt-0.5 text-sm font-black text-slate-950">{Number(employee.shift_duration_hours || 0).toFixed(1)} س</div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-right">
+                        <div className="text-[10px] font-black text-slate-500">آخر نشاط</div>
+                        <div className="mt-0.5 truncate text-sm font-black text-slate-950">{formatTime(employee.last_activity)}</div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="mt-3 grid gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300 sm:grid-cols-2">
-                    <div>الحضور: {formatTime(employee.check_in_time)} - {formatTime(employee.check_out_time)}</div>
-                    <div>الوردية: {Number(employee.shift_duration_hours || 0).toFixed(2)} ساعة</div>
-                    <div>الفواتير: {formatNumber(employee.invoices_count || 0)}</div>
-                    <div>آخر نشاط: {formatDateTime(employee.last_activity)}</div>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">العمولة المتوقعة {employee.expected_commission == null ? "غير متاحة" : formatCurrency(employee.expected_commission || 0)}</Badge>
-                    <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">المهام المفتوحة {formatNumber(employee.open_tasks || 0)}</Badge>
-                  </div>
-                </Card>
+                ) : (
+                  <Card key={employee.employee_id} title={portalText(employee.employee_name || "موظف")} subtitle={portalText(employee.department || employee.job_title || "الفريق")} icon={Users}>
+                    <div className="flex flex-wrap gap-2">
+                      <StatusPill tone={employee.attendance_status === "checked_in" ? "green" : employee.attendance_status === "online" ? "blue" : "slate"} value={portalText(employee.attendance_status || "absent")} />
+                      <StatusPill tone="blue" value={`المهام ${formatNumber(employee.open_tasks || 0)}/${formatNumber(employee.completed_tasks || 0)}`} />
+                      <StatusPill tone="amber" value={`المبيعات ${formatCurrency(employee.sales_today || 0)}`} />
+                    </div>
+                    <div className="mt-3 grid gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300 sm:grid-cols-2">
+                      <div>الحضور: {formatTime(employee.check_in_time)} - {formatTime(employee.check_out_time)}</div>
+                      <div>الوردية: {Number(employee.shift_duration_hours || 0).toFixed(2)} ساعة</div>
+                      <div>الفواتير: {formatNumber(employee.invoices_count || 0)}</div>
+                      <div>آخر نشاط: {formatDateTime(employee.last_activity)}</div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">العمولة المتوقعة {employee.expected_commission == null ? "غير متاحة" : formatCurrency(employee.expected_commission || 0)}</Badge>
+                      <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">المهام المفتوحة {formatNumber(employee.open_tasks || 0)}</Badge>
+                    </div>
+                  </Card>
+                )
               )) : (
                 <EmptyState title="لا يوجد موظفون لهذا النطاق" body="إذا لم يكن هناك مصدر بيانات أو لم تكن هناك صلاحية، سنعرض حالة فارغة." />
               )}
@@ -1828,9 +2127,11 @@ export default function ManagerPortal() {
                 {completedTasks.length ? <div className="space-y-3">{completedTasks.map((task) => renderTaskCard(task))}</div> : <EmptyState title="لا توجد مهام مكتملة" body="المهام المكتملة ستظهر هنا مع معاينة الإثبات." />}
               </Card>
 
-              <Card title="قائمة المهام المتأخرة" subtitle="تحتاج انتباه" icon={AlertTriangle}>
-                {overdueTasks.length ? <div className="space-y-3">{overdueTasks.map((task) => renderTaskCard(task))}</div> : <EmptyState title="لا توجد مهام متأخرة" body="المهام المتأخرة أو المستحقة ستظهر هنا." />}
-              </Card>
+              {mobileAlertBuckets.overdueTasks.length ? (
+                <Card title="قائمة المهام المتأخرة" subtitle="تحتاج انتباه" icon={AlertTriangle}>
+                  <div className="space-y-3">{mobileAlertBuckets.overdueTasks.map((task) => renderTaskCard(task))}</div>
+                </Card>
+              ) : null}
             </div>
           ) : null}
 
@@ -2299,7 +2600,7 @@ export default function ManagerPortal() {
           ) : null}
         </section>
 
-        <aside className="space-y-3">
+        <aside className="hidden space-y-3 lg:block">
           <Card title="الإشعارات المباشرة" subtitle="الإشعارات المباشرة" icon={Bell} className="min-h-0" compact bodyClassName="space-y-2">
             <div data-testid="notifications-panel" />
             <div className="space-y-1.5">
@@ -2336,74 +2637,113 @@ export default function ManagerPortal() {
             ) : null}
           </Card>
 
-          <Card title="التنبيهات الذكية" subtitle="التنبيهات الذكية" icon={Bot} compact bodyClassName="space-y-2">
-            <div className="space-y-1.5">
-              {visibleAiInsights.map((insight, index) => (
-                <div key={`${insight.title || index}`} className="rounded-2xl border border-slate-200 bg-white p-2.5 text-sm font-semibold leading-5 text-slate-800 shadow-sm">
-                  <div className="text-xs font-black text-slate-600">{insightTitleLabel(insight.type, insight.title)}</div>
-                  <div className="mt-1 line-clamp-3">{renderInsightBody(insight)}</div>
-                </div>
-              ))}
-              {!aiInsights.length ? <EmptyState title="لا توجد رؤى" body="إذا لم توجد بيانات حقيقية فلن نضيف افتراضات." /> : null}
-            </div>
-            {hasMoreAiInsights ? (
-              <button type="button" onClick={() => setShowMoreAiInsights((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
-                {showMoreAiInsights ? "عرض أقل" : "عرض المزيد"}
-              </button>
-            ) : null}
-          </Card>
+          {visibleAiInsights.length ? (
+            <Card title="التنبيهات الذكية" subtitle="التنبيهات الذكية" icon={Bot} compact bodyClassName="space-y-2">
+              <div className="space-y-1.5">
+                {visibleAiInsights.map((insight, index) => {
+                  const importance = insightActionabilityScore(insight);
+                  return (
+                    <div key={`${insight.title || index}`} className="rounded-2xl border border-slate-200 bg-white p-2.5 text-sm font-semibold leading-5 text-slate-800 shadow-sm">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-xs font-black text-slate-600">{insightTitleLabel(insight.type, insight.title)}</div>
+                          <div className="mt-1 line-clamp-2 text-sm font-semibold leading-5 text-slate-900">{renderInsightBody(insight)}</div>
+                        </div>
+                        <StatusPill
+                          tone={importance >= 8 ? "red" : importance >= 6 ? "amber" : "blue"}
+                          value={importance >= 8 ? "أولوية" : importance >= 6 ? "مهم" : "تنبيه"}
+                        />
+                      </div>
+                      <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-bold text-slate-500">
+                        <span className="truncate">{portalText(insight.message || insight.body || insight.title || "تنبيه قابل للتنفيذ")}</span>
+                        <span dir="ltr" className="shrink-0">{formatCompactDateTime(insight.created_at || insight.updated_at || insight.timestamp)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {hasMoreAiInsights ? (
+                <button type="button" onClick={() => setShowMoreAiInsights((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                  {showMoreAiInsights ? "عرض أقل" : "عرض المزيد"}
+                </button>
+              ) : null}
+            </Card>
+          ) : null}
 
-          <Card title="العملاء الساخنون" subtitle="العملاء الساخنون" icon={Store} compact bodyClassName="space-y-2">
-            <div className="space-y-1.5">
-              {visibleLeads.length ? visibleLeads.map((lead) => (
-                <div key={leadIdentity(lead)} className="rounded-2xl border border-slate-200 bg-white p-2.5 text-sm font-semibold leading-5 text-slate-800 shadow-sm">
-                  <div className="font-black text-slate-950">{leadName(lead)}</div>
-                  <div className="mt-1 text-xs font-bold text-slate-500">{leadChannel(lead)} · الدرجة {formatNumber(lead.lead_score || 0)}</div>
-                  <div className="mt-1 line-clamp-2 text-xs font-semibold text-slate-600">{leadPreview(lead)}</div>
-                  <button type="button" onClick={() => setActiveTab("chat")} className="mt-2 inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-black text-white">
-                    فتح المحادثة
-                  </button>
-                </div>
-              )) : <EmptyState title="لا توجد عملاء محتملون ساخنون" body="سيظهر هنا المصدر الحقيقي عند توفره." />}
-            </div>
-            {hasMoreLeads ? (
-              <button type="button" onClick={() => setShowMoreLeads((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
-                {showMoreLeads ? "عرض أقل" : "عرض المزيد"}
-              </button>
-            ) : null}
-          </Card>
+          {visibleLeads.length ? (
+            <Card title="العملاء الساخنون" subtitle="العملاء الساخنون" icon={Store} compact bodyClassName="space-y-2">
+              <div className="space-y-1.5">
+                {visibleLeads.map((lead) => {
+                  const product = leadPrimaryProduct(lead);
+                  const lastInteraction = leadLastInteractionAt(lead);
+                  return (
+                    <div key={leadIdentity(lead)} className="rounded-2xl border border-slate-200 bg-white p-2.5 text-sm font-semibold leading-5 text-slate-800 shadow-sm">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-black text-slate-950">{leadName(lead)}</div>
+                          <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-black text-slate-700">
+                            <span className="inline-flex max-w-full items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">{leadChannel(lead)}</span>
+                            {product ? (
+                              <span className="inline-flex max-w-full items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-800">
+                                <InlineName>{product}</InlineName>
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-left">
+                          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">الدرجة</div>
+                          <div className="mt-0.5 text-lg font-black leading-none text-slate-950">{formatNumber(lead.lead_score || 0)}</div>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-bold text-slate-500">
+                        <span className="truncate">آخر تفاعل</span>
+                        <span dir="ltr" className="shrink-0">{formatCompactDateTime(lastInteraction)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {hasMoreLeads ? (
+                <button type="button" onClick={() => setShowMoreLeads((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                  {showMoreLeads ? "عرض أقل" : "عرض المزيد"}
+                </button>
+              ) : null}
+            </Card>
+          ) : null}
 
-          <Card title="المخزون المنخفض" subtitle="المخزون المنخفض" icon={Package} compact bodyClassName="space-y-2">
-            <div className="space-y-1.5">
-              {visibleLowStock.length ? visibleLowStock.map((item) => (
-                <div key={`${item.id}-${item.name}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm">
-                  <div className="font-black text-slate-950"><InlineName>{portalText(item.name || "-")}</InlineName></div>
-                  <div className="mt-1 text-xs font-bold text-slate-500">{portalText(item.color || item.size || "")} · {formatNumber(item.stock || 0)}</div>
-                </div>
-              )) : <EmptyState title="لا توجد عناصر منخفضة" body="لن نعرض مخزونًا منخفضًا غير موجود في المصدر." />}
-            </div>
-            {hasMoreLowStock ? (
-              <button type="button" onClick={() => setShowMoreLowStock((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800">
-                {showMoreLowStock ? "عرض أقل" : "عرض المزيد"}
-              </button>
-            ) : null}
-          </Card>
+          {visibleLowStock.length ? (
+            <Card title="المخزون المنخفض" subtitle="المخزون المنخفض" icon={Package} compact bodyClassName="space-y-2">
+              <div className="space-y-1.5">
+                {visibleLowStock.map((item) => (
+                  <div key={`${item.id}-${item.name}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm">
+                    <div className="font-black text-slate-950"><InlineName>{portalText(item.name || "-")}</InlineName></div>
+                    <div className="mt-1 text-xs font-bold text-slate-500">{portalText(item.color || item.size || "")} · {formatNumber(item.stock || 0)}</div>
+                  </div>
+                ))}
+              </div>
+              {hasMoreLowStock ? (
+                <button type="button" onClick={() => setShowMoreLowStock((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-800">
+                  {showMoreLowStock ? "عرض أقل" : "عرض المزيد"}
+                </button>
+              ) : null}
+            </Card>
+          ) : null}
         </aside>
       </div>
 
-      <nav className="manager-bottom-nav-safe-padding fixed inset-x-3 bottom-3 z-40 mx-auto max-w-2xl rounded-[1.6rem] border border-slate-800 bg-[linear-gradient(180deg,#020617,#0f172a)] p-2 shadow-2xl shadow-slate-900/30 lg:hidden">
-        <div className="grid grid-cols-6 gap-1">
+      <nav className="manager-bottom-nav-safe-padding manager-bottom-nav-shell fixed inset-x-3 z-40 mx-auto max-w-2xl rounded-[1.4rem] border border-slate-800 bg-[linear-gradient(180deg,#020617,#0f172a)] shadow-2xl shadow-slate-900/30 lg:hidden">
+        <div className="grid grid-cols-6 gap-0.5 px-1.5 py-1.5">
           {TABS.map((tab) => {
             const active = activeTab === tab;
             const label = tab === "today" ? "اليوم" : tab === "staff" ? "الفريق" : tab === "tasks" ? "المهام" : tab === "sales" ? "المبيعات" : tab === "chat" ? "الشات" : "المزيد";
             const icon = tab === "today" ? Store : tab === "staff" ? Users : tab === "tasks" ? ClipboardList : tab === "sales" ? ShoppingCart : tab === "chat" ? MessageSquare : Bell;
             const Icon = icon;
             return (
-              <button key={tab} type="button" data-testid={`tab-${tab}`} onClick={() => setActiveTab(tab)} className={`flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-black transition ${active ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "text-slate-300"}`}>
-                <Icon className="h-4 w-4" />
-                <span className="inline-flex items-center gap-1">
+              <button key={tab} type="button" data-testid={`tab-${tab}`} onClick={() => setActiveTab(tab)} className={`flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl px-1.5 py-1.5 text-[10px] font-black leading-none transition ${active ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "text-slate-300"}`}>
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                <span className="inline-flex max-w-full items-center gap-1 whitespace-nowrap">
                   {label}
-                  {tab === "more" && unreadCount > 0 ? <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-black text-white">{formatNumber(unreadCount)}</span> : null}
+                  {tab === "more" && unreadCount > 0 ? <span className="rounded-full bg-rose-500 px-1 py-0.5 text-[9px] font-black leading-none text-white">{formatNumber(unreadCount)}</span> : null}
                 </span>
               </button>
             );

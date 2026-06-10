@@ -398,6 +398,26 @@
     scrollbar-gutter: stable;
   }
 
+  .manager-portal-shell {
+    --manager-portal-bottom-nav-height: 60px;
+    --manager-portal-bottom-nav-gap: max(0.5rem, env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--manager-portal-bottom-nav-height) + var(--manager-portal-bottom-nav-gap) + 0.75rem);
+  }
+
+  .manager-bottom-nav-safe-padding {
+    bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .manager-bottom-nav-shell {
+    padding-bottom: 0;
+  }
+
+  @media (min-width: 768px) {
+    .manager-portal-shell {
+      padding-bottom: calc(8rem + env(safe-area-inset-bottom, 0px));
+    }
+  }
+
   .sf-storefront-main {
     padding-bottom: calc(var(--mobile-bottom-nav-height, 64px) + var(--safe-bottom) + 1rem);
   }
