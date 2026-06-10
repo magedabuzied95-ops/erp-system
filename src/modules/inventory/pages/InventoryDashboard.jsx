@@ -48,6 +48,45 @@ const resolveImageUrl = (value) => {
   return `/uploads/products/${imageUrl}`;
 };
 
+const resolveLowStockCardImageUrl = (rows = []) => {
+  const candidates = [];
+
+  for (const row of rows) {
+    candidates.push(
+      row?.color_image_url,
+      row?.variant_image_url,
+      row?.image_url,
+      row?.product_image,
+      row?.product_image_url,
+      row?.main_image,
+      row?.main_image_url
+    );
+  }
+
+  return candidates.map((value) => resolveImageUrl(value)).find(Boolean) || "";
+};
+
+const getLowStockCardPriority = (stock) => (Number(stock || 0) <= 0 ? 0 : 1);
+
+const getLowStockRowStatus = (stock, threshold) => {
+  const currentStock = Number(stock || 0);
+  const lowStockThreshold = Number(threshold || 0);
+  if (currentStock <= 0) return { label: "نفد", tone: "critical" };
+  if (currentStock <= lowStockThreshold) return { label: "منخفض", tone: "warning" };
+  return { label: "متاح", tone: "safe" };
+};
+
+const lowStockStatusPillClasses = {
+  critical: "border-rose-300/30 bg-rose-500/15 text-rose-100",
+  warning: "border-amber-300/30 bg-amber-500/15 text-amber-100",
+  safe: "border-emerald-300/25 bg-emerald-500/15 text-emerald-100",
+};
+
+const lowStockCardClasses = {
+  critical: "border-rose-400/35 bg-gradient-to-br from-rose-500/18 via-rose-500/10 to-orange-500/10 shadow-[0_18px_45px_rgba(190,24,93,0.16)]",
+  warning: "border-amber-400/30 bg-gradient-to-br from-amber-500/14 via-white/[0.04] to-orange-500/10 shadow-[0_18px_45px_rgba(217,119,6,0.14)]",
+};
+
 const SMART_PURCHASE_DRAFT_STORAGE_KEY = "erp.purchases.smartPurchaseDraft";
 
 function InventoryDashboard() {
@@ -135,6 +174,152 @@ function InventoryDashboard() {
       `${variant.product_name} ${variant.color} ${variant.size} ${variant.sku}`.toLowerCase().includes(query)
     );
   }, [variants, search]);
+
+  const lowStockAlertCards = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const productMap = new Map();
+
+    for (const variant of Array.isArray(variants) ? variants : []) {
+      const productId = String(variant?.product_id || "").trim();
+      if (!productId) continue;
+      const current = productMap.get(productId) || {
+        product_id: Number(variant.product_id || 0),
+        product_slug: String(variant.product_slug || "").trim(),
+        product_name: String(variant.product_name || variant.name || "").trim(),
+        colors: new Set(),
+        alert_rows: [],
+        variant_rows: [],
+      };
+      current.variant_rows.push(variant);
+      if (!current.product_name) current.product_name = String(variant.product_name || variant.name || "").trim();
+      if (variant.color) current.colors.add(String(variant.color).trim());
+      productMap.set(productId, current);
+    }
+
+    for (const alert of Array.isArray(lowStockAlerts) ? lowStockAlerts : []) {
+      const productId = String(alert?.product_id || "").trim();
+      const productSlug = String(alert?.product_slug || "").trim();
+      const key = productId || productSlug;
+      if (!key) continue;
+      const current = productMap.get(key) || {
+        product_id: Number(alert.product_id || 0),
+        product_slug: productSlug,
+        product_name: String(alert.product_name || "").trim(),
+        colors: new Set(),
+        alert_rows: [],
+        variant_rows: [],
+      };
+      current.alert_rows.push(alert);
+      if (!current.product_name) current.product_name = String(alert.product_name || "").trim();
+      if (!current.product_slug && productSlug) current.product_slug = productSlug;
+      if (alert.color) current.colors.add(String(alert.color).trim());
+      productMap.set(key, current);
+    }
+
+    return Array.from(productMap.values())
+      .map((group) => {
+        const productVariants = Array.isArray(group.variant_rows) ? group.variant_rows : [];
+        const alertRows = Array.isArray(group.alert_rows) ? group.alert_rows : [];
+        const rows = productVariants.length
+          ? productVariants
+              .map((variant) => {
+                const alertRow = alertRows.find((alert) => String(alert.variant_id || "") === String(variant.id || ""));
+                return {
+                  id: variant.id,
+                  variant_id: variant.id,
+                  product_id: variant.product_id,
+                  product_name: variant.product_name || variant.name || group.product_name,
+                  color: variant.color || alertRow?.color || "",
+                  size: variant.size || alertRow?.size || "",
+                  sku: variant.sku || alertRow?.sku || "",
+                  stock: Number(variant.stock || alertRow?.stock || 0),
+                  price: Number(variant.price || variant.sale_price || variant.selling_price || 0),
+                  low_stock_alert: Number(variant.low_stock_alert || alertRow?.threshold || 2),
+                  color_image_url: variant.color_image_url || alertRow?.color_image_url || "",
+                  variant_image_url: variant.variant_image_url || alertRow?.variant_image_url || variant.image_url || alertRow?.image_url || "",
+                  image_url: variant.image_url || alertRow?.image_url || "",
+                  product_image: variant.product_image || alertRow?.product_image || "",
+                  product_image_url: variant.product_image_url || alertRow?.product_image_url || "",
+                  main_image: variant.main_image || alertRow?.main_image || "",
+                  main_image_url: variant.main_image_url || alertRow?.main_image_url || "",
+                };
+              })
+              .sort((left, right) => {
+                if (left.stock !== right.stock) return left.stock - right.stock;
+                return String(left.size || "").localeCompare(String(right.size || ""), "ar", { numeric: true });
+              })
+          : alertRows.map((alert) => ({
+              id: alert.variant_id || `${alert.product_id || "product"}-${alert.size || "row"}`,
+              variant_id: alert.variant_id || null,
+              product_id: alert.product_id,
+              product_name: alert.product_name || group.product_name,
+              color: alert.color || "",
+              size: alert.size || "",
+              sku: alert.sku || "",
+              stock: Number(alert.stock || alert.total_stock || 0),
+              price: Number(alert.price || 0),
+              low_stock_alert: Number(alert.threshold || alert.low_stock_alert || 2),
+              color_image_url: alert.color_image_url || "",
+              variant_image_url: alert.variant_image_url || "",
+              image_url: alert.image_url || "",
+              product_image: alert.product_image || "",
+              product_image_url: alert.product_image_url || "",
+              main_image: alert.main_image || "",
+              main_image_url: alert.main_image_url || "",
+            }));
+
+        const totalStock = rows.reduce((sum, row) => sum + Number(row.stock || 0), 0);
+        const totalValue = rows.reduce((sum, row) => sum + Number(row.stock || 0) * Number(row.price || 0), 0);
+        const imageUrl = resolveLowStockCardImageUrl([...rows, ...alertRows]);
+        const colors = Array.from(
+          new Set(
+            [
+              ...group.colors,
+              ...rows.map((row) => row.color).filter(Boolean),
+              ...alertRows.map((row) => row.color).filter(Boolean),
+            ]
+              .map((value) => String(value).trim())
+              .filter(Boolean)
+          )
+        );
+        const threshold = Number(rows.find((row) => Number.isFinite(Number(row.low_stock_alert)) && Number(row.low_stock_alert) > 0)?.low_stock_alert || alertRows[0]?.threshold || 2);
+        const cardStatus = totalStock <= 0 ? { label: "نفد", tone: "critical" } : { label: "منخفض", tone: "warning" };
+        const cardKey = String(group.product_slug || group.product_id || group.product_name || "").trim();
+
+        return {
+          key: cardKey,
+          product_id: group.product_id || alertRows[0]?.product_id || null,
+          product_slug: group.product_slug || "",
+          product_name: group.product_name || alertRows[0]?.product_name || t("common.notAvailable"),
+          color: colors.length === 1 ? colors[0] : colors.join(" / "),
+          colors,
+          image_url: imageUrl,
+          rows,
+          total_stock: totalStock,
+          total_value: totalValue,
+          threshold,
+          card_status: cardStatus,
+          sort_priority: getLowStockCardPriority(totalStock),
+          sort_stock: totalStock <= 0 ? 0 : totalStock,
+        };
+      })
+      .sort((left, right) => {
+        if (left.sort_priority !== right.sort_priority) return left.sort_priority - right.sort_priority;
+        if (left.sort_stock !== right.sort_stock) return left.sort_stock - right.sort_stock;
+        return String(left.product_name || "").localeCompare(String(right.product_name || ""), "ar");
+      })
+      .filter((card) => {
+        if (!query) return true;
+        const haystack = [
+          card.product_name,
+          card.color,
+          ...card.rows.flatMap((row) => [row.size, row.sku, row.color]),
+        ]
+          .map((value) => String(value || "").toLowerCase())
+          .join(" ");
+        return haystack.includes(query);
+      });
+  }, [lowStockAlerts, search, t, variants]);
 
   const purchaseAlertOptions = useMemo(() => {
     const unique = (rows, key) => ["all", ...new Set(rows.map((row) => String(row?.[key] ?? "").trim()).filter(Boolean))];
@@ -585,13 +770,123 @@ function InventoryDashboard() {
                 <h3 className="text-xl font-black text-white">{t("inventory.alerts.title")}</h3>
                 <p className="mt-1 text-sm text-zinc-400">{t("inventory.alerts.subtitle")}</p>
               </div>
-              {lowStockAlerts.length > 0 ? (
+              {lowStockAlertCards.length > 0 ? (
                 <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-xs font-black text-amber-200">
-                  {lowStockAlerts.length}
+                  {lowStockAlertCards.length}
                 </span>
               ) : null}
             </div>
             <div className="mt-4 space-y-3">
+              {lowStockAlertCards.slice(0, 8).map((card) => {
+                const cardTone = card.card_status?.tone || "warning";
+                const cardClassName = lowStockCardClasses[cardTone] || lowStockCardClasses.warning;
+                const cardStatusClass = lowStockStatusPillClasses[cardTone] || lowStockStatusPillClasses.warning;
+                return (
+                  <div
+                    key={card.key}
+                    className={`rounded-3xl border p-4 shadow-[0_18px_38px_rgba(15,23,42,0.18)] ${cardClassName}`}
+                  >
+                    <div className="flex gap-4">
+                      <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white shadow-inner">
+                        {card.image_url ? (
+                          <img
+                            src={card.image_url}
+                            alt={card.product_name}
+                            className="h-full w-full object-contain p-2"
+                          />
+                        ) : (
+                          <Package className="h-7 w-7 text-zinc-500" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="truncate text-base font-black text-white">{card.product_name}</div>
+                            <div className="mt-1 line-clamp-2 text-sm leading-6 text-zinc-100/85">
+                              {card.color ? `اللون: ${card.color}` : "اللون: -"}
+                            </div>
+                          </div>
+                          <span className={`shrink-0 rounded-full border px-3 py-1 text-[10px] font-black ${cardStatusClass}`}>
+                            {card.card_status?.label || "تنبيه"}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-zinc-100 sm:grid-cols-3">
+                          <div className="rounded-2xl border border-white/10 bg-zinc-950/25 px-3 py-2">
+                            <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300">إجمالي المخزون</span>
+                            <span className="mt-1 block text-base font-black text-white">{card.total_stock}</span>
+                          </div>
+                          <div className="rounded-2xl border border-white/10 bg-zinc-950/25 px-3 py-2">
+                            <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300">إجمالي القيمة</span>
+                            <span className="mt-1 block text-base font-black text-white">{formatCurrency(card.total_value)}</span>
+                          </div>
+                          <div className="rounded-2xl border border-white/10 bg-zinc-950/25 px-3 py-2">
+                            <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-300">الحالة</span>
+                            <span className="mt-1 block text-base font-black text-white">{card.card_status?.label || "تنبيه"}</span>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-zinc-100/80">
+                          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                            {card.rows.length} قطعة
+                          </span>
+                          {card.colors.length > 1 ? (
+                            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                              {card.colors.length} ألوان
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/30">
+                          <div className="grid grid-cols-[1.05fr_1.15fr_0.75fr_0.95fr_0.8fr] gap-2 border-b border-white/10 bg-white/[0.03] px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">
+                            <div>المقاس</div>
+                            <div>SKU</div>
+                            <div>المخزون</div>
+                            <div>القيمة</div>
+                            <div>الحالة</div>
+                          </div>
+                          <div className="divide-y divide-white/10">
+                            {card.rows.map((row) => {
+                              const rowStatus = getLowStockRowStatus(row.stock, row.low_stock_alert || card.threshold);
+                              return (
+                                <div
+                                  key={`${card.key}-${row.variant_id || row.id || row.sku || row.size}`}
+                                  className="grid grid-cols-[1.05fr_1.15fr_0.75fr_0.95fr_0.8fr] gap-2 px-3 py-2 text-sm text-white"
+                                >
+                                  <div className="font-semibold text-white">{row.size || t("inventory.labels.oneSize")}</div>
+                                  <div className="truncate text-zinc-300">{row.sku || "—"}</div>
+                                  <div className="font-black tabular-nums text-white">{row.stock}</div>
+                                  <div className="font-bold text-zinc-200">{formatCurrency(Number(row.stock || 0) * Number(row.price || 0))}</div>
+                                  <div>
+                                    <span
+                                      className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black ${
+                                        lowStockStatusPillClasses[rowStatus.tone] || lowStockStatusPillClasses.warning
+                                      }`}
+                                    >
+                                      {rowStatus.label}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex justify-end">
+                          <Link
+                            to={`/inventory/adjustments?productId=${encodeURIComponent(card.product_id || "")}`}
+                            className="inline-flex items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-black text-emerald-100 transition hover:bg-emerald-500/15"
+                          >
+                            افتح المخزون
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-4 space-y-3 hidden">
               {lowStockAlerts.slice(0, 8).map((alert) => {
                 const totalStock = Number(alert.total_stock ?? alert.stock ?? 0);
                 const productName = alert.product_name || t("common.notAvailable");
