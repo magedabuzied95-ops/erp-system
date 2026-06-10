@@ -24,6 +24,7 @@ import {
   CircleDollarSign,
   Megaphone,
   Share2,
+  TicketPercent,
 } from "lucide-react";
 
 import { getCurrentUser, getUserPermissions, isAdminUser } from "../../../shared/auth/authStorage";
