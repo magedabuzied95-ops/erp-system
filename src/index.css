@@ -78,6 +78,16 @@
     min-height: 100dvh;
   }
 
+  .employee-portal-shell {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
+  }
+
+  @media (min-width: 768px) {
+    .employee-portal-shell {
+      padding-top: 16px;
+    }
+  }
+
   @media (max-width: 767px) {
     .employee-portal-safe-top {
       padding-top: 12px;

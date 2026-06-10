@@ -2406,9 +2406,9 @@ export default function EmployeePayrollPortal() {
   };
 
   return (
-    <main dir={direction} className="employee-portal-min-screen overflow-x-hidden bg-slate-100 px-3 pt-3 pb-[calc(128px+env(safe-area-inset-bottom))] text-slate-950 md:pt-4">
+    <main dir={direction} className="employee-portal-shell employee-portal-min-screen overflow-x-hidden bg-slate-100 px-3 pb-[calc(128px+env(safe-area-inset-bottom))] text-slate-950">
       <div className="mx-auto w-full max-w-md md:max-w-3xl xl:max-w-5xl">
-        <header className="employee-portal-safe-top flex items-center justify-between gap-3 py-0.5">
+        <header className="flex items-center justify-between gap-3 py-0.5">
           <div className="flex items-center gap-2 text-sm font-black text-slate-700">
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
             <span>{ui("employeeDashboard")}</span>
