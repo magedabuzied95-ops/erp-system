@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import {
@@ -82,6 +82,11 @@ const toNumber = (value, fallback = 0) => {
 
 const normalizeText = (value = "") => String(value || "").trim();
 const isDevEnvironment = typeof import.meta !== "undefined" && import.meta.env?.DEV;
+const logDevDuration = (label, startedAt, payload = {}) => {
+  if (!isDevEnvironment) return;
+  const durationMs = Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - startedAt);
+  console.debug(`[inventory-count] ${label}`, { durationMs, ...payload });
+};
 
 const normalizeImageValue = (value = "") => {
   if (!value) return "";
@@ -107,6 +112,8 @@ const resolveCountVariantImageData = (record = {}) => {
   const colorImage = normalizeImageValue(
     record.color_image_url ||
       record.primary_image_url ||
+      record.color?.main_image_url ||
+      record.color?.main_image ||
       record.color?.image_url ||
       record.color?.image ||
       record.color?.url ||
@@ -117,7 +124,11 @@ const resolveCountVariantImageData = (record = {}) => {
       record.product_variant_image_url ||
       record.image_url ||
       record.image ||
+      record.main_image_url ||
+      record.main_image ||
       record.variant?.image_url ||
+      record.variant?.main_image_url ||
+      record.variant?.main_image ||
       record.variant?.image ||
       record.variant?.url ||
       ""
@@ -125,8 +136,14 @@ const resolveCountVariantImageData = (record = {}) => {
   const productImage = normalizeImageValue(
     record.product_image ||
       record.product_image_url ||
+      record.product_main_image ||
+      record.product_main_image_url ||
+      record.main_image ||
+      record.main_image_url ||
       record.product?.image_url ||
       record.product?.product_image_url ||
+      record.product?.main_image_url ||
+      record.product?.main_image ||
       record.product?.image ||
       ""
   );
@@ -138,9 +155,20 @@ const resolveCountVariantImageData = (record = {}) => {
       record.images?.[0] ||
       ""
   );
+  const mainImage = normalizeImageValue(
+    record.main_image ||
+      record.main_image_url ||
+      record.product_main_image ||
+      record.product_main_image_url ||
+      productImage ||
+      variantImage ||
+      colorImage ||
+      firstProductImage ||
+      ""
+  );
 
-  const imageUrl = colorImage || variantImage || productImage || firstProductImage || "";
-  const imageSourceRank = colorImage ? 1 : variantImage ? 2 : productImage ? 3 : firstProductImage ? 4 : 0;
+  const imageUrl = colorImage || variantImage || mainImage || productImage || firstProductImage || "";
+  const imageSourceRank = colorImage ? 1 : variantImage || mainImage ? 2 : productImage ? 3 : firstProductImage ? 4 : 0;
 
   return {
     image_url: imageUrl,
@@ -148,9 +176,44 @@ const resolveCountVariantImageData = (record = {}) => {
     variant_image_url: variantImage || "",
     product_image: productImage || "",
     product_image_url: productImage || "",
+    main_image: mainImage || "",
+    main_image_url: mainImage || "",
     primary_image_url: colorImage || variantImage || productImage || firstProductImage || "",
     image_source_rank: imageSourceRank,
   };
+};
+
+const pickBestCountImageData = (records = []) => {
+  let best = {
+    image_url: "",
+    color_image_url: "",
+    variant_image_url: "",
+    product_image: "",
+    product_image_url: "",
+    main_image: "",
+    main_image_url: "",
+    primary_image_url: "",
+    image_source_rank: Number.POSITIVE_INFINITY,
+  };
+
+  for (const record of Array.isArray(records) ? records : []) {
+    const imageData = resolveCountVariantImageData(record);
+    if (!imageData.image_url) continue;
+
+    const rank = Number(imageData.image_source_rank || Number.POSITIVE_INFINITY);
+    if (rank < best.image_source_rank) {
+      best = imageData;
+      best.image_source_rank = rank;
+      continue;
+    }
+
+    if (rank === best.image_source_rank && !best.image_url) {
+      best = imageData;
+      best.image_source_rank = rank;
+    }
+  }
+
+  return best;
 };
 
 const sizeSortValue = (value) => {
@@ -217,22 +280,24 @@ const groupCountVariants = (records = []) => {
     const colorKey = variant.color.toLowerCase() || "default";
     const key = `${productKey}::${colorKey}`;
 
-    if (!groups.has(key)) {
-      groups.set(key, {
-        key,
-        product_id: variant.product_id,
-        product_name: variant.product_name,
-        color: variant.color,
-        image_url: variant.image_url,
-        image_source_rank: variant.image_source_rank || 0,
-        color_image_url: variant.color_image_url || "",
-        variant_image_url: variant.variant_image_url || "",
-        product_image: variant.product_image || "",
-        variants: [],
-        system_total: 0,
-        counted_total: 0,
-        difference_total: 0,
-      });
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          product_id: variant.product_id,
+          product_name: variant.product_name,
+          color: variant.color,
+          image_url: variant.image_url,
+          image_source_rank: variant.image_source_rank || 0,
+          color_image_url: variant.color_image_url || "",
+          variant_image_url: variant.variant_image_url || "",
+          product_image: variant.product_image || "",
+          main_image: variant.main_image || "",
+          main_image_url: variant.main_image_url || "",
+          variants: [],
+          system_total: 0,
+          counted_total: 0,
+          difference_total: 0,
+        });
     }
 
     const group = groups.get(key);
@@ -251,15 +316,19 @@ const groupCountVariants = (records = []) => {
     group.difference_total += toNumber(variant.difference_quantity, variant.counted_quantity - variant.system_quantity);
   }
 
-  return Array.from(groups.values()).map((group) => ({
-    ...group,
-    variants: group.variants.sort((a, b) => {
-      const bySize = sizeSortValue(a.size) - sizeSortValue(b.size);
-      if (bySize !== 0) return bySize;
-      return String(a.size || "").localeCompare(String(b.size || ""));
-    }),
-  }));
-};
+    return Array.from(groups.values()).map((group) => {
+      const bestImage = pickBestCountImageData(group.variants);
+      return {
+        ...group,
+        ...bestImage,
+        variants: group.variants.sort((a, b) => {
+          const bySize = sizeSortValue(a.size) - sizeSortValue(b.size);
+          if (bySize !== 0) return bySize;
+          return String(a.size || "").localeCompare(String(b.size || ""));
+        }),
+      };
+    });
+  };
 
 const groupLookupModels = (records = []) => {
   const groups = new Map();
@@ -268,23 +337,25 @@ const groupLookupModels = (records = []) => {
     const variant = normalizeCountVariant(record);
     const productKey = variant.product_id ? String(variant.product_id) : variant.product_name.toLowerCase();
 
-    if (!groups.has(productKey)) {
-      groups.set(productKey, {
-        key: productKey,
-        product_id: variant.product_id,
-        product_name: variant.product_name,
-        product_sku: variant.product_sku,
-        product_barcode: variant.product_barcode,
-        image_url: variant.image_url,
-        image_source_rank: variant.image_source_rank || 0,
-        color_image_url: variant.color_image_url || "",
-        variant_image_url: variant.variant_image_url || "",
-        product_image: variant.product_image || "",
-        variants: [],
-        colors: new Set(),
-        sizes: new Set(),
-        system_total: 0,
-      });
+      if (!groups.has(productKey)) {
+        groups.set(productKey, {
+          key: productKey,
+          product_id: variant.product_id,
+          product_name: variant.product_name,
+          product_sku: variant.product_sku,
+          product_barcode: variant.product_barcode,
+          image_url: variant.image_url,
+          image_source_rank: variant.image_source_rank || 0,
+          color_image_url: variant.color_image_url || "",
+          variant_image_url: variant.variant_image_url || "",
+          product_image: variant.product_image || "",
+          main_image: variant.main_image || "",
+          main_image_url: variant.main_image_url || "",
+          variants: [],
+          colors: new Set(),
+          sizes: new Set(),
+          system_total: 0,
+        });
     }
 
     const group = groups.get(productKey);
@@ -303,19 +374,23 @@ const groupLookupModels = (records = []) => {
     group.system_total += toNumber(variant.system_quantity, 0);
   }
 
-  return Array.from(groups.values()).map((group) => ({
-    ...group,
-    colors: Array.from(group.colors),
-    sizes: Array.from(group.sizes),
-    variants: group.variants.sort((a, b) => {
-      const byColor = String(a.color || "").localeCompare(String(b.color || ""));
-      if (byColor !== 0) return byColor;
-      const bySize = sizeSortValue(a.size) - sizeSortValue(b.size);
-      if (bySize !== 0) return bySize;
-      return String(a.size || "").localeCompare(String(b.size || ""));
-    }),
-  }));
-};
+    return Array.from(groups.values()).map((group) => {
+      const bestImage = pickBestCountImageData(group.variants);
+      return {
+        ...group,
+        ...bestImage,
+        colors: Array.from(group.colors),
+        sizes: Array.from(group.sizes),
+        variants: group.variants.sort((a, b) => {
+          const byColor = String(a.color || "").localeCompare(String(b.color || ""));
+          if (byColor !== 0) return byColor;
+          const bySize = sizeSortValue(a.size) - sizeSortValue(b.size);
+          if (bySize !== 0) return bySize;
+          return String(a.size || "").localeCompare(String(b.size || ""));
+        }),
+      };
+    });
+  };
 
 const isExactIdentifierMatch = (query, variant) => {
   const normalizedQuery = normalizeText(query).toLowerCase();
@@ -392,11 +467,33 @@ function InventoryCountPage() {
     notes: "",
   });
 
+  const itemsRef = useRef(items);
+  const itemSaveTimersRef = useRef(new Map());
+  const itemSavePatchRef = useRef(new Map());
+  const itemSavingIdRef = useRef("");
+
   const currentUser = getCurrentUser();
   const currentRole = getUserRole(currentUser);
   const canReviewInventoryCount = isAdminUser(currentUser) || ["manager", "branch manager"].includes(String(currentRole || "").toLowerCase());
   const sessionIsLockedForEditing = ["pending_review", "rejected", "completed", "cancelled"].includes(session?.status || "");
   const isCompactInventoryLayout = useMediaQuery("(max-width: 1366px)");
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  useEffect(() => {
+    itemSavingIdRef.current = itemSavingId;
+  }, [itemSavingId]);
+
+  useEffect(
+    () => () => {
+      itemSaveTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      itemSaveTimersRef.current.clear();
+      itemSavePatchRef.current.clear();
+    },
+    []
+  );
 
   const groupedLookupResults = useMemo(() => groupLookupModels(lookupResults), [lookupResults]);
   const groupedItems = useMemo(() => groupCountVariants(items), [items]);
@@ -535,6 +632,41 @@ function InventoryCountPage() {
       setSession(response.session);
     }
     return response?.item || null;
+  };
+
+  const scheduleVariantSave = (variant, patch = {}, delayMs = 280) => {
+    if (!variant || sessionIsLockedForEditing || !routeSessionId) return;
+    const variantId = String(variant.product_variant_id || variant.variant_id || variant.id || "");
+    if (!variantId) return;
+
+    const queuedPatch = {
+      ...(itemSavePatchRef.current.get(variantId) || {}),
+      ...patch,
+    };
+    itemSavePatchRef.current.set(variantId, queuedPatch);
+
+    const existingTimer = itemSaveTimersRef.current.get(variantId);
+    if (existingTimer) window.clearTimeout(existingTimer);
+
+    const timer = window.setTimeout(async () => {
+      itemSaveTimersRef.current.delete(variantId);
+      const currentVariant = itemsRef.current.find((row) => String(row.product_variant_id || row.variant_id || row.id || "") === variantId) || variant;
+      const patchToSave = itemSavePatchRef.current.get(variantId) || queuedPatch;
+      itemSavePatchRef.current.delete(variantId);
+      const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+      try {
+        setItemSavingId(variantId);
+        const saved = await persistVariant(currentVariant, patchToSave);
+        if (saved) mergeSavedItem(saved);
+        logDevDuration("save item", startedAt, { variantId });
+      } catch (error) {
+        toast.error(error?.message || "تعذر حفظ القطعة");
+      } finally {
+        setItemSavingId("");
+      }
+    }, delayMs);
+
+    itemSaveTimersRef.current.set(variantId, timer);
   };
 
   const createSessionHandler = async () => {

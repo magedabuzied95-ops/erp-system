@@ -66,6 +66,8 @@ const resolveInventoryCountImageFields = (row = {}) => {
   const colorImage = normalizeImageValue(
     row.color_image_url ||
       row.primary_image_url ||
+      row.color?.main_image_url ||
+      row.color?.main_image ||
       row.color?.image_url ||
       row.color?.image ||
       row.color?.url ||
@@ -75,7 +77,11 @@ const resolveInventoryCountImageFields = (row = {}) => {
     row.variant_image_url ||
       row.image_url ||
       row.product_variant_image_url ||
+      row.main_image_url ||
+      row.main_image ||
       row.variant?.image_url ||
+      row.variant?.main_image_url ||
+      row.variant?.main_image ||
       row.variant?.image ||
       row.variant?.url ||
       ""
@@ -83,7 +89,13 @@ const resolveInventoryCountImageFields = (row = {}) => {
   const productImage = normalizeImageValue(
     row.product_image ||
       row.product_image_url ||
+      row.product_main_image ||
+      row.product_main_image_url ||
+      row.main_image ||
+      row.main_image_url ||
       row.product?.image_url ||
+      row.product?.main_image_url ||
+      row.product?.main_image ||
       row.product?.image ||
       row.product?.url ||
       ""
@@ -97,6 +109,17 @@ const resolveInventoryCountImageFields = (row = {}) => {
       ""
   );
   const imageUrl = colorImage || variantImage || productImage || firstProductImage || "";
+  const mainImage = normalizeImageValue(
+    row.main_image ||
+      row.main_image_url ||
+      row.product_main_image ||
+      row.product_main_image_url ||
+      productImage ||
+      variantImage ||
+      colorImage ||
+      firstProductImage ||
+      ""
+  );
 
   return {
     ...row,
@@ -104,6 +127,8 @@ const resolveInventoryCountImageFields = (row = {}) => {
     variant_image_url: variantImage || colorImage || productImage || firstProductImage || "",
     product_image: productImage || "",
     product_image_url: row.product_image_url || productImage || "",
+    main_image: mainImage || "",
+    main_image_url: mainImage || "",
     image_url: imageUrl,
     primary_image_url: row.primary_image_url || colorImage || variantImage || productImage || firstProductImage || "",
   };
@@ -1265,26 +1290,34 @@ export const upsertInventoryCountItem = async (clientOrPool, data = {}) => {
     session: sessionStatus === session.status
       ? session
       : await fetchSessionRow(dbClient, { tenantId, sessionId, lock: false }),
-    item: applyRowAliases({
-      ...itemRow,
-      product_name: variant.product_name,
-      variant_color: variant.color,
-      variant_size: variant.size,
-      variant_sku: variant.sku,
-      variant_barcode: variant.barcode,
-      variant_article_code: variant.article_code,
-      variant_image_url: variant.image_url,
-      product_variant_id: variantId,
-      product_id: variant.product_id,
-      system_quantity: systemQuantity,
-      counted_quantity: nextCountedQuantity,
-      difference_quantity: differenceQuantity,
-      expected_qty: systemQuantity,
-      actual_qty: nextCountedQuantity,
-      difference_qty: differenceQuantity,
-      reason,
-      notes,
-    }),
+    item: resolveInventoryCountImageFields(
+      applyRowAliases({
+        ...itemRow,
+        product_name: variant.product_name,
+        variant_color: variant.color,
+        variant_size: variant.size,
+        variant_sku: variant.sku,
+        variant_barcode: variant.barcode,
+        variant_article_code: variant.article_code,
+        variant_image_url: variant.image_url,
+        color_image_url: variant.color_image_url || variant.primary_image_url || variant.variant_image_url || variant.image_url || "",
+        product_image: variant.product_image || variant.product_image_url || "",
+        product_image_url: variant.product_image_url || variant.product_image || "",
+        main_image: variant.main_image || variant.product_image || variant.image_url || variant.variant_image_url || "",
+        main_image_url: variant.main_image_url || variant.main_image || variant.product_image_url || variant.product_image || variant.image_url || "",
+        primary_image_url: variant.primary_image_url || variant.color_image_url || variant.variant_image_url || variant.image_url || "",
+        product_variant_id: variantId,
+        product_id: variant.product_id,
+        system_quantity: systemQuantity,
+        counted_quantity: nextCountedQuantity,
+        difference_quantity: differenceQuantity,
+        expected_qty: systemQuantity,
+        actual_qty: nextCountedQuantity,
+        difference_qty: differenceQuantity,
+        reason,
+        notes,
+      })
+    ),
   };
   });
 };
@@ -1418,6 +1451,8 @@ export const addProductModelToCount = async (clientOrPool, data = {}) => {
           color_image_url: variant.color_image_url || variant.primary_image_url || variant.variant_image_url || variant.image_url || "",
           product_image: variant.product_image || variant.product_image_url || "",
           product_image_url: variant.product_image_url || variant.product_image || "",
+          main_image: variant.main_image || variant.product_image || variant.image_url || variant.variant_image_url || "",
+          main_image_url: variant.main_image_url || variant.main_image || variant.product_image_url || variant.product_image || variant.image_url || "",
           image_url: variant.image_url || variant.variant_image_url || variant.product_image || variant.product_image_url || "",
           primary_image_url: variant.primary_image_url || variant.color_image_url || variant.variant_image_url || variant.image_url || "",
           product_variant_id: variantId,
