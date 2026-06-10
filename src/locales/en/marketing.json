@@ -87,6 +87,84 @@
       "completed": "Completed"
     }
   },
+  "coupons": {
+    "eyebrow": "Coupons",
+    "title": "Coupon campaigns",
+    "subtitle": "Create, generate, track, and export coupon codes from the ERP.",
+    "new": "New campaign",
+    "loadFailed": "Failed to load coupon campaigns",
+    "saved": "Campaign saved",
+    "saveFailed": "Failed to save campaign",
+    "deleteConfirm": "Delete this campaign and its coupons?",
+    "deleted": "Campaign deleted",
+    "deleteFailed": "Failed to delete campaign",
+    "generateFailed": "Failed to generate coupons",
+    "generated": "{{count}} coupons generated",
+    "loading": "Loading coupon campaigns...",
+    "empty": "No coupon campaigns yet.",
+    "emptyFiltered": "No coupons match this filter.",
+    "emptySelection": "Select or create a coupon campaign.",
+    "searchPlaceholder": "Search coupon code",
+    "targetQty": "Qty",
+    "optional": "Optional",
+    "active": "Active",
+    "inactive": "Off",
+    "campaignLabel": "Campaigns",
+    "fields": {
+      "name": "Name",
+      "codePrefix": "Code prefix",
+      "discountType": "Discount type",
+      "discountValue": "Discount value",
+      "minimumOrder": "Minimum order",
+      "maxDiscount": "Max discount",
+      "usagePerCoupon": "Usage per coupon",
+      "targetCoupons": "Target coupons",
+      "startsAt": "Starts at",
+      "expiresAt": "Expires at",
+      "channel": "Channel",
+      "activeCampaign": "Active campaign"
+    },
+    "actions": {
+      "generate": "Generate",
+      "edit": "Edit",
+      "delete": "Delete",
+      "exportPdf": "PDF",
+      "exportCsv": "CSV",
+      "cancel": "Cancel",
+      "save": "Save"
+    },
+    "headers": {
+      "code": "Code",
+      "discount": "Discount",
+      "usage": "Usage",
+      "status": "Status",
+      "expires": "Expires",
+      "totalGenerated": "Total generated",
+      "used": "Used",
+      "unused": "Unused",
+      "expired": "Expired",
+      "totalDiscount": "Total discount",
+      "salesGenerated": "Sales generated",
+      "conversionRate": "Conversion rate"
+    },
+    "generatedSuffix": "generated",
+    "usedSuffix": "used",
+    "modal": {
+      "edit": "Edit campaign",
+      "create": "New campaign",
+      "title": "Coupon campaign"
+    },
+    "types": {
+      "percentage": "Percentage",
+      "fixed": "Fixed"
+    },
+    "channels": {
+      "offline": "Offline",
+      "website": "Website",
+      "pos": "POS",
+      "all": "All"
+    }
+  },
   "posts": {
     "eyebrow": "Social posts",
     "title": "Marketing content calendar",

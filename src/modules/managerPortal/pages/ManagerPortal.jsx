@@ -1,4 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { io as createSocket } from "socket.io-client";
 import {
@@ -60,6 +61,9 @@ const DEFAULT_NOTIFICATION_SETTINGS = {
   ai_leads: { sound: true, toast: true, push: true },
 };
 const MANAGER_PORTAL_PWA_VERSION = "20260607";
+const MANAGER_PORTAL_CRITICAL_TIMEOUT_MS = 9000;
+const MANAGER_PORTAL_DEFERRED_TIMEOUT_MS = 12000;
+const settledValue = (result) => (result?.status === "fulfilled" ? result.value : null);
 
 const isBrowser = () => typeof window !== "undefined";
 const isStandaloneApp = () => {
@@ -387,6 +391,19 @@ const formatCompactDateTime = (value) => {
     minute: "2-digit",
   }).format(date);
 };
+const sparklinePoints = (values = [], width = 120, height = 36) => {
+  const points = Array.isArray(values) ? values.map((value) => Number(value || 0)) : [];
+  if (!points.length) return "";
+  const max = Math.max(...points, 1);
+  const min = Math.min(...points, 0);
+  const range = Math.max(max - min, 1);
+  return points.map((value, index) => {
+    const x = points.length === 1 ? width / 2 : (index / (points.length - 1)) * width;
+    const normalized = (value - min) / range;
+    const y = height - normalized * height;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  }).join(" ");
+};
 const normalizeAlertKey = (value = "") => String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 const uniqueBySignature = (items = [], getSignature, seen = new Set()) => {
   const nextSeen = seen;
@@ -483,52 +500,52 @@ const MiniMetric = ({ label, value, icon: Icon, tone = "slate", sub = "" }) => {
 const CompactStatCard = ({ label, value, icon: Icon, tone = "slate", emphasis = false }) => {
   const tones = {
     slate: {
-      shell: "border-slate-200 bg-white text-slate-950",
-      icon: "bg-slate-100 text-slate-700",
-      label: "text-slate-500",
-      value: "text-slate-950",
+      shell: "border-slate-800 bg-[#0f172a] text-white",
+      icon: "bg-cyan-400/10 text-cyan-300",
+      label: "text-slate-400",
+      value: "text-white",
     },
     green: {
-      shell: "border-emerald-200 bg-white text-slate-950",
-      icon: "bg-emerald-50 text-emerald-700",
-      label: "text-emerald-700/70",
-      value: "text-slate-950",
+      shell: "border-slate-800 bg-[#0f172a] text-white",
+      icon: "bg-cyan-400/10 text-cyan-300",
+      label: "text-slate-400",
+      value: "text-white",
     },
     cyan: {
-      shell: "border-sky-200 bg-white text-slate-950",
-      icon: "bg-sky-50 text-sky-700",
-      label: "text-sky-700/70",
-      value: "text-slate-950",
+      shell: "border-slate-800 bg-[#0f172a] text-white",
+      icon: "bg-cyan-400/10 text-cyan-300",
+      label: "text-slate-400",
+      value: "text-white",
     },
     amber: {
-      shell: "border-amber-200 bg-white text-slate-950",
-      icon: "bg-amber-50 text-amber-700",
-      label: "text-amber-700/70",
-      value: "text-slate-950",
+      shell: "border-slate-800 bg-[#0f172a] text-white",
+      icon: "bg-cyan-400/10 text-cyan-300",
+      label: "text-slate-400",
+      value: "text-white",
     },
     red: {
-      shell: "border-rose-200 bg-white text-slate-950",
-      icon: "bg-rose-50 text-rose-700",
-      label: "text-rose-700/70",
-      value: "text-slate-950",
+      shell: "border-slate-800 bg-[#0f172a] text-white",
+      icon: "bg-cyan-400/10 text-cyan-300",
+      label: "text-slate-400",
+      value: "text-white",
     },
     blue: {
-      shell: "border-blue-200 bg-white text-slate-950",
-      icon: "bg-blue-50 text-blue-700",
-      label: "text-blue-700/70",
-      value: "text-slate-950",
+      shell: "border-slate-800 bg-[#0f172a] text-white",
+      icon: "bg-cyan-400/10 text-cyan-300",
+      label: "text-slate-400",
+      value: "text-white",
     },
   };
   const theme = tones[tone] || tones.slate;
   if (emphasis) {
     return (
-      <div className="manager-portal-compact-stat manager-portal-compact-stat--emphasis min-h-[5.75rem] rounded-2xl border border-slate-900 bg-[linear-gradient(180deg,#020617,#0f172a)] p-3 text-white shadow-[0_14px_30px_rgba(15,23,42,0.18)]">
+      <div className="manager-portal-compact-stat manager-portal-compact-stat--emphasis min-h-[5.75rem] rounded-2xl border border-slate-800 bg-[#0b1120] p-3 text-white shadow-[0_14px_30px_rgba(2,6,23,0.18)]">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="text-[10.5px] font-black leading-5 tracking-normal text-slate-300">{label}</div>
+            <div className="text-[10.5px] font-black leading-5 tracking-normal text-slate-400">{label}</div>
             <div className="manager-portal-compact-stat-value mt-1 text-[1.25rem] font-black leading-none text-white">{value || formatNumber(0)}</div>
           </div>
-          {Icon ? <div className="manager-portal-compact-stat-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white"><Icon className="h-4 w-4" /></div> : null}
+          {Icon ? <div className="manager-portal-compact-stat-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300"><Icon className="h-4 w-4" /></div> : null}
         </div>
       </div>
     );
@@ -621,6 +638,7 @@ export default function ManagerPortal() {
   const [showMoreAiInsights, setShowMoreAiInsights] = useState(false);
   const [showMoreLeads, setShowMoreLeads] = useState(false);
   const [showMoreLowStock, setShowMoreLowStock] = useState(false);
+  const [expandedTaskIds, setExpandedTaskIds] = useState({});
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationCategory, setNotificationCategory] = useState("all");
   const socketRef = useRef(null);
@@ -861,6 +879,20 @@ export default function ManagerPortal() {
   const hasMoreLeads = mobileAlertBuckets.leads.length > visibleLeads.length;
   const visibleLowStock = showMoreLowStock ? [...mobileAlertBuckets.refillAlerts, ...mobileAlertBuckets.lowStock] : [...mobileAlertBuckets.refillAlerts, ...mobileAlertBuckets.lowStock].slice(0, 3);
   const hasMoreLowStock = [...mobileAlertBuckets.refillAlerts, ...mobileAlertBuckets.lowStock].length > visibleLowStock.length;
+  const setTaskExpanded = (taskId, expanded) => {
+    setExpandedTaskIds((current) => ({ ...current, [taskId]: expanded }));
+  };
+  const isTaskCompleted = (task = {}) => ["completed", "approved"].includes(normalizeText(task.status));
+  const isTaskExpanded = (task = {}) => Boolean(expandedTaskIds[task.id]) || !isMobilePortal;
+  const salesTrendValues = trend7d.map((item) => Number(item.revenue || 0));
+  const invoiceTrendValues = trend7d.map((item) => Number(item.orders || 0));
+  const salesGrowthPercent = Number(salesComparison.sales_growth || 0);
+  const mobileSalesSummary = useMemo(() => ({
+    sales: formatCurrency(sales?.overview?.today?.sales || dashboard?.today_sales_total || 0),
+    invoices: formatNumber(sales?.overview?.today?.orders || dashboard?.invoice_count || 0),
+    growth: formatPercent(salesGrowthPercent),
+    growthTone: salesGrowthPercent >= 0 ? "green" : "red",
+  }), [dashboard?.today_sales_total, dashboard?.invoice_count, sales?.overview?.today?.orders, sales?.overview?.today?.sales, salesGrowthPercent]);
   const mobileDashboardStats = useMemo(() => (
     isMobilePortal
       ? [
@@ -950,31 +982,72 @@ export default function ManagerPortal() {
     });
   };
 
+  const loadDeferredData = useCallback(async () => {
+    if (!token) return;
+    const [staffRes, tasksRes, salesRes, stockRes] = await Promise.allSettled([
+      managerPortalApi.staff(token, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
+      managerPortalApi.tasks(token, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
+      managerPortalApi.sales(token, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
+      managerPortalApi.stockAlerts(token, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
+    ]);
+
+    const nextStaff = settledValue(staffRes);
+    if (nextStaff) setStaff(normalizeManagerPortalPayload("staff", nextStaff?.staff || null));
+
+    const nextTasks = settledValue(tasksRes);
+    if (nextTasks) setTasks(normalizeManagerPortalPayload("tasks", nextTasks?.tasks || null));
+
+    const nextSales = settledValue(salesRes);
+    if (nextSales) setSales(normalizeManagerPortalPayload("sales", nextSales?.sales || null));
+
+    const nextStock = settledValue(stockRes);
+    if (nextStock) setStockAlerts(normalizeManagerPortalPayload("stockAlerts", nextStock?.stockAlerts || null));
+  }, [token]);
+
   const loadAll = async ({ silent = false } = {}) => {
     try {
       if (!silent) setLoading(true);
       setRefreshing(Boolean(silent));
       setError("");
-      const [meRes, dashboardRes, staffRes, tasksRes, salesRes, stockRes, notificationsRes, approvalsRes] = await Promise.all([
-        managerPortalApi.me(token),
-        managerPortalApi.dashboard(token),
-        managerPortalApi.staff(token),
-        managerPortalApi.tasks(token),
-        managerPortalApi.sales(token),
-        managerPortalApi.stockAlerts(token),
-        managerPortalApi.notifications(token, { limit: 40 }),
-        managerPortalApi.inventoryApprovals(token, { limit: 5 }),
+      const criticalResults = await Promise.allSettled([
+        managerPortalApi.me(token, { timeoutMs: MANAGER_PORTAL_CRITICAL_TIMEOUT_MS }),
+        managerPortalApi.dashboard(token, {}, { timeoutMs: MANAGER_PORTAL_CRITICAL_TIMEOUT_MS }),
+        managerPortalApi.notifications(token, { limit: 40 }, { timeoutMs: MANAGER_PORTAL_CRITICAL_TIMEOUT_MS }),
+        managerPortalApi.inventoryApprovals(token, { limit: 5 }, { timeoutMs: MANAGER_PORTAL_CRITICAL_TIMEOUT_MS }),
       ]);
-      setMe(normalizeManagerPortalPayload("me", meRes?.manager || meRes?.data?.manager || null));
-      setDashboard(normalizeManagerPortalPayload("dashboard", dashboardRes?.dashboard || null));
-      setStaff(normalizeManagerPortalPayload("staff", staffRes?.staff || null));
-      setTasks(normalizeManagerPortalPayload("tasks", tasksRes?.tasks || null));
-      setSales(normalizeManagerPortalPayload("sales", salesRes?.sales || null));
-      setStockAlerts(normalizeManagerPortalPayload("stockAlerts", stockRes?.stockAlerts || null));
-      setNotifications(normalizeManagerPortalPayload("notifications", Array.isArray(notificationsRes?.notifications) ? notificationsRes.notifications : []));
-      setUnreadCount(Number(notificationsRes?.unread_count || 0));
-      setSettings(mergeSettings(normalizeManagerPortalPayload("settings", notificationsRes?.settings || meRes?.notification_settings || {})));
-      setInventoryApprovals(normalizeManagerPortalPayload("inventoryApprovals", approvalsRes?.inventoryApprovals || null));
+      const [meRes, dashboardRes, notificationsRes, approvalsRes] = criticalResults;
+      const nextMe = settledValue(meRes);
+      const nextDashboard = settledValue(dashboardRes);
+      const nextNotifications = settledValue(notificationsRes);
+      const nextApprovals = settledValue(approvalsRes);
+
+      if (nextMe) setMe(normalizeManagerPortalPayload("me", nextMe?.manager || nextMe?.data?.manager || null));
+      if (nextDashboard) setDashboard(normalizeManagerPortalPayload("dashboard", nextDashboard?.dashboard || null));
+      if (nextNotifications) {
+        setNotifications(normalizeManagerPortalPayload("notifications", Array.isArray(nextNotifications?.notifications) ? nextNotifications.notifications : []));
+        setUnreadCount(Number(nextNotifications?.unread_count || 0));
+      }
+      if (nextNotifications || nextMe) {
+        setSettings(mergeSettings(normalizeManagerPortalPayload("settings", nextNotifications?.settings || nextMe?.notification_settings || {})));
+      }
+      if (nextApprovals) setInventoryApprovals(normalizeManagerPortalPayload("inventoryApprovals", nextApprovals?.inventoryApprovals || null));
+
+      if ([meRes, dashboardRes, notificationsRes, approvalsRes].every((result) => result?.status === "rejected")) {
+        const firstCriticalError = [meRes, dashboardRes, notificationsRes, approvalsRes].find((result) => result?.status === "rejected")?.reason;
+        setError(firstCriticalError?.responseBody?.message || firstCriticalError?.message || "تعذر تحميل بوابة المدير.");
+      }
+
+      if (isBrowser()) {
+        window.setTimeout(() => {
+          void loadDeferredData().catch((deferredError) => {
+            if (import.meta.env.DEV) console.warn("[manager-portal] deferred load failed", deferredError);
+          });
+        }, 0);
+      } else {
+        void loadDeferredData().catch((deferredError) => {
+          if (import.meta.env.DEV) console.warn("[manager-portal] deferred load failed", deferredError);
+        });
+      }
     } catch (loadError) {
       setError(loadError?.responseBody?.message || loadError?.message || "تعذر تحميل بوابة المدير.");
     } finally {
@@ -1441,6 +1514,113 @@ export default function ManagerPortal() {
     const note = taskNotes[task.id] || "";
     const statusMeta = taskStatusMeta(task);
     const proofUrl = taskProofUrl(task);
+    const completed = isTaskCompleted(task);
+    const expanded = isTaskExpanded(task);
+    const toggleExpanded = () => setTaskExpanded(task.id, !Boolean(expandedTaskIds[task.id]));
+
+    if (isMobilePortal) {
+      return (
+        <Card key={task.id} title={portalText(task.title_ar || task.title || "Task")} subtitle={portalText(task.branch_name || task.task_type || "task")} icon={ClipboardList} compact bodyClassName="space-y-2">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-black leading-5 text-slate-950">{portalText(task.title_ar || task.title || "Task")}</div>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                <StatusPill tone={statusMeta.tone} value={statusMeta.label} />
+                <StatusPill tone="slate" value={portalText(task.assignee_name || task.employee_name || "Unassigned")} />
+                {task.branch_name ? <StatusPill tone="slate" value={portalText(task.branch_name)} /> : null}
+                <StatusPill
+                  tone="blue"
+                  value={completed ? formatCompactDateTime(task.completed_at || task.updated_at || task.created_at) : formatCompactDateTime(task.due_at)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={toggleExpanded} className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-800">
+              {expanded ? "إخفاء التفاصيل" : "View Details"}
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
+            </button>
+            <button
+              type="button"
+              data-testid={`task-reopen-${task.id}`}
+              onClick={() => void sendTaskAction(task.id, "reopen", { note })}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-800"
+            >
+              <ArrowLeftRight className="h-3.5 w-3.5" />
+              إعادة فتح
+            </button>
+            {!completed ? (
+              <>
+                <button
+                  type="button"
+                  data-testid={`task-approve-${task.id}`}
+                  onClick={() => void sendTaskAction(task.id, "approve", { note })}
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-xs font-black text-white"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  اعتماد
+                </button>
+                <button
+                  type="button"
+                  data-testid={`task-reject-${task.id}`}
+                  onClick={() => void sendTaskAction(task.id, "reject", { note })}
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-amber-300 bg-white px-3 text-xs font-black text-amber-800 shadow-sm"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  رفض
+                </button>
+              </>
+            ) : null}
+          </div>
+
+          {expanded ? (
+            <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-3 text-xs font-semibold text-slate-700 shadow-sm">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl bg-slate-50 px-2.5 py-2">
+                  <div className="font-black text-slate-500">الإنشاء</div>
+                  <div className="mt-0.5 font-black text-slate-950">{formatCompactDateTime(task.created_at)}</div>
+                </div>
+                <div className="rounded-xl bg-slate-50 px-2.5 py-2">
+                  <div className="font-black text-slate-500">الاستحقاق</div>
+                  <div className="mt-0.5 font-black text-slate-950">{formatCompactDateTime(task.due_at)}</div>
+                </div>
+                <div className="rounded-xl bg-slate-50 px-2.5 py-2">
+                  <div className="font-black text-slate-500">المرفقات</div>
+                  <div className="mt-0.5 font-black text-slate-950">{formatNumber(task.attachments_count || 0)}</div>
+                </div>
+                <div className="rounded-xl bg-slate-50 px-2.5 py-2">
+                  <div className="font-black text-slate-500">البدء/الإنهاء</div>
+                  <div className="mt-0.5 font-black text-slate-950">{formatCompactDateTime(task.started_at)} / {formatCompactDateTime(task.completed_at)}</div>
+                </div>
+              </div>
+              {proofUrl ? (
+                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                  {["image", "photo", "img"].some((type) => String(task.latest_attachment_type || "").toLowerCase().includes(type)) ? (
+                    <a href={proofUrl} target="_blank" rel="noreferrer" className="block">
+                      <img src={proofUrl} alt={portalText(taskProofLabel(task) || task.title || "Task proof")} className="h-36 w-full object-cover" />
+                    </a>
+                  ) : (
+                    <a href={proofUrl} target="_blank" rel="noreferrer" className="flex items-center justify-between gap-3 px-3 py-2.5 text-xs font-black text-slate-700">
+                      <span className="min-w-0 truncate">{portalText(taskProofLabel(task) || "Proof attachment")}</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </a>
+                  )}
+                </div>
+              ) : null}
+              <textarea
+                value={note}
+                onChange={(event) => setTaskNotes((current) => ({ ...current, [task.id]: event.target.value }))}
+                placeholder="ملاحظة المدير"
+                rows={2}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none"
+              />
+            </div>
+          ) : null}
+        </Card>
+      );
+    }
+
     return (
       <Card key={task.id} title={portalText(task.title_ar || task.title || "Task")} subtitle={portalText(task.branch_name || task.task_type || "task")} icon={ClipboardList}>
         <div className="flex flex-wrap gap-2">
@@ -1496,32 +1676,6 @@ export default function ManagerPortal() {
     );
   };
 
-  if (loading) {
-    return (
-      <main dir="rtl" className="min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_28%),linear-gradient(180deg,#eff6ff_0%,#f8fafc_42%,#ffffff_100%)] px-4 py-6 text-slate-950 dark:bg-slate-950 dark:text-white">
-        <div className="mx-auto flex min-h-[70vh] max-w-7xl items-center justify-center">
-          <Loader2 className="h-7 w-7 animate-spin" />
-        </div>
-      </main>
-    );
-  }
-
-  if (error) {
-    return (
-      <main dir="rtl" className="min-h-[100dvh] bg-slate-100 px-4 py-6 text-slate-950 dark:bg-slate-950 dark:text-white">
-        <div className="mx-auto max-w-2xl rounded-3xl border border-amber-200 bg-white p-5 shadow-sm dark:border-amber-500/20 dark:bg-white/[0.04]">
-          <AlertTriangle className="h-8 w-8 text-amber-600" />
-          <h1 className="mt-4 text-2xl font-black">بوابة المدير غير متاحة</h1>
-          <p className="mt-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">{error}</p>
-          <button type="button" onClick={() => loadAll()} className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white dark:bg-white dark:text-slate-950">
-            <RefreshCw className="h-4 w-4" />
-            إعادة المحاولة
-          </button>
-        </div>
-      </main>
-    );
-  }
-
   return (
     <main data-testid="manager-portal-root" dir="rtl" className={`manager-portal-readable-v2 manager-portal-shell ${isMobilePortal ? "manager-portal-mobile-dark" : ""} min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.12),_transparent_26%),radial-gradient(circle_at_80%_0%,_rgba(245,158,11,0.10),_transparent_18%),radial-gradient(circle_at_15%_20%,_rgba(99,102,241,0.08),_transparent_20%),linear-gradient(180deg,#f8fafc_0%,#eef2f7_52%,#e2e8f0_100%)] px-3 py-2.5 text-right text-slate-950 dark:bg-slate-950 dark:text-white md:px-4 md:py-4`}>
       <div className="mx-auto grid max-w-[96rem] gap-3 lg:grid-cols-[240px_minmax(0,1.55fr)_320px] lg:gap-4">
@@ -1564,14 +1718,47 @@ export default function ManagerPortal() {
           </div>
         </aside>
 
-        <section className="space-y-3 sm:space-y-4">
+        <section className="manager-portal-main-column space-y-2.5 sm:space-y-4">
+          {error ? (
+            <div className="rounded-[1.5rem] border border-amber-200 bg-white p-4 shadow-sm dark:border-amber-500/20 dark:bg-white/[0.04]">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-6 w-6 text-amber-600" />
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-base font-black text-slate-950 dark:text-white">تعذر تحميل بعض البيانات</h2>
+                  <p className="mt-1 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">{error}</p>
+                  <button type="button" onClick={() => void loadAll()} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white dark:bg-white dark:text-slate-950">
+                    <RefreshCw className="h-4 w-4" />
+                    إعادة المحاولة
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {loading && !me && !dashboard ? (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={`manager-portal-skeleton-${index}`} className="animate-pulse rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                  <div className="h-3 w-20 rounded-full bg-slate-200 dark:bg-white/10" />
+                  <div className="mt-4 h-8 w-24 rounded-2xl bg-slate-200 dark:bg-white/10" />
+                  <div className="mt-3 h-3 w-32 rounded-full bg-slate-200 dark:bg-white/10" />
+                  <div className="mt-5 grid grid-cols-3 gap-2">
+                    <div className="h-16 rounded-2xl bg-slate-100 dark:bg-white/5" />
+                    <div className="h-16 rounded-2xl bg-slate-100 dark:bg-white/5" />
+                    <div className="h-16 rounded-2xl bg-slate-100 dark:bg-white/5" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
           {isMobilePortal ? (
-            <header className="rounded-[1.5rem] border border-slate-200 bg-slate-950 p-3 shadow-[0_14px_30px_rgba(15,23,42,0.16)]">
+            <header className="manager-portal-mobile-hero rounded-[1.45rem] border border-slate-800 bg-[#050816] p-3 shadow-[0_14px_30px_rgba(2,6,23,0.22)]">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-300">بوابة المدير</div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">بوابة المدير</div>
                   <h1 className="mt-1 truncate text-lg font-black leading-6 text-white">{portalText(me?.full_name || me?.name || "المدير")}</h1>
-                  <div className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-slate-300">
+                  <div className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-slate-400">
                     <Building2 className="h-3.5 w-3.5 shrink-0" />
                     <span className="min-w-0 truncate">{portalText(me?.branch_name || "كل الفروع")}</span>
                   </div>
@@ -1580,7 +1767,7 @@ export default function ManagerPortal() {
                   type="button"
                   data-testid="refresh-button"
                   onClick={() => void loadAll({ silent: true })}
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-white shadow-sm transition hover:bg-slate-800"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-sm transition hover:bg-slate-800"
                   aria-label="تحديث"
                 >
                   <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
@@ -1980,7 +2167,7 @@ export default function ManagerPortal() {
                 isMobilePortal ? (
                   <div
                     key={employee.employee_id}
-                    className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] p-3 shadow-[0_10px_22px_rgba(15,23,42,0.06)]"
+                    className="manager-portal-employee-card rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] p-3 shadow-[0_10px_22px_rgba(15,23,42,0.06)]"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
@@ -2135,7 +2322,109 @@ export default function ManagerPortal() {
           ) : null}
 
           {activeTab === "sales" ? (
-            <div className="space-y-4">
+            isMobilePortal ? (
+              <div className="space-y-3">
+                <div className="manager-portal-mobile-sales-hero rounded-[1.6rem] border border-slate-800 bg-[#08111f] p-4 shadow-[0_18px_32px_rgba(2,6,23,0.16)]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Sales snapshot</div>
+                      <div className="mt-1 text-lg font-black text-white">ملخص المبيعات</div>
+                      <div className="mt-1 text-sm font-semibold leading-6 text-slate-300">مبيعات اليوم والفواتير والنمو في بطاقات مختصرة.</div>
+                    </div>
+                    <div className={`shrink-0 rounded-2xl border px-3 py-2 text-left ${salesGrowthPercent >= 0 ? "border-emerald-400/20 bg-emerald-400/10" : "border-rose-400/20 bg-rose-400/10"}`}>
+                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Growth</div>
+                      <div className={`mt-0.5 text-lg font-black ${salesGrowthPercent >= 0 ? "text-emerald-300" : "text-rose-300"}`}>{mobileSalesSummary.growth}</div>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-3 gap-2">
+                    <div className="rounded-2xl border border-slate-700 bg-slate-900/80 px-3 py-2.5 text-right">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">مبيعات اليوم</div>
+                      <div className="mt-1 text-[16px] font-black leading-none text-white">{mobileSalesSummary.sales}</div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-700 bg-slate-900/80 px-3 py-2.5 text-right">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">الفواتير</div>
+                      <div className="mt-1 text-[16px] font-black leading-none text-white">{mobileSalesSummary.invoices}</div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-700 bg-slate-900/80 px-3 py-2.5 text-right">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">النمو</div>
+                      <div className={`mt-1 text-[16px] font-black leading-none ${salesGrowthPercent >= 0 ? "text-emerald-300" : "text-rose-300"}`}>{mobileSalesSummary.growth}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {trend7d.length ? (
+                  <>
+                    <div className="rounded-[1.4rem] border border-slate-800 bg-[#07111f] p-4 shadow-[0_16px_30px_rgba(2,6,23,0.14)]">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">٧ أيام</div>
+                          <div className="mt-1 text-lg font-black text-white">الإيراد</div>
+                          <div className="mt-1 text-sm font-semibold text-slate-300">{formatCurrency(trend7d.reduce((sum, item) => sum + Number(item.revenue || 0), 0))}</div>
+                        </div>
+                        <div className="text-left">
+                          <div className="text-[11px] font-bold text-slate-400">أفضل يوم</div>
+                          <div className="mt-0.5 text-sm font-black text-white">
+                            {formatShortDay(trend7d.reduce((best, item) => (Number(item.revenue || 0) > Number(best?.revenue || 0) ? item : best), trend7d[0] || {}).day)}
+                          </div>
+                        </div>
+                      </div>
+                      <svg viewBox="0 0 120 36" className="mt-3 h-11 w-full" preserveAspectRatio="none" aria-hidden="true">
+                        <defs>
+                          <linearGradient id="salesSparkFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.55" />
+                            <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
+                          </linearGradient>
+                        </defs>
+                        <polyline fill="none" stroke="#67e8f9" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" points={sparklinePoints(salesTrendValues, 120, 36)} />
+                      </svg>
+                    </div>
+
+                    <div className="rounded-[1.4rem] border border-slate-800 bg-[#07111f] p-4 shadow-[0_16px_30px_rgba(2,6,23,0.14)]">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">٧ أيام</div>
+                          <div className="mt-1 text-lg font-black text-white">الفواتير</div>
+                          <div className="mt-1 text-sm font-semibold text-slate-300">{formatNumber(trend7d.reduce((sum, item) => sum + Number(item.orders || 0), 0))} فاتورة</div>
+                        </div>
+                        <div className="text-left">
+                          <div className="text-[11px] font-bold text-slate-400">أعلى عدد</div>
+                          <div className="mt-0.5 text-sm font-black text-white">{formatNumber(Math.max(...trend7d.map((item) => Number(item.orders || 0)), 0))}</div>
+                        </div>
+                      </div>
+                      <svg viewBox="0 0 120 36" className="mt-3 h-11 w-full" preserveAspectRatio="none" aria-hidden="true">
+                        <polyline fill="none" stroke="#38bdf8" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" points={sparklinePoints(invoiceTrendValues, 120, 36)} />
+                      </svg>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-2xl border border-slate-800 bg-[#0b1220] px-3 py-3 shadow-sm">
+                        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">إجمالي الإيراد</div>
+                        <div className="mt-1 text-sm font-black text-slate-950">{formatCurrency(trend7d.reduce((sum, item) => sum + Number(item.revenue || 0), 0))}</div>
+                      </div>
+                      <div className="rounded-2xl border border-slate-800 bg-[#0b1220] px-3 py-3 shadow-sm">
+                        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">إجمالي الفواتير</div>
+                        <div className="mt-1 text-sm font-black text-slate-950">{formatNumber(trend7d.reduce((sum, item) => sum + Number(item.orders || 0), 0))}</div>
+                      </div>
+                      <div className="rounded-2xl border border-slate-800 bg-[#0b1220] px-3 py-3 shadow-sm">
+                        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">أفضل يوم</div>
+                        <div className="mt-1 text-sm font-black text-slate-950">
+                          {formatShortDay(trend7d.reduce((best, item) => (Number(item.revenue || 0) > Number(best?.revenue || 0) ? item : best), trend7d[0] || {}).day)}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-slate-800 bg-[#0b1220] px-3 py-3 shadow-sm">
+                        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">أفضل بائع</div>
+                        <div className="mt-1 truncate text-sm font-black text-slate-950">
+                          <InlineName>{portalText(salesLeaders.top_seller?.seller_name || "غير متاح")}</InlineName>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-500 shadow-sm">لا توجد بيانات مبيعات حديثة</div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <Card title={formatCurrency(sales?.overview?.today?.sales || dashboard?.today_sales_total || 0)} subtitle="مبيعات اليوم" icon={ShoppingCart} />
                 <Card title={formatNumber(sales?.overview?.today?.orders || dashboard?.invoice_count || 0)} subtitle="الفواتير" icon={ClipboardList} />
@@ -2374,7 +2663,7 @@ export default function ManagerPortal() {
                 )}
               </Card>
             </div>
-          ) : null}
+          )) : null}
 
           {activeTab === "chat" ? (
             <SharedPortalChat

@@ -9,6 +9,7 @@ const openStatuses = new Set(["pending", "in_progress", "overdue"]);
 const portalCachePrefix = "employee.portal.cache.";
 const portalQueuePrefix = "employee.portal.queue.";
 const installDismissedKey = "employee.portal.install.dismissed";
+const EMPLOYEE_PORTAL_LOAD_TIMEOUT_MS = 10000;
 
 const statusLabel = {
   pending: "ظ‚ظٹط¯ ط§ظ„طھظ†ظپظٹط°",
@@ -242,15 +243,16 @@ export default function EmployeePortal() {
     try {
       if (!silent) setLoading(true);
       setError("");
-      const payload = await staffTasksApi.employeePortal(token);
+      const payload = await staffTasksApi.employeePortal(token, { timeoutMs: EMPLOYEE_PORTAL_LOAD_TIMEOUT_MS });
       const nextPortal = payload.portal || null;
       setPortal(nextPortal);
       persistPortal(nextPortal);
       setSyncState("");
     } catch (err) {
       const hasCache = loadCachedPortal();
-      if (hasCache && !isOnline) {
+      if (hasCache) {
         setSyncState("offline");
+        setError("");
       } else {
         setPortal(null);
         setError(err?.responseBody?.message_ar || err?.responseBody?.message || err?.message || "طھط¹ط°ط± طھط­ظ…ظٹظ„ ط¨ظˆط§ط¨ط© ط§ظ„ظ…ظˆط¸ظپ.");
@@ -410,8 +412,38 @@ export default function EmployeePortal() {
 
   if (loading) {
     return (
-      <main dir="rtl" className="employee-portal-min-screen employee-portal-safe-top flex items-center justify-center bg-slate-100 p-5 font-sans text-slate-800">
-        <Loader2 className="h-6 w-6 animate-spin" />
+      <main dir="rtl" className="employee-portal-min-screen bg-slate-100 px-3 py-4 pb-[calc(5rem+env(safe-area-inset-bottom))] font-sans text-slate-950">
+        <div className="mx-auto max-w-md">
+          <header className="employee-portal-safe-top rounded-3xl bg-slate-950 p-4 text-right text-white shadow-xl shadow-slate-300">
+            <div className="text-xs font-black text-slate-300">بوابة الموظف</div>
+            <div className="mt-2 h-7 w-40 rounded-2xl bg-white/10" />
+            <div className="mt-1 h-4 w-28 rounded-full bg-white/10" />
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="h-16 rounded-2xl bg-white/10" />
+              <div className="h-16 rounded-2xl bg-white/10" />
+              <div className="h-16 rounded-2xl bg-white/10" />
+            </div>
+          </header>
+          <section className="mt-4 grid gap-3">
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="animate-pulse space-y-3">
+                <div className="h-4 w-28 rounded-full bg-slate-200" />
+                <div className="h-16 rounded-2xl bg-slate-100" />
+                <div className="h-16 rounded-2xl bg-slate-100" />
+              </div>
+            </div>
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="animate-pulse space-y-3">
+                <div className="h-4 w-24 rounded-full bg-slate-200" />
+                <div className="grid gap-2">
+                  <div className="h-14 rounded-2xl bg-slate-100" />
+                  <div className="h-14 rounded-2xl bg-slate-100" />
+                  <div className="h-14 rounded-2xl bg-slate-100" />
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
       </main>
     );
   }

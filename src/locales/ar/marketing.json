@@ -87,6 +87,84 @@
       "completed": "Completed"
     }
   },
+  "coupons": {
+    "eyebrow": "الكوبونات",
+    "title": "إدارة حملات الكوبونات",
+    "subtitle": "أنشئ أكواد الخصم وولّدها وتابع استخدامها وصدّرها من داخل النظام.",
+    "new": "حملة جديدة",
+    "loadFailed": "تعذر تحميل حملات الكوبونات",
+    "saved": "تم حفظ الحملة",
+    "saveFailed": "تعذر حفظ الحملة",
+    "deleteConfirm": "هل تريد حذف هذه الحملة وكل الكوبونات التابعة لها؟",
+    "deleted": "تم حذف الحملة",
+    "deleteFailed": "تعذر حذف الحملة",
+    "generateFailed": "تعذر توليد الكوبونات",
+    "generated": "تم توليد {{count}} كوبون",
+    "loading": "جارٍ تحميل حملات الكوبونات...",
+    "empty": "لا توجد حملات كوبونات بعد.",
+    "emptyFiltered": "لا توجد كوبونات مطابقة لهذا الفلتر.",
+    "emptySelection": "اختر حملة كوبونات أو أنشئ واحدة جديدة.",
+    "searchPlaceholder": "ابحث برمز الكوبون",
+    "targetQty": "الكمية",
+    "optional": "اختياري",
+    "active": "مفعلة",
+    "inactive": "متوقفة",
+    "campaignLabel": "الحملات",
+    "fields": {
+      "name": "الاسم",
+      "codePrefix": "بادئة الكود",
+      "discountType": "نوع الخصم",
+      "discountValue": "قيمة الخصم",
+      "minimumOrder": "الحد الأدنى للطلب",
+      "maxDiscount": "الخصم الأقصى",
+      "usagePerCoupon": "الاستعمال لكل كوبون",
+      "targetCoupons": "عدد الكوبونات المستهدف",
+      "startsAt": "تاريخ البداية",
+      "expiresAt": "تاريخ الانتهاء",
+      "channel": "القناة",
+      "activeCampaign": "حملة مفعلة"
+    },
+    "actions": {
+      "generate": "توليد",
+      "edit": "تعديل",
+      "delete": "حذف",
+      "exportPdf": "PDF",
+      "exportCsv": "CSV",
+      "cancel": "إلغاء",
+      "save": "حفظ"
+    },
+    "headers": {
+      "code": "الكود",
+      "discount": "الخصم",
+      "usage": "الاستخدام",
+      "status": "الحالة",
+      "expires": "ينتهي",
+      "totalGenerated": "إجمالي المولد",
+      "used": "المستخدم",
+      "unused": "غير المستخدم",
+      "expired": "المنتهي",
+      "totalDiscount": "إجمالي الخصم",
+      "salesGenerated": "المبيعات الناتجة",
+      "conversionRate": "معدل التحويل"
+    },
+    "generatedSuffix": "تم توليدها",
+    "usedSuffix": "تم استخدامها",
+    "modal": {
+      "edit": "تعديل الحملة",
+      "create": "حملة جديدة",
+      "title": "حملة كوبونات"
+    },
+    "types": {
+      "percentage": "نسبة مئوية",
+      "fixed": "قيمة ثابتة"
+    },
+    "channels": {
+      "offline": "أوفلاين",
+      "website": "الموقع",
+      "pos": "نقطة البيع",
+      "all": "الكل"
+    }
+  },
   "posts": {
     "eyebrow": "منشورات التواصل",
     "title": "تقويم المحتوى التسويقي",

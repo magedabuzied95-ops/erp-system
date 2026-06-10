@@ -443,6 +443,7 @@ const RAW_SIDEBAR_SECTIONS = [
     title: "Marketing",
     items: [
       { label: "Marketing", to: "/marketing", permission: "marketing.view", icon: Megaphone, devOnly: true },
+      { label: "Coupons", to: "/marketing/coupons", permission: "marketing.view", icon: TicketPercent },
       { label: "AI Marketing Center", to: "/marketing/ai-center", permission: "marketing.view", icon: Sparkles },
       { label: "Social Posts", to: "/marketing/posts", permission: "marketing.view", icon: Share2, devOnly: true },
     ],

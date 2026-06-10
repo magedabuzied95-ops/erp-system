@@ -153,6 +153,9 @@ const labels = {
   },
 };
 
+const EMPLOYEE_PORTAL_INITIAL_TIMEOUT_MS = 10000;
+const EMPLOYEE_PORTAL_OPTIONAL_TIMEOUT_MS = 8000;
+
 Object.assign(labels.ar, {
   walletTab: "المحفظة",
   attendanceTab: "الحضور",
@@ -1214,12 +1217,13 @@ export default function EmployeePayrollPortal() {
     if (["home", "attendance", "tasks", "requests", "salary", "wallet", "notifications", "display-refill"].includes(tab)) setActiveTab(tab);
   }, []);
 
-  const loadDisplayRefillAlerts = useCallback(async ({ silent = false } = {}) => {
+  const loadDisplayRefillAlerts = useCallback(async ({ silent = false, timeoutMs = EMPLOYEE_PORTAL_OPTIONAL_TIMEOUT_MS } = {}) => {
     if (!token) return;
     try {
       if (!silent) setDisplayRefillLoading(true);
       const response = await api.get(`/employee-portal/${encodeURIComponent(token)}/display-refill-alerts`, {
         params: { status: "all" },
+        timeoutMs,
       });
       const alerts = safeArray(response.alerts);
       console.info("[employee-payroll-portal] display refill alerts loaded", {
@@ -1248,11 +1252,18 @@ export default function EmployeePayrollPortal() {
         setError("");
         const response = await api.get(`/employee-portal/${encodeURIComponent(token)}`, {
           params: { timezone: browserTimeZone() },
+          timeoutMs: EMPLOYEE_PORTAL_INITIAL_TIMEOUT_MS,
           suppressErrorStatuses: [400, 404, 429],
         });
         if (activeRef && !activeRef.current) return;
         setPortal(response.portal || null);
-        loadDisplayRefillAlerts({ silent: true });
+        if (isBrowser()) {
+          window.setTimeout(() => {
+            void loadDisplayRefillAlerts({ silent: true });
+          }, 0);
+        } else {
+          void loadDisplayRefillAlerts({ silent: true });
+        }
         if (response.portal && isBrowser()) {
           window.localStorage?.setItem("employee_portal_last_url", `/employee-app/${encodeURIComponent(token)}${window.location.search}`);
         }
@@ -2416,9 +2427,25 @@ export default function EmployeePayrollPortal() {
         </header>
 
         {!portal && loading ? (
-          <div className="mt-4 flex items-center justify-center gap-2 rounded-3xl border border-slate-200 bg-white p-6 text-sm font-black text-slate-600 shadow-sm">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            {text.loading}
+          <div className="mt-4 grid gap-3">
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="animate-pulse space-y-3">
+                <div className="h-4 w-28 rounded-full bg-slate-200" />
+                <div className="h-7 w-44 rounded-2xl bg-slate-200" />
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="h-20 rounded-2xl bg-slate-100" />
+                  <div className="h-20 rounded-2xl bg-slate-100" />
+                  <div className="h-20 rounded-2xl bg-slate-100" />
+                </div>
+              </div>
+            </div>
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="animate-pulse space-y-3">
+                <div className="h-4 w-24 rounded-full bg-slate-200" />
+                <div className="h-16 rounded-2xl bg-slate-100" />
+                <div className="h-16 rounded-2xl bg-slate-100" />
+              </div>
+            </div>
           </div>
         ) : !portal ? (
           <div className="mt-4 rounded-3xl border border-red-200 bg-white p-5 text-sm font-bold leading-6 text-red-800 shadow-sm">

@@ -15,7 +15,7 @@ export const staffTasksApi = {
   assignInventoryCounts: (payload = {}) => api.post("/staff-tasks/auto/inventory-counts", payload),
   redistributeAbsent: (payload = {}) => api.post("/staff-tasks/redistribute/absent", payload),
   reassignUnfinished: () => api.post("/staff-tasks/reassign/unfinished", {}),
-  employeePortal: (token) => api.get("/staff-tasks/employee-portal", { params: { token } }),
+  employeePortal: (token, options = {}) => api.get("/staff-tasks/employee-portal", { ...options, params: { token } }),
   updateEmployeePortalStatus: (token, id, payload) => api.patch(`/staff-tasks/employee-portal/tasks/${id}/status`, { ...payload, token }),
   completeEmployeePortalTask: (token, id, payload = {}) => api.post(`/staff-tasks/employee-portal/tasks/${id}/complete`, { ...payload, token, status: "completed" }),
   getPortalSettings: () => api.get("/staff-tasks/portal-settings"),

@@ -32,6 +32,7 @@ import {
 import { ensureWhatsappShippingSchema, sendShipmentCreated } from "../services/whatsappShippingService.js";
 import { getSetting } from "../services/settingsService.js";
 import { normalizeSaleModeSettings } from "../services/saleModeService.js";
+import { redeemCoupon, validateCoupon } from "../services/couponsService.js";
 import { resolveStorefrontProductLink } from "../services/storefrontProductUrlService.js";
 import { resolveStorefrontShippingQuote } from "../services/storefrontShippingService.js";
 import {
@@ -768,6 +769,9 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_reference TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS transfer_proof_status VARCHAR(50)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_verified_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS coupon_id BIGINT NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS coupon_code VARCHAR(80)`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS coupon_discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_verified_by INTEGER NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_trust_counted_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cod_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
@@ -3296,7 +3300,30 @@ export const createWebsiteOrder = async (req, res) => {
       subtotal,
     });
     const deliveryFee = roundMoney(shippingQuote.price);
-    const discount = toNumber(req.body?.discount || checkout.discount, 0);
+    const manualDiscount = Math.max(0, toNumber(req.body?.discount || checkout.discount, 0));
+    const couponCode = toText(checkout.coupon_code || checkout.coupon || req.body?.coupon_code || req.body?.coupon || "").trim().toUpperCase();
+    const couponBaseTotal = Math.max(0, subtotal - manualDiscount + deliveryFee);
+    let couponValidation = null;
+    let couponDiscountAmount = 0;
+    if (couponCode) {
+      couponValidation = await validateCoupon({
+        tenantId,
+        code: couponCode,
+        orderTotal: couponBaseTotal,
+        source: "website",
+        customerId: customer?.id || null,
+        client,
+      });
+      if (!couponValidation.valid) {
+        await client.query("ROLLBACK");
+        return checkoutValidationResponse(400, couponValidation.reason || "Invalid coupon", "coupon_code", {
+          coupon_code: couponCode,
+          coupon: couponValidation,
+        });
+      }
+      couponDiscountAmount = Math.max(0, Number(couponValidation.discount_amount || 0));
+    }
+    const discount = Math.max(0, manualDiscount + couponDiscountAmount);
     const total = Math.max(0, subtotal - discount + deliveryFee);
     const requestedPaymentMethod = toText(checkout.payment_method || checkout.payment_type || "shipping_confirmation").toLowerCase();
     const requestedPaymentType = toText(checkout.payment_type || checkout.payment_method || "shipping_confirmation").toLowerCase();
@@ -3435,6 +3462,9 @@ export const createWebsiteOrder = async (req, res) => {
       cod_amount: codAmount,
       shipping_payment_screenshot: shippingPaymentFile ? `/uploads/payment-proofs/${shippingPaymentFile.filename}` : "",
       shipping_payment_reference: toText(checkout.shipping_payment_reference),
+      coupon_id: couponValidation?.coupon?.id || null,
+      coupon_code: couponCode || "",
+      coupon_discount_amount: couponDiscountAmount,
       customer_address: checkout.detailed_address || shippingAddressLine,
       governorate: checkout.governorate,
       city_area: checkout.city_area,
@@ -3463,6 +3493,25 @@ export const createWebsiteOrder = async (req, res) => {
     order = await assignSequentialInvoiceNumber(client, order);
     order = attachPublicOrderNumber(order);
     markCheckoutStep("create order:done", { table: "orders", orderId: order?.id, invoiceNumber: order?.invoice_number, publicOrderNumber: order?.public_order_number });
+
+    if (couponCode) {
+      const couponRedemption = await redeemCoupon({
+        tenantId,
+        code: couponCode,
+        orderId: order.id,
+        customerId: customer?.id || null,
+        source: "website",
+        orderTotal: couponBaseTotal,
+        client,
+      });
+      order.coupon_id = couponRedemption?.coupon?.id || order.coupon_id || null;
+      order.coupon_code = couponRedemption?.coupon?.code || order.coupon_code || couponCode;
+      order.coupon_discount_amount = Number(couponRedemption?.discount_amount || couponDiscountAmount || 0);
+      order.discount_amount = Math.max(0, Number(order.discount_amount || 0));
+      order.total_amount = total;
+      order.total_price = total;
+      order.total = total;
+    }
 
     const lowStockProductIds = new Set();
     for (const item of normalizedItems) {

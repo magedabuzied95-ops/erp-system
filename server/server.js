@@ -136,6 +136,14 @@ let isShuttingDown = false;
 
 const normalizeOrigin = (value = "") => String(value || "").trim().replace(/\/+$/, "");
 const isProductionEnvironment = String(process.env.NODE_ENV || "").toLowerCase() === "production";
+const startupArgs = new Set(process.argv.slice(2).map((value) => String(value || "").trim().toLowerCase()));
+const shouldSkipStartupSyncs = () => {
+  if (isProductionEnvironment) return false;
+  const raw = String(process.env.SKIP_STARTUP_SYNCS || process.env.DISABLE_STARTUP_INTEGRATIONS || "")
+    .trim()
+    .toLowerCase();
+  return ["1", "true", "yes", "on"].includes(raw) || startupArgs.has("--skip-startup-syncs") || startupArgs.has("--disable-startup-integrations");
+};
 const localDevCorsOrigins = isProductionEnvironment
   ? []
   : [
@@ -1227,47 +1235,55 @@ const bootstrapStartup = async () => {
     await repairCorruptedArabicText(db);
     await warmDashboardMetadataCache();
     console.log("[server] dashboard metadata cache warmed");
-    await syncEvolutionWebhookOnStartup().catch((error) => {
-      console.warn("[server] evolution webhook sync skipped", {
-        message: error?.message || String(error),
+    const skipStartupSyncs = shouldSkipStartupSyncs();
+    if (skipStartupSyncs) {
+      console.log("[startup] startup syncs disabled for local/dev smoke test", {
+        SKIP_STARTUP_SYNCS: process.env.SKIP_STARTUP_SYNCS || "",
+        DISABLE_STARTUP_INTEGRATIONS: process.env.DISABLE_STARTUP_INTEGRATIONS || "",
       });
-    });
-    registerBackgroundJobHandlers();
-    registerMarketingJobHandlers();
-    startMetaTokenRefreshScheduler();
-    startMarketingAnalyticsSyncScheduler();
-    startMarketingAttributionSyncScheduler();
-    startAiMarketingAutomationRunner();
-    const safeRunDueStoryPublishes = () => {
-      void runDueStoryPublishes().catch((error) => {
-        console.error("[server] story publish error", error);
+    } else {
+      await syncEvolutionWebhookOnStartup().catch((error) => {
+        console.warn("[server] evolution webhook sync skipped", {
+          message: error?.message || String(error),
+        });
       });
-    };
-    const storyInterval = setInterval(() => {
+      registerBackgroundJobHandlers();
+      registerMarketingJobHandlers();
+      startMetaTokenRefreshScheduler();
+      startMarketingAnalyticsSyncScheduler();
+      startMarketingAttributionSyncScheduler();
+      startAiMarketingAutomationRunner();
+      const safeRunDueStoryPublishes = () => {
+        void runDueStoryPublishes().catch((error) => {
+          console.error("[server] story publish error", error);
+        });
+      };
+      const storyInterval = setInterval(() => {
+        safeRunDueStoryPublishes();
+      }, 60 * 1000);
+      backgroundIntervals.add(storyInterval);
       safeRunDueStoryPublishes();
-    }, 60 * 1000);
-    backgroundIntervals.add(storyInterval);
-    safeRunDueStoryPublishes();
-    const taskInterval = setInterval(() => {
+      const taskInterval = setInterval(() => {
+        void processStaffTaskEmailQueue().catch((error) => {
+          console.error("[server] staff task email queue error", error);
+        });
+        void reassignOverdueTasks({ tenantId: null }).catch((error) => {
+          console.error("[server] staff task overdue reassignment error", error);
+        });
+        void sendUpcomingTaskDueReminders({ tenantId: null }).catch((error) => {
+          console.error("[server] staff task due reminder error", error);
+        });
+      }, 5 * 60 * 1000);
+      backgroundIntervals.add(taskInterval);
+      void assignDailyInventoryCountTasks({ tenantId: null, limit: 20 }).catch((error) => {
+        console.warn("[server] daily inventory task assignment skipped", error.message);
+      });
       void processStaffTaskEmailQueue().catch((error) => {
-        console.error("[server] staff task email queue error", error);
+        console.warn("[server] initial staff task email queue skipped", error.message);
       });
-      void reassignOverdueTasks({ tenantId: null }).catch((error) => {
-        console.error("[server] staff task overdue reassignment error", error);
-      });
-      void sendUpcomingTaskDueReminders({ tenantId: null }).catch((error) => {
-        console.error("[server] staff task due reminder error", error);
-      });
-    }, 5 * 60 * 1000);
-    backgroundIntervals.add(taskInterval);
-    void assignDailyInventoryCountTasks({ tenantId: null, limit: 20 }).catch((error) => {
-      console.warn("[server] daily inventory task assignment skipped", error.message);
-    });
-    void processStaffTaskEmailQueue().catch((error) => {
-      console.warn("[server] initial staff task email queue skipped", error.message);
-    });
-    console.log("[server] staff task schedulers started");
-    console.log("[server] story scheduler started");
+      console.log("[server] staff task schedulers started");
+      console.log("[server] story scheduler started");
+    }
     console.log("[schema] startup migration complete");
     console.log("[server] boot success");
   } catch (error) {

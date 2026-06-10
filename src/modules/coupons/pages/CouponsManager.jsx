@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Download, FileText, Loader2, Plus, Search, Sparkles, TicketPercent, X } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -23,6 +24,7 @@ const emptyForm = {
 };
 
 const number = (value) => Number(value || 0).toLocaleString("en-US");
+const toCouponCode = (value) => String(value || "").trim().toUpperCase();
 
 const downloadProtected = async (endpoint, filename) => {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -44,6 +46,8 @@ const downloadProtected = async (endpoint, filename) => {
 };
 
 export default function CouponsManager() {
+  const { t } = useTranslation();
+  const cText = (key, fallback, options = {}) => t(`marketing.coupons.${key}`, { defaultValue: fallback, ...options });
   const [campaigns, setCampaigns] = useState([]);
   const [coupons, setCoupons] = useState([]);
   const [stats, setStats] = useState(null);
@@ -70,7 +74,7 @@ export default function CouponsManager() {
       setCampaigns(rows);
       setSelectedId((current) => current || rows[0]?.id || null);
     } catch (error) {
-      toast.error(error.message || "Failed to load campaigns");
+      toast.error(error.message || cText("loadFailed", "Failed to load coupon campaigns"));
     } finally {
       setLoading(false);
     }
@@ -94,7 +98,7 @@ export default function CouponsManager() {
       setCoupons(couponResponse.coupons || []);
       setStats(statsResponse.stats || null);
     } catch (error) {
-      toast.error(error.message || "Failed to load coupons");
+      toast.error(error.message || cText("loadFailed", "Failed to load coupon campaigns"));
     } finally {
       setCouponsLoading(false);
     }
@@ -138,28 +142,28 @@ export default function CouponsManager() {
       };
       if (editing?.id) {
         await api.put(`/coupons/campaigns/${editing.id}`, payload);
-        toast.success("Campaign updated");
+        toast.success(cText("saved", "Campaign saved"));
       } else {
         const response = await api.post("/coupons/campaigns", payload);
         setSelectedId(response.campaign?.id || null);
-        toast.success("Campaign created");
+        toast.success(cText("saved", "Campaign saved"));
       }
       setModalOpen(false);
       await loadCampaigns();
     } catch (error) {
-      toast.error(error.message || "Failed to save campaign");
+      toast.error(error.message || cText("saveFailed", "Failed to save campaign"));
     }
   };
 
   const deleteCampaign = async (campaign) => {
-    if (!window.confirm(`Delete campaign "${campaign.name}" and its coupons?`)) return;
+    if (!window.confirm(cText("deleteConfirm", `Delete campaign "${campaign.name}" and its coupons?`, { name: campaign.name }))) return;
     try {
       await api.delete(`/coupons/campaigns/${campaign.id}`);
-      toast.success("Campaign deleted");
+      toast.success(cText("deleted", "Campaign deleted"));
       setSelectedId(null);
       await loadCampaigns();
     } catch (error) {
-      toast.error(error.message || "Failed to delete campaign");
+      toast.error(error.message || cText("deleteFailed", "Failed to delete campaign"));
     }
   };
 
@@ -169,11 +173,11 @@ export default function CouponsManager() {
       const response = await api.post(`/coupons/campaigns/${selectedCampaign.id}/generate`, {
         quantity: generateQty ? Number(generateQty) : undefined,
       });
-      toast.success(`${number(response.generated)} coupons generated`);
+      toast.success(cText("generated", "{{count}} coupons generated", { count: number(response.generated) }));
       setGenerateQty("");
       await Promise.all([loadCampaigns(), loadCoupons()]);
     } catch (error) {
-      toast.error(error.message || "Failed to generate coupons");
+      toast.error(error.message || cText("generateFailed", "Failed to generate coupons"));
     }
   };
 
@@ -188,13 +192,13 @@ export default function CouponsManager() {
   };
 
   const statCards = [
-    ["Total generated", stats?.total_coupons],
-    ["Used", stats?.used_coupons],
-    ["Unused", stats?.unused_coupons],
-    ["Expired", stats?.expired_coupons],
-    ["Total discount", formatCurrency(stats?.total_discount_amount || 0)],
-    ["Sales generated", formatCurrency(stats?.total_sales_amount || 0)],
-    ["Conversion rate", `${Number(stats?.conversion_rate || 0).toFixed(2)}%`],
+    [cText("headers.totalGenerated", "Total generated"), stats?.total_coupons],
+    [cText("headers.used", "Used"), stats?.used_coupons],
+    [cText("headers.unused", "Unused"), stats?.unused_coupons],
+    [cText("headers.expired", "Expired"), stats?.expired_coupons],
+    [cText("headers.totalDiscount", "Total discount"), formatCurrency(stats?.total_discount_amount || 0)],
+    [cText("headers.salesGenerated", "Sales generated"), formatCurrency(stats?.total_sales_amount || 0)],
+    [cText("headers.conversionRate", "Conversion rate"), `${Number(stats?.conversion_rate || 0).toFixed(2)}%`],
   ];
 
   return (
@@ -203,14 +207,14 @@ export default function CouponsManager() {
         <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-violet-300/20 bg-violet-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-violet-100">
             <TicketPercent className="h-4 w-4" />
-            Marketing / Coupons
+            {cText("eyebrow", "Coupons")}
           </div>
-          <h1 className="mt-3 text-3xl font-black tracking-tight md:text-4xl">Offline Coupon Campaigns</h1>
-          <p className="mt-2 max-w-2xl text-sm text-zinc-400">Generate street-distributed coupons, track redemption, and export printable sheets without mock analytics.</p>
+          <h1 className="mt-3 text-3xl font-black tracking-tight md:text-4xl">{cText("title", "Coupon campaigns")}</h1>
+          <p className="mt-2 max-w-2xl text-sm text-zinc-400">{cText("subtitle", "Create, generate, track, and export coupon codes from the ERP.")}</p>
         </div>
         <button type="button" onClick={openCreate} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-violet-400 px-4 text-sm font-black text-black shadow-lg shadow-violet-950/30">
           <Plus className="h-4 w-4" />
-          New campaign
+          {cText("new", "New campaign")}
         </button>
       </div>
 
@@ -226,7 +230,7 @@ export default function CouponsManager() {
       <div className="mt-5 grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
         <aside className="rounded-3xl border border-white/10 bg-zinc-950/70 p-3 shadow-2xl shadow-black/20 backdrop-blur-xl">
           <div className="mb-3 flex items-center justify-between px-1">
-            <h2 className="text-sm font-black text-white">Campaigns</h2>
+            <h2 className="text-sm font-black text-white">{cText("campaignLabel", "Campaigns")}</h2>
             {loading ? <Loader2 className="h-4 w-4 animate-spin text-violet-200" /> : null}
           </div>
           <div className="space-y-2">
@@ -243,16 +247,16 @@ export default function CouponsManager() {
                     <div className="mt-1 text-xs text-zinc-500">{campaign.code_prefix} / {campaign.channel}</div>
                   </div>
                   <span className={`rounded-full px-2 py-1 text-[10px] font-black ${campaign.is_active ? "bg-emerald-400/10 text-emerald-200" : "bg-zinc-500/10 text-zinc-400"}`}>
-                    {campaign.is_active ? "Active" : "Off"}
+                    {campaign.is_active ? cText("active", "Active") : cText("inactive", "Off")}
                   </span>
                 </div>
                 <div className="mt-3 flex gap-2 text-xs">
-                  <span className="rounded-full bg-white/5 px-2 py-1">{number(campaign.generated_count)} generated</span>
-                  <span className="rounded-full bg-white/5 px-2 py-1">{number(campaign.used_count)} used</span>
+                  <span className="rounded-full bg-white/5 px-2 py-1">{number(campaign.generated_count)} {cText("generatedSuffix", "generated")}</span>
+                  <span className="rounded-full bg-white/5 px-2 py-1">{number(campaign.used_count)} {cText("usedSuffix", "used")}</span>
                 </div>
               </button>
             ))}
-            {!loading && !campaigns.length ? <EmptyState label="No coupon campaigns yet." /> : null}
+            {!loading && !campaigns.length ? <EmptyState label={cText("empty", "No coupon campaigns yet.")} /> : null}
           </div>
         </aside>
 
@@ -267,39 +271,39 @@ export default function CouponsManager() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <input value={generateQty} onChange={(e) => setGenerateQty(e.target.value)} type="number" min="1" placeholder="Qty" className="h-10 w-24 rounded-2xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none" />
+                  <input value={generateQty} onChange={(e) => setGenerateQty(e.target.value)} type="number" min="1" placeholder={cText("targetQty", "Qty")} className="h-10 w-24 rounded-2xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none" />
                   <button type="button" onClick={generate} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-emerald-300/25 bg-emerald-400/15 px-3 text-sm font-black text-emerald-100">
                     <Sparkles className="h-4 w-4" />
-                    Generate
+                    {cText("actions.generate", "Generate")}
                   </button>
-                  <button type="button" onClick={() => openEdit(selectedCampaign)} className="h-10 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-bold text-white">Edit</button>
-                  <button type="button" onClick={() => deleteCampaign(selectedCampaign)} className="h-10 rounded-2xl border border-rose-300/20 bg-rose-500/10 px-3 text-sm font-bold text-rose-100">Delete</button>
-                  <button type="button" onClick={exportPdf} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-bold text-white"><FileText className="h-4 w-4" />PDF</button>
-                  <button type="button" onClick={exportCsv} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-bold text-white"><Download className="h-4 w-4" />CSV</button>
+                  <button type="button" onClick={() => openEdit(selectedCampaign)} className="h-10 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-bold text-white">{cText("actions.edit", "Edit")}</button>
+                  <button type="button" onClick={() => deleteCampaign(selectedCampaign)} className="h-10 rounded-2xl border border-rose-300/20 bg-rose-500/10 px-3 text-sm font-bold text-rose-100">{cText("actions.delete", "Delete")}</button>
+                  <button type="button" onClick={exportPdf} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-bold text-white"><FileText className="h-4 w-4" />{cText("actions.exportPdf", "PDF")}</button>
+                  <button type="button" onClick={exportCsv} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-bold text-white"><Download className="h-4 w-4" />{cText("actions.exportCsv", "CSV")}</button>
                 </div>
               </div>
 
               <div className="mt-4 flex flex-col gap-3 md:flex-row">
                 <label className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-                  <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search coupon code" className="h-11 w-full rounded-2xl border border-white/10 bg-black/30 pl-10 pr-3 text-sm text-white outline-none" />
+                  <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={cText("searchPlaceholder", "Search coupon code")} className="h-11 w-full rounded-2xl border border-white/10 bg-black/30 pl-10 pr-3 text-sm text-white outline-none" />
                 </label>
                 <select value={status} onChange={(e) => setStatus(e.target.value)} className="h-11 rounded-2xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none">
-                  <option value="all">All statuses</option>
-                  <option value="active">Active</option>
-                  <option value="unused">Unused</option>
-                  <option value="used">Used</option>
-                  <option value="expired">Expired</option>
+                  <option value="all">{cText("filters.allStatuses", "All statuses")}</option>
+                  <option value="active">{cText("active", "Active")}</option>
+                  <option value="unused">{cText("headers.unused", "Unused")}</option>
+                  <option value="used">{cText("headers.used", "Used")}</option>
+                  <option value="expired">{cText("headers.expired", "Expired")}</option>
                 </select>
               </div>
 
               <div className="mt-4 overflow-hidden rounded-2xl border border-white/10">
                 <div className="grid grid-cols-[1.1fr_0.8fr_0.7fr_0.7fr_0.8fr] gap-3 bg-white/[0.04] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">
-                  <div>Code</div>
-                  <div>Discount</div>
-                  <div>Usage</div>
-                  <div>Status</div>
-                  <div>Expires</div>
+                  <div>{cText("headers.code", "Code")}</div>
+                  <div>{cText("headers.discount", "Discount")}</div>
+                  <div>{cText("headers.usage", "Usage")}</div>
+                  <div>{cText("headers.status", "Status")}</div>
+                  <div>{cText("headers.expires", "Expires")}</div>
                 </div>
                 {couponsLoading ? (
                   Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-14 animate-pulse border-t border-white/5 bg-white/[0.025]" />)
@@ -309,17 +313,17 @@ export default function CouponsManager() {
                       <div className="font-black text-white">{coupon.code}</div>
                       <div className="text-zinc-300">{coupon.discount_type === "percentage" ? `${Number(coupon.discount_value)}%` : formatCurrency(coupon.discount_value)}</div>
                       <div className="text-zinc-300">{number(coupon.usage_count)} / {number(coupon.usage_limit)}</div>
-                      <div><span className={`rounded-full px-2 py-1 text-[11px] font-black ${coupon.is_active ? "bg-emerald-400/10 text-emerald-200" : "bg-zinc-500/10 text-zinc-400"}`}>{coupon.is_active ? "Active" : "Off"}</span></div>
+                      <div><span className={`rounded-full px-2 py-1 text-[11px] font-black ${coupon.is_active ? "bg-emerald-400/10 text-emerald-200" : "bg-zinc-500/10 text-zinc-400"}`}>{coupon.is_active ? cText("active", "Active") : cText("inactive", "Off")}</span></div>
                       <div className="text-zinc-400">{coupon.expires_at ? new Date(coupon.expires_at).toLocaleDateString() : "-"}</div>
                     </div>
                   ))
                 ) : (
-                  <EmptyState label="No coupons match this filter." />
+                  <EmptyState label={cText("emptyFiltered", "No coupons match this filter.")} />
                 )}
               </div>
             </>
           ) : (
-            <EmptyState label="Select or create a coupon campaign." />
+            <EmptyState label={cText("emptySelection", "Select or create a coupon campaign.")} />
           )}
         </main>
       </div>
@@ -338,37 +342,39 @@ export default function CouponsManager() {
 }
 
 function CampaignModal({ form, setForm, editing, onClose, onSave }) {
+  const { t } = useTranslation();
+  const cText = (key, fallback, options = {}) => t(`marketing.coupons.${key}`, { defaultValue: fallback, ...options });
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="w-full max-w-3xl rounded-3xl border border-white/10 bg-zinc-950 p-5 text-white shadow-2xl shadow-black/50">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-xs font-black uppercase tracking-[0.2em] text-violet-300">{editing ? "Edit campaign" : "New campaign"}</div>
-            <h2 className="mt-1 text-2xl font-black">{editing ? editing.name : "Coupon campaign"}</h2>
+            <div className="text-xs font-black uppercase tracking-[0.2em] text-violet-300">{editing ? cText("modal.edit", "Edit campaign") : cText("modal.create", "New campaign")}</div>
+            <h2 className="mt-1 text-2xl font-black">{editing ? editing.name : cText("modal.title", "Coupon campaign")}</h2>
           </div>
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/[0.04] p-2 text-zinc-300"><X className="h-4 w-4" /></button>
         </div>
         <div className="mt-5 grid gap-3 md:grid-cols-2">
-          <Field label="Name" value={form.name} onChange={(value) => update("name", value)} />
-          <Field label="Code prefix" value={form.code_prefix} onChange={(value) => update("code_prefix", value.toUpperCase())} />
-          <Select label="Discount type" value={form.discount_type} onChange={(value) => update("discount_type", value)} options={[["percentage", "Percentage"], ["fixed", "Fixed"]]} />
-          <Field label="Discount value" type="number" value={form.discount_value} onChange={(value) => update("discount_value", value)} />
-          <Field label="Minimum order" type="number" value={form.minimum_order_amount} onChange={(value) => update("minimum_order_amount", value)} />
-          <Field label="Max discount" type="number" value={form.max_discount_amount} onChange={(value) => update("max_discount_amount", value)} placeholder="Optional" />
-          <Field label="Usage per coupon" type="number" value={form.usage_limit_per_coupon} onChange={(value) => update("usage_limit_per_coupon", value)} />
-          <Field label="Target coupons" type="number" value={form.total_coupons} onChange={(value) => update("total_coupons", value)} />
-          <Field label="Starts at" type="datetime-local" value={form.starts_at} onChange={(value) => update("starts_at", value)} />
-          <Field label="Expires at" type="datetime-local" value={form.expires_at} onChange={(value) => update("expires_at", value)} />
-          <Select label="Channel" value={form.channel} onChange={(value) => update("channel", value)} options={[["offline", "Offline"], ["website", "Website"], ["pos", "POS"], ["all", "All"]]} />
+          <Field label={cText("fields.name", "Name")} value={form.name} onChange={(value) => update("name", value)} />
+          <Field label={cText("fields.codePrefix", "Code prefix")} value={form.code_prefix} onChange={(value) => update("code_prefix", toCouponCode(value))} />
+          <Select label={cText("fields.discountType", "Discount type")} value={form.discount_type} onChange={(value) => update("discount_type", value)} options={[["percentage", cText("types.percentage", "Percentage")], ["fixed", cText("types.fixed", "Fixed")]]} />
+          <Field label={cText("fields.discountValue", "Discount value")} type="number" value={form.discount_value} onChange={(value) => update("discount_value", value)} />
+          <Field label={cText("fields.minimumOrder", "Minimum order")} type="number" value={form.minimum_order_amount} onChange={(value) => update("minimum_order_amount", value)} />
+          <Field label={cText("fields.maxDiscount", "Max discount")} type="number" value={form.max_discount_amount} onChange={(value) => update("max_discount_amount", value)} placeholder={cText("optional", "Optional")} />
+          <Field label={cText("fields.usagePerCoupon", "Usage per coupon")} type="number" value={form.usage_limit_per_coupon} onChange={(value) => update("usage_limit_per_coupon", value)} />
+          <Field label={cText("fields.targetCoupons", "Target coupons")} type="number" value={form.total_coupons} onChange={(value) => update("total_coupons", value)} />
+          <Field label={cText("fields.startsAt", "Starts at")} type="datetime-local" value={form.starts_at} onChange={(value) => update("starts_at", value)} />
+          <Field label={cText("fields.expiresAt", "Expires at")} type="datetime-local" value={form.expires_at} onChange={(value) => update("expires_at", value)} />
+          <Select label={cText("fields.channel", "Channel")} value={form.channel} onChange={(value) => update("channel", value)} options={[["offline", cText("channels.offline", "Offline")], ["website", cText("channels.website", "Website")], ["pos", cText("channels.pos", "POS")], ["all", cText("channels.all", "All")]]} />
           <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold">
             <input type="checkbox" checked={Boolean(form.is_active)} onChange={(e) => update("is_active", e.target.checked)} />
-            Active campaign
+            {cText("fields.activeCampaign", "Active campaign")}
           </label>
         </div>
         <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black">Cancel</button>
-          <button type="button" onClick={onSave} className="h-11 rounded-2xl bg-violet-400 px-5 text-sm font-black text-black">Save</button>
+          <button type="button" onClick={onClose} className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black">{cText("actions.cancel", "Cancel")}</button>
+          <button type="button" onClick={onSave} className="h-11 rounded-2xl bg-violet-400 px-5 text-sm font-black text-black">{cText("actions.save", "Save")}</button>
         </div>
       </div>
     </div>

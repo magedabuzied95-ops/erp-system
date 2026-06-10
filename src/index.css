@@ -3114,6 +3114,24 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
     box-shadow: 0 12px 32px rgba(2, 6, 23, 0.22) !important;
   }
 
+  .manager-portal-mobile-dark .manager-portal-main-column {
+    gap: 0.75rem !important;
+  }
+
+  .manager-portal-mobile-dark .manager-portal-mobile-hero,
+  .manager-portal-mobile-dark .manager-portal-mobile-sales-hero {
+    background: linear-gradient(180deg, #020617 0%, #0b1120 100%) !important;
+    border-color: rgba(148, 163, 184, 0.16) !important;
+    box-shadow: 0 16px 36px rgba(2, 6, 23, 0.26) !important;
+  }
+
+  .manager-portal-mobile-dark .manager-portal-employee-card {
+    background: linear-gradient(180deg, #0f172a 0%, #0b1220 100%) !important;
+    border-color: rgba(148, 163, 184, 0.16) !important;
+    box-shadow: 0 12px 28px rgba(2, 6, 23, 0.2) !important;
+    padding: 0.8rem !important;
+  }
+
   .manager-portal-mobile-dark :is([class*="border-slate-100"], [class*="border-slate-200"], [class*="border-slate-300"], [class*="border-white/10"], [class*="border-white/20"]) {
     border-color: rgba(148, 163, 184, 0.14) !important;
   }
@@ -3196,6 +3214,11 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   .manager-portal-mobile-dark .manager-portal-toggle {
     padding-top: 0.75rem !important;
     padding-bottom: 0.75rem !important;
+  }
+
+  .manager-portal-mobile-dark .manager-portal-mobile-sales-hero .text-cyan-100\/70,
+  .manager-portal-mobile-dark .manager-portal-mobile-sales-hero .text-cyan-200\/80 {
+    color: #94a3b8 !important;
   }
 
   .manager-portal-mobile-dark .manager-portal-empty {
