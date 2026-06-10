@@ -290,7 +290,7 @@ function Dashboard() {
   }, [loadDashboard]);
 
   React.useEffect(() => {
-    localStorage.setItem("erp.dashboard.mode", focusMode ? "focus" : "full");
+    safeSetLocalStorage("erp.dashboard.mode", focusMode ? "focus" : "full", { raw: true, debug: true });
   }, [focusMode]);
 
   React.useEffect(() => {

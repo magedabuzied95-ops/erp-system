@@ -6,6 +6,7 @@ import {
   THEME_MAP,
   THEMES,
 } from "./themes";
+import { safeSetLocalStorage } from "../utils/safeStorage";
 
 export const THEME_STORAGE_KEY = "erp.theme";
 export const ACCENT_STORAGE_KEY = "erp.accent";
@@ -29,7 +30,7 @@ export const setStoredTheme = (themeId) => {
   const win = safeWindow();
   if (!win) return;
   if (!THEME_MAP[themeId]) return;
-  win.localStorage.setItem(THEME_STORAGE_KEY, themeId);
+  safeSetLocalStorage(THEME_STORAGE_KEY, themeId, { raw: true, debug: true });
 };
 
 export const clearStoredTheme = () => {
@@ -54,7 +55,7 @@ export const setStoredAccent = (accentId) => {
   const win = safeWindow();
   if (!win) return;
   if (!ACCENTS.some((item) => item.id === accentId)) return;
-  win.localStorage.setItem(ACCENT_STORAGE_KEY, accentId);
+  safeSetLocalStorage(ACCENT_STORAGE_KEY, accentId, { raw: true, debug: true });
 };
 
 export const clearStoredAccent = () => {
@@ -79,7 +80,7 @@ export const setStoredDensity = (density) => {
   const win = safeWindow();
   if (!win) return;
   if (density !== "compact" && density !== "normal") return;
-  win.localStorage.setItem(DENSITY_STORAGE_KEY, density);
+  safeSetLocalStorage(DENSITY_STORAGE_KEY, density, { raw: true, debug: true });
 };
 
 export const clearStoredDensity = () => {

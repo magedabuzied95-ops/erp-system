@@ -49,6 +49,7 @@ import { formatCurrency } from "../../../shared/lib/currency";
 import { SOCKET_URL } from "../../../shared/constants/app";
 import { playRealtimeSound, requestBrowserNotificationPermission, unlockRealtimeFeedbackAudio } from "../../../services/realtimeFeedbackService";
 import { managerPortalApi } from "../services/managerPortalApi";
+import { safeSetLocalStorage } from "../../../utils/safeStorage";
 
 const TABS = ["today", "staff", "tasks", "sales", "chat", "more"];
 const STORAGE_KEY = "manager.portal.active.tab";
@@ -662,7 +663,7 @@ export default function ManagerPortal() {
 
   useEffect(() => {
     if (!isBrowser()) return;
-    window.localStorage.setItem(STORAGE_KEY, activeTab);
+    safeSetLocalStorage(STORAGE_KEY, activeTab, { raw: true, debug: true });
   }, [activeTab]);
 
   useEffect(() => {
@@ -1086,7 +1087,7 @@ export default function ManagerPortal() {
     link.setAttribute("href", `/api/manager-portal/${encodeURIComponent(token)}/manifest.webmanifest?v=${encodeURIComponent(token)}`);
     link.setAttribute("data-manager-portal-manifest", "true");
     document.head.appendChild(link);
-    window.localStorage?.setItem("manager_portal_last_url", `/manager-portal/${encodeURIComponent(token)}${window.location.search || ""}`);
+    safeSetLocalStorage("manager_portal_last_url", `/manager-portal/${encodeURIComponent(token)}${window.location.search || ""}`, { raw: true, debug: true });
 
     const previousTitle = document.title;
     const previousAppleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]')?.getAttribute("content") || "";

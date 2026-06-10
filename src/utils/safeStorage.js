@@ -34,7 +34,13 @@ export const safeSetStorage = (storage, key, value, options = {}) => {
   const write = (nextValue) => {
     const serialized = serializeValue(nextValue, { raw });
     if (typeof maxBytes === "number" && maxBytes >= 0 && byteSize(serialized) > maxBytes) {
+      if (options.debug && import.meta.env.DEV) {
+        console.info("[safe-storage:skip-large]", { key, bytes: byteSize(serialized) });
+      }
       return false;
+    }
+    if (options.debug && import.meta.env.DEV) {
+      console.info("[safe-storage:write]", { key, bytes: byteSize(serialized) });
     }
     storage.setItem(key, serialized);
     return true;
@@ -91,4 +97,3 @@ export const safeSetSessionStorage = (key, value, options = {}) => {
   if (!isBrowser()) return false;
   return safeSetStorage(window.sessionStorage, key, value, options);
 };
-
