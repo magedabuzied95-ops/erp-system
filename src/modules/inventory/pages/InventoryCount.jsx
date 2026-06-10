@@ -183,6 +183,18 @@ const resolveCountVariantImageData = (record = {}) => {
   };
 };
 
+const resolveInventoryImage = (record = {}) =>
+  normalizeImageValue(
+    record.color_image_url ||
+      record.variant_image_url ||
+      record.image_url ||
+      record.product_image ||
+      record.product_image_url ||
+      record.main_image ||
+      record.main_image_url ||
+      ""
+  );
+
 const pickBestCountImageData = (records = []) => {
   let best = {
     image_url: "",
@@ -215,6 +227,12 @@ const pickBestCountImageData = (records = []) => {
 
   return best;
 };
+
+const normalizeInventoryCountItems = (records = []) =>
+  (Array.isArray(records) ? records : []).map((record) => ({
+    ...record,
+    ...resolveCountVariantImageData(record),
+  }));
 
 const sizeSortValue = (value) => {
   const text = normalizeText(value);
@@ -317,7 +335,7 @@ const groupCountVariants = (records = []) => {
   }
 
     return Array.from(groups.values()).map((group) => {
-      const bestImage = pickBestCountImageData(group.variants);
+      const bestImage = pickBestCountImageData([group, ...group.variants]);
       return {
         ...group,
         ...bestImage,
@@ -375,7 +393,7 @@ const groupLookupModels = (records = []) => {
   }
 
     return Array.from(groups.values()).map((group) => {
-      const bestImage = pickBestCountImageData(group.variants);
+      const bestImage = pickBestCountImageData([group, ...group.variants]);
       return {
         ...group,
         ...bestImage,
@@ -555,7 +573,7 @@ function InventoryCountPage() {
       setSessionError("");
       const response = await getInventoryCountSession(routeSessionId);
       const nextSession = response?.session || null;
-      const nextItems = Array.isArray(response?.items) ? response.items : [];
+      const nextItems = normalizeInventoryCountItems(Array.isArray(response?.items) ? response.items : []);
       if (isDevEnvironment) {
         console.log("[inventory-count] session items reloaded", nextItems.map((item) => ({
           id: item.id,
@@ -607,8 +625,12 @@ function InventoryCountPage() {
   const mergeSavedItem = (savedItem) => {
     if (!savedItem) return;
     setItems((current) => {
-      const next = current.filter((row) => String(row.id) !== String(savedItem.id) && String(row.product_variant_id || row.variant_id) !== String(savedItem.product_variant_id || savedItem.variant_id));
-      return [normalizeCountVariant(savedItem), ...next];
+      const next = current.filter(
+        (row) =>
+          String(row.id) !== String(savedItem.id) &&
+          String(row.product_variant_id || row.variant_id) !== String(savedItem.product_variant_id || savedItem.variant_id)
+      );
+      return [normalizeCountVariant({ ...savedItem, ...resolveCountVariantImageData(savedItem) }), ...next];
     });
   };
 
@@ -904,19 +926,21 @@ function InventoryCountPage() {
     }
   };
 
-  const updateLocalItem = (itemId, updater) => {
-    setItems((current) =>
-      current.map((row) => {
-        if (String(row.id) !== String(itemId)) return row;
-        return {
-          ...row,
-          ...updater(row),
-        };
-      })
-    );
-  };
+  const updateLocalItem = useCallback((itemId, updater) => {
+    setItems((current) => {
+      const index = current.findIndex((row) => String(row.id) === String(itemId));
+      if (index === -1) return current;
+      const next = current.slice();
+      const row = current[index];
+      next[index] = {
+        ...row,
+        ...updater(row),
+      };
+      return next;
+    });
+  }, []);
 
-  const handleCountedChange = (itemId, value) => {
+  const handleCountedChange = useCallback((itemId, value) => {
     if (sessionIsLockedForEditing) return;
     const parsed = Number(value || 0);
     updateLocalItem(itemId, (row) => ({
@@ -925,7 +949,7 @@ function InventoryCountPage() {
       actual_qty: parsed,
       difference_qty: parsed - toNumber(row.system_quantity, 0),
     }));
-  };
+  }, [sessionIsLockedForEditing, updateLocalItem]);
 
   const handlePersistCounted = async (itemId, patch = {}) => {
     if (!routeSessionId) return;
@@ -959,7 +983,8 @@ function InventoryCountPage() {
     if (!routeSessionId) return;
     try {
       setBusyGroupKey(group.key);
-      for (const variant of group.variants) {
+      const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+      await Promise.all(group.variants.map(async (variant) => {
         const existing = items.find((item) => String(item.product_variant_id || item.variant_id || item.id) === String(variant.product_variant_id || variant.variant_id || variant.id));
         await persistVariant(variant, {
           counted_quantity: existing ? toNumber(existing.counted_quantity, 0) : 0,
@@ -967,8 +992,9 @@ function InventoryCountPage() {
           reason: existing?.reason || "",
           notes: existing?.notes || "",
         });
-      }
+      }));
       await loadSession();
+      logDevDuration("add color group", startedAt, { groupKey: group.key });
       toast.success("تمت إضافة اللون للجرد");
     } catch (error) {
       console.error("[inventory-count] add color group", error);
@@ -982,49 +1008,13 @@ function InventoryCountPage() {
     if (!routeSessionId || !group?.product_id) return;
     try {
       setBusyGroupKey(group.key);
-      if (isDevEnvironment) {
-        console.log("[inventory-count] add model selected group", {
-          product_id: group.product_id,
-          product_name: group.product_name,
-          color: group.color || "",
-          image_url: group.image_url || "",
-          color_image_url: group.color_image_url || "",
-          variant_image_url: group.variant_image_url || "",
-          product_image: group.product_image || "",
-          variants: group.variants.map((variant) => ({
-            id: variant.id,
-            product_variant_id: variant.product_variant_id,
-            color: variant.color,
-            size: variant.size,
-            image_url: variant.image_url || "",
-            color_image_url: variant.color_image_url || "",
-            variant_image_url: variant.variant_image_url || "",
-            product_image: variant.product_image || "",
-          })),
-        });
-      }
       const payload = { productId: group.product_id };
-      if (isDevEnvironment) {
-        console.log("[inventory-count] add model payload", payload);
-      }
       const response = await addInventoryCountModel(routeSessionId, payload);
       if (response?.session) {
         setSession(response.session);
       }
       if (Array.isArray(response?.items)) {
-        if (isDevEnvironment) {
-          console.log("[inventory-count] add model response items", response.items.map((item) => ({
-            id: item.id,
-            product_variant_id: item.product_variant_id,
-            product_id: item.product_id,
-            color: item.color || item.variant_color || "",
-            image_url: item.image_url || "",
-            color_image_url: item.color_image_url || "",
-            variant_image_url: item.variant_image_url || "",
-            product_image: item.product_image || "",
-          })));
-        }
-        setItems(response.items);
+        setItems(normalizeInventoryCountItems(response.items));
       }
       await loadSession();
       setSelectedLookupProductId(String(group.product_id));
@@ -1044,15 +1034,17 @@ function InventoryCountPage() {
     if (!routeSessionId) return;
     try {
       setBusyGroupKey(group.key);
-      for (const variant of group.variants) {
+      const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+      await Promise.all(group.variants.map(async (variant) => {
         await persistVariant(variant, {
           counted_quantity: value === null || value === undefined ? variant.system_quantity : value,
           system_quantity: variant.system_quantity,
           reason: variant.reason || "",
           notes: variant.notes || "",
         });
-      }
+      }));
       await loadSession();
+      logDevDuration("set group count", startedAt, { groupKey: group.key, value });
       if (toastLabel) toast.success(toastLabel);
     } catch (error) {
       console.error("[inventory-count] group update", error);
@@ -1075,16 +1067,18 @@ function InventoryCountPage() {
     if (!confirmed) return;
     try {
       setBusyGroupKey(group.key);
-      for (const variant of group.variants) {
+      const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+      await Promise.all(group.variants.map(async (variant) => {
         await persistVariant(variant, {
           counted_quantity: variant.system_quantity,
           system_quantity: variant.system_quantity,
           reason: variant.reason || "",
           notes: variant.notes || "",
         });
-      }
+      }));
       setHiddenGroups((current) => (current.includes(group.key) ? current : [...current, group.key]));
       await loadSession();
+      logDevDuration("remove group", startedAt, { groupKey: group.key });
       toast.success("تم حذف اللون من العرض");
     } catch (error) {
       console.error("[inventory-count] remove group", error);
@@ -1353,7 +1347,7 @@ function InventoryCountPage() {
                   ) : null}
 
                   {groupedLookupResults.map((group) => (
-                    <LookupGroupCard
+                    <MemoLookupGroupCard
                       key={group.key}
                       group={group}
                       busy={busyGroupKey === group.key}
@@ -1377,7 +1371,7 @@ function InventoryCountPage() {
                     </div>
                   ) : (
                     visibleGroupedItems.map((group) => (
-                      <GroupedCountCard
+                      <MemoGroupedCountCard
                         key={group.key}
                         group={group}
                         compact={isCompactInventoryLayout}
@@ -1682,15 +1676,16 @@ function SelectField({ label, value, onChange, options = [] }) {
 }
 
 function LookupGroupCard({ group, busy, selected, onAddModel }) {
+  const resolvedImage = resolveInventoryImage(group);
   return (
     <div className={`rounded-3xl border p-4 ${selected ? "border-emerald-400/40 bg-emerald-500/10" : "border-white/10 bg-white/5"}`}>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex min-w-0 gap-3">
           <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900">
-            {group.image_url ? (
-              <img src={group.image_url} alt={group.product_name} className="h-full w-full object-cover" />
+            {resolvedImage ? (
+              <img src={resolvedImage} alt={group.product_name || "منتج"} className="h-full w-full object-cover" />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-zinc-500">
+              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-950 text-zinc-500">
                 <ClipboardList className="h-6 w-6" />
               </div>
             )}
@@ -1755,7 +1750,7 @@ function GroupedCountCard({
 }) {
   if (compact) {
     return (
-      <MobileGroupedCountCard
+      <MemoMobileGroupedCountCard
         group={group}
         disabled={disabled}
         busy={busy}
@@ -1769,7 +1764,7 @@ function GroupedCountCard({
         onNotesCommit={onNotesCommit}
         expanded={expanded}
         onToggleExpanded={onToggleExpanded}
-      />
+        />
     );
   }
 
@@ -1827,7 +1822,7 @@ function GroupedCountCard({
 
       <div className="mt-4 space-y-3">
         {group.variants.map((variant) => (
-          <DesktopGroupedCountRow
+          <MemoDesktopGroupedCountRow
             key={String(variant.id)}
             item={variant}
             disabled={disabled}
@@ -1946,6 +1941,7 @@ function MobileGroupedCountCard({
   onToggleExpanded,
 }) {
   const inputRefs = useRef(new Map());
+  const resolvedImage = resolveInventoryImage(group);
 
   const focusNextSize = (itemId, currentInput) => {
     const currentIndex = group.variants.findIndex((variant) => String(variant.id) === String(itemId));
@@ -1964,10 +1960,10 @@ function MobileGroupedCountCard({
       <button type="button" onClick={onToggleExpanded} className="w-full text-start" aria-expanded={expanded}>
         <div className="flex items-start gap-3">
           <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900">
-            {group.image_url ? (
-              <img src={group.image_url} alt={group.product_name || "منتج"} className="h-full w-full object-cover" />
+            {resolvedImage ? (
+              <img src={resolvedImage} alt={group.product_name || "منتج"} className="h-full w-full object-cover" />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-zinc-500">
+              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-950 text-zinc-500">
                 <ClipboardList className="h-6 w-6" />
               </div>
             )}
@@ -1992,7 +1988,7 @@ function MobileGroupedCountCard({
       {expanded ? (
         <div className="mt-3 space-y-2">
           {group.variants.map((variant) => (
-            <GroupedCountRow
+            <MemoGroupedCountRow
               key={String(variant.id)}
               item={variant}
               compact
@@ -2152,7 +2148,7 @@ function GroupedCountRow({ item, compact = false, disabled, inputRef, onCountCha
                 type="button"
                 disabled={disabled}
                 onClick={decrementCount}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/30 text-base font-black text-white transition hover:bg-white/10 disabled:opacity-40"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/30 text-base font-black text-white transition-colors hover:bg-white/10 disabled:opacity-40"
                 aria-label="إنقاص الكمية"
               >
                 -
@@ -2176,7 +2172,7 @@ function GroupedCountRow({ item, compact = false, disabled, inputRef, onCountCha
                 type="button"
                 disabled={disabled}
                 onClick={incrementCount}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-emerald-500/15 text-base font-black text-emerald-200 transition hover:bg-emerald-500/25 disabled:opacity-40"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-emerald-500/15 text-base font-black text-emerald-200 transition-colors hover:bg-emerald-500/25 disabled:opacity-40"
                 aria-label="زيادة الكمية"
               >
                 +
@@ -2218,7 +2214,7 @@ function GroupedCountRow({ item, compact = false, disabled, inputRef, onCountCha
               type="button"
               disabled={disabled}
               onClick={decrementCount}
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/30 text-base font-black text-white transition hover:bg-white/10 disabled:opacity-40"
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/30 text-base font-black text-white transition-colors hover:bg-white/10 disabled:opacity-40"
               aria-label="إنقاص الكمية"
             >
               -
@@ -2242,7 +2238,7 @@ function GroupedCountRow({ item, compact = false, disabled, inputRef, onCountCha
               type="button"
               disabled={disabled}
               onClick={incrementCount}
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-emerald-500/15 text-base font-black text-emerald-200 transition hover:bg-emerald-500/25 disabled:opacity-40"
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-emerald-500/15 text-base font-black text-emerald-200 transition-colors hover:bg-emerald-500/25 disabled:opacity-40"
               aria-label="زيادة الكمية"
             >
               +
@@ -2263,7 +2259,7 @@ function GroupedCountRow({ item, compact = false, disabled, inputRef, onCountCha
           <button
             type="button"
             onClick={() => setShowDetails((current) => !current)}
-            className="inline-flex items-center rounded-xl border border-white/10 bg-black/20 px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-white/10"
+          className="inline-flex items-center rounded-xl border border-white/10 bg-black/20 px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-white/10"
           >
             {showDetails ? "إخفاء التفاصيل" : "تفاصيل اختيارية"}
           </button>
@@ -2307,6 +2303,50 @@ function GroupedCountRow({ item, compact = false, disabled, inputRef, onCountCha
     </div>
   );
 }
+
+const areRowPropsEqual = (prev, next) =>
+  prev.disabled === next.disabled &&
+  prev.compact === next.compact &&
+  prev.inputRef === next.inputRef &&
+  prev.onCountChange === next.onCountChange &&
+  prev.onCountCommit === next.onCountCommit &&
+  prev.onReasonCommit === next.onReasonCommit &&
+  prev.onNotesCommit === next.onNotesCommit &&
+  prev.onAdvance === next.onAdvance &&
+  prev.item === next.item;
+
+const areSameGroupData = (prevGroup = {}, nextGroup = {}) =>
+  prevGroup.key === nextGroup.key &&
+  prevGroup.product_id === nextGroup.product_id &&
+  prevGroup.product_name === nextGroup.product_name &&
+  prevGroup.color === nextGroup.color &&
+  resolveInventoryImage(prevGroup) === resolveInventoryImage(nextGroup) &&
+  prevGroup.system_total === nextGroup.system_total &&
+  prevGroup.counted_total === nextGroup.counted_total &&
+  prevGroup.difference_total === nextGroup.difference_total &&
+  Array.isArray(prevGroup.variants) &&
+  Array.isArray(nextGroup.variants) &&
+  prevGroup.variants.length === nextGroup.variants.length &&
+  prevGroup.variants.every((variant, index) => variant === nextGroup.variants[index]);
+
+const areGroupedCardPropsEqual = (prev, next) =>
+  prev.disabled === next.disabled &&
+  prev.busy === next.busy &&
+  prev.compact === next.compact &&
+  prev.expanded === next.expanded &&
+  areSameGroupData(prev.group, next.group);
+
+const MemoLookupGroupCard = memo(
+  LookupGroupCard,
+  (prev, next) =>
+    prev.busy === next.busy &&
+    prev.selected === next.selected &&
+    areSameGroupData(prev.group, next.group)
+);
+const MemoGroupedCountCard = memo(GroupedCountCard, areGroupedCardPropsEqual);
+const MemoDesktopGroupedCountRow = memo(DesktopGroupedCountRow, areRowPropsEqual);
+const MemoMobileGroupedCountCard = memo(MobileGroupedCountCard, areGroupedCardPropsEqual);
+const MemoGroupedCountRow = memo(GroupedCountRow, areRowPropsEqual);
 
 function ScopeModal({ branches, warehouses, form, setForm, onClose, onCreate }) {
   return (

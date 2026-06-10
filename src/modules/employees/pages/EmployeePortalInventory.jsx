@@ -1,5 +1,5 @@
 import { createPortal } from "react-dom";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -41,6 +41,12 @@ const clean = (value = "") => String(value || "").trim();
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+const isDevEnvironment = typeof import.meta !== "undefined" && import.meta.env?.DEV;
+const logDevDuration = (label, startedAt, payload = {}) => {
+  if (!isDevEnvironment) return;
+  const durationMs = Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - startedAt);
+  console.debug(`[employee-portal-inventory] ${label}`, { durationMs, ...payload });
 };
 const firstNonEmpty = (...values) => values.map((value) => clean(value)).find(Boolean) || "";
 const readImageValue = (value) => {
@@ -377,10 +383,31 @@ export default function EmployeePortalInventory() {
   const [notesDraft, setNotesDraft] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
   const [branchDrawerOpen, setBranchDrawerOpen] = useState(false);
+  const itemsRef = useRef(items);
+  const itemSaveTimersRef = useRef(new Map());
+  const itemSavePatchRef = useRef(new Map());
+  const itemSavingIdRef = useRef("");
 
   const isEditable = ["draft", "in_progress"].includes(String(session?.status || ""));
   const isRejected = String(session?.status || "") === "rejected";
   const isPendingReview = String(session?.status || "") === "pending_review";
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  useEffect(() => {
+    itemSavingIdRef.current = itemSavingId;
+  }, [itemSavingId]);
+
+  useEffect(
+    () => () => {
+      itemSaveTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      itemSaveTimersRef.current.clear();
+      itemSavePatchRef.current.clear();
+    },
+    []
+  );
 
   const loadSessions = useCallback(async () => {
     try {
@@ -572,12 +599,12 @@ export default function EmployeePortalInventory() {
     }
   }, [refreshCurrentSession, session?.id, token]);
 
-  const saveItem = useCallback(async (variant, patch = {}) => {
+  const saveItem = useCallback(async (variant, patch = {}, options = {}) => {
     if (!session?.id || !isEditable) return;
     const productVariantId = variant.product_variant_id ?? variant.variant_id ?? variant.id;
     if (!productVariantId) return;
     try {
-      setItemSavingId(String(productVariantId));
+      if (options.busy !== false) setItemSavingId(String(productVariantId));
       const response = await upsertEmployeePortalInventoryItem(token, session.id, {
         productVariantId,
         countedQuantity: patch.countedQuantity ?? patch.counted_quantity ?? variant.counted_quantity,
@@ -588,10 +615,11 @@ export default function EmployeePortalInventory() {
       if (response?.item) {
         const saved = normalizeVariant(response.item);
         setItems((current) =>
-          current.map((row) => {
-            const currentId = String(row.product_variant_id ?? row.variant_id ?? row.id ?? "");
+          (() => {
             const savedId = String(saved.product_variant_id ?? saved.variant_id ?? saved.id ?? "");
-            if (currentId !== savedId) return row;
+            const index = current.findIndex((row) => String(row.product_variant_id ?? row.variant_id ?? row.id ?? "") === savedId);
+            if (index === -1) return current;
+            const row = current[index];
             const mergedImageUrl = resolveInventoryImageUrl(
               saved.image_url,
               saved.image,
@@ -604,7 +632,8 @@ export default function EmployeePortalInventory() {
               row.color_image,
               row.variant_image
             );
-            return {
+            const next = current.slice();
+            next[index] = {
               ...row,
               ...saved,
               image_url: mergedImageUrl || row.image_url || saved.image_url || "",
@@ -614,29 +643,66 @@ export default function EmployeePortalInventory() {
               variant_image: mergedImageUrl || row.variant_image || saved.variant_image || "",
               images: mergedImageUrl ? [mergedImageUrl] : row.images || saved.images || [],
             };
-          })
+            return next;
+          })()
         );
       }
       if (response?.session) setSession(response.session);
     } catch (error) {
       toast.error(error?.responseBody?.message || error?.message || "تعذر حفظ القطعة");
     } finally {
-      setItemSavingId("");
+      if (options.busy !== false) setItemSavingId("");
     }
   }, [isEditable, session?.id, token]);
+
+  const scheduleItemSave = useCallback((variant, patch = {}, delayMs = 280) => {
+    if (!variant || !session?.id || !isEditable) return;
+    const variantId = String(variant.product_variant_id ?? variant.variant_id ?? variant.id ?? "");
+    if (!variantId) return;
+
+    const nextPatch = {
+      ...(itemSavePatchRef.current.get(variantId) || {}),
+      ...patch,
+    };
+    itemSavePatchRef.current.set(variantId, nextPatch);
+
+    const existingTimer = itemSaveTimersRef.current.get(variantId);
+    if (existingTimer) window.clearTimeout(existingTimer);
+
+    const timer = window.setTimeout(async () => {
+      itemSaveTimersRef.current.delete(variantId);
+      const currentVariant = itemsRef.current.find((row) => String(row.product_variant_id ?? row.variant_id ?? row.id ?? "") === variantId) || variant;
+      const patchToSave = itemSavePatchRef.current.get(variantId) || nextPatch;
+      itemSavePatchRef.current.delete(variantId);
+      const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+      try {
+        setItemSavingId(variantId);
+        await saveItem(currentVariant, patchToSave);
+        logDevDuration("save item", startedAt, { variantId });
+      } catch (error) {
+        toast.error(error?.responseBody?.message || error?.message || "تعذر حفظ القطعة");
+      } finally {
+        setItemSavingId("");
+      }
+    }, delayMs);
+
+    itemSaveTimersRef.current.set(variantId, timer);
+  }, [isEditable, saveItem, session?.id]);
 
   const addColorGroup = useCallback(async (group) => {
     if (!group?.variants?.length || !session?.id || !isEditable) return;
     try {
       setItemSavingId(group.key);
-      for (const variant of group.variants) {
+      const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+      await Promise.all(group.variants.map(async (variant) => {
         const existing = items.find((row) => String(row.product_variant_id ?? row.variant_id ?? row.id ?? "") === String(variant.product_variant_id ?? variant.variant_id ?? variant.id ?? ""));
         await saveItem(variant, {
           countedQuantity: existing ? toNumber(existing.counted_quantity, 0) : 0,
           systemQuantity: variant.system_quantity,
-        });
-      }
+        }, { busy: false });
+      }));
       await refreshCurrentSession();
+      logDevDuration("add color group", startedAt, { groupKey: group.key });
       toast.success("تمت إضافة اللون للجرد");
     } catch (error) {
       toast.error(error?.responseBody?.message || error?.message || "تعذر إضافة اللون");
@@ -680,24 +746,27 @@ export default function EmployeePortalInventory() {
     }
   }, [addColorGroup, findColorGroupForVariant, items, saveItem, session?.id, token]);
 
-  const handleVariantCountChange = (variantId, value) => {
+  const handleVariantCountChange = useCallback((variantId, value) => {
     if (!isEditable) return;
     const parsed = Number(value || 0);
     setItems((current) =>
-      current.map((row) => {
-        const currentId = String(row.product_variant_id ?? row.variant_id ?? row.id ?? "");
-        if (currentId !== String(variantId)) return row;
+      (() => {
+        const index = current.findIndex((row) => String(row.product_variant_id ?? row.variant_id ?? row.id ?? "") === String(variantId));
+        if (index === -1) return current;
+        const next = current.slice();
+        const row = current[index];
         const difference_quantity = parsed - toNumber(row.system_quantity, 0);
-        return {
+        next[index] = {
           ...row,
           counted_quantity: parsed,
           actual_qty: parsed,
           difference_quantity,
           difference_qty: difference_quantity,
         };
-      })
+        return next;
+      })()
     );
-  };
+  }, [isEditable]);
 
   const adjustVariantCount = useCallback(async (variant, delta) => {
     if (!isEditable) return;
@@ -705,9 +774,11 @@ export default function EmployeePortalInventory() {
     if (!variantId) return;
     const currentValue = toNumber(variant.counted_quantity, 0);
     const nextValue = Math.max(0, currentValue + Number(delta || 0));
+    const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
     handleVariantCountChange(variantId, nextValue);
-    await saveItem(variant, { countedQuantity: nextValue, systemQuantity: variant.system_quantity });
-  }, [handleVariantCountChange, isEditable, saveItem]);
+    scheduleItemSave(variant, { countedQuantity: nextValue, systemQuantity: variant.system_quantity });
+    logDevDuration("adjust variant queued", startedAt, { variantId, delta, nextValue });
+  }, [handleVariantCountChange, isEditable, scheduleItemSave]);
 
   const handleDeleteColorGroup = useCallback(async (group) => {
     if (!session?.id || !isEditable) return;
@@ -1193,7 +1264,7 @@ export default function EmployeePortalInventory() {
                                     type="button"
                                     onClick={() => adjustVariantCount(variant, -1)}
                                     disabled={!isEditable || saving}
-                                    className="inline-flex h-14 items-center justify-center rounded-2xl border border-slate-200 bg-white text-2xl font-black text-slate-700 disabled:opacity-50"
+                                    className="inline-flex h-14 items-center justify-center rounded-2xl border border-slate-200 bg-white text-2xl font-black text-slate-700 transition-colors disabled:opacity-50"
                                     aria-label="إنقاص الكمية"
                                   >
                                     -
@@ -1209,7 +1280,7 @@ export default function EmployeePortalInventory() {
                                     type="button"
                                     onClick={() => adjustVariantCount(variant, 1)}
                                     disabled={!isEditable || saving}
-                                    className="inline-flex h-14 items-center justify-center rounded-2xl bg-emerald-600 text-2xl font-black text-white disabled:opacity-50"
+                                    className="inline-flex h-14 items-center justify-center rounded-2xl bg-emerald-600 text-2xl font-black text-white transition-colors disabled:opacity-50"
                                     aria-label="زيادة الكمية"
                                   >
                                     +
