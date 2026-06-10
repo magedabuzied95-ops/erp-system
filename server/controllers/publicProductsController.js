@@ -71,6 +71,13 @@ const normalizeProductRow = (row = {}) => ({
   product_type: row.product_type || "",
   style: row.style || "",
   grade: row.grade || "",
+  purchase_alerts_enabled: row.purchase_alerts_enabled === true || String(row.purchase_alerts_enabled || "").toLowerCase() === "true",
+  purchase_alert_by_color: row.purchase_alert_by_color === true || String(row.purchase_alert_by_color || "").toLowerCase() === "true",
+  carton_size: row.carton_size === null || row.carton_size === undefined || row.carton_size === "" ? null : Number(row.carton_size),
+  suggested_purchase_cartons:
+    Number.isFinite(Number(row.suggested_purchase_cartons)) && Number(row.suggested_purchase_cartons) >= 1
+      ? Math.floor(Number(row.suggested_purchase_cartons))
+      : 1,
 });
 
 const firstText = (...values) => values.map((value) => String(value || "").trim()).find(Boolean) || "";

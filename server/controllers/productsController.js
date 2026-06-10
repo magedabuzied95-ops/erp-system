@@ -490,6 +490,15 @@ const normalizePurchaseAlertsEnabled = (value, fallback = true) => {
   return fallback;
 };
 
+const normalizePurchaseAlertByColor = (value, fallback = false) => {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (value === true || value === 1) return true;
+  const normalized = String(value).trim().toLowerCase();
+  if (["true", "1", "yes", "on"].includes(normalized)) return true;
+  if (["false", "0", "no", "off"].includes(normalized)) return false;
+  return fallback;
+};
+
 const ensureProductVariantManufacturerColumn = async () => {
   if (!productVariantSchemaReadyPromise) {
     productVariantSchemaReadyPromise = (async () => {
@@ -615,6 +624,7 @@ export const ensureProductSchema = async () => {
             ADD COLUMN IF NOT EXISTS supplier_id BIGINT,
             ADD COLUMN IF NOT EXISTS warehouse_id BIGINT,
             ADD COLUMN IF NOT EXISTS purchase_alerts_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+            ADD COLUMN IF NOT EXISTS purchase_alert_by_color BOOLEAN NOT NULL DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS carton_size INTEGER NULL,
             ADD COLUMN IF NOT EXISTS suggested_purchase_cartons INTEGER NOT NULL DEFAULT 1,
             ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT '',
@@ -845,6 +855,7 @@ const normalizeProductRow = (row = {}) => {
   average_cost: Number(row.average_cost ?? row.cost_price ?? row.purchase_price ?? 0),
   wholesale_price: Number(row.wholesale_price || row.price || 0),
   purchase_alerts_enabled: row.purchase_alerts_enabled === true || String(row.purchase_alerts_enabled || "").toLowerCase() === "true",
+  purchase_alert_by_color: row.purchase_alert_by_color === true || String(row.purchase_alert_by_color || "").toLowerCase() === "true",
   carton_size: row.carton_size === null || row.carton_size === undefined || row.carton_size === "" ? null : Number(row.carton_size),
   suggested_purchase_cartons:
     Number.isFinite(Number(row.suggested_purchase_cartons)) && Number(row.suggested_purchase_cartons) >= 1
@@ -2212,6 +2223,7 @@ export const getProductByQrToken = async (req, res) => {
         p.variation_mode,
         p.fixed_size_label,
         p.purchase_alerts_enabled,
+        p.purchase_alert_by_color,
         p.carton_size,
         p.suggested_purchase_cartons,
         p.qr_token,
@@ -2318,6 +2330,7 @@ export const getProductByQrToken = async (req, res) => {
         variation_mode: first.variation_mode || "full_variations",
         fixed_size_label: first.fixed_size_label || "",
         purchase_alerts_enabled: first.purchase_alerts_enabled === true || String(first.purchase_alerts_enabled || "").toLowerCase() === "true",
+        purchase_alert_by_color: first.purchase_alert_by_color === true || String(first.purchase_alert_by_color || "").toLowerCase() === "true",
         carton_size: first.carton_size === null || first.carton_size === undefined || first.carton_size === "" ? null : Number(first.carton_size),
         suggested_purchase_cartons:
           Number.isFinite(Number(first.suggested_purchase_cartons)) && Number(first.suggested_purchase_cartons) >= 1
@@ -2365,6 +2378,7 @@ export const createProduct = async (req, res) => {
       sale_start_at,
       sale_end_at,
       purchase_alerts_enabled,
+      purchase_alert_by_color,
       carton_size,
       suggested_purchase_cartons,
       use_custom_compare_price,
@@ -2426,6 +2440,7 @@ export const createProduct = async (req, res) => {
     const normalizedMinimumDistinctSizesRequired = normalizeNonNegativeInteger(minimum_distinct_sizes_required, 0);
     const normalizedFixedSizeLabel = String(fixed_size_label || "").trim();
     const normalizedPurchaseAlertsEnabled = normalizePurchaseAlertsEnabled(purchase_alerts_enabled, true);
+    const normalizedPurchaseAlertByColor = normalizePurchaseAlertByColor(purchase_alert_by_color, false);
     const normalizedCartonSize = normalizeNullablePositiveInteger(carton_size, { fieldName: "carton_size" });
     const normalizedSuggestedPurchaseCartons = normalizePositiveInteger(suggested_purchase_cartons, {
       fieldName: "suggested_purchase_cartons",
@@ -2595,6 +2610,7 @@ export const createProduct = async (req, res) => {
       "variation_mode",
       "fixed_size_label",
       "purchase_alerts_enabled",
+      "purchase_alert_by_color",
       "carton_size",
       "suggested_purchase_cartons",
       "stock",
@@ -2650,6 +2666,7 @@ export const createProduct = async (req, res) => {
       normalizedVariationMode,
       normalizedFixedSizeLabel,
       normalizedPurchaseAlertsEnabled,
+      normalizedPurchaseAlertByColor,
       normalizedCartonSize,
       normalizedSuggestedPurchaseCartons,
       0,
@@ -2787,6 +2804,7 @@ export const updateProduct = async (req, res) => {
       sale_start_at,
       sale_end_at,
       purchase_alerts_enabled,
+      purchase_alert_by_color,
       carton_size,
       suggested_purchase_cartons,
       use_custom_compare_price,
@@ -2856,10 +2874,14 @@ export const updateProduct = async (req, res) => {
         : normalizeNonNegativeInteger(minimum_distinct_sizes_required, 0);
     const normalizedFixedSizeLabel = String(fixed_size_label || "").trim();
     const purchaseAlertsEnabledProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "purchase_alerts_enabled");
+    const purchaseAlertByColorProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "purchase_alert_by_color");
     const cartonSizeProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "carton_size");
     const suggestedPurchaseCartonsProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "suggested_purchase_cartons");
     const normalizedPurchaseAlertsEnabled = purchaseAlertsEnabledProvided
       ? normalizePurchaseAlertsEnabled(purchase_alerts_enabled, true)
+      : null;
+    const normalizedPurchaseAlertByColor = purchaseAlertByColorProvided
+      ? normalizePurchaseAlertByColor(purchase_alert_by_color, false)
       : null;
     const normalizedCartonSize = cartonSizeProvided
       ? normalizeNullablePositiveInteger(carton_size, { fieldName: "carton_size" })
@@ -2983,17 +3005,17 @@ export const updateProduct = async (req, res) => {
         seo_description = $6,
         seo_keywords = $7,
         canonical_slug = $8,
-        regular_price = CASE WHEN $54 THEN $9 ELSE regular_price END,
-        price = CASE WHEN $54 THEN $10 ELSE price END,
-        sale_price = CASE WHEN $54 THEN $11 ELSE sale_price END,
-        sale_price_enabled = CASE WHEN $54 THEN $12 ELSE sale_price_enabled END,
-        sale_reason = CASE WHEN $54 THEN $13 ELSE sale_reason END,
-        sale_start_at = CASE WHEN $54 THEN $14 ELSE sale_start_at END,
-        sale_end_at = CASE WHEN $54 THEN $15 ELSE sale_end_at END,
+        regular_price = CASE WHEN $56 THEN $9 ELSE regular_price END,
+        price = CASE WHEN $56 THEN $10 ELSE price END,
+        sale_price = CASE WHEN $56 THEN $11 ELSE sale_price END,
+        sale_price_enabled = CASE WHEN $56 THEN $12 ELSE sale_price_enabled END,
+        sale_reason = CASE WHEN $56 THEN $13 ELSE sale_reason END,
+        sale_start_at = CASE WHEN $56 THEN $14 ELSE sale_start_at END,
+        sale_end_at = CASE WHEN $56 THEN $15 ELSE sale_end_at END,
         use_custom_compare_price = $16,
         custom_compare_price = $17,
-        cost_price = CASE WHEN $54 THEN $18 ELSE cost_price END,
-        wholesale_price = CASE WHEN $54 THEN $19 ELSE wholesale_price END,
+        cost_price = CASE WHEN $56 THEN $18 ELSE cost_price END,
+        wholesale_price = CASE WHEN $56 THEN $19 ELSE wholesale_price END,
         brand = $20,
         category = $21,
         main_category = $22,
@@ -3017,15 +3039,16 @@ export const updateProduct = async (req, res) => {
         variation_mode = $40,
         fixed_size_label = $41,
         purchase_alerts_enabled = CASE WHEN $42 THEN $43 ELSE purchase_alerts_enabled END,
-        carton_size = CASE WHEN $44 THEN $45 ELSE carton_size END,
-        suggested_purchase_cartons = CASE WHEN $46 THEN $47 ELSE suggested_purchase_cartons END,
-        low_stock_alert = COALESCE($48, low_stock_alert),
-        tax_rate = COALESCE($49, 0),
-        low_stock_tracking_mode = COALESCE($50, low_stock_tracking_mode),
-        product_low_stock_threshold = COALESCE($51, product_low_stock_threshold),
-        minimum_distinct_sizes_required = COALESCE($52, minimum_distinct_sizes_required)
-      WHERE id = $53
-        AND tenant_id = $55
+        purchase_alert_by_color = CASE WHEN $44 THEN $45 ELSE purchase_alert_by_color END,
+        carton_size = CASE WHEN $46 THEN $47 ELSE carton_size END,
+        suggested_purchase_cartons = CASE WHEN $48 THEN $49 ELSE suggested_purchase_cartons END,
+        low_stock_alert = COALESCE($50, low_stock_alert),
+        tax_rate = COALESCE($51, 0),
+        low_stock_tracking_mode = COALESCE($52, low_stock_tracking_mode),
+        product_low_stock_threshold = COALESCE($53, product_low_stock_threshold),
+        minimum_distinct_sizes_required = COALESCE($54, minimum_distinct_sizes_required)
+      WHERE id = $55
+        AND tenant_id = $57
       RETURNING *
       `,
       [
@@ -3072,6 +3095,8 @@ export const updateProduct = async (req, res) => {
         normalizedFixedSizeLabel,
         purchaseAlertsEnabledProvided,
         normalizedPurchaseAlertsEnabled,
+        purchaseAlertByColorProvided,
+        normalizedPurchaseAlertByColor,
         cartonSizeProvided,
         normalizedCartonSize,
         suggestedPurchaseCartonsProvided,

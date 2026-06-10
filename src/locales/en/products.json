@@ -150,6 +150,8 @@
     "purchaseSettingsHelp": "Store carton-aware purchase defaults on the product record.",
     "enablePurchaseAlerts": "Enable purchase alerts",
     "purchaseAlertsHelp": "If purchase alerts are disabled, this product will not appear in reorder alerts.",
+    "purchaseAlertByColor": "Enable purchase alerts by color",
+    "purchaseAlertByColorHelp": "When enabled, purchase alerts are generated per color.\nWhen disabled, alerts are generated at the model level.",
     "cartonSize": "Carton size",
     "cartonSizePlaceholder": "Optional",
     "cartonSizeHelp": "Carton size will be used later in carton alerts.",

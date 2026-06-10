@@ -306,6 +306,7 @@ function CreateProduct() {
   const [useCustomComparePrice, setUseCustomComparePrice] = useState(false);
   const [customComparePrice, setCustomComparePrice] = useState("");
   const [purchaseAlertsEnabled, setPurchaseAlertsEnabled] = useState(true);
+  const [purchaseAlertByColor, setPurchaseAlertByColor] = useState(false);
   const [cartonSize, setCartonSize] = useState("");
   const [suggestedPurchaseCartons, setSuggestedPurchaseCartons] = useState(1);
   const [active, setActive] = useState(true);
@@ -527,12 +528,13 @@ function CreateProduct() {
           saleStartAt ||
           saleEndAt ||
           wholesalePrice ||
-      useCustomComparePrice ||
-      customComparePrice ||
-      purchaseAlertsEnabled !== true ||
-      String(cartonSize || "").trim() !== "" ||
-      Number(suggestedPurchaseCartons || 1) !== 1 ||
-      coverImage ||
+          useCustomComparePrice ||
+          customComparePrice ||
+          purchaseAlertsEnabled !== true ||
+          purchaseAlertByColor !== false ||
+          String(cartonSize || "").trim() !== "" ||
+          Number(suggestedPurchaseCartons || 1) !== 1 ||
+          coverImage ||
           gallery.length > 0 ||
           colorGroups.some((group) =>
             Boolean(
@@ -578,6 +580,7 @@ function CreateProduct() {
       useCustomComparePrice,
       customComparePrice,
       purchaseAlertsEnabled,
+      purchaseAlertByColor,
       cartonSize,
       suggestedPurchaseCartons,
       coverImage,
@@ -1807,6 +1810,7 @@ function CreateProduct() {
         variation_mode: variationMode,
         fixed_size_label: isColorOnlyMode ? fixedSizeLabel : "",
         purchase_alerts_enabled: purchaseAlertsEnabled,
+        purchase_alert_by_color: purchaseAlertByColor,
         carton_size: cartonSize === "" ? null : Number(cartonSize),
         suggested_purchase_cartons: Number(suggestedPurchaseCartons || 1),
         planned_quantities: [],
@@ -1880,6 +1884,7 @@ function CreateProduct() {
         variation_mode: variationMode,
         fixed_size_label: isColorOnlyMode ? fixedSizeLabel : "",
         purchase_alerts_enabled: purchaseAlertsEnabled,
+        purchase_alert_by_color: purchaseAlertByColor,
         carton_size: cartonSize === "" ? null : Number(cartonSize),
         suggested_purchase_cartons: Number(suggestedPurchaseCartons || 1),
         planned_quantities: [],
@@ -2260,13 +2265,15 @@ function CreateProduct() {
                   setGender(next[0] || "");
                 }}
                 onProductTypeChange={setProductType}
-              onGradeChange={setGrade}
-              purchaseAlertsEnabled={purchaseAlertsEnabled}
-              cartonSize={cartonSize}
-              suggestedPurchaseCartons={suggestedPurchaseCartons}
-              onPurchaseAlertsEnabledChange={setPurchaseAlertsEnabled}
-              onCartonSizeChange={setCartonSize}
-              onSuggestedPurchaseCartonsChange={setSuggestedPurchaseCartons}
+                onGradeChange={setGrade}
+                purchaseAlertsEnabled={purchaseAlertsEnabled}
+                purchaseAlertByColor={purchaseAlertByColor}
+                cartonSize={cartonSize}
+                suggestedPurchaseCartons={suggestedPurchaseCartons}
+                onPurchaseAlertsEnabledChange={setPurchaseAlertsEnabled}
+                onPurchaseAlertByColorChange={setPurchaseAlertByColor}
+                onCartonSizeChange={setCartonSize}
+                onSuggestedPurchaseCartonsChange={setSuggestedPurchaseCartons}
             />
 
               {isColorOnlyMode ? (

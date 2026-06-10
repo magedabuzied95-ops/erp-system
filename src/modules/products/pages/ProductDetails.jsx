@@ -691,6 +691,8 @@ function ProductDetails() {
         grade: product.grade || "",
         variation_mode: product.variation_mode || "full_variations",
         fixed_size_label: product.fixed_size_label || "",
+        purchase_alerts_enabled: Boolean(product.purchase_alerts_enabled),
+        purchase_alert_by_color: Boolean(product.purchase_alert_by_color),
         unit_id: product.unit_id || null,
         sale_price: Number(product.sale_price || 0),
         cost_price: Number(product.cost_price || 0),

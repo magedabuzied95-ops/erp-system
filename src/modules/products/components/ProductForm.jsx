@@ -27,6 +27,7 @@ function ProductForm({
   productType = "",
   grade = "",
   purchaseAlertsEnabled = true,
+  purchaseAlertByColor = false,
   cartonSize = "",
   suggestedPurchaseCartons = 1,
   onMainCategoryChange,
@@ -40,6 +41,7 @@ function ProductForm({
   onProductTypeChange,
   onGradeChange,
   onPurchaseAlertsEnabledChange,
+  onPurchaseAlertByColorChange,
   onCartonSizeChange,
   onSuggestedPurchaseCartonsChange,
 }) {
@@ -327,6 +329,26 @@ function ProductForm({
               </div>
               <p className="mt-1 text-xs leading-5 text-zinc-400">
                 {t("products.form.purchaseAlertsHelp", "إذا تم إيقاف تنبيهات الشراء فلن يظهر المنتج في تنبيهات إعادة الطلب.")}
+              </p>
+            </div>
+          </label>
+
+          <label className="flex items-start gap-3 rounded-[24px] border border-white/8 bg-zinc-950/60 px-4 py-3 text-left">
+            <input
+              type="checkbox"
+              checked={Boolean(purchaseAlertByColor)}
+              onChange={(event) => onPurchaseAlertByColorChange?.(event.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-white/20 bg-zinc-950 accent-amber-400"
+            />
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-white">
+                {t("products.form.purchaseAlertByColor", "تفعيل طلب الشراء حسب اللون")}
+              </div>
+              <p className="mt-1 whitespace-pre-line text-xs leading-5 text-zinc-400">
+                {t(
+                  "products.form.purchaseAlertByColorHelp",
+                  "عند التفعيل يتم إنشاء تنبيهات الشراء لكل لون بشكل مستقل.\nعند الإلغاء يتم إنشاء التنبيهات على مستوى الموديل بالكامل."
+                )}
               </p>
             </div>
           </label>

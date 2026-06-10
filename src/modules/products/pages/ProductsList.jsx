@@ -223,6 +223,8 @@ const duplicateProductPayload = (row = {}) => ({
   grade: row.grade || "",
   variation_mode: row.variation_mode || "full_variations",
   fixed_size_label: row.fixed_size_label || "",
+  purchase_alerts_enabled: Boolean(row.purchase_alerts_enabled),
+  purchase_alert_by_color: Boolean(row.purchase_alert_by_color),
   unit_id: row.unit_id || null,
   sale_price: Number(row.sale_price || row.price || 0),
   cost_price: Number(row.cost_price || 0),
