@@ -1,4 +1,5 @@
 import db from "../database/db.js";
+import { groupLowStockAlerts } from "../utils/lowStockAlertGrouping.js";
 
 const daySql = "date_trunc('day', NOW())";
 const yesterdaySql = "date_trunc('day', NOW()) - INTERVAL '1 day'";
@@ -105,6 +106,7 @@ const tenantClause = (alias, tenantId, params) => {
 };
 
 const emptyRows = [];
+const LOW_STOCK_ALERT_MAX = 2;
 
 const safeQuery = async (sql, params = [], fallback = emptyRows, name = "dashboardQuery") => {
   const startedAt = Date.now();
@@ -482,62 +484,142 @@ export const getTopProducts = async ({ tenantId = null, limit = 8, filters = {} 
 };
 
 export const getLowStock = async ({ tenantId = null, limit = 12 } = {}) => {
-  const rows = [];
-  if (await tableExists("product_variants")) {
-    const params = [Number(limit) || 12];
-    const productTenant = tenantClause("p", tenantId, params);
-    rows.push(
-      ...(await safeQuery(
-        `
-        WITH product_stock AS (
-          SELECT
-            p.id,
-            p.name,
-            COALESCE((ARRAY_AGG(pv.sku ORDER BY pv.id) FILTER (WHERE pv.sku IS NOT NULL AND pv.sku <> ''))[1], p.sku, '') AS sku,
-            COALESCE((ARRAY_AGG(pv.size ORDER BY pv.id) FILTER (WHERE pv.size IS NOT NULL AND pv.size <> ''))[1], '') AS size,
-            COALESCE((ARRAY_AGG(pv.color ORDER BY pv.id) FILTER (WHERE pv.color IS NOT NULL AND pv.color <> ''))[1], '') AS color,
-            CASE
-              WHEN COUNT(pv.id) > 0 THEN COALESCE(SUM(GREATEST(COALESCE(pv.stock, 0), 0)), 0)
-              ELSE GREATEST(COALESCE(p.stock, 0), 0)
-            END::int AS stock
-          FROM products p
-          LEFT JOIN product_variants pv ON pv.product_id = p.id
-          WHERE 1=1
-            ${productTenant}
-          GROUP BY p.id, p.name, p.sku, p.stock
+  if (!(await tableExists("products"))) return [];
+
+  const params = [LOW_STOCK_ALERT_MAX];
+  const productTenant = tenantClause("p", tenantId, params);
+  const hasVariants = await tableExists("product_variants");
+
+  if (!hasVariants) {
+    const simpleRows = await safeQuery(
+      `
+      SELECT
+        p.id AS product_id,
+        p.name AS product_name,
+        p.sku AS product_sku,
+        '' AS color,
+        '' AS size,
+        GREATEST(COALESCE(p.stock, 0), 0)::int AS stock,
+        COALESCE(NULLIF(p.low_stock_alert, 0), $1)::int AS threshold,
+        COALESCE(
+          NULLIF(p.image_url, ''),
+          NULLIF(p.image, ''),
+          NULLIF(p.photo_url, ''),
+          NULLIF(p.thumbnail_url, ''),
+          ''
+        ) AS image_url,
+        NULL::bigint AS variant_id,
+        p.image_url AS product_image_url
+      FROM products p
+      WHERE 1=1
+        ${productTenant}
+        AND LOWER(COALESCE(p.status, 'active')) = 'active'
+        AND GREATEST(COALESCE(p.stock, 0), 0) BETWEEN 1 AND COALESCE(NULLIF(p.low_stock_alert, 0), $1)
+      ORDER BY p.name ASC
+      `,
+      params,
+      emptyRows,
+      "lowStock.simpleOnly"
+    );
+
+    return groupLowStockAlerts(simpleRows, { fallbackThreshold: LOW_STOCK_ALERT_MAX, limit: Number(limit) || 12 });
+  }
+
+  const rows = await safeQuery(
+    `
+    WITH candidate_products AS (
+      SELECT DISTINCT p.id
+      FROM products p
+      WHERE 1=1
+        ${productTenant}
+        AND LOWER(COALESCE(p.status, 'active')) = 'active'
+        AND (
+          (
+            EXISTS (
+              SELECT 1
+              FROM product_variants pv
+              WHERE pv.product_id = p.id
+                AND pv.is_active IS DISTINCT FROM FALSE
+                AND pv.deleted_at IS NULL
+                AND GREATEST(COALESCE(pv.stock, 0), 0) BETWEEN 1 AND COALESCE(NULLIF(pv.low_stock_alert, 0), NULLIF(p.low_stock_alert, 0), $1)
+            )
+          )
+          OR (
+            NOT EXISTS (
+              SELECT 1
+              FROM product_variants pv
+              WHERE pv.product_id = p.id
+                AND pv.is_active IS DISTINCT FROM FALSE
+                AND pv.deleted_at IS NULL
+            )
+            AND GREATEST(COALESCE(p.stock, 0), 0) BETWEEN 1 AND COALESCE(NULLIF(p.low_stock_alert, 0), $1)
+          )
         )
-        SELECT id, name, sku, size, color, stock, 2 AS threshold
-        FROM product_stock
-        WHERE stock BETWEEN 1 AND 2
-        ORDER BY stock ASC, name ASC
-        LIMIT $1
-        `,
-        params,
-        emptyRows,
-        "lowStock.variants"
-      ))
-    );
-  }
-  if (rows.length === 0 && (await tableExists("products"))) {
-    const params = [Number(limit) || 12];
-    const productTenant = tenantClause("p", tenantId, params);
-    rows.push(
-      ...(await safeQuery(
-        `
-        SELECT p.id, p.name, p.sku, '' AS size, '' AS color, GREATEST(COALESCE(p.stock, 0), 0) AS stock, 2 AS threshold
-        FROM products p
-        WHERE GREATEST(COALESCE(p.stock, 0), 0) BETWEEN 1 AND 2
-          ${productTenant}
-        ORDER BY COALESCE(p.stock, 0) ASC
-        LIMIT $1
-        `,
-        params,
-        emptyRows,
-        "lowStock.products"
-      ))
-    );
-  }
-  return rows.slice(0, Number(limit) || 12);
+    ),
+    variant_rows AS (
+      SELECT
+        p.id AS product_id,
+        p.name AS product_name,
+        p.sku AS product_sku,
+        COALESCE(NULLIF(TRIM(pv.color), ''), '') AS color,
+        COALESCE(NULLIF(TRIM(pv.size), ''), '') AS size,
+        GREATEST(COALESCE(pv.stock, 0), 0)::int AS stock,
+        COALESCE(NULLIF(pv.low_stock_alert, 0), NULLIF(p.low_stock_alert, 0), $1)::int AS threshold,
+        COALESCE(
+          NULLIF(p.image_url, ''),
+          NULLIF(p.image, ''),
+          NULLIF(p.photo_url, ''),
+          NULLIF(p.thumbnail_url, ''),
+          NULLIF(pv.image_url, ''),
+          ''
+        ) AS image_url,
+        pv.id AS variant_id,
+        p.image_url AS product_image_url
+      FROM candidate_products cp
+      JOIN products p ON p.id = cp.id
+      JOIN product_variants pv ON pv.product_id = p.id
+        AND pv.is_active IS DISTINCT FROM FALSE
+        AND pv.deleted_at IS NULL
+    ),
+    simple_rows AS (
+      SELECT
+        p.id AS product_id,
+        p.name AS product_name,
+        p.sku AS product_sku,
+        '' AS color,
+        '' AS size,
+        GREATEST(COALESCE(p.stock, 0), 0)::int AS stock,
+        COALESCE(NULLIF(p.low_stock_alert, 0), $1)::int AS threshold,
+        COALESCE(
+          NULLIF(p.image_url, ''),
+          NULLIF(p.image, ''),
+          NULLIF(p.photo_url, ''),
+          NULLIF(p.thumbnail_url, ''),
+          ''
+        ) AS image_url,
+        NULL::bigint AS variant_id,
+        p.image_url AS product_image_url
+      FROM candidate_products cp
+      JOIN products p ON p.id = cp.id
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM product_variants pv
+        WHERE pv.product_id = p.id
+          AND pv.is_active IS DISTINCT FROM FALSE
+          AND pv.deleted_at IS NULL
+      )
+    )
+    SELECT * FROM variant_rows
+    UNION ALL
+    SELECT * FROM simple_rows
+    ORDER BY product_name ASC, color ASC, size ASC
+    `,
+    params,
+    emptyRows,
+    hasVariants ? "lowStock.raw" : "lowStock.simple"
+  );
+
+  return groupLowStockAlerts(rows, { fallbackThreshold: LOW_STOCK_ALERT_MAX, limit: Number(limit) || 12 });
 };
 
 export const getLiveActivity = async ({ tenantId = null, limit = 30 } = {}) => {

@@ -5,6 +5,7 @@ import { getInventoryMovements } from "../services/inventoryMovementService.js";
 import { getVariantStockReconciliation } from "../services/stockReconciliationService.js";
 import { postInventoryAdjustment } from "../services/accountingService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
+import { groupLowStockAlerts } from "../utils/lowStockAlertGrouping.js";
 
 const LOW_STOCK_ALERT_MAX = 2;
 
@@ -48,7 +49,7 @@ const buildPurchaseAlertImage = ({ product = {}, variants = [] } = {}) => {
 
 const buildPurchaseAlertAction = (count) => {
   const nextCount = Number(count || 1);
-  return nextCount === 1 ? "اطلب كرتونة" : `اطلب ${nextCount} كرتونة`;
+  return nextCount === 1 ? "ط§ط·ظ„ط¨ ظƒط±طھظˆظ†ط©" : `ط§ط·ظ„ط¨ ${nextCount} ظƒط±طھظˆظ†ط©`;
 };
 
 const createPurchaseAlertScope = ({ product, scopeVariants = [], color = "", purchaseAlertByColor = false }) => {
@@ -81,11 +82,11 @@ const createPurchaseAlertScope = ({ product, scopeVariants = [], color = "", pur
     purchase_alert_by_color: Boolean(purchaseAlertByColor),
     image_url: buildPurchaseAlertImage({ product, variants: scopeVariants }),
     alert_type: alertType,
-    alert_title: alertType === "missing_sizes" ? "مقاسات ناقصة" : "وصل لحد الكرتونة",
+    alert_title: alertType === "missing_sizes" ? "ظ…ظ‚ط§ط³ط§طھ ظ†ط§ظ‚طµط©" : "ظˆطµظ„ ظ„ط­ط¯ ط§ظ„ظƒط±طھظˆظ†ط©",
     alert_reason:
       alertType === "missing_sizes"
-        ? "تشكيلة المقاسات غير مكتملة"
-        : "إجمالي المخزون وصل لحد الكرتونة",
+        ? "طھط´ظƒظٹظ„ط© ط§ظ„ظ…ظ‚ط§ط³ط§طھ ط؛ظٹط± ظ…ظƒطھظ…ظ„ط©"
+        : "ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ظ…ط®ط²ظˆظ† ظˆطµظ„ ظ„ط­ط¯ ط§ظ„ظƒط±طھظˆظ†ط©",
     missing_sizes: alertType === "missing_sizes" ? missingSizes : [],
     variant_ids: Array.from(
       new Set(
@@ -480,8 +481,8 @@ const getProductLowStockSnapshot = async ({ productId, tenantId }) => {
 
 const lowStockMessage = (productName, totalStock) =>
   Number(totalStock) === 1
-    ? `متبقي قطعة واحدة فقط من ${productName}`
-    : `متبقي قطعتين فقط من ${productName}`;
+    ? `ظ…طھط¨ظ‚ظٹ ظ‚ط·ط¹ط© ظˆط§ط­ط¯ط© ظپظ‚ط· ظ…ظ† ${productName}`
+    : `ظ…طھط¨ظ‚ظٹ ظ‚ط·ط¹طھظٹظ† ظپظ‚ط· ظ…ظ† ${productName}`;
 
 export const updateStock = async (req, res) => {
   const client = await db.connect();
@@ -540,7 +541,7 @@ export const updateStock = async (req, res) => {
         tenant_id: tenantId,
         branch_id: req.body.branchId || req.body.branch_id || null,
         priority: totalStock === 1 ? "critical" : "high",
-        title: "آخر قطع متاحة",
+        title: "ط¢ط®ط± ظ‚ط·ط¹ ظ…طھط§ط­ط©",
         message: lowStockMessage(lowStockSnapshot.product_name || `Product ${result.productId}`, totalStock),
         action_url: `/inventory?productId=${encodeURIComponent(String(result.productId || ""))}`,
         entity_type: "product",
@@ -550,7 +551,7 @@ export const updateStock = async (req, res) => {
           variant_id: variantId,
           stock: totalStock,
           image_url: lowStockSnapshot.image_url || "",
-          badge: "عاجل",
+          badge: "ط¹ط§ط¬ظ„",
           source: "manual_adjustment",
         },
       }).catch((error) => console.warn("[notifications] low stock skipped", error?.message || error));
@@ -706,7 +707,7 @@ const getLowStockAlertsLegacy = async (req, res) => {
         total_stock,
         image_url,
         CASE WHEN total_stock = 1 THEN 'critical' ELSE 'high' END AS alert_level,
-        'عاجل' AS badge_text
+        'ط¹ط§ط¬ظ„' AS badge_text
       FROM product_stock
       WHERE total_stock BETWEEN 1 AND $1
       ORDER BY total_stock ASC, product_name ASC
@@ -981,48 +982,48 @@ export const createPurchaseAlertsDraft = async (req, res) => {
   }
 };
 
-export const getLowStockAlerts = async (req, res) => {
+export const getLowStockAlertsGrouped = async (req, res) => {
   try {
     await ensureInventoryAlertProductColumns();
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     const threshold = LOW_STOCK_ALERT_MAX;
 
-    const result = await db.query(
-      `
-      WITH product_metrics AS (
-        SELECT
-          p.id AS product_id,
-          p.name AS product_name,
-          COALESCE(NULLIF(p.low_stock_tracking_mode, ''), 'variant') AS low_stock_tracking_mode,
-          GREATEST(COALESCE(p.product_low_stock_threshold, 0), 0)::int AS product_low_stock_threshold,
-          GREATEST(COALESCE(p.minimum_distinct_sizes_required, 0), 0)::int AS minimum_distinct_sizes_required,
-          CASE
-            WHEN COUNT(v.id) > 0 THEN COALESCE(SUM(GREATEST(COALESCE(v.stock, 0), 0)), 0)
-            ELSE GREATEST(COALESCE(p.stock, 0), 0)
-          END::int AS total_stock,
-          CASE
-            WHEN COUNT(v.id) > 0 THEN COUNT(DISTINCT CASE WHEN COALESCE(v.stock, 0) > 0 THEN COALESCE(NULLIF(TRIM(v.size), ''), 'One Size') END)
-            WHEN COALESCE(p.stock, 0) > 0 THEN 1
-            ELSE 0
-          END::int AS active_sizes_count,
-          COALESCE(
-            NULLIF(p.image_url, ''),
-            NULLIF(p.image, ''),
-            NULLIF(p.photo_url, ''),
-            NULLIF(p.thumbnail_url, ''),
-            NULLIF((ARRAY_AGG(v.image_url ORDER BY v.id) FILTER (WHERE v.image_url IS NOT NULL AND v.image_url <> ''))[1], ''),
-            ''
-          ) AS image_url,
-          (ARRAY_AGG(v.id ORDER BY v.id) FILTER (WHERE v.id IS NOT NULL))[1] AS variant_id,
-          ARRAY_REMOVE(ARRAY_AGG(DISTINCT NULLIF(v.color, '')), NULL) AS colors,
-          ARRAY_REMOVE(ARRAY_AGG(DISTINCT NULLIF(v.size, '')), NULL) AS sizes,
-          ARRAY_REMOVE(ARRAY_AGG(DISTINCT NULLIF(v.sku, '')), NULL) AS skus
-        FROM products p
-        LEFT JOIN product_variants v ON v.product_id = p.id
-        WHERE ($2::bigint IS NULL OR p.tenant_id = $2::bigint OR p.tenant_id IS NULL)
-        GROUP BY p.id, p.name, p.stock, p.low_stock_tracking_mode, p.product_low_stock_threshold, p.minimum_distinct_sizes_required, p.image_url, p.image, p.photo_url, p.thumbnail_url
-      ),
-      product_total_alerts AS (
+    const [productTotalResult, groupedRowsResult] = await Promise.all([
+      db.query(
+        `
+        WITH product_metrics AS (
+          SELECT
+            p.id AS product_id,
+            p.name AS product_name,
+            COALESCE(NULLIF(p.low_stock_tracking_mode, ''), 'variant') AS low_stock_tracking_mode,
+            GREATEST(COALESCE(p.product_low_stock_threshold, 0), 0)::int AS product_low_stock_threshold,
+            GREATEST(COALESCE(p.minimum_distinct_sizes_required, 0), 0)::int AS minimum_distinct_sizes_required,
+            CASE
+              WHEN COUNT(v.id) > 0 THEN COALESCE(SUM(GREATEST(COALESCE(v.stock, 0), 0)), 0)
+              ELSE GREATEST(COALESCE(p.stock, 0), 0)
+            END::int AS total_stock,
+            CASE
+              WHEN COUNT(v.id) > 0 THEN COUNT(DISTINCT CASE WHEN COALESCE(v.stock, 0) > 0 THEN COALESCE(NULLIF(TRIM(v.size), ''), 'One Size') END)
+              WHEN COALESCE(p.stock, 0) > 0 THEN 1
+              ELSE 0
+            END::int AS active_sizes_count,
+            COALESCE(
+              NULLIF(p.image_url, ''),
+              NULLIF(p.image, ''),
+              NULLIF(p.photo_url, ''),
+              NULLIF(p.thumbnail_url, ''),
+              NULLIF((ARRAY_AGG(v.image_url ORDER BY v.id) FILTER (WHERE v.image_url IS NOT NULL AND v.image_url <> ''))[1], ''),
+              ''
+            ) AS image_url,
+            (ARRAY_AGG(v.id ORDER BY v.id) FILTER (WHERE v.id IS NOT NULL))[1] AS variant_id,
+            ARRAY_REMOVE(ARRAY_AGG(DISTINCT NULLIF(v.color, '')), NULL) AS colors,
+            ARRAY_REMOVE(ARRAY_AGG(DISTINCT NULLIF(v.size, '')), NULL) AS sizes,
+            ARRAY_REMOVE(ARRAY_AGG(DISTINCT NULLIF(v.sku, '')), NULL) AS skus
+          FROM products p
+          LEFT JOIN product_variants v ON v.product_id = p.id
+          WHERE ($2::bigint IS NULL OR p.tenant_id = $2::bigint OR p.tenant_id IS NULL)
+          GROUP BY p.id, p.name, p.stock, p.low_stock_tracking_mode, p.product_low_stock_threshold, p.minimum_distinct_sizes_required, p.image_url, p.image, p.photo_url, p.thumbnail_url
+        )
         SELECT
           'product_total' AS alert_scope,
           product_id,
@@ -1035,7 +1036,7 @@ export const getLowStockAlerts = async (req, res) => {
           total_stock,
           image_url,
           CASE WHEN total_stock <= 0 OR active_sizes_count = 0 THEN 'critical' ELSE 'high' END AS alert_level,
-          'عاجل' AS badge_text,
+          'ط¹ط§ط¬ظ„' AS badge_text,
           low_stock_tracking_mode,
           product_low_stock_threshold,
           minimum_distinct_sizes_required,
@@ -1053,84 +1054,120 @@ export const getLowStockAlerts = async (req, res) => {
         FROM product_metrics
         WHERE low_stock_tracking_mode = 'product_total'
           AND (total_stock <= product_low_stock_threshold OR active_sizes_count < minimum_distinct_sizes_required)
+        ORDER BY total_stock ASC, product_name ASC
+        `,
+        [threshold, tenantId]
       ),
-      variant_alerts AS (
-        SELECT
-          'variant' AS alert_scope,
-          p.id AS product_id,
-          p.name AS product_name,
-          v.id AS variant_id,
-          COALESCE(v.color, '') AS color,
-          COALESCE(v.size, '') AS size,
-          COALESCE(NULLIF(v.sku, ''), NULLIF(p.sku, ''), '') AS sku,
-          GREATEST(COALESCE(v.stock, 0), 0)::int AS stock,
-          GREATEST(COALESCE(v.stock, 0), 0)::int AS total_stock,
-          COALESCE(NULLIF(v.image_url, ''), NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS image_url,
-          CASE WHEN COALESCE(v.stock, 0) <= 0 THEN 'critical' ELSE 'high' END AS alert_level,
-          'عاجل' AS badge_text,
-          COALESCE(NULLIF(p.low_stock_tracking_mode, ''), 'variant') AS low_stock_tracking_mode,
-          GREATEST(COALESCE(p.product_low_stock_threshold, 0), 0)::int AS product_low_stock_threshold,
-          GREATEST(COALESCE(p.minimum_distinct_sizes_required, 0), 0)::int AS minimum_distinct_sizes_required,
-          NULL::int AS active_sizes_count,
-          'Variant low stock' AS alert_reason,
-          ARRAY['Variant low stock'] AS alert_reasons,
-          COALESCE(NULLIF(v.low_stock_alert, 0), NULLIF(p.low_stock_alert, 0), $1)::int AS threshold
-        FROM products p
-        JOIN product_variants v ON v.product_id = p.id
-          AND v.is_active IS DISTINCT FROM FALSE
-          AND v.deleted_at IS NULL
-        WHERE COALESCE(NULLIF(p.low_stock_tracking_mode, ''), 'variant') <> 'product_total'
-          AND ($2::bigint IS NULL OR p.tenant_id = $2::bigint OR p.tenant_id IS NULL)
-          AND GREATEST(COALESCE(v.stock, 0), 0) <= COALESCE(NULLIF(v.low_stock_alert, 0), NULLIF(p.low_stock_alert, 0), $1)
-      ),
-      simple_product_alerts AS (
-        SELECT
-          'variant' AS alert_scope,
-          p.id AS product_id,
-          p.name AS product_name,
-          NULL::bigint AS variant_id,
-          '' AS color,
-          '' AS size,
-          COALESCE(NULLIF(p.sku, ''), '') AS sku,
-          GREATEST(COALESCE(p.stock, 0), 0)::int AS stock,
-          GREATEST(COALESCE(p.stock, 0), 0)::int AS total_stock,
-          COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS image_url,
-          CASE WHEN COALESCE(p.stock, 0) <= 0 THEN 'critical' ELSE 'high' END AS alert_level,
-          'عاجل' AS badge_text,
-          COALESCE(NULLIF(p.low_stock_tracking_mode, ''), 'variant') AS low_stock_tracking_mode,
-          GREATEST(COALESCE(p.product_low_stock_threshold, 0), 0)::int AS product_low_stock_threshold,
-          GREATEST(COALESCE(p.minimum_distinct_sizes_required, 0), 0)::int AS minimum_distinct_sizes_required,
-          NULL::int AS active_sizes_count,
-          'Variant low stock' AS alert_reason,
-          ARRAY['Variant low stock'] AS alert_reasons,
-          COALESCE(NULLIF(p.low_stock_alert, 0), $1)::int AS threshold
-        FROM products p
-        WHERE COALESCE(NULLIF(p.low_stock_tracking_mode, ''), 'variant') <> 'product_total'
-          AND ($2::bigint IS NULL OR p.tenant_id = $2::bigint OR p.tenant_id IS NULL)
-          AND NOT EXISTS (
+      db.query(
+        `
+        WITH candidate_products AS (
+          SELECT DISTINCT p.id
+          FROM products p
+          WHERE ($2::bigint IS NULL OR p.tenant_id = $2::bigint OR p.tenant_id IS NULL)
+            AND LOWER(COALESCE(p.status, 'active')) = 'active'
+            AND COALESCE(NULLIF(p.low_stock_tracking_mode, ''), 'variant') <> 'product_total'
+            AND (
+              EXISTS (
+                SELECT 1
+                FROM product_variants pv
+                WHERE pv.product_id = p.id
+                  AND pv.is_active IS DISTINCT FROM FALSE
+                  AND pv.deleted_at IS NULL
+                  AND GREATEST(COALESCE(pv.stock, 0), 0) BETWEEN 1 AND COALESCE(NULLIF(pv.low_stock_alert, 0), NULLIF(p.low_stock_alert, 0), $1)
+              )
+              OR (
+                NOT EXISTS (
+                  SELECT 1
+                  FROM product_variants pv
+                  WHERE pv.product_id = p.id
+                    AND pv.is_active IS DISTINCT FROM FALSE
+                    AND pv.deleted_at IS NULL
+                )
+                AND GREATEST(COALESCE(p.stock, 0), 0) BETWEEN 1 AND COALESCE(NULLIF(p.low_stock_alert, 0), $1)
+              )
+            )
+        ),
+        variant_rows AS (
+          SELECT
+            p.id AS product_id,
+            p.name AS product_name,
+            p.sku AS product_sku,
+            COALESCE(NULLIF(TRIM(pv.color), ''), '') AS color,
+            COALESCE(NULLIF(TRIM(pv.size), ''), '') AS size,
+            GREATEST(COALESCE(pv.stock, 0), 0)::int AS stock,
+            COALESCE(NULLIF(pv.low_stock_alert, 0), NULLIF(p.low_stock_alert, 0), $1)::int AS threshold,
+            COALESCE(
+              NULLIF(p.image_url, ''),
+              NULLIF(p.image, ''),
+              NULLIF(p.photo_url, ''),
+              NULLIF(p.thumbnail_url, ''),
+              NULLIF(pv.image_url, ''),
+              ''
+            ) AS image_url,
+            pv.id AS variant_id,
+            p.image_url AS product_image_url
+          FROM candidate_products cp
+          JOIN products p ON p.id = cp.id
+          JOIN product_variants pv ON pv.product_id = p.id
+            AND pv.is_active IS DISTINCT FROM FALSE
+            AND pv.deleted_at IS NULL
+        ),
+        simple_rows AS (
+          SELECT
+            p.id AS product_id,
+            p.name AS product_name,
+            p.sku AS product_sku,
+            '' AS color,
+            '' AS size,
+            GREATEST(COALESCE(p.stock, 0), 0)::int AS stock,
+            COALESCE(NULLIF(p.low_stock_alert, 0), $1)::int AS threshold,
+            COALESCE(
+              NULLIF(p.image_url, ''),
+              NULLIF(p.image, ''),
+              NULLIF(p.photo_url, ''),
+              NULLIF(p.thumbnail_url, ''),
+              ''
+            ) AS image_url,
+            NULL::bigint AS variant_id,
+            p.image_url AS product_image_url
+          FROM candidate_products cp
+          JOIN products p ON p.id = cp.id
+          WHERE NOT EXISTS (
             SELECT 1
-            FROM product_variants v
-            WHERE v.product_id = p.id
-              AND v.is_active IS DISTINCT FROM FALSE
-              AND v.deleted_at IS NULL
+            FROM product_variants pv
+            WHERE pv.product_id = p.id
+              AND pv.is_active IS DISTINCT FROM FALSE
+              AND pv.deleted_at IS NULL
           )
-          AND GREATEST(COALESCE(p.stock, 0), 0) <= COALESCE(NULLIF(p.low_stock_alert, 0), $1)
-      )
-      SELECT * FROM product_total_alerts
-      UNION ALL
-      SELECT * FROM variant_alerts
-      UNION ALL
-      SELECT * FROM simple_product_alerts
-      ORDER BY alert_scope DESC, total_stock ASC, product_name ASC, size ASC
-      `,
-      [threshold, tenantId]
-    );
+        )
+        SELECT * FROM variant_rows
+        UNION ALL
+        SELECT * FROM simple_rows
+        ORDER BY product_name ASC, color ASC, size ASC
+        `,
+        [threshold, tenantId]
+      ),
+    ]);
+
+    const alerts = [
+      ...(productTotalResult.rows || []),
+      ...groupLowStockAlerts(groupedRowsResult.rows || [], { fallbackThreshold: threshold }),
+    ].sort((left, right) => {
+      const scopeRank = { product_total: 0, product_color: 1, product_model: 2 };
+      const leftScope = scopeRank[left.alert_scope] ?? 9;
+      const rightScope = scopeRank[right.alert_scope] ?? 9;
+      if (leftScope !== rightScope) return leftScope - rightScope;
+      if (left.total_stock !== right.total_stock) return left.total_stock - right.total_stock;
+      const nameCompare = String(left.product_name || left.name || "").localeCompare(String(right.product_name || right.name || ""), "ar");
+      if (nameCompare !== 0) return nameCompare;
+      return String(left.color || "").localeCompare(String(right.color || ""), "ar");
+    });
 
     return res.status(200).json({
       success: true,
       threshold,
-      alerts: result.rows,
-      count: result.rows.length,
+      alerts,
+      count: alerts.length,
     });
   } catch (error) {
     console.log(error);

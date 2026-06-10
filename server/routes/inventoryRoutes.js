@@ -6,10 +6,10 @@ import permit from "../middleware/permissionMiddleware.js";
 
 import {
   createPurchaseAlertsDraft,
-  getPurchaseAlerts,
   getInventoryHistory,
   getInventoryMovementsLedger,
-  getLowStockAlerts,
+  getLowStockAlertsGrouped,
+  getPurchaseAlerts,
   getVariantHistory,
   undoInventoryMovementById,
   updateStock
@@ -60,7 +60,7 @@ router.get(
   "/low-stock",
   protect,
   permit("inventory", "alerts:view"),
-  getLowStockAlerts
+  getLowStockAlertsGrouped
 );
 
 router.get(
