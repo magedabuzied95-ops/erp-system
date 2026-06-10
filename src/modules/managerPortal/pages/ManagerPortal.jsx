@@ -440,16 +440,16 @@ const stockAlertSignature = (item = {}) => [
 ].filter(Boolean).join("|");
 
 const Badge = ({ children, className = "" }) => (
-  <span className={`inline-flex items-center rounded-full border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-2.5 py-1 text-[11px] font-black text-slate-700 ${className}`}>{children}</span>
+  <span className={`manager-portal-badge inline-flex items-center rounded-full border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-2.5 py-1.5 text-[11px] font-black leading-5 text-slate-700 ${className}`}>{children}</span>
 );
 
 const Card = ({ title, subtitle, icon: Icon, children, action, className = "", bodyClassName = "", compact = false }) => (
-  <section className={`overflow-hidden rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] shadow-[0_14px_36px_rgba(15,23,42,0.08)] ${compact ? "p-3" : "p-4"} ${className}`}>
+  <section className={`manager-portal-card overflow-hidden rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] shadow-[0_14px_36px_rgba(15,23,42,0.08)] ${compact ? "p-3" : "p-4"} ${className}`}>
     <div className="h-1 w-full bg-gradient-to-r from-slate-900 via-indigo-700 to-amber-400" />
     <div className="flex items-start justify-between gap-3">
       <div>
-        <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{subtitle}</div>
-        <h2 className="mt-1 text-base font-black text-slate-950">{title}</h2>
+        <div className="text-[11px] font-black leading-5 tracking-normal text-slate-500">{subtitle}</div>
+        <h2 className="mt-1 text-base font-black leading-6 text-slate-950">{title}</h2>
       </div>
       {Icon ? <div className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-700 shadow-sm"><Icon className="h-4 w-4" /></div> : null}
     </div>
@@ -468,7 +468,7 @@ const MiniMetric = ({ label, value, icon: Icon, tone = "slate", sub = "" }) => {
     blue: "border-t-blue-500",
   };
   return (
-    <div className={`kpi-card-readable min-h-[6.25rem] rounded-3xl border border-slate-200 border-t-4 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] p-3 shadow-[0_12px_28px_rgba(15,23,42,0.08)] ${tones[tone] || tones.slate}`}>
+    <div className={`manager-portal-mini-metric kpi-card-readable min-h-[6.25rem] rounded-3xl border border-slate-200 border-t-4 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] p-3 shadow-[0_12px_28px_rgba(15,23,42,0.08)] ${tones[tone] || tones.slate}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-[11px] font-black leading-5 text-slate-500">{label}</div>
@@ -523,10 +523,10 @@ const CompactStatCard = ({ label, value, icon: Icon, tone = "slate", emphasis = 
   const theme = tones[tone] || tones.slate;
   if (emphasis) {
     return (
-      <div className="min-h-[5.75rem] rounded-2xl border border-slate-900 bg-[linear-gradient(180deg,#020617,#0f172a)] p-3 text-white shadow-[0_14px_30px_rgba(15,23,42,0.18)]">
+      <div className="manager-portal-compact-stat manager-portal-compact-stat--emphasis min-h-[5.75rem] rounded-2xl border border-slate-900 bg-[linear-gradient(180deg,#020617,#0f172a)] p-3 text-white shadow-[0_14px_30px_rgba(15,23,42,0.18)]">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-300">{label}</div>
+            <div className="text-[10.5px] font-black leading-5 tracking-normal text-slate-300">{label}</div>
             <div className="mt-1 text-[1.25rem] font-black leading-none text-white">{value || formatNumber(0)}</div>
           </div>
           {Icon ? <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white"><Icon className="h-4 w-4" /></div> : null}
@@ -535,10 +535,10 @@ const CompactStatCard = ({ label, value, icon: Icon, tone = "slate", emphasis = 
     );
   }
   return (
-    <div className={`min-h-[5.75rem] rounded-2xl border p-3 shadow-[0_10px_22px_rgba(15,23,42,0.06)] ${theme.shell}`}>
+    <div className={`manager-portal-compact-stat min-h-[5.75rem] rounded-2xl border p-3 shadow-[0_10px_22px_rgba(15,23,42,0.06)] ${theme.shell}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className={`text-[10px] font-black uppercase tracking-[0.12em] ${theme.label}`}>{label}</div>
+          <div className={`text-[10.5px] font-black leading-5 tracking-normal ${theme.label}`}>{label}</div>
           <div className={`mt-1 text-[1.15rem] font-black leading-none ${theme.value}`}>{value || formatNumber(0)}</div>
         </div>
         {Icon ? <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${theme.icon}`}><Icon className="h-4 w-4" /></div> : null}
@@ -551,14 +551,14 @@ const Toggle = ({ label, checked, onChange }) => (
   <button
     type="button"
     onClick={() => onChange(!checked)}
-    className={`flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-right transition ${
+    className={`manager-portal-toggle flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-right transition ${
       checked
         ? "border-emerald-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] text-emerald-900 shadow-sm dark:border-emerald-400/20 dark:bg-white/[0.03] dark:text-emerald-100"
         : "border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200"
     }`}
   >
-    <span className="text-sm font-black">{label}</span>
-    <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${checked ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-700 dark:bg-white dark:text-slate-950"}`}>
+    <span className="text-sm font-black leading-6">{label}</span>
+    <span className={`rounded-full px-2.5 py-1.5 text-[11px] font-black leading-5 ${checked ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-700 dark:bg-white dark:text-slate-950"}`}>
       {checked ? "On" : "Off"}
     </span>
   </button>
@@ -572,13 +572,13 @@ const StatusPill = ({ value, tone = "slate" }) => {
     red: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-100",
     blue: "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-100",
   };
-  return <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${tones[tone] || tones.slate}`}>{value}</span>;
+  return <span className={`manager-portal-status-pill rounded-full border px-2.5 py-1.5 text-[11px] font-black leading-5 ${tones[tone] || tones.slate}`}>{value}</span>;
 };
 
 const EmptyState = ({ title, body, compact = false }) => (
-  <div className={`rounded-2xl border border-dashed border-slate-300 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] text-right font-semibold leading-6 text-slate-500 shadow-sm ${compact ? "px-3 py-3 text-xs" : "px-4 py-5 text-sm"}`}>
-    <div className="font-black text-slate-800">{title}</div>
-    <div className="mt-1">{body}</div>
+  <div className={`manager-portal-empty rounded-2xl border border-dashed border-slate-300 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] text-right font-semibold leading-6 text-slate-500 shadow-sm ${compact ? "px-3 py-3 text-xs" : "px-4 py-5 text-sm"}`}>
+    <div className="font-black leading-6 text-slate-800">{title}</div>
+    <div className="mt-1 leading-6">{body}</div>
   </div>
 );
 
@@ -1524,7 +1524,7 @@ export default function ManagerPortal() {
   }
 
   return (
-    <main data-testid="manager-portal-root" dir="rtl" className="manager-portal-readable-v2 manager-portal-shell min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.12),_transparent_26%),radial-gradient(circle_at_80%_0%,_rgba(245,158,11,0.10),_transparent_18%),radial-gradient(circle_at_15%_20%,_rgba(99,102,241,0.08),_transparent_20%),linear-gradient(180deg,#f8fafc_0%,#eef2f7_52%,#e2e8f0_100%)] px-3 py-2.5 text-right text-slate-950 dark:bg-slate-950 dark:text-white md:px-4 md:py-4">
+    <main data-testid="manager-portal-root" dir="rtl" className={`manager-portal-readable-v2 manager-portal-shell ${isMobilePortal ? "manager-portal-mobile-dark" : ""} min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.12),_transparent_26%),radial-gradient(circle_at_80%_0%,_rgba(245,158,11,0.10),_transparent_18%),radial-gradient(circle_at_15%_20%,_rgba(99,102,241,0.08),_transparent_20%),linear-gradient(180deg,#f8fafc_0%,#eef2f7_52%,#e2e8f0_100%)] px-3 py-2.5 text-right text-slate-950 dark:bg-slate-950 dark:text-white md:px-4 md:py-4`}>
       <div className="mx-auto grid max-w-[96rem] gap-3 lg:grid-cols-[240px_minmax(0,1.55fr)_320px] lg:gap-4">
         <aside className="hidden min-h-[calc(100dvh-2rem)] rounded-[2rem] border border-slate-200 bg-white p-4 shadow-xl shadow-slate-200/50 lg:block">
           <div className="flex items-center gap-3">
@@ -2739,11 +2739,11 @@ export default function ManagerPortal() {
             const icon = tab === "today" ? Store : tab === "staff" ? Users : tab === "tasks" ? ClipboardList : tab === "sales" ? ShoppingCart : tab === "chat" ? MessageSquare : Bell;
             const Icon = icon;
             return (
-              <button key={tab} type="button" data-testid={`tab-${tab}`} onClick={() => setActiveTab(tab)} className={`flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl px-1.5 py-1.5 text-[10px] font-black leading-none transition ${active ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "text-slate-300"}`}>
+              <button key={tab} type="button" data-testid={`tab-${tab}`} onClick={() => setActiveTab(tab)} className={`flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl px-1.5 py-1.5 text-[10px] font-black leading-[1.2] transition ${active ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "text-slate-300"}`}>
                 <Icon className="h-3.5 w-3.5 shrink-0" />
                 <span className="inline-flex max-w-full items-center gap-1 whitespace-nowrap">
                   {label}
-                  {tab === "more" && unreadCount > 0 ? <span className="rounded-full bg-rose-500 px-1 py-0.5 text-[9px] font-black leading-none text-white">{formatNumber(unreadCount)}</span> : null}
+                  {tab === "more" && unreadCount > 0 ? <span className="rounded-full bg-rose-500 px-1 py-0.5 text-[9px] font-black leading-[1.2] text-white">{formatNumber(unreadCount)}</span> : null}
                 </span>
               </button>
             );

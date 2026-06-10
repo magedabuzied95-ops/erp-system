@@ -3079,3 +3079,90 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   unicode-bidi: plaintext;
   display: inline-block;
 }
+
+@media (max-width: 1023px) {
+  .manager-portal-readable-v2 {
+    font-family: var(--app-font, "Cairo", "IBM Plex Sans Arabic", "Segoe UI", sans-serif);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .manager-portal-mobile-dark {
+    color-scheme: dark;
+    background:
+      radial-gradient(circle at top, rgba(34, 211, 238, 0.12), transparent 26%),
+      radial-gradient(circle at 78% 0%, rgba(16, 185, 129, 0.11), transparent 18%),
+      radial-gradient(circle at 16% 20%, rgba(59, 130, 246, 0.09), transparent 18%),
+      linear-gradient(180deg, #020617 0%, #0b1120 48%, #060913 100%) !important;
+    color: #e2e8f0 !important;
+    line-height: 1.55;
+  }
+
+  .manager-portal-mobile-dark,
+  .manager-portal-mobile-dark * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .manager-portal-mobile-dark :is(h1, h2, h3, h4, h5, h6, p, span, div, a, button, li, label, input, select, textarea, small) {
+    line-height: 1.45;
+    letter-spacing: 0;
+  }
+
+  .manager-portal-mobile-dark :is(.manager-portal-card, .manager-portal-mini-metric, .manager-portal-compact-stat, .manager-portal-toggle, .manager-portal-status-pill, .manager-portal-badge, .manager-portal-empty) {
+    border-color: rgba(148, 163, 184, 0.18) !important;
+    box-shadow: 0 18px 42px rgba(2, 6, 23, 0.22) !important;
+  }
+
+  .manager-portal-mobile-dark :is(.manager-portal-card, .manager-portal-mini-metric, .manager-portal-compact-stat, .manager-portal-toggle, .manager-portal-status-pill, .manager-portal-badge, .manager-portal-empty, .manager-portal-shell header, .manager-portal-shell aside, .manager-portal-shell nav, .manager-portal-shell section, .manager-portal-shell article, .manager-portal-shell [class*="bg-white"], .manager-portal-shell [class*="bg-[#f8fafc]"], .manager-portal-shell [class*="bg-slate-50"], .manager-portal-shell [class*="bg-slate-100"], .manager-portal-shell [class*="bg-white/"], .manager-portal-shell [class*="bg-[linear-gradient"]) {
+    background-color: #0f172a !important;
+    background-image: none !important;
+  }
+
+  .manager-portal-mobile-dark :is([class*="border-slate-100"], [class*="border-slate-200"], [class*="border-slate-300"], [class*="border-white/10"], [class*="border-white/20"]) {
+    border-color: rgba(148, 163, 184, 0.18) !important;
+  }
+
+  .manager-portal-mobile-dark :is([class*="text-slate-950"], [class*="text-slate-900"], [class*="text-black"]) {
+    color: #f8fafc !important;
+  }
+
+  .manager-portal-mobile-dark :is([class*="text-slate-800"], [class*="text-slate-700"]) {
+    color: #e2e8f0 !important;
+  }
+
+  .manager-portal-mobile-dark :is([class*="text-slate-600"], [class*="text-slate-500"], [class*="text-slate-400"]) {
+    color: #94a3b8 !important;
+  }
+
+  .manager-portal-mobile-dark :is([class*="bg-slate-950"], [class*="bg-slate-900"], [class*="bg-slate-800"]) {
+    background-color: #020617 !important;
+    background-image: none !important;
+  }
+
+  .manager-portal-mobile-dark :is([class*="bg-white/"], [class*="bg-slate-50"], [class*="bg-slate-100"], [class*="bg-white"], [class*="bg-[#f8fafc]"], [class*="bg-[linear-gradient(180deg,#ffffff,#f8fafc)]"], [class*="bg-[linear-gradient(180deg,#ffffff,#e2e8f0)]"]) {
+    background-color: #0f172a !important;
+    background-image: none !important;
+  }
+
+  .manager-portal-mobile-dark :is([class*="bg-emerald-50"], [class*="bg-emerald-100"], [class*="bg-sky-50"], [class*="bg-sky-100"], [class*="bg-blue-50"], [class*="bg-blue-100"], [class*="bg-amber-50"], [class*="bg-amber-100"], [class*="bg-rose-50"], [class*="bg-rose-100"]) {
+    background-color: rgba(15, 23, 42, 0.82) !important;
+    background-image: none !important;
+  }
+
+  .manager-portal-mobile-dark :is(.manager-portal-badge, .manager-portal-status-pill) {
+    color: #f8fafc !important;
+  }
+
+  .manager-portal-mobile-dark :is(.manager-portal-card .text-slate-950, .manager-portal-card .text-slate-900, .manager-portal-mini-metric .text-slate-950, .manager-portal-compact-stat .text-white) {
+    color: #f8fafc !important;
+  }
+
+  .manager-portal-mobile-dark :is(.manager-portal-card .text-slate-500, .manager-portal-card .text-slate-600, .manager-portal-mini-metric .text-slate-500, .manager-portal-compact-stat .text-slate-300) {
+    color: #94a3b8 !important;
+  }
+
+  .manager-portal-mobile-dark :is(button, [role="button"]) {
+    touch-action: manipulation;
+  }
+}
