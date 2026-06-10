@@ -719,10 +719,14 @@ function App() {
           element={<InventoryMovements />}
         />
 
-        <Route
-          path="inventory/adjustments"
-          element={<InventoryAdjustments />}
-        />
+          <Route
+            path="inventory/adjustments"
+            element={
+              <ProtectedRoute requiredPermissions={["inventory.edit"]}>
+                <InventoryAdjustments />
+              </ProtectedRoute>
+            }
+          />
 
         <Route
           path="inventory/count"

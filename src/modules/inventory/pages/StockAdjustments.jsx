@@ -1,0 +1,1325 @@
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+
+import {
+  AlertTriangle,
+  Camera,
+  CheckCircle2,
+  Clock3,
+  History,
+  ImageOff,
+  Loader2,
+  Minus,
+  Plus,
+  Save,
+  Search,
+  ShieldAlert,
+  X,
+} from "lucide-react";
+import toast from "react-hot-toast";
+
+import BarcodeScanner, { barcodeScannerMessages } from "../../../components/BarcodeScanner";
+import { api } from "../../../shared/api/api";
+import { getCurrentUser, hasPermission } from "../../../shared/auth/authStorage";
+import InventoryShell from "../components/InventoryShell";
+import { getProductsWithVariants } from "../../products/services/productsApi";
+import {
+  formatDateTime,
+  getInventoryAdjustments,
+  getInventoryMovements,
+  normalizeWarehouse,
+  saveInventoryAdjustments,
+  saveInventoryMovements,
+  seedWarehouses,
+} from "../../purchases/lib/flowStore";
+
+const APPROVAL_THRESHOLD_KEY = "erp.inventory.adjustment.approvalThreshold";
+const DEFAULT_APPROVAL_THRESHOLD = 25;
+
+const ADJUSTMENT_TYPES = [
+  { value: "increase", label: "Increase Stock", tone: "emerald" },
+  { value: "decrease", label: "Decrease Stock", tone: "rose" },
+];
+
+const REASON_OPTIONS = [
+  "Damaged Item",
+  "Lost Item",
+  "Inventory Correction",
+  "Stock Count Difference",
+  "Manual Correction",
+  "Other",
+];
+
+const normalizeText = (value) => String(value ?? "").trim();
+
+const normalizeLookup = (value) =>
+  normalizeText(value)
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+const asNumber = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const getImageUrl = (product = {}, variant = {}) =>
+  normalizeText(
+    variant.image_url ||
+      variant.variant_image_url ||
+      variant.color_image_url ||
+      variant.image ||
+      product.image_url ||
+      product.image ||
+      product.photo_url ||
+      product.thumbnail_url ||
+      ""
+  );
+
+const getProductDisplayName = (product = {}, variant = {}) =>
+  normalizeText(product.name || product.product_name || variant.product_name || variant.name || "Unnamed product");
+
+const getWarehouseName = (variant = {}, warehouses = []) => {
+  const direct = normalizeText(variant.warehouse_name || variant.warehouse || "");
+  if (direct) return direct;
+  const warehouseId = String(variant.warehouse_id || "");
+  const match = warehouses.find((warehouse) => String(warehouse.id) === warehouseId);
+  return normalizeText(match?.name || "");
+};
+
+const getVariantLabel = (variant = {}) =>
+  [normalizeText(variant.color || "Default"), normalizeText(variant.size || "One Size")]
+    .filter(Boolean)
+    .join(" / ");
+
+const buildVariantSearchText = (product = {}, variant = {}) =>
+  [
+    product.name,
+    product.product_name,
+    product.sku,
+    product.barcode,
+    variant.name,
+    variant.product_name,
+    variant.color,
+    variant.size,
+    variant.sku,
+    variant.barcode,
+    variant.article_code,
+    variant.warehouse_name,
+    variant.warehouse,
+  ]
+    .filter(Boolean)
+    .map((value) => normalizeLookup(value))
+    .join(" ");
+
+const flattenVariants = (products = []) => {
+  const rows = [];
+
+  products.forEach((product) => {
+    const rawVariants = Array.isArray(product.variants)
+      ? product.variants
+      : Array.isArray(product.product_variants)
+        ? product.product_variants
+        : Array.isArray(product.productVariants)
+          ? product.productVariants
+          : Array.isArray(product.variant_rows)
+            ? product.variant_rows
+            : Array.isArray(product.variantRows)
+              ? product.variantRows
+              : [];
+
+    if (rawVariants.length > 0) {
+      rawVariants.forEach((variant, index) => {
+        const normalizedVariant = {
+          ...variant,
+          id: variant.id ?? variant.variant_id ?? `${product.id || "product"}-${index}`,
+          variant_id: variant.variant_id ?? variant.id ?? product.variant_id ?? product.id ?? null,
+          product_id: variant.product_id ?? product.id ?? null,
+          product_name: getProductDisplayName(product, variant),
+          color: normalizeText(variant.color || variant.color_name || ""),
+          size: normalizeText(variant.size || variant.size_name || ""),
+          sku: normalizeText(variant.sku || product.sku || ""),
+          barcode: normalizeText(variant.barcode || product.barcode || ""),
+          stock: asNumber(variant.stock ?? variant.quantity ?? product.stock ?? 0, 0),
+          warehouse_id: variant.warehouse_id ?? product.warehouse_id ?? null,
+          branch_id: variant.branch_id ?? product.branch_id ?? null,
+          warehouse_name: normalizeText(variant.warehouse_name || product.warehouse_name || ""),
+          branch_name: normalizeText(variant.branch_name || product.branch_name || ""),
+          image_url: getImageUrl(product, variant),
+          search_text: buildVariantSearchText(product, variant),
+          raw_product: product,
+          raw_variant: variant,
+        };
+        rows.push(normalizedVariant);
+      });
+      return;
+    }
+
+    rows.push({
+      ...product,
+      id: product.id ?? product.product_id ?? null,
+      variant_id: product.variant_id ?? product.id ?? null,
+      product_id: product.id ?? product.product_id ?? null,
+      product_name: getProductDisplayName(product),
+      color: normalizeText(product.color || ""),
+      size: normalizeText(product.size || ""),
+      sku: normalizeText(product.sku || ""),
+      barcode: normalizeText(product.barcode || ""),
+      stock: asNumber(product.stock ?? 0, 0),
+      warehouse_id: product.warehouse_id ?? null,
+      branch_id: product.branch_id ?? null,
+      warehouse_name: normalizeText(product.warehouse_name || ""),
+      branch_name: normalizeText(product.branch_name || ""),
+      image_url: getImageUrl(product, {}),
+      search_text: buildVariantSearchText(product, {}),
+      raw_product: product,
+      raw_variant: null,
+    });
+  });
+
+  return rows;
+};
+
+const scoreVariant = (variant = {}, query = "") => {
+  const needle = normalizeLookup(query);
+  if (!needle) return 0;
+
+  const exactCodes = [
+    variant.sku,
+    variant.barcode,
+    variant.article_code,
+    String(variant.variant_id ?? ""),
+    String(variant.product_id ?? ""),
+  ]
+    .map((value) => normalizeLookup(value))
+    .filter(Boolean);
+
+  if (exactCodes.includes(needle)) return 1000;
+
+  let score = 0;
+  const haystack = normalizeLookup(variant.search_text || "");
+
+  if (haystack.startsWith(needle)) score += 300;
+  if (normalizeLookup(variant.product_name).includes(needle)) score += 180;
+  if (normalizeLookup(variant.sku).includes(needle)) score += 160;
+  if (normalizeLookup(variant.barcode).includes(needle)) score += 160;
+  if (normalizeLookup(variant.color).includes(needle)) score += 60;
+  if (normalizeLookup(variant.size).includes(needle)) score += 60;
+  if (normalizeLookup(variant.warehouse_name).includes(needle)) score += 20;
+  return score;
+};
+
+const getCurrentStock = (variant) => asNumber(variant?.stock ?? 0, 0);
+
+const getThresholdFromStorage = () => {
+  if (typeof window === "undefined") return DEFAULT_APPROVAL_THRESHOLD;
+  const raw = window.localStorage.getItem(APPROVAL_THRESHOLD_KEY);
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_APPROVAL_THRESHOLD;
+};
+
+function StockAdjustments() {
+  const currentUser = getCurrentUser() || {};
+  const canAdjust = hasPermission("inventory.edit");
+  const isManager = Boolean(
+    currentUser?.is_super_admin ||
+      currentUser?.is_admin ||
+      ["admin", "super_admin", "superadmin", "manager", "branch manager"].includes(
+        normalizeLookup(currentUser?.role || currentUser?.role_name || "")
+      )
+  );
+
+  const [searchParams] = useSearchParams();
+  const [warehouses, setWarehouses] = useState(seedWarehouses());
+  const [catalog, setCatalog] = useState([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState("");
+  const [warehouseLoading, setWarehouseLoading] = useState(true);
+  const [warehouseError, setWarehouseError] = useState("");
+  const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
+  const [selectedVariantId, setSelectedVariantId] = useState("");
+  const [adjustmentType, setAdjustmentType] = useState("increase");
+  const [quantity, setQuantity] = useState(1);
+  const [warehouseId, setWarehouseId] = useState("");
+  const [reason, setReason] = useState(REASON_OPTIONS[0]);
+  const [notes, setNotes] = useState("");
+  const [approvalThreshold, setApprovalThreshold] = useState(getThresholdFromStorage);
+  const [approvalConfirmed, setApprovalConfirmed] = useState(false);
+  const [approvalName, setApprovalName] = useState("");
+  const [approvalNotes, setApprovalNotes] = useState("");
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [historyMovements, setHistoryMovements] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [localAdjustments, setLocalAdjustments] = useState(() => getInventoryAdjustments());
+  const [localMovements, setLocalMovements] = useState(() => getInventoryMovements());
+
+  useEffect(() => {
+    const loadWarehouses = async () => {
+      try {
+        setWarehouseLoading(true);
+        const data = await api.get("/warehouses");
+        const rows = Array.isArray(data) ? data : data?.warehouses || [];
+        setWarehouses(rows.length ? rows.map(normalizeWarehouse) : seedWarehouses());
+      } catch (error) {
+        console.log(error);
+        setWarehouses(seedWarehouses());
+        setWarehouseError("Warehouse list unavailable. The adjustment will still use the selected warehouse locally.");
+        toast.error("Using fallback warehouses");
+      } finally {
+        setWarehouseLoading(false);
+      }
+    };
+
+    loadWarehouses();
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadCatalog = async () => {
+      try {
+        setCatalogLoading(true);
+        setCatalogError("");
+        const response = await getProductsWithVariants();
+        if (!active) return;
+        setCatalog(Array.isArray(response) ? response : []);
+      } catch (error) {
+        if (!active) return;
+        setCatalog([]);
+        setCatalogError(error?.message || "Failed to load products");
+        toast.error(error?.message || "Failed to load products");
+      } finally {
+        if (active) setCatalogLoading(false);
+      }
+    };
+
+    loadCatalog();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(APPROVAL_THRESHOLD_KEY, String(approvalThreshold || DEFAULT_APPROVAL_THRESHOLD));
+  }, [approvalThreshold]);
+
+  useEffect(() => {
+    if (!warehouses.length) return;
+    if (warehouseId && warehouses.some((warehouse) => String(warehouse.id) === String(warehouseId))) return;
+    setWarehouseId(String(warehouses[0]?.id || ""));
+  }, [warehouses, warehouseId]);
+
+  const allVariants = useMemo(() => flattenVariants(catalog), [catalog]);
+  const selectedVariant = useMemo(
+    () => allVariants.find((variant) => String(variant.variant_id) === String(selectedVariantId)) || null,
+    [allVariants, selectedVariantId]
+  );
+
+  useEffect(() => {
+    const queryVariantId = normalizeText(searchParams.get("variantId") || searchParams.get("variant_id") || searchParams.get("productId") || "");
+    if (!queryVariantId || !allVariants.length) return;
+    const matched = allVariants.find((variant) => String(variant.variant_id) === queryVariantId || String(variant.product_id) === queryVariantId);
+    if (matched) {
+      setSelectedVariantId(String(matched.variant_id));
+      setSearch([matched.product_name, matched.sku, matched.barcode].filter(Boolean).join(" "));
+    }
+  }, [allVariants, searchParams]);
+
+  useEffect(() => {
+    if (!selectedVariant) return;
+    if (!warehouseId && selectedVariant.warehouse_id) {
+      setWarehouseId(String(selectedVariant.warehouse_id));
+    }
+  }, [selectedVariant, warehouseId]);
+
+  const filteredVariants = useMemo(() => {
+    const query = normalizeLookup(deferredSearch);
+    const rows = query
+      ? allVariants
+          .filter((variant) => normalizeLookup(variant.search_text || "").includes(query))
+          .map((variant) => ({ variant, score: scoreVariant(variant, query) }))
+      : [];
+
+    return rows.sort((a, b) => b.score - a.score || normalizeLookup(a.variant.product_name).localeCompare(normalizeLookup(b.variant.product_name))).slice(0, 30);
+  }, [allVariants, deferredSearch]);
+
+  const selectedWarehouseName = useMemo(() => {
+    if (!warehouseId) return normalizeText(selectedVariant?.warehouse_name || "");
+    const match = warehouses.find((warehouse) => String(warehouse.id) === String(warehouseId));
+    return normalizeText(match?.name || selectedVariant?.warehouse_name || "");
+  }, [selectedVariant, warehouseId, warehouses]);
+
+  const currentStock = getCurrentStock(selectedVariant);
+  const quantityDelta = Math.max(0, asNumber(quantity, 0));
+  const signedDelta = adjustmentType === "decrease" ? -quantityDelta : quantityDelta;
+  const targetStock = Math.max(0, currentStock + signedDelta);
+  const requiresManagerApproval = Boolean(selectedVariant) && !isManager && Math.abs(signedDelta) >= asNumber(approvalThreshold, DEFAULT_APPROVAL_THRESHOLD);
+  const approvalReady = !requiresManagerApproval || (approvalConfirmed && normalizeText(approvalName).length > 0);
+
+  const openScanner = () => setScannerOpen(true);
+
+  const selectVariant = (variant) => {
+    if (!variant) return;
+    setSelectedVariantId(String(variant.variant_id));
+    setSearch([variant.product_name, variant.sku, variant.barcode, variant.color, variant.size].filter(Boolean).join(" "));
+    if (!warehouseId && variant.warehouse_id) {
+      setWarehouseId(String(variant.warehouse_id));
+    }
+  };
+
+  const handleScan = (value) => {
+    const scanned = normalizeText(value);
+    if (!scanned) return;
+    setSearch(scanned);
+    const exactMatch = allVariants.find((variant) => {
+      const codes = [variant.sku, variant.barcode, variant.article_code, String(variant.variant_id), String(variant.product_id)]
+        .map((item) => normalizeLookup(item))
+        .filter(Boolean);
+      return codes.includes(normalizeLookup(scanned));
+    });
+
+    if (exactMatch) {
+      selectVariant(exactMatch);
+      toast.success("Barcode matched a product variant");
+    } else {
+      toast("No exact barcode match found");
+    }
+
+    setScannerOpen(false);
+  };
+
+  const submitAdjustment = async () => {
+    if (!canAdjust) {
+      toast.error("You do not have permission to perform stock adjustments");
+      return;
+    }
+    if (!selectedVariant) {
+      toast.error("Select a product variant first");
+      return;
+    }
+    if (!quantityDelta || quantityDelta < 1) {
+      toast.error("Quantity must be at least 1");
+      return;
+    }
+    if (adjustmentType === "decrease" && targetStock < 0) {
+      toast.error("Stock cannot go below zero");
+      return;
+    }
+    if (requiresManagerApproval && !approvalReady) {
+      toast.error("Manager approval is required for this adjustment");
+      return;
+    }
+
+    setSubmitting(true);
+
+    const timestamp = new Date().toISOString();
+    const finalNotes = [
+      normalizeText(notes),
+      requiresManagerApproval ? `Manager approval: ${normalizeText(approvalName)}${approvalNotes ? ` - ${normalizeText(approvalNotes)}` : ""}` : "",
+    ]
+      .filter(Boolean)
+      .join(" | ");
+
+    const payload = {
+      variantId: Number(selectedVariant.variant_id),
+      quantity: targetStock,
+      reason: normalizeText(reason) || "Inventory Correction",
+      notes: finalNotes,
+      warehouseId: warehouseId ? Number(warehouseId) || warehouseId : null,
+      warehouse_id: warehouseId ? Number(warehouseId) || warehouseId : null,
+      branchId: selectedVariant.branch_id || null,
+      branch_id: selectedVariant.branch_id || null,
+    };
+
+    try {
+      await api.put("/inventory/update-stock", payload);
+
+      const savedRecord = {
+        id: `adj-${Date.now()}`,
+        movement_type: "ADJUSTMENT",
+        adjustment_type: adjustmentType,
+        variant_id: selectedVariant.variant_id,
+        product_id: selectedVariant.product_id,
+        product_name: selectedVariant.product_name,
+        image_url: selectedVariant.image_url,
+        color: selectedVariant.color,
+        size: selectedVariant.size,
+        sku: selectedVariant.sku,
+        barcode: selectedVariant.barcode,
+        warehouse_id: warehouseId,
+        warehouse_name: selectedWarehouseName,
+        quantity_change: signedDelta,
+        quantity_before: currentStock,
+        quantity_after: targetStock,
+        reason: normalizeText(reason) || "Inventory Correction",
+        notes: finalNotes,
+        user_name: normalizeText(currentUser?.name || currentUser?.full_name || currentUser?.email || "Current user"),
+        created_at: timestamp,
+        approval_threshold: approvalThreshold,
+        approval_required: requiresManagerApproval,
+        approval_name: normalizeText(approvalName),
+        approval_notes: normalizeText(approvalNotes),
+      };
+
+      const nextAdjustments = [savedRecord, ...localAdjustments];
+      const nextMovements = [
+        {
+          ...savedRecord,
+          direction: signedDelta >= 0 ? "Inbound" : "Outbound",
+        },
+        ...localMovements,
+      ];
+
+      saveInventoryAdjustments(nextAdjustments);
+      saveInventoryMovements(nextMovements);
+      setLocalAdjustments(nextAdjustments);
+      setLocalMovements(nextMovements);
+
+      toast.success("Stock updated and movement recorded");
+      setNotes("");
+      setReason(REASON_OPTIONS[0]);
+      setQuantity(1);
+      setApprovalConfirmed(false);
+      setApprovalName("");
+      setApprovalNotes("");
+      setConfirmOpen(false);
+    } catch (error) {
+      console.log(error);
+      toast.error(error?.message || "Failed to update stock");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const openConfirmation = () => {
+    if (!canAdjust) {
+      toast.error("You do not have permission to perform stock adjustments");
+      return;
+    }
+    if (!selectedVariant) {
+      toast.error("Select a product variant first");
+      return;
+    }
+    if (!quantityDelta || quantityDelta < 1) {
+      toast.error("Quantity must be at least 1");
+      return;
+    }
+    if (adjustmentType === "decrease" && targetStock < 0) {
+      toast.error("Stock cannot go below zero");
+      return;
+    }
+    setConfirmOpen(true);
+  };
+
+  const openHistory = async () => {
+    if (!selectedVariant?.variant_id) return;
+    try {
+      setHistoryOpen(true);
+      setHistoryLoading(true);
+      setHistoryError("");
+      const params = new URLSearchParams({
+        variantId: String(selectedVariant.variant_id),
+        productId: String(selectedVariant.product_id || ""),
+        limit: "100",
+      });
+      const response = await api.get(`/inventory/variant/${selectedVariant.variant_id}/history?${params.toString()}`);
+      setHistoryMovements(Array.isArray(response?.movements) ? response.movements : []);
+    } catch (error) {
+      console.log(error);
+      setHistoryMovements([]);
+      setHistoryError(error?.message || "Failed to load product history");
+      toast.error(error?.message || "Failed to load product history");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const recentAdjustments = useMemo(() => {
+    const records = [...localAdjustments];
+    return records
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+      .slice(0, 8)
+      .map((record) => {
+        const matched = allVariants.find(
+          (variant) => String(variant.variant_id) === String(record.variant_id) || String(variant.product_id) === String(record.product_id)
+        );
+        return {
+          ...record,
+          product_name: normalizeText(record.product_name || matched?.product_name || "Unknown product"),
+          image_url: normalizeText(record.image_url || matched?.image_url || ""),
+          color: normalizeText(record.color || matched?.color || ""),
+          size: normalizeText(record.size || matched?.size || ""),
+          sku: normalizeText(record.sku || matched?.sku || ""),
+          barcode: normalizeText(record.barcode || matched?.barcode || ""),
+          warehouse_name: normalizeText(record.warehouse_name || matched?.warehouse_name || ""),
+          user_name: normalizeText(record.user_name || currentUser?.name || "Current user"),
+        };
+      });
+  }, [allVariants, currentUser?.name, localAdjustments]);
+
+  return (
+    <InventoryShell
+      title="Stock Adjustments"
+      subtitle="Search products by name, SKU, or barcode, inspect current stock before editing, and keep every change inside the inventory movement ledger."
+      actions={
+        <div className="flex flex-wrap gap-2">
+          <Link
+            to="/inventory/history"
+            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+          >
+            <Clock3 className="mr-2 inline h-4 w-4" />
+            Full history
+          </Link>
+          <Link
+            to="/inventory/movements"
+            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+          >
+            <History className="mr-2 inline h-4 w-4" />
+            Movements
+          </Link>
+        </div>
+      }
+      tabs={[
+        { to: "/inventory", label: "Inventory", end: true },
+        { to: "/inventory/movements", label: "Movements" },
+        { to: "/inventory/adjustments", label: "Adjustments", end: true },
+        { to: "/inventory/count", label: "Count" },
+        { to: "/stock-transfers", label: "Transfers" },
+        { to: "/warehouses", label: "Warehouses" },
+      ]}
+    >
+      {!canAdjust ? (
+        <div className="mb-4 rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-50">
+          <ShieldAlert className="mr-2 inline h-4 w-4" />
+          Stock adjustments are restricted to users with inventory edit permission.
+        </div>
+      ) : null}
+
+      {catalogError ? (
+        <div className="mb-4 rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-50">
+          <AlertTriangle className="mr-2 inline h-4 w-4" />
+          {catalogError}
+        </div>
+      ) : null}
+
+      {warehouseError ? (
+        <div className="mb-4 rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-zinc-300">
+          {warehouseError}
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(380px,0.8fr)]">
+        <div className="space-y-4">
+          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+              <label className="relative block flex-1">
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by product name, SKU, or barcode"
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
+                />
+              </label>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={openScanner}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  <Camera className="h-4 w-4" />
+                  Scan barcode
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    setSelectedVariantId("");
+                  }}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  <X className="h-4 w-4" />
+                  Clear
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <PolicyCard label="Adjustment policy" value={`Approval threshold: ${approvalThreshold}`} tone="blue" />
+              <PolicyCard
+                label="Current mode"
+                value={requiresManagerApproval ? "Manager approval required" : "Standard approval"}
+                tone={requiresManagerApproval ? "amber" : "emerald"}
+              />
+              <label className="block">
+                <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Configurable threshold</div>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={approvalThreshold}
+                  onChange={(event) => setApprovalThreshold(Math.max(1, asNumber(event.target.value, DEFAULT_APPROVAL_THRESHOLD)))}
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                />
+              </label>
+            </div>
+            {warehouseLoading ? <div className="mt-3 text-xs text-zinc-500">Loading warehouses...</div> : null}
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/10">
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <div>
+                <h3 className="text-xl font-black text-white">Product search results</h3>
+                <p className="mt-1 text-sm text-zinc-400">Search by product name, SKU, or barcode. Click a variant to load its stock and warehouse.</p>
+              </div>
+              <div className="text-sm text-zinc-400">{filteredVariants.length} matches</div>
+            </div>
+
+            {catalogLoading ? (
+              <div className="flex items-center justify-center py-16 text-zinc-400">
+                <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" />
+                Loading products...
+              </div>
+            ) : filteredVariants.length === 0 ? (
+              <div className="p-8 text-center text-zinc-400">
+                <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10">
+                  Type at least one search term to find a product variant, or scan a barcode to jump straight to a match.
+                </div>
+              </div>
+            ) : (
+              <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-1">
+                {filteredVariants.map(({ variant }) => {
+                  const selected = String(variant.variant_id) === String(selectedVariantId);
+                  return (
+                    <button
+                      key={String(variant.variant_id)}
+                      type="button"
+                      onClick={() => selectVariant(variant)}
+                      className={`flex w-full items-center gap-4 rounded-3xl border p-4 text-left transition ${
+                        selected
+                          ? "border-cyan-400/30 bg-cyan-500/10 shadow-lg shadow-cyan-500/10"
+                          : "border-white/10 bg-white/5 hover:bg-white/10"
+                      }`}
+                    >
+                      <ProductThumb imageUrl={variant.image_url} productName={variant.product_name} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-base font-semibold text-white">{variant.product_name}</div>
+                            <div className="mt-1 text-sm text-zinc-400">{getVariantLabel(variant) || "Default / One Size"}</div>
+                          </div>
+                          <div className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${selected ? "bg-cyan-400 text-black" : "border border-white/10 bg-white/5 text-white"}`}>
+                            {selected ? "Selected" : "Select"}
+                          </div>
+                        </div>
+                        <div className="mt-3 grid gap-2 text-xs text-zinc-500 sm:grid-cols-2">
+                          <div>SKU: {variant.sku || "n/a"}</div>
+                          <div>Barcode: {variant.barcode || "n/a"}</div>
+                          <div>Stock: {asNumber(variant.stock, 0).toLocaleString()}</div>
+                          <div>Warehouse: {getWarehouseName(variant, warehouses) || "n/a"}</div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-black text-white">Selected product</h3>
+                <p className="mt-1 text-sm text-zinc-400">Current stock is shown before any adjustment is applied.</p>
+              </div>
+            </div>
+
+            {!selectedVariant ? (
+              <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
+                Choose a product variant from the search results to review its stock and complete an adjustment.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex gap-4">
+                  <ProductThumb imageUrl={selectedVariant.image_url} productName={selectedVariant.product_name} large />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-2xl font-black text-white">{selectedVariant.product_name}</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <InfoPill label="Color" value={selectedVariant.color || "Default"} />
+                      <InfoPill label="Size" value={selectedVariant.size || "One Size"} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <DetailCard label="SKU" value={selectedVariant.sku || "n/a"} />
+                  <DetailCard label="Barcode" value={selectedVariant.barcode || "n/a"} />
+                  <DetailCard label="Current stock" value={asNumber(selectedVariant.stock, 0).toLocaleString()} tone="emerald" />
+                  <DetailCard label="Warehouse" value={selectedWarehouseName || "n/a"} />
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={openHistory}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                  >
+                    <History className="h-4 w-4" />
+                    View Product History
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSearch([selectedVariant.product_name, selectedVariant.sku, selectedVariant.barcode].filter(Boolean).join(" "))}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                  >
+                    <Search className="h-4 w-4" />
+                    Re-search
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+            <div className="mb-4">
+              <h3 className="text-xl font-black text-white">Adjustment form</h3>
+              <p className="mt-1 text-sm text-zinc-400">Choose how stock should move, then confirm the change after reviewing the target quantity.</p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="block">
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Adjustment type</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {ADJUSTMENT_TYPES.map((type) => {
+                      const active = adjustmentType === type.value;
+                      return (
+                        <button
+                          key={type.value}
+                          type="button"
+                          onClick={() => setAdjustmentType(type.value)}
+                          className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                            active
+                              ? type.tone === "emerald"
+                                ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+                                : "border-rose-400/30 bg-rose-500/10 text-rose-200"
+                              : "border-white/10 bg-white/5 text-white hover:bg-white/10"
+                          }`}
+                        >
+                          {type.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <label className="block">
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Quantity</div>
+                  <div className="flex items-stretch gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setQuantity((value) => Math.max(1, asNumber(value, 1) - 1))}
+                      className="inline-flex w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </button>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={quantity}
+                      onChange={(event) => setQuantity(Math.max(1, asNumber(event.target.value, 1)))}
+                      className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setQuantity((value) => asNumber(value, 1) + 1)}
+                      className="inline-flex w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                </label>
+              </div>
+
+              <label className="block">
+                <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Reason</div>
+                <select
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                >
+                  {REASON_OPTIONS.map((option) => (
+                    <option key={option} value={option} className="bg-zinc-950 text-white">
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Optional notes</div>
+                <textarea
+                  rows={4}
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
+                  placeholder="Add a short audit note for the movement record"
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500"
+                />
+              </label>
+
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <DetailCard label="Stock before" value={asNumber(currentStock, 0).toLocaleString()} />
+                  <DetailCard label="Delta" value={`${signedDelta >= 0 ? "+" : ""}${signedDelta.toLocaleString()}`} tone={signedDelta >= 0 ? "emerald" : "rose"} />
+                  <DetailCard label="Stock after" value={targetStock.toLocaleString()} tone={targetStock >= currentStock ? "emerald" : "rose"} />
+                </div>
+
+                {requiresManagerApproval ? (
+                  <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-50">
+                    <ShieldAlert className="mr-2 inline h-4 w-4" />
+                    This adjustment exceeds the configured threshold of {approvalThreshold}. Manager approval is required before applying it.
+                  </div>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={openConfirmation}
+                  disabled={!selectedVariant || !canAdjust || catalogLoading}
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-500 px-4 py-3 text-sm font-black text-black transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Save className="h-4 w-4" />
+                  Apply adjustment
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/10">
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <div>
+                <h3 className="text-xl font-black text-white">Recent adjustments</h3>
+                <p className="mt-1 text-sm text-zinc-400">Latest local adjustment records with product context.</p>
+              </div>
+              <div className="text-sm text-zinc-400">{recentAdjustments.length} items</div>
+            </div>
+
+            <div className="space-y-3 p-4">
+              {recentAdjustments.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
+                  No adjustments have been recorded yet.
+                </div>
+              ) : (
+                recentAdjustments.map((adjustment) => {
+                  const delta = asNumber(adjustment.quantity_change, 0);
+                  const isIncrease = delta >= 0;
+                  return (
+                    <div key={String(adjustment.id)} className="rounded-3xl border border-white/10 bg-white/5 p-4">
+                      <div className="flex items-start gap-3">
+                        <ProductThumb imageUrl={adjustment.image_url} productName={adjustment.product_name} compact />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate font-semibold text-white">{adjustment.product_name}</div>
+                              <div className="mt-1 text-xs text-zinc-500">{[adjustment.color, adjustment.size].filter(Boolean).join(" / ") || "Default"}</div>
+                            </div>
+                            <div className={`rounded-full px-3 py-1 text-xs font-semibold ${isIncrease ? "bg-emerald-500/10 text-emerald-200" : "bg-rose-500/10 text-rose-200"}`}>
+                              {isIncrease ? "+" : ""}
+                              {delta}
+                            </div>
+                          </div>
+
+                          <div className="mt-3 grid gap-2 text-xs text-zinc-500 sm:grid-cols-2">
+                            <div>Type: {adjustment.adjustment_type === "decrease" ? "Decrease Stock" : "Increase Stock"}</div>
+                            <div>User: {adjustment.user_name || "n/a"}</div>
+                            <div>Time: {formatDateTime(adjustment.created_at)}</div>
+                            <div>Warehouse: {adjustment.warehouse_name || "n/a"}</div>
+                          </div>
+
+                          <div className="mt-3 text-sm text-zinc-300">{adjustment.reason || "No reason provided"}</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {scannerOpen ? (
+        <ScannerModal
+          onClose={() => setScannerOpen(false)}
+          onScan={handleScan}
+          onPermissionDenied={(message) => {
+            setScannerOpen(false);
+            toast.error(message || barcodeScannerMessages.permissionDenied);
+          }}
+          onUnsupported={(message) => {
+            setScannerOpen(false);
+            toast.error(message || barcodeScannerMessages.unsupported);
+          }}
+          onError={(message) => {
+            toast.error(message || barcodeScannerMessages.startFailed);
+          }}
+        />
+      ) : null}
+
+      {confirmOpen && selectedVariant ? (
+        <ConfirmationModal
+          productName={selectedVariant.product_name}
+          imageUrl={selectedVariant.image_url}
+          color={selectedVariant.color}
+          size={selectedVariant.size}
+          sku={selectedVariant.sku}
+          barcode={selectedVariant.barcode}
+          currentStock={currentStock}
+          signedDelta={signedDelta}
+          targetStock={targetStock}
+          adjustmentType={adjustmentType}
+          reason={reason}
+          notes={notes}
+          warehouseName={selectedWarehouseName}
+          requiresManagerApproval={requiresManagerApproval}
+          approvalThreshold={approvalThreshold}
+          approvalConfirmed={approvalConfirmed}
+          approvalName={approvalName}
+          approvalNotes={approvalNotes}
+          setApprovalConfirmed={setApprovalConfirmed}
+          setApprovalName={setApprovalName}
+          setApprovalNotes={setApprovalNotes}
+          onClose={() => setConfirmOpen(false)}
+          onConfirm={submitAdjustment}
+          submitting={submitting}
+        />
+      ) : null}
+
+      {historyOpen && selectedVariant ? (
+        <ProductHistoryDrawer
+          productName={selectedVariant.product_name}
+          variantLabel={getVariantLabel(selectedVariant) || "Default / One Size"}
+          movements={historyMovements}
+          loading={historyLoading}
+          error={historyError}
+          onClose={() => setHistoryOpen(false)}
+          warehouseName={selectedWarehouseName}
+        />
+      ) : null}
+    </InventoryShell>
+  );
+}
+
+function PolicyCard({ label, value, tone = "zinc" }) {
+  const toneClasses = {
+    zinc: "border-white/10 bg-white/5 text-white",
+    blue: "border-blue-500/20 bg-blue-500/10 text-blue-200",
+    emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-200",
+    amber: "border-amber-500/20 bg-amber-500/10 text-amber-200",
+  };
+
+  return (
+    <div className={`rounded-2xl border p-4 ${toneClasses[tone] || toneClasses.zinc}`}>
+      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
+      <div className="mt-2 text-sm font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function DetailCard({ label, value, tone = "zinc" }) {
+  const toneClasses = {
+    zinc: "border-white/10 bg-white/5 text-white",
+    emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-200",
+    rose: "border-rose-500/20 bg-rose-500/10 text-rose-200",
+  };
+
+  return (
+    <div className={`rounded-2xl border p-4 ${toneClasses[tone] || toneClasses.zinc}`}>
+      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
+      <div className="mt-2 break-words text-sm font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function InfoPill({ label, value }) {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white">
+      <span className="text-zinc-500">{label}:</span>
+      <span>{value}</span>
+    </div>
+  );
+}
+
+function ProductThumb({ imageUrl, productName, large = false, compact = false }) {
+  const sizeClass = large ? "h-24 w-24" : compact ? "h-14 w-14" : "h-20 w-20";
+  return (
+    <div className={`flex ${sizeClass} shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-white/5`}>
+      {imageUrl ? (
+        <img src={imageUrl} alt={productName || "Product"} className="h-full w-full object-cover" loading="lazy" />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center text-zinc-500">
+          <ImageOff className={large ? "h-8 w-8" : "h-5 w-5"} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onError }) {
+  return (
+    <div className="fixed inset-0 z-50">
+      <button type="button" onClick={onClose} className="absolute inset-0 bg-black/80" aria-label="Close scanner" />
+      <div className="absolute inset-x-0 bottom-0 top-0 mx-auto flex w-full max-w-3xl items-center justify-center p-4">
+        <div className="w-full rounded-[2rem] border border-white/10 bg-zinc-950 shadow-[0_30px_100px_rgba(0,0,0,0.55)]">
+          <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+            <div>
+              <div className="text-xs uppercase tracking-[0.24em] text-zinc-500">Barcode scanner</div>
+              <h3 className="mt-1 text-xl font-black text-white">Scan product barcode</h3>
+            </div>
+            <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
+              Close
+            </button>
+          </div>
+          <div className="space-y-4 p-5">
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-zinc-300">
+              Camera support is used when available. If the device does not support scanning, enter the SKU or barcode in the search box instead.
+            </div>
+            <div className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-black">
+              <BarcodeScanner
+                className="w-full"
+                scannerClassName="min-h-[320px] w-full"
+                onScan={onScan}
+                onPermissionDenied={onPermissionDenied}
+                onUnsupported={onUnsupported}
+                onError={onError}
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={onClose} className="inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-4 py-3 text-sm font-black text-black">
+                <CheckCircle2 className="h-4 w-4" />
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmationModal({
+  productName,
+  imageUrl,
+  color,
+  size,
+  sku,
+  barcode,
+  currentStock,
+  signedDelta,
+  targetStock,
+  adjustmentType,
+  reason,
+  notes,
+  warehouseName,
+  requiresManagerApproval,
+  approvalThreshold,
+  approvalConfirmed,
+  approvalName,
+  approvalNotes,
+  setApprovalConfirmed,
+  setApprovalName,
+  setApprovalNotes,
+  onClose,
+  onConfirm,
+  submitting,
+}) {
+  return (
+    <div className="fixed inset-0 z-50">
+      <button type="button" onClick={onClose} className="absolute inset-0 bg-black/80" aria-label="Close confirmation" />
+      <div className="absolute inset-x-0 bottom-0 top-0 mx-auto flex w-full max-w-3xl items-center justify-center p-4">
+        <div className="w-full rounded-[2rem] border border-white/10 bg-zinc-950 shadow-[0_30px_100px_rgba(0,0,0,0.55)]">
+          <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+            <div>
+              <div className="text-xs uppercase tracking-[0.24em] text-zinc-500">Confirm adjustment</div>
+              <h3 className="mt-1 text-xl font-black text-white">{productName}</h3>
+            </div>
+            <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
+              Close
+            </button>
+          </div>
+
+          <div className="grid gap-5 p-5 lg:grid-cols-[auto_1fr]">
+            <ProductThumb imageUrl={imageUrl} productName={productName} large />
+
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <DetailCard label="Variant" value={[color, size].filter(Boolean).join(" / ") || "Default"} />
+                <DetailCard label="Warehouse" value={warehouseName || "n/a"} />
+                <DetailCard label="SKU" value={sku || "n/a"} />
+                <DetailCard label="Barcode" value={barcode || "n/a"} />
+                <DetailCard label="Current stock" value={currentStock.toLocaleString()} />
+                <DetailCard label="Target stock" value={targetStock.toLocaleString()} tone={targetStock >= currentStock ? "emerald" : "rose"} />
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm text-zinc-400">Adjustment type</div>
+                  <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm font-semibold text-white">
+                    {adjustmentType === "decrease" ? "Decrease Stock" : "Increase Stock"}
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-3 text-sm text-zinc-300">
+                  <span>Quantity change</span>
+                  <span className={signedDelta >= 0 ? "text-emerald-200" : "text-rose-200"}>
+                    {signedDelta >= 0 ? "+" : ""}
+                    {signedDelta.toLocaleString()}
+                  </span>
+                </div>
+                <div className="mt-2 text-sm text-zinc-300">
+                  Reason: <span className="font-semibold text-white">{reason || "n/a"}</span>
+                </div>
+                {notes ? (
+                  <div className="mt-2 text-sm text-zinc-300">
+                    Notes: <span className="font-semibold text-white">{notes}</span>
+                  </div>
+                ) : null}
+              </div>
+
+              {requiresManagerApproval ? (
+                <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-50">
+                  <ShieldAlert className="mr-2 inline h-4 w-4" />
+                  This change is above the configured threshold of {approvalThreshold}. Manager approval is required before saving.
+                  <div className="mt-4 grid gap-3">
+                    <label className="block">
+                      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-amber-100/70">Approver name</div>
+                      <input
+                        value={approvalName}
+                        onChange={(event) => setApprovalName(event.target.value)}
+                        placeholder="Manager name"
+                        className="w-full rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                      />
+                    </label>
+                    <label className="block">
+                      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-amber-100/70">Approval notes</div>
+                      <textarea
+                        rows={3}
+                        value={approvalNotes}
+                        onChange={(event) => setApprovalNotes(event.target.value)}
+                        placeholder="Optional approval note"
+                        className="w-full rounded-2xl border border-white/10 bg-zinc-950/80 p-4 text-sm text-white outline-none placeholder:text-zinc-500"
+                      />
+                    </label>
+                    <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-zinc-950/50 px-4 py-3 text-sm text-white">
+                      <input
+                        type="checkbox"
+                        checked={approvalConfirmed}
+                        onChange={(event) => setApprovalConfirmed(event.target.checked)}
+                        className="h-4 w-4 rounded border-white/20 bg-transparent text-blue-500"
+                      />
+                      Manager approved this adjustment
+                    </label>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-50">
+                  <CheckCircle2 className="mr-2 inline h-4 w-4" />
+                  No additional approval is required for this adjustment.
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={onConfirm}
+                  disabled={submitting || (requiresManagerApproval && (!approvalConfirmed || !normalizeText(approvalName)))}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-4 py-3 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  {requiresManagerApproval ? "Approve and apply" : "Apply adjustment"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProductHistoryDrawer({ productName, variantLabel, movements, loading, error, onClose, warehouseName }) {
+  return (
+    <div className="fixed inset-0 z-50">
+      <button type="button" onClick={onClose} className="absolute inset-0 bg-black/70" aria-label="Close product history" />
+      <div className="absolute right-0 top-0 h-full w-full max-w-[720px] border-l border-white/10 bg-zinc-950 shadow-[0_30px_100px_rgba(0,0,0,0.5)]">
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Product history</p>
+            <h3 className="mt-1 text-xl font-black text-white">{productName}</h3>
+            <p className="mt-1 text-sm text-zinc-400">{[variantLabel, warehouseName].filter(Boolean).join(" / ")}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
+            Close
+          </button>
+        </div>
+
+        <div className="space-y-4 overflow-y-auto p-5">
+          {loading ? (
+            <div className="flex items-center justify-center rounded-3xl border border-white/10 bg-white/5 py-16 text-zinc-400">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" />
+              Loading product history...
+            </div>
+          ) : error ? (
+            <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-100">{error}</div>
+          ) : movements.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">
+              No inventory movements found for this variant.
+            </div>
+          ) : (
+            movements.map((movement) => {
+              const delta = asNumber(movement.quantity_change ?? movement.quantity_delta ?? movement.quantity ?? 0, 0);
+              const before = asNumber(movement.quantity_before ?? 0, 0);
+              const after = asNumber(movement.quantity_after ?? 0, 0);
+              return (
+                <div key={String(movement.id)} className="rounded-3xl border border-white/10 bg-white/5 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-semibold text-white">{movement.movement_type || "ADJUSTMENT"}</div>
+                      <div className="mt-1 text-xs text-zinc-500">{formatDateTime(movement.created_at)}</div>
+                    </div>
+                    <div className={`rounded-full px-3 py-1 text-xs font-semibold ${delta >= 0 ? "bg-emerald-500/10 text-emerald-200" : "bg-rose-500/10 text-rose-200"}`}>
+                      {delta >= 0 ? "+" : ""}
+                      {delta}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-2 text-sm text-zinc-300 sm:grid-cols-2">
+                    <div>Before: {before.toLocaleString()}</div>
+                    <div>After: {after.toLocaleString()}</div>
+                    <div>User: {movement.created_by_name || movement.user_name || "n/a"}</div>
+                    <div>Warehouse: {movement.warehouse_name || "n/a"}</div>
+                    <div className="sm:col-span-2">Reason: {movement.reason || movement.notes || "n/a"}</div>
+                    <div className="sm:col-span-2">Reference: {movement.reference_type || "n/a"} #{movement.reference_id || "n/a"}</div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default StockAdjustments;
