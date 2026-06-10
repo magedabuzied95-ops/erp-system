@@ -485,9 +485,9 @@ const MiniMetric = ({ label, value, icon: Icon, tone = "slate", sub = "" }) => {
     blue: "border-t-blue-500",
   };
   return (
-    <div className={`manager-portal-mini-metric kpi-card-readable min-h-[6.25rem] rounded-3xl border border-slate-200 border-t-4 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] p-3 shadow-[0_12px_28px_rgba(15,23,42,0.08)] ${tones[tone] || tones.slate}`}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
+    <div className={`manager-portal-mini-metric kpi-card-readable h-full min-h-[112px] rounded-3xl border border-slate-200 border-t-4 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] p-3 shadow-[0_12px_28px_rgba(15,23,42,0.08)] ${tones[tone] || tones.slate}`}>
+      <div className="flex h-full items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
           <div className="text-[11px] font-black leading-5 text-slate-500">{label}</div>
           <div className="manager-portal-mini-metric-value mt-1 text-[1.9rem] font-black leading-none tracking-tight text-slate-950 sm:text-[2.05rem]">{value || formatNumber(0)}</div>
           {sub ? <div className="mt-0.5 truncate text-[11px] font-bold text-slate-500">{sub}</div> : null}
@@ -540,11 +540,11 @@ const CompactStatCard = ({ label, value, icon: Icon, tone = "slate", emphasis = 
   const theme = tones[tone] || tones.slate;
   if (emphasis) {
     return (
-      <div className="manager-portal-compact-stat manager-portal-compact-stat--emphasis min-h-[5.75rem] rounded-2xl border border-slate-800 bg-[#0b1120] p-3 text-white shadow-[0_14px_30px_rgba(2,6,23,0.18)]">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
+      <div className="manager-portal-compact-stat manager-portal-compact-stat--emphasis h-full min-h-[112px] rounded-2xl border border-slate-800 bg-[#0b1120] p-3 text-white shadow-[0_14px_30px_rgba(2,6,23,0.18)]">
+        <div className="flex h-full items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
             <div className="text-[10.5px] font-black leading-5 tracking-normal text-slate-400">{label}</div>
-            <div className="manager-portal-compact-stat-value mt-1 text-[1.25rem] font-black leading-none text-white">{value || formatNumber(0)}</div>
+            <div className="manager-portal-compact-stat-value mt-1 text-2xl font-black leading-none text-white sm:text-[1.25rem]">{value || formatNumber(0)}</div>
           </div>
           {Icon ? <div className="manager-portal-compact-stat-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300"><Icon className="h-4 w-4" /></div> : null}
         </div>
@@ -552,11 +552,11 @@ const CompactStatCard = ({ label, value, icon: Icon, tone = "slate", emphasis = 
     );
   }
   return (
-    <div className={`manager-portal-compact-stat min-h-[5.75rem] rounded-2xl border p-3 shadow-[0_10px_22px_rgba(15,23,42,0.06)] ${theme.shell}`}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
+    <div className={`manager-portal-compact-stat h-full min-h-[112px] rounded-2xl border p-3 shadow-[0_10px_22px_rgba(15,23,42,0.06)] ${theme.shell}`}>
+      <div className="flex h-full items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
           <div className={`text-[10.5px] font-black leading-5 tracking-normal ${theme.label}`}>{label}</div>
-          <div className={`manager-portal-compact-stat-value mt-1 text-[1.15rem] font-black leading-none ${theme.value}`}>{value || formatNumber(0)}</div>
+          <div className={`manager-portal-compact-stat-value mt-1 text-2xl font-black leading-none sm:text-[1.15rem] ${theme.value}`}>{value || formatNumber(0)}</div>
         </div>
         {Icon ? <div className={`manager-portal-compact-stat-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${theme.icon}`}><Icon className="h-4 w-4" /></div> : null}
       </div>
@@ -1685,7 +1685,7 @@ export default function ManagerPortal() {
   };
 
   return (
-    <main data-testid="manager-portal-root" dir="rtl" className={`manager-portal-readable-v2 manager-portal-shell ${isMobilePortal ? "manager-portal-mobile-dark" : ""} min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.12),_transparent_26%),radial-gradient(circle_at_80%_0%,_rgba(245,158,11,0.10),_transparent_18%),radial-gradient(circle_at_15%_20%,_rgba(99,102,241,0.08),_transparent_20%),linear-gradient(180deg,#f8fafc_0%,#eef2f7_52%,#e2e8f0_100%)] px-3 py-2.5 text-right text-slate-950 dark:bg-slate-950 dark:text-white md:px-4 md:py-4`}>
+    <main data-testid="manager-portal-root" dir="rtl" className={`manager-portal-readable-v2 manager-portal-shell ${isMobilePortal ? "manager-portal-mobile-dark" : ""} min-h-[100dvh] bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.12),_transparent_26%),radial-gradient(circle_at_80%_0%,_rgba(245,158,11,0.10),_transparent_18%),radial-gradient(circle_at_15%_20%,_rgba(99,102,241,0.08),_transparent_20%),linear-gradient(180deg,#f8fafc_0%,#eef2f7_52%,#e2e8f0_100%)] px-3 pt-0 pb-0 text-right text-slate-950 dark:bg-slate-950 dark:text-white md:px-4`}>
       <div className="mx-auto grid max-w-[96rem] gap-3 lg:grid-cols-[240px_minmax(0,1.55fr)_320px] lg:gap-4">
         <aside className="hidden min-h-[calc(100dvh-2rem)] rounded-[2rem] border border-slate-200 bg-white p-4 shadow-xl shadow-slate-200/50 lg:block">
           <div className="flex items-center gap-3">
@@ -2042,7 +2042,7 @@ export default function ManagerPortal() {
           {activeTab === "today" ? (
             <div data-testid="manager-dashboard-panel" className="space-y-4">
               {isMobilePortal ? (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="manager-portal-mobile-stat-grid grid grid-cols-2 gap-2">
                   {mobileDashboardStats.map((item) => (
                     <CompactStatCard key={item.label} label={item.label} value={item.value} icon={item.icon} tone={item.tone} emphasis={item.emphasis} />
                   ))}
@@ -2067,12 +2067,12 @@ export default function ManagerPortal() {
               )}
 
               {isMobilePortal ? (
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => scrollToManagerSection(liveFeedSectionRef)}
-                    className="manager-portal-quick-card flex min-h-[4.75rem] items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-[#0b1120] px-3 py-2.5 text-right text-white shadow-[0_12px_24px_rgba(2,6,23,0.18)]"
-                  >
+              <div className="manager-portal-mobile-quick-grid grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => scrollToManagerSection(liveFeedSectionRef)}
+                  className="manager-portal-quick-card flex min-h-[4.75rem] items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-[#0b1120] px-3 py-2.5 text-right text-white shadow-[0_12px_24px_rgba(2,6,23,0.18)]"
+                >
                     <div className="min-w-0 text-right">
                       <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">الإشعارات المباشرة</div>
                       <div className="mt-1 truncate text-sm font-black leading-5 text-white">تنبيهات</div>
@@ -2139,7 +2139,7 @@ export default function ManagerPortal() {
                           className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-[#0f172a] px-3 py-3 text-right transition hover:border-slate-700 hover:shadow-sm"
                         >
                           <div className="min-w-0">
-                            <div className="truncate font-black text-white">إعادة عرض منتج: <InlineName>{portalText(alert.product_name || "منتج")}</InlineName></div>
+                            <div className="line-clamp-2 font-black leading-5 text-white">إعادة عرض منتج: <InlineName className="line-clamp-2 align-bottom">{portalText(alert.product_name || "منتج")}</InlineName></div>
                             <div className="mt-1 truncate text-xs font-bold text-slate-400">{portalText(alert.color_name || alert.color || "")} {alert.replacement_size ? `· ${portalText(alert.replacement_size)}` : ""}</div>
                           </div>
                           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-950 text-[11px] font-black text-white">
@@ -2155,7 +2155,7 @@ export default function ManagerPortal() {
                           className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-[#0f172a] px-3 py-3 text-right transition hover:border-slate-700 hover:shadow-sm"
                         >
                           <div className="min-w-0">
-                            <div className="truncate font-black text-white">مطلوب إعادة طلب: <InlineName>{portalText(item.name || "منتج")}</InlineName></div>
+                            <div className="line-clamp-2 font-black leading-5 text-white">مطلوب إعادة طلب: <InlineName className="line-clamp-2 align-bottom">{portalText(item.name || "منتج")}</InlineName></div>
                             <div className="mt-1 text-xs font-bold text-slate-400">{formatNumber(item.stock || 0)} قطعة متبقية</div>
                           </div>
                           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-950 text-[11px] font-black text-white">
@@ -3036,7 +3036,7 @@ export default function ManagerPortal() {
                             <span className="inline-flex max-w-full items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">{leadChannel(lead)}</span>
                             {product ? (
                               <span className="inline-flex max-w-full items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-800">
-                                <InlineName>{product}</InlineName>
+                                <InlineName className="truncate">{product}</InlineName>
                               </span>
                             ) : null}
                           </div>
@@ -3067,7 +3067,7 @@ export default function ManagerPortal() {
               <div className="space-y-1.5">
                 {visibleLowStock.map((item) => (
                   <div key={`${item.id}-${item.name}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm">
-                    <div className="font-black text-slate-950"><InlineName>{portalText(item.name || "-")}</InlineName></div>
+                    <div className="line-clamp-2 font-black leading-5 text-slate-950"><InlineName className="line-clamp-2 align-bottom">{portalText(item.name || "-")}</InlineName></div>
                     <div className="mt-1 text-xs font-bold text-slate-500">{portalText(item.color || item.size || "")} · {formatNumber(item.stock || 0)}</div>
                   </div>
                 ))}
@@ -3182,7 +3182,7 @@ export default function ManagerPortal() {
                               <img src={item.image_url} alt="" className="h-14 w-14 shrink-0 rounded-2xl border border-slate-200 object-cover" loading="lazy" />
                             ) : null}
                             <div className="min-w-0 flex-1">
-                              <div className="font-black text-slate-950"><InlineName>{portalText(item.product_name || "منتج")}</InlineName></div>
+                              <div className="line-clamp-2 font-black leading-5 text-slate-950"><InlineName className="line-clamp-2 align-bottom">{portalText(item.product_name || "منتج")}</InlineName></div>
                               <div className="mt-1 text-xs font-bold text-slate-500">{portalText(item.color || "-")} · {portalText(item.size || "-")} · {formatNumber(item.quantity || 0)} قطعة</div>
                               <div className="mt-1 text-[11px] font-bold text-slate-500">{[item.sku ? `SKU ${item.sku}` : "", item.barcode ? `Barcode ${item.barcode}` : ""].filter(Boolean).join(" · ") || "-"}</div>
                             </div>
