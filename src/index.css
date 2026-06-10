@@ -3091,10 +3091,8 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   .manager-portal-mobile-dark {
     color-scheme: dark;
     background:
-      radial-gradient(circle at top, rgba(34, 211, 238, 0.12), transparent 26%),
-      radial-gradient(circle at 78% 0%, rgba(16, 185, 129, 0.11), transparent 18%),
-      radial-gradient(circle at 16% 20%, rgba(59, 130, 246, 0.09), transparent 18%),
-      linear-gradient(180deg, #020617 0%, #0b1120 48%, #060913 100%) !important;
+      radial-gradient(circle at top, rgba(148, 163, 184, 0.08), transparent 24%),
+      linear-gradient(180deg, #020617 0%, #050816 52%, #030712 100%) !important;
     color: #e2e8f0 !important;
     line-height: 1.55;
   }
@@ -3110,17 +3108,14 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   }
 
   .manager-portal-mobile-dark :is(.manager-portal-card, .manager-portal-mini-metric, .manager-portal-compact-stat, .manager-portal-toggle, .manager-portal-status-pill, .manager-portal-badge, .manager-portal-empty) {
-    border-color: rgba(148, 163, 184, 0.18) !important;
-    box-shadow: 0 18px 42px rgba(2, 6, 23, 0.22) !important;
-  }
-
-  .manager-portal-mobile-dark :is(.manager-portal-card, .manager-portal-mini-metric, .manager-portal-compact-stat, .manager-portal-toggle, .manager-portal-status-pill, .manager-portal-badge, .manager-portal-empty, .manager-portal-shell header, .manager-portal-shell aside, .manager-portal-shell nav, .manager-portal-shell section, .manager-portal-shell article, .manager-portal-shell [class*="bg-white"], .manager-portal-shell [class*="bg-[#f8fafc]"], .manager-portal-shell [class*="bg-slate-50"], .manager-portal-shell [class*="bg-slate-100"], .manager-portal-shell [class*="bg-white/"], .manager-portal-shell [class*="bg-[linear-gradient"]) {
     background-color: #0f172a !important;
     background-image: none !important;
+    border-color: rgba(148, 163, 184, 0.14) !important;
+    box-shadow: 0 12px 32px rgba(2, 6, 23, 0.22) !important;
   }
 
   .manager-portal-mobile-dark :is([class*="border-slate-100"], [class*="border-slate-200"], [class*="border-slate-300"], [class*="border-white/10"], [class*="border-white/20"]) {
-    border-color: rgba(148, 163, 184, 0.18) !important;
+    border-color: rgba(148, 163, 184, 0.14) !important;
   }
 
   .manager-portal-mobile-dark :is([class*="text-slate-950"], [class*="text-slate-900"], [class*="text-black"]) {
@@ -3140,13 +3135,8 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
     background-image: none !important;
   }
 
-  .manager-portal-mobile-dark :is([class*="bg-white/"], [class*="bg-slate-50"], [class*="bg-slate-100"], [class*="bg-white"], [class*="bg-[#f8fafc]"], [class*="bg-[linear-gradient(180deg,#ffffff,#f8fafc)]"], [class*="bg-[linear-gradient(180deg,#ffffff,#e2e8f0)]"]) {
+  .manager-portal-mobile-dark :is([class*="bg-white/"], [class*="bg-slate-50"], [class*="bg-slate-100"], [class*="bg-white"], [class*="bg-[#f8fafc]"], [class*="bg-[linear-gradient(180deg,#ffffff,#f8fafc)]"], [class*="bg-[linear-gradient(180deg,#ffffff,#e2e8f0)]"], [class*="bg-emerald-50"], [class*="bg-emerald-100"], [class*="bg-sky-50"], [class*="bg-sky-100"], [class*="bg-blue-50"], [class*="bg-blue-100"], [class*="bg-amber-50"], [class*="bg-amber-100"], [class*="bg-rose-50"], [class*="bg-rose-100"]) {
     background-color: #0f172a !important;
-    background-image: none !important;
-  }
-
-  .manager-portal-mobile-dark :is([class*="bg-emerald-50"], [class*="bg-emerald-100"], [class*="bg-sky-50"], [class*="bg-sky-100"], [class*="bg-blue-50"], [class*="bg-blue-100"], [class*="bg-amber-50"], [class*="bg-amber-100"], [class*="bg-rose-50"], [class*="bg-rose-100"]) {
-    background-color: rgba(15, 23, 42, 0.82) !important;
     background-image: none !important;
   }
 
@@ -3159,6 +3149,58 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   }
 
   .manager-portal-mobile-dark :is(.manager-portal-card .text-slate-500, .manager-portal-card .text-slate-600, .manager-portal-mini-metric .text-slate-500, .manager-portal-compact-stat .text-slate-300) {
+    color: #94a3b8 !important;
+  }
+
+  .manager-portal-mobile-dark .manager-portal-card {
+    padding: 0.875rem !important;
+  }
+
+  .manager-portal-mobile-dark .manager-portal-card-body {
+    margin-top: 0.75rem !important;
+  }
+
+  .manager-portal-mobile-dark .manager-portal-card-icon,
+  .manager-portal-mobile-dark .manager-portal-mini-metric-icon,
+  .manager-portal-mobile-dark .manager-portal-compact-stat-icon {
+    border-color: rgba(148, 163, 184, 0.16) !important;
+    background: rgba(15, 23, 42, 0.96) !important;
+    color: #cbd5e1 !important;
+    box-shadow: none !important;
+  }
+
+  .manager-portal-mobile-dark .manager-portal-mini-metric {
+    min-height: 5.2rem !important;
+    padding: 0.875rem !important;
+    border-top-width: 1px !important;
+    border-top-color: rgba(148, 163, 184, 0.2) !important;
+    background: linear-gradient(180deg, #0f172a 0%, #0b1220 100%) !important;
+  }
+
+  .manager-portal-mobile-dark .manager-portal-mini-metric-value {
+    font-size: 1.35rem !important;
+    line-height: 1.05 !important;
+  }
+
+  .manager-portal-mobile-dark .manager-portal-compact-stat {
+    min-height: 5rem !important;
+    padding: 0.875rem !important;
+    background: linear-gradient(180deg, #0f172a 0%, #0b1220 100%) !important;
+    border-color: rgba(148, 163, 184, 0.16) !important;
+  }
+
+  .manager-portal-mobile-dark .manager-portal-compact-stat--emphasis {
+    background: linear-gradient(180deg, #0b1120 0%, #020617 100%) !important;
+  }
+
+  .manager-portal-mobile-dark .manager-portal-toggle {
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+  }
+
+  .manager-portal-mobile-dark .manager-portal-empty {
+    background: linear-gradient(180deg, #0f172a 0%, #0b1220 100%) !important;
+    border-color: rgba(148, 163, 184, 0.16) !important;
     color: #94a3b8 !important;
   }
 

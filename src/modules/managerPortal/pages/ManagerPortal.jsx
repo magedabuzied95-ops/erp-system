@@ -445,16 +445,15 @@ const Badge = ({ children, className = "" }) => (
 
 const Card = ({ title, subtitle, icon: Icon, children, action, className = "", bodyClassName = "", compact = false }) => (
   <section className={`manager-portal-card overflow-hidden rounded-3xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] shadow-[0_14px_36px_rgba(15,23,42,0.08)] ${compact ? "p-3" : "p-4"} ${className}`}>
-    <div className="h-1 w-full bg-gradient-to-r from-slate-900 via-indigo-700 to-amber-400" />
-    <div className="flex items-start justify-between gap-3">
+    <div className="flex items-start justify-between gap-2">
       <div>
         <div className="text-[11px] font-black leading-5 tracking-normal text-slate-500">{subtitle}</div>
         <h2 className="mt-1 text-base font-black leading-6 text-slate-950">{title}</h2>
       </div>
-      {Icon ? <div className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-700 shadow-sm"><Icon className="h-4 w-4" /></div> : null}
+      {Icon ? <div className="manager-portal-card-icon rounded-2xl border border-slate-200 bg-white p-2 text-slate-700 shadow-sm"><Icon className="h-4 w-4" /></div> : null}
     </div>
     {action ? <div className="mt-3">{action}</div> : null}
-    <div className={`mt-3 ${bodyClassName}`}>{children}</div>
+    <div className={`manager-portal-card-body mt-3 ${bodyClassName}`}>{children}</div>
   </section>
 );
 
@@ -472,10 +471,10 @@ const MiniMetric = ({ label, value, icon: Icon, tone = "slate", sub = "" }) => {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-[11px] font-black leading-5 text-slate-500">{label}</div>
-          <div className="mt-1 text-[1.9rem] font-black leading-none tracking-tight text-slate-950 sm:text-[2.05rem]">{value || formatNumber(0)}</div>
+          <div className="manager-portal-mini-metric-value mt-1 text-[1.9rem] font-black leading-none tracking-tight text-slate-950 sm:text-[2.05rem]">{value || formatNumber(0)}</div>
           {sub ? <div className="mt-0.5 truncate text-[11px] font-bold text-slate-500">{sub}</div> : null}
         </div>
-        {Icon ? <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 shadow-sm"><Icon className="h-4 w-4" /></div> : null}
+        {Icon ? <div className="manager-portal-mini-metric-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 shadow-sm"><Icon className="h-4 w-4" /></div> : null}
       </div>
     </div>
   );
@@ -527,9 +526,9 @@ const CompactStatCard = ({ label, value, icon: Icon, tone = "slate", emphasis = 
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="text-[10.5px] font-black leading-5 tracking-normal text-slate-300">{label}</div>
-            <div className="mt-1 text-[1.25rem] font-black leading-none text-white">{value || formatNumber(0)}</div>
+            <div className="manager-portal-compact-stat-value mt-1 text-[1.25rem] font-black leading-none text-white">{value || formatNumber(0)}</div>
           </div>
-          {Icon ? <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white"><Icon className="h-4 w-4" /></div> : null}
+          {Icon ? <div className="manager-portal-compact-stat-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white"><Icon className="h-4 w-4" /></div> : null}
         </div>
       </div>
     );
@@ -539,9 +538,9 @@ const CompactStatCard = ({ label, value, icon: Icon, tone = "slate", emphasis = 
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className={`text-[10.5px] font-black leading-5 tracking-normal ${theme.label}`}>{label}</div>
-          <div className={`mt-1 text-[1.15rem] font-black leading-none ${theme.value}`}>{value || formatNumber(0)}</div>
+          <div className={`manager-portal-compact-stat-value mt-1 text-[1.15rem] font-black leading-none ${theme.value}`}>{value || formatNumber(0)}</div>
         </div>
-        {Icon ? <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${theme.icon}`}><Icon className="h-4 w-4" /></div> : null}
+        {Icon ? <div className={`manager-portal-compact-stat-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${theme.icon}`}><Icon className="h-4 w-4" /></div> : null}
       </div>
     </div>
   );
@@ -1581,7 +1580,7 @@ export default function ManagerPortal() {
                   type="button"
                   data-testid="refresh-button"
                   onClick={() => void loadAll({ silent: true })}
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white text-slate-950 shadow-sm transition hover:bg-slate-100"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-900 text-white shadow-sm transition hover:bg-slate-800"
                   aria-label="تحديث"
                 >
                   <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
@@ -2468,7 +2467,7 @@ export default function ManagerPortal() {
           {activeTab === "more" ? (
             <div className="space-y-4">
               <div className="grid gap-4 xl:grid-cols-2">
-                <Card title="الملف الشخصي" subtitle="ملف المدير" icon={Building2}>
+                <Card title="الملف الشخصي" subtitle="ملف المدير" icon={Building2} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""}>
                   <div className="space-y-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
                     <div className="font-black text-slate-950 dark:text-white">{portalText(me?.full_name || me?.name || "المدير")}</div>
                     <div>{portalText(me?.role || "manager")} · {portalText(me?.department || "—")}</div>
@@ -2476,7 +2475,7 @@ export default function ManagerPortal() {
                     <div>{formatNumber(me?.permissions?.length || 0)} صلاحية</div>
                   </div>
                 </Card>
-                <Card title="بيانات الفرع" subtitle="Branch info" icon={Store}>
+                <Card title="بيانات الفرع" subtitle="Branch info" icon={Store} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""}>
                   <div className="space-y-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
                     <div className="font-black text-slate-950 dark:text-white">{portalText(me?.branch_name || "All branches")}</div>
                     <div>Scope: {portalText(me?.branch_scope || "all")}</div>
@@ -2484,7 +2483,7 @@ export default function ManagerPortal() {
                     <div>Unread: {formatNumber(unreadCount || notificationsUnread)}</div>
                   </div>
                 </Card>
-                <Card title="روابط سريعة" subtitle="روابط سريعة" icon={ChevronRight}>
+                <Card title="روابط سريعة" subtitle="روابط سريعة" icon={ChevronRight} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""}>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {[
                       ["اليوم", "today"],
@@ -2493,7 +2492,7 @@ export default function ManagerPortal() {
                       ["المبيعات", "sales"],
                       ["Chat", "chat"],
                     ].map(([label, tab]) => (
-                      <button key={tab} type="button" onClick={() => setActiveTab(tab)} className="inline-flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-3 text-right text-sm font-black text-slate-800 transition hover:border-slate-300 hover:bg-slate-100">
+                      <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`inline-flex items-center justify-between rounded-2xl border border-slate-200 bg-white text-right font-black text-slate-800 transition hover:border-slate-300 hover:bg-slate-100 ${isMobilePortal ? "px-3 py-2.5 text-[13px]" : "px-3 py-3 text-sm"}`}>
                         <span>{label}</span>
                         <ChevronRight className="h-4 w-4" />
                       </button>
