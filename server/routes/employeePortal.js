@@ -34,6 +34,7 @@ import {
   markDisplayRefillAlertRead,
   resolveDisplayRefillAlert,
 } from "../services/displayRefillAlertService.js";
+import { getSalesOpportunitiesForScope } from "../services/salesOpportunityService.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { emitToRooms } from "../utils/socket.js";
@@ -561,6 +562,21 @@ router.get("/:token/products", async (req, res) => {
   } catch (error) {
     console.error("[employee-payroll-portal] product browser load error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load employee products" });
+  }
+});
+
+router.get("/:token/sales-opportunities", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const opportunities = await getSalesOpportunitiesForScope({
+      tenantId: employee.tenant_id ?? null,
+      branchId: employee.branch_id ?? null,
+    });
+    return res.json({ success: true, opportunities });
+  } catch (error) {
+    console.error("[employee-payroll-portal] sales opportunities load error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load sales opportunities" });
   }
 });
 

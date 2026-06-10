@@ -43,6 +43,7 @@ import PortalChatComposer from "../../../shared/chat/PortalChatComposer";
 import PortalChatMessageList from "../../../shared/chat/PortalChatMessageList";
 import { allowedPortalChatAttachment } from "../../../shared/chat/portalChatUtils";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
+import { getEmployeeSalesOpportunities } from "../services/salesOpportunitiesApi";
 
 const labels = {
   ar: {
@@ -155,6 +156,11 @@ const labels = {
 
 const EMPLOYEE_PORTAL_INITIAL_TIMEOUT_MS = 10000;
 const EMPLOYEE_PORTAL_OPTIONAL_TIMEOUT_MS = 8000;
+const SALES_OPPORTUNITY_TYPE_LABELS = {
+  LAST_ONE: "آخر قطعة",
+  LAST_TWO: "آخر قطعتين",
+  LAST_SIZE: "آخر مقاس",
+};
 
 Object.assign(labels.ar, {
   walletTab: "المحفظة",
@@ -902,6 +908,21 @@ const renderTransactionIcon = (type, className = "") => {
   return <ReceiptText className={className} />;
 };
 
+const salesOpportunityBadgeLabel = (type = "") => SALES_OPPORTUNITY_TYPE_LABELS[String(type || "").trim().toUpperCase()] || "فرصة بيع";
+const salesOpportunityRoute = (token = "", opportunity = {}) => {
+  const params = new URLSearchParams();
+  if (opportunity.product_id) params.set("productId", String(opportunity.product_id));
+  if (opportunity.product_variant_id) params.set("variantId", String(opportunity.product_variant_id));
+  return `/employee-portal/${encodeURIComponent(token || "")}/products${params.toString() ? `?${params.toString()}` : ""}`;
+};
+const salesOpportunityImage = (opportunity = {}) =>
+  opportunity.image_url ||
+  opportunity.metadata?.image_url ||
+  opportunity.metadata?.variant_image_url ||
+  opportunity.metadata?.color_image_url ||
+  opportunity.metadata?.product_image_url ||
+  "";
+
 function MetricCard({ label, value, icon: Icon, tone = "slate" }) {
   const tones = {
     emerald: "border-emerald-200 bg-emerald-50 text-emerald-950",
@@ -1045,6 +1066,9 @@ export default function EmployeePayrollPortal() {
   const [portal, setPortal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [salesOpportunities, setSalesOpportunities] = useState([]);
+  const [salesOpportunitiesLoading, setSalesOpportunitiesLoading] = useState(true);
+  const [salesOpportunitiesError, setSalesOpportunitiesError] = useState("");
   const [installPrompt, setInstallPrompt] = useState(null);
   const [branchToken, setBranchToken] = useState("");
   const [attendanceSaving, setAttendanceSaving] = useState("");
@@ -1289,13 +1313,41 @@ export default function EmployeePayrollPortal() {
     [token, text, loadDisplayRefillAlerts]
   );
 
+  const loadSalesOpportunities = useCallback(
+    async ({ silent = false, activeRef = null } = {}) => {
+      if (!token) {
+        if (!silent) setSalesOpportunitiesLoading(false);
+        setSalesOpportunities([]);
+        return;
+      }
+      try {
+        if (!silent) setSalesOpportunitiesLoading(true);
+        setSalesOpportunitiesError("");
+        const response = await getEmployeeSalesOpportunities(token, {
+          timeoutMs: EMPLOYEE_PORTAL_OPTIONAL_TIMEOUT_MS,
+        });
+        if (activeRef && !activeRef.current) return;
+        const opportunities = safeArray(response.opportunities || response.data?.opportunities || response.sales_opportunities);
+        setSalesOpportunities(opportunities);
+      } catch (err) {
+        if (activeRef && !activeRef.current) return;
+        setSalesOpportunities([]);
+        setSalesOpportunitiesError(err?.responseBody?.message || err?.message || "لا يمكن تحميل فرص البيع حالياً.");
+      } finally {
+        if (!silent && (!activeRef || activeRef.current)) setSalesOpportunitiesLoading(false);
+      }
+    },
+    [token]
+  );
+
   useEffect(() => {
     const activeRef = { current: true };
     loadPortalByToken({ activeRef });
+    loadSalesOpportunities({ activeRef });
     return () => {
       activeRef.current = false;
     };
-  }, [loadPortalByToken]);
+  }, [loadPortalByToken, loadSalesOpportunities]);
 
   const wallet = portal?.wallet_summary || {};
   const payrollExists = Boolean(
@@ -2528,6 +2580,101 @@ export default function EmployeePayrollPortal() {
               </div>
             </div>
             <div className="h-6 shrink-0" aria-hidden="true" />
+
+            <section className="rounded-[28px] border border-slate-800 bg-[linear-gradient(180deg,#0b1220,#111827)] p-4 text-white shadow-[0_16px_30px_rgba(2,6,23,0.18)]">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-200/70">Sales Opportunities</div>
+                  <h2 className="mt-1 text-lg font-black leading-7">فرص البيع اليوم</h2>
+                  <p className="mt-1 text-sm font-semibold leading-6 text-slate-300">بطاقات سريعة تكشف آخر قطعة، آخر قطعتين، أو آخر مقاس في فرعك.</p>
+                </div>
+                <div className="shrink-0 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-left">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100/70">Today</div>
+                  <div className="mt-0.5 text-lg font-black text-cyan-50">{salesOpportunities.length}</div>
+                </div>
+              </div>
+
+              {salesOpportunitiesLoading ? (
+                <div className="mt-4 grid gap-2">
+                  {Array.from({ length: 2 }).map((_, index) => (
+                    <div key={index} className="flex flex-row-reverse gap-3 rounded-[22px] border border-white/10 bg-white/5 p-3">
+                      <div className="h-20 w-20 rounded-2xl bg-white/10" />
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="h-4 w-24 rounded-full bg-white/10" />
+                        <div className="h-5 w-40 rounded-full bg-white/10" />
+                        <div className="h-3 w-full rounded-full bg-white/10" />
+                        <div className="h-9 w-28 rounded-2xl bg-white/10" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : salesOpportunitiesError ? (
+                <div className="mt-4 rounded-[22px] border border-amber-300/20 bg-amber-400/10 p-3 text-sm font-bold leading-6 text-amber-50">
+                  <div>{salesOpportunitiesError}</div>
+                  <button
+                    type="button"
+                    onClick={() => void loadSalesOpportunities()}
+                    className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-amber-200/20 bg-white/10 px-4 text-xs font-black text-white"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    إعادة المحاولة
+                  </button>
+                </div>
+              ) : salesOpportunities.length ? (
+                <div className="mt-4 grid gap-2">
+                  {salesOpportunities.slice(0, 4).map((opportunity) => (
+                    <article
+                      key={opportunity.id}
+                      className="flex flex-row-reverse gap-3 rounded-[22px] border border-white/10 bg-white/5 p-3 shadow-[0_8px_18px_rgba(2,6,23,0.12)]"
+                    >
+                      <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-900/80">
+                        {salesOpportunityImage(opportunity) ? (
+                          <img
+                            src={salesOpportunityImage(opportunity)}
+                            alt={opportunity.product_name || "Opportunity product"}
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <Package2 className="h-8 w-8 text-cyan-200" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1 text-right">
+                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                          <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2.5 py-1 text-[11px] font-black text-cyan-100">
+                            {salesOpportunityBadgeLabel(opportunity.type)}
+                          </span>
+                          <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-black text-slate-100">
+                            {text(opportunity.stock_snapshot || 0)} متبقية
+                          </span>
+                        </div>
+                        <div className="mt-2 truncate text-[15px] font-black leading-5 text-white" dir="auto">
+                          {opportunity.product_name || "منتج"}
+                        </div>
+                        <div className="mt-1 flex flex-wrap justify-end gap-1.5 text-[11px] font-bold text-slate-300">
+                          <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{opportunity.color || "بدون لون"}</span>
+                          <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{opportunity.size || "بدون مقاس"}</span>
+                        </div>
+                        <div className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-slate-300" dir="auto">
+                          {opportunity.message || "فرصة بيع جديدة متاحة الآن."}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => window.location.assign(salesOpportunityRoute(token, opportunity))}
+                          className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 text-xs font-black text-slate-950 shadow-sm transition hover:bg-cyan-400"
+                        >
+                          عرض المنتج
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-4 rounded-[22px] border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold leading-6 text-slate-300">
+                  لا توجد فرص بيع حالياً
+                </div>
+              )}
+            </section>
 
             {activeTab === "home" && showInstallCard ? (
               <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950 shadow-sm">

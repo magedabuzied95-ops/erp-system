@@ -4,6 +4,7 @@ import employeeChatUpload from "../config/employeeChatUpload.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { repairMissingEmployeePortalTokens } from "../services/employeePayrollPortalService.js";
+import { getSalesOpportunitiesForScope } from "../services/salesOpportunityService.js";
 import {
   cleanupFakeEmployees,
   createCommissionRule,
@@ -83,6 +84,20 @@ const repairMissingEmployeePayrollPortalTokens = async (req, res) => {
 router.get("/", protect, permit("employees", "view"), getEmployees);
 router.post("/cleanup/fake-legacy", protect, permit("employees", "delete"), cleanupFakeEmployees);
 router.get("/sales-performance", protect, permit("employees", "view"), getSalesPerformance);
+router.get("/sales-opportunities", protect, permit("employees", "view"), async (req, res) => {
+  try {
+    const tenantId = req.user?.tenant_id || req.user?.tenantId || null;
+    const branchId = req.query?.branch_id || req.query?.branchId || req.user?.branch_id || req.user?.branchId || null;
+    const opportunities = await getSalesOpportunitiesForScope({
+      tenantId,
+      branchId,
+    });
+    return res.json({ success: true, opportunities });
+  } catch (error) {
+    console.error("[employees] sales opportunities load error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load sales opportunities" });
+  }
+});
 router.get("/commissions", protect, permit("employees", "view"), getCommissions);
 router.get("/top-performers", protect, permit("employees", "view"), getTopPerformers);
 router.get("/commission-rules", protect, permit("employees", "view"), getCommissionRules);
