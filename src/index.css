@@ -79,12 +79,12 @@
   }
 
   .employee-portal-shell {
-    padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
+    padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
   }
 
   @media (min-width: 768px) {
     .employee-portal-shell {
-      padding-top: 16px;
+      padding-top: 12px;
     }
   }
 

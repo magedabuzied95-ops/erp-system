@@ -2426,8 +2426,8 @@ export default function EmployeePayrollPortal() {
             <div className="mt-3">{error || text.invalidLink || labels.en.invalidLink}</div>
           </div>
         ) : (
-          <section className="mt-1 space-y-3 pb-4">
-            <div className="sticky top-[calc(env(safe-area-inset-top)+8px)] z-30 rounded-[24px] border border-slate-200 bg-white/95 px-3 py-3 shadow-sm backdrop-blur md:px-4 md:py-4">
+          <section className="space-y-2 pb-4">
+            <div className="sticky top-2 z-30 rounded-[24px] border border-slate-200 bg-white/95 px-3 py-3 shadow-sm backdrop-blur md:px-4 md:py-4">
               <div className="flex items-start gap-3">
                 <div className="shrink-0">
                   <EmployeeHeaderAvatar
