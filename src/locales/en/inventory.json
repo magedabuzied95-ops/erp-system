@@ -41,6 +41,46 @@
     "subtitle": "Variant-level alerts at stock 3 or below.",
     "empty": "No low stock alerts."
   },
+  "purchaseAlerts": {
+    "title": "Smart purchase alerts",
+    "subtitle": "Carton-only purchase alerts based on missing sizes or carton thresholds.",
+    "filters": {
+      "brand": "Brand",
+      "category": "Category",
+      "manufacturer": "Manufacturer",
+      "alertType": "Alert type",
+      "all": "All"
+    },
+    "groups": {
+      "missing_sizes": "Missing sizes",
+      "carton_threshold": "Carton threshold"
+    },
+    "cards": {
+      "product": "Product",
+      "color": "Color",
+      "alertType": "Alert type",
+      "reason": "Reason",
+      "missingSizes": "Missing sizes",
+      "totalStock": "Current stock",
+      "cartonSize": "Carton size",
+      "suggestedCartons": "Suggested cartons",
+      "viewSuggestions": "View suggestions"
+    },
+    "actions": {
+      "selectVisible": "Select visible",
+      "clearSelection": "Clear selection",
+      "createDraft": "Create purchase draft",
+      "creating": "Creating...",
+      "selectAlert": "Select alert",
+      "deselectAlert": "Deselect alert"
+    },
+    "messages": {
+      "draftCreated": "Purchase draft created",
+      "draftQueued": "Purchase draft prepared",
+      "draftFailed": "Could not create purchase draft"
+    },
+    "empty": "No smart purchase alerts."
+  },
   "actions": {
     "view": "View",
     "editStock": "Edit stock"

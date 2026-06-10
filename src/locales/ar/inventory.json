@@ -41,6 +41,46 @@
                    "subtitle":  "تنبيهات على مستوى الخيار عند المخزون 3 أو أقل.",
                    "empty":  "لا توجد تنبيهات انخفاض مخزون."
                },
+    "purchaseAlerts":  {
+                   "title":  "تنبيهات الشراء الذكية",
+                   "subtitle":  "تنبيهات شراء تعتمد على الكراتين فقط، إما بسبب مقاسات ناقصة أو الوصول لحد الكرتونة.",
+                   "filters":  {
+                                  "brand":  "العلامة التجارية",
+                                  "category":  "الفئة",
+                                  "manufacturer":  "المصنع",
+                                  "alertType":  "نوع التنبيه",
+                                  "all":  "الكل"
+                              },
+                   "groups":  {
+                                  "missing_sizes":  "مقاسات ناقصة",
+                                  "carton_threshold":  "وصل لحد الكرتونة"
+                              },
+                   "cards":  {
+                                 "product":  "المنتج",
+                                 "color":  "اللون",
+                                 "alertType":  "نوع التنبيه",
+                                 "reason":  "السبب",
+                                 "missingSizes":  "المقاسات الناقصة",
+                                 "totalStock":  "إجمالي المخزون",
+                                 "cartonSize":  "حجم الكرتونة",
+                                 "suggestedCartons":  "الكراتين المقترحة",
+                                 "viewSuggestions":  "عرض الاقتراحات"
+                             },
+                   "actions":  {
+                                  "selectVisible":  "تحديد الظاهرة",
+                                  "clearSelection":  "إلغاء التحديد",
+                                  "createDraft":  "إنشاء طلب شراء",
+                                  "creating":  "جارٍ الإنشاء...",
+                                  "selectAlert":  "تحديد التنبيه",
+                                  "deselectAlert":  "إلغاء تحديد التنبيه"
+                              },
+                   "messages":  {
+                                  "draftCreated":  "تم إنشاء مسودة الشراء",
+                                  "draftQueued":  "تم تجهيز مسودة الشراء",
+                                  "draftFailed":  "تعذر إنشاء مسودة الشراء"
+                              },
+                   "empty":  "لا توجد تنبيهات شراء ذكية."
+               },
     "actions":  {
                     "view":  "عرض",
                     "editStock":  "تعديل المخزون"

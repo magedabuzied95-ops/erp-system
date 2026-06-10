@@ -49,6 +49,7 @@ const safeNumericPayload = (value, fallback = 0) => {
 const text = (value) => String(value || "").trim();
 const normalizeKey = (value) => text(value).toLowerCase();
 const firstText = (...values) => values.map(text).find(Boolean) || "";
+const SMART_PURCHASE_DRAFT_STORAGE_KEY = "erp.purchases.smartPurchaseDraft";
 const createPurchaseSaveId = () => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -135,6 +136,15 @@ const savedColorPurchaseQty = (product = {}, variant = {}) => {
   );
 
   return savedPurchaseQty(match);
+};
+
+const normalizePurchaseDraftPayload = (value = {}) => {
+  if (!value || typeof value !== "object") return null;
+  const items = Array.isArray(value.items) ? value.items : Array.isArray(value.lines) ? value.lines : Array.isArray(value.purchase?.items) ? value.purchase.items : [];
+  return {
+    ...value,
+    items,
+  };
 };
 
 const normalizePurchaseItem = (item = {}) => {
@@ -390,6 +400,7 @@ function PurchaseOrder() {
   const searchRef = useRef(null);
   const searchPanelWrapRef = useRef(null);
   const productPanelRef = useRef(null);
+  const draftImportAppliedRef = useRef(false);
   const [suppliers, setSuppliers] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -447,6 +458,7 @@ function PurchaseOrder() {
   });
   const [productSaving, setProductSaving] = useState(false);
   const [productError, setProductError] = useState("");
+  const [purchaseDraftPayload, setPurchaseDraftPayload] = useState(null);
   const [productForm, setProductForm] = useState({
     name: "",
     category: "",
@@ -545,6 +557,59 @@ function PurchaseOrder() {
   useEffect(() => {
     loadData();
   }, [editPurchaseId, isEditMode]);
+
+  useEffect(() => {
+    if (isEditMode) return;
+    const statePayload = normalizePurchaseDraftPayload(location.state?.purchaseDraftPayload || location.state?.draftPayload || null);
+    if (statePayload) {
+      setPurchaseDraftPayload(statePayload);
+      return;
+    }
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(SMART_PURCHASE_DRAFT_STORAGE_KEY);
+      setPurchaseDraftPayload(raw ? normalizePurchaseDraftPayload(JSON.parse(raw)) : null);
+    } catch {
+      setPurchaseDraftPayload(null);
+    }
+  }, [isEditMode, location.key, location.state]);
+
+  useEffect(() => {
+    if (isEditMode) return;
+    if (loading) return;
+    if (!purchaseDraftPayload || draftImportAppliedRef.current) return;
+
+    const importedItems = Array.isArray(purchaseDraftPayload.items)
+      ? purchaseDraftPayload.items.map((item) => normalizePurchaseCartItem(item))
+      : [];
+    if (!importedItems.length) return;
+
+    if (!items.length) {
+      setItems(importedItems);
+    }
+
+    const supplierMatch =
+      suppliers.find((supplier) => String(supplier.id) === String(purchaseDraftPayload.supplier_id || "")) ||
+      suppliers.find((supplier) => normalizeKey(supplier.name) === normalizeKey(purchaseDraftPayload.supplier_name || ""));
+    const warehouseMatch =
+      warehouses.find((warehouse) => String(warehouse.id) === String(purchaseDraftPayload.warehouse_id || "")) ||
+      warehouses.find((warehouse) => normalizeKey(warehouse.name) === normalizeKey(purchaseDraftPayload.warehouse_name || ""));
+
+    if (supplierMatch?.id) setSupplierId(String(supplierMatch.id));
+    else if (purchaseDraftPayload.supplier_id) setSupplierId(String(purchaseDraftPayload.supplier_id));
+
+    if (warehouseMatch?.id) setWarehouseId(String(warehouseMatch.id));
+    else if (purchaseDraftPayload.warehouse_id) setWarehouseId(String(purchaseDraftPayload.warehouse_id));
+
+    if (purchaseDraftPayload.branch_id) setBranchId(String(purchaseDraftPayload.branch_id));
+
+    draftImportAppliedRef.current = true;
+    try {
+      window.localStorage.removeItem(SMART_PURCHASE_DRAFT_STORAGE_KEY);
+    } catch {
+      // ignore storage cleanup failures
+    }
+  }, [isEditMode, loading, purchaseDraftPayload, suppliers, warehouses, items.length]);
 
   useEffect(() => {
     const syncFullscreenState = () => {

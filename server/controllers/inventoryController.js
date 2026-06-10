@@ -8,12 +8,430 @@ import { createSystemNotification } from "../services/notificationsService.js";
 
 const LOW_STOCK_ALERT_MAX = 2;
 
+const normalizeText = (value = "") => String(value ?? "").trim();
+
+const normalizePositiveStock = (value) => {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+};
+
+const normalizeSizeLabel = (value) => {
+  const text = normalizeText(value);
+  return text || "One size";
+};
+
+const normalizeColorLabel = (value) => {
+  const text = normalizeText(value);
+  return text || "Default";
+};
+
+const normalizeIdValue = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : String(value).trim();
+};
+
+const firstImageUrl = (...values) => values.map((value) => normalizeText(value)).find(Boolean) || "";
+
+const buildPurchaseAlertImage = ({ product = {}, variants = [] } = {}) => {
+  const variantImage = Array.isArray(variants)
+    ? variants.map((variant) => variant.variant_image_url || variant.image_url || "").find(Boolean)
+    : "";
+  return firstImageUrl(
+    product.image_url,
+    product.image,
+    product.photo_url,
+    product.thumbnail_url,
+    variantImage
+  );
+};
+
+const buildPurchaseAlertAction = (count) => {
+  const nextCount = Number(count || 1);
+  return nextCount === 1 ? "اطلب كرتونة" : `اطلب ${nextCount} كرتونة`;
+};
+
+const createPurchaseAlertScope = ({ product, scopeVariants = [], color = "", purchaseAlertByColor = false }) => {
+  const sizeMap = new Map();
+  let totalStock = 0;
+
+  for (const variant of scopeVariants) {
+    const size = normalizeSizeLabel(variant.size);
+    const stock = normalizePositiveStock(variant.stock);
+    totalStock += stock;
+    const existing = sizeMap.get(size) || { size, stock: 0 };
+    existing.stock += stock;
+    sizeMap.set(size, existing);
+  }
+
+  const sizeEntries = Array.from(sizeMap.values()).filter((entry) => normalizeText(entry.size));
+  const meaningfulSizeEntries = sizeEntries.filter((entry) => normalizeText(entry.size).toLowerCase() !== "one size");
+  const inspectEntries = meaningfulSizeEntries.length > 0 ? meaningfulSizeEntries : [];
+  const missingSizes = inspectEntries.filter((entry) => entry.stock <= 0).map((entry) => entry.size);
+  const cartonSize = Number(product.carton_size || 0);
+  const suggestedPurchaseCartons = Math.max(1, Number(product.suggested_purchase_cartons || 1));
+  const alertType = missingSizes.length > 0 ? "missing_sizes" : cartonSize > 0 && totalStock <= cartonSize ? "carton_threshold" : null;
+
+  if (!alertType) return null;
+
+  return {
+    product_id: product.product_id,
+    product_name: product.product_name,
+    color: purchaseAlertByColor ? normalizeColorLabel(color) : "",
+    purchase_alert_by_color: Boolean(purchaseAlertByColor),
+    image_url: buildPurchaseAlertImage({ product, variants: scopeVariants }),
+    alert_type: alertType,
+    alert_title: alertType === "missing_sizes" ? "مقاسات ناقصة" : "وصل لحد الكرتونة",
+    alert_reason:
+      alertType === "missing_sizes"
+        ? "تشكيلة المقاسات غير مكتملة"
+        : "إجمالي المخزون وصل لحد الكرتونة",
+    missing_sizes: alertType === "missing_sizes" ? missingSizes : [],
+    variant_ids: Array.from(
+      new Set(
+        scopeVariants
+          .map((variant) => normalizeIdValue(variant.variant_id))
+          .filter((value) => value !== null && value !== undefined)
+      )
+    ),
+    total_stock: totalStock,
+    carton_size: cartonSize > 0 ? cartonSize : null,
+    suggested_purchase_cartons: suggestedPurchaseCartons,
+    suggested_action: buildPurchaseAlertAction(suggestedPurchaseCartons),
+    brand_id: normalizeIdValue(product.brand_id),
+    brand_name: product.brand_name || "",
+    category_id: normalizeIdValue(product.category_id),
+    category_name: product.category_name || "",
+    manufacturer_id: normalizeIdValue(product.manufacturer_id || product.scope_manufacturer_id || null),
+    manufacturer_name: product.manufacturer_name || "",
+    scope_key: purchaseAlertByColor
+      ? `${product.product_id}:color:${normalizeColorLabel(color).toLowerCase()}`
+      : `${product.product_id}:model`,
+    scope_label: purchaseAlertByColor ? normalizeColorLabel(color) : product.product_name,
+  };
+};
+
+const sortPurchaseAlerts = (alerts = []) =>
+  [...alerts].sort((left, right) => {
+    const priority = (value) => (value === "missing_sizes" ? 0 : 1);
+    const leftPriority = priority(left.alert_type);
+    const rightPriority = priority(right.alert_type);
+    if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+    if (left.total_stock !== right.total_stock) return left.total_stock - right.total_stock;
+    return String(left.product_name || "").localeCompare(String(right.product_name || ""), "ar");
+  });
+
+const buildPurchaseAlertsFromRows = (rows = []) => {
+  const productMap = new Map();
+
+  for (const row of rows) {
+    const productId = Number(row.product_id || row.id || 0);
+    if (!Number.isFinite(productId) || productId <= 0) continue;
+    const current = productMap.get(productId) || {
+      product_id: productId,
+      product_name: row.product_name || row.name || "",
+      purchase_alerts_enabled: row.purchase_alerts_enabled === true || String(row.purchase_alerts_enabled || "").toLowerCase() === "true",
+      purchase_alert_by_color: row.purchase_alert_by_color === true || String(row.purchase_alert_by_color || "").toLowerCase() === "true",
+      carton_size: row.carton_size === null || row.carton_size === undefined || row.carton_size === "" ? null : Number(row.carton_size),
+      suggested_purchase_cartons:
+        Number.isFinite(Number(row.suggested_purchase_cartons)) && Number(row.suggested_purchase_cartons) >= 1
+          ? Math.floor(Number(row.suggested_purchase_cartons))
+          : 1,
+      image_url: firstImageUrl(row.product_image_url, row.image_url, row.image, row.photo_url, row.thumbnail_url),
+      brand_id: row.brand_id ?? null,
+      brand_name: row.brand_name || "",
+      category_id: row.category_id ?? null,
+      category_name: row.category_name || "",
+      manufacturer_id: row.manufacturer_id ?? row.scope_manufacturer_id ?? null,
+      manufacturer_name: row.manufacturer_name || "",
+      variants: [],
+      variant_ids: [],
+    };
+    if (row.variant_id) {
+      const normalizedVariantId = normalizeIdValue(row.variant_id);
+      if (normalizedVariantId !== null && normalizedVariantId !== undefined) {
+        current.variant_ids.push(normalizedVariantId);
+      }
+      current.variants.push({
+        variant_id: row.variant_id,
+        color: row.color || "",
+        size: row.size || "",
+        stock: normalizePositiveStock(row.stock),
+        image_url: firstImageUrl(row.variant_image_url, row.image_url, row.product_image_url),
+        manufacturer_id: row.variant_manufacturer_id ?? null,
+      });
+    }
+    if (!current.manufacturer_id && row.variant_manufacturer_id) {
+      current.manufacturer_id = row.variant_manufacturer_id;
+    }
+    if (!current.manufacturer_name && row.variant_manufacturer_name) {
+      current.manufacturer_name = row.variant_manufacturer_name;
+    }
+    productMap.set(productId, current);
+  }
+
+  const alerts = [];
+
+  for (const product of productMap.values()) {
+    if (!product.purchase_alerts_enabled) continue;
+
+    const variants = Array.isArray(product.variants) ? product.variants : [];
+    if (product.purchase_alert_by_color) {
+      const colorMap = new Map();
+      for (const variant of variants) {
+        const key = normalizeColorLabel(variant.color).toLowerCase();
+        const current = colorMap.get(key) || { color: normalizeColorLabel(variant.color), variants: [] };
+        current.variants.push(variant);
+        colorMap.set(key, current);
+      }
+
+      if (colorMap.size === 0) {
+        const alert = createPurchaseAlertScope({ product, scopeVariants: [], purchaseAlertByColor: true });
+        if (alert) alerts.push(alert);
+        continue;
+      }
+
+      for (const group of colorMap.values()) {
+        const alert = createPurchaseAlertScope({
+          product,
+          scopeVariants: group.variants,
+          color: group.color,
+          purchaseAlertByColor: true,
+        });
+        if (alert) alerts.push(alert);
+      }
+      continue;
+    }
+
+    const alert = createPurchaseAlertScope({
+      product,
+      scopeVariants: variants,
+      purchaseAlertByColor: false,
+    });
+    if (alert) alerts.push(alert);
+  }
+
+  return sortPurchaseAlerts(alerts);
+};
+
+const fetchPurchaseAlerts = async ({ tenantId }) => {
+  const result = await db.query(
+    `
+    SELECT
+      p.id AS product_id,
+      p.name AS product_name,
+      p.brand_id,
+      p.category_id,
+      p.manufacturer_id,
+      p.purchase_alerts_enabled,
+      p.purchase_alert_by_color,
+      p.carton_size,
+      p.suggested_purchase_cartons,
+      p.image_url AS product_image_url,
+      p.image,
+      p.photo_url,
+      p.thumbnail_url,
+      b.name AS brand_name,
+      c.name AS category_name,
+      m.name AS manufacturer_name,
+      v.id AS variant_id,
+      v.color,
+      v.size,
+      GREATEST(COALESCE(v.stock, 0), 0)::int AS stock,
+      COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS variant_image_url,
+      v.manufacturer_id AS variant_manufacturer_id,
+      vm.name AS variant_manufacturer_name
+    FROM products p
+    LEFT JOIN brands b ON b.id = p.brand_id
+    LEFT JOIN categories c ON c.id = p.category_id
+    LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
+    LEFT JOIN product_variants v ON v.product_id = p.id
+      AND v.is_active IS DISTINCT FROM FALSE
+      AND v.deleted_at IS NULL
+    LEFT JOIN manufacturers vm ON vm.id = v.manufacturer_id
+    WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint OR p.tenant_id IS NULL)
+      AND p.purchase_alerts_enabled IS TRUE
+      AND p.is_active IS DISTINCT FROM FALSE
+      AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
+    ORDER BY p.id DESC, v.color ASC NULLS LAST, v.size ASC NULLS LAST, v.id ASC
+    `,
+    [tenantId]
+  );
+  return buildPurchaseAlertsFromRows(result.rows || []);
+};
+
+const normalizeAlertSelectionKey = (row = {}) =>
+  String(row.scope_key || row.scopeKey || row.key || row.alert_key || `${row.product_id || ""}:${row.purchase_alert_by_color ? `color:${normalizeColorLabel(row.color || "").toLowerCase()}` : "model"}`).trim();
+
+const extractSelectedAlertRows = (body = {}) => {
+  const candidates = [body.selected_alerts, body.selectedAlerts, body.alerts, body.items, body.selection];
+  return candidates.find((value) => Array.isArray(value)) || [];
+};
+
+const normalizeDraftLabel = (value, fallback = "Smart Purchase Alerts") => {
+  const text = normalizeText(value);
+  return text || fallback;
+};
+
+const ensureDraftPurchaseSchema = async (client) => {
+  await client.query("ALTER TABLE IF EXISTS purchases ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb");
+  await client.query("ALTER TABLE IF EXISTS purchase_items ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb");
+};
+
+const ensureDraftSupplier = async (client, tenantId, supplierName = "") => {
+  const name = normalizeDraftLabel(supplierName, "Smart Purchase Alerts");
+  const existing = await client.query(
+    `
+    SELECT id
+    FROM suppliers
+    WHERE (tenant_id = $1 OR tenant_id IS NULL)
+      AND LOWER(TRIM(name)) = LOWER(TRIM($2))
+    ORDER BY id ASC
+    LIMIT 1
+    `,
+    [tenantId, name]
+  );
+  if (existing.rows[0]?.id) return existing.rows[0].id;
+
+  const created = await client.query(
+    `
+    INSERT INTO suppliers (tenant_id, name, status)
+    VALUES ($1, $2, 'active')
+    RETURNING id
+    `,
+    [tenantId, name]
+  );
+  return created.rows[0]?.id || null;
+};
+
+const getDefaultDraftWarehouseId = async (client, tenantId) => {
+  const result = await client.query(
+    `
+    SELECT id
+    FROM warehouses
+    WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint OR tenant_id IS NULL)
+    ORDER BY id ASC
+    LIMIT 1
+    `,
+    [tenantId]
+  );
+  return result.rows[0]?.id || null;
+};
+
+const buildPurchaseAlertDraftItem = (alert = {}) => {
+  const suggestedCartons = Math.max(1, Number(alert.suggested_purchase_cartons || 1));
+  const isColorScope = Boolean(alert.purchase_alert_by_color);
+  const variantIds = Array.isArray(alert.variant_ids)
+    ? alert.variant_ids.map((value) => normalizeIdValue(value)).filter((value) => value !== null && value !== undefined)
+    : [];
+  const primaryVariantId = isColorScope && variantIds.length === 1 ? variantIds[0] : null;
+  return {
+    product_id: alert.product_id,
+    variant_id: primaryVariantId,
+    quantity: suggestedCartons,
+    unit_cost: 0,
+    cost_price: 0,
+    total: 0,
+    color: isColorScope ? normalizeColorLabel(alert.color) : "",
+    size: "",
+    sku: "",
+    article_code: "",
+    image_url: alert.image_url || "",
+    product_name: alert.product_name || "",
+    supplier_id: alert.manufacturer_id || null,
+    supplier_name: alert.manufacturer_name || "",
+    metadata: {
+      source: "smart_purchase_alerts",
+      alert_scope: alert.purchase_alert_by_color ? "product_color" : "product_model",
+      scope_key: alert.scope_key,
+      scope_label: alert.scope_label,
+      alert_type: alert.alert_type,
+      alert_title: alert.alert_title,
+      alert_reason: alert.alert_reason,
+      missing_sizes: Array.isArray(alert.missing_sizes) ? alert.missing_sizes : [],
+      total_stock: Number(alert.total_stock || 0),
+      carton_size: alert.carton_size ?? null,
+      suggested_purchase_cartons: suggestedCartons,
+      purchase_alert_by_color: Boolean(alert.purchase_alert_by_color),
+      color: isColorScope ? normalizeColorLabel(alert.color) : "",
+      product_name: alert.product_name || "",
+      product_id: alert.product_id,
+      manufacturer_id: alert.manufacturer_id ?? null,
+      manufacturer_name: alert.manufacturer_name || "",
+      brand_id: alert.brand_id ?? null,
+      brand_name: alert.brand_name || "",
+      category_id: alert.category_id ?? null,
+      category_name: alert.category_name || "",
+      variant_ids: variantIds,
+    },
+  };
+};
+
+const buildPurchaseAlertDraftPayload = ({ alerts = [], purchase = null, supplier = null, warehouse = null }) => {
+  const items = alerts.map(buildPurchaseAlertDraftItem);
+  const totalSuggestedCartons = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const grouped = Array.from(
+    alerts.reduce((map, alert) => {
+      const groupKey = normalizeText(alert.manufacturer_name || alert.brand_name || "Unassigned");
+      const current = map.get(groupKey) || {
+        group_key: groupKey,
+        manufacturer_id: alert.manufacturer_id ?? null,
+        manufacturer_name: alert.manufacturer_name || "",
+        brand_id: alert.brand_id ?? null,
+        brand_name: alert.brand_name || "",
+        scope_keys: [],
+      };
+      current.scope_keys.push(alert.scope_key);
+      map.set(groupKey, current);
+      return map;
+    }, new Map()).values()
+  );
+
+  return {
+    source: "smart_purchase_alerts",
+    created_at: new Date().toISOString(),
+    supplier_id: supplier?.id ?? null,
+    supplier_name: supplier?.name || "",
+    warehouse_id: warehouse?.id ?? null,
+    warehouse_name: warehouse?.name || "",
+    status: purchase?.status || "draft",
+    payment_status: purchase?.payment_status || "unpaid",
+    subtotal: 0,
+    tax_amount: 0,
+    discount_amount: 0,
+    total: 0,
+    paid_amount: 0,
+    notes: "Smart purchase alerts draft",
+    items,
+    groups: grouped,
+    summary: {
+      selected_alerts: alerts.length,
+      suggested_cartons: totalSuggestedCartons,
+    },
+    metadata: {
+      source: "smart_purchase_alerts",
+      selected_alerts: alerts.map((alert) => ({
+        scope_key: alert.scope_key,
+        product_id: alert.product_id,
+        alert_type: alert.alert_type,
+        purchase_alert_by_color: Boolean(alert.purchase_alert_by_color),
+        color: alert.purchase_alert_by_color ? normalizeColorLabel(alert.color) : "",
+      })),
+      groups: grouped,
+    },
+  };
+};
+
 const ensureInventoryAlertProductColumns = async () => {
   await db.query(`
     ALTER TABLE IF EXISTS products
       ADD COLUMN IF NOT EXISTS low_stock_tracking_mode VARCHAR(30) NOT NULL DEFAULT 'variant',
       ADD COLUMN IF NOT EXISTS product_low_stock_threshold INTEGER NOT NULL DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS minimum_distinct_sizes_required INTEGER NOT NULL DEFAULT 0
+      ADD COLUMN IF NOT EXISTS minimum_distinct_sizes_required INTEGER NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS purchase_alerts_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      ADD COLUMN IF NOT EXISTS purchase_alert_by_color BOOLEAN NOT NULL DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS carton_size INTEGER NULL,
+      ADD COLUMN IF NOT EXISTS suggested_purchase_cartons INTEGER NOT NULL DEFAULT 1
   `);
   await db.query(`
     ALTER TABLE IF EXISTS product_variants
@@ -309,6 +727,257 @@ const getLowStockAlertsLegacy = async (req, res) => {
       message: "Failed to fetch low stock alerts",
       error: error.message,
     });
+  }
+};
+
+export const getPurchaseAlerts = async (req, res) => {
+  try {
+    await ensureInventoryAlertProductColumns();
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    let alerts = await fetchPurchaseAlerts({ tenantId });
+
+    const alertTypeFilter = String(req.query.alert_type || req.query.alertType || "").trim().toLowerCase();
+    const brandIdFilter = String(req.query.brand_id || req.query.brandId || "").trim();
+    const categoryIdFilter = String(req.query.category_id || req.query.categoryId || "").trim();
+    const manufacturerIdFilter = String(req.query.manufacturer_id || req.query.manufacturerId || "").trim();
+    const searchFilter = String(req.query.search || "").trim().toLowerCase();
+
+    if (alertTypeFilter && alertTypeFilter !== "all") {
+      alerts = alerts.filter((alert) => alert.alert_type === alertTypeFilter);
+    }
+    if (brandIdFilter) {
+      alerts = alerts.filter((alert) => String(alert.brand_id ?? "") === brandIdFilter);
+    }
+    if (categoryIdFilter) {
+      alerts = alerts.filter((alert) => String(alert.category_id ?? "") === categoryIdFilter);
+    }
+    if (manufacturerIdFilter) {
+      alerts = alerts.filter((alert) => String(alert.manufacturer_id ?? "") === manufacturerIdFilter);
+    }
+    if (searchFilter) {
+      alerts = alerts.filter((alert) =>
+        [alert.product_name, alert.color, alert.alert_title, alert.alert_reason, ...(Array.isArray(alert.missing_sizes) ? alert.missing_sizes : [])]
+          .join(" ")
+          .toLowerCase()
+          .includes(searchFilter)
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      alerts,
+      count: alerts.length,
+      groups: {
+        missing_sizes: alerts.filter((alert) => alert.alert_type === "missing_sizes").length,
+        carton_threshold: alerts.filter((alert) => alert.alert_type === "carton_threshold").length,
+      },
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch purchase alerts",
+      error: error.message,
+    });
+  }
+};
+
+export const createPurchaseAlertsDraft = async (req, res) => {
+  const client = await db.connect();
+
+  try {
+    await client.query("BEGIN");
+    await ensureInventoryAlertProductColumns();
+    await ensureDraftPurchaseSchema(client);
+
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    if (tenantId === null || tenantId === undefined) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        success: false,
+        message: "Tenant context is required to create a purchase draft",
+      });
+    }
+    const currentAlerts = await fetchPurchaseAlerts({ tenantId });
+    const currentAlertsByKey = new Map(currentAlerts.map((alert) => [normalizeAlertSelectionKey(alert), alert]));
+    const selectedRows = extractSelectedAlertRows(req.body);
+
+    if (!selectedRows.length) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        success: false,
+        message: "selected alerts are required",
+      });
+    }
+
+    const selectedAlerts = [];
+    for (const row of selectedRows) {
+      const key = normalizeAlertSelectionKey(row);
+      const alert = currentAlertsByKey.get(key);
+      if (!alert) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({
+          success: false,
+          message: "One or more selected alerts are no longer available",
+          invalid_scope_key: key || null,
+        });
+      }
+
+      if (row.product_id !== undefined && String(row.product_id) !== String(alert.product_id)) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          success: false,
+          message: "Selected alert product mismatch",
+        });
+      }
+
+      if (row.purchase_alert_by_color !== undefined && Boolean(row.purchase_alert_by_color) !== Boolean(alert.purchase_alert_by_color)) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          success: false,
+          message: "Selected alert scope mismatch",
+        });
+      }
+
+      if (alert.purchase_alert_by_color) {
+        const requestedColor = normalizeColorLabel(row.color || row.scope_label || "");
+        const alertColor = normalizeColorLabel(alert.color || alert.scope_label || "");
+        if (requestedColor && requestedColor.toLowerCase() !== alertColor.toLowerCase()) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({
+            success: false,
+            message: "Selected alert color mismatch",
+          });
+        }
+      }
+
+      const requestedVariantIds = Array.isArray(row.variant_ids)
+        ? row.variant_ids.map((value) => normalizeIdValue(value)).filter((value) => value !== null && value !== undefined)
+        : [];
+      if (requestedVariantIds.length && Array.isArray(alert.variant_ids) && alert.variant_ids.length) {
+        const alertVariantSet = new Set(alert.variant_ids.map((value) => String(value)));
+        const mismatch = requestedVariantIds.some((value) => !alertVariantSet.has(String(value)));
+        if (mismatch) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({
+            success: false,
+            message: "Selected alert variant mismatch",
+          });
+        }
+      }
+
+      selectedAlerts.push(alert);
+    }
+
+    const supplierLabel = normalizeDraftLabel(
+      selectedAlerts.map((alert) => alert.manufacturer_name || alert.brand_name).find(Boolean),
+      "Smart Purchase Alerts"
+    );
+    const supplierId = await ensureDraftSupplier(client, tenantId, supplierLabel);
+    const warehouseId = await getDefaultDraftWarehouseId(client, tenantId);
+    const draftLines = selectedAlerts.map(buildPurchaseAlertDraftItem);
+    const draftSubtotal = 0;
+    const draftPayload = buildPurchaseAlertDraftPayload({
+      alerts: selectedAlerts,
+      purchase: {
+        status: "draft",
+        payment_status: "unpaid",
+      },
+      supplier: { id: supplierId, name: supplierLabel },
+      warehouse: warehouseId ? { id: warehouseId, name: "" } : null,
+    });
+
+    const purchaseResult = await client.query(
+      `
+      INSERT INTO purchases (
+        tenant_id,
+        supplier_id,
+        warehouse_id,
+        status,
+        payment_status,
+        subtotal,
+        tax_amount,
+        discount_amount,
+        total,
+        paid_amount,
+        notes,
+        created_by,
+        metadata
+      )
+      VALUES ($1, $2, $3, 'draft', 'unpaid', $4, 0, 0, $4, 0, $5, $6, $7::jsonb)
+      RETURNING *
+      `,
+      [
+        tenantId,
+        supplierId,
+        warehouseId,
+        draftSubtotal,
+        "Smart purchase alerts draft",
+        req.user?.id || null,
+        JSON.stringify({
+          ...draftPayload.metadata,
+          source: "smart_purchase_alerts",
+        }),
+      ]
+    );
+    const purchase = purchaseResult.rows[0] || null;
+    if (!purchase?.id) {
+      throw new Error("Failed to create purchase draft");
+    }
+
+    for (const line of draftLines) {
+      await client.query(
+        `
+        INSERT INTO purchase_items (
+          tenant_id,
+          purchase_id,
+          product_id,
+          variant_id,
+          quantity,
+          cost_price,
+          total,
+          metadata
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+        `,
+        [
+          tenantId,
+          purchase.id,
+          line.product_id ?? null,
+          line.variant_id ?? null,
+          Number(line.quantity || 1),
+          Number(line.cost_price || 0),
+          Number(line.total || 0),
+          JSON.stringify(line.metadata || {}),
+        ]
+      );
+    }
+
+    await client.query("COMMIT");
+
+    return res.status(201).json({
+      success: true,
+      message: "Purchase draft created",
+      draft_id: purchase.id,
+      purchase,
+      items: draftLines,
+      draft_payload: buildPurchaseAlertDraftPayload({
+        alerts: selectedAlerts,
+        purchase,
+        supplier: { id: supplierId, name: supplierLabel },
+        warehouse: warehouseId ? { id: warehouseId, name: "" } : null,
+      }),
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create purchase draft",
+      error: error.message,
+    });
+  } finally {
+    client.release();
   }
 };
 

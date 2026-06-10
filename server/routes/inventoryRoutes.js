@@ -5,6 +5,8 @@ import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 
 import {
+  createPurchaseAlertsDraft,
+  getPurchaseAlerts,
   getInventoryHistory,
   getInventoryMovementsLedger,
   getLowStockAlerts,
@@ -38,6 +40,20 @@ router.post(
   protect,
   permit("inventory", "movements:undo"),
   undoInventoryMovementById
+);
+
+router.get(
+  "/purchase-alerts",
+  protect,
+  permit("inventory", "alerts:view"),
+  getPurchaseAlerts
+);
+
+router.post(
+  "/purchase-alerts/purchase-draft",
+  protect,
+  permit("inventory", "create"),
+  createPurchaseAlertsDraft
 );
 
 router.get(

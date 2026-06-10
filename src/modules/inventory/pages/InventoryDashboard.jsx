@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import {
   AlertTriangle,
   Clock3,
+  Filter,
   Layers3,
   Package,
   Search,
@@ -46,23 +47,36 @@ const resolveImageUrl = (value) => {
   return `/uploads/products/${imageUrl}`;
 };
 
+const SMART_PURCHASE_DRAFT_STORAGE_KEY = "erp.purchases.smartPurchaseDraft";
+
 function InventoryDashboard() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [variants, setVariants] = useState([]);
   const [lowStockAlerts, setLowStockAlerts] = useState([]);
+  const [purchaseAlerts, setPurchaseAlerts] = useState([]);
+  const [selectedAlertKeys, setSelectedAlertKeys] = useState([]);
+  const [creatingPurchaseDraft, setCreatingPurchaseDraft] = useState(false);
   const [warehouses, setWarehouses] = useState(seedWarehouses());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [purchaseAlertFilters, setPurchaseAlertFilters] = useState({
+    brand: "all",
+    category: "all",
+    manufacturer: "all",
+    alertType: "all",
+  });
 
   const loadData = async () => {
     try {
       setLoading(true);
       setError("");
-      const [variantsRes, warehousesRes, alertsRes] = await Promise.allSettled([
+      const [variantsRes, warehousesRes, alertsRes, purchaseAlertsRes] = await Promise.allSettled([
         api.get("/variants-inventory?limit=200&page=1"),
         api.get("/warehouses"),
         api.get("/inventory/low-stock"),
+        api.get("/inventory/purchase-alerts"),
       ]);
 
       if (variantsRes.status === "fulfilled") {
@@ -81,6 +95,14 @@ function InventoryDashboard() {
       } else {
         console.error("[inventory] failed to load low stock alerts:", alertsRes.reason);
         setLowStockAlerts([]);
+      }
+
+      if (purchaseAlertsRes?.status === "fulfilled") {
+        const rows = Array.isArray(purchaseAlertsRes.value?.alerts) ? purchaseAlertsRes.value.alerts : [];
+        setPurchaseAlerts(rows);
+      } else {
+        console.error("[inventory] failed to load purchase alerts:", purchaseAlertsRes?.reason);
+        setPurchaseAlerts([]);
       }
     } catch (err) {
       console.log(err);
@@ -112,6 +134,99 @@ function InventoryDashboard() {
       `${variant.product_name} ${variant.color} ${variant.size} ${variant.sku}`.toLowerCase().includes(query)
     );
   }, [variants, search]);
+
+  const purchaseAlertOptions = useMemo(() => {
+    const unique = (rows, key) => ["all", ...new Set(rows.map((row) => String(row?.[key] ?? "").trim()).filter(Boolean))];
+
+    return {
+      brands: unique(purchaseAlerts, "brand_name"),
+      categories: unique(purchaseAlerts, "category_name"),
+      manufacturers: unique(purchaseAlerts, "manufacturer_name"),
+    };
+  }, [purchaseAlerts]);
+
+  const filteredPurchaseAlerts = useMemo(() => {
+    return purchaseAlerts.filter((alert) => {
+      if (purchaseAlertFilters.alertType !== "all" && alert.alert_type !== purchaseAlertFilters.alertType) return false;
+      if (purchaseAlertFilters.brand !== "all" && String(alert.brand_name || "") !== purchaseAlertFilters.brand) return false;
+      if (purchaseAlertFilters.category !== "all" && String(alert.category_name || "") !== purchaseAlertFilters.category) return false;
+      if (purchaseAlertFilters.manufacturer !== "all" && String(alert.manufacturer_name || "") !== purchaseAlertFilters.manufacturer) return false;
+      return true;
+    });
+  }, [purchaseAlerts, purchaseAlertFilters]);
+
+  const purchaseAlertGroups = useMemo(() => {
+    const missingSizes = filteredPurchaseAlerts.filter((alert) => alert.alert_type === "missing_sizes");
+    const cartonThreshold = filteredPurchaseAlerts.filter((alert) => alert.alert_type === "carton_threshold");
+    return { missingSizes, cartonThreshold };
+  }, [filteredPurchaseAlerts]);
+
+  const selectedAlerts = useMemo(
+    () => purchaseAlerts.filter((alert) => selectedAlertKeys.includes(String(alert.scope_key || ""))),
+    [purchaseAlerts, selectedAlertKeys]
+  );
+
+  const selectedVisibleAlerts = useMemo(
+    () => filteredPurchaseAlerts.filter((alert) => selectedAlertKeys.includes(String(alert.scope_key || ""))),
+    [filteredPurchaseAlerts, selectedAlertKeys]
+  );
+
+  const allVisibleSelected = filteredPurchaseAlerts.length > 0 && selectedVisibleAlerts.length === filteredPurchaseAlerts.length;
+
+  const toggleAlertSelection = (alert) => {
+    const key = String(alert.scope_key || "");
+    if (!key) return;
+    setSelectedAlertKeys((current) =>
+      current.includes(key) ? current.filter((item) => item !== key) : [...current, key]
+    );
+  };
+
+  const selectAllVisibleAlerts = () => {
+    const keys = filteredPurchaseAlerts.map((alert) => String(alert.scope_key || "")).filter(Boolean);
+    if (!keys.length) return;
+    setSelectedAlertKeys((current) => Array.from(new Set([...current, ...keys])));
+  };
+
+  const clearSelectedAlerts = () => setSelectedAlertKeys([]);
+
+  const handleCreatePurchaseDraft = async () => {
+    if (!selectedAlerts.length || creatingPurchaseDraft) return;
+    setCreatingPurchaseDraft(true);
+    try {
+      const response = await api.post("/inventory/purchase-alerts/purchase-draft", {
+        selected_alerts: selectedAlerts.map((alert) => ({
+          scope_key: alert.scope_key,
+          product_id: alert.product_id,
+          alert_type: alert.alert_type,
+          purchase_alert_by_color: alert.purchase_alert_by_color,
+          color: alert.color,
+          variant_ids: alert.variant_ids,
+        })),
+      });
+
+      const draftId = response?.draft_id || response?.purchase?.id || response?.purchase?.purchase_id || null;
+      if (draftId) {
+        toast.success(t("inventory.purchaseAlerts.messages.draftCreated"));
+        navigate(`/purchases/${draftId}/edit`);
+        return;
+      }
+
+      const draftPayload = response?.draft_payload || response?.purchase || response?.data || null;
+      if (draftPayload) {
+        window.localStorage.setItem(SMART_PURCHASE_DRAFT_STORAGE_KEY, JSON.stringify(draftPayload));
+        toast.success(t("inventory.purchaseAlerts.messages.draftQueued"));
+        navigate("/purchases/create", { state: { purchaseDraftPayload: draftPayload } });
+        return;
+      }
+
+      toast.success(t("inventory.purchaseAlerts.messages.draftQueued"));
+      navigate("/purchases/create");
+    } catch (error) {
+      toast.error(error?.responseBody?.message || error?.message || t("inventory.purchaseAlerts.messages.draftFailed"));
+    } finally {
+      setCreatingPurchaseDraft(false);
+    }
+  };
 
   return (
     <InventoryShell
@@ -151,6 +266,218 @@ function InventoryDashboard() {
         <Kpi label={t("inventory.kpis.inboundMoves")} value={kpis.inbound} tone="emerald" />
         <Kpi label={t("inventory.kpis.outboundMoves")} value={kpis.outbound} tone="rose" />
       </div>
+
+      <section className="rounded-3xl border border-amber-400/15 bg-gradient-to-br from-amber-400/10 via-white/[0.03] to-orange-400/10 p-4 shadow-2xl shadow-black/10">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-amber-200" />
+              <h3 className="text-xl font-black text-white">{t("inventory.purchaseAlerts.title")}</h3>
+            </div>
+            <p className="mt-1 text-sm text-zinc-400">{t("inventory.purchaseAlerts.subtitle")}</p>
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="rounded-full border border-amber-300/25 bg-amber-500/10 px-3 py-1 text-xs font-black text-amber-100">
+              {selectedVisibleAlerts.length}/{filteredPurchaseAlerts.length}
+            </div>
+            <button
+              type="button"
+              onClick={selectAllVisibleAlerts}
+              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={!filteredPurchaseAlerts.length || allVisibleSelected}
+            >
+              {t("inventory.purchaseAlerts.actions.selectVisible")}
+            </button>
+            <button
+              type="button"
+              onClick={clearSelectedAlerts}
+              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-black text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={!selectedAlertKeys.length}
+            >
+              {t("inventory.purchaseAlerts.actions.clearSelection")}
+            </button>
+            <button
+              type="button"
+              onClick={handleCreatePurchaseDraft}
+              disabled={!selectedAlerts.length || creatingPurchaseDraft}
+              className="inline-flex items-center gap-2 rounded-full bg-emerald-400 px-4 py-2 text-xs font-black text-black transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:bg-emerald-400/35 disabled:text-black/50"
+            >
+              {creatingPurchaseDraft ? t("inventory.purchaseAlerts.actions.creating") : t("inventory.purchaseAlerts.actions.createDraft")}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <label className="space-y-2">
+            <span className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+              {t("inventory.purchaseAlerts.filters.brand")}
+            </span>
+            <select
+              value={purchaseAlertFilters.brand}
+              onChange={(event) => setPurchaseAlertFilters((current) => ({ ...current, brand: event.target.value }))}
+              className="h-11 w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-3 text-sm text-white outline-none"
+            >
+              {purchaseAlertOptions.brands.map((value) => (
+                <option key={value} value={value}>
+                  {value === "all" ? t("inventory.purchaseAlerts.filters.all") : value}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-2">
+            <span className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+              {t("inventory.purchaseAlerts.filters.category")}
+            </span>
+            <select
+              value={purchaseAlertFilters.category}
+              onChange={(event) => setPurchaseAlertFilters((current) => ({ ...current, category: event.target.value }))}
+              className="h-11 w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-3 text-sm text-white outline-none"
+            >
+              {purchaseAlertOptions.categories.map((value) => (
+                <option key={value} value={value}>
+                  {value === "all" ? t("inventory.purchaseAlerts.filters.all") : value}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-2">
+            <span className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+              {t("inventory.purchaseAlerts.filters.manufacturer")}
+            </span>
+            <select
+              value={purchaseAlertFilters.manufacturer}
+              onChange={(event) => setPurchaseAlertFilters((current) => ({ ...current, manufacturer: event.target.value }))}
+              className="h-11 w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-3 text-sm text-white outline-none"
+            >
+              {purchaseAlertOptions.manufacturers.map((value) => (
+                <option key={value} value={value}>
+                  {value === "all" ? t("inventory.purchaseAlerts.filters.all") : value}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-2">
+            <span className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+              {t("inventory.purchaseAlerts.filters.alertType")}
+            </span>
+            <select
+              value={purchaseAlertFilters.alertType}
+              onChange={(event) => setPurchaseAlertFilters((current) => ({ ...current, alertType: event.target.value }))}
+              className="h-11 w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-3 text-sm text-white outline-none"
+            >
+              <option value="all">{t("inventory.purchaseAlerts.filters.all")}</option>
+              <option value="missing_sizes">{t("inventory.purchaseAlerts.groups.missing_sizes")}</option>
+              <option value="carton_threshold">{t("inventory.purchaseAlerts.groups.carton_threshold")}</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="mt-5 space-y-6">
+          {[
+            { key: "missing_sizes", title: t("inventory.purchaseAlerts.groups.missing_sizes"), items: purchaseAlertGroups.missingSizes },
+            { key: "carton_threshold", title: t("inventory.purchaseAlerts.groups.carton_threshold"), items: purchaseAlertGroups.cartonThreshold },
+          ].map((group) => (
+            <div key={group.key} className="rounded-3xl border border-white/10 bg-zinc-950/70 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h4 className="text-lg font-black text-white">{group.title}</h4>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-black text-zinc-200">
+                  {group.items.length}
+                </span>
+              </div>
+
+              {group.items.length > 0 ? (
+                <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                  {group.items.map((alert) => {
+                    const imageUrl = resolveImageUrl(alert.image_url);
+                    const cardColor = alert.purchase_alert_by_color ? alert.color : "";
+                    const selected = selectedAlertKeys.includes(String(alert.scope_key || ""));
+                    return (
+                      <div
+                        key={String(alert.scope_key)}
+                        className={`relative rounded-2xl border p-4 shadow-[0_16px_40px_rgba(0,0,0,0.18)] transition ${
+                          selected ? "border-emerald-400/40 bg-emerald-500/10" : "border-white/10 bg-white/[0.04]"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleAlertSelection(alert)}
+                          className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-zinc-950/80 text-white transition hover:border-emerald-400/40 hover:bg-emerald-500/15"
+                          aria-pressed={selected}
+                          aria-label={selected ? t("inventory.purchaseAlerts.actions.deselectAlert") : t("inventory.purchaseAlerts.actions.selectAlert")}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => toggleAlertSelection(alert)}
+                            onClick={(event) => event.stopPropagation()}
+                            className="h-4 w-4 accent-emerald-400"
+                          />
+                        </button>
+                        <div className="flex gap-3">
+                          <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-zinc-950">
+                            {imageUrl ? (
+                              <img src={imageUrl} alt={alert.product_name} className="h-full w-full object-contain p-2" />
+                            ) : (
+                              <Package className="h-8 w-8 text-zinc-500" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="truncate text-base font-black text-white">{alert.product_name}</div>
+                                {cardColor ? <div className="mt-1 text-sm font-semibold text-amber-100">{cardColor}</div> : null}
+                              </div>
+                              <span className="rounded-full border border-amber-300/25 bg-amber-500/10 px-2.5 py-1 text-[11px] font-black text-amber-100">
+                                {alert.alert_title}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-zinc-300">{alert.alert_reason}</p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                          <MetaPill label={t("inventory.purchaseAlerts.cards.totalStock")} value={String(alert.total_stock ?? 0)} />
+                          <MetaPill label={t("inventory.purchaseAlerts.cards.cartonSize")} value={alert.carton_size ? String(alert.carton_size) : "—"} />
+                          <MetaPill label={t("inventory.purchaseAlerts.cards.suggestedCartons")} value={alert.suggested_action || `اطلب ${alert.suggested_purchase_cartons || 1} كرتونة`} />
+                          <MetaPill label={t("inventory.purchaseAlerts.cards.alertType")} value={alert.alert_title} />
+                        </div>
+
+                        {Array.isArray(alert.missing_sizes) && alert.missing_sizes.length > 0 ? (
+                          <div className="mt-4">
+                            <div className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+                              {t("inventory.purchaseAlerts.cards.missingSizes")}
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {alert.missing_sizes.map((size) => (
+                                <span key={`${alert.scope_key}-${size}`} className="rounded-full border border-rose-400/25 bg-rose-500/10 px-3 py-1 text-xs font-black text-rose-100">
+                                  {size}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+
+                        <div className="mt-4 flex justify-end">
+                          <Link
+                            to={`/purchases/reorder-suggestions?product_id=${encodeURIComponent(String(alert.product_id || ""))}`}
+                            className="inline-flex items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-black text-emerald-100 transition hover:bg-emerald-500/15"
+                          >
+                            {t("inventory.purchaseAlerts.cards.viewSuggestions")}
+                          </Link>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="mt-4 rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-center text-sm text-zinc-400">
+                  {t("inventory.purchaseAlerts.empty")}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
@@ -364,6 +691,15 @@ function Kpi({ label, value, tone = "zinc" }) {
     <div className={`rounded-3xl border p-4 shadow-xl ${classes[tone]}`}>
       <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
       <div className="mt-2 text-2xl font-black text-white">{value}</div>
+    </div>
+  );
+}
+
+function MetaPill({ label, value }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-zinc-950/50 px-3 py-2">
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">{label}</div>
+      <div className="mt-1 text-sm font-black text-white">{value}</div>
     </div>
   );
 }
