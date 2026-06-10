@@ -644,10 +644,17 @@ export default function ManagerPortal() {
   const socketRef = useRef(null);
   const notificationPanelRef = useRef(null);
   const notificationButtonRef = useRef(null);
+  const liveFeedSectionRef = useRef(null);
+  const stockAlertsSectionRef = useRef(null);
   const selectedTabRef = useRef(activeTab);
   const settingsRef = useRef(settings);
   const browserNotificationPermissionRef = useRef(browserNotificationPermission);
   const openedInvoiceQueryRef = useRef("");
+
+  const scrollToManagerSection = (ref) => {
+    if (!isBrowser()) return;
+    ref?.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  };
 
   useEffect(() => {
     selectedTabRef.current = activeTab;
@@ -2058,32 +2065,106 @@ export default function ManagerPortal() {
                 </>
               )}
 
+              {isMobilePortal ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => scrollToManagerSection(liveFeedSectionRef)}
+                    className="manager-portal-quick-card flex min-h-[4.75rem] items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-[#0b1120] px-3 py-2.5 text-right text-white shadow-[0_12px_24px_rgba(2,6,23,0.18)]"
+                  >
+                    <div className="min-w-0 text-right">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">الإشعارات المباشرة</div>
+                      <div className="mt-1 truncate text-sm font-black leading-5 text-white">تنبيهات</div>
+                    </div>
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-950 text-[11px] font-black text-white">
+                      {formatNumber(visibleLiveFeed.length || 0)}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollToManagerSection(stockAlertsSectionRef)}
+                    className="manager-portal-quick-card flex min-h-[4.75rem] items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-[#0b1120] px-3 py-2.5 text-right text-white shadow-[0_12px_24px_rgba(2,6,23,0.18)]"
+                  >
+                    <div className="min-w-0 text-right">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">تنبيهات المخزون</div>
+                      <div className="mt-1 truncate text-sm font-black leading-5 text-white">عرض</div>
+                    </div>
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-950 text-[11px] font-black text-white">
+                      {formatNumber((mobileAlertBuckets.refillAlerts.length || 0) + (mobileAlertBuckets.lowStock.length || 0))}
+                    </span>
+                  </button>
+                </div>
+              ) : null}
+
               {mobileAlertBuckets.operationalEvents.length || !isMobilePortal ? (
-                <Card title="الأحداث التشغيلية" subtitle="آخر ٥ أحداث" icon={Bell}>
-                  {mobileAlertBuckets.operationalEvents.length ? (
+                <section ref={liveFeedSectionRef} className="scroll-mt-28">
+                  <Card title="الإشعارات المباشرة" subtitle="آخر ٥ تنبيهات" icon={Bell} compact bodyClassName="space-y-2">
+                    {mobileAlertBuckets.operationalEvents.length ? (
+                      <div className="space-y-2">
+                        {mobileAlertBuckets.operationalEvents.map((event) => (
+                          <button
+                            key={event.key}
+                            type="button"
+                            onClick={() => event.kind === "invoice" && event.invoiceId ? void openInvoiceDetail(event.invoiceId) : undefined}
+                            className="flex w-full items-start justify-between gap-3 rounded-2xl border border-slate-800 bg-[#0f172a] px-3 py-3 text-right transition hover:border-slate-700 hover:shadow-sm"
+                          >
+                            <div className="min-w-0">
+                              <div className="text-sm font-black text-white">{event.title}</div>
+                              <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-400">{event.detail || "لا توجد تفاصيل إضافية"}</div>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              {event.kind ? <div className="mb-1 flex justify-end"><span className={`rounded-full border px-2 py-1 text-[10px] font-black ${event.kind === "invoice" ? "border-cyan-400/20 bg-cyan-400/10 text-cyan-200" : event.tone === "amber" ? "border-cyan-400/20 bg-cyan-400/10 text-cyan-200" : event.tone === "red" ? "border-cyan-400/20 bg-cyan-400/10 text-cyan-200" : "border-slate-700 bg-slate-900 text-slate-200"}`}>{event.kind === "invoice" ? "فاتورة" : event.kind === "lead" ? "عميل" : event.kind === "task" ? "مهمة" : "حدث"}</span></div> : null}
+                              <StatusPill tone={event.tone || "slate"} value={formatDateTime(event.timestamp)} />
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyState compact title="لا توجد إشعارات بعد" body="ستظهر هنا الفواتير والمهام والتنبيهات المباشرة فور وصولها." />
+                    )}
+                  </Card>
+                </section>
+              ) : null}
+
+              {mobileAlertBuckets.lowStock.length || mobileAlertBuckets.refillAlerts.length ? (
+                <section ref={stockAlertsSectionRef} className="scroll-mt-28">
+                  <Card title="تنبيهات المخزون" subtitle="إعادة العرض والمخزون المنخفض" icon={Package} compact bodyClassName="space-y-2">
                     <div className="space-y-2">
-                    {mobileAlertBuckets.operationalEvents.map((event) => (
-                      <button
-                        key={event.key}
-                        type="button"
-                        onClick={() => event.kind === "invoice" && event.invoiceId ? void openInvoiceDetail(event.invoiceId) : undefined}
-                        className="flex w-full items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-right transition hover:border-slate-300 hover:shadow-sm"
-                      >
-                        <div className="min-w-0">
-                          <div className="text-sm font-black text-slate-950 dark:text-white">{event.title}</div>
-                          <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">{event.detail || "لا توجد تفاصيل إضافية"}</div>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          {event.kind ? <div className="mb-1 flex justify-end"><span className={`rounded-full border px-2 py-1 text-[10px] font-black ${event.kind === "invoice" ? "border-emerald-200 bg-white text-emerald-700" : event.tone === "amber" ? "border-amber-200 bg-white text-amber-800" : event.tone === "red" ? "border-rose-200 bg-white text-rose-700" : "border-slate-200 bg-white text-slate-700"}`}>{event.kind === "invoice" ? "فاتورة" : event.kind === "lead" ? "عميل" : event.kind === "task" ? "مهمة" : "حدث"}</span></div> : null}
-                          <StatusPill tone={event.tone || "slate"} value={formatDateTime(event.timestamp)} />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                  ) : (
-                    <EmptyState compact title="لا توجد أحداث بعد" body="ستظهر هنا الفواتير والمهام والعملاء الساخنون وتنبيهات إعادة العرض." />
-                  )}
-                </Card>
+                      {mobileAlertBuckets.refillAlerts.slice(0, 3).map((alert) => (
+                        <button
+                          key={`refill-${alert.id}`}
+                          type="button"
+                          onClick={openInventoryApprovals}
+                          className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-[#0f172a] px-3 py-3 text-right transition hover:border-slate-700 hover:shadow-sm"
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate font-black text-white">إعادة عرض منتج: <InlineName>{portalText(alert.product_name || "منتج")}</InlineName></div>
+                            <div className="mt-1 truncate text-xs font-bold text-slate-400">{portalText(alert.color_name || alert.color || "")} {alert.replacement_size ? `· ${portalText(alert.replacement_size)}` : ""}</div>
+                          </div>
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-950 text-[11px] font-black text-white">
+                            {formatNumber(1)}
+                          </span>
+                        </button>
+                      ))}
+                      {mobileAlertBuckets.lowStock.slice(0, 3).map((item) => (
+                        <button
+                          key={`low-${item.id}-${item.name}`}
+                          type="button"
+                          onClick={openInventoryApprovals}
+                          className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-[#0f172a] px-3 py-3 text-right transition hover:border-slate-700 hover:shadow-sm"
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate font-black text-white">مطلوب إعادة طلب: <InlineName>{portalText(item.name || "منتج")}</InlineName></div>
+                            <div className="mt-1 text-xs font-bold text-slate-400">{formatNumber(item.stock || 0)} قطعة متبقية</div>
+                          </div>
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-950 text-[11px] font-black text-white">
+                            {formatNumber(item.stock || 0)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </Card>
+                </section>
               ) : null}
 
               <Card title="توزيع الدفع" subtitle="توزيع الدفع" icon={ArrowLeftRight}>
@@ -2101,26 +2182,7 @@ export default function ManagerPortal() {
                 )}
               </Card>
 
-              {mobileAlertBuckets.lowStock.length || mobileAlertBuckets.refillAlerts.length ? (
-                <Card title="تنبيهات المخزون" subtitle="تنبيهات المخزون" icon={Package}>
-                  <div className="space-y-2">
-                    {mobileAlertBuckets.refillAlerts.slice(0, 3).map((alert) => (
-                      <div key={`refill-${alert.id}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800">
-                        <div className="font-black text-slate-950">إعادة عرض منتج: <InlineName>{portalText(alert.product_name || "منتج")}</InlineName></div>
-                        <div className="mt-1 text-xs font-bold text-slate-500">{portalText(alert.color_name || alert.color || "")} {alert.replacement_size ? `· ${portalText(alert.replacement_size)}` : ""}</div>
-                      </div>
-                    ))}
-                    {mobileAlertBuckets.lowStock.slice(0, 3).map((item) => (
-                      <div key={`low-${item.id}-${item.name}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800">
-                        <div className="font-black text-slate-950">مطلوب إعادة طلب: <InlineName>{portalText(item.name || "منتج")}</InlineName></div>
-                        <div className="mt-1 text-xs font-bold text-slate-500">{formatNumber(item.stock || 0)} قطعة متبقية</div>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              ) : null}
-
-              {mobileAlertBuckets.aiInsights.length ? (
+              {false && mobileAlertBuckets.aiInsights.length ? (
                 <Card title="رؤى الذكاء الاصطناعي" subtitle="التحليلات الذكية" icon={Bot}>
                   <div className="grid gap-2 md:grid-cols-2">
                     {mobileAlertBuckets.aiInsights.map((item, index) => (
