@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import {
@@ -17,6 +17,7 @@ import { api } from "../../../shared/api/api";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import InventoryShell from "../components/InventoryShell";
 import { formatDateTime } from "../../purchases/lib/flowStore";
+import { getProductsWithVariants } from "../../products/services/productsApi";
 
 const ROW_COUNT_OPTIONS = [50, 100, 200, 500];
 
@@ -103,6 +104,75 @@ const buildMovementSearchText = (movement = {}) =>
     .map((value) => normalizeText(value).toLowerCase())
     .join(" ");
 
+const getVariantStock = (variant = {}) =>
+  Math.max(
+    0,
+    Number(
+      variant.stock ??
+        variant.stock_quantity ??
+        variant.stockQty ??
+        variant.available_stock ??
+        variant.available_quantity ??
+        variant.inventory_quantity ??
+        variant.current_stock ??
+        variant.quantity ??
+        0
+    ) || 0
+  );
+
+const normalizeVariantText = (value = "") => normalizeText(value);
+
+const buildProductStockRows = (product = {}, sourceRows = []) => {
+  const nestedVariants = Array.isArray(product?.product?.variants)
+    ? product.product.variants
+    : Array.isArray(product?.variants)
+      ? product.variants
+      : Array.isArray(product?.product_variants)
+        ? product.product_variants
+        : [];
+
+  const productId = product?.product_id ?? product?.id ?? product?.product?.id ?? null;
+  const fallbackVariants = !nestedVariants.length && Array.isArray(sourceRows)
+    ? sourceRows.filter((row) => String(row.product_id ?? row.id ?? row.product?.id ?? "") === String(productId || "") && String(row.variant_id ?? row.id ?? "") !== String(productId || ""))
+    : [];
+
+  const flattenedVariants = [...nestedVariants, ...fallbackVariants]
+    .map((variant) => {
+      const resolved = variant?.variant || variant || {};
+      const color = normalizeVariantText(resolved.color || resolved.color_name || resolved.variant_color || "");
+      const size = normalizeVariantText(resolved.size || resolved.size_name || resolved.variant_size || "");
+      const stock = getVariantStock(resolved);
+
+      if (!color && !size && stock === 0) return null;
+
+      return {
+        color,
+        size,
+        stock,
+        key: `${color || "color"}::${size || "size"}`,
+      };
+    })
+    .filter(Boolean);
+
+  const groups = new Map();
+  for (const row of flattenedVariants) {
+    const current = groups.get(row.key);
+    if (!current) {
+      groups.set(row.key, { ...row });
+      continue;
+    }
+    current.stock += row.stock;
+  }
+
+  const rows = Array.from(groups.values()).sort((left, right) => {
+    const colorCompare = left.color.localeCompare(right.color);
+    if (colorCompare !== 0) return colorCompare;
+    return left.size.localeCompare(right.size);
+  });
+
+  return rows;
+};
+
 function StockMovements() {
   const [search, setSearch] = useState("");
   const [movementType, setMovementType] = useState("");
@@ -113,10 +183,12 @@ function StockMovements() {
   const [error, setError] = useState("");
   const [movements, setMovements] = useState([]);
   const [expandedGroups, setExpandedGroups] = useState([]);
+  const [productSnapshots, setProductSnapshots] = useState({});
   const [activeVariant, setActiveVariant] = useState(null);
   const [variantHistoryLoading, setVariantHistoryLoading] = useState(false);
   const [variantHistoryError, setVariantHistoryError] = useState("");
   const [variantHistoryMovements, setVariantHistoryMovements] = useState([]);
+  const snapshotCacheRef = useRef(new Map());
 
   useEffect(() => {
     let alive = true;
@@ -154,6 +226,75 @@ function StockMovements() {
       window.clearTimeout(timer);
     };
   }, [category, grade, movementType, rowCount, search]);
+
+  useEffect(() => {
+    let alive = true;
+
+    const loadSnapshots = async () => {
+      const pendingGroups = groupedMovements.filter((group) => expandedGroups.includes(group.key) && group.product_id);
+      const missingGroups = pendingGroups.filter((group) => !snapshotCacheRef.current.has(String(group.product_id)));
+      if (!missingGroups.length) return;
+
+      await Promise.all(
+        missingGroups.map(async (group) => {
+          const cacheKey = String(group.product_id);
+          snapshotCacheRef.current.set(cacheKey, { loading: true, rows: [], error: "" });
+          setProductSnapshots((current) => ({
+            ...current,
+            [cacheKey]: { loading: true, rows: [], error: "" },
+          }));
+
+          try {
+            const response = await getProductsWithVariants({
+              params: {
+                productId: String(group.product_id),
+                refresh: Date.now(),
+              },
+            });
+
+            if (!alive) return;
+
+            const rows = Array.isArray(response) ? response : [];
+            const matchedRow =
+              rows.find((row) => String(row.product_id ?? row.id ?? row.product?.id) === cacheKey) ||
+              rows.find((row) => String(row.id ?? row.product?.id) === cacheKey) ||
+              null;
+            const stockRows = buildProductStockRows(matchedRow || group, rows);
+            const snapshot = {
+              loading: false,
+              error: "",
+              rows: stockRows,
+            };
+            snapshotCacheRef.current.set(cacheKey, snapshot);
+            setProductSnapshots((current) => ({
+              ...current,
+              [cacheKey]: snapshot,
+            }));
+          } catch (error) {
+            if (!alive) return;
+            const snapshot = {
+              loading: false,
+              error: error?.message || "Failed to load current stock snapshot",
+              rows: buildProductStockRows(group),
+            };
+            snapshotCacheRef.current.set(cacheKey, snapshot);
+            setProductSnapshots((current) => ({
+              ...current,
+              [cacheKey]: snapshot,
+            }));
+          }
+        })
+      );
+    };
+
+    if (groupedMovements.length && expandedGroups.length) {
+      loadSnapshots();
+    }
+
+    return () => {
+      alive = false;
+    };
+  }, [expandedGroups, groupedMovements]);
 
   const groupedMovements = useMemo(() => {
     const groups = new Map();
@@ -461,6 +602,12 @@ function StockMovements() {
 
                   {expanded ? (
                     <div className="border-t border-white/10 bg-black/10 px-4 py-4 md:px-5">
+                      <CurrentStockSummary
+                        loading={Boolean(productSnapshots[String(group.product_id ?? "")]?.loading)}
+                        error={productSnapshots[String(group.product_id ?? "")]?.error || ""}
+                        rows={productSnapshots[String(group.product_id ?? "")]?.rows || []}
+                      />
+
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
                           <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">حركات الاختيار</div>
@@ -560,6 +707,87 @@ function StockMovements() {
         />
       ) : null}
     </InventoryShell>
+  );
+}
+
+function CurrentStockSummary({ loading, error, rows }) {
+  const totalStock = useMemo(() => rows.reduce((sum, row) => sum + toNumber(row.stock ?? 0, 0), 0), [rows]);
+  const numberOfColors = useMemo(() => new Set(rows.map((row) => normalizeText(row.color)).filter(Boolean)).size, [rows]);
+  const numberOfActiveSizes = useMemo(() => new Set(rows.filter((row) => toNumber(row.stock ?? 0, 0) > 0).map((row) => normalizeText(row.size)).filter(Boolean)).size, [rows]);
+
+  return (
+    <div className="mb-4 rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Current Stock Summary</div>
+          <div className="mt-1 text-sm text-zinc-400">Live product_variants stock grouped by color and size.</div>
+        </div>
+        {loading ? <Loader2 className="h-4 w-4 animate-spin text-emerald-400" /> : null}
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <Metric label="Total Current Stock" value={totalStock} tone="emerald" />
+        <Metric label="Number of Colors" value={numberOfColors} tone="blue" />
+        <Metric label="Number of Active Sizes" value={numberOfActiveSizes} tone="violet" />
+      </div>
+
+      {error ? <div className="mt-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div> : null}
+
+      <div className="mt-4 lg:hidden">
+        {rows.length ? (
+          <div className="space-y-2">
+            {rows.map((row) => (
+              <div key={`${row.color}::${row.size}`} className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-black text-white">{row.color || "n/a"}</div>
+                    <div className="mt-1 text-xs text-zinc-400">{row.size || "n/a"}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-white tabular-nums">
+                    {row.stock}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 px-3 py-4 text-sm text-zinc-400">
+            No live stock snapshot available.
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 hidden lg:block">
+        <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+          <table className="min-w-full border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-white/10 text-xs uppercase tracking-[0.18em] text-zinc-500">
+                <th className="px-4 py-3 font-semibold">Color</th>
+                <th className="px-4 py-3 font-semibold">Size</th>
+                <th className="px-4 py-3 font-semibold">Current Stock</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length ? (
+                rows.map((row) => (
+                  <tr key={`${row.color}::${row.size}`} className="border-b border-white/5 last:border-b-0">
+                    <td className="px-4 py-3 font-semibold text-white">{row.color || "n/a"}</td>
+                    <td className="px-4 py-3 text-zinc-300">{row.size || "n/a"}</td>
+                    <td className="px-4 py-3 font-black text-emerald-300 tabular-nums">{row.stock}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={3} className="px-4 py-6 text-center text-zinc-400">
+                    No live stock snapshot available.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   );
 }
 

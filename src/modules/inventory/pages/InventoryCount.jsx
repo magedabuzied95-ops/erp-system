@@ -464,6 +464,7 @@ function InventoryCountPage() {
   const [sessionLoading, setSessionLoading] = useState(false);
   const [sessionError, setSessionError] = useState("");
   const [savingDraft, setSavingDraft] = useState(false);
+  const [itemSavingId, setItemSavingId] = useState("");
   const [openingSession, setOpeningSession] = useState(false);
   const [approvingSession, setApprovingSession] = useState(false);
   const [cancellingSession, setCancellingSession] = useState(false);
