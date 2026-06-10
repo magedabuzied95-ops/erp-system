@@ -37,17 +37,17 @@ const APPROVAL_THRESHOLD_KEY = "erp.inventory.adjustment.approvalThreshold";
 const DEFAULT_APPROVAL_THRESHOLD = 25;
 
 const ADJUSTMENT_TYPES = [
-  { value: "increase", label: "Increase Stock", tone: "emerald" },
-  { value: "decrease", label: "Decrease Stock", tone: "rose" },
+  { value: "increase", label: "زيادة المخزون", tone: "emerald" },
+  { value: "decrease", label: "خفض المخزون", tone: "rose" },
 ];
 
 const REASON_OPTIONS = [
-  "Damaged Item",
-  "Lost Item",
-  "Inventory Correction",
-  "Stock Count Difference",
-  "Manual Correction",
-  "Other",
+  "صنف تالف",
+  "صنف مفقود",
+  "تصحيح المخزون",
+  "فرق الجرد",
+  "تصحيح يدوي",
+  "أخرى",
 ];
 
 const normalizeText = (value) => String(value ?? "").trim();
@@ -267,8 +267,8 @@ function StockAdjustments() {
       } catch (error) {
         console.log(error);
         setWarehouses(seedWarehouses());
-        setWarehouseError("Warehouse list unavailable. The adjustment will still use the selected warehouse locally.");
-        toast.error("Using fallback warehouses");
+        setWarehouseError("قائمة المخازن غير متاحة. سيستمر التعديل باستخدام المخزن المحدد محليًا.");
+        toast.error("جارٍ استخدام مخازن احتياطية");
       } finally {
         setWarehouseLoading(false);
       }
@@ -290,8 +290,8 @@ function StockAdjustments() {
       } catch (error) {
         if (!active) return;
         setCatalog([]);
-        setCatalogError(error?.message || "Failed to load products");
-        toast.error(error?.message || "Failed to load products");
+        setCatalogError(error?.message || "تعذر تحميل المنتجات");
+        toast.error(error?.message || "تعذر تحميل المنتجات");
       } finally {
         if (active) setCatalogLoading(false);
       }
@@ -386,9 +386,9 @@ function StockAdjustments() {
 
     if (exactMatch) {
       selectVariant(exactMatch);
-      toast.success("Barcode matched a product variant");
+      toast.success("تمت مطابقة الباركود مع أحد الاختيارات");
     } else {
-      toast("No exact barcode match found");
+      toast("لم يتم العثور على تطابق دقيق للباركود");
     }
 
     setScannerOpen(false);
@@ -396,23 +396,23 @@ function StockAdjustments() {
 
   const submitAdjustment = async () => {
     if (!canAdjust) {
-      toast.error("You do not have permission to perform stock adjustments");
+      toast.error("ليس لديك صلاحية تنفيذ تسويات المخزون");
       return;
     }
     if (!selectedVariant) {
-      toast.error("Select a product variant first");
+      toast.error("اختر اختيارًا للمنتج أولًا");
       return;
     }
     if (!quantityDelta || quantityDelta < 1) {
-      toast.error("Quantity must be at least 1");
+      toast.error("يجب أن تكون الكمية 1 على الأقل");
       return;
     }
     if (adjustmentType === "decrease" && targetStock < 0) {
-      toast.error("Stock cannot go below zero");
+      toast.error("لا يمكن أن ينخفض المخزون إلى أقل من صفر");
       return;
     }
     if (requiresManagerApproval && !approvalReady) {
-      toast.error("Manager approval is required for this adjustment");
+      toast.error("هذه التسوية تحتاج إلى اعتماد المدير");
       return;
     }
 
@@ -421,7 +421,7 @@ function StockAdjustments() {
     const timestamp = new Date().toISOString();
     const finalNotes = [
       normalizeText(notes),
-      requiresManagerApproval ? `Manager approval: ${normalizeText(approvalName)}${approvalNotes ? ` - ${normalizeText(approvalNotes)}` : ""}` : "",
+      requiresManagerApproval ? `اعتماد المدير: ${normalizeText(approvalName)}${approvalNotes ? ` - ${normalizeText(approvalNotes)}` : ""}` : "",
     ]
       .filter(Boolean)
       .join(" | ");
@@ -429,7 +429,7 @@ function StockAdjustments() {
     const payload = {
       variantId: Number(selectedVariant.variant_id),
       quantity: targetStock,
-      reason: normalizeText(reason) || "Inventory Correction",
+      reason: normalizeText(reason) || "تصحيح المخزون",
       notes: finalNotes,
       warehouseId: warehouseId ? Number(warehouseId) || warehouseId : null,
       warehouse_id: warehouseId ? Number(warehouseId) || warehouseId : null,
@@ -457,7 +457,7 @@ function StockAdjustments() {
         quantity_change: signedDelta,
         quantity_before: currentStock,
         quantity_after: targetStock,
-        reason: normalizeText(reason) || "Inventory Correction",
+        reason: normalizeText(reason) || "تصحيح المخزون",
         notes: finalNotes,
         user_name: normalizeText(currentUser?.name || currentUser?.full_name || currentUser?.email || "Current user"),
         created_at: timestamp,
@@ -471,7 +471,7 @@ function StockAdjustments() {
       const nextMovements = [
         {
           ...savedRecord,
-          direction: signedDelta >= 0 ? "Inbound" : "Outbound",
+        direction: signedDelta >= 0 ? "وارد" : "صادر",
         },
         ...localMovements,
       ];
@@ -481,7 +481,7 @@ function StockAdjustments() {
       setLocalAdjustments(nextAdjustments);
       setLocalMovements(nextMovements);
 
-      toast.success("Stock updated and movement recorded");
+      toast.success("تم تحديث المخزون وتسجيل الحركة");
       setNotes("");
       setReason(REASON_OPTIONS[0]);
       setQuantity(1);
@@ -491,7 +491,7 @@ function StockAdjustments() {
       setConfirmOpen(false);
     } catch (error) {
       console.log(error);
-      toast.error(error?.message || "Failed to update stock");
+      toast.error(error?.message || "تعذر تحديث المخزون");
     } finally {
       setSubmitting(false);
     }
@@ -499,19 +499,19 @@ function StockAdjustments() {
 
   const openConfirmation = () => {
     if (!canAdjust) {
-      toast.error("You do not have permission to perform stock adjustments");
+      toast.error("ليس لديك صلاحية تنفيذ تسويات المخزون");
       return;
     }
     if (!selectedVariant) {
-      toast.error("Select a product variant first");
+      toast.error("اختر اختيارًا للمنتج أولًا");
       return;
     }
     if (!quantityDelta || quantityDelta < 1) {
-      toast.error("Quantity must be at least 1");
+      toast.error("يجب أن تكون الكمية 1 على الأقل");
       return;
     }
     if (adjustmentType === "decrease" && targetStock < 0) {
-      toast.error("Stock cannot go below zero");
+      toast.error("لا يمكن أن ينخفض المخزون إلى أقل من صفر");
       return;
     }
     setConfirmOpen(true);
@@ -533,8 +533,8 @@ function StockAdjustments() {
     } catch (error) {
       console.log(error);
       setHistoryMovements([]);
-      setHistoryError(error?.message || "Failed to load product history");
-      toast.error(error?.message || "Failed to load product history");
+      setHistoryError(error?.message || "تعذر تحميل سجل المنتج");
+      toast.error(error?.message || "تعذر تحميل سجل المنتج");
     } finally {
       setHistoryLoading(false);
     }
@@ -565,8 +565,8 @@ function StockAdjustments() {
 
   return (
     <InventoryShell
-      title="Stock Adjustments"
-      subtitle="Search products by name, SKU, or barcode, inspect current stock before editing, and keep every change inside the inventory movement ledger."
+      title="تسويات المخزون"
+      subtitle="ابحث عن المنتجات بالاسم أو SKU أو الباركود، وراجع الرصيد الحالي قبل التعديل، واحفظ كل تغيير داخل سجل حركات المخزون."
       actions={
         <div className="flex flex-wrap gap-2">
           <Link
@@ -574,24 +574,24 @@ function StockAdjustments() {
             className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
           >
             <Clock3 className="mr-2 inline h-4 w-4" />
-            Full history
+            السجل الكامل
           </Link>
           <Link
             to="/inventory/movements"
             className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
           >
             <History className="mr-2 inline h-4 w-4" />
-            Movements
+            الحركات
           </Link>
         </div>
       }
       tabs={[
-        { to: "/inventory", label: "Inventory", end: true },
-        { to: "/inventory/movements", label: "Movements" },
-        { to: "/inventory/adjustments", label: "Adjustments", end: true },
-        { to: "/inventory/count", label: "Count" },
-        { to: "/stock-transfers", label: "Transfers" },
-        { to: "/warehouses", label: "Warehouses" },
+        { to: "/inventory", label: "المخزون", end: true },
+        { to: "/inventory/movements", label: "الحركات" },
+        { to: "/inventory/adjustments", label: "التسويات", end: true },
+        { to: "/inventory/count", label: "الجرد" },
+        { to: "/stock-transfers", label: "التحويلات" },
+        { to: "/warehouses", label: "المخازن" },
       ]}
     >
       {!canAdjust ? (
@@ -623,7 +623,7 @@ function StockAdjustments() {
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search by product name, SKU, or barcode"
+                  placeholder="ابحث بالاسم أو SKU أو الباركود"
                   className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
                 />
               </label>
@@ -652,10 +652,10 @@ function StockAdjustments() {
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <PolicyCard label="Adjustment policy" value={`Approval threshold: ${approvalThreshold}`} tone="blue" />
+              <PolicyCard label="سياسة التسوية" value={`حد الاعتماد: ${approvalThreshold}`} tone="blue" />
               <PolicyCard
                 label="Current mode"
-                value={requiresManagerApproval ? "Manager approval required" : "Standard approval"}
+                value={requiresManagerApproval ? "يلزم اعتماد المدير" : "اعتماد عادي"}
                 tone={requiresManagerApproval ? "amber" : "emerald"}
               />
               <label className="block">
@@ -677,7 +677,7 @@ function StockAdjustments() {
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div>
                 <h3 className="text-xl font-black text-white">Product search results</h3>
-                <p className="mt-1 text-sm text-zinc-400">Search by product name, SKU, or barcode. Click a variant to load its stock and warehouse.</p>
+                <p className="mt-1 text-sm text-zinc-400">ابحث بالاسم أو SKU أو الباركود. اضغط أي اختيار لتحميل الرصيد والمخزن الخاص به.</p>
               </div>
               <div className="text-sm text-zinc-400">{filteredVariants.length} matches</div>
             </div>
@@ -723,7 +723,7 @@ function StockAdjustments() {
                           <div>SKU: {variant.sku || "n/a"}</div>
                           <div>Barcode: {variant.barcode || "n/a"}</div>
                           <div>Stock: {asNumber(variant.stock, 0).toLocaleString()}</div>
-                          <div>Warehouse: {getWarehouseName(variant, warehouses) || "n/a"}</div>
+                          <div>المخزن: {getWarehouseName(variant, warehouses) || "n/a"}</div>
                         </div>
                       </div>
                     </button>
@@ -739,7 +739,7 @@ function StockAdjustments() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-xl font-black text-white">Selected product</h3>
-                <p className="mt-1 text-sm text-zinc-400">Current stock is shown before any adjustment is applied.</p>
+                <p className="mt-1 text-sm text-zinc-400">يتم عرض الرصيد الحالي قبل تطبيق أي تسوية.</p>
               </div>
             </div>
 
@@ -763,7 +763,7 @@ function StockAdjustments() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   <DetailCard label="SKU" value={selectedVariant.sku || "n/a"} />
                   <DetailCard label="Barcode" value={selectedVariant.barcode || "n/a"} />
-                  <DetailCard label="Current stock" value={asNumber(selectedVariant.stock, 0).toLocaleString()} tone="emerald" />
+                  <DetailCard label="الرصيد الحالي" value={asNumber(selectedVariant.stock, 0).toLocaleString()} tone="emerald" />
                   <DetailCard label="Warehouse" value={selectedWarehouseName || "n/a"} />
                 </div>
 
@@ -774,7 +774,7 @@ function StockAdjustments() {
                     className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
                   >
                     <History className="h-4 w-4" />
-                    View Product History
+                    عرض سجل المنتج
                   </button>
                   <button
                     type="button"
@@ -782,7 +782,7 @@ function StockAdjustments() {
                     className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
                   >
                     <Search className="h-4 w-4" />
-                    Re-search
+                    بحث من جديد
                   </button>
                 </div>
               </div>
@@ -798,7 +798,7 @@ function StockAdjustments() {
             <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="block">
-                  <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Adjustment type</div>
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">نوع التسوية</div>
                   <div className="grid grid-cols-2 gap-2">
                     {ADJUSTMENT_TYPES.map((type) => {
                       const active = adjustmentType === type.value;
@@ -852,7 +852,7 @@ function StockAdjustments() {
               </div>
 
               <label className="block">
-                <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Reason</div>
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">السبب</div>
                 <select
                   value={reason}
                   onChange={(event) => setReason(event.target.value)}
@@ -887,7 +887,7 @@ function StockAdjustments() {
                 {requiresManagerApproval ? (
                   <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-50">
                     <ShieldAlert className="mr-2 inline h-4 w-4" />
-                    This adjustment exceeds the configured threshold of {approvalThreshold}. Manager approval is required before applying it.
+                    هذه التسوية تتجاوز الحد المحدد وهو {approvalThreshold}. يلزم اعتماد المدير قبل تطبيقها.
                   </div>
                 ) : null}
 
@@ -907,16 +907,16 @@ function StockAdjustments() {
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/10">
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div>
-                <h3 className="text-xl font-black text-white">Recent adjustments</h3>
-                <p className="mt-1 text-sm text-zinc-400">Latest local adjustment records with product context.</p>
+                <h3 className="text-xl font-black text-white">آخر التسويات</h3>
+                <p className="mt-1 text-sm text-zinc-400">أحدث سجلات التسوية المحلية مع سياق المنتج.</p>
               </div>
-              <div className="text-sm text-zinc-400">{recentAdjustments.length} items</div>
+              <div className="text-sm text-zinc-400">{recentAdjustments.length} عنصر</div>
             </div>
 
             <div className="space-y-3 p-4">
               {recentAdjustments.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
-                  No adjustments have been recorded yet.
+                  لم تُسجَّل أي تسويات بعد.
                 </div>
               ) : (
                 recentAdjustments.map((adjustment) => {
@@ -930,7 +930,7 @@ function StockAdjustments() {
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <div className="truncate font-semibold text-white">{adjustment.product_name}</div>
-                              <div className="mt-1 text-xs text-zinc-500">{[adjustment.color, adjustment.size].filter(Boolean).join(" / ") || "Default"}</div>
+                              <div className="mt-1 text-xs text-zinc-500">{[adjustment.color, adjustment.size].filter(Boolean).join(" / ") || "افتراضي"}</div>
                             </div>
                             <div className={`rounded-full px-3 py-1 text-xs font-semibold ${isIncrease ? "bg-emerald-500/10 text-emerald-200" : "bg-rose-500/10 text-rose-200"}`}>
                               {isIncrease ? "+" : ""}
@@ -939,13 +939,13 @@ function StockAdjustments() {
                           </div>
 
                           <div className="mt-3 grid gap-2 text-xs text-zinc-500 sm:grid-cols-2">
-                            <div>Type: {adjustment.adjustment_type === "decrease" ? "Decrease Stock" : "Increase Stock"}</div>
-                            <div>User: {adjustment.user_name || "n/a"}</div>
-                            <div>Time: {formatDateTime(adjustment.created_at)}</div>
-                            <div>Warehouse: {adjustment.warehouse_name || "n/a"}</div>
+                            <div>النوع: {adjustment.adjustment_type === "decrease" ? "خفض المخزون" : "زيادة المخزون"}</div>
+                            <div>المستخدم: {adjustment.user_name || "n/a"}</div>
+                            <div>الوقت: {formatDateTime(adjustment.created_at)}</div>
+                            <div>المخزن: {adjustment.warehouse_name || "n/a"}</div>
                           </div>
 
-                          <div className="mt-3 text-sm text-zinc-300">{adjustment.reason || "No reason provided"}</div>
+                          <div className="mt-3 text-sm text-zinc-300">{adjustment.reason || "لم يتم توفير سبب"}</div>
                         </div>
                       </div>
                     </div>
@@ -1082,7 +1082,7 @@ function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onEr
         <div className="w-full rounded-[2rem] border border-white/10 bg-zinc-950 shadow-[0_30px_100px_rgba(0,0,0,0.55)]">
           <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
             <div>
-              <div className="text-xs uppercase tracking-[0.24em] text-zinc-500">Barcode scanner</div>
+              <div className="text-xs uppercase tracking-[0.24em] text-zinc-500">ماسح الباركود</div>
               <h3 className="mt-1 text-xl font-black text-white">Scan product barcode</h3>
             </div>
             <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
@@ -1166,30 +1166,30 @@ function ConfirmationModal({
                 <DetailCard label="Warehouse" value={warehouseName || "n/a"} />
                 <DetailCard label="SKU" value={sku || "n/a"} />
                 <DetailCard label="Barcode" value={barcode || "n/a"} />
-                <DetailCard label="Current stock" value={currentStock.toLocaleString()} />
+                <DetailCard label="الرصيد الحالي" value={currentStock.toLocaleString()} />
                 <DetailCard label="Target stock" value={targetStock.toLocaleString()} tone={targetStock >= currentStock ? "emerald" : "rose"} />
               </div>
 
               <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm text-zinc-400">Adjustment type</div>
+                  <div className="text-sm text-zinc-400">نوع التسوية</div>
                   <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm font-semibold text-white">
-                    {adjustmentType === "decrease" ? "Decrease Stock" : "Increase Stock"}
+                    {adjustmentType === "decrease" ? "خفض المخزون" : "زيادة المخزون"}
                   </div>
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-3 text-sm text-zinc-300">
-                  <span>Quantity change</span>
+                  <span>التغيير في الكمية</span>
                   <span className={signedDelta >= 0 ? "text-emerald-200" : "text-rose-200"}>
                     {signedDelta >= 0 ? "+" : ""}
                     {signedDelta.toLocaleString()}
                   </span>
                 </div>
                 <div className="mt-2 text-sm text-zinc-300">
-                  Reason: <span className="font-semibold text-white">{reason || "n/a"}</span>
+                  السبب: <span className="font-semibold text-white">{reason || "n/a"}</span>
                 </div>
                 {notes ? (
                   <div className="mt-2 text-sm text-zinc-300">
-                    Notes: <span className="font-semibold text-white">{notes}</span>
+                    الملاحظات: <span className="font-semibold text-white">{notes}</span>
                   </div>
                 ) : null}
               </div>
@@ -1197,24 +1197,24 @@ function ConfirmationModal({
               {requiresManagerApproval ? (
                 <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-50">
                   <ShieldAlert className="mr-2 inline h-4 w-4" />
-                  This change is above the configured threshold of {approvalThreshold}. Manager approval is required before saving.
+              هذا التغيير يتجاوز الحد المحدد وهو {approvalThreshold}. يلزم اعتماد المدير قبل الحفظ.
                   <div className="mt-4 grid gap-3">
                     <label className="block">
-                      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-amber-100/70">Approver name</div>
+                      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-amber-100/70">اسم المعتمد</div>
                       <input
                         value={approvalName}
                         onChange={(event) => setApprovalName(event.target.value)}
-                        placeholder="Manager name"
+                        placeholder="اسم المدير"
                         className="w-full rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
                       />
                     </label>
                     <label className="block">
-                      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-amber-100/70">Approval notes</div>
+                      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-amber-100/70">ملاحظات الاعتماد</div>
                       <textarea
                         rows={3}
                         value={approvalNotes}
                         onChange={(event) => setApprovalNotes(event.target.value)}
-                        placeholder="Optional approval note"
+                        placeholder="ملاحظة اعتماد اختيارية"
                         className="w-full rounded-2xl border border-white/10 bg-zinc-950/80 p-4 text-sm text-white outline-none placeholder:text-zinc-500"
                       />
                     </label>
@@ -1225,14 +1225,14 @@ function ConfirmationModal({
                         onChange={(event) => setApprovalConfirmed(event.target.checked)}
                         className="h-4 w-4 rounded border-white/20 bg-transparent text-blue-500"
                       />
-                      Manager approved this adjustment
+                      المدير اعتمد هذه التسوية
                     </label>
                   </div>
                 </div>
               ) : (
                 <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-50">
                   <CheckCircle2 className="mr-2 inline h-4 w-4" />
-                  No additional approval is required for this adjustment.
+                  لا يلزم اعتماد إضافي لهذه التسوية.
                 </div>
               )}
 
@@ -1305,12 +1305,12 @@ function ProductHistoryDrawer({ productName, variantLabel, movements, loading, e
                   </div>
 
                   <div className="mt-4 grid gap-2 text-sm text-zinc-300 sm:grid-cols-2">
-                    <div>Before: {before.toLocaleString()}</div>
-                    <div>After: {after.toLocaleString()}</div>
-                    <div>User: {movement.created_by_name || movement.user_name || "n/a"}</div>
-                    <div>Warehouse: {movement.warehouse_name || "n/a"}</div>
-                    <div className="sm:col-span-2">Reason: {movement.reason || movement.notes || "n/a"}</div>
-                    <div className="sm:col-span-2">Reference: {movement.reference_type || "n/a"} #{movement.reference_id || "n/a"}</div>
+                    <div>قبل: {before.toLocaleString()}</div>
+                    <div>بعد: {after.toLocaleString()}</div>
+                    <div>المستخدم: {movement.created_by_name || movement.user_name || "n/a"}</div>
+                    <div>المخزن: {movement.warehouse_name || "n/a"}</div>
+                    <div className="sm:col-span-2">السبب: {movement.reason || movement.notes || "n/a"}</div>
+                    <div className="sm:col-span-2">المرجع: {movement.reference_type || "n/a"} #{movement.reference_id || "n/a"}</div>
                   </div>
                 </div>
               );

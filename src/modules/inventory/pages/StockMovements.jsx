@@ -142,8 +142,8 @@ function StockMovements() {
       } catch (err) {
         if (!alive) return;
         setMovements([]);
-        setError(err?.message || "Failed to load inventory movements");
-        toast.error(err?.message || "Failed to load inventory movements");
+        setError(err?.message || "تعذر تحميل حركات المخزون");
+        toast.error(err?.message || "تعذر تحميل حركات المخزون");
       } finally {
         if (alive) setLoading(false);
       }
@@ -246,8 +246,8 @@ function StockMovements() {
       const response = await api.get(`/inventory/variant/${encodeURIComponent(String(variantId))}/history?${params.toString()}`);
       setVariantHistoryMovements(Array.isArray(response?.movements) ? response.movements : []);
     } catch (err) {
-      setVariantHistoryError(err?.message || "Failed to load variant history");
-      toast.error(err?.message || "Failed to load variant history");
+      setVariantHistoryError(err?.message || "تعذر تحميل سجل الاختيار");
+      toast.error(err?.message || "تعذر تحميل سجل الاختيار");
     } finally {
       setVariantHistoryLoading(false);
     }
@@ -262,30 +262,30 @@ function StockMovements() {
 
   return (
     <InventoryShell
-      title="Stock Movements"
-      subtitle="Grouped by product so size and color variants stay readable, searchable, and easy to inspect."
+      title="حركات المخزون"
+      subtitle="تُجمَّع حسب المنتج حتى تبقى الاختيارات بحسب المقاس واللون واضحة وسهلة البحث والفحص."
       actions={
         <div className="flex flex-wrap gap-2">
           <Link to="/inventory/history" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
             <Clock3 className="mr-2 inline h-4 w-4" />
-            Variant history
+            سجل الاختيارات
           </Link>
         </div>
       }
       tabs={[
-        { to: "/inventory", label: "Inventory", end: true },
-        { to: "/inventory/movements", label: "Movements", end: true },
-        { to: "/inventory/adjustments", label: "Adjustments" },
-        { to: "/inventory/count", label: "Count" },
-        { to: "/stock-transfers", label: "Transfers" },
-        { to: "/warehouses", label: "Warehouses" },
+        { to: "/inventory", label: "المخزون", end: true },
+        { to: "/inventory/movements", label: "الحركات", end: true },
+        { to: "/inventory/adjustments", label: "التسويات" },
+        { to: "/inventory/count", label: "الجرد" },
+        { to: "/stock-transfers", label: "التحويلات" },
+        { to: "/warehouses", label: "المخازن" },
       ]}
     >
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
-        <Metric label="Product groups" value={summary.productGroups} tone="emerald" />
-        <Metric label="Movement rows" value={summary.movementRows} tone="blue" />
-        <Metric label="Net quantity" value={formatSignedQuantity(summary.netQuantity)} tone="violet" />
-        <Metric label="Row limit" value={rowCount} tone="amber" />
+        <Metric label="مجموعات المنتجات" value={summary.productGroups} tone="emerald" />
+        <Metric label="صفوف الحركات" value={summary.movementRows} tone="blue" />
+        <Metric label="صافي الكمية" value={formatSignedQuantity(summary.netQuantity)} tone="violet" />
+        <Metric label="حد الصفوف" value={rowCount} tone="amber" />
       </div>
 
       <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
@@ -295,7 +295,7 @@ function StockMovements() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search product, SKU, barcode, color, size, reason, user..."
+              placeholder="ابحث عن منتج أو SKU أو باركود أو لون أو مقاس أو سبب أو مستخدم..."
               className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
             />
           </label>
@@ -303,14 +303,14 @@ function StockMovements() {
           <label className="block">
             <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">
               <SlidersHorizontal className="h-3.5 w-3.5" />
-              Movement type
+              نوع الحركة
             </div>
             <select
               value={movementType}
               onChange={(e) => setMovementType(e.target.value)}
               className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
             >
-              <option value="">All types</option>
+              <option value="">كل الأنواع</option>
               {movementTypes.map((type) => (
                 <option key={type} value={type} className="bg-zinc-950 text-white">
                   {movementTypeLabel(type)}
@@ -320,13 +320,13 @@ function StockMovements() {
           </label>
 
           <label className="block">
-            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Grade</div>
+            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">الدرجة</div>
             <select
               value={grade}
               onChange={(e) => setGrade(e.target.value)}
               className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
             >
-              <option value="">All grades</option>
+              <option value="">كل الدرجات</option>
               {grades.map((value) => (
                 <option key={value} value={value} className="bg-zinc-950 text-white">
                   {value}
@@ -336,13 +336,13 @@ function StockMovements() {
           </label>
 
           <label className="block">
-            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Category</div>
+            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">الفئة</div>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
             >
-              <option value="">All categories</option>
+              <option value="">كل الفئات</option>
               {categories.map((value) => (
                 <option key={value} value={value} className="bg-zinc-950 text-white">
                   {value}
@@ -352,7 +352,7 @@ function StockMovements() {
           </label>
 
           <label className="block">
-            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Row count</div>
+            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">عدد الصفوف</div>
             <select
               value={String(rowCount)}
               onChange={(e) => setRowCount(Number(e.target.value))}
@@ -377,7 +377,7 @@ function StockMovements() {
             }}
             className="self-end rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
           >
-            Reset
+            إعادة ضبط
           </button>
         </div>
       </div>
@@ -385,8 +385,8 @@ function StockMovements() {
       <div className="rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/10">
         <div className="flex flex-col gap-2 border-b border-white/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="text-xl font-black text-white">Movement ledger</h3>
-            <p className="mt-1 text-sm text-zinc-400">Grouped by product. Expand a product to inspect every variant movement underneath.</p>
+            <h3 className="text-xl font-black text-white">سجل الحركات</h3>
+            <p className="mt-1 text-sm text-zinc-400">مجمعة حسب المنتج. افتح أي منتج لفحص كل حركة تخص الاختيارات تحته.</p>
           </div>
           <div className="text-sm text-zinc-400">
             {groupedMovements.length} grouped products · {movements.length} rows
@@ -396,7 +396,7 @@ function StockMovements() {
         {loading ? (
           <div className="flex items-center justify-center py-16 text-zinc-400">
             <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" />
-            Loading inventory movements...
+            جارٍ تحميل حركات المخزون...
           </div>
         ) : error ? (
           <div className="p-5 text-sm text-red-100">
@@ -405,7 +405,7 @@ function StockMovements() {
         ) : groupedMovements.length === 0 ? (
           <div className="p-8 text-center text-zinc-400">
             <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10">
-              No movements found.
+              لا توجد حركات.
             </div>
           </div>
         ) : (
@@ -452,7 +452,7 @@ function StockMovements() {
                       <Stat label="Last date" value={group.lastMovementAt ? formatDateTime(group.lastMovementAt) : "n/a"} />
                       <div className="flex items-center justify-end md:justify-center">
                         <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-zinc-300">
-                          {expanded ? "Collapse" : "Expand"}
+                          {expanded ? "طي" : "توسيع"}
                           {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         </span>
                       </div>
@@ -463,8 +463,8 @@ function StockMovements() {
                     <div className="border-t border-white/10 bg-black/10 px-4 py-4 md:px-5">
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
-                          <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Variant movements</div>
-                          <div className="mt-1 text-sm text-zinc-400">Click a variant row to open its full history timeline.</div>
+                          <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">حركات الاختيار</div>
+                          <div className="mt-1 text-sm text-zinc-400">اضغط صف الاختيار لفتح خطه الزمني الكامل.</div>
                         </div>
                         <div className="text-xs font-semibold text-zinc-500">{group.movements.length} rows</div>
                       </div>
@@ -494,10 +494,10 @@ function StockMovements() {
                                 <div className="flex flex-wrap items-center gap-2">
                                   <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-black text-zinc-300">{movementTypeLabel(movement.movement_type)}</span>
                                   <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-black text-zinc-300">
-                                    {movement.color || "No color"}
+                                    {movement.color || "لا يوجد لون"}
                                   </span>
                                   <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-black text-zinc-300">
-                                    {movement.size || "No size"}
+                                    {movement.size || "لا يوجد مقاس"}
                                   </span>
                                   {movement.variant_article_code ? (
                                     <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-black text-zinc-300">
@@ -508,34 +508,34 @@ function StockMovements() {
 
                                 <div className="mt-2 grid gap-1 text-xs text-zinc-400 md:grid-cols-2">
                                   <div>
-                                    <span className="font-black text-zinc-200">Reason:</span> {movement.reason || movement.notes || "n/a"}
+                                    <span className="font-black text-zinc-200">السبب:</span> {movement.reason || movement.notes || "n/a"}
                                   </div>
                                   <div>
-                                    <span className="font-black text-zinc-200">Reference:</span>{" "}
+                                    <span className="font-black text-zinc-200">المرجع:</span>{" "}
                                     {movement.reference_type || "n/a"} #{movement.reference_id || "n/a"}
                                   </div>
                                   <div>
-                                    <span className="font-black text-zinc-200">User:</span> {movement.created_by_name || "n/a"}
+                                    <span className="font-black text-zinc-200">المستخدم:</span> {movement.created_by_name || "n/a"}
                                   </div>
                                   <div>
-                                    <span className="font-black text-zinc-200">Date/time:</span> {formatDateTime(movement.created_at)}
+                                    <span className="font-black text-zinc-200">التاريخ/الوقت:</span> {formatDateTime(movement.created_at)}
                                   </div>
                                   <div>
-                                    <span className="font-black text-zinc-200">Warehouse/branch:</span>{" "}
+                                    <span className="font-black text-zinc-200">المخزن/الفرع:</span>{" "}
                                     {[movement.warehouse_name, movement.branch_name].filter(Boolean).join(" · ") || "n/a"}
                                   </div>
                                   <div>
-                                    <span className="font-black text-zinc-200">SKU/barcode:</span>{" "}
+                                    <span className="font-black text-zinc-200">SKU/الباركود:</span>{" "}
                                     {[movement.sku || "n/a", movement.barcode || "n/a"].join(" / ")}
                                   </div>
                                 </div>
                               </div>
 
                               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:min-w-[350px]">
-                                <Stat label="Qty" value={formatSignedQuantity(delta)} tone={delta >= 0 ? "emerald" : "rose"} />
-                                <Stat label="Before" value={Number(movement.quantity_before ?? movement.before_qty ?? 0)} />
-                                <Stat label="After" value={Number(movement.quantity_after ?? movement.after_qty ?? 0)} />
-                                <Stat label="History" value="Open" tone="violet" />
+                                <Stat label="الكمية" value={formatSignedQuantity(delta)} tone={delta >= 0 ? "emerald" : "rose"} />
+                                <Stat label="قبل" value={Number(movement.quantity_before ?? movement.before_qty ?? 0)} />
+                                <Stat label="بعد" value={Number(movement.quantity_after ?? movement.after_qty ?? 0)} />
+                                <Stat label="السجل" value="فتح" tone="violet" />
                               </div>
                             </button>
                           );
@@ -637,12 +637,12 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <button type="button" className="absolute inset-0" onClick={onClose} aria-label="Close variant history" />
+      <button type="button" className="absolute inset-0" onClick={onClose} aria-label="إغلاق سجل الاختيار" />
       <div className="relative flex h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black sm:rounded-3xl">
         <div className="flex items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
           <div className="min-w-0">
-            <div className="text-xs uppercase tracking-[0.2em] text-zinc-500">Variant History</div>
-            <h3 className="mt-1 truncate text-xl font-black text-white">{group.product_name || movement.product_name || "Variant history"}</h3>
+            <div className="text-xs uppercase tracking-[0.2em] text-zinc-500">سجل الاختيار</div>
+            <h3 className="mt-1 truncate text-xl font-black text-white">{group.product_name || movement.product_name || "سجل الاختيار"}</h3>
             <div className="mt-1 flex flex-wrap gap-2 text-xs font-semibold text-zinc-400">
               {movement.color ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{movement.color}</span> : null}
               {movement.size ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{movement.size}</span> : null}
@@ -651,7 +651,7 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
             </div>
           </div>
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
-            Close
+            إغلاق
           </button>
         </div>
 
@@ -659,23 +659,23 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
           <aside className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
             <div className="flex items-start gap-3">
               <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5 text-zinc-500">
-                {imageUrl ? <img src={imageUrl} alt={group.product_name || movement.product_name || "Product image"} className="h-full w-full object-cover" /> : <ImageIcon className="h-6 w-6" />}
+                {imageUrl ? <img src={imageUrl} alt={group.product_name || movement.product_name || "صورة المنتج"} className="h-full w-full object-cover" /> : <ImageIcon className="h-6 w-6" />}
               </div>
               <div className="min-w-0 flex-1">
                 <MovementBadge type={movement.movement_type} />
                 <div className="mt-2 text-sm font-black text-white">{movementTypeLabel(movement.movement_type)}</div>
-                <div className="mt-1 text-xs leading-5 text-zinc-400">{movement.reason || movement.notes || "No reason provided."}</div>
+                <div className="mt-1 text-xs leading-5 text-zinc-400">{movement.reason || movement.notes || "لم يتم توفير سبب."}</div>
               </div>
             </div>
 
             <div className="mt-4 grid gap-2 text-sm">
-              <Detail label="Quantity before" value={Number(movement.quantity_before ?? movement.before_qty ?? 0)} />
-              <Detail label="Quantity change" value={formatSignedQuantity(movement.quantity_change ?? movement.quantity_delta ?? movement.quantity ?? 0)} />
-              <Detail label="Quantity after" value={Number(movement.quantity_after ?? movement.after_qty ?? 0)} />
-              <Detail label="Reference" value={`${movement.reference_type || "n/a"} #${movement.reference_id || "n/a"}`} />
-              <Detail label="User" value={movement.created_by_name || "n/a"} />
-              <Detail label="Warehouse / branch" value={[movement.warehouse_name, movement.branch_name].filter(Boolean).join(" · ") || "n/a"} />
-              <Detail label="Date/time" value={formatDateTime(movement.created_at)} />
+              <Detail label="الكمية قبل" value={Number(movement.quantity_before ?? movement.before_qty ?? 0)} />
+              <Detail label="التغيير في الكمية" value={formatSignedQuantity(movement.quantity_change ?? movement.quantity_delta ?? movement.quantity ?? 0)} />
+              <Detail label="الكمية بعد" value={Number(movement.quantity_after ?? movement.after_qty ?? 0)} />
+              <Detail label="المرجع" value={`${movement.reference_type || "n/a"} #${movement.reference_id || "n/a"}`} />
+              <Detail label="المستخدم" value={movement.created_by_name || "n/a"} />
+              <Detail label="المخزن / الفرع" value={[movement.warehouse_name, movement.branch_name].filter(Boolean).join(" • ") || "n/a"} />
+              <Detail label="التاريخ/الوقت" value={formatDateTime(movement.created_at)} />
             </div>
           </aside>
 
@@ -716,33 +716,33 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
                           </div>
                           <div className="mt-2 grid gap-1 text-xs text-zinc-400 md:grid-cols-2">
                             <div>
-                              <span className="font-black text-zinc-200">Reason:</span> {item.reason || item.notes || "n/a"}
+                              <span className="font-black text-zinc-200">السبب:</span> {item.reason || item.notes || "n/a"}
                             </div>
                             <div>
-                              <span className="font-black text-zinc-200">Reference:</span> {item.reference_type || "n/a"} #{item.reference_id || "n/a"}
+                              <span className="font-black text-zinc-200">المرجع:</span> {item.reference_type || "n/a"} #{item.reference_id || "n/a"}
                             </div>
                             <div>
-                              <span className="font-black text-zinc-200">User:</span> {item.created_by_name || "n/a"}
+                              <span className="font-black text-zinc-200">المستخدم:</span> {item.created_by_name || "n/a"}
                             </div>
                             <div>
-                              <span className="font-black text-zinc-200">Date/time:</span> {formatDateTime(item.created_at)}
+                              <span className="font-black text-zinc-200">التاريخ/الوقت:</span> {formatDateTime(item.created_at)}
                             </div>
                             <div>
-                              <span className="font-black text-zinc-200">Warehouse/branch:</span>{" "}
+                              <span className="font-black text-zinc-200">المخزن/الفرع:</span>{" "}
                               {[item.warehouse_name, item.branch_name].filter(Boolean).join(" · ") || "n/a"}
                             </div>
                             <div>
-                              <span className="font-black text-zinc-200">Before / After:</span>{" "}
+                              <span className="font-black text-zinc-200">قبل / بعد:</span>{" "}
                               {Number(item.quantity_before ?? item.before_qty ?? 0)} / {Number(item.quantity_after ?? item.after_qty ?? 0)}
                             </div>
                           </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:min-w-[290px]">
-                          <Stat label="Qty" value={formatSignedQuantity(delta)} tone={delta >= 0 ? "emerald" : "rose"} />
-                          <Stat label="Before" value={Number(item.quantity_before ?? item.before_qty ?? 0)} />
-                          <Stat label="After" value={Number(item.quantity_after ?? item.after_qty ?? 0)} />
-                          <Stat label="Type" value={movementTypeLabel(item.movement_type)} tone="violet" />
+                          <Stat label="الكمية" value={formatSignedQuantity(delta)} tone={delta >= 0 ? "emerald" : "rose"} />
+                          <Stat label="قبل" value={Number(item.quantity_before ?? item.before_qty ?? 0)} />
+                          <Stat label="بعد" value={Number(item.quantity_after ?? item.after_qty ?? 0)} />
+                          <Stat label="النوع" value={movementTypeLabel(item.movement_type)} tone="violet" />
                         </div>
                       </div>
                     );

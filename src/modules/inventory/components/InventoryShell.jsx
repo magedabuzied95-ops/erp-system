@@ -11,7 +11,7 @@ function InventoryShell({ title, subtitle, actions, tabs = [], children }) {
             <div>
               <div className="flex items-center gap-2 text-[var(--primary)]">
                 <Warehouse className="h-5 w-5" />
-                <span className="text-xs font-semibold uppercase tracking-[0.18em]">Inventory flow</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.18em]">مسار المخزون</span>
               </div>
               <h1 className="mt-2 text-3xl font-black tracking-tight text-[var(--text)]">{title}</h1>
               <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">{subtitle}</p>

@@ -25,6 +25,25 @@ const MOVEMENT_TYPES = [
   "inventory_adjustment",
 ];
 
+const movementTypeLabelAr = (value = "") => {
+  const labels = {
+    opening_stock: "رصيد افتتاحي",
+    purchase: "شراء",
+    sale: "بيع",
+    return_in: "مرتجع وارد",
+    return_out: "مرتجع صادر",
+    manual_adjustment: "تعديل يدوي",
+    transfer_in: "تحويل وارد",
+    transfer_out: "تحويل صادر",
+    damaged: "تالف",
+    product_stock_edit: "تعديل مخزون المنتج",
+    edit_variant_stock: "تعديل مخزون الاختيار",
+    inventory_adjustment: "تسوية مخزون",
+  };
+
+  return labels[value] || "حركة";
+};
+
 function InventoryHistory() {
   const { id: routeVariantId } = useParams();
   const [filters, setFilters] = useState({
@@ -70,8 +89,8 @@ function InventoryHistory() {
         console.log(err);
         if (!alive) return;
         setMovements([]);
-        setError(err?.message || "Failed to load inventory history");
-        toast.error(err?.message || "Failed to load inventory history");
+        setError(err?.message || "تعذر تحميل سجل المخزون");
+        toast.error(err?.message || "تعذر تحميل سجل المخزون");
       } finally {
         if (alive) setLoading(false);
       }
@@ -91,8 +110,8 @@ function InventoryHistory() {
 
   return (
     <InventoryShell
-      title="Inventory History"
-      subtitle="Search the movement ledger by product, variant, movement type, and date. Open any row for a detailed stock timeline."
+      title="سجل المخزون"
+      subtitle="ابحث في سجل الحركات حسب المنتج أو الاختيار أو نوع الحركة أو التاريخ، ثم افتح أي صف لعرض خط زمني تفصيلي للمخزون."
       actions={
         <>
           <Link
@@ -100,31 +119,31 @@ function InventoryHistory() {
             className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
           >
             <Clock3 className="h-4 w-4" />
-            Inventory dashboard
+            لوحة المخزون
           </Link>
           <Link
             to="/inventory/adjustments"
             className="inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-4 py-2 text-sm font-black text-black transition hover:bg-blue-400"
           >
             <History className="h-4 w-4" />
-            Stock adjustments
+            تسويات المخزون
           </Link>
         </>
       }
       tabs={[
-        { to: "/inventory", label: "Inventory", end: true },
-        { to: "/inventory/history", label: "History", end: true },
-        { to: "/inventory/movements", label: "Movements" },
-        { to: "/inventory/adjustments", label: "Adjustments" },
+        { to: "/inventory", label: "المخزون", end: true },
+        { to: "/inventory/history", label: "السجل", end: true },
+        { to: "/inventory/movements", label: "الحركات" },
+        { to: "/inventory/adjustments", label: "التسويات" },
         { to: "/inventory/count", label: "الجرد" },
-        { to: "/stock-transfers", label: "Transfers" },
+        { to: "/stock-transfers", label: "التحويلات" },
       ]}
     >
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
-        <Metric label="Movements" value={movements.length} />
-        <Metric label="Inbound" value={summary.inbound} tone="emerald" />
-        <Metric label="Outbound" value={summary.outbound} tone="rose" />
-        <Metric label="Total rows" value={pagination.total || movements.length} tone="blue" />
+        <Metric label="الحركات" value={movements.length} />
+        <Metric label="واردة" value={summary.inbound} tone="emerald" />
+        <Metric label="صادرة" value={summary.outbound} tone="rose" />
+        <Metric label="إجمالي الصفوف" value={pagination.total || movements.length} tone="blue" />
       </div>
 
       <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
@@ -134,27 +153,27 @@ function InventoryHistory() {
             <input
               value={filters.search}
               onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
-              placeholder="Search product, variant, notes, user..."
+              placeholder="ابحث عن منتج أو اختيار أو ملاحظات أو مستخدم..."
               className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
             />
           </label>
 
-          <Field label="Product" value={filters.productId} onChange={(value) => setFilters((prev) => ({ ...prev, productId: value }))} placeholder="Product ID" />
-          <Field label="Variant" value={filters.variantId} onChange={(value) => setFilters((prev) => ({ ...prev, variantId: value }))} placeholder="Variant ID" />
-          <Field label="From" value={filters.dateFrom} onChange={(value) => setFilters((prev) => ({ ...prev, dateFrom: value }))} type="date" />
-          <Field label="To" value={filters.dateTo} onChange={(value) => setFilters((prev) => ({ ...prev, dateTo: value }))} type="date" />
+          <Field label="المنتج" value={filters.productId} onChange={(value) => setFilters((prev) => ({ ...prev, productId: value }))} placeholder="معرّف المنتج" />
+          <Field label="الاختيار" value={filters.variantId} onChange={(value) => setFilters((prev) => ({ ...prev, variantId: value }))} placeholder="معرّف الاختيار" />
+          <Field label="من" value={filters.dateFrom} onChange={(value) => setFilters((prev) => ({ ...prev, dateFrom: value }))} type="date" />
+          <Field label="إلى" value={filters.dateTo} onChange={(value) => setFilters((prev) => ({ ...prev, dateTo: value }))} type="date" />
 
           <label className="block">
-            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Movement type</div>
+            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">نوع الحركة</div>
             <select
               value={filters.movementType}
               onChange={(e) => setFilters((prev) => ({ ...prev, movementType: e.target.value }))}
               className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
             >
-              <option value="">All</option>
+              <option value="">الكل</option>
               {MOVEMENT_TYPES.filter(Boolean).map((type) => (
                 <option key={type} value={type} className="bg-zinc-950 text-white">
-                  {type}
+                  {movementTypeLabelAr(type)}
                 </option>
               ))}
             </select>
@@ -166,7 +185,7 @@ function InventoryHistory() {
             className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
           >
             <X className="h-4 w-4" />
-            Reset
+            إعادة ضبط
           </button>
         </div>
       </div>
@@ -174,16 +193,16 @@ function InventoryHistory() {
       <div className="rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/10">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div>
-            <h3 className="text-xl font-black text-white">Movement ledger</h3>
-            <p className="mt-1 text-sm text-zinc-400">Click any row to inspect quantity before and after the movement.</p>
+            <h3 className="text-xl font-black text-white">سجل الحركات</h3>
+            <p className="mt-1 text-sm text-zinc-400">اضغط أي صف لعرض الكمية قبل الحركة وبعدها.</p>
           </div>
-          <div className="text-sm text-zinc-400">{movements.length} visible</div>
+          <div className="text-sm text-zinc-400">{movements.length} صفًا ظاهرًا</div>
         </div>
 
         {loading ? (
           <div className="flex items-center justify-center py-16 text-zinc-400">
             <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" />
-            Loading inventory history...
+            جارٍ تحميل سجل المخزون...
           </div>
         ) : error ? (
           <div className="p-5 text-sm text-red-100">
@@ -191,24 +210,22 @@ function InventoryHistory() {
           </div>
         ) : movements.length === 0 ? (
           <div className="p-8 text-center text-zinc-400">
-            <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10">
-              No movement records found.
-            </div>
+            <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10">لا توجد حركات مسجلة.</div>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full border-separate border-spacing-y-2 px-3 pb-3">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-[0.18em] text-zinc-500">
-                  <th className="px-3 py-2">Timestamp</th>
-                  <th className="px-3 py-2">Product</th>
-                  <th className="px-3 py-2">Variant</th>
-                  <th className="px-3 py-2">Type</th>
-                  <th className="px-3 py-2">Before</th>
-                  <th className="px-3 py-2">Change</th>
-                  <th className="px-3 py-2">After</th>
-                  <th className="px-3 py-2">User</th>
-                  <th className="px-3 py-2">Reference</th>
+                  <th className="px-3 py-2">الوقت</th>
+                  <th className="px-3 py-2">المنتج</th>
+                  <th className="px-3 py-2">الاختيار</th>
+                  <th className="px-3 py-2">النوع</th>
+                  <th className="px-3 py-2">قبل</th>
+                  <th className="px-3 py-2">التغيير</th>
+                  <th className="px-3 py-2">بعد</th>
+                  <th className="px-3 py-2">المستخدم</th>
+                  <th className="px-3 py-2">المرجع</th>
                 </tr>
               </thead>
               <tbody>
@@ -222,11 +239,11 @@ function InventoryHistory() {
                     >
                       <td className="px-3 py-4 text-sm text-zinc-300">{formatDateTime(movement.created_at)}</td>
                       <td className="px-3 py-4">
-                        <div className="font-semibold text-white">{movement.product_name || "Unknown product"}</div>
+                        <div className="font-semibold text-white">{movement.product_name || "منتج غير معروف"}</div>
                         <div className="text-xs text-zinc-500">{movement.product_brand || "n/a"}</div>
                       </td>
                       <td className="px-3 py-4 text-sm text-zinc-300">
-                        <div>{movement.variant_color || movement.variant_name || "Default"}</div>
+                        <div>{movement.variant_color || movement.variant_name || "افتراضي"}</div>
                         <div className="text-xs text-zinc-500">{movement.variant_size || movement.variant_sku || "n/a"}</div>
                       </td>
                       <td className="px-3 py-4">
@@ -304,7 +321,7 @@ function MovementBadge({ type }) {
 
   return (
     <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${palette[type] || "border-white/10 bg-white/5 text-white"}`}>
-      {type || "movement"}
+      {movementTypeLabelAr(type)}
     </span>
   );
 }
@@ -314,29 +331,29 @@ function TimelineDrawer({ movement, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50">
-      <button type="button" className="absolute inset-0 bg-black/70" onClick={onClose} aria-label="Close movement details" />
+      <button type="button" className="absolute inset-0 bg-black/70" onClick={onClose} aria-label="إغلاق تفاصيل الحركة" />
       <div className="absolute right-0 top-0 h-full w-full max-w-[520px] border-l border-white/10 bg-zinc-950 shadow-[0_30px_100px_rgba(0,0,0,0.5)]">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Stock timeline</p>
-            <h3 className="mt-1 text-xl font-black text-white">{movement.product_name || "Movement details"}</h3>
+            <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">الخط الزمني للمخزون</p>
+            <h3 className="mt-1 text-xl font-black text-white">{movement.product_name || "تفاصيل الحركة"}</h3>
           </div>
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
-            Close
+            إغلاق
           </button>
         </div>
 
         <div className="space-y-4 overflow-y-auto p-5">
-          <Detail label="Movement type" value={movement.movement_type} />
-          <Detail label="Quantity before" value={String(movement.quantity_before ?? 0)} />
-          <Detail label="Quantity change" value={change >= 0 ? `+${change}` : String(change)} />
-          <Detail label="Quantity after" value={String(movement.quantity_after ?? 0)} />
-          <Detail label="Reference" value={`${movement.reference_type || "n/a"} #${movement.reference_id || "n/a"}`} />
-          <Detail label="User" value={movement.created_by_name || "n/a"} />
-          <Detail label="Timestamp" value={formatDateTime(movement.created_at)} />
-          <Detail label="Warehouse" value={movement.warehouse_id || movement.branch_id || "n/a"} />
-          <Detail label="Cost" value={movement.total_cost !== null && movement.total_cost !== undefined ? formatCurrency(movement.total_cost) : "n/a"} />
-          <Detail label="Notes" value={movement.notes || movement.note || "n/a"} />
+          <Detail label="نوع الحركة" value={movement.movement_type} />
+          <Detail label="الكمية قبل" value={String(movement.quantity_before ?? 0)} />
+          <Detail label="التغيير في الكمية" value={change >= 0 ? `+${change}` : String(change)} />
+          <Detail label="الكمية بعد" value={String(movement.quantity_after ?? 0)} />
+          <Detail label="المرجع" value={`${movement.reference_type || "n/a"} #${movement.reference_id || "n/a"}`} />
+          <Detail label="المستخدم" value={movement.created_by_name || "n/a"} />
+          <Detail label="الوقت" value={formatDateTime(movement.created_at)} />
+          <Detail label="المخزن" value={movement.warehouse_id || movement.branch_id || "n/a"} />
+          <Detail label="التكلفة" value={movement.total_cost !== null && movement.total_cost !== undefined ? formatCurrency(movement.total_cost) : "n/a"} />
+          <Detail label="ملاحظات" value={movement.notes || movement.note || "n/a"} />
         </div>
       </div>
     </div>

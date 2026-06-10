@@ -35,8 +35,8 @@ function StockTransfers() {
       } catch (err) {
         console.log(err);
         setWarehouses(seedWarehouses());
-        setError("Transfer endpoint fallback enabled. The backend route may not expose all transfer details.");
-        toast.error("Using fallback transfer data");
+        setError("تم تفعيل البيانات الاحتياطية للتحويلات. قد لا يُرجع مسار الخلفية كل تفاصيل التحويل.");
+        toast.error("جارٍ استخدام بيانات تحويل احتياطية");
       } finally {
         setLoading(false);
       }
@@ -53,7 +53,7 @@ function StockTransfers() {
 
   const submitTransfer = async () => {
     if (!variantId.trim()) {
-      toast.error("Variant ID required");
+      toast.error("معرّف الاختيار مطلوب");
       return;
     }
 
@@ -74,7 +74,7 @@ function StockTransfers() {
         status: "Transferred",
       };
       saveInventoryTransfers([record, ...transfers]);
-      toast.success("Transfer submitted");
+      toast.success("تم إرسال التحويل");
     } catch (err) {
       console.log(err);
       const record = {
@@ -85,32 +85,32 @@ function StockTransfers() {
         status: "Draft",
       };
       saveInventoryTransfers([record, ...transfers]);
-      toast.error("Transfer endpoint unavailable. Saved locally as placeholder.");
+      toast.error("مسار التحويل غير متاح. تم الحفظ محليًا.");
     }
   };
 
   return (
     <InventoryShell
-      title="Warehouse Transfer Placeholder"
-      subtitle="Outbound / inbound transfer workflow, stock handoff placeholder, and local transfer history."
+      title="تحويل المخزون بين المخازن"
+      subtitle="إدارة تحويلات المخزون بين المخازن، ومراجعة السجل المحلي، وحفظ تفاصيل التحويل عندما تكون واجهة الخلفية غير مكتملة."
       actions={
         <div className="flex flex-wrap gap-2">
           <Link to="/inventory/history" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
             <Clock3 className="mr-2 inline h-4 w-4" />
-            Variant history
+            سجل الاختيارات
           </Link>
           <Link to="/warehouses" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
-            Warehouse dashboard
+            لوحة المخازن
           </Link>
         </div>
       }
       tabs={[
-        { to: "/inventory", label: "Inventory", end: true },
-        { to: "/inventory/movements", label: "Movements" },
-        { to: "/inventory/adjustments", label: "Adjustments" },
+        { to: "/inventory", label: "المخزون", end: true },
+        { to: "/inventory/movements", label: "الحركات" },
+        { to: "/inventory/adjustments", label: "التسويات" },
         { to: "/inventory/count", label: "الجرد" },
-        { to: "/stock-transfers", label: "Transfers", end: true },
-        { to: "/warehouses", label: "Warehouses" },
+        { to: "/stock-transfers", label: "التحويلات", end: true },
+        { to: "/warehouses", label: "المخازن" },
       ]}
     >
       {error ? (
@@ -123,18 +123,18 @@ function StockTransfers() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <Field label="Variant ID" value={variantId} onChange={setVariantId} placeholder="Variant identifier" />
-            <Select label="From warehouse" value={fromWarehouse} onChange={setFromWarehouse} options={warehouses} />
-            <Select label="To warehouse" value={toWarehouse} onChange={setToWarehouse} options={warehouses} />
-            <Field label="Quantity" value={quantity} onChange={setQuantity} type="number" />
+            <Field label="معرّف الاختيار" value={variantId} onChange={setVariantId} placeholder="أدخل معرّف الاختيار" />
+            <Select label="من مخزن" value={fromWarehouse} onChange={setFromWarehouse} options={warehouses} />
+            <Select label="إلى مخزن" value={toWarehouse} onChange={setToWarehouse} options={warehouses} />
+            <Field label="الكمية" value={quantity} onChange={setQuantity} type="number" />
           </div>
           <label className="mt-4 block">
-            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Transfer notes</div>
+            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">ملاحظات التحويل</div>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={5}
-              placeholder="Packing notes, driver details, transfer reason..."
+              placeholder="ملاحظات التعبئة، تفاصيل السائق، سبب التحويل..."
               className="w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500"
             />
           </label>
@@ -144,30 +144,30 @@ function StockTransfers() {
             className="mt-4 inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-500 px-4 py-3 text-sm font-black text-black"
           >
             <Save className="h-4 w-4" />
-            Submit transfer
+            إرسال التحويل
           </button>
         </div>
 
         <div className="space-y-4">
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="text-xl font-black text-white">Transfer history</h3>
+            <h3 className="text-xl font-black text-white">سجل التحويلات</h3>
             <div className="mt-4 space-y-3">
               {loading ? (
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-zinc-400">Loading warehouses...</div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-zinc-400">جارٍ تحميل المخازن...</div>
               ) : transfers.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">No transfers recorded locally.</div>
+                <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">لا توجد تحويلات محفوظة محليًا.</div>
               ) : (
                 transfers.map((transfer) => (
                   <div key={String(transfer.id)} className="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="font-semibold text-white">Variant {transfer.variant_id}</div>
+                        <div className="font-semibold text-white">الاختيار {transfer.variant_id}</div>
                         <div className="mt-1 text-xs text-zinc-500">{formatDateTime(transfer.created_at)}</div>
                       </div>
                       <StatusBadge value={transfer.status || "Draft"} />
                     </div>
                     <div className="mt-2 text-sm text-zinc-300">
-                      {transfer.from_warehouse} → {transfer.to_warehouse} • Qty {transfer.quantity}
+                      {transfer.from_warehouse} ← {transfer.to_warehouse} • الكمية {transfer.quantity}
                     </div>
                   </div>
                 ))
@@ -176,9 +176,9 @@ function StockTransfers() {
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-            <h3 className="text-xl font-black text-white">Warehouse transfer placeholder</h3>
+            <h3 className="text-xl font-black text-white">تحويل المخزون بين المخازن</h3>
             <p className="mt-3 text-sm text-zinc-400">
-              This page keeps the ERP workflow intact even when transfer metadata is partial in the backend. The record is persisted locally and the live transfer endpoint is used when available.
+              تحافظ هذه الصفحة على سير العمل حتى عندما تكون بيانات التحويل في الخلفية غير مكتملة. يتم حفظ السجل محليًا، ويُستخدم مسار التحويل المباشر عندما يكون متاحًا.
             </p>
           </div>
         </div>
