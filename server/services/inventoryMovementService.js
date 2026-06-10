@@ -380,6 +380,9 @@ export const getInventoryMovements = async (clientOrPool, data = {}) => {
   const warehouseId = data.warehouseId ?? data.warehouse_id ?? null;
   const movementType = String(data.movementType ?? data.movement_type ?? "").trim();
   const search = String(data.search ?? "").trim();
+  const category = String(data.category ?? data.category_name ?? data.categoryName ?? "").trim();
+  const grade = String(data.grade ?? data.product_grade ?? data.productGrade ?? "").trim();
+  const manufacturer = String(data.manufacturer ?? data.manufacturer_name ?? data.manufacturerName ?? "").trim();
   const dateFrom = data.dateFrom ?? data.date_from ?? null;
   const dateTo = data.dateTo ?? data.date_to ?? null;
   const limit = Math.min(Math.max(toNumber(data.limit ?? 100, 100), 1), 500);
@@ -394,6 +397,7 @@ export const getInventoryMovements = async (clientOrPool, data = {}) => {
     params.push(value);
     return `$${params.length}`;
   };
+  const searchParam = search ? push(`%${search}%`) : null;
 
   if (tenantId !== null && tenantId !== undefined) clauses.push(`m.tenant_id = ${push(tenantId)}`);
   if (variantId) clauses.push(`m.variant_id = ${push(variantId)}`);
@@ -401,23 +405,33 @@ export const getInventoryMovements = async (clientOrPool, data = {}) => {
   if (branchId) clauses.push(`m.branch_id = ${push(branchId)}`);
   if (warehouseId) clauses.push(`m.warehouse_id = ${push(warehouseId)}`);
   if (movementType) clauses.push(`UPPER(m.movement_type) = UPPER(${push(movementType)})`);
+  if (category) clauses.push(`LOWER(TRIM(COALESCE(c.name, ''))) = LOWER(TRIM(${push(category)}))`);
+  if (grade) clauses.push(`LOWER(TRIM(COALESCE(p.grade, ''))) = LOWER(TRIM(${push(grade)}))`);
+  if (manufacturer) clauses.push(`LOWER(TRIM(COALESCE(pm.name, vm.name, ''))) = LOWER(TRIM(${push(manufacturer)}))`);
   if (dateFrom) clauses.push(`m.created_at::date >= ${push(dateFrom)}`);
   if (dateTo) clauses.push(`m.created_at::date <= ${push(dateTo)}`);
   if (search) {
     clauses.push(
       `(
-        COALESCE(p.name, '') ILIKE ${push(`%${search}%`)} OR
-        COALESCE(v.color, '') ILIKE ${push(`%${search}%`)} OR
-        COALESCE(v.size, '') ILIKE ${push(`%${search}%`)} OR
-        COALESCE(v.sku, '') ILIKE ${push(`%${search}%`)} OR
-        COALESCE(v.barcode, '') ILIKE ${push(`%${search}%`)} OR
-        COALESCE(m.movement_type, '') ILIKE ${push(`%${search}%`)} OR
-        COALESCE(m.reference_type, '') ILIKE ${push(`%${search}%`)} OR
-        COALESCE(m.reason, '') ILIKE ${push(`%${search}%`)} OR
-        COALESCE(m.notes, '') ILIKE ${push(`%${search}%`)} OR
-        COALESCE(u.name, '') ILIKE ${push(`%${search}%`)} OR
-        COALESCE(w.name, '') ILIKE ${push(`%${search}%`)} OR
-        COALESCE(b.name, '') ILIKE ${push(`%${search}%`)}
+        COALESCE(p.name, '') ILIKE ${searchParam} OR
+        COALESCE(p.product_code, '') ILIKE ${searchParam} OR
+        COALESCE(p.sku, '') ILIKE ${searchParam} OR
+        COALESCE(p.barcode, '') ILIKE ${searchParam} OR
+        COALESCE(p.grade, '') ILIKE ${searchParam} OR
+        COALESCE(c.name, '') ILIKE ${searchParam} OR
+        COALESCE(pm.name, vm.name, '') ILIKE ${searchParam} OR
+        COALESCE(v.color, '') ILIKE ${searchParam} OR
+        COALESCE(v.size, '') ILIKE ${searchParam} OR
+        COALESCE(v.sku, '') ILIKE ${searchParam} OR
+        COALESCE(v.barcode, '') ILIKE ${searchParam} OR
+        COALESCE(v.article_code, '') ILIKE ${searchParam} OR
+        COALESCE(m.movement_type, '') ILIKE ${searchParam} OR
+        COALESCE(m.reference_type, '') ILIKE ${searchParam} OR
+        COALESCE(m.reason, '') ILIKE ${searchParam} OR
+        COALESCE(m.notes, '') ILIKE ${searchParam} OR
+        COALESCE(u.name, '') ILIKE ${searchParam} OR
+        COALESCE(w.name, '') ILIKE ${searchParam} OR
+        COALESCE(b.name, '') ILIKE ${searchParam}
       )`
     );
   }
@@ -431,6 +445,9 @@ export const getInventoryMovements = async (clientOrPool, data = {}) => {
       FROM inventory_movements m
       LEFT JOIN products p ON p.id = m.product_id
       LEFT JOIN product_variants v ON v.id = m.variant_id
+      LEFT JOIN categories c ON c.id = p.category_id
+      LEFT JOIN manufacturers pm ON pm.id = p.manufacturer_id
+      LEFT JOIN manufacturers vm ON vm.id = v.manufacturer_id
       LEFT JOIN warehouses w ON w.id = m.warehouse_id
       LEFT JOIN branches b ON b.id = m.branch_id
       LEFT JOIN users u ON u.id = m.created_by
@@ -443,16 +460,27 @@ export const getInventoryMovements = async (clientOrPool, data = {}) => {
       SELECT
         m.*,
         p.name AS product_name,
-        v.color AS color,
-        v.size AS size,
-        v.sku AS sku,
-        v.barcode AS barcode,
+        p.product_code AS product_code,
+        p.grade AS product_grade,
+        COALESCE(c.name, '') AS category_name,
+        COALESCE(pm.name, vm.name, '') AS manufacturer_name,
+        COALESCE(NULLIF(p.image_url, ''), NULLIF(v.image_url, ''), '') AS product_image_url,
+        COALESCE(NULLIF(v.image_url, ''), NULLIF(p.image_url, ''), '') AS variant_image_url,
+        COALESCE(NULLIF(v.image_url, ''), NULLIF(p.image_url, ''), '') AS color_image_url,
+        COALESCE(v.article_code, '') AS variant_article_code,
+        COALESCE(v.color, '') AS color,
+        COALESCE(v.size, '') AS size,
+        COALESCE(v.sku, '') AS sku,
+        COALESCE(v.barcode, '') AS barcode,
         COALESCE(w.name, '') AS warehouse_name,
         COALESCE(b.name, '') AS branch_name,
         COALESCE(u.name, u.email, '') AS created_by_name
       FROM inventory_movements m
       LEFT JOIN products p ON p.id = m.product_id
       LEFT JOIN product_variants v ON v.id = m.variant_id
+      LEFT JOIN categories c ON c.id = p.category_id
+      LEFT JOIN manufacturers pm ON pm.id = p.manufacturer_id
+      LEFT JOIN manufacturers vm ON vm.id = v.manufacturer_id
       LEFT JOIN warehouses w ON w.id = m.warehouse_id
       LEFT JOIN branches b ON b.id = m.branch_id
       LEFT JOIN users u ON u.id = m.created_by
