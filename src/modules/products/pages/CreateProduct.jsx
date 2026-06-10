@@ -305,6 +305,9 @@ function CreateProduct() {
   const [wholesalePrice, setWholesalePrice] = useState("");
   const [useCustomComparePrice, setUseCustomComparePrice] = useState(false);
   const [customComparePrice, setCustomComparePrice] = useState("");
+  const [purchaseAlertsEnabled, setPurchaseAlertsEnabled] = useState(true);
+  const [cartonSize, setCartonSize] = useState("");
+  const [suggestedPurchaseCartons, setSuggestedPurchaseCartons] = useState(1);
   const [active, setActive] = useState(true);
   const [trackStock, setTrackStock] = useState(true);
   const [coverImage, setCoverImage] = useState("");
@@ -524,9 +527,12 @@ function CreateProduct() {
           saleStartAt ||
           saleEndAt ||
           wholesalePrice ||
-          useCustomComparePrice ||
-          customComparePrice ||
-          coverImage ||
+      useCustomComparePrice ||
+      customComparePrice ||
+      purchaseAlertsEnabled !== true ||
+      String(cartonSize || "").trim() !== "" ||
+      Number(suggestedPurchaseCartons || 1) !== 1 ||
+      coverImage ||
           gallery.length > 0 ||
           colorGroups.some((group) =>
             Boolean(
@@ -571,6 +577,9 @@ function CreateProduct() {
       wholesalePrice,
       useCustomComparePrice,
       customComparePrice,
+      purchaseAlertsEnabled,
+      cartonSize,
+      suggestedPurchaseCartons,
       coverImage,
       gallery,
       colorGroups,
@@ -1797,6 +1806,9 @@ function CreateProduct() {
         grade,
         variation_mode: variationMode,
         fixed_size_label: isColorOnlyMode ? fixedSizeLabel : "",
+        purchase_alerts_enabled: purchaseAlertsEnabled,
+        carton_size: cartonSize === "" ? null : Number(cartonSize),
+        suggested_purchase_cartons: Number(suggestedPurchaseCartons || 1),
         planned_quantities: [],
         sku: skuPrefix || uniqueSmartSkuPrefix,
         barcode,
@@ -1867,6 +1879,9 @@ function CreateProduct() {
         grade,
         variation_mode: variationMode,
         fixed_size_label: isColorOnlyMode ? fixedSizeLabel : "",
+        purchase_alerts_enabled: purchaseAlertsEnabled,
+        carton_size: cartonSize === "" ? null : Number(cartonSize),
+        suggested_purchase_cartons: Number(suggestedPurchaseCartons || 1),
         planned_quantities: [],
         brand: selectedBrandName || brand,
         brand_id: selectedBrandId || brandId || "",
@@ -2245,8 +2260,14 @@ function CreateProduct() {
                   setGender(next[0] || "");
                 }}
                 onProductTypeChange={setProductType}
-                onGradeChange={setGrade}
-              />
+              onGradeChange={setGrade}
+              purchaseAlertsEnabled={purchaseAlertsEnabled}
+              cartonSize={cartonSize}
+              suggestedPurchaseCartons={suggestedPurchaseCartons}
+              onPurchaseAlertsEnabledChange={setPurchaseAlertsEnabled}
+              onCartonSizeChange={setCartonSize}
+              onSuggestedPurchaseCartonsChange={setSuggestedPurchaseCartons}
+            />
 
               {isColorOnlyMode ? (
                 <div className="mt-5 rounded-[24px] border border-cyan-400/15 bg-cyan-400/10 p-4">

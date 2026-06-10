@@ -26,6 +26,9 @@ function ProductForm({
   audiences = [],
   productType = "",
   grade = "",
+  purchaseAlertsEnabled = true,
+  cartonSize = "",
+  suggestedPurchaseCartons = 1,
   onMainCategoryChange,
   onSubCategoryChange,
   onChildCategoryChange,
@@ -36,6 +39,9 @@ function ProductForm({
   onAudiencesChange,
   onProductTypeChange,
   onGradeChange,
+  onPurchaseAlertsEnabledChange,
+  onCartonSizeChange,
+  onSuggestedPurchaseCartonsChange,
 }) {
   const { t } = useTranslation();
   const brandWrapRef = useRef(null);
@@ -294,6 +300,81 @@ function ProductForm({
             options={classificationOptions.grade}
             placeholder={t("products.form.selectGrade", "Select grade")}
           />
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-amber-400/15 bg-gradient-to-br from-amber-400/10 via-white/[0.03] to-orange-400/10 p-4 shadow-xl shadow-black/10 sm:p-5">
+        <div className="mb-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-200">
+            {t("products.form.purchaseSettings", "إعدادات الشراء")}
+          </p>
+          <p className="mt-1 text-sm text-zinc-400">
+            {t("products.form.purchaseSettingsHelp", "Store carton-aware purchase defaults on the product record.")}
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          <label className="flex items-start gap-3 rounded-[24px] border border-white/8 bg-zinc-950/60 px-4 py-3 text-left">
+            <input
+              type="checkbox"
+              checked={Boolean(purchaseAlertsEnabled)}
+              onChange={(event) => onPurchaseAlertsEnabledChange?.(event.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-white/20 bg-zinc-950 accent-amber-400"
+            />
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-white">
+                {t("products.form.enablePurchaseAlerts", "تفعيل تنبيهات الشراء")}
+              </div>
+              <p className="mt-1 text-xs leading-5 text-zinc-400">
+                {t("products.form.purchaseAlertsHelp", "إذا تم إيقاف تنبيهات الشراء فلن يظهر المنتج في تنبيهات إعادة الطلب.")}
+              </p>
+            </div>
+          </label>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label className="text-sm font-semibold text-zinc-300">
+                {t("products.form.cartonSize", "حجم الكرتونة")}
+              </label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={cartonSize}
+                onChange={(event) => onCartonSizeChange?.(event.target.value)}
+                placeholder={t("products.form.cartonSizePlaceholder", "اختياري")}
+                className="mt-2 h-12 w-full rounded-2xl border border-white/8 bg-zinc-950/80 px-4 text-white outline-none transition hover:border-white/16 focus:border-amber-400/50"
+              />
+              <p className="mt-2 text-xs leading-5 text-zinc-500">
+                {t("products.form.cartonSizeHelp", "حجم الكرتونة يستخدم لاحقاً في تنبيهات الكرتونة.")}
+              </p>
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold text-zinc-300">
+                {t("products.form.suggestedPurchaseCartons", "عدد الكراتين المقترح طلبها")}
+              </label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={suggestedPurchaseCartons}
+                onChange={(event) => onSuggestedPurchaseCartonsChange?.(event.target.value)}
+                className="mt-2 h-12 w-full rounded-2xl border border-white/8 bg-zinc-950/80 px-4 text-white outline-none transition hover:border-white/16 focus:border-amber-400/50"
+              />
+              <p className="mt-2 text-xs leading-5 text-zinc-500">
+                {t("products.form.suggestedPurchaseCartonsHelp", "عدد الكراتين المقترح يستخدم كإجراء افتراضي عند إنشاء طلب شراء.")}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-[24px] border border-amber-300/15 bg-zinc-950/60 px-4 py-3 text-sm leading-6 text-amber-50/90">
+            <ul className="space-y-2">
+              <li>{t("products.form.purchaseSettingsBullet1", "إذا تم إيقاف تنبيهات الشراء فلن يظهر المنتج في تنبيهات إعادة الطلب.")}</li>
+              <li>{t("products.form.purchaseSettingsBullet2", "حجم الكرتونة يستخدم لاحقاً في تنبيهات الكرتونة.")}</li>
+              <li>{t("products.form.purchaseSettingsBullet3", "عدد الكراتين المقترح يستخدم كإجراء افتراضي عند إنشاء طلب شراء.")}</li>
+            </ul>
+          </div>
         </div>
       </section>
     </div>

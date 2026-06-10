@@ -459,6 +459,37 @@ const normalizeNonNegativeInteger = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : fallback;
 };
 
+const normalizeNullablePositiveInteger = (value, { fieldName = "value" } = {}) => {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    const error = new Error(`${fieldName} must be greater than 0`);
+    error.status = 400;
+    throw error;
+  }
+  return Math.floor(parsed);
+};
+
+const normalizePositiveInteger = (value, { fieldName = "value", fallback = 1 } = {}) => {
+  if (value === undefined || value === null || value === "") return fallback;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    const error = new Error(`${fieldName} must be at least 1`);
+    error.status = 400;
+    throw error;
+  }
+  return Math.floor(parsed);
+};
+
+const normalizePurchaseAlertsEnabled = (value, fallback = true) => {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (value === true || value === 1) return true;
+  const normalized = String(value).trim().toLowerCase();
+  if (["true", "1", "yes", "on"].includes(normalized)) return true;
+  if (["false", "0", "no", "off"].includes(normalized)) return false;
+  return fallback;
+};
+
 const ensureProductVariantManufacturerColumn = async () => {
   if (!productVariantSchemaReadyPromise) {
     productVariantSchemaReadyPromise = (async () => {
@@ -583,6 +614,9 @@ export const ensureProductSchema = async () => {
             ADD COLUMN IF NOT EXISTS manufacturer_id BIGINT,
             ADD COLUMN IF NOT EXISTS supplier_id BIGINT,
             ADD COLUMN IF NOT EXISTS warehouse_id BIGINT,
+            ADD COLUMN IF NOT EXISTS purchase_alerts_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+            ADD COLUMN IF NOT EXISTS carton_size INTEGER NULL,
+            ADD COLUMN IF NOT EXISTS suggested_purchase_cartons INTEGER NOT NULL DEFAULT 1,
             ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT '',
             ADD COLUMN IF NOT EXISTS image TEXT DEFAULT '',
             ADD COLUMN IF NOT EXISTS photo_url TEXT DEFAULT '',
@@ -810,6 +844,12 @@ const normalizeProductRow = (row = {}) => {
   last_purchase_price: Number(row.last_purchase_price ?? row.last_purchase_cost ?? row.purchase_price ?? row.cost_price ?? 0),
   average_cost: Number(row.average_cost ?? row.cost_price ?? row.purchase_price ?? 0),
   wholesale_price: Number(row.wholesale_price || row.price || 0),
+  purchase_alerts_enabled: row.purchase_alerts_enabled === true || String(row.purchase_alerts_enabled || "").toLowerCase() === "true",
+  carton_size: row.carton_size === null || row.carton_size === undefined || row.carton_size === "" ? null : Number(row.carton_size),
+  suggested_purchase_cartons:
+    Number.isFinite(Number(row.suggested_purchase_cartons)) && Number(row.suggested_purchase_cartons) >= 1
+      ? Math.floor(Number(row.suggested_purchase_cartons))
+      : 1,
   stock: Number(row.stock ?? row.quantity ?? row.qty ?? row.available_quantity ?? row.inventory_quantity ?? row.current_stock ?? 0),
   low_stock_threshold: Number(row.low_stock_threshold || 10),
   low_stock_alert: Number(row.low_stock_alert ?? row.low_stock_threshold ?? 0),
@@ -2171,6 +2211,9 @@ export const getProductByQrToken = async (req, res) => {
         p.gender,
         p.variation_mode,
         p.fixed_size_label,
+        p.purchase_alerts_enabled,
+        p.carton_size,
+        p.suggested_purchase_cartons,
         p.qr_token,
         COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url,
         v.id AS variant_id,
@@ -2274,6 +2317,12 @@ export const getProductByQrToken = async (req, res) => {
         product_audiences: audiences,
         variation_mode: first.variation_mode || "full_variations",
         fixed_size_label: first.fixed_size_label || "",
+        purchase_alerts_enabled: first.purchase_alerts_enabled === true || String(first.purchase_alerts_enabled || "").toLowerCase() === "true",
+        carton_size: first.carton_size === null || first.carton_size === undefined || first.carton_size === "" ? null : Number(first.carton_size),
+        suggested_purchase_cartons:
+          Number.isFinite(Number(first.suggested_purchase_cartons)) && Number(first.suggested_purchase_cartons) >= 1
+            ? Math.floor(Number(first.suggested_purchase_cartons))
+            : 1,
         colors: Array.from(colorMap.values()),
         variants: normalizedVariants,
         color_images: Array.from(colorMap.values()),
@@ -2315,6 +2364,9 @@ export const createProduct = async (req, res) => {
       sale_reason,
       sale_start_at,
       sale_end_at,
+      purchase_alerts_enabled,
+      carton_size,
+      suggested_purchase_cartons,
       use_custom_compare_price,
       custom_compare_price,
       cost_price,
@@ -2373,6 +2425,12 @@ export const createProduct = async (req, res) => {
     const normalizedProductLowStockThreshold = normalizeNonNegativeInteger(product_low_stock_threshold, 0);
     const normalizedMinimumDistinctSizesRequired = normalizeNonNegativeInteger(minimum_distinct_sizes_required, 0);
     const normalizedFixedSizeLabel = String(fixed_size_label || "").trim();
+    const normalizedPurchaseAlertsEnabled = normalizePurchaseAlertsEnabled(purchase_alerts_enabled, true);
+    const normalizedCartonSize = normalizeNullablePositiveInteger(carton_size, { fieldName: "carton_size" });
+    const normalizedSuggestedPurchaseCartons = normalizePositiveInteger(suggested_purchase_cartons, {
+      fieldName: "suggested_purchase_cartons",
+      fallback: 1,
+    });
     const normalizedVariants = normalizeVariantsForMode({
       variationMode: normalizedVariationMode,
       variants,
@@ -2536,6 +2594,9 @@ export const createProduct = async (req, res) => {
       "gallery_images",
       "variation_mode",
       "fixed_size_label",
+      "purchase_alerts_enabled",
+      "carton_size",
+      "suggested_purchase_cartons",
       "stock",
       "low_stock_alert",
       "low_stock_tracking_mode",
@@ -2588,6 +2649,9 @@ export const createProduct = async (req, res) => {
       JSON.stringify(normalizedGalleryImages),
       normalizedVariationMode,
       normalizedFixedSizeLabel,
+      normalizedPurchaseAlertsEnabled,
+      normalizedCartonSize,
+      normalizedSuggestedPurchaseCartons,
       0,
       Number(low_stock_alert || low_stock_threshold || 0),
       normalizedLowStockTrackingMode,
@@ -2722,6 +2786,9 @@ export const updateProduct = async (req, res) => {
       sale_reason,
       sale_start_at,
       sale_end_at,
+      purchase_alerts_enabled,
+      carton_size,
+      suggested_purchase_cartons,
       use_custom_compare_price,
       custom_compare_price,
       cost_price,
@@ -2788,6 +2855,21 @@ export const updateProduct = async (req, res) => {
         ? null
         : normalizeNonNegativeInteger(minimum_distinct_sizes_required, 0);
     const normalizedFixedSizeLabel = String(fixed_size_label || "").trim();
+    const purchaseAlertsEnabledProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "purchase_alerts_enabled");
+    const cartonSizeProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "carton_size");
+    const suggestedPurchaseCartonsProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "suggested_purchase_cartons");
+    const normalizedPurchaseAlertsEnabled = purchaseAlertsEnabledProvided
+      ? normalizePurchaseAlertsEnabled(purchase_alerts_enabled, true)
+      : null;
+    const normalizedCartonSize = cartonSizeProvided
+      ? normalizeNullablePositiveInteger(carton_size, { fieldName: "carton_size" })
+      : null;
+    const normalizedSuggestedPurchaseCartons = suggestedPurchaseCartonsProvided
+      ? normalizePositiveInteger(suggested_purchase_cartons, {
+          fieldName: "suggested_purchase_cartons",
+          fallback: 1,
+        })
+      : null;
     const normalizedVariants = normalizeVariantsForMode({
       variationMode: normalizedVariationMode,
       variants,
@@ -2901,17 +2983,17 @@ export const updateProduct = async (req, res) => {
         seo_description = $6,
         seo_keywords = $7,
         canonical_slug = $8,
-        regular_price = CASE WHEN $48 THEN $9 ELSE regular_price END,
-        price = CASE WHEN $48 THEN $10 ELSE price END,
-        sale_price = CASE WHEN $48 THEN $11 ELSE sale_price END,
-        sale_price_enabled = CASE WHEN $48 THEN $12 ELSE sale_price_enabled END,
-        sale_reason = CASE WHEN $48 THEN $13 ELSE sale_reason END,
-        sale_start_at = CASE WHEN $48 THEN $14 ELSE sale_start_at END,
-        sale_end_at = CASE WHEN $48 THEN $15 ELSE sale_end_at END,
+        regular_price = CASE WHEN $54 THEN $9 ELSE regular_price END,
+        price = CASE WHEN $54 THEN $10 ELSE price END,
+        sale_price = CASE WHEN $54 THEN $11 ELSE sale_price END,
+        sale_price_enabled = CASE WHEN $54 THEN $12 ELSE sale_price_enabled END,
+        sale_reason = CASE WHEN $54 THEN $13 ELSE sale_reason END,
+        sale_start_at = CASE WHEN $54 THEN $14 ELSE sale_start_at END,
+        sale_end_at = CASE WHEN $54 THEN $15 ELSE sale_end_at END,
         use_custom_compare_price = $16,
         custom_compare_price = $17,
-        cost_price = CASE WHEN $48 THEN $18 ELSE cost_price END,
-        wholesale_price = CASE WHEN $48 THEN $19 ELSE wholesale_price END,
+        cost_price = CASE WHEN $54 THEN $18 ELSE cost_price END,
+        wholesale_price = CASE WHEN $54 THEN $19 ELSE wholesale_price END,
         brand = $20,
         category = $21,
         main_category = $22,
@@ -2934,13 +3016,16 @@ export const updateProduct = async (req, res) => {
         gallery_images = COALESCE($39::jsonb, gallery_images),
         variation_mode = $40,
         fixed_size_label = $41,
-        low_stock_alert = COALESCE($42, low_stock_alert),
-        tax_rate = COALESCE($43, 0),
-        low_stock_tracking_mode = COALESCE($44, low_stock_tracking_mode),
-        product_low_stock_threshold = COALESCE($45, product_low_stock_threshold),
-        minimum_distinct_sizes_required = COALESCE($46, minimum_distinct_sizes_required)
-      WHERE id = $47
-        AND tenant_id = $49
+        purchase_alerts_enabled = CASE WHEN $42 THEN $43 ELSE purchase_alerts_enabled END,
+        carton_size = CASE WHEN $44 THEN $45 ELSE carton_size END,
+        suggested_purchase_cartons = CASE WHEN $46 THEN $47 ELSE suggested_purchase_cartons END,
+        low_stock_alert = COALESCE($48, low_stock_alert),
+        tax_rate = COALESCE($49, 0),
+        low_stock_tracking_mode = COALESCE($50, low_stock_tracking_mode),
+        product_low_stock_threshold = COALESCE($51, product_low_stock_threshold),
+        minimum_distinct_sizes_required = COALESCE($52, minimum_distinct_sizes_required)
+      WHERE id = $53
+        AND tenant_id = $55
       RETURNING *
       `,
       [
@@ -2985,6 +3070,12 @@ export const updateProduct = async (req, res) => {
         galleryImagesProvided ? JSON.stringify(normalizedGalleryImages) : null,
         normalizedVariationMode,
         normalizedFixedSizeLabel,
+        purchaseAlertsEnabledProvided,
+        normalizedPurchaseAlertsEnabled,
+        cartonSizeProvided,
+        normalizedCartonSize,
+        suggestedPurchaseCartonsProvided,
+        normalizedSuggestedPurchaseCartons,
         (low_stock_alert ?? low_stock_threshold) === undefined || (low_stock_alert ?? low_stock_threshold) === null || (low_stock_alert ?? low_stock_threshold) === ""
           ? null
           : Number(low_stock_alert ?? low_stock_threshold),

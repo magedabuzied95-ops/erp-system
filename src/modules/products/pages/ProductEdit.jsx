@@ -93,6 +93,9 @@ const emptyProduct = {
   sale_reason: "",
   sale_start_at: "",
   sale_end_at: "",
+  purchase_alerts_enabled: true,
+  carton_size: "",
+  suggested_purchase_cartons: 1,
   use_custom_compare_price: false,
   custom_compare_price: "",
   status: "active",
@@ -301,6 +304,9 @@ const normalizeProductForm = (row = {}) => ({
   grade: row.grade || "",
   variation_mode: row.variation_mode || "full_variations",
   fixed_size_label: row.fixed_size_label || "One Size",
+  purchase_alerts_enabled: row.purchase_alerts_enabled === true || String(row.purchase_alerts_enabled || "").toLowerCase() === "true",
+  carton_size: row.carton_size === null || row.carton_size === undefined ? "" : String(row.carton_size),
+  suggested_purchase_cartons: String(row.suggested_purchase_cartons ?? 1),
   low_stock_threshold: String(row.low_stock_threshold ?? row.low_stock_alert ?? ""),
   low_stock_alert: String(row.low_stock_alert ?? row.low_stock_threshold ?? ""),
 });
@@ -2210,6 +2216,9 @@ function ProductEdit() {
         grade: product.grade || "",
         variation_mode: product.variation_mode || "full_variations",
         fixed_size_label: isColorOnlyMode ? product.fixed_size_label || "One Size" : "",
+        purchase_alerts_enabled: Boolean(product.purchase_alerts_enabled),
+        carton_size: product.carton_size === "" || product.carton_size === null || product.carton_size === undefined ? null : Number(product.carton_size),
+        suggested_purchase_cartons: Number(product.suggested_purchase_cartons || 1),
         planned_quantities: [],
         low_stock_threshold: Number(product.low_stock_threshold || product.low_stock_alert || 0),
         low_stock_alert: Number(product.low_stock_alert || product.low_stock_threshold || 0),
@@ -2285,6 +2294,9 @@ function ProductEdit() {
         grade: product.grade || "",
         variation_mode: product.variation_mode || "full_variations",
         fixed_size_label: isColorOnlyMode ? product.fixed_size_label || "One Size" : "",
+        purchase_alerts_enabled: Boolean(product.purchase_alerts_enabled),
+        carton_size: product.carton_size === "" || product.carton_size === null || product.carton_size === undefined ? null : Number(product.carton_size),
+        suggested_purchase_cartons: Number(product.suggested_purchase_cartons || 1),
         status: product.status || "active",
         active: product.status !== "inactive" && product.status !== "archived",
         image_url: coverImageUrl,
@@ -2676,6 +2688,12 @@ function ProductEdit() {
               }}
               onProductTypeChange={(value) => updateProductField("product_type", value)}
               onGradeChange={(value) => updateProductField("grade", value)}
+              purchaseAlertsEnabled={product.purchase_alerts_enabled}
+              cartonSize={product.carton_size}
+              suggestedPurchaseCartons={product.suggested_purchase_cartons}
+              onPurchaseAlertsEnabledChange={(value) => updateProductField("purchase_alerts_enabled", value)}
+              onCartonSizeChange={(value) => updateProductField("carton_size", value)}
+              onSuggestedPurchaseCartonsChange={(value) => updateProductField("suggested_purchase_cartons", value)}
             />
           </section>
           <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
