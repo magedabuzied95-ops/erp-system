@@ -574,18 +574,6 @@ function InventoryCountPage() {
       const response = await getInventoryCountSession(routeSessionId);
       const nextSession = response?.session || null;
       const nextItems = normalizeInventoryCountItems(Array.isArray(response?.items) ? response.items : []);
-      if (isDevEnvironment) {
-        console.log("[inventory-count] session items reloaded", nextItems.map((item) => ({
-          id: item.id,
-          product_variant_id: item.product_variant_id,
-          product_id: item.product_id,
-          color: item.color || item.variant_color || "",
-          image_url: item.image_url || "",
-          color_image_url: item.color_image_url || "",
-          variant_image_url: item.variant_image_url || "",
-          product_image: item.product_image || "",
-        })));
-      }
       setSession(nextSession);
       setItems(nextItems);
       setNewSessionForm({

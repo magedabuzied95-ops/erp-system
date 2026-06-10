@@ -622,8 +622,12 @@ const fetchVariantForSession = async (clientOrPool, { tenantId, productVariantId
       p.name AS product_name,
       COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image,
       COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url,
+      COALESCE(NULLIF(v.color_image_url, ''), NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS color_image_url,
       COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS variant_image_url,
-      COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS image_url
+      COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS image_url,
+      COALESCE(NULLIF(v.main_image_url, ''), NULLIF(v.main_image, ''), NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS main_image_url,
+      COALESCE(NULLIF(v.main_image, ''), NULLIF(v.main_image_url, ''), NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS main_image,
+      COALESCE(NULLIF(v.main_image_url, ''), NULLIF(v.main_image, ''), NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS primary_image_url
     FROM product_variants v
     JOIN products p ON p.id = v.product_id
     WHERE v.id = $1
@@ -1105,8 +1109,12 @@ const fetchInventoryCountProductVariants = async (dbClient, { tenantId, productI
       COALESCE(v.stock, 0)::int AS stock,
       COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image,
       COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url,
+      COALESCE(NULLIF(v.color_image_url, ''), NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS color_image_url,
       COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS variant_image_url,
-      COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS image_url
+      COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS image_url,
+      COALESCE(NULLIF(v.main_image_url, ''), NULLIF(v.main_image, ''), NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS main_image_url,
+      COALESCE(NULLIF(v.main_image, ''), NULLIF(v.main_image_url, ''), NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS main_image,
+      COALESCE(NULLIF(v.main_image_url, ''), NULLIF(v.main_image, ''), NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS primary_image_url
     FROM product_variants v
     JOIN products p ON p.id = v.product_id
     WHERE ($1::bigint IS NULL OR v.tenant_id = $1::bigint OR v.tenant_id IS NULL)
