@@ -227,6 +227,71 @@ function StockMovements() {
     };
   }, [category, grade, movementType, rowCount, search]);
 
+  const groupedMovements = useMemo(() => {
+    const groups = new Map();
+
+    for (const movement of movements) {
+      const key = getGroupKey(movement);
+      const current = groups.get(key);
+      const delta = toNumber(movement.quantity_delta ?? movement.quantity_change ?? movement.quantity ?? 0, 0);
+      const createdAt = movement.created_at || "";
+
+      if (!current) {
+        groups.set(key, {
+          key,
+          product_id: movement.product_id ?? movement.productId ?? null,
+          product_name: normalizeText(movement.product_name || "Unknown product"),
+          product_code: normalizeText(movement.product_code || movement.product_sku || movement.sku || movement.variant_article_code || ""),
+          product_grade: normalizeText(movement.product_grade || ""),
+          category_name: normalizeText(movement.category_name || ""),
+          manufacturer_name: normalizeText(movement.manufacturer_name || ""),
+          product_image_url: getMovementImageUrl(movement),
+          movements: [movement],
+          movementCount: 1,
+          totalDelta: delta,
+          lastMovementAt: createdAt,
+          locations: new Set([normalizeText(movement.warehouse_name || ""), normalizeText(movement.branch_name || "")].filter(Boolean)),
+        });
+        continue;
+      }
+
+      current.movements.push(movement);
+      current.movementCount += 1;
+      current.totalDelta += delta;
+      if (!current.product_code) current.product_code = normalizeText(movement.product_code || movement.product_sku || movement.sku || movement.variant_article_code || "");
+      if (!current.product_grade) current.product_grade = normalizeText(movement.product_grade || "");
+      if (!current.category_name) current.category_name = normalizeText(movement.category_name || "");
+      if (!current.manufacturer_name) current.manufacturer_name = normalizeText(movement.manufacturer_name || "");
+      if (!current.product_image_url) current.product_image_url = getMovementImageUrl(movement);
+      current.lastMovementAt = !current.lastMovementAt || Date.parse(createdAt) > Date.parse(current.lastMovementAt) ? createdAt : current.lastMovementAt;
+      const warehouseName = normalizeText(movement.warehouse_name || "");
+      const branchName = normalizeText(movement.branch_name || "");
+      if (warehouseName) current.locations.add(warehouseName);
+      if (branchName) current.locations.add(branchName);
+    }
+
+    return Array.from(groups.values())
+      .map((group) => ({
+        ...group,
+        movements: group.movements.slice().sort((left, right) => Date.parse(right.created_at || 0) - Date.parse(left.created_at || 0)),
+        locations: Array.from(group.locations).filter(Boolean),
+      }))
+      .sort((left, right) => Date.parse(right.lastMovementAt || 0) - Date.parse(left.lastMovementAt || 0));
+  }, [movements]);
+
+  const movementTypes = useMemo(() => uniqueSorted(movements.map((movement) => movement.movement_type)), [movements]);
+  const grades = useMemo(() => uniqueSorted(movements.map((movement) => movement.product_grade)), [movements]);
+  const categories = useMemo(() => uniqueSorted(movements.map((movement) => movement.category_name)), [movements]);
+
+  const summary = useMemo(() => {
+    const netQuantity = movements.reduce((sum, movement) => sum + toNumber(movement.quantity_delta ?? movement.quantity_change ?? movement.quantity ?? 0, 0), 0);
+    return {
+      productGroups: groupedMovements.length,
+      movementRows: movements.length,
+      netQuantity,
+    };
+  }, [groupedMovements.length, movements]);
+
   useEffect(() => {
     let alive = true;
 
@@ -295,71 +360,6 @@ function StockMovements() {
       alive = false;
     };
   }, [expandedGroups, groupedMovements]);
-
-  const groupedMovements = useMemo(() => {
-    const groups = new Map();
-
-    for (const movement of movements) {
-      const key = getGroupKey(movement);
-      const current = groups.get(key);
-      const delta = toNumber(movement.quantity_delta ?? movement.quantity_change ?? movement.quantity ?? 0, 0);
-      const createdAt = movement.created_at || "";
-
-      if (!current) {
-        groups.set(key, {
-          key,
-          product_id: movement.product_id ?? movement.productId ?? null,
-          product_name: normalizeText(movement.product_name || "Unknown product"),
-          product_code: normalizeText(movement.product_code || movement.product_sku || movement.sku || movement.variant_article_code || ""),
-          product_grade: normalizeText(movement.product_grade || ""),
-          category_name: normalizeText(movement.category_name || ""),
-          manufacturer_name: normalizeText(movement.manufacturer_name || ""),
-          product_image_url: getMovementImageUrl(movement),
-          movements: [movement],
-          movementCount: 1,
-          totalDelta: delta,
-          lastMovementAt: createdAt,
-          locations: new Set([normalizeText(movement.warehouse_name || ""), normalizeText(movement.branch_name || "")].filter(Boolean)),
-        });
-        continue;
-      }
-
-      current.movements.push(movement);
-      current.movementCount += 1;
-      current.totalDelta += delta;
-      if (!current.product_code) current.product_code = normalizeText(movement.product_code || movement.product_sku || movement.sku || movement.variant_article_code || "");
-      if (!current.product_grade) current.product_grade = normalizeText(movement.product_grade || "");
-      if (!current.category_name) current.category_name = normalizeText(movement.category_name || "");
-      if (!current.manufacturer_name) current.manufacturer_name = normalizeText(movement.manufacturer_name || "");
-      if (!current.product_image_url) current.product_image_url = getMovementImageUrl(movement);
-      current.lastMovementAt = !current.lastMovementAt || Date.parse(createdAt) > Date.parse(current.lastMovementAt) ? createdAt : current.lastMovementAt;
-      const warehouseName = normalizeText(movement.warehouse_name || "");
-      const branchName = normalizeText(movement.branch_name || "");
-      if (warehouseName) current.locations.add(warehouseName);
-      if (branchName) current.locations.add(branchName);
-    }
-
-    return Array.from(groups.values())
-      .map((group) => ({
-        ...group,
-        movements: group.movements.slice().sort((left, right) => Date.parse(right.created_at || 0) - Date.parse(left.created_at || 0)),
-        locations: Array.from(group.locations).filter(Boolean),
-      }))
-      .sort((left, right) => Date.parse(right.lastMovementAt || 0) - Date.parse(left.lastMovementAt || 0));
-  }, [movements]);
-
-  const movementTypes = useMemo(() => uniqueSorted(movements.map((movement) => movement.movement_type)), [movements]);
-  const grades = useMemo(() => uniqueSorted(movements.map((movement) => movement.product_grade)), [movements]);
-  const categories = useMemo(() => uniqueSorted(movements.map((movement) => movement.category_name)), [movements]);
-
-  const summary = useMemo(() => {
-    const netQuantity = movements.reduce((sum, movement) => sum + toNumber(movement.quantity_delta ?? movement.quantity_change ?? movement.quantity ?? 0, 0), 0);
-    return {
-      productGroups: groupedMovements.length,
-      movementRows: movements.length,
-      netQuantity,
-    };
-  }, [groupedMovements.length, movements]);
 
   const toggleGroup = (key) => {
     setExpandedGroups((current) =>
