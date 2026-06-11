@@ -1,7 +1,9 @@
 ﻿import express from "express";
 import multer from "multer";
+import db from "../database/db.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
+import { ensureBrandsTable } from "../controllers/brandsController.js";
 import {
   accountByPhone,
   createShipment,
@@ -111,6 +113,15 @@ const publicTenantId = (req) => {
   return Number.isFinite(value) && value > 0 ? value : 1;
 };
 
+const slugifyBrandName = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "") || "";
+
 const firstSettingValue = (settings = {}, ...keys) => keys.map((key) => settings?.[key]).find((value) => value !== undefined && value !== null) ?? null;
 
 const settingObject = (value) => {
@@ -175,6 +186,45 @@ const getPublicStorefrontHome = async (req, res) => {
       message: error?.message || String(error),
     });
     return res.status(500).json({ success: false, message: "Failed to load storefront home" });
+  }
+};
+
+const normalizeStorefrontBrand = (row = {}) => {
+  const logoUrl = String(row.logo_url || row.image_url || row.logo || row.image || row.logoUrl || row.imageUrl || "").trim();
+  return {
+    id: row.id,
+    name: String(row.name || "").trim(),
+    slug: String(row.slug || row.brand_slug || row.brandSlug || slugifyBrandName(row.name) || row.id || "").trim(),
+    logo_url: logoUrl,
+    image_url: logoUrl,
+    sort_order: Number(row.sort_order || 0) || 0,
+  };
+};
+
+const getPublicStorefrontBrands = async (req, res) => {
+  try {
+    await ensureBrandsTable();
+    const tenantId = publicTenantId(req);
+    const result = await db.query(
+      `
+      SELECT id, name, slug, logo_url, image_url, sort_order, status
+      FROM brands
+      WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint OR tenant_id IS NULL)
+        AND COALESCE(NULLIF(LOWER(TRIM(status)), ''), 'active') = 'active'
+        AND COALESCE(NULLIF(TRIM(logo_url), ''), NULLIF(TRIM(image_url), '')) IS NOT NULL
+      ORDER BY COALESCE(sort_order, 0) ASC, LOWER(TRIM(name)) ASC, id ASC
+      `,
+      [tenantId]
+    );
+    const brands = result.rows.map(normalizeStorefrontBrand).filter((brand) => brand.logo_url);
+    return res.json({ success: true, brands, data: brands });
+  } catch (error) {
+    console.error("[storefront] brands", {
+      requestId: req.id,
+      tenant_id: publicTenantId(req),
+      message: error?.message || String(error),
+    });
+    return res.status(500).json({ success: false, message: "Failed to load storefront brands" });
   }
 };
 
@@ -259,6 +309,7 @@ router.post("/customer/restore-cart", async (req, res) => {
 
 router.get("/settings", getPublicStorefrontSettings);
 router.get("/home", getPublicStorefrontHome);
+router.get("/brands", getPublicStorefrontBrands);
 router.get("/products", listProducts);
 router.get("/classifications/gender", listGenderClassifications);
 router.get("/last-piece", listLastPieceProducts);

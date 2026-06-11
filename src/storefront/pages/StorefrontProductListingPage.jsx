@@ -38,6 +38,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   const [params] = useSearchParams();
   const q = params.get("q") || "";
   const category = params.get("category") || "";
+  const brand = params.get("brand") || "";
   const gender = params.get("gender") || "";
   const size = params.get("size") || "";
   const inStock = params.get("inStock") || "";
@@ -63,19 +64,19 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     () => classificationGroupsToFieldOptions(classificationGroups, {}, { includeInactive: false }),
     [classificationGroups]
   );
-  const isGuidedCategoryFlow = !q && !category && !saleView && !lastSizes && !gender && !size && !inStock && !quality && !productType && !grade && !sort;
-  const { products, loading, error } = useProducts({ q, category, sale: saleView ? 1 : "", gender, size, inStock, quality, product_type: productType, grade, sort });
+  const isGuidedCategoryFlow = !q && !category && !brand && !saleView && !lastSizes && !gender && !size && !inStock && !quality && !productType && !grade && !sort;
+  const { products, loading, error } = useProducts({ q, category, brand, sale: saleView ? 1 : "", gender, size, inStock, quality, product_type: productType, grade, sort });
   const {
     products: genderProducts,
     loading: genderProductsLoading,
-  } = useProducts({ limit: 160, gender: selectedGender, sale: "", product_type: "", q: "", category: "", grade: "" });
+  } = useProducts({ limit: 160, gender: selectedGender, sale: "", product_type: "", q: "", category: "", brand: "", grade: "" });
   const {
     products: gridProducts,
     loading: gridProductsLoading,
     error: gridProductsError,
-  } = useProducts({ limit: 160, gender: selectedGender, product_type: selectedProductType, sale: "", q: "", category: "", grade: "" });
+  } = useProducts({ limit: 160, gender: selectedGender, product_type: selectedProductType, sale: "", q: "", category: "", brand: "", grade: "" });
   const filterBasePath = sale ? "/shop/sale" : "/shop/products";
-  const activeFilterCount = [gender, size, inStock, quality, productType, grade, saleQuery ? "sale" : "", lastSizes ? "lastSizes" : ""].filter(Boolean).length;
+  const activeFilterCount = [brand, gender, size, inStock, quality, productType, grade, saleQuery ? "sale" : "", lastSizes ? "lastSizes" : ""].filter(Boolean).length;
 
   useEffect(() => {
     if (!params.has("style")) return;
@@ -125,7 +126,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   };
   const clearClassificationFiltersUrl = () => {
     const next = new URLSearchParams(params);
-    ["gender", "product_type", "style", "grade", "quality"].forEach((field) => next.delete(field));
+    ["brand", "gender", "product_type", "style", "grade", "quality"].forEach((field) => next.delete(field));
     return `${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`;
   };
   const applyDraftFilters = () => {
@@ -139,7 +140,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   };
   const resetDraftFilters = () => {
     const next = new URLSearchParams(params);
-    ["gender", "product_type", "style", "grade", "quality"].forEach((field) => next.delete(field));
+    ["brand", "gender", "product_type", "style", "grade", "quality"].forEach((field) => next.delete(field));
     setDraftFilters({ gender: "", product_type: "", grade: "" });
     setFiltersOpen(false);
     navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`);
@@ -313,7 +314,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
       <div className="mb-3 flex flex-col gap-2 md:mb-4 md:gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm font-bold text-stone-500">{saleView ? t("storefront.products.limitedOffers", "Limited-time offers") : t("storefront.products.shopEasily", "Shop easily")}</p>
-          <h1 className="mt-1 text-3xl font-black">{q ? t("storefront.search.resultsFor", "Search results for \"{{query}}\"", { query: q }) : category || (lastSizes ? t("storefront.home.lastSizes", "Last Sizes") : saleView ? t("storefront.nav.sale", "Sale") : t("storefront.products.allProducts", "All products"))}</h1>
+          <h1 className="mt-1 text-3xl font-black">{q ? t("storefront.search.resultsFor", "Search results for \"{{query}}\"", { query: q }) : brand ? t("storefront.filters.brand", "Brand") : category || (lastSizes ? t("storefront.home.lastSizes", "Last Sizes") : saleView ? t("storefront.nav.sale", "Sale") : t("storefront.products.allProducts", "All products"))}</h1>
         </div>
         <div className="text-sm font-bold text-stone-500">{t("storefront.products.productCount", "{{count}} product", { count: orderedProducts.length })}</div>
       </div>

@@ -2008,6 +2008,7 @@ const storefrontGetInFlight = new Map();
 const STOREFRONT_GET_CACHE_TTL_MS = 60 * 1000;
 const STOREFRONT_PRODUCTS_CACHE_TTL_MS = 30 * 1000;
 const STOREFRONT_HOME_CACHE_TTL_MS = 60 * 1000;
+const STOREFRONT_BRANDS_CACHE_TTL_MS = 10 * 60 * 1000;
 const STOREFRONT_GENDER_CACHE_TTL_MS = 10 * 60 * 1000;
 const STOREFRONT_LAST_PIECE_CACHE_TTL_MS = 20 * 1000;
 const STOREFRONT_PRODUCT_DETAILS_CACHE_TTL_MS = 60 * 1000;
@@ -2194,6 +2195,30 @@ const getStorefrontHomeFromResponse = (response = {}) => {
   return candidates.find((value) => value && typeof value === "object") || directHome || {};
 };
 
+const slugifyBrandName = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "") || "";
+
+const normalizeStorefrontBrand = (brand = {}) => {
+  const image = compactImageValue(brand.logo_url || brand.image_url || brand.logo || brand.image || brand.logoUrl || brand.imageUrl || "");
+  const id = firstTextValue(brand.id, brand.brand_id, brand.brandId, brand.slug, brand.canonical_slug);
+  const name = firstTextValue(brand.name, brand.title, brand.brand_name);
+  return {
+    ...brand,
+    id,
+    name,
+    slug: firstTextValue(brand.slug, brand.brand_slug, brand.brandSlug, slugifyBrandName(name), id),
+    logo_url: image,
+    image_url: image,
+    sort_order: Number(brand.sort_order ?? brand.sortOrder ?? 0) || 0,
+  };
+};
+
 const useStorefrontHome = () => {
   const homeEndpoint = "/storefront/home";
   const homeRequestUrl = `${API_BASE_URL}${homeEndpoint}`;
@@ -2221,6 +2246,31 @@ const useStorefrontHome = () => {
       .catch((error) => {
         if (!cancelled && error?.cause?.name !== "AbortError") {
           setState({ loading: false, loaded: true, error: error?.message || "Failed to load storefront home", hero: null, collections: [], rawHome: null, requestUrl: homeRequestUrl });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return state;
+};
+
+const useStorefrontBrands = () => {
+  const [state, setState] = useState({ loading: true, error: "", brands: [] });
+
+  useEffect(() => {
+    let cancelled = false;
+    cachedStorefrontGet("/storefront/brands", { ttlMs: STOREFRONT_BRANDS_CACHE_TTL_MS })
+      .then((data) => {
+        const brands = (Array.isArray(data?.brands) ? data.brands : Array.isArray(data?.data) ? data.data : [])
+          .map(normalizeStorefrontBrand)
+          .filter((brand) => brand.id && brand.name && brand.logo_url);
+        if (!cancelled) setState({ loading: false, error: "", brands });
+      })
+      .catch((error) => {
+        if (!cancelled && error?.cause?.name !== "AbortError") {
+          setState({ loading: false, error: error?.message || "Failed to load storefront brands", brands: [] });
         }
       });
     return () => {
@@ -4653,6 +4703,58 @@ function HomeFlowSeparator({ label = "" }) {
   );
 }
 
+function HomeBrandsSection() {
+  const { i18n } = useTranslation();
+  const lang = i18n.language || "ar";
+  const { brands, loading } = useStorefrontBrands();
+  const visibleBrands = useMemo(() => (Array.isArray(brands) ? brands : []).filter((brand) => brand?.id && brand?.name && brand?.logo_url), [brands]);
+
+  if (!loading && !visibleBrands.length) return null;
+  if (!visibleBrands.length) return null;
+
+  return (
+    <section className="mx-auto max-w-[1320px] px-4 py-3 md:py-6" dir={normalizeLanguage(lang) === "ar" ? "rtl" : "ltr"}>
+      <div className="rounded-[2.15rem] border border-stone-200 bg-white px-4 py-5 shadow-[0_18px_54px_rgba(39,20,75,0.07)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(7,11,22,0.98),rgba(7,11,22,0.92))] dark:shadow-[0_24px_80px_rgba(0,0,0,0.28)] md:px-5 md:py-6">
+        <div className="mb-4 flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7c3aed] dark:text-[#d8b4fe]">{sfText("storefront.home.brandsEyebrow", "Shop by brand")}</p>
+            <h2 className="mt-1 text-2xl font-black tracking-normal text-stone-950 dark:text-white md:text-3xl">العلامات التجارية</h2>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+          {visibleBrands.map((brand) => {
+            const brandHref = `/shop?brand=${encodeURIComponent(brand.id || brand.slug)}`;
+            const Card = (
+              <span className="flex h-24 w-full items-center justify-center rounded-2xl border border-stone-200 bg-white px-4 py-3 shadow-[0_10px_24px_rgba(39,20,75,0.05)] transition duration-200 group-hover:-translate-y-0.5 group-hover:border-[#a78bfa]/40 group-hover:shadow-[0_16px_36px_rgba(124,58,237,0.08)] dark:border-white/10 dark:bg-white/[0.04]">
+                <img
+                  src={resolveProductImageUrl(brand.logo_url)}
+                  alt={brand.name}
+                  className="h-14 w-full object-contain"
+                  loading="lazy"
+                  decoding="async"
+                  width="220"
+                  height="112"
+                />
+              </span>
+            );
+
+            return (
+              <Link
+                key={brand.id || brand.slug || brand.name}
+                to={brandHref}
+                aria-label={brand.name}
+                className="group min-w-0"
+              >
+                {Card}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function QuickSellingStrips({ lang = "ar" }) {
   const isRtl = normalizeLanguage(lang) === "ar";
   return (
@@ -4674,11 +4776,21 @@ function QuickSellingStrips({ lang = "ar" }) {
 
 function HomePage(props) {
   const { i18n, t } = useTranslation();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [params] = useSearchParams();
   const lang = i18n.language || "ar";
   const [lastPieceOpen, setLastPieceOpen] = useState(false);
+  const brandFilter = params.get("brand") || "";
   const storefrontHome = useStorefrontHome();
   const { products, loading } = useProducts({ limit: 24 });
   const { products: saleProducts, loading: saleLoading } = useProducts({ sale: 1, limit: 12 });
+
+  useEffect(() => {
+    if (!brandFilter || location.pathname.replace(/\/+$/, "") !== "/shop") return;
+    navigate(`/shop/products?brand=${encodeURIComponent(brandFilter)}`, { replace: true });
+  }, [brandFilter, location.pathname, navigate]);
+
   const merchProducts = useMemo(() => products.filter(isAvailableProduct), [products]);
   const railProducts = useMemo(() => (merchProducts.length ? merchProducts : products), [merchProducts, products]);
   const saleRailProducts = useMemo(() => saleProducts.filter(isAvailableProduct), [saleProducts]);
@@ -4759,6 +4871,7 @@ function HomePage(props) {
       <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "آخر المقاسات" : t("storefront.home.lastSizes", "Last Sizes")} subtitle={normalizeLanguage(lang) === "ar" ? "اختيارات محدودة قبل ما تخلص من المخزون." : t("storefront.home.lastSizesSubtitle", "Low-stock pairs before they disappear")} viewAllTo="/shop/products?lastSizes=true" loading={loading || storefrontHome.loading} products={homeSections.lastSizes} railType="last-size" tone="last" {...props} />
       <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "الأكثر مشاهدة" : "Trending"} subtitle={normalizeLanguage(lang) === "ar" ? "موديلات رائجة ومختارة من أحدث المنتجات المتاحة." : "Popular picks, with newest products as fallback."} viewAllTo="/shop/products?sort=trending" loading={loading || storefrontHome.loading} products={homeSections.trending} railType="trending" tone="trending" {...props} />
       <Reviews />
+      <HomeBrandsSection />
       <LastPieceFinder open={lastPieceOpen} onClose={() => setLastPieceOpen(false)} />
     </div>
   );

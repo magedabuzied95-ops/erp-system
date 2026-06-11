@@ -541,8 +541,10 @@ export const ensureProductSchema = async () => {
             id BIGSERIAL PRIMARY KEY,
             tenant_id BIGINT,
             name VARCHAR(255) NOT NULL DEFAULT '',
+            slug VARCHAR(255) NOT NULL DEFAULT '',
             logo_url TEXT,
             image_url TEXT,
+            sort_order INTEGER NOT NULL DEFAULT 0,
             status VARCHAR(50) NOT NULL DEFAULT 'active',
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
@@ -566,11 +568,21 @@ export const ensureProductSchema = async () => {
         await client.query(`
           ALTER TABLE IF EXISTS brands
             ADD COLUMN IF NOT EXISTS tenant_id BIGINT,
+            ADD COLUMN IF NOT EXISTS slug VARCHAR(255) NOT NULL DEFAULT '',
             ADD COLUMN IF NOT EXISTS logo_url TEXT,
             ADD COLUMN IF NOT EXISTS image_url TEXT,
+            ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0,
             ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'active',
             ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW(),
             ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()
+        `);
+        await client.query(`
+          UPDATE brands
+          SET
+            slug = COALESCE(NULLIF(slug, ''), id::text),
+            image_url = COALESCE(NULLIF(image_url, ''), NULLIF(logo_url, '')),
+            logo_url = COALESCE(NULLIF(logo_url, ''), NULLIF(image_url, ''))
+          WHERE COALESCE(NULLIF(slug, ''), '') = '' OR COALESCE(NULLIF(image_url, ''), NULLIF(logo_url, '')) IS NOT NULL
         `);
         await client.query(`
           ALTER TABLE IF EXISTS products

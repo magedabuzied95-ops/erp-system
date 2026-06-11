@@ -1003,6 +1003,15 @@ const parseJsonArray = (value) => {
 
 const firstText = (...values) => values.map((value) => toText(value)).find(Boolean) || "";
 
+const slugifyBrandName = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "") || "";
+
 const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULTS) => {
   const galleryImages = parseJsonArray(row.gallery_images).filter(Boolean);
   const productImage = firstText(row.public_image_url, row.image_url, row.image, row.photo_url, row.thumbnail_url, galleryImages[0]);
@@ -1332,7 +1341,14 @@ const storefrontProductsSql = `
       AND ($2 = '' OR LOWER(CONCAT_WS(' ', p.name, p.sku, p.barcode, p.gender, p.product_type, c.name, b.name, pv.size, pv.color, pv.sku, pv.article_code, pv.edition_name, pv.edition_slug)) LIKE '%' || $2 || '%' OR ${productAudienceSearchSql})
       AND ($3 = '' OR LOWER(CONCAT_WS(' ', c.name, p.gender, p.product_type)) LIKE '%' || $3 || '%' OR EXISTS (SELECT 1 FROM product_audiences pa_category WHERE pa_category.product_id = p.id AND pa_category.audience LIKE '%' || $3 || '%'))
       AND (
-        $4::boolean = FALSE
+        $4 = ''
+        OR (TRIM($4) ~ '^[0-9]+$' AND b.id = $4::bigint)
+        OR LOWER(TRIM(COALESCE(b.slug, ''))) = LOWER(TRIM($4))
+        OR LOWER(TRIM(COALESCE(b.name, ''))) = LOWER(TRIM($4))
+        OR LOWER(TRIM(COALESCE(p.brand, ''))) = LOWER(TRIM($4))
+      )
+      AND (
+        $5::boolean = FALSE
         OR (
           p.sale_price > 0
           AND p.sale_price < COALESCE(NULLIF(p.regular_price, 0), p.price)
@@ -1346,24 +1362,24 @@ const storefrontProductsSql = `
           AND (pv.sale_end_at IS NULL OR pv.sale_end_at >= NOW())
         )
       )
-      AND ${productAudienceFilterSql("$5")}
-      AND (COALESCE(array_length($6::text[], 1), 0) = 0 OR LOWER(TRIM(COALESCE(p.product_type, ''))) = ANY($6::text[]))
-      AND (COALESCE(array_length($7::text[], 1), 0) = 0 OR LOWER(TRIM(COALESCE(p.grade, ''))) = ANY($7::text[]))
+      AND ${productAudienceFilterSql("$6")}
+      AND (COALESCE(array_length($7::text[], 1), 0) = 0 OR LOWER(TRIM(COALESCE(p.product_type, ''))) = ANY($7::text[]))
+      AND (COALESCE(array_length($8::text[], 1), 0) = 0 OR LOWER(TRIM(COALESCE(p.grade, ''))) = ANY($8::text[]))
       AND (
-        COALESCE(array_length($10::text[], 1), 0) = 0
-        OR LOWER(TRIM(COALESCE(p.grade, ''))) = ANY($10::text[])
-        OR LOWER(TRIM(COALESCE(p.product_type, ''))) = ANY($10::text[])
+        COALESCE(array_length($11::text[], 1), 0) = 0
+        OR LOWER(TRIM(COALESCE(p.grade, ''))) = ANY($11::text[])
+        OR LOWER(TRIM(COALESCE(p.product_type, ''))) = ANY($11::text[])
       )
-      AND ($8 = '' OR EXISTS (
+      AND ($9 = '' OR EXISTS (
         SELECT 1
         FROM product_variants pv_size
         WHERE pv_size.product_id = p.id
           AND pv_size.is_active IS DISTINCT FROM FALSE
           AND pv_size.deleted_at IS NULL
-          AND LOWER(TRIM(COALESCE(pv_size.size, ''))) = LOWER(TRIM($8))
-          AND ($9::boolean = FALSE OR COALESCE(pv_size.stock, 0) > 0)
+          AND LOWER(TRIM(COALESCE(pv_size.size, ''))) = LOWER(TRIM($9))
+          AND ($10::boolean = FALSE OR COALESCE(pv_size.stock, 0) > 0)
       ))
-      AND ($9::boolean = FALSE OR COALESCE(p.stock, 0) > 0 OR EXISTS (
+      AND ($10::boolean = FALSE OR COALESCE(p.stock, 0) > 0 OR EXISTS (
         SELECT 1
         FROM product_variants pv_stock
         WHERE pv_stock.product_id = p.id
@@ -1373,11 +1389,11 @@ const storefrontProductsSql = `
     ))
     GROUP BY p.id, c.name, b.name
     ORDER BY p.id DESC
-    LIMIT $11 OFFSET $12
+    LIMIT $12 OFFSET $13
 `;
 
 const queryProducts = async (tenantId, q, category, filters, saleOnly, limit, offset) => {
-  const params = [tenantId, q, category, saleOnly, filters.gender, filters.productType, filters.grade, filters.size || "", Boolean(filters.inStock), filters.quality || [], limit, offset];
+  const params = [tenantId, q, category, filters.brand || "", saleOnly, filters.gender, filters.productType, filters.grade, filters.size || "", Boolean(filters.inStock), filters.quality || [], limit, offset];
   try {
     return await db.query(storefrontProductsSql, params);
   } catch (error) {
@@ -2089,6 +2105,7 @@ const expandProductsToColorCards = (products = []) => {
 const normalizeStorefrontProductsQuery = (query = {}) => ({
   q: queryText(query.q).toLowerCase(),
   category: queryText(query.category).toLowerCase(),
+  brand: queryText(query.brand || query.brandId || query.brand_id),
   gender: queryText(query.gender),
   productType: queryText(query.product_type || query.productType),
   grade: queryText(query.grade),
@@ -2139,7 +2156,7 @@ export const listProducts = async (req, res) => {
     const pricingSettings = await loadStorefrontPricingSettings(tenantId);
     const payload = await (async () => {
       const normalizedQuery = normalizeStorefrontProductsQuery(req.query || {});
-      const { q, category, saleOnly, sort, limit, offset, scope, groupingMode, size, inStock } = normalizedQuery;
+      const { q, category, brand, saleOnly, sort, limit, offset, scope, groupingMode, size, inStock } = normalizedQuery;
       const genderAliases = await getClassificationFilterAliases("gender", normalizedQuery.gender);
       const productType = await getActiveClassificationFilterAliases("product_type", normalizedQuery.productType);
       const grade = await getActiveClassificationFilterAliases("grade", normalizedQuery.grade);
@@ -2161,10 +2178,10 @@ export const listProducts = async (req, res) => {
         ? Math.min(Math.max(limit + offset + 500, 1000), 5000)
         : limit;
       const queryOffset = shouldOrderAfterExpansion ? 0 : offset;
-      let result = await queryProducts(tenantId, q, category, { gender, productType, grade, quality, size, inStock }, effectiveSaleOnly, candidateLimit, queryOffset);
+      let result = await queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock }, effectiveSaleOnly, candidateLimit, queryOffset);
       let usedTenantFallback = false;
       if (!result.rows.length && tenantId !== null) {
-        const fallback = await queryProducts(null, q, category, { gender, productType, grade, quality, size, inStock }, effectiveSaleOnly, candidateLimit, queryOffset);
+        const fallback = await queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock }, effectiveSaleOnly, candidateLimit, queryOffset);
         if (fallback.rows.length) {
           result = fallback;
           usedTenantFallback = true;
@@ -2172,7 +2189,7 @@ export const listProducts = async (req, res) => {
       }
       let products = result.rows.map((row) => normalizeProduct(row, pricingSettings));
       if (!products.some((product) => product.total_stock > 0) && tenantId !== null) {
-        const fallback = await queryProducts(null, q, category, { gender, productType, grade, quality, size, inStock }, effectiveSaleOnly, candidateLimit, queryOffset);
+        const fallback = await queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock }, effectiveSaleOnly, candidateLimit, queryOffset);
         const fallbackProducts = fallback.rows.map((row) => normalizeProduct(row, pricingSettings));
         if (fallbackProducts.some((product) => product.total_stock > 0)) {
           products = fallbackProducts;
@@ -2213,7 +2230,7 @@ export const listProducts = async (req, res) => {
       });
       products = pagedProducts.map(slimProductForList);
       if (ERP_PERF_DEBUG) {
-        console.log("[storefront] products", { tenantId, usedTenantFallback, q, category, saleOnly, sort: sort || "random", scope, groupingMode, filters: { gender, productType, grade }, count: products.length, total, hasMore, usedOrderingFallback });
+        console.log("[storefront] products", { tenantId, usedTenantFallback, q, category, brand, saleOnly, sort: sort || "random", scope, groupingMode, filters: { gender, brand, productType, grade }, count: products.length, total, hasMore, usedOrderingFallback });
       }
       return {
         success: true,
