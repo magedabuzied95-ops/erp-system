@@ -78,6 +78,21 @@ const getPurchasePaymentAccountProviderKey = (account = {}) => {
     )
   );
 };
+const strictMatchPurchasePaymentAccount = (account = {}, paymentMethod = "") => {
+  if (!account || account.is_active === false || account.id == null) return false;
+  const method = normalizePaymentMethodKey(paymentMethod);
+  if (!method) return false;
+  const providerKey = getPurchasePaymentAccountProviderKey(account);
+  const typeKey = normalizeKey(account?.account_type || account?.type);
+  const nameKey = normalizeKey(firstText(account?.name, account?.account_name));
+  const haystack = [providerKey, typeKey, nameKey].filter(Boolean).join(" ");
+  if (!haystack) return false;
+  if (/(vodafone cash|vodafone|فودافون كاش|فودافون)/i.test(haystack)) return method === "vodafone_cash";
+  if (/(instapay|insta pay|انستاباي|انستا ?باي)/i.test(haystack)) return method === "instapay";
+  if (/(bank|paymob|visa|card|بنك)/i.test(haystack)) return method === "bank_transfer";
+  if (/(cash drawer|cash|safe|till|drawer|خزنة|نقدية)/i.test(haystack)) return method === "cash";
+  return false;
+};
 const matchPurchasePaymentAccount = (account = {}, paymentMethod = "") => {
   if (!account || account.is_active === false || account.id == null) return false;
   const method = normalizePaymentMethodKey(paymentMethod);
@@ -94,8 +109,64 @@ const matchPurchasePaymentAccount = (account = {}, paymentMethod = "") => {
 };
 const getAvailablePurchasePaymentAccounts = (accounts = [], paymentMethod = "") => {
   const activeAccounts = accounts.filter((account) => account && account.id != null && account.is_active !== false);
-  const matchedAccounts = activeAccounts.filter((account) => matchPurchasePaymentAccount(account, paymentMethod));
+  return activeAccounts.filter((account) => strictMatchPurchasePaymentAccount(account, paymentMethod));
+};
+const getPurchasePaymentMethodAliases = (paymentMethod = "") => {
+  const method = normalizePaymentMethodKey(paymentMethod);
+  if (method === "bank_transfer") return new Set(["bank_transfer", "card"]);
+  return new Set([method]);
+};
+const getPurchasePaymentMappingMethodKey = (mapping = {}) => normalizePaymentMethodKey(mapping.payment_method || mapping.paymentMethod || "");
+const getPurchasePaymentMappingAccountId = (mapping = {}) => mapping?.financial_account_id ?? mapping?.financialAccountId ?? null;
+const getPurchasePaymentMappingsFallbackAccounts = (accounts = [], paymentMethod = "") => {
+  const activeAccounts = accounts.filter((account) => account && account.id != null && account.is_active !== false);
+  const method = normalizePaymentMethodKey(paymentMethod);
+  const matcherByMethod = {
+    cash: /(cash|خزنة|نقدي|safe|drawer|till)/i,
+    instapay: /(instapay|insta pay|انستاباي|insta)/i,
+    vodafone_cash: /(vodafone|vodafone cash|فودافون|فودافون كاش)/i,
+    bank_transfer: /(bank|visa|card|paymob|بنك|بنكي)/i,
+  };
+  const matcher = matcherByMethod[method];
+  if (!matcher) return activeAccounts;
+  const matchedAccounts = activeAccounts.filter((account) => {
+    const haystack = normalizeKey(
+      firstText(
+        account?.provider,
+        account?.payment_provider,
+        account?.account_provider,
+        account?.account_type,
+        account?.type,
+        account?.name,
+        account?.account_name
+      )
+    );
+    return matcher.test(haystack);
+  });
   return matchedAccounts.length ? matchedAccounts : activeAccounts;
+};
+const getPurchasePaymentMappingSelection = (mappings = [], paymentMethod = "", branchId = "") => {
+  const methodAliases = getPurchasePaymentMethodAliases(paymentMethod);
+  const normalizedBranchId = text(branchId);
+  const activeMappings = mappings.filter((mapping) => {
+    if (!mapping || mapping.is_active === false) return false;
+    const accountId = getPurchasePaymentMappingAccountId(mapping);
+    return accountId !== null && accountId !== undefined && methodAliases.has(getPurchasePaymentMappingMethodKey(mapping));
+  });
+  if (!activeMappings.length) return null;
+  const branchMappings = normalizedBranchId
+    ? activeMappings.filter((mapping) => text(mapping.branch_id) === normalizedBranchId)
+    : activeMappings.filter((mapping) => !text(mapping.branch_id));
+  const ordered = branchMappings.length ? branchMappings : activeMappings.filter((mapping) => !text(mapping.branch_id) && mapping.is_default === true);
+  return (ordered.length ? ordered : activeMappings).find((mapping) => mapping.is_default === true) || (ordered.length ? ordered[0] : activeMappings[0]) || null;
+};
+const getPurchasePaymentAccountsFromMappings = (accounts = [], mappings = [], paymentMethod = "", branchId = "") => {
+  const selectedMapping = getPurchasePaymentMappingSelection(mappings, paymentMethod, branchId);
+  if (!selectedMapping) return [];
+  const accountId = String(getPurchasePaymentMappingAccountId(selectedMapping) || "");
+  if (!accountId) return [];
+  const account = accounts.find((item) => String(item?.id) === accountId && item?.is_active !== false) || null;
+  return account ? [account] : [];
 };
 const normalizeFinancialAccount = (account = {}) => ({
   ...account,
@@ -484,6 +555,8 @@ function PurchaseOrder() {
   const [branches, setBranches] = useState([]);
   const [products, setProducts] = useState([]);
   const [financialAccounts, setFinancialAccounts] = useState([]);
+  const [paymentMethodMappings, setPaymentMethodMappings] = useState([]);
+  const [paymentMethodMappingsLoadFailed, setPaymentMethodMappingsLoadFailed] = useState(false);
   const [productsLoading, setProductsLoading] = useState(false);
   const [productPickerOpen, setProductPickerOpen] = useState(false);
   const [productPanelExpanded, setProductPanelExpanded] = useState(false);
@@ -559,13 +632,14 @@ function PurchaseOrder() {
       setProductsLoading(true);
       setError("");
 
-      const [suppliersRes, warehousesRes, branchesRes, productsRes, reorderRes, financialAccountsRes] = await Promise.allSettled([
+      const [suppliersRes, warehousesRes, branchesRes, productsRes, reorderRes, financialAccountsRes, paymentMappingsRes] = await Promise.allSettled([
         api.get("/suppliers?limit=200&page=1"),
         api.get("/warehouses"),
         api.get("/branches"),
         api.get("/products/with-variants"),
         api.get("/purchases/reorder-suggestions"),
         accountingApi.getFinancialAccounts({ include_inactive: true }),
+        accountingApi.getPaymentMethodMappings(),
       ]);
 
       if (suppliersRes.status === "fulfilled") {
@@ -612,6 +686,15 @@ function PurchaseOrder() {
         );
       } else {
         setFinancialAccounts([]);
+      }
+
+      if (paymentMappingsRes.status === "fulfilled") {
+        const rows = Array.isArray(paymentMappingsRes.value?.rows) ? paymentMappingsRes.value.rows : [];
+        setPaymentMethodMappings(rows);
+        setPaymentMethodMappingsLoadFailed(false);
+      } else {
+        setPaymentMethodMappings([]);
+        setPaymentMethodMappingsLoadFailed(true);
       }
 
       if (isEditMode) {
@@ -671,6 +754,8 @@ function PurchaseOrder() {
       setBranches([]);
       setProducts([]);
       setFinancialAccounts([]);
+      setPaymentMethodMappings([]);
+      setPaymentMethodMappingsLoadFailed(true);
       setError(t("purchases.create.setupLoadFailedLong"));
       toast.error(t("purchases.create.setupLoadFailed"));
     } finally {
@@ -867,9 +952,18 @@ function PurchaseOrder() {
         : 0;
   const effectiveSupplierRemainingAmount = Math.max(0, total - effectiveSupplierPaidAmount);
   const selectedPaymentAccount = financialAccounts.find((account) => String(account.id) === String(paymentAccountId)) || null;
+  const selectedPaymentMethodMapping = useMemo(
+    () => getPurchasePaymentMappingSelection(paymentMethodMappings, paymentMethod, branchId),
+    [paymentMethodMappings, paymentMethod, branchId]
+  );
   const availablePaymentAccounts = useMemo(
-    () => getAvailablePurchasePaymentAccounts(financialAccounts, paymentMethod),
-    [financialAccounts, paymentMethod]
+    () => {
+      if (paymentMethodMappingsLoadFailed) {
+        return getPurchasePaymentMappingsFallbackAccounts(financialAccounts, paymentMethod);
+      }
+      return getPurchasePaymentAccountsFromMappings(financialAccounts, paymentMethodMappings, paymentMethod, branchId);
+    },
+    [financialAccounts, paymentMethodMappings, paymentMethodMappingsLoadFailed, paymentMethod, branchId]
   );
   const paymentStatusOptions = useMemo(
     () => [
@@ -1331,15 +1425,22 @@ function PurchaseOrder() {
   const handlePaymentMethodChange = (nextMethod) => {
     const normalized = normalizePaymentMethodKey(nextMethod);
     setPaymentMethod(normalized);
-    if (!paymentAccountId) return;
-    const nextAvailableAccounts = getAvailablePurchasePaymentAccounts(financialAccounts, normalized);
-    const stillAvailable = nextAvailableAccounts.some((account) => String(account.id) === String(paymentAccountId));
-    if (!stillAvailable) setPaymentAccountId("");
   };
 
   const handlePaymentAccountChange = (nextAccountId) => {
     setPaymentAccountId(String(nextAccountId || ""));
   };
+
+  useEffect(() => {
+    if (normalizePaymentStatusKey(supplierPaymentStatus) === "unpaid") return;
+    if (!availablePaymentAccounts.length) {
+      if (paymentAccountId) setPaymentAccountId("");
+      return;
+    }
+    const currentStillExists = availablePaymentAccounts.some((account) => String(account.id) === String(paymentAccountId));
+    if (currentStillExists) return;
+    setPaymentAccountId(String(availablePaymentAccounts[0].id));
+  }, [availablePaymentAccounts, paymentAccountId, supplierPaymentStatus]);
 
   const handleToggleFullscreen = async () => {
     const getFullscreenElement = () =>
