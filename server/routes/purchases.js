@@ -4236,7 +4236,7 @@ router.patch(
       if (nextPaymentAccountId) {
         const accountResult = await client.query(
           `
-          SELECT id, name, account_type, provider, is_active
+          SELECT id, name, account_type, is_active
           FROM financial_accounts
           WHERE id = $1
             AND tenant_id = $2
@@ -5045,7 +5045,7 @@ router.post(
       if (financialAccountId) {
         const accountResult = await runStep("validate.paymentAccount", () => client.query(
           `
-          SELECT id, name, account_type, provider, is_active
+          SELECT id, name, account_type, is_active
           FROM financial_accounts
           WHERE id = $1
             AND tenant_id = $2
