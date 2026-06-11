@@ -233,19 +233,20 @@ export const derivePaymentSummary = ({
   vodafoneCashAmount = 0,
   customerWalletAmount = 0,
 }) => {
-  if (String(paymentMode || "").toLowerCase() === "personal") {
+  const normalizedMode = String(paymentMode || "").toLowerCase();
+  if (normalizedMode === "personal" || normalizedMode === "credit_sale") {
     const totalAmount = Math.max(0, Number(total || 0));
     return {
-      paidAmount: totalAmount,
+      paidAmount: normalizedMode === "credit_sale" ? 0 : totalAmount,
       changeAmount: 0,
-      dueAmount: 0,
-      paymentStatus: totalAmount > 0 ? "Paid" : "Pending",
+      dueAmount: totalAmount,
+      paymentStatus: normalizedMode === "credit_sale" ? "Pending" : totalAmount > 0 ? "Paid" : "Pending",
       walletAmount: 0,
       vodafoneCashAmount: 0,
       customerWalletAmount: 0,
       cashAmount: 0,
       cardAmount: 0,
-      remainingCashOrCard: 0,
+      remainingCashOrCard: totalAmount,
     };
   }
   const rawPaidAmount =

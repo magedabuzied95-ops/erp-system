@@ -1195,6 +1195,101 @@ const getCustomerPersonalTransactions = async (customerId, tenantId, filters = {
   });
 };
 
+const getCustomerCreditSaleTransactions = async (customerId, tenantId, filters = {}, options = {}) => {
+  const hasOrders = await tableExists("orders");
+  if (!hasOrders) return [];
+
+  const hasTenantId = await columnExists("orders", "tenant_id");
+  const hasPaymentMethod = await columnExists("orders", "payment_method");
+  const hasPaymentStatus = await columnExists("orders", "payment_status");
+  const hasItems = await tableExists("order_items");
+  const where = ["o.customer_id = $1"];
+  const params = [customerId];
+
+  const addParam = (value) => {
+    params.push(value);
+    return `$${params.length}`;
+  };
+
+  if (hasTenantId) {
+    params.push(tenantId);
+    where.push(`($${params.length}::bigint IS NULL OR o.tenant_id = $${params.length}::bigint)`);
+  }
+  if (hasPaymentMethod) {
+    where.push(`LOWER(COALESCE(o.payment_method, '')) = 'credit_sale'`);
+  }
+  if (hasPaymentStatus) {
+    where.push(`LOWER(COALESCE(o.payment_status, '')) IN ('unpaid', 'due')`);
+  }
+  if (filters.date_from) {
+    where.push(`o.created_at >= ${addParam(filters.date_from)}::timestamp`);
+  }
+  if (filters.date_to) {
+    where.push(`o.created_at < (${addParam(filters.date_to)}::date + INTERVAL '1 day')`);
+  }
+  if (filters.invoice_number) {
+    where.push(`LOWER(COALESCE(o.invoice_number, '')) LIKE ${addParam(`%${String(filters.invoice_number).toLowerCase()}%`)}`);
+  }
+  if (filters.amount_min !== undefined && filters.amount_min !== "") {
+    where.push(`COALESCE(o.total_amount, o.total, 0) >= ${addParam(Number(filters.amount_min) || 0)}::numeric`);
+  }
+  if (filters.amount_max !== undefined && filters.amount_max !== "") {
+    where.push(`COALESCE(o.total_amount, o.total, 0) <= ${addParam(Number(filters.amount_max) || 0)}::numeric`);
+  }
+
+  const limitSql = options.limit ? `LIMIT ${Number(options.limit) || 50}` : "";
+  const result = await pool.query(
+    `
+    SELECT
+      o.id,
+      o.created_at,
+      COALESCE(o.invoice_number, CONCAT('ORD-', o.id::text)) AS invoice_number,
+      COALESCE(o.total_amount, o.total, 0) AS total_amount,
+      COALESCE(o.notes, '') AS order_note,
+      STRING_AGG(
+        DISTINCT NULLIF(TRIM(CONCAT(COALESCE(oi.product_name, oi.variant_name, oi.sku, 'Item'), ' x', COALESCE(oi.quantity, 1))), ''),
+        ' | '
+        ORDER BY NULLIF(TRIM(CONCAT(COALESCE(oi.product_name, oi.variant_name, oi.sku, 'Item'), ' x', COALESCE(oi.quantity, 1))), '')
+      ) AS products_text
+    FROM orders o
+    ${hasItems ? "LEFT JOIN order_items oi ON oi.order_id = o.id" : ""}
+    WHERE ${where.join(" AND ")}
+    GROUP BY o.id
+    ORDER BY o.created_at DESC, o.id DESC
+    ${limitSql}
+    `,
+    params
+  );
+
+  return result.rows.map((row) => {
+    const value = Number(row.total_amount || 0);
+    return {
+      id: `credit-sale-${row.id}`,
+      order_id: row.id,
+      reference_type: "order",
+      reference_id: row.id,
+      invoice_number: row.invoice_number || `ORD-${row.id}`,
+      return_number: null,
+      transaction_type: "order_payment",
+      transaction_type_label: "آجل",
+      payment_method: "credit_sale",
+      payment_status: "unpaid",
+      personal_operation_type: null,
+      personal_operation_type_label: "",
+      personal_value: 0,
+      products: row.products_text || "",
+      amount: value,
+      before_balance: 0,
+      after_balance: 0,
+      created_by: null,
+      created_by_name: "",
+      created_at: row.created_at,
+      notes: row.order_note || "",
+      description: row.order_note || row.products_text || "آجل",
+    };
+  });
+};
+
 const getStatementOpeningBalance = async (customerId, tenantId, dateFrom) => {
   await ensureWalletSchema(pool);
   if (!dateFrom) {
@@ -1257,11 +1352,13 @@ export const getCustomerStatement = async (req, res) => {
       return res.status(404).json({ success: false, message: "Customer not found" });
     }
 
-    const [walletTransactions, personalTransactions] = await Promise.all([
+    const [walletTransactions, personalTransactions, creditSaleTransactions] = await Promise.all([
       getCustomerWalletTransactions(customerId, tenantId, req.query),
       getCustomerPersonalTransactions(customerId, tenantId, req.query),
+      getCustomerCreditSaleTransactions(customerId, tenantId, req.query),
     ]);
     const chronological = [...walletTransactions, ...personalTransactions]
+      .concat(Array.isArray(creditSaleTransactions) ? creditSaleTransactions : [])
       .filter(Boolean)
       .sort((a, b) => {
         const byDate = new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
@@ -1284,10 +1381,10 @@ export const getCustomerStatement = async (req, res) => {
     const totals = chronological.reduce(
       (acc, item) => {
         const amount = Number(item.amount || 0);
-        if (item.transaction_type === "order_payment") acc.orders += Math.abs(amount);
+        if (item.transaction_type === "order_payment" || item.payment_method === "credit_sale") acc.orders += Math.abs(amount);
         if (["refund", "exchange_credit"].includes(item.transaction_type)) acc.returns += Math.abs(amount);
         if (["loyalty_conversion", "manual_add"].includes(item.transaction_type)) acc.wallet_credits += Math.abs(amount);
-        if (item.transaction_type === "order_payment") acc.wallet_payments += Math.abs(amount);
+        if (item.transaction_type === "order_payment" && item.payment_method !== "credit_sale") acc.wallet_payments += Math.abs(amount);
         if (["manual_add", "manual_deduct"].includes(item.transaction_type)) acc.manual_adjustments += amount;
         if (String(item.transaction_type || "").startsWith("personal_")) acc.personal += Math.abs(Number(item.personal_value || amount || 0));
         acc.net += amount;

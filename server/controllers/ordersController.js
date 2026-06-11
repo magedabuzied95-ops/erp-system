@@ -145,6 +145,7 @@ const normalizeMoneyPaymentMethod = (value) => {
   if (key === "visa") return "card";
   if (key === "vodafone") return "vodafone_cash";
   if (key === "insta_pay") return "instapay";
+  if (["credit_sale", "deferred_sale", "deferred", "due_sale", "due"].includes(key)) return "credit_sale";
   if (["store_credit", "customer_credit", "credit_balance"].includes(key)) return "customer_wallet";
   return key || "cash";
 };
@@ -2645,6 +2646,7 @@ export const createOrder = async (req, res) => {
     const resolvedCustomerName = String(customer_name || "").trim() || "Walk-in Customer";
     const normalizedPaymentMethod = normalizeMoneyPaymentMethod(payment_method || "cash");
     const isPersonalTransaction = normalizedPaymentMethod === "personal";
+    const isCreditSaleTransaction = normalizedPaymentMethod === "credit_sale";
     let resolvedPersonalSettlementType = normalizePersonalSettlementType(personal_settlement_type);
     const resolvedPersonalNote = String(personal_note || "").trim();
 
@@ -2672,6 +2674,9 @@ export const createOrder = async (req, res) => {
       if (!resolvedPersonalSettlementType) {
         return res.status(400).json({ success: false, message: "personal_settlement_type is required for PERSONAL transactions" });
       }
+    }
+    if (isCreditSaleTransaction && !customer_id) {
+      return res.status(400).json({ success: false, message: "customer_id is required for credit sale transactions" });
     }
 
     if (!items || itemsCount === 0) {
@@ -2963,7 +2968,9 @@ export const createOrder = async (req, res) => {
     const exchangeDifferenceAmount = exchangeMode
       ? Number(Number(exchange_difference || computedTotal - exchangeCreditAmount).toFixed(2))
       : 0;
-    const receivedAmount = exchangeMode
+    const receivedAmount = isCreditSaleTransaction
+      ? 0
+      : exchangeMode
       ? Math.max(0, Number.isFinite(Number(paid_amount)) ? Number(paid_amount) : amountDueNow)
       : Number.isFinite(Number(paid_amount)) && Number(paid_amount) > 0 ? Number(paid_amount) : computedTotal;
     if (exchangeMode && Math.abs(receivedAmount - amountDueNow) > 0.009) {
@@ -3459,7 +3466,7 @@ export const createOrder = async (req, res) => {
       .filter((payment) => normalizeMoneyPaymentMethod(payment.method || payment.payment_method) === "cash")
       .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
 
-    if (!isPersonalTransaction) {
+    if (!isPersonalTransaction && !isCreditSaleTransaction) {
       markOrderStep("create payment transaction", { order_id: order.id, payment_method: payment_method || "cash", amount: receivedAmount });
       await timedCheckout(checkoutTiming, "payment_treasury_update_ms", async () => {
         await client.query(
@@ -3498,7 +3505,7 @@ export const createOrder = async (req, res) => {
     const saleAccountEvents = paymentBreakdown
       .map((payment) => {
         const method = normalizeMoneyPaymentMethod(payment.method || payment.payment_method);
-        if (["customer_wallet", "exchange_credit", "return_credit", "personal"].includes(method)) return null;
+        if (["customer_wallet", "exchange_credit", "return_credit", "personal", "credit_sale"].includes(method)) return null;
         const amount = Number(payment.amount || 0);
         if (!Number.isFinite(amount) || amount <= 0) return null;
         const explicitAccountId = payment.account_id || payment.financial_account_id || null;

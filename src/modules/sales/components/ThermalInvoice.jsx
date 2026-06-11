@@ -76,6 +76,8 @@ function ThermalInvoice({
   const paymentMethodLabel =
     String(paymentMethod || "").toLowerCase() === "personal"
       ? "عملية شخصية"
+      : String(paymentMethod || "").toLowerCase() === "credit_sale"
+        ? "آجل"
       : paymentMethod;
 
   return (

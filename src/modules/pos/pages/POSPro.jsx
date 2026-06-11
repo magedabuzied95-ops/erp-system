@@ -2222,7 +2222,7 @@ function POSPro() {
     setCustomerWalletAmount(0);
     setPaymentMode((current) => {
       const normalized = String(current || "").toLowerCase();
-      if (normalized === "customer_wallet" || normalized === "personal") return "cash";
+      if (normalized === "customer_wallet" || normalized === "personal" || normalized === "credit_sale") return "cash";
       return current;
     });
     setPersonalSettlementType("");
@@ -2237,6 +2237,13 @@ function POSPro() {
       setPersonalNote("");
     }
   }, [customer?.allowPersonalTransactions, customer?.allow_personal_transactions, paymentMode, selectedCustomerId]);
+
+  useEffect(() => {
+    if (String(paymentMode || "").toLowerCase() !== "credit_sale") return;
+    if (!selectedCustomerId) {
+      setPaymentMode("cash");
+    }
+  }, [paymentMode, selectedCustomerId]);
 
   useEffect(() => {
     let active = true;
@@ -2726,7 +2733,7 @@ function POSPro() {
   );
 
   const paymobTerminalAmount = useMemo(() => {
-    if (paymentMode === "personal") return 0;
+    if (paymentMode === "personal" || paymentMode === "credit_sale") return 0;
     if (paymentMode === "split") return Number(cardAmount || 0);
     if (paymentMode === "card") return Number(paymentSummary.paidAmount || amountDueNow || 0);
     return 0;
@@ -2734,13 +2741,13 @@ function POSPro() {
 
   const activePaymentAccountMethod = useMemo(() => {
     if (paymentMode === "customer_wallet") return "";
-    if (paymentMode === "personal") return "";
+    if (paymentMode === "personal" || paymentMode === "credit_sale") return "";
     if (paymentMode !== "split") return paymentMode;
     return activeSplitMethod;
   }, [activeSplitMethod, paymentMode]);
 
   const activePaymentAccountAmount = useMemo(() => {
-    if (paymentMode === "personal") return 0;
+    if (paymentMode === "personal" || paymentMode === "credit_sale") return 0;
     if (paymentMode === "split") {
       if (activePaymentAccountMethod === "vodafone_cash") return Number(vodafoneCashAmount || 0);
       if (activePaymentAccountMethod === "wallet") return Number(walletAmount || 0);
@@ -2777,6 +2784,7 @@ function POSPro() {
       (salesSettings.allow_sale_without_salesperson || Boolean(selectedSalespersonId)) &&
       paymobTerminalAmount > 0 &&
       paymentMode !== "personal" &&
+      paymentMode !== "credit_sale" &&
       !checkoutLoading &&
       !paymobTerminalLoading;
 
@@ -4033,6 +4041,7 @@ function POSPro() {
   const handleCheckout = async (options = {}) => {
     const paymobTerminalCheckout = options?.paymobTerminal === true;
     const paymobTerminalConfirmed = options?.paymobTerminalConfirmed === true;
+    const creditSaleCheckout = options?.creditSale === true;
     const terminalConfirmedAmount = paymobTerminalConfirmed
       ? Math.max(0, Number(options?.terminalAmount || paymobTerminalState?.amount || 0))
       : 0;
@@ -4041,7 +4050,7 @@ function POSPro() {
       ? (editRefundOrCreditDue > 0 ? "refund" : editAmountDueNow > 0 ? "extra_payment" : "none")
       : null;
     const resolvedEditPaymentMethod = editActive
-      ? (editRefundOrCreditDue > 0 ? editRefundMethod : paymentMode)
+      ? (editRefundOrCreditDue > 0 ? editRefundMethod : creditSaleCheckout ? "credit_sale" : paymentMode)
       : paymentMode;
     console.log("[pos-checkout:clicked]", {
       checkoutLoading,
@@ -4108,8 +4117,9 @@ function POSPro() {
       return null;
     }
 
-    const normalizedPaymentMode = String(paymentMode || "").toLowerCase();
+    const normalizedPaymentMode = String(creditSaleCheckout ? "credit_sale" : paymentMode || "").toLowerCase();
     const isPersonalTransaction = normalizedPaymentMode === "personal";
+    const isCreditSaleTransaction = normalizedPaymentMode === "credit_sale";
     const requestedCustomerWalletAmount = paymentMode === "customer_wallet"
       ? Number(paymentSummary.paidAmount || customerWalletAmount || 0)
       : paymentMode === "split"
@@ -4129,6 +4139,10 @@ function POSPro() {
         return null;
       }
     }
+    if (isCreditSaleTransaction && (!customer || !customer.id)) {
+      toast.error("اختر عميلًا أولًا قبل البيع الآجل.");
+      return null;
+    }
     const availableCustomerWalletBalance = canUseCustomerCredit ? customerCreditBalance : 0;
     if (requestedCustomerWalletAmount > 0 && !canUseCustomerCredit) {
       toast.error("رصيد العميل متاح فقط عند اختيار عميل لديه رصيد موجب.");
@@ -4142,7 +4156,7 @@ function POSPro() {
       return null;
     }
 
-    const enteredPaymentTotal = isPersonalTransaction
+    const enteredPaymentTotal = isPersonalTransaction || isCreditSaleTransaction
       ? Number(amountDueNow || cartTotals.total || 0)
       : Number(cashAmount || 0) + Number(cardAmount || 0) + Number(walletAmount || 0) + Number(vodafoneCashAmount || 0) + requestedCustomerWalletAmount;
     const paymentTarget = Number(amountDueNow || 0);
@@ -4150,11 +4164,11 @@ function POSPro() {
       toast.error("Payment total cannot exceed amount due now");
       return null;
     }
-    if (!isPersonalTransaction && !paymobTerminalCheckout && !paymobTerminalConfirmed && Math.abs(enteredPaymentTotal - paymentTarget) > 0.009) {
+    if (!isPersonalTransaction && !isCreditSaleTransaction && !paymobTerminalCheckout && !paymobTerminalConfirmed && Math.abs(enteredPaymentTotal - paymentTarget) > 0.009) {
       toast.error(`Payment mismatch. Remaining: ${formatCurrency(Math.max(0, paymentTarget - enteredPaymentTotal))}`);
       return null;
     }
-    if (isPersonalTransaction && (paymobTerminalCheckout || paymobTerminalConfirmed)) {
+    if ((isPersonalTransaction || isCreditSaleTransaction) && (paymobTerminalCheckout || paymobTerminalConfirmed)) {
       toast.error("العملية الشخصية لا تدعم الدفع عبر التيرمنال.");
       return null;
     }
@@ -4221,7 +4235,14 @@ function POSPro() {
       const terminalManualVodafoneCashAmount = paymentMode === "split" ? Number(vodafoneCashAmount || 0) : 0;
       const terminalManualCustomerWalletAmount = paymentMode === "split" ? Number(customerWalletAmount || 0) : 0;
       const terminalManualPaidAmount = Math.max(0, terminalManualCashAmount + terminalManualWalletAmount + terminalManualVodafoneCashAmount + terminalManualCustomerWalletAmount);
-      const checkoutPaymentSummary = paymobTerminalConfirmed
+      const checkoutPaymentSummary = creditSaleCheckout
+        ? {
+            paidAmount: 0,
+            changeAmount: 0,
+            dueAmount: Number(amountDueNow || cartTotals.total || 0),
+            paymentStatus: Number(amountDueNow || 0) > 0 ? "Pending" : "Paid",
+          }
+        : paymobTerminalConfirmed
         ? {
             paidAmount: terminalConfirmedAmount,
             changeAmount: 0,
@@ -4246,6 +4267,8 @@ function POSPro() {
       const personalPaymentAmount = isPersonalTransaction ? Number(amountDueNow || cartTotals.total || 0) : 0;
       const payloadCashAmount = paymobTerminalConfirmed
         ? 0
+        : creditSaleCheckout
+          ? 0
         : paymobTerminalCheckout
         ? terminalManualCashAmount
         : paymentMode === "cash"
@@ -4255,6 +4278,8 @@ function POSPro() {
             : 0;
       const payloadCardAmount = paymobTerminalConfirmed
         ? terminalConfirmedAmount
+        : creditSaleCheckout
+          ? 0
         : paymobTerminalCheckout
           ? 0
         : paymentMode === "card"
@@ -4264,6 +4289,8 @@ function POSPro() {
             : 0;
       const payloadWalletAmount = paymobTerminalConfirmed
         ? 0
+        : creditSaleCheckout
+          ? 0
         : paymobTerminalCheckout
         ? terminalManualWalletAmount
         : paymentMode === "instapay" || paymentMode === "wallet"
@@ -4273,6 +4300,8 @@ function POSPro() {
             : 0;
       const payloadVodafoneCashAmount = paymobTerminalConfirmed
         ? 0
+        : creditSaleCheckout
+          ? 0
         : paymobTerminalCheckout
         ? terminalManualVodafoneCashAmount
         : paymentMode === "vodafone_cash"
@@ -4282,6 +4311,8 @@ function POSPro() {
             : 0;
       const payloadCustomerWalletAmount = paymobTerminalConfirmed
         ? 0
+        : creditSaleCheckout
+          ? 0
         : paymobTerminalCheckout
         ? terminalManualCustomerWalletAmount
         : paymentMode === "customer_wallet"
@@ -4296,6 +4327,8 @@ function POSPro() {
             personal_settlement_type: personalSettlementType,
             personal_note: String(personalNote || "").trim() || null,
           }]
+        : creditSaleCheckout
+          ? []
         : [
             exchangeState?.active && !editingOrder?.id
               ? {
@@ -4327,7 +4360,7 @@ function POSPro() {
         customer_name: invoiceCustomer.name,
         customer_id: customerId || null,
         customer_phone: customer?.phone || "",
-        payment_method: isPersonalTransaction ? "personal" : (paymobTerminalConfirmed ? "card" : paymentMode),
+        payment_method: isPersonalTransaction ? "personal" : (creditSaleCheckout ? "credit_sale" : (paymobTerminalConfirmed ? "card" : paymentMode)),
         payment_transaction_id: paymobTerminalConfirmed ? options?.paymobTerminalTransactionId || null : null,
         paymob_terminal_transaction_id: paymobTerminalConfirmed ? options?.paymobTerminalTransactionId || null : null,
         subtotal: cartTotals.subtotal,
@@ -4349,7 +4382,7 @@ function POSPro() {
         paid_amount: checkoutPaymentSummary.paidAmount,
         change_amount: checkoutPaymentSummary.changeAmount,
         status: checkoutPaymentSummary.paymentStatus,
-        payment_status: checkoutPaymentSummary.paymentStatus,
+        payment_status: creditSaleCheckout ? "unpaid" : checkoutPaymentSummary.paymentStatus,
         branch_id: checkoutBranchId,
         cash_amount: payloadCashAmount,
         card_amount: payloadCardAmount,
@@ -4362,7 +4395,7 @@ function POSPro() {
         original_invoice_number: editingOrder?.id ? editingOrder.invoice_number || editingOrder.invoiceNumber || "" : "",
         original_paid_amount: editingOrder?.id ? originalEditPaidAmount : 0,
         new_total: editingOrder?.id ? cartTotals.total : null,
-        amount_due_now: amountDueNow,
+        amount_due_now: creditSaleCheckout ? Number(amountDueNow || cartTotals.total || 0) : amountDueNow,
         refund_or_credit_due: editingOrder?.id ? editRefundOrCreditDue : 0,
         edit_settlement_type: editSettlementType,
         edit_settlement_method: editingOrder?.id ? resolvedEditPaymentMethod : null,
@@ -6071,6 +6104,7 @@ function POSPro() {
             onPaymentAccountAdjusted={() => setPaymentAccountRefreshKey((key) => key + 1)}
             invoiceNumber={invoiceNumber}
             onCheckout={handleCheckout}
+            onCreditSale={() => handleCheckout({ creditSale: true })}
             onPaymobTerminal={handlePaymobTerminalPayment}
             paymobTerminalLoading={paymobTerminalLoading}
             checkoutLoading={checkoutLoading}
@@ -6213,6 +6247,7 @@ function POSPro() {
             onPaymentAccountAdjusted={() => setPaymentAccountRefreshKey((key) => key + 1)}
             invoiceNumber={invoiceNumber}
             onCheckout={handleCheckout}
+            onCreditSale={() => handleCheckout({ creditSale: true })}
             onPaymobTerminal={handlePaymobTerminalPayment}
             paymobTerminalLoading={paymobTerminalLoading}
             checkoutLoading={checkoutLoading}

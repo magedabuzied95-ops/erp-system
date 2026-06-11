@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+﻿import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import i18n from "../../../i18n/i18n";
 import toast from "react-hot-toast";
@@ -192,6 +192,7 @@ const getLocalizedPaymentLabel = (mode, paymentSummary = {}, personalSettlementT
     vodafone_cash: "V.CASH",
     customer_wallet: receiptPrintLabel("customerWallet", "Customer wallet"),
     split: "SPLIT",
+    credit_sale: "آجل",
     transfer: receiptPrintLabel("transfer", "Transfer"),
     bank_transfer: receiptPrintLabel("transfer", "Transfer"),
     personal: personalLabels[personalKey] || "عملية شخصية",
@@ -243,19 +244,20 @@ const getPaymentLabel = (mode, paymentSummary = {}) => {
     instapay: "INSTAPAY",
     vodafone_cash: "V.CASH",
     split: "SPLIT",
+    credit_sale: "آجل",
   };
   if (productionLabels[raw]) return productionLabels[raw];
   const labels = {
-    cash: "نقداً",
-    card: "فيزا",
-    visa: "فيزا",
-    wallet: "محفظة",
-    split: "متعدد",
+    cash: "ظ†ظ‚ط¯ط§ظ‹",
+    card: "ظپظٹط²ط§",
+    visa: "ظپظٹط²ط§",
+    wallet: "ظ…ط­ظپط¸ط©",
+    split: "ظ…طھط¹ط¯ط¯",
     transfer: POS_ARABIC_TEXT.transfer,
     bank_transfer: POS_ARABIC_TEXT.transfer,
     personal: "عملية شخصية",
   };
-  return labels[raw] || (raw ? raw : "نقداً");
+  return labels[raw] || (raw ? raw : "ظ†ظ‚ط¯ط§ظ‹");
 };
 
 const getSellerName = (customer = {}) => {
@@ -335,6 +337,7 @@ function CartSidebar({
   onPaymentAccountAdjusted,
   invoiceNumber,
   onCheckout,
+  onCreditSale,
   onPaymobTerminal,
   paymobTerminalLoading = false,
   checkoutLoading,
@@ -405,16 +408,19 @@ function CartSidebar({
   };
   const methodTotal = methodAmounts.cash + methodAmounts.card + methodAmounts.wallet + methodAmounts.vodafone_cash;
   const personalSettlementTypeValue = String(personalSettlementType || "").trim().toUpperCase();
-  const totalPaid = personalPaymentActive ? totalAmount : appliedCredit + methodTotal;
-  const remainingAmount = personalPaymentActive ? 0 : Math.max(0, totalAmount - totalPaid);
+  const creditSaleActive = normalizedPaymentMode === "credit_sale";
+  const totalPaid = personalPaymentActive || creditSaleActive ? 0 : appliedCredit + methodTotal;
+  const remainingAmount = personalPaymentActive || creditSaleActive ? totalAmount : Math.max(0, totalAmount - totalPaid);
   const hasPaymentBreakdown = appliedCredit > 0 || methodTotal > 0;
-  const paymentMismatch = personalPaymentActive ? false : Math.abs(totalAmount - totalPaid) > 0.009;
+  const paymentMismatch = personalPaymentActive || creditSaleActive ? false : Math.abs(totalAmount - totalPaid) > 0.009;
   const selectedMethod = normalizedPaymentMode === "split"
     ? (["cash", "card", "wallet", "vodafone_cash"].includes(activeSplitMethod) ? activeSplitMethod : "cash")
     : normalizedPaymentMode === "instapay"
       ? "wallet"
       : normalizedPaymentMode === "personal"
         ? "personal"
+      : normalizedPaymentMode === "credit_sale"
+        ? "credit_sale"
       : ["cash", "card", "wallet", "vodafone_cash"].includes(normalizedPaymentMode)
         ? normalizedPaymentMode
         : "cash";
@@ -433,9 +439,9 @@ function CartSidebar({
   const activeMethodCount = paymentMethods.filter((method) => methodAmounts[method.key] > 0.009).length;
   const activePaymentMethodCount = activeMethodCount + (appliedCredit > 0.009 ? 1 : 0);
   const walletPaymentUsed = methodAmounts.wallet > 0.009;
-  const showOrderSummary = personalPaymentActive || appliedCredit > 0.009 || activeMethodCount > 1 || walletPaymentUsed || remainingAmount > 0.009 || paymentMismatch;
+  const showOrderSummary = personalPaymentActive || creditSaleActive || appliedCredit > 0.009 || activeMethodCount > 1 || walletPaymentUsed || remainingAmount > 0.009 || paymentMismatch;
   const hasAccountWarning = Number(paymentAccountStatus?.shortage_amount || 0) > 0 || paymentAccountStatus?.allow_negative_balance === true;
-  const shouldShowPaymentDetails = paymentDetailsOpen || personalPaymentActive || activePaymentMethodCount > 1 || (hasPaymentBreakdown && remainingAmount > 0.009) || (hasPaymentBreakdown && paymentMismatch) || hasAccountWarning;
+  const shouldShowPaymentDetails = paymentDetailsOpen || personalPaymentActive || creditSaleActive || activePaymentMethodCount > 1 || (hasPaymentBreakdown && remainingAmount > 0.009) || (hasPaymentBreakdown && paymentMismatch) || hasAccountWarning;
   const clearMethod = (method) => {
     if (method === "cash") setCashAmount(0);
     if (method === "card") setCardAmount(0);
@@ -923,6 +929,10 @@ function CartSidebar({
               <div className="mt-2 rounded-lg border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-[10px] font-bold text-amber-100">
                 عملية شخصية{personalSettlementTypeValue ? ` • ${personalSettlementTypeValue}` : ""} - لا تؤثر على الكاش
               </div>
+            ) : creditSaleActive ? (
+              <div className="mt-2 rounded-lg border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-[10px] font-bold text-amber-100">
+                آجل - لا يتطلب تحصيلاً نقدياً الآن
+              </div>
             ) : (
               <div className="mt-2 rounded-lg border border-emerald-300/15 bg-emerald-400/10 px-2 py-1.5 text-[10px] font-bold text-emerald-100">
                 {posLabel("cart.paymentMatched", "Payment matched")}
@@ -940,17 +950,7 @@ function CartSidebar({
           ) : null}
         </div>
 
-        <div className="sticky bottom-0 -mx-2.5 -mb-2.5 mt-2 grid grid-cols-2 gap-1.5 border-t border-white/10 bg-zinc-950/95 p-2.5 backdrop-blur">
-          <button
-            type="button"
-            onClick={onPaymobTerminal}
-            disabled={!canUsePaymobTerminal || paymobTerminalLoading || personalPaymentActive}
-            title={personalPaymentActive ? "PERSONAL transactions cannot use Paymob terminal" : canUsePaymobTerminal ? "Send payment request to Paymob terminal" : "Paymob terminal payment is not ready"}
-            className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Smartphone className="h-4 w-4" />
-            {paymobTerminalLoading ? "Processing..." : "Paymob Terminal"}
-          </button>
+        <div className="sticky bottom-0 -mx-2.5 -mb-2.5 mt-2 grid grid-cols-1 gap-1.5 border-t border-white/10 bg-zinc-950/95 p-2.5 backdrop-blur sm:grid-cols-3">
           <button
             type="button"
             onClick={onCheckout}
@@ -964,7 +964,30 @@ function CartSidebar({
             }
             className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {checkoutLoading ? posLabel("cart.savingInvoice", "جارٍ حفظ الفاتورة...") : `${checkoutLabel} • ${formatCurrency(totalAmount)}`}
+            {checkoutLoading ? posLabel("cart.savingInvoice", "جارِ حفظ الفاتورة...") : `${checkoutLabel} • ${formatCurrency(totalAmount)}`}
+          </button>
+          <button
+            type="button"
+            onClick={onCreditSale}
+            disabled={!hasSelectedCustomer || checkoutLoading || cart.length === 0 || editRefundSelectionMissing}
+            title={!hasSelectedCustomer ? "اختر عميلاً أولاً لإنشاء بيع آجل" : "إنشاء بيع آجل للعميل المحدد"}
+            className="inline-flex min-h-10 flex-col items-center justify-center gap-0.5 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100 transition hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span className="inline-flex items-center justify-center gap-1.5">
+              <Clock3 className="h-4 w-4" />
+              آجل
+            </span>
+            <span className="text-[10px] font-bold text-amber-100/70">بيع آجل للعميل</span>
+          </button>
+          <button
+            type="button"
+            onClick={onPaymobTerminal}
+            disabled={!canUsePaymobTerminal || paymobTerminalLoading || personalPaymentActive || creditSaleActive}
+            title={personalPaymentActive ? "PERSONAL transactions cannot use Paymob terminal" : creditSaleActive ? "Deferred sales cannot use Paymob terminal" : canUsePaymobTerminal ? "Send payment request to Paymob terminal" : "Paymob terminal payment is not ready"}
+            className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Smartphone className="h-4 w-4" />
+            {paymobTerminalLoading ? "Processing..." : "Paymob Terminal"}
           </button>
         </div>
 
@@ -1395,7 +1418,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
           <div>{POS_ARABIC_TEXT.item}</div>
           <div>{POS_ARABIC_TEXT.sizeColor}</div>
           <div className="text-center">{POS_ARABIC_TEXT.quantity}</div>
-          <div className="text-left">السعر</div>
+          <div className="text-left">ط§ظ„ط³ط¹ط±</div>
           <div className="text-left">{POS_ARABIC_TEXT.total}</div>
         </div>
         {cart.length === 0 ? (
@@ -1405,7 +1428,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
             const unitPrice = getReceiptItemUnitPrice(item);
             const lineTotal = getReceiptItemTotal(item);
             const imageSrc = getInvoiceItemImage(item);
-            const variant = [item.size, item.color].filter(Boolean).join(" / ") || "غير محدد";
+            const variant = [item.size, item.color].filter(Boolean).join(" / ") || "ط؛ظٹط± ظ…ط­ط¯ط¯";
 
             return (
               <div key={String(item.key || item.variant_id || item.name)} className="grid grid-cols-[minmax(0,1.5fr)_74px_40px_64px_70px] gap-1 border-b border-zinc-100 px-2 py-2.5 text-[11px] last:border-b-0">
@@ -1431,7 +1454,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
       <section className="mt-2 grid gap-2 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm shadow-zinc-100/70 sm:grid-cols-[1.25fr_0.85fr]">
         <div className="space-y-1.5 text-[12px] sm:border-l sm:border-dashed sm:border-zinc-200 sm:pl-3">
           <SummaryLine label={POS_ARABIC_TEXT.subtotal} value={formatCurrency(totals.subtotal || 0)} />
-          {premiumDiscount > 0 ? <SummaryLine label="الخصم" value={`- ${formatCurrency(premiumDiscount)}`} /> : null}
+          {premiumDiscount > 0 ? <SummaryLine label="ط§ظ„ط®طµظ…" value={`- ${formatCurrency(premiumDiscount)}`} /> : null}
           {premiumService > 0 ? <SummaryLine label={POS_ARABIC_TEXT.service} value={formatCurrency(premiumService)} /> : null}
           <div className="flex items-center justify-between border-t border-zinc-200 pt-2 text-lg font-black text-emerald-700">
             <span>{POS_ARABIC_TEXT.finalTotal}</span>
@@ -1447,7 +1470,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
           ) : null}
         </div>
         <div className="space-y-1.5 text-[12px]">
-          <MetricLine icon={Package} label="عدد المنتجات" value={cart.length} />
+          <MetricLine icon={Package} label="ط¹ط¯ط¯ ط§ظ„ظ…ظ†طھط¬ط§طھ" value={cart.length} />
           <MetricLine icon={ShoppingBag} label={POS_ARABIC_TEXT.totalQuantity} value={premiumTotalQuantity} />
         </div>
       </section>
@@ -1546,7 +1569,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
     customer?.salesName ||
     customer?.sellerName ||
     customer?.cashierName ||
-    "عميل";
+    "ط¹ظ…ظٹظ„";
   const receiptLabel = (_key, fallback) => fallback;
   return (
     <div
@@ -1570,12 +1593,12 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
         <div className="space-y-1.5">
           <ReceiptInfo icon={FileText} label={receiptLabel("invoice", POS_ARABIC_TEXT.invoice)} value={invoiceNumber} />
           <ReceiptInfo icon={User} label={receiptLabel("seller", POS_ARABIC_TEXT.seller)} value={sellerName} />
-          <ReceiptInfo icon={User} label={receiptLabel("customer", "العميل")} value={customer?.name || receiptLabel("walkIn", "Walk-in Customer")} />
+          <ReceiptInfo icon={User} label={receiptLabel("customer", "ط§ظ„ط¹ظ…ظٹظ„")} value={customer?.name || receiptLabel("walkIn", "Walk-in Customer")} />
         </div>
         <div className="space-y-1.5">
-          <ReceiptInfo icon={Star} label={receiptLabel("tier", "العضوية")} value={tier} />
+          <ReceiptInfo icon={Star} label={receiptLabel("tier", "ط§ظ„ط¹ط¶ظˆظٹط©")} value={tier} />
           <ReceiptInfo icon={CreditCard} label={receiptLabel("payment", POS_ARABIC_TEXT.paymentMethod)} value={paymentSummary.paymentStatus} />
-          <ReceiptInfo icon={CalendarDays} label={receiptLabel("date", "التاريخ")} value={receiptDate} />
+          <ReceiptInfo icon={CalendarDays} label={receiptLabel("date", "ط§ظ„طھط§ط±ظٹط®")} value={receiptDate} />
         </div>
       </div>
 
@@ -1583,7 +1606,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
         <div className="grid grid-cols-[1fr_38px_66px_72px] gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">
           <div>{receiptLabel("item", POS_ARABIC_TEXT.item)}</div>
           <div className="text-center">{receiptLabel("qty", POS_ARABIC_TEXT.quantity)}</div>
-          <div className="text-right">{receiptLabel("price", "السعر")}</div>
+          <div className="text-right">{receiptLabel("price", "ط§ظ„ط³ط¹ط±")}</div>
           <div className="text-right">{receiptLabel("total", POS_ARABIC_TEXT.total)}</div>
         </div>
         <div className="mt-1.5 space-y-1.5">
@@ -1637,7 +1660,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
       <div className="mt-3 space-y-1.5 text-[13px]">
         <ReceiptTotalRow label={receiptLabel("subtotal", POS_ARABIC_TEXT.subtotal)} value={formatCurrency(totals.subtotal)} />
         <ReceiptTotalRow label={receiptLabel("discounts", POS_ARABIC_TEXT.discounts)} value={`- ${formatCurrency(totals.itemDiscountTotal + totals.invoiceDiscount)}`} />
-        <ReceiptTotalRow label={receiptLabel("loyaltyDiscount", "خصم الولاء")} value={`- ${formatCurrency(totals.loyaltyDiscount || 0)}`} />
+        <ReceiptTotalRow label={receiptLabel("loyaltyDiscount", "ط®طµظ… ط§ظ„ظˆظ„ط§ط،")} value={`- ${formatCurrency(totals.loyaltyDiscount || 0)}`} />
         {Number(totals.couponDiscount || 0) > 0 ? <ReceiptTotalRow label="Coupon Discount" value={`- ${formatCurrency(totals.couponDiscount || 0)}`} /> : null}
         <ReceiptTotalRow label={receiptLabel("serviceFee", POS_ARABIC_TEXT.serviceFee)} value={formatCurrency(totals.serviceFee)} />
         <div className="h-px bg-emerald-500" />
@@ -2297,7 +2320,7 @@ function EditPaymentDifferenceCard({
                 active={String(refundMethod || "").toLowerCase() === "cash"}
                 onClick={() => onRefundMethodChange?.("cash")}
                 icon={<Banknote className="h-4 w-4" />}
-                label="نقدي"
+                label="ظ†ظ‚ط¯ظٹ"
                 tone="green"
               />
               <ModeButton
@@ -2741,8 +2764,8 @@ function PaymentAccountPanel({ status, loading = false, onAdjusted }) {
             <span className="text-zinc-500">{POS_ARABIC_TEXT.account}</span>
             <span className="truncate text-right">{accountName}</span>
           </div>
-          {status.allow_negative_balance && shortage > 0 ? <div className="text-amber-100">مسموح بالسالب لهذا الحساب.</div> : null}
-          {!status.allow_negative_balance && fallback ? <div className="text-emerald-100">يوجد رصيد كاف في {fallbackName}</div> : null}
+          {status.allow_negative_balance && shortage > 0 ? <div className="text-amber-100">ظ…ط³ظ…ظˆط­ ط¨ط§ظ„ط³ط§ظ„ط¨ ظ„ظ‡ط°ط§ ط§ظ„ط­ط³ط§ط¨.</div> : null}
+          {!status.allow_negative_balance && fallback ? <div className="text-emerald-100">ظٹظˆط¬ط¯ ط±طµظٹط¯ ظƒط§ظپ ظپظٹ {fallbackName}</div> : null}
         </div>
       </details>
 
