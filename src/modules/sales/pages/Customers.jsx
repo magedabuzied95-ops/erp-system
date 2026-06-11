@@ -594,84 +594,16 @@ function Customers() {
 
   const handleExportStatement = async () => {
     if (!selectedCustomer?.id || !canExportStatement) return;
+
     try {
       const statement = statementData?.rows ? statementData : await fetchCustomerStatement();
       if (!statement) {
         throw new Error("تعذر تحميل كشف الحساب");
       }
+
       const opened = printCustomerStatement(statement, profile?.customer || selectedCustomer, i18n.language);
       if (!opened) {
         throw new Error("تعذر فتح نافذة الطباعة");
-      }
-      return;
-      if (false) {
-      const response = await api.get(`/customers/${selectedCustomer.id}/statement${buildFilterQuery()}`);
-      const statement = response?.data;
-      const [jspdfModule, autoTableModule] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
-      const JsPDF = jspdfModule.jsPDF || jspdfModule.default || jspdfModule;
-      const autoTable = autoTableModule.default || autoTableModule.autoTable || autoTableModule;
-      const doc = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const rows = Array.isArray(statement?.rows) ? statement.rows : [];
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const rightX = pageWidth - 10;
-      await registerCustomerStatementFont(doc);
-      doc.setFont(CUSTOMER_STATEMENT_FONT.family, "bold");
-      doc.setFontSize(18);
-      doc.text(toPdfArabic(doc, "كشف حساب العميل"), rightX, 16, { align: "right" });
-      doc.setFontSize(10);
-      doc.setFont(CUSTOMER_STATEMENT_FONT.family, "normal");
-      doc.text(toPdfArabic(doc, `العميل: ${statement?.customer?.name || selectedCustomer.name || ""}`), rightX, 25, { align: "right" });
-      doc.text(toPdfArabic(doc, `الهاتف: ${statement?.customer?.phone || selectedCustomer.phone || ""}`), rightX, 31, { align: "right" });
-      doc.text(toPdfArabic(doc, `الرصيد الافتتاحي: ${formatMoney(statement?.opening_balance)}`), rightX, 39, { align: "right" });
-      doc.text(toPdfArabic(doc, `الرصيد النهائي: ${formatMoney(statement?.final_balance)}`), rightX, 45, { align: "right" });
-      autoTable(doc, {
-        startY: 52,
-        head: [[
-          toPdfArabic(doc, "التاريخ"),
-          toPdfArabic(doc, "البيان"),
-          toPdfArabic(doc, "مدين"),
-          toPdfArabic(doc, "دائن"),
-          toPdfArabic(doc, "الرصيد"),
-        ]],
-        body: rows.map((row) => [
-          toPdfArabic(doc, formatDateTime(row.created_at)),
-          toPdfArabic(doc, row.transaction_type_label || row.transaction_type || row.notes || "-"),
-          Number(row.amount || 0) < 0 ? formatMoney(Math.abs(row.amount || 0)) : "",
-          Number(row.amount || 0) > 0 ? formatMoney(row.amount || 0) : "",
-          formatMoney(row.after_balance),
-        ]),
-        styles: { font: CUSTOMER_STATEMENT_FONT.family, fontSize: 8, halign: "right", cellPadding: 2 },
-        bodyStyles: { font: CUSTOMER_STATEMENT_FONT.family, halign: "right" },
-        headStyles: {
-          fillColor: [5, 150, 105],
-          textColor: 255,
-          halign: "right",
-          font: CUSTOMER_STATEMENT_FONT.family,
-          fontStyle: "bold",
-        },
-        columnStyles: {
-          0: { cellWidth: 24 },
-          1: { cellWidth: 78 },
-          2: { cellWidth: 24, halign: "center" },
-          3: { cellWidth: 24, halign: "center" },
-          4: { cellWidth: 36, halign: "center" },
-        },
-        didParseCell: (cellData) => {
-          if (cellData.section === "head" || cellData.section === "body") {
-            cellData.cell.styles.font = CUSTOMER_STATEMENT_FONT.family;
-            cellData.cell.styles.halign = "right";
-          }
-        },
-      });
-      const y = (doc.lastAutoTable?.finalY || 52) + 8;
-      doc.setFont(CUSTOMER_STATEMENT_FONT.family, "bold");
-      doc.text(toPdfArabic(doc, `الطلبات: ${formatMoney(statement?.totals?.orders)}`), rightX, y, { align: "right" });
-      doc.text(toPdfArabic(doc, `المرتجعات: ${formatMoney(statement?.totals?.returns)}`), rightX, y + 6, { align: "right" });
-      doc.text(toPdfArabic(doc, `أرصدة المحفظة: ${formatMoney(statement?.totals?.wallet_credits)}`), rightX, y + 12, { align: "right" });
-      doc.text(toPdfArabic(doc, `مدفوعات المحفظة: ${formatMoney(statement?.totals?.wallet_payments)}`), rightX, y + 18, { align: "right" });
-      doc.text(toPdfArabic(doc, `التعديلات اليدوية: ${formatMoney(statement?.totals?.manual_adjustments)}`), rightX, y + 24, { align: "right" });
-      doc.text(toPdfArabic(doc, `مطابقة الرصيد الحالي: ${formatMoney(statement?.current_balance)}`), rightX, y + 30, { align: "right" });
-      doc.save(`customer-statement-${selectedCustomer.id}.pdf`);
       }
     } catch (error) {
       console.error("[customers] failed to export statement:", error);

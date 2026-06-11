@@ -4176,6 +4176,9 @@ function ShopByMainCategories({ products = [], lang = "ar" }) {
 function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", products = [], loading = false, railType = "default", tone = "default", wishlist, toggleWishlist, onAddToCart }) {
   const isRtl = normalizeLanguage(i18n.language) === "ar";
   const railViewportRef = useRef(null);
+  const railCardRefs = useRef([]);
+  const autoplayIndexRef = useRef(0);
+  const autoplayTimersRef = useRef({ wait: null, settle: null, sync: null });
   const [railPaused, setRailPaused] = useState(false);
   const visibleProducts = useMemo(
     () => sortStorefrontColorCardsByModel(uniqueProductsByIdentity(products).filter((product) => product?.id && product?.name && isAvailableProduct(product)).slice(0, 8)),
@@ -4247,31 +4250,97 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
     : repeatedProducts;
 
   useEffect(() => {
+    railCardRefs.current = [];
+  }, [visibleProducts.length, railItems.length]);
+
+  useEffect(() => {
     const viewport = railViewportRef.current;
-    if (!viewport || !railItems.length || typeof window === "undefined") return undefined;
-    let frame = 0;
-    let lastTime = 0;
-    const speed = 22;
+    if (!viewport || !visibleProducts.length || typeof window === "undefined") return undefined;
 
-    const tick = (time) => {
-      if (!lastTime) lastTime = time;
-      const delta = time - lastTime;
-      lastTime = time;
-
-      if (!railPaused && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        const cycleWidth = viewport.scrollWidth / railRepeatCount;
-        if (cycleWidth > 0 && viewport.scrollWidth > viewport.clientWidth) {
-          const nextScrollLeft = viewport.scrollLeft + (speed * delta) / 1000;
-          viewport.scrollLeft = nextScrollLeft >= cycleWidth ? nextScrollLeft % cycleWidth : nextScrollLeft;
-        }
-      }
-
-      frame = window.requestAnimationFrame(tick);
+    const clearTimers = () => {
+      if (autoplayTimersRef.current.wait) window.clearTimeout(autoplayTimersRef.current.wait);
+      if (autoplayTimersRef.current.settle) window.clearTimeout(autoplayTimersRef.current.settle);
+      if (autoplayTimersRef.current.sync) window.clearTimeout(autoplayTimersRef.current.sync);
+      autoplayTimersRef.current = { wait: null, settle: null, sync: null };
     };
 
-    frame = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(frame);
-  }, [railItems.length, railPaused, railRepeatCount]);
+    const syncIndexToViewport = () => {
+      const activeEdge = isRtl ? viewport.getBoundingClientRect().right : viewport.getBoundingClientRect().left;
+      let bestIndex = autoplayIndexRef.current;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      railCardRefs.current.forEach((node, index) => {
+        if (!node) return;
+        const rect = node.getBoundingClientRect();
+        const edge = isRtl ? rect.right : rect.left;
+        const distance = Math.abs(edge - activeEdge);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestIndex = index;
+        }
+      });
+      autoplayIndexRef.current = bestIndex;
+    };
+
+    const positionToIndex = (index, behavior = "auto") => {
+      const node = railCardRefs.current[index];
+      if (!node) return;
+      node.scrollIntoView({ behavior, block: "nearest", inline: "start" });
+    };
+
+    const stepOnce = () => {
+      if (railPaused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const stepIndex = Math.min(visibleProducts.length * 2, autoplayIndexRef.current + 1);
+      const stepNode = railCardRefs.current[stepIndex] || railCardRefs.current[visibleProducts.length];
+      const viewportRect = viewport.getBoundingClientRect();
+      const cardRect = stepNode?.getBoundingClientRect();
+      if (!cardRect) return;
+      const gap = Number.parseFloat(window.getComputedStyle(viewport).columnGap || window.getComputedStyle(viewport).gap || "0") || 0;
+      const stepDistance = Math.max(8, cardRect.width + gap);
+      viewport.scrollBy({ left: isRtl ? -stepDistance : stepDistance, behavior: "smooth" });
+      autoplayIndexRef.current = stepIndex;
+      autoplayTimersRef.current.settle = window.setTimeout(() => {
+        if (railPaused) return;
+        if (autoplayIndexRef.current >= visibleProducts.length * 2) {
+          autoplayIndexRef.current = visibleProducts.length;
+          positionToIndex(autoplayIndexRef.current, "auto");
+        }
+        scheduleNext();
+      }, 520);
+    };
+
+    const scheduleNext = () => {
+      clearTimeout(autoplayTimersRef.current.wait);
+      autoplayTimersRef.current.wait = window.setTimeout(stepOnce, 4000);
+    };
+
+    const onScroll = () => {
+      clearTimeout(autoplayTimersRef.current.sync);
+      autoplayTimersRef.current.sync = window.setTimeout(syncIndexToViewport, 120);
+    };
+
+    if (railPaused) {
+      viewport.addEventListener("scroll", onScroll, { passive: true });
+      return () => {
+        clearTimers();
+        viewport.removeEventListener("scroll", onScroll);
+      };
+    }
+
+    scheduleNext();
+    viewport.addEventListener("scroll", onScroll, { passive: true });
+
+    return () => {
+      clearTimers();
+      viewport.removeEventListener("scroll", onScroll);
+    };
+  }, [isRtl, railPaused, railRepeatCount, visibleProducts.length]);
+
+  useEffect(() => {
+    if (!railCardRefs.current.length || !visibleProducts.length) return;
+    autoplayIndexRef.current = visibleProducts.length;
+    const node = railCardRefs.current[visibleProducts.length];
+    node?.scrollIntoView({ behavior: "auto", block: "nearest", inline: "start" });
+  }, [visibleProducts.length, railItems.length]);
 
   if (!loading && !visibleProducts.length) return null;
 
@@ -4292,7 +4361,7 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
       </div>
       <div
         ref={railViewportRef}
-        dir="ltr"
+        dir={isRtl ? "rtl" : "ltr"}
         className="sf-scroll flex w-full min-w-0 cursor-grab gap-3.5 overflow-x-auto pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden active:cursor-grabbing"
         onPointerEnter={() => setRailPaused(true)}
         onPointerLeave={() => setRailPaused(false)}
@@ -4306,6 +4375,10 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
         {railItems.map(({ product, skeleton, key, index, repeatIndex }) => (
           <div
             key={key}
+            ref={(node) => {
+              railCardRefs.current[index + repeatIndex * visibleProducts.length] = node;
+            }}
+            data-home-rail-card="true"
             className="w-[82vw] max-w-[22rem] shrink-0 sm:w-[43vw] md:w-[19rem] xl:w-[20rem]"
           >
             {skeleton ? (
