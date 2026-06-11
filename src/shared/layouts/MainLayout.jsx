@@ -498,7 +498,13 @@ function MainLayout() {
     <NotificationsProvider>
     <div
       dir={dir}
-      className="min-h-screen w-screen max-w-[100vw] overflow-x-hidden bg-[var(--bg)] text-[var(--text)] transition-all duration-300"
+      className={[
+        "min-h-screen w-full max-w-none overflow-x-hidden bg-[var(--bg)] text-[var(--text)] transition-all duration-300",
+        "lg:grid",
+        sidebarCollapsed
+          ? "lg:grid-cols-[clamp(80px,5vw,96px)_minmax(0,1fr)]"
+          : "lg:grid-cols-[clamp(260px,18vw,340px)_minmax(0,1fr)]",
+      ].join(" ")}
     >
       {mobileDrawerOpen ? (
         <button
@@ -511,8 +517,8 @@ function MainLayout() {
 
       <aside
         className={[
-          "sidebar-scroll fixed bottom-0 top-0 z-50 flex w-72 flex-col overflow-y-auto overflow-x-hidden bg-[var(--surface)] shadow-2xl transition-all duration-300 lg:translate-x-0",
-          sidebarCollapsed ? "lg:w-20 p-3 lg:p-3" : "p-4 lg:w-72 lg:p-4",
+          "sidebar-scroll fixed bottom-0 top-0 z-50 flex w-[min(85vw,340px)] flex-col overflow-y-auto overflow-x-hidden bg-[var(--surface)] shadow-2xl transition-all duration-300 lg:sticky lg:top-0 lg:z-30 lg:h-screen lg:w-full lg:translate-x-0",
+          sidebarCollapsed ? "p-3 lg:p-3" : "p-4 lg:p-4",
           mobileDrawerOpen ? "translate-x-0" : isRtl ? "translate-x-full" : "-translate-x-full",
           isRtl
             ? "left-auto right-0 border-l border-[var(--border)]"
@@ -680,11 +686,7 @@ function MainLayout() {
       </aside>
 
       <main
-        className={[
-          "min-h-screen w-screen max-w-[100vw] min-w-0 overflow-x-hidden",
-          sidebarCollapsed ? "lg:w-[calc(100%-5rem)]" : "lg:w-[calc(100%-18rem)]",
-          isRtl ? (sidebarCollapsed ? "lg:mr-20" : "lg:mr-72") : (sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"),
-        ].join(" ")}
+        className="min-h-screen w-full min-w-0 overflow-x-hidden"
       >
         <div className="flex min-h-screen w-full min-w-0 max-w-none flex-col overflow-x-hidden">
           <div className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur-2xl lg:top-0" style={{ "--topbar-height": "72px" }}>

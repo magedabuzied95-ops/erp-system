@@ -22,7 +22,7 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="flex h-screen w-[300px] flex-col border-r border-[var(--border)] bg-[var(--bg)] p-5 shadow-2xl shadow-[var(--shadow)]">
+    <aside className="flex h-screen w-[clamp(260px,18vw,340px)] flex-col border-r border-[var(--border)] bg-[var(--bg)] p-5 shadow-2xl shadow-[var(--shadow)]">
       <div>
         <div className="theme-card mb-6 bg-[var(--surface)] p-5">
           <h1 className="text-3xl font-black tracking-tight text-[var(--text)]">ERP PRO</h1>

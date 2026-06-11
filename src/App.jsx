@@ -218,7 +218,7 @@ const AiAgentAnalytics = lazy(() => import("./modules/aiSupport/pages/AiAgentAna
 function RouteSkeleton() {
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-[var(--bg)] p-4 text-[var(--text)] dark:bg-[#050816] dark:text-white md:p-6">
-      <div className="mx-auto max-w-7xl space-y-5">
+      <div className="w-full max-w-none space-y-5">
         <div className="h-8 w-56 animate-pulse rounded-lg bg-[var(--surface-muted,#e5e7eb)] dark:bg-white/[0.06]" />
         <div className="grid gap-3 md:grid-cols-4">
           {Array.from({ length: 4 }).map((_, index) => (
