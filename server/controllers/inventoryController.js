@@ -54,22 +54,25 @@ const buildPurchaseAlertCartonAction = (count) => {
   return nextCount === 1 ? "طلب كرتونة واحدة" : `طلب ${nextCount} كراتين`;
 };
 
-const repairPurchaseAlertDisplayFields = (alert = {}) => ({
-  ...alert,
-  product_name: normalizeDisplayText(alert.product_name || ""),
-  name: normalizeDisplayText(alert.name || ""),
-  color: normalizeDisplayText(alert.color || ""),
-  size: normalizeDisplayText(alert.size || ""),
-  alert_title: normalizeDisplayText(alert.alert_title || ""),
-  alert_reason: normalizeDisplayText(alert.alert_reason || ""),
-  alert_reasons: Array.isArray(alert.alert_reasons) ? alert.alert_reasons.map((value) => normalizeDisplayText(value)) : alert.alert_reasons,
-  suggested_action: normalizeDisplayText(alert.suggested_action || ""),
-  scope_label: normalizeDisplayText(alert.scope_label || ""),
-  badge_text: normalizeDisplayText(alert.badge_text || ""),
-  brand_name: normalizeDisplayText(alert.brand_name || ""),
-  category_name: normalizeDisplayText(alert.category_name || ""),
-  manufacturer_name: normalizeDisplayText(alert.manufacturer_name || ""),
-});
+const repairPurchaseAlertDisplayValue = (value) => {
+  if (typeof value === "string") {
+    return normalizeDisplayText(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => repairPurchaseAlertDisplayValue(item));
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entryValue]) => [key, repairPurchaseAlertDisplayValue(entryValue)])
+    );
+  }
+
+  return value;
+};
+
+const repairPurchaseAlertDisplayFields = (alert = {}) => repairPurchaseAlertDisplayValue(alert);
 
 const buildPurchaseAlertAction = (count) => {
   const nextCount = Number(count || 1);
