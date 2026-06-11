@@ -5385,6 +5385,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const [sheetColorKey, setSheetColorKey] = useState("");
   const [sheetVariantId, setSheetVariantId] = useState("");
   const [sheetQty, setSheetQty] = useState(1);
+  const sheetDismissedRef = useRef(false);
   useEffect(() => {
     let cancelled = false;
     deferReactState(() => {
@@ -5409,6 +5410,8 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const canQuickAdd = availableVariant && variantHasStock(availableVariant);
   const handleQuickAdd = useCallback(() => onAddToCart(product, availableVariant), [availableVariant, onAddToCart, product]);
   const openVariantSheet = useCallback(() => {
+    console.log("SHEET_OPEN_FROM", "openVariantSheet");
+    sheetDismissedRef.current = false;
     const first = availableVariant && variantHasStock(availableVariant) ? availableVariant : sellableVariants[0] || null;
     setSheetColorKey(first ? variantColorKey(first) : colorGroups[0]?.key || "");
     setSheetVariantId(first?.id || "");
@@ -5416,6 +5419,9 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     setVariantSheetOpen(true);
   }, [availableVariant, colorGroups, sellableVariants]);
   const closeVariantSheet = useCallback(() => {
+    console.log("CLOSE_TAPPED");
+    console.log("closeVariantSheet: before setVariantSheetOpen(false)");
+    sheetDismissedRef.current = true;
     setVariantSheetOpen(false);
     setSheetColorKey("");
     setSheetVariantId("");
@@ -5457,6 +5463,15 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     setSelectedColorKeyState(group?.key || "");
     setSelectedVariantId(next?.id || "");
   }, []);
+  if (variantSheetOpen) {
+    console.log("SHEET_STATE variantSheetOpen", {
+      productId: product.id,
+      sheetColorKey,
+      sheetVariantId,
+      sheetQty,
+      sheetDismissed: sheetDismissedRef.current,
+    });
+  }
   useEffect(() => {
     const node = cardRef.current;
     if (!node || !productIdentifier || typeof window === "undefined" || !("IntersectionObserver" in window)) return undefined;
@@ -5669,6 +5684,7 @@ function ProductCardVariantSheet({
   onAdd,
 }) {
   const { t } = useTranslation();
+  const closeGestureHandledRef = useRef(false);
   const activeGroup = colorGroups.find((group) => String(group.key) === String(selectedColorKey)) || colorGroups[0] || null;
   const sizeOptions = getSizesForColorGroup(activeGroup);
   const selectedVariant = sizeOptions.find((item) => String(item.variant?.id) === String(selectedVariantId))?.variant
@@ -5676,10 +5692,29 @@ function ProductCardVariantSheet({
     || null;
   const maxQty = Math.max(1, Number(selectedVariant?.stock || 1));
   const safeQty = Math.min(Math.max(1, Number(quantity || 1)), maxQty);
+  const handleCloseRequest = useCallback((event) => {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    if (closeGestureHandledRef.current) return;
+    closeGestureHandledRef.current = true;
+    onClose?.();
+    window.setTimeout(() => {
+      closeGestureHandledRef.current = false;
+    }, 0);
+  }, [onClose]);
 
   return createPortal(
     <div className="fixed inset-0 z-[90] pointer-events-auto md:hidden" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-      <button type="button" className="absolute inset-0 z-0 bg-stone-950/62 backdrop-blur-sm" onClick={onClose} aria-label={t("common.close", "Close")} />
+      <button
+        type="button"
+        className="absolute inset-0 z-0 bg-stone-950/62 backdrop-blur-sm"
+        onPointerDown={handleCloseRequest}
+        onTouchStart={handleCloseRequest}
+        onClick={handleCloseRequest}
+        aria-label={t("common.close", "Close")}
+      />
       <section className="absolute inset-x-0 bottom-0 z-10 rounded-t-[1.55rem] border border-white/10 bg-[linear-gradient(180deg,#101426_0%,#070b16_100%)] p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] text-white shadow-[0_-24px_70px_rgba(0,0,0,0.42)]">
         <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-white/20" />
         <div className="flex items-start justify-between gap-3">
@@ -5687,7 +5722,14 @@ function ProductCardVariantSheet({
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#d8b4fe]">{t("storefront.products.chooseSize", "Choose size")}</p>
             <h3 className="mt-1 line-clamp-2 text-base font-black leading-5">{product?.name}</h3>
           </div>
-          <button type="button" onClick={onClose} className="relative z-20 grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75">
+          <button
+            type="button"
+            onPointerDown={handleCloseRequest}
+            onTouchStart={handleCloseRequest}
+            onClick={handleCloseRequest}
+            className="relative z-20 grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75"
+            aria-label={t("common.close", "Close")}
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
