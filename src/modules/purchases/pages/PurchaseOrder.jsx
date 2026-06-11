@@ -1395,6 +1395,8 @@ function PurchaseOrder() {
     const normalizedPaymentStatus = normalizePaymentStatusKey(supplierPaymentStatus);
     const normalizedPaymentMethod = normalizePaymentMethodKey(paymentMethod);
     const selectedPaymentAccountMatch = financialAccounts.find((account) => String(account.id) === String(paymentAccountId)) || null;
+    const normalizedFinancialAccountId = normalizedPaymentStatus === "unpaid" ? null : Number(paymentAccountId);
+    const normalizedPaymentMethodForPayload = normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod;
     if (import.meta.env.DEV) {
       console.log("[purchase-payment-debug]", {
         paymentStatus: normalizedPaymentStatus,
@@ -1410,11 +1412,12 @@ function PurchaseOrder() {
     }
     if (normalizedPaymentStatus === "unpaid") {
       if (paymentMethod || paymentAccountId) {
-        const message = isArabic ? "لا يتم طلب حساب مالي في حالة الآجل." : "No financial account is required for credit purchases.";
-        setPostError(message);
-        toast.error(message);
-        releasePostingLock();
-        return;
+        console.warn("[purchase-payment-warning] clearing payment fields for unpaid purchase", {
+          paymentMethod,
+          paymentAccountId,
+        });
+        setPaymentMethod("");
+        setPaymentAccountId("");
       }
     } else {
       if (!normalizedPaymentMethod) {
@@ -1431,12 +1434,15 @@ function PurchaseOrder() {
         releasePostingLock();
         return;
       }
-      if (!isPurchasePaymentAccountMatch(selectedPaymentAccountMatch, normalizedPaymentMethod)) {
-        const message = isArabic ? "الحساب المختار لا يطابق طريقة الدفع." : "The selected account does not match the payment method.";
-        setPostError(message);
-        toast.error(message);
-        releasePostingLock();
-        return;
+      if (import.meta.env.DEV && selectedPaymentAccountMatch && !isPurchasePaymentAccountMatch(selectedPaymentAccountMatch, normalizedPaymentMethod)) {
+        console.warn("[purchase-payment-warning] account type does not match payment method, allowing save", {
+          paymentMethod: normalizedPaymentMethod,
+          selectedPaymentAccountMatch: {
+            id: selectedPaymentAccountMatch.id,
+            name: selectedPaymentAccountMatch.name || selectedPaymentAccountMatch.account_name,
+            type: selectedPaymentAccountMatch.type || selectedPaymentAccountMatch.account_type,
+          },
+        });
       }
       if (normalizedPaymentStatus === "paid") {
         if (total <= 0) {
@@ -1519,8 +1525,8 @@ function PurchaseOrder() {
       supplier_payment_status: normalizedPaymentStatus,
       supplier_paid_amount: effectiveSupplierPaidAmount,
       remaining_amount: effectiveSupplierRemainingAmount,
-      payment_method: normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod,
-      financial_account_id: normalizedPaymentStatus === "unpaid" ? null : Number(paymentAccountId),
+      payment_method: normalizedPaymentMethodForPayload,
+      financial_account_id: normalizedFinancialAccountId,
       metadata: {
         source: "purchase_pos",
         client_request_id: purchaseSaveId,
@@ -1532,8 +1538,8 @@ function PurchaseOrder() {
         supplier_invoice_number: supplierInvoiceNumber,
         delivery_notes: deliveryNotes,
         internal_notes: internalNotes,
-        payment_method: normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod,
-        financial_account_id: normalizedPaymentStatus === "unpaid" ? null : Number(paymentAccountId),
+        payment_method: normalizedPaymentMethodForPayload,
+        financial_account_id: normalizedFinancialAccountId,
         expenses: { shipping, transport, customs, additional_expenses: additionalExpenses },
         attachments: attachments.map((file) => ({ name: file.name, size: file.size, type: file.type })),
       },
@@ -1554,8 +1560,8 @@ function PurchaseOrder() {
           supplier_paid_amount: effectiveSupplierPaidAmount,
           supplier_payment_status: normalizedPaymentStatus,
           remaining_amount: effectiveSupplierRemainingAmount,
-          payment_method: normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod,
-          financial_account_id: normalizedPaymentStatus === "unpaid" ? null : Number(paymentAccountId),
+          payment_method: normalizedPaymentMethodForPayload,
+          financial_account_id: normalizedFinancialAccountId,
           supplier_invoice_number: editPurchase.metadata?.supplier_invoice_number || editPurchase.supplier_invoice_number || "",
           notes: editPurchase.notes || "",
           subtotal,
@@ -1569,8 +1575,8 @@ function PurchaseOrder() {
             supplier_payment_status: normalizedPaymentStatus,
             supplier_paid_amount: effectiveSupplierPaidAmount,
             remaining_amount: effectiveSupplierRemainingAmount,
-            payment_method: normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod,
-            financial_account_id: normalizedPaymentStatus === "unpaid" ? null : Number(paymentAccountId),
+            payment_method: normalizedPaymentMethodForPayload,
+            financial_account_id: normalizedFinancialAccountId,
             branch_id: branchId || null,
           },
           items: normalizedItems.map((item) => ({
@@ -1620,8 +1626,8 @@ function PurchaseOrder() {
         supplier_payment_status: normalizedPaymentStatus,
         supplier_paid_amount: effectiveSupplierPaidAmount,
         remaining_amount: effectiveSupplierRemainingAmount,
-        payment_method: normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod,
-        financial_account_id: normalizedPaymentStatus === "unpaid" ? null : Number(paymentAccountId),
+        payment_method: normalizedPaymentMethodForPayload,
+        financial_account_id: normalizedFinancialAccountId,
         total,
         subtotal,
         tax: 0,
