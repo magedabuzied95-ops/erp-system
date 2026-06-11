@@ -1,10 +1,14 @@
+import { repairArabicMojibakeText } from "./textEncoding.js";
+
 const normalizeText = (value = "") => String(value ?? "").trim();
 
 const normalizeKey = (value = "") => normalizeText(value).toLowerCase().replace(/\s+/g, " ");
 
-const normalizeColorLabel = (value = "") => normalizeText(value) || "بدون لون";
+const normalizeDisplayText = (value = "") => repairArabicMojibakeText(normalizeText(value));
 
-const normalizeSizeLabel = (value = "") => normalizeText(value) || "بدون مقاس";
+const normalizeColorLabel = (value = "") => normalizeDisplayText(value) || "بدون لون";
+
+const normalizeSizeLabel = (value = "") => normalizeDisplayText(value) || "مقاس واحد";
 
 const normalizeIdValue = (value) => {
   if (value === undefined || value === null || value === "") return null;
@@ -57,17 +61,17 @@ export const groupLowStockAlerts = (rows = [], { fallbackThreshold = 2, limit = 
     const groupKey = hasVariant ? `${productId}::${colorKey}` : `${productId}::model`;
     const stock = Math.max(0, Math.floor(Number(rawRow.stock ?? rawRow.total_stock ?? 0) || 0));
     const threshold = lowStockThresholdForRow(rawRow, fallbackThreshold);
-    const sizeLabel = hasVariant ? normalizeSizeLabel(rawRow.size) : normalizeSizeLabel(rawRow.size || "One size");
+    const sizeLabel = hasVariant ? normalizeSizeLabel(rawRow.size) : normalizeSizeLabel(rawRow.size || "One Size");
     const existing = groups.get(groupKey) || {
       key: groupKey,
       product_id: productId,
-      product_name: normalizeText(rawRow.product_name || rawRow.name || "منتج"),
+      product_name: normalizeDisplayText(rawRow.product_name || rawRow.name || "منتج"),
       product_sku: normalizeText(rawRow.product_sku || rawRow.sku || ""),
       color: hasVariant ? colorLabel : "",
       color_key: hasVariant ? colorKey : "model",
       has_variants: hasVariant,
       image_url: rowImageUrl(rawRow),
-      threshold: threshold,
+      threshold,
       total_stock: 0,
       low_stock_count: 0,
       low_stock_min: Number.POSITIVE_INFINITY,
@@ -124,7 +128,7 @@ export const groupLowStockAlerts = (rows = [], { fallbackThreshold = 2, limit = 
       const alertTitle = hasColorGroup ? "مطلوب إعادة طلب" : "مخزون منخفض";
       const alertReason = hasColorGroup
         ? lowStockSizes.length > 0
-          ? `المقاسات ${lowStockSizes.slice(0, 3).join("، ")}${lowStockSizes.length > 3 ? "…" : ""} تحت الحد`
+          ? `المقاسات ${lowStockSizes.slice(0, 3).join("، ")}${lowStockSizes.length > 3 ? "..." : ""} تحت الحد`
           : "أحد المقاسات تحت الحد"
         : "المنتج تحت حد المخزون";
 
@@ -156,7 +160,7 @@ export const groupLowStockAlerts = (rows = [], { fallbackThreshold = 2, limit = 
         low_stock_min: lowStockMin,
       };
     })
-    .filter((alert) => alert.alert_scope === "product_model" ? alert.stock > 0 && alert.stock <= alert.threshold : alert.low_stock_count > 0)
+    .filter((alert) => (alert.alert_scope === "product_model" ? alert.stock > 0 && alert.stock <= alert.threshold : alert.low_stock_count > 0))
     .sort((left, right) => {
       const leftPriority = left.alert_scope === "product_model" ? 1 : 0;
       const rightPriority = right.alert_scope === "product_model" ? 1 : 0;

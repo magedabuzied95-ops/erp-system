@@ -6,10 +6,12 @@ import { getVariantStockReconciliation } from "../services/stockReconciliationSe
 import { postInventoryAdjustment } from "../services/accountingService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
 import { groupLowStockAlerts } from "../utils/lowStockAlertGrouping.js";
+import { repairArabicMojibakeText } from "../utils/textEncoding.js";
 
 const LOW_STOCK_ALERT_MAX = 2;
 
 const normalizeText = (value = "") => String(value ?? "").trim();
+const normalizeDisplayText = (value = "") => repairArabicMojibakeText(normalizeText(value));
 
 const normalizePositiveStock = (value) => {
   const parsed = Number(value ?? 0);
@@ -17,13 +19,13 @@ const normalizePositiveStock = (value) => {
 };
 
 const normalizeSizeLabel = (value) => {
-  const text = normalizeText(value);
-  return text || "One size";
+  const text = normalizeDisplayText(value);
+  return text || "مقاس واحد";
 };
 
 const normalizeColorLabel = (value) => {
-  const text = normalizeText(value);
-  return text || "Default";
+  const text = normalizeDisplayText(value);
+  return text || "بدون لون";
 };
 
 const normalizeIdValue = (value) => {
@@ -46,6 +48,28 @@ const buildPurchaseAlertImage = ({ product = {}, variants = [] } = {}) => {
     variantImage
   );
 };
+
+const buildPurchaseAlertCartonAction = (count) => {
+  const nextCount = Math.max(1, Number(count || 1));
+  return nextCount === 1 ? "طلب كرتونة واحدة" : `طلب ${nextCount} كراتين`;
+};
+
+const repairPurchaseAlertDisplayFields = (alert = {}) => ({
+  ...alert,
+  product_name: normalizeDisplayText(alert.product_name || ""),
+  name: normalizeDisplayText(alert.name || ""),
+  color: normalizeDisplayText(alert.color || ""),
+  size: normalizeDisplayText(alert.size || ""),
+  alert_title: normalizeDisplayText(alert.alert_title || ""),
+  alert_reason: normalizeDisplayText(alert.alert_reason || ""),
+  alert_reasons: Array.isArray(alert.alert_reasons) ? alert.alert_reasons.map((value) => normalizeDisplayText(value)) : alert.alert_reasons,
+  suggested_action: normalizeDisplayText(alert.suggested_action || ""),
+  scope_label: normalizeDisplayText(alert.scope_label || ""),
+  badge_text: normalizeDisplayText(alert.badge_text || ""),
+  brand_name: normalizeDisplayText(alert.brand_name || ""),
+  category_name: normalizeDisplayText(alert.category_name || ""),
+  manufacturer_name: normalizeDisplayText(alert.manufacturer_name || ""),
+});
 
 const buildPurchaseAlertAction = (count) => {
   const nextCount = Number(count || 1);
@@ -98,7 +122,7 @@ const createPurchaseAlertScope = ({ product, scopeVariants = [], color = "", pur
     total_stock: totalStock,
     carton_size: cartonSize > 0 ? cartonSize : null,
     suggested_purchase_cartons: suggestedPurchaseCartons,
-    suggested_action: buildPurchaseAlertAction(suggestedPurchaseCartons),
+    suggested_action: buildPurchaseAlertCartonAction(suggestedPurchaseCartons),
     brand_id: normalizeIdValue(product.brand_id),
     brand_name: product.brand_name || "",
     category_id: normalizeIdValue(product.category_id),
@@ -108,7 +132,7 @@ const createPurchaseAlertScope = ({ product, scopeVariants = [], color = "", pur
     scope_key: purchaseAlertByColor
       ? `${product.product_id}:color:${normalizeColorLabel(color).toLowerCase()}`
       : `${product.product_id}:model`,
-    scope_label: purchaseAlertByColor ? normalizeColorLabel(color) : product.product_name,
+    scope_label: purchaseAlertByColor ? normalizeColorLabel(color) : normalizeDisplayText(product.product_name),
   };
 };
 
@@ -130,7 +154,7 @@ const buildPurchaseAlertsFromRows = (rows = []) => {
     if (!Number.isFinite(productId) || productId <= 0) continue;
     const current = productMap.get(productId) || {
       product_id: productId,
-      product_name: row.product_name || row.name || "",
+      product_name: normalizeDisplayText(row.product_name || row.name || ""),
       purchase_alerts_enabled: row.purchase_alerts_enabled === true || String(row.purchase_alerts_enabled || "").toLowerCase() === "true",
       purchase_alert_by_color: row.purchase_alert_by_color === true || String(row.purchase_alert_by_color || "").toLowerCase() === "true",
       carton_size: row.carton_size === null || row.carton_size === undefined || row.carton_size === "" ? null : Number(row.carton_size),
@@ -155,8 +179,8 @@ const buildPurchaseAlertsFromRows = (rows = []) => {
       }
       current.variants.push({
         variant_id: row.variant_id,
-        color: row.color || "",
-        size: row.size || "",
+        color: normalizeDisplayText(row.color || ""),
+        size: normalizeDisplayText(row.size || ""),
         stock: normalizePositiveStock(row.stock),
         image_url: firstImageUrl(row.variant_image_url, row.image_url, row.product_image_url),
         manufacturer_id: row.variant_manufacturer_id ?? null,
@@ -212,7 +236,7 @@ const buildPurchaseAlertsFromRows = (rows = []) => {
     if (alert) alerts.push(alert);
   }
 
-  return sortPurchaseAlerts(alerts);
+  return sortPurchaseAlerts(alerts.map(repairPurchaseAlertDisplayFields));
 };
 
 const fetchPurchaseAlerts = async ({ tenantId }) => {
@@ -270,7 +294,7 @@ const extractSelectedAlertRows = (body = {}) => {
 };
 
 const normalizeDraftLabel = (value, fallback = "Smart Purchase Alerts") => {
-  const text = normalizeText(value);
+  const text = normalizeDisplayText(value);
   return text || fallback;
 };
 
@@ -338,7 +362,7 @@ const buildPurchaseAlertDraftItem = (alert = {}) => {
     sku: "",
     article_code: "",
     image_url: alert.image_url || "",
-    product_name: alert.product_name || "",
+    product_name: normalizeDisplayText(alert.product_name || ""),
     supplier_id: alert.manufacturer_id || null,
     supplier_name: alert.manufacturer_name || "",
     metadata: {
@@ -871,7 +895,7 @@ export const createPurchaseAlertsDraft = async (req, res) => {
     }
 
     const supplierLabel = normalizeDraftLabel(
-      selectedAlerts.map((alert) => alert.manufacturer_name || alert.brand_name).find(Boolean),
+      selectedAlerts.map((alert) => normalizeDisplayText(alert.manufacturer_name || alert.brand_name)).find(Boolean),
       "Smart Purchase Alerts"
     );
     const supplierId = await ensureDraftSupplier(client, tenantId, supplierLabel);
@@ -1021,7 +1045,7 @@ export const getLowStockAlertsGrouped = async (req, res) => {
             ARRAY_REMOVE(ARRAY_AGG(DISTINCT NULLIF(v.sku, '')), NULL) AS skus
           FROM products p
           LEFT JOIN product_variants v ON v.product_id = p.id
-          WHERE ($2::bigint IS NULL OR p.tenant_id = $2::bigint OR p.tenant_id IS NULL)
+          WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint OR p.tenant_id IS NULL)
           GROUP BY p.id, p.name, p.stock, p.low_stock_tracking_mode, p.product_low_stock_threshold, p.minimum_distinct_sizes_required, p.image_url, p.image, p.photo_url, p.thumbnail_url
         )
         SELECT
@@ -1056,7 +1080,7 @@ export const getLowStockAlertsGrouped = async (req, res) => {
           AND (total_stock <= product_low_stock_threshold OR active_sizes_count < minimum_distinct_sizes_required)
         ORDER BY total_stock ASC, product_name ASC
         `,
-        [threshold, tenantId]
+        [tenantId]
       ),
       db.query(
         `
@@ -1073,7 +1097,7 @@ export const getLowStockAlertsGrouped = async (req, res) => {
                 WHERE pv.product_id = p.id
                   AND pv.is_active IS DISTINCT FROM FALSE
                   AND pv.deleted_at IS NULL
-                  AND GREATEST(COALESCE(pv.stock, 0), 0) BETWEEN 1 AND COALESCE(NULLIF(pv.low_stock_alert, 0), NULLIF(p.low_stock_alert, 0), $1)
+                AND GREATEST(COALESCE(pv.stock, 0), 0) BETWEEN 1 AND COALESCE(NULLIF(pv.low_stock_alert, 0), NULLIF(p.low_stock_alert, 0), $1::int)
               )
               OR (
                 NOT EXISTS (
@@ -1083,7 +1107,7 @@ export const getLowStockAlertsGrouped = async (req, res) => {
                     AND pv.is_active IS DISTINCT FROM FALSE
                     AND pv.deleted_at IS NULL
                 )
-                AND GREATEST(COALESCE(p.stock, 0), 0) BETWEEN 1 AND COALESCE(NULLIF(p.low_stock_alert, 0), $1)
+                AND GREATEST(COALESCE(p.stock, 0), 0) BETWEEN 1 AND COALESCE(NULLIF(p.low_stock_alert, 0), $1::int)
               )
             )
         ),
@@ -1095,7 +1119,7 @@ export const getLowStockAlertsGrouped = async (req, res) => {
             COALESCE(NULLIF(TRIM(pv.color), ''), '') AS color,
             COALESCE(NULLIF(TRIM(pv.size), ''), '') AS size,
             GREATEST(COALESCE(pv.stock, 0), 0)::int AS stock,
-            COALESCE(NULLIF(pv.low_stock_alert, 0), NULLIF(p.low_stock_alert, 0), $1)::int AS threshold,
+            COALESCE(NULLIF(pv.low_stock_alert, 0), NULLIF(p.low_stock_alert, 0), $1::int)::int AS threshold,
             COALESCE(
               NULLIF(p.image_url, ''),
               NULLIF(p.image, ''),
@@ -1120,7 +1144,7 @@ export const getLowStockAlertsGrouped = async (req, res) => {
             '' AS color,
             '' AS size,
             GREATEST(COALESCE(p.stock, 0), 0)::int AS stock,
-            COALESCE(NULLIF(p.low_stock_alert, 0), $1)::int AS threshold,
+            COALESCE(NULLIF(p.low_stock_alert, 0), $1::int)::int AS threshold,
             COALESCE(
               NULLIF(p.image_url, ''),
               NULLIF(p.image, ''),
@@ -1152,7 +1176,9 @@ export const getLowStockAlertsGrouped = async (req, res) => {
     const alerts = [
       ...(productTotalResult.rows || []),
       ...groupLowStockAlerts(groupedRowsResult.rows || [], { fallbackThreshold: threshold }),
-    ].sort((left, right) => {
+    ]
+      .map(repairPurchaseAlertDisplayFields)
+      .sort((left, right) => {
       const scopeRank = { product_total: 0, product_color: 1, product_model: 2 };
       const leftScope = scopeRank[left.alert_scope] ?? 9;
       const rightScope = scopeRank[right.alert_scope] ?? 9;
@@ -1161,7 +1187,7 @@ export const getLowStockAlertsGrouped = async (req, res) => {
       const nameCompare = String(left.product_name || left.name || "").localeCompare(String(right.product_name || right.name || ""), "ar");
       if (nameCompare !== 0) return nameCompare;
       return String(left.color || "").localeCompare(String(right.color || ""), "ar");
-    });
+      });
 
     return res.status(200).json({
       success: true,

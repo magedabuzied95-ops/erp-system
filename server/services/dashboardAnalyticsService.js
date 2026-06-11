@@ -500,7 +500,7 @@ export const getLowStock = async ({ tenantId = null, limit = 12 } = {}) => {
         '' AS color,
         '' AS size,
         GREATEST(COALESCE(p.stock, 0), 0)::int AS stock,
-        COALESCE(NULLIF(p.low_stock_alert, 0), $1)::int AS threshold,
+        COALESCE(NULLIF(p.low_stock_alert, 0), $1::int)::int AS threshold,
         COALESCE(
           NULLIF(p.image_url, ''),
           NULLIF(p.image, ''),
@@ -514,7 +514,7 @@ export const getLowStock = async ({ tenantId = null, limit = 12 } = {}) => {
       WHERE 1=1
         ${productTenant}
         AND LOWER(COALESCE(p.status, 'active')) = 'active'
-        AND GREATEST(COALESCE(p.stock, 0), 0) BETWEEN 1 AND COALESCE(NULLIF(p.low_stock_alert, 0), $1)
+        AND GREATEST(COALESCE(p.stock, 0), 0) BETWEEN 1 AND COALESCE(NULLIF(p.low_stock_alert, 0), $1::int)
       ORDER BY p.name ASC
       `,
       params,
@@ -541,7 +541,7 @@ export const getLowStock = async ({ tenantId = null, limit = 12 } = {}) => {
               WHERE pv.product_id = p.id
                 AND pv.is_active IS DISTINCT FROM FALSE
                 AND pv.deleted_at IS NULL
-                AND GREATEST(COALESCE(pv.stock, 0), 0) BETWEEN 1 AND COALESCE(NULLIF(pv.low_stock_alert, 0), NULLIF(p.low_stock_alert, 0), $1)
+                AND GREATEST(COALESCE(pv.stock, 0), 0) BETWEEN 1 AND COALESCE(NULLIF(pv.low_stock_alert, 0), NULLIF(p.low_stock_alert, 0), $1::int)
             )
           )
           OR (
@@ -552,7 +552,7 @@ export const getLowStock = async ({ tenantId = null, limit = 12 } = {}) => {
                 AND pv.is_active IS DISTINCT FROM FALSE
                 AND pv.deleted_at IS NULL
             )
-            AND GREATEST(COALESCE(p.stock, 0), 0) BETWEEN 1 AND COALESCE(NULLIF(p.low_stock_alert, 0), $1)
+            AND GREATEST(COALESCE(p.stock, 0), 0) BETWEEN 1 AND COALESCE(NULLIF(p.low_stock_alert, 0), $1::int)
           )
         )
     ),
@@ -564,7 +564,7 @@ export const getLowStock = async ({ tenantId = null, limit = 12 } = {}) => {
         COALESCE(NULLIF(TRIM(pv.color), ''), '') AS color,
         COALESCE(NULLIF(TRIM(pv.size), ''), '') AS size,
         GREATEST(COALESCE(pv.stock, 0), 0)::int AS stock,
-        COALESCE(NULLIF(pv.low_stock_alert, 0), NULLIF(p.low_stock_alert, 0), $1)::int AS threshold,
+        COALESCE(NULLIF(pv.low_stock_alert, 0), NULLIF(p.low_stock_alert, 0), $1::int)::int AS threshold,
         COALESCE(
           NULLIF(p.image_url, ''),
           NULLIF(p.image, ''),
@@ -589,7 +589,7 @@ export const getLowStock = async ({ tenantId = null, limit = 12 } = {}) => {
         '' AS color,
         '' AS size,
         GREATEST(COALESCE(p.stock, 0), 0)::int AS stock,
-        COALESCE(NULLIF(p.low_stock_alert, 0), $1)::int AS threshold,
+        COALESCE(NULLIF(p.low_stock_alert, 0), $1::int)::int AS threshold,
         COALESCE(
           NULLIF(p.image_url, ''),
           NULLIF(p.image, ''),
