@@ -105,7 +105,7 @@ function SupplierStatement() {
 
       {statement ? (
         <>
-          {toArray(statement?.warnings).length ? (
+          {import.meta.env.DEV && toArray(statement?.warnings).length ? (
             <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
               <div className="font-black">{isArabic ? "ملاحظات تنفيذية" : "Implementation notes"}</div>
               <ul className="mt-2 list-disc space-y-1 ps-5">

@@ -327,7 +327,7 @@ function SuppliersDashboard() {
               <div></div>
             </div>
 
-            <div className="mt-2 space-y-2">
+            <div className="mt-2 space-y-2 overflow-visible">
               {loading ? (
                 Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-16 animate-pulse rounded-2xl border border-white/10 bg-white/5" />)
               ) : visible.length === 0 ? (
@@ -337,7 +337,7 @@ function SuppliersDashboard() {
                   <div
                     key={String(supplier.id)}
                     onClick={() => openProfile(supplier)}
-                    className="grid cursor-pointer grid-cols-[12%_18%_12%_12%_12%_10%_10%_8%_6%] items-center rounded-2xl border border-white/10 bg-zinc-950/90 px-4 py-3 transition hover:border-emerald-400/30 hover:bg-emerald-400/5 hover:shadow-lg hover:shadow-emerald-950/20"
+                    className="relative grid cursor-pointer grid-cols-[12%_18%_12%_12%_12%_10%_10%_8%_6%] items-center overflow-visible rounded-2xl border border-white/10 bg-zinc-950/90 px-4 py-3 transition hover:border-emerald-400/30 hover:bg-emerald-400/5 hover:shadow-lg hover:shadow-emerald-950/20"
                   >
                     <div className="font-mono text-sm font-semibold text-emerald-200">{supplier.supplier_code}</div>
                     <div>
@@ -350,8 +350,15 @@ function SuppliersDashboard() {
                     <div className="font-bold text-white">{formatCurrency(supplier.current_balance || 0)}</div>
                     <StatusBadge value={supplierStatusLabel(supplier.status)} />
                     <div className="text-xs text-zinc-400">{supplier.lastPurchaseDate ? formatDateTime(supplier.lastPurchaseDate) : t("purchases.supplierDetails.notAvailable")}</div>
-                    <div className="relative flex justify-end" data-supplier-actions="true" onClick={(event) => event.stopPropagation()}>
-                      <button type="button" onClick={() => setOpenMenuId(openMenuId === supplier.id ? null : supplier.id)} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10">
+                    <div className="relative flex justify-end overflow-visible" data-supplier-actions="true" onClick={(event) => event.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setOpenMenuId(openMenuId === supplier.id ? null : supplier.id);
+                        }}
+                        className="rounded-xl border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10"
+                      >
                         <MoreHorizontal className="h-4 w-4" />
                       </button>
                       {openMenuId === supplier.id ? (
@@ -448,10 +455,18 @@ function ActionMenu({ supplier, onView, onStatement, onEdit, onDelete, onPurchas
     [FilePlus2, t("purchases.suppliersDashboard.createPurchaseOrder"), onPurchase],
   ];
   return (
-    <div className="absolute right-0 top-11 z-20 w-56 rounded-2xl border border-white/10 bg-zinc-950 p-2 shadow-2xl shadow-black">
+    <div className="absolute end-0 top-full z-50 mt-2 max-h-[70vh] w-[min(16rem,calc(100vw-1rem))] overflow-y-auto rounded-2xl border border-white/10 bg-zinc-950 p-2 shadow-2xl shadow-black" dir="auto">
       <div className="mb-1 truncate px-3 py-2 text-xs text-zinc-500">{supplier.supplier_code}</div>
       {items.map(([Icon, label, onClick]) => (
-        <button key={label} type="button" onClick={onClick} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-zinc-200 hover:bg-white/5">
+        <button
+          key={label}
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onClick();
+          }}
+          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-start text-sm text-zinc-200 hover:bg-white/5"
+        >
           <Icon className="h-4 w-4" />
           {label}
         </button>
