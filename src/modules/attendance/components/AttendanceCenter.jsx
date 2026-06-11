@@ -535,7 +535,7 @@ function AttendanceTable({ rows, text, dense, onSelect }) {
           <tbody className="divide-y divide-[var(--border)]">
             {rows.length ? rows.map((row) => (
               <tr key={`${row.employee_id}-${row.attendance_date}-${row.status}`} onClick={() => onSelect(row)} className="cursor-pointer hover:bg-[var(--surface)]">
-                <td className={`px-3 ${dense ? "py-2" : "py-4"}`}><div className="font-black text-[var(--text)]">{row.employee_name}</div><div className="text-xs text-[var(--muted)]">{row.employee_code}</div></td>
+                <td className={`px-3 ${dense ? "py-2" : "py-4"}`}><div className="table-cell-stack"><div className="font-black text-[var(--text)]">{row.employee_name}</div><div className="text-xs text-[var(--muted)]">{row.employee_code}</div></div></td>
                 <td className="px-3 py-2">{row.branch_name || "-"}</td>
                 <td className="px-3 py-2" dir="ltr">{row.attendance_date}</td>
                 <td className="px-3 py-2" dir="ltr">{formatTime(row.check_in_time)}</td>
@@ -597,7 +597,7 @@ function PayrollImpact({ rows, text, onSelect }) {
           <tbody className="divide-y divide-[var(--border)]">
             {rows.map((row) => (
               <tr key={row.employee_id} className="cursor-pointer hover:bg-[var(--surface)]" onClick={() => onSelect(row)}>
-                <td className="px-3 py-3"><div className="font-black text-[var(--text)]">{row.employee_name}</div><div className="text-xs text-[var(--muted)]">{row.explanation}</div></td>
+                <td className="px-3 py-3"><div className="table-cell-stack"><div className="font-black text-[var(--text)]">{row.employee_name}</div><div className="text-xs text-[var(--muted)]">{row.explanation}</div></div></td>
                 <td className="px-3 py-3" dir="ltr">{row.present_days}</td>
                 <td className="px-3 py-3" dir="ltr">{row.absence_days}</td>
                 <td className="px-3 py-3" dir="ltr">{row.missing_hours}</td>

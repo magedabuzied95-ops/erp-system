@@ -609,7 +609,7 @@ function Sales() {
 
                         <td className="p-5">
 
-                          <div>
+                          <div className="table-cell-stack">
 
                             <h3
                               className="

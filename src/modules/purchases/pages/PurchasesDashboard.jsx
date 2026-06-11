@@ -473,15 +473,15 @@ function PurchasesDashboard() {
                         <MoreHorizontal className="h-3.5 w-3.5" />
                       </button>
                     </div>
-                    <div className="min-w-0">
+                    <div className="table-cell-stack min-w-0">
                       <div className="truncate text-[0.92rem] font-black leading-5 text-white">{dateParts.date}</div>
                       <div className="truncate text-[11px] font-semibold leading-4 text-zinc-500">{dateParts.time}</div>
                     </div>
-                    <div className="min-w-0">
+                    <div className="table-cell-stack min-w-0">
                       <div className="truncate text-sm font-black text-emerald-50">{purchase.invoice_number}</div>
                       <div className="truncate text-xs text-zinc-500">#{purchase.id}</div>
                     </div>
-                    <div className="min-w-0">
+                    <div className="table-cell-stack min-w-0">
                       <div className="truncate font-semibold text-white">{purchase.supplier_name}</div>
                       <div className="truncate text-xs text-zinc-500">{purchase.payment_status}</div>
                     </div>

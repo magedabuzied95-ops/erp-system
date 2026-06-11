@@ -1015,7 +1015,7 @@ function CellHeader({ children }) {
 
 function ReturnCodeCell({ record }) {
   return (
-    <div className="px-2 text-center">
+    <div className="table-cell-stack px-2">
       <div className="inline-flex max-w-full items-center truncate rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-black text-white">
         {record.returnNumber}
       </div>
@@ -1026,7 +1026,7 @@ function ReturnCodeCell({ record }) {
 
 function CustomerCell({ record }) {
   return (
-    <div className="px-2 text-center">
+    <div className="table-cell-stack px-2">
       <div className="truncate text-sm font-semibold text-white">{record.customerName || "عميل غير محدد"}</div>
       <div className="mt-1 truncate text-[11px] text-zinc-500">{record.customerPhone || "بدون هاتف"}</div>
     </div>
@@ -1035,7 +1035,7 @@ function CustomerCell({ record }) {
 
 function ItemsCell({ record }) {
   return (
-    <div className="px-2">
+    <div className="table-cell-stack px-2">
       <div className="text-center text-sm font-semibold text-white">{record.itemsCount} منتج</div>
       <div className="mt-1 text-center text-[11px] leading-5 text-zinc-400">{record.itemsSummary}</div>
     </div>
@@ -1048,7 +1048,7 @@ function AmountCell({ value }) {
 
 function DateCell({ value }) {
   return (
-    <div className="px-2 text-center">
+    <div className="table-cell-stack px-2">
       <div className="text-xs font-black text-zinc-100">{formatShortDate(value)}</div>
       <div className="mt-0.5 text-[11px] font-semibold text-zinc-500">{formatShortTime(value)}</div>
     </div>

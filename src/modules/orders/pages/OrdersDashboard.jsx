@@ -1532,7 +1532,7 @@ function OrderDateTimeCell({ value, language }) {
   }).format(date);
 
   return (
-    <div className="flex min-w-0 flex-col items-center justify-center px-2 text-center leading-tight" dir="auto" title={formatDateTime(value)}>
+    <div className="table-cell-stack px-2 leading-tight" dir="auto" title={formatDateTime(value)}>
       <div className="truncate text-xs font-black text-zinc-100">{dateLabel}</div>
       <div className="mt-0.5 truncate text-[11px] font-semibold text-zinc-500">{timeLabel}</div>
     </div>
@@ -1542,7 +1542,7 @@ function OrderDateTimeCell({ value, language }) {
 function CustomerCell({ t, order }) {
   const attribution = getAttributionLabel(order);
   return (
-    <div className="flex min-w-0 flex-col items-center justify-center px-2 text-center">
+    <div className="table-cell-stack px-2">
       <div className="truncate text-sm font-semibold text-white" title={getCustomerPhone(order)}>{getCustomerDisplayName(order, t("orders.fallback.customer"))}</div>
       <div className="mt-1 flex max-w-full flex-wrap items-center justify-center gap-1">
         {attribution ? <div className="inline-flex max-w-[9rem] truncate rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-bold text-cyan-200">{attribution}</div> : null}
@@ -1576,7 +1576,7 @@ function PhoneCell({ t, order }) {
         className="inline-flex min-w-0 max-w-full items-center justify-center gap-1.5 truncate text-xs font-bold text-cyan-100 transition hover:text-cyan-50"
         title={phone}
       >
-        <Phone className="h-3.5 w-3.5 shrink-0" />
+        <Phone className="table-cell-stack__icon h-3.5 w-3.5 shrink-0" />
         <span className="truncate">{phone}</span>
       </a>
     </div>
@@ -1593,9 +1593,9 @@ function PaymentStatusCell({ order, language }) {
   }[summary.statusKey] || "border-white/10 bg-white/5 text-zinc-100";
 
   return (
-    <div className="flex min-w-0 items-center justify-center px-2 text-center">
+    <div className="table-cell-stack px-2">
       <div className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-black ${toneClass}`} title={summary.label}>
-        <Icon className="h-3.5 w-3.5 shrink-0" />
+        <Icon className="table-cell-stack__icon h-3.5 w-3.5 shrink-0" />
         <span className="truncate">{summary.label}</span>
       </div>
     </div>
@@ -1604,7 +1604,7 @@ function PaymentStatusCell({ order, language }) {
 
 function ItemsCountCell({ order }) {
   return (
-    <div className="flex min-w-0 items-center justify-center px-2 text-center">
+    <div className="table-cell-stack px-2">
       <div className="inline-flex h-7 min-w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 px-2 text-xs font-black text-white">
         {getItemsCount(order)}
       </div>
@@ -1618,7 +1618,7 @@ function PaidAmountCell({ order }) {
   const isPartial = total > 0 && paid > 0 && paid < total;
   if (isEditedPaymentOrder(order)) {
     return (
-      <div className="flex min-w-0 flex-col items-center justify-center px-2 text-center">
+      <div className="table-cell-stack px-2">
         <div className="truncate text-[10px] font-bold text-zinc-300">
           Original paid: <CurrencyText value={formatCurrency(editOriginalPaidOf(order))} />
         </div>
@@ -1635,7 +1635,7 @@ function PaidAmountCell({ order }) {
   }
   if (isExchangeOrder(order)) {
     return (
-      <div className="flex min-w-0 flex-col items-center justify-center px-2 text-center">
+      <div className="table-cell-stack px-2">
         <div className="inline-flex rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-amber-100">
           Exchange
         </div>
@@ -1649,7 +1649,7 @@ function PaidAmountCell({ order }) {
     );
   }
   return (
-    <div className="flex min-w-0 items-center justify-center px-2 text-center">
+    <div className="table-cell-stack px-2">
       <div className={`truncate text-sm font-bold ${isPartial ? "text-amber-200" : paid > 0 ? "text-emerald-200" : "text-zinc-400"}`}>
         <CurrencyText value={formatCurrency(paid)} />
       </div>
@@ -1660,7 +1660,7 @@ function PaidAmountCell({ order }) {
 function SellerCell({ order }) {
   const seller = getSellerName(order);
   return (
-    <div className="flex min-w-0 items-center justify-center px-2 text-center">
+    <div className="table-cell-stack px-2">
       <div className="truncate text-xs font-semibold text-zinc-200" title={seller || "-"}>
         {seller || "-"}
       </div>
@@ -1670,7 +1670,7 @@ function SellerCell({ order }) {
 
 function TotalCell({ t, order }) {
   return (
-    <div className="flex min-w-0 flex-col items-center justify-center px-2 text-center">
+    <div className="table-cell-stack px-2">
       <div className="truncate text-sm font-bold text-white"><CurrencyText value={formatCurrency(totalValue(order))} /></div>
       {isExchangeOrder(order) ? (
         <div className="mt-0.5 truncate text-[10px] font-black text-amber-100">
@@ -1685,7 +1685,7 @@ function DueAmountCell({ order }) {
   const due = Number(dueAmountOf(order) || 0);
   const hasDue = due > 0;
   return (
-    <div className="flex min-w-0 items-center justify-center px-2 text-center">
+    <div className="table-cell-stack px-2">
       <div className={`truncate text-sm font-bold ${hasDue ? "text-amber-200" : "text-zinc-500"}`}>
         <CurrencyText value={formatCurrency(due)} />
       </div>

@@ -1229,13 +1229,13 @@ function ExpensesTable({ rows, copy, onEdit, onAction, t, language }) {
         <tbody>
           {rows.map((expense) => (
             <tr key={expense.id} className="border-t border-white/5 align-top">
-              <Td><div className="font-black text-white">{expense.title}</div><div className="mt-1 text-xs text-zinc-500">{expense.notes || expense.note || "-"}</div></Td>
-              <Td><div>{categoryLabel(t, language, { name: expense.category_name || expense.category, type_key: expense.expense_type })}</div><div className="mt-1 text-xs text-zinc-500">{typeLabel(t, language, expense.expense_type)}</div></Td>
+              <Td><div className="table-cell-stack"><div className="font-black text-white">{expense.title}</div><div className="mt-1 text-xs text-zinc-500">{expense.notes || expense.note || "-"}</div></div></Td>
+              <Td><div className="table-cell-stack"><div>{categoryLabel(t, language, { name: expense.category_name || expense.category, type_key: expense.expense_type })}</div><div className="mt-1 text-xs text-zinc-500">{typeLabel(t, language, expense.expense_type)}</div></div></Td>
               <Td>{String(expense.expense_date || expense.created_at || "").slice(0, 10)}</Td>
               <Td className="font-black text-white"><CurrencyText value={formatCurrency(expense.amount || 0)} /></Td>
               <Td>{expense.payment_method ? paymentLabel(t, language, expense.payment_method) : "-"}</Td>
               <Td><Status value={expense.status} t={t} language={language} /></Td>
-              <Td><div className="space-y-1 text-xs text-zinc-500"><div>{expense.branch_name || (expense.branch_id ? `Branch #${expense.branch_id}` : "-")}</div><div>{expense.employee_name || (expense.employee_id ? `Employee #${expense.employee_id}` : "")}</div><div>{expense.supplier_name || (expense.supplier_id ? `Supplier #${expense.supplier_id}` : "")}</div></div></Td>
+              <Td><div className="table-cell-stack text-xs text-zinc-500"><div>{expense.branch_name || (expense.branch_id ? `Branch #${expense.branch_id}` : "-")}</div><div>{expense.employee_name || (expense.employee_id ? `Employee #${expense.employee_id}` : "")}</div><div>{expense.supplier_name || (expense.supplier_id ? `Supplier #${expense.supplier_id}` : "")}</div></div></Td>
               <Td>
                 <div className="flex flex-wrap gap-1.5">
                   <IconButton title="Edit" onClick={() => onEdit(expense)}><Pencil className="h-3.5 w-3.5" /></IconButton>

@@ -205,8 +205,10 @@ const SalesEmployeeRow = memo(function SalesEmployeeRow({ employee, t, onConfigu
   return (
     <tr className="border-t border-[var(--border)] transition hover:bg-white/[0.03]">
       <td className="px-4 py-3">
-        <div className="font-black" dir="auto">{employee.name}</div>
-        <div className="mt-0.5 text-xs text-[var(--muted)]">{employee.code || t("sales.staff.noCode", "No code")} - {employee.phone || t("sales.staff.noPhone", "No phone")}</div>
+        <div className="table-cell-stack" dir="auto">
+          <div className="font-black">{employee.name}</div>
+          <div className="mt-0.5 text-xs text-[var(--muted)]">{employee.code || t("sales.staff.noCode", "No code")} - {employee.phone || t("sales.staff.noPhone", "No phone")}</div>
+        </div>
       </td>
       <td className="px-4 py-3">
         {employee.pos_alias ? (
@@ -258,8 +260,10 @@ const PenaltyRow = memo(function PenaltyRow({ penalty, t, onApprove, onCancel })
     <tr className="border-t border-[var(--border)] transition hover:bg-white/[0.03]">
       <td className="px-4 py-3 tabular-nums" dir="ltr">{String(penalty.penalty_date || "").slice(0, 10)}</td>
       <td className="px-4 py-3">
-        <div className="font-bold" dir="auto">{penalty.reason}</div>
-        {penalty.notes ? <div className="mt-0.5 text-xs text-[var(--muted)]" dir="auto">{penalty.notes}</div> : null}
+        <div className="table-cell-stack" dir="auto">
+          <div className="font-bold">{penalty.reason}</div>
+          {penalty.notes ? <div className="mt-0.5 text-xs text-[var(--muted)]">{penalty.notes}</div> : null}
+        </div>
       </td>
       <td className="px-4 py-3 tabular-nums" dir="ltr">
         {String(penalty.payroll_period_start || "").slice(0, 10) || "-"} - {String(penalty.payroll_period_end || "").slice(0, 10) || "-"}
@@ -2183,8 +2187,10 @@ function PayrollFinancialSummary({
                 {historyRows.length ? historyRows.map((row) => (
                   <tr key={row.period} className="border-t border-[var(--border)] transition hover:bg-white/[0.03]">
                     <td className="px-4 py-3">
-                      <div className="font-black text-white">{row.label}</div>
-                      <div className="text-xs text-[var(--muted)]" dir="ltr">{row.period}</div>
+                      <div className="table-cell-stack">
+                        <div className="font-black text-white">{row.label}</div>
+                        <div className="text-xs text-[var(--muted)]" dir="ltr">{row.period}</div>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-end tabular-nums" dir="ltr">{formatPayrollMoney(numberValue(row.payroll?.base_salary))}</td>
                     <td className="px-4 py-3 text-end tabular-nums" dir="ltr">{formatDeductions(numberValue(row.payroll?.deductions))}</td>
@@ -2203,7 +2209,7 @@ function PayrollFinancialSummary({
             {historyRows.length ? historyRows.map((row) => (
               <div key={row.period} className="rounded-2xl border border-[var(--border)] bg-black/10 p-3">
                 <div className="flex items-center justify-between gap-3">
-                  <div>
+                  <div className="table-cell-stack min-w-0">
                     <div className="font-black text-white">{row.label}</div>
                     <div className="text-xs text-[var(--muted)]" dir="ltr">{row.period}</div>
                   </div>

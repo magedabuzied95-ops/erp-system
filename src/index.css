@@ -2251,6 +2251,24 @@
     border-bottom: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   }
 
+  .table-cell-stack {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.125rem;
+    text-align: center;
+  }
+
+  .table-cell-stack > * {
+    min-width: 0;
+  }
+
+  .table-cell-stack .table-cell-stack__icon {
+    flex-shrink: 0;
+  }
+
   .theme-badge {
     display: inline-flex;
     align-items: center;

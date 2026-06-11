@@ -1425,12 +1425,14 @@ function BostaIntegrationPanel({ copy }) {
             <tbody className="divide-y divide-slate-200 dark:divide-white/10">
               {locations.map((location) => (
                 <tr key={`${location.city_id}-${location.zone_id}-${location.district_id}`} className="bg-white dark:bg-slate-950/40">
-                  <td className="px-4 py-3 font-bold text-slate-900 dark:text-white">{location.city_name_en}<div className="text-xs text-slate-500">{location.city_name_ar}</div></td>
-                  <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200">{location.zone_name_en}<div className="text-xs text-slate-500">{location.zone_name_ar}</div></td>
-                  <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200">{location.district_name_en}<div className="text-xs text-slate-500">{location.district_name_ar}</div></td>
+                  <td className="px-4 py-3 font-bold text-slate-900 dark:text-white"><div className="table-cell-stack"><div>{location.city_name_en}</div><div className="text-xs text-slate-500">{location.city_name_ar}</div></div></td>
+                  <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200"><div className="table-cell-stack"><div>{location.zone_name_en}</div><div className="text-xs text-slate-500">{location.zone_name_ar}</div></div></td>
+                  <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-200"><div className="table-cell-stack"><div>{location.district_name_en}</div><div className="text-xs text-slate-500">{location.district_name_ar}</div></div></td>
                   <td className="px-4 py-3">
-                    <span className="mr-2 rounded-full bg-emerald-500/10 px-2 py-1 text-[11px] font-black text-emerald-600 dark:text-emerald-300">Dropoff</span>
-                    {location.district_pickup_available ? <span className="rounded-full bg-blue-500/10 px-2 py-1 text-[11px] font-black text-blue-600 dark:text-blue-300">Pickup</span> : null}
+                    <div className="table-cell-stack">
+                      <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[11px] font-black text-emerald-600 dark:text-emerald-300">Dropoff</span>
+                      {location.district_pickup_available ? <span className="rounded-full bg-blue-500/10 px-2 py-1 text-[11px] font-black text-blue-600 dark:text-blue-300">Pickup</span> : null}
+                    </div>
                   </td>
                 </tr>
               ))}
