@@ -2,19 +2,14 @@ import {
   lazy,
   Suspense,
   useEffect,
-  useRef,
-  useState,
 } from "react";
 
-import { createPortal } from "react-dom";
 import {
   Routes,
   Route,
   Navigate,
-  useLocation,
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ShoppingCart } from "lucide-react";
 
 /* ======================================================
    LAYOUT
@@ -235,55 +230,6 @@ function RouteSkeleton() {
     </div>
   );
 }
-
-function RouteTransitionLoader({ location }) {
-  const isFirstRenderRef = useRef(true);
-  const hideTimerRef = useRef(null);
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    if (isFirstRenderRef.current) {
-      isFirstRenderRef.current = false;
-      return undefined;
-    }
-    if (hideTimerRef.current) {
-      window.clearTimeout(hideTimerRef.current);
-      hideTimerRef.current = null;
-    }
-    setVisible(true);
-    hideTimerRef.current = window.setTimeout(() => {
-      setVisible(false);
-      hideTimerRef.current = null;
-    }, 420);
-    return () => {
-      if (hideTimerRef.current) {
-        window.clearTimeout(hideTimerRef.current);
-        hideTimerRef.current = null;
-      }
-    };
-  }, [location.key, location.pathname, location.search, location.hash]);
-
-  if (!visible || typeof document === "undefined") return null;
-
-  return createPortal(
-    <div
-      className="route-transition-loader fixed inset-0 z-[2147483000] flex items-center justify-center px-4 text-stone-950"
-      aria-hidden="true"
-    >
-      <div className="route-transition-loader__panel flex items-center gap-3 rounded-[1.5rem] border border-white/70 bg-white/92 px-4 py-3 shadow-[0_22px_60px_rgba(15,23,42,0.12)]">
-        <div className="route-transition-loader__mark grid h-14 w-14 place-items-center rounded-[1.25rem] bg-[linear-gradient(135deg,#111827,#334155)] text-white">
-          <ShoppingCart className="h-6 w-6" />
-        </div>
-        <div className="min-w-0 text-start">
-          <div className="text-xs font-black uppercase tracking-[0.22em] text-stone-500">M1 Store</div>
-          <div className="mt-1 text-sm font-black text-stone-900">جارٍ الانتقال...</div>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
 function App() {
   useTranslation();
   const isEmployeeAppRoute = typeof window !== "undefined" && window.location.pathname.startsWith("/employee-app/");
@@ -1320,3 +1266,4 @@ function App() {
 }
 
 export default App;
+

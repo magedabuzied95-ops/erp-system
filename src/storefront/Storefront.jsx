@@ -105,6 +105,8 @@ const CUSTOMER_SESSION_TOKEN_KEY = "storefront.customer_session_token";
 const CUSTOMER_CAPTURE_SKIP_KEY = "storefront.customer_capture_skip_until";
 const CUSTOMER_CAPTURE_SHOWN_KEY = "storefront.customer_capture_shown";
 const CUSTOMER_CAPTURE_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+const STOREFRONT_SPLASH_SEEN_KEY = "m1_store_splash_seen";
+const STOREFRONT_SPLASH_DURATION_MS = 1100;
 const getSuccessMessages = () => {
   const messages = i18n.t("storefront.toasts.successMessages", { returnObjects: true });
   return Array.isArray(messages) && messages.length ? messages : ["Great choice"];
@@ -2413,8 +2415,24 @@ const useLastPiece = (params = {}, options = {}) => {
   return state;
 };
 
+function InitialStorefrontSplash({ visible }) {
+  if (!visible) return null;
+
+  return (
+    <div className="sf-initial-splash" aria-hidden="true">
+      <div className="sf-initial-splash__panel">
+        <div className="sf-initial-splash__mark">
+          <ShoppingCart className="h-8 w-8" />
+        </div>
+        <div className="sf-initial-splash__glow" />
+      </div>
+    </div>
+  );
+}
+
 function Storefront() {
   const pageStartedAtRef = useRef(performance.now());
+  const storefrontSplashTimerRef = useRef(null);
   const handleStorefrontAddToCart = useCallback((product, variant, quantity = 1, options = {}) => {
     if (!variant || Number(variant.stock || 0) <= 0) {
       toast.error(sfText("storefront.toasts.variantUnavailable", "This size or color is currently unavailable."));
@@ -2453,6 +2471,7 @@ function Storefront() {
   const [customerCaptureReason, setCustomerCaptureReason] = useState("add_to_cart");
   const [pendingCartItem, setPendingCartItem] = useState(null);
   const [chatReady, setChatReady] = useState(false);
+  const [showInitialSplash, setShowInitialSplash] = useState(false);
   const location = useLocation();
   const effectiveTheme = themeMode === "auto" ? systemTheme : themeMode;
   const dir = typeof i18n.dir === "function" ? i18n.dir(i18n.resolvedLanguage || i18n.language) : "ltr";
@@ -2461,6 +2480,42 @@ function Storefront() {
   const profileRef = useRef(profile);
   const customerSessionRef = useRef(customerSession);
   const checkoutCapturePromptedRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    if (storefrontSplashTimerRef.current) {
+      window.clearTimeout(storefrontSplashTimerRef.current);
+      storefrontSplashTimerRef.current = null;
+    }
+    if (location.pathname !== "/shop") {
+      setShowInitialSplash(false);
+      return undefined;
+    }
+    let hasSeenSplash = false;
+    try {
+      hasSeenSplash = window.sessionStorage.getItem(STOREFRONT_SPLASH_SEEN_KEY) === "1";
+      if (!hasSeenSplash) {
+        window.sessionStorage.setItem(STOREFRONT_SPLASH_SEEN_KEY, "1");
+      }
+    } catch {
+      hasSeenSplash = false;
+    }
+    if (hasSeenSplash) {
+      setShowInitialSplash(false);
+      return undefined;
+    }
+    setShowInitialSplash(true);
+    storefrontSplashTimerRef.current = window.setTimeout(() => {
+      setShowInitialSplash(false);
+      storefrontSplashTimerRef.current = null;
+    }, STOREFRONT_SPLASH_DURATION_MS);
+    return () => {
+      if (storefrontSplashTimerRef.current) {
+        window.clearTimeout(storefrontSplashTimerRef.current);
+        storefrontSplashTimerRef.current = null;
+      }
+    };
+  }, [location.pathname]);
 
   const setCart = useCallback((updater, action = "save") => {
     setCartState((current) => {
@@ -2956,6 +3011,7 @@ function Storefront() {
 
   return (
     <div dir={dir} data-language={language} data-theme={effectiveTheme} className={`storefront-shell min-h-dvh ${location.pathname === "/shop/checkout" ? "storefront-shell--checkout" : ""} ${isProductDetailsRoute ? "storefront-shell--product-detail" : ""} ${effectiveTheme === "dark" ? "dark storefront-dark bg-[#070b16] text-stone-100" : "bg-[#f7f4ee] text-stone-950"}`}>
+      <InitialStorefrontSplash visible={showInitialSplash} />
       <Header
         cartCount={cartCount}
         wishlistCount={wishlistCount}
