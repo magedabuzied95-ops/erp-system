@@ -20,12 +20,12 @@ const normalizePositiveStock = (value) => {
 
 const normalizeSizeLabel = (value) => {
   const text = normalizeDisplayText(value);
-  return text || "مقاس واحد";
+  return text || "ظ…ظ‚ط§ط³ ظˆط§ط­ط¯";
 };
 
 const normalizeColorLabel = (value) => {
   const text = normalizeDisplayText(value);
-  return text || "بدون لون";
+  return text || "ط¨ط¯ظˆظ† ظ„ظˆظ†";
 };
 
 const normalizeIdValue = (value) => {
@@ -51,7 +51,7 @@ const buildPurchaseAlertImage = ({ product = {}, variants = [] } = {}) => {
 
 const buildPurchaseAlertCartonAction = (count) => {
   const nextCount = Math.max(1, Number(count || 1));
-  return nextCount === 1 ? "طلب كرتونة واحدة" : `طلب ${nextCount} كراتين`;
+  return nextCount === 1 ? "ط·ظ„ط¨ ظƒط±طھظˆظ†ط© ظˆط§ط­ط¯ط©" : `ط·ظ„ط¨ ${nextCount} ظƒط±ط§طھظٹظ†`;
 };
 
 const repairPurchaseAlertDisplayValue = (value) => {
@@ -74,9 +74,20 @@ const repairPurchaseAlertDisplayValue = (value) => {
 
 const repairPurchaseAlertDisplayFields = (alert = {}) => repairPurchaseAlertDisplayValue(alert);
 
+const PURCHASE_ALERT_COPY = {
+  missing_sizes: {
+    title: "ظ…ظ‚ط§ط³ط§طھ ظ†ط§ظ‚طµط©",
+    reason: "ط¨ط¹ط¶ ط§ظ„ظ…ظ‚ط§ط³ط§طھ ط؛ظٹط± ظ…ظƒطھظ…ظ„ط©",
+  },
+  carton_threshold: {
+    title: "ظˆطµظ„ ظ„ط­ط¯ ط§ظ„ظƒط±طھظˆظ†ط©",
+    reason: "ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ظ…ط®ط²ظˆظ† ظˆطµظ„ ظ„ط­ط¯ ط§ظ„ظƒط±طھظˆظ†ط©",
+  },
+};
+
 const buildPurchaseAlertAction = (count) => {
   const nextCount = Number(count || 1);
-  return nextCount === 1 ? "ط§ط·ظ„ط¨ ظƒط±طھظˆظ†ط©" : `ط§ط·ظ„ط¨ ${nextCount} ظƒط±طھظˆظ†ط©`;
+  return nextCount === 1 ? "اطلب كرتونة" : `اطلب ${nextCount} كرتونة`;
 };
 
 const createPurchaseAlertScope = ({ product, scopeVariants = [], color = "", purchaseAlertByColor = false }) => {
@@ -109,11 +120,8 @@ const createPurchaseAlertScope = ({ product, scopeVariants = [], color = "", pur
     purchase_alert_by_color: Boolean(purchaseAlertByColor),
     image_url: buildPurchaseAlertImage({ product, variants: scopeVariants }),
     alert_type: alertType,
-    alert_title: alertType === "missing_sizes" ? "ظ…ظ‚ط§ط³ط§طھ ظ†ط§ظ‚طµط©" : "ظˆطµظ„ ظ„ط­ط¯ ط§ظ„ظƒط±طھظˆظ†ط©",
-    alert_reason:
-      alertType === "missing_sizes"
-        ? "طھط´ظƒظٹظ„ط© ط§ظ„ظ…ظ‚ط§ط³ط§طھ ط؛ظٹط± ظ…ظƒطھظ…ظ„ط©"
-        : "ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ظ…ط®ط²ظˆظ† ظˆطµظ„ ظ„ط­ط¯ ط§ظ„ظƒط±طھظˆظ†ط©",
+    alert_title: alertType === "missing_sizes" ? PURCHASE_ALERT_COPY.missing_sizes.title : PURCHASE_ALERT_COPY.carton_threshold.title,
+    alert_reason: alertType === "missing_sizes" ? PURCHASE_ALERT_COPY.missing_sizes.reason : PURCHASE_ALERT_COPY.carton_threshold.reason,
     missing_sizes: alertType === "missing_sizes" ? missingSizes : [],
     variant_ids: Array.from(
       new Set(
@@ -237,6 +245,19 @@ const buildPurchaseAlertsFromRows = (rows = []) => {
       purchaseAlertByColor: false,
     });
     if (alert) alerts.push(alert);
+  }
+
+  const sampleMissingSizesAlert = alerts.find((alert) => alert?.alert_type === "missing_sizes");
+  if (sampleMissingSizesAlert) {
+    console.log("[purchase-alerts] generated-missing-sizes-sample", {
+      product_id: sampleMissingSizesAlert.product_id,
+      product_name: sampleMissingSizesAlert.product_name,
+      color: sampleMissingSizesAlert.color,
+      alert_type: sampleMissingSizesAlert.alert_type,
+      alert_title: sampleMissingSizesAlert.alert_title,
+      alert_reason: sampleMissingSizesAlert.alert_reason,
+      missing_sizes: sampleMissingSizesAlert.missing_sizes,
+    });
   }
 
   return sortPurchaseAlerts(alerts.map(repairPurchaseAlertDisplayFields));
