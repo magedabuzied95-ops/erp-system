@@ -123,7 +123,7 @@ function SupplierStatement() {
             <StatCard label={isArabic ? "الرصيد المستحق" : "Outstanding balance"} value={formatCurrency(finalBalance)} icon={<Wallet className="h-4 w-4" />} tone="amber" />
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
+          <div className="grid gap-4">
             <div className="space-y-4">
               <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -181,31 +181,8 @@ function SupplierStatement() {
                           </td>
                         </tr>
                       )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-                <h3 className="text-xl font-black text-white">{isArabic ? "ملخص الحساب" : "Account summary"}</h3>
-                <div className="mt-4 grid gap-3">
-                  <Info label={isArabic ? "إجمالي المشتريات" : "Total purchases"} value={formatCurrency(totals.total_purchases || 0)} />
-                  <Info label={isArabic ? "إجمالي المدفوع" : "Total paid"} value={formatCurrency(totals.total_paid || 0)} />
-                  <Info label={isArabic ? "الرصيد النهائي" : "Final balance"} value={formatCurrency(finalBalance)} />
-                  <Info label={isArabic ? "الرصيد المستحق" : "Outstanding balance"} value={formatCurrency(finalBalance)} />
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-                <h3 className="text-xl font-black text-white">{isArabic ? "بيانات المورد" : "Supplier details"}</h3>
-                <div className="mt-4 space-y-3 text-sm text-zinc-300">
-                  <Row label={isArabic ? "كود المورد" : "Supplier code"} value={supplier.supplier_code || "-"} />
-                  <Row label={isArabic ? "الهاتف" : "Phone"} value={supplier.phone || "-"} />
-                  <Row label={isArabic ? "البريد" : "Email"} value={supplier.email || "-"} />
-                  <Row label={isArabic ? "العنوان" : "Address"} value={supplier.address || "-"} />
-                  <Row label={isArabic ? "الملاحظات" : "Notes"} value={supplier.notes || "-"} />
+                  </tbody>
+                </table>
                 </div>
               </div>
             </div>
