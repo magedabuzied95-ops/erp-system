@@ -440,6 +440,7 @@ function Customers() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
+  const [allowPersonalTransactions, setAllowPersonalTransactions] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [profile, setProfile] = useState(null);
   const [statementData, setStatementData] = useState(null);
@@ -620,6 +621,7 @@ function Customers() {
     setPhone("");
     setEmail("");
     setAddress("");
+    setAllowPersonalTransactions(false);
     setEditingId(null);
   };
 
@@ -627,7 +629,7 @@ function Customers() {
     event.preventDefault();
 
     try {
-      const customerData = { name, phone, email, address };
+      const customerData = { name, phone, email, address, allow_personal_transactions: allowPersonalTransactions };
 
       if (editingId) {
         await api.put(`/customers/${editingId}`, customerData);
@@ -648,6 +650,7 @@ function Customers() {
     setPhone(customer.phone || "");
     setEmail(customer.email || "");
     setAddress(customer.address || "");
+    setAllowPersonalTransactions(Boolean(customer.allow_personal_transactions ?? customer.allowPersonalTransactions ?? false));
   };
 
   const deleteCustomer = async (id) => {
@@ -860,6 +863,16 @@ function Customers() {
             />
           </div>
 
+          <label className="mt-5 flex items-center gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-50">
+            <input
+              type="checkbox"
+              checked={allowPersonalTransactions}
+              onChange={(event) => setAllowPersonalTransactions(event.target.checked)}
+              className="h-4 w-4 rounded border-emerald-300/40 bg-slate-950 text-emerald-400 focus:ring-emerald-300/40"
+            />
+            <span>السماح بالعمليات الشخصية</span>
+          </label>
+
           <div className="mt-5 flex flex-wrap gap-3">
             <button
               type="submit"
@@ -907,16 +920,25 @@ function Customers() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1040px]">
-              <thead className="border-b border-white/10 bg-slate-900/80 text-left text-xs font-black uppercase tracking-[0.18em] text-zinc-400">
+            <table className="w-full min-w-[1080px]">
+              <colgroup>
+                <col style={{ width: "30%", minWidth: "320px" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "16%" }} />
+                <col style={{ width: "16%" }} />
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "4%" }} />
+              </colgroup>
+              <thead className="border-b border-white/10 bg-slate-900/80 text-xs font-black uppercase tracking-[0.18em] text-zinc-400">
                 <tr>
-                  <th className="px-6 py-5">{t("customers.table.customer")}</th>
-                  <th className="px-6 py-5">{t("customers.table.phone")}</th>
-                  <th className="px-6 py-5">{t("customers.table.email")}</th>
-                  <th className="px-6 py-5">{t("customers.table.address")}</th>
-                  <th className="px-6 py-5">نقاط الولاء</th>
-                  <th className="px-6 py-5">رصيد المحفظة</th>
-                  <th className="px-6 py-5 text-right">{t("customers.table.actions")}</th>
+                  <th className="px-6 py-5 text-center align-middle">{t("customers.table.customer")}</th>
+                  <th className="px-6 py-5 text-center align-middle">{t("customers.table.phone")}</th>
+                  <th className="px-6 py-5 text-center align-middle">{t("customers.table.email")}</th>
+                  <th className="px-6 py-5 text-center align-middle">{t("customers.table.address")}</th>
+                  <th className="px-6 py-5 text-center align-middle">نقاط الولاء</th>
+                  <th className="px-6 py-5 text-center align-middle">رصيد المحفظة</th>
+                  <th className="px-6 py-5 text-right align-middle">{t("customers.table.actions")}</th>
                 </tr>
               </thead>
 
@@ -935,32 +957,33 @@ function Customers() {
                         index % 2 === 0 ? "bg-slate-900/35" : "bg-slate-950/30"
                       }`}
                     >
-                      <td className="px-6 py-5">
-                        <div className="flex items-center gap-4">
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-300/20 bg-emerald-400/15 text-emerald-200 shadow-lg shadow-emerald-950/20">
+                      <td className="px-6 py-5 align-middle text-center">
+                        <div className="grid w-full grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center justify-self-end rounded-2xl border border-emerald-300/20 bg-emerald-400/15 text-emerald-200 shadow-lg shadow-emerald-950/20">
                             <UserRound className="h-6 w-6" />
                           </div>
-                          <div>
-                            <h3 className="text-base font-black text-white">{customer.name || t("customers.records.unnamed")}</h3>
-                            <p className="text-xs font-medium text-zinc-500">{t("customers.records.id")} {customer.id}</p>
+                          <div className="flex min-w-0 flex-col items-center justify-center gap-1 text-center">
+                            <h3 className="w-full text-base font-black leading-tight text-white">{customer.name || t("customers.records.unnamed")}</h3>
+                            <p className="w-full text-xs font-medium leading-tight text-zinc-500">{t("customers.records.id")} {customer.id}</p>
                           </div>
+                          <div aria-hidden="true" />
                         </div>
                       </td>
-                      <td className="px-6 py-5 text-sm font-semibold text-zinc-200">
-                        <span className="inline-flex items-center gap-2">
-                          <Phone className="h-4 w-4 text-zinc-500" />
+                      <td className="px-6 py-5 align-middle text-sm font-semibold text-zinc-200">
+                        <span className="table-cell-stack w-full">
+                          <Phone className="table-cell-stack__icon h-4 w-4 text-zinc-500" />
                           {customer.phone || t("customers.records.notSet")}
                         </span>
                       </td>
-                      <td className="px-6 py-5 text-sm font-semibold text-zinc-200">
-                        <span className="inline-flex items-center gap-2">
-                          <Mail className="h-4 w-4 text-zinc-500" />
+                      <td className="px-6 py-5 align-middle text-sm font-semibold text-zinc-200">
+                        <span className="table-cell-stack w-full">
+                          <Mail className="table-cell-stack__icon h-4 w-4 text-zinc-500" />
                           {customer.email || t("customers.records.notSet")}
                         </span>
                       </td>
-                      <td className="px-6 py-5 text-sm font-semibold text-zinc-300">
-                        <span className="inline-flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-zinc-500" />
+                      <td className="px-6 py-5 align-middle text-sm font-semibold text-zinc-300">
+                        <span className="table-cell-stack w-full">
+                          <MapPin className="table-cell-stack__icon h-4 w-4 text-zinc-500" />
                           {customer.address || t("customers.records.notSet")}
                         </span>
                       </td>
@@ -976,12 +999,12 @@ function Customers() {
                           {Number(customer.wallet_balance ?? customer.balance ?? 0).toLocaleString("ar-EG-u-nu-latn", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </td>
-                      <td className="px-6 py-5">
-                        <div className="flex flex-wrap justify-end gap-2">
+                      <td className="px-6 py-5 align-middle">
+                        <div className="flex flex-nowrap items-center justify-end gap-2 whitespace-nowrap">
                           <button
                             type="button"
                             onClick={() => handleOpenProfile(customer)}
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/20"
+                            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/20"
                           >
                             <FileText className="h-4 w-4" />
                             كشف حساب العميل
@@ -989,7 +1012,7 @@ function Customers() {
                           <button
                             type="button"
                             onClick={() => editCustomer(customer)}
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-sky-300/20 bg-sky-400/10 px-3 text-xs font-black text-sky-100 transition hover:bg-sky-400/20"
+                            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-sky-300/20 bg-sky-400/10 px-3 text-xs font-black text-sky-100 transition hover:bg-sky-400/20"
                           >
                             <Pencil className="h-4 w-4" />
                             {t("customers.actions.edit")}
@@ -997,7 +1020,7 @@ function Customers() {
                           <button
                             type="button"
                             onClick={() => deleteCustomer(customer.id)}
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 text-xs font-black text-rose-100 transition hover:bg-rose-400/20"
+                            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 text-xs font-black text-rose-100 transition hover:bg-rose-400/20"
                           >
                             <Trash2 className="h-4 w-4" />
                             {t("customers.actions.delete")}
@@ -1561,6 +1584,9 @@ function CustomerStatementDrawer({
                     {option.label}
                   </option>
                 ))}
+                <option value="personal_gift">هدية / مصروف</option>
+                <option value="personal_employee_advance">سلفة موظف</option>
+                <option value="personal_owner_use">استخدام شخصي</option>
               </select>
             </label>
             <AuditInput label="رقم الفاتورة" value={filters.invoice_number} onChange={(value) => updateFilter("invoice_number", value)} />
@@ -1615,14 +1641,31 @@ function CustomerStatementDrawer({
                 ) : statementRows.length ? (
                   statementRows.map((row, index) => {
                     const amount = Number(row.amount || 0);
+                    const personalValue = Number(row.personal_value || row.total_amount || 0);
                     const debit = amount < 0 ? formatMoney(Math.abs(amount)) : "";
                     const credit = amount > 0 ? formatMoney(amount) : "";
                     const reference = row.invoice_number || row.return_number || row.reference_id || "-";
+                    const rowLabel = row.personal_operation_type_label || row.transaction_type_label || row.notes || row.transaction_type || "-";
+                    const rowDetails = [
+                      personalValue > 0 ? `القيمة: ${formatMoney(personalValue)}` : "",
+                      row.products ? `المنتجات: ${row.products}` : "",
+                      row.notes ? `ملاحظة: ${row.notes}` : "",
+                    ].filter(Boolean).join(" • ");
                     return (
                       <tr key={row.id || `${row.created_at || "row"}-${index}`} className="border-b border-white/5 align-top text-zinc-200">
                         <td className="whitespace-nowrap px-3 py-3">{formatDateTime(row.created_at)}</td>
-                        <td className="px-3 py-3">{row.transaction_type_label || row.notes || row.transaction_type || "-"}</td>
-                        <td className="px-3 py-3">{reference}</td>
+                        <td className="px-3 py-3">
+                          <div className="font-bold text-white">{rowLabel}</div>
+                          {rowDetails ? <div className="mt-1 text-xs leading-5 text-zinc-400">{rowDetails}</div> : null}
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="font-semibold text-zinc-200">{reference}</div>
+                          {row.personal_operation_type ? (
+                            <div className="mt-1 inline-flex rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">
+                              {row.personal_operation_type_label || row.personal_operation_type}
+                            </div>
+                          ) : null}
+                        </td>
                         <td className="px-3 py-3 text-left font-bold text-rose-200">{debit || "-"}</td>
                         <td className="px-3 py-3 text-left font-bold text-emerald-200">{credit || "-"}</td>
                         <td className="px-3 py-3 text-left font-bold text-cyan-200">{formatMoney(row.after_balance)}</td>
