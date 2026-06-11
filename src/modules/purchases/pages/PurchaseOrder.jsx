@@ -848,8 +848,8 @@ function PurchaseOrder() {
   const effectiveSupplierRemainingAmount = Math.max(0, total - effectiveSupplierPaidAmount);
   const selectedPaymentAccount = financialAccounts.find((account) => String(account.id) === String(paymentAccountId)) || null;
   const filteredPaymentAccounts = useMemo(
-    () => financialAccounts.filter((account) => isPurchasePaymentAccountMatch(account, paymentMethod)),
-    [financialAccounts, paymentMethod]
+    () => financialAccounts.filter((account) => account && account.id != null),
+    [financialAccounts]
   );
   const paymentStatusOptions = useMemo(
     () => [
@@ -1311,7 +1311,6 @@ function PurchaseOrder() {
   const handlePaymentMethodChange = (nextMethod) => {
     const normalized = normalizePaymentMethodKey(nextMethod);
     setPaymentMethod(normalized);
-    setPaymentAccountId("");
   };
 
   const handlePaymentAccountChange = (nextAccountId) => {
