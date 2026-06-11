@@ -3,6 +3,7 @@ import {
   createSupplier,
   deleteSupplier,
   getSupplierById,
+  getSupplierStatement,
   listSuppliers,
   updateSupplier,
 } from "../services/suppliersService.js";
@@ -52,6 +53,18 @@ export const getSupplierController = async (req, res) => {
     return res.status(200).json({ success: true, data: supplier, supplier });
   } catch (error) {
     return sendError(res, error, "Failed to fetch supplier");
+  }
+};
+
+export const getSupplierStatementController = async (req, res) => {
+  try {
+    const statement = await getSupplierStatement({ tenantId: resolveTenantId(req), id: req.params.id });
+    if (!statement) {
+      return res.status(404).json({ success: false, message: "Supplier not found" });
+    }
+    return res.status(200).json({ success: true, data: statement, statement });
+  } catch (error) {
+    return sendError(res, error, "Failed to build supplier statement");
   }
 };
 

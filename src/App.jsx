@@ -81,6 +81,7 @@ const SalesEmployees = lazy(() => import("./modules/sales/pages/SalesEmployees")
 
 const Suppliers = lazy(() => import("./modules/purchases/pages/SuppliersDashboard"));
 const SupplierDetails = lazy(() => import("./modules/purchases/pages/SupplierDetails"));
+const SupplierStatement = lazy(() => import("./modules/purchases/pages/SupplierStatement"));
 
 /* ======================================================
    PURCHASES
@@ -819,6 +820,11 @@ function App() {
         <Route
           path="suppliers/:id"
           element={<SupplierDetails />}
+        />
+
+        <Route
+          path="suppliers/:supplierId/statement"
+          element={<SupplierStatement />}
         />
 
         {/* PURCHASES */}

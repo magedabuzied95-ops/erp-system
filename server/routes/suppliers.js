@@ -4,6 +4,7 @@ import {
   createSupplierController,
   deleteSupplierController,
   getSupplierController,
+  getSupplierStatementController,
   listSuppliersController,
   updateSupplierController,
 } from "../controllers/suppliersController.js";
@@ -13,6 +14,7 @@ import permit from "../middleware/permissionMiddleware.js";
 const router = express.Router();
 
 router.get("/", protect, permit("suppliers", "view"), listSuppliersController);
+router.get("/:id/statement", protect, permit("suppliers", "view"), getSupplierStatementController);
 router.get("/:id", protect, permit("suppliers", "view"), getSupplierController);
 router.post("/", protect, permit("suppliers", "create"), createSupplierController);
 router.put("/:id", protect, permit("suppliers", "edit"), updateSupplierController);

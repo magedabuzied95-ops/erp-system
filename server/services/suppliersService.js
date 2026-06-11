@@ -21,6 +21,7 @@ const money = (value) => {
   const number = Number(value ?? 0);
   return Number.isFinite(number) ? number : 0;
 };
+const roundMoney = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
 const publicSupplier = (row = {}) => ({
   id: row.id,
@@ -252,6 +253,187 @@ export const getSupplierById = async ({ tenantId = null, id }) => {
       ...row,
       total: Number(row.total || 0),
     })),
+  };
+};
+
+const statementTypeLabel = (kind = "") => {
+  const value = String(kind || "").trim().toLowerCase();
+  if (value === "purchase_invoice") return "Purchase Invoice";
+  if (value === "purchase_payment") return "Purchase Payment";
+  if (value === "purchase_payment_reversal") return "Payment Reversal";
+  if (value === "adjustment") return "Adjustment";
+  return value || "Transaction";
+};
+
+const buildSupplierStatementRow = (row = {}, kind = "purchase_invoice") => {
+  const amount = roundMoney(Math.abs(Number(row.amount ?? row.total ?? 0)));
+  const rawAmount = roundMoney(Number(row.amount ?? 0));
+  const debit = rawAmount > 0 ? rawAmount : kind === "purchase_invoice" ? amount : 0;
+  const credit = rawAmount < 0 ? Math.abs(rawAmount) : kind === "purchase_invoice" ? 0 : 0;
+  return {
+    id: row.id ?? row.source_id ?? null,
+    kind,
+    type: statementTypeLabel(kind),
+    reference: row.purchase_number || row.reference || row.source_id || row.id || "",
+    description: row.notes || row.description || row.purchase_number || row.source_type || statementTypeLabel(kind),
+    debit,
+    credit,
+    amount: debit - credit,
+    remaining_amount: roundMoney(Math.max(0, Number(row.total || 0) - Number(row.paid_amount || 0))),
+    created_at: row.created_at || row.entry_date || null,
+    source_type: row.source_type || null,
+    source_id: row.source_id ?? null,
+    purchase_number: row.purchase_number || "",
+    status: row.status || "",
+    payment_status: row.payment_status || "",
+    supplier_payment_status: row.supplier_payment_status || "",
+  };
+};
+
+export const getSupplierStatement = async ({ tenantId = null, id } = {}) => {
+  await ensureSuppliersSchema();
+  const supplierParams = [id];
+  const supplierScoped = tenantClause(tenantId, "s", supplierParams);
+  const supplierResult = await db.query(
+    `
+    SELECT
+      s.*,
+      COALESCE(SUM(COALESCE(p.total, 0)), 0) AS total_purchases,
+      COUNT(p.id)::int AS purchase_count,
+      MAX(p.created_at) AS last_purchase_date
+    FROM suppliers s
+    LEFT JOIN purchases p ON p.supplier_id = s.id
+    WHERE s.id = $1 AND s.deleted_at IS NULL ${supplierScoped}
+    GROUP BY s.id
+    LIMIT 1
+    `,
+    supplierParams
+  );
+  const supplierRow = supplierResult.rows[0] || null;
+  if (!supplierRow) return null;
+
+  const warnings = [
+    "TODO: supplier_transactions table is not wired into the supplier statement yet.",
+    "TODO: purchase return/adjustment rows are not wired into the supplier statement because the current schema does not expose a purchase-linked returns table.",
+  ];
+
+  const purchaseParams = [id];
+  const purchaseScoped = tenantClause(tenantId, "p", purchaseParams);
+  const purchasesResult = await db.query(
+    `
+    SELECT
+      p.id,
+      p.purchase_number,
+      p.status,
+      p.payment_status,
+      p.supplier_payment_status,
+      COALESCE(p.total, 0) AS total,
+      COALESCE(p.paid_amount, p.supplier_paid_amount, 0) AS paid_amount,
+      p.notes,
+      p.created_at
+    FROM purchases p
+    WHERE p.supplier_id = $1
+      ${purchaseScoped}
+      AND COALESCE(LOWER(p.status), '') NOT IN ('deleted', 'cancelled', 'canceled', 'reversed')
+    ORDER BY p.created_at ASC, p.id ASC
+    `,
+    purchaseParams
+  );
+
+  const paymentParams = [id];
+  const paymentScoped = tenantClause(tenantId, "p", paymentParams);
+  const paymentsResult = await db.query(
+    `
+    SELECT
+      e.id,
+      e.entry_type,
+      e.source_type,
+      e.source_id,
+      e.amount,
+      e.balance_after,
+      e.notes,
+      e.created_at,
+      p.purchase_number,
+      p.status,
+      p.payment_status,
+      p.supplier_payment_status
+    FROM financial_account_entries e
+    JOIN purchases p ON p.id = e.source_id
+    WHERE p.supplier_id = $1
+      ${paymentScoped}
+      AND e.source_type IN ('purchase', 'purchase_reversal')
+      AND COALESCE(LOWER(p.status), '') NOT IN ('deleted', 'cancelled', 'canceled', 'reversed')
+    ORDER BY e.created_at ASC, e.id ASC
+    `,
+    paymentParams
+  );
+
+  const paymentSourceIds = new Set(paymentsResult.rows.map((row) => String(row.source_id || row.id || "")));
+  const fallbackPaymentRows = purchasesResult.rows
+    .filter((row) => Number(row.paid_amount || 0) > 0 && !paymentSourceIds.has(String(row.id)))
+    .map((row) =>
+      buildSupplierStatementRow(
+        {
+          id: `paid-${row.id}`,
+          source_id: row.id,
+          source_type: "purchase_payment_fallback",
+          amount: Number(row.paid_amount || 0) * -1,
+          notes: row.notes || row.purchase_number || "Purchase payment",
+          created_at: row.created_at,
+          purchase_number: row.purchase_number,
+          status: row.status,
+          payment_status: row.payment_status,
+          supplier_payment_status: row.supplier_payment_status,
+        },
+        "purchase_payment"
+      )
+    );
+
+  const statementRows = [
+    ...purchasesResult.rows.map((row) => buildSupplierStatementRow({ ...row, amount: row.total }, "purchase_invoice")),
+    ...paymentsResult.rows.map((row) => buildSupplierStatementRow(row, row.source_type === "purchase_reversal" ? "purchase_payment_reversal" : "purchase_payment")),
+    ...fallbackPaymentRows,
+  ].sort((a, b) => {
+    const aTime = new Date(a.created_at || 0).getTime();
+    const bTime = new Date(b.created_at || 0).getTime();
+    if (aTime !== bTime) return aTime - bTime;
+    const order = { purchase_invoice: 0, purchase_payment: 1, purchase_payment_reversal: 2, adjustment: 3 };
+    const kindDiff = (order[a.kind] ?? 99) - (order[b.kind] ?? 99);
+    if (kindDiff !== 0) return kindDiff;
+    return Number(a.id || 0) - Number(b.id || 0);
+  });
+
+  let runningBalance = roundMoney(Number(supplierRow.opening_balance || 0));
+  const rows = statementRows.map((row) => {
+    const debit = roundMoney(Number(row.debit || 0));
+    const credit = roundMoney(Number(row.credit || 0));
+    runningBalance = roundMoney(runningBalance + debit - credit);
+    return {
+      ...row,
+      debit,
+      credit,
+      balance: runningBalance,
+    };
+  });
+
+  const totals = rows.reduce(
+    (acc, row) => {
+      acc.total_purchases = roundMoney(acc.total_purchases + Number(row.kind === "purchase_invoice" ? row.debit : 0));
+      acc.total_paid = roundMoney(acc.total_paid + Number(["purchase_payment", "purchase_payment_reversal"].includes(row.kind) ? row.credit : 0));
+      acc.total_adjustments = roundMoney(acc.total_adjustments + Number(row.kind === "adjustment" ? Math.abs(row.debit - row.credit) : 0));
+      return acc;
+    },
+    { total_purchases: 0, total_paid: 0, total_adjustments: 0 }
+  );
+
+  return {
+    supplier: publicSupplier(supplierRow),
+    opening_balance: roundMoney(Number(supplierRow.opening_balance || 0)),
+    current_balance: roundMoney(Number(supplierRow.current_balance ?? runningBalance)),
+    final_balance: roundMoney(runningBalance),
+    totals,
+    rows,
+    warnings,
   };
 };
 

@@ -13,6 +13,7 @@ import {
   MoreHorizontal,
   Phone,
   Plus,
+  ReceiptText,
   Search,
   ShieldCheck,
   Trash2,
@@ -357,6 +358,7 @@ function SuppliersDashboard() {
                         <ActionMenu
                           supplier={supplier}
                           onView={() => openProfile(supplier)}
+                          onStatement={() => navigate(`/suppliers/${supplier.id}/statement`)}
                           onEdit={() => openEditModal(supplier)}
                           onDelete={() => deleteSupplier(supplier)}
                           onPurchase={() => navigate(`/purchases/create?supplier_id=${supplier.id}`)}
@@ -436,10 +438,11 @@ function Select({ value, onChange, options }) {
   );
 }
 
-function ActionMenu({ supplier, onView, onEdit, onDelete, onPurchase }) {
+function ActionMenu({ supplier, onView, onStatement, onEdit, onDelete, onPurchase }) {
   const { t } = useTranslation();
   const items = [
     [Eye, t("purchases.suppliersDashboard.view"), onView],
+    [ReceiptText, "كشف حساب", onStatement],
     [Edit3, t("purchases.suppliersDashboard.edit"), onEdit],
     [Trash2, t("purchases.suppliersDashboard.delete"), onDelete],
     [FilePlus2, t("purchases.suppliersDashboard.createPurchaseOrder"), onPurchase],
