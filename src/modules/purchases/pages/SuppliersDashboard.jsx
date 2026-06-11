@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -29,6 +30,9 @@ import StatusBadge from "../components/StatusBadge";
 import { formatCurrency, formatDateTime, formatPurchaseCode, getLocalPurchases, normalizeSupplier, seedSuppliers } from "../lib/flowStore";
 
 const PAGE_SIZE = 10;
+const SUPPLIER_ACTIONS_MENU_WIDTH = 256;
+const SUPPLIER_ACTIONS_MENU_MARGIN = 12;
+const SUPPLIER_ACTIONS_MENU_Z_INDEX = 9999;
 const emptyForm = {
   name: "",
   phone: "",
@@ -70,17 +74,76 @@ function SuppliersDashboard() {
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [menuPosition, setMenuPosition] = useState(null);
   const [modalSupplier, setModalSupplier] = useState(undefined);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState("");
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const menuAnchorRef = useRef(null);
 
   useDismissableLayer({
     enabled: Boolean(openMenuId),
-    ignoreSelectors: ["[data-supplier-actions='true']"],
-    onDismiss: () => setOpenMenuId(null),
+    ignoreSelectors: ["[data-supplier-actions-trigger='true']"],
+    onDismiss: () => {
+      setOpenMenuId(null);
+      setMenuPosition(null);
+      menuAnchorRef.current = null;
+    },
   });
+
+  const closeActionsMenu = useCallback(() => {
+    setOpenMenuId(null);
+    setMenuPosition(null);
+    menuAnchorRef.current = null;
+  }, []);
+
+  const positionActionsMenu = useCallback((button) => {
+    if (typeof window === "undefined" || !button) return null;
+    const rect = button.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const isRtl = typeof document !== "undefined" && document.documentElement?.dir === "rtl";
+    const estimatedHeight = 280;
+    const preferredLeft = isRtl ? rect.right - SUPPLIER_ACTIONS_MENU_WIDTH : rect.left;
+    const left = Math.min(
+      Math.max(SUPPLIER_ACTIONS_MENU_MARGIN, preferredLeft),
+      Math.max(SUPPLIER_ACTIONS_MENU_MARGIN, viewportWidth - SUPPLIER_ACTIONS_MENU_WIDTH - SUPPLIER_ACTIONS_MENU_MARGIN)
+    );
+    const preferredTop = rect.bottom + 8;
+    const top = preferredTop + estimatedHeight <= viewportHeight - SUPPLIER_ACTIONS_MENU_MARGIN
+      ? preferredTop
+      : Math.max(SUPPLIER_ACTIONS_MENU_MARGIN, rect.top - estimatedHeight - 8);
+    return { left, top };
+  }, []);
+
+  const openActionsMenu = useCallback((supplierId, button) => {
+    if (openMenuId === supplierId) {
+      closeActionsMenu();
+      return;
+    }
+    menuAnchorRef.current = button;
+    setMenuPosition(positionActionsMenu(button));
+    setOpenMenuId(supplierId);
+  }, [closeActionsMenu, openMenuId, positionActionsMenu]);
+
+  useEffect(() => {
+    if (!openMenuId) return undefined;
+
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") closeActionsMenu();
+    };
+
+    window.addEventListener("scroll", closeActionsMenu, true);
+    window.addEventListener("resize", closeActionsMenu);
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      window.removeEventListener("scroll", closeActionsMenu, true);
+      window.removeEventListener("resize", closeActionsMenu);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [closeActionsMenu, openMenuId]);
 
   const loadSuppliers = async () => {
     try {
@@ -111,7 +174,10 @@ function SuppliersDashboard() {
     return () => window.clearTimeout(timer);
   }, [search, statusFilter, sort]);
 
-  useEffect(() => setPage(1), [search, statusFilter, sort]);
+  useEffect(() => {
+    setPage(1);
+    closeActionsMenu();
+  }, [search, statusFilter, sort, closeActionsMenu]);
 
   const enriched = useMemo(() => {
     const purchases = getLocalPurchases();
@@ -181,7 +247,7 @@ function SuppliersDashboard() {
       status: String(supplier.status || "active").toLowerCase() === "inactive" ? "inactive" : "active",
     });
     setFormError("");
-    setOpenMenuId(null);
+    closeActionsMenu();
   };
 
   const closeModal = () => {
@@ -227,7 +293,7 @@ function SuppliersDashboard() {
   };
 
   const deleteSupplier = async (supplier) => {
-    setOpenMenuId(null);
+    closeActionsMenu();
     const ok = window.confirm(t("purchases.suppliersDashboard.confirmDeleteSupplier", { name: supplier.name }));
     if (!ok) return;
     try {
@@ -243,7 +309,7 @@ function SuppliersDashboard() {
 
   const openProfile = async (supplier) => {
     setProfile(supplier);
-    setOpenMenuId(null);
+    closeActionsMenu();
     try {
       setProfileLoading(true);
       const response = await api.get(`/suppliers/${supplier.id}`);
@@ -350,27 +416,20 @@ function SuppliersDashboard() {
                     <div className="font-bold text-white">{formatCurrency(supplier.current_balance || 0)}</div>
                     <StatusBadge value={supplierStatusLabel(supplier.status)} />
                     <div className="text-xs text-zinc-400">{supplier.lastPurchaseDate ? formatDateTime(supplier.lastPurchaseDate) : t("purchases.supplierDetails.notAvailable")}</div>
-                    <div className="relative flex justify-end overflow-visible" data-supplier-actions="true" onClick={(event) => event.stopPropagation()}>
+                    <div className="flex justify-end" onClick={(event) => event.stopPropagation()}>
                       <button
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
-                          setOpenMenuId(openMenuId === supplier.id ? null : supplier.id);
+                          openActionsMenu(supplier.id, event.currentTarget);
                         }}
+                        aria-expanded={openMenuId === supplier.id}
+                        aria-haspopup="menu"
+                        data-supplier-actions-trigger="true"
                         className="rounded-xl border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10"
                       >
                         <MoreHorizontal className="h-4 w-4" />
                       </button>
-                      {openMenuId === supplier.id ? (
-                        <ActionMenu
-                          supplier={supplier}
-                          onView={() => openProfile(supplier)}
-                          onStatement={() => navigate(`/suppliers/${supplier.id}/statement`)}
-                          onEdit={() => openEditModal(supplier)}
-                          onDelete={() => deleteSupplier(supplier)}
-                          onPurchase={() => navigate(`/purchases/create?supplier_id=${supplier.id}`)}
-                        />
-                      ) : null}
                     </div>
                   </div>
                 ))
@@ -378,6 +437,17 @@ function SuppliersDashboard() {
             </div>
           </div>
         </div>
+        <SupplierActionsMenu
+          supplier={visible.find((supplier) => String(supplier.id) === String(openMenuId)) || null}
+          position={menuPosition}
+          zIndex={SUPPLIER_ACTIONS_MENU_Z_INDEX}
+          onClose={closeActionsMenu}
+          onView={openProfile}
+          onEdit={openEditModal}
+          onStatement={(supplier) => navigate(`/suppliers/${supplier.id}/statement`)}
+          onPurchase={(supplier) => navigate(`/purchases/create?supplier_id=${supplier.id}`)}
+          onDelete={deleteSupplier}
+        />
 
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-sm text-zinc-400">
@@ -445,17 +515,61 @@ function Select({ value, onChange, options }) {
   );
 }
 
-function ActionMenu({ supplier, onView, onStatement, onEdit, onDelete, onPurchase }) {
+function SupplierActionsMenu({ supplier, position, zIndex, onClose, onView, onStatement, onEdit, onDelete, onPurchase }) {
   const { t } = useTranslation();
+  const menuRef = useRef(null);
+  const [resolvedPosition, setResolvedPosition] = useState(position);
+
+  useEffect(() => {
+    setResolvedPosition(position);
+  }, [position]);
+
+  useDismissableLayer({
+    enabled: Boolean(supplier),
+    refs: [menuRef],
+    ignoreSelectors: ["[data-supplier-actions-trigger='true']"],
+    onDismiss: onClose,
+  });
+
+  useEffect(() => {
+    if (!supplier || !position || !menuRef.current || typeof window === "undefined") return;
+    const rect = menuRef.current.getBoundingClientRect();
+    const nextLeft = Math.min(
+      Math.max(SUPPLIER_ACTIONS_MENU_MARGIN, position.left),
+      Math.max(SUPPLIER_ACTIONS_MENU_MARGIN, window.innerWidth - rect.width - SUPPLIER_ACTIONS_MENU_MARGIN)
+    );
+    const nextTop = Math.min(
+      Math.max(SUPPLIER_ACTIONS_MENU_MARGIN, position.top),
+      Math.max(SUPPLIER_ACTIONS_MENU_MARGIN, window.innerHeight - rect.height - SUPPLIER_ACTIONS_MENU_MARGIN)
+    );
+    if (nextLeft !== position.left || nextTop !== position.top) {
+      setResolvedPosition({ left: nextLeft, top: nextTop });
+    }
+  }, [position, supplier]);
+
+  if (!supplier || !resolvedPosition || typeof document === "undefined") return null;
+
   const items = [
     [Eye, t("purchases.suppliersDashboard.view"), onView],
-    [ReceiptText, "كشف حساب", onStatement],
     [Edit3, t("purchases.suppliersDashboard.edit"), onEdit],
-    [Trash2, t("purchases.suppliersDashboard.delete"), onDelete],
+    [ReceiptText, "كشف حساب", onStatement],
     [FilePlus2, t("purchases.suppliersDashboard.createPurchaseOrder"), onPurchase],
+    [Trash2, t("purchases.suppliersDashboard.delete"), onDelete],
   ];
-  return (
-    <div className="absolute end-0 top-full z-50 mt-2 max-h-[70vh] w-[min(16rem,calc(100vw-1rem))] overflow-y-auto rounded-2xl border border-white/10 bg-zinc-950 p-2 shadow-2xl shadow-black" dir="auto">
+
+  const runAndClose = (action) => {
+    onClose();
+    action(supplier);
+  };
+
+  return createPortal(
+    <div
+      ref={menuRef}
+      role="menu"
+      className="fixed w-64 max-w-[calc(100vw-24px)] overflow-y-auto rounded-2xl border border-white/10 bg-zinc-950 p-2 shadow-2xl shadow-black"
+      style={{ left: `${resolvedPosition.left}px`, top: `${resolvedPosition.top}px`, zIndex }}
+      dir="auto"
+    >
       <div className="mb-1 truncate px-3 py-2 text-xs text-zinc-500">{supplier.supplier_code}</div>
       {items.map(([Icon, label, onClick]) => (
         <button
@@ -463,7 +577,7 @@ function ActionMenu({ supplier, onView, onStatement, onEdit, onDelete, onPurchas
           type="button"
           onClick={(event) => {
             event.stopPropagation();
-            onClick();
+            runAndClose(onClick);
           }}
           className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-start text-sm text-zinc-200 hover:bg-white/5"
         >
@@ -471,7 +585,8 @@ function ActionMenu({ supplier, onView, onStatement, onEdit, onDelete, onPurchas
           {label}
         </button>
       ))}
-    </div>
+    </div>,
+    document.body
   );
 }
 

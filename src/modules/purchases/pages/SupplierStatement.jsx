@@ -71,16 +71,7 @@ function SupplierStatement() {
   return (
     <FlowShell
       title={isArabic ? "كشف حساب المورد" : "Supplier Statement"}
-      subtitle={supplier.name || (isArabic ? "تفاصيل الحركات المالية للمورد" : "Supplier financial movement statement")}
-      actions={
-        <Link
-          to="/suppliers"
-          className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          {isArabic ? "العودة للموردين" : "Back to suppliers"}
-        </Link>
-      }
+      subtitle={`${supplier.name || "-"} ${supplier.supplier_code ? `· ${supplier.supplier_code}` : ""}`.trim()}
       tabs={[
         { to: "/purchases", label: isArabic ? "المشتريات" : "Purchases", end: true },
         { to: "/purchases/create", label: isArabic ? "إنشاء فاتورة" : "Create purchase" },
@@ -88,6 +79,7 @@ function SupplierStatement() {
         { to: "/inventory", label: isArabic ? "المخزون" : "Inventory" },
         { to: "/accounting", label: isArabic ? "المحاسبة" : "Accounting" },
       ]}
+      compact
     >
       {loading ? (
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-10 text-center text-zinc-400">
@@ -116,6 +108,28 @@ function SupplierStatement() {
             </div>
           ) : null}
 
+          <div dir="rtl" className="rounded-2xl border border-white/10 bg-zinc-950/90 px-4 py-3 shadow-lg shadow-black/10">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0 text-right">
+                <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">{isArabic ? "كشف حساب المورد" : "Supplier statement"}</div>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-zinc-300">
+                  <span className="font-black text-white">{supplier.name || "-"}</span>
+                  <span className="text-zinc-500">|</span>
+                  <span className="font-mono text-emerald-300">{supplier.supplier_code || "-"}</span>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
+                <Link
+                  to="/suppliers"
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  {isArabic ? "العودة للموردين" : "Back to suppliers"}
+                </Link>
+              </div>
+            </div>
+          </div>
+
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <StatCard label={isArabic ? "إجمالي المشتريات" : "Total purchases"} value={formatCurrency(totals.total_purchases || 0)} icon={<ReceiptText className="h-4 w-4" />} tone="rose" />
             <StatCard label={isArabic ? "إجمالي المدفوع" : "Total paid"} value={formatCurrency(totals.total_paid || 0)} icon={<Wallet className="h-4 w-4" />} tone="emerald" />
@@ -123,68 +137,56 @@ function SupplierStatement() {
             <StatCard label={isArabic ? "الرصيد المستحق" : "Outstanding balance"} value={formatCurrency(finalBalance)} icon={<Wallet className="h-4 w-4" />} tone="amber" />
           </div>
 
-          <div className="grid gap-4">
-            <div className="space-y-4">
-              <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{isArabic ? "ملف المورد" : "Supplier profile"}</div>
-                    <h2 className="mt-2 text-2xl font-black text-white">{supplier.name}</h2>
-                    <p className="mt-1 text-sm text-zinc-400">{supplier.address || (isArabic ? "لا يوجد عنوان" : "No address available")}</p>
-                  </div>
-                  <StatusBadge value={supplier.status} />
-                </div>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <Info label={isArabic ? "الهاتف" : "Phone"} value={supplier.phone || (isArabic ? "غير متاح" : "Not available")} />
-                  <Info label={isArabic ? "واتساب" : "WhatsApp"} value={supplier.whatsapp || supplier.phone || (isArabic ? "غير متاح" : "Not available")} />
-                  <Info label={isArabic ? "البريد" : "Email"} value={supplier.email || (isArabic ? "غير متاح" : "Not available")} />
-                  <Info label={isArabic ? "المديونية الحالية" : "Current debt"} value={formatCurrency(currentBalance)} />
-                </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-zinc-300">
+                <span><span className="text-zinc-500">{isArabic ? "المورد" : "Supplier"}:</span> {supplier.name || "-"}</span>
+                <span><span className="text-zinc-500">{isArabic ? "الكود" : "Code"}:</span> {supplier.supplier_code || "-"}</span>
+                <span><span className="text-zinc-500">{isArabic ? "الهاتف" : "Phone"}:</span> {supplier.phone || "-"}</span>
+                <span><span className="text-zinc-500">{isArabic ? "واتساب" : "WhatsApp"}:</span> {supplier.whatsapp || supplier.phone || "-"}</span>
+                <span><span className="text-zinc-500">{isArabic ? "البريد" : "Email"}:</span> {supplier.email || "-"}</span>
               </div>
+          </div>
 
-              <div className="rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/10">
-                <div className="border-b border-white/10 p-5">
-                  <h3 className="text-xl font-black text-white">{isArabic ? "حركات الحساب" : "Statement entries"}</h3>
-                  <p className="mt-1 text-sm text-zinc-400">
-                    {isArabic ? "الترتيب زمني من الأقدم إلى الأحدث" : "Chronological order from oldest to newest"}
-                  </p>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-[1100px] w-full text-left text-sm">
-                    <thead className="bg-white/[0.03] text-[11px] uppercase tracking-[0.16em] text-zinc-500">
-                      <tr>
-                        <Th>{isArabic ? "التاريخ" : "Date"}</Th>
-                        <Th>{isArabic ? "النوع" : "Type"}</Th>
-                        <Th>{isArabic ? "المرجع" : "Reference"}</Th>
-                        <Th>{isArabic ? "البيان" : "Description"}</Th>
-                        <Th align="right">{isArabic ? "مدين" : "Debit"}</Th>
-                        <Th align="right">{isArabic ? "دائن" : "Credit"}</Th>
-                        <Th align="right">{isArabic ? "الرصيد" : "Balance"}</Th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/10">
-                      {rows.length ? rows.map((row) => (
-                        <tr key={`${row.kind}-${row.id}-${row.created_at}`} className="bg-zinc-950/80 text-zinc-300">
-                          <Td>{formatDateTime(row.created_at)}</Td>
-                          <Td className="font-semibold text-white">{typeLabel(row.kind, isArabic)}</Td>
-                          <Td>{row.reference || "-"}</Td>
-                          <Td>{row.description || "-"}</Td>
-                          <Td align="right" className="font-semibold text-emerald-300">{row.debit ? formatCurrency(row.debit) : "-"}</Td>
-                          <Td align="right" className="font-semibold text-rose-300">{row.credit ? formatCurrency(row.credit) : "-"}</Td>
-                          <Td align="right" className="font-black text-white">{formatCurrency(row.balance || 0)}</Td>
-                        </tr>
-                      )) : (
-                        <tr>
-                          <td colSpan={7} className="px-4 py-10 text-center text-zinc-500">
-                            {isArabic ? "لا توجد حركات مسجلة بعد" : "No statement entries yet"}
-                          </td>
-                        </tr>
-                      )}
-                  </tbody>
-                </table>
-                </div>
-              </div>
+          <div className="mt-4 rounded-3xl border border-white/10 bg-zinc-950/80 shadow-2xl shadow-black/10">
+            <div className="border-b border-white/10 px-4 py-4">
+              <h3 className="text-2xl font-black text-white">{isArabic ? "حركات الحساب" : "Statement entries"}</h3>
+              <p className="mt-1 text-sm text-zinc-400">
+                {isArabic ? "الترتيب زمني من الأقدم إلى الأحدث" : "Chronological order from oldest to newest"}
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-[1100px] w-full text-left text-sm">
+                <thead className="bg-white/[0.03] text-[11px] uppercase tracking-[0.16em] text-zinc-500">
+                  <tr>
+                    <Th>{isArabic ? "التاريخ" : "Date"}</Th>
+                    <Th>{isArabic ? "النوع" : "Type"}</Th>
+                    <Th>{isArabic ? "المرجع" : "Reference"}</Th>
+                    <Th>{isArabic ? "البيان" : "Description"}</Th>
+                    <Th align="right">{isArabic ? "مدين" : "Debit"}</Th>
+                    <Th align="right">{isArabic ? "دائن" : "Credit"}</Th>
+                    <Th align="right">{isArabic ? "الرصيد" : "Balance"}</Th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {rows.length ? rows.map((row) => (
+                    <tr key={`${row.kind}-${row.id}-${row.created_at}`} className="bg-zinc-950/80 text-zinc-300">
+                      <Td>{formatDateTime(row.created_at)}</Td>
+                      <Td className="font-semibold text-white">{typeLabel(row.kind, isArabic)}</Td>
+                      <Td>{row.reference || "-"}</Td>
+                      <Td>{row.description || "-"}</Td>
+                      <Td align="right" className="font-semibold text-emerald-300">{row.debit ? formatCurrency(row.debit) : "-"}</Td>
+                      <Td align="right" className="font-semibold text-rose-300">{row.credit ? formatCurrency(row.credit) : "-"}</Td>
+                      <Td align="right" className="font-black text-white">{formatCurrency(row.balance || 0)}</Td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-10 text-center text-zinc-500">
+                        {isArabic ? "لا توجد حركات مسجلة بعد" : "No statement entries yet"}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </>
