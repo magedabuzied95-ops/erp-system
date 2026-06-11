@@ -566,8 +566,9 @@ router.get("/:token/products", async (req, res) => {
 });
 
 router.get("/:token/sales-opportunities", async (req, res) => {
+  let employee = null;
   try {
-    const employee = await loadVerifiedEmployee(req, res);
+    employee = await loadVerifiedEmployee(req, res);
     if (!employee) return;
     const opportunities = await getSalesOpportunitiesForScope({
       tenantId: employee.tenant_id ?? null,
@@ -575,7 +576,15 @@ router.get("/:token/sales-opportunities", async (req, res) => {
     });
     return res.json({ success: true, opportunities });
   } catch (error) {
-    console.error("[employee-payroll-portal] sales opportunities load error", error);
+    console.error("[employee-payroll-portal] sales opportunities load error", {
+      route: "GET /api/employee-portal/:token/sales-opportunities",
+      requestId: req.id ?? null,
+      tenantId: employee?.tenant_id ?? null,
+      branchId: employee?.branch_id ?? null,
+      timeoutMs: Number(req.query?.timeoutMs || 0) || null,
+      error: error?.message || String(error),
+      code: error?.code || null,
+    });
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load sales opportunities" });
   }
 });

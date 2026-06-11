@@ -2,6 +2,7 @@ import db from "../database/db.js";
 import { sendEmployeePortalPush } from "./employeePortalPushService.js";
 
 const SALES_OPPORTUNITY_TTL_MS = 24 * 60 * 60 * 1000;
+const tableColumnsCache = new Map();
 const SALES_OPPORTUNITY_TYPES = {
   LAST_ONE: {
     badge: "آخر قطعة",
@@ -39,6 +40,24 @@ const opportunityTypeMeta = (type = "") => SALES_OPPORTUNITY_TYPES[type] || SALE
 const normalizeMetadata = (value = {}) => {
   if (!value || typeof value !== "object") return {};
   return value;
+};
+const tableColumns = async (clientOrPool = db, tableName = "") => {
+  const safeTableName = clean(tableName).toLowerCase();
+  if (!safeTableName) return new Set();
+  if (tableColumnsCache.has(safeTableName)) return tableColumnsCache.get(safeTableName);
+  const client = clientOrPool || db;
+  const result = await client.query(
+    `
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = $1
+    `,
+    [safeTableName]
+  );
+  const columns = new Set((result.rows || []).map((row) => clean(row.column_name).toLowerCase()).filter(Boolean));
+  tableColumnsCache.set(safeTableName, columns);
+  return columns;
 };
 
 const ensureSalesOpportunitySchema = async (clientOrPool = db) => {
@@ -244,13 +263,35 @@ const buildOpportunityCandidates = (rows = []) => {
 
 const loadCurrentStockRows = async ({ clientOrPool = db, tenantId = null, branchId = null } = {}) => {
   const client = clientOrPool || db;
+  const [inventoryColumns, warehouseColumns] = await Promise.all([
+    tableColumns(client, "warehouse_inventory"),
+    tableColumns(client, "warehouses"),
+  ]);
+  const inventoryHasBranchId = inventoryColumns.has("branch_id");
+  const warehouseHasBranchId = warehouseColumns.has("branch_id");
+  const warehouseHasBranchName = warehouseColumns.has("branch_name");
+  const resolvedBranchIdExpr = inventoryHasBranchId
+    ? "wi.branch_id"
+    : warehouseHasBranchId
+      ? "w.branch_id"
+      : warehouseHasBranchName
+        ? "resolved_branch.id"
+        : "NULL::bigint";
+  const resolvedBranchNameExpr = inventoryHasBranchId
+    ? "resolved_branch.name"
+    : warehouseHasBranchId
+      ? "resolved_branch.name"
+      : warehouseHasBranchName
+        ? "COALESCE(resolved_branch.name, w.branch_name)"
+        : "''::text";
   const params = [tenantId];
-  const branchClause = branchId ? (params.push(branchId), ` AND wi.branch_id = $${params.length}::bigint`) : "";
-  const result = await client.query(
-    `
+  const branchClause = branchId ? (params.push(branchId), ` AND ${resolvedBranchIdExpr} = $${params.length}::bigint`) : "";
+  try {
+    const result = await client.query(
+      `
     SELECT
-      wi.branch_id,
-      b.name AS branch_name,
+      ${resolvedBranchIdExpr} AS branch_id,
+      ${resolvedBranchNameExpr} AS branch_name,
       v.product_id,
       v.id AS product_variant_id,
       p.name AS product_name,
@@ -270,9 +311,19 @@ const loadCurrentStockRows = async ({ clientOrPool = db, tenantId = null, branch
       COALESCE(NULLIF(v.image_url, ''), '') AS variant_image_url,
       COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url
     FROM warehouse_inventory wi
+    JOIN warehouses w ON w.id = wi.warehouse_id
     JOIN product_variants v ON v.id = wi.variant_id
     JOIN products p ON p.id = v.product_id
-    LEFT JOIN branches b ON b.id = wi.branch_id
+    LEFT JOIN branches resolved_branch ON ${
+      inventoryHasBranchId
+        ? "resolved_branch.id = wi.branch_id"
+        : warehouseHasBranchId
+          ? "resolved_branch.id = w.branch_id"
+          : warehouseHasBranchName
+            ? "LOWER(TRIM(COALESCE(resolved_branch.name, ''))) = LOWER(TRIM(COALESCE(w.branch_name, '')))"
+            : "FALSE"
+    }
+      AND ($1::bigint IS NULL OR resolved_branch.tenant_id = $1::bigint)
     LEFT JOIN LATERAL (
       SELECT pi.image_url
       FROM product_variant_images pi
@@ -286,15 +337,15 @@ const loadCurrentStockRows = async ({ clientOrPool = db, tenantId = null, branch
     ) color_image ON TRUE
     WHERE ($1::bigint IS NULL OR wi.tenant_id = $1::bigint)
       AND COALESCE(wi.stock, 0) > 0
-      AND wi.branch_id IS NOT NULL
+      AND ${resolvedBranchIdExpr} IS NOT NULL
       ${branchClause}
       AND COALESCE(v.is_active, TRUE) = TRUE
       AND v.deleted_at IS NULL
       AND COALESCE(p.is_active, TRUE) = TRUE
       AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
     GROUP BY
-      wi.branch_id,
-      b.name,
+      ${resolvedBranchIdExpr},
+      ${resolvedBranchNameExpr},
       v.product_id,
       v.id,
       p.name,
@@ -306,12 +357,24 @@ const loadCurrentStockRows = async ({ clientOrPool = db, tenantId = null, branch
       p.image,
       p.photo_url,
       p.thumbnail_url
-    ORDER BY wi.branch_id ASC, p.name ASC, v.color ASC NULLS LAST, v.size ASC NULLS LAST, v.id ASC
+    ORDER BY ${resolvedBranchIdExpr} ASC, p.name ASC, v.color ASC NULLS LAST, v.size ASC NULLS LAST, v.id ASC
     `,
-    params
-  );
+      params
+    );
 
-  return Array.isArray(result.rows) ? result.rows : [];
+    return Array.isArray(result.rows) ? result.rows : [];
+  } catch (error) {
+    console.error("[sales-opportunity] loadCurrentStockRows failed", {
+      route: "employee-portal-sales-opportunities",
+      tenantId: tenantId ?? null,
+      branchId: branchId ?? null,
+      inventoryHasBranchId,
+      warehouseHasBranchId,
+      warehouseHasBranchName,
+      error: error?.message || String(error),
+    });
+    throw error;
+  }
 };
 
 const loadBranchEmployees = async ({ clientOrPool = db, tenantId = null, branchId = null } = {}) => {
