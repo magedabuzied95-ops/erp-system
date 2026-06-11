@@ -32,6 +32,7 @@ import { formatCurrency, formatDateTime, formatPurchaseCode, getLocalPurchases, 
 const PAGE_SIZE = 10;
 const SUPPLIER_ACTIONS_MENU_WIDTH = 256;
 const SUPPLIER_ACTIONS_MENU_MARGIN = 12;
+const SUPPLIER_ACTIONS_MENU_ESTIMATED_HEIGHT = 280;
 const SUPPLIER_ACTIONS_MENU_Z_INDEX = 9999;
 const emptyForm = {
   name: "",
@@ -80,70 +81,102 @@ function SuppliersDashboard() {
   const [formError, setFormError] = useState("");
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
-  const menuAnchorRef = useRef(null);
+  const menuButtonRef = useRef(null);
+  const menuRef = useRef(null);
 
   useDismissableLayer({
     enabled: Boolean(openMenuId),
-    ignoreSelectors: ["[data-supplier-actions-trigger='true']"],
+    refs: [menuButtonRef, menuRef],
     onDismiss: () => {
       setOpenMenuId(null);
       setMenuPosition(null);
-      menuAnchorRef.current = null;
+      menuButtonRef.current = null;
+      menuRef.current = null;
     },
   });
 
   const closeActionsMenu = useCallback(() => {
     setOpenMenuId(null);
     setMenuPosition(null);
-    menuAnchorRef.current = null;
+    menuButtonRef.current = null;
+    menuRef.current = null;
   }, []);
 
-  const positionActionsMenu = useCallback((button) => {
+  const positionActionsMenu = useCallback((button, menuHeight = SUPPLIER_ACTIONS_MENU_ESTIMATED_HEIGHT) => {
     if (typeof window === "undefined" || !button) return null;
     const rect = button.getBoundingClientRect();
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const isRtl = typeof document !== "undefined" && document.documentElement?.dir === "rtl";
-    const estimatedHeight = 280;
-    const preferredLeft = isRtl ? rect.right - SUPPLIER_ACTIONS_MENU_WIDTH : rect.left;
+    const maxTop = Math.max(SUPPLIER_ACTIONS_MENU_MARGIN, viewportHeight - menuHeight - SUPPLIER_ACTIONS_MENU_MARGIN);
+    const top = Math.min(rect.bottom + 8, maxTop);
+
+    if (isRtl) {
+      const preferredRight = Math.max(SUPPLIER_ACTIONS_MENU_MARGIN, viewportWidth - rect.right);
+      const right = Math.min(
+        preferredRight,
+        Math.max(SUPPLIER_ACTIONS_MENU_MARGIN, viewportWidth - SUPPLIER_ACTIONS_MENU_WIDTH - SUPPLIER_ACTIONS_MENU_MARGIN)
+      );
+      return {
+        right,
+        top,
+        maxHeight: Math.max(160, viewportHeight - top - SUPPLIER_ACTIONS_MENU_MARGIN),
+      };
+    }
+
+    const preferredLeft = rect.left;
     const left = Math.min(
       Math.max(SUPPLIER_ACTIONS_MENU_MARGIN, preferredLeft),
       Math.max(SUPPLIER_ACTIONS_MENU_MARGIN, viewportWidth - SUPPLIER_ACTIONS_MENU_WIDTH - SUPPLIER_ACTIONS_MENU_MARGIN)
     );
-    const preferredTop = rect.bottom + 8;
-    const top = preferredTop + estimatedHeight <= viewportHeight - SUPPLIER_ACTIONS_MENU_MARGIN
-      ? preferredTop
-      : Math.max(SUPPLIER_ACTIONS_MENU_MARGIN, rect.top - estimatedHeight - 8);
-    return { left, top };
+    return {
+      left,
+      top,
+      maxHeight: Math.max(160, viewportHeight - top - SUPPLIER_ACTIONS_MENU_MARGIN),
+    };
   }, []);
 
-  const openActionsMenu = useCallback((supplierId, button) => {
+  const openActionsMenu = useCallback((supplierId, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const button = event.currentTarget;
     if (openMenuId === supplierId) {
       closeActionsMenu();
       return;
     }
-    menuAnchorRef.current = button;
-    setMenuPosition(positionActionsMenu(button));
+    menuButtonRef.current = button;
+    setMenuPosition(positionActionsMenu(button, menuRef.current?.offsetHeight || SUPPLIER_ACTIONS_MENU_ESTIMATED_HEIGHT));
     setOpenMenuId(supplierId);
   }, [closeActionsMenu, openMenuId, positionActionsMenu]);
 
   useEffect(() => {
     if (!openMenuId) return undefined;
 
+    const updatePosition = () => {
+      if (!menuButtonRef.current) return;
+      setMenuPosition(positionActionsMenu(menuButtonRef.current, menuRef.current?.offsetHeight || SUPPLIER_ACTIONS_MENU_ESTIMATED_HEIGHT));
+    };
+
     const closeOnEscape = (event) => {
       if (event.key === "Escape") closeActionsMenu();
     };
 
-    window.addEventListener("scroll", closeActionsMenu, true);
-    window.addEventListener("resize", closeActionsMenu);
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
     document.addEventListener("keydown", closeOnEscape);
 
     return () => {
-      window.removeEventListener("scroll", closeActionsMenu, true);
-      window.removeEventListener("resize", closeActionsMenu);
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [closeActionsMenu, openMenuId]);
+  }, [closeActionsMenu, openMenuId, positionActionsMenu]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    console.log("[supplier-actions-menu]", { open: Boolean(openMenuId), position: menuPosition, supplierId: openMenuId });
+  }, [menuPosition, openMenuId]);
 
   const loadSuppliers = async () => {
     try {
@@ -418,14 +451,15 @@ function SuppliersDashboard() {
                     <div className="text-xs text-zinc-400">{supplier.lastPurchaseDate ? formatDateTime(supplier.lastPurchaseDate) : t("purchases.supplierDetails.notAvailable")}</div>
                     <div className="flex justify-end" onClick={(event) => event.stopPropagation()}>
                       <button
+                        ref={(node) => {
+                          if (openMenuId === supplier.id) menuButtonRef.current = node;
+                        }}
                         type="button"
                         onClick={(event) => {
-                          event.stopPropagation();
-                          openActionsMenu(supplier.id, event.currentTarget);
+                          openActionsMenu(supplier.id, event);
                         }}
                         aria-expanded={openMenuId === supplier.id}
                         aria-haspopup="menu"
-                        data-supplier-actions-trigger="true"
                         className="rounded-xl border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10"
                       >
                         <MoreHorizontal className="h-4 w-4" />
@@ -440,6 +474,7 @@ function SuppliersDashboard() {
         <SupplierActionsMenu
           supplier={visible.find((supplier) => String(supplier.id) === String(openMenuId)) || null}
           position={menuPosition}
+          menuRef={menuRef}
           zIndex={SUPPLIER_ACTIONS_MENU_Z_INDEX}
           onClose={closeActionsMenu}
           onView={openProfile}
@@ -515,39 +550,9 @@ function Select({ value, onChange, options }) {
   );
 }
 
-function SupplierActionsMenu({ supplier, position, zIndex, onClose, onView, onStatement, onEdit, onDelete, onPurchase }) {
+function SupplierActionsMenu({ supplier, position, menuRef, zIndex, onClose, onView, onStatement, onEdit, onDelete, onPurchase }) {
   const { t } = useTranslation();
-  const menuRef = useRef(null);
-  const [resolvedPosition, setResolvedPosition] = useState(position);
-
-  useEffect(() => {
-    setResolvedPosition(position);
-  }, [position]);
-
-  useDismissableLayer({
-    enabled: Boolean(supplier),
-    refs: [menuRef],
-    ignoreSelectors: ["[data-supplier-actions-trigger='true']"],
-    onDismiss: onClose,
-  });
-
-  useEffect(() => {
-    if (!supplier || !position || !menuRef.current || typeof window === "undefined") return;
-    const rect = menuRef.current.getBoundingClientRect();
-    const nextLeft = Math.min(
-      Math.max(SUPPLIER_ACTIONS_MENU_MARGIN, position.left),
-      Math.max(SUPPLIER_ACTIONS_MENU_MARGIN, window.innerWidth - rect.width - SUPPLIER_ACTIONS_MENU_MARGIN)
-    );
-    const nextTop = Math.min(
-      Math.max(SUPPLIER_ACTIONS_MENU_MARGIN, position.top),
-      Math.max(SUPPLIER_ACTIONS_MENU_MARGIN, window.innerHeight - rect.height - SUPPLIER_ACTIONS_MENU_MARGIN)
-    );
-    if (nextLeft !== position.left || nextTop !== position.top) {
-      setResolvedPosition({ left: nextLeft, top: nextTop });
-    }
-  }, [position, supplier]);
-
-  if (!supplier || !resolvedPosition || typeof document === "undefined") return null;
+  if (!supplier || !position || typeof document === "undefined") return null;
 
   const items = [
     [Eye, t("purchases.suppliersDashboard.view"), onView],
@@ -567,8 +572,15 @@ function SupplierActionsMenu({ supplier, position, zIndex, onClose, onView, onSt
       ref={menuRef}
       role="menu"
       className="fixed w-64 max-w-[calc(100vw-24px)] overflow-y-auto rounded-2xl border border-white/10 bg-zinc-950 p-2 shadow-2xl shadow-black"
-      style={{ left: `${resolvedPosition.left}px`, top: `${resolvedPosition.top}px`, zIndex }}
+      style={{
+        left: typeof position.left === "number" ? `${position.left}px` : "auto",
+        right: typeof position.right === "number" ? `${position.right}px` : "auto",
+        top: `${position.top}px`,
+        maxHeight: typeof position.maxHeight === "number" ? `${position.maxHeight}px` : "none",
+        zIndex,
+      }}
       dir="auto"
+      onClick={(event) => event.stopPropagation()}
     >
       <div className="mb-1 truncate px-3 py-2 text-xs text-zinc-500">{supplier.supplier_code}</div>
       {items.map(([Icon, label, onClick]) => (
