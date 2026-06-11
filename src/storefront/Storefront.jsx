@@ -5719,10 +5719,17 @@ function ProductCardVariantSheet({
           </div>
           <button
             type="button"
-            onPointerUp={handleCloseRequest}
-            onClick={handleCloseRequest}
+            onPointerUp={(event) => {
+              event.stopPropagation();
+              onClose?.();
+            }}
+            onClick={(event) => {
+              event.stopPropagation();
+              onClose?.();
+            }}
             className="relative z-20 grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75"
-            aria-label={t("common.close", "Close")}
+            title="إغلاق"
+            aria-label="إغلاق اختيار المقاس"
           >
             <X className="h-4 w-4" />
           </button>
