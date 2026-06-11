@@ -2212,48 +2212,28 @@ const bulkApplyInventoryChanges = async (client, {
     );
   }
 
-  const movementValues = [];
-  const movementPlaceholders = movements.map((line) => {
-    const base = movementValues.length;
+  for (const line of movements) {
     const quantityChange = Number(line.quantityChange || 0);
-    movementValues.push(
-      numericTenantId,
-      line.productId == null ? null : Number(line.productId),
-      line.variantId == null ? null : Number(line.variantId),
-      customerId == null || customerId === "" ? null : Number(customerId),
-      numericBranchId,
+    await recordInventoryMovement(client, {
+      tenantId: numericTenantId,
+      productId: line.productId == null ? null : Number(line.productId),
+      variantId: line.variantId == null ? null : Number(line.variantId),
+      customerId: customerId == null || customerId === "" ? null : Number(customerId),
+      branchId: numericBranchId,
       movementType,
+      quantityBefore: Number(line.quantityBefore || 0),
       quantityChange,
-      Number(line.quantityBefore || 0),
-      Number(line.quantityAfter || 0),
-      line.costPrice == null ? null : Number(line.costPrice),
-      Number(line.costPrice || 0) * Math.abs(quantityChange),
-      "order",
-      numericOrderId,
+      quantityAfter: Number(line.quantityAfter || 0),
+      unitCost: line.costPrice == null ? null : Number(line.costPrice),
+      totalCost: Number(line.costPrice || 0) * Math.abs(quantityChange),
+      referenceType: "order",
+      referenceId: numericOrderId,
       reason,
-      `${reason} from order ${numericOrderId}`,
-      `${reason} from order ${numericOrderId}`,
-      numericCreatedBy
-    );
-    return `($${base + 1}::bigint,$${base + 2}::bigint,$${base + 3}::bigint,$${base + 4}::bigint,$${base + 5}::bigint,$${base + 6}::text,$${base + 7}::numeric,$${base + 8}::numeric,$${base + 9}::numeric,$${base + 10}::numeric,$${base + 11}::numeric,$${base + 12}::text,$${base + 13}::bigint,$${base + 14}::text,$${base + 15}::text,$${base + 16}::text,$${base + 17}::bigint)`;
-  });
-
-  await client.query(
-    `
-    INSERT INTO inventory_movements (
-      tenant_id, product_id, variant_id, customer_id, branch_id, movement_type, quantity,
-      before_qty, after_qty, quantity_before, quantity_change, quantity_after,
-      unit_cost, total_cost, reference_type, reference_id, reason, notes, note, created_by
-    )
-    SELECT tenant_id::bigint, product_id::bigint, variant_id::bigint, customer_id::bigint, branch_id::bigint, movement_type, quantity,
-      before_qty, after_qty, before_qty, quantity, after_qty,
-      unit_cost, total_cost, reference_type, reference_id::bigint, reason, notes, note, created_by::bigint
-    FROM (VALUES ${movementPlaceholders.join(",")})
-      AS t(tenant_id, product_id, variant_id, customer_id, branch_id, movement_type, quantity,
-        before_qty, after_qty, unit_cost, total_cost, reference_type, reference_id, reason, notes, note, created_by)
-    `,
-    movementValues
-  );
+      notes: `${reason} from order ${numericOrderId}`,
+      note: `${reason} from order ${numericOrderId}`,
+      createdBy: numericCreatedBy,
+    });
+  }
 };
 
 const runPostOrderSideEffects = async ({
