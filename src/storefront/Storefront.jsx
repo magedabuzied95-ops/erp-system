@@ -4176,10 +4176,14 @@ function ShopByMainCategories({ products = [], lang = "ar" }) {
 function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", products = [], loading = false, railType = "default", tone = "default", wishlist, toggleWishlist, onAddToCart }) {
   const isRtl = normalizeLanguage(i18n.language) === "ar";
   const railViewportRef = useRef(null);
+  const railTrackRef = useRef(null);
   const railCardRefs = useRef([]);
   const autoplayIndexRef = useRef(0);
-  const autoplayTimersRef = useRef({ wait: null, settle: null, sync: null });
+  const translateXRef = useRef(0);
+  const dragStateRef = useRef({ active: false, moved: false, startX: 0, startTranslateX: 0, pointerId: null });
+  const autoplayTimersRef = useRef({ wait: null, settle: null, reset: null });
   const [railPaused, setRailPaused] = useState(false);
+  const [trackMotion, setTrackMotion] = useState({ x: 0, transition: "none" });
   const visibleProducts = useMemo(
     () => sortStorefrontColorCardsByModel(uniqueProductsByIdentity(products).filter((product) => product?.id && product?.name && isAvailableProduct(product)).slice(0, 8)),
     [products]
@@ -4248,162 +4252,267 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
         }))
       ).flat()
     : repeatedProducts;
+  const transitionMs = 500;
+  const loopStartIndex = visibleProducts.length;
+  const loopEndIndex = visibleProducts.length * 2;
+  const reducedMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+
+  const clearTimers = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (autoplayTimersRef.current.wait) window.clearTimeout(autoplayTimersRef.current.wait);
+    if (autoplayTimersRef.current.settle) window.clearTimeout(autoplayTimersRef.current.settle);
+    if (autoplayTimersRef.current.reset) window.clearTimeout(autoplayTimersRef.current.reset);
+    autoplayTimersRef.current = { wait: null, settle: null, reset: null };
+  }, []);
+
+  const setTrackPosition = useCallback((nextX, animate) => {
+    translateXRef.current = nextX;
+    setTrackMotion({
+      x: nextX,
+      transition: animate ? `transform ${transitionMs}ms ease` : "none",
+    });
+  }, []);
+
+  const getViewportEdge = useCallback(() => {
+    const viewport = railViewportRef.current;
+    if (!viewport) return 0;
+    const rect = viewport.getBoundingClientRect();
+    return isRtl ? rect.right : rect.left;
+  }, [isRtl]);
+
+  const alignToIndex = useCallback((index, animate = true) => {
+    const viewport = railViewportRef.current;
+    const node = railCardRefs.current[index];
+    if (!viewport || !node) return false;
+    const viewportEdge = getViewportEdge();
+    const nodeRect = node.getBoundingClientRect();
+    const nodeEdge = isRtl ? nodeRect.right : nodeRect.left;
+    const nextX = translateXRef.current + (viewportEdge - nodeEdge);
+    autoplayIndexRef.current = index;
+    setTrackPosition(nextX, animate);
+    return true;
+  }, [getViewportEdge, isRtl, setTrackPosition]);
+
+  const normalizeIndex = useCallback((index) => {
+    if (!visibleProducts.length) return index;
+    const offset = ((index % visibleProducts.length) + visibleProducts.length) % visibleProducts.length;
+    return loopStartIndex + offset;
+  }, [loopStartIndex, visibleProducts.length]);
+
+  const resetToMiddleCopy = useCallback(() => {
+    if (!visibleProducts.length) return;
+    const normalized = normalizeIndex(autoplayIndexRef.current);
+    if (normalized !== autoplayIndexRef.current) {
+      alignToIndex(normalized, false);
+    }
+  }, [alignToIndex, normalizeIndex, visibleProducts.length]);
+
+  const scheduleResetIfNeeded = useCallback(() => {
+    if (!visibleProducts.length || typeof window === "undefined") return;
+    if (autoplayIndexRef.current >= loopEndIndex || autoplayIndexRef.current < loopStartIndex) {
+      if (autoplayTimersRef.current.reset) window.clearTimeout(autoplayTimersRef.current.reset);
+      autoplayTimersRef.current.reset = window.setTimeout(() => {
+        resetToMiddleCopy();
+      }, transitionMs + 20);
+    }
+  }, [loopEndIndex, loopStartIndex, resetToMiddleCopy, visibleProducts.length]);
+
+  const queueNextStep = useCallback((delay = 4000) => {
+    if (typeof window === "undefined") return;
+    if (!visibleProducts.length || railPaused || reducedMotion || dragStateRef.current.active) return;
+    if (autoplayTimersRef.current.wait) window.clearTimeout(autoplayTimersRef.current.wait);
+    autoplayTimersRef.current.wait = window.setTimeout(() => {
+      if (railPaused || reducedMotion || dragStateRef.current.active) return;
+      const nextIndex = autoplayIndexRef.current + 1;
+      if (!alignToIndex(nextIndex, true)) return;
+      scheduleResetIfNeeded();
+      if (autoplayTimersRef.current.settle) window.clearTimeout(autoplayTimersRef.current.settle);
+      autoplayTimersRef.current.settle = window.setTimeout(() => {
+        queueNextStep(4000);
+      }, transitionMs);
+    }, delay);
+  }, [alignToIndex, railPaused, reducedMotion, scheduleResetIfNeeded, visibleProducts.length]);
+
+  const findClosestIndex = useCallback(() => {
+    const viewport = railViewportRef.current;
+    if (!viewport || !visibleProducts.length) return autoplayIndexRef.current;
+    const viewportRect = viewport.getBoundingClientRect();
+    const viewportEdge = isRtl ? viewportRect.right : viewportRect.left;
+    let bestIndex = autoplayIndexRef.current;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    railCardRefs.current.forEach((node, index) => {
+      if (!node) return;
+      const rect = node.getBoundingClientRect();
+      const edge = isRtl ? rect.right : rect.left;
+      const distance = Math.abs(edge - viewportEdge);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = index;
+      }
+    });
+    return bestIndex;
+  }, [isRtl, visibleProducts.length]);
 
   useEffect(() => {
     railCardRefs.current = [];
   }, [visibleProducts.length, railItems.length]);
 
   useEffect(() => {
-    const viewport = railViewportRef.current;
-    if (!viewport || !visibleProducts.length || typeof window === "undefined") return undefined;
-
-    const clearTimers = () => {
-      if (autoplayTimersRef.current.wait) window.clearTimeout(autoplayTimersRef.current.wait);
-      if (autoplayTimersRef.current.settle) window.clearTimeout(autoplayTimersRef.current.settle);
-      if (autoplayTimersRef.current.sync) window.clearTimeout(autoplayTimersRef.current.sync);
-      autoplayTimersRef.current = { wait: null, settle: null, sync: null };
-    };
-
-    const syncIndexToViewport = () => {
-      const activeEdge = isRtl ? viewport.getBoundingClientRect().right : viewport.getBoundingClientRect().left;
-      let bestIndex = autoplayIndexRef.current;
-      let bestDistance = Number.POSITIVE_INFINITY;
-      railCardRefs.current.forEach((node, index) => {
-        if (!node) return;
-        const rect = node.getBoundingClientRect();
-        const edge = isRtl ? rect.right : rect.left;
-        const distance = Math.abs(edge - activeEdge);
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          bestIndex = index;
-        }
-      });
-      autoplayIndexRef.current = bestIndex;
-    };
-
-    const positionToIndex = (index, behavior = "auto") => {
-      const node = railCardRefs.current[index];
-      if (!node) return;
-      node.scrollIntoView({ behavior, block: "nearest", inline: "start" });
-    };
-
-    const stepOnce = () => {
-      if (railPaused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-      const stepIndex = Math.min(visibleProducts.length * 2, autoplayIndexRef.current + 1);
-      const stepNode = railCardRefs.current[stepIndex] || railCardRefs.current[visibleProducts.length];
-      const viewportRect = viewport.getBoundingClientRect();
-      const cardRect = stepNode?.getBoundingClientRect();
-      if (!cardRect) return;
-      const gap = Number.parseFloat(window.getComputedStyle(viewport).columnGap || window.getComputedStyle(viewport).gap || "0") || 0;
-      const stepDistance = Math.max(8, cardRect.width + gap);
-      viewport.scrollBy({ left: isRtl ? -stepDistance : stepDistance, behavior: "smooth" });
-      autoplayIndexRef.current = stepIndex;
-      autoplayTimersRef.current.settle = window.setTimeout(() => {
-        if (railPaused) return;
-        if (autoplayIndexRef.current >= visibleProducts.length * 2) {
-          autoplayIndexRef.current = visibleProducts.length;
-          positionToIndex(autoplayIndexRef.current, "auto");
-        }
-        scheduleNext();
-      }, 520);
-    };
-
-    const scheduleNext = () => {
-      clearTimeout(autoplayTimersRef.current.wait);
-      autoplayTimersRef.current.wait = window.setTimeout(stepOnce, 4000);
-    };
-
-    const onScroll = () => {
-      clearTimeout(autoplayTimersRef.current.sync);
-      autoplayTimersRef.current.sync = window.setTimeout(syncIndexToViewport, 120);
-    };
-
-    if (railPaused) {
-      viewport.addEventListener("scroll", onScroll, { passive: true });
-      return () => {
-        clearTimers();
-        viewport.removeEventListener("scroll", onScroll);
-      };
-    }
-
-    scheduleNext();
-    viewport.addEventListener("scroll", onScroll, { passive: true });
-
-    return () => {
-      clearTimers();
-      viewport.removeEventListener("scroll", onScroll);
-    };
-  }, [isRtl, railPaused, railRepeatCount, visibleProducts.length]);
+    if (typeof window === "undefined" || !visibleProducts.length) return undefined;
+    const startIndex = loopStartIndex;
+    autoplayIndexRef.current = startIndex;
+    translateXRef.current = 0;
+    setTrackPosition(0, false);
+    const raf = window.requestAnimationFrame(() => {
+      alignToIndex(startIndex, false);
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [alignToIndex, loopStartIndex, setTrackPosition, visibleProducts.length]);
 
   useEffect(() => {
-    if (!railCardRefs.current.length || !visibleProducts.length) return;
-    autoplayIndexRef.current = visibleProducts.length;
-    const node = railCardRefs.current[visibleProducts.length];
-    node?.scrollIntoView({ behavior: "auto", block: "nearest", inline: "start" });
-  }, [visibleProducts.length, railItems.length]);
+    if (typeof window === "undefined") return undefined;
+    const onResize = () => {
+      if (!visibleProducts.length) return;
+      alignToIndex(autoplayIndexRef.current, false);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [alignToIndex, visibleProducts.length]);
+
+  useEffect(() => {
+    clearTimers();
+    if (!visibleProducts.length || railPaused || reducedMotion) return undefined;
+    queueNextStep(4000);
+    return clearTimers;
+  }, [clearTimers, queueNextStep, railPaused, reducedMotion, visibleProducts.length]);
+
+  useEffect(() => () => clearTimers(), [clearTimers]);
+
+  const handlePointerDown = (event) => {
+    if (event.button != null && event.button !== 0) return;
+    const target = event.target;
+    if (target instanceof Element && target.closest("a,button,input,textarea,select,[role='button']")) return;
+    const viewport = railViewportRef.current;
+    if (!viewport || !visibleProducts.length) return;
+    dragStateRef.current = {
+      active: true,
+      moved: false,
+      startX: event.clientX,
+      startTranslateX: translateXRef.current,
+      pointerId: event.pointerId,
+    };
+    try {
+      viewport.setPointerCapture(event.pointerId);
+    } catch {
+      // noop
+    }
+    setRailPaused(true);
+    clearTimers();
+  };
+
+  const handlePointerMove = (event) => {
+    if (!dragStateRef.current.active) return;
+    const delta = event.clientX - dragStateRef.current.startX;
+    if (Math.abs(delta) > 3) dragStateRef.current.moved = true;
+    setTrackPosition(dragStateRef.current.startTranslateX + delta, false);
+  };
+
+  const finishPointerInteraction = (event) => {
+    if (!dragStateRef.current.active) return;
+    const viewport = railViewportRef.current;
+    if (viewport && dragStateRef.current.pointerId != null) {
+      try {
+        viewport.releasePointerCapture(dragStateRef.current.pointerId);
+      } catch {
+        // noop
+      }
+    }
+    if (dragStateRef.current.moved) {
+      const closestIndex = findClosestIndex();
+      alignToIndex(closestIndex, true);
+      scheduleResetIfNeeded();
+    }
+    dragStateRef.current = { active: false, moved: false, startX: 0, startTranslateX: translateXRef.current, pointerId: null };
+    setRailPaused(false);
+  };
+
+  const handleClickCapture = (event) => {
+    if (!dragStateRef.current.moved) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragStateRef.current.moved = false;
+  };
 
   if (!loading && !visibleProducts.length) return null;
 
   return (
     <section className="sf-reveal mx-auto max-w-[1240px] px-4 py-6 md:py-9">
       <div className={sectionTone}>
-      <div className="mb-4 flex items-end justify-between gap-3 text-right md:mb-6">
-        <div className="min-w-0">
-          <div className={`mb-1 text-[10px] font-black uppercase tracking-[0.18em] md:text-[11px] ${toneConfig.eyebrow || "text-[#7c3aed] dark:text-[#f8e7b3]"}`}>{sfText("storefront.common.shopNow", "Shop Now")}</div>
-          <h2 className="text-[1.75rem] font-black tracking-normal text-stone-950 dark:text-stone-100 md:text-4xl">{title}</h2>
-          {subtitle ? <p className="mt-1 text-xs font-bold leading-5 text-stone-500 dark:text-stone-400 md:text-base md:leading-6">{subtitle}</p> : null}
-          <div className={`mt-2 h-1 w-16 rounded-full bg-gradient-to-l ${toneConfig.line || "from-[#7c3aed] to-[#f8e7b3]"}`} />
+        <div className="mb-4 flex items-end justify-between gap-3 text-right md:mb-6">
+          <div className="min-w-0">
+            <div className={`mb-1 text-[10px] font-black uppercase tracking-[0.18em] md:text-[11px] ${toneConfig.eyebrow || "text-[#7c3aed] dark:text-[#f8e7b3]"}`}>{sfText("storefront.common.shopNow", "Shop Now")}</div>
+            <h2 className="text-[1.75rem] font-black tracking-normal text-stone-950 dark:text-stone-100 md:text-4xl">{title}</h2>
+            {subtitle ? <p className="mt-1 text-xs font-bold leading-5 text-stone-500 dark:text-stone-400 md:text-base md:leading-6">{subtitle}</p> : null}
+            <div className={`mt-2 h-1 w-16 rounded-full bg-gradient-to-l ${toneConfig.line || "from-[#7c3aed] to-[#f8e7b3]"}`} />
+          </div>
+          <Link to={viewAllTo} className={`mb-0.5 inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-800 shadow-[0_14px_34px_rgba(39,20,75,0.09)] transition hover:-translate-y-0.5 hover:bg-stone-950 hover:text-white active:scale-[0.98] md:min-h-12 md:px-6 dark:border-white/10 dark:bg-white/5 dark:text-stone-200 dark:hover:bg-white dark:hover:text-stone-950 ${toneConfig.button || "hover:border-[#7c3aed]/50"}`}>
+            {isRtl ? "عرض الكل" : sfText("common.viewAll", "View all")}
+            <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
+          </Link>
         </div>
-        <Link to={viewAllTo} className={`mb-0.5 inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-800 shadow-[0_14px_34px_rgba(39,20,75,0.09)] transition hover:-translate-y-0.5 hover:bg-stone-950 hover:text-white active:scale-[0.98] md:min-h-12 md:px-6 dark:border-white/10 dark:bg-white/5 dark:text-stone-200 dark:hover:bg-white dark:hover:text-stone-950 ${toneConfig.button || "hover:border-[#7c3aed]/50"}`}>
-          {isRtl ? "عرض الكل" : sfText("common.viewAll", "View all")}
-          <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
-        </Link>
-      </div>
-      <div
-        ref={railViewportRef}
-        dir={isRtl ? "rtl" : "ltr"}
-        className="sf-scroll flex w-full min-w-0 cursor-grab gap-3.5 overflow-x-auto pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden active:cursor-grabbing"
-        onPointerEnter={() => setRailPaused(true)}
-        onPointerLeave={() => setRailPaused(false)}
-        onPointerDown={() => setRailPaused(true)}
-        onPointerUp={() => setRailPaused(false)}
-        onPointerCancel={() => setRailPaused(false)}
-        onTouchStart={() => setRailPaused(true)}
-        onTouchEnd={() => setRailPaused(false)}
-        onTouchCancel={() => setRailPaused(false)}
-      >
-        {railItems.map(({ product, skeleton, key, index, repeatIndex }) => (
+        <div
+          ref={railViewportRef}
+          dir={isRtl ? "rtl" : "ltr"}
+          className="relative w-full min-w-0 overflow-hidden pb-2 [touch-action:pan-y]"
+          onPointerEnter={() => setRailPaused(true)}
+          onPointerLeave={() => setRailPaused(false)}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={finishPointerInteraction}
+          onPointerCancel={finishPointerInteraction}
+          onClickCapture={handleClickCapture}
+        >
           <div
-            key={key}
-            ref={(node) => {
-              railCardRefs.current[index + repeatIndex * visibleProducts.length] = node;
+            ref={railTrackRef}
+            className="flex w-max min-w-full gap-3.5 will-change-transform"
+            style={{
+              transform: `translate3d(${trackMotion.x}px, 0, 0)`,
+              transition: trackMotion.transition,
             }}
-            data-home-rail-card="true"
-            className="w-[82vw] max-w-[22rem] shrink-0 sm:w-[43vw] md:w-[19rem] xl:w-[20rem]"
           >
-            {skeleton ? (
-              <div className="h-56 animate-pulse rounded-[1.35rem] bg-white shadow-[0_12px_32px_rgba(39,20,75,0.06)] md:h-72 md:rounded-[1.75rem] dark:bg-white/5" />
-            ) : (
-              <ProductCard
-                product={product}
-                wishlist={wishlist}
-                toggleWishlist={toggleWishlist}
-                onAddToCart={onAddToCart}
-                railType={railType}
-                rank={index + 1}
-                density="compact"
-                eagerImage
-                eagerImagePriority={repeatIndex === 0 && index < 4}
-              />
-            )}
+            {railItems.map(({ product, skeleton, key, index, repeatIndex }) => (
+              <div
+                key={key}
+                ref={(node) => {
+                  railCardRefs.current[index + repeatIndex * visibleProducts.length] = node;
+                }}
+                data-home-rail-card="true"
+                className="w-[82vw] max-w-[22rem] shrink-0 sm:w-[43vw] md:w-[19rem] xl:w-[20rem]"
+              >
+                {skeleton ? (
+                  <div className="h-56 animate-pulse rounded-[1.35rem] bg-white shadow-[0_12px_32px_rgba(39,20,75,0.06)] md:h-72 md:rounded-[1.75rem] dark:bg-white/5" />
+                ) : (
+                  <ProductCard
+                    product={product}
+                    wishlist={wishlist}
+                    toggleWishlist={toggleWishlist}
+                    onAddToCart={onAddToCart}
+                    railType={railType}
+                    rank={index + 1}
+                    density="compact"
+                    eagerImage
+                    eagerImagePriority={repeatIndex === 0 && index < 4}
+                  />
+                )}
+              </div>
+            ))}
+            {!loading && !visibleProducts.length ? (
+              <div className="w-full rounded-[1.35rem] border border-dashed border-stone-300 bg-white/75 p-5 text-sm font-black text-stone-500 dark:border-white/10 dark:bg-white/5 dark:text-stone-400">
+                {isRtl ? "لا توجد منتجات متاحة للعرض حالياً." : "No products available for this section yet."}
+              </div>
+            ) : null}
           </div>
-        ))}
-        {!loading && !visibleProducts.length ? (
-          <div className="w-full rounded-[1.35rem] border border-dashed border-stone-300 bg-white/75 p-5 text-sm font-black text-stone-500 dark:border-white/10 dark:bg-white/5 dark:text-stone-400">
-            {isRtl ? "لا توجد منتجات متاحة للعرض حالياً." : "No products available for this section yet."}
-          </div>
-        ) : null}
-      </div>
+        </div>
       </div>
     </section>
   );
