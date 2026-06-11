@@ -5,6 +5,7 @@ import {
   ArrowUpDown,
   Bot,
   BadgePercent,
+  ChevronLeft,
   ChevronDown,
   ChevronUp,
   Copy,
@@ -18,11 +19,14 @@ import {
   Info as InfoIcon,
   Loader2,
   LockKeyhole,
+  Image as ImageIcon,
   MessageSquareText,
+  MoreVertical,
   PackageCheck,
   PauseCircle,
   PanelRightClose,
   PanelRightOpen,
+  Paperclip,
   PlayCircle,
   RefreshCw,
   Radio,
@@ -218,6 +222,27 @@ const channelLabel = (value = "") => {
   if (key === "whatsapp") return "WhatsApp";
   if (key === "web_chat") return "Web chat";
   return key || "Unknown channel";
+};
+const channelBadgeLabel = (value = "") => {
+  const key = clean(value).toLowerCase();
+  if (key.includes("whatsapp")) return "WhatsApp";
+  if (key.includes("instagram")) return "Instagram";
+  if (key.includes("facebook") && key.includes("messenger")) return "Messenger";
+  if (key.includes("facebook")) return "Facebook";
+  if (key.includes("messenger")) return "Messenger";
+  if (key.includes("web")) return "Web";
+  return "All";
+};
+const normalizeConversationChannel = (conversation = {}) => {
+  const raw = clean(conversation?.channel || conversation?.source || conversation?.provider || conversation?.platform || "");
+  const key = raw.toLowerCase();
+  if (key.includes("whatsapp")) return "whatsapp";
+  if (key.includes("instagram")) return "instagram";
+  if (key.includes("facebook") && key.includes("messenger")) return "messenger";
+  if (key.includes("messenger")) return "messenger";
+  if (key.includes("facebook")) return "facebook";
+  if (key.includes("web")) return "web";
+  return key || "unknown";
 };
 const customerAvatarUrl = (item = {}) => {
   const source = item || {};
@@ -504,12 +529,256 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
   );
 });
 
+function InboxChannelSidebar({ channels = [], activeChannel = "all", onSelectChannel }) {
+  return (
+    <aside className="min-w-0 rounded-3xl border border-white/10 bg-white/[0.04] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Channels</div>
+          <div className="mt-1 text-sm font-black text-white">Inbox sources</div>
+        </div>
+        <Pill tone="zinc">{channels.reduce((sum, item) => sum + Number(item.count || 0), 0)}</Pill>
+      </div>
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => onSelectChannel("all")}
+          className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-3 py-3 text-left transition ${
+            activeChannel === "all" ? "border-cyan-300/40 bg-cyan-300/10" : "border-white/10 bg-slate-950/60 hover:border-white/20"
+          }`}
+        >
+          <div className="min-w-0">
+            <div className="text-sm font-black text-white">All</div>
+            <div className="text-[12px] text-slate-500">Every active thread</div>
+          </div>
+          <Pill tone="zinc">{channels.reduce((sum, item) => sum + Number(item.count || 0), 0)}</Pill>
+        </button>
+        <div className="max-h-[calc(100vh-22rem)] space-y-2 overflow-y-auto pr-1">
+          {channels.map((channel) => (
+            <button
+              key={channel.key}
+              type="button"
+              onClick={() => onSelectChannel(channel.key)}
+              className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-3 py-3 text-left transition ${
+                activeChannel === channel.key ? "border-cyan-300/45 bg-cyan-300/12" : "border-white/10 bg-slate-950/60 hover:border-white/20"
+              }`}
+            >
+              <div className="min-w-0">
+                <div className="text-sm font-black text-white">{channel.label}</div>
+                <div className="mt-0.5 text-[12px] text-slate-500">{channelBadgeLabel(channel.key)}</div>
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <Pill tone={channel.tone || "zinc"}>{channelBadgeLabel(channel.key)}</Pill>
+                {Number(channel.unread || 0) > 0 ? <span dir="ltr" className="text-[11px] font-black text-rose-100">{channel.unread} unread</span> : null}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, onSelect }) {
+  const channel = item.channel || item.source || "web_chat";
+  const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
+  const customerName = customerDisplayName(item) || "Customer";
+  const customerPhone = clean(item.phone || item.customer_phone || item.customer_profile?.phone || item.external_customer_id);
+  const avatarUrl = customerAvatarUrl(item);
+  const lastMessage = item.latest_message_preview || item.last_message || item.customer_message || item.ai_answer || "No messages yet.";
+  const unreadCount = Number(item.unread_count || item.unread || 0);
+  const aiState = item.conversation_status === "closed" ? "OFF" : item.conversation_status === "human_takeover" ? "OFF" : liveMeta ? "ON" : "ON";
+  const mainStatus = item.conversation_status === "closed"
+    ? { tone: "rose", label: "Closed", icon: LockKeyhole }
+    : item.conversation_status === "human_takeover"
+      ? { tone: "amber", label: "Human takeover", icon: PauseCircle }
+      : item.needs_human_support
+        ? { tone: "amber", label: "Needs human", icon: Handshake }
+        : liveMeta
+          ? { tone: "emerald", label: "AI active", icon: Bot }
+          : null;
+  const MainStatusIcon = mainStatus?.icon;
+  const containerTone = active
+    ? "border-cyan-300/50 bg-cyan-300/12 shadow-[0_0_0_1px_rgba(34,211,238,0.2),0_18px_45px_rgba(8,145,178,0.16)]"
+    : unreadCount || unseen || liveMeta
+      ? "border-white/10 bg-slate-950/80 hover:border-cyan-300/25 hover:bg-white/[0.045]"
+      : "border-white/10 bg-slate-950/65 hover:border-white/20 hover:bg-white/[0.045]";
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(item.session_id)}
+      className={`w-full rounded-3xl border p-4 text-left transition duration-200 ${containerTone}`}
+    >
+      <div className="flex items-start gap-3">
+        <div className="relative shrink-0">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" className="h-12 w-12 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
+          ) : (
+            <span className={`grid h-12 w-12 place-items-center rounded-2xl ${liveMeta ? "bg-cyan-300/15 text-cyan-100" : "bg-white/[0.07] text-slate-200"}`}>
+              <User className="h-5 w-5" />
+            </span>
+          )}
+          {unreadCount ? <span className="absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full border-2 border-slate-950 bg-rose-500" aria-hidden="true" /> : null}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="truncate text-[15px] font-black leading-6 text-white">{customerName}</div>
+              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[12px] font-bold text-slate-500">
+                <span dir="ltr" className="truncate">{displayFallback(customerPhone, item.external_customer_id || item.session_id)}</span>
+                <span className="text-slate-700">/</span>
+                <span>{channelLabel(channel)}</span>
+              </div>
+            </div>
+            <span className="shrink-0 text-[11px] font-bold text-slate-500">{relativeTime(item.last_message_at || item.last_activity_at || item.updated_at)}</span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Pill tone={isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>{channelBadgeLabel(channel)}</Pill>
+            {mainStatus ? <Pill tone={mainStatus.tone}>{MainStatusIcon ? <MainStatusIcon className="h-3.5 w-3.5" /> : null}{mainStatus.label}</Pill> : null}
+            <Pill tone={aiState === "ON" ? "emerald" : "amber"}>AI {aiState}</Pill>
+            {unreadCount ? <Pill tone="rose">Unread {unreadCount}</Pill> : null}
+          </div>
+          <p dir={isRtlText(lastMessage) ? "rtl" : "auto"} className="mt-3 line-clamp-2 text-[13px] leading-6 text-slate-300">{lastMessage}</p>
+        </div>
+      </div>
+    </button>
+  );
+});
+
+function InboxChatHeader({
+  conversation,
+  channelStatus = {},
+  loading = false,
+  onBack,
+  onToggleAi,
+  onAssign,
+  onTakeover,
+  onReturnToAi,
+  onClose,
+  onOpenTools,
+  showBack = false,
+}) {
+  if (!conversation) return null;
+  const status = conversation.conversation_status || conversation.status || "ai_active";
+  const avatarUrl = customerAvatarUrl(conversation);
+  const name = customerDisplayName(conversation) || "Customer";
+  const phone = clean(conversation.phone || conversation.customer_phone || conversation.external_customer_id || conversation.customer_profile?.phone);
+  const channel = conversation.channel || conversation.source || "web_chat";
+  const aiEnabled = channelStatus.ai_replies_enabled !== false && status !== "closed";
+  return (
+    <div className="rounded-3xl border border-white/10 bg-white/[0.05] p-4 shadow-[0_16px_50px_rgba(0,0,0,0.18)] backdrop-blur">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          {showBack ? (
+            <button type="button" onClick={onBack} className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] text-slate-100 md:hidden">
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+          ) : null}
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" className="h-12 w-12 shrink-0 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
+          ) : (
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/[0.07] text-slate-200"><User className="h-5 w-5" /></span>
+          )}
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="truncate text-xl font-black text-white">{name}</div>
+              <Pill tone={isWhatsappChannel(channel) ? "emerald" : "cyan"}>{channelBadgeLabel(channel)}</Pill>
+            </div>
+            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-slate-400">
+              <span dir="ltr" className="truncate">{phone || conversation.external_customer_id || conversation.session_id}</span>
+              <span className="text-slate-700">/</span>
+              <span>{channelLabel(channel)}</span>
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => onToggleAi?.()}
+            disabled={loading}
+            className={`inline-flex h-10 items-center gap-2 rounded-2xl px-3 text-xs font-black transition disabled:opacity-50 ${
+              aiEnabled ? "bg-emerald-300 text-slate-950" : "border border-white/10 bg-white/[0.06] text-slate-100"
+            }`}
+          >
+            <Bot className="h-4 w-4" />
+            AI {aiEnabled ? "ON" : "OFF"}
+          </button>
+          <button type="button" onClick={onOpenTools} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-3 text-xs font-black text-slate-100">
+            <MoreVertical className="h-4 w-4" />
+            Tools
+          </button>
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <Pill tone={status === "closed" ? "rose" : status === "human_takeover" ? "amber" : "emerald"}>
+          {status === "closed" ? <LockKeyhole className="h-3.5 w-3.5" /> : status === "human_takeover" ? <PauseCircle className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
+          {status === "closed" ? "Closed" : status === "human_takeover" ? "Human takeover" : "AI active"}
+        </Pill>
+        <Pill tone={(channelStatus.live_operational || channelStatus.effective_enabled || channelStatus.messaging_active) ? "emerald" : "amber"}>
+          <Radio className="h-3.5 w-3.5" />
+          {(channelStatus.live_operational || channelStatus.effective_enabled || channelStatus.messaging_active) ? "Live channel" : "Channel standby"}
+        </Pill>
+        {conversation.unread_count ? <Pill tone="rose">Unread {conversation.unread_count}</Pill> : null}
+        {conversation.assigned_user_name || conversation.assigned_user?.name ? <Pill tone="zinc"><UserCheck className="h-3.5 w-3.5" />{conversation.assigned_user_name || conversation.assigned_user?.name}</Pill> : null}
+        <div className="ms-auto flex flex-wrap items-center gap-2">
+          {status === "closed" ? (
+            <button type="button" onClick={onReturnToAi} disabled={loading} className="inline-flex h-9 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50">
+              <PlayCircle className="h-4 w-4" />
+              Reopen
+            </button>
+          ) : (
+            <>
+              <button type="button" onClick={onTakeover} disabled={loading || status === "human_takeover"} className="inline-flex h-9 items-center gap-2 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 text-xs font-black text-amber-100 disabled:opacity-50">
+                <Handshake className="h-4 w-4" />
+                Take over
+              </button>
+              <button type="button" onClick={onReturnToAi} disabled={loading || status !== "human_takeover"} className="inline-flex h-9 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50">
+                <PlayCircle className="h-4 w-4" />
+                Return to AI
+              </button>
+              <button type="button" onClick={onClose} disabled={loading} className="inline-flex h-9 items-center gap-2 rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 text-xs font-black text-rose-100 disabled:opacity-50">
+                <LockKeyhole className="h-4 w-4" />
+                Close
+              </button>
+            </>
+          )}
+          <button type="button" onClick={onAssign} disabled={loading} className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-xs font-black text-slate-100">
+            <UserPlus className="h-4 w-4" />
+            Assign
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoadOlder }) {
   const messages = uniqueMessages(conversation?.messages);
   const events = asArray(conversation?.system_events);
   if (!messages.length && !events.length) {
-    return <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">No transcript yet.</div>;
+    return <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">No transcript yet.</div>;
   }
+
+  const renderMedia = (message) => {
+    const imageUrls = [
+      message.image_url,
+      message.media_url,
+      message.attachment_url,
+      message.file_url,
+      message.preview_url,
+      message.thumbnail_url,
+    ].map(clean).filter(Boolean);
+    if (!imageUrls.length) return null;
+    return (
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {imageUrls.slice(0, 4).map((url) => (
+          <a key={url} href={url} target="_blank" rel="noreferrer" className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80">
+            <img src={url} alt="Attachment" className="aspect-video w-full object-cover" loading="lazy" />
+          </a>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -525,38 +794,47 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
         <div key={messageKey(message)} className="space-y-2">
           {message.customer_message ? (
             <div className="flex justify-start">
-              <div className="max-w-[82%] rounded-2xl rounded-tl-sm border border-white/10 bg-white/[0.06] p-3">
-                <div className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Customer / {channelLabel(message.channel || conversation.channel)} / {absoluteTime(message.created_at)}</div>
+              <div className="max-w-[88%] rounded-3xl rounded-tl-sm border border-white/10 bg-white/[0.06] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)] sm:max-w-[80%]">
+                <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                  <span>Customer</span>
+                  <span>/</span>
+                  <span>{channelLabel(message.channel || conversation.channel)}</span>
+                  <span>/</span>
+                  <span>{absoluteTime(message.created_at)}</span>
+                </div>
                 <LinkifiedText text={message.customer_message} className="mt-2" />
+                {renderMedia(message)}
               </div>
             </div>
           ) : null}
           {message.ai_answer ? (
             <div className="flex justify-end">
-              <div className="max-w-[86%] rounded-2xl rounded-tr-sm border border-cyan-300/15 bg-cyan-300/8 p-3">
-                <div className="flex flex-wrap items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-cyan-100">
+              <div className="max-w-[92%] rounded-3xl rounded-tr-sm border border-cyan-300/15 bg-cyan-300/10 p-3 shadow-[0_10px_30px_rgba(8,145,178,0.14)] sm:max-w-[84%]">
+                <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
                   <Bot className="h-3.5 w-3.5" />
-                  AI
+                  <span>AI</span>
                   <span className="text-slate-500">{absoluteTime(message.created_at)}</span>
-                  <span className="text-slate-500">confidence {Number(message.confidence || 0).toFixed(2)}</span>
+                  <span className="text-slate-500">conf {Number(message.confidence || 0).toFixed(2)}</span>
                 </div>
                 <LinkifiedText text={message.ai_answer} className="mt-2" />
                 <ProductCards products={message.suggested_products} />
                 <VisualAttachmentsPreview attachments={message.visual_attachments} />
+                {renderMedia(message)}
               </div>
             </div>
           ) : null}
           {message.staff_message ? (
             <div className="flex justify-end">
-              <div className="max-w-[86%] rounded-2xl rounded-tr-sm border border-emerald-300/15 bg-emerald-400/10 p-3">
-                <div className="flex flex-wrap items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-emerald-100">
+              <div className="max-w-[92%] rounded-3xl rounded-tr-sm border border-emerald-300/15 bg-emerald-400/10 p-3 shadow-[0_10px_30px_rgba(16,185,129,0.12)] sm:max-w-[84%]">
+                <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-emerald-100">
                   <UserCheck className="h-3.5 w-3.5" />
-                  Staff
+                  <span>Staff</span>
                   {message.staff_user_name ? <span className="text-slate-400">{message.staff_user_name}</span> : null}
                   <span className="text-slate-500">{absoluteTime(message.created_at)}</span>
                   {message.delivery_status ? <span className={message.delivery_status === "failed" ? "text-rose-200" : message.delivery_status === "sending" ? "text-amber-200" : "text-emerald-200"}>{message.delivery_status}</span> : null}
                 </div>
                 <LinkifiedText text={message.staff_message} className="mt-2" />
+                {renderMedia(message)}
                 {message.delivery_error ? <p className="mt-2 text-xs font-bold text-rose-200">{message.delivery_error}</p> : null}
               </div>
             </div>
@@ -566,7 +844,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
       {events.length ? (
         <div className="space-y-2">
           {events.map((event, index) => (
-            <div key={`${event.type}-${event.order_id || index}`} className="mx-auto w-max max-w-full rounded-full border border-white/10 bg-slate-950 px-3 py-1.5 text-xs font-black text-slate-300">
+            <div key={`${event.type}-${event.order_id || index}`} className="mx-auto w-max max-w-full rounded-full border border-white/10 bg-slate-950 px-3 py-1.5 text-[11px] font-black text-slate-300">
               {event.label || event.type} / {absoluteTime(event.created_at)}
             </div>
           ))}
@@ -1575,6 +1853,8 @@ export default function AiInbox() {
   const [filter, setFilter] = useState("all");
   const [leadFilter, setLeadFilter] = useState("all");
   const [leadSort, setLeadSort] = useState("recent");
+  const [channelFilter, setChannelFilter] = useState("all");
+  const [mobileView, setMobileView] = useState("list");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedSessionId, setSelectedSessionId] = useState("");
@@ -1743,7 +2023,11 @@ export default function AiInbox() {
         ? { primary: score, secondary: updatedAt }
         : { primary: updatedAt, secondary: score };
     };
-    const sorted = items.filter(matchesLeadFilter).sort((a, b) => {
+    const matchesChannelFilter = (conversation = {}) => {
+      if (channelFilter === "all") return true;
+      return normalizeConversationChannel(conversation) === channelFilter;
+    };
+    const sorted = items.filter(matchesLeadFilter).filter(matchesChannelFilter).sort((a, b) => {
       const left = sortValue(a);
       const right = sortValue(b);
       if (right.primary !== left.primary) return right.primary - left.primary;
@@ -1751,7 +2035,28 @@ export default function AiInbox() {
       return clean(b.session_id).localeCompare(clean(a.session_id));
     });
     return sorted;
-  }, [conversations, leadFilter, leadSort]);
+  }, [channelFilter, conversations, leadFilter, leadSort]);
+  const channelSummaries = useMemo(() => {
+    const buckets = new Map();
+    const totalUnread = conversations.reduce((sum, conversation) => sum + Number(conversation.unread_count || conversation.unread || 0), 0);
+    for (const conversation of conversations) {
+      const key = normalizeConversationChannel(conversation);
+      const existing = buckets.get(key) || {
+        key,
+        label: channelBadgeLabel(key),
+        count: 0,
+        unread: 0,
+        tone: isWhatsappChannel(key) ? "emerald" : key === "instagram" ? "rose" : key === "facebook" || key === "messenger" ? "cyan" : "zinc",
+      };
+      existing.count += 1;
+      existing.unread += Number(conversation.unread_count || conversation.unread || 0);
+      buckets.set(key, existing);
+    }
+    return {
+      all: { key: "all", label: "All", count: conversations.length, unread: totalUnread, tone: "zinc" },
+      channels: [...buckets.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
+    };
+  }, [conversations]);
   const realMetaCount = conversations.filter((item) => item.is_live_meta || isMetaChannel(item.channel || item.source)).length;
   const selectedConversation = useMemo(
     () => conversations.find((item) => item.session_id === selectedSessionId) ||
@@ -1762,6 +2067,7 @@ export default function AiInbox() {
   );
   const handleSelectConversation = useCallback((sessionId) => {
     setSelectedSessionId(sessionId);
+    setMobileView("chat");
     setReplyText("");
     setUnseenSessions((current) => current.filter((id) => id !== sessionId));
   }, []);
@@ -2305,6 +2611,11 @@ export default function AiInbox() {
     }
   };
 
+  const toggleAiEnabled = useCallback(() => {
+    const currentMode = selectedChannelStatus.auto_reply_mode || (selectedChannelStatus.ai_replies_enabled ? "fully_automatic" : "off");
+    void updateAutoReplyMode(currentMode === "off" ? "fully_automatic" : "off");
+  }, [selectedChannelStatus.ai_replies_enabled, selectedChannelStatus.auto_reply_mode, updateAutoReplyMode]);
+
   const quickSendProduct = (product) => {
     const textValue = `${product.name || product.title}\n${money(product.final_price || product.price)}\n${product.product_url || ""}`.trim();
     setReplyText(textValue);
@@ -2371,6 +2682,341 @@ export default function AiInbox() {
     ].filter(Boolean).join("\n");
     setReplyText(composed);
   }, []);
+
+  return (
+    <div dir="rtl" className="min-h-[100dvh] overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)] [padding-top:env(safe-area-inset-top)]">
+      {toast.text ? (
+        <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur ${
+          toast.tone === "rose"
+            ? "border-rose-300/20 bg-rose-400/15 text-rose-100"
+            : toast.tone === "cyan"
+              ? "border-cyan-300/20 bg-cyan-400/15 text-cyan-100"
+              : "border-emerald-300/20 bg-emerald-400/15 text-emerald-100"
+        }`}>{toast.text}</div>
+      ) : null}
+      {consoleOpen ? (
+        <div className="fixed inset-0 z-40 bg-slate-950/70 p-3 backdrop-blur-sm md:p-6">
+          <div className="ml-auto flex h-full w-full max-w-3xl flex-col rounded-3xl bg-slate-950 p-4 shadow-2xl ring-1 ring-white/10">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-black uppercase tracking-[0.14em] text-cyan-100">Developer Console</div>
+                <div className="text-xs text-slate-500">Live AI operational logs</div>
+              </div>
+              <button type="button" onClick={() => setConsoleOpen(false)} className="h-9 rounded-xl bg-white/[0.07] px-3 text-xs font-black text-slate-100 ring-1 ring-white/10">Close</button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <AILiveLogs tenantId={tenantId} headers={headers} enabled={consoleOpen} />
+            </div>
+          </div>
+        </div>
+      ) : null}
+      <AiTraceModal
+        open={aiTrace.open}
+        loading={aiTrace.loading}
+        error={aiTrace.error}
+        data={aiTrace.sessionId === selectedConversation?.session_id ? aiTrace.data : null}
+        onRefresh={loadAiTrace}
+        onClose={() => setAiTrace((current) => ({ ...current, open: false }))}
+      />
+      <div className="mx-auto flex max-w-[96rem] flex-col gap-5 p-3 md:p-6">
+        <section className="rounded-3xl border border-white/10 bg-white/[0.055] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.24)] backdrop-blur">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-cyan-100">
+                <Bot className="h-4 w-4" />
+                AI Inbox Pro
+              </div>
+              <h1 className="mt-3 text-3xl font-black md:text-4xl">Sales Command Center</h1>
+              <p className="mt-2 text-sm text-slate-400">Live Meta conversations, AI replies, human takeover, and customer context in one workspace.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setConsoleOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-white/[0.07] px-4 text-sm font-black text-slate-100 ring-1 ring-white/10">
+                <Brain className="h-4 w-4" />
+                AI Logs
+              </button>
+              <button type="button" onClick={loadAll} disabled={loading} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-cyan-300 px-4 text-sm font-black text-slate-950 disabled:opacity-50">
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Refresh
+              </button>
+            </div>
+          </div>
+          {error ? <div className="mt-4 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
+        </section>
+
+        <section className="grid gap-3 md:grid-cols-4">
+          <Metric icon={Radio} label="Live Meta threads" value={realMetaCount} tone="emerald" />
+          <Metric icon={MessageSquareText} label="All conversations" value={conversations.length} tone="cyan" />
+          <Metric icon={Clock3} label="Unread / waiting" value={conversations.filter((item) => item.unread || item.needs_human_support).length} tone="amber" />
+          <Metric icon={EyeOff} label="Demo data hidden" value="On" tone="violet" />
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-[18rem_minmax(20rem,24rem)_minmax(0,1fr)]">
+          <div className="hidden xl:block">
+            <InboxChannelSidebar
+              channels={channelSummaries.channels}
+              activeChannel={channelFilter}
+              onSelectChannel={(value) => {
+                setChannelFilter(value);
+                setMobileView("list");
+              }}
+            />
+          </div>
+
+          <aside className={`min-w-0 space-y-4 rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)] xl:sticky xl:top-4 xl:max-h-[calc(100dvh-2rem)] xl:overflow-y-auto ${mobileView === "chat" ? "hidden md:block" : "block"}`}>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <SectionTitle icon={MessageSquareText} title="Conversations" action={<Pill tone="zinc">{filteredConversations.length} shown</Pill>} />
+              </div>
+              <div className="xl:hidden">
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  <button type="button" onClick={() => setChannelFilter("all")} className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black ${channelFilter === "all" ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white"}`}>All</button>
+                  {channelSummaries.channels.map((channel) => (
+                    <button key={channel.key} type="button" onClick={() => setChannelFilter(channel.key)} className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black ${channelFilter === channel.key ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white"}`}>
+                      {channel.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-3">
+                <label className="relative min-w-0">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                  <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search customer, external ID, phone, or message" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
+                    <ArrowUpDown className="h-4 w-4 text-slate-500" />
+                    <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Sort</span>
+                    <select value={leadSort} onChange={(event) => setLeadSort(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
+                      <option value="recent">Most recent</option>
+                      <option value="lead_score_desc">Highest lead score first</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {filters.map((item) => (
+                    <button key={item.key} type="button" onClick={() => setFilter(item.key)} className={`h-9 shrink-0 rounded-xl px-3 text-[11px] font-black transition ${filter === item.key ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"}`}>
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Lead filters</span>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {leadFilters.map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => setLeadFilter(item.key)}
+                        className={`h-9 shrink-0 rounded-xl px-3 text-[11px] font-black transition ${
+                          leadFilter === item.key
+                            ? item.key === "ready_to_buy"
+                              ? "bg-emerald-300 text-slate-950"
+                              : item.key === "hot"
+                                ? "bg-rose-300 text-slate-950"
+                                : item.key === "warm"
+                                  ? "bg-amber-300 text-slate-950"
+                                  : "bg-cyan-300 text-slate-950"
+                            : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+            {loading && !conversations.length ? <LoadingBlock text="Loading conversations..." /> : null}
+            {filteredConversations.length ? (
+              <VirtualList
+                items={filteredConversations}
+                estimateSize={122}
+                className="max-h-[calc(100dvh-18rem)] overflow-y-auto pr-1"
+                itemKey={(item) => item.session_id}
+                renderItem={(item) => (
+                  <div className="pb-3">
+                    <InboxConversationCard
+                      item={item}
+                      unseen={unseenSessions.includes(item.session_id)}
+                      active={selectedConversation?.session_id === item.session_id}
+                      onSelect={handleSelectConversation}
+                    />
+                  </div>
+                )}
+              />
+            ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? "No real Meta messages yet. Demo data is hidden so live webhook conversations stay clear." : "No real conversations match the selected filters."} /> : null}
+          </aside>
+
+          <main className={`min-w-0 space-y-4 ${mobileView === "chat" ? "block" : "hidden md:block"}`}>
+            {selectedConversation ? (
+              <>
+                <InboxChatHeader
+                  conversation={selectedConversation}
+                  channelStatus={selectedChannelStatus}
+                  loading={loading || modeSaving}
+                  onBack={() => setMobileView("list")}
+                  onToggleAi={toggleAiEnabled}
+                  onAssign={() => updateConversationAction("assign")}
+                  onTakeover={() => updateConversationAction("takeover")}
+                  onReturnToAi={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "return")}
+                  onClose={() => updateConversationAction("close")}
+                  onOpenTools={() => setProfileOpen((current) => !current)}
+                  showBack
+                />
+
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                  <div className="space-y-4">
+                    <section className="rounded-3xl border border-white/10 bg-white/[0.045] p-4 shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <h3 className="text-lg font-black leading-7">Conversation timeline</h3>
+                          <p className="text-sm leading-6 text-slate-400">Live thread, staff replies, and message events.</p>
+                        </div>
+                        {selectedConversation?.messages?.length ? <Pill tone="zinc">{selectedConversation.messages.length} messages</Pill> : null}
+                      </div>
+                      <div className="max-h-[34rem] overflow-y-auto pr-1">
+                        <Transcript conversation={selectedConversation} loadingOlder={olderMessagesLoading} onLoadOlder={loadOlderMessages} />
+                      </div>
+                    </section>
+
+                    <AiSuggestedRepliesPanel
+                      conversation={selectedConversation}
+                      suggestions={currentSuggestions.items}
+                      intent={currentSuggestions.intent}
+                      confidence={currentSuggestions.confidence}
+                      loading={suggesting}
+                      error={currentSuggestions.error}
+                      onGenerate={generateSuggestedReplies}
+                      onUse={setReplyText}
+                      onCopySuggestion={copySuggestedReply}
+                      onSendSuggestion={sendManualReply}
+                      channelStatus={selectedChannelStatus}
+                    />
+
+                    <ManualReplyComposer
+                      conversation={{ ...safeConversation, live_sending_available: Boolean(selectedChannelStatus.effective_enabled) || isMetaChannel(safeConversation.channel || safeConversation.source) }}
+                      value={replyText}
+                      onChange={setReplyText}
+                      onSend={() => sendManualReply()}
+                      onSaveDraft={saveDraftReply}
+                      loading={loading}
+                    />
+                  </div>
+
+                  <div className="space-y-4">
+                    {selectedConversation?.draft_orders?.length ? <OrderDraftPanel conversation={selectedConversation} drafts={drafts} onAction={updateDraft} busy={loading} /> : null}
+
+                    <details open={profileOpen} className="group rounded-3xl border border-white/10 bg-white/[0.045] p-4">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">More tools</div>
+                          <div className="mt-1 text-sm font-black text-white">AI controls, customer profile, and debug tools</div>
+                        </div>
+                        <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-[11px] font-black text-slate-200">
+                          <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
+                          Toggle
+                        </span>
+                      </summary>
+                      <div className="mt-4 space-y-4">
+                        <ConversationActions
+                          conversation={selectedConversation}
+                          channelStatus={selectedChannelStatus}
+                          loading={loading}
+                          assignName={currentAssignName}
+                          onAssignNameChange={updateAssignName}
+                          onAction={updateConversationAction}
+                        />
+                        <div className="grid gap-4 xl:grid-cols-2">
+                          <AutoReplyModePanel
+                            channelStatus={selectedChannelStatus}
+                            mode={selectedChannelStatus.auto_reply_mode || (selectedChannelStatus.ai_replies_enabled ? "fully_automatic" : "off")}
+                            onChange={updateAutoReplyMode}
+                            saving={modeSaving}
+                          />
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+                            <SectionTitle icon={Sparkles} title="AI reply engine" action={aiReply.loading ? <Pill tone="cyan">Typing...</Pill> : null} />
+                            {aiReply.error ? <div className="mb-3 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{aiReply.error}</div> : null}
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <button type="button" onClick={() => generateAiReply({ persist: false })} disabled={aiReply.loading || safeConversation.conversation_status === "closed"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50">
+                                {aiReply.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                                Draft AI reply
+                              </button>
+                              <button type="button" onClick={() => generateAiReply({ persist: true })} disabled={aiReply.loading || safeConversation.conversation_status !== "ai_active"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50">
+                                <Bot className="h-4 w-4" />
+                                Save AI reply
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid gap-4 xl:grid-cols-2">
+                          <SalesIntelligencePanel
+                            conversation={selectedConversation}
+                            recommendationIntel={recommendations.sessionId === safeConversation.session_id ? recommendations.intelligence : null}
+                            salesCloserPlan={salesCloser.sessionId === safeConversation.session_id ? salesCloser.plan : {}}
+                          />
+                          <RecommendationsPanel
+                            products={recommendations.sessionId === safeConversation.session_id ? recommendations.products : []}
+                            loading={recommendations.loading}
+                            onRefresh={loadRecommendations}
+                            onQuickSend={quickSendProduct}
+                            onSendImages={sendProductImages}
+                            onCreateDraft={createDraftFromProduct}
+                          />
+                        </div>
+                        <div className="grid gap-4 xl:grid-cols-2">
+                          <SalesCloserPanel
+                            plan={salesCloser.sessionId === safeConversation.session_id ? salesCloser.plan : {}}
+                            products={recommendations.sessionId === safeConversation.session_id ? recommendations.products : []}
+                            conversation={safeConversation}
+                            loading={salesCloser.loading || loading}
+                            onRefresh={loadSalesCloser}
+                            onTakeover={() => updateConversationAction("takeover")}
+                            onUseText={setReplyText}
+                            onCreateDraft={createDraftFromProduct}
+                            onPaymentAction={usePaymentAction}
+                          />
+                          <CustomerProfilePanel
+                            conversation={selectedConversation}
+                            canSyncMessenger={canSyncMessengerProfile(selectedConversation)}
+                            syncing={profileSyncing}
+                            onSyncMessengerProfile={syncMessengerProfile}
+                          />
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {isWhatsappChannel(safeConversation.channel || safeConversation.source) ? (
+                              <button type="button" onClick={openAiTrace} disabled={aiTrace.loading && aiTrace.sessionId === safeConversation.session_id} className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-violet-300/20 bg-violet-300/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50">
+                                {aiTrace.loading && aiTrace.sessionId === safeConversation.session_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
+                                AI Trace
+                              </button>
+                            ) : null}
+                            <button type="button" onClick={syncMessengerProfile} disabled={profileSyncing} className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50">
+                              {profileSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                              Sync Messenger Profile
+                            </button>
+                            <button type="button" onClick={debugMessengerProfile} disabled={profileDebugging} className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-black text-amber-100 disabled:opacity-50">
+                              {profileDebugging ? <Loader2 className="h-4 w-4 animate-spin" /> : <InfoIcon className="h-4 w-4" />}
+                              Debug Messenger Profile
+                            </button>
+                            <button type="button" onClick={resetAiState} disabled={resettingAiState} className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-rose-300/20 bg-rose-300/10 px-3 text-xs font-black text-rose-100 disabled:opacity-50">
+                              {resettingAiState ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                              Reset AI State
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </details>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <EmptyBlock text="Select a conversation to inspect the transcript." />
+            )}
+          </main>
+        </section>
+      </div>
+    </div>
+  );
 
   return (
     <div dir="ltr" className="min-h-full bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] p-3 text-white md:p-6">

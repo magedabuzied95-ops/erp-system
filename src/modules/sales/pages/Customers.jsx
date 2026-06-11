@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CalendarDays, Download, FileText, Filter, Mail, MapPin, Pencil, Phone, PlusCircle, Sparkles, Trash2, UploadCloud, UserRound, UsersRound, Wallet, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -94,6 +94,55 @@ const walletTypeOptions = [
   { value: "manual_add", label: "إضافة يدوية" },
   { value: "manual_deduct", label: "خصم يدوي" },
 ];
+
+const statementFilterOptions = [
+  { value: "", label: "الكل", tone: "slate" },
+  { value: "order_payment", label: "مبيعات عادية", tone: "emerald" },
+  { value: "personal_gift", label: "هدية (GIFT)", tone: "amber" },
+  { value: "personal_employee_advance", label: "سلفة موظف (EMPLOYEE_ADVANCE)", tone: "cyan" },
+  { value: "personal_owner_use", label: "استخدام شخصي (OWNER_USE)", tone: "violet" },
+];
+
+const getStatementMovementMeta = (row = {}) => {
+  const transactionType = String(row.transaction_type || "").trim().toLowerCase();
+  const personalType = String(row.personal_operation_type || "").trim().toUpperCase();
+
+  if (personalType === "GIFT" || transactionType === "personal_gift") {
+    return { label: "هدية", tone: "amber" };
+  }
+  if (personalType === "EMPLOYEE_ADVANCE" || transactionType === "personal_employee_advance") {
+    return { label: "سلفة موظف", tone: "cyan" };
+  }
+  if (personalType === "OWNER_USE" || transactionType === "personal_owner_use") {
+    return { label: "استخدام شخصي", tone: "violet" };
+  }
+  if (transactionType === "order_payment") {
+    return { label: "مبيعات عادية", tone: "emerald" };
+  }
+  if (transactionType === "refund") {
+    return { label: "استرداد", tone: "rose" };
+  }
+  if (transactionType === "exchange_credit") {
+    return { label: "رصيد استبدال", tone: "sky" };
+  }
+  return {
+    label: row.transaction_type_label || row.transaction_type || "-",
+    tone: "slate",
+  };
+};
+
+const getStatementBadgeClass = (tone = "slate") => {
+  const classes = {
+    amber: "border-amber-300/20 bg-amber-400/10 text-amber-100",
+    cyan: "border-cyan-300/20 bg-cyan-400/10 text-cyan-100",
+    violet: "border-violet-300/20 bg-violet-400/10 text-violet-100",
+    emerald: "border-emerald-300/20 bg-emerald-400/10 text-emerald-100",
+    rose: "border-rose-300/20 bg-rose-400/10 text-rose-100",
+    sky: "border-sky-300/20 bg-sky-400/10 text-sky-100",
+    slate: "border-white/10 bg-white/5 text-zinc-100",
+  };
+  return classes[tone] || classes.slate;
+};
 
 const formatMoney = (value) =>
   Number(value || 0).toLocaleString("ar-EG-u-nu-latn", {
@@ -685,7 +734,7 @@ function Customers() {
   const previewImport = async () => {
     const formData = buildImportFormData();
     if (!formData) {
-      setImportError("اختار ملف Excel أو CSV أولاً.");
+      setImportError("اختر ملف Excel أو CSV أولاً.");
       return;
     }
     try {
@@ -1190,7 +1239,7 @@ function CustomerImportModal({
             <div className="rounded-3xl border border-cyan-300/15 bg-cyan-400/5 p-5">
               <label className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-cyan-300/30 bg-slate-900/70 p-6 text-center transition hover:border-cyan-200/60 hover:bg-cyan-400/10">
                 <UploadCloud className="h-10 w-10 text-cyan-200" />
-                <div className="mt-3 text-lg font-black">{file?.name || "اختار ملف العملاء"}</div>
+                <div className="mt-3 text-lg font-black">{file?.name || "اختيار ملف العملاء"}</div>
                 <div className="mt-2 text-sm font-semibold text-slate-400">CSV, XLS, XLSX حتى 8MB</div>
                 <input
                   type="file"
@@ -1391,12 +1440,24 @@ function CustomerProfileDrawer({
           <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
             <AuditInput label="من تاريخ" type="date" value={filters.date_from} onChange={(value) => updateFilter("date_from", value)} />
             <AuditInput label="إلى تاريخ" type="date" value={filters.date_to} onChange={(value) => updateFilter("date_to", value)} />
-            <label className="block">
-              <span className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">النوع</span>
-              <select value={filters.transaction_type} onChange={(event) => updateFilter("transaction_type", event.target.value)} className={`${inputClass} mt-2`}>
-                {walletTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-            </label>
+            
+            <div className="md:col-span-3 xl:col-span-6">
+              <div className="flex flex-wrap gap-2">
+                {statementFilterOptions.map((option) => {
+                  const active = String(filters.transaction_type || "") === option.value;
+                  return (
+                    <button
+                      key={option.value || "all"}
+                      type="button"
+                      onClick={() => updateFilter("transaction_type", option.value)}
+                      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-black transition ${active ? getStatementBadgeClass(option.tone) : "border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
+                    >
+                      <span>{option.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <AuditInput label="رقم الفاتورة" value={filters.invoice_number} onChange={(value) => updateFilter("invoice_number", value)} />
             <AuditInput label="أقل مبلغ" type="number" value={filters.amount_min} onChange={(value) => updateFilter("amount_min", value)} />
             <AuditInput label="أكبر مبلغ" type="number" value={filters.amount_max} onChange={(value) => updateFilter("amount_max", value)} />
@@ -1636,7 +1697,7 @@ function CustomerStatementDrawer({
               <tbody>
                 {auditLoading ? (
                   <tr>
-                    <td colSpan="6" className="px-3 py-10 text-center text-sm font-bold text-emerald-300">جارٍ تحميل كشف الحساب...</td>
+                    <td colSpan="6" className="px-3 py-10 text-center text-sm font-bold text-emerald-300">جاري تحميل كشف الحساب...</td>
                   </tr>
                 ) : statementRows.length ? (
                   statementRows.map((row, index) => {
@@ -1645,6 +1706,7 @@ function CustomerStatementDrawer({
                     const debit = amount < 0 ? formatMoney(Math.abs(amount)) : "";
                     const credit = amount > 0 ? formatMoney(amount) : "";
                     const reference = row.invoice_number || row.return_number || row.reference_id || "-";
+                    const rowMeta = getStatementMovementMeta(row);
                     const rowLabel = row.personal_operation_type_label || row.transaction_type_label || row.notes || row.transaction_type || "-";
                     const rowDetails = [
                       personalValue > 0 ? `القيمة: ${formatMoney(personalValue)}` : "",
@@ -1656,12 +1718,15 @@ function CustomerStatementDrawer({
                         <td className="whitespace-nowrap px-3 py-3">{formatDateTime(row.created_at)}</td>
                         <td className="px-3 py-3">
                           <div className="font-bold text-white">{rowLabel}</div>
+                          <div className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${getStatementBadgeClass(rowMeta.tone)}`}>
+                            {rowMeta.label}
+                          </div>
                           {rowDetails ? <div className="mt-1 text-xs leading-5 text-zinc-400">{rowDetails}</div> : null}
                         </td>
                         <td className="px-3 py-3">
                           <div className="font-semibold text-zinc-200">{reference}</div>
                           {row.personal_operation_type ? (
-                            <div className="mt-1 inline-flex rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">
+                            <div className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] ${getStatementBadgeClass(rowMeta.tone)}`}>
                               {row.personal_operation_type_label || row.personal_operation_type}
                             </div>
                           ) : null}
@@ -1674,7 +1739,7 @@ function CustomerStatementDrawer({
                   })
                 ) : (
                   <tr>
-                    <td colSpan="6" className="px-3 py-10 text-center text-sm text-zinc-500">لا توجد حركات مطابقة للفلتر الحالي.</td>
+                    <td colSpan="6" className="px-3 py-10 text-center text-sm text-zinc-500">لا توجد حركات مطابقة للفلاتر الحالية.</td>
                   </tr>
                 )}
               </tbody>
@@ -1703,3 +1768,5 @@ function CustomerStatementDrawer({
 }
 
 export default Customers;
+
+
