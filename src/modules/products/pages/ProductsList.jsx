@@ -1836,7 +1836,7 @@ function ProductsList() {
         </>
       }
     >
-      <div className="min-w-0 rounded-2xl border border-white/8 bg-zinc-950/80 p-3 sm:rounded-[34px] sm:p-5 xl:p-6">
+      <div className="w-full min-w-0 max-w-none rounded-2xl border border-white/8 bg-zinc-950/80 p-3 sm:rounded-[34px] sm:p-5 xl:p-6">
         <div className="grid min-w-0 grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.8fr)_repeat(3,minmax(0,1fr))]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
@@ -2011,7 +2011,7 @@ function ProductsList() {
           </div>
         ) : null}
 
-        <div className="relative mt-6 max-w-full overflow-visible">
+        <div className="relative mt-6 w-full min-w-0 max-w-none overflow-visible">
           <div className="grid gap-3 lg:hidden">
             {loading ? (
               <div className="rounded-2xl border border-white/8 bg-white/5 p-6 text-center text-sm font-semibold text-zinc-400">
@@ -2070,8 +2070,8 @@ function ProductsList() {
             )}
           </div>
 
-          <div className="hidden overflow-x-auto lg:block">
-            <table className="min-w-[1080px] table-fixed border-separate border-spacing-y-3">
+          <div className="hidden w-full min-w-0 overflow-x-auto lg:block">
+            <table className="w-full table-auto border-separate border-spacing-y-3">
               <colgroup>
                 <col className="w-12" />
                 <col className="w-[440px]" />
@@ -2108,7 +2108,7 @@ function ProductsList() {
                 ) : visibleRows.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="px-4 py-12 text-center">
-                      <div className="mx-auto max-w-sm rounded-3xl border border-white/8 bg-white/5 p-8">
+                      <div className="w-full rounded-3xl border border-white/8 bg-white/5 p-8">
                         <Package2 className="mx-auto text-zinc-500" size={42} />
                         <h3 className="mt-4 text-xl font-black text-white">{t("products.empty.title")}</h3>
                         <p className="mt-2 text-sm text-zinc-400">
