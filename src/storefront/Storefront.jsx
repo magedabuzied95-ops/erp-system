@@ -2023,32 +2023,56 @@ const storefrontDebugLog = (label, payload = {}) => {
 };
 
 const cachedStorefrontGet = (url, { ttlMs = STOREFRONT_GET_CACHE_TTL_MS } = {}) => {
+  const cacheKey = normalizeStorefrontCacheUrl(url);
   if (ttlMs <= 0) {
     storefrontDebugLog("[storefront-cache-miss]", { url, ttlMs, strategy: "no-store" });
     return api.get(url, { cache: "no-store", headers: { "Cache-Control": "no-cache", Pragma: "no-cache" } });
   }
   const now = Date.now();
-  const cached = storefrontGetCache.get(url);
+  const cached = storefrontGetCache.get(cacheKey);
   if (cached && now - cached.at < ttlMs) {
     storefrontDebugLog("[storefront-cache-hit]", { url, ttlMs, ageMs: now - cached.at });
     return Promise.resolve(cached.data);
   }
-  if (storefrontGetInFlight.has(url)) {
+  if (storefrontGetInFlight.has(cacheKey)) {
     storefrontDebugLog("[storefront-cache-hit]", { url, ttlMs, strategy: "in-flight" });
-    return storefrontGetInFlight.get(url);
+    return storefrontGetInFlight.get(cacheKey);
   }
 
   storefrontDebugLog("[storefront-cache-miss]", { url, ttlMs, strategy: "network" });
   const request = api.get(url)
     .then((data) => {
-      storefrontGetCache.set(url, { at: Date.now(), data });
+      storefrontGetCache.set(cacheKey, { at: Date.now(), data });
       return data;
     })
     .finally(() => {
-      storefrontGetInFlight.delete(url);
+      storefrontGetInFlight.delete(cacheKey);
     });
-  storefrontGetInFlight.set(url, request);
+  storefrontGetInFlight.set(cacheKey, request);
   return request;
+};
+
+const normalizeStorefrontCacheUrl = (url) => {
+  try {
+    const parsed = new URL(String(url || ""), typeof window !== "undefined" && window.location ? window.location.origin : "http://localhost");
+    parsed.searchParams.delete("random_seed");
+    parsed.searchParams.delete("_last_piece_scope");
+    return `${parsed.pathname}${parsed.search ? parsed.search : ""}`;
+  } catch {
+    return String(url || "");
+  }
+};
+
+const getCachedStorefrontGetData = (url, { ttlMs = STOREFRONT_GET_CACHE_TTL_MS } = {}) => {
+  const cacheKey = normalizeStorefrontCacheUrl(url);
+  if (ttlMs <= 0) return null;
+  const cached = storefrontGetCache.get(cacheKey);
+  if (!cached) return null;
+  if (Date.now() - cached.at >= ttlMs) {
+    storefrontGetCache.delete(cacheKey);
+    return null;
+  }
+  return cached.data;
 };
 
 const getCachedProductDetails = (identifier, { ttlMs = STOREFRONT_PRODUCT_DETAILS_CACHE_TTL_MS } = {}) => {
@@ -2072,7 +2096,6 @@ const setCachedProductDetails = (identifier, data) => {
 };
 
 const useProducts = (params = {}) => {
-  const [state, setState] = useState({ loading: true, error: "", products: [] });
   const randomSeedRef = useRef(`${Date.now()}-${Math.random()}`);
   const queryKey = JSON.stringify(params);
   const queryString = useMemo(() => {
@@ -2093,21 +2116,30 @@ const useProducts = (params = {}) => {
     query.set("_last_piece_scope", "product");
     return query.toString();
   }, [queryKey]);
+  const requestUrl = `/storefront/products${queryString ? `?${queryString}` : ""}`;
+  const cachedProductsData = getCachedStorefrontGetData(requestUrl, { ttlMs: STOREFRONT_PRODUCTS_CACHE_TTL_MS });
+  const [state, setState] = useState(() => {
+    const initialProducts = Array.isArray(cachedProductsData?.products) ? cachedProductsData.products : [];
+    return cachedProductsData ? { loading: false, error: "", products: initialProducts } : { loading: true, error: "", products: [] };
+  });
+  const hasCachedInitialDataRef = useRef(Boolean(cachedProductsData));
 
   useEffect(() => {
     let cancelled = false;
-    deferReactState(() => {
-      if (!cancelled) setState((prev) => ({ ...prev, loading: true, error: "" }));
-    });
+    if (!hasCachedInitialDataRef.current) {
+      deferReactState(() => {
+        if (!cancelled) setState((prev) => ({ ...prev, loading: true, error: "" }));
+      });
+    }
     if (import.meta.env.DEV) {
       const requestParams = new URLSearchParams(queryString);
       console.debug("[storefront-random-seed]", {
         seed: requestParams.get("random_seed") || "",
         sort: requestParams.get("sort") || "",
-        url: `/storefront/products${queryString ? `?${queryString}` : ""}`,
+        url: requestUrl,
       });
     }
-    cachedStorefrontGet(`/storefront/products${queryString ? `?${queryString}` : ""}`, { ttlMs: STOREFRONT_PRODUCTS_CACHE_TTL_MS })
+    cachedStorefrontGet(requestUrl, { ttlMs: STOREFRONT_PRODUCTS_CACHE_TTL_MS })
       .then((data) => {
         const products = Array.isArray(data.products) ? data.products : [];
         if (import.meta.env.DEV) {
@@ -2131,7 +2163,7 @@ const useProducts = (params = {}) => {
     return () => {
       cancelled = true;
     };
-  }, [queryString]);
+  }, [queryString, requestUrl]);
 
   return state;
 };
@@ -2222,19 +2254,30 @@ const normalizeStorefrontBrand = (brand = {}) => {
 const useStorefrontHome = () => {
   const homeEndpoint = "/storefront/home";
   const homeRequestUrl = `${API_BASE_URL}${homeEndpoint}`;
+  const cachedHomeData = getCachedStorefrontGetData(homeEndpoint, { ttlMs: STOREFRONT_HOME_CACHE_TTL_MS });
   const [state, setState] = useState({
-    loading: true,
-    loaded: false,
+    loading: !cachedHomeData,
+    loaded: Boolean(cachedHomeData),
     error: "",
-    hero: null,
-    collections: [],
-    rawHome: null,
+    hero: (() => {
+      const home = cachedHomeData ? getStorefrontHomeFromResponse(cachedHomeData) : {};
+      const hero = home.hero ? normalizeHomeProduct(home.hero) : null;
+      return hero?.id ? hero : null;
+    })(),
+    collections: (() => {
+      const home = cachedHomeData ? getStorefrontHomeFromResponse(cachedHomeData) : {};
+      return (Array.isArray(home.featured_collections) ? home.featured_collections : []).map(normalizeHomeCollection);
+    })(),
+    rawHome: cachedHomeData ? getStorefrontHomeFromResponse(cachedHomeData) || null : null,
     requestUrl: homeRequestUrl,
   });
 
   useEffect(() => {
     let cancelled = false;
 
+    if (!cachedHomeData) {
+      setState((prev) => ({ ...prev, loading: true, error: "" }));
+    }
     cachedStorefrontGet(homeEndpoint, { ttlMs: STOREFRONT_HOME_CACHE_TTL_MS })
       .then((json) => {
         const home = getStorefrontHomeFromResponse(json);
@@ -2251,13 +2294,19 @@ const useStorefrontHome = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [cachedHomeData, homeEndpoint]);
 
   return state;
 };
 
 const useStorefrontBrands = () => {
-  const [state, setState] = useState({ loading: true, error: "", brands: [] });
+  const cachedBrandsData = getCachedStorefrontGetData("/storefront/brands", { ttlMs: STOREFRONT_BRANDS_CACHE_TTL_MS });
+  const [state, setState] = useState(() => {
+    const brands = (Array.isArray(cachedBrandsData?.brands) ? cachedBrandsData.brands : Array.isArray(cachedBrandsData?.data) ? cachedBrandsData.data : [])
+      .map(normalizeStorefrontBrand)
+      .filter((brand) => brand.id && brand.name && brand.logo_url);
+    return cachedBrandsData ? { loading: false, error: "", brands } : { loading: true, error: "", brands: [] };
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -2276,13 +2325,18 @@ const useStorefrontBrands = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [cachedBrandsData]);
 
   return state;
 };
 
 const useStorefrontGenderClassifications = () => {
-  const [state, setState] = useState({ loading: true, error: "", options: [] });
+  const cachedGenderData = getCachedStorefrontGetData("/storefront/classifications/gender", { ttlMs: STOREFRONT_GENDER_CACHE_TTL_MS });
+  const [state, setState] = useState(() => ({
+    loading: !cachedGenderData,
+    error: "",
+    options: cachedGenderData ? uniqueClassificationOptions(cachedGenderData?.options || []) : [],
+  }));
 
   useEffect(() => {
     let cancelled = false;
@@ -2298,14 +2352,13 @@ const useStorefrontGenderClassifications = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [cachedGenderData]);
 
   return state;
 };
 
 const useLastPiece = (params = {}, options = {}) => {
   const enabled = options.enabled !== false;
-  const [state, setState] = useState({ loading: false, error: "", categories: [], sizes: [], products: [], hooks: {} });
   const queryKey = JSON.stringify(params);
   const queryString = useMemo(() => {
     const query = new URLSearchParams();
@@ -2315,14 +2368,26 @@ const useLastPiece = (params = {}, options = {}) => {
     });
     return query.toString();
   }, [queryKey]);
+  const requestUrl = `/storefront/last-piece${queryString ? `?${queryString}` : ""}`;
+  const cachedLastPieceData = enabled ? getCachedStorefrontGetData(requestUrl, { ttlMs: STOREFRONT_LAST_PIECE_CACHE_TTL_MS }) : null;
+  const [state, setState] = useState(() => ({
+    loading: enabled && !cachedLastPieceData,
+    error: "",
+    categories: cachedLastPieceData?.categories || [],
+    sizes: cachedLastPieceData?.sizes || [],
+    products: cachedLastPieceData?.products || [],
+    hooks: cachedLastPieceData?.hooks || {},
+  }));
 
   useEffect(() => {
     if (!enabled) return undefined;
     let cancelled = false;
-    deferReactState(() => {
-      if (!cancelled) setState((prev) => ({ ...prev, loading: true, error: "" }));
-    });
-    cachedStorefrontGet(`/storefront/last-piece${queryString ? `?${queryString}` : ""}`, { ttlMs: STOREFRONT_LAST_PIECE_CACHE_TTL_MS })
+    if (!cachedLastPieceData) {
+      deferReactState(() => {
+        if (!cancelled) setState((prev) => ({ ...prev, loading: true, error: "" }));
+      });
+    }
+    cachedStorefrontGet(requestUrl, { ttlMs: STOREFRONT_LAST_PIECE_CACHE_TTL_MS })
       .then((data) => {
         if (!cancelled) {
           setState({
@@ -2343,7 +2408,7 @@ const useLastPiece = (params = {}, options = {}) => {
     return () => {
       cancelled = true;
     };
-  }, [enabled, queryString]);
+  }, [cachedLastPieceData, enabled, requestUrl]);
 
   return state;
 };
@@ -3913,7 +3978,68 @@ const featuredSlideProduct = (product = {}) => {
   return { product, variant, image, price, comparePrice };
 };
 
-function FeaturedCategoriesHero({ products = [], lang = "ar" }) {
+function FeaturedCategoriesHeroSkeleton({ lang = "ar" }) {
+  const isRtl = normalizeLanguage(lang) === "ar";
+  return (
+    <section className="mx-auto max-w-[1320px] px-4 py-4 md:py-7" dir={isRtl ? "rtl" : "ltr"}>
+      <div className="overflow-hidden rounded-[1.85rem] border border-white/10 bg-[#050711] shadow-[0_34px_100px_rgba(15,23,42,0.30)] md:rounded-[2.35rem]">
+        <div className="grid min-h-[510px] lg:grid-cols-[minmax(0,0.72fr)_minmax(18rem,0.28fr)]">
+          <div className="relative min-h-[500px] p-5 md:p-8 lg:min-h-[560px] lg:p-10">
+            <div className="sf-skeleton-shimmer h-8 w-36 rounded-full bg-white/10" />
+            <div className="mt-6 sf-skeleton-shimmer h-16 max-w-2xl rounded-[1.5rem] bg-white/10 md:h-28" />
+            <div className="mt-4 sf-skeleton-shimmer h-4 w-2/3 rounded-full bg-white/10" />
+            <div className="mt-7 sf-skeleton-shimmer h-11 w-36 rounded-full bg-white/10" />
+            <div className="mt-10 grid min-h-[220px] grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-2">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="sf-skeleton-shimmer rounded-[1.5rem] bg-white/10" />
+              ))}
+            </div>
+          </div>
+          <aside className="hidden border-s border-white/10 bg-white/[0.045] p-5 shadow-[inset_1px_0_0_rgba(255,255,255,0.06)] lg:block">
+            <div className="mb-4 sf-skeleton-shimmer h-5 w-40 rounded-full bg-white/10" />
+            <div className="grid gap-2">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="sf-skeleton-shimmer h-12 rounded-xl bg-white/[0.06]" />
+              ))}
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ShopByMainCategoriesSkeleton({ lang = "ar" }) {
+  const isRtl = normalizeLanguage(lang) === "ar";
+  return (
+    <section className="mx-auto max-w-[1360px] px-4 py-10 md:py-16" dir={isRtl ? "rtl" : "ltr"}>
+      <div className="mb-8 flex items-end justify-between gap-3 md:mb-11">
+        <div className="min-w-0">
+          <div className="sf-skeleton-shimmer h-3 w-32 rounded-full bg-white/10" />
+          <div className="mt-3 sf-skeleton-shimmer h-12 w-[min(28rem,74vw)] rounded-[1.5rem] bg-white/10 md:h-20" />
+        </div>
+        <div className="hidden h-11 w-28 rounded-full bg-white/5 sm:block" />
+      </div>
+      <div className="grid gap-7 md:gap-10">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="overflow-hidden rounded-[2.35rem] border border-white/10 bg-[#050711] shadow-[0_34px_110px_rgba(15,23,42,0.28)]">
+            <div className="grid min-h-[300px] gap-4 p-5 md:min-h-[360px] md:grid-cols-[0.45fr_0.55fr] md:p-8 lg:min-h-[400px]">
+              <div className="flex flex-col justify-end gap-3">
+                <div className="sf-skeleton-shimmer h-5 w-28 rounded-full bg-white/10" />
+                <div className="sf-skeleton-shimmer h-12 w-[min(22rem,70vw)] rounded-[1.5rem] bg-white/10 md:h-20" />
+                <div className="sf-skeleton-shimmer h-4 w-2/3 rounded-full bg-white/10" />
+                <div className="sf-skeleton-shimmer h-11 w-32 rounded-full bg-white/10" />
+              </div>
+              <div className="sf-skeleton-shimmer min-h-[210px] rounded-[1.85rem] bg-white/10 md:min-h-[280px]" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false }) {
   const { t } = useTranslation();
   const isRtl = normalizeLanguage(lang) === "ar";
   const [activeCategoryId, setActiveCategoryId] = useState("");
@@ -3975,7 +4101,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar" }) {
     setManualTick((current) => current + 1);
   };
 
-  if (!activeCategory || !activeSlide) return null;
+  if (!activeCategory || !activeSlide) return loading ? <FeaturedCategoriesHeroSkeleton lang={lang} /> : null;
 
   const { product, image } = activeSlide;
   const ActiveIcon = activeCategory.icon;
@@ -4128,7 +4254,7 @@ const homeProductWithImage = (product = {}) => {
   return slide.image ? { ...slide, product } : null;
 };
 
-function ShopByMainCategories({ products = [], lang = "ar" }) {
+function ShopByMainCategories({ products = [], lang = "ar", loading = false }) {
   const isRtl = normalizeLanguage(lang) === "ar";
   const sourceProducts = useMemo(
     () => uniqueProductsByIdentity(products)
@@ -4146,6 +4272,8 @@ function ShopByMainCategories({ products = [], lang = "ar" }) {
       .slice(0, 4);
     return { ...definition, images };
   }), [sourceProducts]);
+
+  if (!cards.length) return loading ? <ShopByMainCategoriesSkeleton lang={lang} /> : null;
 
   return (
     <section className="mx-auto max-w-[1360px] px-4 py-10 md:py-16" dir={isRtl ? "rtl" : "ltr"}>
@@ -4719,10 +4847,14 @@ function HomeBrandsSection() {
     : "grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5";
   const cardClassName = isDualBrand
     ? "flex h-36 items-center justify-center rounded-3xl border border-stone-200 bg-white px-6 py-5 shadow-[0_10px_24px_rgba(39,20,75,0.05)] transition duration-200 group-hover:-translate-y-0.5 group-hover:border-[#a78bfa]/40 group-hover:shadow-[0_16px_36px_rgba(124,58,237,0.08)] md:h-44 dark:border-white/10 dark:bg-white/[0.04]"
-    : "flex h-28 items-center justify-center rounded-2xl border border-stone-200 bg-white px-6 py-4 shadow-[0_10px_24px_rgba(39,20,75,0.05)] transition duration-200 group-hover:-translate-y-0.5 group-hover:border-[#a78bfa]/40 group-hover:shadow-[0_16px_36px_rgba(124,58,237,0.08)] md:h-32 dark:border-white/10 dark:bg-white/[0.04]";
+    : isSingleBrand
+      ? "inline-flex w-fit max-w-none flex-col items-center justify-center rounded-[24px] border border-white/10 bg-white/[0.04] px-6 py-5 text-center shadow-sm transition duration-200 group-hover:-translate-y-0.5 group-hover:border-[#a78bfa]/40 group-hover:shadow-[0_16px_36px_rgba(124,58,237,0.08)] dark:bg-white/[0.04]"
+      : "flex h-28 items-center justify-center rounded-2xl border border-stone-200 bg-white px-6 py-4 shadow-[0_10px_24px_rgba(39,20,75,0.05)] transition duration-200 group-hover:-translate-y-0.5 group-hover:border-[#a78bfa]/40 group-hover:shadow-[0_16px_36px_rgba(124,58,237,0.08)] md:h-32 dark:border-white/10 dark:bg-white/[0.04]";
   const logoClassName = isDualBrand
     ? "max-h-24 max-w-[210px] object-contain md:max-h-[140px] md:max-w-[240px]"
-    : "max-h-24 md:max-h-28 object-contain";
+    : isSingleBrand
+      ? "max-w-full max-h-full object-contain"
+      : "max-h-24 md:max-h-28 object-contain";
 
   if (!loading && !visibleBrands.length) return null;
   if (!visibleBrands.length) return null;
@@ -4734,32 +4866,67 @@ function HomeBrandsSection() {
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7c3aed] dark:text-[#d8b4fe]">{sfText("storefront.home.brandsEyebrow", "Shop by brand")}</p>
           <h2 className="mt-1 text-2xl font-black tracking-normal text-stone-950 dark:text-white md:text-3xl">العلامات التجارية</h2>
         </div>
-        <div className={isSingleBrand ? "mx-auto flex w-full max-w-[240px] justify-center" : gridClassName}>
-          {visibleBrands.map((brand) => {
-            const brandHref = `/shop?brand=${encodeURIComponent(brand.id || brand.slug)}`;
-            const brandName = brand.name || "";
-            return (
-              <Link
-                key={brand.id || brand.slug || brand.name}
-                to={brandHref}
-                aria-label={brand.name}
-                className="group min-w-0"
-              >
-                <span className={cardClassName}>
-                  <img
-                    src={resolveProductImageUrl(brand.logo_url)}
-                    alt={brandName}
-                    className={logoClassName}
-                    loading="lazy"
-                    decoding="async"
-                    width="220"
-                    height="112"
-                  />
-                </span>
-              </Link>
-            );
-          })}
-        </div>
+        {isSingleBrand ? (
+          <div className="mx-auto flex w-fit justify-center">
+            {visibleBrands.map((brand) => {
+              const brandHref = `/shop?brand=${encodeURIComponent(brand.id || brand.slug)}`;
+              const brandName = brand.name || "";
+              return (
+                <Link
+                  key={brand.id || brand.slug || brand.name}
+                  to={brandHref}
+                  aria-label={brand.name}
+                  className="group mx-auto inline-flex w-fit max-w-none min-w-0"
+                >
+                  <span className={cardClassName}>
+                    <span className="flex h-[150px] w-[150px] items-center justify-center overflow-hidden rounded-[20px] bg-white sm:h-[170px] sm:w-[170px]">
+                      <img
+                        src={resolveProductImageUrl(brand.logo_url)}
+                        alt={brandName}
+                        className={logoClassName}
+                        loading="lazy"
+                        decoding="async"
+                        width="170"
+                        height="170"
+                      />
+                    </span>
+                    <div className="mt-4 text-lg font-black text-white">{brandName}</div>
+                    <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-black text-white/80">
+                      تسوق منتجات هذه العلامة
+                    </div>
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <div className={gridClassName}>
+            {visibleBrands.map((brand) => {
+              const brandHref = `/shop?brand=${encodeURIComponent(brand.id || brand.slug)}`;
+              const brandName = brand.name || "";
+              return (
+                <Link
+                  key={brand.id || brand.slug || brand.name}
+                  to={brandHref}
+                  aria-label={brand.name}
+                  className="group min-w-0"
+                >
+                  <span className={cardClassName}>
+                    <img
+                      src={resolveProductImageUrl(brand.logo_url)}
+                      alt={brandName}
+                      className={logoClassName}
+                      loading="lazy"
+                      decoding="async"
+                      width="220"
+                      height="112"
+                    />
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -4866,8 +5033,8 @@ function HomePage(props) {
 
   return (
     <div className="sf-page pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] md:pb-0">
-      <FeaturedCategoriesHero products={featuredCategoryProducts} lang={lang} />
-      <ShopByMainCategories products={featuredCategoryProducts} lang={lang} />
+      <FeaturedCategoriesHero products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} />
+      <ShopByMainCategories products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} />
       <HomeFlowSeparator label="This week" />
       <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "الأكثر طلبًا هذا الأسبوع" : "Most Popular This Week"} subtitle={normalizeLanguage(lang) === "ar" ? "الموديلات اللي عليها طلب ومشاهدة أعلى." : "Best-selling and most-viewed picks."} viewAllTo="/shop/products?sort=popular" loading={loading || storefrontHome.loading} products={homeSections.mostPopular} railType="bestseller" tone="popular" {...props} />
       <HomeFlowSeparator label="Nike edit" />
@@ -4903,10 +5070,11 @@ function SimpleHomeProductGrid({ title, subtitle, products = [], loading = false
           {sfText("common.viewAll", "View all")}
         </Link>
       </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {loading && !visibleProducts.length ? (
-          <ProductSkeleton count={4} />
-        ) : visibleProducts.map((product, index) => {
+      {loading && !visibleProducts.length ? (
+        <ProductSkeleton count={4} className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" />
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {visibleProducts.map((product, index) => {
           const price = Number(product.price || product.final_price || product.selling_price || product.regular_price || 0) || 0;
           const image = product.image_url || product.product_image_url || product.gallery_images?.[0] || "";
           return (
@@ -4933,8 +5101,9 @@ function SimpleHomeProductGrid({ title, subtitle, products = [], loading = false
               </div>
             </Link>
           );
-        })}
-      </div>
+          })}
+        </div>
+      )}
     </section>
   );
 }
@@ -8529,16 +8698,41 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
   );
 });
 
-function ProductSkeleton({ count }) {
-  return Array.from({ length: count }).map((_, index) => <div key={index} className="h-72 animate-pulse rounded-[1.75rem] bg-white shadow-[0_12px_32px_rgba(39,20,75,0.06)]" />);
+function ProductCardSkeleton() {
+  return (
+    <article className="overflow-hidden rounded-[1.2rem] border border-white/70 bg-white shadow-[0_10px_26px_rgba(39,20,75,0.07)] ring-1 ring-stone-200/55 dark:border-white/[0.08] dark:bg-[linear-gradient(145deg,rgba(17,24,39,0.95),rgba(11,16,32,0.93)_52%,rgba(8,13,25,0.98))] dark:ring-white/[0.05]">
+      <div className="relative aspect-[0.96/1] p-1.5">
+        <div className="sf-skeleton-shimmer h-full rounded-[1rem] bg-stone-200/80 dark:bg-white/[0.06]" />
+      </div>
+      <div className="space-y-2 p-2.5 pt-2">
+        <div className="sf-skeleton-shimmer h-5 w-[88%] rounded-full bg-stone-200/80 dark:bg-white/[0.08]" />
+        <div className="sf-skeleton-shimmer h-4 w-2/3 rounded-full bg-stone-200/80 dark:bg-white/[0.08]" />
+        <div className="flex gap-1.5 overflow-hidden">
+          <div className="sf-skeleton-shimmer h-6 w-10 rounded-full bg-stone-200/80 dark:bg-white/[0.08]" />
+          <div className="sf-skeleton-shimmer h-6 w-10 rounded-full bg-stone-200/80 dark:bg-white/[0.08]" />
+          <div className="sf-skeleton-shimmer h-6 w-10 rounded-full bg-stone-200/80 dark:bg-white/[0.08]" />
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ProductSkeleton({ count, className = "grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-5" }) {
+  return (
+    <div className={className}>
+      {Array.from({ length: count }).map((_, index) => (
+        <ProductCardSkeleton key={index} />
+      ))}
+    </div>
+  );
 }
 
 function StorefrontPageFallback() {
   return (
     <section className="mx-auto max-w-6xl px-4 py-6">
       <div className="grid gap-4">
-        <div className="h-28 animate-pulse rounded-[1.75rem] bg-white/80 shadow-[0_12px_32px_rgba(39,20,75,0.05)] dark:bg-white/5" />
-        <div className="h-64 animate-pulse rounded-[1.75rem] bg-white/80 shadow-[0_12px_32px_rgba(39,20,75,0.05)] dark:bg-white/5" />
+        <div className="sf-skeleton-shimmer h-28 rounded-[1.75rem] bg-white/80 shadow-[0_12px_32px_rgba(39,20,75,0.05)] dark:bg-white/5" />
+        <div className="sf-skeleton-shimmer h-64 rounded-[1.75rem] bg-white/80 shadow-[0_12px_32px_rgba(39,20,75,0.05)] dark:bg-white/5" />
       </div>
     </section>
   );
