@@ -4175,10 +4175,24 @@ function ShopByMainCategories({ products = [], lang = "ar" }) {
 
 function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", products = [], loading = false, railType = "default", tone = "default", wishlist, toggleWishlist, onAddToCart }) {
   const isRtl = normalizeLanguage(i18n.language) === "ar";
+  const railViewportRef = useRef(null);
+  const [railPaused, setRailPaused] = useState(false);
   const visibleProducts = useMemo(
     () => sortStorefrontColorCardsByModel(uniqueProductsByIdentity(products).filter((product) => product?.id && product?.name && isAvailableProduct(product)).slice(0, 8)),
     [products]
   );
+  const repeatedProducts = useMemo(() => {
+    if (!visibleProducts.length) return [];
+    const repeatCount = visibleProducts.length <= 2 ? 4 : 3;
+    return Array.from({ length: repeatCount }, (_, repeatIndex) =>
+      visibleProducts.map((product, index) => ({
+        product,
+        repeatIndex,
+        index,
+        key: `${productCardKey(product, index)}-${repeatIndex}`,
+      }))
+    ).flat();
+  }, [visibleProducts]);
   const skeletonItems = Array.from({ length: 8 });
   const toneConfig = {
     default: {
@@ -4219,6 +4233,46 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
     },
   }[tone] || {};
   const sectionTone = toneConfig.shell || "bg-transparent";
+  const railRepeatCount = loading && !visibleProducts.length ? 3 : visibleProducts.length <= 2 ? 4 : 3;
+  const railItems = loading && !visibleProducts.length
+    ? Array.from({ length: 3 }, (_, repeatIndex) =>
+        skeletonItems.map((_, index) => ({
+          key: `skeleton-${repeatIndex}-${index}`,
+          repeatIndex,
+          index,
+          product: null,
+          skeleton: true,
+        }))
+      ).flat()
+    : repeatedProducts;
+
+  useEffect(() => {
+    const viewport = railViewportRef.current;
+    if (!viewport || !railItems.length || typeof window === "undefined") return undefined;
+    let frame = 0;
+    let lastTime = 0;
+    const speed = 22;
+
+    const tick = (time) => {
+      if (!lastTime) lastTime = time;
+      const delta = time - lastTime;
+      lastTime = time;
+
+      if (!railPaused && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        const cycleWidth = viewport.scrollWidth / railRepeatCount;
+        if (cycleWidth > 0 && viewport.scrollWidth > viewport.clientWidth) {
+          const nextScrollLeft = viewport.scrollLeft + (speed * delta) / 1000;
+          viewport.scrollLeft = nextScrollLeft >= cycleWidth ? nextScrollLeft % cycleWidth : nextScrollLeft;
+        }
+      }
+
+      frame = window.requestAnimationFrame(tick);
+    };
+
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
+  }, [railItems.length, railPaused, railRepeatCount]);
+
   if (!loading && !visibleProducts.length) return null;
 
   return (
@@ -4236,18 +4290,43 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
           <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
         </Link>
       </div>
-      <div className="sf-scroll flex snap-x snap-mandatory gap-3.5 overflow-x-auto scroll-smooth pb-2 md:grid md:grid-cols-4 md:overflow-visible md:pb-0 xl:gap-5">
-        {loading && !visibleProducts.length ? skeletonItems.map((_, index) => (
-          <div key={index} className="w-[82vw] max-w-[22rem] shrink-0 snap-start sm:w-[43vw] md:w-auto md:max-w-none">
-            <div className="h-56 animate-pulse rounded-[1.35rem] bg-white shadow-[0_12px_32px_rgba(39,20,75,0.06)] md:h-72 md:rounded-[1.75rem] dark:bg-white/5" />
-          </div>
-        )) : visibleProducts.map((product, index) => (
-          <div key={productCardKey(product, index)} className="w-[82vw] max-w-[22rem] shrink-0 snap-start sm:w-[43vw] md:w-auto md:max-w-none">
-            <ProductCard product={product} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} railType={railType} rank={index + 1} density="compact" eagerImage eagerImagePriority={index < 4} />
+      <div
+        ref={railViewportRef}
+        dir="ltr"
+        className="sf-scroll flex w-full min-w-0 cursor-grab gap-3.5 overflow-x-auto pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden active:cursor-grabbing"
+        onPointerEnter={() => setRailPaused(true)}
+        onPointerLeave={() => setRailPaused(false)}
+        onPointerDown={() => setRailPaused(true)}
+        onPointerUp={() => setRailPaused(false)}
+        onPointerCancel={() => setRailPaused(false)}
+        onTouchStart={() => setRailPaused(true)}
+        onTouchEnd={() => setRailPaused(false)}
+        onTouchCancel={() => setRailPaused(false)}
+      >
+        {railItems.map(({ product, skeleton, key, index, repeatIndex }) => (
+          <div
+            key={key}
+            className="w-[82vw] max-w-[22rem] shrink-0 sm:w-[43vw] md:w-[19rem] xl:w-[20rem]"
+          >
+            {skeleton ? (
+              <div className="h-56 animate-pulse rounded-[1.35rem] bg-white shadow-[0_12px_32px_rgba(39,20,75,0.06)] md:h-72 md:rounded-[1.75rem] dark:bg-white/5" />
+            ) : (
+              <ProductCard
+                product={product}
+                wishlist={wishlist}
+                toggleWishlist={toggleWishlist}
+                onAddToCart={onAddToCart}
+                railType={railType}
+                rank={index + 1}
+                density="compact"
+                eagerImage
+                eagerImagePriority={repeatIndex === 0 && index < 4}
+              />
+            )}
           </div>
         ))}
         {!loading && !visibleProducts.length ? (
-          <div className="w-full rounded-[1.35rem] border border-dashed border-stone-300 bg-white/75 p-5 text-sm font-black text-stone-500 dark:border-white/10 dark:bg-white/5 dark:text-stone-400 md:col-span-4">
+          <div className="w-full rounded-[1.35rem] border border-dashed border-stone-300 bg-white/75 p-5 text-sm font-black text-stone-500 dark:border-white/10 dark:bg-white/5 dark:text-stone-400">
             {isRtl ? "لا توجد منتجات متاحة للعرض حالياً." : "No products available for this section yet."}
           </div>
         ) : null}
