@@ -65,17 +65,37 @@ const normalizePaymentMethodKey = (value) => {
   if (key === "insta_pay") return "instapay";
   return key;
 };
-const isPurchasePaymentAccountMatch = (account = {}, paymentMethod = "") => {
+const getPurchasePaymentAccountProviderKey = (account = {}) => {
+  return normalizeKey(
+    firstText(
+      account?.provider,
+      account?.payment_provider,
+      account?.account_provider,
+      account?.account_type,
+      account?.type,
+      account?.name,
+      account?.account_name
+    )
+  );
+};
+const matchPurchasePaymentAccount = (account = {}, paymentMethod = "") => {
+  if (!account || account.is_active === false || account.id == null) return false;
   const method = normalizePaymentMethodKey(paymentMethod);
-  const type = normalizeKey(account.account_type);
-  const provider = normalizeKey(account.provider);
-  const name = normalizeKey(account.name);
-  if (!account || account.is_active === false) return false;
-  if (method === "cash") return ["cash_drawer", "safe"].includes(type);
-  if (method === "vodafone_cash") return ["wallet", "digital_wallet"].includes(type) && (provider.includes("vodafone") || name.includes("vodafone"));
-  if (method === "instapay") return ["wallet", "digital_wallet"].includes(type) && (provider.includes("insta") || name.includes("insta"));
-  if (method === "bank_transfer") return ["bank", "card_settlement"].includes(type);
+  const providerKey = getPurchasePaymentAccountProviderKey(account);
+  const typeKey = normalizeKey(account?.account_type || account?.type);
+  const nameKey = normalizeKey(firstText(account?.name, account?.account_name));
+  const haystack = [providerKey, typeKey, nameKey].filter(Boolean).join(" ");
+  if (!haystack) return false;
+  if (method === "cash") return /(cash|خزنة|نقدي|safe|drawer|till)/i.test(haystack);
+  if (method === "instapay") return /(instapay|insta pay|انستاباي|insta)/i.test(haystack);
+  if (method === "vodafone_cash") return /(vodafone|vodafone cash|فودافون|فودافون كاش)/i.test(haystack);
+  if (method === "bank_transfer") return /(bank|visa|card|paymob|بنك|بنكي)/i.test(haystack);
   return true;
+};
+const getAvailablePurchasePaymentAccounts = (accounts = [], paymentMethod = "") => {
+  const activeAccounts = accounts.filter((account) => account && account.id != null && account.is_active !== false);
+  const matchedAccounts = activeAccounts.filter((account) => matchPurchasePaymentAccount(account, paymentMethod));
+  return matchedAccounts.length ? matchedAccounts : activeAccounts;
 };
 const normalizeFinancialAccount = (account = {}) => ({
   ...account,
@@ -847,9 +867,9 @@ function PurchaseOrder() {
         : 0;
   const effectiveSupplierRemainingAmount = Math.max(0, total - effectiveSupplierPaidAmount);
   const selectedPaymentAccount = financialAccounts.find((account) => String(account.id) === String(paymentAccountId)) || null;
-  const filteredPaymentAccounts = useMemo(
-    () => financialAccounts.filter((account) => account && account.id != null),
-    [financialAccounts]
+  const availablePaymentAccounts = useMemo(
+    () => getAvailablePurchasePaymentAccounts(financialAccounts, paymentMethod),
+    [financialAccounts, paymentMethod]
   );
   const paymentStatusOptions = useMemo(
     () => [
@@ -1311,6 +1331,10 @@ function PurchaseOrder() {
   const handlePaymentMethodChange = (nextMethod) => {
     const normalized = normalizePaymentMethodKey(nextMethod);
     setPaymentMethod(normalized);
+    if (!paymentAccountId) return;
+    const nextAvailableAccounts = getAvailablePurchasePaymentAccounts(financialAccounts, normalized);
+    const stillAvailable = nextAvailableAccounts.some((account) => String(account.id) === String(paymentAccountId));
+    if (!stillAvailable) setPaymentAccountId("");
   };
 
   const handlePaymentAccountChange = (nextAccountId) => {
@@ -1433,7 +1457,7 @@ function PurchaseOrder() {
         releasePostingLock();
         return;
       }
-      if (import.meta.env.DEV && selectedPaymentAccountMatch && !isPurchasePaymentAccountMatch(selectedPaymentAccountMatch, normalizedPaymentMethod)) {
+      if (import.meta.env.DEV && selectedPaymentAccountMatch && !matchPurchasePaymentAccount(selectedPaymentAccountMatch, normalizedPaymentMethod)) {
         console.warn("[purchase-payment-warning] account type does not match payment method, allowing save", {
           paymentMethod: normalizedPaymentMethod,
           selectedPaymentAccountMatch: {
@@ -1769,7 +1793,7 @@ function PurchaseOrder() {
             paymentAccountId={paymentAccountId}
             paymentStatusOptions={paymentStatusOptions}
             paymentMethodOptions={paymentMethodOptions}
-            paymentAccounts={filteredPaymentAccounts}
+            paymentAccounts={availablePaymentAccounts}
             selectedPaymentAccount={selectedPaymentAccount}
             posting={posting}
             activeSupplier={activeSupplier}
