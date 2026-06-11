@@ -511,6 +511,9 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   `);
 
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50) DEFAULT 'cash'`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS is_personal_transaction BOOLEAN NOT NULL DEFAULT FALSE`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS personal_settlement_type VARCHAR(40)`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS personal_note TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cash_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS card_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS wallet_payment_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
@@ -964,6 +967,67 @@ const normalizeCreateOrderPayload = (body = {}) => {
     exchange_invoice_number: firstValue(body.exchange_invoice_number, body.exchangeInvoiceNumber),
     items: rawItems.map(normalizeOrderItemPayload),
   };
+};
+
+const normalizePersonalSettlementType = (value = "") => {
+  const normalized = String(value || "").trim().toUpperCase();
+  return ["GIFT", "EMPLOYEE_ADVANCE", "OWNER_USE"].includes(normalized) ? normalized : "";
+};
+
+const buildPersonalTransactionLabel = (settlementType = "") => {
+  switch (normalizePersonalSettlementType(settlementType)) {
+    case "GIFT":
+      return "هدية / مصروف";
+    case "EMPLOYEE_ADVANCE":
+      return "سلفة موظف";
+    case "OWNER_USE":
+      return "استخدام شخصي للمالك";
+    default:
+      return "عملية شخصية";
+  }
+};
+
+const postPersonalOrderEntry = async (clientOrPool, data = {}) => {
+  const settlementType = normalizePersonalSettlementType(data.settlementType || data.personalSettlementType || data.personal_settlement_type);
+  const amount = Math.max(0, Number(data.amount || 0) || 0);
+  if (!settlementType || amount <= 0) return null;
+
+  const inventory = { account_code: "1200" };
+  const employeeAdvances = { account_code: "1100" };
+  const personalAdvanceClearing = { account_code: "2101" };
+  const giftExpense = { account_code: "5200" };
+  const ownerDrawings = { account_code: "3300" };
+  const settlementLabel = buildPersonalTransactionLabel(settlementType);
+
+  let lines = [];
+  if (settlementType === "EMPLOYEE_ADVANCE") {
+    lines = [
+      { account_code: employeeAdvances.account_code, debit: amount, credit: 0, notes: data.notes || settlementLabel },
+      { account_code: personalAdvanceClearing.account_code, debit: 0, credit: amount, notes: data.notes || settlementLabel },
+    ];
+  } else if (settlementType === "OWNER_USE") {
+    lines = [
+      { account_code: ownerDrawings.account_code, debit: amount, credit: 0, notes: data.notes || settlementLabel },
+      { account_code: inventory.account_code, debit: 0, credit: amount, notes: data.notes || settlementLabel },
+    ];
+  } else {
+    lines = [
+      { account_code: giftExpense.account_code, debit: amount, credit: 0, notes: data.notes || settlementLabel },
+      { account_code: inventory.account_code, debit: 0, credit: amount, notes: data.notes || settlementLabel },
+    ];
+  }
+
+  return createJournalEntry(clientOrPool, {
+    tenantId: data.tenantId,
+    entryNumber: data.entryNumber || `PERSONAL-${data.referenceId || data.reference_id || Date.now()}`,
+    description: `POS ${settlementLabel}`,
+    referenceType: data.referenceType || "order",
+    referenceId: data.referenceId || data.reference_id || null,
+    createdBy: data.createdBy ?? data.created_by ?? null,
+    branchId: data.branchId ?? data.branch_id ?? null,
+    notes: data.notes || "",
+    lines,
+  });
 };
 
 const normalizeReturnedOrderItems = (order = {}, rawItems = []) => {
@@ -2071,7 +2135,17 @@ const bulkInsertOrderItems = async (client, { tenantId, orderId, items = [], sto
   return result.rows;
 };
 
-const bulkApplyInventoryChanges = async (client, { tenantId, orderId, items = [], stockByLineKey, branchId, createdBy }) => {
+const bulkApplyInventoryChanges = async (client, {
+  tenantId,
+  orderId,
+  items = [],
+  stockByLineKey,
+  branchId,
+  createdBy,
+  customerId = null,
+  movementType = "SALE_OUT",
+  reason = "POS sale",
+}) => {
   const numericTenantId = tenantId == null ? null : Number(tenantId);
   if (!Number.isFinite(numericTenantId) || numericTenantId <= 0) {
     throw Object.assign(new Error("Tenant context missing"), { status: 400, code: "TENANT_CONTEXT_MISSING" });
@@ -2145,8 +2219,9 @@ const bulkApplyInventoryChanges = async (client, { tenantId, orderId, items = []
       numericTenantId,
       line.productId == null ? null : Number(line.productId),
       line.variantId == null ? null : Number(line.variantId),
+      customerId == null || customerId === "" ? null : Number(customerId),
       numericBranchId,
-      "sale",
+      movementType,
       quantityChange,
       Number(line.quantityBefore || 0),
       Number(line.quantityAfter || 0),
@@ -2154,25 +2229,56 @@ const bulkApplyInventoryChanges = async (client, { tenantId, orderId, items = []
       Number(line.costPrice || 0) * Math.abs(quantityChange),
       "order",
       numericOrderId,
-      "POS sale",
-      `Sale from order ${numericOrderId}`,
+      reason,
+      `${reason} from order ${numericOrderId}`,
+      `${reason} from order ${numericOrderId}`,
       numericCreatedBy
     );
-    return `($${base + 1}::bigint,$${base + 2}::bigint,$${base + 3}::bigint,$${base + 4}::bigint,$${base + 5}::text,$${base + 6}::numeric,$${base + 7}::numeric,$${base + 8}::numeric,$${base + 9}::numeric,$${base + 10}::numeric,$${base + 11}::text,$${base + 12}::bigint,$${base + 13}::text,$${base + 14}::text,$${base + 14}::text,$${base + 15}::bigint)`;
+    return `($${base + 1}::bigint,$${base + 2}::bigint,$${base + 3}::bigint,$${base + 4}::bigint,$${base + 5}::bigint,$${base + 6}::text,$${base + 7}::numeric,$${base + 8}::numeric,$${base + 9}::numeric,$${base + 10}::numeric,$${base + 11}::numeric,$${base + 12}::text,$${base + 13}::bigint,$${base + 14}::text,$${base + 15}::text,$${base + 16}::text,$${base + 17}::bigint)`;
+  });
+
+  console.log({
+    columns: [
+      "tenant_id",
+      "product_id",
+      "variant_id",
+      "customer_id",
+      "branch_id",
+      "movement_type",
+      "quantity",
+      "before_qty",
+      "after_qty",
+      "quantity_before",
+      "quantity_change",
+      "quantity_after",
+      "unit_cost",
+      "total_cost",
+      "reference_type",
+      "reference_id",
+      "reason",
+      "notes",
+      "note",
+      "created_by",
+    ],
+    placeholders: movementPlaceholders,
+    params: movementValues,
+    columnsCount: 20,
+    placeholdersCount: movementPlaceholders.length,
+    paramsLength: movementValues.length,
   });
 
   await client.query(
     `
     INSERT INTO inventory_movements (
-      tenant_id, product_id, variant_id, branch_id, movement_type, quantity,
+      tenant_id, product_id, variant_id, customer_id, branch_id, movement_type, quantity,
       before_qty, after_qty, quantity_before, quantity_change, quantity_after,
       unit_cost, total_cost, reference_type, reference_id, reason, notes, note, created_by
     )
-    SELECT tenant_id::bigint, product_id::bigint, variant_id::bigint, branch_id::bigint, movement_type, quantity,
+    SELECT tenant_id::bigint, product_id::bigint, variant_id::bigint, customer_id::bigint, branch_id::bigint, movement_type, quantity,
       before_qty, after_qty, before_qty, quantity, after_qty,
       unit_cost, total_cost, reference_type, reference_id::bigint, reason, notes, note, created_by::bigint
     FROM (VALUES ${movementPlaceholders.join(",")})
-      AS t(tenant_id, product_id, variant_id, branch_id, movement_type, quantity,
+      AS t(tenant_id, product_id, variant_id, customer_id, branch_id, movement_type, quantity,
         before_qty, after_qty, unit_cost, total_cost, reference_type, reference_id, reason, notes, note, created_by)
     `,
     movementValues
@@ -2208,6 +2314,10 @@ const runPostOrderSideEffects = async ({
   computedSubtotal = 0,
   notes,
   req,
+  isPersonalTransaction = false,
+  resolvedPersonalSettlementType = null,
+  resolvedPersonalNote = "",
+  resolvedCustomerName = "",
 }) => {
   const sideEffects = [
     async () => {
@@ -2256,6 +2366,28 @@ const runPostOrderSideEffects = async ({
       });
     },
     async () => {
+      if (isPersonalTransaction) {
+        const personalAmount = resolvedPersonalSettlementType === "EMPLOYEE_ADVANCE"
+          ? Number(computedTotal || 0)
+          : Number(cogsTotal || computedTotal || 0);
+        await postPersonalOrderEntry(db, {
+          tenantId,
+          referenceType: "order",
+          referenceId: orderId,
+          entryNumber: `PERSONAL-${orderId}`,
+          description: `POS personal transaction #${orderId}`,
+          amount: personalAmount,
+          settlementType: resolvedPersonalSettlementType,
+          notes: [
+            buildPersonalTransactionLabel(resolvedPersonalSettlementType),
+            resolvedCustomerName || "",
+            resolvedPersonalNote || "",
+          ].filter(Boolean).join(" | "),
+          createdBy: req.user?.id || null,
+          branchId: resolvedBranchId,
+        });
+        return;
+      }
       await postSaleEntry(db, {
         tenantId,
         referenceType: "order",
@@ -2269,6 +2401,7 @@ const runPostOrderSideEffects = async ({
       });
     },
     async () => {
+      if (isPersonalTransaction) return;
       await recordSalesCommissionForOrder(db, {
         tenantId,
         order,
@@ -2277,6 +2410,7 @@ const runPostOrderSideEffects = async ({
       });
     },
     async () => {
+      if (isPersonalTransaction) return;
       await recordEmployeeAnalytics(db, {
         tenantId,
         orderId,
@@ -2346,6 +2480,7 @@ const runPostOrderSideEffects = async ({
         });
     },
     async () => {
+      if (isPersonalTransaction) return;
       if (skipLoyaltyEarning) return;
       await processOrderLoyalty(db, {
         tenantId,
@@ -2423,6 +2558,8 @@ export const createOrder = async (req, res) => {
       customer_name,
       customer_id,
       payment_method,
+      personal_settlement_type = null,
+      personal_note = "",
       items,
       status,
       payment_status,
@@ -2536,6 +2673,36 @@ export const createOrder = async (req, res) => {
     }
 
     const resolvedCustomerName = String(customer_name || "").trim() || "Walk-in Customer";
+    const normalizedPaymentMethod = normalizeMoneyPaymentMethod(payment_method || "cash");
+    const isPersonalTransaction = normalizedPaymentMethod === "personal";
+    let resolvedPersonalSettlementType = normalizePersonalSettlementType(personal_settlement_type);
+    const resolvedPersonalNote = String(personal_note || "").trim();
+
+    if (isPersonalTransaction) {
+      if (!customer_id) {
+        return res.status(400).json({ success: false, message: "customer_id is required for PERSONAL transactions" });
+      }
+      const customerResult = await client.query(
+        `
+        SELECT id, allow_personal_transactions
+        FROM customers
+        WHERE id = $1
+          AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)
+        LIMIT 1
+        `,
+        [customer_id, tenantId]
+      );
+      const personalCustomer = customerResult.rows[0] || null;
+      if (!personalCustomer) {
+        return res.status(400).json({ success: false, message: "Selected customer was not found for PERSONAL transactions" });
+      }
+      if (!Boolean(personalCustomer.allow_personal_transactions)) {
+        return res.status(400).json({ success: false, message: "Selected customer is not allowed to use PERSONAL transactions" });
+      }
+      if (!resolvedPersonalSettlementType) {
+        return res.status(400).json({ success: false, message: "personal_settlement_type is required for PERSONAL transactions" });
+      }
+    }
 
     if (!items || itemsCount === 0) {
       return res.status(400).json({ success: false, message: "Order must have at least one item" });
@@ -2854,7 +3021,7 @@ export const createOrder = async (req, res) => {
         },
       });
     }
-    const normalizedSalePaymentMethod = normalizeMoneyPaymentMethod(payment_method || "cash");
+    const normalizedSalePaymentMethod = normalizedPaymentMethod;
     const companyWalletPaymentMethods = ["wallet", "vodafone_cash", "vodafone", "instapay", "insta_pay"];
     const customerWalletPaymentMethods = ["customer_wallet", "store_credit", "customer_credit", "credit_balance"];
     const requestedWalletPaymentAmount = Math.max(0, Number(wallet_payment_amount ?? 0) || 0);
@@ -2950,7 +3117,10 @@ export const createOrder = async (req, res) => {
         invoice_discount_type,
         invoice_discount_value,
         invoice_discount_amount,
-        invoice_discount_reason
+        invoice_discount_reason,
+        is_personal_transaction,
+        personal_settlement_type,
+        personal_note
       )
       VALUES (
         $1,
@@ -3006,7 +3176,10 @@ export const createOrder = async (req, res) => {
         $51,
         COALESCE($52::numeric, 0),
         COALESCE($53::numeric, 0),
-        $54
+        $54,
+        COALESCE($55::boolean, FALSE),
+        $56,
+        $57
       )
       RETURNING *
       `,
@@ -3065,6 +3238,9 @@ export const createOrder = async (req, res) => {
         normalizedInvoiceDiscountAmount > 0 ? invoiceDiscountValue : 0,
         normalizedInvoiceDiscountAmount,
         normalizedInvoiceDiscountAmount > 0 ? String(invoice_discount_reason || "").trim() : "",
+        Boolean(isPersonalTransaction),
+        isPersonalTransaction ? resolvedPersonalSettlementType : null,
+        isPersonalTransaction ? resolvedPersonalNote : null,
       ]
     ));
     if (POS_CHECKOUT_DEBUG) console.log("[orders][seller-debug] order save row seller fields", {
@@ -3139,38 +3315,46 @@ export const createOrder = async (req, res) => {
       order = exchangeOrderResult.rows[0] || order;
     }
     const submittedPaymentBreakdown = normalizeSubmittedPaymentBreakdown(payment_breakdown || payments);
-    const paymentBreakdown = submittedPaymentBreakdown.length ? submittedPaymentBreakdown : [
-      exchangeMode
-        ? {
-            method: "exchange_credit",
+    const paymentBreakdown = isPersonalTransaction
+      ? [{
+          method: "personal",
+          account_id: null,
+          amount: Number(receivedAmount || computedTotal || 0),
+          personal_settlement_type: resolvedPersonalSettlementType,
+          personal_note: resolvedPersonalNote || null,
+        }]
+      : (submittedPaymentBreakdown.length ? submittedPaymentBreakdown : [
+          exchangeMode
+            ? {
+                method: "exchange_credit",
+                account_id: null,
+                amount: exchangeAppliedCredit,
+                original_order_id: original_order_id || null,
+                invoice_number: exchange_invoice_number || "",
+              }
+            : null,
+          {
+            method: "cash",
+            account_id: cash_financial_account_id || financial_account_id || null,
+            amount: Number(cash_amount || 0) > 0 ? Number(cash_amount || 0) : normalizedSalePaymentMethod === "cash" ? Number(receivedAmount || 0) : 0,
+          },
+          {
+            method: "card",
+            account_id: card_financial_account_id || financial_account_id || null,
+            amount: Number(card_amount || 0) > 0 ? Number(card_amount || 0) : normalizedSalePaymentMethod === "card" ? Number(receivedAmount || 0) : 0,
+          },
+          {
+            method: "wallet",
+            account_id: wallet_financial_account_id || financial_account_id || null,
+            amount: companyWalletPaymentAmount,
+          },
+          {
+            method: "customer_wallet",
             account_id: null,
-            amount: exchangeAppliedCredit,
-            original_order_id: original_order_id || null,
-            invoice_number: exchange_invoice_number || "",
-          }
-        : null,
-      {
-        method: "cash",
-        account_id: cash_financial_account_id || financial_account_id || null,
-        amount: Number(cash_amount || 0) > 0 ? Number(cash_amount || 0) : normalizedSalePaymentMethod === "cash" ? Number(receivedAmount || 0) : 0,
-      },
-      {
-        method: "card",
-        account_id: card_financial_account_id || financial_account_id || null,
-        amount: Number(card_amount || 0) > 0 ? Number(card_amount || 0) : normalizedSalePaymentMethod === "card" ? Number(receivedAmount || 0) : 0,
-      },
-      {
-        method: "wallet",
-        account_id: wallet_financial_account_id || financial_account_id || null,
-        amount: companyWalletPaymentAmount,
-      },
-      {
-        method: "customer_wallet",
-        account_id: null,
-        amount: customerWalletRedemptionAmount,
-      },
-    ].filter((payment) => payment && Number(payment.amount || 0) > 0);
-    if (!paymentBreakdown.length && Number(receivedAmount || 0) > 0 && !customerWalletPaymentMethods.includes(normalizedSalePaymentMethod)) {
+            amount: customerWalletRedemptionAmount,
+          },
+        ].filter((payment) => payment && Number(payment.amount || 0) > 0));
+    if (!isPersonalTransaction && !paymentBreakdown.length && Number(receivedAmount || 0) > 0 && !customerWalletPaymentMethods.includes(normalizedSalePaymentMethod)) {
       paymentBreakdown.push({
         method: normalizedSalePaymentMethod,
         account_id: financial_account_id || null,
@@ -3257,6 +3441,12 @@ export const createOrder = async (req, res) => {
       })),
     });
     markOrderStep("reduce stock", { order_id: order.id, itemsCount });
+    const personalInventoryMovementType = isPersonalTransaction
+      ? `${resolvedPersonalSettlementType || "PERSONAL"}_OUT`
+      : "SALE_OUT";
+    const personalInventoryReason = isPersonalTransaction
+      ? buildPersonalTransactionLabel(resolvedPersonalSettlementType)
+      : "POS sale";
     await timedCheckout(checkoutTiming, "inventory_movement_ms", () => bulkApplyInventoryChanges(client, {
       tenantId,
       orderId: order.id,
@@ -3264,6 +3454,9 @@ export const createOrder = async (req, res) => {
       stockByLineKey,
       branchId: resolvedBranchId,
       createdBy: req.user?.id || null,
+      customerId: resolvedCustomerId || order.customer_id || null,
+      movementType: personalInventoryMovementType,
+      reason: personalInventoryReason,
     }));
 
     let couponRedemption = null;
@@ -3296,26 +3489,28 @@ export const createOrder = async (req, res) => {
       .filter((payment) => normalizeMoneyPaymentMethod(payment.method || payment.payment_method) === "cash")
       .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
 
-    markOrderStep("create payment transaction", { order_id: order.id, payment_method: payment_method || "cash", amount: receivedAmount });
-    await timedCheckout(checkoutTiming, "payment_treasury_update_ms", async () => {
-      await client.query(
-        `
-        INSERT INTO transactions (tenant_id, type, amount, payment_method, note, cashbox_id)
-        VALUES ($1,$2,$3,$4,$5,$6)
-        `,
-        [tenantId, "sale", receivedAmount, payment_method || "cash", `Order #${order.id}`, 1]
-      );
+    if (!isPersonalTransaction) {
+      markOrderStep("create payment transaction", { order_id: order.id, payment_method: payment_method || "cash", amount: receivedAmount });
+      await timedCheckout(checkoutTiming, "payment_treasury_update_ms", async () => {
+        await client.query(
+          `
+          INSERT INTO transactions (tenant_id, type, amount, payment_method, note, cashbox_id)
+          VALUES ($1,$2,$3,$4,$5,$6)
+          `,
+          [tenantId, "sale", receivedAmount, payment_method || "cash", `Order #${order.id}`, 1]
+        );
 
-      await client.query(
-        `
-      UPDATE cashbox
-        SET balance = balance + $1
-        WHERE id = 1
-          AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
-        `,
-        [cashDrawerSaleAmount, tenantId]
-      );
-    });
+        await client.query(
+          `
+        UPDATE cashbox
+          SET balance = balance + $1
+          WHERE id = 1
+            AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+          `,
+          [cashDrawerSaleAmount, tenantId]
+        );
+      });
+    }
 
     if (cashDrawerSaleAmount > 0) {
       await timedCheckout(checkoutTiming, "payment_treasury_update_ms", () => recordCashDrawerEvent(client, {
@@ -3333,7 +3528,7 @@ export const createOrder = async (req, res) => {
     const saleAccountEvents = paymentBreakdown
       .map((payment) => {
         const method = normalizeMoneyPaymentMethod(payment.method || payment.payment_method);
-        if (["customer_wallet", "exchange_credit", "return_credit"].includes(method)) return null;
+        if (["customer_wallet", "exchange_credit", "return_credit", "personal"].includes(method)) return null;
         const amount = Number(payment.amount || 0);
         if (!Number.isFinite(amount) || amount <= 0) return null;
         const explicitAccountId = payment.account_id || payment.financial_account_id || null;
@@ -3529,6 +3724,10 @@ export const createOrder = async (req, res) => {
       computedSubtotal,
       notes,
       req,
+      isPersonalTransaction,
+      resolvedPersonalSettlementType,
+      resolvedPersonalNote,
+      resolvedCustomerName,
     };
     void runPostOrderSideEffects(sideEffectContext).catch((sideEffectError) => {
       console.error("[pos] post-order side effects failed", {
@@ -4470,6 +4669,7 @@ const applyStockDelta = async (client, { tenantId, order, stockLine, delta, move
       createdBy: userId || null,
       branchId: order.branch_id || null,
       warehouseId: order.warehouse_id || null,
+      customerId: order.customer_id || null,
     });
     return;
   }
@@ -4486,6 +4686,7 @@ const applyStockDelta = async (client, { tenantId, order, stockLine, delta, move
     createdBy: userId || null,
     branchId: order.branch_id || null,
     warehouseId: order.warehouse_id || null,
+    customerId: order.customer_id || null,
     item: stockLine.record || {},
   });
 };

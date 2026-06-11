@@ -233,6 +233,21 @@ export const derivePaymentSummary = ({
   vodafoneCashAmount = 0,
   customerWalletAmount = 0,
 }) => {
+  if (String(paymentMode || "").toLowerCase() === "personal") {
+    const totalAmount = Math.max(0, Number(total || 0));
+    return {
+      paidAmount: totalAmount,
+      changeAmount: 0,
+      dueAmount: 0,
+      paymentStatus: totalAmount > 0 ? "Paid" : "Pending",
+      walletAmount: 0,
+      vodafoneCashAmount: 0,
+      customerWalletAmount: 0,
+      cashAmount: 0,
+      cardAmount: 0,
+      remainingCashOrCard: 0,
+    };
+  }
   const rawPaidAmount =
     paymentMode === "split"
       ? Number(cashAmount || 0) + Number(cardAmount || 0) + Number(walletAmount || 0) + Number(vodafoneCashAmount || 0) + Number(customerWalletAmount || 0)

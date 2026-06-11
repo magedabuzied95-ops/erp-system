@@ -7,6 +7,8 @@ const DEFAULT_ACCOUNTS = [
   { code: "4000", name: "Sales Revenue", type: "revenue" },
   { code: "5000", name: "Cost Of Goods Sold", type: "expense" },
   { code: "2000", name: "Accounts Payable", type: "liability" },
+  { code: "2101", name: "Personal Advance Clearing", type: "liability" },
+  { code: "3300", name: "Owner Drawings", type: "equity" },
   { code: "5200", name: "Operating Expenses", type: "expense" },
   { code: "5100", name: "Purchase Expense", type: "expense" },
   { code: "4010", name: "Returns Inward", type: "revenue" },
@@ -325,8 +327,10 @@ const whereSql = (clauses) => (clauses.length ? `WHERE ${clauses.join(" AND ")}`
 const paidOrderClauses = (orderColumns) => {
   const statusExpr = orderColumns.has("status") ? "LOWER(COALESCE(o.status, ''))" : "''";
   const paymentStatusExpr = orderColumns.has("payment_status") ? "LOWER(COALESCE(o.payment_status, ''))" : "''";
+  const personalExpr = orderColumns.has("is_personal_transaction") ? "COALESCE(o.is_personal_transaction, FALSE)" : "FALSE";
   return [
     `${statusExpr} NOT IN ('cancelled', 'canceled', 'void', 'refunded', 'returned', 'draft', 'deleted')`,
+    `${personalExpr} = FALSE`,
     `(
       ${paymentStatusExpr} IN ('paid', 'completed', 'complete', 'partially_paid', 'partial')
       OR ${statusExpr} IN ('paid', 'completed', 'complete', 'delivered')

@@ -16,6 +16,7 @@ import {
   MessageCircle,
   Minus,
   Package,
+  BadgePercent,
   Percent,
   Plus,
   Printer,
@@ -173,9 +174,15 @@ const getLocalizedInvoiceSocialLinks = (store = {}) => {
   return getInvoiceSocialLinks(store).map((link) => ({ ...link, label: labelByKey[link.key] || link.label }));
 };
 
-const getLocalizedPaymentLabel = (mode, paymentSummary = {}) => {
+const getLocalizedPaymentLabel = (mode, paymentSummary = {}, personalSettlementType = "") => {
   const raw = String(mode || paymentSummary.method || paymentSummary.payment_method || "").toLowerCase();
   const legacyLabel = getPaymentLabel(mode, paymentSummary);
+  const personalKey = String(personalSettlementType || paymentSummary.personal_settlement_type || paymentSummary.personalSettlementType || "").trim().toUpperCase();
+  const personalLabels = {
+    GIFT: "عملية شخصية / هدية",
+    EMPLOYEE_ADVANCE: "عملية شخصية / سلفة موظف",
+    OWNER_USE: "عملية شخصية / استخدام شخصي",
+  };
   const labels = {
     cash: "CASH",
     card: "VISA",
@@ -187,6 +194,7 @@ const getLocalizedPaymentLabel = (mode, paymentSummary = {}) => {
     split: "SPLIT",
     transfer: receiptPrintLabel("transfer", "Transfer"),
     bank_transfer: receiptPrintLabel("transfer", "Transfer"),
+    personal: personalLabels[personalKey] || "عملية شخصية",
   };
   return labels[raw] || (raw ? raw : legacyLabel || receiptPrintLabel("cash", "Cash"));
 };
@@ -245,6 +253,7 @@ const getPaymentLabel = (mode, paymentSummary = {}) => {
     split: "متعدد",
     transfer: POS_ARABIC_TEXT.transfer,
     bank_transfer: POS_ARABIC_TEXT.transfer,
+    personal: "عملية شخصية",
   };
   return labels[raw] || (raw ? raw : "نقداً");
 };
@@ -300,6 +309,10 @@ function CartSidebar({
   setVodafoneCashAmount,
   customerWalletAmount = 0,
   setCustomerWalletAmount,
+  personalSettlementType = "",
+  setPersonalSettlementType,
+  personalNote = "",
+  setPersonalNote,
   loyaltyProfile,
   loyaltyValidation,
   loyaltyUnavailable = false,
@@ -372,6 +385,12 @@ function CartSidebar({
   const totalAmount = Math.max(0, Number(paymentDueAmount ?? Math.max(0, newOrderTotal - exchangeAppliedCredit)));
   const editActive = Boolean(isEditingOrder && editPaymentSummary);
   const hasSelectedCustomer = Boolean(selectedCustomerId || customer?.id || customer?.customer_id);
+  const canUsePersonalTransaction = Boolean(
+    hasSelectedCustomer &&
+    (customer?.allow_personal_transactions ?? customer?.allowPersonalTransactions ?? false)
+  );
+  const normalizedPaymentMode = String(paymentMode || "").toLowerCase();
+  const personalPaymentActive = normalizedPaymentMode === "personal";
   const showReturnCreditControl = !editActive && (hasSelectedCustomer || exchangeActive);
   const editRefundOrCreditDue = Math.max(0, Number(editPaymentSummary?.refundOrCreditDue || 0));
   const editRefundSelectionMissing = editActive && editRefundOrCreditDue > 0.009 && !String(editRefundMethod || "").trim();
@@ -385,15 +404,17 @@ function CartSidebar({
     vodafone_cash: Math.max(0, Number(vodafoneCashAmount || 0)),
   };
   const methodTotal = methodAmounts.cash + methodAmounts.card + methodAmounts.wallet + methodAmounts.vodafone_cash;
-  const totalPaid = appliedCredit + methodTotal;
-  const remainingAmount = Math.max(0, totalAmount - totalPaid);
+  const personalSettlementTypeValue = String(personalSettlementType || "").trim().toUpperCase();
+  const totalPaid = personalPaymentActive ? totalAmount : appliedCredit + methodTotal;
+  const remainingAmount = personalPaymentActive ? 0 : Math.max(0, totalAmount - totalPaid);
   const hasPaymentBreakdown = appliedCredit > 0 || methodTotal > 0;
-  const paymentMismatch = Math.abs(totalAmount - totalPaid) > 0.009;
-  const normalizedPaymentMode = String(paymentMode || "").toLowerCase();
+  const paymentMismatch = personalPaymentActive ? false : Math.abs(totalAmount - totalPaid) > 0.009;
   const selectedMethod = normalizedPaymentMode === "split"
     ? (["cash", "card", "wallet", "vodafone_cash"].includes(activeSplitMethod) ? activeSplitMethod : "cash")
     : normalizedPaymentMode === "instapay"
       ? "wallet"
+      : normalizedPaymentMode === "personal"
+        ? "personal"
       : ["cash", "card", "wallet", "vodafone_cash"].includes(normalizedPaymentMode)
         ? normalizedPaymentMode
         : "cash";
@@ -402,6 +423,9 @@ function CartSidebar({
     { key: "card", label: "VISA", fullLabel: "VISA", tone: "blue", icon: <CreditCard className="h-4 w-4" />, setter: setCardAmount },
     { key: "wallet", paymentMode: "instapay", label: "INSTAPAY", fullLabel: "INSTAPAY", tone: "purple", icon: <Wallet className="h-4 w-4" />, setter: setWalletAmount },
     { key: "vodafone_cash", label: "V.CASH", fullLabel: "V.CASH", tone: "red", icon: <Smartphone className="h-4 w-4" />, setter: setVodafoneCashAmount },
+    ...(canUsePersonalTransaction
+      ? [{ key: "personal", label: "PERSONAL", fullLabel: "PERSONAL", tone: "amber", icon: <BadgePercent className="h-4 w-4" /> }]
+      : []),
   ];
   const cartHasItems = cart.length > 0;
   const subtotalAmount = Math.max(0, Number(totals?.subtotal || 0));
@@ -409,9 +433,9 @@ function CartSidebar({
   const activeMethodCount = paymentMethods.filter((method) => methodAmounts[method.key] > 0.009).length;
   const activePaymentMethodCount = activeMethodCount + (appliedCredit > 0.009 ? 1 : 0);
   const walletPaymentUsed = methodAmounts.wallet > 0.009;
-  const showOrderSummary = appliedCredit > 0.009 || activeMethodCount > 1 || walletPaymentUsed || remainingAmount > 0.009 || paymentMismatch;
+  const showOrderSummary = personalPaymentActive || appliedCredit > 0.009 || activeMethodCount > 1 || walletPaymentUsed || remainingAmount > 0.009 || paymentMismatch;
   const hasAccountWarning = Number(paymentAccountStatus?.shortage_amount || 0) > 0 || paymentAccountStatus?.allow_negative_balance === true;
-  const shouldShowPaymentDetails = paymentDetailsOpen || activePaymentMethodCount > 1 || (hasPaymentBreakdown && remainingAmount > 0.009) || (hasPaymentBreakdown && paymentMismatch) || hasAccountWarning;
+  const shouldShowPaymentDetails = paymentDetailsOpen || personalPaymentActive || activePaymentMethodCount > 1 || (hasPaymentBreakdown && remainingAmount > 0.009) || (hasPaymentBreakdown && paymentMismatch) || hasAccountWarning;
   const clearMethod = (method) => {
     if (method === "cash") setCashAmount(0);
     if (method === "card") setCardAmount(0);
@@ -423,6 +447,8 @@ function CartSidebar({
     setCardAmount(0);
     setWalletAmount(0);
     setVodafoneCashAmount?.(0);
+    if (setPersonalSettlementType) setPersonalSettlementType("");
+    if (setPersonalNote) setPersonalNote("");
   };
   const setMethodAmount = (method, value, options = {}) => {
     const parsed = Math.max(0, Number(value || 0));
@@ -449,12 +475,22 @@ function CartSidebar({
       setPaymentMode?.(selected?.paymentMode || method);
       return;
     }
+    if (method === "personal") {
+      clearPaymentMethods();
+      setPaymentMode?.("personal");
+      return;
+    }
     const fillAmount = Math.max(0, totalAmount - appliedCredit - otherTotal);
     setMethodAmount(method, fillAmount);
     setPaymentMode?.(appliedCredit > 0 || otherTotal > 0 ? "split" : selected?.paymentMode || method);
   };
   const selectFullPayment = (method) => {
     setActiveSplitMethod?.(method);
+    if (method === "personal") {
+      clearPaymentMethods();
+      setPaymentMode?.("personal");
+      return;
+    }
     const fullAmount = Number(Math.max(0, totalAmount - appliedCredit).toFixed(2));
     setCashAmount(method === "cash" ? fullAmount : 0);
     setCardAmount(method === "card" ? fullAmount : 0);
@@ -816,7 +852,7 @@ function CartSidebar({
             </div>
             <div
               className="pos-payment-method-grid grid w-full min-w-0 gap-2"
-              style={{ gridTemplateColumns: "repeat(5, minmax(0, 1fr))" }}
+              style={{ gridTemplateColumns: `repeat(${paymentMethods.length + 1}, minmax(0, 1fr))` }}
             >
               {paymentMethods.map((method) => (
                 <ModeButton
@@ -836,6 +872,38 @@ function CartSidebar({
                 tone="gold"
               />
             </div>
+
+            {personalPaymentActive ? (
+              <div className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-400/10 p-3">
+                <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-100">عملية شخصية</div>
+                <div className="mb-3 rounded-xl border border-amber-200/20 bg-black/20 px-3 py-2 text-xs font-semibold text-amber-50/90">
+                  هذه العملية ستخصم من المخزون ولن تُعامل كتحصيل نقدي عادي.
+                </div>
+                <label className="block">
+                  <div className="mb-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">نوع العملية الشخصية</div>
+                  <select
+                    value={personalSettlementTypeValue}
+                    onChange={(event) => setPersonalSettlementType?.(event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/70 px-4 text-sm font-semibold text-white outline-none focus:border-amber-300/50"
+                  >
+                    <option value="">اختر النوع</option>
+                    <option value="GIFT">هدية / مصروف</option>
+                    <option value="EMPLOYEE_ADVANCE">سلفة موظف</option>
+                    <option value="OWNER_USE">استخدام شخصي للمالك</option>
+                  </select>
+                </label>
+                <label className="mt-3 block">
+                  <div className="mb-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">ملاحظة</div>
+                  <textarea
+                    rows={3}
+                    value={personalNote}
+                    onChange={(event) => setPersonalNote?.(event.target.value)}
+                    className="w-full resize-none rounded-2xl border border-white/10 bg-black/70 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-600 focus:border-amber-300/50"
+                    placeholder="اختياري"
+                  />
+                </label>
+              </div>
+            ) : null}
           </div>
 
           {shouldShowPaymentDetails ? (
@@ -850,6 +918,10 @@ function CartSidebar({
             {paymentMismatch ? (
               <div className="mt-2 rounded-lg border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-[10px] font-bold text-amber-100">
                 {posLabel("cart.paymentMismatch", "Payment total must equal the invoice total.")} {posLabel("cart.remainingAmount", "Remaining")}: {formatCurrency(remainingAmount)}
+              </div>
+            ) : personalPaymentActive ? (
+              <div className="mt-2 rounded-lg border border-amber-300/20 bg-amber-400/10 px-2 py-1.5 text-[10px] font-bold text-amber-100">
+                عملية شخصية{personalSettlementTypeValue ? ` • ${personalSettlementTypeValue}` : ""} - لا تؤثر على الكاش
               </div>
             ) : (
               <div className="mt-2 rounded-lg border border-emerald-300/15 bg-emerald-400/10 px-2 py-1.5 text-[10px] font-bold text-emerald-100">
@@ -872,8 +944,8 @@ function CartSidebar({
           <button
             type="button"
             onClick={onPaymobTerminal}
-            disabled={!canUsePaymobTerminal || paymobTerminalLoading}
-            title={canUsePaymobTerminal ? "Send payment request to Paymob terminal" : "Paymob terminal payment is not ready"}
+            disabled={!canUsePaymobTerminal || paymobTerminalLoading || personalPaymentActive}
+            title={personalPaymentActive ? "PERSONAL transactions cannot use Paymob terminal" : canUsePaymobTerminal ? "Send payment request to Paymob terminal" : "Paymob terminal payment is not ready"}
             className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Smartphone className="h-4 w-4" />
@@ -1258,7 +1330,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
     []
   );
   const premiumSeller = getSellerName(customer);
-  const premiumPayment = getLocalizedPaymentLabel(paymentMode, paymentSummary);
+  const premiumPayment = getLocalizedPaymentLabel(paymentMode, paymentSummary, personalSettlementTypeValue);
   const premiumSocialLinks = useMemo(() => getLocalizedInvoiceSocialLinks(premiumStore), [premiumStore]);
   const premiumDiscount = Number(totals.itemDiscountTotal || 0) + Number(totals.invoiceDiscount || 0) + Number(totals.loyaltyDiscount || 0) + Number(totals.couponDiscount || 0);
   const premiumService = Number(totals.serviceFee || 0);

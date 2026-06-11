@@ -73,6 +73,7 @@ const normalizeCustomerRow = (row = {}) => ({
   credit_balance: Number(row.credit_balance ?? row.wallet_balance ?? row.balance ?? 0),
   loyalty_points: Number(row.loyalty_points ?? 0),
   loyalty_tier: row.loyalty_tier ?? row.tier ?? "Bronze",
+  allow_personal_transactions: Boolean(row.allow_personal_transactions ?? row.allowPersonalTransactions ?? false),
   total_orders: Number(row.total_orders ?? row.orders_count ?? row.invoices_count ?? 0),
   orders_count: Number(row.orders_count ?? row.total_orders ?? row.invoices_count ?? 0),
   invoices_count: Number(row.invoices_count ?? row.orders_count ?? row.total_orders ?? 0),
@@ -133,6 +134,7 @@ const getCustomerColumns = async () => {
           `
         );
         const columns = result.rows.map((row) => row.column_name);
+        const columnInfo = Object.fromEntries(result.rows.map((row) => [row.column_name, row]));
         const schema = {
           columns,
           tenantIdColumn: columns.includes("tenant_id") ? "tenant_id" : null,
@@ -148,9 +150,11 @@ const getCustomerColumns = async () => {
           customerSourceColumn: columns.includes("customer_source") ? "customer_source" : null,
           leadSourceColumn: columns.includes("lead_source") ? "lead_source" : null,
           registrationSourceColumn: columns.includes("registration_source") ? "registration_source" : null,
+          registrationSourceHasDefault: Boolean(columnInfo.registration_source?.column_default),
           marketingSourceColumn: columns.includes("marketing_source") ? "marketing_source" : null,
           marketingPlatformColumn: columns.includes("marketing_platform") ? "marketing_platform" : null,
           attributionTypeColumn: columns.includes("attribution_type") ? "attribution_type" : null,
+          allowPersonalTransactionsColumn: columns.includes("allow_personal_transactions") ? "allow_personal_transactions" : null,
           walletBalanceColumn: columns.includes("wallet_balance") ? "wallet_balance" : null,
           loyaltyPointsColumn: columns.includes("loyalty_points") ? "loyalty_points" : null,
           statusColumn: columns.includes("status") ? "status" : null,
@@ -220,6 +224,7 @@ const buildSelectSql = (columns) => {
       ${marketingSourceExpr} AS marketing_source,
       ${marketingPlatformExpr} AS marketing_platform,
       ${attributionTypeExpr} AS attribution_type,
+      ${columns.allowPersonalTransactionsColumn ? `${columns.allowPersonalTransactionsColumn}` : "FALSE"} AS allow_personal_transactions,
       created_at,
       ${updatedAtExpr} AS updated_at
     FROM customers
@@ -302,6 +307,8 @@ const ensureCustomerSchema = async () => {
   }
   if (!columns.registrationSourceColumn) {
     missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS registration_source VARCHAR(80)`);
+  } else if (!columns.registrationSourceHasDefault) {
+    missingStatements.push(`ALTER TABLE customers ALTER COLUMN registration_source SET DEFAULT 'MANUAL'`);
   }
   if (!columns.marketingSourceColumn) {
     missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS marketing_source VARCHAR(80)`);
@@ -311,6 +318,9 @@ const ensureCustomerSchema = async () => {
   }
   if (!columns.attributionTypeColumn) {
     missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS attribution_type VARCHAR(80)`);
+  }
+  if (!columns.allowPersonalTransactionsColumn) {
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS allow_personal_transactions BOOLEAN NOT NULL DEFAULT FALSE`);
   }
 
   if (missingStatements.length > 0) {
@@ -1072,6 +1082,119 @@ const getCustomerWalletTransactions = async (customerId, tenantId, filters = {},
   return result.rows.map(normalizeWalletTransactionRow);
 };
 
+const PERSONAL_SETTLEMENT_LABELS = {
+  GIFT: "هدية / مصروف",
+  EMPLOYEE_ADVANCE: "سلفة موظف",
+  OWNER_USE: "استخدام شخصي للمالك",
+};
+
+const normalizePersonalSettlementType = (value = "") => {
+  const normalized = String(value || "").trim().toUpperCase();
+  return ["GIFT", "EMPLOYEE_ADVANCE", "OWNER_USE"].includes(normalized) ? normalized : "";
+};
+
+const getCustomerPersonalTransactions = async (customerId, tenantId, filters = {}, options = {}) => {
+  const hasOrders = await tableExists("orders");
+  if (!hasOrders) return [];
+
+  const hasTenantId = await columnExists("orders", "tenant_id");
+  const hasPersonalFlag = await columnExists("orders", "is_personal_transaction");
+  const hasSettlementType = await columnExists("orders", "personal_settlement_type");
+  const hasPersonalNote = await columnExists("orders", "personal_note");
+  const hasPaymentMethod = await columnExists("orders", "payment_method");
+  const hasItems = await tableExists("order_items");
+  const where = ["o.customer_id = $1"];
+  const params = [customerId];
+
+  const addParam = (value) => {
+    params.push(value);
+    return `$${params.length}`;
+  };
+
+  if (hasTenantId) {
+    params.push(tenantId);
+    where.push(`($${params.length}::bigint IS NULL OR o.tenant_id = $${params.length}::bigint)`);
+  }
+  if (hasPersonalFlag) {
+    where.push("COALESCE(o.is_personal_transaction, FALSE) = TRUE");
+  } else if (hasPaymentMethod) {
+    where.push("LOWER(COALESCE(o.payment_method, '')) = 'personal'");
+  }
+  if (filters.date_from) {
+    where.push(`o.created_at >= ${addParam(filters.date_from)}::timestamp`);
+  }
+  if (filters.date_to) {
+    where.push(`o.created_at < (${addParam(filters.date_to)}::date + INTERVAL '1 day')`);
+  }
+  if (filters.invoice_number) {
+    where.push(`LOWER(COALESCE(o.invoice_number, '')) LIKE ${addParam(`%${String(filters.invoice_number).toLowerCase()}%`)}`);
+  }
+  if (filters.transaction_type) {
+    const normalizedFilter = normalizePersonalSettlementType(filters.transaction_type);
+    if (normalizedFilter) {
+      if (hasSettlementType) {
+        where.push(`UPPER(COALESCE(o.personal_settlement_type, '')) = ${addParam(normalizedFilter)}`);
+      } else {
+        where.push("1 = 0");
+      }
+    }
+  }
+
+  const limitSql = options.limit ? `LIMIT ${Number(options.limit) || 50}` : "";
+  const result = await pool.query(
+    `
+    SELECT
+      o.id,
+      o.created_at,
+      COALESCE(o.invoice_number, CONCAT('ORD-', o.id::text)) AS invoice_number,
+      COALESCE(o.total_amount, o.total, 0) AS total_amount,
+      COALESCE(o.personal_settlement_type, '') AS personal_settlement_type,
+      COALESCE(o.personal_note, o.notes, '') AS personal_note,
+      STRING_AGG(
+        DISTINCT NULLIF(TRIM(CONCAT(COALESCE(oi.product_name, oi.variant_name, oi.sku, 'Item'), ' x', COALESCE(oi.quantity, 1))), ''),
+        ' | '
+        ORDER BY NULLIF(TRIM(CONCAT(COALESCE(oi.product_name, oi.variant_name, oi.sku, 'Item'), ' x', COALESCE(oi.quantity, 1))), '')
+      ) AS products_text
+    FROM orders o
+    ${hasItems ? "LEFT JOIN order_items oi ON oi.order_id = o.id" : ""}
+    WHERE ${where.join(" AND ")}
+    GROUP BY o.id
+    ORDER BY o.created_at DESC, o.id DESC
+    ${limitSql}
+    `,
+    params
+  );
+
+  return result.rows.map((row) => {
+    const settlementType = normalizePersonalSettlementType(row.personal_settlement_type);
+    const label = PERSONAL_SETTLEMENT_LABELS[settlementType] || "عملية شخصية";
+    const value = Number(row.total_amount || 0);
+    const effectAmount = settlementType === "EMPLOYEE_ADVANCE" ? value : 0;
+    return {
+      id: `personal-${row.id}`,
+      order_id: row.id,
+      reference_type: "personal_order",
+      reference_id: row.id,
+      invoice_number: row.invoice_number || `ORD-${row.id}`,
+      return_number: null,
+      transaction_type: settlementType ? `personal_${settlementType.toLowerCase()}` : "personal",
+      transaction_type_label: label,
+      personal_operation_type: settlementType,
+      personal_operation_type_label: label,
+      personal_value: value,
+      products: row.products_text || "",
+      amount: effectAmount,
+      before_balance: 0,
+      after_balance: 0,
+      created_by: null,
+      created_by_name: "",
+      created_at: row.created_at,
+      notes: row.personal_note || "",
+      description: row.personal_note || row.products_text || label,
+    };
+  });
+};
+
 const getStatementOpeningBalance = async (customerId, tenantId, dateFrom) => {
   await ensureWalletSchema(pool);
   if (!dateFrom) {
@@ -1134,12 +1257,30 @@ export const getCustomerStatement = async (req, res) => {
       return res.status(404).json({ success: false, message: "Customer not found" });
     }
 
-    const transactions = await getCustomerWalletTransactions(customerId, tenantId, req.query);
-    const chronological = [...transactions].reverse();
+    const [walletTransactions, personalTransactions] = await Promise.all([
+      getCustomerWalletTransactions(customerId, tenantId, req.query),
+      getCustomerPersonalTransactions(customerId, tenantId, req.query),
+    ]);
+    const chronological = [...walletTransactions, ...personalTransactions]
+      .filter(Boolean)
+      .sort((a, b) => {
+        const byDate = new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+        if (byDate) return byDate;
+        return Number(a.id || 0) - Number(b.id || 0);
+      });
     const openingBalance = await getStatementOpeningBalance(customerId, tenantId, req.query.date_from);
-    const finalBalance = chronological.length
-      ? Number(chronological[chronological.length - 1].after_balance || 0)
-      : Number(customer.wallet_balance ?? customer.balance ?? 0);
+    let runningBalance = Number(openingBalance || 0);
+    const statementRows = chronological.map((item) => {
+      const amount = Number(item.amount || 0);
+      const beforeBalance = runningBalance;
+      runningBalance = Number((runningBalance + amount).toFixed(2));
+      return {
+        ...item,
+        before_balance: beforeBalance,
+        after_balance: runningBalance,
+      };
+    });
+    const finalBalance = statementRows.length ? Number(statementRows[statementRows.length - 1].after_balance || 0) : Number(openingBalance || 0);
     const totals = chronological.reduce(
       (acc, item) => {
         const amount = Number(item.amount || 0);
@@ -1148,10 +1289,11 @@ export const getCustomerStatement = async (req, res) => {
         if (["loyalty_conversion", "manual_add"].includes(item.transaction_type)) acc.wallet_credits += Math.abs(amount);
         if (item.transaction_type === "order_payment") acc.wallet_payments += Math.abs(amount);
         if (["manual_add", "manual_deduct"].includes(item.transaction_type)) acc.manual_adjustments += amount;
+        if (String(item.transaction_type || "").startsWith("personal_")) acc.personal += Math.abs(Number(item.personal_value || amount || 0));
         acc.net += amount;
         return acc;
       },
-      { orders: 0, returns: 0, wallet_credits: 0, wallet_payments: 0, manual_adjustments: 0, net: 0 }
+      { orders: 0, returns: 0, wallet_credits: 0, wallet_payments: 0, manual_adjustments: 0, personal: 0, net: 0 }
     );
 
     return res.status(200).json({
@@ -1161,9 +1303,9 @@ export const getCustomerStatement = async (req, res) => {
         filters: req.query,
         opening_balance: openingBalance,
         final_balance: finalBalance,
-        current_balance: Number(customer.wallet_balance ?? customer.balance ?? finalBalance),
+        current_balance: Number(finalBalance),
         totals,
-        rows: chronological,
+        rows: statementRows,
       },
     });
   } catch (error) {
@@ -1479,6 +1621,8 @@ export const createCustomer = async (req, res) => {
       marketing_source,
       marketing_platform,
       attribution_type,
+      allow_personal_transactions,
+      allowPersonalTransactions,
     } = req.body || {};
 
     const cleanName = String(name || "").trim();
@@ -1486,9 +1630,11 @@ export const createCustomer = async (req, res) => {
     const cleanEmail = String(email || "").trim();
     const cleanAddress = String(address || "").trim();
     const cleanSource = String(customer_source || lead_source || registration_source || source || "").trim();
+    const cleanRegistrationSource = String(registration_source || "MANUAL").trim() || "MANUAL";
     const cleanMarketingSource = String(marketing_source || "").trim();
     const cleanMarketingPlatform = String(marketing_platform || "").trim();
     const cleanAttributionType = String(attribution_type || cleanSource || "").trim();
+    const allowPersonalTransactionsValue = Boolean(allow_personal_transactions ?? allowPersonalTransactions);
 
     if (!cleanName) {
       return res.status(400).json({ success: false, message: "Customer name is required" });
@@ -1579,7 +1725,7 @@ export const createCustomer = async (req, res) => {
 
     if (columns.registrationSourceColumn) {
       insertColumns.push(columns.registrationSourceColumn);
-      insertValues.push(cleanSource || null);
+      insertValues.push(cleanRegistrationSource);
       placeholders.push(`$${insertValues.length}`);
     }
 
@@ -1601,6 +1747,12 @@ export const createCustomer = async (req, res) => {
       placeholders.push(`$${insertValues.length}`);
     }
 
+    if (columns.allowPersonalTransactionsColumn) {
+      insertColumns.push(columns.allowPersonalTransactionsColumn);
+      insertValues.push(allowPersonalTransactionsValue);
+      placeholders.push(`$${insertValues.length}`);
+    }
+
     const insertSql = `
       INSERT INTO customers (${insertColumns.join(", ")})
       VALUES (${placeholders.join(", ")})
@@ -1614,7 +1766,7 @@ export const createCustomer = async (req, res) => {
     `;
     const created = await pool.query(createSelectSql, [customer.rows[0].id]);
 
-    return res.status(201).json({
+    return res.status(200).json({
       success: true,
       message: "Customer created successfully",
       data: normalizeCustomerRow(created.rows[0]),
@@ -1682,11 +1834,12 @@ export const updateCustomer = async (req, res) => {
     await ensureCustomerSchema();
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
     const { id } = req.params;
-    const { name, phone, email, address } = req.body || {};
+    const { name, phone, email, address, allow_personal_transactions, allowPersonalTransactions } = req.body || {};
     const columns = await getCustomerColumns();
     const selectSql = buildSelectSql(columns);
     const cleanName = String(name || "").trim();
     const cleanPhone = normalizePhoneValue(phone);
+    const allowPersonalTransactionsValue = Boolean(allow_personal_transactions ?? allowPersonalTransactions);
 
     if (!cleanName) {
       return res.status(400).json({ success: false, message: "Customer name is required" });
@@ -1707,6 +1860,11 @@ export const updateCustomer = async (req, res) => {
     if (columns.addressColumn) {
       params.push(String(address || "").trim() || null);
       setClauses.push(`${columns.addressColumn} = $${params.length}`);
+    }
+
+    if (columns.allowPersonalTransactionsColumn) {
+      params.push(allowPersonalTransactionsValue);
+      setClauses.push(`${columns.allowPersonalTransactionsColumn} = $${params.length}`);
     }
 
     if (columns.updatedAtColumn) {

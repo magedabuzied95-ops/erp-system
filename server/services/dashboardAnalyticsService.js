@@ -105,6 +105,8 @@ const tenantClause = (alias, tenantId, params) => {
   return ` AND ${alias}.tenant_id = $${params.length}`;
 };
 
+const personalOrderClause = (alias = "o") => ` AND COALESCE(${alias}.is_personal_transaction, FALSE) = FALSE`;
+
 const emptyRows = [];
 const LOW_STOCK_ALERT_MAX = 2;
 
@@ -198,6 +200,7 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
             ${ordersDate}
             ${ordersBranch}
             AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+            ${personalOrderClause("o")}
             ${ordersTenant}
           `,
           params,
@@ -216,6 +219,7 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
           WHERE o.created_at >= ${yesterdaySql}
             AND o.created_at < ${daySql}
             AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+            ${personalOrderClause("o")}
             ${yesterdayTenant}
           `,
           yesterdayParams,
@@ -355,6 +359,7 @@ export const calculateTodayProfit = async ({ tenantId = null, filters = {} } = {
             ${orderDate}
             ${orderBranch}
             AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+            ${personalOrderClause("o")}
             ${orderTenant}
           GROUP BY o.id${hasInvoiceDiscountAmount ? ", o.invoice_discount_amount" : ""}
         )
@@ -373,6 +378,7 @@ export const calculateTodayProfit = async ({ tenantId = null, filters = {} } = {
           ${orderDate}
           ${orderBranch}
           AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+          ${personalOrderClause("o")}
           ${orderTenant}
         `,
         orderParams,
@@ -414,6 +420,7 @@ export const getSalesTrend = async ({ tenantId = null, days = 14, filters = {} }
     FROM buckets b
     LEFT JOIN orders o ON o.created_at::date = b.day
       AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+      ${personalOrderClause("o")}
       ${ordersTenant.replace("AND o.", "AND o.")}
       ${ordersBranch}
     GROUP BY b.day
@@ -442,6 +449,7 @@ export const getHourlySales = async ({ tenantId = null, filters = {} } = {}) => 
       ${ordersDate}
       ${ordersBranch}
       AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+      ${personalOrderClause("o")}
       ${ordersTenant}
     GROUP BY hour
     ORDER BY hour
@@ -472,6 +480,7 @@ export const getTopProducts = async ({ tenantId = null, limit = 8, filters = {} 
       ${ordersDate}
       ${ordersBranch}
       AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+      ${personalOrderClause("o")}
       ${ordersTenant}
     GROUP BY COALESCE(NULLIF(oi.product_name, ''), p.name, 'Unknown product')
     ORDER BY quantity DESC, revenue DESC
@@ -678,6 +687,7 @@ export const getBranchPerformance = async ({ tenantId = null, filters = {} } = {
     WHERE 1=1
       ${ordersDate}
       AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+      ${personalOrderClause("o")}
       ${ordersTenant}
     GROUP BY COALESCE(b.name, 'Default branch')
     ORDER BY sales DESC
@@ -706,6 +716,7 @@ export const getPaymentAnalytics = async ({ tenantId = null, filters = {} } = {}
       ${ordersDate}
       ${ordersBranch}
       AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+      ${personalOrderClause("o")}
       ${ordersTenant}
     GROUP BY method
     ORDER BY amount DESC
@@ -735,6 +746,7 @@ export const getMarketingAnalytics = async ({ tenantId = null, filters = {} } = 
       ${ordersDate}
       ${ordersBranch}
       ${ordersTenant}
+      ${personalOrderClause("o")}
     GROUP BY source
     ORDER BY sales DESC
     `,
@@ -772,6 +784,7 @@ export const getPosLive = async ({ tenantId = null } = {}) => {
           SELECT o.id, o.invoice_number, o.created_at, COALESCE(o.total_amount, o.total, 0) AS total, o.payment_status
           FROM orders o
           WHERE 1=1 ${orderTenant}
+          ${personalOrderClause("o")}
           ORDER BY o.created_at DESC
           LIMIT 1
           `,
@@ -864,6 +877,7 @@ export const getRecentInvoices = async ({ tenantId = null, limit = 8 } = {}) => 
     SELECT o.id, o.invoice_number, o.customer_name, COALESCE(o.total_amount, o.total, 0) AS total, o.payment_status, o.created_at
     FROM orders o
     WHERE 1=1 ${ordersTenant}
+      ${personalOrderClause("o")}
     ORDER BY o.created_at DESC
     LIMIT $1
     `,

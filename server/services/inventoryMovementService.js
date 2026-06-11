@@ -37,6 +37,7 @@ const buildMovementPayload = (data = {}, { quantityBefore, quantityChange, quant
     tenant_id: data.tenantId ?? data.tenant_id ?? null,
     product_id: data.productId ?? data.product_id ?? null,
     variant_id: data.variantId ?? data.variant_id ?? null,
+    customer_id: data.customerId ?? data.customer_id ?? null,
     branch_id: data.branchId ?? data.branch_id ?? null,
     warehouse_id: data.warehouseId ?? data.warehouse_id ?? null,
     movement_type: normalizeMovementType(data.movementType ?? data.movement_type),
@@ -114,6 +115,7 @@ const runSchema = async (client) => {
       tenant_id BIGINT NULL,
       product_id BIGINT NULL,
       variant_id BIGINT NULL,
+      customer_id BIGINT NULL,
       branch_id BIGINT NULL,
       warehouse_id BIGINT NULL,
       section_id BIGINT NULL,
@@ -143,6 +145,7 @@ const runSchema = async (client) => {
   await client.query(`ALTER TABLE inventory_movements ALTER COLUMN tenant_id DROP NOT NULL`);
   await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS product_id BIGINT`);
   await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS variant_id BIGINT`);
+  await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS customer_id BIGINT`);
   await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS branch_id BIGINT`);
   await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS warehouse_id BIGINT`);
   await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS section_id BIGINT`);
@@ -203,6 +206,7 @@ const runSchema = async (client) => {
 
   await client.query(`CREATE INDEX IF NOT EXISTS idx_inventory_movements_product_id ON inventory_movements (product_id)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_inventory_movements_variant_id ON inventory_movements (variant_id)`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_inventory_movements_customer_id ON inventory_movements (customer_id)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_inventory_movements_branch_id ON inventory_movements (branch_id)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_inventory_movements_warehouse_id ON inventory_movements (warehouse_id)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_inventory_movements_section_id ON inventory_movements (section_id)`);

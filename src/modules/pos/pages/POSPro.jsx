@@ -109,7 +109,9 @@ const defaultState = {
   invoiceDiscountReason: "",
   invoiceDiscount: 0,
   serviceFee: 0,
-  quickCustomer: { name: "", phone: "", source_key: "" },
+  quickCustomer: { name: "", phone: "", source_key: "", allow_personal_transactions: false },
+  personalSettlementType: "",
+  personalNote: "",
 };
 
 const isBrowser = () => typeof window !== "undefined";
@@ -1316,6 +1318,8 @@ function POSPro() {
   const [closingCash, setClosingCash] = useState("");
   const [sellerOverrideAllowed, setSellerOverrideAllowed] = useState(false);
   const [quickCustomer, setQuickCustomer] = useState(defaultState.quickCustomer);
+  const [personalSettlementType, setPersonalSettlementType] = useState(defaultState.personalSettlementType);
+  const [personalNote, setPersonalNote] = useState(defaultState.personalNote);
   const [loyaltyProfile, setLoyaltyProfile] = useState(null);
   const [loyaltyValidation, setLoyaltyValidation] = useState(null);
   const [loyaltyUnavailable, setLoyaltyUnavailable] = useState(false);
@@ -1558,6 +1562,8 @@ function POSPro() {
       setWalletAmount(savedSession.walletAmount ?? defaultState.walletAmount);
       setVodafoneCashAmount(savedSession.vodafoneCashAmount ?? defaultState.vodafoneCashAmount);
       setCustomerWalletAmount(savedSession.customerWalletAmount ?? defaultState.customerWalletAmount);
+      setPersonalSettlementType(savedSession.personalSettlementType ?? defaultState.personalSettlementType);
+      setPersonalNote(savedSession.personalNote ?? defaultState.personalNote);
       setInvoiceDiscountType(normalizeInvoiceDiscountType(savedSession.invoiceDiscountType ?? defaultState.invoiceDiscountType));
       setInvoiceDiscountValue(savedSession.invoiceDiscountValue ?? savedSession.invoiceDiscount ?? defaultState.invoiceDiscountValue);
       setInvoiceDiscountReason(savedSession.invoiceDiscountReason ?? defaultState.invoiceDiscountReason);
@@ -1586,6 +1592,8 @@ function POSPro() {
         walletAmount,
         vodafoneCashAmount,
         customerWalletAmount,
+        personalSettlementType,
+        personalNote,
         invoiceDiscountType,
         invoiceDiscountValue,
         invoiceDiscountReason,
@@ -1611,6 +1619,8 @@ function POSPro() {
     walletAmount,
     vodafoneCashAmount,
     customerWalletAmount,
+    personalSettlementType,
+    personalNote,
     invoiceDiscountType,
     invoiceDiscountValue,
     invoiceDiscountReason,
@@ -2168,6 +2178,11 @@ function POSPro() {
     setSelectedCustomerId(customerId);
     setCustomerSearch(selected.name || selected.phone || "");
     setLoyaltyRedeemPoints(0);
+    if (!Boolean(selected.allow_personal_transactions ?? selected.allowPersonalTransactions ?? false)) {
+      setPaymentMode((current) => (String(current || "").toLowerCase() === "personal" ? "cash" : current));
+      setPersonalSettlementType("");
+      setPersonalNote("");
+    }
   }, []);
 
   const customerPhoneAutoSelectMatch = useMemo(() => {
@@ -2205,8 +2220,23 @@ function POSPro() {
     setLoyaltyValidation(null);
     setLoyaltyRedeemPoints(0);
     setCustomerWalletAmount(0);
-    setPaymentMode((current) => (current === "customer_wallet" ? "cash" : current));
+    setPaymentMode((current) => {
+      const normalized = String(current || "").toLowerCase();
+      if (normalized === "customer_wallet" || normalized === "personal") return "cash";
+      return current;
+    });
+    setPersonalSettlementType("");
+    setPersonalNote("");
   };
+
+  useEffect(() => {
+    if (String(paymentMode || "").toLowerCase() !== "personal") return;
+    if (!selectedCustomerId || !Boolean(customer?.allow_personal_transactions ?? customer?.allowPersonalTransactions ?? false)) {
+      setPaymentMode("cash");
+      setPersonalSettlementType("");
+      setPersonalNote("");
+    }
+  }, [customer?.allowPersonalTransactions, customer?.allow_personal_transactions, paymentMode, selectedCustomerId]);
 
   useEffect(() => {
     let active = true;
@@ -2696,6 +2726,7 @@ function POSPro() {
   );
 
   const paymobTerminalAmount = useMemo(() => {
+    if (paymentMode === "personal") return 0;
     if (paymentMode === "split") return Number(cardAmount || 0);
     if (paymentMode === "card") return Number(paymentSummary.paidAmount || amountDueNow || 0);
     return 0;
@@ -2703,11 +2734,13 @@ function POSPro() {
 
   const activePaymentAccountMethod = useMemo(() => {
     if (paymentMode === "customer_wallet") return "";
+    if (paymentMode === "personal") return "";
     if (paymentMode !== "split") return paymentMode;
     return activeSplitMethod;
   }, [activeSplitMethod, paymentMode]);
 
   const activePaymentAccountAmount = useMemo(() => {
+    if (paymentMode === "personal") return 0;
     if (paymentMode === "split") {
       if (activePaymentAccountMethod === "vodafone_cash") return Number(vodafoneCashAmount || 0);
       if (activePaymentAccountMethod === "wallet") return Number(walletAmount || 0);
@@ -2743,6 +2776,7 @@ function POSPro() {
       !invalidCartItemForCheckout &&
       (salesSettings.allow_sale_without_salesperson || Boolean(selectedSalespersonId)) &&
       paymobTerminalAmount > 0 &&
+      paymentMode !== "personal" &&
       !checkoutLoading &&
       !paymobTerminalLoading;
 
@@ -3775,7 +3809,7 @@ function POSPro() {
 
     if (quickCustomerExistingMatch) {
       handleSelectCustomer(quickCustomerExistingMatch);
-      setQuickCustomer({ name: "", phone: "", source_key: "" });
+      setQuickCustomer(defaultState.quickCustomer);
       toast.success(t("pos.toasts.customerSelected", "Customer selected"));
       return true;
     }
@@ -3797,6 +3831,7 @@ function POSPro() {
         marketing_source: customerSource.marketing_source || quickCustomer.source_key,
         marketing_platform: customerSource.marketing_platform || "",
         attribution_type: customerSource.attribution_type || quickCustomer.source_key,
+        allow_personal_transactions: Boolean(quickCustomer.allow_personal_transactions),
       });
 
       const payload = result?.data ?? result;
@@ -3829,7 +3864,7 @@ function POSPro() {
       });
       setSelectedCustomerId(createdCustomerId);
 
-      setQuickCustomer({ name: "", phone: "", source_key: "" });
+      setQuickCustomer(defaultState.quickCustomer);
       toast.success(t("pos.toasts.customerCreated"));
       return true;
     } catch (err) {
@@ -4073,11 +4108,27 @@ function POSPro() {
       return null;
     }
 
+    const normalizedPaymentMode = String(paymentMode || "").toLowerCase();
+    const isPersonalTransaction = normalizedPaymentMode === "personal";
     const requestedCustomerWalletAmount = paymentMode === "customer_wallet"
       ? Number(paymentSummary.paidAmount || customerWalletAmount || 0)
       : paymentMode === "split"
         ? Number(customerWalletAmount || 0)
         : 0;
+    if (isPersonalTransaction) {
+      if (!customer || !customer.id) {
+        toast.error("اختر عميلًا أولًا قبل العملية الشخصية.");
+        return null;
+      }
+      if (!Boolean(customer.allow_personal_transactions ?? customer.allowPersonalTransactions ?? false)) {
+        toast.error("هذا العميل غير مسموح له بالعمليات الشخصية.");
+        return null;
+      }
+      if (!String(personalSettlementType || "").trim()) {
+        toast.error("اختر نوع العملية الشخصية قبل حفظ الفاتورة.");
+        return null;
+      }
+    }
     const availableCustomerWalletBalance = canUseCustomerCredit ? customerCreditBalance : 0;
     if (requestedCustomerWalletAmount > 0 && !canUseCustomerCredit) {
       toast.error("رصيد العميل متاح فقط عند اختيار عميل لديه رصيد موجب.");
@@ -4091,14 +4142,20 @@ function POSPro() {
       return null;
     }
 
-    const enteredPaymentTotal = Number(cashAmount || 0) + Number(cardAmount || 0) + Number(walletAmount || 0) + Number(vodafoneCashAmount || 0) + requestedCustomerWalletAmount;
+    const enteredPaymentTotal = isPersonalTransaction
+      ? Number(amountDueNow || cartTotals.total || 0)
+      : Number(cashAmount || 0) + Number(cardAmount || 0) + Number(walletAmount || 0) + Number(vodafoneCashAmount || 0) + requestedCustomerWalletAmount;
     const paymentTarget = Number(amountDueNow || 0);
     if (enteredPaymentTotal - paymentTarget > 0.009) {
       toast.error("Payment total cannot exceed amount due now");
       return null;
     }
-    if (!paymobTerminalCheckout && !paymobTerminalConfirmed && Math.abs(enteredPaymentTotal - paymentTarget) > 0.009) {
+    if (!isPersonalTransaction && !paymobTerminalCheckout && !paymobTerminalConfirmed && Math.abs(enteredPaymentTotal - paymentTarget) > 0.009) {
       toast.error(`Payment mismatch. Remaining: ${formatCurrency(Math.max(0, paymentTarget - enteredPaymentTotal))}`);
+      return null;
+    }
+    if (isPersonalTransaction && (paymobTerminalCheckout || paymobTerminalConfirmed)) {
+      toast.error("العملية الشخصية لا تدعم الدفع عبر التيرمنال.");
       return null;
     }
 
@@ -4186,6 +4243,7 @@ function POSPro() {
                   : "Pending",
           }
         : paymentSummary;
+      const personalPaymentAmount = isPersonalTransaction ? Number(amountDueNow || cartTotals.total || 0) : 0;
       const payloadCashAmount = paymobTerminalConfirmed
         ? 0
         : paymobTerminalCheckout
@@ -4231,21 +4289,28 @@ function POSPro() {
           : paymentMode === "split"
             ? Number(customerWalletAmount || 0)
             : 0;
-      const paymentBreakdown = [
-        exchangeState?.active && !editingOrder?.id
-          ? {
-              method: "exchange_credit",
-              amount: appliedExchangeCredit,
-              original_order_id: exchangeState?.originalOrderId || null,
-              invoice_number: exchangeState?.invoiceNumber || "",
-            }
-          : null,
-        { method: "cash", amount: payloadCashAmount },
-        { method: "card", amount: payloadCardAmount },
-        { method: "instapay", amount: payloadWalletAmount },
-        { method: "vodafone_cash", amount: payloadVodafoneCashAmount },
-        { method: "customer_wallet", amount: payloadCustomerWalletAmount },
-      ].filter((item) => item && Number(item.amount || 0) > 0);
+      const paymentBreakdown = isPersonalTransaction
+        ? [{
+            method: "personal",
+            amount: personalPaymentAmount,
+            personal_settlement_type: personalSettlementType,
+            personal_note: String(personalNote || "").trim() || null,
+          }]
+        : [
+            exchangeState?.active && !editingOrder?.id
+              ? {
+                  method: "exchange_credit",
+                  amount: appliedExchangeCredit,
+                  original_order_id: exchangeState?.originalOrderId || null,
+                  invoice_number: exchangeState?.invoiceNumber || "",
+                }
+              : null,
+            { method: "cash", amount: payloadCashAmount },
+            { method: "card", amount: payloadCardAmount },
+            { method: "instapay", amount: payloadWalletAmount },
+            { method: "vodafone_cash", amount: payloadVodafoneCashAmount },
+            { method: "customer_wallet", amount: payloadCustomerWalletAmount },
+          ].filter((item) => item && Number(item.amount || 0) > 0);
       const additionalPaymentBreakdown = editingOrder?.id
         ? paymentBreakdown.filter((item) => item.method !== "exchange_credit")
         : [];
@@ -4262,7 +4327,7 @@ function POSPro() {
         customer_name: invoiceCustomer.name,
         customer_id: customerId || null,
         customer_phone: customer?.phone || "",
-        payment_method: paymobTerminalConfirmed ? "card" : paymentMode,
+        payment_method: isPersonalTransaction ? "personal" : (paymobTerminalConfirmed ? "card" : paymentMode),
         payment_transaction_id: paymobTerminalConfirmed ? options?.paymobTerminalTransactionId || null : null,
         paymob_terminal_transaction_id: paymobTerminalConfirmed ? options?.paymobTerminalTransactionId || null : null,
         subtotal: cartTotals.subtotal,
@@ -4291,6 +4356,8 @@ function POSPro() {
         wallet_payment_amount: payloadWalletAmount + payloadVodafoneCashAmount,
         payment_breakdown: paymentBreakdown,
         payments: paymentBreakdown,
+        personal_settlement_type: isPersonalTransaction ? personalSettlementType : null,
+        personal_note: isPersonalTransaction ? String(personalNote || "").trim() || null : null,
         edit_order_id: editingOrder?.id || null,
         original_invoice_number: editingOrder?.id ? editingOrder.invoice_number || editingOrder.invoiceNumber || "" : "",
         original_paid_amount: editingOrder?.id ? originalEditPaidAmount : 0,
@@ -5752,6 +5819,16 @@ function POSPro() {
                     </label>
                   ) : null}
 
+                  <label className="flex items-center gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-50">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(quickCustomer.allow_personal_transactions)}
+                      onChange={(e) => setQuickCustomer((prev) => ({ ...prev, allow_personal_transactions: e.target.checked }))}
+                      className="h-4 w-4 rounded border-emerald-300/40 bg-slate-950 text-emerald-400 focus:ring-emerald-300/40"
+                    />
+                    <span>السماح بالعمليات الشخصية</span>
+                  </label>
+
                   <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:items-center sm:justify-end">
                     <button
                       type="button"
@@ -5968,6 +6045,10 @@ function POSPro() {
             setVodafoneCashAmount={setVodafoneCashAmount}
             customerWalletAmount={customerWalletAmount}
             setCustomerWalletAmount={setCustomerWalletAmount}
+            personalSettlementType={personalSettlementType}
+            setPersonalSettlementType={setPersonalSettlementType}
+            personalNote={personalNote}
+            setPersonalNote={setPersonalNote}
             loyaltyProfile={loyaltyProfile}
             loyaltyValidation={loyaltyValidation}
             loyaltyUnavailable={loyaltyUnavailable}
@@ -6106,6 +6187,10 @@ function POSPro() {
             setVodafoneCashAmount={setVodafoneCashAmount}
             customerWalletAmount={customerWalletAmount}
             setCustomerWalletAmount={setCustomerWalletAmount}
+            personalSettlementType={personalSettlementType}
+            setPersonalSettlementType={setPersonalSettlementType}
+            personalNote={personalNote}
+            setPersonalNote={setPersonalNote}
             loyaltyProfile={loyaltyProfile}
             loyaltyValidation={loyaltyValidation}
             loyaltyUnavailable={loyaltyUnavailable}

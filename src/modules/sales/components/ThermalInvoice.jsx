@@ -73,6 +73,10 @@ function ThermalInvoice({
 
   const finalTotal =
     total || 0;
+  const paymentMethodLabel =
+    String(paymentMethod || "").toLowerCase() === "personal"
+      ? "عملية شخصية"
+      : paymentMethod;
 
   return (
 
@@ -244,7 +248,7 @@ function ThermalInvoice({
 
           <span>
 
-            {paymentMethod}
+            {paymentMethodLabel}
 
           </span>
 

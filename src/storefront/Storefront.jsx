@@ -4712,11 +4712,8 @@ function HomeBrandsSection() {
   const isSingleBrand = brandCount === 1;
   const isDualBrand = brandCount === 2;
   const sectionClassName = isSingleBrand
-    ? "mx-auto mt-8 max-w-4xl px-4 py-3 md:mb-8 md:py-6"
+    ? "mx-auto mt-8 max-w-3xl px-4 py-8 md:mb-8 md:py-8"
     : "mx-auto mt-8 max-w-7xl px-4 py-3 md:mb-8 md:py-6";
-  const cardShellClassName = isSingleBrand
-    ? "rounded-[2.15rem] border border-stone-200 bg-white px-4 py-5 shadow-[0_18px_54px_rgba(39,20,75,0.07)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(7,11,22,0.98),rgba(7,11,22,0.92))] dark:shadow-[0_24px_80px_rgba(0,0,0,0.28)] md:px-5 md:py-6"
-    : "rounded-[2.15rem] border border-stone-200 bg-white px-4 py-5 shadow-[0_18px_54px_rgba(39,20,75,0.07)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(7,11,22,0.98),rgba(7,11,22,0.92))] dark:shadow-[0_24px_80px_rgba(0,0,0,0.28)] md:px-5 md:py-6";
   const gridClassName = isDualBrand
     ? "mx-auto grid max-w-5xl grid-cols-2 gap-5 md:gap-6"
     : "grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5";
@@ -4725,79 +4722,44 @@ function HomeBrandsSection() {
     : "flex h-28 items-center justify-center rounded-2xl border border-stone-200 bg-white px-6 py-4 shadow-[0_10px_24px_rgba(39,20,75,0.05)] transition duration-200 group-hover:-translate-y-0.5 group-hover:border-[#a78bfa]/40 group-hover:shadow-[0_16px_36px_rgba(124,58,237,0.08)] md:h-32 dark:border-white/10 dark:bg-white/[0.04]";
   const logoClassName = isDualBrand
     ? "max-h-24 max-w-[210px] object-contain md:max-h-[140px] md:max-w-[240px]"
-    : "max-h-20 max-w-[150px] object-contain md:max-h-24 md:max-w-[190px]";
+    : "max-h-24 md:max-h-28 object-contain";
 
   if (!loading && !visibleBrands.length) return null;
   if (!visibleBrands.length) return null;
 
   return (
     <section className={sectionClassName} dir={normalizeLanguage(lang) === "ar" ? "rtl" : "ltr"}>
-      <div className={cardShellClassName}>
-        <div className={`mb-4 flex gap-3 ${isSingleBrand ? "items-center justify-center text-center" : "items-end justify-between"}`}>
-          <div className={`min-w-0 ${isSingleBrand ? "mx-auto" : ""}`}>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7c3aed] dark:text-[#d8b4fe]">{sfText("storefront.home.brandsEyebrow", "Shop by brand")}</p>
-            <h2 className="mt-1 text-2xl font-black tracking-normal text-stone-950 dark:text-white md:text-3xl">العلامات التجارية</h2>
-          </div>
+      <div className="rounded-[2.15rem] border border-stone-200 bg-white px-4 py-5 shadow-[0_18px_54px_rgba(39,20,75,0.07)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(7,11,22,0.98),rgba(7,11,22,0.92))] dark:shadow-[0_24px_80px_rgba(0,0,0,0.28)] md:px-5 md:py-6">
+        <div className="mb-4 text-center">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7c3aed] dark:text-[#d8b4fe]">{sfText("storefront.home.brandsEyebrow", "Shop by brand")}</p>
+          <h2 className="mt-1 text-2xl font-black tracking-normal text-stone-950 dark:text-white md:text-3xl">العلامات التجارية</h2>
         </div>
-        {isSingleBrand ? (
-          <div className="mx-auto flex w-full max-w-[520px] justify-center px-2 sm:px-0">
-            {visibleBrands.map((brand) => {
-              const brandHref = `/shop?brand=${encodeURIComponent(brand.id || brand.slug)}`;
-              const brandName = brand.name || "";
-              return (
-                <Link
-                  key={brand.id || brand.slug || brand.name}
-                  to={brandHref}
-                  aria-label={brand.name}
-                  className="group block w-full"
-                >
-                  <span className="flex h-60 flex-col items-center justify-center gap-4 rounded-3xl border border-stone-200 bg-white px-8 py-6 text-center shadow-[0_10px_24px_rgba(39,20,75,0.05)] transition duration-200 group-hover:-translate-y-0.5 group-hover:border-[#a78bfa]/40 group-hover:shadow-[0_16px_36px_rgba(124,58,237,0.08)] md:h-72 dark:border-white/10 dark:bg-white/[0.04]">
-                    <img
-                      src={resolveProductImageUrl(brand.logo_url)}
-                      alt={brandName}
-                      className="h-[200px] w-[200px] max-h-[220px] max-w-[220px] object-contain md:h-[220px] md:w-[220px]"
-                      loading="lazy"
-                      decoding="async"
-                      width="220"
-                      height="220"
-                    />
-                    <div className="text-2xl font-black tracking-tight text-stone-950 dark:text-white md:text-3xl">{brandName}</div>
-                    <div className="inline-flex rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-[11px] font-black text-stone-700 dark:border-white/10 dark:bg-white/[0.05] dark:text-stone-200">
-                      تسوق منتجات هذه العلامة
-                    </div>
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        ) : (
-          <div className={gridClassName}>
-            {visibleBrands.map((brand) => {
-              const brandHref = `/shop?brand=${encodeURIComponent(brand.id || brand.slug)}`;
-              const brandName = brand.name || "";
-              return (
-                <Link
-                  key={brand.id || brand.slug || brand.name}
-                  to={brandHref}
-                  aria-label={brand.name}
-                  className="group min-w-0"
-                >
-                  <span className={cardClassName}>
-                    <img
-                      src={resolveProductImageUrl(brand.logo_url)}
-                      alt={brandName}
-                      className={logoClassName}
-                      loading="lazy"
-                      decoding="async"
-                      width="220"
-                      height="112"
-                    />
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        )}
+        <div className={isSingleBrand ? "mx-auto flex w-full max-w-[240px] justify-center" : gridClassName}>
+          {visibleBrands.map((brand) => {
+            const brandHref = `/shop?brand=${encodeURIComponent(brand.id || brand.slug)}`;
+            const brandName = brand.name || "";
+            return (
+              <Link
+                key={brand.id || brand.slug || brand.name}
+                to={brandHref}
+                aria-label={brand.name}
+                className="group min-w-0"
+              >
+                <span className={cardClassName}>
+                  <img
+                    src={resolveProductImageUrl(brand.logo_url)}
+                    alt={brandName}
+                    className={logoClassName}
+                    loading="lazy"
+                    decoding="async"
+                    width="220"
+                    height="112"
+                  />
+                </span>
+              </Link>
+            );
+          })}
+        </div>
       </div>
     </section>
   );

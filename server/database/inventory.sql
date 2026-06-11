@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS inventory_movements (
     tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     product_id BIGINT NULL REFERENCES products(id) ON DELETE SET NULL,
     variant_id BIGINT NULL REFERENCES product_variants(id) ON DELETE SET NULL,
+    customer_id BIGINT NULL,
     warehouse_id BIGINT NULL REFERENCES warehouses(id) ON DELETE SET NULL,
     branch_id BIGINT NULL REFERENCES branches(id) ON DELETE SET NULL,
     movement_type VARCHAR(50) NOT NULL,

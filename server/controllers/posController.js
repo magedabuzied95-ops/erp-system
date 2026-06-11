@@ -628,6 +628,9 @@ export const ensurePosUserShiftSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cashier_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS seller_name VARCHAR(255)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cashier_name VARCHAR(255)`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS is_personal_transaction BOOLEAN NOT NULL DEFAULT FALSE`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS personal_settlement_type VARCHAR(40)`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS personal_note TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS returns ADD COLUMN IF NOT EXISTS shift_id BIGINT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS returns ADD COLUMN IF NOT EXISTS cashier_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_pos_orders_shift_id ON orders (shift_id)`);
@@ -883,6 +886,7 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
       WHERE shift_id = $1
         AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
         AND LOWER(COALESCE(status, '')) NOT IN ('cancelled', 'canceled', 'void')
+        AND COALESCE(is_personal_transaction, FALSE) = FALSE
       `,
       [shiftId, tenantId]
     );
@@ -895,6 +899,7 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
       WHERE shift_id = $1
         AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
         AND LOWER(COALESCE(status, '')) NOT IN ('cancelled', 'canceled', 'void')
+        AND COALESCE(is_personal_transaction, FALSE) = FALSE
       GROUP BY COALESCE(NULLIF(payment_method, ''), 'unknown')
       ORDER BY total DESC
       `,
@@ -940,6 +945,7 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
       WHERE o.shift_id = $1
         AND ($2::bigint IS NULL OR o.tenant_id = $2::bigint)
         AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+        AND COALESCE(o.is_personal_transaction, FALSE) = FALSE
       GROUP BY COALESCE(NULLIF(oi.product_name, ''), p.name, 'Item')
       ORDER BY quantity DESC, total DESC
       LIMIT 10
@@ -994,6 +1000,7 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
     FROM orders
     WHERE shift_id = $1
       AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+      AND COALESCE(is_personal_transaction, FALSE) = FALSE
     ORDER BY created_at ASC, id ASC
     `,
     [shiftId, tenantId]
