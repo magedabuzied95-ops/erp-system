@@ -14,6 +14,7 @@ import {
   Clock3,
   CreditCard,
   Flame,
+  Globe,
   Handshake,
   EyeOff,
   Info as InfoIcon,
@@ -233,6 +234,7 @@ const channelBadgeLabel = (value = "") => {
   if (key.includes("web")) return "Web";
   return "All";
 };
+const fixedChannelOrder = ["whatsapp", "messenger", "instagram", "web"];
 const normalizeConversationChannel = (conversation = {}) => {
   const raw = clean(conversation?.channel || conversation?.source || conversation?.provider || conversation?.platform || "");
   const key = raw.toLowerCase();
@@ -501,17 +503,65 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
   );
 });
 
-function InboxChannelSidebar({ channels = [], activeChannel = "all", onSelectChannel }) {
+function InboxChannelSidebar({ channels = [], allUnread = 0, activeChannel = "all", onSelectChannel }) {
+  const channelIcon = (key, active = false) => {
+    const baseIconClass = "h-4.5 w-4.5";
+    if (key === "all") {
+      return <MessageSquareText className={baseIconClass} />;
+    }
+    if (key === "whatsapp") {
+      return (
+        <span className={`grid h-8 w-8 place-items-center rounded-full ${active ? "bg-emerald-400 text-emerald-950" : "bg-emerald-500/20 text-emerald-200"}`}>
+          <svg viewBox="0 0 24 24" className={baseIconClass} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M8.5 18.5 6 19l.5-2.4A8 8 0 1 1 8.5 18.5Z" />
+            <path d="M9.7 9.1c.2-.4.4-.4.6-.4h.5c.2 0 .4 0 .6.5l.4 1c.1.3.1.5 0 .7l-.5.8c.6 1.2 1.6 2.1 2.9 2.8l.8-.4c.2-.1.4-.1.7 0l1 .4c.5.2.5.4.5.6v.5c0 .2 0 .4-.4.6-.4.2-1 .4-1.5.3-2.8-.7-5.4-3.2-6.1-6-.1-.5.1-1.1.3-1.4Z" />
+          </svg>
+        </span>
+      );
+    }
+    if (key === "messenger") {
+      return (
+        <span className={`grid h-8 w-8 place-items-center rounded-full ${active ? "bg-sky-400 text-sky-950" : "bg-sky-500/20 text-sky-200"}`}>
+          <svg viewBox="0 0 24 24" className={baseIconClass} fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 4.5c-4.4 0-8 3.2-8 7.2 0 2.3 1.2 4.3 3.1 5.6V20l2.7-1.5c.7.2 1.4.3 2.2.3 4.4 0 8-3.2 8-7.1 0-4-3.6-7.2-8-7.2Z" />
+            <path d="m8.8 13.2 2.3-2.5 2 1.8 2.2-2.5-2.3 4-2-1.8-2.2 1Z" />
+          </svg>
+        </span>
+      );
+    }
+    if (key === "instagram") {
+      return (
+        <span className={`grid h-8 w-8 place-items-center rounded-[0.95rem] ${active ? "bg-[linear-gradient(135deg,#f9a8d4,#c084fc,#818cf8)] text-slate-950" : "bg-[linear-gradient(135deg,rgba(244,114,182,0.22),rgba(192,132,252,0.2),rgba(129,140,248,0.2))] text-pink-100"}`}>
+          <svg viewBox="0 0 24 24" className={baseIconClass} fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="5" y="5" width="14" height="14" rx="4" />
+            <circle cx="12" cy="12" r="3.25" />
+            <circle cx="16.6" cy="7.5" r="0.8" fill="currentColor" stroke="none" />
+          </svg>
+        </span>
+      );
+    }
+    return (
+      <span className={`grid h-8 w-8 place-items-center rounded-full ${active ? "bg-slate-200 text-slate-950" : "bg-white/10 text-slate-200"}`}>
+        <Globe className={baseIconClass} />
+      </span>
+    );
+  };
+
   return (
     <aside className="flex h-full w-[72px] shrink-0 flex-col items-center rounded-3xl border border-white/10 bg-white/[0.04] px-2 py-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
       <button
         type="button"
         onClick={() => onSelectChannel("all")}
-        className={`mb-2 grid h-12 w-12 place-items-center rounded-2xl border text-center text-[10px] font-black leading-none transition ${
+        className={`relative mb-2 flex h-[58px] w-12 flex-col items-center justify-center rounded-2xl border text-center transition ${
           activeChannel === "all" ? "border-cyan-300/45 bg-cyan-300/12 text-cyan-100" : "border-white/10 bg-slate-950/60 text-white hover:border-white/20"
         }`}
       >
-        <span>All</span>
+        {Number(allUnread || 0) > 0 ? (
+          <span dir="ltr" className="absolute right-1 top-1 inline-flex min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black leading-4 text-white shadow-[0_8px_18px_rgba(244,63,94,0.35)]">
+            {allUnread}
+          </span>
+        ) : null}
+        {channelIcon("all", activeChannel === "all")}
       </button>
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
         {channels.map((channel) => (
@@ -520,12 +570,16 @@ function InboxChannelSidebar({ channels = [], activeChannel = "all", onSelectCha
             type="button"
             onClick={() => onSelectChannel(channel.key)}
             title={channelBadgeLabel(channel.key)}
-            className={`grid h-12 w-12 place-items-center rounded-2xl border px-1 text-center text-[9px] font-black leading-tight transition ${
+            className={`relative flex h-[58px] w-12 flex-col items-center justify-center rounded-2xl border px-1 text-center transition ${
               activeChannel === channel.key ? "border-cyan-300/45 bg-cyan-300/12 text-cyan-100" : "border-white/10 bg-slate-950/60 text-white hover:border-white/20"
             }`}
           >
-            <span className="max-w-full break-words">{channelBadgeLabel(channel.key)}</span>
-            {Number(channel.unread || 0) > 0 ? <span dir="ltr" className="mt-0.5 text-[9px] font-black text-rose-100">{channel.unread}</span> : null}
+            {Number(channel.unread || 0) > 0 ? (
+              <span dir="ltr" className="absolute right-1 top-1 inline-flex min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black leading-4 text-white shadow-[0_8px_18px_rgba(244,63,94,0.35)]">
+                {channel.unread}
+              </span>
+            ) : null}
+            {channelIcon(channel.key, activeChannel === channel.key)}
           </button>
         ))}
       </div>
@@ -2248,6 +2302,17 @@ export default function AiInbox() {
       channels: [...buckets.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
     };
   }, [conversations]);
+  const fixedChannelSummaries = useMemo(() => {
+    const byKey = new Map(channelSummaries.channels.map((item) => [item.key, item]));
+
+    return fixedChannelOrder.map((key) => ({
+      key,
+      label: channelBadgeLabel(key),
+      count: Number(byKey.get(key)?.count || 0),
+      unread: Number(byKey.get(key)?.unread || 0),
+      tone: byKey.get(key)?.tone || "zinc",
+    }));
+  }, [channelSummaries.channels]);
   const realMetaCount = conversations.filter((item) => item.is_live_meta || isMetaChannel(item.channel || item.source)).length;
   const selectedConversation = useMemo(
     () => conversations.find((item) => item.session_id === selectedSessionId) ||
@@ -2955,7 +3020,8 @@ export default function AiInbox() {
         <section className="flex min-h-0 flex-1 gap-2 overflow-hidden">
           <div className="hidden xl:block w-[72px] shrink-0">
             <InboxChannelSidebar
-              channels={channelSummaries.channels}
+              channels={fixedChannelSummaries}
+              allUnread={channelSummaries.all.unread}
               activeChannel={channelFilter}
               onSelectChannel={(value) => {
                 setChannelFilter(value);
