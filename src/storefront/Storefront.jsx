@@ -4856,7 +4856,27 @@ function HomeBrandsSection() {
       ? "max-w-full max-h-full object-contain"
       : "max-h-24 md:max-h-28 object-contain";
 
-  if (!loading && !visibleBrands.length) return null;
+  if (loading && !visibleBrands.length) {
+    return (
+      <section className={sectionClassName} dir={normalizeLanguage(lang) === "ar" ? "rtl" : "ltr"}>
+        <div className="rounded-[2.15rem] border border-stone-200 bg-white px-4 py-5 shadow-[0_18px_54px_rgba(39,20,75,0.07)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(7,11,22,0.98),rgba(7,11,22,0.92))] dark:shadow-[0_24px_80px_rgba(0,0,0,0.28)] md:px-5 md:py-6">
+          <div className="mb-4 text-center">
+            <div className="mx-auto sf-skeleton-shimmer h-3 w-28 rounded-full bg-stone-200/80 dark:bg-white/[0.08]" />
+            <div className="mx-auto mt-3 sf-skeleton-shimmer h-8 w-44 rounded-[1rem] bg-stone-200/80 dark:bg-white/[0.08]" />
+          </div>
+          <div className={isSingleBrand ? "mx-auto flex max-w-[260px] justify-center" : gridClassName}>
+            {Array.from({ length: isSingleBrand ? 1 : isDualBrand ? 2 : 5 }).map((_, index) => (
+              <div
+                key={index}
+                className={`sf-skeleton-shimmer ${isSingleBrand ? "h-28 w-full rounded-[1.5rem]" : isDualBrand ? "h-36 rounded-3xl md:h-44" : "h-28 rounded-2xl md:h-32"} bg-stone-200/80 dark:bg-white/[0.08]`}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   if (!visibleBrands.length) return null;
 
   return (

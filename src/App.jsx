@@ -2,14 +2,19 @@ import {
   lazy,
   Suspense,
   useEffect,
+  useRef,
+  useState,
 } from "react";
 
 import {
   Routes,
   Route,
-  Navigate
+  Navigate,
+  useLocation,
 } from "react-router-dom";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { ShoppingCart } from "lucide-react";
 
 /* ======================================================
    LAYOUT
@@ -217,22 +222,71 @@ const AiAgentAnalytics = lazy(() => import("./modules/aiSupport/pages/AiAgentAna
 
 function RouteSkeleton() {
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[var(--bg)] p-4 text-[var(--text)] dark:bg-[#050816] dark:text-white md:p-6">
-      <div className="w-full max-w-none space-y-5">
-        <div className="h-8 w-56 animate-pulse rounded-lg bg-[var(--surface-muted,#e5e7eb)] dark:bg-white/[0.06]" />
+    <div className="min-h-[calc(100vh-4rem)] bg-[linear-gradient(180deg,rgba(248,250,252,0.96),rgba(241,245,249,0.92))] p-4 text-[var(--text)] md:p-6 dark:bg-[#050816] dark:text-white">
+      <div className="mx-auto w-full max-w-7xl space-y-5">
+        <div className="sf-skeleton-shimmer h-10 w-60 rounded-2xl bg-white/80 dark:bg-white/[0.06]" />
         <div className="grid gap-3 md:grid-cols-4">
           {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="h-24 animate-pulse rounded-xl bg-[var(--surface-muted,#e5e7eb)] dark:bg-white/[0.06]" />
+            <div key={index} className="sf-skeleton-shimmer h-24 rounded-2xl bg-white/80 dark:bg-white/[0.06]" />
           ))}
         </div>
-        <div className="h-[28rem] animate-pulse rounded-2xl bg-[var(--surface-muted,#e5e7eb)] dark:bg-white/[0.06]" />
+        <div className="sf-skeleton-shimmer h-[28rem] rounded-[1.75rem] bg-white/80 dark:bg-white/[0.06]" />
       </div>
     </div>
   );
 }
 
+function RouteTransitionLoader({ location }) {
+  const isFirstRenderRef = useRef(true);
+  const hideTimerRef = useRef(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
+      return undefined;
+    }
+    if (hideTimerRef.current) {
+      window.clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+    setVisible(true);
+    hideTimerRef.current = window.setTimeout(() => {
+      setVisible(false);
+      hideTimerRef.current = null;
+    }, 420);
+    return () => {
+      if (hideTimerRef.current) {
+        window.clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
+    };
+  }, [location.key, location.pathname, location.search, location.hash]);
+
+  if (!visible || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="route-transition-loader fixed inset-0 z-[2147483000] flex items-center justify-center px-4 text-stone-950"
+      aria-hidden="true"
+    >
+      <div className="route-transition-loader__panel flex items-center gap-3 rounded-[1.5rem] border border-white/70 bg-white/92 px-4 py-3 shadow-[0_22px_60px_rgba(15,23,42,0.12)]">
+        <div className="route-transition-loader__mark grid h-14 w-14 place-items-center rounded-[1.25rem] bg-[linear-gradient(135deg,#111827,#334155)] text-white">
+          <ShoppingCart className="h-6 w-6" />
+        </div>
+        <div className="min-w-0 text-start">
+          <div className="text-xs font-black uppercase tracking-[0.22em] text-stone-500">M1 Store</div>
+          <div className="mt-1 text-sm font-black text-stone-900">جارٍ الانتقال...</div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function App() {
   useTranslation();
+  const location = useLocation();
   const isEmployeeAppRoute = typeof window !== "undefined" && window.location.pathname.startsWith("/employee-app/");
   const employeeAppToken = isEmployeeAppRoute ? window.location.pathname.split("/")[2] || "" : "";
 
@@ -270,6 +324,7 @@ function App() {
   return (
     <TenantProvider>
     <DebugErrorBoundary title="Application screen crashed">
+    <RouteTransitionLoader location={location} />
     <Suspense fallback={<RouteSkeleton />}>
     <Routes>
 

@@ -38,6 +38,49 @@ import { api } from "../../shared/api/api";
 import { applyProductSocialMeta } from "../../shared/lib/socialMeta";
 import { Heart, Share2, ShoppingCart } from "lucide-react";
 
+function StorefrontProductDetailSkeleton() {
+  return (
+    <section className="mx-auto grid max-w-7xl gap-4 px-3 pb-20 pt-3 md:px-4 md:pb-28 md:pt-5 lg:grid-cols-[minmax(0,55fr)_minmax(360px,45fr)]">
+      <div className="min-w-0">
+        <div className="sf-skeleton-shimmer h-[clamp(250px,42vh,340px)] w-full rounded-[24px] bg-white/80 shadow-[0_14px_40px_rgba(39,20,75,0.10)] md:h-[clamp(420px,58vh,540px)] md:rounded-[1.75rem] dark:bg-white/5" />
+        <div className="mt-3 flex gap-2">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="sf-skeleton-shimmer h-12 w-12 rounded-xl bg-white/80 dark:bg-white/5 md:h-20 md:w-20 md:rounded-2xl" />
+          ))}
+        </div>
+      </div>
+      <div className="space-y-4">
+        <div className="overflow-hidden rounded-[1rem] border border-white/[0.08] bg-[linear-gradient(180deg,#07111f_0%,#050b16_100%)] p-3.5 shadow-[0_24px_70px_rgba(0,0,0,0.35)] md:rounded-[1.45rem] md:p-6">
+          <div className="sf-skeleton-shimmer h-4 w-28 rounded-full bg-white/[0.08]" />
+          <div className="mt-3 sf-skeleton-shimmer h-10 w-4/5 rounded-[1rem] bg-white/[0.08] md:h-14" />
+          <div className="mt-3 sf-skeleton-shimmer h-5 w-1/3 rounded-full bg-white/[0.08]" />
+          <div className="mt-6 flex gap-2">
+            <div className="sf-skeleton-shimmer h-10 w-24 rounded-full bg-white/[0.08]" />
+            <div className="sf-skeleton-shimmer h-10 w-20 rounded-full bg-white/[0.08]" />
+          </div>
+        </div>
+        <div className="rounded-[1.1rem] border border-white/[0.08] bg-[#07111f] p-3 md:rounded-[1.45rem] md:p-4">
+          <div className="sf-skeleton-shimmer h-4 w-24 rounded-full bg-white/[0.08]" />
+          <div className="mt-3 flex gap-2">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="sf-skeleton-shimmer h-9 w-20 rounded-full bg-white/[0.08]" />
+            ))}
+          </div>
+        </div>
+        <div className="rounded-[1.1rem] border border-white/[0.08] bg-[#07111f] p-3 md:rounded-[1.45rem] md:p-4">
+          <div className="sf-skeleton-shimmer h-4 w-24 rounded-full bg-white/[0.08]" />
+          <div className="mt-3 flex flex-wrap gap-2">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <div key={index} className="sf-skeleton-shimmer h-8 w-14 rounded-full bg-white/[0.08]" />
+            ))}
+          </div>
+        </div>
+        <div className="sf-skeleton-shimmer h-12 rounded-2xl bg-white/[0.08]" />
+      </div>
+    </section>
+  );
+}
+
 export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishlist, rememberProduct, recent, profile }) {
   const { identifier } = useParams();
   const navigate = useNavigate();
@@ -349,7 +392,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     }
   };
 
-  if (state.loading) return <section className="mx-auto max-w-7xl px-4 py-6"><ProductSkeleton count={2} /></section>;
+  if (state.loading) return <StorefrontProductDetailSkeleton />;
   if (!product) return <EmptyState title={sfText("storefront.products.notFoundTitle", "Product not found")} text={sfText("storefront.products.notFoundText", "Go back to products and try another choice")} />;
 
   return (

@@ -354,6 +354,59 @@
     }
   }
 
+  @keyframes sfShimmerSweep {
+    0% {
+      transform: translate3d(-130%, 0, 0);
+    }
+    100% {
+      transform: translate3d(130%, 0, 0);
+    }
+  }
+
+  .sf-skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  .sf-skeleton-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 0%, rgba(255, 255, 255, 0.46) 48%, transparent 84%);
+    animation: sfShimmerSweep 1.55s ease-in-out infinite;
+  }
+
+  .route-transition-loader {
+    padding-top: max(env(safe-area-inset-top), 0px);
+    padding-bottom: max(env(safe-area-inset-bottom), 0px);
+    background:
+      radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.78), rgba(248, 250, 252, 0.92) 40%, rgba(241, 245, 249, 0.86) 68%, rgba(255, 255, 255, 0.72)),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(248, 250, 252, 0.88));
+    backdrop-filter: blur(12px) saturate(1.04);
+    -webkit-backdrop-filter: blur(12px) saturate(1.04);
+  }
+
+  .route-transition-loader__panel {
+    box-shadow:
+      0 18px 45px rgba(15, 23, 42, 0.08),
+      0 0 0 1px rgba(255, 255, 255, 0.7) inset;
+  }
+
+  .route-transition-loader__mark {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+  }
+
+  .route-transition-loader__mark::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 0%, rgba(255, 255, 255, 0.26) 46%, transparent 82%);
+    animation: sfShimmerSweep 1.35s ease-in-out infinite;
+  }
+
   @keyframes sfMarqueeRtl {
     from {
       transform: translateX(0);
@@ -2133,6 +2186,11 @@
     .sf-reveal,
     .sf-last-piece-story,
     .sf-announcement-track {
+      animation: none !important;
+    }
+
+    .sf-skeleton-shimmer::after,
+    .route-transition-loader__mark::after {
       animation: none !important;
     }
   }
