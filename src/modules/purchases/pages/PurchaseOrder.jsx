@@ -77,6 +77,7 @@ const isPurchasePaymentAccountMatch = (account = {}, paymentMethod = "") => {
   if (method === "bank_transfer") return ["bank", "card_settlement"].includes(type);
   return true;
 };
+const getFinancialAccountId = (account = {}) => account?.id ?? account?.account_id ?? account?.financial_account_id ?? null;
 const paymentMethodLabel = (method, isArabic) => {
   const key = normalizePaymentMethodKey(method);
   const labels = isArabic
@@ -601,11 +602,12 @@ function PurchaseOrder() {
         setSupplierPaidAmount(paidAmount);
         const financialAccountRows = financialAccountsRes.status === "fulfilled" && Array.isArray(financialAccountsRes.value?.rows) ? financialAccountsRes.value.rows : [];
         const loadedFinancialAccountId =
+          loadedPurchase.financial_account_id ||
           loadedPurchase.payment_account_id ||
           loadedPurchase.metadata?.payment_account_id ||
           loadedPurchase.metadata?.financial_account_id ||
           "";
-        const loadedAccount = financialAccountRows.find((account) => String(account.id) === String(loadedFinancialAccountId)) || null;
+        const loadedAccount = financialAccountRows.find((account) => String(getFinancialAccountId(account)) === String(loadedFinancialAccountId)) || null;
         const loadedPaymentMethod = normalizePaymentMethodKey(loadedPurchase.payment_method || loadedPurchase.metadata?.payment_method || "");
         const loadedAccountType = String(loadedAccount?.account_type || "").toLowerCase();
         const loadedAccountProvider = String(loadedAccount?.provider || "").toLowerCase();
@@ -831,7 +833,7 @@ function PurchaseOrder() {
         ? Math.min(total, money(supplierPaidAmount))
         : 0;
   const effectiveSupplierRemainingAmount = Math.max(0, total - effectiveSupplierPaidAmount);
-  const selectedPaymentAccount = financialAccounts.find((account) => String(account.id) === String(paymentAccountId)) || null;
+  const selectedPaymentAccount = financialAccounts.find((account) => String(getFinancialAccountId(account)) === String(paymentAccountId)) || null;
   const filteredPaymentAccounts = useMemo(
     () => financialAccounts.filter((account) => isPurchasePaymentAccountMatch(account, paymentMethod)),
     [financialAccounts, paymentMethod]
@@ -1259,7 +1261,6 @@ function PurchaseOrder() {
       supplier_payment_status: supplierPaymentStatus,
       supplier_paid_amount: effectiveSupplierPaidAmount,
       payment_method: paymentMethod || "",
-      payment_account_id: paymentAccountId || null,
       financial_account_id: paymentAccountId || null,
       remaining_amount: effectiveSupplierRemainingAmount,
       total,
@@ -1269,7 +1270,6 @@ function PurchaseOrder() {
       notes: internalNotes,
       metadata: {
         payment_method: paymentMethod || "",
-        payment_account_id: paymentAccountId || null,
         financial_account_id: paymentAccountId || null,
         remaining_amount: effectiveSupplierRemainingAmount,
       },
@@ -1299,13 +1299,13 @@ function PurchaseOrder() {
     const normalized = normalizePaymentMethodKey(nextMethod);
     setPaymentMethod(normalized);
     const nextMatches = financialAccounts.filter((account) => isPurchasePaymentAccountMatch(account, normalized));
-    if (!nextMatches.some((account) => String(account.id) === String(paymentAccountId))) {
+    if (!nextMatches.some((account) => String(getFinancialAccountId(account)) === String(paymentAccountId))) {
       setPaymentAccountId("");
     }
   };
 
   const handlePaymentAccountChange = (nextAccountId) => {
-    setPaymentAccountId(nextAccountId);
+    setPaymentAccountId(String(nextAccountId || ""));
   };
 
   const handleToggleFullscreen = async () => {
@@ -1384,8 +1384,8 @@ function PurchaseOrder() {
     }
     const normalizedPaymentStatus = normalizePaymentStatusKey(supplierPaymentStatus);
     const normalizedPaymentMethod = normalizePaymentMethodKey(paymentMethod);
-    const selectedPaymentAccountId = paymentAccountId ? Number(paymentAccountId) : null;
-    const selectedPaymentAccountMatch = financialAccounts.find((account) => Number(account.id) === selectedPaymentAccountId) || null;
+    const selectedPaymentAccountMatch = financialAccounts.find((account) => String(getFinancialAccountId(account)) === String(paymentAccountId)) || null;
+    const selectedFinancialAccountId = selectedPaymentAccountMatch ? Number(getFinancialAccountId(selectedPaymentAccountMatch)) : null;
     if (normalizedPaymentStatus === "unpaid") {
       if (paymentMethod || paymentAccountId) {
         const message = isArabic ? "لا يتم طلب حساب مالي في حالة الآجل." : "No financial account is required for credit purchases.";
@@ -1498,8 +1498,7 @@ function PurchaseOrder() {
       supplier_paid_amount: effectiveSupplierPaidAmount,
       remaining_amount: effectiveSupplierRemainingAmount,
       payment_method: normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod,
-      payment_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedPaymentAccountId,
-      financial_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedPaymentAccountId,
+      financial_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedFinancialAccountId,
       metadata: {
         source: "purchase_pos",
         client_request_id: purchaseSaveId,
@@ -1512,8 +1511,7 @@ function PurchaseOrder() {
         delivery_notes: deliveryNotes,
         internal_notes: internalNotes,
         payment_method: normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod,
-        payment_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedPaymentAccountId,
-        financial_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedPaymentAccountId,
+        financial_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedFinancialAccountId,
         expenses: { shipping, transport, customs, additional_expenses: additionalExpenses },
         attachments: attachments.map((file) => ({ name: file.name, size: file.size, type: file.type })),
       },
@@ -1535,8 +1533,7 @@ function PurchaseOrder() {
           supplier_payment_status: normalizedPaymentStatus,
           remaining_amount: effectiveSupplierRemainingAmount,
           payment_method: normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod,
-          payment_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedPaymentAccountId,
-          financial_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedPaymentAccountId,
+          financial_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedFinancialAccountId,
           supplier_invoice_number: editPurchase.metadata?.supplier_invoice_number || editPurchase.supplier_invoice_number || "",
           notes: editPurchase.notes || "",
           subtotal,
@@ -1551,8 +1548,7 @@ function PurchaseOrder() {
             supplier_paid_amount: effectiveSupplierPaidAmount,
             remaining_amount: effectiveSupplierRemainingAmount,
             payment_method: normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod,
-            payment_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedPaymentAccountId,
-            financial_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedPaymentAccountId,
+            financial_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedFinancialAccountId,
             branch_id: branchId || null,
           },
           items: normalizedItems.map((item) => ({
@@ -1603,8 +1599,7 @@ function PurchaseOrder() {
         supplier_paid_amount: effectiveSupplierPaidAmount,
         remaining_amount: effectiveSupplierRemainingAmount,
         payment_method: normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod,
-        payment_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedPaymentAccountId,
-        financial_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedPaymentAccountId,
+        financial_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedFinancialAccountId,
         total,
         subtotal,
         tax: 0,
@@ -2283,7 +2278,7 @@ function PurchaseCart({
                   value={paymentAccountId}
                   onChange={onPaymentAccountChange}
                   options={paymentAccounts.map((account) => ({
-                    value: account.id,
+                    value: String(getFinancialAccountId(account) || ""),
                     label: `${account.name}${account.provider ? ` - ${account.provider}` : ""}${account.branch_name ? ` - ${account.branch_name}` : ""}`,
                   }))}
                   emptyLabel={isArabic ? "اختر الحساب" : "Choose an account"}

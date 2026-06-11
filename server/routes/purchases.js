@@ -2511,7 +2511,7 @@ const updatePurchaseHeader = async (client, { tenantId, purchase, body }) => {
   const supplierPaymentStatus = normalizeSupplierPaymentStatus(body.supplier_payment_status ?? body.supplierPaymentStatus ?? paymentStatus);
   const paidAmount = Number(body.paid_amount ?? body.paidAmount ?? body.supplier_paid_amount ?? body.supplierPaidAmount ?? purchase.paid_amount ?? 0) || 0;
   const remainingAmount = Math.max(0, total - paidAmount);
-  const paymentAccountOverride = bodyValue("payment_account_id", "paymentAccountId", "money_account_id", "moneyAccountId", "financial_account_id", "financialAccountId");
+  const paymentAccountOverride = bodyValue("financial_account_id", "financialAccountId", "payment_account_id", "paymentAccountId", "money_account_id", "moneyAccountId");
   const paymentAccountId = paymentAccountOverride !== undefined ? paymentAccountOverride : purchase.payment_account_id ?? purchase.metadata?.financial_account_id ?? null;
   const paymentMethodOverride = bodyValue("payment_method", "paymentMethod");
   const purchasePaymentMethod = normalizePurchasePaymentMethod(paymentMethodOverride !== undefined ? paymentMethodOverride : purchase.payment_method ?? purchase.metadata?.payment_method ?? "");
@@ -2524,7 +2524,6 @@ const updatePurchaseHeader = async (client, { tenantId, purchase, body }) => {
     supplier_reference: body.supplier_reference ?? body.supplierReference ?? currentMetadata.supplier_reference ?? "",
     payment_reference: body.payment_reference ?? body.paymentReference ?? currentMetadata.payment_reference ?? "",
     attachments: Array.isArray(body.attachments) ? body.attachments : Array.isArray(currentMetadata.attachments) ? currentMetadata.attachments : [],
-    payment_account_id: paymentAccountId || null,
     financial_account_id: paymentAccountId || null,
     payment_method: purchasePaymentMethod || null,
   };
@@ -2920,8 +2919,17 @@ const replacePurchasePaymentMovement = async (client, { tenantId, beforePurchase
   if (!purchasePaymentFieldsTouched(body)) return;
   const previousPaid = Number(beforePurchase?.paid_amount ?? beforePurchase?.supplier_paid_amount ?? 0) || 0;
   const nextPaid = Number(afterPurchase?.paid_amount ?? afterPurchase?.supplier_paid_amount ?? 0) || 0;
-  const previousAccount = beforePurchase?.payment_account_id || beforePurchase?.metadata?.payment_account_id || null;
-  const nextAccount = afterPurchase?.payment_account_id || body.payment_account_id || body.paymentAccountId || body.money_account_id || body.moneyAccountId || null;
+  const previousAccount = beforePurchase?.financial_account_id || beforePurchase?.payment_account_id || beforePurchase?.metadata?.financial_account_id || beforePurchase?.metadata?.payment_account_id || null;
+  const nextAccount =
+    afterPurchase?.financial_account_id ||
+    afterPurchase?.payment_account_id ||
+    body.financial_account_id ||
+    body.financialAccountId ||
+    body.payment_account_id ||
+    body.paymentAccountId ||
+    body.money_account_id ||
+    body.moneyAccountId ||
+    null;
   const previousMethod = beforePurchase?.payment_method || beforePurchase?.metadata?.payment_method || "";
   const nextMethod = afterPurchase?.payment_method || body.payment_method || body.paymentMethod || "";
   const changed = Math.abs(previousPaid - nextPaid) >= 0.01 || String(previousAccount || "") !== String(nextAccount || "") || String(previousMethod || "") !== String(nextMethod || "");
@@ -4221,7 +4229,7 @@ router.patch(
       };
       const nextPaymentStatus = normalizePaymentStatus(bodyValue("payment_status", "paymentStatus") !== undefined ? bodyValue("payment_status", "paymentStatus") : purchase.payment_status);
       const nextPaidAmount = Number(bodyValue("paid_amount", "paidAmount", "supplier_paid_amount", "supplierPaidAmount") ?? purchase.paid_amount ?? 0) || 0;
-      const nextPaymentAccountIdRaw = bodyValue("payment_account_id", "paymentAccountId", "money_account_id", "moneyAccountId", "financial_account_id", "financialAccountId");
+      const nextPaymentAccountIdRaw = bodyValue("financial_account_id", "financialAccountId", "payment_account_id", "paymentAccountId", "money_account_id", "moneyAccountId");
       const nextPaymentAccountId = nextPaymentAccountIdRaw !== undefined ? nextPaymentAccountIdRaw : purchase.payment_account_id ?? purchase.metadata?.financial_account_id ?? null;
       const nextPaymentMethod = normalizePurchasePaymentMethod(bodyValue("payment_method", "paymentMethod") !== undefined ? bodyValue("payment_method", "paymentMethod") : purchase.payment_method ?? purchase.metadata?.payment_method ?? "");
       let nextSelectedAccount = null;
@@ -4241,7 +4249,7 @@ router.patch(
       if (nextPaymentStatus === "unpaid") {
         const hasExplicitPaymentDetails = [
           bodyValue("payment_method", "paymentMethod"),
-          bodyValue("payment_account_id", "paymentAccountId", "money_account_id", "moneyAccountId", "financial_account_id", "financialAccountId"),
+          bodyValue("financial_account_id", "financialAccountId", "payment_account_id", "paymentAccountId", "money_account_id", "moneyAccountId"),
         ].some((value) => value !== undefined && value !== null && String(value).trim() !== "");
         if (hasExplicitPaymentDetails) {
           await client.query("ROLLBACK");
@@ -5032,8 +5040,7 @@ router.post(
       );
       const supplierPaymentStatus = normalizeSupplierPaymentStatus(req.body?.supplier_payment_status ?? req.body?.supplierPaymentStatus ?? paymentStatus);
       const paymentMethod = normalizePurchasePaymentMethod(req.body?.payment_method || req.body?.paymentMethod || (paidAmount > 0 ? "cash" : ""));
-      const paymentAccountId = req.body?.payment_account_id || req.body?.paymentAccountId || req.body?.money_account_id || req.body?.moneyAccountId || req.body?.financial_account_id || req.body?.financialAccountId || null;
-      const financialAccountId = req.body?.financial_account_id || req.body?.financialAccountId || paymentAccountId || null;
+      const financialAccountId = req.body?.financial_account_id || req.body?.financialAccountId || req.body?.payment_account_id || req.body?.paymentAccountId || req.body?.money_account_id || req.body?.moneyAccountId || null;
       let selectedPaymentAccount = null;
       if (financialAccountId) {
         const accountResult = await runStep("validate.paymentAccount", () => client.query(
@@ -5049,7 +5056,7 @@ router.post(
         selectedPaymentAccount = accountResult.rows[0] || null;
       }
       if (paymentStatus === "unpaid") {
-        if (paymentMethod || paymentAccountId || financialAccountId) {
+        if (paymentMethod || financialAccountId) {
           await runStep("transaction.rollback.validation.creditNoAccount", () => client.query("ROLLBACK"));
           transactionStarted = false;
           return res.status(400).json({
@@ -5114,7 +5121,7 @@ router.post(
         discount,
         total,
         paymentMethod,
-        paymentAccountId,
+        financialAccountId,
       });
       const purchase = await runStep("insert.purchaseHeader", () => insertPurchaseHeader(client, {
         tenantId,
