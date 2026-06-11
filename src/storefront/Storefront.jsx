@@ -5408,13 +5408,6 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
 
   const canQuickAdd = availableVariant && variantHasStock(availableVariant);
   const handleQuickAdd = useCallback(() => onAddToCart(product, availableVariant), [availableVariant, onAddToCart, product]);
-  const directAddVariant = useMemo(() => {
-    const colors = new Set(sellableVariants.map((variant) => variantColorKey(variant)).filter(Boolean));
-    const sizes = new Set(sellableVariants.map((variant) => String(variant.size || "").trim() || "one-size"));
-    return sellableVariants.length === 1 || (colors.size <= 1 && sizes.size <= 1)
-      ? sellableVariants[0] || availableVariant
-      : null;
-  }, [availableVariant, sellableVariants]);
   const openVariantSheet = useCallback(() => {
     const first = availableVariant && variantHasStock(availableVariant) ? availableVariant : sellableVariants[0] || null;
     setSheetColorKey(first ? variantColorKey(first) : colorGroups[0]?.key || "");
@@ -5422,15 +5415,21 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     setSheetQty(1);
     setVariantSheetOpen(true);
   }, [availableVariant, colorGroups, sellableVariants]);
+  const closeVariantSheet = useCallback(() => {
+    setVariantSheetOpen(false);
+    setSheetColorKey("");
+    setSheetVariantId("");
+    setSheetQty(1);
+  }, []);
+  const handleVariantSheetAdd = useCallback((variant, quantity) => {
+    onAddToCart(product, variant, quantity);
+    closeVariantSheet();
+  }, [closeVariantSheet, onAddToCart, product]);
   const handleMobileCart = useCallback((event) => {
     event.preventDefault();
     event.stopPropagation();
-    if (directAddVariant && variantHasStock(directAddVariant)) {
-      onAddToCart(product, directAddVariant, 1);
-      return;
-    }
     openVariantSheet();
-  }, [directAddVariant, onAddToCart, openVariantSheet, product]);
+  }, [openVariantSheet]);
   const openDetails = useCallback((event) => {
     if (event.defaultPrevented) return;
     if (event.target?.closest?.("button,a,input,select,textarea")) return;
@@ -5542,7 +5541,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           onClick={handleMobileCart}
           disabled={!sellableVariants.length && !canQuickAdd}
           className="absolute bottom-2 left-2 z-30 grid h-8 w-8 place-items-center rounded-full border border-white/20 bg-stone-950/88 text-white shadow-[0_8px_18px_rgba(0,0,0,0.20)] backdrop-blur transition active:scale-95 disabled:opacity-45 md:hidden"
-          aria-label={directAddVariant ? t("storefront.cart.addToCart", "Add to cart") : t("storefront.products.chooseSize", "Choose size")}
+          aria-label={t("storefront.products.chooseSize", "Choose size")}
         >
           <ShoppingCart className="h-3.5 w-3.5" />
         </button>
@@ -5627,11 +5626,8 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
               setSheetQty(1);
             }}
             onQuantityChange={setSheetQty}
-            onClose={() => setVariantSheetOpen(false)}
-            onAdd={(variant, quantity) => {
-              onAddToCart(product, variant, quantity);
-              setVariantSheetOpen(false);
-            }}
+            onClose={closeVariantSheet}
+            onAdd={handleVariantSheetAdd}
           />
         </Suspense>
       ) : null}
@@ -5682,16 +5678,16 @@ function ProductCardVariantSheet({
   const safeQty = Math.min(Math.max(1, Number(quantity || 1)), maxQty);
 
   return createPortal(
-    <div className="fixed inset-0 z-[80] md:hidden" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-      <button type="button" className="absolute inset-0 bg-stone-950/62 backdrop-blur-sm" onClick={onClose} aria-label={t("common.close", "Close")} />
-      <section className="absolute inset-x-0 bottom-0 rounded-t-[1.55rem] border border-white/10 bg-[linear-gradient(180deg,#101426_0%,#070b16_100%)] p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] text-white shadow-[0_-24px_70px_rgba(0,0,0,0.42)]">
+    <div className="fixed inset-0 z-[90] pointer-events-auto md:hidden" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+      <button type="button" className="absolute inset-0 z-0 bg-stone-950/62 backdrop-blur-sm" onClick={onClose} aria-label={t("common.close", "Close")} />
+      <section className="absolute inset-x-0 bottom-0 z-10 rounded-t-[1.55rem] border border-white/10 bg-[linear-gradient(180deg,#101426_0%,#070b16_100%)] p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] text-white shadow-[0_-24px_70px_rgba(0,0,0,0.42)]">
         <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-white/20" />
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#d8b4fe]">{t("storefront.products.chooseSize", "Choose size")}</p>
             <h3 className="mt-1 line-clamp-2 text-base font-black leading-5">{product?.name}</h3>
           </div>
-          <button type="button" onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75">
+          <button type="button" onClick={onClose} className="relative z-20 grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75">
             <X className="h-4 w-4" />
           </button>
         </div>
