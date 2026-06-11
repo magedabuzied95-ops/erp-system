@@ -598,6 +598,28 @@ const normalizeSupplierPaymentStatus = (value) => {
   return "unpaid";
 };
 
+const normalizePurchasePaymentMethod = (value) => {
+  const key = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (key === "visa") return "bank_transfer";
+  if (key === "bank" || key === "transfer") return "bank_transfer";
+  if (key === "vodafone") return "vodafone_cash";
+  if (key === "insta_pay") return "instapay";
+  return key;
+};
+
+const purchasePaymentAccountTypeMatches = (account = {}, paymentMethod = "") => {
+  const method = normalizePurchasePaymentMethod(paymentMethod);
+  const type = String(account?.account_type || "").trim().toLowerCase();
+  const provider = String(account?.provider || "").trim().toLowerCase();
+  const name = String(account?.name || "").trim().toLowerCase();
+  if (!account?.id || account?.is_active === false) return false;
+  if (method === "cash") return ["cash_drawer", "safe"].includes(type);
+  if (method === "vodafone_cash") return ["wallet", "digital_wallet"].includes(type) && (provider.includes("vodafone") || name.includes("vodafone"));
+  if (method === "instapay") return ["wallet", "digital_wallet"].includes(type) && (provider.includes("insta") || name.includes("insta"));
+  if (method === "bank_transfer") return ["bank", "card_settlement"].includes(type);
+  return true;
+};
+
 const toPositiveNumber = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -2470,6 +2492,13 @@ const resolveSupplierForPurchaseUpdate = async (client, tenantId, body = {}, fal
 
 const updatePurchaseHeader = async (client, { tenantId, purchase, body }) => {
   const normalizedItems = Array.isArray(body.items) ? mergePurchaseItems(body.items.map(normalizePurchaseItem)) : null;
+  const hasOwnBodyValue = (key) => Object.prototype.hasOwnProperty.call(body || {}, key);
+  const bodyValue = (...keys) => {
+    for (const key of keys) {
+      if (hasOwnBodyValue(key)) return body[key];
+    }
+    return undefined;
+  };
   const subtotal = normalizedItems
     ? normalizedItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_cost || 0), 0)
     : Number(body.subtotal ?? purchase.subtotal ?? 0) || 0;
@@ -2482,8 +2511,10 @@ const updatePurchaseHeader = async (client, { tenantId, purchase, body }) => {
   const supplierPaymentStatus = normalizeSupplierPaymentStatus(body.supplier_payment_status ?? body.supplierPaymentStatus ?? paymentStatus);
   const paidAmount = Number(body.paid_amount ?? body.paidAmount ?? body.supplier_paid_amount ?? body.supplierPaidAmount ?? purchase.paid_amount ?? 0) || 0;
   const remainingAmount = Math.max(0, total - paidAmount);
-  const paymentAccountId = body.payment_account_id ?? body.paymentAccountId ?? body.money_account_id ?? body.moneyAccountId ?? purchase.payment_account_id ?? null;
-  const purchasePaymentMethod = body.payment_method ?? body.paymentMethod ?? purchase.payment_method ?? "";
+  const paymentAccountOverride = bodyValue("payment_account_id", "paymentAccountId", "money_account_id", "moneyAccountId", "financial_account_id", "financialAccountId");
+  const paymentAccountId = paymentAccountOverride !== undefined ? paymentAccountOverride : purchase.payment_account_id ?? purchase.metadata?.financial_account_id ?? null;
+  const paymentMethodOverride = bodyValue("payment_method", "paymentMethod");
+  const purchasePaymentMethod = normalizePurchasePaymentMethod(paymentMethodOverride !== undefined ? paymentMethodOverride : purchase.payment_method ?? purchase.metadata?.payment_method ?? "");
   const purchaseColumns = await getTableColumns(client, "purchases");
   const currentMetadata = purchase.metadata && typeof purchase.metadata === "object" ? purchase.metadata : {};
   const nextMetadata = {
@@ -2493,6 +2524,9 @@ const updatePurchaseHeader = async (client, { tenantId, purchase, body }) => {
     supplier_reference: body.supplier_reference ?? body.supplierReference ?? currentMetadata.supplier_reference ?? "",
     payment_reference: body.payment_reference ?? body.paymentReference ?? currentMetadata.payment_reference ?? "",
     attachments: Array.isArray(body.attachments) ? body.attachments : Array.isArray(currentMetadata.attachments) ? currentMetadata.attachments : [],
+    payment_account_id: paymentAccountId || null,
+    financial_account_id: paymentAccountId || null,
+    payment_method: purchasePaymentMethod || null,
   };
 
   await client.query(
@@ -4178,6 +4212,90 @@ router.patch(
         endTimer("[purchase-edit] apply-deltas");
       }
 
+      const hasBodyValue = (key) => Object.prototype.hasOwnProperty.call(req.body || {}, key);
+      const bodyValue = (...keys) => {
+        for (const key of keys) {
+          if (hasBodyValue(key)) return req.body[key];
+        }
+        return undefined;
+      };
+      const nextPaymentStatus = normalizePaymentStatus(bodyValue("payment_status", "paymentStatus") !== undefined ? bodyValue("payment_status", "paymentStatus") : purchase.payment_status);
+      const nextPaidAmount = Number(bodyValue("paid_amount", "paidAmount", "supplier_paid_amount", "supplierPaidAmount") ?? purchase.paid_amount ?? 0) || 0;
+      const nextPaymentAccountIdRaw = bodyValue("payment_account_id", "paymentAccountId", "money_account_id", "moneyAccountId", "financial_account_id", "financialAccountId");
+      const nextPaymentAccountId = nextPaymentAccountIdRaw !== undefined ? nextPaymentAccountIdRaw : purchase.payment_account_id ?? purchase.metadata?.financial_account_id ?? null;
+      const nextPaymentMethod = normalizePurchasePaymentMethod(bodyValue("payment_method", "paymentMethod") !== undefined ? bodyValue("payment_method", "paymentMethod") : purchase.payment_method ?? purchase.metadata?.payment_method ?? "");
+      let nextSelectedAccount = null;
+      if (nextPaymentAccountId) {
+        const accountResult = await client.query(
+          `
+          SELECT id, name, account_type, provider, is_active
+          FROM financial_accounts
+          WHERE id = $1
+            AND tenant_id = $2
+          LIMIT 1
+          `,
+          [nextPaymentAccountId, tenantId]
+        );
+        nextSelectedAccount = accountResult.rows[0] || null;
+      }
+      if (nextPaymentStatus === "unpaid") {
+        const hasExplicitPaymentDetails = [
+          bodyValue("payment_method", "paymentMethod"),
+          bodyValue("payment_account_id", "paymentAccountId", "money_account_id", "moneyAccountId", "financial_account_id", "financialAccountId"),
+        ].some((value) => value !== undefined && value !== null && String(value).trim() !== "");
+        if (hasExplicitPaymentDetails) {
+          await client.query("ROLLBACK");
+          transactionStarted = false;
+          return res.status(400).json({
+            success: false,
+            message: "Credit purchases do not use a financial account",
+            error: "VALIDATION_ERROR",
+            details: "Set payment_status to unpaid/credit without payment_method or financial_account_id.",
+          });
+        }
+      } else {
+        if (!nextPaymentMethod) {
+          await client.query("ROLLBACK");
+          transactionStarted = false;
+          return res.status(400).json({
+            success: false,
+            message: "Payment method is required",
+            error: "VALIDATION_ERROR",
+            details: "Choose cash, Vodafone Cash, InstaPay, or Bank/Visa.",
+          });
+        }
+        if (!nextSelectedAccount) {
+          await client.query("ROLLBACK");
+          transactionStarted = false;
+          return res.status(400).json({
+            success: false,
+            message: "Financial account is required",
+            error: "VALIDATION_ERROR",
+            details: "Choose a matching financial account before saving the purchase.",
+          });
+        }
+        if (!purchasePaymentAccountTypeMatches(nextSelectedAccount, nextPaymentMethod)) {
+          await client.query("ROLLBACK");
+          transactionStarted = false;
+          return res.status(400).json({
+            success: false,
+            message: "Financial account does not match payment method",
+            error: "VALIDATION_ERROR",
+            details: "Cash must use cash drawer/safe, Vodafone Cash and InstaPay must use wallet accounts, and Bank/Visa must use bank or card settlement accounts.",
+          });
+        }
+        if (nextPaymentStatus === "partial" && (nextPaidAmount <= 0 || nextPaidAmount >= Number(purchase.total ?? 0) || nextPaidAmount >= Number(body.total ?? purchase.total ?? 0))) {
+          await client.query("ROLLBACK");
+          transactionStarted = false;
+          return res.status(400).json({
+            success: false,
+            message: "Partial payment amount is invalid",
+            error: "VALIDATION_ERROR",
+            details: "Partial payments must be greater than zero and less than the invoice total.",
+          });
+        }
+      }
+
       startTimer("[purchase-edit] rewrite-items");
       step = "rewrite-items";
       await updatePurchaseHeader(client, { tenantId, purchase, body: req.body || {} });
@@ -4913,8 +5031,76 @@ router.post(
         requestedPaymentStatus || (paidAmount <= 0 ? "unpaid" : remainingAmount > 0 ? "partially_paid" : "paid")
       );
       const supplierPaymentStatus = normalizeSupplierPaymentStatus(req.body?.supplier_payment_status ?? req.body?.supplierPaymentStatus ?? paymentStatus);
-      const paymentMethod = req.body?.payment_method || req.body?.paymentMethod || (paidAmount > 0 ? "bank" : "ap");
-      const paymentAccountId = req.body?.payment_account_id || req.body?.paymentAccountId || req.body?.money_account_id || req.body?.moneyAccountId || null;
+      const paymentMethod = normalizePurchasePaymentMethod(req.body?.payment_method || req.body?.paymentMethod || (paidAmount > 0 ? "cash" : ""));
+      const paymentAccountId = req.body?.payment_account_id || req.body?.paymentAccountId || req.body?.money_account_id || req.body?.moneyAccountId || req.body?.financial_account_id || req.body?.financialAccountId || null;
+      const financialAccountId = req.body?.financial_account_id || req.body?.financialAccountId || paymentAccountId || null;
+      let selectedPaymentAccount = null;
+      if (financialAccountId) {
+        const accountResult = await runStep("validate.paymentAccount", () => client.query(
+          `
+          SELECT id, name, account_type, provider, is_active
+          FROM financial_accounts
+          WHERE id = $1
+            AND tenant_id = $2
+          LIMIT 1
+          `,
+          [financialAccountId, tenantId]
+        ));
+        selectedPaymentAccount = accountResult.rows[0] || null;
+      }
+      if (paymentStatus === "unpaid") {
+        if (paymentMethod || paymentAccountId || financialAccountId) {
+          await runStep("transaction.rollback.validation.creditNoAccount", () => client.query("ROLLBACK"));
+          transactionStarted = false;
+          return res.status(400).json({
+            success: false,
+            message: "Credit purchases do not use a financial account",
+            error: "VALIDATION_ERROR",
+            details: "Set payment_status to unpaid/credit without payment_method or financial_account_id.",
+          });
+        }
+      } else {
+        if (!paymentMethod) {
+          await runStep("transaction.rollback.validation.paymentMethodRequired", () => client.query("ROLLBACK"));
+          transactionStarted = false;
+          return res.status(400).json({
+            success: false,
+            message: "Payment method is required",
+            error: "VALIDATION_ERROR",
+            details: "Choose cash, Vodafone Cash, InstaPay, or Bank/Visa.",
+          });
+        }
+        if (!selectedPaymentAccount) {
+          await runStep("transaction.rollback.validation.paymentAccountRequired", () => client.query("ROLLBACK"));
+          transactionStarted = false;
+          return res.status(400).json({
+            success: false,
+            message: "Financial account is required",
+            error: "VALIDATION_ERROR",
+            details: "Choose a matching financial account before saving the purchase.",
+          });
+        }
+        if (!purchasePaymentAccountTypeMatches(selectedPaymentAccount, paymentMethod)) {
+          await runStep("transaction.rollback.validation.paymentAccountMismatch", () => client.query("ROLLBACK"));
+          transactionStarted = false;
+          return res.status(400).json({
+            success: false,
+            message: "Financial account does not match payment method",
+            error: "VALIDATION_ERROR",
+            details: "Cash must use cash drawer/safe, Vodafone Cash and InstaPay must use wallet accounts, and Bank/Visa must use bank or card settlement accounts.",
+          });
+        }
+        if (paymentStatus === "partial" && (paidAmount <= 0 || paidAmount >= total)) {
+          await runStep("transaction.rollback.validation.partialAmount", () => client.query("ROLLBACK"));
+          transactionStarted = false;
+          return res.status(400).json({
+            success: false,
+            message: "Partial payment amount is invalid",
+            error: "VALIDATION_ERROR",
+            details: "Partial payments must be greater than zero and less than the invoice total.",
+          });
+        }
+      }
       console.log("[purchase:create] resolved refs", {
         requestId,
         tenantId,
@@ -4927,6 +5113,8 @@ router.post(
         tax,
         discount,
         total,
+        paymentMethod,
+        paymentAccountId,
       });
       const purchase = await runStep("insert.purchaseHeader", () => insertPurchaseHeader(client, {
         tenantId,
@@ -4945,7 +5133,7 @@ router.post(
         paidAmount,
         supplierPaidAmount: paidAmount,
         remainingAmount,
-        paymentAccountId,
+        paymentAccountId: financialAccountId,
         paymentMethod,
         notes: req.body?.notes || "",
         createdBy: req.user?.id || null,
@@ -4959,7 +5147,8 @@ router.post(
           supplier_payment_status: supplierPaymentStatus,
           supplier_paid_amount: paidAmount,
           remaining_amount: remainingAmount,
-          payment_account_id: paymentAccountId,
+          payment_account_id: financialAccountId,
+          financial_account_id: financialAccountId,
           payment_method: paymentMethod,
         },
       }));
@@ -5086,8 +5275,8 @@ router.post(
         if (paidAmount <= 0) return;
         await recordFinancialAccountActivity(client, {
           tenantId,
-          financialAccountId: req.body.financial_account_id || req.body.financialAccountId || null,
-          moneyAccountId: paymentAccountId,
+          financialAccountId,
+          moneyAccountId: financialAccountId,
           paymentMethod,
           entryType: "purchase",
           direction: -1,

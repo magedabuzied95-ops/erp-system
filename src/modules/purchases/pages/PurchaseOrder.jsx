@@ -28,6 +28,7 @@ import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import FlowShell from "../components/FlowShell";
+import { accountingApi } from "../../accounting/services/accountingApi";
 import {
   formatCurrency,
   generateCode,
@@ -55,6 +56,56 @@ const createPurchaseSaveId = () => {
     return crypto.randomUUID();
   }
   return `purchase-save-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+};
+const normalizePaymentMethodKey = (value) => {
+  const key = text(value).toLowerCase().replace(/[\s-]+/g, "_");
+  if (key === "visa") return "bank_transfer";
+  if (key === "bank" || key === "transfer") return "bank_transfer";
+  if (key === "vodafone") return "vodafone_cash";
+  if (key === "insta_pay") return "instapay";
+  return key;
+};
+const isPurchasePaymentAccountMatch = (account = {}, paymentMethod = "") => {
+  const method = normalizePaymentMethodKey(paymentMethod);
+  const type = normalizeKey(account.account_type);
+  const provider = normalizeKey(account.provider);
+  const name = normalizeKey(account.name);
+  if (!account || account.is_active === false) return false;
+  if (method === "cash") return ["cash_drawer", "safe"].includes(type);
+  if (method === "vodafone_cash") return ["wallet", "digital_wallet"].includes(type) && (provider.includes("vodafone") || name.includes("vodafone"));
+  if (method === "instapay") return ["wallet", "digital_wallet"].includes(type) && (provider.includes("insta") || name.includes("insta"));
+  if (method === "bank_transfer") return ["bank", "card_settlement"].includes(type);
+  return true;
+};
+const paymentMethodLabel = (method, isArabic) => {
+  const key = normalizePaymentMethodKey(method);
+  const labels = isArabic
+    ? {
+        cash: "نقدي (Cash)",
+        vodafone_cash: "فودافون كاش (Vodafone Cash)",
+        instapay: "InstaPay",
+        bank_transfer: "بنك / Visa",
+      }
+    : {
+        cash: "Cash",
+        vodafone_cash: "Vodafone Cash",
+        instapay: "InstaPay",
+        bank_transfer: "Bank / Visa",
+      };
+  return labels[key] || method;
+};
+const paymentStatusLabel = (status, isArabic) => {
+  const key = normalizePaymentStatusKey(status);
+  const labels = isArabic
+    ? { paid: "مسددة", partial: "جزئي", unpaid: "آجل" }
+    : { paid: "Paid", partial: "Partial", unpaid: "Credit" };
+  return labels[key] || status;
+};
+const normalizePaymentStatusKey = (value) => {
+  const key = text(value).toLowerCase().replace(/[\s-]+/g, "_");
+  if (["partially_paid", "partial", "part_paid"].includes(key)) return "partial";
+  if (["paid", "settled", "settled_full", "settled_paid"].includes(key)) return "paid";
+  return "unpaid";
 };
 const notifyProductsChanged = () => {
   if (typeof window === "undefined") return;
@@ -405,6 +456,7 @@ function PurchaseOrder() {
   const [warehouses, setWarehouses] = useState([]);
   const [branches, setBranches] = useState([]);
   const [products, setProducts] = useState([]);
+  const [financialAccounts, setFinancialAccounts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [productPickerOpen, setProductPickerOpen] = useState(false);
   const [productPanelExpanded, setProductPanelExpanded] = useState(false);
@@ -419,6 +471,8 @@ function PurchaseOrder() {
   const customs = 0;
   const additionalExpenses = 0;
   const [supplierPaymentStatus, setSupplierPaymentStatus] = useState("unpaid");
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [paymentAccountId, setPaymentAccountId] = useState("");
   const [supplierPaidAmount, setSupplierPaidAmount] = useState(0);
   const supplierInvoiceNumber = "";
   const deliveryNotes = "";
@@ -478,12 +532,13 @@ function PurchaseOrder() {
       setProductsLoading(true);
       setError("");
 
-      const [suppliersRes, warehousesRes, branchesRes, productsRes, reorderRes] = await Promise.allSettled([
+      const [suppliersRes, warehousesRes, branchesRes, productsRes, reorderRes, financialAccountsRes] = await Promise.allSettled([
         api.get("/suppliers?limit=200&page=1"),
         api.get("/warehouses"),
         api.get("/branches"),
         api.get("/products/with-variants"),
         api.get("/purchases/reorder-suggestions"),
+        accountingApi.getFinancialAccounts({ include_inactive: true }),
       ]);
 
       if (suppliersRes.status === "fulfilled") {
@@ -521,6 +576,13 @@ function PurchaseOrder() {
         setError((prev) => `${prev ? `${prev} ` : ""}${t("purchases.create.productsLoadFailed")}`);
       }
 
+      if (financialAccountsRes.status === "fulfilled") {
+        const financialAccountRows = Array.isArray(financialAccountsRes.value?.rows) ? financialAccountsRes.value.rows : [];
+        setFinancialAccounts(financialAccountRows.filter((account) => account?.is_active !== false));
+      } else {
+        setFinancialAccounts([]);
+      }
+
       if (isEditMode) {
         const editResponse = await api.get(`/purchases/${editPurchaseId}`);
         const loadedPurchase = normalizePurchase(editResponse?.purchase || editResponse?.data || {});
@@ -534,8 +596,35 @@ function PurchaseOrder() {
         setDiscount(money(loadedPurchase.discount));
         const paidAmount = money(loadedPurchase.paid_amount ?? loadedPurchase.supplier_paid_amount ?? loadedPurchase.amount_paid ?? 0);
         const paymentStatus = String(loadedPurchase.supplier_payment_status || loadedPurchase.payment_status || "").toLowerCase();
-        setSupplierPaymentStatus(paymentStatus.includes("partial") ? "partial" : paymentStatus.includes("paid") ? "paid" : "unpaid");
+        const normalizedPaymentStatus = paymentStatus.includes("partial") ? "partial" : paymentStatus.includes("paid") ? "paid" : "unpaid";
+        setSupplierPaymentStatus(normalizedPaymentStatus);
         setSupplierPaidAmount(paidAmount);
+        const financialAccountRows = financialAccountsRes.status === "fulfilled" && Array.isArray(financialAccountsRes.value?.rows) ? financialAccountsRes.value.rows : [];
+        const loadedFinancialAccountId =
+          loadedPurchase.payment_account_id ||
+          loadedPurchase.metadata?.payment_account_id ||
+          loadedPurchase.metadata?.financial_account_id ||
+          "";
+        const loadedAccount = financialAccountRows.find((account) => String(account.id) === String(loadedFinancialAccountId)) || null;
+        const loadedPaymentMethod = normalizePaymentMethodKey(loadedPurchase.payment_method || loadedPurchase.metadata?.payment_method || "");
+        const loadedAccountType = String(loadedAccount?.account_type || "").toLowerCase();
+        const loadedAccountProvider = String(loadedAccount?.provider || "").toLowerCase();
+        const loadedAccountName = String(loadedAccount?.name || "").toLowerCase();
+        const derivedPaymentMethod =
+          loadedPaymentMethod ||
+          (loadedAccount
+            ? ["cash_drawer", "safe"].includes(loadedAccountType)
+              ? "cash"
+              : ["wallet", "digital_wallet"].includes(loadedAccountType)
+                ? loadedAccountProvider.includes("insta") || loadedAccountName.includes("insta")
+                  ? "instapay"
+                  : "vodafone_cash"
+                : ["bank", "card_settlement"].includes(loadedAccountType)
+                  ? "bank_transfer"
+                  : ""
+            : "");
+        setPaymentMethod(normalizedPaymentStatus === "unpaid" ? "" : derivedPaymentMethod || "cash");
+        setPaymentAccountId(normalizedPaymentStatus === "unpaid" ? "" : String(loadedFinancialAccountId || ""));
         setItems(toArray(loadedPurchase.items).map(normalizePurchaseCartItem));
       } else {
         setEditPurchase(null);
@@ -546,6 +635,7 @@ function PurchaseOrder() {
       setWarehouses([]);
       setBranches([]);
       setProducts([]);
+      setFinancialAccounts([]);
       setError(t("purchases.create.setupLoadFailedLong"));
       toast.error(t("purchases.create.setupLoadFailed"));
     } finally {
@@ -740,7 +830,29 @@ function PurchaseOrder() {
       : supplierPaymentStatus === "partial"
         ? Math.min(total, money(supplierPaidAmount))
         : 0;
-
+  const effectiveSupplierRemainingAmount = Math.max(0, total - effectiveSupplierPaidAmount);
+  const selectedPaymentAccount = financialAccounts.find((account) => String(account.id) === String(paymentAccountId)) || null;
+  const filteredPaymentAccounts = useMemo(
+    () => financialAccounts.filter((account) => isPurchasePaymentAccountMatch(account, paymentMethod)),
+    [financialAccounts, paymentMethod]
+  );
+  const paymentStatusOptions = useMemo(
+    () => [
+      { value: "paid", label: paymentStatusLabel("paid", isArabic) },
+      { value: "partial", label: paymentStatusLabel("partial", isArabic) },
+      { value: "unpaid", label: paymentStatusLabel("unpaid", isArabic) },
+    ],
+    [isArabic]
+  );
+  const paymentMethodOptions = useMemo(
+    () => [
+      { value: "cash", label: paymentMethodLabel("cash", isArabic) },
+      { value: "vodafone_cash", label: paymentMethodLabel("vodafone_cash", isArabic) },
+      { value: "instapay", label: paymentMethodLabel("instapay", isArabic) },
+      { value: "bank_transfer", label: paymentMethodLabel("bank_transfer", isArabic) },
+    ],
+    [isArabic]
+  );
   const addProduct = (product, quantity = 1) => {
     if (!product) return;
     const qty = Math.max(1, money(quantity) || 1);
@@ -1146,11 +1258,21 @@ function PurchaseOrder() {
       paid_amount: effectiveSupplierPaidAmount,
       supplier_payment_status: supplierPaymentStatus,
       supplier_paid_amount: effectiveSupplierPaidAmount,
+      payment_method: paymentMethod || "",
+      payment_account_id: paymentAccountId || null,
+      financial_account_id: paymentAccountId || null,
+      remaining_amount: effectiveSupplierRemainingAmount,
       total,
       subtotal,
       tax: 0,
       discount,
       notes: internalNotes,
+      metadata: {
+        payment_method: paymentMethod || "",
+        payment_account_id: paymentAccountId || null,
+        financial_account_id: paymentAccountId || null,
+        remaining_amount: effectiveSupplierRemainingAmount,
+      },
       created_at: new Date().toISOString(),
       items: items.map(normalizePurchaseItem),
     });
@@ -1159,6 +1281,31 @@ function PurchaseOrder() {
     const records = [buildLocalRecord("draft"), ...getLocalPurchases().map(normalizePurchase)];
     saveLocalPurchases(records);
     toast.success(t("purchases.create.draftSavedLocally"));
+  };
+
+  const handlePaymentStatusChange = (nextStatus) => {
+    const normalized = normalizePaymentStatusKey(nextStatus);
+    setSupplierPaymentStatus(normalized);
+    if (normalized === "unpaid") {
+      setPaymentMethod("");
+      setPaymentAccountId("");
+      setSupplierPaidAmount(0);
+      return;
+    }
+    if (!paymentMethod) setPaymentMethod("cash");
+  };
+
+  const handlePaymentMethodChange = (nextMethod) => {
+    const normalized = normalizePaymentMethodKey(nextMethod);
+    setPaymentMethod(normalized);
+    const nextMatches = financialAccounts.filter((account) => isPurchasePaymentAccountMatch(account, normalized));
+    if (!nextMatches.some((account) => String(account.id) === String(paymentAccountId))) {
+      setPaymentAccountId("");
+    }
+  };
+
+  const handlePaymentAccountChange = (nextAccountId) => {
+    setPaymentAccountId(nextAccountId);
   };
 
   const handleToggleFullscreen = async () => {
@@ -1235,6 +1382,59 @@ function PurchaseOrder() {
       releasePostingLock();
       return;
     }
+    const normalizedPaymentStatus = normalizePaymentStatusKey(supplierPaymentStatus);
+    const normalizedPaymentMethod = normalizePaymentMethodKey(paymentMethod);
+    const selectedPaymentAccountId = paymentAccountId ? Number(paymentAccountId) : null;
+    const selectedPaymentAccountMatch = financialAccounts.find((account) => Number(account.id) === selectedPaymentAccountId) || null;
+    if (normalizedPaymentStatus === "unpaid") {
+      if (paymentMethod || paymentAccountId) {
+        const message = isArabic ? "لا يتم طلب حساب مالي في حالة الآجل." : "No financial account is required for credit purchases.";
+        setPostError(message);
+        toast.error(message);
+        releasePostingLock();
+        return;
+      }
+    } else {
+      if (!normalizedPaymentMethod) {
+        const message = isArabic ? "اختر طريقة الدفع أولاً." : "Choose a payment method first.";
+        setPostError(message);
+        toast.error(message);
+        releasePostingLock();
+        return;
+      }
+      if (!selectedPaymentAccountMatch) {
+        const message = isArabic ? "اختر الحساب المالي المناسب أولاً." : "Choose the matching financial account first.";
+        setPostError(message);
+        toast.error(message);
+        releasePostingLock();
+        return;
+      }
+      if (!isPurchasePaymentAccountMatch(selectedPaymentAccountMatch, normalizedPaymentMethod)) {
+        const message = isArabic ? "الحساب المختار لا يطابق طريقة الدفع." : "The selected account does not match the payment method.";
+        setPostError(message);
+        toast.error(message);
+        releasePostingLock();
+        return;
+      }
+      if (normalizedPaymentStatus === "paid") {
+        if (total <= 0) {
+          const message = isArabic ? "إجمالي الفاتورة غير صالح." : "Invoice total is invalid.";
+          setPostError(message);
+          toast.error(message);
+          releasePostingLock();
+          return;
+        }
+      }
+      if (normalizedPaymentStatus === "partial") {
+        if (effectiveSupplierPaidAmount <= 0 || effectiveSupplierPaidAmount >= total) {
+          const message = isArabic ? "أدخل مبلغاً مدفوعاً صحيحاً أقل من إجمالي الفاتورة." : "Enter a valid paid amount less than the invoice total.";
+          setPostError(message);
+          toast.error(message);
+          releasePostingLock();
+          return;
+        }
+      }
+    }
     setItems(normalizedItems);
     setCartCostErrors(new Set());
 
@@ -1292,20 +1492,28 @@ function PurchaseOrder() {
       additional_expenses: additionalExpenses,
       total,
       grand_total: total,
-      payment_status: supplierPaymentStatus === "partial" ? "partially_paid" : supplierPaymentStatus,
+      payment_status: normalizedPaymentStatus === "partial" ? "partially_paid" : normalizedPaymentStatus,
       paid_amount: effectiveSupplierPaidAmount,
-      supplier_payment_status: supplierPaymentStatus,
+      supplier_payment_status: normalizedPaymentStatus,
       supplier_paid_amount: effectiveSupplierPaidAmount,
+      remaining_amount: effectiveSupplierRemainingAmount,
+      payment_method: normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod,
+      payment_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedPaymentAccountId,
+      financial_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedPaymentAccountId,
       metadata: {
         source: "purchase_pos",
         client_request_id: purchaseSaveId,
         purchase_save_id: purchaseSaveId,
         branch_id: branchId || null,
-        supplier_payment_status: supplierPaymentStatus,
+        supplier_payment_status: normalizedPaymentStatus,
         supplier_paid_amount: effectiveSupplierPaidAmount,
+        remaining_amount: effectiveSupplierRemainingAmount,
         supplier_invoice_number: supplierInvoiceNumber,
         delivery_notes: deliveryNotes,
         internal_notes: internalNotes,
+        payment_method: normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod,
+        payment_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedPaymentAccountId,
+        financial_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedPaymentAccountId,
         expenses: { shipping, transport, customs, additional_expenses: additionalExpenses },
         attachments: attachments.map((file) => ({ name: file.name, size: file.size, type: file.type })),
       },
@@ -1321,10 +1529,14 @@ function PurchaseOrder() {
           branch_id: branchId || null,
           supplier_name: selectedSupplier?.name || editPurchase.supplier_name || "Unknown",
           warehouse_name: selectedWarehouse?.name || editPurchase.warehouse_name || "Main Warehouse",
-          payment_status: supplierPaymentStatus === "partial" ? "partially_paid" : supplierPaymentStatus,
+          payment_status: normalizedPaymentStatus === "partial" ? "partially_paid" : normalizedPaymentStatus,
           paid_amount: effectiveSupplierPaidAmount,
           supplier_paid_amount: effectiveSupplierPaidAmount,
-          supplier_payment_status: supplierPaymentStatus,
+          supplier_payment_status: normalizedPaymentStatus,
+          remaining_amount: effectiveSupplierRemainingAmount,
+          payment_method: normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod,
+          payment_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedPaymentAccountId,
+          financial_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedPaymentAccountId,
           supplier_invoice_number: editPurchase.metadata?.supplier_invoice_number || editPurchase.supplier_invoice_number || "",
           notes: editPurchase.notes || "",
           subtotal,
@@ -1335,8 +1547,12 @@ function PurchaseOrder() {
           metadata: {
             ...(editPurchase.metadata || {}),
             source: "purchase_pos_edit",
-            supplier_payment_status: supplierPaymentStatus,
+            supplier_payment_status: normalizedPaymentStatus,
             supplier_paid_amount: effectiveSupplierPaidAmount,
+            remaining_amount: effectiveSupplierRemainingAmount,
+            payment_method: normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod,
+            payment_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedPaymentAccountId,
+            financial_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedPaymentAccountId,
             branch_id: branchId || null,
           },
           items: normalizedItems.map((item) => ({
@@ -1381,10 +1597,14 @@ function PurchaseOrder() {
         supplier_name: suppliers.find((supplier) => String(supplier.id) === String(supplierId))?.name || "Unknown",
         warehouse_name: warehouses.find((warehouse) => String(warehouse.id) === String(warehouseId))?.name || "Main Warehouse",
         status: nextStatus,
-        payment_status: supplierPaymentStatus === "partial" ? "partially_paid" : supplierPaymentStatus,
+        payment_status: normalizedPaymentStatus === "partial" ? "partially_paid" : normalizedPaymentStatus,
         paid_amount: effectiveSupplierPaidAmount,
-        supplier_payment_status: supplierPaymentStatus,
+        supplier_payment_status: normalizedPaymentStatus,
         supplier_paid_amount: effectiveSupplierPaidAmount,
+        remaining_amount: effectiveSupplierRemainingAmount,
+        payment_method: normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod,
+        payment_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedPaymentAccountId,
+        financial_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedPaymentAccountId,
         total,
         subtotal,
         tax: 0,
@@ -1523,6 +1743,12 @@ function PurchaseOrder() {
             total={total}
             supplierPaymentStatus={supplierPaymentStatus}
             supplierPaidAmount={supplierPaidAmount}
+            paymentMethod={paymentMethod}
+            paymentAccountId={paymentAccountId}
+            paymentStatusOptions={paymentStatusOptions}
+            paymentMethodOptions={paymentMethodOptions}
+            paymentAccounts={filteredPaymentAccounts}
+            selectedPaymentAccount={selectedPaymentAccount}
             posting={posting}
             activeSupplier={activeSupplier}
             cartCostErrors={cartCostErrors}
@@ -1531,8 +1757,10 @@ function PurchaseOrder() {
             onQty={changeQty}
             onRemove={removeItem}
             onDiscount={setDiscount}
-            onSupplierPaymentStatus={setSupplierPaymentStatus}
+            onSupplierPaymentStatus={handlePaymentStatusChange}
             onSupplierPaidAmount={setSupplierPaidAmount}
+            onPaymentMethodChange={handlePaymentMethodChange}
+            onPaymentAccountChange={handlePaymentAccountChange}
             onBulkPrice={setBulkPriceModal}
             onSaveInvoice={() => postPurchase("received")}
             saveLabel={isEditMode ? "Save changes" : undefined}
@@ -1901,7 +2129,39 @@ function Metric({ label, value }) {
   );
 }
 
-function PurchaseCart({ compact = false, items, variantsByProduct, subtotal, expenses, discount, total, supplierPaymentStatus, supplierPaidAmount, posting, activeSupplier, cartCostErrors = new Set(), onChangeVariant, onUpdate, onQty, onRemove, onDiscount, onSupplierPaymentStatus, onSupplierPaidAmount, onBulkPrice, onSaveInvoice, onClose, saveLabel }) {
+function PurchaseCart({
+  compact = false,
+  items,
+  variantsByProduct,
+  subtotal,
+  expenses,
+  discount,
+  total,
+  supplierPaymentStatus,
+  supplierPaidAmount,
+  paymentMethod,
+  paymentAccountId,
+  paymentStatusOptions,
+  paymentMethodOptions,
+  paymentAccounts,
+  selectedPaymentAccount,
+  posting,
+  activeSupplier,
+  cartCostErrors = new Set(),
+  onChangeVariant,
+  onUpdate,
+  onQty,
+  onRemove,
+  onDiscount,
+  onSupplierPaymentStatus,
+  onSupplierPaidAmount,
+  onPaymentMethodChange,
+  onPaymentAccountChange,
+  onBulkPrice,
+  onSaveInvoice,
+  onClose,
+  saveLabel,
+}) {
   const { t, i18n } = useTranslation();
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
   const hasItems = items.length > 0;
@@ -2000,26 +2260,52 @@ function PurchaseCart({ compact = false, items, variantsByProduct, subtotal, exp
           <span className="text-sm font-black">{labels.grandTotal}</span>
           <span className="text-lg font-black">{formatCurrency(total)}</span>
         </div>
-        <div className="mt-2 space-y-2">
-          <Select
-            label={labels.supplierPayment}
-            value={supplierPaymentStatus}
-            onChange={onSupplierPaymentStatus}
-            options={[
-              { value: "unpaid", label: labels.unpaid },
-              { value: "paid", label: labels.paid },
-              { value: "partial", label: labels.partial },
-            ]}
-          />
-          {supplierPaymentStatus === "partial" ? (
-            <label className="block rounded-xl border border-white/10 bg-white/5 p-2.5">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{labels.paidAmount}</div>
-              <input type="number" min="0" max={total} value={supplierPaidAmount} onChange={(event) => onSupplierPaidAmount(money(event.target.value))} className="mt-1 w-full bg-transparent text-sm font-semibold text-white outline-none" />
-            </label>
-          ) : null}
-          <button type="button" onClick={onSaveInvoice} disabled={posting || !hasItems} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">
-            {posting ? labels.saving : saveLabel || labels.saveInvoice}
-          </button>
+        <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">{isArabic ? "طريقة الدفع والحساب" : "Payment method & account"}</div>
+          <div className="mt-2 grid gap-2">
+            <Select
+              label={labels.supplierPayment}
+              value={supplierPaymentStatus}
+              onChange={onSupplierPaymentStatus}
+              options={paymentStatusOptions}
+            />
+            {supplierPaymentStatus !== "unpaid" ? (
+              <>
+                <Select
+                  label={isArabic ? "طريقة الدفع" : "Payment method"}
+                  value={paymentMethod}
+                  onChange={onPaymentMethodChange}
+                  options={paymentMethodOptions}
+                  emptyLabel={isArabic ? "اختر طريقة الدفع" : "Choose a payment method"}
+                />
+                <Select
+                  label={isArabic ? "الحساب المالي" : "Financial account"}
+                  value={paymentAccountId}
+                  onChange={onPaymentAccountChange}
+                  options={paymentAccounts.map((account) => ({
+                    value: account.id,
+                    label: `${account.name}${account.provider ? ` - ${account.provider}` : ""}${account.branch_name ? ` - ${account.branch_name}` : ""}`,
+                  }))}
+                  emptyLabel={isArabic ? "اختر الحساب" : "Choose an account"}
+                />
+                {supplierPaymentStatus === "partial" ? (
+                  <label className="block rounded-xl border border-white/10 bg-white/5 p-2.5">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{labels.paidAmount}</div>
+                    <input type="number" min="0" max={total} value={supplierPaidAmount} onChange={(event) => onSupplierPaidAmount(money(event.target.value))} className="mt-1 w-full bg-transparent text-sm font-semibold text-white outline-none" />
+                  </label>
+                ) : null}
+              </>
+            ) : null}
+            <div className="grid grid-cols-2 gap-2">
+              <Summary label={isArabic ? "طريقة الدفع" : "Payment method"} value={supplierPaymentStatus === "unpaid" ? (isArabic ? "آجل" : "Credit") : paymentMethodLabel(paymentMethod, isArabic)} />
+              <Summary label={isArabic ? "الحساب" : "Account"} value={supplierPaymentStatus === "unpaid" ? (isArabic ? "لا يوجد" : "None") : selectedPaymentAccount ? selectedPaymentAccount.name : (isArabic ? "غير محدد" : "Not selected")} />
+              <Summary label={labels.paidAmount} value={formatCurrency(supplierPaymentStatus === "paid" ? total : supplierPaidAmount)} />
+              <Summary label={isArabic ? "المتبقي" : "Remaining"} value={formatCurrency(supplierPaymentStatus === "partial" ? Math.max(0, total - supplierPaidAmount) : supplierPaymentStatus === "paid" ? 0 : total)} />
+            </div>
+            <button type="button" onClick={onSaveInvoice} disabled={posting || !hasItems} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">
+              {posting ? labels.saving : saveLabel || labels.saveInvoice}
+            </button>
+          </div>
         </div>
       </div>
     </aside>
