@@ -4182,16 +4182,17 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
   const translateXRef = useRef(0);
   const dragStateRef = useRef({ active: false, moved: false, startX: 0, startTranslateX: 0, pointerId: null });
   const autoplayTimersRef = useRef({ wait: null, settle: null, reset: null });
+  const railPausedRef = useRef(false);
   const [railPaused, setRailPaused] = useState(false);
   const [trackMotion, setTrackMotion] = useState({ x: 0, transition: "none" });
+  const [activeDotIndex, setActiveDotIndex] = useState(0);
   const visibleProducts = useMemo(
     () => sortStorefrontColorCardsByModel(uniqueProductsByIdentity(products).filter((product) => product?.id && product?.name && isAvailableProduct(product)).slice(0, 8)),
     [products]
   );
   const repeatedProducts = useMemo(() => {
     if (!visibleProducts.length) return [];
-    const repeatCount = visibleProducts.length <= 2 ? 4 : 3;
-    return Array.from({ length: repeatCount }, (_, repeatIndex) =>
+    return Array.from({ length: 3 }, (_, repeatIndex) =>
       visibleProducts.map((product, index) => ({
         product,
         repeatIndex,
@@ -4240,7 +4241,6 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
     },
   }[tone] || {};
   const sectionTone = toneConfig.shell || "bg-transparent";
-  const railRepeatCount = loading && !visibleProducts.length ? 3 : visibleProducts.length <= 2 ? 4 : 3;
   const railItems = loading && !visibleProducts.length
     ? Array.from({ length: 3 }, (_, repeatIndex) =>
         skeletonItems.map((_, index) => ({
@@ -4253,6 +4253,7 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
       ).flat()
     : repeatedProducts;
   const transitionMs = 500;
+  const autoplayDelay = 3000;
   const loopStartIndex = visibleProducts.length;
   const loopEndIndex = visibleProducts.length * 2;
   const reducedMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
@@ -4265,6 +4266,11 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
     autoplayTimersRef.current = { wait: null, settle: null, reset: null };
   }, []);
 
+  const setRailPausedState = useCallback((nextPaused) => {
+    railPausedRef.current = nextPaused;
+    setRailPaused(nextPaused);
+  }, []);
+
   const setTrackPosition = useCallback((nextX, animate) => {
     translateXRef.current = nextX;
     setTrackMotion({
@@ -4273,85 +4279,77 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
     });
   }, []);
 
-  const getViewportEdge = useCallback(() => {
-    const viewport = railViewportRef.current;
-    if (!viewport) return 0;
-    const rect = viewport.getBoundingClientRect();
-    return isRtl ? rect.right : rect.left;
-  }, [isRtl]);
-
-  const alignToIndex = useCallback((index, animate = true) => {
+  const setCenteredIndex = useCallback((index, animate = true) => {
     const viewport = railViewportRef.current;
     const node = railCardRefs.current[index];
     if (!viewport || !node) return false;
-    const viewportEdge = getViewportEdge();
-    const nodeRect = node.getBoundingClientRect();
-    const nodeEdge = isRtl ? nodeRect.right : nodeRect.left;
-    const nextX = translateXRef.current + (viewportEdge - nodeEdge);
+    const viewportRect = viewport.getBoundingClientRect();
+    const cardRect = node.getBoundingClientRect();
+    const viewportCenter = viewportRect.left + viewportRect.width / 2;
+    const cardCenter = cardRect.left + cardRect.width / 2;
+    const nextX = translateXRef.current + (viewportCenter - cardCenter);
     autoplayIndexRef.current = index;
+    setActiveDotIndex(visibleProducts.length ? index % visibleProducts.length : 0);
     setTrackPosition(nextX, animate);
     return true;
-  }, [getViewportEdge, isRtl, setTrackPosition]);
+  }, [setTrackPosition, visibleProducts.length]);
 
-  const normalizeIndex = useCallback((index) => {
+  const normalizeToMiddleCopy = useCallback((index) => {
     if (!visibleProducts.length) return index;
     const offset = ((index % visibleProducts.length) + visibleProducts.length) % visibleProducts.length;
     return loopStartIndex + offset;
   }, [loopStartIndex, visibleProducts.length]);
 
-  const resetToMiddleCopy = useCallback(() => {
+  const syncToCurrentCopy = useCallback(() => {
     if (!visibleProducts.length) return;
-    const normalized = normalizeIndex(autoplayIndexRef.current);
+    const normalized = normalizeToMiddleCopy(autoplayIndexRef.current);
     if (normalized !== autoplayIndexRef.current) {
-      alignToIndex(normalized, false);
+      setCenteredIndex(normalized, false);
     }
-  }, [alignToIndex, normalizeIndex, visibleProducts.length]);
-
-  const scheduleResetIfNeeded = useCallback(() => {
-    if (!visibleProducts.length || typeof window === "undefined") return;
-    if (autoplayIndexRef.current >= loopEndIndex || autoplayIndexRef.current < loopStartIndex) {
-      if (autoplayTimersRef.current.reset) window.clearTimeout(autoplayTimersRef.current.reset);
-      autoplayTimersRef.current.reset = window.setTimeout(() => {
-        resetToMiddleCopy();
-      }, transitionMs + 20);
-    }
-  }, [loopEndIndex, loopStartIndex, resetToMiddleCopy, visibleProducts.length]);
-
-  const queueNextStep = useCallback((delay = 4000) => {
-    if (typeof window === "undefined") return;
-    if (!visibleProducts.length || railPaused || reducedMotion || dragStateRef.current.active) return;
-    if (autoplayTimersRef.current.wait) window.clearTimeout(autoplayTimersRef.current.wait);
-    autoplayTimersRef.current.wait = window.setTimeout(() => {
-      if (railPaused || reducedMotion || dragStateRef.current.active) return;
-      const nextIndex = autoplayIndexRef.current + 1;
-      if (!alignToIndex(nextIndex, true)) return;
-      scheduleResetIfNeeded();
-      if (autoplayTimersRef.current.settle) window.clearTimeout(autoplayTimersRef.current.settle);
-      autoplayTimersRef.current.settle = window.setTimeout(() => {
-        queueNextStep(4000);
-      }, transitionMs);
-    }, delay);
-  }, [alignToIndex, railPaused, reducedMotion, scheduleResetIfNeeded, visibleProducts.length]);
+  }, [normalizeToMiddleCopy, setCenteredIndex, visibleProducts.length]);
 
   const findClosestIndex = useCallback(() => {
     const viewport = railViewportRef.current;
     if (!viewport || !visibleProducts.length) return autoplayIndexRef.current;
     const viewportRect = viewport.getBoundingClientRect();
-    const viewportEdge = isRtl ? viewportRect.right : viewportRect.left;
+    const viewportCenter = viewportRect.left + viewportRect.width / 2;
     let bestIndex = autoplayIndexRef.current;
     let bestDistance = Number.POSITIVE_INFINITY;
     railCardRefs.current.forEach((node, index) => {
       if (!node) return;
       const rect = node.getBoundingClientRect();
-      const edge = isRtl ? rect.right : rect.left;
-      const distance = Math.abs(edge - viewportEdge);
+      const center = rect.left + rect.width / 2;
+      const distance = Math.abs(center - viewportCenter);
       if (distance < bestDistance) {
         bestDistance = distance;
         bestIndex = index;
       }
     });
     return bestIndex;
-  }, [isRtl, visibleProducts.length]);
+  }, [visibleProducts.length]);
+
+  const queueNextStep = useCallback((delay = autoplayDelay) => {
+    if (typeof window === "undefined") return;
+    if (!visibleProducts.length || railPausedRef.current || reducedMotion || dragStateRef.current.active) return;
+    if (autoplayTimersRef.current.wait) window.clearTimeout(autoplayTimersRef.current.wait);
+    autoplayTimersRef.current.wait = window.setTimeout(() => {
+      if (railPausedRef.current || reducedMotion || dragStateRef.current.active || !visibleProducts.length) return;
+      let nextIndex = autoplayIndexRef.current + 1;
+      if (nextIndex >= loopEndIndex) {
+        nextIndex = loopEndIndex;
+      }
+      const moved = setCenteredIndex(nextIndex, true);
+      if (!moved) return;
+      if (autoplayTimersRef.current.settle) window.clearTimeout(autoplayTimersRef.current.settle);
+      autoplayTimersRef.current.settle = window.setTimeout(() => {
+        if (nextIndex >= loopEndIndex) {
+          autoplayIndexRef.current = loopStartIndex;
+          setCenteredIndex(loopStartIndex, false);
+        }
+        queueNextStep(autoplayDelay);
+      }, transitionMs);
+    }, delay);
+  }, [autoplayDelay, loopEndIndex, loopStartIndex, reducedMotion, setCenteredIndex, visibleProducts.length]);
 
   useEffect(() => {
     railCardRefs.current = [];
@@ -4359,32 +4357,31 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
 
   useEffect(() => {
     if (typeof window === "undefined" || !visibleProducts.length) return undefined;
-    const startIndex = loopStartIndex;
-    autoplayIndexRef.current = startIndex;
-    translateXRef.current = 0;
+    autoplayIndexRef.current = loopStartIndex;
+    setActiveDotIndex(0);
     setTrackPosition(0, false);
     const raf = window.requestAnimationFrame(() => {
-      alignToIndex(startIndex, false);
+      setCenteredIndex(loopStartIndex, false);
     });
     return () => window.cancelAnimationFrame(raf);
-  }, [alignToIndex, loopStartIndex, setTrackPosition, visibleProducts.length]);
+  }, [loopStartIndex, setCenteredIndex, setTrackPosition, visibleProducts.length]);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
     const onResize = () => {
       if (!visibleProducts.length) return;
-      alignToIndex(autoplayIndexRef.current, false);
+      setCenteredIndex(autoplayIndexRef.current, false);
     };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [alignToIndex, visibleProducts.length]);
+  }, [setCenteredIndex, visibleProducts.length]);
 
   useEffect(() => {
     clearTimers();
     if (!visibleProducts.length || railPaused || reducedMotion) return undefined;
-    queueNextStep(4000);
+    queueNextStep(autoplayDelay);
     return clearTimers;
-  }, [clearTimers, queueNextStep, railPaused, reducedMotion, visibleProducts.length]);
+  }, [autoplayDelay, clearTimers, queueNextStep, railPaused, reducedMotion, visibleProducts.length]);
 
   useEffect(() => () => clearTimers(), [clearTimers]);
 
@@ -4406,7 +4403,7 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
     } catch {
       // noop
     }
-    setRailPaused(true);
+    setRailPausedState(true);
     clearTimers();
   };
 
@@ -4417,7 +4414,7 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
     setTrackPosition(dragStateRef.current.startTranslateX + delta, false);
   };
 
-  const finishPointerInteraction = (event) => {
+  const endPointerInteraction = (event) => {
     if (!dragStateRef.current.active) return;
     const viewport = railViewportRef.current;
     if (viewport && dragStateRef.current.pointerId != null) {
@@ -4429,11 +4426,13 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
     }
     if (dragStateRef.current.moved) {
       const closestIndex = findClosestIndex();
-      alignToIndex(closestIndex, true);
-      scheduleResetIfNeeded();
+      const normalized = normalizeToMiddleCopy(closestIndex);
+      setCenteredIndex(normalized, true);
     }
     dragStateRef.current = { active: false, moved: false, startX: 0, startTranslateX: translateXRef.current, pointerId: null };
-    setRailPaused(false);
+    setRailPausedState(false);
+    clearTimers();
+    queueNextStep(autoplayDelay);
   };
 
   const handleClickCapture = (event) => {
@@ -4441,6 +4440,16 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
     event.preventDefault();
     event.stopPropagation();
     dragStateRef.current.moved = false;
+  };
+
+  const handleDotClick = (index) => {
+    if (!visibleProducts.length) return;
+    setRailPausedState(true);
+    clearTimers();
+    setCenteredIndex(loopStartIndex + index, true);
+    autoplayIndexRef.current = loopStartIndex + index;
+    setRailPausedState(false);
+    queueNextStep(autoplayDelay);
   };
 
   if (!loading && !visibleProducts.length) return null;
@@ -4460,16 +4469,20 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
             <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
           </Link>
         </div>
+
         <div
           ref={railViewportRef}
           dir={isRtl ? "rtl" : "ltr"}
           className="relative w-full min-w-0 overflow-hidden pb-2 [touch-action:pan-y]"
-          onPointerEnter={() => setRailPaused(true)}
-          onPointerLeave={() => setRailPaused(false)}
+          onPointerEnter={() => setRailPausedState(true)}
+          onPointerLeave={() => {
+            setRailPausedState(false);
+            queueNextStep(autoplayDelay);
+          }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
-          onPointerUp={finishPointerInteraction}
-          onPointerCancel={finishPointerInteraction}
+          onPointerUp={endPointerInteraction}
+          onPointerCancel={endPointerInteraction}
           onClickCapture={handleClickCapture}
         >
           <div
@@ -4506,13 +4519,25 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
                 )}
               </div>
             ))}
-            {!loading && !visibleProducts.length ? (
-              <div className="w-full rounded-[1.35rem] border border-dashed border-stone-300 bg-white/75 p-5 text-sm font-black text-stone-500 dark:border-white/10 dark:bg-white/5 dark:text-stone-400">
-                {isRtl ? "لا توجد منتجات متاحة للعرض حالياً." : "No products available for this section yet."}
-              </div>
-            ) : null}
           </div>
         </div>
+
+        {visibleProducts.length ? (
+          <div className="mt-4 flex items-center justify-center gap-2 md:hidden">
+            {visibleProducts.map((product, index) => {
+              const active = activeDotIndex === index;
+              return (
+                <button
+                  key={productIdentityKey(product, index)}
+                  type="button"
+                  aria-label={`Go to product ${index + 1}`}
+                  onClick={() => handleDotClick(index)}
+                  className={`h-2.5 rounded-full transition-all duration-300 ${active ? "w-8 bg-stone-950 dark:bg-white" : "w-2.5 bg-stone-300 dark:bg-white/30"}`}
+                />
+              );
+            })}
+          </div>
+        ) : null}
       </div>
     </section>
   );
