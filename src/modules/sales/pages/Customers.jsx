@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../../shared/api/api";
 import { getCurrentUser } from "../../../shared/auth/authStorage";
 import customerStatementArabicFontUrl from "../../../assets/fonts/customer-statement-arabic.ttf?url";
+import { escapeHtml, formatPrintDate, normalizePrintLanguage, openPrintHtml, PRINT_FONT_STACK, wrapPrintableHtml } from "../../../shared/utils/printLocalization";
 
 const DEFAULT_CUSTOMERS_PAGE_SIZE = 50;
 const CUSTOMER_PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
@@ -164,13 +165,265 @@ const registerCustomerStatementFont = async (doc) => {
   doc.setFont(CUSTOMER_STATEMENT_FONT.family, "normal");
 };
 
+const getStatementRows = (statement) => (Array.isArray(statement?.rows) ? statement.rows : []);
+
+const getStatementTotals = (statement) => {
+  const rows = getStatementRows(statement);
+  return rows.reduce((acc, row) => {
+    const amount = Number(row.amount || 0);
+    if (amount > 0) acc.credit += amount;
+    if (amount < 0) acc.debit += Math.abs(amount);
+    return acc;
+  }, {
+    debit: Number(statement?.totals?.debit || 0),
+    credit: Number(statement?.totals?.credit || 0),
+  });
+};
+
+const buildCustomerStatementPrintHtml = ({ statement, customer, language }) => {
+  const rows = getStatementRows(statement);
+  const totals = getStatementTotals(statement);
+  const customerName = customer?.name || statement?.customer?.name || "";
+  const customerPhone = customer?.phone || statement?.customer?.phone || "";
+  const currentBalance = Number(statement?.current_balance ?? customer?.wallet_balance ?? customer?.balance ?? 0);
+  const openingBalance = Number(statement?.opening_balance ?? 0);
+  const finalBalance = Number(statement?.final_balance ?? currentBalance);
+  const lastUpdated = statement?.filters?.date_to || statement?.filters?.date_from || new Date().toISOString();
+  const normalizedLanguage = normalizePrintLanguage(language);
+  const body = `
+    <main class="customer-statement-print" dir="rtl">
+      <section class="statement-card statement-head">
+        <div>
+          <div class="eyebrow">كشف حساب عميل</div>
+          <h1>كشف حساب العميل</h1>
+          <div class="customer-meta">
+            <div><span>العميل:</span> ${escapeHtml(customerName || "-")}</div>
+            <div><span>الهاتف:</span> ${escapeHtml(customerPhone || "-")}</div>
+            <div><span>الرصيد الحالي:</span> ${escapeHtml(formatMoney(currentBalance))}</div>
+            <div><span>نقاط الولاء:</span> ${escapeHtml(Number(customer?.loyalty_points ?? statement?.customer?.loyalty_points ?? 0).toLocaleString("ar-EG-u-nu-latn"))}</div>
+          </div>
+        </div>
+        <div class="summary-block">
+          <div class="summary-label">آخر تحديث</div>
+          <div class="summary-value">${escapeHtml(formatPrintDate(lastUpdated, normalizedLanguage, { dateStyle: "medium", timeStyle: "short" }))}</div>
+          <div class="summary-mini">
+            <div><span>الرصيد الافتتاحي</span><strong>${escapeHtml(formatMoney(openingBalance))}</strong></div>
+            <div><span>الرصيد النهائي</span><strong>${escapeHtml(formatMoney(finalBalance))}</strong></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="statement-card">
+        <div class="section-title">الحركات</div>
+        <table class="statement-table">
+          <thead>
+            <tr>
+              <th>التاريخ</th>
+              <th>البيان</th>
+              <th>رقم الفاتورة/الطلب</th>
+              <th class="num">مدين</th>
+              <th class="num">دائن</th>
+              <th class="num">الرصيد بعد الحركة</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.length ? rows.map((row) => {
+              const amount = Number(row.amount || 0);
+              const debit = amount < 0 ? formatMoney(Math.abs(amount)) : "";
+              const credit = amount > 0 ? formatMoney(amount) : "";
+              const reference = row.invoice_number || row.return_number || row.reference_id || "-";
+              return `
+                <tr>
+                  <td>${escapeHtml(formatPrintDate(row.created_at, normalizedLanguage, { dateStyle: "medium", timeStyle: "short" }))}</td>
+                  <td>${escapeHtml(row.transaction_type_label || row.notes || row.transaction_type || "-")}</td>
+                  <td>${escapeHtml(reference)}</td>
+                  <td class="num">${escapeHtml(debit || "-")}</td>
+                  <td class="num">${escapeHtml(credit || "-")}</td>
+                  <td class="num">${escapeHtml(formatMoney(row.after_balance))}</td>
+                </tr>
+              `;
+            }).join("") : `
+              <tr><td colspan="6" class="empty">لا توجد حركات مطابقة</td></tr>
+            `}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="statement-card totals-grid">
+        <div><span>إجمالي المدين</span><strong>${escapeHtml(formatMoney(totals.debit))}</strong></div>
+        <div><span>إجمالي الدائن</span><strong>${escapeHtml(formatMoney(totals.credit))}</strong></div>
+        <div><span>الرصيد النهائي</span><strong>${escapeHtml(formatMoney(finalBalance))}</strong></div>
+      </section>
+    </main>
+  `;
+
+  const html = wrapPrintableHtml({
+    title: "كشف حساب العميل",
+    body,
+    language: normalizedLanguage,
+  });
+
+  const extraStyles = `
+    @font-face {
+      font-family: "CustomerStatementArabic";
+      src: url("${customerStatementArabicFontUrl}") format("truetype");
+      font-weight: 400;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: "CustomerStatementArabic";
+      src: url("${customerStatementArabicFontUrl}") format("truetype");
+      font-weight: 700;
+      font-style: normal;
+    }
+    body {
+      font-family: "CustomerStatementArabic", ${PRINT_FONT_STACK};
+      background: #eef2f7;
+    }
+    .customer-statement-print {
+      width: min(100%, 920px);
+      margin: 0 auto;
+      display: grid;
+      gap: 14px;
+    }
+    .statement-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 18px;
+      background: #fff;
+      padding: 16px;
+      box-shadow: 0 14px 40px rgba(15, 23, 42, 0.05);
+    }
+    .statement-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+      gap: 16px;
+      align-items: start;
+    }
+    .eyebrow {
+      color: #059669;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.15;
+      font-weight: 900;
+      color: #0f172a;
+    }
+    .customer-meta {
+      margin-top: 10px;
+      display: grid;
+      gap: 6px;
+      font-size: 13px;
+      color: #334155;
+    }
+    .customer-meta span,
+    .summary-mini span {
+      color: #64748b;
+      font-weight: 800;
+      margin-left: 4px;
+    }
+    .summary-block {
+      background: linear-gradient(180deg, #ecfdf5 0%, #f8fafc 100%);
+      border: 1px solid #bbf7d0;
+      border-radius: 16px;
+      padding: 14px;
+    }
+    .summary-label,
+    .section-title {
+      color: #059669;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .summary-value {
+      margin-top: 6px;
+      font-size: 14px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .summary-mini {
+      margin-top: 12px;
+      display: grid;
+      gap: 8px;
+    }
+    .summary-mini > div,
+    .totals-grid > div {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+      color: #0f172a;
+    }
+    .summary-mini strong,
+    .totals-grid strong {
+      font-weight: 900;
+      color: #0f172a;
+    }
+    .statement-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      table-layout: fixed;
+    }
+    .statement-table th,
+    .statement-table td {
+      border-bottom: 1px solid #e2e8f0;
+      padding: 9px 8px;
+      font-size: 12px;
+      line-height: 1.45;
+      vertical-align: top;
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+    .statement-table th {
+      background: #f8fafc;
+      font-weight: 900;
+      color: #475569;
+    }
+    .statement-table .num {
+      direction: ltr;
+      text-align: left;
+      unicode-bidi: isolate;
+      font-variant-numeric: tabular-nums;
+    }
+    .statement-table .empty {
+      text-align: center;
+      color: #64748b;
+      padding: 20px 8px;
+    }
+    .totals-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    @media print {
+      body { background: #fff; padding: 0 !important; }
+      .statement-card { box-shadow: none; }
+    }
+  `;
+
+  return html.replace("</style>", `${extraStyles}</style>`);
+};
+
+const printCustomerStatement = (statement, customer, language) => {
+  if (typeof window === "undefined") return false;
+  const html = buildCustomerStatementPrintHtml({ statement, customer, language });
+  return openPrintHtml(html, { width: 1100, height: 1300 });
+};
+
 const isAdminOrManager = (user = getCurrentUser()) => {
   const role = String(user?.role_name || user?.role || "admin").trim().toLowerCase().replace(/[_-]+/g, " ");
   return ["admin", "super admin", "superadmin", "manager"].includes(role);
 };
 
 function Customers() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -189,8 +442,10 @@ function Customers() {
   const [address, setAddress] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [statementData, setStatementData] = useState(null);
   const [walletAudit, setWalletAudit] = useState([]);
   const [auditLoading, setAuditLoading] = useState(false);
+  const [statementError, setStatementError] = useState("");
   const [filters, setFilters] = useState({
     date_from: "",
     date_to: "",
@@ -275,23 +530,30 @@ function Customers() {
     }
   }, []);
 
-  const fetchWalletAudit = useCallback(async () => {
-    if (!selectedCustomer?.id) return;
+  const fetchCustomerStatement = useCallback(async () => {
+    if (!selectedCustomer?.id) return null;
     try {
       setAuditLoading(true);
-      const response = await api.get(`/customers/${selectedCustomer.id}/wallet/audit${buildFilterQuery()}`);
-      setWalletAudit(Array.isArray(response?.data) ? response.data : []);
+      setStatementError("");
+      const response = await api.get(`/customers/${selectedCustomer.id}/statement${buildFilterQuery()}`);
+      const statement = response?.data?.data || response?.data?.statement || response?.data || null;
+      setStatementData(statement);
+      setWalletAudit(Array.isArray(statement?.rows) ? statement.rows : []);
+      return statement;
     } catch (error) {
-      console.error("[customers] failed to load wallet audit:", error);
+      console.error("[customers] failed to load customer statement:", error);
+      setStatementData(null);
       setWalletAudit([]);
+      setStatementError(error?.message || "Failed to load customer statement");
+      return null;
     } finally {
       setAuditLoading(false);
     }
   }, [buildFilterQuery, selectedCustomer?.id]);
 
   useEffect(() => {
-    fetchWalletAudit();
-  }, [fetchWalletAudit]);
+    fetchCustomerStatement();
+  }, [fetchCustomerStatement]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -301,6 +563,8 @@ function Customers() {
   }, [search]);
 
   const handleOpenProfile = (customer) => {
+    setStatementData(null);
+    setStatementError("");
     setWalletAudit([]);
     setProfile(null);
     fetchCustomerProfile(customer);
@@ -321,7 +585,7 @@ function Customers() {
         notes,
       });
       setAdjustment({ type: "manual_add", amount: "", notes: "" });
-      await Promise.all([fetchCustomers(), fetchCustomerProfile(selectedCustomer), fetchWalletAudit()]);
+      await Promise.all([fetchCustomers(), fetchCustomerProfile(selectedCustomer), fetchCustomerStatement()]);
     } catch (error) {
       console.error("[customers] failed to adjust wallet:", error);
       window.alert(error?.message || "تعذر تعديل المحفظة");
@@ -331,6 +595,16 @@ function Customers() {
   const handleExportStatement = async () => {
     if (!selectedCustomer?.id || !canExportStatement) return;
     try {
+      const statement = statementData?.rows ? statementData : await fetchCustomerStatement();
+      if (!statement) {
+        throw new Error("تعذر تحميل كشف الحساب");
+      }
+      const opened = printCustomerStatement(statement, profile?.customer || selectedCustomer, i18n.language);
+      if (!opened) {
+        throw new Error("تعذر فتح نافذة الطباعة");
+      }
+      return;
+      if (false) {
       const response = await api.get(`/customers/${selectedCustomer.id}/statement${buildFilterQuery()}`);
       const statement = response?.data;
       const [jspdfModule, autoTableModule] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
@@ -398,6 +672,7 @@ function Customers() {
       doc.text(toPdfArabic(doc, `التعديلات اليدوية: ${formatMoney(statement?.totals?.manual_adjustments)}`), rightX, y + 24, { align: "right" });
       doc.text(toPdfArabic(doc, `مطابقة الرصيد الحالي: ${formatMoney(statement?.current_balance)}`), rightX, y + 30, { align: "right" });
       doc.save(`customer-statement-${selectedCustomer.id}.pdf`);
+      }
     } catch (error) {
       console.error("[customers] failed to export statement:", error);
       window.alert(error?.message || "تعذر تصدير كشف الحساب");
@@ -866,16 +1141,22 @@ function Customers() {
         </section>
       </div>
       {selectedCustomer ? (
-        <CustomerProfileDrawer
+        <CustomerStatementDrawer
           customer={profile?.customer || selectedCustomer}
           metrics={profile?.metrics}
+          statement={statementData}
           walletAudit={walletAudit}
           auditLoading={auditLoading}
+          statementError={statementError}
           filters={filters}
           setFilters={setFilters}
           adjustment={adjustment}
           setAdjustment={setAdjustment}
-          onClose={() => setSelectedCustomer(null)}
+          onClose={() => {
+            setSelectedCustomer(null);
+            setStatementData(null);
+            setStatementError("");
+          }}
           onAdjust={handleManualAdjustment}
           onExportStatement={handleExportStatement}
           canExportStatement={canExportStatement}
@@ -1234,6 +1515,215 @@ function TimelineItem({ item }) {
         <div className="mt-1 text-xs text-zinc-500">{item.reference_type || "-"}</div>
       </div>
     </article>
+  );
+}
+
+function CustomerStatementDrawer({
+  customer,
+  metrics,
+  statement,
+  walletAudit,
+  auditLoading,
+  statementError,
+  filters,
+  setFilters,
+  adjustment,
+  setAdjustment,
+  onClose,
+  onAdjust,
+  onExportStatement,
+  canExportStatement,
+}) {
+  const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
+  const statementRows = Array.isArray(statement?.rows) ? statement.rows : walletAudit;
+  const totals = getStatementTotals({ rows: statementRows, totals: statement?.totals });
+  const customerName = customer?.name || statement?.customer?.name || "عميل";
+  const customerPhone = customer?.phone || statement?.customer?.phone || "-";
+  const currentBalance = Number(statement?.current_balance ?? customer?.wallet_balance ?? customer?.balance ?? 0);
+  const loyaltyPoints = Number(customer?.loyalty_points ?? customer?.available_points ?? statement?.customer?.loyalty_points ?? 0);
+  const openingBalance = Number(statement?.opening_balance ?? 0);
+  const finalBalance = Number(statement?.final_balance ?? currentBalance);
+  const lastUpdated =
+    statement?.filters?.date_to ||
+    statement?.filters?.date_from ||
+    metrics?.lastVisit ||
+    customer?.updated_at ||
+    customer?.created_at;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm" dir="rtl">
+      <aside className="h-full w-full max-w-6xl overflow-y-auto border-l border-white/10 bg-slate-950 p-5 text-white shadow-2xl shadow-black/40">
+        <div className="flex flex-col gap-3 border-b border-white/10 pb-5 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">كشف حساب العميل</div>
+            <h2 className="mt-2 text-3xl font-black">{customerName}</h2>
+            <div className="mt-3 grid gap-2 text-sm text-zinc-300 sm:grid-cols-2 xl:grid-cols-4">
+              <span className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                <Phone className="h-4 w-4 text-zinc-500" />
+                {customerPhone}
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2">
+                <Wallet className="h-4 w-4 text-emerald-300" />
+                {formatMoney(currentBalance)}
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2">
+                <Sparkles className="h-4 w-4 text-cyan-200" />
+                {loyaltyPoints.toLocaleString("ar-EG-u-nu-latn")}
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                <CalendarDays className="h-4 w-4 text-zinc-500" />
+                {formatDateTime(lastUpdated)}
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onExportStatement}
+              disabled={!canExportStatement}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+              title={canExportStatement ? "طباعة / تحميل PDF" : "Only admin/manager can export"}
+            >
+              <FileText className="h-4 w-4" />
+              طباعة / تحميل PDF
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">الاسم</div>
+            <div className="mt-2 text-xl font-black text-white">{customerName}</div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">الرصيد الحالي</div>
+            <div className="mt-2 text-xl font-black text-emerald-200">{formatMoney(currentBalance)}</div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">نقاط الولاء</div>
+            <div className="mt-2 text-xl font-black text-cyan-200">{loyaltyPoints.toLocaleString("ar-EG-u-nu-latn")}</div>
+          </div>
+        </div>
+
+        <section className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <div className="mb-4 flex items-center gap-2 text-sm font-black text-emerald-100">
+            <Filter className="h-4 w-4" />
+            فلترة كشف الحساب
+          </div>
+          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+            <AuditInput label="من تاريخ" type="date" value={filters.date_from} onChange={(value) => updateFilter("date_from", value)} />
+            <AuditInput label="إلى تاريخ" type="date" value={filters.date_to} onChange={(value) => updateFilter("date_to", value)} />
+            <label className="block">
+              <span className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">النوع</span>
+              <select value={filters.transaction_type} onChange={(event) => updateFilter("transaction_type", event.target.value)} className={`${inputClass} mt-2`}>
+                {walletTypeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <AuditInput label="رقم الفاتورة" value={filters.invoice_number} onChange={(value) => updateFilter("invoice_number", value)} />
+            <AuditInput label="أقل مبلغ" type="number" value={filters.amount_min} onChange={(value) => updateFilter("amount_min", value)} />
+            <AuditInput label="أكبر مبلغ" type="number" value={filters.amount_max} onChange={(value) => updateFilter("amount_max", value)} />
+          </div>
+        </section>
+
+        <section className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <div className="mb-4 flex items-center gap-2 text-sm font-black text-emerald-100">
+            <PlusCircle className="h-4 w-4" />
+            تعديل يدوي للمحفظة
+          </div>
+          <form onSubmit={onAdjust} className="grid gap-3 md:grid-cols-[180px_160px_minmax(0,1fr)_120px]">
+            <select value={adjustment.type} onChange={(event) => setAdjustment((current) => ({ ...current, type: event.target.value }))} className={inputClass}>
+              <option value="manual_add">إضافة يدوية</option>
+              <option value="manual_deduct">خصم يدوي</option>
+            </select>
+            <input type="number" min="0.01" step="0.01" required value={adjustment.amount} onChange={(event) => setAdjustment((current) => ({ ...current, amount: event.target.value }))} placeholder="المبلغ" className={inputClass} />
+            <input required value={adjustment.notes} onChange={(event) => setAdjustment((current) => ({ ...current, notes: event.target.value }))} placeholder="سبب/ملاحظات التعديل" className={inputClass} />
+            <button type="submit" className="inline-flex h-12 items-center justify-center rounded-2xl bg-emerald-400 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-300">حفظ</button>
+          </form>
+        </section>
+
+        <section className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
+            <div className="text-sm font-black text-white">الحركات</div>
+            <div className="text-xs font-bold text-zinc-500">{statementRows.length.toLocaleString("ar-EG-u-nu-latn")} حركة</div>
+          </div>
+          {statementError ? (
+            <div className="mt-4 rounded-2xl border border-rose-300/20 bg-rose-500/10 p-4 text-sm font-bold text-rose-100">
+              {statementError}
+            </div>
+          ) : null}
+          <div className="overflow-x-auto">
+            <table className="mt-4 min-w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-white/10 text-right text-xs font-black uppercase tracking-[0.14em] text-zinc-500">
+                  <th className="px-3 py-3">التاريخ</th>
+                  <th className="px-3 py-3">البيان</th>
+                  <th className="px-3 py-3">رقم الفاتورة/الطلب</th>
+                  <th className="px-3 py-3 text-left">مدين</th>
+                  <th className="px-3 py-3 text-left">دائن</th>
+                  <th className="px-3 py-3 text-left">الرصيد بعد الحركة</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLoading ? (
+                  <tr>
+                    <td colSpan="6" className="px-3 py-10 text-center text-sm font-bold text-emerald-300">جارٍ تحميل كشف الحساب...</td>
+                  </tr>
+                ) : statementRows.length ? (
+                  statementRows.map((row, index) => {
+                    const amount = Number(row.amount || 0);
+                    const debit = amount < 0 ? formatMoney(Math.abs(amount)) : "";
+                    const credit = amount > 0 ? formatMoney(amount) : "";
+                    const reference = row.invoice_number || row.return_number || row.reference_id || "-";
+                    return (
+                      <tr key={row.id || `${row.created_at || "row"}-${index}`} className="border-b border-white/5 align-top text-zinc-200">
+                        <td className="whitespace-nowrap px-3 py-3">{formatDateTime(row.created_at)}</td>
+                        <td className="px-3 py-3">{row.transaction_type_label || row.notes || row.transaction_type || "-"}</td>
+                        <td className="px-3 py-3">{reference}</td>
+                        <td className="px-3 py-3 text-left font-bold text-rose-200">{debit || "-"}</td>
+                        <td className="px-3 py-3 text-left font-bold text-emerald-200">{credit || "-"}</td>
+                        <td className="px-3 py-3 text-left font-bold text-cyan-200">{formatMoney(row.after_balance)}</td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan="6" className="px-3 py-10 text-center text-sm text-zinc-500">لا توجد حركات مطابقة للفلتر الحالي.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="mt-5 grid gap-3 md:grid-cols-3">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">إجمالي المدين</div>
+            <div className="mt-2 text-2xl font-black text-rose-200">{formatMoney(totals.debit)}</div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">إجمالي الدائن</div>
+            <div className="mt-2 text-2xl font-black text-emerald-200">{formatMoney(totals.credit)}</div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">الرصيد النهائي</div>
+            <div className="mt-2 text-2xl font-black text-cyan-200">{formatMoney(finalBalance)}</div>
+            <div className="mt-1 text-xs font-semibold text-zinc-500">الرصيد الافتتاحي: {formatMoney(openingBalance)}</div>
+          </div>
+        </section>
+      </aside>
+    </div>
   );
 }
 

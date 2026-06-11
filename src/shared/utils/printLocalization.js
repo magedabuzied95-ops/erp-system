@@ -161,9 +161,29 @@ export const openPrintHtml = (html, { width = 980, height = 1200 } = {}) => {
   popup.document.write(html);
   popup.document.close();
   popup.focus();
-  window.setTimeout(() => {
-    popup.print();
-    popup.close();
-  }, 160);
+  const triggerPrint = async () => {
+    try {
+      if (popup.document?.fonts?.ready) {
+        await popup.document.fonts.ready;
+      }
+    } catch {
+      // Ignore font loading issues and fall back to the browser's default timing.
+    }
+    window.setTimeout(() => {
+      try {
+        popup.focus();
+        popup.print();
+      } finally {
+        popup.close();
+      }
+    }, 240);
+  };
+  if (popup.document.readyState === "complete") {
+    triggerPrint();
+  } else {
+    popup.onload = () => {
+      triggerPrint();
+    };
+  }
   return true;
 };
