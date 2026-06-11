@@ -5684,7 +5684,6 @@ function ProductCardVariantSheet({
   onAdd,
 }) {
   const { t } = useTranslation();
-  const closeGestureHandledRef = useRef(false);
   const activeGroup = colorGroups.find((group) => String(group.key) === String(selectedColorKey)) || colorGroups[0] || null;
   const sizeOptions = getSizesForColorGroup(activeGroup);
   const selectedVariant = sizeOptions.find((item) => String(item.variant?.id) === String(selectedVariantId))?.variant
@@ -5694,28 +5693,24 @@ function ProductCardVariantSheet({
   const safeQty = Math.min(Math.max(1, Number(quantity || 1)), maxQty);
   const handleCloseRequest = useCallback((event) => {
     if (event) {
-      event.preventDefault();
       event.stopPropagation();
     }
-    if (closeGestureHandledRef.current) return;
-    closeGestureHandledRef.current = true;
     onClose?.();
-    window.setTimeout(() => {
-      closeGestureHandledRef.current = false;
-    }, 0);
   }, [onClose]);
 
   return createPortal(
-    <div className="fixed inset-0 z-[90] pointer-events-auto md:hidden" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+    <div className="fixed inset-0 z-[90] pointer-events-auto md:hidden" role="dialog" aria-modal="true">
       <button
         type="button"
         className="absolute inset-0 z-0 bg-stone-950/62 backdrop-blur-sm"
-        onPointerDown={handleCloseRequest}
-        onTouchStart={handleCloseRequest}
         onClick={handleCloseRequest}
         aria-label={t("common.close", "Close")}
       />
-      <section className="absolute inset-x-0 bottom-0 z-10 rounded-t-[1.55rem] border border-white/10 bg-[linear-gradient(180deg,#101426_0%,#070b16_100%)] p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] text-white shadow-[0_-24px_70px_rgba(0,0,0,0.42)]">
+      <section
+        className="absolute inset-x-0 bottom-0 z-10 rounded-t-[1.55rem] border border-white/10 bg-[linear-gradient(180deg,#101426_0%,#070b16_100%)] p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] text-white shadow-[0_-24px_70px_rgba(0,0,0,0.42)]"
+        onClick={(event) => event.stopPropagation()}
+        onPointerUp={(event) => event.stopPropagation()}
+      >
         <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-white/20" />
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -5724,8 +5719,7 @@ function ProductCardVariantSheet({
           </div>
           <button
             type="button"
-            onPointerDown={handleCloseRequest}
-            onTouchStart={handleCloseRequest}
+            onPointerUp={handleCloseRequest}
             onClick={handleCloseRequest}
             className="relative z-20 grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75"
             aria-label={t("common.close", "Close")}
