@@ -77,7 +77,13 @@ const isPurchasePaymentAccountMatch = (account = {}, paymentMethod = "") => {
   if (method === "bank_transfer") return ["bank", "card_settlement"].includes(type);
   return true;
 };
-const getFinancialAccountId = (account = {}) => account?.id ?? account?.account_id ?? account?.financial_account_id ?? null;
+const normalizeFinancialAccount = (account = {}) => ({
+  ...account,
+  id: account?.id ?? account?.account_id ?? null,
+  name: account?.name ?? account?.account_name ?? "",
+  type: account?.type ?? account?.account_type ?? "",
+  account_type: account?.account_type ?? account?.type ?? "",
+});
 const paymentMethodLabel = (method, isArabic) => {
   const key = normalizePaymentMethodKey(method);
   const labels = isArabic
@@ -579,7 +585,11 @@ function PurchaseOrder() {
 
       if (financialAccountsRes.status === "fulfilled") {
         const financialAccountRows = Array.isArray(financialAccountsRes.value?.rows) ? financialAccountsRes.value.rows : [];
-        setFinancialAccounts(financialAccountRows.filter((account) => account?.is_active !== false));
+        setFinancialAccounts(
+          financialAccountRows
+            .map(normalizeFinancialAccount)
+            .filter((account) => account?.is_active !== false && account?.id !== null && account?.id !== undefined)
+        );
       } else {
         setFinancialAccounts([]);
       }
@@ -600,14 +610,17 @@ function PurchaseOrder() {
         const normalizedPaymentStatus = paymentStatus.includes("partial") ? "partial" : paymentStatus.includes("paid") ? "paid" : "unpaid";
         setSupplierPaymentStatus(normalizedPaymentStatus);
         setSupplierPaidAmount(paidAmount);
-        const financialAccountRows = financialAccountsRes.status === "fulfilled" && Array.isArray(financialAccountsRes.value?.rows) ? financialAccountsRes.value.rows : [];
+        const financialAccountRows =
+          financialAccountsRes.status === "fulfilled" && Array.isArray(financialAccountsRes.value?.rows)
+            ? financialAccountsRes.value.rows.map(normalizeFinancialAccount)
+            : [];
         const loadedFinancialAccountId =
           loadedPurchase.financial_account_id ||
           loadedPurchase.payment_account_id ||
           loadedPurchase.metadata?.payment_account_id ||
           loadedPurchase.metadata?.financial_account_id ||
           "";
-        const loadedAccount = financialAccountRows.find((account) => String(getFinancialAccountId(account)) === String(loadedFinancialAccountId)) || null;
+        const loadedAccount = financialAccountRows.find((account) => String(account.id) === String(loadedFinancialAccountId)) || null;
         const loadedPaymentMethod = normalizePaymentMethodKey(loadedPurchase.payment_method || loadedPurchase.metadata?.payment_method || "");
         const loadedAccountType = String(loadedAccount?.account_type || "").toLowerCase();
         const loadedAccountProvider = String(loadedAccount?.provider || "").toLowerCase();
@@ -833,7 +846,7 @@ function PurchaseOrder() {
         ? Math.min(total, money(supplierPaidAmount))
         : 0;
   const effectiveSupplierRemainingAmount = Math.max(0, total - effectiveSupplierPaidAmount);
-  const selectedPaymentAccount = financialAccounts.find((account) => String(getFinancialAccountId(account)) === String(paymentAccountId)) || null;
+  const selectedPaymentAccount = financialAccounts.find((account) => String(account.id) === String(paymentAccountId)) || null;
   const filteredPaymentAccounts = useMemo(
     () => financialAccounts.filter((account) => isPurchasePaymentAccountMatch(account, paymentMethod)),
     [financialAccounts, paymentMethod]
@@ -1298,10 +1311,7 @@ function PurchaseOrder() {
   const handlePaymentMethodChange = (nextMethod) => {
     const normalized = normalizePaymentMethodKey(nextMethod);
     setPaymentMethod(normalized);
-    const nextMatches = financialAccounts.filter((account) => isPurchasePaymentAccountMatch(account, normalized));
-    if (!nextMatches.some((account) => String(getFinancialAccountId(account)) === String(paymentAccountId))) {
-      setPaymentAccountId("");
-    }
+    setPaymentAccountId("");
   };
 
   const handlePaymentAccountChange = (nextAccountId) => {
@@ -1384,8 +1394,20 @@ function PurchaseOrder() {
     }
     const normalizedPaymentStatus = normalizePaymentStatusKey(supplierPaymentStatus);
     const normalizedPaymentMethod = normalizePaymentMethodKey(paymentMethod);
-    const selectedPaymentAccountMatch = financialAccounts.find((account) => String(getFinancialAccountId(account)) === String(paymentAccountId)) || null;
-    const selectedFinancialAccountId = selectedPaymentAccountMatch ? Number(getFinancialAccountId(selectedPaymentAccountMatch)) : null;
+    const selectedPaymentAccountMatch = financialAccounts.find((account) => String(account.id) === String(paymentAccountId)) || null;
+    if (import.meta.env.DEV) {
+      console.log("[purchase-payment-debug]", {
+        paymentStatus: normalizedPaymentStatus,
+        paymentMethod: normalizedPaymentMethod,
+        paymentAccountId,
+        selectedPaymentAccount: selectedPaymentAccountMatch,
+        financialAccounts: financialAccounts.map((a) => ({
+          id: a.id,
+          name: a.name || a.account_name,
+          type: a.type || a.account_type,
+        })),
+      });
+    }
     if (normalizedPaymentStatus === "unpaid") {
       if (paymentMethod || paymentAccountId) {
         const message = isArabic ? "لا يتم طلب حساب مالي في حالة الآجل." : "No financial account is required for credit purchases.";
@@ -1402,7 +1424,7 @@ function PurchaseOrder() {
         releasePostingLock();
         return;
       }
-      if (!selectedPaymentAccountMatch) {
+      if (!paymentAccountId || !selectedPaymentAccountMatch) {
         const message = isArabic ? "اختر الحساب المالي المناسب أولاً." : "Choose the matching financial account first.";
         setPostError(message);
         toast.error(message);
@@ -1498,7 +1520,7 @@ function PurchaseOrder() {
       supplier_paid_amount: effectiveSupplierPaidAmount,
       remaining_amount: effectiveSupplierRemainingAmount,
       payment_method: normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod,
-      financial_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedFinancialAccountId,
+      financial_account_id: normalizedPaymentStatus === "unpaid" ? null : Number(paymentAccountId),
       metadata: {
         source: "purchase_pos",
         client_request_id: purchaseSaveId,
@@ -1511,7 +1533,7 @@ function PurchaseOrder() {
         delivery_notes: deliveryNotes,
         internal_notes: internalNotes,
         payment_method: normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod,
-        financial_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedFinancialAccountId,
+        financial_account_id: normalizedPaymentStatus === "unpaid" ? null : Number(paymentAccountId),
         expenses: { shipping, transport, customs, additional_expenses: additionalExpenses },
         attachments: attachments.map((file) => ({ name: file.name, size: file.size, type: file.type })),
       },
@@ -1533,7 +1555,7 @@ function PurchaseOrder() {
           supplier_payment_status: normalizedPaymentStatus,
           remaining_amount: effectiveSupplierRemainingAmount,
           payment_method: normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod,
-          financial_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedFinancialAccountId,
+          financial_account_id: normalizedPaymentStatus === "unpaid" ? null : Number(paymentAccountId),
           supplier_invoice_number: editPurchase.metadata?.supplier_invoice_number || editPurchase.supplier_invoice_number || "",
           notes: editPurchase.notes || "",
           subtotal,
@@ -1548,7 +1570,7 @@ function PurchaseOrder() {
             supplier_paid_amount: effectiveSupplierPaidAmount,
             remaining_amount: effectiveSupplierRemainingAmount,
             payment_method: normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod,
-            financial_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedFinancialAccountId,
+            financial_account_id: normalizedPaymentStatus === "unpaid" ? null : Number(paymentAccountId),
             branch_id: branchId || null,
           },
           items: normalizedItems.map((item) => ({
@@ -1599,7 +1621,7 @@ function PurchaseOrder() {
         supplier_paid_amount: effectiveSupplierPaidAmount,
         remaining_amount: effectiveSupplierRemainingAmount,
         payment_method: normalizedPaymentStatus === "unpaid" ? null : normalizedPaymentMethod,
-        financial_account_id: normalizedPaymentStatus === "unpaid" ? null : selectedFinancialAccountId,
+        financial_account_id: normalizedPaymentStatus === "unpaid" ? null : Number(paymentAccountId),
         total,
         subtotal,
         tax: 0,
@@ -2278,7 +2300,7 @@ function PurchaseCart({
                   value={paymentAccountId}
                   onChange={onPaymentAccountChange}
                   options={paymentAccounts.map((account) => ({
-                    value: String(getFinancialAccountId(account) || ""),
+                    value: String(account.id),
                     label: `${account.name}${account.provider ? ` - ${account.provider}` : ""}${account.branch_name ? ` - ${account.branch_name}` : ""}`,
                   }))}
                   emptyLabel={isArabic ? "اختر الحساب" : "Choose an account"}
@@ -2293,7 +2315,7 @@ function PurchaseCart({
             ) : null}
             <div className="grid grid-cols-2 gap-2">
               <Summary label={isArabic ? "طريقة الدفع" : "Payment method"} value={supplierPaymentStatus === "unpaid" ? (isArabic ? "آجل" : "Credit") : paymentMethodLabel(paymentMethod, isArabic)} />
-              <Summary label={isArabic ? "الحساب" : "Account"} value={supplierPaymentStatus === "unpaid" ? (isArabic ? "لا يوجد" : "None") : selectedPaymentAccount ? selectedPaymentAccount.name : (isArabic ? "غير محدد" : "Not selected")} />
+              <Summary label={isArabic ? "الحساب" : "Account"} value={supplierPaymentStatus === "unpaid" ? (isArabic ? "لا يوجد" : "None") : selectedPaymentAccount?.name || selectedPaymentAccount?.account_name || (isArabic ? "غير محدد" : "Not selected")} />
               <Summary label={labels.paidAmount} value={formatCurrency(supplierPaymentStatus === "paid" ? total : supplierPaidAmount)} />
               <Summary label={isArabic ? "المتبقي" : "Remaining"} value={formatCurrency(supplierPaymentStatus === "partial" ? Math.max(0, total - supplierPaidAmount) : supplierPaymentStatus === "paid" ? 0 : total)} />
             </div>
