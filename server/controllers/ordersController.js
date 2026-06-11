@@ -2237,36 +2237,6 @@ const bulkApplyInventoryChanges = async (client, {
     return `($${base + 1}::bigint,$${base + 2}::bigint,$${base + 3}::bigint,$${base + 4}::bigint,$${base + 5}::bigint,$${base + 6}::text,$${base + 7}::numeric,$${base + 8}::numeric,$${base + 9}::numeric,$${base + 10}::numeric,$${base + 11}::numeric,$${base + 12}::text,$${base + 13}::bigint,$${base + 14}::text,$${base + 15}::text,$${base + 16}::text,$${base + 17}::bigint)`;
   });
 
-  console.log({
-    columns: [
-      "tenant_id",
-      "product_id",
-      "variant_id",
-      "customer_id",
-      "branch_id",
-      "movement_type",
-      "quantity",
-      "before_qty",
-      "after_qty",
-      "quantity_before",
-      "quantity_change",
-      "quantity_after",
-      "unit_cost",
-      "total_cost",
-      "reference_type",
-      "reference_id",
-      "reason",
-      "notes",
-      "note",
-      "created_by",
-    ],
-    placeholders: movementPlaceholders,
-    params: movementValues,
-    columnsCount: 20,
-    placeholdersCount: movementPlaceholders.length,
-    paramsLength: movementValues.length,
-  });
-
   await client.query(
     `
     INSERT INTO inventory_movements (
