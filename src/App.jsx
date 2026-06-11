@@ -6,13 +6,13 @@ import {
   useState,
 } from "react";
 
+import { createPortal } from "react-dom";
 import {
   Routes,
   Route,
   Navigate,
   useLocation,
 } from "react-router-dom";
-import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { ShoppingCart } from "lucide-react";
 
@@ -286,7 +286,6 @@ function RouteTransitionLoader({ location }) {
 
 function App() {
   useTranslation();
-  const location = useLocation();
   const isEmployeeAppRoute = typeof window !== "undefined" && window.location.pathname.startsWith("/employee-app/");
   const employeeAppToken = isEmployeeAppRoute ? window.location.pathname.split("/")[2] || "" : "";
 
@@ -324,7 +323,6 @@ function App() {
   return (
     <TenantProvider>
     <DebugErrorBoundary title="Application screen crashed">
-    <RouteTransitionLoader location={location} />
     <Suspense fallback={<RouteSkeleton />}>
     <Routes>
 
