@@ -5387,6 +5387,9 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const [sheetQty, setSheetQty] = useState(1);
   const sheetDismissedRef = useRef(false);
   useEffect(() => {
+    console.log("variantSheetOpen changed:", variantSheetOpen);
+  }, [variantSheetOpen]);
+  useEffect(() => {
     let cancelled = false;
     deferReactState(() => {
       if (!cancelled) {
@@ -5420,13 +5423,15 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   }, [availableVariant, colorGroups, sellableVariants]);
   const closeVariantSheet = useCallback(() => {
     console.log("CLOSE_TAPPED");
+    console.log("closeVariantSheet CALLED");
     console.log("closeVariantSheet: before setVariantSheetOpen(false)");
     sheetDismissedRef.current = true;
     setVariantSheetOpen(false);
+    setTimeout(() => console.log("variantSheetOpen after close tick", variantSheetOpen), 0);
     setSheetColorKey("");
     setSheetVariantId("");
     setSheetQty(1);
-  }, []);
+  }, [variantSheetOpen]);
   const handleVariantSheetAdd = useCallback((variant, quantity) => {
     onAddToCart(product, variant, quantity);
     closeVariantSheet();
@@ -5624,6 +5629,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       {variantSheetOpen ? (
         <Suspense fallback={null}>
           <LazyProductCardVariantSheet
+            open={variantSheetOpen}
             product={product}
             colorGroups={colorGroups}
             selectedColorKey={sheetColorKey}
@@ -5672,6 +5678,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
 });
 
 function ProductCardVariantSheet({
+  open = false,
   product,
   colorGroups = [],
   selectedColorKey,
@@ -5684,6 +5691,7 @@ function ProductCardVariantSheet({
   onAdd,
 }) {
   const { t } = useTranslation();
+  if (!open) return null;
   const activeGroup = colorGroups.find((group) => String(group.key) === String(selectedColorKey)) || colorGroups[0] || null;
   const sizeOptions = getSizesForColorGroup(activeGroup);
   const selectedVariant = sizeOptions.find((item) => String(item.variant?.id) === String(selectedVariantId))?.variant
@@ -5695,7 +5703,10 @@ function ProductCardVariantSheet({
     if (event) {
       event.stopPropagation();
     }
-    onClose?.();
+    console.log("CLOSE_HANDLER_EXISTS", typeof onClose);
+    if (typeof onClose === "function") {
+      onClose();
+    }
   }, [onClose]);
 
   return createPortal(
@@ -5721,11 +5732,17 @@ function ProductCardVariantSheet({
             type="button"
             onPointerUp={(event) => {
               event.stopPropagation();
-              onClose?.();
+              console.log("CLOSE_HANDLER_EXISTS", typeof onClose);
+              if (typeof onClose === "function") {
+                onClose();
+              }
             }}
             onClick={(event) => {
               event.stopPropagation();
-              onClose?.();
+              console.log("CLOSE_HANDLER_EXISTS", typeof onClose);
+              if (typeof onClose === "function") {
+                onClose();
+              }
             }}
             className="relative z-20 grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75"
             title="إغلاق"
@@ -5806,6 +5823,7 @@ function ProductCardVariantSheet({
 }
 
 function ProductDetailsVariantSheet({
+  open = false,
   product,
   variant,
   colors = [],
@@ -5825,6 +5843,7 @@ function ProductDetailsVariantSheet({
 
   return (
     <ProductCardVariantSheet
+      open={open}
       product={product}
       colorGroups={colorGroups}
       selectedColorKey={selectedColorKey}
