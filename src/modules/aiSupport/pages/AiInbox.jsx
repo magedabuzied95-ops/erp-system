@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -457,74 +457,46 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
   const customerName = customerDisplayName(item) || "Customer";
-  const customerPhone = clean(item.phone || item.customer_phone || item.customer_profile?.phone || item.external_customer_id);
   const avatarUrl = customerAvatarUrl(item);
   const lastMessage = item.latest_message_preview || item.last_message || item.customer_message || item.ai_answer || "No messages yet.";
   const unreadCount = Number(item.unread_count || item.unread || 0);
-  const leadScore = conversationLeadScore(item);
-  const leadTemperature = conversationLeadTemperature(item);
-  const leadReasons = conversationLeadReasons(item);
-  const recommendedSalesAction = conversationRecommendedSalesAction(item);
-  const leadMetaInfo = leadTemperatureMeta[leadTemperature] || leadTemperatureMeta.cold;
-  const LeadIcon = leadMetaInfo.icon;
-  const mainStatus = item.conversation_status === "closed"
-    ? { tone: "rose", label: "Closed", icon: LockKeyhole }
-    : item.conversation_status === "human_takeover"
-      ? { tone: "amber", label: "Human takeover", icon: PauseCircle }
-      : item.needs_human_support
-        ? { tone: "amber", label: "Needs human", icon: Handshake }
-        : liveMeta
-          ? { tone: "emerald", label: "AI active", icon: Bot }
-          : null;
-  const MainStatusIcon = mainStatus?.icon;
-  const channelTone = isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc";
+  const aiState = item.conversation_status === "closed" || item.conversation_status === "human_takeover" || item.needs_human_support ? "Paused" : "Active";
   const containerTone =
     active
-      ? "border-cyan-300/45 bg-cyan-300/12 shadow-[0_10px_30px_rgba(34,211,238,0.12)]"
-      : leadTemperature === "ready_to_buy"
-        ? "border-emerald-300/35 bg-emerald-300/10 shadow-[0_12px_34px_rgba(16,185,129,0.12)]"
-        : leadTemperature === "hot"
-          ? "border-amber-300/30 bg-amber-300/8"
-          : leadTemperature === "warm"
-            ? "border-white/10 bg-white/[0.045]"
-            : unreadCount || unseen || liveMeta
-              ? "border-white/10 bg-slate-950/85 hover:border-cyan-300/25 hover:bg-white/[0.045]"
-              : "border-white/10 bg-slate-950/65 hover:border-white/20 hover:bg-white/[0.045]";
+      ? "border-cyan-300/50 bg-cyan-300/12 shadow-[0_10px_30px_rgba(34,211,238,0.12)]"
+      : unreadCount || unseen || liveMeta
+        ? "border-white/10 bg-slate-950/80 hover:border-cyan-300/25 hover:bg-white/[0.045]"
+        : "border-white/10 bg-slate-950/65 hover:border-white/20 hover:bg-white/[0.045]";
   return (
     <button
       type="button"
       onClick={() => onSelect(item.session_id)}
-      className={`w-full rounded-2xl border p-4 text-left transition ${containerTone} ${leadTemperature === "ready_to_buy" ? "ring-1 ring-emerald-300/20" : leadTemperature === "hot" ? "ring-1 ring-amber-300/10" : ""}`}
+      className={`w-full rounded-2xl border p-3 text-left transition ${containerTone}`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-white/10" loading="lazy" />
-            ) : (
-              <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${liveMeta ? "bg-cyan-300/15 text-cyan-100" : "bg-white/[0.07] text-slate-200"}`}><User className="h-4 w-4" /></span>
-            )}
-            <span className="min-w-0">
-              <span className="block truncate font-black text-white">{customerName}</span>
-              <span className="block truncate text-xs font-bold text-slate-500">
-                {displayFallback(customerPhone, item.external_customer_id || item.session_id)} / {channelLabel(channel)}
-              </span>
-            </span>
-          </div>
+      <div className="flex items-start gap-3">
+        <div className="relative shrink-0">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" className="h-11 w-11 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
+          ) : (
+            <span className={`grid h-11 w-11 place-items-center rounded-2xl ${liveMeta ? "bg-cyan-300/15 text-cyan-100" : "bg-white/[0.07] text-slate-200"}`}><User className="h-5 w-5" /></span>
+          )}
+          {unreadCount ? <span className="absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full border-2 border-slate-950 bg-rose-500" aria-hidden="true" /> : null}
         </div>
-        <span className="shrink-0 text-xs font-bold text-slate-500">{relativeTime(item.last_message_at || item.last_activity_at || item.updated_at)}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="truncate text-[15px] font-black leading-5 text-white">{customerName}</div>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <Pill tone={isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>{channelBadgeLabel(channel)}</Pill>
+                <span className={`inline-flex h-5 items-center rounded-full px-2 text-[10px] font-black uppercase tracking-[0.14em] ${aiState === "Active" ? "bg-emerald-300/12 text-emerald-100" : "bg-amber-300/12 text-amber-100"}`}>AI {aiState}</span>
+              </div>
+            </div>
+            <span className="shrink-0 text-[11px] font-bold text-slate-500">{relativeTime(item.last_message_at || item.last_activity_at || item.updated_at)}</span>
+          </div>
+          <p dir={isRtlText(lastMessage) ? "rtl" : "auto"} className="mt-2 line-clamp-2 text-[13px] leading-6 text-slate-300">{lastMessage}</p>
+          {unreadCount ? <div className="mt-2 flex justify-end"><span className="inline-flex h-5 items-center rounded-full bg-rose-400/12 px-2 text-[10px] font-black text-rose-100">Unread {unreadCount}</span></div> : null}
+        </div>
       </div>
-      <p dir={isRtlText(lastMessage) ? "rtl" : "auto"} className="mt-3 line-clamp-2 text-[13px] leading-6 text-slate-300">{lastMessage}</p>
-      <div className="mt-3 flex flex-wrap gap-1.5">
-          <Pill tone={channelTone}>{channelLabel(channel)}</Pill>
-        <Pill tone={leadMetaInfo.tone}><LeadIcon className="h-3.5 w-3.5" />Lead {leadMetaInfo.label}</Pill>
-        <Pill tone={leadMetaInfo.tone}>{leadScore}</Pill>
-        {mainStatus ? <Pill tone={mainStatus.tone}>{MainStatusIcon ? <MainStatusIcon className="h-3.5 w-3.5" /> : null}{mainStatus.label}</Pill> : null}
-        {unreadCount ? <Pill tone="rose">Unread {unreadCount}</Pill> : null}
-        {needsHumanAttention(item) ? <Pill tone="amber"><AlertTriangle className="h-3.5 w-3.5" />Needs human</Pill> : null}
-      </div>
-      {leadReasons.length ? <p className="mt-2 line-clamp-1 text-[11px] font-bold text-slate-500">Reasons: {leadReasons.slice(0, 3).join(" · ")}</p> : null}
-      <p className="mt-1 line-clamp-1 text-[11px] font-bold text-slate-500">Next action: {recommendedSalesAction}</p>
     </button>
   );
 });
@@ -565,21 +537,9 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
   const customerName = customerDisplayName(item) || "Customer";
-  const customerPhone = clean(item.phone || item.customer_phone || item.customer_profile?.phone || item.external_customer_id);
   const avatarUrl = customerAvatarUrl(item);
   const lastMessage = item.latest_message_preview || item.last_message || item.customer_message || item.ai_answer || "No messages yet.";
   const unreadCount = Number(item.unread_count || item.unread || 0);
-  const aiState = item.conversation_status === "closed" ? "OFF" : item.conversation_status === "human_takeover" ? "OFF" : liveMeta ? "ON" : "ON";
-  const mainStatus = item.conversation_status === "closed"
-    ? { tone: "rose", label: "Closed", icon: LockKeyhole }
-    : item.conversation_status === "human_takeover"
-      ? { tone: "amber", label: "Human takeover", icon: PauseCircle }
-      : item.needs_human_support
-        ? { tone: "amber", label: "Needs human", icon: Handshake }
-        : liveMeta
-          ? { tone: "emerald", label: "AI active", icon: Bot }
-          : null;
-  const MainStatusIcon = mainStatus?.icon;
   const containerTone = active
     ? "border-cyan-300/50 bg-cyan-300/12 shadow-[0_0_0_1px_rgba(34,211,238,0.2),0_18px_45px_rgba(8,145,178,0.16)]"
     : unreadCount || unseen || liveMeta
@@ -589,38 +549,31 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
     <button
       type="button"
       onClick={() => onSelect(item.session_id)}
-      className={`w-full rounded-3xl border p-4 text-left transition duration-200 ${containerTone}`}
+      className={`w-full rounded-2xl border p-3 text-left transition duration-200 ${containerTone}`}
     >
       <div className="flex items-start gap-3">
         <div className="relative shrink-0">
           {avatarUrl ? (
-            <img src={avatarUrl} alt="" className="h-12 w-12 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
+            <img src={avatarUrl} alt="" className="h-11 w-11 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
           ) : (
-            <span className={`grid h-12 w-12 place-items-center rounded-2xl ${liveMeta ? "bg-cyan-300/15 text-cyan-100" : "bg-white/[0.07] text-slate-200"}`}>
+            <span className={`grid h-11 w-11 place-items-center rounded-2xl ${liveMeta ? "bg-cyan-300/15 text-cyan-100" : "bg-white/[0.07] text-slate-200"}`}>
               <User className="h-5 w-5" />
             </span>
           )}
           {unreadCount ? <span className="absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full border-2 border-slate-950 bg-rose-500" aria-hidden="true" /> : null}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="truncate text-[15px] font-black leading-6 text-white">{customerName}</div>
-              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[12px] font-bold text-slate-500">
-                <span dir="ltr" className="truncate">{displayFallback(customerPhone, item.external_customer_id || item.session_id)}</span>
-                <span className="text-slate-700">/</span>
-                <span>{channelLabel(channel)}</span>
+              <div className="truncate text-[14px] font-black leading-5 text-white">{customerName}</div>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <Pill tone={isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>{channelBadgeLabel(channel)}</Pill>
               </div>
             </div>
             <span className="shrink-0 text-[11px] font-bold text-slate-500">{relativeTime(item.last_message_at || item.last_activity_at || item.updated_at)}</span>
           </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            <Pill tone={isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>{channelBadgeLabel(channel)}</Pill>
-            {mainStatus ? <Pill tone={mainStatus.tone}>{MainStatusIcon ? <MainStatusIcon className="h-3.5 w-3.5" /> : null}{mainStatus.label}</Pill> : null}
-            <Pill tone={aiState === "ON" ? "emerald" : "amber"}>AI {aiState}</Pill>
-            {unreadCount ? <Pill tone="rose">Unread {unreadCount}</Pill> : null}
-          </div>
-          <p dir={isRtlText(lastMessage) ? "rtl" : "auto"} className="mt-3 line-clamp-2 text-[13px] leading-6 text-slate-300">{lastMessage}</p>
+          <p dir={isRtlText(lastMessage) ? "rtl" : "auto"} className="mt-2 line-clamp-1 text-[13px] leading-5 text-slate-300">{lastMessage}</p>
+          {unreadCount ? <div className="mt-2 flex justify-end"><span className="inline-flex h-5 items-center rounded-full bg-rose-400/12 px-2 text-[10px] font-black text-rose-100">Unread {unreadCount}</span></div> : null}
         </div>
       </div>
     </button>
@@ -647,10 +600,11 @@ function InboxChatHeader({
   const phone = clean(conversation.phone || conversation.customer_phone || conversation.external_customer_id || conversation.customer_profile?.phone);
   const channel = conversation.channel || conversation.source || "web_chat";
   const aiEnabled = channelStatus.ai_replies_enabled !== false && status !== "closed";
+  const aiLabel = aiEnabled && status !== "human_takeover" ? "AI Active" : "AI Paused";
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.05] p-4 shadow-[0_16px_50px_rgba(0,0,0,0.18)] backdrop-blur">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
+    <div className="rounded-3xl border border-white/10 bg-white/[0.05] p-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.18)] backdrop-blur">
+      <div className="flex items-start justify-between gap-2.5">
+        <div className="flex min-w-0 items-start gap-2.5">
           {showBack ? (
             <button type="button" onClick={onBack} className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] text-slate-100 md:hidden">
               <ChevronLeft className="h-5 w-5" />
@@ -663,10 +617,12 @@ function InboxChatHeader({
           )}
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="truncate text-xl font-black text-white">{name}</div>
-              <Pill tone={isWhatsappChannel(channel) ? "emerald" : "cyan"}>{channelBadgeLabel(channel)}</Pill>
+              <div className="truncate text-lg font-black text-white">{name}</div>
+              <span className={`inline-flex h-5 items-center rounded-full px-2 text-[10px] font-black uppercase tracking-[0.14em] ${aiEnabled ? "bg-emerald-300/12 text-emerald-100" : "bg-amber-300/12 text-amber-100"}`}>{aiLabel}</span>
             </div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-slate-400">
+            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
+              <Pill tone={isWhatsappChannel(channel) ? "emerald" : "cyan"}>{channelBadgeLabel(channel)}</Pill>
+              <span className="text-slate-700">/</span>
               <span dir="ltr" className="truncate">{phone || conversation.external_customer_id || conversation.session_id}</span>
               <span className="text-slate-700">/</span>
               <span>{channelLabel(channel)}</span>
@@ -678,26 +634,26 @@ function InboxChatHeader({
             type="button"
             onClick={() => onToggleAi?.()}
             disabled={loading}
-            className={`inline-flex h-10 items-center gap-2 rounded-2xl px-3 text-xs font-black transition disabled:opacity-50 ${
+            className={`inline-flex h-9 items-center gap-2 rounded-2xl px-3 text-[11px] font-black transition disabled:opacity-50 ${
               aiEnabled ? "bg-emerald-300 text-slate-950" : "border border-white/10 bg-white/[0.06] text-slate-100"
             }`}
           >
-            <Bot className="h-4 w-4" />
+            <Bot className="h-3.5 w-3.5" />
             AI {aiEnabled ? "ON" : "OFF"}
           </button>
-          <button type="button" onClick={onOpenTools} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-3 text-xs font-black text-slate-100">
-            <MoreVertical className="h-4 w-4" />
+          <button type="button" onClick={onOpenTools} className="inline-flex h-9 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-3 text-[11px] font-black text-slate-100">
+            <MoreVertical className="h-3.5 w-3.5" />
             Tools
           </button>
         </div>
       </div>
-      <div className="mt-4 flex flex-wrap items-center gap-2">
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         <Pill tone={status === "closed" ? "rose" : status === "human_takeover" ? "amber" : "emerald"}>
-          {status === "closed" ? <LockKeyhole className="h-3.5 w-3.5" /> : status === "human_takeover" ? <PauseCircle className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
+          {status === "closed" ? <LockKeyhole className="h-3 w-3" /> : status === "human_takeover" ? <PauseCircle className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
           {status === "closed" ? "Closed" : status === "human_takeover" ? "Human takeover" : "AI active"}
         </Pill>
         <Pill tone={(channelStatus.live_operational || channelStatus.effective_enabled || channelStatus.messaging_active) ? "emerald" : "amber"}>
-          <Radio className="h-3.5 w-3.5" />
+          <Radio className="h-3 w-3" />
           {(channelStatus.live_operational || channelStatus.effective_enabled || channelStatus.messaging_active) ? "Live channel" : "Channel standby"}
         </Pill>
         {conversation.unread_count ? <Pill tone="rose">Unread {conversation.unread_count}</Pill> : null}
@@ -763,11 +719,11 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {conversation?.older_messages_available ? (
         <div className="flex justify-center">
-          <button type="button" onClick={onLoadOlder} disabled={loadingOlder} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-black text-slate-100 disabled:opacity-50">
-            {loadingOlder ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock3 className="h-4 w-4" />}
+          <button type="button" onClick={onLoadOlder} disabled={loadingOlder} className="inline-flex h-7 items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 text-[10px] font-black text-slate-300 disabled:opacity-50">
+            {loadingOlder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock3 className="h-3.5 w-3.5" />}
             Load older messages
           </button>
         </div>
@@ -776,7 +732,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
         <div key={messageKey(message)} className="space-y-2">
           {message.customer_message ? (
             <div className="flex justify-start">
-              <div className="max-w-[88%] rounded-3xl rounded-tl-sm border border-white/10 bg-white/[0.06] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)] sm:max-w-[80%]">
+              <div className="max-w-[88%] rounded-3xl rounded-tl-sm border border-white/10 bg-white/[0.06] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
                 <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
                   <span>Customer</span>
                   <span>/</span>
@@ -784,21 +740,21 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
                   <span>/</span>
                   <span>{absoluteTime(message.created_at)}</span>
                 </div>
-                <LinkifiedText text={message.customer_message} className="mt-2" />
+                <LinkifiedText text={message.customer_message} className="mt-3 text-[16px] leading-8" />
                 {renderMedia(message)}
               </div>
             </div>
           ) : null}
           {message.ai_answer ? (
             <div className="flex justify-end">
-              <div className="max-w-[92%] rounded-3xl rounded-tr-sm border border-cyan-300/15 bg-cyan-300/10 p-3 shadow-[0_10px_30px_rgba(8,145,178,0.14)] sm:max-w-[84%]">
+              <div className="max-w-[88%] rounded-3xl rounded-tr-sm border border-cyan-300/15 bg-cyan-300/10 p-5 shadow-[0_10px_30px_rgba(8,145,178,0.14)]">
                 <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
                   <Bot className="h-3.5 w-3.5" />
                   <span>AI</span>
                   <span className="text-slate-500">{absoluteTime(message.created_at)}</span>
                   <span className="text-slate-500">conf {Number(message.confidence || 0).toFixed(2)}</span>
                 </div>
-                <LinkifiedText text={message.ai_answer} className="mt-2" />
+                <LinkifiedText text={message.ai_answer} className="mt-3 text-[16px] leading-8" />
                 <ProductCards products={message.suggested_products} />
                 <VisualAttachmentsPreview attachments={message.visual_attachments} />
                 {renderMedia(message)}
@@ -807,7 +763,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
           ) : null}
           {message.staff_message ? (
             <div className="flex justify-end">
-              <div className="max-w-[92%] rounded-3xl rounded-tr-sm border border-emerald-300/15 bg-emerald-400/10 p-3 shadow-[0_10px_30px_rgba(16,185,129,0.12)] sm:max-w-[84%]">
+              <div className="max-w-[88%] rounded-3xl rounded-tr-sm border border-emerald-300/15 bg-emerald-400/10 p-5 shadow-[0_10px_30px_rgba(16,185,129,0.12)]">
                 <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-emerald-100">
                   <UserCheck className="h-3.5 w-3.5" />
                   <span>Staff</span>
@@ -815,7 +771,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
                   <span className="text-slate-500">{absoluteTime(message.created_at)}</span>
                   {message.delivery_status ? <span className={message.delivery_status === "failed" ? "text-rose-200" : message.delivery_status === "sending" ? "text-amber-200" : "text-emerald-200"}>{message.delivery_status}</span> : null}
                 </div>
-                <LinkifiedText text={message.staff_message} className="mt-2" />
+                <LinkifiedText text={message.staff_message} className="mt-3 text-[16px] leading-8" />
                 {renderMedia(message)}
                 {message.delivery_error ? <p className="mt-2 text-xs font-bold text-rose-200">{message.delivery_error}</p> : null}
               </div>
@@ -844,41 +800,64 @@ function ConversationActions({ conversation, channelStatus = {}, loading, assign
   const liveChannel = channelStatus.live_operational === true || channelStatus.effective_enabled === true || channelStatus.messaging_active === true;
   const tokenActive = Boolean(channelStatus.token_valid || channelStatus.page_access_token_configured);
   return (
-    <div className="mb-4 rounded-2xl border border-white/10 bg-slate-950/65 p-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+    <div className="mb-2 rounded-2xl border border-white/10 bg-slate-950/65 p-2.5">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <Pill tone={status === "human_takeover" ? "amber" : status === "closed" ? "rose" : "emerald"}>
-            {status === "human_takeover" ? <PauseCircle className="h-3.5 w-3.5" /> : status === "closed" ? <LockKeyhole className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
+            {status === "human_takeover" ? <PauseCircle className="h-3 w-3" /> : status === "closed" ? <LockKeyhole className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
             {status === "human_takeover" ? "AI paused" : status === "closed" ? "Closed" : "AI active"}
           </Pill>
           <Pill tone={liveChannel ? "emerald" : "amber"}>
-            <Radio className="h-3.5 w-3.5" />
+            <Radio className="h-3 w-3" />
             {liveChannel ? "Live channel" : "Channel standby"}
           </Pill>
           <Pill tone={tokenActive ? "emerald" : "rose"}>
-            {tokenActive ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+            {tokenActive ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
             {tokenActive ? "Token ready" : "Token issue"}
           </Pill>
-          {whatsappAiActive ? <Pill tone="cyan"><Bot className="h-3.5 w-3.5" />WhatsApp AI active</Pill> : null}
-          <Pill tone="zinc"><UserCheck className="h-3.5 w-3.5" />Assigned: {assigned}</Pill>
-          {conversation.takeover_started_at ? <Pill tone="amber">Taken over {relativeTime(conversation.takeover_started_at)}</Pill> : null}
-          {conversation.closed_at ? <Pill tone="rose">Closed {relativeTime(conversation.closed_at)}</Pill> : null}
+          {whatsappAiActive ? <Pill tone="cyan"><Bot className="h-3 w-3" />WhatsApp AI active</Pill> : null}
+          <Pill tone="zinc"><UserCheck className="h-3 w-3" />{assigned}</Pill>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {status === "closed" ? (
-            <button type="button" onClick={() => onAction("reopen")} disabled={loading} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"><PlayCircle className="h-4 w-4" />Reopen</button>
-          ) : (
-            <>
-              <button type="button" onClick={() => onAction("takeover")} disabled={loading || status === "human_takeover"} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 text-xs font-black text-amber-100 disabled:opacity-50"><Handshake className="h-4 w-4" />Take over</button>
-              <button type="button" onClick={() => onAction("return")} disabled={loading || status !== "human_takeover"} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"><PlayCircle className="h-4 w-4" />Return to AI</button>
-              <button type="button" onClick={() => onAction("close")} disabled={loading} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 text-xs font-black text-rose-100 disabled:opacity-50"><LockKeyhole className="h-4 w-4" />Close</button>
-            </>
-          )}
-        </div>
-      </div>
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-        <input value={assignName} onChange={(event) => onAssignNameChange(event.target.value)} placeholder="Assign to employee / admin" disabled={loading || status === "closed"} className="h-10 min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40 disabled:opacity-50" />
-        <button type="button" onClick={() => onAction("assign")} disabled={loading || status === "closed" || !clean(assignName)} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.07] px-4 text-sm font-black text-white disabled:opacity-50"><UserPlus className="h-4 w-4" />Assign</button>
+        <details className="group relative ml-auto">
+          <summary className="list-none cursor-pointer">
+            <button type="button" className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-[11px] font-black text-white">
+              Actions
+              <ChevronDown className="h-3.5 w-3.5 transition group-open:rotate-180" />
+            </button>
+          </summary>
+          <div className="absolute right-0 z-10 mt-2 w-[220px] rounded-2xl border border-white/10 bg-slate-950/98 p-2 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+            <div className="mb-2 rounded-xl border border-white/10 bg-white/[0.035] p-2">
+              <input value={assignName} onChange={(event) => onAssignNameChange(event.target.value)} placeholder="Assign to employee / admin" disabled={loading || status === "closed"} className="h-8 w-full rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40 disabled:opacity-50" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {status === "closed" ? (
+                <button type="button" onClick={() => onAction("reopen")} disabled={loading} className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[11px] font-black text-cyan-100 disabled:opacity-50">
+                  <PlayCircle className="h-3.5 w-3.5" />
+                  Reopen
+                </button>
+              ) : (
+                <>
+                  <button type="button" onClick={() => onAction("takeover")} disabled={loading || status === "human_takeover"} className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-amber-300/20 bg-amber-400/10 px-2.5 text-[11px] font-black text-amber-100 disabled:opacity-50">
+                    <Handshake className="h-3.5 w-3.5" />
+                    Take over
+                  </button>
+                  <button type="button" onClick={() => onAction("return")} disabled={loading || status !== "human_takeover"} className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[11px] font-black text-cyan-100 disabled:opacity-50">
+                    <PlayCircle className="h-3.5 w-3.5" />
+                    Return to AI
+                  </button>
+                  <button type="button" onClick={() => onAction("close")} disabled={loading} className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-rose-300/20 bg-rose-400/10 px-2.5 text-[11px] font-black text-rose-100 disabled:opacity-50">
+                    <LockKeyhole className="h-3.5 w-3.5" />
+                    Close
+                  </button>
+                </>
+              )}
+              <button type="button" onClick={() => onAction("assign")} disabled={loading || status === "closed" || !clean(assignName)} className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.07] px-2.5 text-[11px] font-black text-white disabled:opacity-50">
+                <UserPlus className="h-3.5 w-3.5" />
+                Assign
+              </button>
+            </div>
+          </div>
+        </details>
       </div>
     </div>
   );
@@ -902,21 +881,31 @@ function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraf
     if (clean(value)) onSend();
   };
   return (
-    <div className="sticky bottom-3 rounded-2xl border border-white/10 bg-slate-950/95 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur">
+    <div className="sticky bottom-0 w-full rounded-2xl border border-white/10 bg-slate-950/95 p-2.5 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur md:p-3">
       <SectionTitle
         icon={Send}
         title={canSendLive ? "Reply composer" : "Draft / internal note"}
         action={canSendLive ? <Pill tone="emerald"><Radio className="h-3.5 w-3.5" />Live send ready</Pill> : <Pill tone="amber">Live channel unavailable</Pill>}
       />
-      {status !== "human_takeover" && canSendLive ? <div className="mb-3 rounded-xl border border-cyan-300/15 bg-cyan-300/8 p-2 text-xs font-bold text-cyan-100">Sending a staff reply will take over this conversation and pause AI automation.</div> : null}
-      <div className="mb-3 flex flex-wrap gap-2">
-        {quickReplies.map((reply) => (
-          <button key={reply} type="button" onClick={() => onChange(reply)} className="rounded-full border border-white/10 bg-white/[0.055] px-3 py-1.5 text-xs font-bold text-slate-200 hover:border-cyan-300/30">{reply}</button>
+      {status !== "human_takeover" && canSendLive ? <div className="mb-2 rounded-xl border border-cyan-300/15 bg-cyan-300/8 p-1.5 text-[11px] font-bold text-cyan-100">Sending a staff reply will take over this conversation and pause AI automation.</div> : null}
+      <div className="mb-1.5 flex max-h-14 flex-wrap gap-1.5 overflow-hidden">
+        {quickReplies.slice(0, 3).map((reply) => (
+          <button key={reply} type="button" onClick={() => onChange(reply)} className="rounded-full border border-white/10 bg-white/[0.055] px-2.5 py-0.5 text-[10px] font-bold leading-5 text-slate-200 hover:border-cyan-300/30">{reply}</button>
         ))}
+        <details className="group">
+          <summary className="list-none cursor-pointer rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-bold leading-5 text-slate-400 hover:border-cyan-300/30">
+            More
+          </summary>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {quickReplies.slice(3).map((reply) => (
+              <button key={reply} type="button" onClick={() => onChange(reply)} className="rounded-full border border-white/10 bg-white/[0.055] px-2.5 py-0.5 text-[10px] font-bold leading-5 text-slate-200 hover:border-cyan-300/30">{reply}</button>
+            ))}
+          </div>
+        </details>
       </div>
       <div className="flex flex-col gap-2">
-        <div className="flex min-w-0 items-end gap-2 rounded-2xl border border-white/10 bg-slate-950/70 p-2 focus-within:border-cyan-300/40">
-          <button type="button" title="Emoji picker coming soon" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.055] text-sm font-black text-slate-300">☺</button>
+        <div className="flex min-w-0 flex-col gap-2 rounded-2xl border border-white/10 bg-slate-950/70 p-2 focus-within:border-cyan-300/40 sm:flex-row sm:items-end">
+          <button type="button" title="Emoji picker coming soon" className="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.055] text-sm font-black text-slate-300">⋯</button>
           <textarea
             dir={isRtlText(value) ? "rtl" : "auto"}
             value={value}
@@ -927,15 +916,15 @@ function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraf
                 submit();
               }
             }}
-            rows={2}
+            rows={1}
             placeholder={canSendLive ? "اكتب رد للعميل..." : "Write an internal note. It will not be sent to Meta yet."}
-            className="min-h-12 min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-2 text-sm font-bold leading-6 text-white outline-none placeholder:text-slate-600"
+            className="min-h-12 min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-1.25 text-[15px] font-bold leading-6 text-white outline-none placeholder:text-slate-600"
           />
-          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title="Send now through Meta" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-300 px-4 text-sm font-black text-slate-950 disabled:opacity-50">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}Send now</button>
+          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title="Send now through Meta" className="inline-flex h-8 items-center justify-center gap-2 rounded-xl bg-emerald-300 px-3 text-[11px] font-black text-slate-950 disabled:opacity-50">{loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}Send now</button>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          <button type="button" onClick={onSaveDraft} disabled={loading || !clean(value)} className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-black text-slate-100 disabled:opacity-50">Save draft</button>
-          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} className="inline-flex h-9 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50">Approve AI reply</button>
+          <button type="button" onClick={onSaveDraft} disabled={loading || !clean(value)} className="inline-flex h-7 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-2.5 text-[10px] font-black text-slate-100 disabled:opacity-50">Save draft</button>
+          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} className="inline-flex h-7 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[10px] font-black text-cyan-100 disabled:opacity-50">Approve AI reply</button>
         </div>
       </div>
     </div>
@@ -1083,14 +1072,14 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
         ? "Ask the customer for product name or photo."
         : "Ask for size before recommending stock.";
   const practicalActions = [
-    { key: "ask_size", label: "Ask for size", enabled: !intent.size, action: () => onUseText(intent.product_model ? `تمام، المتوفر على ${intent.product_model}، تقولي المقاس اللي محتاجه؟` : "تمام، تقولي المقاس اللي محتاجه؟") },
-    { key: "ask_product", label: "Ask for product clarification", enabled: !primary, action: () => onUseText("ممكن تبعتلي اسم المنتج أو صورة أوضح عشان أجيب لك الأنسب؟") },
-    { key: "recommend_alternative", label: "Recommend alternative", enabled: Boolean(primary || products.length), action: () => onUseText(followup.alternative_message || "لو المقاس أو اللون ده غير متوفر، أقدر أرشح لك بديل قريب جدًا.") },
+    { key: "ask_size", label: "Ask for size", enabled: !intent.size, action: () => onUseText(intent.product_model ? `طھظ…ط§ظ…طŒ ط§ظ„ظ…طھظˆظپط± ط¹ظ„ظ‰ ${intent.product_model}طŒ طھظ‚ظˆظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ط§ظ„ظ„ظٹ ظ…ط­طھط§ط¬ظ‡طں` : "طھظ…ط§ظ…طŒ طھظ‚ظˆظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ط§ظ„ظ„ظٹ ظ…ط­طھط§ط¬ظ‡طں") },
+    { key: "ask_product", label: "Ask for product clarification", enabled: !primary, action: () => onUseText("ظ…ظ…ظƒظ† طھط¨ط¹طھظ„ظٹ ط§ط³ظ… ط§ظ„ظ…ظ†طھط¬ ط£ظˆ طµظˆط±ط© ط£ظˆط¶ط­ ط¹ط´ط§ظ† ط£ط¬ظٹط¨ ظ„ظƒ ط§ظ„ط£ظ†ط³ط¨طں") },
+    { key: "recommend_alternative", label: "Recommend alternative", enabled: Boolean(primary || products.length), action: () => onUseText(followup.alternative_message || "ظ„ظˆ ط§ظ„ظ…ظ‚ط§ط³ ط£ظˆ ط§ظ„ظ„ظˆظ† ط¯ظ‡ ط؛ظٹط± ظ…طھظˆظپط±طŒ ط£ظ‚ط¯ط± ط£ط±ط´ط­ ظ„ظƒ ط¨ط¯ظٹظ„ ظ‚ط±ظٹط¨ ط¬ط¯ظ‹ط§.") },
     { key: "escalate_human", label: "Escalate to human", enabled: true, action: onTakeover },
     { key: "draft_order", label: "Draft order", enabled: Boolean(primary), action: () => primary && onCreateDraft?.(primary, { reserve: false }) },
     { key: "reserve_stock", label: "Reserve stock", enabled: Boolean(primary), action: () => primary && onCreateDraft?.(primary, { reserve: true }) },
     { key: "payment_link", label: "Send payment link", enabled: true, action: () => onPaymentAction?.("payment_link") },
-    { key: "follow_up", label: "Follow up", enabled: Boolean(followup.low_stock_message || followup.ten_minute_message), action: () => onUseText(followup.low_stock_message || followup.ten_minute_message || "هتابع معاك أول ما يتوفر المقاس المناسب.") },
+    { key: "follow_up", label: "Follow up", enabled: Boolean(followup.low_stock_message || followup.ten_minute_message), action: () => onUseText(followup.low_stock_message || followup.ten_minute_message || "ظ‡طھط§ط¨ط¹ ظ…ط¹ط§ظƒ ط£ظˆظ„ ظ…ط§ ظٹطھظˆظپط± ط§ظ„ظ…ظ‚ط§ط³ ط§ظ„ظ…ظ†ط§ط³ط¨.") },
   ];
   const chips = [
     intent.product_model ? `Model: ${intent.product_model}` : "",
@@ -1435,10 +1424,10 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
                 <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-3">
                   <SectionTitle icon={MessageSquareText} title="Unified reply payload" />
                   <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                    {unifiedProducts.length ? <DebugField label="Product cards" value={unifiedProducts.slice(0, 3).map((item) => item.name || item.title || item.product_name || item.id || "").filter(Boolean).join(" · ") || `${unifiedProducts.length} cards`} /> : null}
-                    {unifiedImageCards.length ? <DebugField label="Image cards" value={unifiedImageCards.slice(0, 3).map((item) => item.title || item.name || item.subtitle || item.url || "").filter(Boolean).join(" · ") || `${unifiedImageCards.length} cards`} /> : null}
-                    {unifiedQuickReplies.length ? <DebugField label="Quick replies" value={unifiedQuickReplies.slice(0, 4).map((item) => item.label || item.text || item.title || item).filter(Boolean).join(" · ") || `${unifiedQuickReplies.length} items`} /> : null}
-                    {unifiedActions.length ? <DebugField label="Actions" value={unifiedActions.slice(0, 4).map((item) => item.label || item.text || item.title || item.action || item.type || item).filter(Boolean).join(" · ") || `${unifiedActions.length} items`} /> : null}
+                    {unifiedProducts.length ? <DebugField label="Product cards" value={unifiedProducts.slice(0, 3).map((item) => item.name || item.title || item.product_name || item.id || "").filter(Boolean).join(" آ· ") || `${unifiedProducts.length} cards`} /> : null}
+                    {unifiedImageCards.length ? <DebugField label="Image cards" value={unifiedImageCards.slice(0, 3).map((item) => item.title || item.name || item.subtitle || item.url || "").filter(Boolean).join(" آ· ") || `${unifiedImageCards.length} cards`} /> : null}
+                    {unifiedQuickReplies.length ? <DebugField label="Quick replies" value={unifiedQuickReplies.slice(0, 4).map((item) => item.label || item.text || item.title || item).filter(Boolean).join(" آ· ") || `${unifiedQuickReplies.length} items`} /> : null}
+                    {unifiedActions.length ? <DebugField label="Actions" value={unifiedActions.slice(0, 4).map((item) => item.label || item.text || item.title || item.action || item.type || item).filter(Boolean).join(" آ· ") || `${unifiedActions.length} items`} /> : null}
                   </div>
                 </div>
               ) : null}
@@ -1583,50 +1572,92 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
   const avatarUrl = customerAvatarUrl(conversation);
   const hasMessengerProfile = Boolean(identityName || avatarUrl || clean(conversation?.external_customer_id));
   const crmLabel = profile.id ? `Linked profile #${profile.id}` : hasMessengerProfile ? "Messenger Profile Only" : "No matched CRM customer";
-  const viewed = asArray(profile.viewed_products);
-  const abandoned = asArray(profile.abandoned_products);
-  const previousOrders = asArray(profile.previous_orders);
-  const notes = asArray(profile.memory_notes);
+  const channel = conversation?.channel || conversation?.source || "web_chat";
+  const channelName = channelLabel(channel);
+  const phone = clean(profile.phone || conversation?.phone || conversation?.customer_phone || conversation?.external_customer_id);
+  const cityArea = clean(profile.city_area || [profile.city, profile.area].filter(Boolean).join(" / "));
+  const crmStateTone = profile.id ? "emerald" : hasMessengerProfile ? "cyan" : "amber";
   return (
-    <aside className="space-y-4">
-      <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-        <div className="mb-3 flex items-center gap-3">
-          {avatarUrl ? <img src={avatarUrl} alt="" className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" /> : <span className="grid h-14 w-14 place-items-center rounded-2xl bg-white/[0.07] text-slate-200"><User className="h-6 w-6" /></span>}
-          <SectionTitle
-            icon={User}
-            title="Customer profile"
-            action={canSyncMessenger ? (
-              <button type="button" onClick={onSyncMessengerProfile} disabled={syncing} className="inline-flex h-8 items-center gap-2 rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-2 text-[11px] font-black text-cyan-100 disabled:opacity-50">
-                {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                Sync
-              </button>
-            ) : null}
-          />
+    <aside className="space-y-3">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
+        <div className="flex flex-row-reverse items-start gap-3">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" className="h-11 w-11 shrink-0 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
+          ) : (
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/[0.07] text-slate-200">
+              <User className="h-5 w-5" />
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[15px] font-black leading-5 text-white">{identityName || "Unknown customer"}</div>
+                <div className="mt-1 text-[12px] font-bold leading-5 text-slate-400">
+                  <span dir="ltr" className="block break-words">{phone || "No phone yet"}</span>
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  <Pill tone={isWhatsappChannel(channel) ? "emerald" : "cyan"}>{channelName}</Pill>
+                </div>
+              </div>
+              {canSyncMessenger ? (
+                <button
+                  type="button"
+                  onClick={onSyncMessengerProfile}
+                  disabled={syncing}
+                  className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-2 text-[10px] font-black text-cyan-100 disabled:opacity-50"
+                >
+                  {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                  Sync
+                </button>
+              ) : null}
+            </div>
+          </div>
         </div>
-        <div className="space-y-3">
-          <Info label="Name" value={identityName || "Unknown customer"} />
-          <Info label="Phone" value={profile.phone || "No phone yet"} />
-          <Info label="CRM customer" value={crmLabel} />
-          <Info label="City / area" value={profile.city_area || "Unknown customer"} />
-          <Info label="Preferred size" value={profile.preferred_size || "Unknown"} />
+
+        <div className="mt-3 space-y-2.5">
+          <div className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/55 px-3 py-2.5">
+            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">CRM</div>
+            <div className={`min-w-0 text-right text-[12px] font-black leading-5 ${crmStateTone === "emerald" ? "text-emerald-100" : crmStateTone === "cyan" ? "text-cyan-100" : "text-amber-100"}`}>{crmLabel}</div>
+          </div>
+          <div className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/55 px-3 py-2.5">
+            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Channel</div>
+            <div className="min-w-0 text-right text-[12px] font-black leading-5 text-white">{channelName}</div>
+          </div>
+          <div className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/55 px-3 py-2.5">
+            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Phone</div>
+            <div dir="ltr" className="min-w-0 text-right text-[12px] font-black leading-5 text-white">{phone || "No phone yet"}</div>
+          </div>
+          <div className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/55 px-3 py-2.5">
+            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">City</div>
+            <div className="min-w-0 text-right text-[12px] font-black leading-5 text-white">{cityArea || "Unknown customer"}</div>
+          </div>
+        </div>
+      </div>
+      <details className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+        <summary className="cursor-pointer list-none text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">More customer memory</summary>
+        <div className="mt-3 space-y-2">
+          <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Preferred size</div>
+            <div className="mt-1 text-sm font-black text-white">{profile.preferred_size || "Unknown"}</div>
+          </div>
           <TagRow label="Colors" values={profile.preferred_colors} />
           <TagRow label="Models" values={profile.preferred_models} />
           <Info label="Memory score" value={profile.memory_score ?? conversation?.lead_score ?? 0} />
+          <MiniList title="Viewed products" items={asArray(profile.viewed_products)} empty="No viewed products." />
+          <MiniList title="Abandoned products" items={asArray(profile.abandoned_products)} empty="No abandoned products." />
+          <MiniList title="Previous orders" items={asArray(profile.previous_orders)} empty="No previous orders in memory." />
+          <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
+            <SectionTitle icon={MessageSquareText} title="Sentiment & memory" />
+            <div className="mb-3 flex flex-wrap gap-2">
+              <Pill tone={sentimentTone(profile.customer_sentiment)}>{profile.customer_sentiment || "neutral"}</Pill>
+              {asArray(profile.sentiment_history).length ? <Pill tone="violet">{asArray(profile.sentiment_history).length} history</Pill> : null}
+            </div>
+            <div className="max-h-44 space-y-2 overflow-y-auto">
+              {asArray(profile.memory_notes).length ? asArray(profile.memory_notes).slice(0, 12).map((note) => <div key={note.id} className="rounded-xl border border-white/10 bg-slate-950/70 p-3 text-xs leading-5 text-slate-300">{note.key || note.type}: {JSON.stringify(note.value || {})}</div>) : <div className="text-sm text-slate-500">{profile.conversation_summary || "No memory notes yet."}</div>}
+            </div>
+          </div>
         </div>
-      </div>
-      <MiniList title="Viewed products" items={viewed} empty="No viewed products." />
-      <MiniList title="Abandoned products" items={abandoned} empty="No abandoned products." />
-      <MiniList title="Previous orders" items={previousOrders} empty="No previous orders in memory." />
-      <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-        <SectionTitle icon={MessageSquareText} title="Sentiment & memory" />
-        <div className="mb-3 flex flex-wrap gap-2">
-          <Pill tone={sentimentTone(profile.customer_sentiment)}>{profile.customer_sentiment || "neutral"}</Pill>
-          {asArray(profile.sentiment_history).length ? <Pill tone="violet">{profile.sentiment_history.length} history</Pill> : null}
-        </div>
-        <div className="max-h-56 space-y-2 overflow-y-auto">
-          {notes.length ? notes.slice(0, 12).map((note) => <div key={note.id} className="rounded-xl border border-white/10 bg-slate-950/70 p-3 text-xs leading-5 text-slate-300">{note.key || note.type}: {JSON.stringify(note.value || {})}</div>) : <div className="text-sm text-slate-500">{profile.conversation_summary || "No memory notes yet."}</div>}
-        </div>
-      </div>
+      </details>
     </aside>
   );
 }
@@ -1828,6 +1859,183 @@ function SalesIntelligencePanel({ conversation = {}, recommendationIntel = null,
   );
 }
 
+function RightToolsTabsPanel({
+  activeTab,
+  onTabChange,
+  conversation,
+  channelStatus = {},
+  loading = false,
+  assignName = "",
+  onAssignNameChange,
+  onAction,
+  mode,
+  onModeChange,
+  modeSaving = false,
+  recommendations,
+  salesCloser,
+  drafts = [],
+  onRefreshRecommendations,
+  onQuickSend,
+  onSendImages,
+  onCreateDraft,
+  onRefreshSalesCloser,
+  onTakeover,
+  onUseText,
+  onPaymentAction,
+  onOpenAiTrace,
+  aiTrace,
+  onSyncMessengerProfile,
+  profileSyncing = false,
+  onDebugMessengerProfile,
+  profileDebugging = false,
+  onResetAiState,
+  resettingAiState = false,
+}) {
+  if (!conversation) return null;
+  const profile = conversation.customer_profile || {};
+  const notes = asArray(profile.memory_notes);
+  const tabItems = [
+    { key: "customer", label: "Customer", icon: User },
+    { key: "ai", label: "AI", icon: Bot },
+    { key: "orders", label: "Orders", icon: ShoppingCart },
+    { key: "notes", label: "Notes", icon: MessageSquareText },
+  ];
+
+  return (
+    <aside className="hidden h-full w-[280px] max-w-[280px] shrink-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] xl:flex">
+      <div className="shrink-0 border-b border-white/10 p-2">
+        <div className="grid grid-cols-2 gap-1">
+          {tabItems.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => onTabChange(tab.key)}
+                className={`inline-flex h-10 items-center justify-center gap-2 rounded-2xl border px-2 text-[11px] font-black transition ${
+                  active ? "border-cyan-300/35 bg-cyan-300/12 text-cyan-100" : "border-white/10 bg-slate-950/55 text-slate-200 hover:border-white/20"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+        {activeTab === "customer" ? (
+          <div className="space-y-3">
+            <CustomerProfilePanel
+              conversation={conversation}
+              canSyncMessenger={canSyncMessengerProfile(conversation)}
+              syncing={profileSyncing}
+              onSyncMessengerProfile={onSyncMessengerProfile}
+            />
+          </div>
+        ) : null}
+
+        {activeTab === "ai" ? (
+          <div className="space-y-3">
+            <ConversationActions
+              conversation={conversation}
+              channelStatus={channelStatus}
+              loading={loading}
+              assignName={assignName}
+              onAssignNameChange={onAssignNameChange}
+              onAction={onAction}
+            />
+            <AutoReplyModePanel
+              channelStatus={channelStatus}
+              mode={mode}
+              onChange={onModeChange}
+              saving={modeSaving}
+            />
+            <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
+              <SectionTitle icon={Bot} title="AI reply engine" action={aiTrace?.loading ? <Pill tone="cyan">Typing...</Pill> : null} />
+              <div className="mt-3 grid gap-2">
+                <button type="button" onClick={() => onOpenAiTrace?.()} disabled={aiTrace?.loading} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50">
+                  {aiTrace?.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
+                  AI Trace
+                </button>
+                <button type="button" onClick={() => onSyncMessengerProfile?.()} disabled={profileSyncing} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50">
+                  {profileSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  Sync Messenger Profile
+                </button>
+                <button type="button" onClick={() => onDebugMessengerProfile?.()} disabled={profileDebugging} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-black text-amber-100 disabled:opacity-50">
+                  {profileDebugging ? <Loader2 className="h-4 w-4 animate-spin" /> : <InfoIcon className="h-4 w-4" />}
+                  Debug Messenger Profile
+                </button>
+                <button type="button" onClick={() => onResetAiState?.()} disabled={resettingAiState} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-rose-300/20 bg-rose-300/10 px-3 text-xs font-black text-rose-100 disabled:opacity-50">
+                  {resettingAiState ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  Reset AI State
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {activeTab === "orders" ? (
+          <div className="space-y-3">
+            <RecommendationsPanel
+              products={recommendations?.sessionId === conversation.session_id ? recommendations.products : []}
+              loading={recommendations?.loading}
+              onRefresh={onRefreshRecommendations}
+              onQuickSend={onQuickSend}
+              onSendImages={onSendImages}
+              onCreateDraft={onCreateDraft}
+            />
+            <OrderDraftPanel
+              conversation={conversation}
+              drafts={conversation?.draft_orders?.length ? conversation.draft_orders : drafts}
+              onAction={onPaymentAction}
+              busy={loading}
+            />
+          </div>
+        ) : null}
+
+        {activeTab === "notes" ? (
+          <div className="space-y-3">
+            <SalesIntelligencePanel
+              conversation={conversation}
+              recommendationIntel={recommendations?.sessionId === conversation.session_id ? recommendations.intelligence : null}
+              salesCloserPlan={salesCloser?.sessionId === conversation.session_id ? salesCloser.plan : {}}
+            />
+            <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
+              <SectionTitle icon={MessageSquareText} title="Notes" />
+              <div className="mt-3 space-y-2">
+                <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Summary</div>
+                  <div className="mt-1 text-sm font-black leading-6 text-white">{profile.conversation_summary || conversation.customer_note || "No notes yet."}</div>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Recent memory notes</div>
+                  <div className="mt-2 space-y-2">
+                    {notes.length ? notes.slice(0, 5).map((note) => (
+                      <div key={note.id || note.key || JSON.stringify(note)} className="rounded-lg border border-white/10 bg-white/[0.03] p-2 text-xs leading-5 text-slate-300">
+                        {note.key || note.type || "note"}: {JSON.stringify(note.value || {})}
+                      </div>
+                    )) : <div className="text-sm text-slate-500">No memory notes yet.</div>}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Customer snapshot</div>
+                  <div className="mt-2 space-y-1 text-sm text-slate-300">
+                    <div className="font-black text-white">{customerDisplayName(conversation) || "Customer"}</div>
+                    <div dir="ltr">{clean(conversation.phone || conversation.customer_phone || conversation.external_customer_id || conversation.customer_profile?.phone) || "No phone"}</div>
+                    <div>{channelLabel(conversation.channel || conversation.source)}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </aside>
+  );
+}
+
 export default function AiInbox() {
   const tenantApi = useTenant();
   const tenantId = useMemo(() => tenantIdFrom(tenantApi), [tenantApi]);
@@ -1849,7 +2057,8 @@ export default function AiInbox() {
   const [aiReply, setAiReply] = useState({ sessionId: "", text: "", loading: false, error: "" });
   const [modeSaving, setModeSaving] = useState(false);
   const [unseenSessions, setUnseenSessions] = useState([]);
-  const [profileOpen, setProfileOpen] = useState(false);
+  const [toolsTab, setToolsTab] = useState("customer");
+  const [profileOpen, setProfileOpen] = useState(true);
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [assignNameDraft, setAssignNameDraft] = useState({ sessionId: "", value: "" });
@@ -2228,7 +2437,7 @@ export default function AiInbox() {
           escalated_at: null,
           returned_to_ai_at: returned.returned_to_ai_at || new Date().toISOString(),
         }));
-        setToast({ tone: "emerald", text: "Conversation returned to AI. تم إرجاع المحادثة للذكاء الاصطناعي." });
+        setToast({ tone: "emerald", text: "Conversation returned to AI. طھظ… ط¥ط±ط¬ط§ط¹ ط§ظ„ظ…ط­ط§ط¯ط«ط© ظ„ظ„ط°ظƒط§ط، ط§ظ„ط§طµط·ظ†ط§ط¹ظٹ." });
       } else if (action === "reopen") {
         const payload = await api.post(aiAgentInboxEndpoint(selectedConversation?.session_id, "/reopen"), { tenant_id: tenantId }, { headers });
         const returned = payload.conversation || {};
@@ -2633,10 +2842,10 @@ export default function AiInbox() {
     const orderNumber = draft.invoice_number || draft.public_order_number || draft.id || "";
     const total = draft.total_amount || draft.total_price || draft.total || 0;
     if (type === "payment_link") {
-      setReplyText(`تمام، ده لينك الدفع للطلب ${orderNumber}: ${draft.id ? `/orders/${draft.id}` : ""}`.trim());
+      setReplyText(`طھظ…ط§ظ…طŒ ط¯ظ‡ ظ„ظٹظ†ظƒ ط§ظ„ط¯ظپط¹ ظ„ظ„ط·ظ„ط¨ ${orderNumber}: ${draft.id ? `/orders/${draft.id}` : ""}`.trim());
       return;
     }
-    setReplyText(`تمام، ممكن الدفع عند الاستلام${total ? ` بإجمالي ${money(total)}` : ""}. ابعتلي الاسم ورقم الموبايل والعنوان لتأكيد الطلب.`);
+    setReplyText(`طھظ…ط§ظ…طŒ ظ…ظ…ظƒظ† ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…${total ? ` ط¨ط¥ط¬ظ…ط§ظ„ظٹ ${money(total)}` : ""}. ط§ط¨ط¹طھظ„ظٹ ط§ظ„ط§ط³ظ… ظˆط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ظˆط§ظ„ط¹ظ†ظˆط§ظ† ظ„طھط£ظƒظٹط¯ ط§ظ„ط·ظ„ط¨.`);
   };
 
   const copySuggestedReply = useCallback(async (text) => {
@@ -2700,37 +2909,48 @@ export default function AiInbox() {
         onRefresh={loadAiTrace}
         onClose={() => setAiTrace((current) => ({ ...current, open: false }))}
       />
-      <div className="mx-auto flex max-w-[96rem] flex-col gap-5 p-3 md:p-6">
-        <section className="rounded-3xl border border-white/10 bg-white/[0.055] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.24)] backdrop-blur">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-cyan-100">
+      <div className="mx-auto flex h-[100dvh] max-w-[96rem] flex-col gap-2 overflow-hidden p-2 md:p-3">
+        <section className="shrink-0 rounded-3xl border border-white/10 bg-white/[0.055] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.2)] backdrop-blur">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100">
                 <Bot className="h-4 w-4" />
                 AI Inbox Pro
               </div>
-              <h1 className="mt-3 text-3xl font-black md:text-4xl">Sales Command Center</h1>
-              <p className="mt-2 text-sm text-slate-400">Live Meta conversations, AI replies, human takeover, and customer context in one workspace.</p>
+              <div className="mt-1 text-xl font-black text-white">Sales Command Center</div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => setConsoleOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-white/[0.07] px-4 text-sm font-black text-slate-100 ring-1 ring-white/10">
+              <button type="button" onClick={() => setConsoleOpen(true)} className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.07] px-3 text-xs font-black text-slate-100">
                 <Brain className="h-4 w-4" />
                 AI Logs
               </button>
-              <button type="button" onClick={loadAll} disabled={loading} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-cyan-300 px-4 text-sm font-black text-slate-950 disabled:opacity-50">
+              <button type="button" onClick={loadAll} disabled={loading} className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-cyan-300 px-3 text-xs font-black text-slate-950 disabled:opacity-50">
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 Refresh
               </button>
             </div>
           </div>
-          {error ? <div className="mt-4 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
+          {error ? <div className="mt-3 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
         </section>
 
-        <section className="grid gap-3 md:grid-cols-4">
-          <Metric icon={Radio} label="Live Meta threads" value={realMetaCount} tone="emerald" />
-          <Metric icon={MessageSquareText} label="All conversations" value={conversations.length} tone="cyan" />
-          <Metric icon={Clock3} label="Unread / waiting" value={conversations.filter((item) => item.unread || item.needs_human_support).length} tone="amber" />
-          <Metric icon={EyeOff} label="Demo data hidden" value="On" tone="violet" />
-        </section>
+        <details className="shrink-0 rounded-3xl border border-white/10 bg-white/[0.045] shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Sales Command Center KPIs</div>
+              <div className="mt-1 text-sm font-black text-white">Collapsed by default</div>
+            </div>
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-[11px] font-black text-slate-200">
+              <ChevronDown className="h-4 w-4" />
+              Expand
+            </span>
+          </summary>
+          <div className="grid gap-3 border-t border-white/10 p-3 md:grid-cols-4">
+            <Metric icon={Radio} label="Live Meta threads" value={realMetaCount} tone="emerald" />
+            <Metric icon={MessageSquareText} label="All conversations" value={conversations.length} tone="cyan" />
+            <Metric icon={Clock3} label="Unread / waiting" value={conversations.filter((item) => item.unread || item.needs_human_support).length} tone="amber" />
+            <Metric icon={EyeOff} label="Demo data hidden" value="On" tone="violet" />
+          </div>
+        </details>
 
         <section className="flex min-h-0 flex-1 gap-2 overflow-hidden">
           <div className="hidden xl:block w-[72px] shrink-0">
@@ -2744,8 +2964,8 @@ export default function AiInbox() {
             />
           </div>
 
-          <aside className={`flex min-h-0 w-full shrink-0 flex-col rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)] md:w-[360px] md:max-w-[380px] ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
-            <div className="space-y-3">
+          <aside className={`flex min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)] md:w-[300px] md:max-w-[300px] ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
+            <div className="shrink-0 space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <SectionTitle icon={MessageSquareText} title="Conversations" action={<Pill tone="zinc">{filteredConversations.length} shown</Pill>} />
               </div>
@@ -2808,16 +3028,16 @@ export default function AiInbox() {
                 </div>
               </div>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className="min-h-0 flex-1 overflow-hidden pr-1">
               {loading && !conversations.length ? <LoadingBlock text="Loading conversations..." /> : null}
               {filteredConversations.length ? (
                 <VirtualList
                   items={filteredConversations}
-                  estimateSize={122}
-                  className="pr-1"
+                  estimateSize={98}
+                  className="h-full pr-1"
                   itemKey={(item) => item.session_id}
                   renderItem={(item) => (
-                    <div className="pb-3">
+                    <div className="pb-2">
                       <InboxConversationCard
                         item={item}
                         unseen={unseenSessions.includes(item.session_id)}
@@ -2831,138 +3051,72 @@ export default function AiInbox() {
             </div>
           </aside>
 
-          <main className={`flex min-h-0 w-full min-w-0 flex-1 flex-col rounded-3xl border border-white/10 bg-white/[0.045] p-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)] ${mobileView === "chat" ? "flex" : "hidden md:flex"}`}>
+          <main className={`flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)] ${mobileView === "chat" ? "flex" : "hidden md:flex"}`}>
             {selectedConversation ? (
-              <>
-                <InboxChatHeader
-                  conversation={selectedConversation}
-                  channelStatus={selectedChannelStatus}
-                  loading={loading || modeSaving}
-                  onBack={() => setMobileView("list")}
-                  onToggleAi={toggleAiEnabled}
-                  onAssign={() => updateConversationAction("assign")}
-                  onTakeover={() => updateConversationAction("takeover")}
-                  onReturnToAi={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "return")}
-                  onClose={() => updateConversationAction("close")}
-                  onOpenTools={() => setProfileOpen((current) => !current)}
-                  showBack
-                />
-                <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40">
-                  <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                    <Transcript conversation={selectedConversation} loadingOlder={olderMessagesLoading} onLoadOlder={loadOlderMessages} />
-                  </div>
-                  <div className="shrink-0 border-t border-white/10 bg-slate-950/70 p-3">
-                    <ManualReplyComposer
-                      conversation={{ ...safeConversation, live_sending_available: Boolean(selectedChannelStatus.effective_enabled) || isMetaChannel(safeConversation.channel || safeConversation.source) }}
-                      value={replyText}
-                      onChange={setReplyText}
-                      onSend={() => sendManualReply()}
-                      onSaveDraft={saveDraftReply}
-                      loading={loading}
-                    />
+              <div className="flex min-h-0 flex-1 gap-2 overflow-hidden">
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                  <InboxChatHeader
+                    conversation={selectedConversation}
+                    channelStatus={selectedChannelStatus}
+                    loading={loading || modeSaving}
+                    onBack={() => setMobileView("list")}
+                    onToggleAi={toggleAiEnabled}
+                    onAssign={() => updateConversationAction("assign")}
+                    onTakeover={() => updateConversationAction("takeover")}
+                    onReturnToAi={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "return")}
+                    onClose={() => updateConversationAction("close")}
+                    onOpenTools={() => setToolsTab("customer")}
+                    showBack
+                  />
+                  <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40">
+                    <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                      <Transcript conversation={selectedConversation} loadingOlder={olderMessagesLoading} onLoadOlder={loadOlderMessages} />
+                    </div>
+                    <div className="shrink-0 border-t border-white/10 bg-slate-950/70 p-3">
+                      <ManualReplyComposer
+                        conversation={{ ...safeConversation, live_sending_available: Boolean(selectedChannelStatus.effective_enabled) || isMetaChannel(safeConversation.channel || safeConversation.source) }}
+                        value={replyText}
+                        onChange={setReplyText}
+                        onSend={() => sendManualReply()}
+                        onSaveDraft={saveDraftReply}
+                        loading={loading}
+                      />
+                    </div>
                   </div>
                 </div>
-                <details open={profileOpen} className="mt-2 shrink-0 rounded-3xl border border-white/10 bg-white/[0.045] p-4">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-                    <div>
-                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">More tools</div>
-                      <div className="mt-1 text-sm font-black text-white">AI controls, customer profile, and debug tools</div>
-                    </div>
-                    <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-[11px] font-black text-slate-200">
-                      <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
-                      Toggle
-                    </span>
-                  </summary>
-                  <div className="mt-4 space-y-4">
-                    <ConversationActions
-                      conversation={selectedConversation}
-                      channelStatus={selectedChannelStatus}
-                      loading={loading}
-                      assignName={currentAssignName}
-                      onAssignNameChange={updateAssignName}
-                      onAction={updateConversationAction}
-                    />
-                    <div className="grid gap-4 xl:grid-cols-2">
-                      <AutoReplyModePanel
-                        channelStatus={selectedChannelStatus}
-                        mode={selectedChannelStatus.auto_reply_mode || (selectedChannelStatus.ai_replies_enabled ? "fully_automatic" : "off")}
-                        onChange={updateAutoReplyMode}
-                        saving={modeSaving}
-                      />
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-                        <SectionTitle icon={Sparkles} title="AI reply engine" action={aiReply.loading ? <Pill tone="cyan">Typing...</Pill> : null} />
-                        {aiReply.error ? <div className="mb-3 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{aiReply.error}</div> : null}
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <button type="button" onClick={() => generateAiReply({ persist: false })} disabled={aiReply.loading || safeConversation.conversation_status === "closed"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50">
-                            {aiReply.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                            Draft AI reply
-                          </button>
-                          <button type="button" onClick={() => generateAiReply({ persist: true })} disabled={aiReply.loading || safeConversation.conversation_status !== "ai_active"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50">
-                            <Bot className="h-4 w-4" />
-                            Save AI reply
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="grid gap-4 xl:grid-cols-2">
-                      <SalesIntelligencePanel
-                        conversation={selectedConversation}
-                        recommendationIntel={recommendations.sessionId === safeConversation.session_id ? recommendations.intelligence : null}
-                        salesCloserPlan={salesCloser.sessionId === safeConversation.session_id ? salesCloser.plan : {}}
-                      />
-                      <RecommendationsPanel
-                        products={recommendations.sessionId === safeConversation.session_id ? recommendations.products : []}
-                        loading={recommendations.loading}
-                        onRefresh={loadRecommendations}
-                        onQuickSend={quickSendProduct}
-                        onSendImages={sendProductImages}
-                        onCreateDraft={createDraftFromProduct}
-                      />
-                    </div>
-                    <div className="grid gap-4 xl:grid-cols-2">
-                      <SalesCloserPanel
-                        plan={salesCloser.sessionId === safeConversation.session_id ? salesCloser.plan : {}}
-                        products={recommendations.sessionId === safeConversation.session_id ? recommendations.products : []}
-                        conversation={safeConversation}
-                        loading={salesCloser.loading || loading}
-                        onRefresh={loadSalesCloser}
-                        onTakeover={() => updateConversationAction("takeover")}
-                        onUseText={setReplyText}
-                        onCreateDraft={createDraftFromProduct}
-                        onPaymentAction={usePaymentAction}
-                      />
-                      <CustomerProfilePanel
-                        conversation={selectedConversation}
-                        canSyncMessenger={canSyncMessengerProfile(selectedConversation)}
-                        syncing={profileSyncing}
-                        onSyncMessengerProfile={syncMessengerProfile}
-                      />
-                    </div>
-                    <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {isWhatsappChannel(safeConversation.channel || safeConversation.source) ? (
-                          <button type="button" onClick={openAiTrace} disabled={aiTrace.loading && aiTrace.sessionId === safeConversation.session_id} className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-violet-300/20 bg-violet-300/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50">
-                            {aiTrace.loading && aiTrace.sessionId === safeConversation.session_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
-                            AI Trace
-                          </button>
-                        ) : null}
-                        <button type="button" onClick={syncMessengerProfile} disabled={profileSyncing} className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50">
-                          {profileSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                          Sync Messenger Profile
-                        </button>
-                        <button type="button" onClick={debugMessengerProfile} disabled={profileDebugging} className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-black text-amber-100 disabled:opacity-50">
-                          {profileDebugging ? <Loader2 className="h-4 w-4 animate-spin" /> : <InfoIcon className="h-4 w-4" />}
-                          Debug Messenger Profile
-                        </button>
-                        <button type="button" onClick={resetAiState} disabled={resettingAiState} className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-rose-300/20 bg-rose-300/10 px-3 text-xs font-black text-rose-100 disabled:opacity-50">
-                          {resettingAiState ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                          Reset AI State
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </details>
-              </>
+                <RightToolsTabsPanel
+                  activeTab={toolsTab}
+                  onTabChange={setToolsTab}
+                  conversation={selectedConversation}
+                  channelStatus={selectedChannelStatus}
+                  loading={loading}
+                  assignName={currentAssignName}
+                  onAssignNameChange={updateAssignName}
+                  onAction={updateConversationAction}
+                  mode={selectedChannelStatus.auto_reply_mode || (selectedChannelStatus.ai_replies_enabled ? "fully_automatic" : "off")}
+                  onModeChange={updateAutoReplyMode}
+                  modeSaving={modeSaving}
+                  recommendations={recommendations}
+                  salesCloser={salesCloser}
+                  drafts={drafts}
+                  onRefreshRecommendations={loadRecommendations}
+                  onQuickSend={quickSendProduct}
+                  onSendImages={sendProductImages}
+                  onCreateDraft={createDraftFromProduct}
+                  onRefreshSalesCloser={loadSalesCloser}
+                  onTakeover={() => updateConversationAction("takeover")}
+                  onUseText={setReplyText}
+                  onPaymentAction={usePaymentAction}
+                  onOpenAiTrace={isWhatsappChannel(safeConversation.channel || safeConversation.source) ? openAiTrace : null}
+                  aiTrace={aiTrace}
+                  onSyncMessengerProfile={syncMessengerProfile}
+                  profileSyncing={profileSyncing}
+                  onDebugMessengerProfile={debugMessengerProfile}
+                  profileDebugging={profileDebugging}
+                  onResetAiState={resetAiState}
+                  resettingAiState={resettingAiState}
+                />
+              </div>
             ) : (
               <EmptyBlock text="Select a conversation to inspect the transcript." />
             )}
@@ -3085,77 +3239,35 @@ export default function AiInbox() {
           </div>
         </section>
 
-        <section className={`grid gap-5 overflow-x-hidden ${profileOpen ? "xl:grid-cols-[24rem_minmax(0,1fr)_20rem]" : "xl:grid-cols-[24rem_minmax(0,1fr)]"}`}>
-          <aside className="min-w-0 space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-3 xl:sticky xl:top-4 xl:max-h-[calc(100vh-15rem)] xl:overflow-y-auto">
-            <SectionTitle
-              icon={MessageSquareText}
-              title="Conversations list"
-              action={<Pill tone="zinc">{filteredConversations.length} shown</Pill>}
-            />
-            {loading && !conversations.length ? <LoadingBlock text="Loading conversations..." /> : null}
-            {filteredConversations.length ? (
-              <VirtualList
-                items={filteredConversations}
-                estimateSize={168}
-                className="max-h-[calc(100vh-18rem)] overflow-y-auto pr-1"
-                itemKey={(item) => item.session_id}
-                renderItem={(item) => (
-                  <div className="pb-3">
-                    <ConversationListItem
-                      item={item}
-                      unseen={unseenSessions.includes(item.session_id)}
-                      active={selectedConversation?.session_id === item.session_id}
-                      onSelect={handleSelectConversation}
-                    />
-                  </div>
-                )}
+        <section dir="ltr" className="grid min-h-0 flex-1 gap-3 overflow-hidden xl:grid-cols-[228px_minmax(0,1fr)_300px]">
+          {profileOpen ? (
+            <aside className="hidden min-w-0 space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-3 xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100vh-15rem)] xl:flex-col xl:overflow-y-auto">
+              <CustomerProfilePanel
+                conversation={selectedConversation}
+                canSyncMessenger={canSyncMessengerProfile(selectedConversation)}
+                syncing={profileSyncing}
+                onSyncMessengerProfile={syncMessengerProfile}
               />
-            ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? "No real Meta messages yet. Demo data is hidden so live webhook conversations stay clear." : "No real conversations match the selected filters."} /> : null}
-          </aside>
+            </aside>
+          ) : null}
 
-          <main className="min-w-0 space-y-5">
-            <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-4 shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
+          <main className="min-w-0 space-y-3">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-3 shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
               {selectedConversation ? (
                 <>
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="flex min-w-0 items-center gap-3">
-                      {customerAvatarUrl(safeConversation) ? (
-                        <img src={customerAvatarUrl(safeConversation)} alt="" className="h-12 w-12 shrink-0 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
-                      ) : (
-                        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/[0.07] text-slate-200"><User className="h-5 w-5" /></span>
-                      )}
-                      <div className="min-w-0">
-                        <div className="truncate text-xl font-black text-white">{customerDisplayName(safeConversation) || "Customer"}</div>
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-400">
-                          <span>{channelLabel(safeConversation.channel || safeConversation.source)}</span>
-                          <span className="text-slate-600">/</span>
-                          <span>{safeConversation.external_customer_id || safeConversation.session_id}</span>
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Pill tone={leadTemperatureMeta[conversationLeadTemperature(safeConversation)]?.tone || "zinc"}>
-                            {(() => {
-                              const temp = conversationLeadTemperature(safeConversation);
-                              const meta = leadTemperatureMeta[temp] || leadTemperatureMeta.cold;
-                              const Icon = meta.icon;
-                              return <>
-                                <Icon className="h-3.5 w-3.5" />
-                                Lead {meta.label}
-                                <span className="opacity-70">{conversationLeadScore(safeConversation)}</span>
-                              </>;
-                            })()}
-                          </Pill>
-                          <Pill tone="zinc">Action: {conversationRecommendedSalesAction(safeConversation)}</Pill>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <AIStatusBadge status={selectedAIStatus} />
-                      <Pill tone={selectedMessagingActive ? "emerald" : "amber"}><Radio className="h-3.5 w-3.5" />{selectedMessagingActive ? "Live channel" : "Channel standby"}</Pill>
-                      {needsHumanAttention(selectedConversation) ? <Pill tone="amber"><AlertTriangle className="h-3.5 w-3.5" />Needs human</Pill> : null}
-                    </div>
-                  </div>
+                  <InboxChatHeader
+                    conversation={safeConversation}
+                    channelStatus={selectedChannelStatus}
+                    loading={loading}
+                    onToggleAi={toggleAiEnabled}
+                    onAssign={() => updateConversationAction("assign")}
+                    onTakeover={() => updateConversationAction("takeover")}
+                    onReturnToAi={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "return")}
+                    onClose={() => updateConversationAction("close")}
+                    onOpenTools={() => setProfileOpen(true)}
+                  />
 
-                  <div className="mt-4 grid gap-2 rounded-2xl border border-white/10 bg-slate-950/60 p-3 text-xs sm:grid-cols-3">
+                  <div className="mt-2 grid gap-2 rounded-2xl border border-white/10 bg-slate-950/60 p-2 text-[11px] sm:grid-cols-3">
                     <div><span className="text-slate-500">Webhook</span><div className={selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "Healthy" : "Failed"}</div></div>
                     <div><span className="text-slate-500">Token</span><div className={selectedTokenActive ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedTokenActive ? "Active" : "Expired"}</div></div>
                     <div><span className="text-slate-500">Messaging</span><div className={selectedMessagingActive ? "font-black text-emerald-100" : "font-black text-slate-300"}>{selectedMessagingActive ? "Active" : "Inactive"}</div></div>
@@ -3170,7 +3282,7 @@ export default function AiInbox() {
                     ) : null}
                   </div>
 
-                  <div className="mt-4 grid gap-3 rounded-2xl border border-white/10 bg-slate-950/65 p-4 lg:grid-cols-4">
+                  <div className="mt-2 grid gap-2 rounded-2xl border border-white/10 bg-slate-950/65 p-2.5 lg:grid-cols-4">
                     <Info label="Lead score" value={conversationLeadScore(safeConversation)} />
                     <Info label="Lead temperature" value={conversationLeadTemperature(safeConversation)} />
                     <Info label="Recommended action" value={conversationRecommendedSalesAction(safeConversation)} />
@@ -3182,7 +3294,7 @@ export default function AiInbox() {
                     </div>
                   </div>
 
-                  <div className="mt-4">
+                  <div className="mt-2">
                     <SalesIntelligencePanel
                       conversation={selectedConversation}
                       recommendationIntel={recommendations.sessionId === safeConversation.session_id ? recommendations.intelligence : null}
@@ -3199,7 +3311,7 @@ export default function AiInbox() {
                     onAction={updateConversationAction}
                   />
 
-                  <details className="group mb-4 rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+                  <details className="group mb-3 rounded-2xl border border-white/10 bg-slate-950/50 p-3">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
                       <div>
                         <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Developer tools</div>
@@ -3210,9 +3322,9 @@ export default function AiInbox() {
                         Toggle
                       </span>
                     </summary>
-                    <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto]">
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-                        <div className="flex flex-wrap items-center gap-2">
+                    <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_auto]">
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           {isWhatsappChannel(safeConversation.channel || safeConversation.source) ? (
                             <button
                               type="button"
@@ -3253,8 +3365,8 @@ export default function AiInbox() {
                           </button>
                         </div>
                       </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-                        <button type="button" onClick={() => setProfileOpen((value) => !value)} className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-black text-slate-100">
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+                        <button type="button" onClick={() => setProfileOpen((value) => !value)} className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black text-slate-100">
                           {profileOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
                           {profileOpen ? "Hide profile" : "Show profile"}
                         </button>
@@ -3274,7 +3386,7 @@ export default function AiInbox() {
                     ) : null}
                   </details>
 
-                  <div className="mb-4 grid gap-3 xl:grid-cols-2">
+                  <div className="mb-2 grid gap-3 xl:grid-cols-2">
                     <AutoReplyModePanel
                       channelStatus={selectedChannelStatus}
                       mode={selectedChannelStatus.auto_reply_mode || (selectedChannelStatus.ai_replies_enabled ? "fully_automatic" : "off")}
@@ -3291,7 +3403,7 @@ export default function AiInbox() {
                     </div>
                   </div>
 
-                  <div className="grid gap-4 xl:grid-cols-2">
+                  <div className="grid gap-3 xl:grid-cols-2">
                     <SalesCloserPanel
                       plan={salesCloser.sessionId === safeConversation.session_id ? salesCloser.plan : {}}
                       products={recommendations.sessionId === safeConversation.session_id ? recommendations.products : []}
@@ -3313,21 +3425,21 @@ export default function AiInbox() {
                     />
                   </div>
 
-                  <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.8fr)]">
-                    <div className="space-y-4">
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                        <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.8fr)]">
+                    <div className="space-y-3">
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-2.5">
+                        <div className="mb-1.5 flex items-center justify-between gap-3">
                           <div>
-                            <h3 className="text-lg font-black leading-7">Conversation timeline</h3>
-                            <p className="text-sm leading-6 text-slate-400">Live thread, staff replies, and message events.</p>
+                            <h3 className="text-sm font-black leading-5">Conversation timeline</h3>
+                            <p className="text-[11px] leading-4.5 text-slate-400">Live thread, staff replies, and message events.</p>
                           </div>
                           {selectedConversation?.messages?.length ? <Pill tone="zinc">{selectedConversation.messages.length} messages</Pill> : null}
                         </div>
-                        <div className="max-h-[34rem] overflow-y-auto pr-1">
+                        <div className="max-h-[44rem] overflow-y-auto pr-1">
                           <Transcript conversation={selectedConversation} loadingOlder={olderMessagesLoading} onLoadOlder={loadOlderMessages} />
                         </div>
                       </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-2.5">
                         <AiSuggestedRepliesPanel
                           conversation={selectedConversation}
                           suggestions={currentSuggestions.items}
@@ -3344,7 +3456,7 @@ export default function AiInbox() {
                       </div>
                       <ManualReplyComposer conversation={{ ...safeConversation, live_sending_available: Boolean(selectedChannelStatus.effective_enabled) || isMetaChannel(safeConversation.channel || safeConversation.source) }} value={replyText} onChange={setReplyText} onSend={() => sendManualReply()} onSaveDraft={saveDraftReply} loading={loading} />
                     </div>
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       {selectedConversation?.draft_orders?.length ? <OrderDraftPanel conversation={selectedConversation} drafts={drafts} onAction={updateDraft} busy={loading} /> : null}
                     </div>
                   </div>
@@ -3353,16 +3465,93 @@ export default function AiInbox() {
             </div>
           </main>
 
-          {profileOpen ? (
-            <aside className="min-w-0 space-y-4 rounded-3xl border border-white/10 bg-white/[0.03] p-3 xl:sticky xl:top-4 xl:max-h-[calc(100vh-15rem)] xl:overflow-y-auto">
-              <CustomerProfilePanel
-                conversation={selectedConversation}
-                canSyncMessenger={canSyncMessengerProfile(selectedConversation)}
-                syncing={profileSyncing}
-                onSyncMessengerProfile={syncMessengerProfile}
-              />
-            </aside>
-          ) : null}
+          <aside className="hidden min-w-0 w-full shrink-0 space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-3 xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100vh-15rem)] xl:w-[228px] xl:max-w-[228px] xl:flex-col xl:overflow-y-auto">
+            <SectionTitle
+              icon={MessageSquareText}
+              title="Conversations list"
+              action={<Pill tone="zinc">{filteredConversations.length} shown</Pill>}
+            />
+            {loading && !conversations.length ? <LoadingBlock text="Loading conversations..." /> : null}
+            <div className="block">
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                <button type="button" onClick={() => setChannelFilter("all")} className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black ${channelFilter === "all" ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white"}`}>All</button>
+                {channelSummaries.channels.map((channel) => (
+                  <button key={channel.key} type="button" onClick={() => setChannelFilter(channel.key)} className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black ${channelFilter === channel.key ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white"}`}>
+                    {channel.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-col gap-3">
+              <label className="relative min-w-0">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search customer, external ID, phone, or message" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
+                  <ArrowUpDown className="h-4 w-4 text-slate-500" />
+                  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Sort</span>
+                  <select value={leadSort} onChange={(event) => setLeadSort(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
+                    <option value="recent">Most recent</option>
+                    <option value="lead_score_desc">Highest lead score first</option>
+                  </select>
+                </label>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {filters.map((item) => (
+                  <button key={item.key} type="button" onClick={() => setFilter(item.key)} className={`h-9 shrink-0 rounded-xl px-3 text-[11px] font-black transition ${filter === item.key ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"}`}>
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Lead filters</span>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {leadFilters.map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => setLeadFilter(item.key)}
+                      className={`h-9 shrink-0 rounded-xl px-3 text-[11px] font-black transition ${
+                        leadFilter === item.key
+                          ? item.key === "ready_to_buy"
+                            ? "bg-emerald-300 text-slate-950"
+                            : item.key === "hot"
+                              ? "bg-rose-300 text-slate-950"
+                              : item.key === "warm"
+                                ? "bg-amber-300 text-slate-950"
+                                : "bg-cyan-300 text-slate-950"
+                          : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="min-h-0 flex-1 overflow-hidden pr-1">
+              {loading && !conversations.length ? <LoadingBlock text="Loading conversations..." /> : null}
+              {filteredConversations.length ? (
+                <VirtualList
+                  items={filteredConversations}
+                  estimateSize={96}
+                  className="h-full pr-1"
+                  itemKey={(item) => item.session_id}
+                  renderItem={(item) => (
+                    <div className="pb-2">
+                      <ConversationListItem
+                        item={item}
+                        unseen={unseenSessions.includes(item.session_id)}
+                        active={selectedConversation?.session_id === item.session_id}
+                        onSelect={handleSelectConversation}
+                      />
+                    </div>
+                  )}
+                />
+              ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? "No real Meta messages yet. Demo data is hidden so live webhook conversations stay clear." : "No real conversations match the selected filters."} /> : null}
+            </div>
+          </aside>
         </section>
       </div>
     </div>
@@ -3392,3 +3581,4 @@ function LoadingBlock({ text }) {
 function EmptyBlock({ text }) {
   return <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">{text}</div>;
 }
+
