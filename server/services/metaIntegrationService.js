@@ -16735,6 +16735,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
     const conversationState = await getAiSupportConversationState({
       tenantId: config.tenant_id,
       sessionId: message.external_conversation_id,
+      channel: message.channel,
     }).catch((error) => {
       console.warn("[meta-inbox] auto_reply_state_lookup_failed", {
         tenant_id: config.tenant_id,

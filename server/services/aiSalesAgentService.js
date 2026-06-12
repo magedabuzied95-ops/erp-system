@@ -511,6 +511,7 @@ export const ensureAiInboxSchema = async (clientOrPool = db) => {
         external_conversation_id TEXT NOT NULL,
         external_customer_id TEXT NOT NULL DEFAULT '',
         is_group BOOLEAN NOT NULL DEFAULT FALSE,
+        ai_enabled BOOLEAN NOT NULL DEFAULT TRUE,
         customer_name TEXT NOT NULL DEFAULT '',
         customer_avatar_url TEXT NOT NULL DEFAULT '',
         last_message TEXT NOT NULL DEFAULT '',
@@ -524,6 +525,7 @@ export const ensureAiInboxSchema = async (clientOrPool = db) => {
     `);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS external_customer_id TEXT NOT NULL DEFAULT ''`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS is_group BOOLEAN NOT NULL DEFAULT FALSE`);
+    await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT TRUE`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS customer_avatar_url TEXT NOT NULL DEFAULT ''`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT ''`);
@@ -1105,7 +1107,6 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       s.session_id,
       s.source,
       s.channel AS session_channel,
-      s.ai_enabled,
       s.customer_name AS session_customer_name,
       s.customer_avatar_url AS session_customer_avatar_url,
       s.last_message AS session_last_message,
@@ -1119,6 +1120,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       s.last_escalation_keyword,
       s.escalated_at,
       s.updated_at,
+      COALESCE(c.ai_enabled, s.ai_enabled, TRUE) AS ai_enabled,
       COALESCE(c.channel, s.channel, s.source) AS channel,
       c.external_customer_id,
       c.external_conversation_id,
@@ -1166,7 +1168,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       COALESCE(f.due_followup_count, 0)::int AS due_followup_count
     FROM ai_support_sessions s
     LEFT JOIN latest m ON m.session_id = s.session_id AND m.tenant_id = s.tenant_id
-    LEFT JOIN ai_channel_conversations c ON c.tenant_id = s.tenant_id AND c.external_conversation_id = s.session_id
+    LEFT JOIN ai_channel_conversations c ON c.tenant_id = s.tenant_id AND c.channel = s.channel AND c.external_conversation_id = s.session_id
     LEFT JOIN ai_conversation_memories acm ON acm.tenant_id = s.tenant_id AND acm.session_id = s.session_id
     LEFT JOIN latest_event e ON e.conversation_id = s.session_id
     LEFT JOIN latest_interaction li ON li.session_id = s.session_id

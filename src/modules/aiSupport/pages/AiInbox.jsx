@@ -247,6 +247,7 @@ const normalizeConversationChannel = (conversation = {}) => {
   if (key.includes("web")) return "web";
   return key || "unknown";
 };
+const conversationKey = (conversation = {}) => `${normalizeConversationChannel(conversation)}:${clean(conversation?.session_id || conversation?.conversation_id || conversation?.id)}`;
 const customerAvatarUrl = (item = {}) => {
   const source = item || {};
   return clean(
@@ -473,7 +474,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
   return (
     <button
       type="button"
-      onClick={() => onSelect(item.session_id)}
+      onClick={() => onSelect(item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
       className={`w-full rounded-2xl border p-3 text-left transition ${containerTone}`}
     >
       <div className="flex items-start gap-3">
@@ -603,7 +604,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
   return (
     <button
       type="button"
-      onClick={() => onSelect(item.session_id)}
+      onClick={() => onSelect(item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
       className={`w-full rounded-2xl border p-3 text-left transition duration-200 ${containerTone}`}
     >
       <div className="flex items-start gap-3">
@@ -2163,19 +2164,22 @@ export default function AiInbox() {
         api.get("/ai-agent/channels/status", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.channels" }).catch(() => ({ channels: {} })),
       ]);
       if (seq !== requestSeqRef.current) return;
-      const conversations = asArray(inboxPayload.conversations);
+      const conversations = asArray(inboxPayload.conversations).map((conversation) => ({
+        ...conversation,
+        conversation_key: conversation.conversation_key || conversationKey(conversation),
+      }));
       const activeSelectedId = selectedSessionIdRef.current;
       const cachedSelected = selectedConversationCacheRef.current;
-      const selectedStillPresent = activeSelectedId && conversations.some((item) => item.session_id === activeSelectedId);
-      const nextConversations = !selectedStillPresent && activeSelectedId && cachedSelected?.session_id === activeSelectedId
-        ? [cachedSelected, ...conversations.filter((item) => item.session_id !== activeSelectedId)]
+      const selectedStillPresent = activeSelectedId && conversations.some((item) => item.conversation_key === activeSelectedId);
+      const nextConversations = !selectedStillPresent && activeSelectedId && cachedSelected?.conversation_key === activeSelectedId
+        ? [cachedSelected, ...conversations.filter((item) => item.conversation_key !== activeSelectedId)]
         : conversations;
       setInbox({ conversations: nextConversations, followups: asArray(inboxPayload.followups) });
       setDrafts(asArray(draftsPayload.drafts));
       setAnalytics(analyticsPayload.analytics || {});
       setChannelStatus(channelPayload.channels || {});
-      if (!activeSelectedId && nextConversations[0]?.session_id) {
-        setSelectedSessionId(nextConversations[0].session_id);
+      if (!activeSelectedId && nextConversations[0]?.conversation_key) {
+        setSelectedSessionId(nextConversations[0].conversation_key);
       }
     } catch (err) {
       if (seq !== requestSeqRef.current) return;
@@ -2218,6 +2222,9 @@ export default function AiInbox() {
     };
     const onMessage = (payload = {}) => {
       const sessionId = payload.session_id || payload.message?.session_id || "";
+      const channel = payload.channel || payload.message?.channel || payload.message?.source || "";
+      const channelKey = normalizeConversationChannel({ channel });
+      const conversationKey = channelKey && channelKey !== "unknown" ? `${channelKey}:${sessionId}` : sessionId;
       const incoming = payload.message || null;
       if (incoming?.sender_type === "customer" || incoming?.customer_message) {
         setToast({ tone: "cyan", text: "ردّ العميل" });
@@ -2227,9 +2234,13 @@ export default function AiInbox() {
         setInbox((current) => ({
           ...current,
           conversations: asArray(current.conversations).map((conversation) => {
-            if (conversation.session_id !== sessionId) return conversation;
-            const key = messageKey(incoming);
-            if (asArray(conversation.messages).some((message) => messageKey(message) === key)) {
+            if (conversationKey !== sessionId) {
+              if (conversation.conversation_key !== conversationKey) return conversation;
+            } else if (conversation.session_id !== sessionId) {
+              return conversation;
+            }
+            const messageKeyValue = messageKey(incoming);
+            if (asArray(conversation.messages).some((message) => messageKey(message) === messageKeyValue)) {
               skipped = true;
               return conversation;
             }
@@ -2244,8 +2255,8 @@ export default function AiInbox() {
         }));
         if (skipped) console.debug("[meta-inbox] meta_socket_duplicate_skipped", { session_id: sessionId, message_key: messageKey(incoming) });
       }
-      if (sessionId && sessionId !== selectedSessionId) {
-        setUnseenSessions((current) => [...new Set([sessionId, ...current])].slice(0, 20));
+      if (conversationKey && conversationKey !== selectedSessionId) {
+        setUnseenSessions((current) => [...new Set([conversationKey, ...current])].slice(0, 20));
       }
     };
     const offMessage = subscribeRealtime("ai_inbox:message", onMessage);
@@ -2325,17 +2336,17 @@ export default function AiInbox() {
   }, [channelSummaries.channels]);
   const realMetaCount = conversations.filter((item) => item.is_live_meta || isMetaChannel(item.channel || item.source)).length;
   const selectedConversation = useMemo(
-    () => conversations.find((item) => item.session_id === selectedSessionId) ||
-      (selectedConversationCacheRef.current?.session_id === selectedSessionId ? selectedConversationCacheRef.current : null) ||
+    () => conversations.find((item) => item.conversation_key === selectedSessionId) ||
+      (selectedConversationCacheRef.current?.conversation_key === selectedSessionId ? selectedConversationCacheRef.current : null) ||
       conversations[0] ||
       null,
     [conversations, selectedSessionId]
   );
-  const handleSelectConversation = useCallback((sessionId) => {
-    setSelectedSessionId(sessionId);
+  const handleSelectConversation = useCallback((conversationKey) => {
+    setSelectedSessionId(conversationKey);
     setMobileView("chat");
     setReplyText("");
-    setUnseenSessions((current) => current.filter((id) => id !== sessionId));
+    setUnseenSessions((current) => current.filter((id) => id !== conversationKey));
   }, []);
   useEffect(() => {
     if (selectedConversation?.session_id) {
@@ -2425,11 +2436,12 @@ export default function AiInbox() {
     void loadAiTrace();
   }, [loadAiTrace]);
 
-  const patchConversation = useCallback((sessionId, updater) => {
+  const patchConversation = useCallback((identifier, updater) => {
+    const target = clean(identifier);
     setInbox((current) => ({
       ...current,
       conversations: asArray(current.conversations).map((conversation) => {
-        if (conversation.session_id !== sessionId) return conversation;
+        if (conversation.conversation_key !== target && conversation.session_id !== target) return conversation;
         const next = updater(conversation);
         return { ...next, messages: uniqueMessages(next.messages) };
       }),
@@ -2439,6 +2451,7 @@ export default function AiInbox() {
   const loadOlderMessages = useCallback(async () => {
     if (!selectedConversation?.session_id || olderMessagesLoading) return;
     const sessionId = selectedConversation.session_id;
+    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
     const before = selectedConversation.next_messages_before || selectedConversation.messages?.[0]?.created_at || "";
     if (!before) return;
     setOlderMessagesLoading(true);
@@ -2448,7 +2461,7 @@ export default function AiInbox() {
         headers,
         perfComponent: "AiInbox.messages.loadOlder",
       });
-      patchConversation(sessionId, (conversation) => {
+      patchConversation(conversationIdentifier, (conversation) => {
         const mergedMessages = uniqueMessages([...asArray(payload.messages), ...asArray(conversation.messages)]);
         return {
           ...conversation,
@@ -2496,15 +2509,16 @@ export default function AiInbox() {
 
   const updateConversationAction = async (action) => {
     if (!selectedConversation?.session_id) return;
+    const channel = selectedConversation?.channel || selectedConversation?.source || "";
     setLoading(true);
     setError("");
     try {
       if (action === "takeover") {
-        await api.post(aiAgentInboxEndpoint(selectedConversation?.session_id, "/takeover"), { tenant_id: tenantId }, { headers });
+        await api.post(aiAgentInboxEndpoint(selectedConversation?.session_id, "/takeover"), { tenant_id: tenantId, channel }, { headers });
       } else if (action === "return") {
-        const payload = await api.post(aiAgentInboxEndpoint(selectedConversation?.session_id, "/return-to-ai"), { tenant_id: tenantId }, { headers });
+        const payload = await api.post(aiAgentInboxEndpoint(selectedConversation?.session_id, "/return-to-ai"), { tenant_id: tenantId, channel }, { headers });
         const returned = payload.conversation || {};
-        patchConversation(selectedConversation?.session_id, (conversation) => ({
+        patchConversation(selectedConversation?.conversation_key || selectedConversation?.session_id, (conversation) => ({
           ...conversation,
           ...returned,
           conversation_status: "ai_active",
@@ -2525,9 +2539,9 @@ export default function AiInbox() {
         }));
         setToast({ tone: "emerald", text: "أعيدت المحادثة إلى الذكاء الاصطناعي." });
       } else if (action === "reopen") {
-        const payload = await api.post(aiAgentInboxEndpoint(selectedConversation?.session_id, "/reopen"), { tenant_id: tenantId }, { headers });
+        const payload = await api.post(aiAgentInboxEndpoint(selectedConversation?.session_id, "/reopen"), { tenant_id: tenantId, channel }, { headers });
         const returned = payload.conversation || {};
-        patchConversation(selectedConversation?.session_id, (conversation) => ({
+        patchConversation(selectedConversation?.conversation_key || selectedConversation?.session_id, (conversation) => ({
           ...conversation,
           ...returned,
           conversation_status: "ai_active",
@@ -2550,18 +2564,18 @@ export default function AiInbox() {
         }));
         setToast({ tone: "emerald", text: "تمت إعادة فتح المحادثة وإعادتها إلى الذكاء الاصطناعي." });
       } else if (action === "assign") {
-        const payload = await api.patch(aiAgentInboxEndpoint(selectedConversation?.session_id, "/assign"), { tenant_id: tenantId, assigned_user_name: currentAssignName }, { headers, perfComponent: "AiInbox.assign" });
+        const payload = await api.patch(aiAgentInboxEndpoint(selectedConversation?.session_id, "/assign"), { tenant_id: tenantId, assigned_user_name: currentAssignName, channel }, { headers, perfComponent: "AiInbox.assign" });
         const returned = payload.conversation || {};
-        patchConversation(selectedConversation?.session_id, (conversation) => ({
+        patchConversation(selectedConversation?.conversation_key || selectedConversation?.session_id, (conversation) => ({
           ...conversation,
           ...returned,
           assigned_user_name: currentAssignName,
           assigned_user: currentAssignName ? { ...(conversation.assigned_user || {}), name: currentAssignName } : conversation.assigned_user,
         }));
       } else if (action === "close") {
-        const payload = await api.patch(aiAgentInboxEndpoint(selectedConversation?.session_id, "/close"), { tenant_id: tenantId }, { headers, perfComponent: "AiInbox.close" });
+        const payload = await api.patch(aiAgentInboxEndpoint(selectedConversation?.session_id, "/close"), { tenant_id: tenantId, channel }, { headers, perfComponent: "AiInbox.close" });
         const returned = payload.conversation || {};
-        patchConversation(selectedConversation?.session_id, (conversation) => ({
+        patchConversation(selectedConversation?.conversation_key || selectedConversation?.session_id, (conversation) => ({
           ...conversation,
           ...returned,
           conversation_status: "closed",
@@ -2580,6 +2594,7 @@ export default function AiInbox() {
   const syncMessengerProfile = async () => {
     if (!selectedConversation?.session_id || !canSyncMessengerProfile(selectedConversation)) return;
     const sessionId = selectedConversation.session_id;
+    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
     setProfileSyncing(true);
     setError("");
     try {
@@ -2588,13 +2603,13 @@ export default function AiInbox() {
         external_customer_id: selectedConversation.external_customer_id || "",
       }, { headers, perfComponent: "AiInbox.syncMessengerProfile" });
       if (payload.conversation) {
-        patchConversation(sessionId, (conversation) => ({
+        patchConversation(conversationIdentifier, (conversation) => ({
           ...conversation,
           ...payload.conversation,
           messages: asArray(payload.conversation.messages).length ? payload.conversation.messages : conversation.messages,
         }));
       } else {
-        patchConversation(sessionId, (conversation) => ({
+        patchConversation(conversationIdentifier, (conversation) => ({
           ...conversation,
           customer_name: payload.customer_name || conversation.customer_name,
           customer_avatar_url: payload.customer_avatar_url || conversation.customer_avatar_url,
@@ -2619,6 +2634,7 @@ export default function AiInbox() {
   const debugMessengerProfile = async () => {
     if (!selectedConversation?.session_id) return;
     const sessionId = selectedConversation.session_id;
+    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
     setProfileDebugging(true);
     setError("");
     try {
@@ -2628,7 +2644,7 @@ export default function AiInbox() {
       }, { headers, perfComponent: "AiInbox.debugMessengerProfile" });
       console.log("[messenger-profile-debug]", payload);
       window.alert(JSON.stringify(payload, null, 2));
-      patchConversation(sessionId, (conversation) => ({
+      patchConversation(conversationIdentifier, (conversation) => ({
         ...conversation,
         customer_avatar_url:
           payload.stored_ai_channel_conversations_customer_avatar_url ||
@@ -2710,6 +2726,7 @@ export default function AiInbox() {
     const message = clean(overrideText || replyText);
     if (!selectedConversation?.session_id || !message) return;
     const sessionId = selectedConversation?.session_id;
+    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
     const now = new Date().toISOString();
     const optimistic = {
       id: `sending-${Date.now()}`,
@@ -2723,7 +2740,7 @@ export default function AiInbox() {
       delivery_status: "sending",
       created_at: now,
     };
-    patchConversation(sessionId, (conversation) => ({
+    patchConversation(conversationIdentifier, (conversation) => ({
       ...conversation,
       messages: [...asArray(conversation.messages), optimistic],
       conversation_status: "human_takeover",
@@ -2740,7 +2757,7 @@ export default function AiInbox() {
       const payload = await api.post(aiInboxConversationEndpoint(sessionId, "/send"), { tenant_id: tenantId, message }, { headers, perfComponent: "AiInbox.sendManualReply" });
       setToast({ tone: "emerald", text: "Message sent" });
       if (payload.message) {
-        patchConversation(sessionId, (conversation) => ({
+        patchConversation(conversationIdentifier, (conversation) => ({
           ...conversation,
           messages: uniqueMessages([...asArray(conversation.messages).filter((item) => item.id !== optimistic.id), payload.message]),
           latest_message_preview: message,
@@ -2751,7 +2768,7 @@ export default function AiInbox() {
     } catch (err) {
       setToast({ tone: "rose", text: err?.message || "فشل الإرسال" });
       setError(err?.message || "تعذر إرسال الرد اليدوي");
-      patchConversation(sessionId, (conversation) => ({
+      patchConversation(conversationIdentifier, (conversation) => ({
         ...conversation,
       messages: asArray(conversation.messages).map((item) => item.id === optimistic.id ? { ...item, delivery_status: "failed", delivery_error: err?.message || "فشل الإرسال" } : item),
       }));
@@ -2770,7 +2787,7 @@ export default function AiInbox() {
       setReplyText("");
       setToast({ tone: "emerald", text: "Draft saved" });
       if (payload?.message) {
-        patchConversation(selectedConversation.session_id, (conversation) => ({
+        patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({
           ...conversation,
           messages: uniqueMessages([...asArray(conversation.messages), payload.message]),
           latest_message_preview: message,
@@ -2848,6 +2865,7 @@ export default function AiInbox() {
   const generateAiReply = async ({ persist = false } = {}) => {
     if (!selectedConversation?.session_id) return;
     const sessionId = selectedConversation?.session_id;
+    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
     setAiReply({ sessionId, text: "", loading: true, error: "" });
     try {
       const payload = await api.post(aiInboxConversationEndpoint(sessionId, "/ai-reply"), { tenant_id: tenantId, persist }, { headers, perfComponent: "AiInbox.generateAiReply" });
@@ -2857,7 +2875,7 @@ export default function AiInbox() {
         if (!persist) setReplyText(textValue);
       }, 450);
       if (persist && payload.message) {
-        patchConversation(sessionId, (conversation) => ({
+        patchConversation(conversationIdentifier, (conversation) => ({
           ...conversation,
           messages: uniqueMessages([...asArray(conversation.messages), payload.message]),
           latest_message_preview: textValue || conversation.latest_message_preview,
@@ -2890,6 +2908,7 @@ export default function AiInbox() {
 
   const toggleAiEnabled = useCallback(() => {
     if (!selectedConversation?.session_id) return;
+    const channel = selectedConversation?.channel || selectedConversation?.source || "";
     const nextEnabled = !isConversationAiEnabled(selectedConversation);
     void (async () => {
       setLoading(true);
@@ -2899,11 +2918,12 @@ export default function AiInbox() {
           tenant_id: tenantId,
           conversation_id: selectedConversation.session_id,
           external_id: selectedConversation.external_conversation_id || "",
+          channel,
           ai_enabled: nextEnabled,
           enabled: nextEnabled,
         }, { headers, perfComponent: "AiInbox.toggleConversationAi" });
         const returnedConversation = payload.conversation || {};
-        patchConversation(selectedConversation.session_id, (conversation) => ({
+        patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({
           ...conversation,
           ...returnedConversation,
           ai_enabled: returnedConversation.ai_enabled !== undefined ? returnedConversation.ai_enabled : nextEnabled,
@@ -2915,7 +2935,7 @@ export default function AiInbox() {
         setLoading(false);
       }
     })();
-  }, [headers, patchConversation, selectedConversation?.ai_enabled, selectedConversation?.external_conversation_id, selectedConversation?.session_id, tenantId]);
+  }, [headers, patchConversation, selectedConversation?.ai_enabled, selectedConversation?.channel, selectedConversation?.external_conversation_id, selectedConversation?.session_id, selectedConversation?.source, tenantId]);
 
   const quickSendProduct = (product) => {
     const textValue = `${product.name || product.title}\n${money(product.final_price || product.price)}\n${product.product_url || ""}`.trim();
@@ -3146,13 +3166,13 @@ export default function AiInbox() {
                   items={filteredConversations}
                   estimateSize={98}
                   className="h-full pr-1"
-                  itemKey={(item) => item.session_id}
+                  itemKey={(item) => item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`}
                   renderItem={(item) => (
                     <div className="pb-2">
                       <InboxConversationCard
                         item={item}
-                        unseen={unseenSessions.includes(item.session_id)}
-                        active={selectedConversation?.session_id === item.session_id}
+                        unseen={unseenSessions.includes(item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
+                        active={selectedConversation?.conversation_key === (item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
                         onSelect={handleSelectConversation}
                       />
                     </div>
@@ -3648,13 +3668,13 @@ export default function AiInbox() {
                   items={filteredConversations}
                   estimateSize={96}
                   className="h-full pr-1"
-                  itemKey={(item) => item.session_id}
+                  itemKey={(item) => item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`}
                   renderItem={(item) => (
                     <div className="pb-2">
                       <ConversationListItem
                         item={item}
-                        unseen={unseenSessions.includes(item.session_id)}
-                        active={selectedConversation?.session_id === item.session_id}
+                        unseen={unseenSessions.includes(item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
+                        active={selectedConversation?.conversation_key === (item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
                         onSelect={handleSelectConversation}
                       />
                     </div>

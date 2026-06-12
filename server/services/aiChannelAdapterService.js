@@ -56,6 +56,7 @@ export const ensureAiChannelAdapterSchema = async (clientOrPool = db) => {
         external_conversation_id TEXT NOT NULL,
         external_customer_id TEXT NOT NULL DEFAULT '',
         is_group BOOLEAN NOT NULL DEFAULT FALSE,
+        ai_enabled BOOLEAN NOT NULL DEFAULT TRUE,
         customer_name TEXT NOT NULL DEFAULT '',
         customer_avatar_url TEXT NOT NULL DEFAULT '',
         last_message TEXT NOT NULL DEFAULT '',
@@ -71,6 +72,7 @@ export const ensureAiChannelAdapterSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS customer_avatar_url TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS is_group BOOLEAN NOT NULL DEFAULT FALSE`);
+      await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT TRUE`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_channel_conversations_customer ON ai_channel_conversations (tenant_id, channel, external_customer_id)`);
       await clientOrPool.query(`
         CREATE TABLE IF NOT EXISTS ai_channel_settings (

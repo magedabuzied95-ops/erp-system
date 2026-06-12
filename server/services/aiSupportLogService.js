@@ -13,6 +13,18 @@ const numberOrNull = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const normalizeConversationChannel = (value = "") => {
+  const lower = toText(value).toLowerCase();
+  if (lower.includes("instagram")) return "instagram";
+  if (lower.includes("facebook") && lower.includes("messenger")) return "facebook_messenger";
+  if (lower.includes("messenger")) return "facebook_messenger";
+  if (lower.includes("whatsapp")) return "whatsapp";
+  if (lower.includes("web")) return "web_chat";
+  return lower;
+};
+
+const isMetaConversationChannel = (value = "") => ["instagram", "facebook_messenger"].includes(normalizeConversationChannel(value));
+
 const compactList = (items = [], limit = 20) =>
   [...new Set((Array.isArray(items) ? items : []).map((item) => toText(item).toLowerCase()).filter(Boolean))].slice(0, limit);
 
@@ -203,6 +215,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT TRUE`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_channel_conversations ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT TRUE`);
       await clientOrPool.query(`UPDATE ai_support_messages SET message_text = customer_message WHERE COALESCE(message_text, '') = ''`);
 
       await clientOrPool.query(`
@@ -271,20 +284,54 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
   return schemaReadyPromise;
 };
 
-export const getAiSupportConversationState = async ({ tenantId, sessionId } = {}) => {
+export const getAiSupportConversationState = async ({ tenantId, sessionId, channel = "" } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
+  const safeChannel = normalizeConversationChannel(channel);
   if (!safeTenantId || !safeSessionId) return null;
   await ensureAiSupportLogSchema();
+
+  if (safeChannel) {
+    const channelState = await db.query(
+      `
+      SELECT *
+      FROM ai_channel_conversations
+      WHERE tenant_id = $1 AND channel = $2 AND external_conversation_id = $3
+      LIMIT 1
+      `,
+      [safeTenantId, safeChannel, safeSessionId]
+    );
+    if (channelState.rows[0]) {
+      const sessionState = await db.query(
+        `
+        SELECT *
+        FROM ai_support_sessions
+        WHERE tenant_id = $1 AND session_id = $2
+        LIMIT 1
+        `,
+        [safeTenantId, safeSessionId]
+      );
+      return {
+        ...(sessionState.rows[0] || {}),
+        ...channelState.rows[0],
+        ai_enabled: channelState.rows[0].ai_enabled !== false,
+        channel: channelState.rows[0].channel || sessionState.rows[0]?.channel || safeChannel,
+        session_id: safeSessionId,
+        external_conversation_id: safeSessionId,
+      };
+    }
+  }
 
   const result = await db.query(
     `
     SELECT *
     FROM ai_support_sessions
-    WHERE tenant_id = $1 AND session_id = $2
+    WHERE tenant_id = $1
+      AND session_id = $2
+      AND ($3::text = '' OR channel = $3)
     LIMIT 1
     `,
-    [safeTenantId, safeSessionId]
+    [safeTenantId, safeSessionId, safeChannel]
   );
   return result.rows[0] || null;
 };
@@ -292,17 +339,64 @@ export const getAiSupportConversationState = async ({ tenantId, sessionId } = {}
 export const updateAiSupportConversationAiEnabled = async ({
   tenantId,
   sessionId,
+  channel = "",
   aiEnabled = true,
   actorUserId = null,
   source = "admin_console",
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
+  const safeChannel = normalizeConversationChannel(channel);
   const safeEnabled = aiEnabled !== false;
   if (!safeTenantId || !safeSessionId) {
     throw Object.assign(new Error("tenant_id and conversation id are required"), { status: 400 });
   }
   await ensureAiSupportLogSchema();
+
+  if (isMetaConversationChannel(safeChannel)) {
+    const result = await db.query(
+      `
+      INSERT INTO ai_channel_conversations (
+        tenant_id,
+        channel,
+        external_conversation_id,
+        ai_enabled,
+        updated_at
+      )
+      VALUES ($1::bigint, $2::text, $3::text, $4::boolean, NOW())
+      ON CONFLICT (tenant_id, channel, external_conversation_id) DO UPDATE SET
+        ai_enabled = EXCLUDED.ai_enabled,
+        updated_at = NOW()
+      RETURNING *
+      `,
+      [safeTenantId, safeChannel, safeSessionId, safeEnabled]
+    );
+    const sessionState = await db.query(
+      `
+      SELECT *
+      FROM ai_support_sessions
+      WHERE tenant_id = $1 AND session_id = $2
+      LIMIT 1
+      `,
+      [safeTenantId, safeSessionId]
+    );
+    console.log("[ai-toggle] conversation ai state updated", {
+      tenant_id: safeTenantId,
+      conversation_id: safeSessionId,
+      channel: safeChannel,
+      target: "ai_channel_conversations",
+      ai_enabled: safeEnabled,
+    });
+    return {
+      ...(sessionState.rows[0] || {}),
+      ...(result.rows[0] || {}),
+      ai_enabled: safeEnabled,
+      channel: safeChannel,
+      session_id: safeSessionId,
+      external_conversation_id: safeSessionId,
+    };
+  }
+
   const result = await db.query(
     `
     INSERT INTO ai_support_sessions (
@@ -323,6 +417,13 @@ export const updateAiSupportConversationAiEnabled = async ({
     `,
     [safeTenantId, numberOrNull(actorUserId), safeSessionId, toText(source, "admin_console"), safeEnabled]
   );
+  console.log("[ai-toggle] conversation ai state updated", {
+    tenant_id: safeTenantId,
+    conversation_id: safeSessionId,
+    channel: safeChannel,
+    target: "ai_support_sessions",
+    ai_enabled: safeEnabled,
+  });
   return result.rows[0] || null;
 };
 

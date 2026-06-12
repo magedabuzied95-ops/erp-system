@@ -457,7 +457,7 @@ const firstProductFromPayload = (payload = {}) => {
 };
 
 const shouldAutoReplyToConversation = async ({ tenantId, conversationId, channel, settings = {}, payload = {} } = {}) => {
-  const state = await getAiSupportConversationState({ tenantId, sessionId: conversationId }).catch(() => null);
+  const state = await getAiSupportConversationState({ tenantId, sessionId: conversationId, channel }).catch(() => null);
   const status = String(state?.status || payload?.conversation_status || "").toLowerCase();
   const mode = envText(settings.auto_reply_mode || (settings.ai_replies_enabled === true ? "fully_automatic" : "off")).toLowerCase();
   const globalSettings = await getAISettings();
@@ -902,7 +902,7 @@ router.post("/channels/whatsapp/webhook", async (req, res) => {
         results.push(escalated.result);
         continue;
       }
-      const preState = await getAiSupportConversationState({ tenantId, sessionId: message.external_conversation_id }).catch(() => null);
+      const preState = await getAiSupportConversationState({ tenantId, sessionId: message.external_conversation_id, channel: AI_AGENT_CHANNELS.WHATSAPP }).catch(() => null);
       if (preState?.ai_enabled === false) {
         results.push({
           external_customer_id: message.external_customer_id,
@@ -1146,7 +1146,7 @@ router.post("/channels/meta/webhook", async (req, res) => {
         results.push(escalated.result);
         continue;
       }
-      const preState = await getAiSupportConversationState({ tenantId, sessionId: conversationId }).catch(() => null);
+      const preState = await getAiSupportConversationState({ tenantId, sessionId: conversationId, channel }).catch(() => null);
       if (preState?.ai_enabled === false) {
         results.push({
           channel,
@@ -2544,9 +2544,11 @@ router.post("/conversations/:conversationId/force-send-last-ai-reply", protect, 
 router.post("/conversations/:conversationId/takeover", protect, permit("settings", "edit"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
+    const channel = envText(req.body?.channel || req.query?.channel || "");
     const conversation = await updateAiSupportConversationState({
       tenantId,
       sessionId: req.params.conversationId,
+      channel,
       status: "human_takeover",
       assignedUserId: req.body?.assigned_user_id ?? req.body?.assignedUserId ?? req.user?.id,
       assignedUserName: req.body?.assigned_user_name || req.body?.assignedUserName || userDisplayName(req.user),
@@ -2561,17 +2563,19 @@ router.post("/conversations/:conversationId/takeover", protect, permit("settings
 router.post("/conversations/:conversationId/return-to-ai", protect, permit("settings", "edit"), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
+  const channel = envText(req.body?.channel || req.query?.channel || "");
   try {
     console.log("ai_return_to_ai_start", {
       tenant_id: tenantId,
       conversation_id: conversationId,
       route: "conversations",
     });
-    const previousState = await getAiSupportConversationState({ tenantId, sessionId: conversationId }).catch(() => null);
+    const previousState = await getAiSupportConversationState({ tenantId, sessionId: conversationId, channel }).catch(() => null);
     const hadEscalation = Boolean(envText(previousState?.escalation_reason || previousState?.last_escalation_keyword) || previousState?.escalated_at);
     const conversation = await updateAiSupportConversationState({
       tenantId,
       sessionId: conversationId,
+      channel,
       status: "ai_active",
       actorUserId: req.user?.id || null,
     });
@@ -2616,6 +2620,7 @@ router.post("/conversations/:conversationId/return-to-ai", protect, permit("sett
 router.post("/conversations/:conversationId/reopen", protect, permit("settings", "edit"), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
+  const channel = envText(req.body?.channel || req.query?.channel || "");
   try {
     console.log("ai_conversation_reopen_start", {
       tenant_id: tenantId,
@@ -2625,6 +2630,7 @@ router.post("/conversations/:conversationId/reopen", protect, permit("settings",
     const conversation = await updateAiSupportConversationState({
       tenantId,
       sessionId: conversationId,
+      channel,
       status: "ai_active",
       assignedUserId: null,
       assignedUserName: "",
@@ -2665,11 +2671,13 @@ router.post("/conversations/:conversationId/reopen", protect, permit("settings",
 router.patch("/conversations/:conversationId/ai-enabled", protect, permit("settings", "edit"), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
+  const channel = envText(req.body?.channel || req.query?.channel || "");
   try {
     const aiEnabled = req.body?.ai_enabled !== false && req.body?.enabled !== false;
     const conversation = await updateAiSupportConversationAiEnabled({
       tenantId,
       sessionId: conversationId,
+      channel,
       aiEnabled,
       actorUserId: req.user?.id || null,
       source: "ai_inbox",
@@ -2694,9 +2702,11 @@ router.patch("/conversations/:conversationId/ai-enabled", protect, permit("setti
 router.post("/inbox/:conversationId/takeover", protect, permit("settings", "edit"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
+    const channel = envText(req.body?.channel || req.query?.channel || "");
     const conversation = await updateAiSupportConversationState({
       tenantId,
       sessionId: req.params.conversationId,
+      channel,
       status: "human_takeover",
       assignedUserId: req.body?.assigned_user_id ?? req.body?.assignedUserId ?? req.user?.id,
       assignedUserName: req.body?.assigned_user_name || req.body?.assignedUserName || userDisplayName(req.user),
@@ -2711,17 +2721,19 @@ router.post("/inbox/:conversationId/takeover", protect, permit("settings", "edit
 router.post("/inbox/:conversationId/return-to-ai", protect, permit("settings", "edit"), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
+  const channel = envText(req.body?.channel || req.query?.channel || "");
   try {
     console.log("ai_return_to_ai_start", {
       tenant_id: tenantId,
       conversation_id: conversationId,
       route: "inbox",
     });
-    const previousState = await getAiSupportConversationState({ tenantId, sessionId: conversationId }).catch(() => null);
+    const previousState = await getAiSupportConversationState({ tenantId, sessionId: conversationId, channel }).catch(() => null);
     const hadEscalation = Boolean(envText(previousState?.escalation_reason || previousState?.last_escalation_keyword) || previousState?.escalated_at);
     const conversation = await updateAiSupportConversationState({
       tenantId,
       sessionId: conversationId,
+      channel,
       status: "ai_active",
       actorUserId: req.user?.id || null,
     });
@@ -2766,6 +2778,7 @@ router.post("/inbox/:conversationId/return-to-ai", protect, permit("settings", "
 router.post("/inbox/:conversationId/reopen", protect, permit("settings", "edit"), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
+  const channel = envText(req.body?.channel || req.query?.channel || "");
   try {
     console.log("ai_conversation_reopen_start", {
       tenant_id: tenantId,
@@ -2775,6 +2788,7 @@ router.post("/inbox/:conversationId/reopen", protect, permit("settings", "edit")
     const conversation = await updateAiSupportConversationState({
       tenantId,
       sessionId: conversationId,
+      channel,
       status: "ai_active",
       assignedUserId: null,
       assignedUserName: "",
@@ -2815,11 +2829,13 @@ router.post("/inbox/:conversationId/reopen", protect, permit("settings", "edit")
 router.patch("/inbox/:conversationId/ai-enabled", protect, permit("settings", "edit"), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
+  const channel = envText(req.body?.channel || req.query?.channel || "");
   try {
     const aiEnabled = req.body?.ai_enabled !== false && req.body?.enabled !== false;
     const conversation = await updateAiSupportConversationAiEnabled({
       tenantId,
       sessionId: conversationId,
+      channel,
       aiEnabled,
       actorUserId: req.user?.id || null,
       source: "ai_inbox",
