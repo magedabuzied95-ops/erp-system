@@ -2552,6 +2552,60 @@ const repairMessengerStoredNames = async () => {
         `,
         [messengerNamePattern]
       );
+      await db.query(
+        `
+        UPDATE ai_customer_profiles p
+        SET
+          first_name = CASE
+            WHEN COALESCE(NULLIF(c.metadata->'messenger_profile'->>'name', ''), '') <> '' AND (c.metadata->'messenger_profile'->>'name' !~* $1)
+              THEN c.metadata->'messenger_profile'->>'name'
+            WHEN COALESCE(NULLIF(concat_ws(' ', c.metadata->'messenger_profile'->>'first_name', c.metadata->'messenger_profile'->>'last_name'), ''), '') <> '' AND (concat_ws(' ', c.metadata->'messenger_profile'->>'first_name', c.metadata->'messenger_profile'->>'last_name') !~* $1)
+              THEN concat_ws(' ', c.metadata->'messenger_profile'->>'first_name', c.metadata->'messenger_profile'->>'last_name')
+            WHEN COALESCE(NULLIF(s.customer_name, ''), '') <> '' AND (s.customer_name !~* $1)
+              THEN s.customer_name
+            WHEN COALESCE(NULLIF(c.customer_name, ''), '') <> '' AND (c.customer_name !~* $1)
+              THEN c.customer_name
+            WHEN COALESCE(NULLIF(p.external_customer_id, ''), '') <> ''
+              THEN p.external_customer_id
+            ELSE p.first_name
+          END,
+          last_name = CASE
+            WHEN COALESCE(NULLIF(c.metadata->'messenger_profile'->>'last_name', ''), '') <> '' AND (c.metadata->'messenger_profile'->>'last_name' !~* $1)
+              THEN c.metadata->'messenger_profile'->>'last_name'
+            WHEN COALESCE(NULLIF(s.customer_name, ''), '') <> '' AND (s.customer_name !~* $1)
+              THEN ''
+            WHEN COALESCE(NULLIF(c.customer_name, ''), '') <> '' AND (c.customer_name !~* $1)
+              THEN ''
+            ELSE p.last_name
+          END,
+          updated_at = NOW()
+        FROM ai_channel_conversations c
+        LEFT JOIN ai_support_sessions s
+          ON s.tenant_id = c.tenant_id
+          AND s.session_id = c.external_conversation_id
+        WHERE p.tenant_id = c.tenant_id
+          AND p.id = c.customer_profile_id
+          AND c.channel IN ('facebook_messenger', 'facebook', 'messenger')
+          AND (
+            p.first_name = ''
+            OR p.first_name ~* $1
+            OR p.first_name ILIKE '%message%'
+            OR p.first_name ILIKE '%preview%'
+            OR p.first_name ILIKE '%snippet%'
+            OR p.first_name ILIKE '%reply%'
+            OR p.first_name ILIKE '%conversation%'
+            OR p.first_name ILIKE '%inbox%'
+            OR p.first_name ILIKE '%customer%'
+            OR p.first_name ILIKE '%order%'
+            OR p.first_name ILIKE '%product%'
+            OR p.first_name ILIKE '%stock%'
+            OR p.first_name ILIKE '%size%'
+            OR p.first_name ILIKE '%price%'
+            OR p.first_name ILIKE '%body%'
+          )
+        `,
+        [messengerNamePattern]
+      );
     })().catch((error) => {
       messengerProfileStorageRepairPromise = null;
       throw error;
