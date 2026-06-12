@@ -264,6 +264,69 @@ const customerAvatarUrl = (item = {}) => {
   );
 };
 const firstNonEmpty = (...values) => values.map((value) => clean(value)).find(Boolean) || "";
+const messengerIdentityKey = (conversation = {}) => clean(
+  conversation.external_customer_id ||
+  conversation.sender_psid ||
+  conversation.customer_profile?.external_customer_id ||
+  conversation.customer?.external_customer_id ||
+  conversation.channel_metadata?.sender_psid ||
+  conversation.channel_metadata?.customer_psid ||
+  conversation.phone ||
+  ""
+);
+const messengerSelectedCustomer = (conversation = {}) => conversation.customer || conversation.customer_profile || {};
+const messengerSelectedCustomerMatches = (conversation = {}) => {
+  const identityKey = messengerIdentityKey(conversation);
+  const selectedCustomer = messengerSelectedCustomer(conversation);
+  const selectedCustomerExternalId = clean(
+    selectedCustomer?.external_customer_id ||
+    selectedCustomer?.phone ||
+    conversation.customer_profile?.external_customer_id ||
+    ""
+  );
+  return Boolean(identityKey && selectedCustomerExternalId && selectedCustomerExternalId === identityKey);
+};
+const messengerDisplayName = (conversation = {}) => {
+  const source = conversation || {};
+  const identityKey = messengerIdentityKey(source);
+  const selectedCustomer = messengerSelectedCustomer(source);
+  const selectedCustomerMatches = messengerSelectedCustomerMatches(source);
+  const profileName = selectedCustomerMatches
+    ? firstNonEmpty(
+        selectedCustomer?.name,
+        selectedCustomer?.customer_name,
+        selectedCustomer?.full_name,
+        selectedCustomer?.sender_name,
+        selectedCustomer?.profile_name,
+        selectedCustomer?.contact_name,
+        source.customer_profile?.name,
+        source.customer_profile?.full_name,
+        source.customer_profile?.sender_name,
+        source.customer_profile?.profile_name,
+        source.customer_profile?.contact_name
+      )
+    : "";
+  return firstNonEmpty(source.customer_name, profileName, identityKey);
+};
+const messengerDisplayDebugText = (conversation = {}) => {
+  const source = conversation || {};
+  const selectedCustomer = messengerSelectedCustomer(source);
+  const selectedCustomerMatches = messengerSelectedCustomerMatches(source);
+  return [
+    `source=${clean(source.source || source.channel || "")}`,
+    `channel=${clean(source.channel || source.source || "")}`,
+    `conversation_id=${clean(source.session_id || source.external_conversation_id || source.id || "")}`,
+    `external_customer_id=${messengerIdentityKey(source)}`,
+    `displayedName=${messengerDisplayName(source)}`,
+    `selectedCustomer.id=${clean(selectedCustomer?.id || selectedCustomer?.customer_id || "")}`,
+    `selectedCustomer.external_customer_id=${clean(selectedCustomer?.external_customer_id || "")}`,
+    `selectedCustomer.name=${clean(selectedCustomer?.name || selectedCustomer?.customer_name || selectedCustomer?.full_name || "")}`,
+    `selectedCustomer.matches=${selectedCustomerMatches ? "yes" : "no"}`,
+    `conversation.customer_name=${clean(source.customer_name || "")}`,
+    `conversation.sender_name=${clean(source.sender_name || "")}`,
+    `conversation.profile_name=${clean(source.profile_name || "")}`,
+  ].join(" | ");
+};
 const isMessengerConversation = (conversation = {}) => {
   const channel = normalizeConversationChannel(conversation);
   const source = clean(conversation?.channel || conversation?.source || conversation?.provider || conversation?.platform).toLowerCase();
@@ -278,32 +341,11 @@ const isMessengerConversation = (conversation = {}) => {
 };
 const getConversationDisplayName = (conversation = {}) => {
   const source = conversation || {};
-  const profile = source.customer_profile || {};
   if (isMessengerConversation(source)) {
-    const externalCustomerId = clean(source.external_customer_id || source.customer?.external_customer_id || profile.external_customer_id || source.phone);
-    const profileMatchesIdentity = Boolean(
-      externalCustomerId &&
-      clean(source.customer?.external_customer_id || profile.external_customer_id) === externalCustomerId
-    );
-    return firstNonEmpty(
-      source.customer_name,
-      source.sender_name,
-      source.profile_name,
-      source.contact_name,
-      profileMatchesIdentity ? source.customer?.name : "",
-      profileMatchesIdentity ? profile.name : "",
-      profileMatchesIdentity ? profile.full_name : "",
-      profileMatchesIdentity ? profile.sender_name : "",
-      profileMatchesIdentity ? profile.profile_name : "",
-      profileMatchesIdentity ? profile.contact_name : "",
-      source.external_sender_name,
-      source.external_contact_name,
-      source.phone,
-      source.external_customer_id,
-      externalCustomerId
-    );
+    return messengerDisplayName(source);
   }
 
+  const profile = source.customer_profile || {};
   const fullName = [source.first_name || profile.first_name, source.last_name || profile.last_name].map(clean).filter(Boolean).join(" ");
   return firstNonEmpty(
     source.customer_name,
@@ -500,7 +542,7 @@ function ProductCards({ products = [] }) {
 const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, onSelect }) {
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
-  const customerName = getConversationDisplayName(item) || "Customer";
+  const customerName = isMessengerConversation(item) ? messengerDisplayName(item) : getConversationDisplayName(item);
   const avatarUrl = customerAvatarUrl(item);
   const lastMessage = item.latest_message_preview || item.last_message || item.customer_message || item.ai_answer || "لا توجد رسائل بعد.";
   const unreadCount = Number(item.unread_count || item.unread || 0);
@@ -662,6 +704,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="truncate text-[14px] font-black leading-5 text-white">{customerName}</div>
+              {isMessengerConversation(item) ? <div className="mt-1 break-words text-[10px] font-semibold leading-4 text-cyan-200/80">{messengerDisplayDebugText(item)}</div> : null}
               <div className="mt-1 flex flex-wrap items-center gap-1.5">
                 <Pill tone={isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>{channelBadgeLabel(channel)}</Pill>
               </div>
@@ -692,7 +735,7 @@ function InboxChatHeader({
   if (!conversation) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
   const avatarUrl = customerAvatarUrl(conversation);
-  const name = getConversationDisplayName(conversation) || "عميل";
+  const name = isMessengerConversation(conversation) ? messengerDisplayName(conversation) : getConversationDisplayName(conversation);
   const phone = clean(conversation.phone || conversation.customer_phone || conversation.external_customer_id || conversation.customer_profile?.phone);
   const channel = conversation.channel || conversation.source || "web_chat";
   const aiEnabled = isConversationAiEnabled(conversation) && status !== "closed";
@@ -716,6 +759,7 @@ function InboxChatHeader({
               <div className="truncate text-lg font-black text-white">{name}</div>
               <span className={`inline-flex h-5 items-center rounded-full px-2 text-[10px] font-black uppercase tracking-[0.14em] ${aiEnabled ? "bg-emerald-300/12 text-emerald-100" : "bg-amber-300/12 text-amber-100"}`}>{aiLabel}</span>
             </div>
+            {isMessengerConversation(conversation) ? <div className="mt-1 break-words text-[10px] font-semibold leading-4 text-cyan-200/80">{messengerDisplayDebugText(conversation)}</div> : null}
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
               <Pill tone={isWhatsappChannel(channel) ? "emerald" : "cyan"}>{channelBadgeLabel(channel)}</Pill>
               <span className="text-slate-700">/</span>
@@ -1294,7 +1338,7 @@ function CustomerContextCard({ conversation = {} }) {
   const messages = uniqueMessages(conversation?.messages);
   const latest = [...messages].reverse().find((message) => message.detected_intent || message.customer_message || message.ai_answer) || {};
   const profile = conversation?.customer_profile || {};
-  const identityName = getConversationDisplayName(conversation) || "عميل غير معروف";
+  const identityName = isMessengerConversation(conversation) ? messengerDisplayName(conversation) : getConversationDisplayName(conversation);
   const avatarUrl = customerAvatarUrl(conversation);
   const channelMetadata = conversation?.channel_metadata || {};
   const latestMemory = latest.memory_changes || latest.memory || {};
@@ -1332,6 +1376,7 @@ function CustomerContextCard({ conversation = {} }) {
         <div className="min-w-0">
           <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">سياق العميل</div>
           <div className="mt-1 text-lg font-black text-white">{displayFallback(identityName, "No CRM match yet")}</div>
+          {isMessengerConversation(conversation) ? <div className="mt-1 break-words text-[10px] font-semibold leading-4 text-cyan-200/80">{messengerDisplayDebugText(conversation)}</div> : null}
         </div>
       </div>
       <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -1672,7 +1717,7 @@ function AiTraceModal({ open, loading, error, data, onClose, onRefresh }) {
 
 function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing = false, onSyncMessengerProfile }) {
   const profile = conversation?.customer_profile || {};
-  const identityName = getConversationDisplayName(conversation);
+  const identityName = isMessengerConversation(conversation) ? messengerDisplayName(conversation) : getConversationDisplayName(conversation);
   const avatarUrl = customerAvatarUrl(conversation);
   const hasMessengerProfile = Boolean(identityName || avatarUrl || clean(conversation?.external_customer_id));
   const crmLabel = profile.id ? `الملف المرتبط #${profile.id}` : hasMessengerProfile ? "ملف ماسنجر فقط" : "لا يوجد عميل CRM مطابق";
@@ -1696,6 +1741,7 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-[15px] font-black leading-5 text-white">{identityName || "عميل غير معروف"}</div>
+                {isMessengerConversation(conversation) ? <div className="mt-1 break-words text-[10px] font-semibold leading-4 text-cyan-200/80">{messengerDisplayDebugText(conversation)}</div> : null}
                 <div className="mt-1 text-[12px] font-bold leading-5 text-slate-400">
                   <span dir="ltr" className="block break-words">{phone || "لا يوجد رقم بعد"}</span>
                 </div>
@@ -2126,7 +2172,8 @@ function RightToolsTabsPanel({
                 <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
                   <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Customer snapshot</div>
                   <div className="mt-2 space-y-1 text-sm text-slate-300">
-                    <div className="font-black text-white">{getConversationDisplayName(conversation) || "Customer"}</div>
+                    <div className="font-black text-white">{isMessengerConversation(conversation) ? messengerDisplayName(conversation) : getConversationDisplayName(conversation) || "Customer"}</div>
+                    {isMessengerConversation(conversation) ? <div className="break-words text-[10px] font-semibold leading-4 text-cyan-200/80">{messengerDisplayDebugText(conversation)}</div> : null}
                     <div dir="ltr">{clean(conversation.phone || conversation.customer_phone || conversation.external_customer_id || conversation.customer_profile?.phone) || "No phone"}</div>
                     <div>{channelLabel(conversation.channel || conversation.source)}</div>
                   </div>
