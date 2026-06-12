@@ -234,31 +234,6 @@ const channelBadgeLabel = (value = "") => {
   if (key.includes("web")) return "ويب";
   return "الكل";
 };
-const explicitCrmStatus = (conversation = {}) =>
-  firstNonEmpty(
-    conversation?.customer_profile?.crm_status,
-    conversation?.customer_profile?.customer_status,
-    conversation?.customer_profile?.status,
-    conversation?.crm_status,
-    conversation?.customer_status
-  );
-const explicitLeadStage = (conversation = {}) =>
-  firstNonEmpty(
-    conversation?.lead_type,
-    conversation?.lead_badge,
-    conversation?.sales_intelligence?.lead_type,
-    conversation?.sales_conversation_state?.lead_type
-  );
-const isInferenceLabel = (value = "") => /غالي|غالية|price_or_value_objection|objection_handling|objection|inference|inferred/i.test(clean(value));
-const headerStatusLabel = (conversation = {}) => {
-  const crmStatus = explicitCrmStatus(conversation);
-  if (crmStatus && !isInferenceLabel(crmStatus)) return `CRM: ${crmStatus}`;
-  const leadStage = explicitLeadStage(conversation);
-  if (leadStage && !isInferenceLabel(leadStage)) return `Lead: ${leadStage}`;
-  const status = clean(conversation?.conversation_status || conversation?.status || "");
-  if (status === "human_takeover" || status === "closed") return "Manual";
-  return isConversationAiEnabled(conversation) ? "AI Active" : "AI Manual";
-};
 const isConversationAiEnabled = (conversation = {}) => conversation?.ai_enabled !== false;
 const fixedChannelOrder = ["whatsapp", "messenger", "instagram", "web"];
 const normalizeConversationChannel = (conversation = {}) => {
@@ -744,7 +719,6 @@ function InboxChatHeader({
   const phone = clean(conversation.phone || conversation.customer_phone || conversation.external_customer_id || conversation.customer_profile?.phone);
   const channel = conversation.channel || conversation.source || "web_chat";
   const aiEnabled = isConversationAiEnabled(conversation) && status !== "closed";
-  const safeHeaderStatus = headerStatusLabel(conversation);
   return (
     <div className="rounded-3xl border border-white/10 bg-white/[0.05] p-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.18)] backdrop-blur">
       <div className="flex items-start justify-between gap-2.5">
@@ -762,7 +736,6 @@ function InboxChatHeader({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <div className="truncate text-lg font-black text-white">{name}</div>
-              <span className={`inline-flex h-5 items-center rounded-full px-2 text-[10px] font-black uppercase tracking-[0.14em] ${safeHeaderStatus.startsWith("CRM:") ? "bg-white/[0.08] text-slate-100" : aiEnabled ? "bg-emerald-300/12 text-emerald-100" : "bg-amber-300/12 text-amber-100"}`}>{safeHeaderStatus}</span>
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
               <Pill tone={isWhatsappChannel(channel) ? "emerald" : "cyan"}>{channelBadgeLabel(channel)}</Pill>
