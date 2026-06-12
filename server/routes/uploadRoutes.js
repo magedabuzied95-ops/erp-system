@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile, unlink } from "node:fs/promises";
 
 import upload from "../config/multer.js";
+import { ensureLocalProductImageVariants, isLocalProductImageUrl } from "../services/productImageVariantService.js";
 
 import { protect } from "../middleware/authMiddleware.js";
 
@@ -92,6 +93,15 @@ router.post(
       const relativeUrl =
         `/uploads/products/${req.file.filename}`;
       const imageUrl = cloudinaryResult?.secure_url || relativeUrl;
+
+      if (!cloudinaryResult?.secure_url && isLocalProductImageUrl(imageUrl)) {
+        void ensureLocalProductImageVariants(req.file.path).catch((variantError) => {
+          console.warn("[product-image-variants] generation failed", {
+            file: req.file.path,
+            message: variantError?.message || String(variantError),
+          });
+        });
+      }
 
       /* ======================================================
          RESPONSE
