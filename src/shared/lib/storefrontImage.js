@@ -19,6 +19,8 @@ const STOREFRONT_IMAGE_PRESETS = {
   },
 };
 
+const LOCAL_PRODUCT_IMAGE_VARIANT_WIDTHS = [96, 240, 480, 960];
+
 const cloudinaryUploadPattern = /^https?:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/(.+)$/i;
 const localProductUploadPattern = /(^|\/)uploads\/products\/(?!variants\/)([^?#]+)$/i;
 
@@ -92,7 +94,8 @@ export const buildCloudinaryResponsiveImageUrl = (value, width) => {
 
 export const buildStorefrontImageSrcSet = (value, widths = []) => {
   const url = String(value || "").trim();
-  const unique = uniqueWidths(widths);
+  const requestedWidths = isLocalProductImageUrl(url) ? LOCAL_PRODUCT_IMAGE_VARIANT_WIDTHS : widths;
+  const unique = uniqueWidths(requestedWidths);
   if (!url || !unique.length) return "";
   if (isCloudinaryImageUrl(url)) {
     return unique

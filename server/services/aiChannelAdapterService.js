@@ -43,6 +43,28 @@ const numberOrNull = (value) => {
 
 const isGroupJid = (value = "") => /@g\.us$/i.test(toText(value));
 const normalizeDisplayName = (value = "") => toText(value).replace(/\s+/g, " ").trim();
+const ARABIC_MESSAGE_LIKE_NAME_TERMS = [
+  "عايز",
+  "عايزة",
+  "عاوز",
+  "عاوزه",
+  "محتاج",
+  "محتاجة",
+  "محتاجه",
+  "ممكن",
+  "السلام عليكم",
+  "سلام عليكم",
+  "وريني",
+  "ابعت",
+  "ابعتلي",
+  "هات",
+  "هاتلي",
+  "فين",
+  "فيه",
+  "اهلا",
+  "أهلا",
+  "هاي",
+];
 const isLikelyMessageLikeName = (value = "") => {
   const candidate = normalizeDisplayName(value);
   if (!candidate) return true;
@@ -52,6 +74,13 @@ const isLikelyMessageLikeName = (value = "") => {
   if (candidate.split(/\s+/).filter(Boolean).length > 6) return true;
   if (/\d/.test(candidate) && !/^\+?\d[\d\s()-]*$/.test(candidate)) return true;
   const lowerCandidate = candidate.toLowerCase();
+  if (ARABIC_MESSAGE_LIKE_NAME_TERMS.some((term) => lowerCandidate === term || lowerCandidate.includes(term))) return true;
+  if (/[\u0600-\u06ff]/.test(candidate) && candidate.split(/\s+/).filter(Boolean).length <= 2 && candidate.length <= 24) {
+    const compact = candidate.replace(/\s+/g, "");
+    if (["عايز", "عايزة", "عاوز", "عاوزه", "محتاج", "محتاجة", "محتاجه", "ممكن", "السلامعليكم", "سلامعليكم", "وريني", "ابعت", "ابعتلي", "هات", "هاتلي", "فين", "فيه", "اهلا", "أهلا", "هاي"].includes(compact)) {
+      return true;
+    }
+  }
   return [
     "message",
     "preview",
@@ -91,9 +120,10 @@ export const resolveMessengerConversationDisplayName = ({
   );
   const storedName = normalizeDisplayName(customerName);
   const safeCandidates = [
+    storedName,
     profileFullName,
     profileName,
-    storedName,
+    normalizeDisplayName(metadata?.external_sender_name || metadata?.external_contact_name || ""),
   ].filter(Boolean);
   const safeCandidate = safeCandidates.find((candidate) => !isLikelyMessageLikeName(candidate)) || "";
   if (safeCandidate) return safeCandidate;
@@ -700,6 +730,22 @@ export const upsertChannelConversationMapping = async ({
         externalCustomerId,
       })
     : toText(customerName);
+  console.log("[customer-name-write]", {
+    source: "aiChannelAdapterService.upsertChannelConversationMapping",
+    channel: normalizedChannel,
+    external_conversation_id: toText(externalConversationId),
+    external_customer_id: toText(externalCustomerId),
+    raw_customer_name: toText(customerName),
+    resolved_customer_name: resolvedCustomerName,
+    messenger_profile_name: toText(metadata?.messenger_profile?.name || ""),
+    messenger_profile_first_name: toText(metadata?.messenger_profile?.first_name || ""),
+    messenger_profile_last_name: toText(metadata?.messenger_profile?.last_name || ""),
+    sender_name: toText(metadata?.sender_name || ""),
+    profile_name: toText(metadata?.profile_name || ""),
+    contact_name: toText(metadata?.contact_name || ""),
+    external_sender_name: toText(metadata?.external_sender_name || ""),
+    external_contact_name: toText(metadata?.external_contact_name || ""),
+  });
   const result = await db.query(
     `
     INSERT INTO ai_channel_conversations (

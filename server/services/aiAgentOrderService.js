@@ -22,6 +22,7 @@ import {
   gateRelevantProducts,
 } from "./aiSalesOrchestratorService.js";
 import { resolveAiSalesConversationState } from "./aiSalesConversationEngineService.js";
+import { normalizeChannel, isLikelyMessageLikeName } from "./aiChannelAdapterService.js";
 
 let schemaReadyPromise = null;
 let schemaEnsured = false;
