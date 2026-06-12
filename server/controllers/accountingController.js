@@ -1,7 +1,6 @@
 import db from "../database/db.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import {
-  createJournalEntry,
   createManualMoneyAdjustment,
   closeCashDrawerShift,
   createFinancialAccount,
@@ -30,7 +29,6 @@ import {
   getProfitLossReport,
   getTrialBalanceReport,
   rebuildLedgerEntries,
-  seedDefaultAccounts,
   logAccountingAudit,
   openCashDrawerShift,
   recordCashDrawerEvent,
@@ -50,6 +48,11 @@ import {
   getAccountingReportsV2Receivables,
   getAccountingReportsV2SpecialTransactions,
 } from "../services/accountingReportsV2Service.js";
+import {
+  createJournalEntry as createFoundationJournalEntry,
+  getBackfillPreview,
+  listFoundationAccounts,
+} from "../services/accountingJournalService.js";
 
 const isAdminUser = (user = {}) => {
   if (isSuperAdminUser(user)) return true;
@@ -530,12 +533,31 @@ export const getJournalEntryDetailController = async (req, res) => {
 
 export const createJournalEntryController = async (req, res) => {
   try {
-    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
-    await seedDefaultAccounts(db, tenantId);
-    const entry = await createJournalEntry(db, {
+    const tenantId = isSuperAdminUser(req.user)
+      ? getTenantId(req, req.body?.tenant_id || req.query?.tenant_id || req.user?.tenant_id)
+      : getTenantId(req, req.user?.tenant_id);
+    if (!tenantId) {
+      return res.status(400).json({
+        success: false,
+        message: "tenant_id is required to create a journal entry",
+      });
+    }
+
+    const entry = await createFoundationJournalEntry({
       tenantId,
-      ...req.body,
+      branchId: req.body?.branch_id || req.body?.branchId || null,
+      sourceType: req.body?.source_type || req.body?.sourceType || "manual",
+      sourceId: req.body?.source_id || req.body?.sourceId || null,
+      entryDate: req.body?.entry_date || req.body?.entryDate || null,
+      description: req.body?.description || "",
+      notes: req.body?.notes || "",
+      lines: req.body?.lines || [],
+      entryNumber: req.body?.entry_number || req.body?.entryNumber || null,
       createdBy: req.user?.id || null,
+      status: req.body?.status || "posted",
+      isGenerated: Boolean(req.body?.is_generated || req.body?.isGenerated || false),
+      entryType: req.body?.entry_type || req.body?.entryType || "manual",
+      sourceKey: req.body?.source_key || req.body?.sourceKey || null,
     });
     return res.status(201).json({
       success: true,
@@ -543,9 +565,77 @@ export const createJournalEntryController = async (req, res) => {
     });
   } catch (error) {
     console.log(error);
-    return res.status(500).json({
+    return res.status(error.status || 500).json({
       success: false,
       message: "Failed to create journal entry",
+      error: error.message,
+    });
+  }
+};
+
+export const getAccountingFoundationAccountsController = async (req, res) => {
+  try {
+    const tenantId = isSuperAdminUser(req.user)
+      ? getTenantId(req, req.query?.tenant_id || req.user?.tenant_id)
+      : getTenantId(req, req.user?.tenant_id);
+
+    if (!tenantId) {
+      return res.status(400).json({
+        success: false,
+        message: "tenant_id is required to fetch chart of accounts",
+      });
+    }
+
+    const accounts = await listFoundationAccounts(db, {
+      tenantId,
+      includeInactive: req.query.include_inactive === "true" || req.query.includeInactive === "true",
+    });
+
+    return res.status(200).json({
+      success: true,
+      accounts: accounts.rows,
+      summary: accounts.summary,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(error.status || 500).json({
+      success: false,
+      message: "Failed to fetch chart of accounts",
+      error: error.message,
+    });
+  }
+};
+
+export const getJournalEntriesBackfillPreviewController = async (req, res) => {
+  try {
+    const tenantId = isSuperAdminUser(req.user)
+      ? getTenantId(req, req.body?.tenant_id || req.query?.tenant_id || req.user?.tenant_id)
+      : getTenantId(req, req.user?.tenant_id);
+
+    if (!tenantId) {
+      return res.status(400).json({
+        success: false,
+        message: "tenant_id is required to preview journal backfill",
+      });
+    }
+
+    const preview = await getBackfillPreview({
+      tenantId,
+      sourceType: req.body?.source_type || req.body?.sourceType || "",
+      fromDate: req.body?.from_date || req.body?.fromDate || null,
+      toDate: req.body?.to_date || req.body?.toDate || null,
+      limit: req.body?.limit || 25,
+    });
+
+    return res.status(200).json({
+      success: true,
+      ...preview,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(error.status || 500).json({
+      success: false,
+      message: "Failed to preview journal backfill",
       error: error.message,
     });
   }

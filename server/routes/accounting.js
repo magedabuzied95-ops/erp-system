@@ -3,6 +3,7 @@ import express from "express";
 import {
   closeCashDrawerShiftController,
   createManualMoneyAdjustmentController,
+  getAccountingFoundationAccountsController,
   getAccountingReportsV2CashAccountsController,
   getAccountingReportsV2DashboardController,
   getAccountingReportsV2IncomeStatementController,
@@ -28,6 +29,7 @@ import {
   getMoneyTransactionsController,
   getFinancialReportsSummaryController,
   getJournalEntriesController,
+  getJournalEntriesBackfillPreviewController,
   getJournalEntryDetailController,
   getMissingCostItemsController,
   getPaymentAccountStatusController,
@@ -214,6 +216,13 @@ router.get(
 );
 
 router.get(
+  "/accounts",
+  protect,
+  permit("accounting", "view"),
+  getAccountingFoundationAccountsController
+);
+
+router.get(
   "/journal-entries",
   protect,
   permit("accounting", "view"),
@@ -239,6 +248,13 @@ router.post(
   protect,
   permit("accounting", "view"),
   logAccountingExportController
+);
+
+router.post(
+  "/journal-entries/backfill-preview",
+  protect,
+  permit("accounting", "view"),
+  getJournalEntriesBackfillPreviewController
 );
 
 router.post(

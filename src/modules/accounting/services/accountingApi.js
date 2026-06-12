@@ -6,6 +6,28 @@ const buildParams = (params = {}) =>
   );
 
 export const accountingApi = {
+  getAccounts: (params = {}) =>
+    api.get("/accounting/accounts", {
+      params: buildParams(params),
+      timeoutMs: 30000,
+    }),
+  getJournalEntries: (params = {}) =>
+    api.get("/accounting/journal-entries", {
+      params: buildParams(params),
+      timeoutMs: 30000,
+    }),
+  getJournalEntryDetail: (entryId) =>
+    api.get(`/accounting/journal-entries/${entryId}`, {
+      timeoutMs: 30000,
+    }),
+  createJournalEntry: (payload = {}) =>
+    api.post("/accounting/journal-entries", payload, {
+      timeoutMs: 30000,
+    }),
+  getJournalBackfillPreview: (payload = {}) =>
+    api.post("/accounting/journal-entries/backfill-preview", payload, {
+      timeoutMs: 30000,
+    }),
   getFinancialReportsSummary: (params = {}) =>
     api.get("/accounting/financial-reports/summary", {
       params: buildParams(params),

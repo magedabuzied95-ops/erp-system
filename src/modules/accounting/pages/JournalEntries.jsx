@@ -1,25 +1,35 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-
 import {
   BookOpenText,
   ChevronRight,
   Filter,
+  Plus,
   RefreshCw,
   Search,
+  Trash2,
+  WandSparkles,
   X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
-import { api } from "../../../shared/api/api";
 import AccountingShell from "../components/AccountingShell";
 import FinanceMetricCard from "../components/FinanceMetricCard";
 import { formatCurrency, formatDateTime } from "../lib/financeStore";
+import { accountingApi } from "../services/accountingApi";
+
+const emptyLine = () => ({
+  account_code: "",
+  debit: "",
+  credit: "",
+  notes: "",
+});
 
 function JournalEntries() {
   const { t } = useTranslation();
   const [entries, setEntries] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -30,25 +40,53 @@ function JournalEntries() {
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [pagination, setPagination] = useState({ total: 0, limit: 50, offset: 0 });
+  const [activeTab, setActiveTab] = useState("list");
+
+  const [formState, setFormState] = useState({
+    description: "",
+    notes: "",
+    entry_date: "",
+    branch_id: "",
+    lines: [emptyLine(), emptyLine()],
+  });
+  const [formSubmitting, setFormSubmitting] = useState(false);
+  const [previewState, setPreviewState] = useState({
+    source_type: "",
+    from_date: "",
+    to_date: "",
+    limit: 20,
+  });
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState("");
+  const [previewResult, setPreviewResult] = useState({ items: [], summary: { total: 0, ready: 0, skipped: 0, already_posted: 0 } });
+
+  const loadAccounts = useCallback(async () => {
+    try {
+      const result = await accountingApi.getAccounts();
+      setAccounts(Array.isArray(result?.accounts) ? result.accounts : []);
+    } catch (err) {
+      console.log(err);
+      setAccounts([]);
+    }
+  }, []);
 
   const fetchEntries = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
-      const params = new URLSearchParams();
-      if (search.trim()) params.set("search", search.trim());
-      if (referenceType) params.set("referenceType", referenceType);
-      if (dateFrom) params.set("dateFrom", dateFrom);
-      if (dateTo) params.set("dateTo", dateTo);
-      params.set("limit", "100");
-
-      const result = await api.get(`/accounting/journal-entries?${params.toString()}`);
+      const result = await accountingApi.getJournalEntries({
+        search: search.trim() || undefined,
+        referenceType: referenceType || undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        limit: 100,
+      });
       setEntries(result?.entries || []);
       setPagination(result?.pagination || { total: 0, limit: 100, offset: 0 });
     } catch (err) {
       console.log(err);
-      setError(t("accounting.journal.errors.loadFailedWithPeriod"));
-      toast.error(t("accounting.journal.errors.loadFailed"));
+      setError("تعذر تحميل القيود اليومية ضمن الفترة الحالية.");
+      toast.error("فشل تحميل القيود اليومية");
       setEntries([]);
     } finally {
       setLoading(false);
@@ -57,10 +95,13 @@ function JournalEntries() {
   }, [dateFrom, dateTo, referenceType, search]);
 
   useEffect(() => {
+    loadAccounts();
+  }, [loadAccounts]);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       fetchEntries();
     }, 250);
-
     return () => clearTimeout(timer);
   }, [fetchEntries]);
 
@@ -69,14 +110,14 @@ function JournalEntries() {
       setDrawerLoading(true);
       setSelectedEntry({
         id: entryId,
-        entry_number: t("accounting.common.labels.loading"),
+        entry_number: "Loading...",
         lines: [],
       });
-      const result = await api.get(`/accounting/journal-entries/${entryId}`);
+      const result = await accountingApi.getJournalEntryDetail(entryId);
       setSelectedEntry(result?.entry || null);
     } catch (err) {
       console.log(err);
-      toast.error(t("accounting.journal.errors.detailFailed"));
+      toast.error("تعذر تحميل تفاصيل القيد");
       setSelectedEntry(null);
     } finally {
       setDrawerLoading(false);
@@ -85,7 +126,7 @@ function JournalEntries() {
 
   const refresh = async () => {
     setRefreshing(true);
-    await fetchEntries();
+    await Promise.all([fetchEntries(), loadAccounts()]);
   };
 
   const metrics = useMemo(() => {
@@ -109,10 +150,94 @@ function JournalEntries() {
     };
   }, [entries]);
 
+  const updateLine = (lineIndex, key, value) => {
+    setFormState((current) => ({
+      ...current,
+      lines: current.lines.map((line, index) => (index === lineIndex ? { ...line, [key]: value } : line)),
+    }));
+  };
+
+  const addLine = () => {
+    setFormState((current) => ({
+      ...current,
+      lines: [...current.lines, emptyLine()],
+    }));
+  };
+
+  const removeLine = (lineIndex) => {
+    setFormState((current) => ({
+      ...current,
+      lines: current.lines.filter((_, index) => index !== lineIndex),
+    }));
+  };
+
+  const submitJournalEntry = async (event) => {
+    event.preventDefault();
+    setFormSubmitting(true);
+    try {
+      const payload = {
+        source_type: "manual",
+        description: formState.description,
+        notes: formState.notes,
+        entry_date: formState.entry_date || undefined,
+        branch_id: formState.branch_id || undefined,
+        lines: formState.lines
+          .map((line) => ({
+            account_code: line.account_code,
+            debit: line.debit === "" ? 0 : Number(line.debit),
+            credit: line.credit === "" ? 0 : Number(line.credit),
+            notes: line.notes,
+          }))
+          .filter((line) => line.account_code),
+      };
+      const result = await accountingApi.createJournalEntry(payload);
+      toast.success("تم إنشاء القيد بنجاح");
+      setFormState({
+        description: "",
+        notes: "",
+        entry_date: "",
+        branch_id: "",
+        lines: [emptyLine(), emptyLine()],
+      });
+      setActiveTab("list");
+      await fetchEntries();
+      if (result?.entry?.id) {
+        await loadDetail(result.entry.id);
+      }
+    } catch (err) {
+      console.log(err);
+      toast.error(err?.message || "تعذر إنشاء القيد");
+    } finally {
+      setFormSubmitting(false);
+    }
+  };
+
+  const loadBackfillPreview = async (event) => {
+    event?.preventDefault?.();
+    setPreviewLoading(true);
+    setPreviewError("");
+    try {
+      const result = await accountingApi.getJournalBackfillPreview(previewState);
+      setPreviewResult({
+        items: Array.isArray(result?.items) ? result.items : [],
+        summary: result?.summary || { total: 0, ready: 0, skipped: 0, already_posted: 0 },
+      });
+    } catch (err) {
+      console.log(err);
+      setPreviewError(err?.message || "تعذر تجهيز المعاينة");
+      setPreviewResult({ items: [], summary: { total: 0, ready: 0, skipped: 0, already_posted: 0 } });
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const debitPreview = formState.lines.reduce((sum, line) => sum + (Number(line.debit || 0) || 0), 0);
+  const creditPreview = formState.lines.reduce((sum, line) => sum + (Number(line.credit || 0) || 0), 0);
+
   return (
     <AccountingShell
       title={t("accounting.journal.title")}
-      subtitle={t("accounting.journal.subtitle")}
+      subtitle="قيود اليومية مع إدخال يدوي ومعاينة Backfill فقط بدون تشغيل تلقائي"
       actions={
         <>
           <button
@@ -146,6 +271,30 @@ function JournalEntries() {
         </div>
       ) : null}
 
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab("list")}
+          className={`rounded-2xl px-4 py-2 text-sm font-black transition ${activeTab === "list" ? "bg-cyan-500 text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
+        >
+          Journal Entries
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("manual")}
+          className={`rounded-2xl px-4 py-2 text-sm font-black transition ${activeTab === "manual" ? "bg-cyan-500 text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
+        >
+          Manual Entry
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("preview")}
+          className={`rounded-2xl px-4 py-2 text-sm font-black transition ${activeTab === "preview" ? "bg-cyan-500 text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
+        >
+          Backfill Preview
+        </button>
+      </div>
+
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <FinanceMetricCard label={t("accounting.journal.metrics.entries")} value={metrics.total} tone="cyan" icon={<BookOpenText className="h-5 w-5" />} />
         <FinanceMetricCard label={t("accounting.journal.metrics.balanced")} value={metrics.balanced} tone="emerald" icon={<ChevronRight className="h-5 w-5" />} />
@@ -153,112 +302,271 @@ function JournalEntries() {
         <FinanceMetricCard label={t("accounting.journal.metrics.credits")} value={formatCurrency(metrics.credit)} tone="amber" icon={<ArrowLabel flip className="h-5 w-5" />} />
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-          <div>
-            <h3 className="text-xl font-black text-white">{t("accounting.journal.ledgerTitle")}</h3>
-            <p className="mt-1 text-sm text-zinc-400">{t("accounting.journal.ledgerSubtitle")}</p>
+      {activeTab === "list" ? (
+        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <h3 className="text-xl font-black text-white">{t("accounting.journal.ledgerTitle")}</h3>
+              <p className="mt-1 text-sm text-zinc-400">{t("accounting.journal.ledgerSubtitle")}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <FilterChip value={referenceType} onChange={setReferenceType} options={movementTypes()} />
+              <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-300">
+                <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("accounting.common.labels.from")}</span>
+                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-transparent text-sm outline-none" />
+              </label>
+              <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-300">
+                <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("accounting.common.labels.to")}</span>
+                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-transparent text-sm outline-none" />
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setReferenceType("");
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/10"
+              >
+                <X className="h-4 w-4" />
+                {t("accounting.common.actions.clear")}
+              </button>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <FilterChip value={referenceType} onChange={setReferenceType} options={movementTypes(t)} />
-            <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-300">
-              <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("accounting.common.labels.from")}</span>
-              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-transparent text-sm outline-none" />
-            </label>
-            <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-300">
-              <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("accounting.common.labels.to")}</span>
-              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-transparent text-sm outline-none" />
-            </label>
-            <button
-              type="button"
-              onClick={() => {
-                setSearch("");
-                setReferenceType("");
-                setDateFrom("");
-                setDateTo("");
-              }}
-              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/10"
-            >
-              <X className="h-4 w-4" />
-              {t("accounting.common.actions.clear")}
-            </button>
+
+          <label className="mt-4 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-zinc-300">
+            <Search className="h-4 w-4 text-zinc-500" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("accounting.journal.placeholders.search")}
+              className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-500"
+            />
+          </label>
+
+          <div className="mt-5 overflow-hidden rounded-3xl border border-white/10">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-white/10 text-right text-sm" dir="rtl">
+                <thead className="bg-white/5 text-zinc-400">
+                  <tr>
+                    <Th className="text-right">{t("accounting.common.labels.reference")}</Th>
+                    <Th className="text-right">{t("accounting.common.labels.type")}</Th>
+                    <Th className="text-right">{t("accounting.common.labels.description")}</Th>
+                    <Th className="text-right">{t("accounting.common.labels.date")}</Th>
+                    <Th className="text-right">{t("accounting.common.labels.debit")}</Th>
+                    <Th className="text-right">{t("accounting.common.labels.credit")}</Th>
+                    <Th className="text-right">{t("accounting.journal.labels.lines")}</Th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10 bg-zinc-950/70">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-10 text-center text-zinc-400">
+                        {t("accounting.journal.states.loadingRows")}
+                      </td>
+                    </tr>
+                  ) : entries.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-10 text-center text-zinc-400">
+                        {t("accounting.journal.states.emptyRows")}
+                      </td>
+                    </tr>
+                  ) : (
+                    entries.map((entry) => (
+                      <tr
+                        key={entry.id}
+                        className="cursor-pointer hover:bg-white/5"
+                        onClick={() => loadDetail(entry.id)}
+                      >
+                        <Td className="text-right">
+                          <div className="font-semibold text-white">{entry.entry_number}</div>
+                          <div className="mt-1 text-xs text-zinc-500">#{entry.id}</div>
+                        </Td>
+                        <Td className="text-right">{entry.reference_type || "manual"}</Td>
+                        <Td className="text-right">
+                          <div className="max-w-[340px] truncate text-zinc-200">{entry.description || t("accounting.journal.fallbacks.journalEntry")}</div>
+                          <div className="mt-1 text-xs text-zinc-500">{entry.notes || t("accounting.common.labels.noNotes")}</div>
+                        </Td>
+                        <Td className="text-right">{formatDateTime(entry.created_at)}</Td>
+                        <Td className="text-right font-semibold text-emerald-300">{formatCurrency(entry.total_debit || 0)}</Td>
+                        <Td className="text-right font-semibold text-rose-300">{formatCurrency(entry.total_credit || 0)}</Td>
+                        <Td className="text-right text-zinc-400">{entry.line_count || 0}</Td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
+      ) : null}
 
-        <label className="mt-4 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-zinc-300">
-          <Search className="h-4 w-4 text-zinc-500" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("accounting.journal.placeholders.search")}
-            className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-500"
-          />
-        </label>
+      {activeTab === "manual" ? (
+        <form onSubmit={submitJournalEntry} className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h3 className="text-xl font-black text-white">Manual Journal Entry</h3>
+              <p className="mt-1 text-sm text-zinc-400">القيد غير المتوازن سيرفض من الباك إند قبل الحفظ.</p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <MiniStat label="إجمالي المدين" value={formatCurrency(debitPreview)} tone="emerald" />
+              <MiniStat label="إجمالي الدائن" value={formatCurrency(creditPreview)} tone="rose" />
+              <MiniStat label="الحالة" value={Math.abs(debitPreview - creditPreview) < 0.01 && debitPreview > 0 ? "Balanced" : "Unbalanced"} tone={Math.abs(debitPreview - creditPreview) < 0.01 && debitPreview > 0 ? "cyan" : "amber"} />
+            </div>
+          </div>
 
-        <div className="mt-5 overflow-hidden rounded-3xl border border-white/10">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-white/10 text-left text-sm">
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <Field label="الوصف">
+              <input value={formState.description} onChange={(event) => setFormState((current) => ({ ...current, description: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+            </Field>
+            <Field label="التاريخ">
+              <input type="date" value={formState.entry_date} onChange={(event) => setFormState((current) => ({ ...current, entry_date: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+            </Field>
+            <Field label="الفرع">
+              <input type="number" min="1" value={formState.branch_id} onChange={(event) => setFormState((current) => ({ ...current, branch_id: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+            </Field>
+          </div>
+
+          <Field className="mt-3" label="ملاحظات">
+            <textarea value={formState.notes} onChange={(event) => setFormState((current) => ({ ...current, notes: event.target.value }))} rows={2} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+          </Field>
+
+          <div className="mt-5 overflow-x-auto">
+            <table className="min-w-[980px] w-full text-right text-sm" dir="rtl">
               <thead className="bg-white/5 text-zinc-400">
                 <tr>
-                  <Th>{t("accounting.common.labels.reference")}</Th>
-                  <Th>{t("accounting.common.labels.type")}</Th>
-                  <Th>{t("accounting.common.labels.description")}</Th>
-                  <Th>{t("accounting.common.labels.date")}</Th>
-                  <Th className="text-right">{t("accounting.common.labels.debit")}</Th>
-                  <Th className="text-right">{t("accounting.common.labels.credit")}</Th>
-                  <Th className="text-right">{t("accounting.journal.labels.lines")}</Th>
+                  <Th className="text-right">الحساب</Th>
+                  <Th className="text-right">مدين</Th>
+                  <Th className="text-right">دائن</Th>
+                  <Th className="text-right">ملاحظات</Th>
+                  <Th className="text-right">حذف</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/10 bg-zinc-950/70">
-                {loading ? (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-zinc-400">
-                      {t("accounting.journal.states.loadingRows")}
-                    </td>
+              <tbody className="divide-y divide-white/10">
+                {formState.lines.map((line, index) => (
+                  <tr key={index}>
+                    <Td className="text-right">
+                      <select value={line.account_code} onChange={(event) => updateLine(index, "account_code", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none">
+                        <option value="">اختر الحساب</option>
+                        {accounts.map((account) => (
+                          <option key={account.id} value={account.account_code}>
+                            {account.account_code} - {account.account_name}
+                          </option>
+                        ))}
+                      </select>
+                    </Td>
+                    <Td className="text-right">
+                      <input type="number" min="0" step="0.01" value={line.debit} onChange={(event) => updateLine(index, "debit", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+                    </Td>
+                    <Td className="text-right">
+                      <input type="number" min="0" step="0.01" value={line.credit} onChange={(event) => updateLine(index, "credit", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+                    </Td>
+                    <Td className="text-right">
+                      <input value={line.notes} onChange={(event) => updateLine(index, "notes", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+                    </Td>
+                    <Td className="text-right">
+                      <button type="button" onClick={() => removeLine(index)} disabled={formState.lines.length <= 2} className="rounded-2xl border border-white/10 bg-white/5 p-2 text-zinc-300 transition hover:bg-white/10 disabled:opacity-40">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </Td>
                   </tr>
-                ) : entries.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-zinc-400">
-                      {t("accounting.journal.states.emptyRows")}
-                    </td>
-                  </tr>
-                ) : (
-                  entries.map((entry) => (
-                    <tr
-                      key={entry.id}
-                      className="cursor-pointer hover:bg-white/5"
-                      onClick={() => loadDetail(entry.id)}
-                    >
-                      <Td>
-                        <div className="font-semibold text-white">{entry.entry_number}</div>
-                        <div className="mt-1 text-xs text-zinc-500">#{entry.id}</div>
-                      </Td>
-                      <Td>{entry.reference_type || "manual"}</Td>
-                      <Td>
-                        <div className="max-w-[340px] truncate text-zinc-200">{entry.description || t("accounting.journal.fallbacks.journalEntry")}</div>
-                        <div className="mt-1 text-xs text-zinc-500">{entry.notes || t("accounting.common.labels.noNotes")}</div>
-                      </Td>
-                      <Td>{formatDateTime(entry.created_at)}</Td>
-                      <Td className="text-right font-semibold text-emerald-300">{formatCurrency(entry.total_debit || 0)}</Td>
-                      <Td className="text-right font-semibold text-rose-300">{formatCurrency(entry.total_credit || 0)}</Td>
-                      <Td className="text-right text-zinc-400">{entry.line_count || 0}</Td>
-                    </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
           </div>
-        </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-zinc-400">
-          <div>
-            {t("accounting.journal.showingEntries", { shown: entries.length, total: pagination.total || entries.length })}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" onClick={addLine} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10">
+              <Plus className="h-4 w-4" />
+              إضافة سطر
+            </button>
+            <button type="submit" disabled={formSubmitting} className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black transition hover:bg-cyan-400 disabled:opacity-60">
+              <BookOpenText className="h-4 w-4" />
+              {formSubmitting ? "جارٍ الحفظ..." : "إنشاء القيد"}
+            </button>
           </div>
+        </form>
+      ) : null}
+
+      {activeTab === "preview" ? (
+        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <div>
-            {t("accounting.journal.balanceHint")}
+            <h3 className="text-xl font-black text-white">Backfill Preview</h3>
+            <p className="mt-1 text-sm text-zinc-400">هذه الشاشة تعرض القيود المقترحة فقط ولا تنفذ أي posting فعلي.</p>
           </div>
+
+          <form onSubmit={loadBackfillPreview} className="mt-5 grid gap-3 md:grid-cols-4">
+            <Field label="المصدر">
+              <select value={previewState.source_type} onChange={(event) => setPreviewState((current) => ({ ...current, source_type: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none">
+                <option value="">الكل</option>
+                <option value="order">Orders</option>
+                <option value="purchase">Purchases</option>
+                <option value="expense">Expenses</option>
+              </select>
+            </Field>
+            <Field label="من تاريخ">
+              <input type="date" value={previewState.from_date} onChange={(event) => setPreviewState((current) => ({ ...current, from_date: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+            </Field>
+            <Field label="إلى تاريخ">
+              <input type="date" value={previewState.to_date} onChange={(event) => setPreviewState((current) => ({ ...current, to_date: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+            </Field>
+            <Field label="الحد الأقصى">
+              <input type="number" min="1" max="100" value={previewState.limit} onChange={(event) => setPreviewState((current) => ({ ...current, limit: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
+            </Field>
+            <div className="md:col-span-4">
+              <button type="submit" disabled={previewLoading} className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black transition hover:bg-cyan-400 disabled:opacity-60">
+                <WandSparkles className="h-4 w-4" />
+                {previewLoading ? "جارٍ تجهيز المعاينة..." : "تحميل المعاينة"}
+              </button>
+            </div>
+          </form>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-4">
+            <MiniStat label="إجمالي العناصر" value={previewResult.summary.total || 0} tone="zinc" />
+            <MiniStat label="جاهزة" value={previewResult.summary.ready || 0} tone="emerald" />
+            <MiniStat label="متخطاة" value={previewResult.summary.skipped || 0} tone="amber" />
+            <MiniStat label="منشورة مسبقًا" value={previewResult.summary.already_posted || 0} tone="rose" />
+          </div>
+
+          {previewError ? (
+            <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">{previewError}</div>
+          ) : null}
+
+          {previewResult.items.length === 0 ? (
+            <div className="mt-5 rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">لا توجد نتائج معاينة حتى الآن.</div>
+          ) : (
+            <div className="mt-5 overflow-x-auto">
+              <table className="min-w-[1120px] w-full text-right text-sm" dir="rtl">
+                <thead className="bg-white/5 text-zinc-400">
+                  <tr>
+                    <Th className="text-right">المصدر</Th>
+                    <Th className="text-right">الوصف</Th>
+                    <Th className="text-right">التاريخ</Th>
+                    <Th className="text-right">المدين</Th>
+                    <Th className="text-right">الدائن</Th>
+                    <Th className="text-right">الحالة</Th>
+                    <Th className="text-right">السبب</Th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {previewResult.items.map((item, index) => (
+                    <tr key={`${item.source_type}-${item.source_id}-${index}`}>
+                      <Td className="text-right font-semibold text-white">{item.source_type} #{item.source_id}</Td>
+                      <Td className="text-right text-zinc-300">{item.description || "-"}</Td>
+                      <Td className="text-right">{item.entry_date ? formatDateTime(item.entry_date) : "-"}</Td>
+                      <Td className="text-right font-semibold text-emerald-300">{formatCurrency(item.totals?.debit || 0)}</Td>
+                      <Td className="text-right font-semibold text-rose-300">{formatCurrency(item.totals?.credit || 0)}</Td>
+                      <Td className="text-right"><PreviewStatusBadge status={item.status} /></Td>
+                      <Td className="text-right text-zinc-400">{item.reason || "-"}</Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-      </div>
+      ) : null}
 
       {selectedEntry ? (
         <EntryDrawer
@@ -319,20 +627,20 @@ function EntryDrawer({ entry, loading, onClose, t }) {
             </div>
 
             <div className="mt-4 overflow-hidden rounded-3xl border border-white/10">
-              <table className="min-w-full divide-y divide-white/10 text-left text-sm">
+              <table className="min-w-full divide-y divide-white/10 text-right text-sm" dir="rtl">
                 <thead className="bg-white/5 text-zinc-400">
                   <tr>
-                    <Th>{t("accounting.common.labels.account")}</Th>
+                    <Th className="text-right">{t("accounting.common.labels.account")}</Th>
                     <Th className="text-right">{t("accounting.common.labels.debit")}</Th>
                     <Th className="text-right">{t("accounting.common.labels.credit")}</Th>
-                    <Th>{t("accounting.common.labels.branch")}</Th>
-                    <Th>{t("accounting.common.labels.notes")}</Th>
+                    <Th className="text-right">{t("accounting.common.labels.branch")}</Th>
+                    <Th className="text-right">{t("accounting.common.labels.notes")}</Th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10 bg-zinc-950/70">
                   {(entry.lines || []).map((line) => (
                     <tr key={line.id}>
-                      <Td>
+                      <Td className="text-right">
                         <div className="font-semibold text-white">
                           {line.account_code ? `${line.account_code} - ` : ""}
                           {line.account_name || t("accounting.common.labels.account")}
@@ -341,8 +649,8 @@ function EntryDrawer({ entry, loading, onClose, t }) {
                       </Td>
                       <Td className="text-right font-semibold text-emerald-300">{formatCurrency(line.debit || 0)}</Td>
                       <Td className="text-right font-semibold text-rose-300">{formatCurrency(line.credit || 0)}</Td>
-                      <Td>{line.branch_id || "-"}</Td>
-                      <Td>{line.notes || "-"}</Td>
+                      <Td className="text-right">{line.branch_id || "-"}</Td>
+                      <Td className="text-right">{line.notes || "-"}</Td>
                     </tr>
                   ))}
                 </tbody>
@@ -352,6 +660,15 @@ function EntryDrawer({ entry, loading, onClose, t }) {
         )}
       </div>
     </div>
+  );
+}
+
+function Field({ label, children, className = "" }) {
+  return (
+    <label className={`space-y-2 ${className}`}>
+      <span className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">{label}</span>
+      {children}
+    </label>
   );
 }
 
@@ -370,15 +687,48 @@ function FilterChip({ value, onChange, options }) {
   );
 }
 
-function movementTypes(t) {
+function movementTypes() {
   return [
-    { value: "", label: t("accounting.journal.referenceTypes.all") },
-    { value: "purchase", label: t("accounting.journal.referenceTypes.purchase") },
-    { value: "order", label: t("accounting.journal.referenceTypes.order") },
-    { value: "return", label: t("accounting.journal.referenceTypes.return") },
-    { value: "manual_adjustment", label: t("accounting.journal.referenceTypes.manualAdjustment") },
-    { value: "inventory", label: t("accounting.journal.referenceTypes.inventory") },
+    { value: "", label: "All" },
+    { value: "purchase", label: "Purchase" },
+    { value: "order", label: "Order" },
+    { value: "return", label: "Return" },
+    { value: "manual", label: "Manual" },
+    { value: "expense", label: "Expense" },
   ];
+}
+
+function MiniStat({ label, value, tone = "zinc" }) {
+  const tones = {
+    zinc: "border-white/10 bg-white/5 text-white",
+    cyan: "border-cyan-500/20 bg-cyan-500/10 text-cyan-300",
+    emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
+    rose: "border-rose-500/20 bg-rose-500/10 text-rose-300",
+    amber: "border-amber-500/20 bg-amber-500/10 text-amber-300",
+  };
+
+  return (
+    <div className={`rounded-2xl border p-4 ${tones[tone] || tones.zinc}`}>
+      <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
+      <div className="mt-2 text-xl font-black">{value}</div>
+    </div>
+  );
+}
+
+function PreviewStatusBadge({ status }) {
+  const normalized = String(status || "").trim().toLowerCase();
+  const tone =
+    normalized === "ready"
+      ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+      : normalized === "already_posted"
+        ? "border-rose-500/20 bg-rose-500/10 text-rose-300"
+        : "border-amber-500/20 bg-amber-500/10 text-amber-300";
+
+  return (
+    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${tone}`}>
+      {normalized || "unknown"}
+    </span>
+  );
 }
 
 function DetailStat({ label, value, tone = "zinc" }) {
@@ -418,6 +768,8 @@ function ArrowLabel({ flip = false, className = "" }) {
     >
       <path d="M7 7h10" />
       <path d="M13 3l4 4-4 4" />
+      <path d="M17 7 7 17" />
+      <path d="M11 17H7v-4" />
     </svg>
   );
 }
