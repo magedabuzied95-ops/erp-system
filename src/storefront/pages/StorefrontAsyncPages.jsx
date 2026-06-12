@@ -95,7 +95,7 @@ export function TrackOrderPage({ helpers, components }) {
   const submit = useCallback(async (event) => {
     event?.preventDefault();
     if (!form.order_number.trim()) {
-      setState({ loading: false, data: null, error: sfText("storefront.tracking.validation.orderNumberRequired", "Enter the order number first") });
+      setState({ loading: false, data: null, error: sfText("storefront.tracking.validation.orderNumberRequired", "أدخل رقم الطلب أولًا") });
       return;
     }
     setState({ loading: true, data: null, error: "" });
@@ -124,23 +124,23 @@ export function TrackOrderPage({ helpers, components }) {
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-sm font-black text-emerald-200">{sfText("storefront.tracking.eyebrow", "Your order is on the way")}</p>
-            <h1 className="mt-2 text-3xl font-black md:text-5xl">{sfText("storefront.tracking.title", "Track order")}</h1>
+            <h1 className="mt-2 text-3xl font-black md:text-5xl">{sfText("storefront.tracking.title", "تتبع الطلب")}</h1>
             <p className="mt-2 max-w-2xl text-sm font-bold leading-7 text-stone-300">{sfText("storefront.tracking.subtitle", "Enter your order number and mobile number, or open the direct tracking link from your confirmation message.")}</p>
           </div>
           <a href={supportHref(form.order_number)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/10 px-5 py-3 text-sm font-black text-white">
             <MessageCircle className="h-5 w-5" />
-            {sfText("storefront.support.needHelpWhatsapp", "Need help? Contact us on WhatsApp")}
+            {sfText("storefront.support.needHelpWhatsapp", "تحتاج مساعدة؟ تواصل معنا على واتساب")}
           </a>
         </div>
       </div>
       <form onSubmit={submit} className="sf-storefront-card sf-track-search-form mt-5 grid gap-3 rounded-[1.7rem] border border-stone-200 bg-white p-4 shadow-[0_18px_50px_rgba(39,20,75,0.07)] md:grid-cols-[1fr_1fr_auto] md:p-5">
         <Field label={sfText("storefront.orders.orderNumber", "Order number")} value={form.order_number} onChange={(value) => setForm((prev) => ({ ...prev, order_number: value }))} required />
         <Field label={sfText("storefront.form.mobileNumber", "Mobile number")} value={form.phone} onChange={(value) => setForm((prev) => ({ ...prev, phone: value }))} inputMode="tel" />
-        <button disabled={state.loading} className="min-h-13 self-end rounded-full bg-stone-950 px-7 py-4 font-black text-white transition hover:bg-[#6d28d9] disabled:bg-stone-300">{sfText("storefront.orders.trackOrder", "Track order")}</button>
+        <button disabled={state.loading} className="min-h-13 self-end rounded-full bg-stone-950 px-7 py-4 font-black text-white transition hover:bg-[#6d28d9] disabled:bg-stone-300">{sfText("storefront.orders.trackOrder", "تتبع الطلب")}</button>
       </form>
       {state.loading ? <div className="sf-storefront-card mt-5 h-32 animate-pulse rounded-3xl bg-white" /> : null}
-      {!state.loading && !state.data && !state.error ? <EmptyState title={sfText("storefront.tracking.readyTitle", "Ready to check")} text={sfText("storefront.tracking.readyText", "Order number and shipping status will appear here after searching.")} /> : null}
-      {state.error ? <EmptyState title={sfText("storefront.tracking.notFoundTitle", "We could not find the order")} text={state.error || sfText("storefront.tracking.notFoundText", "Check the order number and mobile number, or contact us on WhatsApp.")} /> : null}
+      {!state.loading && !state.data && !state.error ? <EmptyState title={sfText("storefront.tracking.readyTitle", "جاهز للبحث")} text={sfText("storefront.tracking.readyText", "سيظهر رقم الطلب وحالة الشحن هنا بعد البحث.")} /> : null}
+      {state.error ? <EmptyState title={sfText("storefront.tracking.notFoundTitle", "لم نعثر على الطلب")} text={state.error || sfText("storefront.tracking.notFoundText", "تحقق من رقم الطلب ورقم الهاتف، أو تواصل معنا على واتساب.")} /> : null}
       {state.data ? <TrackingResult data={state.data} helpers={helpers} components={components} /> : null}
     </section>
   );
@@ -243,9 +243,9 @@ const AccountOrderRow = memo(function AccountOrderRow({ order, phone, onOpen, on
         <div className="sf-primary-text font-black">{money(order.total_amount || order.total || order.total_price)}</div>
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        <button onClick={open} className="sf-soft-pill min-h-11 rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-black">{sfText("storefront.orders.orderDetails", "Order details")}</button>
-        <Link to={`/shop/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-11 rounded-full bg-stone-950 px-4 py-2 text-center text-sm font-black text-white">{sfText("storefront.orders.trackOrder", "Track order")}</Link>
-        <button onClick={reorderOrder} className="min-h-11 rounded-full border border-[#7c3aed]/30 bg-[#f5f3ff] px-4 py-2 text-sm font-black text-[#6d28d9]">{sfText("storefront.orders.reorder", "Reorder")}</button>
+        <button onClick={open} className="sf-soft-pill min-h-11 rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-black">{sfText("storefront.orders.orderDetails", "تفاصيل الطلب")}</button>
+        <Link to={`/shop/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-11 rounded-full bg-stone-950 px-4 py-2 text-center text-sm font-black text-white">{sfText("storefront.orders.trackOrder", "تتبع الطلب")}</Link>
+        <button onClick={reorderOrder} className="min-h-11 rounded-full border border-[#7c3aed]/30 bg-[#f5f3ff] px-4 py-2 text-sm font-black text-[#6d28d9]">{sfText("storefront.orders.reorder", "إعادة الطلب")}</button>
       </div>
     </div>
   );
@@ -258,7 +258,7 @@ function CustomerOrderDetails({ data, phone, onReorder, helpers, components }) {
   const publicNumber = displayOrderNumber(order);
   if (data.loading) return <div className="sf-storefront-card h-40 animate-pulse rounded-3xl bg-white" />;
   return (
-    <Panel title={sfText("storefront.orders.orderDetails", "Order details")}>
+    <Panel title={sfText("storefront.orders.orderDetails", "تفاصيل الطلب")}>
       <OrderNumberBadge value={publicNumber} className="mb-1 border-[#7c3aed]/20 bg-[#7c3aed]/10 text-[#5b21b6]" />
       <div className="grid gap-3 md:grid-cols-3">
         <InfoBox label={sfText("storefront.orders.orderStatus", "Order status")} value={statusCopy(order.status)} />
@@ -268,9 +268,9 @@ function CustomerOrderDetails({ data, phone, onReorder, helpers, components }) {
       <OrderTimeline timeline={data.timeline || []} />
       <OrderItemsSummaryLocal items={data.items || []} helpers={helpers} />
       <div className="grid gap-2 sm:grid-cols-3">
-        <Link to={`/shop/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-12 rounded-full bg-stone-950 px-5 py-3 text-center font-black text-white">{sfText("storefront.orders.trackOrder", "Track order")}</Link>
-        <button onClick={() => onReorder({ ...order, items: data.items || [] })} className="min-h-12 rounded-full border border-[#7c3aed]/30 bg-[#f5f3ff] px-5 py-3 font-black text-[#6d28d9]">{sfText("storefront.orders.reorder", "Reorder")}</button>
-        <a href={supportHref(publicNumber)} className="min-h-12 rounded-full border border-emerald-200 bg-emerald-50 px-5 py-3 text-center font-black text-emerald-700">{sfText("storefront.support.whatsapp", "WhatsApp")}</a>
+        <Link to={`/shop/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-12 rounded-full bg-stone-950 px-5 py-3 text-center font-black text-white">{sfText("storefront.orders.trackOrder", "تتبع الطلب")}</Link>
+        <button onClick={() => onReorder({ ...order, items: data.items || [] })} className="min-h-12 rounded-full border border-[#7c3aed]/30 bg-[#f5f3ff] px-5 py-3 font-black text-[#6d28d9]">{sfText("storefront.orders.reorder", "إعادة الطلب")}</button>
+        <a href={supportHref(publicNumber)} className="min-h-12 rounded-full border border-emerald-200 bg-emerald-50 px-5 py-3 text-center font-black text-emerald-700">{sfText("storefront.support.whatsapp", "واتساب")}</a>
       </div>
     </Panel>
   );
@@ -374,7 +374,7 @@ export function AccountPageRoute({ profile, setProfile, wishlist, recent, onAddT
     if (added) {
       toast.success(skipped ? sfText("storefront.toasts.reorderPartial", "Available items were added to cart. Some choices are currently unavailable.") : sfText("storefront.toasts.reorderAdded", "The order was added to cart again."));
     } else {
-      toast.error(sfText("storefront.toasts.reorderUnavailable", "These products are currently unavailable. Try different choices."));
+      toast.error(sfText("storefront.toasts.reorderUnavailable", "هذه المنتجات غير متاحة حاليًا. جرّب اختيارات أخرى."));
     }
   };
 
@@ -388,15 +388,15 @@ export function AccountPageRoute({ profile, setProfile, wishlist, recent, onAddT
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm font-black text-[#6d28d9]">{sfText("storefront.account.eyebrow", "Light account by mobile")}</p>
-          <h1 className="text-3xl font-black md:text-5xl">{sfText("storefront.account.title", "My account")}</h1>
+          <h1 className="text-3xl font-black md:text-5xl">{sfText("storefront.account.title", "حسابي")}</h1>
         </div>
-        <Link to="/shop/track" className="sf-soft-pill inline-flex min-h-12 items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 font-black">{sfText("storefront.orders.trackOrder", "Track order")}</Link>
+        <Link to="/shop/track" className="sf-soft-pill inline-flex min-h-12 items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 font-black">{sfText("storefront.orders.trackOrder", "تتبع الطلب")}</Link>
       </div>
       <div className="mt-5 grid gap-5 lg:grid-cols-[340px_1fr]">
         <div className="sf-storefront-card h-max rounded-[1.7rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] lg:sticky lg:top-24">
           <Field label={sfText("storefront.form.mobileNumber", "Mobile number")} value={phone} onChange={setPhone} inputMode="tel" />
-          <button onClick={load} disabled={loading} className="mt-3 min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white disabled:bg-stone-300">{loading ? sfText("storefront.common.loading", "Loading...") : sfText("storefront.account.showMyData", "Show my details")}</button>
-          <InfoBox label={sfText("storefront.account.myData", "My details")} value={account?.customer?.name || profile.full_name || sfText("storefront.account.enterPhoneHint", "Enter your phone to view the account")} />
+          <button onClick={load} disabled={loading} className="mt-3 min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white disabled:bg-stone-300">{loading ? sfText("storefront.common.loading", "جارٍ التحميل...") : sfText("storefront.account.showMyData", "عرض بياناتي")}</button>
+          <InfoBox label={sfText("storefront.account.myData", "بياناتي")} value={account?.customer?.name || profile.full_name || sfText("storefront.account.enterPhoneHint", "أدخل رقم هاتفك لعرض الحساب")} />
           <LoyaltyWidget loyalty={account?.loyalty} loading={loading} helpers={helpers} />
         </div>
         <div className="space-y-5">
@@ -413,13 +413,13 @@ export function AccountPageRoute({ profile, setProfile, wishlist, recent, onAddT
           </Panel>
           {selectedOrder ? <CustomerOrderDetails data={selectedOrder} phone={phone} onReorder={reorder} helpers={helpers} components={components} /> : null}
           <Panel title={sfText("storefront.account.myAddresses", "My addresses")}>
-            {addresses.length ? addresses.map((address) => <div key={address} className="sf-account-address-row rounded-2xl bg-stone-50 p-3 font-bold text-stone-700">{address}</div>) : <p className="sf-muted-empty font-bold text-stone-500">{sfText("storefront.account.addressesEmpty", "Addresses used in orders will appear here")}</p>}
+            {addresses.length ? addresses.map((address) => <div key={address} className="sf-account-address-row rounded-2xl bg-stone-50 p-3 font-bold text-stone-700">{address}</div>) : <p className="sf-muted-empty font-bold text-stone-500">{sfText("storefront.account.addressesEmpty", "ستظهر العناوين المستخدمة في الطلبات هنا")}</p>}
           </Panel>
           <Panel title={sfText("storefront.header.wishlist", "Wishlist")}>
-            <SmallProductList items={backendWishlist.length ? backendWishlist : wishlist} empty={sfText("storefront.account.wishlistEmpty", "Save products you like here")} />
+            <SmallProductList items={backendWishlist.length ? backendWishlist : wishlist} empty={sfText("storefront.account.wishlistEmpty", "احفظ المنتجات التي تعجبك هنا")} />
           </Panel>
           <Panel title={sfText("storefront.account.recentlyViewed", "Recently viewed")}>
-            <SmallProductList items={backendRecent.length ? backendRecent : recent} empty={sfText("storefront.account.recentEmpty", "Recently viewed products will appear here")} />
+            <SmallProductList items={backendRecent.length ? backendRecent : recent} empty={sfText("storefront.account.recentEmpty", "ستظهر المنتجات التي شاهدتها مؤخرًا هنا")} />
           </Panel>
         </div>
       </div>
@@ -436,8 +436,8 @@ export function WishlistPageRoute({ wishlist, toggleWishlist, onAddToCart, helpe
       <div className="rounded-[2rem] border border-white/[0.08] bg-[linear-gradient(145deg,rgba(15,23,42,0.82),rgba(3,7,18,0.94))] p-4 shadow-[0_28px_90px_rgba(0,0,0,0.34)] backdrop-blur-xl md:p-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div className="min-w-0">
-            <p className="text-sm font-black text-[#a78bfa]">{sfText("storefront.wishlist.subtitle", "Your favorite picks are saved here")}</p>
-            <h1 className="mt-1 text-3xl font-black text-white md:text-5xl">{sfText("storefront.header.wishlist", "Wishlist")}</h1>
+            <p className="text-sm font-black text-[#a78bfa]">{sfText("storefront.wishlist.subtitle", "تُحفظ اختياراتك المفضلة هنا")}</p>
+            <h1 className="mt-1 text-3xl font-black text-white md:text-5xl">{sfText("storefront.header.wishlist", "المفضلة")}</h1>
           </div>
           <div className="w-fit rounded-full border border-white/[0.1] bg-white/[0.07] px-4 py-2 text-sm font-black text-white/80 shadow-[0_12px_32px_rgba(0,0,0,0.2)]">
             {sfText("storefront.products.productCount", "{{count}} product", { count: wishlistCount })}
@@ -481,12 +481,12 @@ export function RecentPageRoute({ recent, helpers, components }) {
     <section className="mx-auto max-w-7xl px-4 py-5 md:py-8">
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-black text-[#6d28d9]">{sfText("storefront.recent.lastTwenty", "Last 20 products")}</p>
-          <h1 className="text-3xl font-black md:text-5xl">{sfText("storefront.account.recentlyViewed", "Recently viewed")}</h1>
+          <p className="text-sm font-black text-[#6d28d9]">{sfText("storefront.recent.lastTwenty", "آخر 20 منتجًا")}</p>
+          <h1 className="text-3xl font-black md:text-5xl">{sfText("storefront.account.recentlyViewed", "شوهد مؤخرًا")}</h1>
         </div>
-        <Link to="/shop/products" className="inline-flex min-h-12 items-center justify-center rounded-full bg-stone-950 px-5 py-3 font-black text-white">{sfText("storefront.common.continueShopping", "Continue shopping")}</Link>
+        <Link to="/shop/products" className="inline-flex min-h-12 items-center justify-center rounded-full bg-stone-950 px-5 py-3 font-black text-white">{sfText("storefront.common.continueShopping", "متابعة التسوق")}</Link>
       </div>
-      {recent.length ? <SmallProductGrid items={recent.slice(0, 20)} /> : <EmptyState title={sfText("storefront.recent.emptyTitle", "No products here yet")} text={sfText("storefront.account.recentEmpty", "Recently viewed products will appear here")} />}
+      {recent.length ? <SmallProductGrid items={recent.slice(0, 20)} /> : <EmptyState title={sfText("storefront.recent.emptyTitle", "لا توجد منتجات هنا بعد")} text={sfText("storefront.account.recentEmpty", "ستظهر المنتجات التي شاهدتها مؤخرًا هنا")} />}
     </section>
   );
 }

@@ -136,10 +136,10 @@ function Login() {
       >
 
         <h1 className="mb-2 text-3xl font-bold text-center text-[var(--text)]">
-          ERP Login
+          تسجيل الدخول
         </h1>
         <p className="mb-6 text-center text-sm text-[var(--muted)]">
-          Sign in to your workspace
+          سجّل دخولك إلى مساحة العمل
         </p>
 
         <input
@@ -154,7 +154,7 @@ function Login() {
 
         <input
           type="password"
-          placeholder="Password"
+          placeholder="كلمة المرور"
           value={password}
           onChange={(e) =>
             setPassword(e.target.value)
@@ -179,8 +179,8 @@ function Login() {
         >
 
           {loading
-            ? "Loading..."
-            : "Login"}
+            ? "جارٍ التحميل..."
+            : "تسجيل الدخول"}
 
         </button>
 
