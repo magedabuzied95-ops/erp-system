@@ -7,8 +7,8 @@ import {
   Camera,
   CheckCircle2,
   ClipboardList,
+  Filter,
   Loader2,
-  PackageSearch,
   Plus,
   RotateCcw,
   Search,
@@ -25,6 +25,7 @@ import { api } from "../../../shared/api/api";
 import { getCurrentUser, getUserRole, isAdminUser } from "../../../shared/auth/authStorage";
 import InventoryShell from "../components/InventoryShell";
 import StatusBadge from "../../purchases/components/StatusBadge";
+import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { formatDateTime, normalizeWarehouse } from "../../purchases/lib/flowStore";
 import {
   approveInventoryCountSession,
@@ -249,6 +250,11 @@ const normalizeCountVariant = (record = {}) => {
   const productSku = normalizeText(record.product_sku || record.productSku || record.sku || "");
   const productBarcode = normalizeText(record.product_barcode || record.productBarcode || record.barcode || "");
   const productCode = normalizeText(record.product_code || record.productCode || "");
+  const category = normalizeText(record.category || record.category_name || record.grade || "");
+  const type = normalizeText(record.type || record.product_type || record.productType || "");
+  const brand = normalizeText(record.brand || record.brand_name || "");
+  const manufacturerName = normalizeText(record.manufacturer_name || record.manufacturer || "");
+  const gender = normalizeText(record.gender || "");
   const color = normalizeText(record.color || record.variant_color || record.color_name || "");
   const size = normalizeText(record.size || record.variant_size || record.size_name || "");
   const sku = normalizeText(record.sku || record.variant_sku || "");
@@ -268,6 +274,11 @@ const normalizeCountVariant = (record = {}) => {
     product_sku: productSku,
     product_barcode: productBarcode,
     product_code: productCode,
+    category,
+    type,
+    brand,
+    manufacturer_name: manufacturerName,
+    gender,
     color,
     size,
     sku,
@@ -289,6 +300,11 @@ const normalizeCountVariant = (record = {}) => {
     variant_product_sku: productSku,
     variant_product_barcode: productBarcode,
     variant_product_code: productCode,
+    variant_category: category,
+    variant_type: type,
+    variant_brand: brand,
+    variant_manufacturer_name: manufacturerName,
+    variant_gender: gender,
     variant_image_url: imageData.variant_image_url || imageData.image_url,
     actual_qty: countedQuantity,
     expected_qty: systemQuantity,
@@ -310,6 +326,11 @@ const groupCountVariants = (records = []) => {
           key,
           product_id: variant.product_id,
           product_name: variant.product_name,
+          category: variant.category,
+          type: variant.type,
+          brand: variant.brand,
+          manufacturer_name: variant.manufacturer_name,
+          gender: variant.gender,
           color: variant.color,
           image_url: variant.image_url,
           image_source_rank: variant.image_source_rank || 0,
@@ -369,6 +390,11 @@ const groupLookupModels = (records = []) => {
           product_name: variant.product_name,
           product_sku: variant.product_sku,
           product_barcode: variant.product_barcode,
+          category: variant.category,
+          type: variant.type,
+          brand: variant.brand,
+          manufacturer_name: variant.manufacturer_name,
+          gender: variant.gender,
           image_url: variant.image_url,
           image_source_rank: variant.image_source_rank || 0,
           color_image_url: variant.color_image_url || "",
@@ -416,6 +442,49 @@ const groupLookupModels = (records = []) => {
       };
     });
   };
+
+const buildFilterOptions = (records = [], fields) => {
+  const options = new Map();
+  const fieldList = Array.isArray(fields) ? fields : [fields];
+
+  for (const record of Array.isArray(records) ? records : []) {
+    for (const field of fieldList) {
+      const value = normalizeText(record?.[field] || "");
+      if (!value) continue;
+      const key = value.toLowerCase();
+      const current = options.get(key) || { id: value, name: value, count: 0 };
+      current.count += 1;
+      options.set(key, current);
+    }
+  }
+
+  return Array.from(options.values()).sort((a, b) => a.name.localeCompare(b.name, "ar"));
+};
+
+const matchesInventoryFilters = (group = {}, filters = {}, selectedSize = "all") => {
+  const normalize = (value) => normalizeText(value).toLowerCase();
+  const selectedGender = normalize(filters.gender);
+  const selectedType = normalize(filters.type);
+  const selectedCategory = normalize(filters.category);
+  const selectedBrand = normalize(filters.brand);
+  const selectedManufacturer = normalize(filters.manufacturer);
+  const selectedSizeValue = normalizeText(selectedSize);
+  const hasSize = selectedSizeValue === "" || selectedSizeValue === "all" || selectedSizeValue === "الكل";
+
+  const matchesSize = hasSize
+    ? true
+    : Array.isArray(group.variants) && group.variants.some((variant) => normalizeText(variant.size) === selectedSizeValue);
+
+  return (
+    (filters.gender === "all" || !selectedGender || normalize(group.gender) === selectedGender) &&
+    (filters.type === "all" || !selectedType || normalize(group.type) === selectedType) &&
+    (filters.category === "all" || !selectedCategory || normalize(group.category) === selectedCategory) &&
+    (filters.brand === "all" || !selectedBrand || normalize(group.brand) === selectedBrand) &&
+    (filters.manufacturer === "all" || !selectedManufacturer || normalize(group.manufacturer_name) === selectedManufacturer) &&
+    (!filters.inStockOnly || toNumber(group.system_total, 0) > 0) &&
+    matchesSize
+  );
+};
 
 const isExactIdentifierMatch = (query, variant) => {
   const normalizedQuery = normalizeText(query).toLowerCase();
@@ -484,6 +553,16 @@ function InventoryCountPage() {
   const [selectedLookupProductId, setSelectedLookupProductId] = useState("");
   const [busyGroupKey, setBusyGroupKey] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [selectedFilterSize, setSelectedFilterSize] = useState("all");
+  const [filters, setFilters] = useState({
+    gender: "all",
+    type: "all",
+    category: "all",
+    brand: "all",
+    manufacturer: "all",
+    inStockOnly: true,
+  });
   const [branches, setBranches] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [scopeModalOpen, setScopeModalOpen] = useState(false);
@@ -499,6 +578,8 @@ function InventoryCountPage() {
   const itemSaveTimersRef = useRef(new Map());
   const itemSavePatchRef = useRef(new Map());
   const itemSavingIdRef = useRef("");
+  const filtersPanelRef = useRef(null);
+  const searchInputRef = useRef(null);
 
   const currentUser = getCurrentUser();
   const currentRole = getUserRole(currentUser);
@@ -523,15 +604,52 @@ function InventoryCountPage() {
     []
   );
 
-  const groupedLookupResults = useMemo(() => groupLookupModels(lookupResults), [lookupResults]);
   const groupedItems = useMemo(() => groupCountVariants(items), [items]);
   const visibleGroupedItems = useMemo(
-    () => groupedItems.filter((group) => !hiddenGroups.includes(group.key)),
-    [groupedItems, hiddenGroups]
+    () => groupedItems.filter((group) => !hiddenGroups.includes(group.key) && matchesInventoryFilters(group, filters, selectedFilterSize)),
+    [groupedItems, hiddenGroups, filters, selectedFilterSize]
+  );
+  const lookupSourceGroups = useMemo(() => groupLookupModels(lookupResults), [lookupResults]);
+  const filteredLookupGroups = useMemo(
+    () => lookupSourceGroups.filter((group) => matchesInventoryFilters(group, filters, selectedFilterSize)),
+    [lookupSourceGroups, filters, selectedFilterSize]
   );
   const selectedLookupGroup = useMemo(
-    () => groupedLookupResults.find((group) => String(group.product_id || "") === String(selectedLookupProductId || "")) || groupedLookupResults[0] || null,
-    [groupedLookupResults, selectedLookupProductId]
+    () => filteredLookupGroups.find((group) => String(group.product_id || "") === String(selectedLookupProductId || "")) || filteredLookupGroups[0] || null,
+    [filteredLookupGroups, selectedLookupProductId]
+  );
+  const smartFilterOptions = useMemo(
+    () => ({
+      gender: buildFilterOptions(groupedItems.flatMap((group) => group.variants), "variant_gender"),
+      productType: buildFilterOptions(groupedItems.flatMap((group) => group.variants), "variant_type"),
+      grade: buildFilterOptions(groupedItems.flatMap((group) => group.variants), "variant_category"),
+    }),
+    [groupedItems]
+  );
+  const brandOptions = useMemo(
+    () => buildFilterOptions(groupedItems.flatMap((group) => group.variants), "variant_brand"),
+    [groupedItems]
+  );
+  const manufacturerOptions = useMemo(
+    () => buildFilterOptions(groupedItems.flatMap((group) => group.variants), "variant_manufacturer_name"),
+    [groupedItems]
+  );
+  const availableSizes = useMemo(
+    () => buildFilterOptions(groupedItems.flatMap((group) => group.variants), "size"),
+    [groupedItems]
+  );
+  const activeFilterCount = useMemo(
+    () =>
+      [
+        filters.gender !== "all",
+        filters.type !== "all",
+        filters.category !== "all",
+        filters.brand !== "all",
+        filters.manufacturer !== "all",
+        !filters.inStockOnly,
+        selectedFilterSize !== "all",
+      ].filter(Boolean).length,
+    [filters, selectedFilterSize]
   );
   const [expandedGroupKey, setExpandedGroupKey] = useState("");
 
@@ -1143,6 +1261,22 @@ function InventoryCountPage() {
     }
   };
 
+  const updateFilter = useCallback((key, value) => {
+    setFilters((current) => ({ ...current, [key]: value }));
+  }, []);
+
+  const resetFilters = useCallback(() => {
+    setFilters({
+      gender: "all",
+      type: "all",
+      category: "all",
+      brand: "all",
+      manufacturer: "all",
+      inStockOnly: true,
+    });
+    setSelectedFilterSize("all");
+  }, []);
+
   const sessionSummary = useMemo(
     () =>
       sessions.reduce(
@@ -1346,10 +1480,34 @@ function InventoryCountPage() {
                   </button>
                 </div>
 
-                <div className="mt-4 flex flex-col gap-3 lg:flex-row">
-                  <div className="relative flex-1">
-                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                <div className="mt-4 flex min-w-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFiltersOpen(true)}
+                    aria-expanded={filtersOpen}
+                    className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border transition ${
+                      filtersOpen || activeFilterCount > 0
+                        ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]"
+                        : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10"
+                    }`}
+                    aria-label="الفلتر"
+                    title="الفلتر"
+                  >
+                    <span className="relative inline-flex">
+                      <Filter className="h-4 w-4" />
+                      {activeFilterCount > 0 ? (
+                        <span className="absolute -right-2 -top-2 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-emerald-400 px-1 text-[10px] font-black text-zinc-950">
+                          {activeFilterCount > 99 ? "99+" : activeFilterCount}
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="sr-only">الفلتر</span>
+                  </button>
+
+                  <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-3">
+                    <Search className="h-4 w-4 shrink-0 text-zinc-500" />
                     <input
+                      ref={searchInputRef}
                       value={lookupQuery}
                       onChange={(event) => setLookupQuery(event.target.value)}
                       onKeyDown={(event) => {
@@ -1358,20 +1516,47 @@ function InventoryCountPage() {
                           void lookupVariants();
                         }
                       }}
-                      placeholder="ابحث بالباركود أو رمز الصنف أو اسم المنتج"
-                      className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
+                      placeholder="ابحث بالاسم أو الموديل أو الباركود أو الكود"
+                      className="w-full bg-transparent text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
                     />
-                  </div>
+                  </label>
+
                   <button
                     type="button"
-                    onClick={lookupVariants}
-                    disabled={lookupLoading}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-500 px-4 py-3 text-sm font-black text-black transition hover:bg-blue-400 disabled:opacity-40"
+                    onClick={() => {
+                      setScannerOpen(true);
+                    }}
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label="فتح ماسح الكاميرا"
+                    title="فتح ماسح الكاميرا"
                   >
-                    {lookupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackageSearch className="h-4 w-4" />}
-                    بحث
+                    <Camera className="h-4 w-4" />
                   </button>
                 </div>
+
+                <InventoryCountFiltersModal
+                  open={filtersOpen}
+                  panelRef={filtersPanelRef}
+                  smartFilterOptions={smartFilterOptions}
+                  selectedGender={filters.gender}
+                  onGenderChange={(value) => updateFilter("gender", value)}
+                  selectedProductType={filters.type}
+                  onProductTypeChange={(value) => updateFilter("type", value)}
+                  selectedGrade={filters.category}
+                  onGradeChange={(value) => updateFilter("category", value)}
+                  brandOptions={brandOptions}
+                  selectedBrandId={filters.brand}
+                  onBrandChange={(value) => updateFilter("brand", value)}
+                  manufacturerOptions={manufacturerOptions}
+                  selectedManufacturerId={filters.manufacturer}
+                  onManufacturerChange={(value) => updateFilter("manufacturer", value)}
+                  sizeOptions={availableSizes}
+                  selectedSize={selectedFilterSize}
+                  onSizeChange={setSelectedFilterSize}
+                  activeSmartFilterCount={activeFilterCount}
+                  onReset={resetFilters}
+                  onClose={() => setFiltersOpen(false)}
+                />
 
                 {selectedLookupGroup ? (
                   <div className="mt-3 flex flex-col gap-3 rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -1395,13 +1580,13 @@ function InventoryCountPage() {
                 ) : null}
 
                 <div className="mt-4 space-y-3">
-                  {groupedLookupResults.length === 0 && lookupQuery.trim() && !lookupLoading ? (
+                  {filteredLookupGroups.length === 0 && lookupQuery.trim() && !lookupLoading ? (
                     <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-8 text-center text-zinc-400">
                       لا توجد نتائج مجمعة لهذا البحث.
                     </div>
                   ) : null}
 
-                  {groupedLookupResults.map((group) => (
+                  {filteredLookupGroups.map((group) => (
                     <MemoLookupGroupCard
                       key={group.key}
                       group={group}
@@ -1987,6 +2172,56 @@ function ScopeModal({ branches, warehouses, form, setForm, onClose, onCreate }) 
         </div>
       </div>
     </div>
+  );
+}
+
+function InventoryCountFiltersModal({
+  open,
+  panelRef,
+  smartFilterOptions,
+  selectedGender,
+  onGenderChange,
+  selectedProductType,
+  onProductTypeChange,
+  selectedGrade,
+  onGradeChange,
+  brandOptions,
+  selectedBrandId,
+  onBrandChange,
+  manufacturerOptions,
+  selectedManufacturerId,
+  onManufacturerChange,
+  sizeOptions,
+  selectedSize,
+  onSizeChange,
+  activeSmartFilterCount,
+  onReset,
+  onClose,
+}) {
+  return (
+    <SmartPosFilters
+      open={open}
+      panelRef={panelRef}
+      smartFilterOptions={smartFilterOptions}
+      selectedGender={selectedGender}
+      onGenderChange={onGenderChange}
+      selectedProductType={selectedProductType}
+      onProductTypeChange={onProductTypeChange}
+      selectedGrade={selectedGrade}
+      onGradeChange={onGradeChange}
+      brandOptions={brandOptions}
+      selectedBrandId={selectedBrandId}
+      onBrandChange={onBrandChange}
+      manufacturerOptions={manufacturerOptions}
+      selectedManufacturerId={selectedManufacturerId}
+      onManufacturerChange={onManufacturerChange}
+      sizeOptions={sizeOptions}
+      selectedSize={selectedSize}
+      onSizeChange={onSizeChange}
+      activeSmartFilterCount={activeSmartFilterCount}
+      onReset={onReset}
+      onClose={onClose}
+    />
   );
 }
 
