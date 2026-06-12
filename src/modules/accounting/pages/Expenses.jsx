@@ -601,7 +601,7 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
 
   const saveExpense = async () => {
     if (!expenseForm.title.trim() || Number(expenseForm.amount || 0) <= 0) {
-      toast.error("Expense title and amount are required");
+      toast.error("مطلوب عنوان المصروف والمبلغ");
       return;
     }
     if (expenseForm.expense_type === "employee_advance" && !expenseForm.employee_id) {
@@ -621,11 +621,11 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
       }
       if (editingExpenseId) await api.put(`/expenses/${editingExpenseId}`, payload);
       else await api.post("/expenses", payload);
-      toast.success(editingExpenseId ? "Expense updated" : "Expense created");
+      toast.success(editingExpenseId ? "تم تحديث المصروف" : "تم إنشاء المصروف");
       resetExpenseForm();
       await loadAll();
     } catch (error) {
-      toast.error(error?.message || "Failed to save expense");
+      toast.error(error?.message || "تعذر حفظ المصروف");
     } finally {
       setSaving(false);
     }
@@ -661,29 +661,29 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
     try {
       if (action.type === "delete") await api.delete(`/expenses/${action.id}`);
       if (action.type === "approve") await api.post(`/expenses/${action.id}/approve`, {});
-      if (action.type === "reject") await api.post(`/expenses/${action.id}/reject`, { reason: action.reason || "Rejected from Expenses Center" });
+      if (action.type === "reject") await api.post(`/expenses/${action.id}/reject`, { reason: action.reason || "مرفوض من مركز المصروفات" });
       if (action.type === "paid") await api.post(`/expenses/${action.id}/mark-paid`, {});
-      toast.success("Action completed");
+      toast.success("تم تنفيذ الإجراء");
       setConfirmAction(null);
       await loadAll();
     } catch (error) {
-      toast.error(error?.message || "Action failed");
+      toast.error(error?.message || "تعذر تنفيذ الإجراء");
     }
   };
 
   const saveCategory = async () => {
-    if (!categoryForm.name.trim()) return toast.error("Category name is required");
+    if (!categoryForm.name.trim()) return toast.error("اسم الفئة مطلوب");
     await api.post("/expenses/categories", categoryForm);
     setCategoryForm({ name: "", type_key: "other", description: "" });
-    toast.success("Category created");
+    toast.success("تم إنشاء الفئة");
     await loadAll();
   };
 
   const saveAdvance = async () => {
-    if (!advanceForm.employee_id || Number(advanceForm.amount || 0) <= 0) return toast.error("Employee and amount are required");
+    if (!advanceForm.employee_id || Number(advanceForm.amount || 0) <= 0) return toast.error("الموظف والمبلغ مطلوبان");
     await api.post("/expenses/employee-advances", { ...advanceForm, amount: Number(advanceForm.amount || 0) });
     setAdvanceForm(blankAdvance);
-    toast.success("Employee advance created");
+    toast.success("تم إنشاء سلفة الموظف");
     await loadAll();
   };
 
@@ -694,10 +694,10 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
   };
 
   const saveRecurring = async () => {
-    if (!recurringForm.title.trim() || Number(recurringForm.amount || 0) <= 0) return toast.error("Recurring title and amount are required");
+    if (!recurringForm.title.trim() || Number(recurringForm.amount || 0) <= 0) return toast.error("عنوان المصروف المتكرر والمبلغ مطلوبان");
     await api.post("/expenses/recurring", { ...recurringForm, amount: Number(recurringForm.amount || 0) });
     setRecurringForm(blankRecurring);
-    toast.success("Recurring expense created");
+    toast.success("تم إنشاء المصروف المتكرر");
     await loadAll();
   };
 
@@ -713,15 +713,15 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
           </button>
           <Link to="/accounting/profit-loss" className="theme-button-soft px-3 py-2 text-sm">
             <BarChart3 className="h-4 w-4" />
-            P&L
+            الأرباح والخسائر
           </Link>
         </div>
       }
       tabs={[
         { to: "/expenses", label: copy.module, end: true },
-        { to: "/accounting/cashbox", label: "Cashbox" },
-        { to: "/accounting/financial-accounts", label: "Accounts" },
-        { to: "/accounting/journal-entries", label: "Journal" },
+        { to: "/accounting/cashbox", label: "درج النقدية" },
+        { to: "/accounting/financial-accounts", label: "الحسابات" },
+        { to: "/accounting/journal-entries", label: "القيود اليومية" },
         { to: "/accounting/reports", label: copy.reports },
       ]}
     >
@@ -870,17 +870,17 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
               </div>
             </div>
             <div className="mt-5 flex flex-wrap justify-end gap-2">
-              {editingExpenseId ? <button type="button" onClick={resetExpenseForm} className="theme-button-soft px-4 py-3 text-sm"><X className="h-4 w-4" />Cancel</button> : null}
+              {editingExpenseId ? <button type="button" onClick={resetExpenseForm} className="theme-button-soft px-4 py-3 text-sm"><X className="h-4 w-4" />إلغاء</button> : null}
               <button type="button" onClick={saveExpense} disabled={saving} className="theme-button-primary min-h-12 px-5 py-3 text-sm disabled:opacity-50">
                 <Plus className="h-4 w-4" />
-                {saving ? "Saving..." : editingExpenseId ? copy.updateExpense : copy.createExpense}
+                {saving ? "جارٍ الحفظ..." : editingExpenseId ? copy.updateExpense : copy.createExpense}
               </button>
             </div>
           </Panel>
           <Panel title={copy.attachmentPreview}>
             <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-zinc-400">
               <Paperclip className="mb-3 h-6 w-6 text-emerald-200" />
-              {expenseForm.attachment_name || "Invoice/image/PDF name will appear here after selecting a file."}
+              {expenseForm.attachment_name || "سيظهر اسم الفاتورة أو الصورة أو PDF هنا بعد اختيار ملف."}
             </div>
           </Panel>
         </section>
@@ -1238,7 +1238,7 @@ function ExpensesTable({ rows, copy, onEdit, onAction, t, language }) {
               <Td><div className="table-cell-stack text-xs text-zinc-500"><div>{expense.branch_name || (expense.branch_id ? `Branch #${expense.branch_id}` : "-")}</div><div>{expense.employee_name || (expense.employee_id ? `Employee #${expense.employee_id}` : "")}</div><div>{expense.supplier_name || (expense.supplier_id ? `Supplier #${expense.supplier_id}` : "")}</div></div></Td>
               <Td>
                 <div className="flex flex-wrap gap-1.5">
-                  <IconButton title="Edit" onClick={() => onEdit(expense)}><Pencil className="h-3.5 w-3.5" /></IconButton>
+                  <IconButton title="تعديل" onClick={() => onEdit(expense)}><Pencil className="h-3.5 w-3.5" /></IconButton>
                   {["draft", "pending_approval", "rejected"].includes(expense.status) ? <IconButton title={copy.approve} onClick={() => onAction({ type: "approve", id: expense.id })}><CheckCircle2 className="h-3.5 w-3.5" /></IconButton> : null}
                   {["draft", "pending_approval", "approved"].includes(expense.status) ? <IconButton title={copy.reject} onClick={() => onAction({ type: "reject", id: expense.id })}><X className="h-3.5 w-3.5" /></IconButton> : null}
                   {expense.status !== "paid" ? <IconButton title={copy.markPaid} onClick={() => onAction({ type: "paid", id: expense.id })}><Wallet className="h-3.5 w-3.5" /></IconButton> : null}
@@ -1273,7 +1273,7 @@ function BreakdownCard({ title, rows, t, language, copy }) {
 function TrendCard({ rows }) {
   const max = Math.max(1, ...rows.map((row) => Number(row.value || 0)));
   return (
-    <Panel title="Monthly expense trend">
+    <Panel title="الاتجاه الشهري للمصروفات">
       <div className="flex h-48 items-end gap-2 overflow-x-auto">
         {rows.map((row) => (
           <div key={row.month} className="flex min-w-16 flex-1 flex-col items-center gap-2">
@@ -1281,7 +1281,7 @@ function TrendCard({ rows }) {
             <div className="text-[10px] font-bold text-zinc-500">{row.month}</div>
           </div>
         ))}
-        {!rows.length ? <div className="w-full rounded-xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-center text-sm text-zinc-500">No trend data</div> : null}
+        {!rows.length ? <div className="w-full rounded-xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-center text-sm text-zinc-500">لا توجد بيانات للاتجاه</div> : null}
       </div>
     </Panel>
   );
@@ -1352,12 +1352,12 @@ function ConfirmModal({ action, copy, t, language, onClose, onConfirm }) {
         <div className="flex items-start gap-3">
           <span className="grid h-10 w-10 place-items-center rounded-xl border border-amber-300/20 bg-amber-400/10 text-amber-100"><AlertTriangle className="h-5 w-5" /></span>
           <div>
-            <h3 className="text-lg font-black text-white">Confirm action</h3>
+            <h3 className="text-lg font-black text-white">تأكيد الإجراء</h3>
             <p className="mt-1 text-sm text-zinc-400">This will {statusLabel(t, language, action.type === "paid" ? "paid" : action.type)} expense #{action.id}.</p>
           </div>
         </div>
         <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="theme-button-soft px-4 py-2 text-sm">Cancel</button>
+          <button type="button" onClick={onClose} className="theme-button-soft px-4 py-2 text-sm">إلغاء</button>
           <button type="button" onClick={onConfirm} className="theme-button-primary px-4 py-2 text-sm">{copy[ action.type === "paid" ? "markPaid" : action.type ] || "Confirm"}</button>
         </div>
       </section>

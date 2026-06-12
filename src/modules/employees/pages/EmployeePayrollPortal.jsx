@@ -1897,6 +1897,9 @@ export default function EmployeePayrollPortal() {
       template: printJob.template,
       printSettings: printJob.printSettings,
       copy: DISPLAY_REFILL_PRINT_COPY,
+      previewTitle: "Print Barcode",
+      previewBackUrl: typeof window !== "undefined" ? window.location.href : "",
+      showPreviewChrome: true,
     });
 
     if (!popup) {

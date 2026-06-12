@@ -905,7 +905,7 @@ export default function EmployeePortalInventory() {
             <div>
               <div className="flex items-center gap-2 text-emerald-700">
                 <Warehouse className="h-5 w-5" />
-                <span className="text-xs font-black uppercase tracking-[0.18em]">Employee Portal</span>
+                <span className="text-xs font-black uppercase tracking-[0.18em]">بوابة الموظف</span>
               </div>
               <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">الجرد</h1>
               <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-500">
@@ -1365,7 +1365,7 @@ function BranchInventoryDrawer({
       >
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-4">
           <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">Employee Portal</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">بوابة الموظف</div>
             <h2 id="branch-inventory-drawer-title" className="mt-1 text-lg font-black text-slate-950">جردات الفرع</h2>
           </div>
           <button

@@ -321,6 +321,7 @@ const buildLookupParams = (directLookup) => {
   const params = { limit: 20, inStockOnly: 1 };
   if (directLookup.productId) params.productId = directLookup.productId;
   if (directLookup.barcode) params.barcode = directLookup.barcode;
+  if (directLookup.sku) params.sku = directLookup.sku;
   if (directLookup.article) params.article = directLookup.article;
   return params;
 };
@@ -337,6 +338,8 @@ const parseSmartQrScan = (value = "") => {
       productId: decodeURIComponent(match[1]),
       variantId: text(parsedUrl.searchParams.get("variantId") || parsedUrl.searchParams.get("variant")),
       colorId: text(parsedUrl.searchParams.get("colorId") || parsedUrl.searchParams.get("color")),
+      color: text(parsedUrl.searchParams.get("color") || ""),
+      size: text(parsedUrl.searchParams.get("size") || ""),
       action: text(parsedUrl.searchParams.get("action")) || "warehouse-request",
     };
   } catch {
@@ -348,6 +351,8 @@ const productMatchesDirectLookup = (product = {}, directLookup = {}) => {
   const requestedProductId = text(directLookup.productId);
   const requestedVariantId = text(directLookup.variantId);
   const requestedColorId = text(directLookup.colorId);
+  const requestedColor = text(directLookup.color);
+  const requestedSize = text(directLookup.size);
   const productIds = [
     product.id,
     product.product_id,
@@ -364,18 +369,28 @@ const productMatchesDirectLookup = (product = {}, directLookup = {}) => {
   const colorIds = variants
     .map((variant) => text(variant.color_id))
     .filter(Boolean);
+  const colors = variants
+    .map((variant) => text(variant.color))
+    .filter(Boolean);
+  const sizes = variants
+    .map((variant) => text(variant.size))
+    .filter(Boolean);
 
   const matchByProductId = requestedProductId
     ? productIds.includes(requestedProductId) || variantProductIds.includes(requestedProductId)
     : false;
   const matchByVariantId = requestedVariantId ? variantIds.includes(requestedVariantId) : false;
   const matchByColorId = requestedColorId ? colorIds.includes(requestedColorId) : false;
+  const matchByColor = requestedColor ? colors.includes(requestedColor) : false;
+  const matchBySize = requestedSize ? sizes.includes(requestedSize) : false;
 
   return {
-    matched: Boolean(matchByProductId || matchByVariantId || matchByColorId),
+    matched: Boolean(matchByProductId || matchByVariantId || matchByColorId || matchByColor || matchBySize),
     matchByProductId,
     matchByVariantId,
     matchByColorId,
+    matchByColor,
+    matchBySize,
   };
 };
 
@@ -675,13 +690,16 @@ export default function EmployeePortalProducts() {
       productId: text(searchParams.get("productId") || searchParams.get("product_id") || ""),
       variantId: text(searchParams.get("variantId") || searchParams.get("variant_id") || ""),
       colorId: text(searchParams.get("colorId") || searchParams.get("color_id") || ""),
+      color: text(searchParams.get("color") || ""),
+      size: text(searchParams.get("size") || ""),
       barcode: text(searchParams.get("barcode") || ""),
+      sku: text(searchParams.get("sku") || ""),
       article: text(searchParams.get("article") || searchParams.get("article_code") || searchParams.get("articleCode") || ""),
       action: text(searchParams.get("action") || ""),
     }),
     [queryKey]
   );
-  const directLookupActive = Boolean(directLookup.productId || directLookup.variantId || directLookup.colorId || directLookup.barcode || directLookup.article);
+  const directLookupActive = Boolean(directLookup.productId || directLookup.variantId || directLookup.colorId || directLookup.color || directLookup.size || directLookup.barcode || directLookup.sku || directLookup.article);
 
   const [employee, setEmployee] = useState(null);
   const [products, setProducts] = useState([]);
@@ -705,6 +723,7 @@ export default function EmployeePortalProducts() {
   const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [loadingSubmit, setLoadingSubmit] = useState(false);
+  const [resolvingScan, setResolvingScan] = useState(false);
   const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
   const lookupDoneRef = useRef(false);
   const filtersPanelRef = useRef(null);
@@ -719,9 +738,11 @@ export default function EmployeePortalProducts() {
       productId: directLookup.productId,
       variantId: directLookup.variantId,
       colorId: directLookup.colorId,
+      color: directLookup.color,
+      size: directLookup.size,
       action: directLookup.action,
     });
-  }, [directLookup.action, directLookup.colorId, directLookup.productId, directLookup.variantId, searchParams]);
+  }, [directLookup.action, directLookup.color, directLookup.colorId, directLookup.productId, directLookup.size, directLookup.variantId, searchParams]);
 
   useEffect(() => {
     if (typeof document === "undefined") return undefined;
@@ -766,7 +787,7 @@ export default function EmployeePortalProducts() {
 
   useEffect(() => {
     if (lookupDoneRef.current) return;
-    if (!directLookup.productId && !directLookup.barcode && !directLookup.article) return;
+    if (!directLookup.productId && !directLookup.barcode && !directLookup.sku && !directLookup.article) return;
 
     let cancelled = false;
     (async () => {
@@ -812,11 +833,11 @@ export default function EmployeePortalProducts() {
           const variant = findVariant(
             matched,
             directLookup.variantId || selection.variant_id,
-            selection.color,
-            selection.size,
+            directLookup.color || selection.color,
+            directLookup.size || selection.size,
             directLookup.colorId
           );
-          const nextColor = variant?.color || firstAvailableColor(matched);
+          const nextColor = variant?.color || directLookup.color || selection.color || firstAvailableColor(matched);
           const nextSelection = resolveColorSelection(matched, nextColor, variant?.size || selection.size || "");
           setProducts(lookupProducts);
           setSelectedProduct(matched);
@@ -834,7 +855,7 @@ export default function EmployeePortalProducts() {
     return () => {
       cancelled = true;
     };
-  }, [token, directLookup.productId, directLookup.variantId, directLookup.colorId, directLookup.barcode, directLookup.article, directLookup.action]);
+  }, [token, directLookup.productId, directLookup.variantId, directLookup.colorId, directLookup.color, directLookup.size, directLookup.barcode, directLookup.sku, directLookup.article, directLookup.action]);
 
   const normalizedProducts = useMemo(() => (Array.isArray(products) ? products : []).map(normalizeProduct), [products]);
 
@@ -850,7 +871,7 @@ export default function EmployeePortalProducts() {
       const variants = Array.isArray(product.variants) ? product.variants : [];
       return variants.some((variant) => String(variant.product_id ?? "") === String(directLookup.productId ?? ""));
     }) || null;
-    const exactVariantProduct = matches.find(({ result }) => result.matchByVariantId || result.matchByColorId)?.product || null;
+    const exactVariantProduct = matches.find(({ result }) => result.matchByVariantId || result.matchByColorId || result.matchByColor || result.matchBySize)?.product || null;
     const matchedProduct = byProductId || exactVariantProduct || byVariantProductId || null;
 
     console.info("[SMART_QR_PRODUCT_MATCH]", {
@@ -876,11 +897,11 @@ export default function EmployeePortalProducts() {
     const nextVariant = findVariant(
       matchedProduct,
       directLookup.variantId || null,
-      "",
-      "",
+      directLookup.color || "",
+      directLookup.size || "",
       directLookup.colorId || null
     );
-    const nextColor = nextVariant?.color || firstAvailableColor(matchedProduct);
+    const nextColor = nextVariant?.color || directLookup.color || firstAvailableColor(matchedProduct);
     const nextSelection = resolveColorSelection(matchedProduct, nextColor, nextVariant?.size || "");
 
     setSearch("");
@@ -1085,6 +1106,43 @@ export default function EmployeePortalProducts() {
     }
   };
 
+  const resolveScannedProductLookup = useCallback(async (scannedValue) => {
+    const lookupValue = String(scannedValue || "").trim();
+    if (!lookupValue) return null;
+
+    const response = await getEmployeePortalProducts(token, {
+      search: lookupValue,
+      barcode: lookupValue,
+      sku: lookupValue,
+      article: lookupValue,
+      limit: 20,
+      inStockOnly: 1,
+    });
+
+    const lookupProducts = normalizeEmployeePosCatalog(response?.products);
+    const selection = response?.selection || {};
+    const selectedProductId = text(selection.product_id);
+    const matchedProduct =
+      lookupProducts.find((product) => String(product.id ?? product.product_id ?? "") === selectedProductId) ||
+      lookupProducts[0] ||
+      null;
+
+    if (!matchedProduct) return null;
+
+    const matchedVariant = findVariant(
+      matchedProduct,
+      selection.variant_id || null,
+      selection.color || "",
+      selection.size || ""
+    );
+
+    return {
+      product: matchedProduct,
+      variant: matchedVariant,
+      selection,
+    };
+  }, [token]);
+
   const handleCameraScannerResult = useCallback((decodedValue) => {
     const scannedValue = String(decodedValue || "").trim();
     if (!scannedValue) return;
@@ -1108,9 +1166,39 @@ export default function EmployeePortalProducts() {
       return;
     }
 
-    setSearch(scannedValue);
-    window.setTimeout(() => searchInputRef.current?.focus(), 0);
-  }, [navigate, token]);
+    setResolvingScan(true);
+    resolveScannedProductLookup(scannedValue)
+      .then((result) => {
+        if (!result?.product) {
+          setSearch(scannedValue);
+          window.setTimeout(() => searchInputRef.current?.focus(), 0);
+          return;
+        }
+
+        const nextParams = new URLSearchParams();
+        const resolvedProductId = String(result.product.id ?? result.product.product_id ?? "");
+        nextParams.set("productId", resolvedProductId);
+        if (result.variant?.variant_id ?? result.variant?.id) nextParams.set("variantId", String(result.variant.variant_id ?? result.variant.id));
+        if (result.variant?.color_id ?? result.selection?.color_id) nextParams.set("colorId", String(result.variant?.color_id ?? result.selection?.color_id));
+        if (result.variant?.color || result.selection?.color) nextParams.set("color", String(result.variant?.color || result.selection?.color));
+        if (result.variant?.size || result.selection?.size) nextParams.set("size", String(result.variant?.size || result.selection?.size));
+        nextParams.set("action", "warehouse-request");
+
+        const finalRedirectUrl = `/employee-portal/${encodeURIComponent(token)}/products?${nextParams.toString()}`;
+        navigate(finalRedirectUrl, { replace: true });
+      })
+      .catch((error) => {
+        console.warn("[employee-portal:scan-resolve-failed]", {
+          scannedValue,
+          message: error?.message || String(error || ""),
+        });
+        setSearch(scannedValue);
+        window.setTimeout(() => searchInputRef.current?.focus(), 0);
+      })
+      .finally(() => {
+        setResolvingScan(false);
+      });
+  }, [navigate, resolveScannedProductLookup, token]);
 
   const handleCameraScannerPermissionDenied = useCallback((message = barcodeScannerMessages.permissionDenied) => {
     setCameraScannerOpen(false);
@@ -1220,11 +1308,12 @@ export default function EmployeePortalProducts() {
             <button
               type="button"
               onClick={() => setCameraScannerOpen(true)}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10"
+              disabled={resolvingScan}
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-50"
               aria-label="فتح ماسح الكاميرا"
               title="فتح ماسح الكاميرا"
             >
-              <Camera className="h-4 w-4" />
+              {resolvingScan ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
             </button>
             <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-3">
               <Search className="h-4 w-4 shrink-0 text-zinc-500" />

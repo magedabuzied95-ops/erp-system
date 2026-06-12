@@ -60,10 +60,10 @@ function StatusPill({ status = "" }) {
   const value = String(status || "").toLowerCase();
   const config =
     value === "checked_out"
-      ? { label: "Checked out", className: "border-cyan-500/20 bg-cyan-500/10 text-cyan-200" }
+      ? { label: "تم الانصراف", className: "border-cyan-500/20 bg-cyan-500/10 text-cyan-200" }
       : value === "checked_in"
-        ? { label: "Checked in", className: "border-emerald-500/20 bg-emerald-500/10 text-emerald-200" }
-        : { label: status || "Unknown", className: "border-white/10 bg-white/5 text-slate-300" };
+        ? { label: "تم تسجيل الحضور", className: "border-emerald-500/20 bg-emerald-500/10 text-emerald-200" }
+        : { label: status || "غير معروف", className: "border-white/10 bg-white/5 text-slate-300" };
 
   return <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${config.className}`}>{config.label}</span>;
 }
@@ -85,7 +85,7 @@ export default function AttendanceDashboard() {
         if (active) setPayload(data || null);
       } catch (err) {
         if (active) {
-          setError(err?.message || "Failed to load today's attendance");
+          setError(err?.message || "تعذر تحميل حضور اليوم");
           setPayload(null);
         }
       } finally {
@@ -114,11 +114,11 @@ export default function AttendanceDashboard() {
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
                 <CalendarDays className="h-3.5 w-3.5" />
-                Attendance dashboard
+                لوحة الحضور والانصراف
               </div>
-              <h1 className="text-3xl font-black tracking-tight md:text-4xl">Today&apos;s attendance overview</h1>
+              <h1 className="text-3xl font-black tracking-tight md:text-4xl">ملخص حضور اليوم</h1>
               <p className="max-w-3xl text-sm leading-6 text-slate-300">
-                Live branch attendance, current presence, open check-ins, and late arrivals in one place.
+                متابعة مباشرة للحضور والانصراف، والحالة الحالية، وعمليات تسجيل الحضور المفتوحة، والتأخرات في مكان واحد.
               </p>
             </div>
             <button
@@ -127,7 +127,7 @@ export default function AttendanceDashboard() {
               className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
             >
               <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              Refresh
+              تحديث
             </button>
           </div>
         </section>
@@ -139,53 +139,53 @@ export default function AttendanceDashboard() {
         ) : null}
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <MetricCard label="Present Today" value={loading ? "-" : summary.presentNow ?? 0} hint="Employees with attendance today" tone="emerald" icon={<UserCheck className="h-5 w-5" />} />
-          <MetricCard label="Late Today" value={loading ? "-" : summary.lateEmployees ?? 0} hint="Arrivals after grace period" tone="rose" icon={<Clock3 className="h-5 w-5" />} />
-          <MetricCard label="Absent Today" value={loading ? "-" : summary.absent ?? 0} hint={`Total employees: ${summary.totalEmployees ?? 0}`} tone="amber" icon={<UserX className="h-5 w-5" />} />
-          <MetricCard label="Early Checkout Today" value={loading ? "-" : summary.earlyCheckoutToday ?? 0} hint="Checked out before shift end" tone="cyan" icon={<LogOut className="h-5 w-5" />} />
-          <MetricCard label="Outside GPS Today" value={loading ? "-" : summary.outsideGpsToday ?? 0} hint="GPS validations outside radius" tone="slate" icon={<MapPinOff className="h-5 w-5" />} />
+          <MetricCard label="الحاضرون اليوم" value={loading ? "-" : summary.presentNow ?? 0} hint="الموظفون المسجل حضورهم اليوم" tone="emerald" icon={<UserCheck className="h-5 w-5" />} />
+          <MetricCard label="المتأخرون اليوم" value={loading ? "-" : summary.lateEmployees ?? 0} hint="الوصول بعد فترة السماح" tone="rose" icon={<Clock3 className="h-5 w-5" />} />
+          <MetricCard label="الغائبون اليوم" value={loading ? "-" : summary.absent ?? 0} hint={`إجمالي الموظفين: ${summary.totalEmployees ?? 0}`} tone="amber" icon={<UserX className="h-5 w-5" />} />
+          <MetricCard label="الانصراف المبكر اليوم" value={loading ? "-" : summary.earlyCheckoutToday ?? 0} hint="الانصراف قبل نهاية الوردية" tone="cyan" icon={<LogOut className="h-5 w-5" />} />
+          <MetricCard label="خارج نطاق GPS اليوم" value={loading ? "-" : summary.outsideGpsToday ?? 0} hint="التحقق من GPS خارج النطاق" tone="slate" icon={<MapPinOff className="h-5 w-5" />} />
         </section>
 
         <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-black text-white">Live employee table</h2>
-              <p className="text-sm text-slate-400">Latest scans for {payload?.date || new Date().toISOString().slice(0, 10)}</p>
+              <h2 className="text-lg font-black text-white">جدول الموظفين المباشر</h2>
+              <p className="text-sm text-slate-400">آخر القراءات ليوم {payload?.date || new Date().toISOString().slice(0, 10)}</p>
             </div>
-            <div className="text-sm text-slate-400">{summary.totalWorkedHours ? `Worked hours ${summary.totalWorkedHours}` : ""}</div>
+            <div className="text-sm text-slate-400">{summary.totalWorkedHours ? `ساعات العمل ${summary.totalWorkedHours}` : ""}</div>
           </div>
 
           <div className="overflow-x-auto">
             <table className="min-w-full border-separate border-spacing-0">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Employee</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Branch</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Check in</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Check out</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Status</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Late Minutes</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Early Leave Minutes</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">الموظف</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">الفرع</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">تسجيل الحضور</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">تسجيل الانصراف</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">الحالة</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">دقائق التأخير</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">دقائق الانصراف المبكر</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
                     <td colSpan={7} className="px-3 py-10 text-center text-sm text-slate-400">
-                      Loading today&apos;s attendance...
+                      جارٍ تحميل حضور اليوم...
                     </td>
                   </tr>
                 ) : rows.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-3 py-10 text-center text-sm text-slate-400">
-                      No attendance logs found for today.
+                      لا توجد سجلات حضور لهذا اليوم.
                     </td>
                   </tr>
                 ) : (
                   rows.map((row) => (
                     <tr key={String(row.id)} className="align-top">
                       <td className="border-b border-white/5 px-3 py-4">
-                        <div className="font-semibold text-white">{row.employee_name || row.full_name || "Employee"}</div>
+                        <div className="font-semibold text-white">{row.employee_name || row.full_name || "الموظف"}</div>
                         <div className="text-xs text-slate-400">{row.employee_code || `#${row.employee_id}`}</div>
                       </td>
                       <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.branch_name || "-"}</td>

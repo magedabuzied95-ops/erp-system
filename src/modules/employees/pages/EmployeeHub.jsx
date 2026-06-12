@@ -59,7 +59,7 @@ class WorkspaceErrorBoundary extends Component {
 
   render() {
     if (this.state.hasError) {
-      return this.props.fallback || <div className="theme-card p-5 text-sm font-bold text-[var(--muted)]">Workspace unavailable.</div>;
+      return this.props.fallback || <div className="theme-card p-5 text-sm font-bold text-[var(--muted)]">مساحة العمل غير متاحة.</div>;
     }
     return this.props.children;
   }
@@ -140,7 +140,7 @@ export default function EmployeeHub() {
         {activeTab === "attendance" ? <AttendanceCenter /> : null}
         {activeTab === "payroll" ? (
           <WorkspaceErrorBoundary
-            fallback={<div className="theme-card p-5 text-sm font-bold text-[var(--muted)]">Payroll workspace failed to render. Please refresh.</div>}
+            fallback={<div className="theme-card p-5 text-sm font-bold text-[var(--muted)]">تعذر تحميل مساحة الرواتب. يرجى تحديث الصفحة.</div>}
             onError={(error) => console.error("[employee-hub-payroll-boundary]", error)}
           >
             <SalesEmployees defaultTab="payroll" visibleTabs={payrollVisibleTabs} embedded />
@@ -176,14 +176,14 @@ function HREmployeesWorkspace({ selectedEmployeeId = "", onSelectedEmployeeChang
   const sections = [
     {
       id: "directory",
-      label: isRtl ? "دليل الموظفين" : "Employee Directory",
-      description: isRtl ? "إنشاء الموظفين وإدارة بياناتهم والورديات من هنا." : "Create employees and manage employee profiles and work schedules here.",
+      label: "دليل الموظفين",
+      description: "إنشاء الموظفين وإدارة بياناتهم والورديات من هنا.",
       Icon: UsersRound,
     },
     {
       id: "sales",
-      label: isRtl ? "فريق المبيعات والعمولات" : "Sales Staff + Commissions",
-      description: isRtl ? "إعدادات البائعين والعمولات تبقى هنا كمساحة ثانوية." : "Seller setup and commission configuration stays here as a secondary workspace.",
+      label: "فريق المبيعات والعمولات",
+      description: "إعدادات البائعين والعمولات تبقى هنا كمساحة ثانوية.",
       Icon: BriefcaseBusiness,
     },
   ];
@@ -194,15 +194,15 @@ function HREmployeesWorkspace({ selectedEmployeeId = "", onSelectedEmployeeChang
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--muted)]">
-              {isRtl ? "إدارة الموظفين" : "Employee Management"}
+              إدارة الموظفين
             </div>
             <h2 className="mt-2 text-2xl font-black text-[var(--text)]">
-              {isRtl ? "دليل الموظفين أولاً" : "Employee Directory First"}
+              دليل الموظفين أولاً
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
               {isRtl
                 ? "أضف الموظفين وعدل بياناتهم من الدليل الرئيسي، ثم انتقل لإعدادات البائعين والعمولات عند الحاجة."
-                : "Add and manage employees from the main directory first, then open sales staff and commission setup only when needed."}
+                : "أضف الموظفين وعدل بياناتهم من الدليل الرئيسي أولاً، ثم انتقل إلى إعدادات فريق المبيعات والعمولات عند الحاجة."}
             </p>
           </div>
         </div>

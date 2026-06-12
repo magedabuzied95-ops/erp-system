@@ -7,12 +7,12 @@ import { subscribeRealtime, useRealtimeConnection } from "../../../shared/realti
 import { getAttendanceEmployees, getBranches } from "../../attendance/attendanceApi";
 
 const statusLabels = {
-  pending: "Pending",
-  in_progress: "In progress",
-  completed: "Completed",
-  cancelled: "Cancelled",
-  overdue: "Overdue",
-  rejected: "Rejected",
+  pending: "قيد الانتظار",
+  in_progress: "قيد التنفيذ",
+  completed: "مكتملة",
+  cancelled: "ملغاة",
+  overdue: "متأخرة",
+  rejected: "مرفوضة",
 };
 
 const priorityClass = {
@@ -33,13 +33,13 @@ const kanbanStatuses = ["pending", "in_progress", "overdue", "completed", "cance
 const frequencyOptions = ["one_time", "daily", "weekly", "monthly"];
 const assignmentStrategies = ["first_checked_in", "round_robin", "least_tasks_today", "fixed_employee"];
 const weekdayOptions = [
-  { value: 0, label: "Sun" },
-  { value: 1, label: "Mon" },
-  { value: 2, label: "Tue" },
-  { value: 3, label: "Wed" },
-  { value: 4, label: "Thu" },
-  { value: 5, label: "Fri" },
-  { value: 6, label: "Sat" },
+  { value: 0, label: "الأحد" },
+  { value: 1, label: "الاثنين" },
+  { value: 2, label: "الثلاثاء" },
+  { value: 3, label: "الأربعاء" },
+  { value: 4, label: "الخميس" },
+  { value: 5, label: "الجمعة" },
+  { value: 6, label: "السبت" },
 ];
 const emptyForm = {
   id: "",

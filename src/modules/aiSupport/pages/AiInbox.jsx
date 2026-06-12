@@ -76,27 +76,27 @@ const tenantIdFrom = (tenantApi) => {
 };
 
 const filters = [
-  { key: "all", label: "All" },
-  { key: "facebook", label: "Facebook" },
-  { key: "instagram", label: "Instagram" },
-  { key: "needs_human", label: "Needs human" },
-  { key: "ai_replied", label: "AI replied" },
-  { key: "unread", label: "Unread" },
+  { key: "all", label: "الكل" },
+  { key: "facebook", label: "فيسبوك" },
+  { key: "instagram", label: "إنستجرام" },
+  { key: "needs_human", label: "يحتاج تدخلًا بشريًا" },
+  { key: "ai_replied", label: "رد الذكاء الاصطناعي" },
+  { key: "unread", label: "غير مقروء" },
 ];
 
 const leadFilters = [
-  { key: "all", label: "All" },
-  { key: "ready_to_buy", label: "Ready to Buy" },
-  { key: "hot", label: "Hot" },
-  { key: "warm", label: "Warm" },
-  { key: "needs_human", label: "Needs Human" },
+  { key: "all", label: "الكل" },
+  { key: "ready_to_buy", label: "جاهز للشراء" },
+  { key: "hot", label: "ساخن" },
+  { key: "warm", label: "دافئ" },
+  { key: "needs_human", label: "يحتاج تدخلًا بشريًا" },
 ];
 
 const leadTemperatureMeta = {
-  cold: { label: "cold", tone: "zinc", icon: Snowflake, emphasis: "subtle" },
-  warm: { label: "warm", tone: "amber", icon: Sparkles, emphasis: "moderate" },
-  hot: { label: "hot", tone: "rose", icon: Flame, emphasis: "clear" },
-  ready_to_buy: { label: "ready_to_buy", tone: "emerald", icon: CheckCircle2, emphasis: "maximum" },
+  cold: { label: "بارد", tone: "zinc", icon: Snowflake, emphasis: "subtle" },
+  warm: { label: "دافئ", tone: "amber", icon: Sparkles, emphasis: "moderate" },
+  hot: { label: "ساخن", tone: "rose", icon: Flame, emphasis: "clear" },
+  ready_to_buy: { label: "جاهز للشراء", tone: "emerald", icon: CheckCircle2, emphasis: "maximum" },
 };
 
 const normalizeLeadTemperature = (value = "") => {
@@ -173,15 +173,15 @@ const sentimentTone = (value = "") => {
 };
 
 const relativeTime = (value) => {
-  if (!value) return "No activity";
+  if (!value) return "لا يوجد نشاط";
   const diff = Date.now() - new Date(value).getTime();
   if (!Number.isFinite(diff)) return "";
   const minutes = Math.max(0, Math.round(diff / 60000));
-  if (minutes < 1) return "Now";
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1) return "الآن";
+  if (minutes < 60) return `قبل ${minutes} دقيقة`;
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
+  if (hours < 24) return `قبل ${hours} ساعة`;
+  return `قبل ${Math.round(hours / 24)} يوم`;
 };
 
 const absoluteTime = (value) => (value ? new Date(value).toLocaleString() : "");
@@ -218,21 +218,21 @@ const canSyncMessengerProfile = (conversation) => {
 };
 const channelLabel = (value = "") => {
   const key = clean(value).toLowerCase();
-  if (key === "facebook_messenger") return "Facebook Messenger";
-  if (key === "instagram") return "Instagram DM";
-  if (key === "whatsapp") return "WhatsApp";
-  if (key === "web_chat") return "Web chat";
-  return key || "Unknown channel";
+  if (key === "facebook_messenger") return "ماسنجر فيسبوك";
+  if (key === "instagram") return "رسائل إنستجرام";
+  if (key === "whatsapp") return "واتساب";
+  if (key === "web_chat") return "دردشة الويب";
+  return key || "قناة غير معروفة";
 };
 const channelBadgeLabel = (value = "") => {
   const key = clean(value).toLowerCase();
-  if (key.includes("whatsapp")) return "WhatsApp";
-  if (key.includes("instagram")) return "Instagram";
-  if (key.includes("facebook") && key.includes("messenger")) return "Messenger";
-  if (key.includes("facebook")) return "Facebook";
-  if (key.includes("messenger")) return "Messenger";
-  if (key.includes("web")) return "Web";
-  return "All";
+  if (key.includes("whatsapp")) return "واتساب";
+  if (key.includes("instagram")) return "إنستجرام";
+  if (key.includes("facebook") && key.includes("messenger")) return "ماسنجر";
+  if (key.includes("facebook")) return "فيسبوك";
+  if (key.includes("messenger")) return "ماسنجر";
+  if (key.includes("web")) return "ويب";
+  return "الكل";
 };
 const fixedChannelOrder = ["whatsapp", "messenger", "instagram", "web"];
 const normalizeConversationChannel = (conversation = {}) => {

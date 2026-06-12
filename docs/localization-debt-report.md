@@ -1,10 +1,10 @@
 # Localization Debt Report
 
-Generated: 2026-06-12T15:23:21.505Z
+Generated: 2026-06-12T17:14:01.892Z
 
 This report flags obvious hardcoded UI strings. It is intentionally conservative and may include false positives.
 
-## accounting (160)
+## accounting (161)
 
 ### src\modules\accounting\pages\Accounts.jsx
 - 231 [jsx-text] شجرة الحسابات
@@ -21,7 +21,7 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 349 [jsx-text] لا توجد حركات ضمن الفلاتر الحالية.
 - 240 [placeholder] ابحث بالكود أو الاسم
 - 156 [title] دليل الحسابات
-- 157 [title] أساس محاسبي أولي مبني على Chart of Accounts مع الإبقاء على دفتر الأستاذ الحالي
+- 157 [title] أساس محاسبي أولي مبني على دليل الحسابات مع الإبقاء على دفتر الأستاذ الحالي
 - 210 [title] تعذر تحميل الحسابات
 - 318 [title] جارٍ تحميل دفتر الأستاذ
 - 323 [title] تعذر تحميل دفتر الأستاذ
@@ -31,20 +31,20 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 225 [prop-label] حسابات المصروفات
 
 ### src\modules\accounting\pages\Expenses.jsx
-- 873 [jsx-text] Cancel
-- 1284 [jsx-text] No trend data
-- 1355 [jsx-text] Confirm action
-- 1360 [jsx-text] Cancel
-- 1241 [title] Edit
-- 1276 [title] Monthly expense trend
-- 604 [toast] Expense title and amount are required
-- 666 [toast] Action completed
-- 675 [toast] Category name is required
-- 678 [toast] Category created
-- 683 [toast] Employee and amount are required
-- 686 [toast] Employee advance created
-- 697 [toast] Recurring title and amount are required
-- 700 [toast] Recurring expense created
+- 873 [jsx-text] إلغاء
+- 1284 [jsx-text] لا توجد بيانات للاتجاه
+- 1355 [jsx-text] تأكيد الإجراء
+- 1360 [jsx-text] إلغاء
+- 1241 [title] تعديل
+- 1276 [title] الاتجاه الشهري للمصروفات
+- 604 [toast] مطلوب عنوان المصروف والمبلغ
+- 666 [toast] تم تنفيذ الإجراء
+- 675 [toast] اسم الفئة مطلوب
+- 678 [toast] تم إنشاء الفئة
+- 683 [toast] الموظف والمبلغ مطلوبان
+- 686 [toast] تم إنشاء سلفة الموظف
+- 697 [toast] عنوان المصروف المتكرر والمبلغ مطلوبان
+- 700 [toast] تم إنشاء المصروف المتكرر
 
 ### src\modules\accounting\pages\GeneralLedger.jsx
 - 192 [jsx-text] جارٍ تحميل الحركات...
@@ -58,7 +58,7 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 207 [jsx-text] دائن
 - 208 [jsx-text] الرصيد الجاري
 - 166 [placeholder] اختياري
-- 113 [title] General Ledger
+- 113 [title] دفتر الأستاذ
 - 114 [title] دفتر الأستاذ العام مبني مباشرة على الحسابات والقيود اليومية وسطور القيود
 - 144 [prop-label] الحساب
 - 159 [prop-label] من تاريخ
@@ -70,7 +70,7 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 182 [prop-label] الرصيد الختامي
 
 ### src\modules\accounting\pages\JournalEntries.jsx
-- 411 [jsx-text] Manual Journal Entry
+- 411 [jsx-text] قيد يومي يدوي
 - 412 [jsx-text] القيد غير المتوازن سيرفض من الباك إند قبل الحفظ.
 - 441 [jsx-text] الحساب
 - 442 [jsx-text] مدين
@@ -78,12 +78,12 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 444 [jsx-text] ملاحظات
 - 445 [jsx-text] حذف
 - 453 [jsx-text] اختر الحساب
-- 497 [jsx-text] Backfill Preview
+- 497 [jsx-text] معاينة الترحيل
 - 498 [jsx-text] هذه الشاشة تعرض القيود المقترحة فقط ولا تنفذ أي posting فعلي.
 - 504 [jsx-text] الكل
-- 505 [jsx-text] Orders
-- 506 [jsx-text] Purchases
-- 507 [jsx-text] Expenses
+- 505 [jsx-text] الطلبات
+- 506 [jsx-text] المشتريات
+- 507 [jsx-text] المصروفات
 - 539 [jsx-text] لا توجد نتائج معاينة حتى الآن.
 - 545 [jsx-text] المصدر
 - 546 [jsx-text] الوصف
@@ -113,47 +113,47 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - ... 1 more
 
 ### src\modules\accounting\pages\Treasury.jsx
-- 174 [jsx-text] Account Balances
-- 175 [jsx-text] Operational money accounts used by POS, purchases, expenses, refunds, and payroll.
-- 193 [jsx-text] Recharge
-- 194 [jsx-text] Opening
-- 195 [jsx-text] Transfer in
-- 205 [jsx-text] Transfer Money
-- 211 [jsx-text] Record Transfer
-- 216 [jsx-text] Manual Adjustment
-- 220 [jsx-text] Money in
-- 221 [jsx-text] Money out
-- 225 [jsx-text] Record Adjustment
-- 234 [jsx-text] Money Transactions
-- 235 [jsx-text] Immutable account movements from sales, purchases, expenses, advances, refunds, transfers, and adjustments.
-- 243 [jsx-text] Filter
-- 254 [jsx-text] Date
-- 255 [jsx-text] Account
-- 256 [jsx-text] Type
-- 257 [jsx-text] Reference
-- 259 [jsx-text] Out
-- 260 [jsx-text] Balance
-- 207 [placeholder] From account
-- 208 [placeholder] To account
-- 209 [placeholder] Amount
-- 210 [placeholder] Notes
-- 218 [placeholder] Account
-- 223 [placeholder] Amount
-- 224 [placeholder] Audit note
-- 238 [placeholder] All accounts
-- 239 [placeholder] Type
-- 240 [placeholder] Reference
-- 241 [placeholder] Branch
-- 134 [title] Treasury
-- 135 [title] Real cash, bank, card, wallet, and settlement balances backed by linked money transactions.
-- 85 [toast] Choose source, destination, and a positive amount
-- 92 [toast] Transfer recorded
-- 104 [toast] Choose an account and a positive amount
-- 111 [toast] Adjustment recorded
-- 145 [prop-label] Total Cash
-- 146 [prop-label] Total Bank
-- 147 [prop-label] Wallets
-- ... 4 more
+- 190 [jsx-text] أرصدة الحسابات
+- 191 [jsx-text] الحسابات النقدية والتشغيلية المستخدمة في نقاط البيع والمشتريات والمصروفات والاستردادات والرواتب.
+- 209 [jsx-text] تعزيز
+- 210 [jsx-text] افتتاحي
+- 211 [jsx-text] تحويل
+- 221 [jsx-text] تحويل نقدية
+- 227 [jsx-text] تسجيل التحويل
+- 232 [jsx-text] تسوية يدوية
+- 236 [jsx-text] داخل
+- 237 [jsx-text] خارج
+- 241 [jsx-text] تسجيل التسوية
+- 250 [jsx-text] حركات النقدية
+- 251 [jsx-text] حركات حسابات غير قابلة للتعديل من المبيعات والمشتريات والمصروفات والسلف والاستردادات والتحويلات والتسويات.
+- 259 [jsx-text] تصفية
+- 270 [jsx-text] التاريخ
+- 271 [jsx-text] الحساب
+- 272 [jsx-text] النوع
+- 273 [jsx-text] المرجع
+- 274 [jsx-text] داخل
+- 275 [jsx-text] خارج
+- 276 [jsx-text] الرصيد
+- 223 [placeholder] من حساب
+- 224 [placeholder] إلى حساب
+- 225 [placeholder] المبلغ
+- 226 [placeholder] ملاحظات
+- 234 [placeholder] الحساب
+- 239 [placeholder] المبلغ
+- 240 [placeholder] ملاحظة تدقيقية
+- 254 [placeholder] كل الحسابات
+- 255 [placeholder] النوع
+- 256 [placeholder] المرجع
+- 257 [placeholder] الفرع
+- 150 [title] الخزينة
+- 151 [title] الأرصدة الفعلية للنقدية والبنوك والبطاقات والمحافظ وتسويات البطاقات، معززة بحركات مالية مرتبطة.
+- 101 [toast] اختر حساب المصدر وحساب الوجهة ومبلغًا أكبر من صفر
+- 108 [toast] تم تسجيل التحويل
+- 120 [toast] اختر حسابًا ومبلغًا أكبر من صفر
+- 127 [toast] تم تسجيل التسوية
+- 161 [prop-label] إجمالي النقدية
+- 162 [prop-label] إجمالي البنوك
+- ... 5 more
 
 ### src\modules\accounting\pages\TrialBalance.jsx
 - 136 [jsx-text] يعتمد هذا التقرير فقط على `journal_entry_lines` المربوطة بقيود اليومية.
@@ -166,7 +166,7 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 152 [jsx-text] إجمالي الدائن
 - 168 [jsx-text] الإجمالي
 - 113 [placeholder] اختياري
-- 75 [title] Trial Balance
+- 75 [title] ميزان المراجعة
 - 76 [title] ميزان مراجعة مبني فقط على الحسابات والقيود اليومية وسطور القيود
 - 106 [prop-label] من تاريخ
 - 109 [prop-label] إلى تاريخ
@@ -1065,20 +1065,20 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 1017 [prop-label] Reason
 
 ### src\modules\attendance\pages\AttendanceDashboard.jsx
-- 119 [jsx-text] Today&apos;s attendance overview
-- 152 [jsx-text] Live employee table
-- 162 [jsx-text] Employee
-- 163 [jsx-text] Branch
-- 164 [jsx-text] Check in
-- 165 [jsx-text] Check out
-- 166 [jsx-text] Status
-- 167 [jsx-text] Late Minutes
-- 168 [jsx-text] Early Leave Minutes
-- 142 [prop-label] Present Today
-- 143 [prop-label] Late Today
-- 144 [prop-label] Absent Today
-- 145 [prop-label] Early Checkout Today
-- 146 [prop-label] Outside GPS Today
+- 119 [jsx-text] ملخص حضور اليوم
+- 152 [jsx-text] جدول الموظفين المباشر
+- 162 [jsx-text] الموظف
+- 163 [jsx-text] الفرع
+- 164 [jsx-text] تسجيل الحضور
+- 165 [jsx-text] تسجيل الانصراف
+- 166 [jsx-text] الحالة
+- 167 [jsx-text] دقائق التأخير
+- 168 [jsx-text] دقائق الانصراف المبكر
+- 142 [prop-label] الحاضرون اليوم
+- 143 [prop-label] المتأخرون اليوم
+- 144 [prop-label] الغائبون اليوم
+- 145 [prop-label] الانصراف المبكر اليوم
+- 146 [prop-label] خارج نطاق GPS اليوم
 
 ### src\modules\attendance\pages\AttendanceReports.jsx
 - 128 [jsx-text] Export-ready attendance reports
@@ -1165,25 +1165,25 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 1007 [prop-label] تسجيل صوتي
 
 ### src\modules\employees\pages\EmployeeHub.jsx
-- 62 [jsx-text] Workspace unavailable.
-- 143 [jsx-text] Payroll workspace failed to render. Please refresh.
+- 62 [jsx-text] مساحة العمل غير متاحة.
+- 143 [jsx-text] تعذر تحميل مساحة الرواتب. يرجى تحديث الصفحة.
 
 ### src\modules\employees\pages\EmployeePayrollPortal.jsx
-- 2690 [jsx-text] طلب من المخزن
-- 2699 [jsx-text] الجرد
-- 2737 [jsx-text] Sales Opportunities
-- 2738 [jsx-text] فرص البيع اليوم
-- 2739 [jsx-text] بطاقات سريعة تكشف آخر قطعة، آخر قطعتين، أو آخر مقاس في فرعك.
-- 2742 [jsx-text] Today
-- 2836 [jsx-text] بوابة الموظف كتطبيق
-- 2875 [jsx-text] إعادة ضبط الإشعارات
-- 2926 [jsx-text] نواقص العرض
-- 2927 [jsx-text] المقاسات المطلوبة للعرض الحالي وتاريخ التنفيذ.
-- 2936 [jsx-text] قيد التنفيذ
-- 2952 [jsx-text] قيد العرض
-- 3002 [jsx-text] تم التنفيذ
-- 3017 [jsx-text] تم العرض
-- 3566 [jsx-text] متصل الآن
+- 2693 [jsx-text] طلب من المخزن
+- 2702 [jsx-text] الجرد
+- 2740 [jsx-text] Sales Opportunities
+- 2741 [jsx-text] فرص البيع اليوم
+- 2742 [jsx-text] بطاقات سريعة تكشف آخر قطعة، آخر قطعتين، أو آخر مقاس في فرعك.
+- 2745 [jsx-text] Today
+- 2839 [jsx-text] بوابة الموظف كتطبيق
+- 2878 [jsx-text] إعادة ضبط الإشعارات
+- 2929 [jsx-text] نواقص العرض
+- 2930 [jsx-text] المقاسات المطلوبة للعرض الحالي وتاريخ التنفيذ.
+- 2939 [jsx-text] قيد التنفيذ
+- 2955 [jsx-text] قيد العرض
+- 3005 [jsx-text] تم التنفيذ
+- 3020 [jsx-text] تم العرض
+- 3569 [jsx-text] متصل الآن
 
 ### src\modules\employees\pages\EmployeePortal.jsx
 - 97 [jsx-text] ط«ط¨ظ‘طھ ط¨ظˆط§ط¨ط© ط§ظ„ظ…ظˆط¸ظپ ط¹ظ„ظ‰ ط§ظ„ظ…ظˆط¨ط§ظٹظ„
@@ -1206,7 +1206,7 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 ### src\modules\employees\pages\EmployeePortalInventory.jsx
 - 337 [jsx-text] Inventory
 - 338 [jsx-text] امسح الباركود
-- 908 [jsx-text] Employee Portal
+- 908 [jsx-text] بوابة الموظف
 - 910 [jsx-text] الجرد
 - 967 [jsx-text] جردات الفرع
 - 968 [jsx-text] المسودة، قيد التنفيذ، المراجعة والمرفوضة.
@@ -1219,7 +1219,7 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 1133 [jsx-text] ابحث عن المنتج أو امسح الباركود لإضافة الكمية.
 - 1194 [jsx-text] عناصر الجرد
 - 1231 [jsx-text] حذف اللون
-- 1368 [jsx-text] Employee Portal
+- 1368 [jsx-text] بوابة الموظف
 - 1369 [jsx-text] جردات الفرع
 - 1423 [jsx-text] القائمة
 - 1429 [jsx-text] جارِ التحميل...
@@ -1247,32 +1247,32 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - ... 3 more
 
 ### src\modules\employees\pages\EmployeePortalProducts.jsx
-- 426 [jsx-text] Stock
-- 456 [jsx-text] No sizes
-- 494 [jsx-text] Variant selection
-- 532 [jsx-text] Colors
-- 553 [jsx-text] No colors
-- 560 [jsx-text] Sizes
-- 561 [jsx-text] Only available sizes appear
-- 587 [jsx-text] No available sizes for this color
-- 628 [jsx-text] EMPLOYEE SCANNER
-- 629 [jsx-text] امسح الباركود أو QR بالكاميرا
-- 630 [jsx-text] وجّه الكاميرا نحو الكود وسيتم البحث مباشرة.
-- 1170 [jsx-text] Employee Portal Products
-- 1186 [jsx-text] Employee Portal
-- 1187 [jsx-text] كتالوج المنتجات
-- 1259 [jsx-text] الفلاتر
-- 1266 [jsx-text] النتائج
-- 1235 [placeholder] ابحث بالاسم أو الموديل أو الباركود أو الكود
-- 1225 [title] فتح ماسح الكاميرا
-- 1249 [title] الفلاتر
-- 636 [aria-label] إغلاق ماسح الكاميرا
-- 1224 [aria-label] فتح ماسح الكاميرا
-- 1248 [aria-label] الفلاتر
-- 1078 [toast] تم إرسال الطلب للمخزن
-- 636 [prop-label] إغلاق ماسح الكاميرا
-- 1224 [prop-label] فتح ماسح الكاميرا
-- 1248 [prop-label] الفلاتر
+- 441 [jsx-text] Stock
+- 471 [jsx-text] No sizes
+- 509 [jsx-text] Variant selection
+- 547 [jsx-text] Colors
+- 568 [jsx-text] No colors
+- 575 [jsx-text] Sizes
+- 576 [jsx-text] Only available sizes appear
+- 602 [jsx-text] No available sizes for this color
+- 643 [jsx-text] EMPLOYEE SCANNER
+- 644 [jsx-text] امسح الباركود أو QR بالكاميرا
+- 645 [jsx-text] وجّه الكاميرا نحو الكود وسيتم البحث مباشرة.
+- 1188 [jsx-text] منتجات بوابة الموظف
+- 1204 [jsx-text] بوابة الموظف
+- 1205 [jsx-text] كتالوج المنتجات
+- 1277 [jsx-text] الفلاتر
+- 1284 [jsx-text] النتائج
+- 1253 [placeholder] ابحث بالاسم أو الموديل أو الباركود أو الكود
+- 1243 [title] فتح ماسح الكاميرا
+- 1267 [title] الفلاتر
+- 651 [aria-label] إغلاق ماسح الكاميرا
+- 1242 [aria-label] فتح ماسح الكاميرا
+- 1266 [aria-label] الفلاتر
+- 1096 [toast] تم إرسال الطلب للمخزن
+- 651 [prop-label] إغلاق ماسح الكاميرا
+- 1242 [prop-label] فتح ماسح الكاميرا
+- 1266 [prop-label] الفلاتر
 
 ### src\modules\loyalty\pages\CustomerLoyaltyProfile.jsx
 - 95 [jsx-text] Customer loyalty profile
@@ -1980,12 +1980,16 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 5862 [jsx-text] السماح بالعمليات الشخصية
 - ... 107 more
 
-## products (9)
+## products (13)
 
 ### src\modules\products\lib\barcodeLabels.js
-- 378 [jsx-text] = 32 && charCode
-- 413 [aria-label] ${text}
-- 413 [prop-label] ${text}
+- 385 [jsx-text] = 32 && charCode
+- 1310 [jsx-text] Back / Close
+- 1312 [jsx-text] Print
+- 420 [aria-label] ${text}
+- 1309 [aria-label] ${escapeHtml(previewTitle)}
+- 420 [prop-label] ${text}
+- 1309 [prop-label] ${escapeHtml(previewTitle)}
 
 ### src\modules\products\lib\variantBulkSizes.js
 - 34 [jsx-text] 0 ? size

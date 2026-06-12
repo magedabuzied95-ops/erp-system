@@ -1099,7 +1099,7 @@ export default function ManagerPortal() {
       document.head.appendChild(appleTitle);
     }
     appleTitle.setAttribute("content", "Manager");
-    document.title = "M1 Manager Portal";
+      document.title = "بوابة المدير";
 
     return () => {
       link.remove();
@@ -1112,7 +1112,7 @@ export default function ManagerPortal() {
           document.head.appendChild(restored);
         });
       }
-      document.title = previousTitle || "M1 Manager Portal";
+      document.title = previousTitle || "بوابة المدير";
       appleTitle?.setAttribute("content", previousAppleTitle || "Manager");
     };
   }, [token]);
@@ -1355,8 +1355,8 @@ export default function ManagerPortal() {
 
   const enablePushNotifications = async () => {
     if (!pushSupported()) {
-      setPushState((current) => ({ ...current, supported: false, message: "هذا المتصفح لا يدعم Web Push." }));
-      toast.error("هذا المتصفح لا يدعم Web Push");
+      setPushState((current) => ({ ...current, supported: false, message: "هذا المتصفح لا يدعم إشعارات الويب الفورية." }));
+      toast.error("هذا المتصفح لا يدعم إشعارات الويب الفورية");
       return;
     }
     setPushState((current) => ({ ...current, saving: true, message: "" }));
@@ -1376,7 +1376,7 @@ export default function ManagerPortal() {
       }
       const keyResponse = await managerPortalApi.pushPublicKey(token);
       const publicKey = keyResponse?.publicKey || "";
-      if (!publicKey || keyResponse?.enabled === false) throw new Error("Web Push is not configured on the server");
+      if (!publicKey || keyResponse?.enabled === false) throw new Error("إشعارات الويب الفورية غير مهيأة على الخادم");
       const registration = await navigator.serviceWorker.ready;
       let subscription = await registration.pushManager.getSubscription();
       if (subscription && !pushSubscriptionUsesKey(subscription, publicKey)) {
@@ -1414,18 +1414,18 @@ export default function ManagerPortal() {
         subscribed: true,
         endpointHost: endpointHost(subscription.endpoint),
         saving: false,
-        message: "تم تفعيل Push Notifications.",
+        message: "تم تفعيل إشعارات الويب الفورية.",
       });
-      toast.success("تم تفعيل Push Notifications");
+      toast.success("تم تفعيل إشعارات الويب الفورية");
     } catch (pushError) {
-      setPushState((current) => ({ ...current, saving: false, message: pushError?.responseBody?.message || pushError?.message || "تعذر تفعيل Push Notifications" }));
-      toast.error(pushError?.responseBody?.message || pushError?.message || "تعذر تفعيل Push Notifications");
+      setPushState((current) => ({ ...current, saving: false, message: pushError?.responseBody?.message || pushError?.message || "تعذر تفعيل إشعارات الويب الفورية" }));
+      toast.error(pushError?.responseBody?.message || pushError?.message || "تعذر تفعيل إشعارات الويب الفورية");
     }
   };
 
   const sendTestPushNotification = async () => {
     if (!pushSupported()) {
-      setPushState((current) => ({ ...current, message: "هذا المتصفح لا يدعم Web Push." }));
+      setPushState((current) => ({ ...current, message: "هذا المتصفح لا يدعم إشعارات الويب الفورية." }));
       return;
     }
     try {
@@ -1444,7 +1444,7 @@ export default function ManagerPortal() {
             ? `تم إرسال الاختبار إلى ${subscriptionCount} اشتراك.`
             : "لا توجد اشتراكات نشطة مرتبطة بالرمز الحالي.",
       }));
-      toast.success(response?.result?.skipped ? "إعدادات Push غير جاهزة" : subscriptionCount > 0 ? "تم إرسال إشعار الاختبار" : "لا توجد اشتراكات نشطة");
+      toast.success(response?.result?.skipped ? "إعدادات الإشعارات غير جاهزة" : subscriptionCount > 0 ? "تم إرسال إشعار الاختبار" : "لا توجد اشتراكات نشطة");
     } catch (pushError) {
       setPushState((current) => ({ ...current, saving: false, message: pushError?.responseBody?.message || pushError?.message || "تعذر إرسال إشعار الاختبار" }));
       toast.error(pushError?.responseBody?.message || pushError?.message || "تعذر إرسال إشعار الاختبار");
@@ -1459,11 +1459,11 @@ export default function ManagerPortal() {
       const subscription = await registration.pushManager.getSubscription();
       await managerPortalApi.unsubscribePush(token, { endpoint: subscription?.endpoint || "", subscription: subscription?.toJSON?.() || null });
       await subscription?.unsubscribe?.();
-      setPushState((current) => ({ ...current, saving: false, subscribed: false, endpointHost: "", message: "تم إيقاف Push Notifications." }));
-      toast.success("تم إيقاف Push Notifications");
+      setPushState((current) => ({ ...current, saving: false, subscribed: false, endpointHost: "", message: "تم إيقاف إشعارات الويب الفورية." }));
+      toast.success("تم إيقاف إشعارات الويب الفورية");
     } catch (pushError) {
-      setPushState((current) => ({ ...current, saving: false, message: pushError?.responseBody?.message || pushError?.message || "تعذر إيقاف Push Notifications" }));
-      toast.error(pushError?.responseBody?.message || pushError?.message || "تعذر إيقاف Push Notifications");
+      setPushState((current) => ({ ...current, saving: false, message: pushError?.responseBody?.message || pushError?.message || "تعذر إيقاف إشعارات الويب الفورية" }));
+      toast.error(pushError?.responseBody?.message || pushError?.message || "تعذر إيقاف إشعارات الويب الفورية");
     }
   };
 
@@ -1852,7 +1852,7 @@ export default function ManagerPortal() {
                   <h3 className="text-sm font-black">بوابة المدير كتطبيق</h3>
                   <p className="mt-1 text-xs font-bold leading-5 text-slate-600">
                     {isIosDevice()
-                      ? "على iPhone: اضغط مشاركة ثم Add to Home Screen ثم افتح بوابة المدير من الأيقونة."
+                      ? "على iPhone: اضغط مشاركة ثم أضف إلى الشاشة الرئيسية، ثم افتح بوابة المدير من الأيقونة."
                       : "أضف بوابة المدير إلى الشاشة الرئيسية لتفتح كتطبيق مستقل."}
                   </p>
                   {installPrompt ? (
@@ -2399,12 +2399,12 @@ export default function ManagerPortal() {
                 <div className="manager-portal-mobile-sales-hero rounded-[1.6rem] border border-slate-800 bg-[#08111f] p-4 shadow-[0_18px_32px_rgba(2,6,23,0.16)]">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Sales snapshot</div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">ملخص المبيعات</div>
                       <div className="mt-1 text-lg font-black text-white">ملخص المبيعات</div>
                       <div className="mt-1 text-sm font-semibold leading-6 text-slate-300">مبيعات اليوم والفواتير والنمو في بطاقات مختصرة.</div>
                     </div>
                     <div className={`shrink-0 rounded-2xl border px-3 py-2 text-left ${salesGrowthPercent >= 0 ? "border-emerald-400/20 bg-emerald-400/10" : "border-rose-400/20 bg-rose-400/10"}`}>
-                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Growth</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">النمو</div>
                       <div className={`mt-0.5 text-lg font-black ${salesGrowthPercent >= 0 ? "text-emerald-300" : "text-rose-300"}`}>{mobileSalesSummary.growth}</div>
                     </div>
                   </div>
@@ -2520,16 +2520,16 @@ export default function ManagerPortal() {
                     <EmptyState title="لا توجد بيانات بائع" body="ستظهر مبيعات البائعين بعد ربط الفواتير بالموظفين." />
                   )}
                 </Card>
-                <Card title="Worst seller" subtitle="30-day laggard" icon={Medal}>
+                <Card title="أقل بائع أداءً" subtitle="آخر 30 يومًا" icon={Medal}>
                   {salesLeaders.worst_seller ? (
                     <div className="space-y-2 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-slate-900 shadow-sm">
                       <div className="flex items-center gap-2">
                         <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-                        <div className="text-lg font-black"><InlineName>{portalText(salesLeaders.worst_seller.seller_name || "Unknown seller")}</InlineName></div>
+                        <div className="text-lg font-black"><InlineName>{portalText(salesLeaders.worst_seller.seller_name || "بائع غير معروف")}</InlineName></div>
                       </div>
                       <div className="grid gap-2 text-sm font-semibold sm:grid-cols-2">
-                        <div>Revenue: {formatCurrency(salesLeaders.worst_seller.revenue || 0)}</div>
-                        <div>Orders: {formatNumber(salesLeaders.worst_seller.orders_count || 0)}</div>
+                        <div>الإيراد: {formatCurrency(salesLeaders.worst_seller.revenue || 0)}</div>
+                        <div>الطلبات: {formatNumber(salesLeaders.worst_seller.orders_count || 0)}</div>
                       </div>
                     </div>
                   ) : (
@@ -2548,7 +2548,7 @@ export default function ManagerPortal() {
                       </div>
                       <div className="grid gap-2 text-sm font-semibold sm:grid-cols-2">
                         <div>الإيراد: {formatCurrency(bestCategory.revenue || 0)}</div>
-                        <div>Units: {formatNumber(bestCategory.quantity || 0)}</div>
+                        <div>الكمية: {formatNumber(bestCategory.quantity || 0)}</div>
                       </div>
                     </div>
                   ) : (
@@ -2564,7 +2564,7 @@ export default function ManagerPortal() {
                       </div>
                       <div className="grid gap-2 text-sm font-semibold sm:grid-cols-2">
                         <div>الإيراد: {formatCurrency(bestBrand.revenue || 0)}</div>
-                        <div>Units: {formatNumber(bestBrand.quantity || 0)}</div>
+                        <div>الكمية: {formatNumber(bestBrand.quantity || 0)}</div>
                       </div>
                     </div>
                   ) : (
@@ -2574,7 +2574,7 @@ export default function ManagerPortal() {
               </div>
 
               <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-                <Card title="Yesterday vs today" subtitle="Day comparison" icon={ArrowUpRight}>
+                <Card title="أمس مقابل اليوم" subtitle="مقارنة يومية" icon={ArrowUpRight}>
                   <div className="grid gap-3 sm:grid-cols-3">
                     {[
                       {
@@ -2590,7 +2590,7 @@ export default function ManagerPortal() {
                         delta: salesComparison.orders_growth || 0,
                       },
                       {
-                        label: "Avg invoice",
+                        label: "متوسط الفاتورة",
                         today: formatCurrency(salesComparison.today_average_invoice || sales?.overview?.today?.averageOrderValue || 0),
                         yesterday: formatCurrency(salesComparison.yesterday_average_invoice || 0),
                         delta: salesComparison.average_invoice_growth || 0,
@@ -2836,12 +2836,12 @@ export default function ManagerPortal() {
                     <div>{formatNumber(me?.permissions?.length || 0)} صلاحية</div>
                   </div>
                 </Card>
-                <Card title="بيانات الفرع" subtitle="Branch info" icon={Store} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""}>
-                  <div className="space-y-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
+              <Card title="بيانات الفرع" subtitle="معلومات الفرع" icon={Store} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""}>
+                <div className="space-y-2 text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
                     <div className="font-black text-slate-950 dark:text-white">{portalText(me?.branch_name || "All branches")}</div>
-                    <div>Scope: {portalText(me?.branch_scope || "all")}</div>
-                    <div>Live alerts: {formatNumber(notifications.length || 0)}</div>
-                    <div>Unread: {formatNumber(unreadCount || notificationsUnread)}</div>
+                    <div>النطاق: {portalText(me?.branch_scope || "all")}</div>
+                    <div>التنبيهات الحية: {formatNumber(notifications.length || 0)}</div>
+                    <div>غير المقروء: {formatNumber(unreadCount || notificationsUnread)}</div>
                   </div>
                 </Card>
                 <Card title="روابط سريعة" subtitle="روابط سريعة" icon={ChevronRight} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""}>
@@ -2851,7 +2851,7 @@ export default function ManagerPortal() {
                       ["الفريق", "staff"],
                       ["المهام", "tasks"],
                       ["المبيعات", "sales"],
-                      ["Chat", "chat"],
+                      ["المحادثة", "chat"],
                     ].map(([label, tab]) => (
                       <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`inline-flex items-center justify-between rounded-2xl border border-slate-200 bg-white text-right font-black text-slate-800 transition hover:border-slate-300 hover:bg-slate-100 ${isMobilePortal ? "px-3 py-2.5 text-[13px]" : "px-3 py-3 text-sm"}`}>
                         <span>{label}</span>
@@ -2882,14 +2882,14 @@ export default function ManagerPortal() {
                         <StatusPill tone="slate" value={portalText(category)} />
                       </div>
                       <Toggle label="صوت" checked={Boolean(config.sound)} onChange={(value) => onCategoryToggle(category, "sound", value)} />
-                      <Toggle label="Toast" checked={Boolean(config.toast)} onChange={(value) => onCategoryToggle(category, "toast", value)} />
-                      <Toggle label="Push" checked={Boolean(config.push)} onChange={(value) => onCategoryToggle(category, "push", value)} />
+                      <Toggle label="إشعار منبثق" checked={Boolean(config.toast)} onChange={(value) => onCategoryToggle(category, "toast", value)} />
+                      <Toggle label="إشعارات فورية" checked={Boolean(config.push)} onChange={(value) => onCategoryToggle(category, "push", value)} />
                     </div>
                   ))}
                 </div>
               </Card>
 
-              <Card title="الصوت والإشعارات" subtitle="Browser control" icon={Volume2}>
+              <Card title="الصوت والإشعارات" subtitle="التحكم من المتصفح" icon={Volume2}>
                 <div className="grid gap-2 md:grid-cols-2">
                   <button type="button" data-testid="sound-unlock-button" data-state={soundUnlocked ? "enabled" : "disabled"} onClick={enableSound} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white dark:bg-white dark:text-slate-950">
                     {soundUnlocked ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
@@ -2902,20 +2902,20 @@ export default function ManagerPortal() {
                 </div>
               </Card>
 
-              <Card title="إشعارات Push" subtitle="Real mobile web push" icon={Smartphone}>
+              <Card title="إشعارات الويب الفورية" subtitle="إشعارات ويب حقيقية على الهاتف" icon={Smartphone}>
                 <div className="space-y-3">
                   <div className="grid gap-2 sm:grid-cols-2">
                     <Badge className={`${pushState.supported ? "border-emerald-200 text-emerald-700" : "border-rose-200 text-rose-700"} dark:border-white/10 dark:bg-white/[0.03] dark:text-white`}>
-                      {pushState.supported ? "Supported" : "Not supported"}
+                      {pushState.supported ? "مدعومة" : "غير مدعومة"}
                     </Badge>
                     <Badge className="border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200">
-                      Permission: {portalText(pushState.permission)}
+                      الإذن: {portalText(pushState.permission)}
                     </Badge>
                     <Badge className={`${pushState.subscribed ? "border-emerald-200 text-emerald-700" : "border-slate-200 text-slate-700"} dark:border-white/10 dark:bg-white/[0.03] dark:text-white`}>
-                      Subscription: {pushState.subscribed ? "active" : "inactive"}
+                      الاشتراك: {pushState.subscribed ? "نشط" : "غير نشط"}
                     </Badge>
                     <Badge className={`${standalone ? "border-sky-200 text-sky-700" : "border-amber-200 text-amber-800"} dark:border-white/10 dark:bg-white/[0.03] dark:text-white`}>
-                      {standalone ? "Installed PWA" : "Browser tab"}
+                      {standalone ? "مثبتة كتطبيق" : "علامة المتصفح"}
                     </Badge>
                   </div>
                   {pushState.endpointHost ? (
@@ -2923,23 +2923,23 @@ export default function ManagerPortal() {
                   ) : null}
                   {isIosDevice() && !standalone ? (
                     <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold leading-6 text-slate-700 shadow-sm">
-                      على iPhone يجب فتح بوابة المدير من التطبيق المثبت بعد Add to Home Screen لتفعيل Push Notifications.
+                      على iPhone يجب فتح بوابة المدير من التطبيق المثبت بعد إضافة الشاشة الرئيسية لتفعيل إشعارات الويب الفورية.
                     </div>
                   ) : null}
                   {pushState.message ? <div className="text-xs font-bold text-slate-500 dark:text-slate-300">{pushState.message}</div> : null}
                   <div className="grid gap-2 sm:grid-cols-2">
                   <button type="button" disabled={pushState.saving || !pushState.supported || pushState.permission === "denied"} onClick={enablePushNotifications} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-white dark:text-slate-950">
                       {pushState.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
-                      {pushState.subscribed ? "تحديث Push Notifications" : "Enable Push Notifications"}
+                      {pushState.subscribed ? "تحديث إشعارات الويب الفورية" : "تفعيل إشعارات الويب الفورية"}
                     </button>
                     <button type="button" disabled={pushState.saving || !pushState.subscribed} onClick={disablePushNotifications} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                       <X className="h-4 w-4" />
-                      إيقاف Push
+                      إيقاف الإشعارات
                     </button>
                   </div>
                   <button type="button" disabled={pushState.saving || !pushState.supported || pushState.permission === "denied"} onClick={sendTestPushNotification} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 disabled:opacity-45 dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
                     <Send className="h-4 w-4" />
-                    Send Test Notification
+                    إرسال إشعار تجريبي
                   </button>
                 </div>
               </Card>

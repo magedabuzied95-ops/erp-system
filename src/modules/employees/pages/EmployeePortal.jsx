@@ -98,7 +98,7 @@ function InstallBanner({ ios, onInstall, onDismiss, canInstall }) {
         <p className="mt-2 text-sm font-semibold leading-6 text-slate-300">ط§ظپطھط­ ط§ظ„طھط§ط³ظƒط§طھ ط¨ط³ط±ط¹ط© ظˆط§ط³طھظ‚ط¨ظ„ ط§ظ„طھظ†ط¨ظٹظ‡ط§طھ ط£ط«ظ†ط§ط، ط§ظ„ط´ظٹظپطھ.</p>
         {ios && !canInstall ? (
           <p className="mt-3 rounded-2xl bg-white/10 px-3 py-2 text-sm font-bold leading-6 text-slate-100">
-            ط¹ظ„ظ‰ iPhone: ط§ط¶ط؛ط· ظ…ط´ط§ط±ظƒط© ط«ظ… Add to Home Screen
+            على iPhone: اضغط "مشاركة" ثم "إضافة إلى الشاشة الرئيسية"
           </p>
         ) : null}
         <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">

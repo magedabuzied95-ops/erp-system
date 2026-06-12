@@ -14,6 +14,13 @@ const PREMIUM_RETAIL_BARCODE_HEIGHT = 288;
 const PREMIUM_RETAIL_GRID_ROWS = "33mm 12mm 11mm 11mm 20.8mm 7mm";
 
 const safeWindow = () => (typeof window !== "undefined" ? window : null);
+const escapeHtml = (value = "") =>
+  String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
 function resolveAssetUrl(url) {
   return resolveProductImageUrl(url);
@@ -424,6 +431,9 @@ export const buildBarcodePrintHtml = ({
   template = LABEL_TEMPLATE_STANDARD,
   printSettings = {},
   copy = {},
+  previewTitle = "Print Barcode",
+  previewBackUrl = "",
+  showPreviewChrome = false,
 } = {}) => {
   const printCopy = {
     title: "",
@@ -662,6 +672,53 @@ export const buildBarcodePrintHtml = ({
             background: #0f172a;
             color: #0f172a;
             font-family: Arial, Helvetica, sans-serif;
+          }
+          .preview-shell {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: #0f172a;
+          }
+          .preview-toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: calc(env(safe-area-inset-top) + 12px) 12px 12px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+            background: rgba(15, 23, 42, 0.96);
+            color: #f8fafc;
+            backdrop-filter: blur(18px);
+          }
+          .preview-toolbar-title {
+            min-width: 0;
+            flex: 1;
+            text-align: center;
+            font-size: 15px;
+            font-weight: 900;
+            letter-spacing: 0.02em;
+          }
+          .preview-toolbar-button {
+            display: inline-flex;
+            min-height: 42px;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border: 1px solid rgba(148, 163, 184, 0.24);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #f8fafc;
+            padding: 0 14px;
+            font-size: 13px;
+            font-weight: 900;
+            white-space: nowrap;
+          }
+          .preview-toolbar-button.primary {
+            background: linear-gradient(180deg, #16a34a, #15803d);
+            border-color: rgba(22, 163, 74, 0.35);
           }
           .page {
             padding: 16px;
@@ -1088,6 +1145,14 @@ export const buildBarcodePrintHtml = ({
           }
           @media print {
             body { background: #ffffff; }
+            .preview-toolbar {
+              display: none !important;
+            }
+            .preview-shell {
+              min-height: 0;
+              display: block;
+              background: #ffffff;
+            }
             .page {
               padding: 0;
               margin: 0;
@@ -1170,15 +1235,86 @@ export const buildBarcodePrintHtml = ({
               if (document.readyState === 'complete') {
                 run();
               } else {
-                window.addEventListener('load', run, { once: true });
+              window.addEventListener('load', run, { once: true });
               }
+            }());
+          </script>
+        ` : ""}
+        ${showPreviewChrome ? `
+          <script>
+            (function () {
+              const previewBackUrl = ${JSON.stringify(String(previewBackUrl || "").trim())};
+              const closePreview = () => {
+                try {
+                  if (window.opener && !window.opener.closed) {
+                    window.close();
+                    return;
+                  }
+                } catch (error) {
+                  // Ignore cross-window access issues.
+                }
+                try {
+                  if (window.history.length > 1) {
+                    window.history.back();
+                    return;
+                  }
+                } catch (error) {
+                  // Ignore history access issues.
+                }
+                if (previewBackUrl) {
+                  window.location.href = previewBackUrl;
+                } else {
+                  window.close();
+                }
+              };
+
+              const triggerPrint = () => {
+                window.focus();
+                window.print();
+              };
+
+              document.addEventListener("click", (event) => {
+                const button = event.target && typeof event.target.closest === "function"
+                  ? event.target.closest("[data-preview-action]")
+                  : null;
+                if (!button) return;
+                const action = button.getAttribute("data-preview-action");
+                if (action === "close") {
+                  event.preventDefault();
+                  closePreview();
+                }
+                if (action === "print") {
+                  event.preventDefault();
+                  triggerPrint();
+                }
+              });
+
+              window.addEventListener("keydown", (event) => {
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  closePreview();
+                }
+                if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                  event.preventDefault();
+                  triggerPrint();
+                }
+              });
             }());
           </script>
         ` : ""}
       </head>
       <body>
-        <div class="page">
-          ${pageMarkup}
+        <div class="preview-shell">
+          ${showPreviewChrome ? `
+            <div class="preview-toolbar" role="banner" aria-label="${escapeHtml(previewTitle)}">
+              <button type="button" class="preview-toolbar-button" data-preview-action="close">Back / Close</button>
+              <div class="preview-toolbar-title">${escapeHtml(previewTitle)}</div>
+              <button type="button" class="preview-toolbar-button primary" data-preview-action="print">Print</button>
+            </div>
+          ` : ""}
+          <div class="page">
+            ${pageMarkup}
+          </div>
         </div>
       </body>
     </html>
@@ -1193,6 +1329,9 @@ export const openBarcodePrintWindow = ({
   companyName = APP_NAME,
   companyLogo = "LOGO",
   copy = {},
+  previewTitle = "Print Barcode",
+  previewBackUrl = "",
+  showPreviewChrome = false,
 } = {}) => {
   const win = safeWindow();
   if (!win) return false;
@@ -1208,6 +1347,9 @@ export const openBarcodePrintWindow = ({
     companyName,
     companyLogo,
     copy,
+    previewTitle,
+    previewBackUrl,
+    showPreviewChrome,
   });
   console.info("[barcode-print:selected-template]", template);
   console.info("[barcode-print:labels-count]", Array.isArray(labels) ? labels.length : 0);

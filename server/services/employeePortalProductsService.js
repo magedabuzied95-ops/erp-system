@@ -106,10 +106,15 @@ const normalizeProduct = (row = {}, variants = []) => {
 const buildLookupSelection = (products = [], query = {}) => {
   const directProductId = toPositiveInt(query.productId ?? query.product_id);
   const barcode = clean(query.barcode);
+  const sku = clean(query.sku);
   const article = clean(query.article ?? query.article_code ?? query.articleCode);
-  if (!directProductId && !barcode && !article) return null;
+  if (!directProductId && !barcode && !sku && !article) return null;
 
   for (const product of products) {
+    const productBarcode = clean(product.barcode);
+    const productSku = clean(product.sku);
+    const productArticle = clean(product.product_code || product.article_code);
+
     if (directProductId && Number(product.id) === directProductId) {
       return {
         product_id: product.id,
@@ -119,28 +124,17 @@ const buildLookupSelection = (products = [], query = {}) => {
       };
     }
 
-    if (barcode && (clean(product.barcode) === barcode || clean(product.product_code || product.article_code) === barcode)) {
-      return {
-        product_id: product.id,
-        variant_id: null,
-        color: "",
-        size: "",
-      };
-    }
-
-    if (article && (clean(product.product_code || product.article_code) === article || clean(product.article_code) === article)) {
-      return {
-        product_id: product.id,
-        variant_id: null,
-        color: "",
-        size: "",
-      };
-    }
-
     const matchedVariant = (Array.isArray(product.variants) ? product.variants : []).find(
-      (variant) =>
-        (barcode && (clean(variant.barcode) === barcode || clean(variant.article_code) === barcode)) ||
-        (article && clean(variant.article_code) === article)
+      (variant) => {
+        const variantBarcode = clean(variant.barcode);
+        const variantSku = clean(variant.sku);
+        const variantArticle = clean(variant.article_code);
+        return (
+          (barcode && (variantBarcode === barcode || variantSku === barcode || variantArticle === barcode)) ||
+          (sku && (variantSku === sku || variantBarcode === sku || variantArticle === sku)) ||
+          (article && variantArticle === article)
+        );
+      }
     );
 
     if (matchedVariant) {
@@ -149,6 +143,19 @@ const buildLookupSelection = (products = [], query = {}) => {
         variant_id: matchedVariant.variant_id ?? matchedVariant.id ?? null,
         color: clean(matchedVariant.color || ""),
         size: clean(matchedVariant.size || ""),
+      };
+    }
+
+    if (
+      (barcode && (productBarcode === barcode || productSku === barcode || productArticle === barcode)) ||
+      (sku && (productSku === sku || productBarcode === sku || productArticle === sku)) ||
+      (article && productArticle === article)
+    ) {
+      return {
+        product_id: product.id,
+        variant_id: null,
+        color: "",
+        size: "",
       };
     }
   }
@@ -419,14 +426,17 @@ const buildPosCatalogQuery = (query = {}) => {
     query.search,
     query.q,
     query.barcode,
+    query.sku,
     query.article,
     query.article_code,
     query.articleCode
   );
   const productId = toPositiveInt(query.productId ?? query.product_id);
+  const sku = clean(query.sku);
   return {
     ...(directSearch ? { search: directSearch } : {}),
     ...(productId ? { productId } : {}),
+    ...(sku ? { sku } : {}),
   };
 };
 
