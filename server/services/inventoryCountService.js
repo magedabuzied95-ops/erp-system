@@ -237,8 +237,10 @@ const buildInventoryCountLookupSelects = async (client, { variantAlias = "v", pr
   ]);
 
   return {
-    productCodeExpr: firstAvailableColumnExpr(productAlias, productColumns, ["code"], "''"),
-    variantCodeExpr: firstAvailableColumnExpr(variantAlias, variantColumns, ["code"], "''"),
+    productCodeExpr: firstAvailableColumnExpr(productAlias, productColumns, ["product_code", "code"], "''"),
+    variantCodeExpr: firstAvailableColumnExpr(variantAlias, variantColumns, ["product_code", "code"], "''"),
+    productBarcodeLabelExpr: firstAvailableColumnExpr(productAlias, productColumns, ["barcode_label"], "''"),
+    variantBarcodeLabelExpr: firstAvailableColumnExpr(variantAlias, variantColumns, ["barcode_label"], "''"),
   };
 };
 
@@ -1192,10 +1194,10 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
 
   const executeSearch = async (searchText) => {
     const like = `%${searchText}%`;
-    const exactVariantParts = buildExactMatchParts("v", variantColumns, ["barcode", "sku", "article_code", "code"], "$2");
-    const exactProductParts = buildExactMatchParts("p", productColumns, ["barcode", "sku", "code"], "$2");
-    const likeVariantParts = buildLikeMatchParts("v", variantColumns, ["barcode", "sku", "article_code", "code"], "$3");
-    const likeProductParts = buildLikeMatchParts("p", productColumns, ["barcode", "sku", "code"], "$3");
+    const exactVariantParts = buildExactMatchParts("v", variantColumns, ["barcode", "sku", "article_code", "product_code", "code", "barcode_label"], "$2");
+    const exactProductParts = buildExactMatchParts("p", productColumns, ["barcode", "sku", "product_code", "code", "barcode_label"], "$2");
+    const likeVariantParts = buildLikeMatchParts("v", variantColumns, ["barcode", "sku", "article_code", "product_code", "code", "barcode_label"], "$3");
+    const likeProductParts = buildLikeMatchParts("p", productColumns, ["barcode", "sku", "product_code", "code", "barcode_label"], "$3");
     const exactMatchParts = [...exactVariantParts, ...exactProductParts];
     const likeMatchParts = [...likeVariantParts, ...likeProductParts];
     const result = await dbClient.query(
@@ -1207,11 +1209,13 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
         p.sku AS product_sku,
         p.barcode AS product_barcode,
         ${lookupSelects.productCodeExpr} AS product_code,
+        ${lookupSelects.productBarcodeLabelExpr} AS product_barcode_label,
         v.color,
         v.size,
         v.sku,
         v.barcode,
         ${lookupSelects.variantCodeExpr} AS variant_code,
+        ${lookupSelects.variantBarcodeLabelExpr} AS variant_barcode_label,
         v.article_code,
         COALESCE(v.stock, 0)::int AS stock,
         ${imageSelects.productImageExpr} AS product_image,
@@ -1254,6 +1258,8 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
       row.product_barcode,
       row.product_sku,
       row.product_code,
+      row.product_barcode_label,
+      row.variant_barcode_label,
     ].some((value) => normalizeText(value).toLowerCase() === normalizedSearch));
   };
 
@@ -1264,10 +1270,14 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
         [exactRow.barcode, "variant.barcode"],
         [exactRow.sku, "variant.sku"],
         [exactRow.article_code, "variant.article_code"],
+        [exactRow.variant_code, "variant.product_code"],
         [exactRow.variant_code, "variant.code"],
+        [exactRow.variant_barcode_label, "variant.barcode_label"],
         [exactRow.product_barcode, "product.barcode"],
         [exactRow.product_sku, "product.sku"],
+        [exactRow.product_code, "product.product_code"],
         [exactRow.product_code, "product.code"],
+        [exactRow.product_barcode_label, "product.barcode_label"],
       ].find(([value]) => normalizeText(value).toLowerCase() === normalizeText(queryText).toLowerCase())?.[1] || "unknown"
     : "";
 

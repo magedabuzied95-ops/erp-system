@@ -608,6 +608,8 @@ function BarcodeLabels() {
         productName: item.productName,
         color: item.color,
         size: item.size,
+        barcode: item.barcode,
+        barcodeSource: item.barcodeSource || "",
         variantImage: item.sourceVariantImage,
         productImage: item.sourceProductImage,
         resolvedImage: item.imageUrl || item.resolvedImage,

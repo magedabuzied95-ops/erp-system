@@ -186,8 +186,32 @@ export const getLabelIdentity = (product, variant = null) => {
   return `${product?.id ?? "product"}:${variantId}`;
 };
 
-export const getLabelDisplayBarcode = (product, variant = null) =>
-  variant?.barcode || variant?.variant_barcode || product?.barcode || product?.sku || `SKU-${product?.id ?? "0000"}`;
+export const resolveLabelDisplayBarcode = (product, variant = null) => {
+  const candidates = [
+    ["variant.barcode_label", variant?.barcode_label],
+    ["variant.product_code", variant?.product_code],
+    ["variant.code", variant?.code],
+    ["variant.barcode", variant?.barcode],
+    ["variant.variant_barcode", variant?.variant_barcode],
+    ["product.barcode_label", product?.barcode_label],
+    ["product.product_code", product?.product_code],
+    ["product.code", product?.code],
+    ["product.barcode", product?.barcode],
+    ["product.sku", product?.sku],
+  ];
+
+  for (const [source, value] of candidates) {
+    const text = String(value || "").trim();
+    if (text) return { value: text, source };
+  }
+
+  return {
+    value: `SKU-${product?.id ?? "0000"}`,
+    source: "fallback",
+  };
+};
+
+export const getLabelDisplayBarcode = (product, variant = null) => resolveLabelDisplayBarcode(product, variant).value;
 
 export const getLabelPriceInfo = (product, variant = null) =>
   variant ? resolveLabelPrice(variant, product) : resolveLabelPrice(product);
@@ -222,7 +246,8 @@ export const buildSmartProductQrUrl = ({ productId, variantId = null, colorId = 
 };
 
 export const buildLabelItem = (product, variant = null, quantity = 1) => {
-  const displayBarcode = getLabelDisplayBarcode(product, variant);
+  const displayBarcodeInfo = resolveLabelDisplayBarcode(product, variant);
+  const displayBarcode = displayBarcodeInfo.value;
   const sourceVariantImage = firstText(variant?.variant_image_url, variant?.color_image_url, variant?.image_url, variant?.image);
   const sourceProductImage = firstText(product?.product_image_url, product?.image_url, product?.image, product?.photo_url, product?.thumbnail_url);
   const resolvedImage = getLabelImageUrl(product, variant);
@@ -236,6 +261,12 @@ export const buildLabelItem = (product, variant = null, quantity = 1) => {
     sourceVariantImage,
     sourceProductImage,
     resolvedImage,
+  });
+  console.info("[barcode-labels] label barcode source", {
+    productId: product?.id ?? product?.product_id,
+    variantId: variant?.variant_id ?? variant?.id,
+    displayBarcode,
+    source: displayBarcodeInfo.source,
   });
   const priceInfo = getLabelPriceInfo(product, variant);
   return {
@@ -252,6 +283,7 @@ export const buildLabelItem = (product, variant = null, quantity = 1) => {
     sku: getLabelSku(product, variant),
     barcode: displayBarcode,
     barcodeValue: normalizeBarcode(displayBarcode, `${product?.id ?? ""}${variant?.variant_id ?? variant?.id ?? ""}`),
+    barcodeSource: displayBarcodeInfo.source,
     salePrice: priceInfo.price,
     effectivePrice: priceInfo.price,
     displayPrice: priceInfo.price,

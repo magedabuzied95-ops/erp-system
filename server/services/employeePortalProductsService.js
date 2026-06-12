@@ -105,17 +105,28 @@ const normalizeProduct = (row = {}, variants = []) => {
 
 const buildLookupSelection = (products = [], query = {}) => {
   const directProductId = toPositiveInt(query.productId ?? query.product_id);
+  const search = clean(query.search ?? query.q ?? "");
   const qrToken = clean(query.qr_token ?? query.qrToken ?? query.qr ?? "");
   const barcode = clean(query.barcode);
   const sku = clean(query.sku);
   const article = clean(query.article ?? query.article_code ?? query.articleCode);
-  if (!directProductId && !qrToken && !barcode && !sku && !article) return null;
+  if (!directProductId && !search && !qrToken && !barcode && !sku && !article) return null;
+
+  const resolveMatchedField = (fields = [], expected = "") => {
+    const needle = clean(expected);
+    if (!needle) return "";
+    for (const [fieldName, value] of fields) {
+      if (clean(value) === needle) return fieldName;
+    }
+    return "";
+  };
 
   for (const product of products) {
     const productQrToken = clean(product.qr_token);
     const productBarcode = clean(product.barcode);
     const productSku = clean(product.sku);
     const productArticle = clean(product.product_code || product.article_code);
+    const productCode = clean(product.code || product.product_code || "");
 
     if (directProductId && Number(product.id) === directProductId) {
       return {
@@ -132,16 +143,34 @@ const buildLookupSelection = (products = [], query = {}) => {
         const variantBarcode = clean(variant.barcode);
         const variantSku = clean(variant.sku);
         const variantArticle = clean(variant.article_code);
+        const variantCode = clean(variant.code || variant.product_code || "");
         return (
-          (qrToken && (variantQrToken === qrToken || variantBarcode === qrToken || variantSku === qrToken || variantArticle === qrToken)) ||
-          (barcode && (variantBarcode === barcode || variantSku === barcode || variantArticle === barcode)) ||
-          (sku && (variantSku === sku || variantBarcode === sku || variantArticle === sku)) ||
+          (search && (variantQrToken === search || variantBarcode === search || variantSku === search || variantArticle === search || variantCode === search)) ||
+          (qrToken && (variantQrToken === qrToken || variantBarcode === qrToken || variantSku === qrToken || variantArticle === qrToken || variantCode === qrToken)) ||
+          (barcode && (variantBarcode === barcode || variantSku === barcode || variantArticle === barcode || variantCode === barcode)) ||
+          (sku && (variantSku === sku || variantBarcode === sku || variantArticle === sku || variantCode === sku)) ||
           (article && variantArticle === article)
         );
       }
     );
 
     if (matchedVariant) {
+      const matchedField = resolveMatchedField(
+        [
+          ["variant.qr_token", matchedVariant.qr_token],
+          ["variant.barcode", matchedVariant.barcode],
+          ["variant.sku", matchedVariant.sku],
+          ["variant.article_code", matchedVariant.article_code],
+          ["variant.product_code", matchedVariant.product_code || matchedVariant.code],
+        ],
+        search || qrToken || barcode || sku || article
+      );
+      console.info("[employee-portal-products:lookup-match]", {
+        productId: product.id,
+        variantId: matchedVariant.variant_id ?? matchedVariant.id ?? null,
+        matchedBy: matchedField || "variant",
+        matchedValue: search || qrToken || barcode || sku || article || "",
+      });
       return {
         product_id: product.id,
         variant_id: matchedVariant.variant_id ?? matchedVariant.id ?? null,
@@ -151,11 +180,28 @@ const buildLookupSelection = (products = [], query = {}) => {
     }
 
     if (
-      (qrToken && (productQrToken === qrToken || productBarcode === qrToken || productSku === qrToken || productArticle === qrToken)) ||
-      (barcode && (productBarcode === barcode || productSku === barcode || productArticle === barcode)) ||
-      (sku && (productSku === sku || productBarcode === sku || productArticle === sku)) ||
+      (search && (productQrToken === search || productBarcode === search || productSku === search || productArticle === search || productCode === search)) ||
+      (qrToken && (productQrToken === qrToken || productBarcode === qrToken || productSku === qrToken || productArticle === qrToken || productCode === qrToken)) ||
+      (barcode && (productBarcode === barcode || productSku === barcode || productArticle === barcode || productCode === barcode)) ||
+      (sku && (productSku === sku || productBarcode === sku || productArticle === sku || productCode === sku)) ||
       (article && productArticle === article)
     ) {
+      const matchedField = resolveMatchedField(
+        [
+          ["product.qr_token", product.qr_token],
+          ["product.barcode", product.barcode],
+          ["product.sku", product.sku],
+          ["product.product_code", product.product_code],
+          ["product.code", product.code],
+        ],
+        search || qrToken || barcode || sku || article
+      );
+      console.info("[employee-portal-products:lookup-match]", {
+        productId: product.id,
+        variantId: null,
+        matchedBy: matchedField || "product",
+        matchedValue: search || qrToken || barcode || sku || article || "",
+      });
       return {
         product_id: product.id,
         variant_id: null,
