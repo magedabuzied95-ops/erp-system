@@ -79,6 +79,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
           source VARCHAR(80) NOT NULL DEFAULT 'admin_console',
           status VARCHAR(40) NOT NULL DEFAULT 'ai_active',
           channel TEXT NOT NULL DEFAULT 'web_chat',
+          ai_enabled BOOLEAN NOT NULL DEFAULT TRUE,
           customer_name TEXT NOT NULL DEFAULT '',
           last_message TEXT NOT NULL DEFAULT '',
           assigned_user_id BIGINT NULL,
@@ -140,6 +141,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
 
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS status VARCHAR(40) NOT NULL DEFAULT 'ai_active'`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'web_chat'`);
+      await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT TRUE`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS assigned_user_id BIGINT NULL`);
@@ -198,6 +200,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS resolution_status TEXT DEFAULT 'open'`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS ai_response_time_ms INTEGER`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'web_chat'`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT TRUE`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`UPDATE ai_support_messages SET message_text = customer_message WHERE COALESCE(message_text, '') = ''`);
@@ -282,6 +285,43 @@ export const getAiSupportConversationState = async ({ tenantId, sessionId } = {}
     LIMIT 1
     `,
     [safeTenantId, safeSessionId]
+  );
+  return result.rows[0] || null;
+};
+
+export const updateAiSupportConversationAiEnabled = async ({
+  tenantId,
+  sessionId,
+  aiEnabled = true,
+  actorUserId = null,
+  source = "admin_console",
+} = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeSessionId = toText(sessionId);
+  const safeEnabled = aiEnabled !== false;
+  if (!safeTenantId || !safeSessionId) {
+    throw Object.assign(new Error("tenant_id and conversation id are required"), { status: 400 });
+  }
+  await ensureAiSupportLogSchema();
+  const result = await db.query(
+    `
+    INSERT INTO ai_support_sessions (
+      tenant_id,
+      user_id,
+      session_id,
+      source,
+      ai_enabled,
+      updated_at
+    )
+    VALUES ($1::bigint, $2::bigint, $3::text, $4::text, $5::boolean, NOW())
+    ON CONFLICT (tenant_id, session_id) DO UPDATE SET
+      user_id = COALESCE(EXCLUDED.user_id, ai_support_sessions.user_id),
+      source = COALESCE(NULLIF(EXCLUDED.source, ''), ai_support_sessions.source),
+      ai_enabled = EXCLUDED.ai_enabled,
+      updated_at = NOW()
+    RETURNING *
+    `,
+    [safeTenantId, numberOrNull(actorUserId), safeSessionId, toText(source, "admin_console"), safeEnabled]
   );
   return result.rows[0] || null;
 };

@@ -71,6 +71,7 @@ import {
   assignAiSupportConversation,
   getAiSupportConversationState,
   markAiSupportConversationEscalated,
+  updateAiSupportConversationAiEnabled,
   updateAiSupportConversationState,
 } from "../services/aiSupportLogService.js";
 import { loadAiReplyTraces } from "../services/aiReplyTraceService.js";
@@ -465,6 +466,17 @@ const shouldAutoReplyToConversation = async ({ tenantId, conversationId, channel
   const channelMode = envText(channelAISettings.aiMode || "suggest_only").toLowerCase();
   const effectiveAutoReplyMode = globalMode !== "fully_automatic" ? globalMode : channelMode || "suggest_only";
   const base = { tenant_id: tenantId, conversation_id: conversationId, channel, mode, global_mode: globalMode, channel_mode: channelMode, effective_mode: effectiveAutoReplyMode, status };
+  if (state?.ai_enabled === false) {
+    pushAIEvent({
+      type: "AI_AUTO_REPLY_SKIPPED",
+      status: "warning",
+      conversationId,
+      platform: channel,
+      reason: "CONVERSATION_AI_DISABLED",
+    });
+    console.log("ai_auto_reply_skipped_conversation_ai_disabled", base);
+    return { ok: false, reason: "CONVERSATION_AI_DISABLED", state, mode, channelSettings: channelAISettings };
+  }
   if (status === "human_takeover") {
     pushAIEvent({
       type: "HUMAN_TAKEOVER_ACTIVE",
@@ -890,6 +902,16 @@ router.post("/channels/whatsapp/webhook", async (req, res) => {
         results.push(escalated.result);
         continue;
       }
+      const preState = await getAiSupportConversationState({ tenantId, sessionId: message.external_conversation_id }).catch(() => null);
+      if (preState?.ai_enabled === false) {
+        results.push({
+          external_customer_id: message.external_customer_id,
+          conversation_id: message.external_conversation_id,
+          sent: false,
+          reason: "conversation_ai_disabled",
+        });
+        continue;
+      }
       let aiPayload = null;
       try {
         aiPayload = await routeChannelMessageThroughAi({ req, tenantId, message, channel: AI_AGENT_CHANNELS.WHATSAPP });
@@ -1125,6 +1147,16 @@ router.post("/channels/meta/webhook", async (req, res) => {
         continue;
       }
       const preState = await getAiSupportConversationState({ tenantId, sessionId: conversationId }).catch(() => null);
+      if (preState?.ai_enabled === false) {
+        results.push({
+          channel,
+          external_customer_id: message.external_customer_id,
+          conversation_id: message.external_conversation_id,
+          sent: false,
+          reason: "conversation_ai_disabled",
+        });
+        continue;
+      }
       if (preState?.status === "human_takeover") {
         pushAIEvent({
           type: "HUMAN_TAKEOVER_ACTIVE",
@@ -2630,6 +2662,35 @@ router.post("/conversations/:conversationId/reopen", protect, permit("settings",
   }
 });
 
+router.patch("/conversations/:conversationId/ai-enabled", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const conversationId = envText(req.params.conversationId);
+  try {
+    const aiEnabled = req.body?.ai_enabled !== false && req.body?.enabled !== false;
+    const conversation = await updateAiSupportConversationAiEnabled({
+      tenantId,
+      sessionId: conversationId,
+      aiEnabled,
+      actorUserId: req.user?.id || null,
+      source: "ai_inbox",
+    });
+    pushAIEvent({
+      type: aiEnabled ? "AI_CONVERSATION_ENABLED" : "AI_CONVERSATION_DISABLED",
+      status: "success",
+      conversationId,
+    });
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: conversationId,
+      reason: "ai_enabled_changed",
+      at: new Date().toISOString(),
+    });
+    return res.json({ success: true, conversation });
+  } catch (error) {
+    return sendError(res, error, "Failed to update conversation AI toggle");
+  }
+});
+
 router.post("/inbox/:conversationId/takeover", protect, permit("settings", "edit"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
@@ -2748,6 +2809,35 @@ router.post("/inbox/:conversationId/reopen", protect, permit("settings", "edit")
       message: error?.message || "Failed to reopen conversation",
     });
     return sendError(res, error, "Failed to reopen conversation");
+  }
+});
+
+router.patch("/inbox/:conversationId/ai-enabled", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const conversationId = envText(req.params.conversationId);
+  try {
+    const aiEnabled = req.body?.ai_enabled !== false && req.body?.enabled !== false;
+    const conversation = await updateAiSupportConversationAiEnabled({
+      tenantId,
+      sessionId: conversationId,
+      aiEnabled,
+      actorUserId: req.user?.id || null,
+      source: "ai_inbox",
+    });
+    pushAIEvent({
+      type: aiEnabled ? "AI_CONVERSATION_ENABLED" : "AI_CONVERSATION_DISABLED",
+      status: "success",
+      conversationId,
+    });
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: conversationId,
+      reason: "ai_enabled_changed",
+      at: new Date().toISOString(),
+    });
+    return res.json({ success: true, conversation });
+  } catch (error) {
+    return sendError(res, error, "Failed to update conversation AI toggle");
   }
 });
 

@@ -7,6 +7,7 @@ import {
   appendAiGeneratedSupportReply,
   appendManualAiSupportReply,
   getAiSupportConversationState,
+  ensureAiSupportLogSchema,
 } from "./aiSupportLogService.js";
 import { pushAIEvent } from "./aiEventLogger.js";
 import { resolveIntent } from "./aiIntentResolver.js";
@@ -1048,6 +1049,7 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
 export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search = "", messageLimit = 30 } = {}) => {
   await ensureAiSalesAgentSchema();
   await ensureAiConversationMemorySchema();
+  await ensureAiSupportLogSchema();
   const clauses = ["s.tenant_id = $1"];
   const params = [tenantId, Math.min(1000, Math.max(1, int(limit, 50)))];
   const inboxMessageLimit = Math.min(100, Math.max(1, int(messageLimit, 30)));
@@ -1103,6 +1105,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       s.session_id,
       s.source,
       s.channel AS session_channel,
+      s.ai_enabled,
       s.customer_name AS session_customer_name,
       s.customer_avatar_url AS session_customer_avatar_url,
       s.last_message AS session_last_message,

@@ -234,6 +234,7 @@ const channelBadgeLabel = (value = "") => {
   if (key.includes("web")) return "ويب";
   return "الكل";
 };
+const isConversationAiEnabled = (conversation = {}) => conversation?.ai_enabled !== false;
 const fixedChannelOrder = ["whatsapp", "messenger", "instagram", "web"];
 const normalizeConversationChannel = (conversation = {}) => {
   const raw = clean(conversation?.channel || conversation?.source || conversation?.provider || conversation?.platform || "");
@@ -653,7 +654,7 @@ function InboxChatHeader({
   const name = customerDisplayName(conversation) || "عميل";
   const phone = clean(conversation.phone || conversation.customer_phone || conversation.external_customer_id || conversation.customer_profile?.phone);
   const channel = conversation.channel || conversation.source || "web_chat";
-  const aiEnabled = channelStatus.ai_replies_enabled !== false && status !== "closed";
+  const aiEnabled = isConversationAiEnabled(conversation) && status !== "closed";
   const aiLabel = aiEnabled && status !== "human_takeover" ? "AI Active" : "AI Paused";
   return (
     <div className="rounded-3xl border border-white/10 bg-white/[0.05] p-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.18)] backdrop-blur">
@@ -990,7 +991,7 @@ function AiSuggestedRepliesPanel({ conversation, suggestions, intent, confidence
   const status = conversation.conversation_status || conversation.status || "ai_active";
   const disabled = loading || status === "closed";
   const hasChannelSetup = Object.keys(channelStatus || {}).length > 0;
-  const autoReplyEnabled = channelStatus.ai_replies_enabled === true;
+  const autoReplyEnabled = resolveChannelAutoReplyMode(channelStatus) !== "off";
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
       <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -1047,6 +1048,14 @@ const autoReplyModes = [
   { key: "auto_reply_after_approval", label: "Approval" },
   { key: "fully_automatic", label: "Automatic" },
 ];
+
+const resolveChannelAutoReplyMode = (channelStatus = {}) => {
+  const mode = text(channelStatus.auto_reply_mode || channelStatus.ai_mode || "").toLowerCase();
+  if (["off", "suggest_only", "auto_reply_after_approval", "fully_automatic"].includes(mode)) return mode;
+  return channelStatus.ai_replies_enabled === true ? "suggest_only" : "off";
+};
+
+const lastEnabledAutoReplyModeKey = (tenantId, channelKey) => `aiInbox:lastEnabledAutoReplyMode:${tenantId}:${channelKey}`;
 
 function AutoReplyModePanel({ channelStatus = {}, mode, onChange, saving }) {
   const channelReady = channelStatus.live_operational === true || channelStatus.effective_enabled === true || channelStatus.last_webhook_received_at || ["sent", "test_sent"].includes(channelStatus.last_send_status);
@@ -2132,6 +2141,7 @@ export default function AiInbox() {
   const isRefreshingRef = useRef(false);
   const selectedSessionIdRef = useRef("");
   const selectedConversationCacheRef = useRef(null);
+  const lastEnabledAutoReplyModeRef = useRef({});
 
   const headers = useMemo(() => ({ "x-tenant-id": tenantId }), [tenantId]);
 
@@ -2346,14 +2356,25 @@ export default function AiInbox() {
         !["token_expired", "expired", "invalid", "revoked", "error"].includes(clean(selectedChannelStatus.token_status || selectedChannelStatus.token_health_status).toLowerCase()))
   );
   const selectedMessagingActive = Boolean(selectedChannelStatus.live_operational || selectedChannelStatus.effective_enabled || selectedChannelStatus.messaging_active);
-  const selectedAIStatus = needsHumanAttention(selectedConversation)
-    ? { status: "HUMAN_MODE", label: "HUMAN MODE", color: "yellow" }
-    : selectedConversation?.conversation_status === "closed"
-      ? { status: "OFF", label: "AI OFF", color: "gray" }
-      : selectedChannelStatus.ai_replies_enabled && selectedTokenActive && selectedMessagingActive
-        ? { status: "LIVE", label: "AI LIVE", color: "green" }
-        : selectedChannelStatus.aiStatus || { status: "OFF", label: "AI OFF", color: "gray" };
   const canViewAiDebug = useMemo(() => canViewAiDebugPanel(getCurrentUser?.() || {}), []);
+
+  useEffect(() => {
+    const channelKey = text(selectedConversation?.channel || selectedConversation?.source);
+    const currentMode = resolveChannelAutoReplyMode(selectedChannelStatus);
+    if (channelKey && currentMode !== "off") {
+      lastEnabledAutoReplyModeRef.current[channelKey] = currentMode;
+      try {
+        window.sessionStorage.setItem(lastEnabledAutoReplyModeKey(tenantId, channelKey), currentMode);
+      } catch {
+        // Ignore storage failures; the in-memory fallback still works for this session.
+      }
+    }
+  }, [
+    selectedChannelStatus.ai_replies_enabled,
+    selectedChannelStatus.auto_reply_mode,
+    selectedConversation?.channel,
+    selectedConversation?.source,
+  ]);
 
   const loadAiDebug = useCallback(async () => {
     if (!selectedConversation?.session_id || !canViewAiDebug) return;
@@ -2868,9 +2889,33 @@ export default function AiInbox() {
   };
 
   const toggleAiEnabled = useCallback(() => {
-    const currentMode = selectedChannelStatus.auto_reply_mode || (selectedChannelStatus.ai_replies_enabled ? "fully_automatic" : "off");
-    void updateAutoReplyMode(currentMode === "off" ? "fully_automatic" : "off");
-  }, [selectedChannelStatus.ai_replies_enabled, selectedChannelStatus.auto_reply_mode, updateAutoReplyMode]);
+    if (!selectedConversation?.session_id) return;
+    const nextEnabled = !isConversationAiEnabled(selectedConversation);
+    void (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const payload = await api.patch(aiInboxConversationEndpoint(selectedConversation.session_id, "/ai-enabled"), {
+          tenant_id: tenantId,
+          conversation_id: selectedConversation.session_id,
+          external_id: selectedConversation.external_conversation_id || "",
+          ai_enabled: nextEnabled,
+          enabled: nextEnabled,
+        }, { headers, perfComponent: "AiInbox.toggleConversationAi" });
+        const returnedConversation = payload.conversation || {};
+        patchConversation(selectedConversation.session_id, (conversation) => ({
+          ...conversation,
+          ...returnedConversation,
+          ai_enabled: returnedConversation.ai_enabled !== undefined ? returnedConversation.ai_enabled : nextEnabled,
+        }));
+        setToast({ tone: "emerald", text: nextEnabled ? "تم تشغيل AI لهذه المحادثة" : "تم إيقاف AI لهذه المحادثة" });
+      } catch (err) {
+        setError(err?.message || "تعذر تحديث حالة الذكاء الاصطناعي للمحادثة");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [headers, patchConversation, selectedConversation?.ai_enabled, selectedConversation?.external_conversation_id, selectedConversation?.session_id, tenantId]);
 
   const quickSendProduct = (product) => {
     const textValue = `${product.name || product.title}\n${money(product.final_price || product.price)}\n${product.product_url || ""}`.trim();
@@ -3159,7 +3204,7 @@ export default function AiInbox() {
                   assignName={currentAssignName}
                   onAssignNameChange={updateAssignName}
                   onAction={updateConversationAction}
-                  mode={selectedChannelStatus.auto_reply_mode || (selectedChannelStatus.ai_replies_enabled ? "fully_automatic" : "off")}
+                  mode={resolveChannelAutoReplyMode(selectedChannelStatus)}
                   onModeChange={updateAutoReplyMode}
                   modeSaving={modeSaving}
                   recommendations={recommendations}
@@ -3455,7 +3500,7 @@ export default function AiInbox() {
                   <div className="mb-2 grid gap-3 xl:grid-cols-2">
                     <AutoReplyModePanel
                       channelStatus={selectedChannelStatus}
-                      mode={selectedChannelStatus.auto_reply_mode || (selectedChannelStatus.ai_replies_enabled ? "fully_automatic" : "off")}
+                      mode={resolveChannelAutoReplyMode(selectedChannelStatus)}
                       onChange={updateAutoReplyMode}
                       saving={modeSaving}
                     />

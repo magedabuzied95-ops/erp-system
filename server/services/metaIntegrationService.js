@@ -16745,15 +16745,21 @@ export const processMetaWebhook = async ({ req } = {}) => {
       return null;
     });
     const status = text(conversationState?.status || "ai_active").toLowerCase();
+    const conversationAiEnabled = conversationState?.ai_enabled !== false;
     console.log("[meta-inbox] auto_reply_state_checks", {
       tenant_id: config.tenant_id,
       session_id: message.external_conversation_id,
       channel: alias,
       status,
+      ai_enabled: conversationAiEnabled,
       human_takeover: status === "human_takeover",
       ai_paused: ["human_takeover", "closed"].includes(status),
       closed: status === "closed",
     });
+    if (!conversationAiEnabled) {
+      results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: "conversation_ai_disabled" });
+      continue;
+    }
     if (["human_takeover", "closed"].includes(status)) {
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: status });
       continue;
