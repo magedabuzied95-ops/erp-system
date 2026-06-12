@@ -280,22 +280,27 @@ const getConversationDisplayName = (conversation = {}) => {
   const source = conversation || {};
   const profile = source.customer_profile || {};
   if (isMessengerConversation(source)) {
+    const externalCustomerId = clean(source.external_customer_id || source.customer?.external_customer_id || profile.external_customer_id || source.phone);
+    const profileMatchesIdentity = Boolean(
+      externalCustomerId &&
+      clean(source.customer?.external_customer_id || profile.external_customer_id) === externalCustomerId
+    );
     return firstNonEmpty(
       source.customer_name,
-      source.customer?.name,
-      profile.name,
       source.sender_name,
       source.profile_name,
       source.contact_name,
-      profile.sender_name,
-      profile.profile_name,
-      profile.contact_name,
+      profileMatchesIdentity ? source.customer?.name : "",
+      profileMatchesIdentity ? profile.name : "",
+      profileMatchesIdentity ? profile.full_name : "",
+      profileMatchesIdentity ? profile.sender_name : "",
+      profileMatchesIdentity ? profile.profile_name : "",
+      profileMatchesIdentity ? profile.contact_name : "",
       source.external_sender_name,
       source.external_contact_name,
-      profile.external_sender_name,
-      profile.external_contact_name,
       source.phone,
-      source.external_customer_id
+      source.external_customer_id,
+      externalCustomerId
     );
   }
 
@@ -2387,25 +2392,6 @@ export default function AiInbox() {
     if (selectedConversation?.session_id) {
       selectedConversationCacheRef.current = selectedConversation;
     }
-  }, [selectedConversation]);
-  useEffect(() => {
-    if (!selectedConversation || !isMessengerConversation(selectedConversation)) return;
-    console.log("[AiInbox][messenger-selected-conversation]", {
-      channel: selectedConversation.channel || selectedConversation.source || "",
-      id: selectedConversation.id || selectedConversation.session_id || selectedConversation.external_conversation_id || "",
-      customer_name: selectedConversation.customer_name || "",
-      customer_profile_name: selectedConversation.customer_profile?.name || "",
-      sender_name: selectedConversation.sender_name || "",
-      profile_name: selectedConversation.profile_name || "",
-      contact_name: selectedConversation.contact_name || "",
-      external_sender_name: selectedConversation.external_sender_name || "",
-      external_contact_name: selectedConversation.external_contact_name || "",
-      external_customer_id: selectedConversation.external_customer_id || "",
-      latest_message_preview: selectedConversation.latest_message_preview || "",
-      latest_message: selectedConversation.last_message || "",
-      message_body: latestCustomerText(selectedConversation.messages) || selectedConversation.customer_message || "",
-      snippet: selectedConversation.ai_answer || selectedConversation.latest_message_preview || "",
-    });
   }, [selectedConversation]);
   const safeConversation = selectedConversation || {};
   const lastCustomerMessage = useMemo(
