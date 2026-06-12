@@ -1,7 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Camera, Filter, Loader2, Package2, Search, Store, X } from "lucide-react";
+import { ArrowRight, Camera, Filter, Loader2, Package2, Search, Store } from "lucide-react";
 import toast from "react-hot-toast";
 
 import BarcodeScanner, { barcodeScannerMessages } from "../../../components/BarcodeScanner";
@@ -456,7 +456,7 @@ function ProductCard({ product, active, onOpen }) {
         )}
       </div>
 
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <h3 className="truncate text-sm font-black text-white">{product.name || "Product"}</h3>
@@ -548,7 +548,8 @@ function ProductPickerSheet({
             onClick={onClose}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white"
           >
-            <X className="h-4 w-4" />
+            <ArrowRight className="h-4 w-4" />
+            <span>رجوع</span>
           </button>
         </div>
 
@@ -658,11 +659,22 @@ function EmployeePortalCameraScannerModal({
   onError,
   onDebugChange,
   scanDebug,
+  resolvingScan,
   manualBarcodeValue,
   onManualBarcodeChange,
   onManualBarcodeSubmit,
 }) {
   if (typeof document === "undefined") return null;
+
+  const scannerStatusMessage = resolvingScan
+    ? "جاري البحث..."
+    : scanDebug?.resolverResult === "found"
+      ? "تم العثور على المنتج"
+      : scanDebug?.resolverResult === "not found"
+        ? "لم يتم العثور على المنتج"
+        : scanDebug?.resolverResult === "error"
+          ? "لم نتمكن من قراءة الباركود، جرّب الإدخال اليدوي"
+          : "وجّه الباركود داخل الإطار";
 
   return createPortal(
     <div
@@ -680,18 +692,19 @@ function EmployeePortalCameraScannerModal({
         dir="rtl"
       >
         <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">EMPLOYEE SCANNER</div>
             <h3 id="employee-portal-camera-scanner-title" className="mt-1 text-lg font-black text-white">امسح الباركود أو QR بالكاميرا</h3>
-            <p className="mt-1 text-xs font-semibold text-zinc-500">وجّه الكاميرا نحو الكود وسيتم البحث مباشرة.</p>
+            <p className="mt-1 text-xs font-semibold text-zinc-500">وجّه الباركود داخل الإطار.</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08]"
+            className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-black text-zinc-100 transition hover:bg-white/[0.08]"
             aria-label="إغلاق ماسح الكاميرا"
           >
-            <X className="h-4 w-4" />
+            <ArrowRight className="h-4 w-4" />
+            <span>رجوع</span>
           </button>
         </div>
 
@@ -711,7 +724,8 @@ function EmployeePortalCameraScannerModal({
           <div className="mt-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-center text-sm font-black text-emerald-100">
             قرّب الكاميرا وخلي الكيو آر داخل الإطار
           </div>
-          <div className="mt-3 grid gap-3 rounded-3xl border border-cyan-400/20 bg-cyan-400/10 p-3 text-left">
+          {isDevBuild ? (
+            <div className="mt-3 grid gap-3 rounded-3xl border border-cyan-400/20 bg-cyan-400/10 p-3 text-left">
             <div className="flex items-center justify-between gap-3">
               <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">Scanner Debug</div>
               <div className="text-[11px] font-bold text-cyan-100">{scanDebug?.stage ? text(scanDebug.stage).replace(/_/g, " ") : "idle"}</div>
@@ -738,9 +752,10 @@ function EmployeePortalCameraScannerModal({
                 <div className="mt-1 break-all text-sm text-white">{formatScanDebugValue(scanDebug?.source || "")}</div>
               </div>
             </div>
-          </div>
+            </div>
+          ) : null}
           <div className="mt-3 rounded-3xl border border-white/10 bg-white/[0.04] p-3">
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">Manual fallback</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">الإدخال اليدوي</div>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row">
               <input
                 value={manualBarcodeValue}
@@ -751,7 +766,7 @@ function EmployeePortalCameraScannerModal({
                     onManualBarcodeSubmit?.();
                   }
                 }}
-                placeholder="Enter barcode manually"
+                placeholder="أدخل الباركود يدويًا"
                 className="min-h-11 flex-1 rounded-2xl border border-white/10 bg-black/30 px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
               />
               <button
@@ -759,7 +774,7 @@ function EmployeePortalCameraScannerModal({
                 onClick={onManualBarcodeSubmit}
                 className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-emerald-400 px-4 text-sm font-black text-zinc-950 transition hover:bg-emerald-300"
               >
-                Resolve
+                بحث
               </button>
             </div>
           </div>
@@ -1661,6 +1676,7 @@ export default function EmployeePortalProducts() {
             onError={handleCameraScannerError}
             onDebugChange={handleScannerDebugChange}
             scanDebug={scannerDebug}
+            resolvingScan={resolvingScan}
             manualBarcodeValue={manualBarcodeValue}
             onManualBarcodeChange={setManualBarcodeValue}
             onManualBarcodeSubmit={handleManualBarcodeSubmit}

@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 
 import {
   ArrowLeft,
+  ArrowRight,
   Camera,
   CheckCircle2,
   ClipboardList,
@@ -1969,7 +1970,10 @@ function ScopeModal({ branches, warehouses, form, setForm, onClose, onCreate }) 
             <h3 className="mt-1 text-xl font-black text-white">حدد نطاق الجرد</h3>
             <p className="mt-2 text-sm leading-6 text-zinc-400">اختر فرعًا أو مخزنًا إذا كان متاحًا، ثم ابدأ جلسة الجرد.</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white"><X className="h-5 w-5" /></button>
+          <button type="button" onClick={onClose} className="inline-flex min-h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 text-sm font-black text-white transition hover:bg-white/10" aria-label="رجوع">
+            <ArrowRight className="h-4 w-4" />
+            <span>رجوع</span>
+          </button>
         </div>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <Field label="اسم الجلسة" value={form.title} onChange={(value) => setForm((current) => ({ ...current, title: value }))} />
@@ -1996,7 +2000,10 @@ function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onEr
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">ماسح الباركود</div>
             <h3 className="mt-1 text-xl font-black text-white">امسح الباركود أو رمز QR</h3>
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white"><X className="h-5 w-5" /></button>
+          <button type="button" onClick={onClose} className="inline-flex min-h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 text-sm font-black text-white transition hover:bg-white/10" aria-label="رجوع">
+            <ArrowRight className="h-4 w-4" />
+            <span>رجوع</span>
+          </button>
         </div>
         <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
           <BarcodeScanner onScan={onScan} onPermissionDenied={onPermissionDenied} onUnsupported={onUnsupported} onError={onError} className="w-full" scannerClassName="h-[420px] w-full" />
