@@ -2093,7 +2093,15 @@ const logEmployeePortalCheckoutQuery = (queryName, params = []) => {
 const runEmployeePortalCheckoutQuery = async (queryName, sql, params = [], context = {}) => {
   logEmployeePortalCheckoutQuery(queryName, params);
   try {
-    return await db.query(sql, params);
+    const result = await db.query(sql, params);
+    if (!result) {
+      console.warn("[employee-portal-attendance] checkout query returned no result", {
+        query_name: queryName,
+        employee_id: context.employee_id ?? null,
+        branch_id: context.branch_id ?? null,
+      });
+    }
+    return result;
   } catch (error) {
     console.error("[employee-portal-attendance] checkout query failed", {
       query_name: queryName,
@@ -2307,7 +2315,7 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
   const attendanceLogId = attendanceLogIdRaw === null || attendanceLogIdRaw === undefined || attendanceLogIdRaw === ""
     ? null
     : Number(attendanceLogIdRaw);
-  const attendanceLookup = attendanceLogId
+  const attendanceLookupResult = attendanceLogId
     ? (() => {
         const params = [employee.tenant_id, employee.id, attendanceLogId];
         return runEmployeePortalCheckoutQuery(
@@ -2342,7 +2350,17 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
           { employee_id: employee.id, branch_id: branch.id }
         );
       })();
-  const attendanceRow = attendanceLookup.rows[0] || existing.rows[0] || null;
+  const attendanceLookup = await attendanceLookupResult;
+  if (!attendanceLookup) {
+    console.warn("[employee-portal-attendance] checkout step returned no result", {
+      step: attendanceLogId ? "attendance_lookup_by_id" : "attendance_lookup_by_date",
+      employee_id: employee.id,
+      branch_id: branch.id,
+    });
+  }
+  const existingRow = existing?.rows?.[0] || null;
+  const attendanceLookupRow = attendanceLookup?.rows?.[0] || null;
+  const attendanceRow = attendanceLookupRow || existingRow || null;
   console.info("[employee-portal-attendance] checkout lookup", {
     employee_id: employee.id,
     branch_id: branch.id,
@@ -2365,8 +2383,8 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
   }
   const attendanceRecordId = attendanceRow.id || attendanceLogId || null;
   const checkOutAt = new Date();
-  const shift = attendanceRow.selected_shift_id || attendanceRow.shift_id
-    ? (await runEmployeePortalCheckoutQuery(
+  const shiftResult = attendanceRow.selected_shift_id || attendanceRow.shift_id
+    ? await runEmployeePortalCheckoutQuery(
         "shift_lookup_for_checkout",
         `
         SELECT *
@@ -2378,8 +2396,16 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
         `,
         [attendanceRow.selected_shift_id || attendanceRow.shift_id, employee.id, employee.tenant_id],
         { employee_id: employee.id, branch_id: branch.id }
-      )).rows[0] || null
+      )
     : await getActiveEmployeeShift({ tenantId: employee.tenant_id, employeeId: employee.id });
+  if ((attendanceRow.selected_shift_id || attendanceRow.shift_id) && !shiftResult) {
+    console.warn("[employee-portal-attendance] checkout step returned no result", {
+      step: "shift_lookup_for_checkout",
+      employee_id: employee.id,
+      branch_id: branch.id,
+    });
+  }
+  const shift = shiftResult?.rows?.[0] || null;
   const metrics = calculateAttendanceMetrics({
     attendanceDate,
     checkIn: attendanceRow.check_in_at || attendanceRow.check_in,
@@ -2476,7 +2502,20 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
         updateParams,
         { employee_id: employee.id, branch_id: branch.id }
       );
-  await recordEmployeePortalAudit({ employee, action: "attendance_check_out", audit: auditWithGps, metadata: { branch_id: branch.id, attendance_id: result.rows[0]?.id } });
+  if (!result) {
+    console.warn("[employee-portal-attendance] checkout step returned no result", {
+      step: attendanceRecordId ? "checkout_update_by_id" : "checkout_update_by_date",
+      employee_id: employee.id,
+      branch_id: branch.id,
+    });
+    throw employeePortalError(
+      "attendance_checkout_failed",
+      "طھط¹ط°ط± طھط³ط¬ظٹظ„ ط§ظ„ط§ظ†طµط±ط§ظپ ط­ط§ظ„ظٹظ‹ط§. ط­ط§ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰ ط£ظˆ طھظˆط§طµظ„ ظ…ط¹ ط§ظ„ط¥ط¯ط§ط±ط©.",
+      500
+    );
+  }
+  const updatedAttendanceRow = result?.rows?.[0] || null;
+  await recordEmployeePortalAudit({ employee, action: "attendance_check_out", audit: auditWithGps, metadata: { branch_id: branch.id, attendance_id: updatedAttendanceRow?.id } });
   await createNotification({
     tenant_id: employee.tenant_id,
     role_key: "manager",
@@ -2489,15 +2528,15 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
     action_url: "/attendance/today",
     action_label: "فتح الحضور",
     entity_type: "attendance_log",
-    entity_id: String(result.rows[0]?.id || ""),
+    entity_id: String(updatedAttendanceRow?.id || ""),
     metadata: {
       employee_id: employee.id,
-      attendance_id: result.rows[0]?.id || null,
+      attendance_id: updatedAttendanceRow?.id || null,
       branch_id: branch.id,
       action: "check_out",
     },
   }).catch(() => null);
-  return { action, attendance: result.rows[0], branch: { id: branch.id, name: branch.name } };
+  return { action, attendance: updatedAttendanceRow, branch: { id: branch.id, name: branch.name } };
 };
 
 export const updateEmployeeWalletTaskStatus = async ({ employee, taskId, data = {}, audit = {} } = {}) => {
