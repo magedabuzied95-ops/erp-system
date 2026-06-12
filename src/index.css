@@ -22,10 +22,16 @@
   html,
   body,
   #root {
+    width: 100%;
+    max-width: 100%;
     min-height: 100%;
     overflow-x: hidden;
     scrollbar-gutter: stable;
     background: var(--bg);
+  }
+
+  html {
+    overflow-y: scroll;
   }
 
   html[dir="rtl"],
@@ -40,7 +46,8 @@
 
   body {
     margin: 0;
-    max-width: 100vw;
+    width: 100%;
+    max-width: 100%;
     overflow-x: hidden;
     scrollbar-gutter: stable;
     color: var(--text);
@@ -721,7 +728,7 @@
   }
 
   .sf-ai-chat-panel {
-    width: calc(100vw - 24px);
+    width: min(420px, calc(100% - 24px));
     max-width: 420px;
     height: min(
       calc(100dvh - var(--sf-ai-chat-bottom) - env(safe-area-inset-top) - 1rem),
