@@ -4,7 +4,9 @@ import { api } from "../../shared/api/api";
 import {
   Bell,
   MessageCircle,
+  Minus,
   PackageSearch,
+  Trash2,
 } from "lucide-react";
 
 const storefrontAsyncDebugLog = (label, payload = {}) => {

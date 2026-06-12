@@ -2213,7 +2213,7 @@ function POSPro() {
     handleSelectCustomer(customerPhoneAutoSelectMatch);
   }, [customerPhoneAutoSelectMatch, customerSearch, handleSelectCustomer, selectedCustomerId]);
 
-  const handleClearSelectedCustomer = () => {
+  const handleClearSelectedCustomer = useCallback(() => {
     setSelectedCustomerId(null);
     setCustomerSearch("");
     setLoyaltyProfile(null);
@@ -2227,7 +2227,7 @@ function POSPro() {
     });
     setPersonalSettlementType("");
     setPersonalNote("");
-  };
+  }, []);
 
   useEffect(() => {
     if (String(paymentMode || "").toLowerCase() !== "personal") return;
@@ -3201,28 +3201,7 @@ function POSPro() {
     }
   }, [products, t]);
 
-  const quickAddProduct = (product) => {
-    const variants = Array.isArray(product.variants) ? product.variants : [];
-    if (variants.length === 1) {
-      addVariantToCart(product, variants[0]);
-      return;
-    }
-
-    if (variants.length > 1) {
-      handleSelectProduct(product);
-      return;
-    }
-
-    const variant = pickFirstVariant(product);
-    if (variant) {
-      addVariantToCart(product, variant);
-      return;
-    }
-
-    toast.error(t("pos.toasts.notSellable"));
-  };
-
-  const handleSelectProduct = (product) => {
+  const openProductVariantPicker = useCallback((product) => {
     const variants = Array.isArray(product.variants) ? product.variants : [];
     if (viewportIsMobile) {
       const firstVariant = variants.find((variant) => normalizeStockQuantity(variant.stock_quantity ?? variant.stock) > 0) || variants[0] || null;
@@ -3236,13 +3215,10 @@ function POSPro() {
       setSelectedSize(firstInStockForColor?.size || "");
       setMobileProductQuantity(1);
       setSelectedProduct(product);
-      return;
+      return true;
     }
 
-    if (variants.length <= 1) {
-      quickAddProduct(product);
-      return;
-    }
+    if (variants.length <= 1) return false;
 
     const firstVariant = variants.find((variant) => normalizeStockQuantity(variant.stock_quantity ?? variant.stock) > 0) || variants[0] || null;
     setSelectedColor(firstVariant?.color || "");
@@ -3255,7 +3231,34 @@ function POSPro() {
     setSelectedSize(firstInStockForColor?.size || "");
     setMobileProductQuantity(1);
     setSelectedProduct(product);
-  };
+    return true;
+  }, [setMobileProductQuantity, setSelectedColor, setSelectedProduct, setSelectedSize, viewportIsMobile]);
+
+  const quickAddProduct = useCallback((product) => {
+    const variants = Array.isArray(product.variants) ? product.variants : [];
+    if (variants.length === 1) {
+      addVariantToCart(product, variants[0]);
+      return;
+    }
+
+    if (variants.length > 1) {
+      openProductVariantPicker(product);
+      return;
+    }
+
+    const variant = pickFirstVariant(product);
+    if (variant) {
+      addVariantToCart(product, variant);
+      return;
+    }
+
+    toast.error(t("pos.toasts.notSellable"));
+  }, [addVariantToCart, openProductVariantPicker, t]);
+
+  const handleSelectProduct = useCallback((product) => {
+    if (openProductVariantPicker(product)) return;
+    quickAddProduct(product);
+  }, [openProductVariantPicker, quickAddProduct]);
 
   const handleRemoveCartItem = useCallback((key) => setCart((prev) => prev.filter((item) => item.key !== key)), []);
   const handleIncrease = useCallback((key) =>
@@ -3802,7 +3805,7 @@ function POSPro() {
     toast.success(t("pos.toasts.invoiceEditCancelled"));
   };
 
-  const handleCreateCustomer = async () => {
+  const handleCreateCustomer = useCallback(async () => {
     const name = quickCustomer.name.trim();
     if (!name) {
       toast.error(t("pos.toasts.customerNameRequired"));
@@ -3881,7 +3884,22 @@ function POSPro() {
       toast.error(message);
       return false;
     }
-  };
+  }, [
+    handleSelectCustomer,
+    loadCustomers,
+    quickCustomer.allow_personal_transactions,
+    quickCustomer.name,
+    quickCustomer.phone,
+    quickCustomer.source_key,
+    quickCustomerExistingMatch,
+    resolveMarketingAttributionFromSelection,
+    setCustomerSearch,
+    setCustomers,
+    setCustomerCreateOpen,
+    setQuickCustomer,
+    setSelectedCustomerId,
+    t,
+  ]);
 
   const handleOpenShift = async () => {
     try {
@@ -5461,7 +5479,7 @@ function POSPro() {
     toast.success("Cart cleared");
   };
 
-  const handleClearSmartFilters = () => {
+  const handleClearSmartFilters = useCallback(() => {
     setSelectedMainCategoryId("all");
     setSelectedSubCategoryId("all");
     setSelectedChildCategoryId("all");
@@ -5471,20 +5489,20 @@ function POSPro() {
     setSelectedProductType("all");
     setSelectedGrade("all");
     setSearch("");
-  };
+  }, []);
 
-  const handleToggleFilters = () => {
+  const handleToggleFilters = useCallback(() => {
     setFiltersOpen((open) => !open);
-  };
+  }, []);
 
-  const handleCreateCustomerFromToolbar = async () => {
+  const handleCreateCustomerFromToolbar = useCallback(async () => {
     const created = await handleCreateCustomer();
     if (created) {
       setCustomerCreateOpen(false);
     }
-  };
+  }, [handleCreateCustomer]);
 
-  const openCustomerCreateModal = () => {
+  const openCustomerCreateModal = useCallback(() => {
     const searchText = String(customerSearch || "").trim();
     const normalizedPhone = normalizeReceiptPhone(searchText);
     console.log("[pos-customer-modal-open]", {
@@ -5501,7 +5519,7 @@ function POSPro() {
       source_key: "",
     }));
     setCustomerCreateOpen(true);
-  };
+  }, [customerSearch, selectedCustomerId]);
 
   const handlePrintShiftReport = useCallback((report) => {
     if (!report) return;
@@ -5628,6 +5646,28 @@ function POSPro() {
       toast.error(error?.message || t("pos.fullscreenFailed", "Could not toggle fullscreen"));
     }
   }, [t]);
+  const handleRefreshSellerUsers = useCallback(() => loadSellerUsers({ silent: false }), [loadSellerUsers]);
+  const handleClearExchangeCredit = useCallback(() => setExchangeState(null), []);
+  const handlePaymentAccountAdjusted = useCallback(() => setPaymentAccountRefreshKey((key) => key + 1), []);
+  const handleCloseFilters = useCallback(() => setFiltersOpen(false), []);
+  const handleCloseMobileCart = useCallback(() => setMobileCartOpen(false), []);
+  const checkoutActionRef = useRef(handleCheckout);
+  useEffect(() => {
+    checkoutActionRef.current = handleCheckout;
+  }, [handleCheckout]);
+  const handleCheckoutAction = useCallback((options = {}) => checkoutActionRef.current(options), []);
+  const handleCreditSaleCheckout = useCallback(() => handleCheckoutAction({ creditSale: true }), [handleCheckoutAction]);
+  const paymentAreaRenderCountRef = useRef(0);
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    paymentAreaRenderCountRef.current += 1;
+    console.log("[pos-render] PaymentArea", {
+      render: paymentAreaRenderCountRef.current,
+      cart_count: cart.length,
+      payment_mode: String(paymentMode || ""),
+      sale_prices_enabled: salePricesEnabled,
+    });
+  });
   const fullscreenTooltip = isRtl ? "\u0645\u0644\u0621 \u0627\u0644\u0634\u0627\u0634\u0629" : "Fullscreen";
 
   if (!isShiftActive) {
@@ -5774,7 +5814,7 @@ function POSPro() {
             onManufacturerChange={setSelectedManufacturerId}
             activeSmartFilterCount={activeSmartFilterCount}
             onReset={handleClearSmartFilters}
-            onClose={() => setFiltersOpen(false)}
+            onClose={handleCloseFilters}
           />
           {customerCreateOpen && typeof document !== "undefined" ? createPortal(
             <div
@@ -6098,13 +6138,13 @@ function POSPro() {
             isEditingOrder={Boolean(editingOrder?.id)}
             onLookupExchangeOrder={lookupExchangeOrder}
             onApplyExchangeCredit={setExchangeState}
-            onClearExchangeCredit={() => setExchangeState(null)}
+            onClearExchangeCredit={handleClearExchangeCredit}
             paymentAccountStatus={paymentAccountStatus}
             paymentAccountLoading={paymentAccountLoading}
-            onPaymentAccountAdjusted={() => setPaymentAccountRefreshKey((key) => key + 1)}
+            onPaymentAccountAdjusted={handlePaymentAccountAdjusted}
             invoiceNumber={invoiceNumber}
-            onCheckout={handleCheckout}
-            onCreditSale={() => handleCheckout({ creditSale: true })}
+            onCheckout={handleCheckoutAction}
+            onCreditSale={handleCreditSaleCheckout}
             onPaymobTerminal={handlePaymobTerminalPayment}
             paymobTerminalLoading={paymobTerminalLoading}
             checkoutLoading={checkoutLoading}
@@ -6134,7 +6174,7 @@ function POSPro() {
             sellerLoadError={sellerLoadError}
             selectedSalespersonId={selectedSalespersonId}
             setSelectedSalespersonId={handleSalespersonChange}
-            onRefreshSellers={() => loadSellerUsers({ silent: false })}
+            onRefreshSellers={handleRefreshSellerUsers}
             allowSaleWithoutSalesperson={salesSettings.allow_sale_without_salesperson}
             canChangeSalesperson={canChangeSalesperson}
             customerSearch={customerSearch}
@@ -6191,7 +6231,7 @@ function POSPro() {
         <MobileBottomSheet
           open={mobileCartOpen}
           title={`${t("pos.cart.title", "Cart")} · ${formatCurrency(cartTotals.total)}`}
-          onClose={() => setMobileCartOpen(false)}
+          onClose={handleCloseMobileCart}
           className="xl:hidden"
         >
           <CartSidebar
@@ -6241,13 +6281,13 @@ function POSPro() {
             isEditingOrder={Boolean(editingOrder?.id)}
             onLookupExchangeOrder={lookupExchangeOrder}
             onApplyExchangeCredit={setExchangeState}
-            onClearExchangeCredit={() => setExchangeState(null)}
+            onClearExchangeCredit={handleClearExchangeCredit}
             paymentAccountStatus={paymentAccountStatus}
             paymentAccountLoading={paymentAccountLoading}
-            onPaymentAccountAdjusted={() => setPaymentAccountRefreshKey((key) => key + 1)}
+            onPaymentAccountAdjusted={handlePaymentAccountAdjusted}
             invoiceNumber={invoiceNumber}
-            onCheckout={handleCheckout}
-            onCreditSale={() => handleCheckout({ creditSale: true })}
+            onCheckout={handleCheckoutAction}
+            onCreditSale={handleCreditSaleCheckout}
             onPaymobTerminal={handlePaymobTerminalPayment}
             paymobTerminalLoading={paymobTerminalLoading}
             checkoutLoading={checkoutLoading}
@@ -6277,7 +6317,7 @@ function POSPro() {
             sellerLoadError={sellerLoadError}
             selectedSalespersonId={selectedSalespersonId}
             setSelectedSalespersonId={handleSalespersonChange}
-            onRefreshSellers={() => loadSellerUsers({ silent: false })}
+            onRefreshSellers={handleRefreshSellerUsers}
             allowSaleWithoutSalesperson={salesSettings.allow_sale_without_salesperson}
             canChangeSalesperson={canChangeSalesperson}
             customerSearch={customerSearch}

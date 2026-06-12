@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, CheckCircle2, Package2, X } from "lucide-react";
 
@@ -359,4 +359,4 @@ function StatusBadge({ available, low, compact = false }) {
   );
 }
 
-export default ProductAvailabilityModal;
+export default memo(ProductAvailabilityModal);

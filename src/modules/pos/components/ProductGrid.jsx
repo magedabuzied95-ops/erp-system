@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -103,7 +103,17 @@ function ProductGrid({
   onSelectProduct,
 }) {
   const { t } = useTranslation();
+  const renderCountRef = useRef(0);
   const { columns, isDesktop } = useProductGridColumns();
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    renderCountRef.current += 1;
+    console.log("[pos-render] ProductArea", {
+      render: renderCountRef.current,
+      product_count: Array.isArray(products) ? products.length : 0,
+      loading: Boolean(loading),
+    });
+  });
   if (loading) {
     if (!isDesktop) {
       return (
@@ -332,4 +342,4 @@ function ProductImage({ src, fallbackSrc, alt }) {
   );
 }
 
-export default ProductGrid;
+export default memo(ProductGrid);

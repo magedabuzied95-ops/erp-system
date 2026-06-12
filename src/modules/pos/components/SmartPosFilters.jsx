@@ -1,4 +1,5 @@
 import { createPortal } from "react-dom";
+import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 
@@ -59,7 +60,7 @@ function SmartFilterRow({ label, options, value, onChange }) {
   );
 }
 
-export default function SmartPosFilters({
+function SmartPosFilters({
   open,
   panelRef,
   portalTarget,
@@ -220,3 +221,5 @@ export default function SmartPosFilters({
 
   return createPortal(content, portalTarget || document.body);
 }
+
+export default memo(SmartPosFilters);

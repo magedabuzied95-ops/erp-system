@@ -115,10 +115,12 @@ export const getStorefrontImageSizes = (preset = "grid") => STOREFRONT_IMAGE_PRE
 export const getStorefrontImageWidths = (preset = "grid") => STOREFRONT_IMAGE_PRESETS[preset]?.widths || [];
 
 export const getStorefrontResponsiveImageProps = (value, preset = "grid") => {
+  const originalSrc = String(value || "").trim();
   const srcSet = buildStorefrontImageSrcSet(value, getStorefrontImageWidths(preset));
   const sizes = getStorefrontImageSizes(preset);
   return {
     srcSet: srcSet || undefined,
     sizes: sizes || undefined,
+    "data-original-src": originalSrc || undefined,
   };
 };

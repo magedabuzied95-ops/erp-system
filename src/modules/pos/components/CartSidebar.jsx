@@ -1,5 +1,6 @@
 ﻿import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { memo } from "react";
 import i18n from "../../../i18n/i18n";
 import toast from "react-hot-toast";
 import {
@@ -374,11 +375,22 @@ function CartSidebar({
   onCreateCustomerClick,
   filtersModalOpen = false,
 }) {
+  const renderCountRef = useRef(0);
   const [discountLoyaltyOpen, setDiscountLoyaltyOpen] = useState(false);
   const [invoiceDiscountOpen, setInvoiceDiscountOpen] = useState(false);
   const [splitPaymentOpen, setSplitPaymentOpen] = useState(false);
   const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
   const [exchangeOpen, setExchangeOpen] = useState(false);
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    renderCountRef.current += 1;
+    console.log("[pos-render] CartArea", {
+      render: renderCountRef.current,
+      cart_count: Array.isArray(cart) ? cart.length : 0,
+      payment_mode: String(paymentMode || ""),
+      selected_customer: Boolean(selectedCustomerId || customer?.id || customer?.customer_id),
+    });
+  });
   const customerWalletBalance = Number(customerCreditBalance || 0);
   const newOrderTotal = Math.max(0, Number(totals?.total || 0));
   const exchangeCreditAmount = Math.max(0, Number(exchangeState?.creditAmount || 0));
@@ -2840,4 +2852,4 @@ function AmountField({ label, value, onChange, max, title = "", helper = "", pla
   );
 }
 
-export default CartSidebar;
+export default memo(CartSidebar);
