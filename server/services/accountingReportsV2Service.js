@@ -803,8 +803,7 @@ export const getAccountingReportsV2Inventory = async (clientOrPool, data = {}) =
       ["average_cost", "last_purchase_cost", "purchase_price", "last_purchase_price", "cost_price", "price"],
       positiveCoalesceColumnExpr("p", productColumns, ["average_cost", "last_purchase_cost", "purchase_price", "last_purchase_price", "cost_price", "price"], "0")
     );
-    const rowsResult = await dbClient.query(
-      `
+    const query = `
       SELECT
         pv.id AS variant_id,
         p.id AS product_id,
@@ -817,7 +816,10 @@ export const getAccountingReportsV2Inventory = async (clientOrPool, data = {}) =
       ${whereSql(clauses)}
       ORDER BY stock_qty DESC, product_name ASC
       LIMIT 300
-      `,
+    `;
+    console.info("[accounting-reports-v2:inventory-query:variants]\n%s\nparams=%j", query.trim(), params);
+    const rowsResult = await dbClient.query(
+      query,
       params
     );
     rows.push(
@@ -845,10 +847,11 @@ export const getAccountingReportsV2Inventory = async (clientOrPool, data = {}) =
     };
     const clauses = [];
     if (filters.tenantId !== null && productColumns.has("tenant_id")) clauses.push(`p.tenant_id = ${add(filters.tenantId)}`);
-    const standaloneOnly = variantColumns.size ? "AND NOT EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id)" : "";
+    if (variantColumns.size) {
+      clauses.push("NOT EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id)");
+    }
     const unitCostExpr = positiveCoalesceColumnExpr("p", productColumns, ["average_cost", "last_purchase_cost", "purchase_price", "last_purchase_price", "cost_price", "price"], "0");
-    const rowsResult = await dbClient.query(
-      `
+    const query = `
       SELECT
         p.id AS product_id,
         p.name AS product_name,
@@ -856,10 +859,12 @@ export const getAccountingReportsV2Inventory = async (clientOrPool, data = {}) =
         GREATEST(${unitCostExpr}, 0)::numeric AS unit_cost
       FROM products p
       ${whereSql(clauses)}
-      ${standaloneOnly}
       ORDER BY stock_qty DESC, product_name ASC
       LIMIT 150
-      `,
+    `;
+    console.info("[accounting-reports-v2:inventory-query:products]\n%s\nparams=%j", query.trim(), params);
+    const rowsResult = await dbClient.query(
+      query,
       params
     );
     rows.push(
