@@ -656,6 +656,7 @@ function EmployeePortalCameraScannerModal({
   onPermissionDenied,
   onUnsupported,
   onError,
+  onDebugChange,
   scanDebug,
   manualBarcodeValue,
   onManualBarcodeChange,
@@ -701,7 +702,7 @@ function EmployeePortalCameraScannerModal({
               onPermissionDenied={onPermissionDenied}
               onUnsupported={onUnsupported}
               onError={onError}
-              onDebugChange={handleScannerDebugChange}
+              onDebugChange={onDebugChange}
               enable1dFallback
               className="overflow-hidden rounded-[1.35rem] bg-black"
               scannerClassName="min-h-[320px]"
@@ -1658,6 +1659,7 @@ export default function EmployeePortalProducts() {
             onPermissionDenied={handleCameraScannerPermissionDenied}
             onUnsupported={handleCameraScannerUnsupported}
             onError={handleCameraScannerError}
+            onDebugChange={handleScannerDebugChange}
             scanDebug={scannerDebug}
             manualBarcodeValue={manualBarcodeValue}
             onManualBarcodeChange={setManualBarcodeValue}
