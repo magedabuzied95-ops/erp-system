@@ -263,19 +263,54 @@ const customerAvatarUrl = (item = {}) => {
     source.channel_metadata?.messenger_profile?.profile_pic
   );
 };
-const customerDisplayName = (item = {}) => {
-  const source = item || {};
+const firstNonEmpty = (...values) => values.map((value) => clean(value)).find(Boolean) || "";
+const isMessengerConversation = (conversation = {}) => {
+  const channel = normalizeConversationChannel(conversation);
+  const source = clean(conversation?.channel || conversation?.source || conversation?.provider || conversation?.platform).toLowerCase();
+  return (
+    channel === "messenger" ||
+    channel === "facebook" ||
+    source.includes("facebook_messenger") ||
+    source === "messenger" ||
+    source === "facebook" ||
+    source.includes("messenger")
+  );
+};
+const getConversationDisplayName = (conversation = {}) => {
+  const source = conversation || {};
   const profile = source.customer_profile || {};
+  if (isMessengerConversation(source)) {
+    return firstNonEmpty(
+      source.customer_name,
+      source.customer?.name,
+      profile.name,
+      source.sender_name,
+      source.profile_name,
+      source.contact_name,
+      profile.sender_name,
+      profile.profile_name,
+      profile.contact_name,
+      source.external_sender_name,
+      source.external_contact_name,
+      profile.external_sender_name,
+      profile.external_contact_name,
+      source.phone,
+      source.external_customer_id
+    );
+  }
+
   const fullName = [source.first_name || profile.first_name, source.last_name || profile.last_name].map(clean).filter(Boolean).join(" ");
-  return clean(
-    source.customer_name ||
-    fullName ||
-    profile.name ||
-    profile.full_name ||
-    source.external_customer_id ||
+  return firstNonEmpty(
+    source.customer_name,
+    fullName,
+    source.customer?.name,
+    profile.name,
+    profile.full_name,
+    source.external_customer_id,
     source.phone
   );
 };
+const customerDisplayName = (item = {}) => getConversationDisplayName(item);
 const isRtlText = (value = "") => /[\u0600-\u06ff]/.test(String(value || ""));
 const needsHumanAttention = (conversation = {}) =>
   conversation?.human_takeover === true ||
@@ -460,7 +495,7 @@ function ProductCards({ products = [] }) {
 const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, onSelect }) {
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
-  const customerName = customerDisplayName(item) || "Customer";
+  const customerName = getConversationDisplayName(item) || "Customer";
   const avatarUrl = customerAvatarUrl(item);
   const lastMessage = item.latest_message_preview || item.last_message || item.customer_message || item.ai_answer || "لا توجد رسائل بعد.";
   const unreadCount = Number(item.unread_count || item.unread || 0);
@@ -592,7 +627,7 @@ function InboxChannelSidebar({ channels = [], allUnread = 0, activeChannel = "al
 const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, onSelect }) {
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
-  const customerName = customerDisplayName(item) || "Customer";
+  const customerName = getConversationDisplayName(item) || "Customer";
   const avatarUrl = customerAvatarUrl(item);
   const lastMessage = item.latest_message_preview || item.last_message || item.customer_message || item.ai_answer || "لا توجد رسائل بعد.";
   const unreadCount = Number(item.unread_count || item.unread || 0);
@@ -652,7 +687,7 @@ function InboxChatHeader({
   if (!conversation) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
   const avatarUrl = customerAvatarUrl(conversation);
-  const name = customerDisplayName(conversation) || "عميل";
+  const name = getConversationDisplayName(conversation) || "عميل";
   const phone = clean(conversation.phone || conversation.customer_phone || conversation.external_customer_id || conversation.customer_profile?.phone);
   const channel = conversation.channel || conversation.source || "web_chat";
   const aiEnabled = isConversationAiEnabled(conversation) && status !== "closed";
@@ -1254,7 +1289,7 @@ function CustomerContextCard({ conversation = {} }) {
   const messages = uniqueMessages(conversation?.messages);
   const latest = [...messages].reverse().find((message) => message.detected_intent || message.customer_message || message.ai_answer) || {};
   const profile = conversation?.customer_profile || {};
-  const identityName = customerDisplayName(conversation) || "عميل غير معروف";
+  const identityName = getConversationDisplayName(conversation) || "عميل غير معروف";
   const avatarUrl = customerAvatarUrl(conversation);
   const channelMetadata = conversation?.channel_metadata || {};
   const latestMemory = latest.memory_changes || latest.memory || {};
@@ -1632,7 +1667,7 @@ function AiTraceModal({ open, loading, error, data, onClose, onRefresh }) {
 
 function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing = false, onSyncMessengerProfile }) {
   const profile = conversation?.customer_profile || {};
-  const identityName = customerDisplayName(conversation);
+  const identityName = getConversationDisplayName(conversation);
   const avatarUrl = customerAvatarUrl(conversation);
   const hasMessengerProfile = Boolean(identityName || avatarUrl || clean(conversation?.external_customer_id));
   const crmLabel = profile.id ? `الملف المرتبط #${profile.id}` : hasMessengerProfile ? "ملف ماسنجر فقط" : "لا يوجد عميل CRM مطابق";
@@ -2086,7 +2121,7 @@ function RightToolsTabsPanel({
                 <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
                   <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Customer snapshot</div>
                   <div className="mt-2 space-y-1 text-sm text-slate-300">
-                    <div className="font-black text-white">{customerDisplayName(conversation) || "Customer"}</div>
+                    <div className="font-black text-white">{getConversationDisplayName(conversation) || "Customer"}</div>
                     <div dir="ltr">{clean(conversation.phone || conversation.customer_phone || conversation.external_customer_id || conversation.customer_profile?.phone) || "No phone"}</div>
                     <div>{channelLabel(conversation.channel || conversation.source)}</div>
                   </div>
