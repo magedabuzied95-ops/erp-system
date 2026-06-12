@@ -242,10 +242,19 @@ const explicitCrmStatus = (conversation = {}) =>
     conversation?.crm_status,
     conversation?.customer_status
   );
+const explicitLeadStage = (conversation = {}) =>
+  firstNonEmpty(
+    conversation?.lead_type,
+    conversation?.lead_badge,
+    conversation?.sales_intelligence?.lead_type,
+    conversation?.sales_conversation_state?.lead_type
+  );
 const isInferenceLabel = (value = "") => /غالي|غالية|price_or_value_objection|objection_handling|objection|inference|inferred/i.test(clean(value));
 const headerStatusLabel = (conversation = {}) => {
   const crmStatus = explicitCrmStatus(conversation);
   if (crmStatus && !isInferenceLabel(crmStatus)) return `CRM: ${crmStatus}`;
+  const leadStage = explicitLeadStage(conversation);
+  if (leadStage && !isInferenceLabel(leadStage)) return `Lead: ${leadStage}`;
   const status = clean(conversation?.conversation_status || conversation?.status || "");
   if (status === "human_takeover" || status === "closed") return "Manual";
   return isConversationAiEnabled(conversation) ? "AI Active" : "AI Manual";
