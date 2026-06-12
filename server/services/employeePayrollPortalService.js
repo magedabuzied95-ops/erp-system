@@ -2269,22 +2269,36 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
     `,
     [employee.tenant_id, employee.id, attendanceDate]
   );
-  const attendanceLogId = Number(data.attendance_log_id || data.attendanceLogId || 0);
-  let attendanceRow = existing.rows[0] || null;
-  if (attendanceLogId) {
-    const byId = await db.query(
-      `
-      SELECT *
-      FROM attendance_logs
-      WHERE id = $1
-        AND tenant_id = $2
-        AND employee_id = $3
-      LIMIT 1
-      `,
-      [attendanceLogId, employee.tenant_id, employee.id]
-    );
-    if (byId.rows[0]) attendanceRow = byId.rows[0];
-  }
+  const attendanceLogIdRaw = data.attendance_log_id || data.attendanceLogId || null;
+  const attendanceLogId = attendanceLogIdRaw === null || attendanceLogIdRaw === undefined || attendanceLogIdRaw === ""
+    ? null
+    : Number(attendanceLogIdRaw);
+  const attendanceLookup = attendanceLogId
+    ? await db.query(
+        `
+        SELECT *
+        FROM attendance_logs
+        WHERE tenant_id = $1
+          AND employee_id = $2
+          AND id = $3::bigint
+          AND COALESCE(check_out_at, check_out) IS NULL
+        LIMIT 1
+        `,
+        [employee.tenant_id, employee.id, attendanceLogId]
+      )
+    : await db.query(
+        `
+        SELECT *
+        FROM attendance_logs
+        WHERE tenant_id = $1
+          AND employee_id = $2
+          AND attendance_date = $3::date
+          AND COALESCE(check_out_at, check_out) IS NULL
+        LIMIT 1
+        `,
+        [employee.tenant_id, employee.id, attendanceDate]
+      );
+  const attendanceRow = attendanceLookup.rows[0] || existing.rows[0] || null;
   console.info("[employee-portal-attendance] checkout lookup", {
     employee_id: employee.id,
     branch_id: branch.id,
