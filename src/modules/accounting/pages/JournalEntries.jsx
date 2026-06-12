@@ -261,6 +261,8 @@ function JournalEntries() {
         { to: "/accounting", label: t("accounting.tabs.dashboard") },
         { to: "/accounting/journal-entries", label: t("accounting.tabs.journal"), end: true },
         { to: "/accounting/accounts", label: t("accounting.tabs.accounts") },
+        { to: "/accounting/general-ledger", label: "General Ledger" },
+        { to: "/accounting/trial-balance", label: "Trial Balance" },
         { to: "/accounting/reports", label: t("accounting.tabs.reports") },
         { to: "/accounting/audit-trail", label: t("accounting.tabs.auditTrail") },
       ]}

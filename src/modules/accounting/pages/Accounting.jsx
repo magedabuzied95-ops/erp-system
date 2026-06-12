@@ -84,6 +84,8 @@ function Accounting() {
         { to: "/accounting/treasury", label: "Treasury" },
         { to: "/accounting/journal-entries", label: t("accounting.tabs.journal") },
         { to: "/accounting/accounts", label: t("accounting.tabs.accounts") },
+        { to: "/accounting/general-ledger", label: "General Ledger" },
+        { to: "/accounting/trial-balance", label: "Trial Balance" },
         { to: "/accounting/financial-accounts", label: t("accounting.tabs.financialAccounts") },
         { to: "/accounting/payment-method-mappings", label: t("accounting.tabs.paymentMappings") },
         { to: "/accounting/reports", label: t("accounting.tabs.reports") },
@@ -158,6 +160,12 @@ function Accounting() {
           <div className="mt-4 space-y-3">
             <Link className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/journal-entries">
               {t("accounting.links.journal")}
+            </Link>
+            <Link className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/general-ledger">
+              General Ledger
+            </Link>
+            <Link className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/trial-balance">
+              Trial Balance
             </Link>
             <Link className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/inventory/history">
               {t("accounting.links.inventory")}

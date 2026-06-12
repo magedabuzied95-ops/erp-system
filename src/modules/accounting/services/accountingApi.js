@@ -28,6 +28,21 @@ export const accountingApi = {
     api.post("/accounting/journal-entries/backfill-preview", payload, {
       timeoutMs: 30000,
     }),
+  getGeneralLedgerAccounts: (params = {}) =>
+    api.get("/accounting/general-ledger/accounts", {
+      params: buildParams(params),
+      timeoutMs: 30000,
+    }),
+  getGeneralLedger: (params = {}) =>
+    api.get("/accounting/general-ledger", {
+      params: buildParams(params),
+      timeoutMs: 30000,
+    }),
+  getTrialBalanceV1: (params = {}) =>
+    api.get("/accounting/trial-balance", {
+      params: buildParams(params),
+      timeoutMs: 30000,
+    }),
   getFinancialReportsSummary: (params = {}) =>
     api.get("/accounting/financial-reports/summary", {
       params: buildParams(params),

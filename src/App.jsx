@@ -105,6 +105,8 @@ const Expenses = lazy(() => import("./modules/accounting/pages/Expenses"));
 const Revenues = lazy(() => import("./modules/accounting/pages/Revenues"));
 const JournalEntries = lazy(() => import("./modules/accounting/pages/JournalEntries"));
 const Accounts = lazy(() => import("./modules/accounting/pages/Accounts"));
+const GeneralLedger = lazy(() => import("./modules/accounting/pages/GeneralLedger"));
+const TrialBalance = lazy(() => import("./modules/accounting/pages/TrialBalance"));
 const FinancialReports = lazy(() => import("./modules/accounting/pages/FinancialReports"));
 const ProfitAndLoss = lazy(() => import("./modules/accounting/pages/ProfitAndLoss"));
 const Taxes = lazy(() => import("./modules/accounting/pages/Taxes"));
@@ -917,6 +919,16 @@ function App() {
         <Route
           path="accounting/accounts"
           element={<Accounts />}
+        />
+
+        <Route
+          path="accounting/general-ledger"
+          element={<GeneralLedger />}
+        />
+
+        <Route
+          path="accounting/trial-balance"
+          element={<TrialBalance />}
         />
 
         <Route

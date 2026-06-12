@@ -876,3 +876,240 @@ export const getBackfillPreview = async ({
     },
   };
 };
+
+export const listGeneralLedgerAccounts = async ({ tenantId } = {}) => {
+  const normalizedTenantId = normalizeTenantId(tenantId);
+  if (!normalizedTenantId) throw new Error("tenantId is required");
+  const accounts = await listFoundationAccounts(db, { tenantId: normalizedTenantId, includeInactive: false });
+  return accounts.rows.map((account) => ({
+    id: account.id,
+    account_id: account.id,
+    account_code: account.account_code,
+    account_name: account.account_name,
+    account_type: account.account_type,
+  }));
+};
+
+export const getGeneralLedger = async ({
+  tenantId,
+  accountId,
+  fromDate = null,
+  toDate = null,
+  branchId = null,
+} = {}) => {
+  const normalizedTenantId = normalizeTenantId(tenantId);
+  const normalizedAccountId = normalizeTenantId(accountId);
+  const normalizedBranchId = normalizeTenantId(branchId);
+  const safeFromDate = toDateOnly(fromDate);
+  const safeToDate = toDateOnly(toDate);
+
+  if (!normalizedTenantId) throw new Error("tenantId is required");
+  if (!normalizedAccountId) throw new Error("account_id is required");
+
+  await ensureDefaultAccountsFor(db, normalizedTenantId);
+  const accountResult = await db.query(
+    `
+    SELECT id, code, name, type
+    FROM accounts
+    WHERE tenant_id = $1
+      AND id = $2
+    LIMIT 1
+    `,
+    [normalizedTenantId, normalizedAccountId]
+  );
+  const account = accountResult.rows[0];
+  if (!account) {
+    const error = new Error(`Account ${normalizedAccountId} not found`);
+    error.status = 404;
+    throw error;
+  }
+
+  const openingClauses = ["jel.tenant_id = $1", "jel.account_id = $2"];
+  const openingParams = [normalizedTenantId, normalizedAccountId];
+  if (safeFromDate) {
+    openingParams.push(safeFromDate);
+    openingClauses.push(`je.entry_date < $${openingParams.length}`);
+  }
+  if (normalizedBranchId) {
+    openingParams.push(normalizedBranchId);
+    openingClauses.push(`jel.branch_id = $${openingParams.length}`);
+  }
+
+  const openingResult = await db.query(
+    `
+    SELECT
+      COALESCE(SUM(jel.debit), 0)::numeric AS total_debit,
+      COALESCE(SUM(jel.credit), 0)::numeric AS total_credit
+    FROM journal_entry_lines jel
+    JOIN journal_entries je ON je.id = jel.journal_entry_id
+    WHERE ${openingClauses.join(" AND ")}
+    `,
+    openingParams
+  );
+
+  const rowsClauses = ["jel.tenant_id = $1", "jel.account_id = $2"];
+  const rowsParams = [normalizedTenantId, normalizedAccountId];
+  if (safeFromDate) {
+    rowsParams.push(safeFromDate);
+    rowsClauses.push(`je.entry_date >= $${rowsParams.length}`);
+  }
+  if (safeToDate) {
+    rowsParams.push(safeToDate);
+    rowsClauses.push(`je.entry_date <= $${rowsParams.length}`);
+  }
+  if (normalizedBranchId) {
+    rowsParams.push(normalizedBranchId);
+    rowsClauses.push(`jel.branch_id = $${rowsParams.length}`);
+  }
+
+  const rowsResult = await db.query(
+    `
+    SELECT
+      je.entry_date,
+      je.id AS journal_entry_id,
+      COALESCE(NULLIF(je.reference_type, ''), NULLIF(je.entry_type, ''), 'manual') AS source_type,
+      COALESCE(je.description, '') AS description,
+      COALESCE(jel.debit, 0)::numeric AS debit,
+      COALESCE(jel.credit, 0)::numeric AS credit,
+      jel.branch_id,
+      je.reference_id
+    FROM journal_entry_lines jel
+    JOIN journal_entries je ON je.id = jel.journal_entry_id
+    WHERE ${rowsClauses.join(" AND ")}
+    ORDER BY je.entry_date ASC, je.id ASC, jel.id ASC
+    `,
+    rowsParams
+  );
+
+  const openingBalance = toMoney(
+    Number(openingResult.rows[0]?.total_debit || 0) - Number(openingResult.rows[0]?.total_credit || 0),
+    0
+  );
+  let runningBalance = openingBalance;
+
+  const rows = rowsResult.rows.map((row) => {
+    const debit = toMoney(row.debit || 0, 0);
+    const credit = toMoney(row.credit || 0, 0);
+    runningBalance = toMoney(runningBalance + debit - credit, 0);
+    return {
+      date: row.entry_date,
+      journal_entry_id: Number(row.journal_entry_id),
+      reference: row.source_type || "manual",
+      source_type: row.source_type || "manual",
+      description: row.description || "",
+      debit,
+      credit,
+      branch_id: row.branch_id === null || row.branch_id === undefined ? null : Number(row.branch_id),
+      reference_id: row.reference_id === null || row.reference_id === undefined ? null : Number(row.reference_id),
+      running_balance: runningBalance,
+    };
+  });
+
+  const totals = rows.reduce(
+    (acc, row) => {
+      acc.total_debit = toMoney(acc.total_debit + row.debit, 0);
+      acc.total_credit = toMoney(acc.total_credit + row.credit, 0);
+      return acc;
+    },
+    {
+      opening_balance: openingBalance,
+      total_debit: 0,
+      total_credit: 0,
+      closing_balance: openingBalance,
+    }
+  );
+  totals.closing_balance = rows.length ? rows[rows.length - 1].running_balance : openingBalance;
+
+  return {
+    account: {
+      account_id: Number(account.id),
+      account_code: account.code || "",
+      account_name: account.name || "",
+      account_type: account.type || "",
+    },
+    rows,
+    totals,
+  };
+};
+
+export const getTrialBalance = async ({
+  tenantId,
+  fromDate = null,
+  toDate = null,
+  branchId = null,
+} = {}) => {
+  const normalizedTenantId = normalizeTenantId(tenantId);
+  const normalizedBranchId = normalizeTenantId(branchId);
+  const safeFromDate = toDateOnly(fromDate);
+  const safeToDate = toDateOnly(toDate);
+  if (!normalizedTenantId) throw new Error("tenantId is required");
+
+  await ensureDefaultAccountsFor(db, normalizedTenantId);
+
+  const filterClauses = ["jel.tenant_id = $1"];
+  const params = [normalizedTenantId];
+  if (safeFromDate) {
+    params.push(safeFromDate);
+    filterClauses.push(`je.entry_date >= $${params.length}`);
+  }
+  if (safeToDate) {
+    params.push(safeToDate);
+    filterClauses.push(`je.entry_date <= $${params.length}`);
+  }
+  if (normalizedBranchId) {
+    params.push(normalizedBranchId);
+    filterClauses.push(`jel.branch_id = $${params.length}`);
+  }
+  const matchSql = filterClauses.join(" AND ");
+
+  const result = await db.query(
+    `
+    SELECT
+      a.id AS account_id,
+      a.code AS account_code,
+      a.name AS account_name,
+      a.type AS account_type,
+      COALESCE(SUM(CASE WHEN ${matchSql} THEN jel.debit ELSE 0 END), 0)::numeric AS total_debit,
+      COALESCE(SUM(CASE WHEN ${matchSql} THEN jel.credit ELSE 0 END), 0)::numeric AS total_credit
+    FROM accounts a
+    LEFT JOIN journal_entry_lines jel
+      ON jel.account_id = a.id
+      AND jel.tenant_id = a.tenant_id
+    LEFT JOIN journal_entries je
+      ON je.id = jel.journal_entry_id
+    WHERE a.tenant_id = $1
+      AND a.is_active = TRUE
+    GROUP BY a.id, a.code, a.name, a.type
+    ORDER BY a.code ASC, a.name ASC, a.id ASC
+    `,
+    params
+  );
+
+  const rows = result.rows.map((row) => ({
+    account_id: Number(row.account_id),
+    account_code: row.account_code || "",
+    account_name: row.account_name || "",
+    account_type: row.account_type || "",
+    total_debit: toMoney(row.total_debit || 0, 0),
+    total_credit: toMoney(row.total_credit || 0, 0),
+  }));
+
+  const totals = rows.reduce(
+    (acc, row) => {
+      acc.total_debits = toMoney(acc.total_debits + row.total_debit, 0);
+      acc.total_credits = toMoney(acc.total_credits + row.total_credit, 0);
+      return acc;
+    },
+    { total_debits: 0, total_credits: 0 }
+  );
+
+  const tolerance = 0.01;
+  return {
+    rows,
+    totals: {
+      total_debits: totals.total_debits,
+      total_credits: totals.total_credits,
+      is_balanced: Math.abs(totals.total_debits - totals.total_credits) <= tolerance,
+    },
+  };
+};

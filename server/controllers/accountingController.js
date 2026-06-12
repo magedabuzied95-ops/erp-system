@@ -50,6 +50,9 @@ import {
 } from "../services/accountingReportsV2Service.js";
 import {
   createJournalEntry as createFoundationJournalEntry,
+  getGeneralLedger,
+  getTrialBalance,
+  listGeneralLedgerAccounts,
   getBackfillPreview,
   listFoundationAccounts,
 } from "../services/accountingJournalService.js";
@@ -636,6 +639,103 @@ export const getJournalEntriesBackfillPreviewController = async (req, res) => {
     return res.status(error.status || 500).json({
       success: false,
       message: "Failed to preview journal backfill",
+      error: error.message,
+    });
+  }
+};
+
+export const getGeneralLedgerAccountsController = async (req, res) => {
+  try {
+    const tenantId = isSuperAdminUser(req.user)
+      ? getTenantId(req, req.query?.tenant_id || req.user?.tenant_id)
+      : getTenantId(req, req.user?.tenant_id);
+
+    if (!tenantId) {
+      return res.status(400).json({
+        success: false,
+        message: "tenant_id is required to fetch general ledger accounts",
+      });
+    }
+
+    const accounts = await listGeneralLedgerAccounts({ tenantId });
+    return res.status(200).json({
+      success: true,
+      accounts,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(error.status || 500).json({
+      success: false,
+      message: "Failed to fetch general ledger accounts",
+      error: error.message,
+    });
+  }
+};
+
+export const getGeneralLedgerController = async (req, res) => {
+  try {
+    const tenantId = isSuperAdminUser(req.user)
+      ? getTenantId(req, req.query?.tenant_id || req.user?.tenant_id)
+      : getTenantId(req, req.user?.tenant_id);
+
+    if (!tenantId) {
+      return res.status(400).json({
+        success: false,
+        message: "tenant_id is required to fetch general ledger",
+      });
+    }
+
+    const payload = await getGeneralLedger({
+      tenantId,
+      accountId: req.query.account_id || req.query.accountId,
+      fromDate: req.query.from_date || req.query.fromDate || null,
+      toDate: req.query.to_date || req.query.toDate || null,
+      branchId: req.query.branch_id || req.query.branchId || null,
+    });
+
+    return res.status(200).json({
+      success: true,
+      ...payload,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(error.status || 500).json({
+      success: false,
+      message: "Failed to fetch general ledger",
+      error: error.message,
+    });
+  }
+};
+
+export const getTrialBalanceController = async (req, res) => {
+  try {
+    const tenantId = isSuperAdminUser(req.user)
+      ? getTenantId(req, req.query?.tenant_id || req.user?.tenant_id)
+      : getTenantId(req, req.user?.tenant_id);
+
+    if (!tenantId) {
+      return res.status(400).json({
+        success: false,
+        message: "tenant_id is required to fetch trial balance",
+      });
+    }
+
+    const payload = await getTrialBalance({
+      tenantId,
+      fromDate: req.query.from_date || req.query.fromDate || null,
+      toDate: req.query.to_date || req.query.toDate || null,
+      branchId: req.query.branch_id || req.query.branchId || null,
+    });
+
+    return res.status(200).json({
+      success: true,
+      ...payload,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(error.status || 500).json({
+      success: false,
+      message: "Failed to fetch trial balance",
       error: error.message,
     });
   }

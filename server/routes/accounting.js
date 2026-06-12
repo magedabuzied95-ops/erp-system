@@ -4,6 +4,8 @@ import {
   closeCashDrawerShiftController,
   createManualMoneyAdjustmentController,
   getAccountingFoundationAccountsController,
+  getGeneralLedgerAccountsController,
+  getGeneralLedgerController,
   getAccountingReportsV2CashAccountsController,
   getAccountingReportsV2DashboardController,
   getAccountingReportsV2IncomeStatementController,
@@ -31,6 +33,7 @@ import {
   getJournalEntriesController,
   getJournalEntriesBackfillPreviewController,
   getJournalEntryDetailController,
+  getTrialBalanceController,
   getMissingCostItemsController,
   getPaymentAccountStatusController,
   getPaymentMethodMappingsController,
@@ -220,6 +223,27 @@ router.get(
   protect,
   permit("accounting", "view"),
   getAccountingFoundationAccountsController
+);
+
+router.get(
+  "/general-ledger/accounts",
+  protect,
+  permit("accounting", "view"),
+  getGeneralLedgerAccountsController
+);
+
+router.get(
+  "/general-ledger",
+  protect,
+  permit("accounting", "view"),
+  getGeneralLedgerController
+);
+
+router.get(
+  "/trial-balance",
+  protect,
+  permit("accounting", "view"),
+  getTrialBalanceController
 );
 
 router.get(
