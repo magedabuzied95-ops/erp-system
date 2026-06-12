@@ -2369,10 +2369,38 @@ const ensureMessengerProfileStorage = async () => {
   await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS external_customer_id TEXT NOT NULL DEFAULT ''`);
   await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS profile_pic_url TEXT NOT NULL DEFAULT ''`);
   await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS last_profile_sync_at TIMESTAMP NULL`);
+  await repairMessengerStoredNames();
 };
 
 const messengerDisplayName = ({ firstName = "", lastName = "", fallback = "" } = {}) =>
   [text(firstName), text(lastName)].filter(Boolean).join(" ") || text(fallback);
+const MESSENGER_INFERENCE_TOKENS = [
+  "غالي",
+  "غالية",
+  "غاليه",
+  "عايز",
+  "عايزة",
+  "عايزه",
+  "عاوز",
+  "عاوزه",
+  "محتاج",
+  "محتاجة",
+  "محتاجه",
+  "محتاجين",
+  "ممكن",
+  "وريني",
+  "ابعت",
+  "ابعتلي",
+  "هات",
+  "هاتلي",
+  "فين",
+  "فيه",
+  "اهلا",
+  "أهلا",
+  "سلام عليكم",
+  "السلام عليكم",
+  "هاي",
+];
 const isUnsafeMessengerStoredName = (value = "") => {
   const candidate = text(value);
   if (!candidate) return true;
@@ -2382,7 +2410,7 @@ const isUnsafeMessengerStoredName = (value = "") => {
   if (candidate.split(/\s+/).filter(Boolean).length > 6) return true;
   if (/\d/.test(candidate) && !/^\+?\d[\d\s()-]*$/.test(candidate)) return true;
   const lowerCandidate = candidate.toLowerCase();
-  return [
+  if ([
     "message",
     "preview",
     "snippet",
@@ -2396,16 +2424,140 @@ const isUnsafeMessengerStoredName = (value = "") => {
     "size",
     "price",
     "body",
-  ].some((token) => lowerCandidate.includes(token));
+  ].some((token) => lowerCandidate.includes(token))) return true;
+  if (MESSENGER_INFERENCE_TOKENS.some((token) => lowerCandidate.includes(token.toLowerCase()))) return true;
+  return false;
 };
 const safeMessengerDisplayName = ({ firstName = "", lastName = "", fallback = "", externalCustomerId = "" } = {}) => {
   const resolved = resolveMessengerConversationDisplayName({
-    customerName: fallback,
-    customerProfile: { first_name: firstName, last_name: lastName, name: fallback },
+    customerName: "",
+    customerProfile: { first_name: firstName, last_name: lastName, name: "" },
     metadata: {},
     externalCustomerId,
   });
-  return isUnsafeMessengerStoredName(resolved) ? text(externalCustomerId || fallback) : resolved;
+  return isUnsafeMessengerStoredName(resolved) ? text(externalCustomerId) : resolved;
+};
+let messengerProfileStorageRepairPromise = null;
+const repairMessengerStoredNames = async () => {
+  if (!messengerProfileStorageRepairPromise) {
+    messengerProfileStorageRepairPromise = (async () => {
+      const messengerNamePattern = "(غالي|غالية|غاليه|عايز|عايزة|عايزه|عاوز|عاوزه|محتاج|محتاجة|محتاجه|محتاجين|ممكن|السلام عليكم|سلام عليكم|وريني|ابعت|ابعتلي|هات|هاتلي|فين|فيه|اهلا|أهلا|هاي)";
+      await db.query(
+        `
+        UPDATE ai_channel_conversations
+        SET customer_name = CASE
+              WHEN COALESCE(NULLIF(metadata->'messenger_profile'->>'name', ''), '') <> '' AND (metadata->'messenger_profile'->>'name' !~* $1)
+                THEN metadata->'messenger_profile'->>'name'
+              WHEN COALESCE(NULLIF(concat_ws(' ', metadata->'messenger_profile'->>'first_name', metadata->'messenger_profile'->>'last_name'), ''), '') <> '' AND (concat_ws(' ', metadata->'messenger_profile'->>'first_name', metadata->'messenger_profile'->>'last_name') !~* $1)
+                THEN concat_ws(' ', metadata->'messenger_profile'->>'first_name', metadata->'messenger_profile'->>'last_name')
+              WHEN COALESCE(NULLIF(metadata->'customer_profile'->>'name', ''), '') <> '' AND (metadata->'customer_profile'->>'name' !~* $1)
+                THEN metadata->'customer_profile'->>'name'
+              WHEN COALESCE(NULLIF(external_customer_id, ''), '') <> ''
+                THEN external_customer_id
+              ELSE customer_name
+            END,
+            updated_at = NOW()
+        WHERE channel IN ('facebook_messenger', 'facebook', 'messenger')
+          AND (
+            customer_name = ''
+            OR customer_name ~* $1
+            OR customer_name ILIKE '%message%'
+            OR customer_name ILIKE '%preview%'
+            OR customer_name ILIKE '%snippet%'
+            OR customer_name ILIKE '%reply%'
+            OR customer_name ILIKE '%conversation%'
+            OR customer_name ILIKE '%inbox%'
+            OR customer_name ILIKE '%customer%'
+            OR customer_name ILIKE '%order%'
+            OR customer_name ILIKE '%product%'
+            OR customer_name ILIKE '%stock%'
+            OR customer_name ILIKE '%size%'
+            OR customer_name ILIKE '%price%'
+            OR customer_name ILIKE '%body%'
+          )
+        `,
+        [messengerNamePattern]
+      );
+      await db.query(
+        `
+        UPDATE ai_support_sessions s
+        SET customer_name = CASE
+              WHEN COALESCE(NULLIF(c.customer_name, ''), '') <> '' AND c.customer_name !~* $1
+                THEN c.customer_name
+              WHEN COALESCE(NULLIF(c.external_customer_id, ''), '') <> ''
+                THEN c.external_customer_id
+              ELSE s.customer_name
+            END,
+            updated_at = NOW()
+        FROM ai_channel_conversations c
+        WHERE s.tenant_id = c.tenant_id
+          AND s.session_id = c.external_conversation_id
+          AND c.channel IN ('facebook_messenger', 'facebook', 'messenger')
+          AND (
+            s.customer_name = ''
+            OR s.customer_name ~* $1
+            OR s.customer_name ILIKE '%message%'
+            OR s.customer_name ILIKE '%preview%'
+            OR s.customer_name ILIKE '%snippet%'
+            OR s.customer_name ILIKE '%reply%'
+            OR s.customer_name ILIKE '%conversation%'
+            OR s.customer_name ILIKE '%inbox%'
+            OR s.customer_name ILIKE '%customer%'
+            OR s.customer_name ILIKE '%order%'
+            OR s.customer_name ILIKE '%product%'
+            OR s.customer_name ILIKE '%stock%'
+            OR s.customer_name ILIKE '%size%'
+            OR s.customer_name ILIKE '%price%'
+            OR s.customer_name ILIKE '%body%'
+          )
+        `,
+        [messengerNamePattern]
+      );
+      await db.query(
+        `
+        UPDATE ai_support_messages m
+        SET customer_name = CASE
+              WHEN COALESCE(NULLIF(s.customer_name, ''), '') <> '' AND s.customer_name !~* $1
+                THEN s.customer_name
+              WHEN COALESCE(NULLIF(c.customer_name, ''), '') <> '' AND c.customer_name !~* $1
+                THEN c.customer_name
+              WHEN COALESCE(NULLIF(c.external_customer_id, ''), '') <> ''
+                THEN c.external_customer_id
+              ELSE m.customer_name
+            END
+        FROM ai_support_sessions s
+        LEFT JOIN ai_channel_conversations c
+          ON c.tenant_id = s.tenant_id
+          AND c.external_conversation_id = s.session_id
+        WHERE m.tenant_id = s.tenant_id
+          AND m.session_id = s.session_id
+          AND m.channel IN ('facebook_messenger', 'facebook', 'messenger')
+          AND (
+            m.customer_name = ''
+            OR m.customer_name ~* $1
+            OR m.customer_name ILIKE '%message%'
+            OR m.customer_name ILIKE '%preview%'
+            OR m.customer_name ILIKE '%snippet%'
+            OR m.customer_name ILIKE '%reply%'
+            OR m.customer_name ILIKE '%conversation%'
+            OR m.customer_name ILIKE '%inbox%'
+            OR m.customer_name ILIKE '%customer%'
+            OR m.customer_name ILIKE '%order%'
+            OR m.customer_name ILIKE '%product%'
+            OR m.customer_name ILIKE '%stock%'
+            OR m.customer_name ILIKE '%size%'
+            OR m.customer_name ILIKE '%price%'
+            OR m.customer_name ILIKE '%body%'
+          )
+        `,
+        [messengerNamePattern]
+      );
+    })().catch((error) => {
+      messengerProfileStorageRepairPromise = null;
+      throw error;
+    });
+  }
+  return messengerProfileStorageRepairPromise;
 };
 
 const getCachedMessengerProfile = async ({ tenantId, channel, conversationId, psid } = {}) => {
@@ -2449,8 +2601,8 @@ const getCachedMessengerProfile = async ({ tenantId, channel, conversationId, ps
     firstName,
     lastName,
     fallback: resolveMessengerConversationDisplayName({
-      customerName: row.channel_customer_name || row.session_customer_name,
-      customerProfile: { first_name: row.first_name, last_name: row.last_name, name: row.channel_customer_name || row.session_customer_name },
+      customerName: "",
+      customerProfile: { first_name: row.first_name, last_name: row.last_name, name: "" },
       metadata: row.channel_metadata || {},
       externalCustomerId: row.external_customer_id || psid,
     }),
@@ -2507,7 +2659,7 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
   );
   const profileId = profileResult.rows[0]?.id || null;
   const storedProfilePicUrl = text(profileResult.rows[0]?.profile_pic_url);
-  const needsMessengerNameRepair = `(customer_name = '' OR customer_name = $4 OR customer_name = session_id OR LOWER(customer_name) IN ('anonymous','unknown customer') OR LENGTH(customer_name) > 80 OR customer_name ~ '[?!.:;]' OR customer_name ILIKE '%message%' OR customer_name ILIKE '%preview%' OR customer_name ILIKE '%snippet%' OR customer_name ILIKE '%reply%' OR customer_name ILIKE '%conversation%' OR customer_name ILIKE '%inbox%' OR customer_name ILIKE '%customer%' OR customer_name ILIKE '%order%' OR customer_name ILIKE '%product%' OR customer_name ILIKE '%stock%' OR customer_name ILIKE '%size%' OR customer_name ILIKE '%price%' OR customer_name ILIKE '%body%' OR customer_name IN ('عايز','عايزة','عاوز','عاوزه','محتاج','محتاجة','محتاجه','ممكن','السلام عليكم','سلام عليكم','وريني','ابعت','ابعتلي','هات','هاتلي','فين','فيه','اهلا','أهلا','هاي'))`;
+  const needsMessengerNameRepair = `(customer_name = '' OR customer_name = $4 OR customer_name = session_id OR LOWER(customer_name) IN ('anonymous','unknown customer') OR LENGTH(customer_name) > 80 OR customer_name ~ '[?!.:;]' OR customer_name ~ '(غالي|غالية|غاليه|عايز|عايزة|عايزه|عاوز|عاوزه|محتاج|محتاجة|محتاجه|محتاجين|ممكن|السلام عليكم|سلام عليكم|وريني|ابعت|ابعتلي|هات|هاتلي|فين|فيه|اهلا|أهلا|هاي)' OR customer_name ILIKE '%message%' OR customer_name ILIKE '%preview%' OR customer_name ILIKE '%snippet%' OR customer_name ILIKE '%reply%' OR customer_name ILIKE '%conversation%' OR customer_name ILIKE '%inbox%' OR customer_name ILIKE '%customer%' OR customer_name ILIKE '%order%' OR customer_name ILIKE '%product%' OR customer_name ILIKE '%stock%' OR customer_name ILIKE '%size%' OR customer_name ILIKE '%price%' OR customer_name ILIKE '%body%' OR customer_name IN ('عايز','عايزة','عاوز','عاوزه','محتاج','محتاجة','محتاجه','ممكن','السلام عليكم','سلام عليكم','وريني','ابعت','ابعتلي','هات','هاتلي','فين','فيه','اهلا','أهلا','هاي'))`;
   console.log("[customer-name-write]", {
     source: "metaIntegrationService.persistMessengerProfile",
     tenant_id: numberOrNull(tenantId),
@@ -2807,9 +2959,18 @@ export const syncMessengerProfileForConversation = async ({ tenantId, conversati
       channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
       externalConversationId: safeConversationId,
       externalCustomerId: psid,
-       customerName: ["facebook_messenger", "facebook", "messenger"].includes(text(message.channel).toLowerCase())
-         ? text(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || "")
-         : message.customer_name,
+      customerName: ["facebook_messenger", "facebook", "messenger"].includes(text(message.channel).toLowerCase())
+        ? resolveMessengerConversationDisplayName({
+            customerName: "",
+            customerProfile: {
+              first_name: text(message.raw?.messenger_profile?.first_name || ""),
+              last_name: text(message.raw?.messenger_profile?.last_name || ""),
+              name: text(message.raw?.messenger_profile?.name || ""),
+            },
+            metadata: { messenger_profile: message.raw?.messenger_profile || {} },
+            externalCustomerId: text(message.external_customer_id || ""),
+          })
+        : message.customer_name,
       customerAvatarUrl: message.customer_avatar_url,
       customerProfileId: message.customer_profile_id || null,
       metadata: {
@@ -2870,7 +3031,16 @@ export const syncMessengerProfileForConversation = async ({ tenantId, conversati
       success: Boolean(text(message.customer_name) || text(message.customer_avatar_url)),
       conversation_id: safeConversationId,
       external_customer_id: psid,
-      customer_name: text(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || message.customer_name || psid),
+      customer_name: resolveMessengerConversationDisplayName({
+        customerName: "",
+        customerProfile: {
+          first_name: text(message.raw?.messenger_profile?.first_name || ""),
+          last_name: text(message.raw?.messenger_profile?.last_name || ""),
+          name: text(message.raw?.messenger_profile?.name || ""),
+        },
+        metadata: { messenger_profile: message.raw?.messenger_profile || {} },
+        externalCustomerId: psid,
+      }),
       customer_avatar_url: message.customer_avatar_url || "",
       customer_profile_id: message.customer_profile_id || null,
     };
@@ -5642,6 +5812,18 @@ const logIncomingToInbox = async ({ message, config }) => {
     .createHash("sha256")
     .update([config.tenant_id, sessionId, channel, externalMessageId || message.external_customer_id, message.timestamp, lastMessage].map(text).join("|"))
     .digest("hex");
+  const messengerCustomerName = ["facebook_messenger", "facebook", "messenger"].includes(channel)
+    ? resolveMessengerConversationDisplayName({
+        customerName: "",
+        customerProfile: {
+          first_name: text(message.raw?.messenger_profile?.first_name || ""),
+          last_name: text(message.raw?.messenger_profile?.last_name || ""),
+          name: text(message.raw?.messenger_profile?.name || ""),
+        },
+        metadata: { messenger_profile: message.raw?.messenger_profile || {} },
+        externalCustomerId: text(message.external_customer_id || ""),
+      })
+    : text(message.customer_name);
   console.log("[meta-inbox] meta_inbox_session_upsert_start", {
     tenant_id: config.tenant_id,
     session_id: sessionId,
@@ -5669,7 +5851,7 @@ const logIncomingToInbox = async ({ message, config }) => {
       updated_at = NOW()
     RETURNING id
     `,
-    [config.tenant_id, sessionId, channel, channel, customerName, customerAvatarUrl, lastMessage]
+    [config.tenant_id, sessionId, channel, channel, messengerCustomerName, customerAvatarUrl, lastMessage]
   );
   console.log("[meta-inbox] meta_inbox_session_upsert_success", {
     tenant_id: config.tenant_id,
@@ -5693,7 +5875,7 @@ const logIncomingToInbox = async ({ message, config }) => {
     ON CONFLICT (tenant_id, session_id, dedupe_key) WHERE dedupe_key <> '' DO NOTHING
     RETURNING *
     `,
-    [session.rows[0]?.id || null, config.tenant_id, sessionId, channel, customerName, customerAvatarUrl, lastMessage, json(message.attachments || []), externalMessageId, dedupeKey, "sync_job", channel === "instagram" ? "instagram_dm" : "meta_messenger"]
+    [session.rows[0]?.id || null, config.tenant_id, sessionId, channel, messengerCustomerName, customerAvatarUrl, lastMessage, json(message.attachments || []), externalMessageId, dedupeKey, "sync_job", channel === "instagram" ? "instagram_dm" : "meta_messenger"]
   );
   if (!inserted.rows[0]) {
     console.log("[meta-inbox] meta_message_duplicate_skipped", {
@@ -5802,7 +5984,16 @@ const routeMessageThroughAi = async ({ req, message, config }) => {
     externalConversationId: message.external_conversation_id,
     externalCustomerId: message.external_customer_id,
     customerName: ["facebook_messenger", "facebook", "messenger"].includes(alias)
-      ? text(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || "")
+      ? resolveMessengerConversationDisplayName({
+          customerName: "",
+          customerProfile: {
+            first_name: text(message.raw?.messenger_profile?.first_name || ""),
+            last_name: text(message.raw?.messenger_profile?.last_name || ""),
+            name: text(message.raw?.messenger_profile?.name || ""),
+          },
+          metadata: { messenger_profile: message.raw?.messenger_profile || {} },
+          externalCustomerId: text(message.external_customer_id || ""),
+        })
       : message.customer_name,
     text: normalizedForIntent || "Customer sent an attachment",
     original_message: originalMessage || "Customer sent an attachment",
@@ -5823,8 +6014,17 @@ const routeMessageThroughAi = async ({ req, message, config }) => {
       session_id: message.external_conversation_id,
       customer_id: customerContext?.customerId || aiMemory.customerId || message.external_customer_id,
       customer_name: ["facebook_messenger", "facebook", "messenger"].includes(channel)
-        ? text(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || "")
-        : message.customer_name,
+      ? resolveMessengerConversationDisplayName({
+          customerName: "",
+          customerProfile: {
+            first_name: text(message.raw?.messenger_profile?.first_name || ""),
+            last_name: text(message.raw?.messenger_profile?.last_name || ""),
+            name: text(message.raw?.messenger_profile?.name || ""),
+          },
+          metadata: { messenger_profile: message.raw?.messenger_profile || {} },
+          externalCustomerId: text(message.external_customer_id || ""),
+        })
+      : message.customer_name,
       channel,
       adapter_channel: message.channel,
       external_conversation_id: message.external_conversation_id,
@@ -5897,7 +6097,16 @@ export const generateMetaUnifiedDecisionDryRun = async ({ message = {}, config =
     externalConversationId: message.external_conversation_id,
     externalCustomerId: message.external_customer_id,
     customerName: ["facebook_messenger", "facebook", "messenger"].includes(alias)
-      ? text(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || aiMemory.knownName || customerContext?.fullName || "")
+      ? resolveMessengerConversationDisplayName({
+          customerName: "",
+          customerProfile: {
+            first_name: text(message.raw?.messenger_profile?.first_name || ""),
+            last_name: text(message.raw?.messenger_profile?.last_name || ""),
+            name: text(message.raw?.messenger_profile?.name || ""),
+          },
+          metadata: { messenger_profile: message.raw?.messenger_profile || {} },
+          externalCustomerId: text(message.external_customer_id || ""),
+        }) || aiMemory.knownName || customerContext?.fullName || ""
       : message.customer_name || aiMemory.knownName || customerContext?.fullName || "",
     text: normalizedForIntent,
     original_message: originalMessage,
@@ -5922,8 +6131,17 @@ export const generateMetaUnifiedDecisionDryRun = async ({ message = {}, config =
       external_customer_id: message.external_customer_id,
       customer_id: customerContext?.customerId || aiMemory.customerId || message.external_customer_id,
       customer_name: ["facebook_messenger", "facebook", "messenger"].includes(alias)
-        ? text(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || aiMemory.knownName || customerContext?.fullName || "")
-        : message.customer_name || aiMemory.knownName || customerContext?.fullName || "",
+      ? resolveMessengerConversationDisplayName({
+          customerName: "",
+          customerProfile: {
+            first_name: text(message.raw?.messenger_profile?.first_name || ""),
+            last_name: text(message.raw?.messenger_profile?.last_name || ""),
+            name: text(message.raw?.messenger_profile?.name || ""),
+          },
+          metadata: { messenger_profile: message.raw?.messenger_profile || {} },
+          externalCustomerId: text(message.external_customer_id || ""),
+        }) || aiMemory.knownName || customerContext?.fullName || ""
+      : message.customer_name || aiMemory.knownName || customerContext?.fullName || "",
       customer_phone: aiMemory.knownPhone || customerContext?.phone || "",
       ai_memory: aiMemory,
       aiConversationMemoryV2: conversationMemoryV2,
@@ -14314,7 +14532,16 @@ const ensureCheckoutDraftForMemory = async ({ config, message, memory = {}, sele
     external_customer_id: message.external_customer_id,
     customer_phone: message.external_customer_id,
     customer_name: ["facebook_messenger", "facebook", "messenger"].includes(text(message.channel).toLowerCase())
-      ? text(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || "")
+      ? resolveMessengerConversationDisplayName({
+          customerName: "",
+          customerProfile: {
+            first_name: text(message.raw?.messenger_profile?.first_name || ""),
+            last_name: text(message.raw?.messenger_profile?.last_name || ""),
+            name: text(message.raw?.messenger_profile?.name || ""),
+          },
+          metadata: { messenger_profile: message.raw?.messenger_profile || {} },
+          externalCustomerId: text(message.external_customer_id || ""),
+        })
       : message.customer_name || "",
     allow_missing_phone: true,
     product,
@@ -15423,7 +15650,16 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
     external_customer_id: message.external_customer_id,
     customer_phone: message.external_customer_id,
     customer_name: ["facebook_messenger", "facebook", "messenger"].includes(text(message.channel).toLowerCase())
-      ? text(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || "")
+      ? resolveMessengerConversationDisplayName({
+          customerName: "",
+          customerProfile: {
+            first_name: text(message.raw?.messenger_profile?.first_name || ""),
+            last_name: text(message.raw?.messenger_profile?.last_name || ""),
+            name: text(message.raw?.messenger_profile?.name || ""),
+          },
+          metadata: { messenger_profile: message.raw?.messenger_profile || {} },
+          externalCustomerId: text(message.external_customer_id || ""),
+        })
       : message.customer_name || "",
     allow_missing_phone: true,
     product,
@@ -16722,9 +16958,18 @@ export const processMetaWebhook = async ({ req } = {}) => {
       channel: message.channel,
       externalConversationId: message.external_conversation_id,
       externalCustomerId: message.external_customer_id,
-       customerName: ["facebook_messenger", "facebook", "messenger"].includes(text(message.channel).toLowerCase())
-         ? text(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || "")
-         : message.customer_name,
+      customerName: ["facebook_messenger", "facebook", "messenger"].includes(text(message.channel).toLowerCase())
+        ? resolveMessengerConversationDisplayName({
+            customerName: "",
+            customerProfile: {
+              first_name: text(message.raw?.messenger_profile?.first_name || ""),
+              last_name: text(message.raw?.messenger_profile?.last_name || ""),
+              name: text(message.raw?.messenger_profile?.name || ""),
+            },
+            metadata: { messenger_profile: message.raw?.messenger_profile || {} },
+            externalCustomerId: text(message.external_customer_id || ""),
+          })
+        : message.customer_name,
       customerAvatarUrl: message.customer_avatar_url,
       customerProfileId: message.customer_profile_id || null,
       metadata: {

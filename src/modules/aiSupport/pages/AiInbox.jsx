@@ -289,24 +289,18 @@ const messengerSelectedCustomerMatches = (conversation = {}) => {
 const messengerDisplayName = (conversation = {}) => {
   const source = conversation || {};
   const identityKey = messengerIdentityKey(source);
-  const selectedCustomer = messengerSelectedCustomer(source);
-  const selectedCustomerMatches = messengerSelectedCustomerMatches(source);
-  const profileName = selectedCustomerMatches
-    ? firstNonEmpty(
-        selectedCustomer?.name,
-        selectedCustomer?.customer_name,
-        selectedCustomer?.full_name,
-        selectedCustomer?.sender_name,
-        selectedCustomer?.profile_name,
-        selectedCustomer?.contact_name,
-        source.customer_profile?.name,
-        source.customer_profile?.full_name,
-        source.customer_profile?.sender_name,
-        source.customer_profile?.profile_name,
-        source.customer_profile?.contact_name
-      )
-    : "";
-  return firstNonEmpty(source.customer_name, profileName, identityKey);
+  const profileName = firstNonEmpty(
+    source.customer_profile?.name,
+    source.customer_profile?.full_name,
+    source.customer_profile?.sender_name,
+    source.customer_profile?.profile_name,
+    source.customer_profile?.contact_name,
+    source.customer_profile?.first_name && source.customer_profile?.last_name
+      ? `${source.customer_profile.first_name} ${source.customer_profile.last_name}`
+      : "",
+    source.first_name && source.last_name ? `${source.first_name} ${source.last_name}` : ""
+  );
+  return firstNonEmpty(profileName, identityKey);
 };
 const isMessengerConversation = (conversation = {}) => {
   const channel = normalizeConversationChannel(conversation);

@@ -98,6 +98,41 @@ export const isLikelyMessageLikeName = (value = "") => {
   ].some((token) => lowerCandidate.includes(token));
 };
 
+const MESSENGER_INFERENCE_TOKENS = [
+  "غالي",
+  "غالية",
+  "غاليه",
+  "عايز",
+  "عايزة",
+  "عايزه",
+  "عاوز",
+  "عاوزه",
+  "محتاج",
+  "محتاجة",
+  "محتاجه",
+  "محتاجين",
+  "ممكن",
+  "وريني",
+  "ابعت",
+  "ابعتلي",
+  "هات",
+  "هاتلي",
+  "فين",
+  "فيه",
+  "اهلا",
+  "أهلا",
+  "سلام عليكم",
+  "السلام عليكم",
+  "هاي",
+];
+const isSafeMessengerProfileName = (value = "") => {
+  const candidate = normalizeDisplayName(value);
+  if (!candidate) return false;
+  if (isLikelyMessageLikeName(candidate)) return false;
+  const lowerCandidate = candidate.toLowerCase();
+  return !MESSENGER_INFERENCE_TOKENS.some((token) => lowerCandidate.includes(token.toLowerCase()));
+};
+
 export const resolveMessengerConversationDisplayName = ({
   customerName = "",
   customerProfile = {},
@@ -108,27 +143,14 @@ export const resolveMessengerConversationDisplayName = ({
   const profileFirstName = normalizeDisplayName(customerProfile?.first_name || messengerProfile?.first_name || metadata?.first_name || "");
   const profileLastName = normalizeDisplayName(customerProfile?.last_name || messengerProfile?.last_name || metadata?.last_name || "");
   const profileFullName = normalizeDisplayName([profileFirstName, profileLastName].filter(Boolean).join(" "));
-  const profileName = normalizeDisplayName(
-    customerProfile?.name ||
-      messengerProfile?.name ||
-      metadata?.sender_name ||
-      metadata?.profile_name ||
-      metadata?.contact_name ||
-      metadata?.external_sender_name ||
-      metadata?.external_contact_name ||
-      ""
-  );
-  const storedName = normalizeDisplayName(customerName);
+  const profileName = normalizeDisplayName(customerProfile?.name || messengerProfile?.name || "");
   const safeCandidates = [
-    storedName,
-    profileFullName,
     profileName,
-    normalizeDisplayName(metadata?.external_sender_name || metadata?.external_contact_name || ""),
+    profileFullName,
   ].filter(Boolean);
-  const safeCandidate = safeCandidates.find((candidate) => !isLikelyMessageLikeName(candidate)) || "";
+  const safeCandidate = safeCandidates.find((candidate) => isSafeMessengerProfileName(candidate)) || "";
   if (safeCandidate) return safeCandidate;
-  const safeExternalId = normalizeDisplayName(externalCustomerId);
-  return safeExternalId || storedName || profileName || profileFullName || "";
+  return normalizeDisplayName(externalCustomerId);
 };
 
 let channelSchemaReadyPromise = null;
@@ -735,14 +757,16 @@ export const upsertChannelConversationMapping = async ({
     channel: normalizedChannel,
     external_conversation_id: toText(externalConversationId),
     external_customer_id: toText(externalCustomerId),
-    raw_customer_name: toText(customerName),
+    customer_name: toText(customerName),
+    session_customer_name: toText(customerName),
     resolved_customer_name: resolvedCustomerName,
-    messenger_profile_name: toText(metadata?.messenger_profile?.name || ""),
-    messenger_profile_first_name: toText(metadata?.messenger_profile?.first_name || ""),
-    messenger_profile_last_name: toText(metadata?.messenger_profile?.last_name || ""),
     sender_name: toText(metadata?.sender_name || ""),
     profile_name: toText(metadata?.profile_name || ""),
     contact_name: toText(metadata?.contact_name || ""),
+    customer_profile_name: toText(metadata?.customer_profile?.name || ""),
+    messenger_profile_name: toText(metadata?.messenger_profile?.name || ""),
+    messenger_profile_first_name: toText(metadata?.messenger_profile?.first_name || ""),
+    messenger_profile_last_name: toText(metadata?.messenger_profile?.last_name || ""),
     external_sender_name: toText(metadata?.external_sender_name || ""),
     external_contact_name: toText(metadata?.external_contact_name || ""),
   });

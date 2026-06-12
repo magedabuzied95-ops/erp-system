@@ -1466,7 +1466,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
           customerProfile: {
             first_name: conversation.first_name,
             last_name: conversation.last_name,
-            name: conversation.customer_name || conversation.session_customer_name || "",
+            name: conversation.channel_metadata?.messenger_profile?.name || conversation.channel_metadata?.customer_profile?.name || "",
             external_customer_id: conversation.profile_external_customer_id || conversation.external_customer_id || "",
           },
           metadata: conversation.channel_metadata || {},
