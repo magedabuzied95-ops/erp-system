@@ -3,6 +3,13 @@ import express from "express";
 import {
   closeCashDrawerShiftController,
   createManualMoneyAdjustmentController,
+  getAccountingReportsV2CashAccountsController,
+  getAccountingReportsV2DashboardController,
+  getAccountingReportsV2IncomeStatementController,
+  getAccountingReportsV2InventoryController,
+  getAccountingReportsV2PayablesController,
+  getAccountingReportsV2ReceivablesController,
+  getAccountingReportsV2SpecialTransactionsController,
   createFinancialAccountController,
   createJournalEntryController,
   createPaymentMethodMappingController,
@@ -120,6 +127,62 @@ router.get(
   protect,
   permit("accounting", "view"),
   getFinancialReportsSummaryController
+);
+
+router.get(
+  "/reports-v2/dashboard",
+  protect,
+  permit("accounting", "view"),
+  getAccountingReportsV2DashboardController
+);
+
+router.get(
+  "/reports-v2/income-statement",
+  protect,
+  permit("accounting", "view"),
+  getAccountingReportsV2IncomeStatementController
+);
+
+router.get(
+  "/reports-v2/cash-accounts",
+  protect,
+  permit("accounting", "view"),
+  getAccountingReportsV2CashAccountsController
+);
+
+router.get(
+  "/reports-v2/accounts",
+  protect,
+  permit("accounting", "view"),
+  getAccountingReportsV2CashAccountsController
+);
+
+router.get(
+  "/reports-v2/receivables",
+  protect,
+  permit("accounting", "view"),
+  getAccountingReportsV2ReceivablesController
+);
+
+router.get(
+  "/reports-v2/payables",
+  protect,
+  permit("accounting", "view"),
+  getAccountingReportsV2PayablesController
+);
+
+router.get(
+  "/reports-v2/inventory",
+  protect,
+  permit("accounting", "view"),
+  getAccountingReportsV2InventoryController
+);
+
+router.get(
+  "/reports-v2/special-transactions",
+  protect,
+  permit("accounting", "view"),
+  getAccountingReportsV2SpecialTransactionsController
 );
 
 router.get(

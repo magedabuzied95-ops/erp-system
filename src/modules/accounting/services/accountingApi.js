@@ -11,6 +11,41 @@ export const accountingApi = {
       params: buildParams(params),
       timeoutMs: 30000,
     }),
+  getReportsV2Dashboard: (params = {}) =>
+    api.get("/accounting/reports-v2/dashboard", {
+      params: buildParams(params),
+      timeoutMs: 30000,
+    }),
+  getReportsV2IncomeStatement: (params = {}) =>
+    api.get("/accounting/reports-v2/income-statement", {
+      params: buildParams(params),
+      timeoutMs: 30000,
+    }),
+  getReportsV2CashAccounts: (params = {}) =>
+    api.get("/accounting/reports-v2/cash-accounts", {
+      params: buildParams(params),
+      timeoutMs: 30000,
+    }),
+  getReportsV2Receivables: (params = {}) =>
+    api.get("/accounting/reports-v2/receivables", {
+      params: buildParams(params),
+      timeoutMs: 30000,
+    }),
+  getReportsV2Payables: (params = {}) =>
+    api.get("/accounting/reports-v2/payables", {
+      params: buildParams(params),
+      timeoutMs: 30000,
+    }),
+  getReportsV2Inventory: (params = {}) =>
+    api.get("/accounting/reports-v2/inventory", {
+      params: buildParams(params),
+      timeoutMs: 30000,
+    }),
+  getReportsV2SpecialTransactions: (params = {}) =>
+    api.get("/accounting/reports-v2/special-transactions", {
+      params: buildParams(params),
+      timeoutMs: 30000,
+    }),
   getProfitLossReport: (params = {}) =>
     api.get("/accounting/financial-reports/profit-loss", {
       params: buildParams(params),

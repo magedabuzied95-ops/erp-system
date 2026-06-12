@@ -1,98 +1,134 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-
-import { AlertTriangle, BarChart3, Calculator, Download, FileSpreadsheet, FileText, Loader2, ReceiptText, RefreshCcw, Search, TrendingUp } from "lucide-react";
-import toast from "react-hot-toast";
+import {
+  AlertCircle,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Boxes,
+  Building2,
+  CalendarRange,
+  CreditCard,
+  HandCoins,
+  Landmark,
+  LoaderCircle,
+  PackageSearch,
+  ReceiptText,
+  RefreshCw,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
 
 import AccountingShell from "../components/AccountingShell";
 import FinanceMetricCard from "../components/FinanceMetricCard";
-import { exportAccountingCsv, exportAccountingExcel, exportAccountingPdf } from "../lib/financialReportExport";
-import { formatCurrency } from "../lib/financeStore";
 import { accountingApi } from "../services/accountingApi";
-import { getCurrentUser, isAdminUser } from "../../../shared/auth/authStorage";
+import { api } from "../../../shared/api/api";
+import { formatCurrency, formatNumber } from "../../../shared/lib/currency";
 
-const emptySummary = {
-  revenue_report: { total_revenue: 0, orders_count: 0 },
-  expense_report: { total_expenses: 0 },
-  profit: 0,
-  inventory_valuation: 0,
-  top_customers: [],
-  top_products: [],
+const REPORT_TABS = [
+  { key: "dashboard", icon: TrendingUp },
+  { key: "income", icon: ReceiptText },
+  { key: "cash", icon: Landmark },
+  { key: "receivables", icon: HandCoins },
+  { key: "payables", icon: CreditCard },
+  { key: "inventory", icon: Boxes },
+  { key: "specials", icon: Wallet },
+];
+
+const defaultFilters = {
+  from_date: "",
+  to_date: "",
+  branch_id: "",
 };
 
-const emptyProfitLoss = {
-  revenue: {
-    gross_sales: 0,
-    discounts: 0,
-    returns: 0,
-    net_sales: 0,
-  },
-  cogs: { total_cogs: 0 },
-  gross_profit: 0,
-  expenses: [],
-  total_expenses: 0,
-  net_profit: 0,
-};
-
-const emptyTrialBalance = {
-  rows: [],
-  totals: { debit: 0, credit: 0, difference: 0 },
-};
-
-const emptyBalanceSheet = {
-  assets: [],
-  liabilities: [],
-  equity: [],
-  totals: {
-    assets: 0,
-    liabilities: 0,
-    equity: 0,
-    liabilities_and_equity: 0,
-    difference: 0,
-  },
+const txtForTab = (key, isArabic) => {
+  const copy = {
+    dashboard: [isArabic ? "الملخص المالي" : "Financial Dashboard", isArabic ? "نظرة مركزة على الأداء المالي والسيولة والمخزون." : "Focused view of profitability, liquidity, and inventory."],
+    income: [isArabic ? "قائمة الدخل" : "Income Statement", isArabic ? "إيرادات ومردودات ومصاريف وصافي الربح للفترة المحددة." : "Revenue, returns, expenses, and profit for the selected period."],
+    cash: [isArabic ? "الحسابات النقدية والبنكية" : "Cash & Bank Accounts", isArabic ? "حركة الحسابات المالية مع الرصيد الافتتاحي والختامي." : "Account movement with opening and closing balances."],
+    receivables: [isArabic ? "مديونيات العملاء" : "Receivables", isArabic ? "البيع الآجل والتحصيل والعملاء الأعلى مديونية." : "Credit sales, collections, and top debtors."],
+    payables: [isArabic ? "مستحقات الموردين" : "Payables", isArabic ? "المشتريات غير المسددة أو الجزئية وأعلى الموردين." : "Outstanding purchases and top suppliers."],
+    inventory: [isArabic ? "قيمة المخزون و COGS" : "Inventory Value & COGS", isArabic ? "تقييم المخزون وتكلفة البضاعة المباعة وفق البيانات الحالية." : "Inventory valuation and available COGS estimate."],
+    specials: [isArabic ? "الحركات الخاصة" : "Special Transactions", isArabic ? "خصومات ومرتجعات وسلف واستخدام مالك وحركات خاصة." : "Discounts, refunds, advances, owner use, and special items."],
+  };
+  return copy[key];
 };
 
 function FinancialReports() {
-  const { t, i18n } = useTranslation();
-  const [activeTab, setActiveTab] = useState("overview");
-  const [summary, setSummary] = useState(emptySummary);
-  const [profitLoss, setProfitLoss] = useState(emptyProfitLoss);
-  const [trialBalance, setTrialBalance] = useState(emptyTrialBalance);
-  const [balanceSheet, setBalanceSheet] = useState(emptyBalanceSheet);
-  const [filters, setFilters] = useState({
-    from_date: "",
-    to_date: "",
-    branch_id: "",
-  });
-  const [appliedFilters, setAppliedFilters] = useState(filters);
+  const { i18n, t } = useTranslation();
+  const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
+  const [filters, setFilters] = useState(() => ({ ...defaultFilters }));
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [branches, setBranches] = useState([]);
+  const [reportData, setReportData] = useState({});
+  const [reportErrors, setReportErrors] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [syncingEntries, setSyncingEntries] = useState(false);
-  const [showSyncModal, setShowSyncModal] = useState(false);
 
-  const canSyncAccounting = isAdminUser(getCurrentUser());
+  const shellTitle = isArabic ? "التقارير المحاسبية" : "Accounting Reports";
+  const shellSubtitle = isArabic
+    ? "لوحة تقارير محاسبية مركزة للمدير تشمل الربحية والسيولة والمخزون والمستحقات."
+    : "Executive accounting reporting across profit, cash, inventory, receivables, and payables.";
 
-  const loadReports = async (params = filters) => {
-    setLoading(true);
-    setError("");
+  const requestParams = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(filters).filter(([, value]) => value !== "" && value !== null && value !== undefined)
+      ),
+    [filters]
+  );
+
+  const loadReports = async () => {
     try {
-      const [summaryResult, profitLossResult, trialBalanceResult, balanceSheetResult] = await Promise.all([
-        accountingApi.getFinancialReportsSummary(params),
-        accountingApi.getProfitLossReport(params),
-        accountingApi.getTrialBalanceReport(params),
-        accountingApi.getBalanceSheetReport(params),
+      setLoading(true);
+      setError("");
+      setReportErrors({});
+
+      const results = await Promise.allSettled([
+        api.get("/branches", { suppressErrorStatuses: [403] }),
+        accountingApi.getReportsV2Dashboard(requestParams),
+        accountingApi.getReportsV2IncomeStatement(requestParams),
+        accountingApi.getReportsV2CashAccounts(requestParams),
+        accountingApi.getReportsV2Receivables(requestParams),
+        accountingApi.getReportsV2Payables(requestParams),
+        accountingApi.getReportsV2Inventory(requestParams),
+        accountingApi.getReportsV2SpecialTransactions(requestParams),
       ]);
-      setSummary({ ...emptySummary, ...summaryResult });
-      setProfitLoss({ ...emptyProfitLoss, ...profitLossResult });
-      setTrialBalance({ ...emptyTrialBalance, ...trialBalanceResult, totals: { ...emptyTrialBalance.totals, ...(trialBalanceResult?.totals || {}) } });
-      setBalanceSheet({ ...emptyBalanceSheet, ...balanceSheetResult, totals: { ...emptyBalanceSheet.totals, ...(balanceSheetResult?.totals || {}) } });
-      setAppliedFilters(params);
-    } catch (requestError) {
-      setError(requestError?.message || t("accounting.reports.errors.loadFailed"));
-      setSummary(emptySummary);
-      setProfitLoss(emptyProfitLoss);
-      setTrialBalance(emptyTrialBalance);
-      setBalanceSheet(emptyBalanceSheet);
+
+      const [branchesResult, dashboardResult, incomeResult, cashResult, receivablesResult, payablesResult, inventoryResult, specialsResult] = results;
+      const nextErrors = {};
+      const readResult = (result, key) => {
+        if (result.status === "fulfilled") return result.value;
+        const message = result.reason?.message || (isArabic ? "فشل تحميل هذا التقرير" : "Failed to load this report");
+        nextErrors[key] = message;
+        console.error(`[accounting-reports-v2] ${key} failed:`, result.reason);
+        return null;
+      };
+
+      const branchesResponse = branchesResult.status === "fulfilled" ? branchesResult.value : null;
+      const branchRows = Array.isArray(branchesResponse?.rows)
+        ? branchesResponse.rows
+        : Array.isArray(branchesResponse?.data)
+          ? branchesResponse.data
+          : Array.isArray(branchesResponse?.branches)
+            ? branchesResponse.branches
+            : [];
+
+      const nextReportData = {
+        dashboard: readResult(dashboardResult, "dashboard"),
+        income: readResult(incomeResult, "income"),
+        cash: readResult(cashResult, "cash"),
+        receivables: readResult(receivablesResult, "receivables"),
+        payables: readResult(payablesResult, "payables"),
+        inventory: readResult(inventoryResult, "inventory"),
+        specials: readResult(specialsResult, "specials"),
+      };
+
+      setBranches(branchRows);
+      setReportErrors(nextErrors);
+      setReportData(nextReportData);
+    } catch (loadError) {
+      console.error("[accounting-reports-v2] failed:", loadError);
+      setError(loadError?.message || (isArabic ? "تعذر تحميل التقارير" : "Failed to load reports"));
     } finally {
       setLoading(false);
     }
@@ -100,426 +136,594 @@ function FinancialReports() {
 
   useEffect(() => {
     loadReports();
-  }, []);
+  }, [requestParams]);
 
-  const updateFilter = (key, value) => {
-    setFilters((current) => ({ ...current, [key]: value }));
-  };
-
-  const applyFilters = (event) => {
-    event.preventDefault();
-    loadReports(filters);
-  };
-
-  const exportPayload = {
-    reportType: activeTab,
-    summary,
-    profitLoss,
-    trialBalance,
-    balanceSheet,
-    filters: appliedFilters,
-    language: i18n.language,
-  };
-
-  const logExport = async (format) => {
-    await accountingApi.logExportGenerated({
-      report_type: activeTab,
-      format,
-      filters: appliedFilters,
-    }).catch(() => {});
-  };
-
-  const exportReport = async (format, exporter) => {
-    await logExport(format);
-    exporter(exportPayload);
-  };
-
-  const revenue = Number(summary.revenue_report?.total_revenue || 0);
-  const expenses = Number(summary.expense_report?.total_expenses || 0);
-  const profit = Number(summary.profit || 0);
-  const inventoryValuation = Number(summary.inventory_valuation || 0);
-  const topCustomers = Array.isArray(summary.top_customers) ? summary.top_customers : [];
-  const topProducts = Array.isArray(summary.top_products) ? summary.top_products : [];
-  const grossProfit = Number(profitLoss.gross_profit || 0);
-  const netProfit = Number(profitLoss.net_profit || 0);
-
-  const runAccountingSync = async () => {
-    setSyncingEntries(true);
-    try {
-      const result = await accountingApi.rebuildLedgerEntries();
-      setShowSyncModal(false);
-      await loadReports(appliedFilters);
-      const warningText = Array.isArray(result?.warnings) && result.warnings.length ? ` ${t("accounting.reports.toasts.syncWarnings", { warnings: result.warnings.join(" ") })}` : "";
-      toast.success(`${t("accounting.reports.toasts.syncSuccess", {
-        created: Number(result?.created || 0),
-        deleted: Number(result?.deleted_old_generated_entries || 0),
-        skipped: Number(result?.skipped || 0),
-      })}${warningText}`);
-    } catch (syncError) {
-      toast.error(syncError?.message || t("accounting.reports.errors.syncFailed"));
-    } finally {
-      setSyncingEntries(false);
-    }
-  };
+  const [activeTitle, activeDescription] = txtForTab(activeTab, isArabic);
+  const activeTabError = reportErrors[activeTab] || "";
 
   return (
-    <AccountingShell
-      title={t("accounting.reports.title")}
-      subtitle={t("accounting.reports.subtitle")}
-      actions={
-        <>
-          {canSyncAccounting ? (
-            <button type="button" onClick={() => setShowSyncModal(true)} disabled={syncingEntries} className="inline-flex items-center gap-2 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-2 text-sm font-black text-amber-100 transition hover:bg-amber-300/20 disabled:cursor-not-allowed disabled:opacity-60">
-              {syncingEntries ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-              {t("accounting.reports.actions.syncEntries")}
+    <div dir={isArabic ? "rtl" : "ltr"}>
+      <AccountingShell
+        title={shellTitle}
+        subtitle={shellSubtitle}
+        actions={
+          <>
+            <div className="flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)]">
+              {loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CalendarRange className="h-4 w-4" />}
+              {isArabic ? "تحديث مباشر حسب الفلاتر" : "Live from current filters"}
+            </div>
+            <button
+              type="button"
+              onClick={loadReports}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--card)] disabled:opacity-60"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              {isArabic ? "تحديث" : "Refresh"}
             </button>
+          </>
+        }
+        tabs={[
+          { to: "/accounting", label: t("accounting.tabs.dashboard"), end: true },
+          { to: "/accounting/treasury", label: "Treasury" },
+          { to: "/accounting/journal-entries", label: t("accounting.tabs.journal") },
+          { to: "/accounting/accounts", label: t("accounting.tabs.accounts") },
+          { to: "/accounting/financial-accounts", label: t("accounting.tabs.financialAccounts") },
+          { to: "/accounting/payment-method-mappings", label: t("accounting.tabs.paymentMappings") },
+          { to: "/accounting/reports", label: t("accounting.tabs.reports") },
+          { to: "/accounting/profit-loss", label: t("accounting.tabs.profitLoss") },
+          { to: "/accounting/taxes", label: t("accounting.tabs.taxes") },
+          { to: "/accounting/cost-fix", label: t("accounting.tabs.costFix") },
+          { to: "/accounting/audit-trail", label: t("accounting.tabs.auditTrail") },
+        ]}
+      >
+        <section className="theme-card rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl shadow-[var(--shadow)]">
+          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-[1fr_1fr_1fr_auto]">
+            <FilterField
+              label={isArabic ? "من تاريخ" : "From date"}
+              type="date"
+              value={filters.from_date}
+              onChange={(value) => setFilters((current) => ({ ...current, from_date: value }))}
+            />
+            <FilterField
+              label={isArabic ? "إلى تاريخ" : "To date"}
+              type="date"
+              value={filters.to_date}
+              onChange={(value) => setFilters((current) => ({ ...current, to_date: value }))}
+            />
+            <FilterSelect
+              label={isArabic ? "الفرع" : "Branch"}
+              value={filters.branch_id}
+              onChange={(value) => setFilters((current) => ({ ...current, branch_id: value }))}
+              options={[
+                { value: "", label: isArabic ? "كل الفروع" : "All branches" },
+                ...branches.map((branch) => ({
+                  value: String(branch.id),
+                  label: branch.name || `${isArabic ? "فرع" : "Branch"} #${branch.id}`,
+                })),
+              ]}
+            />
+            <button
+              type="button"
+              onClick={() => setFilters({ ...defaultFilters })}
+              className="h-11 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--surface)]"
+            >
+              {isArabic ? "إعادة ضبط" : "Reset"}
+            </button>
+          </div>
+        </section>
+
+        <section className="grid gap-2 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-xl shadow-[var(--shadow)] md:grid-cols-2 xl:grid-cols-7">
+          {REPORT_TABS.map((tab) => {
+            const Icon = tab.icon;
+            const [title] = txtForTab(tab.key, isArabic);
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                className={[
+                  "flex items-center gap-3 rounded-2xl px-4 py-3 text-start transition",
+                  isActive
+                    ? "bg-[var(--primary)] text-white shadow-lg"
+                    : "text-[var(--muted)] hover:bg-[var(--card)] hover:text-[var(--text)]",
+                ].join(" ")}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="text-sm font-semibold">{title}</span>
+              </button>
+            );
+          })}
+        </section>
+
+        <section className="theme-card rounded-3xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-xl shadow-[var(--shadow)]">
+          <div className="flex flex-col gap-2 border-b border-[var(--border)] pb-4">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--primary)]/70">
+              {isArabic ? "التبويب الحالي" : "Current report"}
+            </div>
+            <h2 className="text-2xl font-black text-[var(--text)]">{activeTitle}</h2>
+            <p className="text-sm text-[var(--muted)]">{activeDescription}</p>
+          </div>
+
+          {error ? (
+            <StateBox
+              icon={AlertCircle}
+              title={isArabic ? "تعذر تحميل التقرير" : "Report load failed"}
+              message={error}
+              actionLabel={isArabic ? "إعادة المحاولة" : "Retry"}
+              onAction={loadReports}
+              tone="error"
+            />
           ) : null}
-          <button type="button" onClick={() => exportReport("pdf", exportAccountingPdf)} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10">
-            <FileText className="h-4 w-4" />
-            {t("accounting.common.actions.exportPdf")}
-          </button>
-          <button type="button" onClick={() => exportReport("excel", exportAccountingExcel)} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10">
-            <FileSpreadsheet className="h-4 w-4" />
-            {t("accounting.common.actions.exportExcel")}
-          </button>
-          <button type="button" onClick={() => exportReport("csv", exportAccountingCsv)} className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black">
-            <Download className="h-4 w-4" />
-            {t("accounting.common.actions.exportCsv")}
-          </button>
-        </>
-      }
-      tabs={[
-        { to: "/accounting", label: t("accounting.tabs.dashboard") },
-        { to: "/accounting/reports", label: t("accounting.tabs.reports"), end: true },
-        { to: "/accounting/profit-loss", label: t("accounting.tabs.profitLoss") },
-        { to: "/accounting/ledgers", label: t("accounting.tabs.ledgers") },
-        { to: "/accounting/cost-fix", label: t("accounting.tabs.costFix") },
-        { to: "/accounting/audit-trail", label: t("accounting.tabs.auditTrail") },
-      ]}
-    >
-      {showSyncModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-zinc-950 p-6 shadow-2xl shadow-black">
-            <div className="flex items-start gap-4">
-              <div className="rounded-2xl border border-amber-300/30 bg-amber-300/10 p-3 text-amber-200">
-                <AlertTriangle className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className="text-xl font-black text-white">{t("accounting.reports.syncModal.title")}</h3>
-                <p className="mt-2 text-sm leading-6 text-zinc-300">
-                  {t("accounting.reports.syncModal.body")}
-                </p>
-              </div>
+
+          {!error && activeTabError ? (
+            <StateBox
+              icon={AlertCircle}
+              title={isArabic ? "تعذر تحميل هذا التبويب" : "This tab failed to load"}
+              message={activeTabError}
+              actionLabel={isArabic ? "إعادة المحاولة" : "Retry"}
+              onAction={loadReports}
+              tone="error"
+            />
+          ) : null}
+
+          {!error && !activeTabError ? (
+            <div className="mt-5">
+              {activeTab === "dashboard" ? <DashboardTab data={reportData.dashboard} loading={loading} isArabic={isArabic} /> : null}
+              {activeTab === "income" ? <IncomeTab data={reportData.income} loading={loading} isArabic={isArabic} /> : null}
+              {activeTab === "cash" ? <CashTab data={reportData.cash} loading={loading} isArabic={isArabic} /> : null}
+              {activeTab === "receivables" ? <ReceivablesTab data={reportData.receivables} loading={loading} isArabic={isArabic} /> : null}
+              {activeTab === "payables" ? <PayablesTab data={reportData.payables} loading={loading} isArabic={isArabic} /> : null}
+              {activeTab === "inventory" ? <InventoryTab data={reportData.inventory} loading={loading} isArabic={isArabic} /> : null}
+              {activeTab === "specials" ? <SpecialsTab data={reportData.specials} loading={loading} isArabic={isArabic} /> : null}
             </div>
-            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button type="button" onClick={() => setShowSyncModal(false)} disabled={syncingEntries} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-60">
-                {t("accounting.common.actions.cancel")}
-              </button>
-              <button type="button" onClick={runAccountingSync} disabled={syncingEntries} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-300 px-4 py-2 text-sm font-black text-black transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60">
-                {syncingEntries ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-                {t("accounting.reports.actions.rebuildEntries")}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      <form onSubmit={applyFilters} className="grid gap-3 rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 md:grid-cols-4">
-        <FilterField label={t("accounting.common.labels.from")}>
-          <input type="date" value={filters.from_date} onChange={(event) => updateFilter("from_date", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-400/60" />
-        </FilterField>
-        <FilterField label={t("accounting.common.labels.to")}>
-          <input type="date" value={filters.to_date} onChange={(event) => updateFilter("to_date", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-400/60" />
-        </FilterField>
-        <FilterField label={t("accounting.common.labels.branch")}>
-          <input type="number" min="1" placeholder={t("accounting.common.placeholders.branchId")} value={filters.branch_id} onChange={(event) => updateFilter("branch_id", event.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-cyan-400/60" />
-        </FilterField>
-        <div className="flex items-end">
-          <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black transition hover:bg-cyan-400">
-            <Search className="h-4 w-4" />
-            {t("accounting.common.actions.apply")}
-          </button>
-        </div>
-      </form>
-
-      <div className="flex flex-wrap gap-2 rounded-3xl border border-white/10 bg-zinc-950/90 p-2 shadow-xl shadow-black/10">
-        <ReportTab label={t("accounting.reports.tabs.overview")} active={activeTab === "overview"} onClick={() => setActiveTab("overview")} />
-        <ReportTab label={t("accounting.reports.tabs.profitLoss")} active={activeTab === "profit-loss"} onClick={() => setActiveTab("profit-loss")} />
-        <ReportTab label={t("accounting.reports.tabs.trialBalance")} active={activeTab === "trial-balance"} onClick={() => setActiveTab("trial-balance")} />
-        <ReportTab label={t("accounting.reports.tabs.balanceSheet")} active={activeTab === "balance-sheet"} onClick={() => setActiveTab("balance-sheet")} />
-      </div>
-
-      {loading ? (
-        <StateBanner icon={<Loader2 className="h-5 w-5 animate-spin" />} title={t("accounting.reports.states.loadingTitle")} text={t("accounting.reports.states.loadingText")} />
-      ) : null}
-
-      {error ? (
-        <StateBanner
-          icon={<AlertTriangle className="h-5 w-5" />}
-          title={t("accounting.reports.states.errorTitle")}
-          text={error}
-          action={
-            <button type="button" onClick={loadReports} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white transition hover:bg-white/10">
-              <RefreshCcw className="h-4 w-4" />
-              {t("accounting.common.actions.retry")}
-            </button>
-          }
-        />
-      ) : null}
-
-      {activeTab === "overview" ? (
-        <>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <FinanceMetricCard label={t("accounting.reports.metrics.revenueReport")} value={formatCurrency(revenue)} hint={t("accounting.reports.hints.paidOrders", { count: Number(summary.revenue_report?.orders_count || 0) })} tone="emerald" icon={<BarChart3 className="h-5 w-5" />} />
-            <FinanceMetricCard label={t("accounting.reports.metrics.expenseReport")} value={formatCurrency(expenses)} tone="rose" icon={<ReceiptText className="h-5 w-5" />} />
-            <FinanceMetricCard label={t("accounting.reports.metrics.profit")} value={formatCurrency(profit)} tone={profit >= 0 ? "emerald" : "rose"} icon={<TrendingUp className="h-5 w-5" />} />
-            <FinanceMetricCard label={t("accounting.reports.metrics.inventoryValuation")} value={formatCurrency(inventoryValuation)} hint={t("accounting.reports.hints.inventoryValuation")} tone="amber" icon={<BarChart3 className="h-5 w-5" />} />
-          </div>
-
-          <div className="grid gap-4 xl:grid-cols-2">
-            <ReportCard title={t("accounting.reports.cards.topCustomers")} emptyText={t("accounting.reports.empty.noRows")} rows={topCustomers.map((item) => ({ label: item.name || t("accounting.reports.fallbacks.walkInCustomer"), value: formatCurrency(item.total_revenue), hint: t("accounting.reports.hints.orders", { count: Number(item.orders_count || 0) }) }))} />
-            <ReportCard title={t("accounting.reports.cards.topProducts")} emptyText={t("accounting.reports.empty.noRows")} rows={topProducts.map((item) => ({ label: item.name || t("accounting.reports.fallbacks.unknownProduct"), value: formatCurrency(item.total_revenue), hint: t("accounting.reports.hints.units", { count: Number(item.units_sold || 0) }) }))} />
-          </div>
-        </>
-      ) : null}
-
-      {activeTab === "profit-loss" ? (
-        <ProfitLossReport report={profitLoss} grossProfit={grossProfit} netProfit={netProfit} t={t} />
-      ) : null}
-
-      {activeTab === "trial-balance" ? <TrialBalanceReport report={trialBalance} t={t} /> : null}
-
-      {activeTab === "balance-sheet" ? <BalanceSheetReport report={balanceSheet} t={t} /> : null}
-    </AccountingShell>
+          ) : null}
+        </section>
+      </AccountingShell>
+    </div>
   );
 }
 
-function FilterField({ label, children }) {
+function DashboardTab({ data, loading, isArabic }) {
+  const cards = data?.cards || {};
+  const notes = Array.isArray(data?.notes) ? data.notes : [];
+  const highlights = data?.highlights || {};
+
+  if (loading) return <LoadingBlock rows={2} />;
+
   return (
-    <label className="space-y-2">
-      <span className="text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">{label}</span>
-      {children}
+    <div className="space-y-5">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <FinanceMetricCard label={isArabic ? "صافي الإيراد" : "Net Revenue"} value={formatCurrency(cards.net_revenue, isArabic ? "ar" : "en")} tone="emerald" icon={<TrendingUp className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "صافي الربح" : "Net Profit"} value={formatCurrency(cards.net_profit, isArabic ? "ar" : "en")} tone="cyan" icon={<ArrowUpRight className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "مديونيات العملاء" : "Receivables Due"} value={formatCurrency(cards.receivables_due, isArabic ? "ar" : "en")} tone="amber" icon={<HandCoins className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "مستحقات الموردين" : "Payables Due"} value={formatCurrency(cards.payables_due, isArabic ? "ar" : "en")} tone="rose" icon={<CreditCard className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "قيمة المخزون" : "Inventory Value"} value={formatCurrency(cards.inventory_value, isArabic ? "ar" : "en")} tone="violet" icon={<Boxes className="h-5 w-5" />} />
+      </div>
+      <NotesList notes={notes} isArabic={isArabic} />
+      <div className="grid gap-4 xl:grid-cols-3">
+        <MiniTableCard
+          title={isArabic ? "أعلى العملاء مديونية" : "Top customer receivables"}
+          rows={highlights.top_customers}
+          columns={[
+            { key: "customer_name", label: isArabic ? "العميل" : "Customer" },
+            { key: "outstanding_balance", label: isArabic ? "الرصيد" : "Outstanding", money: true },
+          ]}
+          isArabic={isArabic}
+        />
+        <MiniTableCard
+          title={isArabic ? "أعلى الموردين مستحقات" : "Top supplier payables"}
+          rows={highlights.top_suppliers}
+          columns={[
+            { key: "supplier_name", label: isArabic ? "المورد" : "Supplier" },
+            { key: "outstanding_balance", label: isArabic ? "الرصيد" : "Outstanding", money: true },
+          ]}
+          isArabic={isArabic}
+        />
+        <MiniTableCard
+          title={isArabic ? "أعلى عناصر المخزون قيمة" : "Top inventory lines"}
+          rows={highlights.top_inventory}
+          columns={[
+            { key: "item_name", label: isArabic ? "الصنف" : "Item" },
+            { key: "inventory_value", label: isArabic ? "القيمة" : "Value", money: true },
+          ]}
+          isArabic={isArabic}
+        />
+      </div>
+    </div>
+  );
+}
+
+function IncomeTab({ data, loading, isArabic }) {
+  if (loading) return <LoadingBlock rows={2} />;
+  const summary = data?.summary || {};
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <FinanceMetricCard label={isArabic ? "الإيراد" : "Revenue"} value={formatCurrency(summary.revenue, isArabic ? "ar" : "en")} tone="emerald" icon={<TrendingUp className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "صافي الإيراد" : "Net Revenue"} value={formatCurrency(summary.net_revenue, isArabic ? "ar" : "en")} tone="cyan" icon={<ReceiptText className="h-5 w-5" />} />
+        <FinanceMetricCard label="COGS" value={formatCurrency(summary.cogs, isArabic ? "ar" : "en")} hint={summary.cogs_estimated ? (isArabic ? "تقديري" : "Estimated") : ""} tone="amber" icon={<PackageSearch className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "صافي الربح" : "Net Profit"} value={formatCurrency(summary.net_profit, isArabic ? "ar" : "en")} tone="violet" icon={<ArrowUpRight className="h-5 w-5" />} />
+      </div>
+      <NotesList notes={summary.cogs_note ? [summary.cogs_note] : []} isArabic={isArabic} />
+      <DataTable
+        title={isArabic ? "تفصيل قائمة الدخل" : "Income statement detail"}
+        rows={data?.lines}
+        columns={[
+          { key: "label", label: isArabic ? "البند" : "Line" },
+          { key: "amount", label: isArabic ? "القيمة" : "Amount", money: true },
+          { key: "estimated", label: isArabic ? "ملاحظة" : "Note", render: (row) => (row.estimated ? (isArabic ? "تقديري" : "Estimated") : "") },
+        ]}
+        isArabic={isArabic}
+      />
+      <div className="rounded-2xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
+        {isArabic
+          ? "COGS معروض كتقدير مبني على إشارات التكلفة الحالية، وليس تكلفة تاريخية مؤكدة لكل عملية بيع."
+          : "COGS is shown as an estimate from currently available cost signals, not a guaranteed historical per-sale cost."}
+      </div>
+      <DataTable
+        title={isArabic ? "تفصيل المصروفات" : "Expense breakdown"}
+        rows={data?.expense_breakdown}
+        columns={[
+          { key: "category", label: isArabic ? "الفئة" : "Category" },
+          { key: "amount", label: isArabic ? "القيمة" : "Amount", money: true },
+        ]}
+        isArabic={isArabic}
+      />
+    </div>
+  );
+}
+
+function CashTab({ data, loading, isArabic }) {
+  if (loading) return <LoadingBlock rows={2} />;
+  const summary = data?.summary || {};
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <FinanceMetricCard label={isArabic ? "رصيد افتتاحي" : "Opening Balance"} value={formatCurrency(summary.opening_balance, isArabic ? "ar" : "en")} tone="zinc" icon={<Landmark className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "وارد" : "Incoming"} value={formatCurrency(summary.incoming, isArabic ? "ar" : "en")} tone="emerald" icon={<ArrowUpRight className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "صادر" : "Outgoing"} value={formatCurrency(summary.outgoing, isArabic ? "ar" : "en")} tone="rose" icon={<ArrowDownLeft className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "رصيد ختامي" : "Closing Balance"} value={formatCurrency(summary.closing_balance, isArabic ? "ar" : "en")} tone="cyan" icon={<Wallet className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "عدد الحسابات" : "Accounts"} value={formatNumber(summary.accounts_count, isArabic ? "ar" : "en")} tone="violet" icon={<Building2 className="h-5 w-5" />} />
+      </div>
+      <DataTable
+        title={isArabic ? "أرصدة الحسابات" : "Account balances"}
+        rows={data?.rows}
+        columns={[
+          { key: "name", label: isArabic ? "الحساب" : "Account" },
+          { key: "account_type", label: isArabic ? "النوع" : "Type" },
+          { key: "opening_balance", label: isArabic ? "افتتاحي" : "Opening", money: true },
+          { key: "incoming", label: isArabic ? "وارد" : "Incoming", money: true },
+          { key: "outgoing", label: isArabic ? "صادر" : "Outgoing", money: true },
+          { key: "closing_balance", label: isArabic ? "ختامي" : "Closing", money: true },
+        ]}
+        isArabic={isArabic}
+      />
+      <DataTable
+        title={isArabic ? "حركة الحسابات" : "Account movement"}
+        rows={data?.transactions}
+        columns={[
+          { key: "created_at", label: isArabic ? "التاريخ" : "Date", type: "date" },
+          { key: "account_name", label: isArabic ? "الحساب" : "Account" },
+          { key: "direction", label: isArabic ? "الاتجاه" : "Direction" },
+          { key: "transaction_type", label: isArabic ? "النوع" : "Type" },
+          { key: "amount", label: isArabic ? "القيمة" : "Amount", money: true },
+          { key: "notes", label: isArabic ? "ملاحظات" : "Notes" },
+        ]}
+        isArabic={isArabic}
+      />
+    </div>
+  );
+}
+
+function ReceivablesTab({ data, loading, isArabic }) {
+  if (loading) return <LoadingBlock rows={2} />;
+  const summary = data?.summary || {};
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <FinanceMetricCard label={isArabic ? "إجمالي البيع الآجل" : "Credit Sales"} value={formatCurrency(summary.total_credit_sales, isArabic ? "ar" : "en")} tone="amber" icon={<ReceiptText className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "المحصل من العملاء" : "Collected"} value={formatCurrency(summary.collected_amount, isArabic ? "ar" : "en")} tone="emerald" icon={<HandCoins className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "الرصيد المستحق" : "Outstanding"} value={formatCurrency(summary.outstanding_balance, isArabic ? "ar" : "en")} tone="rose" icon={<CreditCard className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "عدد العملاء" : "Customers"} value={formatNumber(summary.customers_count, isArabic ? "ar" : "en")} tone="cyan" icon={<Building2 className="h-5 w-5" />} />
+      </div>
+      <DataTable
+        title={isArabic ? "أعلى العملاء مديونية" : "Top debtor customers"}
+        rows={data?.top_customers}
+        columns={[
+          { key: "customer_name", label: isArabic ? "العميل" : "Customer" },
+          { key: "orders_count", label: isArabic ? "عدد الفواتير" : "Orders" },
+          { key: "outstanding_balance", label: isArabic ? "الرصيد المستحق" : "Outstanding", money: true },
+        ]}
+        isArabic={isArabic}
+      />
+      <DataTable
+        title={isArabic ? "تفصيل مديونيات العملاء" : "Receivables detail"}
+        rows={data?.rows}
+        columns={[
+          { key: "transaction_date", label: isArabic ? "التاريخ" : "Date", type: "date" },
+          { key: "reference", label: isArabic ? "المرجع" : "Reference" },
+          { key: "customer_name", label: isArabic ? "العميل" : "Customer" },
+          { key: "invoice_total", label: isArabic ? "إجمالي الفاتورة" : "Invoice", money: true },
+          { key: "collected_amount", label: isArabic ? "المحصل" : "Collected", money: true },
+          { key: "outstanding_balance", label: isArabic ? "المستحق" : "Outstanding", money: true },
+          { key: "payment_status", label: isArabic ? "حالة السداد" : "Payment Status" },
+        ]}
+        isArabic={isArabic}
+      />
+    </div>
+  );
+}
+
+function PayablesTab({ data, loading, isArabic }) {
+  if (loading) return <LoadingBlock rows={2} />;
+  const summary = data?.summary || {};
+  const branchNote = data?.meta?.branch_filter_note ? [data.meta.branch_filter_note] : [];
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <FinanceMetricCard label={isArabic ? "إجمالي المشتريات غير المسددة" : "Unpaid Purchases"} value={formatCurrency(summary.total_unpaid_purchases, isArabic ? "ar" : "en")} tone="amber" icon={<ReceiptText className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "المدفوع للموردين" : "Paid to Suppliers"} value={formatCurrency(summary.paid_amount, isArabic ? "ar" : "en")} tone="emerald" icon={<HandCoins className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "الرصيد المستحق" : "Outstanding"} value={formatCurrency(summary.outstanding_balance, isArabic ? "ar" : "en")} tone="rose" icon={<CreditCard className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "عدد الموردين" : "Suppliers"} value={formatNumber(summary.suppliers_count, isArabic ? "ar" : "en")} tone="cyan" icon={<Building2 className="h-5 w-5" />} />
+      </div>
+      <NotesList notes={branchNote} isArabic={isArabic} />
+      <DataTable
+        title={isArabic ? "أعلى الموردين مستحقات" : "Top supplier payables"}
+        rows={data?.top_suppliers}
+        columns={[
+          { key: "supplier_name", label: isArabic ? "المورد" : "Supplier" },
+          { key: "purchases_count", label: isArabic ? "عدد الفواتير" : "Purchases" },
+          { key: "outstanding_balance", label: isArabic ? "الرصيد المستحق" : "Outstanding", money: true },
+        ]}
+        isArabic={isArabic}
+      />
+      <DataTable
+        title={isArabic ? "تفصيل مستحقات الموردين" : "Payables detail"}
+        rows={data?.rows}
+        columns={[
+          { key: "transaction_date", label: isArabic ? "التاريخ" : "Date", type: "date" },
+          { key: "reference", label: isArabic ? "المرجع" : "Reference" },
+          { key: "supplier_name", label: isArabic ? "المورد" : "Supplier" },
+          { key: "invoice_total", label: isArabic ? "إجمالي الفاتورة" : "Invoice", money: true },
+          { key: "paid_amount", label: isArabic ? "المدفوع" : "Paid", money: true },
+          { key: "outstanding_balance", label: isArabic ? "المستحق" : "Outstanding", money: true },
+          { key: "payment_status", label: isArabic ? "حالة السداد" : "Payment Status" },
+        ]}
+        isArabic={isArabic}
+      />
+    </div>
+  );
+}
+
+function InventoryTab({ data, loading, isArabic }) {
+  if (loading) return <LoadingBlock rows={2} />;
+  const summary = data?.summary || {};
+  const notes = [summary.cogs_note].filter(Boolean);
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <FinanceMetricCard label={isArabic ? "قيمة المخزون" : "Inventory Value"} value={formatCurrency(summary.inventory_value, isArabic ? "ar" : "en")} tone="emerald" icon={<Boxes className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "إجمالي الوحدات" : "Total Units"} value={formatNumber(summary.total_units, isArabic ? "ar" : "en")} tone="cyan" icon={<PackageSearch className="h-5 w-5" />} />
+        <FinanceMetricCard label="COGS" value={formatCurrency(summary.cogs, isArabic ? "ar" : "en")} hint={summary.cogs_estimated ? (isArabic ? "تقديري" : "Estimated") : ""} tone="amber" icon={<ReceiptText className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "أسطر المخزون" : "Inventory Lines"} value={formatNumber(summary.inventory_lines, isArabic ? "ar" : "en")} tone="violet" icon={<Boxes className="h-5 w-5" />} />
+      </div>
+      <NotesList notes={notes} isArabic={isArabic} />
+      <div className="rounded-2xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
+        {isArabic
+          ? "قيمة COGS هنا تقديرية وفق البيانات المتاحة حاليًا وقد لا تمثل تكلفة تاريخية دقيقة لكل سطر بيع."
+          : "COGS here is estimated from the current data model and may not represent exact historical cost for every sold line."}
+      </div>
+      <DataTable
+        title={isArabic ? "تفصيل تقييم المخزون" : "Inventory valuation detail"}
+        rows={data?.rows}
+        columns={[
+          { key: "product_name", label: isArabic ? "المنتج" : "Product" },
+          { key: "item_name", label: isArabic ? "الصنف" : "Item" },
+          { key: "stock_qty", label: isArabic ? "الكمية" : "Qty", number: true },
+          { key: "unit_cost", label: isArabic ? "تكلفة الوحدة" : "Unit Cost", money: true },
+          { key: "inventory_value", label: isArabic ? "قيمة المخزون" : "Inventory Value", money: true },
+          { key: "source", label: isArabic ? "المصدر" : "Source" },
+        ]}
+        isArabic={isArabic}
+      />
+    </div>
+  );
+}
+
+function SpecialsTab({ data, loading, isArabic }) {
+  if (loading) return <LoadingBlock rows={2} />;
+  const summary = data?.summary || {};
+  const notes = [data?.meta?.gifts_note].filter(Boolean);
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <FinanceMetricCard label={isArabic ? "الخصومات" : "Discounts"} value={formatCurrency(summary.discounts, isArabic ? "ar" : "en")} tone="amber" icon={<ReceiptText className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "المرتجعات" : "Refunds"} value={formatCurrency(summary.refunds, isArabic ? "ar" : "en")} tone="rose" icon={<ArrowDownLeft className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "سلف الموظفين" : "Employee Advances"} value={formatCurrency(summary.employee_advances, isArabic ? "ar" : "en")} tone="cyan" icon={<HandCoins className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "استخدام المالك" : "Owner Use"} value={formatCurrency(summary.owner_use, isArabic ? "ar" : "en")} tone="violet" icon={<Wallet className="h-5 w-5" />} />
+        <FinanceMetricCard label={isArabic ? "إجمالي الحركات" : "Total Amount"} value={formatCurrency(summary.total_amount, isArabic ? "ar" : "en")} tone="emerald" icon={<TrendingUp className="h-5 w-5" />} />
+      </div>
+      <NotesList notes={notes} isArabic={isArabic} />
+      <DataTable
+        title={isArabic ? "تفصيل الحركات الخاصة" : "Special transaction detail"}
+        rows={data?.rows}
+        columns={[
+          { key: "transaction_date", label: isArabic ? "التاريخ" : "Date", type: "date" },
+          { key: "label", label: isArabic ? "النوع" : "Label" },
+          { key: "reference", label: isArabic ? "المرجع" : "Reference" },
+          { key: "amount", label: isArabic ? "القيمة" : "Amount", money: true },
+          { key: "status", label: isArabic ? "الحالة" : "Status" },
+          { key: "notes", label: isArabic ? "ملاحظات" : "Notes" },
+        ]}
+        isArabic={isArabic}
+      />
+    </div>
+  );
+}
+
+function FilterField({ label, value, onChange, type = "text" }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-bold text-[var(--muted)]">{label}</span>
+      <input
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-11 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--primary)]"
+      />
     </label>
   );
 }
 
-function ReportTab({ label, active, onClick }) {
+function FilterSelect({ label, value, onChange, options = [] }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        "rounded-2xl px-4 py-2 text-sm font-black transition",
-        active ? "bg-cyan-500 text-black" : "text-zinc-400 hover:bg-white/5 hover:text-white",
-      ].join(" ")}
-    >
-      {label}
-    </button>
-  );
-}
-
-function ProfitLossReport({ report, grossProfit, netProfit, t }) {
-  const expenses = Array.isArray(report.expenses) ? report.expenses : [];
-  const hasActivity = [
-    report.revenue?.gross_sales,
-    report.revenue?.discounts,
-    report.revenue?.returns,
-    report.revenue?.net_sales,
-    report.cogs?.total_cogs,
-    report.gross_profit,
-    report.total_expenses,
-    report.net_profit,
-  ].some((value) => Number(value || 0) !== 0) || expenses.length > 0;
-
-  return (
-    <>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <FinanceMetricCard label={t("accounting.reports.metrics.grossSales")} value={formatCurrency(report.revenue?.gross_sales || 0)} tone="emerald" icon={<TrendingUp className="h-5 w-5" />} />
-        <FinanceMetricCard label={t("accounting.reports.metrics.netSales")} value={formatCurrency(report.revenue?.net_sales || 0)} tone="cyan" icon={<BarChart3 className="h-5 w-5" />} />
-        <FinanceMetricCard label={t("accounting.reports.metrics.cogs")} value={formatCurrency(report.cogs?.total_cogs || 0)} tone="rose" icon={<Calculator className="h-5 w-5" />} />
-        <FinanceMetricCard label={t("accounting.reports.metrics.netProfit")} value={formatCurrency(netProfit)} tone={netProfit >= 0 ? "emerald" : "rose"} icon={<TrendingUp className="h-5 w-5" />} />
-      </div>
-
-      {!hasActivity ? (
-        <div className="rounded-3xl border border-dashed border-white/10 bg-zinc-950/90 p-8 text-sm text-zinc-400 shadow-2xl shadow-black/10">
-          {t("accounting.reports.empty.noProfitLossActivity")}
-        </div>
-      ) : null}
-
-      <div className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
-        <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-          <h3 className="text-xl font-black text-white">{t("accounting.reports.cards.profitLossStatement")}</h3>
-          <div className="mt-4 space-y-2">
-            <StatementLine label={t("accounting.reports.metrics.grossSales")} value={report.revenue?.gross_sales || 0} />
-            <StatementLine label={t("accounting.reports.metrics.discounts")} value={report.revenue?.discounts || 0} muted />
-            <StatementLine label={t("accounting.reports.metrics.returns")} value={report.revenue?.returns || 0} muted />
-            <StatementLine label={t("accounting.reports.metrics.netSales")} value={report.revenue?.net_sales || 0} strong />
-            <StatementLine label={t("accounting.reports.metrics.cogs")} value={report.cogs?.total_cogs || 0} muted />
-            <StatementLine label={t("accounting.reports.metrics.grossProfit")} value={grossProfit} strong tone={grossProfit >= 0 ? "emerald" : "rose"} />
-            <StatementLine label={t("accounting.reports.metrics.totalExpenses")} value={report.total_expenses || 0} muted />
-            <StatementLine label={t("accounting.reports.metrics.netProfit")} value={netProfit} strong tone={netProfit >= 0 ? "emerald" : "rose"} />
-          </div>
-        </div>
-
-        <ReportCard title={t("accounting.reports.cards.expensesByCategory")} emptyText={t("accounting.reports.empty.noRows")} rows={expenses.map((item) => ({ label: item.category || t("accounting.reports.fallbacks.uncategorized"), value: formatCurrency(item.amount), hint: t("accounting.reports.hints.operatingExpense") }))} />
-      </div>
-    </>
-  );
-}
-
-function TrialBalanceReport({ report, t }) {
-  const rows = Array.isArray(report.rows) ? report.rows : [];
-  const totals = report.totals || {};
-  const difference = Number(totals.difference || 0);
-
-  return (
-    <>
-      {Math.abs(difference) > 0.01 ? (
-        <StateBanner icon={<AlertTriangle className="h-5 w-5" />} title={t("accounting.reports.states.trialBalanceUnbalanced")} text={t("accounting.reports.states.trialBalanceDifference", { amount: formatCurrency(difference) })} />
-      ) : null}
-
-      <div className="grid gap-3 md:grid-cols-3">
-        <FinanceMetricCard label={t("accounting.common.metrics.totalDebit")} value={formatCurrency(totals.debit || 0)} tone="emerald" icon={<ReceiptText className="h-5 w-5" />} />
-        <FinanceMetricCard label={t("accounting.common.metrics.totalCredit")} value={formatCurrency(totals.credit || 0)} tone="rose" icon={<ReceiptText className="h-5 w-5" />} />
-        <FinanceMetricCard label={t("accounting.reports.metrics.difference")} value={formatCurrency(difference)} tone={Math.abs(difference) > 0.01 ? "rose" : "cyan"} icon={<BarChart3 className="h-5 w-5" />} />
-      </div>
-
-      <ReportTable
-        title={t("accounting.reports.tabs.trialBalance")}
-        emptyText={t("accounting.reports.empty.noTrialBalanceRows")}
-        rowCountLabel={t("accounting.common.rows.rows", { count: rows.length })}
-        columns={[t("accounting.common.labels.account"), t("accounting.common.labels.type"), t("accounting.common.labels.debit"), t("accounting.common.labels.credit"), t("accounting.common.labels.balance")]}
-        rows={rows.map((row) => [
-          row.account_name || "-",
-          row.account_type || "-",
-          formatCurrency(row.debit || 0),
-          formatCurrency(row.credit || 0),
-          formatCurrency(row.balance || 0),
-        ])}
-      />
-    </>
-  );
-}
-
-function BalanceSheetReport({ report, t }) {
-  const totals = report.totals || {};
-  const difference = Number(totals.difference || 0);
-  const sections = [
-    [t("accounting.reports.metrics.assets"), report.assets || []],
-    [t("accounting.reports.metrics.liabilities"), report.liabilities || []],
-    [t("accounting.reports.metrics.equity"), report.equity || []],
-  ];
-
-  return (
-    <>
-      {Math.abs(difference) > 0.01 ? (
-        <StateBanner icon={<AlertTriangle className="h-5 w-5" />} title={t("accounting.reports.states.balanceSheetUnbalanced")} text={t("accounting.reports.states.balanceSheetDifference", { amount: formatCurrency(difference) })} />
-      ) : null}
-
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <FinanceMetricCard label={t("accounting.reports.metrics.assets")} value={formatCurrency(totals.assets || 0)} tone="emerald" icon={<BarChart3 className="h-5 w-5" />} />
-        <FinanceMetricCard label={t("accounting.reports.metrics.liabilities")} value={formatCurrency(totals.liabilities || 0)} tone="rose" icon={<ReceiptText className="h-5 w-5" />} />
-        <FinanceMetricCard label={t("accounting.reports.metrics.equity")} value={formatCurrency(totals.equity || 0)} tone="cyan" icon={<TrendingUp className="h-5 w-5" />} />
-        <FinanceMetricCard label={t("accounting.reports.metrics.difference")} value={formatCurrency(difference)} tone={Math.abs(difference) > 0.01 ? "rose" : "cyan"} icon={<Calculator className="h-5 w-5" />} />
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-3">
-        {sections.map(([title, rows]) => (
-          <ReportCard
-            key={title}
-            title={title}
-            emptyText={t("accounting.reports.empty.noRows")}
-            rows={(rows || []).map((item) => ({
-              label: item.name || title,
-              value: formatCurrency(item.amount || 0),
-              hint: title,
-            }))}
-          />
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-bold text-[var(--muted)]">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-11 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--primary)]"
+      >
+        {options.map((option) => (
+          <option key={`${option.value}-${option.label}`} value={option.value}>
+            {option.label}
+          </option>
         ))}
-      </div>
-    </>
+      </select>
+    </label>
   );
 }
 
-function ReportTable({ title, columns, rows, emptyText, rowCountLabel }) {
-  return (
-    <div className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/10">
-      <div className="border-b border-white/10 p-5">
-        <h3 className="text-xl font-black text-white">{title}</h3>
-        <p className="mt-1 text-sm text-zinc-400">{rowCountLabel}</p>
-      </div>
-      {rows.length === 0 ? (
-        <div className="m-5 rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">{emptyText}</div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-[760px] w-full text-left text-sm">
-            <thead className="bg-white/5 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
-              <tr>{columns.map((column) => <th key={column} className="px-4 py-3 font-black">{column}</th>)}</tr>
-            </thead>
-            <tbody className="divide-y divide-white/10">
-              {rows.map((row, index) => (
-                <tr key={`${row[0]}-${index}`} className="transition hover:bg-white/[0.03]">
-                  {row.map((cell, cellIndex) => (
-                    <td key={`${cell}-${cellIndex}`} className={["px-4 py-4 align-top", cellIndex >= 2 ? "text-right font-black text-white" : "text-zinc-300"].join(" ")}>{cell}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
+function StateBox({ icon: Icon, title, message, actionLabel, onAction, tone = "neutral" }) {
+  const toneClasses = tone === "error"
+    ? "border-rose-500/20 bg-rose-500/10 text-rose-100"
+    : "border-[var(--border)] bg-[var(--surface)] text-[var(--text)]";
 
-function StateBanner({ icon, title, text, action }) {
   return (
-    <div className="flex flex-col gap-3 rounded-3xl border border-white/10 bg-zinc-950/90 p-4 text-white shadow-xl shadow-black/10 md:flex-row md:items-center md:justify-between">
+    <div className={`mt-5 rounded-3xl border p-6 ${toneClasses}`}>
       <div className="flex items-start gap-3">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-cyan-300">{icon}</div>
-        <div>
-          <div className="font-black">{title}</div>
-          <div className="mt-1 text-sm text-zinc-400">{text}</div>
+        <div className="rounded-2xl bg-black/10 p-3">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="flex-1">
+          <h3 className="text-lg font-black">{title}</h3>
+          <p className="mt-2 text-sm opacity-90">{message}</p>
+          {actionLabel && onAction ? (
+            <button
+              type="button"
+              onClick={onAction}
+              className="mt-4 rounded-2xl border border-current px-4 py-2 text-sm font-semibold"
+            >
+              {actionLabel}
+            </button>
+          ) : null}
         </div>
       </div>
-      {action}
     </div>
   );
 }
 
-function StatementLine({ label, value, strong = false, muted = false, tone = "" }) {
-  const toneClass = tone === "emerald" ? "text-emerald-300" : tone === "rose" ? "text-rose-300" : "text-white";
+function LoadingBlock({ rows = 1 }) {
   return (
-    <div className={["flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3", strong ? "border-cyan-400/20 bg-cyan-400/5" : ""].join(" ")}>
-      <div className={["text-sm font-semibold", muted ? "text-zinc-400" : "text-white"].join(" ")}>{label}</div>
-      <div className={["text-right font-black", strong ? `text-lg ${toneClass}` : "text-white"].join(" ")}>{formatCurrency(value)}</div>
+    <div className="space-y-4">
+      {Array.from({ length: rows }).map((_, index) => (
+        <div key={index} className="h-40 animate-pulse rounded-3xl border border-[var(--border)] bg-[var(--surface)]" />
+      ))}
     </div>
   );
 }
 
-function ReportCard({ title, rows, emptyText }) {
+function NotesList({ notes = [], isArabic }) {
+  if (!notes.length) return null;
   return (
-    <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-      <h3 className="text-xl font-black text-white">{title}</h3>
-      <div className="mt-4 space-y-3">
-        {rows.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">{emptyText}</div>
-        ) : (
-          rows.map((row) => (
-            <div key={row.label} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="font-semibold text-white">{row.label}</div>
-                  <div className="mt-1 text-xs text-zinc-500">{row.hint}</div>
-                </div>
-                <div className="font-black text-white">{row.value}</div>
-              </div>
-            </div>
-          ))
-        )}
+    <div className="space-y-2">
+      {notes.map((note, index) => (
+        <div
+          key={`${note}-${index}`}
+          className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100"
+        >
+          {isArabic ? "ملاحظة: " : "Note: "}
+          {note}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MiniTableCard({ title, rows, columns, isArabic }) {
+  return (
+    <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4">
+      <h3 className="text-base font-black text-[var(--text)]">{title}</h3>
+      <div className="mt-4">
+        <SimpleTable rows={rows} columns={columns} isArabic={isArabic} compact />
       </div>
     </div>
   );
+}
+
+function DataTable({ title, rows, columns, isArabic }) {
+  return (
+    <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4">
+      <h3 className="text-base font-black text-[var(--text)]">{title}</h3>
+      <div className="mt-4">
+        <SimpleTable rows={rows} columns={columns} isArabic={isArabic} />
+      </div>
+    </div>
+  );
+}
+
+function SimpleTable({ rows = [], columns = [], isArabic, compact = false }) {
+  const normalizedRows = Array.isArray(rows) ? rows : [];
+  if (!normalizedRows.length) {
+    return (
+      <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--card)] px-4 py-8 text-center text-sm text-[var(--muted)]">
+        {isArabic ? "لا توجد بيانات للفلاتر الحالية." : "No data for the current filters."}
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-[var(--border)]">
+      <table className={`min-w-full text-sm ${isArabic ? "text-right" : "text-left"}`}>
+        <thead className="bg-[var(--card)] text-[var(--muted)]">
+          <tr>
+            {columns.map((column) => (
+              <th key={column.key} className={`px-4 py-3 font-bold ${compact ? "" : "whitespace-nowrap"} ${isArabic ? "text-right" : "text-left"}`}>
+                {column.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--border)]">
+          {normalizedRows.map((row, rowIndex) => (
+            <tr key={row.id || row.key || row.reference || rowIndex} className="bg-[var(--surface)] text-[var(--text)]">
+              {columns.map((column) => (
+                <td key={column.key} className={`px-4 py-3 align-top ${isArabic ? "text-right" : "text-left"}`}>
+                  {renderCell(row, column, isArabic)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function renderCell(row, column, isArabic) {
+  if (typeof column.render === "function") return column.render(row);
+
+  const value = row?.[column.key];
+  if (column.money) return formatCurrency(value, isArabic ? "ar" : "en");
+  if (column.number) return formatNumber(value, isArabic ? "ar" : "en");
+  if (column.type === "date" && value) {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return isArabic ? "غير صالح" : "Invalid";
+    return parsed.toLocaleDateString(isArabic ? "ar-EG" : "en-GB");
+  }
+  return value === null || value === undefined || value === "" ? (isArabic ? "—" : "—") : String(value);
 }
 
 export default FinancialReports;

@@ -41,6 +41,15 @@ import {
   updateOrderLineCostOverrides,
   updatePaymentMethodMapping,
 } from "../services/accountingService.js";
+import {
+  getAccountingReportsV2CashAccounts,
+  getAccountingReportsV2Dashboard,
+  getAccountingReportsV2IncomeStatement,
+  getAccountingReportsV2Inventory,
+  getAccountingReportsV2Payables,
+  getAccountingReportsV2Receivables,
+  getAccountingReportsV2SpecialTransactions,
+} from "../services/accountingReportsV2Service.js";
 
 const isAdminUser = (user = {}) => {
   if (isSuperAdminUser(user)) return true;
@@ -248,6 +257,114 @@ export const getFinancialReportsSummaryController = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch financial reports summary",
+      error: error.message,
+    });
+  }
+};
+
+const getReportsV2TenantId = (req) =>
+  isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+
+const getReportsV2Filters = (req) => ({
+  tenantId: getReportsV2TenantId(req),
+  fromDate: req.query.from_date || req.query.from || req.query.startDate || null,
+  toDate: req.query.to_date || req.query.to || req.query.endDate || null,
+  branchId: req.query.branch_id || req.query.branchId || null,
+});
+
+export const getAccountingReportsV2DashboardController = async (req, res) => {
+  try {
+    const payload = await getAccountingReportsV2Dashboard(db, getReportsV2Filters(req));
+    return res.status(200).json({ success: true, ...payload });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch accounting reports dashboard",
+      error: error.message,
+    });
+  }
+};
+
+export const getAccountingReportsV2IncomeStatementController = async (req, res) => {
+  try {
+    const payload = await getAccountingReportsV2IncomeStatement(db, getReportsV2Filters(req));
+    return res.status(200).json({ success: true, ...payload });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch accounting income statement",
+      error: error.message,
+    });
+  }
+};
+
+export const getAccountingReportsV2CashAccountsController = async (req, res) => {
+  try {
+    const payload = await getAccountingReportsV2CashAccounts(db, getReportsV2Filters(req));
+    return res.status(200).json({ success: true, ...payload });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch accounting cash accounts report",
+      error: error.message,
+    });
+  }
+};
+
+export const getAccountingReportsV2ReceivablesController = async (req, res) => {
+  try {
+    const payload = await getAccountingReportsV2Receivables(db, getReportsV2Filters(req));
+    return res.status(200).json({ success: true, ...payload });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch receivables report",
+      error: error.message,
+    });
+  }
+};
+
+export const getAccountingReportsV2PayablesController = async (req, res) => {
+  try {
+    const payload = await getAccountingReportsV2Payables(db, getReportsV2Filters(req));
+    return res.status(200).json({ success: true, ...payload });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch payables report",
+      error: error.message,
+    });
+  }
+};
+
+export const getAccountingReportsV2InventoryController = async (req, res) => {
+  try {
+    const payload = await getAccountingReportsV2Inventory(db, getReportsV2Filters(req));
+    return res.status(200).json({ success: true, ...payload });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch inventory value report",
+      error: error.message,
+    });
+  }
+};
+
+export const getAccountingReportsV2SpecialTransactionsController = async (req, res) => {
+  try {
+    const payload = await getAccountingReportsV2SpecialTransactions(db, getReportsV2Filters(req));
+    return res.status(200).json({ success: true, ...payload });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch special transactions report",
       error: error.message,
     });
   }
