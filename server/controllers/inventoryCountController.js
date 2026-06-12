@@ -195,12 +195,20 @@ export const reopenSession = async (req, res) => {
 export const lookupVariants = async (req, res) => {
   try {
     const tenantId = scopedTenantId(req);
-    const items = await searchInventoryCountVariants(db, {
+    const result = await searchInventoryCountVariants(db, {
       tenantId,
       query: req.query.query || req.query.search || req.query.term || "",
       limit: parseLimit(req.query.limit, 10, 25),
     });
-    return res.json({ success: true, items });
+    return res.json({
+      success: true,
+      items: Array.isArray(result?.items) ? result.items : [],
+      resolvedProductId: result?.resolvedProductId ?? null,
+      resolvedVariantId: result?.resolvedVariantId ?? null,
+      matchedBy: result?.matchedBy || "",
+      resolutionType: result?.resolutionType || "",
+      queryText: result?.queryText || "",
+    });
   } catch (error) {
     console.error("[inventory-count] lookup variants", error);
     return res.status(500).json({ success: false, message: "Failed to search inventory count variants" });
@@ -239,6 +247,7 @@ export const addModel = async (req, res) => {
       tenantId,
       sessionId: resolveSessionId(req),
       productId: req.body?.productId ?? req.body?.product_id ?? req.body?.productID ?? req.body?.product ?? null,
+      scanValue: req.body?.scanValue ?? req.body?.query ?? req.body?.search ?? req.body?.term ?? "",
       userId: req.user?.id || null,
     });
 

@@ -106,6 +106,16 @@ const firstAvailableColumnExpr = (alias, columns, candidates = [], fallback = "'
   return parts.length ? `COALESCE(${parts.join(", ")}, ${fallback})` : fallback;
 };
 
+const buildExactMatchParts = (alias, columns, fieldNames = [], paramRef = "$1") =>
+  fieldNames
+    .filter((fieldName) => columns.has(fieldName))
+    .map((fieldName) => `LOWER(TRIM(COALESCE(${alias}.${fieldName}, ''))) = LOWER(TRIM(${paramRef}))`);
+
+const buildLikeMatchParts = (alias, columns, fieldNames = [], paramRef = "$2") =>
+  fieldNames
+    .filter((fieldName) => columns.has(fieldName))
+    .map((fieldName) => `COALESCE(${alias}.${fieldName}, '') ILIKE ${paramRef}`);
+
 const buildInventoryCountVariantImageSelects = async (client, { variantAlias = "v", productAlias = "p" } = {}) => {
   const [variantColumns, productColumns, hasProductColorImages] = await Promise.all([
     getTableColumns(client, "product_variants"),
@@ -217,6 +227,18 @@ const buildInventoryCountVariantImageSelects = async (client, { variantAlias = "
       ["primary_image_url", "main_image_url", "main_image"],
       colorImageExpr
     ),
+  };
+};
+
+const buildInventoryCountLookupSelects = async (client, { variantAlias = "v", productAlias = "p" } = {}) => {
+  const [variantColumns, productColumns] = await Promise.all([
+    getTableColumns(client, "product_variants"),
+    getTableColumns(client, "products"),
+  ]);
+
+  return {
+    productCodeExpr: firstAvailableColumnExpr(productAlias, productColumns, ["code"], "''"),
+    variantCodeExpr: firstAvailableColumnExpr(variantAlias, variantColumns, ["code"], "''"),
   };
 };
 
@@ -1150,10 +1172,32 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
   const queryText = normalizeText(data.query ?? data.search ?? data.term ?? "");
   const limit = Math.min(Math.max(toNumber(data.limit ?? 10, 10), 1), 25);
 
-  if (!queryText) return [];
+  if (!queryText) {
+    return {
+      items: [],
+      resolvedProductId: null,
+      resolvedVariantId: null,
+      matchedBy: "",
+      resolutionType: "",
+      queryText: "",
+    };
+  }
+
+  const [variantColumns, productColumns, imageSelects, lookupSelects] = await Promise.all([
+    getTableColumns(dbClient, "product_variants"),
+    getTableColumns(dbClient, "products"),
+    buildInventoryCountVariantImageSelects(dbClient),
+    buildInventoryCountLookupSelects(dbClient),
+  ]);
 
   const executeSearch = async (searchText) => {
     const like = `%${searchText}%`;
+    const exactVariantParts = buildExactMatchParts("v", variantColumns, ["barcode", "sku", "article_code", "code"], "$2");
+    const exactProductParts = buildExactMatchParts("p", productColumns, ["barcode", "sku", "code"], "$2");
+    const likeVariantParts = buildLikeMatchParts("v", variantColumns, ["barcode", "sku", "article_code", "code"], "$3");
+    const likeProductParts = buildLikeMatchParts("p", productColumns, ["barcode", "sku", "code"], "$3");
+    const exactMatchParts = [...exactVariantParts, ...exactProductParts];
+    const likeMatchParts = [...likeVariantParts, ...likeProductParts];
     const result = await dbClient.query(
       `
       SELECT
@@ -1162,33 +1206,27 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
         p.name AS product_name,
         p.sku AS product_sku,
         p.barcode AS product_barcode,
+        ${lookupSelects.productCodeExpr} AS product_code,
         v.color,
         v.size,
         v.sku,
         v.barcode,
+        ${lookupSelects.variantCodeExpr} AS variant_code,
         v.article_code,
         COALESCE(v.stock, 0)::int AS stock,
-        COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image,
-        COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url,
-        COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS image_url,
+        ${imageSelects.productImageExpr} AS product_image,
+        ${imageSelects.productImageUrlExpr} AS product_image_url,
+        ${imageSelects.imageUrlExpr} AS image_url,
         CASE
-          WHEN LOWER(TRIM(COALESCE(v.barcode, ''))) = LOWER(TRIM($2))
-            OR LOWER(TRIM(COALESCE(v.sku, ''))) = LOWER(TRIM($2))
-            OR LOWER(TRIM(COALESCE(v.article_code, ''))) = LOWER(TRIM($2))
-            OR LOWER(TRIM(COALESCE(p.barcode, ''))) = LOWER(TRIM($2))
-            OR LOWER(TRIM(COALESCE(p.sku, ''))) = LOWER(TRIM($2)) THEN 0
-          WHEN COALESCE(v.barcode, '') ILIKE $3 OR COALESCE(v.sku, '') ILIKE $3 OR COALESCE(p.barcode, '') ILIKE $3 OR COALESCE(p.sku, '') ILIKE $3 THEN 1
+          WHEN ${exactMatchParts.length ? exactMatchParts.join(" OR ") : "FALSE"} THEN 0
+          WHEN ${likeMatchParts.length ? likeMatchParts.join(" OR ") : "FALSE"} THEN 1
           ELSE 2
         END AS match_rank
       FROM product_variants v
       JOIN products p ON p.id = v.product_id
       WHERE ($1::bigint IS NULL OR v.tenant_id = $1::bigint OR v.tenant_id IS NULL)
         AND (
-          LOWER(TRIM(COALESCE(v.barcode, ''))) = LOWER(TRIM($2))
-          OR LOWER(TRIM(COALESCE(v.sku, ''))) = LOWER(TRIM($2))
-          OR LOWER(TRIM(COALESCE(v.article_code, ''))) = LOWER(TRIM($2))
-          OR LOWER(TRIM(COALESCE(p.barcode, ''))) = LOWER(TRIM($2))
-          OR LOWER(TRIM(COALESCE(p.sku, ''))) = LOWER(TRIM($2))
+          ${exactMatchParts.length ? exactMatchParts.join(" OR ") : "FALSE"}
           OR p.name ILIKE $3
           OR COALESCE(v.color, '') ILIKE $3
           OR COALESCE(v.size, '') ILIKE $3
@@ -1212,8 +1250,10 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
       row.barcode,
       row.sku,
       row.article_code,
+      row.variant_code,
       row.product_barcode,
       row.product_sku,
+      row.product_code,
     ].some((value) => normalizeText(value).toLowerCase() === normalizedSearch));
   };
 
@@ -1224,8 +1264,10 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
         [exactRow.barcode, "variant.barcode"],
         [exactRow.sku, "variant.sku"],
         [exactRow.article_code, "variant.article_code"],
+        [exactRow.variant_code, "variant.code"],
         [exactRow.product_barcode, "product.barcode"],
         [exactRow.product_sku, "product.sku"],
+        [exactRow.product_code, "product.code"],
       ].find(([value]) => normalizeText(value).toLowerCase() === normalizeText(queryText).toLowerCase())?.[1] || "unknown"
     : "";
 
@@ -1254,7 +1296,14 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
     });
   }
 
-  return hydrateInventoryCountVariants(dbClient, rows);
+  return {
+    items: await hydrateInventoryCountVariants(dbClient, rows),
+    resolvedProductId: exactRow?.product_id ?? null,
+    resolvedVariantId: exactRow?.product_variant_id ?? exactRow?.id ?? null,
+    matchedBy,
+    resolutionType: exactRow ? (String(matchedBy).startsWith("product.") ? "product" : "variant") : "",
+    queryText,
+  };
 };
 
 const fetchInventoryCountProductVariants = async (dbClient, { tenantId, productId }) => {
@@ -1508,7 +1557,8 @@ export const addProductModelToCount = async (clientOrPool, data = {}) => {
     data.inventoryCountSessionId ??
     data.inventory_count_session_id
   );
-  const productId = normalizeNullableId(data.productId ?? data.product_id ?? data.productID ?? data.product);
+  let productId = normalizeNullableId(data.productId ?? data.product_id ?? data.productID ?? data.product);
+  const scanValue = normalizeText(data.scanValue ?? data.query ?? data.search ?? data.term ?? "");
 
   if (!sessionId) {
     const error = new Error("Inventory count session is required");
@@ -1516,9 +1566,30 @@ export const addProductModelToCount = async (clientOrPool, data = {}) => {
     throw error;
   }
   if (!productId) {
-    const error = new Error("productId is required");
-    error.status = 400;
-    throw error;
+    if (!scanValue) {
+      const error = new Error("productId is required");
+      error.status = 400;
+      throw error;
+    }
+    const resolved = await searchInventoryCountVariants(dbClient, {
+      tenantId,
+      query: scanValue,
+      limit: 25,
+    });
+    productId = normalizeNullableId(resolved?.resolvedProductId);
+    console.log("[inventory-count:add-model:resolve]", JSON.stringify({
+      sessionId,
+      scanValue,
+      resolvedProductId: productId,
+      resolvedVariantId: resolved?.resolvedVariantId ?? null,
+      matchedBy: resolved?.matchedBy || "",
+      resolutionType: resolved?.resolutionType || "",
+    }));
+    if (!productId) {
+      const error = new Error("productId is required");
+      error.status = 400;
+      throw error;
+    }
   }
 
   const session = await fetchSessionRow(dbClient, { tenantId, sessionId, lock: true });
@@ -1534,6 +1605,12 @@ export const addProductModelToCount = async (clientOrPool, data = {}) => {
   }
 
   const variants = await fetchInventoryCountProductVariants(dbClient, { tenantId, productId });
+  console.log("[inventory-count:add-model]", JSON.stringify({
+    sessionId,
+    productId,
+    variantCount: variants.length,
+    scanValue,
+  }));
   if (!variants.length) {
     const error = new Error("Product not found");
     error.status = 404;

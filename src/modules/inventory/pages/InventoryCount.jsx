@@ -247,10 +247,12 @@ const normalizeCountVariant = (record = {}) => {
   const productName = normalizeText(record.product_name || record.productName || record.name || "");
   const productSku = normalizeText(record.product_sku || record.productSku || record.sku || "");
   const productBarcode = normalizeText(record.product_barcode || record.productBarcode || record.barcode || "");
+  const productCode = normalizeText(record.product_code || record.productCode || "");
   const color = normalizeText(record.color || record.variant_color || record.color_name || "");
   const size = normalizeText(record.size || record.variant_size || record.size_name || "");
   const sku = normalizeText(record.sku || record.variant_sku || "");
   const barcode = normalizeText(record.barcode || record.variant_barcode || "");
+  const variantCode = normalizeText(record.variant_code || record.variantCode || "");
   const articleCode = normalizeText(record.article_code || record.variant_article_code || "");
   const imageData = resolveCountVariantImageData(record);
   const systemQuantity = toNumber(record.system_quantity ?? record.stock ?? record.expected_qty ?? 0);
@@ -264,10 +266,12 @@ const normalizeCountVariant = (record = {}) => {
     product_name: productName,
     product_sku: productSku,
     product_barcode: productBarcode,
+    product_code: productCode,
     color,
     size,
     sku,
     barcode,
+    variant_code: variantCode,
     article_code: articleCode,
     ...imageData,
     system_quantity: systemQuantity,
@@ -279,9 +283,11 @@ const normalizeCountVariant = (record = {}) => {
     variant_size: size,
     variant_sku: sku,
     variant_barcode: barcode,
+    variant_code: variantCode,
     variant_article_code: articleCode,
     variant_product_sku: productSku,
     variant_product_barcode: productBarcode,
+    variant_product_code: productCode,
     variant_image_url: imageData.variant_image_url || imageData.image_url,
     actual_qty: countedQuantity,
     expected_qty: systemQuantity,
@@ -419,6 +425,8 @@ const isExactIdentifierMatch = (query, variant) => {
     variant.article_code,
     variant.product_barcode,
     variant.product_sku,
+    variant.product_code,
+    variant.variant_code,
   ].some((value) => normalizeText(value).toLowerCase() === normalizedQuery);
 };
 
@@ -861,13 +869,23 @@ function InventoryCountPage() {
 
       const exactVariant = results.find((variant) => isExactIdentifierMatch(query, variant));
       const grouped = groupLookupModels(results);
-      if (exactVariant?.product_id) {
+      if (response?.resolvedProductId) {
+        setSelectedLookupProductId(String(response.resolvedProductId));
+      } else if (exactVariant?.product_id) {
         setSelectedLookupProductId(String(exactVariant.product_id));
       } else if (grouped.length) {
         setSelectedLookupProductId(String(grouped[0].product_id || ""));
       } else {
         setSelectedLookupProductId("");
       }
+
+      console.log("[inventory-count] lookup resolve", {
+        query,
+        resolvedProductId: response?.resolvedProductId ?? null,
+        resolvedVariantId: response?.resolvedVariantId ?? null,
+        matchedBy: response?.matchedBy || "",
+        resolutionType: response?.resolutionType || "",
+      });
 
       if (results.length === 0) {
         toast.error("لم يتم العثور على نتائج مطابقة");
@@ -890,6 +908,53 @@ function InventoryCountPage() {
       const response = await searchInventoryCountVariants(routeSessionId, { query, limit: 25 });
       const results = Array.isArray(response?.items) ? response.items : [];
       setLookupResults(results);
+
+      const scanExactVariant = results.find((variant) => isExactIdentifierMatch(query, variant));
+      const resolvedProductId = response?.resolvedProductId || scanExactVariant?.product_id || null;
+      const existingBeforeScan = scanExactVariant
+        ? items.find((item) => String(item.product_variant_id || item.variant_id || item.id) === String(scanExactVariant.product_variant_id || scanExactVariant.variant_id || scanExactVariant.id))
+        : null;
+
+      console.log("[inventory-count] scanner resolve", {
+        query,
+        resolvedProductId,
+        resolvedVariantId: response?.resolvedVariantId ?? scanExactVariant?.product_variant_id ?? null,
+        matchedBy: response?.matchedBy || "",
+        resolutionType: response?.resolutionType || "",
+        existingBeforeScan: Boolean(existingBeforeScan),
+      });
+
+      if (resolvedProductId) {
+        const addModelResponse = await addInventoryCountModel(routeSessionId, {
+          productId: resolvedProductId,
+          scanValue: query,
+        });
+        if (addModelResponse?.session) {
+          setSession(addModelResponse.session);
+        }
+        if (Array.isArray(addModelResponse?.items)) {
+          setItems(normalizeInventoryCountItems(addModelResponse.items));
+        }
+        await loadSession(routeSessionId);
+
+        if (scanExactVariant && existingBeforeScan) {
+          const nextCount = toNumber(existingBeforeScan.counted_quantity, 0) + 1;
+          const saved = await persistVariant(scanExactVariant, {
+            counted_quantity: nextCount,
+            system_quantity: scanExactVariant.system_quantity,
+            reason: existingBeforeScan?.reason || "",
+            notes: existingBeforeScan?.notes || "",
+          });
+          await loadSession(routeSessionId);
+          toast.success(`طھظ… ط¹ط¯ ظ‚ط·ط¹ط© ظ…ظ† ظ…ظ‚ط§ط³ ${saved?.variant_size || scanExactVariant.size || "ط؛ظٹط± ظ…ط­ط¯ط¯"}`);
+        } else {
+          toast.success("طھظ… ط¥ط¶ط§ظپط© ط§ظ„ظ…ظˆط¯ظٹظ„ ط¨ظ†ط¬ط§ط­");
+        }
+        setLookupQuery("");
+        setLookupResults([]);
+        setLookupLoading(false);
+        return;
+      }
 
       const exactVariant = results.find((variant) => isExactIdentifierMatch(query, variant));
       if (exactVariant) {
@@ -1941,3 +2006,5 @@ function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onEr
   );
 }
 export default InventoryCountPage;
+
+

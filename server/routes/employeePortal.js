@@ -698,12 +698,13 @@ router.get("/:token/inventory/sessions/:sessionId/lookup", async (req, res) => {
   try {
     const scoped = await loadEmployeeInventorySession(req, res);
     if (!scoped) return;
-    const items = await searchInventoryCountVariants(db, {
+    const result = await searchInventoryCountVariants(db, {
       tenantId: scoped.employee.tenant_id ?? null,
       query: req.query?.query || req.query?.search || req.query?.term || "",
       limit: req.query?.limit || 15,
     });
     const queryText = clean(req.query?.query || req.query?.search || req.query?.term || "");
+    const items = Array.isArray(result?.items) ? result.items : [];
     const exactRow = findExactInventoryLookupRow(items, queryText);
     if (exactRow?.product_id) {
       const colorGroup = await loadEmployeePortalInventoryColorGroup({
@@ -721,6 +722,11 @@ router.get("/:token/inventory/sessions/:sessionId/lookup", async (req, res) => {
     return res.json({
       success: true,
       items: Array.isArray(items) ? items.map(enrichInventoryImageFields) : [],
+      resolvedProductId: result?.resolvedProductId ?? null,
+      resolvedVariantId: result?.resolvedVariantId ?? null,
+      matchedBy: result?.matchedBy || "",
+      resolutionType: result?.resolutionType || "",
+      queryText: result?.queryText || queryText,
     });
   } catch (error) {
     console.error("[employee-payroll-portal] inventory lookup error", error);
