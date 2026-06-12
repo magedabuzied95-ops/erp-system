@@ -1524,11 +1524,13 @@ export default function EmployeePayrollPortal() {
   }, []);
   const tasks = safeArray(portal?.tasks);
   const todayKey = todayIsoLocal(language);
-  const todayAttendance = attendanceRows.find((row) => attendanceLocalDate(row, language) === todayKey) || attendanceRows[0] || {};
+  const exactTodayAttendance = attendanceRows.find((row) => attendanceLocalDate(row, language) === todayKey) || null;
+  const todayAttendance = exactTodayAttendance || {};
   const todayCheckIn = todayAttendance.check_in_at || todayAttendance.check_in;
   const todayCheckOut = todayAttendance.check_out_at || todayAttendance.check_out;
   const isCheckedIn = Boolean(todayCheckIn && !todayCheckOut);
   const isCheckedOut = Boolean(todayCheckOut);
+  const canCheckOutToday = Boolean(exactTodayAttendance && todayCheckIn && !todayCheckOut);
   const employeeStatus = isCheckedOut ? ui("checkedOut") : isCheckedIn ? ui("present") : ui("absent");
   const employeeStatusDotClassName = isCheckedIn ? "bg-emerald-500" : isCheckedOut ? "bg-slate-400" : "bg-red-500";
   const workedMinutes = todayCheckIn ? minutesBetween(todayCheckIn, todayCheckOut || nowTick) : 0;
@@ -2526,9 +2528,20 @@ export default function EmployeePayrollPortal() {
     try {
       setAttendanceSaving(actionType);
       setPortalNotice("");
+      if (actionType === "check_out") {
+        console.info("[employee-portal-attendance:checkout-submit]", {
+          employee_id: profile.id || portal?.employee?.id || null,
+          branch_id: portal?.employee?.branch_id || portal?.qr_attendance?.branch_id || null,
+          attendance_record_id: todayAttendance.id || todayAttendance.attendance_id || null,
+          check_in_at: todayAttendance.check_in_at || todayAttendance.check_in || null,
+          check_out_at: todayAttendance.check_out_at || todayAttendance.check_out || null,
+          attendance_date: todayAttendance.attendance_date || todayAttendance.date || null,
+        });
+      }
       const location = await getBrowserLocation();
       const response = await api.post(`/employee-portal/${encodeURIComponent(token)}/attendance/actions`, {
         action: actionType,
+        attendance_log_id: actionType === "check_out" ? (exactTodayAttendance?.id || exactTodayAttendance?.attendance_id || null) : null,
         gps_lat: location.latitude,
         gps_lng: location.longitude,
         gps_accuracy: location.accuracy,
@@ -2540,6 +2553,16 @@ export default function EmployeePayrollPortal() {
       logPagePerf("employee-wallet.attendance-action", startedAt, { action: actionType });
     } catch (err) {
       const code = err?.responseBody?.code;
+      if (actionType === "check_out") {
+        console.warn("[employee-portal-attendance:checkout-rejected]", {
+          employee_id: profile.id || portal?.employee?.id || null,
+          branch_id: portal?.employee?.branch_id || portal?.qr_attendance?.branch_id || null,
+          attendance_record_id: exactTodayAttendance?.id || exactTodayAttendance?.attendance_id || null,
+          attendance_date: exactTodayAttendance?.attendance_date || exactTodayAttendance?.date || todayKey,
+          code: code || null,
+          message: err?.responseBody?.message || err?.responseBody?.message_ar || err?.message || "",
+        });
+      }
       setPortalNotice(
         code === "outside_branch_radius"
           ? text.outsideBranchRadius
@@ -3189,10 +3212,16 @@ export default function EmployeePayrollPortal() {
                       {attendanceSaving === "check_in" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                       {text.checkIn}
                     </button>
-                    <button type="button" onClick={() => submitAttendanceAction("check_out")} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-white px-3 text-sm font-black text-slate-950 disabled:opacity-50">
-                      {attendanceSaving === "check_out" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
-                      {text.checkOut}
-                    </button>
+                    {canCheckOutToday ? (
+                      <button type="button" onClick={() => submitAttendanceAction("check_out")} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-white px-3 text-sm font-black text-slate-950 disabled:opacity-50">
+                        {attendanceSaving === "check_out" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
+                        {text.checkOut}
+                      </button>
+                    ) : (
+                      <div className="min-h-12 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center text-[11px] font-bold leading-5 text-slate-400">
+                        {ui("notCheckedIn")}
+                      </div>
+                    )}
                   </div>
                   {portalNotice ? <div className="mt-2.5 rounded-2xl bg-white/10 px-3 py-2 text-sm font-bold leading-6 text-white md:mt-3" dir="auto">{portalNotice}</div> : null}
                 </section>
@@ -3658,7 +3687,7 @@ export default function EmployeePayrollPortal() {
               <button type="button" onClick={() => setEarlyCheckoutOpen(false)} className="min-h-12 rounded-2xl border border-slate-200 px-4 text-sm font-black text-slate-700">
                 {ui("cancel")}
               </button>
-              <button type="button" onClick={() => submitAttendanceAction("check_out")} className="min-h-12 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white">
+              <button type="button" onClick={() => submitAttendanceAction("check_out")} disabled={!canCheckOutToday} className="min-h-12 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-50">
                 {ui("confirmCheckout")}
               </button>
             </div>
