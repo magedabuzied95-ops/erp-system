@@ -420,7 +420,7 @@ function VisualAttachmentsPreview({ attachments = [] }) {
               {items.slice(0, 10).map((item, itemIndex) => (
                 <a key={`${item.id || item.product_id || itemIndex}`} href={item.product_url || (item.product_id ? `/shop/product/${item.product_id}` : "#")} className="min-w-[7.5rem] max-w-[7.5rem] rounded-xl border border-white/10 bg-slate-950 p-2 transition hover:border-cyan-300/30">
                   <img src={item.image_url} alt={item.title || "Visual attachment"} className="aspect-square w-full rounded-lg object-cover" loading="lazy" />
-                  <div className="mt-1 truncate text-xs font-black text-white">{item.title || "Product"}</div>
+                  <div className="mt-1 truncate text-xs font-black text-white">{item.title || "منتج"}</div>
                   {item.subtitle ? <div className="truncate text-[11px] text-slate-500">{item.subtitle}</div> : null}
                   {Number(item.price || 0) > 0 ? <div className="mt-0.5 text-[11px] font-bold text-emerald-100">{money(item.price)}</div> : null}
                 </a>
@@ -442,9 +442,9 @@ function ProductCards({ products = [] }) {
         const image = product.matched_variant_image || product.matched_image_url || product.selected_card_image_url || product.image_url || product.image;
         return (
           <a key={product.id || index} href={product.product_url || (product.id ? `/shop/product/${product.id}` : "#")} className="flex min-w-0 gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-2 transition hover:border-cyan-300/30">
-            {image ? <img src={image} alt={product.name || "Product"} className="h-14 w-14 shrink-0 rounded-lg object-cover" loading="lazy" /> : <span className="grid h-14 w-14 shrink-0 place-items-center rounded-lg bg-white/[0.055]"><ShoppingBag className="h-5 w-5 text-slate-500" /></span>}
+            {image ? <img src={image} alt={product.name || "منتج"} className="h-14 w-14 shrink-0 rounded-lg object-cover" loading="lazy" /> : <span className="grid h-14 w-14 shrink-0 place-items-center rounded-lg bg-white/[0.055]"><ShoppingBag className="h-5 w-5 text-slate-500" /></span>}
             <span className="min-w-0">
-              <span className="block truncate text-sm font-black text-white">{product.name || product.title || "Product"}</span>
+              <span className="block truncate text-sm font-black text-white">{product.name || product.title || "منتج"}</span>
               <span className="mt-1 block text-xs text-slate-500">{product.availability || product.stock_status || "availability"}</span>
               {Number(product.price || product.final_price || product.sale_price || 0) > 0 ? <span className="mt-1 block text-xs font-black text-emerald-100">{money(product.final_price || product.price || product.sale_price)}</span> : null}
             </span>
@@ -1082,9 +1082,9 @@ function RecommendationsPanel({ products = [], loading, onRefresh, onQuickSend, 
             return (
               <div key={product.id || product.product_id} className="rounded-2xl border border-white/10 bg-slate-950/70 p-3">
                 <div className="flex gap-3">
-                  {image ? <img src={image} alt={product.name || "Product"} className="h-20 w-20 shrink-0 rounded-xl object-cover" loading="lazy" /> : <span className="grid h-20 w-20 shrink-0 place-items-center rounded-xl bg-white/[0.06]"><ShoppingBag className="h-5 w-5 text-slate-500" /></span>}
+                  {image ? <img src={image} alt={product.name || "منتج"} className="h-20 w-20 shrink-0 rounded-xl object-cover" loading="lazy" /> : <span className="grid h-20 w-20 shrink-0 place-items-center rounded-xl bg-white/[0.06]"><ShoppingBag className="h-5 w-5 text-slate-500" /></span>}
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-black text-white">{product.name || product.title || "Product"}</div>
+                    <div className="truncate text-sm font-black text-white">{product.name || product.title || "منتج"}</div>
                     <div className="mt-1 text-xs font-bold text-emerald-100">{money(product.final_price || product.price || product.sale_price || 0)}</div>
                     <div className="mt-1 text-xs text-slate-400">{variantLabel}</div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
@@ -1121,7 +1121,7 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
   const recommendedStep = needsHuman
     ? "Human review recommended because this conversation is escalated."
     : primary
-      ? "Product context found. Lead with availability and a clear next action."
+      ? "تم العثور على سياق منتج. ابدأ بالتوفر وخطوة تالية واضحة."
       : intent.size
         ? "Ask the customer for product name or photo."
         : "Ask for size before recommending stock.";
@@ -1199,7 +1199,7 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
           {primary ? (
             <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3">
               <div className="flex gap-3">
-                {productImage(primary) ? <img src={productImage(primary)} alt={primary.name || "Product"} className="h-20 w-20 rounded-xl object-cover" loading="lazy" /> : <span className="grid h-20 w-20 place-items-center rounded-xl bg-white/[0.06]"><ShoppingBag className="h-5 w-5 text-slate-500" /></span>}
+                {productImage(primary) ? <img src={productImage(primary)} alt={primary.name || "منتج"} className="h-20 w-20 rounded-xl object-cover" loading="lazy" /> : <span className="grid h-20 w-20 place-items-center rounded-xl bg-white/[0.06]"><ShoppingBag className="h-5 w-5 text-slate-500" /></span>}
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-black text-white">{primary.name || primary.title || "Matched product"}</div>
                   <div className="mt-1 text-xs text-emerald-100">{money(primary.final_price || primary.price)} / {primary.stock_state || primary.availability || "stock unknown"}</div>
@@ -1244,7 +1244,7 @@ function CustomerContextCard({ conversation = {} }) {
   const messages = uniqueMessages(conversation?.messages);
   const latest = [...messages].reverse().find((message) => message.detected_intent || message.customer_message || message.ai_answer) || {};
   const profile = conversation?.customer_profile || {};
-  const identityName = customerDisplayName(conversation) || "Unknown customer";
+  const identityName = customerDisplayName(conversation) || "عميل غير معروف";
   const avatarUrl = customerAvatarUrl(conversation);
   const channelMetadata = conversation?.channel_metadata || {};
   const latestMemory = latest.memory_changes || latest.memory || {};
@@ -1270,7 +1270,7 @@ function CustomerContextCard({ conversation = {} }) {
   };
   const lastProduct = memorySources.map(productFromMemory).find(Boolean) || conversation?.current_product || conversation?.product || channelMetadata.current_product || channelMetadata.last_viewed_product || null;
   const lastSize = profile.preferred_size || channelMemory.last_selected_size || channelMemory.selectedSize || channelMemory.activeSize || conversation?.channel_metadata?.last_size || "";
-  const lastProductLabel = lastProduct?.name || lastProduct?.title || lastProduct?.product_name || lastProduct?.id || lastProduct?.product_id || "No product context";
+  const lastProductLabel = lastProduct?.name || lastProduct?.title || lastProduct?.product_name || lastProduct?.id || lastProduct?.product_id || "لا يوجد سياق منتج";
   const escalation = clean(conversation?.escalation_reason || conversation?.ai_escalation_reason);
   const memoryScore = profile.memory_score ?? conversation?.lead_score ?? latestMemory.memory_score ?? 0;
   const lastOrder = asArray(profile.previous_orders)[0] || conversation?.last_order || conversation?.order || null;
@@ -1289,7 +1289,7 @@ function CustomerContextCard({ conversation = {} }) {
         <Info label="Phone / external ID" value={profile.phone || conversation?.phone || conversation?.external_customer_id || "Not set yet"} />
         <Info label="Channel" value={channelLabel(conversation?.channel || conversation?.source)} />
         <Info label="المقاس المفضل" value={profile.preferred_size || channelMemory.last_selected_size || "غير محدد بعد"} />
-        <Info label="Last product" value={lastProductLabel} />
+        <Info label="آخر منتج" value={lastProductLabel} />
         <Info label="Last intent" value={latest.detected_intent || conversation?.detected_intent || "Not set yet"} />
       </div>
       <div className="mb-3 grid gap-2 sm:grid-cols-4">
@@ -1300,7 +1300,7 @@ function CustomerContextCard({ conversation = {} }) {
       </div>
       <div className="mb-3 flex flex-wrap gap-2">
         <Pill tone={sentimentTone(profile.customer_sentiment)}>{profile.customer_sentiment || "neutral"}</Pill>
-        {lastProduct ? <Pill tone="cyan">Last product {lastProductLabel}</Pill> : null}
+        {lastProduct ? <Pill tone="cyan">آخر منتج {lastProductLabel}</Pill> : null}
         {lastOrder ? <Pill tone="emerald">Last order {lastOrder.invoice_number || lastOrder.order_number || lastOrder.id}</Pill> : null}
       </div>
       {needsHumanAttention(conversation) ? (
@@ -1316,7 +1316,7 @@ function DebugField({ label, value }) {
   return (
     <div className="min-w-0 rounded-xl border border-white/10 bg-slate-950/60 p-3">
       <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
-      <div className="mt-1 break-words text-xs font-black text-slate-100">{clean(value) || "Unknown"}</div>
+      <div className="mt-1 break-words text-xs font-black text-slate-100">{clean(value) || "غير معروف"}</div>
     </div>
   );
 }
@@ -1375,7 +1375,7 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
       : outboundStatus || outboundDecision.toLowerCase().includes("sent")
         ? "sent"
         : "neutral";
-  const outboundBadgeLabel = outboundBadgeType === "failed" ? "Failed" : outboundBadgeType === "skipped" ? "Skipped" : outboundBadgeType === "sent" ? "Sent" : "Unknown";
+  const outboundBadgeLabel = outboundBadgeType === "failed" ? "فشل" : outboundBadgeType === "skipped" ? "متخطى" : outboundBadgeType === "sent" ? "تم الإرسال" : "غير معروف";
   return (
     <div className="mb-4 rounded-2xl border border-violet-300/15 bg-violet-400/[0.045] p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1408,7 +1408,7 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
             <>
               <div className="flex flex-wrap gap-2">
                 <DebugStatusBadge type={outboundBadgeType}>{outboundBadgeLabel}</DebugStatusBadge>
-                <DebugStatusBadge type={latestEvent.graph_api_called ? "called" : "none"}>{latestEvent.graph_api_called ? "Graph API called" : "No Graph call"}</DebugStatusBadge>
+                <DebugStatusBadge type={latestEvent.graph_api_called ? "called" : "none"}>{latestEvent.graph_api_called ? "تم استدعاء Graph API" : "لا يوجد استدعاء Graph"}</DebugStatusBadge>
               </div>
               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                 <DebugField label="Intent" value={data.current_intent} />
@@ -1425,21 +1425,21 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
                 <DebugField label="Last reply preview" value={lastReplyPreview} />
                 <DebugField label="Unified reply preview" value={data.unified_reply_preview || lastReplyPreview} />
                 <DebugField label="Unified intent" value={unifiedReply.intent || data.current_intent || ""} />
-                <DebugField label="Unified products" value={`${unifiedProducts.length} cards`} />
-                <DebugField label="Unified image cards" value={`${unifiedImageCards.length} cards`} />
+                <DebugField label="المنتجات الموحّدة" value={`${unifiedProducts.length} بطاقة`} />
+                <DebugField label="بطاقات الصور الموحّدة" value={`${unifiedImageCards.length} بطاقة`} />
                 <DebugField label="Unified quick replies" value={`${unifiedQuickReplies.length} items`} />
                 <DebugField label="Unified actions" value={`${unifiedActions.length} items`} />
                 <DebugField label="Handoff state" value={unifiedHandoff?.needs_human_support ? `handoff / ${unifiedHandoff.reason || "human_review"}` : unifiedHandoff?.conversation_status || "ai_active"} />
                 <DebugField label="Visual confidence" value={visualPro.visual_confidence ?? memory.lastVisualConfidence ?? visualAttributes.confidence ?? ""} />
                 <DebugField label="Brand guess" value={visualPro.brand_guess || visualAttributes.brand || visualAttributes.brand_guess || ""} />
                 <DebugField label="Model guess" value={visualPro.model_guess || visualAttributes.modelFamily || visualAttributes.model_guess || ""} />
-                <DebugField label="Colors" value={visualColors} />
+                <DebugField label="الألوان" value={visualColors} />
                 <DebugField label="Correction used" value={visualPro.correction_used === true ? "true" : visualPro.correction_used === false ? "false" : ""} />
                 <DebugField label="Top rank reason" value={visualPro.reason_why_candidate_ranked_first || ""} />
                 <DebugField label="درجة تفضيل العميل" value={visualPro.customerPreferenceScore !== undefined ? Number(visualPro.customerPreferenceScore || 0).toFixed(2) : ""} />
-                <DebugField label="Preferred sizes" value={preferredSizes} />
+                <DebugField label="المقاسات المفضلة" value={preferredSizes} />
                 <DebugField label="Preferred brands" value={preferredBrands} />
-                <DebugField label="Preferred colors" value={preferredColors} />
+                <DebugField label="الألوان المفضلة" value={preferredColors} />
                 <DebugField label="Boost reason" value={visualPro.why_candidate_was_boosted || ""} />
               </div>
 
@@ -1452,7 +1452,7 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
                       return (
                         <div key={`${candidate?.product_id || candidate?.productId || "candidate"}-${index}`} className="rounded-xl border border-white/10 bg-white/[0.035] p-3">
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs font-black text-slate-100">#{index + 1} Product {candidate?.product_id || candidate?.productId || "Unknown"}</span>
+                            <span className="text-xs font-black text-slate-100">#{index + 1} منتج {candidate?.product_id || candidate?.productId || "غير معروف"}</span>
                             <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2 py-1 text-[11px] font-black text-cyan-100">{Number(candidate?.score || candidate?.finalScore || breakdown.finalScore || 0).toFixed(2)}</span>
                           </div>
                           <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -1478,8 +1478,8 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
                 <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-3">
                   <SectionTitle icon={MessageSquareText} title="Unified reply payload" />
                   <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                    {unifiedProducts.length ? <DebugField label="Product cards" value={unifiedProducts.slice(0, 3).map((item) => item.name || item.title || item.product_name || item.id || "").filter(Boolean).join(" آ· ") || `${unifiedProducts.length} cards`} /> : null}
-                    {unifiedImageCards.length ? <DebugField label="Image cards" value={unifiedImageCards.slice(0, 3).map((item) => item.title || item.name || item.subtitle || item.url || "").filter(Boolean).join(" آ· ") || `${unifiedImageCards.length} cards`} /> : null}
+                    {unifiedProducts.length ? <DebugField label="بطاقات المنتجات" value={unifiedProducts.slice(0, 3).map((item) => item.name || item.title || item.product_name || item.id || "").filter(Boolean).join(" آ· ") || `${unifiedProducts.length} بطاقة`} /> : null}
+                    {unifiedImageCards.length ? <DebugField label="بطاقات الصور" value={unifiedImageCards.slice(0, 3).map((item) => item.title || item.name || item.subtitle || item.url || "").filter(Boolean).join(" آ· ") || `${unifiedImageCards.length} بطاقة`} /> : null}
                     {unifiedQuickReplies.length ? <DebugField label="Quick replies" value={unifiedQuickReplies.slice(0, 4).map((item) => item.label || item.text || item.title || item).filter(Boolean).join(" آ· ") || `${unifiedQuickReplies.length} items`} /> : null}
                     {unifiedActions.length ? <DebugField label="Actions" value={unifiedActions.slice(0, 4).map((item) => item.label || item.text || item.title || item.action || item.type || item).filter(Boolean).join(" آ· ") || `${unifiedActions.length} items`} /> : null}
                   </div>
@@ -1495,9 +1495,9 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
                     return (
                       <div key={`${event.timestamp || "event"}-${index}`} className="rounded-xl border border-white/10 bg-white/[0.035] p-3">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-[11px] font-bold text-slate-500">{absoluteTime(event.timestamp) || "Unknown time"}</span>
-                          <DebugStatusBadge type={event.graph_api_called ? "called" : "none"}>{event.graph_api_called ? "Graph API called" : "No Graph call"}</DebugStatusBadge>
-                          {eventStatus === "skipped" ? <DebugStatusBadge type="skipped">Skipped</DebugStatusBadge> : eventStatus === "sent" ? <DebugStatusBadge type="sent">Sent</DebugStatusBadge> : null}
+                          <span className="text-[11px] font-bold text-slate-500">{absoluteTime(event.timestamp) || "وقت غير معروف"}</span>
+                          <DebugStatusBadge type={event.graph_api_called ? "called" : "none"}>{event.graph_api_called ? "تم استدعاء Graph API" : "لا يوجد استدعاء Graph"}</DebugStatusBadge>
+                          {eventStatus === "skipped" ? <DebugStatusBadge type="skipped">متخطى</DebugStatusBadge> : eventStatus === "sent" ? <DebugStatusBadge type="sent">تم الإرسال</DebugStatusBadge> : null}
                         </div>
                         <div className="mt-3 grid gap-2 sm:grid-cols-3">
                           <DebugField label="Intent" value={event.classified_intent} />
@@ -1505,7 +1505,7 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
                           <DebugField label="Confidence" value={event.confidence !== null && event.confidence !== undefined ? Number(event.confidence).toFixed(2) : ""} />
                         </div>
                         <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                          <DebugField label="Outbound status" value={eventStatus === "neutral" ? "No Graph call" : eventStatus} />
+                          <DebugField label="حالة الإرسال" value={eventStatus === "neutral" ? "لا يوجد استدعاء Graph" : eventStatus} />
                           <DebugField label="Outbound decision" value={eventDecision} />
                         </div>
                         {event.reply_preview ? <p className="mt-2 rounded-lg bg-cyan-300/5 p-2 text-xs leading-5 text-cyan-100" dir={isRtlText(event.reply_preview) ? "rtl" : "auto"}>{shortText(event.reply_preview, 180)}</p> : null}
@@ -1682,26 +1682,26 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
             <div dir="ltr" className="min-w-0 text-right text-[12px] font-black leading-5 text-white">{phone || "No phone yet"}</div>
           </div>
           <div className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/55 px-3 py-2.5">
-            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">City</div>
-            <div className="min-w-0 text-right text-[12px] font-black leading-5 text-white">{cityArea || "Unknown customer"}</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">المدينة</div>
+            <div className="min-w-0 text-right text-[12px] font-black leading-5 text-white">{cityArea || "عميل غير معروف"}</div>
           </div>
         </div>
       </div>
       <details className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-        <summary className="cursor-pointer list-none text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">More customer memory</summary>
+        <summary className="cursor-pointer list-none text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">مزيد من ذاكرة العميل</summary>
         <div className="mt-3 space-y-2">
           <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
-            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Preferred size</div>
-            <div className="mt-1 text-sm font-black text-white">{profile.preferred_size || "Unknown"}</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">المقاس المفضل</div>
+            <div className="mt-1 text-sm font-black text-white">{profile.preferred_size || "غير معروف"}</div>
           </div>
-          <TagRow label="Colors" values={profile.preferred_colors} />
+          <TagRow label="الألوان" values={profile.preferred_colors} />
           <TagRow label="Models" values={profile.preferred_models} />
           <Info label="Memory score" value={profile.memory_score ?? conversation?.lead_score ?? 0} />
           <MiniList title="Viewed products" items={asArray(profile.viewed_products)} empty="No viewed products." />
           <MiniList title="Abandoned products" items={asArray(profile.abandoned_products)} empty="No abandoned products." />
           <MiniList title="Previous orders" items={asArray(profile.previous_orders)} empty="No previous orders in memory." />
           <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
-            <SectionTitle icon={MessageSquareText} title="Sentiment & memory" />
+            <SectionTitle icon={MessageSquareText} title="المشاعر والذاكرة" />
             <div className="mb-3 flex flex-wrap gap-2">
               <Pill tone={sentimentTone(profile.customer_sentiment)}>{profile.customer_sentiment || "neutral"}</Pill>
               {asArray(profile.sentiment_history).length ? <Pill tone="violet">{asArray(profile.sentiment_history).length} history</Pill> : null}
@@ -1782,9 +1782,9 @@ function DraftCard({ draft, onAction, busy }) {
         <Pill tone={draft.ai_agent_status === "confirmed" ? "emerald" : draft.ai_agent_status === "cancelled" ? "rose" : draft.ai_agent_status === "human_handoff" ? "amber" : "cyan"}>{draft.ai_agent_status || draft.status}</Pill>
       </div>
       <div className="mt-3 grid gap-2 text-sm text-slate-300">
-        <Info label="Product" value={item.product_name || metadata.product_name || "Unknown"} />
+        <Info label="المنتج" value={item.product_name || metadata.product_name || "غير معروف"} />
         <div className="grid gap-2 sm:grid-cols-2">
-          <Info label="Variant / size / color" value={item.variant_name || [metadata.size, metadata.color].filter(Boolean).join(" / ") || "Unknown"} />
+          <Info label="المتغير / المقاس / اللون" value={item.variant_name || [metadata.size, metadata.color].filter(Boolean).join(" / ") || "غير معروف"} />
           <Info label="Quantity" value={item.quantity || metadata.quantity || 1} />
           <Info label="Price" value={money(item.price || draft.total_amount || draft.total || item.total_amount)} />
           <Info label="Stock" value={stockStatus} />
@@ -1815,18 +1815,18 @@ function SalesIntelligencePanel({ conversation = {}, recommendationIntel = null,
   const reasons = asArray(conversion.reasons);
   const risks = asArray(conversion.risk_flags);
   const eventLabels = {
-    PRODUCT_VIEWED: "Product viewed",
-    PRODUCT_MATCHED: "Product matched",
-    PRICE_ASKED: "Price asked",
-    SIZE_ASKED: "Size asked",
-    SIZE_SELECTED: "Size selected",
-    COLOR_SELECTED: "Color selected",
-    IMAGES_REQUESTED: "Images requested",
-    ALTERNATIVE_REQUESTED: "Alternative requested",
-    OBJECTION_PRICE: "Price objection",
-    DRAFT_ORDER_CREATED: "Draft created",
-    PAYMENT_LINK_SENT: "Payment link sent",
-    PAYMENT_PROOF_REQUESTED: "Payment proof requested",
+    PRODUCT_VIEWED: "تمت مشاهدة المنتج",
+    PRODUCT_MATCHED: "تطابق المنتج",
+    PRICE_ASKED: "تم سؤال السعر",
+    SIZE_ASKED: "تم سؤال المقاس",
+    SIZE_SELECTED: "تم اختيار المقاس",
+    COLOR_SELECTED: "تم اختيار اللون",
+    IMAGES_REQUESTED: "تم طلب الصور",
+    ALTERNATIVE_REQUESTED: "تم طلب بديل",
+    OBJECTION_PRICE: "اعتراض على السعر",
+    DRAFT_ORDER_CREATED: "تم إنشاء المسودة",
+    PAYMENT_LINK_SENT: "تم إرسال رابط الدفع",
+    PAYMENT_PROOF_REQUESTED: "تم طلب إثبات الدفع",
     ORDER_CONFIRMED: "Order confirmed",
     FOLLOW_UP_SENT: "Follow-up suggested",
     HUMAN_TAKEOVER_STARTED: "Human takeover",
@@ -2672,7 +2672,7 @@ export default function AiInbox() {
         await loadAiDebug();
       }
     } catch (err) {
-      setToast({ tone: "rose", text: err?.message || "Failed to reset AI state" });
+      setToast({ tone: "rose", text: err?.message || "تعذر إعادة ضبط حالة الذكاء الاصطناعي" });
       setError(err?.message || "تعذر إعادة ضبط حالة الذكاء الاصطناعي");
     } finally {
       setResettingAiState(false);
@@ -2728,11 +2728,11 @@ export default function AiInbox() {
         }));
       }
     } catch (err) {
-      setToast({ tone: "rose", text: err?.message || "Send failed" });
+      setToast({ tone: "rose", text: err?.message || "فشل الإرسال" });
       setError(err?.message || "تعذر إرسال الرد اليدوي");
       patchConversation(sessionId, (conversation) => ({
         ...conversation,
-        messages: asArray(conversation.messages).map((item) => item.id === optimistic.id ? { ...item, delivery_status: "failed", delivery_error: err?.message || "Send failed" } : item),
+      messages: asArray(conversation.messages).map((item) => item.id === optimistic.id ? { ...item, delivery_status: "failed", delivery_error: err?.message || "فشل الإرسال" } : item),
       }));
     } finally {
       setLoading(false);
@@ -2784,7 +2784,7 @@ export default function AiInbox() {
         items: [],
         intent: "",
         confidence: 0,
-        error: err?.message || "Failed to generate suggestions",
+        error: err?.message || "تعذر إنشاء الاقتراحات",
       });
     } finally {
       setSuggesting(false);
@@ -2844,7 +2844,7 @@ export default function AiInbox() {
         }));
       }
     } catch (err) {
-      setAiReply({ sessionId, text: "", loading: false, error: err?.message || "Failed to generate AI reply" });
+      setAiReply({ sessionId, text: "", loading: false, error: err?.message || "تعذر إنشاء رد الذكاء الاصطناعي" });
     }
   };
 
@@ -2861,7 +2861,7 @@ export default function AiInbox() {
       }, { headers });
       setChannelStatus(payload.channels || {});
     } catch (err) {
-      setError(err?.message || "Failed to update auto reply mode");
+      setError(err?.message || "تعذر تحديث وضع الرد التلقائي");
     } finally {
       setModeSaving(false);
     }
@@ -2896,7 +2896,7 @@ export default function AiInbox() {
       await loadSalesCloser();
     } catch (err) {
       setToast({ tone: "rose", text: err?.message || "Draft order failed" });
-      setError(err?.message || "Failed to create draft order");
+      setError(err?.message || "تعذر إنشاء مسودة الطلب");
     } finally {
       setLoading(false);
     }
@@ -3184,7 +3184,7 @@ export default function AiInbox() {
                 />
               </div>
             ) : (
-              <EmptyBlock text="Select a conversation to inspect the transcript." />
+              <EmptyBlock text="اختر محادثة لعرض سجلها." />
             )}
           </main>
         </section>
@@ -3278,7 +3278,7 @@ export default function AiInbox() {
               ))}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Lead filters</span>
+              <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">مرشحات العملاء المحتملين</span>
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {leadFilters.map((item) => (
                   <button
@@ -3334,7 +3334,7 @@ export default function AiInbox() {
                   />
 
                   <div className="mt-2 grid gap-2 rounded-2xl border border-white/10 bg-slate-950/60 p-2 text-[11px] sm:grid-cols-3">
-                    <div><span className="text-slate-500">Webhook</span><div className={selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "سليم" : "فشل"}</div></div>
+                    <div><span className="text-slate-500">الويب هوك</span><div className={selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "سليم" : "فشل"}</div></div>
                     <div><span className="text-slate-500">Token</span><div className={selectedTokenActive ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedTokenActive ? "نشط" : "منتهي"}</div></div>
                     <div><span className="text-slate-500">Messaging</span><div className={selectedMessagingActive ? "font-black text-emerald-100" : "font-black text-slate-300"}>{selectedMessagingActive ? "نشط" : "غير نشط"}</div></div>
                     {safeConversation.escalation_reason || safeConversation.last_escalation_keyword ? (

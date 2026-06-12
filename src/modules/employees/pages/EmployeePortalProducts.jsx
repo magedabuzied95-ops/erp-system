@@ -104,6 +104,21 @@ const normalizeEmployeePosCatalog = (payload) =>
     .map((product) => normalizePosCatalogProduct(product))
     .map(normalizeProduct);
 
+const scanFieldMatches = (value = "", candidate = "") => {
+  const left = text(value);
+  const right = text(candidate);
+  if (!left || !right) return false;
+  return left === right || lower(left) === lower(right);
+};
+
+const scanValueVariants = (value = "") => {
+  const raw = text(value);
+  if (!raw) return [];
+  const compact = raw.replace(/\s+/g, "");
+  const normalized = lower(raw);
+  return [...new Set([raw, compact, normalized, lower(compact)].filter(Boolean))];
+};
+
 const variantsForColor = (product = {}, color = "") =>
   (Array.isArray(product.variants) ? product.variants : []).filter((variant) =>
     text(variant.color) === text(color)
@@ -859,6 +874,70 @@ export default function EmployeePortalProducts() {
 
   const normalizedProducts = useMemo(() => (Array.isArray(products) ? products : []).map(normalizeProduct), [products]);
 
+  const resolveScannedProductFromCatalog = useCallback((scannedValue) => {
+    const lookupValues = scanValueVariants(scannedValue);
+    if (!lookupValues.length || !normalizedProducts.length) return null;
+
+    const matchesCandidate = (candidate) => lookupValues.some((lookup) => scanFieldMatches(lookup, candidate));
+
+    for (const product of normalizedProducts) {
+      if (!product) continue;
+      const variants = Array.isArray(product.variants) ? product.variants : [];
+      const productCandidates = [
+        product.qr_token,
+        product.qrToken,
+        product.barcode,
+        product.sku,
+        product.article_code,
+        product.product_code,
+        product.product_barcode,
+      ];
+      if (productCandidates.some(matchesCandidate)) {
+        const selectedVariant = findVariant(product);
+        return {
+          product,
+          variant: selectedVariant,
+          selection: {
+            product_id: product.id ?? product.product_id ?? null,
+            variant_id: selectedVariant?.variant_id ?? selectedVariant?.id ?? null,
+            color: selectedVariant?.color || "",
+            size: selectedVariant?.size || "",
+            source: "product",
+          },
+        };
+      }
+
+      const matchedVariant = variants.find((variant) => {
+        const variantCandidates = [
+          variant.barcode,
+          variant.sku,
+          variant.article_code,
+          variant.variant_barcode,
+          variant.variant_sku,
+          variant.product_barcode,
+          variant.product_sku,
+        ];
+        return variantCandidates.some(matchesCandidate);
+      });
+
+      if (matchedVariant) {
+        return {
+          product,
+          variant: matchedVariant,
+          selection: {
+            product_id: product.id ?? product.product_id ?? null,
+            variant_id: matchedVariant.variant_id ?? matchedVariant.id ?? null,
+            color: matchedVariant.color || "",
+            size: matchedVariant.size || "",
+            source: "variant",
+          },
+        };
+      }
+    }
+
+    return null;
+  }, [normalizedProducts]);
+
   useEffect(() => {
     if (!directLookupActive) return;
     if (!normalizedProducts.length) return;
@@ -1110,6 +1189,17 @@ export default function EmployeePortalProducts() {
     const lookupValue = String(scannedValue || "").trim();
     if (!lookupValue) return null;
 
+    const localMatch = resolveScannedProductFromCatalog(lookupValue);
+    if (localMatch) {
+      console.info("[employee-scanner:catalog-match]", {
+        scannedValue: lookupValue,
+        productId: localMatch.product?.id ?? localMatch.product?.product_id ?? null,
+        variantId: localMatch.variant?.variant_id ?? localMatch.variant?.id ?? null,
+        matchSource: localMatch.selection?.source || "catalog",
+      });
+      return localMatch;
+    }
+
     const response = await getEmployeePortalProducts(token, {
       search: lookupValue,
       barcode: lookupValue,
@@ -1139,13 +1229,17 @@ export default function EmployeePortalProducts() {
     return {
       product: matchedProduct,
       variant: matchedVariant,
-      selection,
+      selection: {
+        ...selection,
+        source: "api",
+      },
     };
-  }, [token]);
+  }, [resolveScannedProductFromCatalog, token]);
 
   const handleCameraScannerResult = useCallback((decodedValue) => {
     const scannedValue = String(decodedValue || "").trim();
     if (!scannedValue) return;
+    console.info("[employee-scanner]", scannedValue);
     const smartQrParams = parseSmartQrScan(scannedValue);
     setCameraScannerOpen(false);
 
@@ -1166,26 +1260,35 @@ export default function EmployeePortalProducts() {
       return;
     }
 
+    const applyResolvedProduct = (result) => {
+      if (!result?.product) return false;
+
+      const nextParams = new URLSearchParams();
+      const resolvedProductId = String(result.product.id ?? result.product.product_id ?? "");
+      nextParams.set("productId", resolvedProductId);
+      if (result.variant?.variant_id ?? result.variant?.id) nextParams.set("variantId", String(result.variant.variant_id ?? result.variant.id));
+      if (result.variant?.color_id ?? result.selection?.color_id) nextParams.set("colorId", String(result.variant?.color_id ?? result.selection?.color_id));
+      if (result.variant?.color || result.selection?.color) nextParams.set("color", String(result.variant?.color || result.selection?.color));
+      if (result.variant?.size || result.selection?.size) nextParams.set("size", String(result.variant?.size || result.selection?.size));
+      nextParams.set("action", "warehouse-request");
+
+      const finalRedirectUrl = `/employee-portal/${encodeURIComponent(token)}/products?${nextParams.toString()}`;
+      navigate(finalRedirectUrl, { replace: true });
+      return true;
+    };
+
+    const localMatch = resolveScannedProductFromCatalog(scannedValue);
+    if (localMatch && applyResolvedProduct(localMatch)) {
+      return;
+    }
+
     setResolvingScan(true);
     resolveScannedProductLookup(scannedValue)
       .then((result) => {
-        if (!result?.product) {
+        if (!applyResolvedProduct(result)) {
           setSearch(scannedValue);
           window.setTimeout(() => searchInputRef.current?.focus(), 0);
-          return;
         }
-
-        const nextParams = new URLSearchParams();
-        const resolvedProductId = String(result.product.id ?? result.product.product_id ?? "");
-        nextParams.set("productId", resolvedProductId);
-        if (result.variant?.variant_id ?? result.variant?.id) nextParams.set("variantId", String(result.variant.variant_id ?? result.variant.id));
-        if (result.variant?.color_id ?? result.selection?.color_id) nextParams.set("colorId", String(result.variant?.color_id ?? result.selection?.color_id));
-        if (result.variant?.color || result.selection?.color) nextParams.set("color", String(result.variant?.color || result.selection?.color));
-        if (result.variant?.size || result.selection?.size) nextParams.set("size", String(result.variant?.size || result.selection?.size));
-        nextParams.set("action", "warehouse-request");
-
-        const finalRedirectUrl = `/employee-portal/${encodeURIComponent(token)}/products?${nextParams.toString()}`;
-        navigate(finalRedirectUrl, { replace: true });
       })
       .catch((error) => {
         console.warn("[employee-portal:scan-resolve-failed]", {
@@ -1198,7 +1301,7 @@ export default function EmployeePortalProducts() {
       .finally(() => {
         setResolvingScan(false);
       });
-  }, [navigate, resolveScannedProductLookup, token]);
+  }, [navigate, resolveScannedProductFromCatalog, resolveScannedProductLookup, token]);
 
   const handleCameraScannerPermissionDenied = useCallback((message = barcodeScannerMessages.permissionDenied) => {
     setCameraScannerOpen(false);

@@ -704,9 +704,9 @@ export default function MarketingSettings() {
       ]);
       setWebhookSelfTest(result);
       if (result?.success && subscription?.success !== false) {
-        toast.success("Webhook subscription verified");
+        toast.success("تم التحقق من اشتراك Webhook");
       } else {
-        toast.error(subscription?.subscription?.error || result?.error || "Webhook verification failed");
+        toast.error(subscription?.subscription?.error || result?.error || "فشل التحقق من Webhook");
       }
       const refreshed = await refreshMetaStatus();
       const completion = resolveMetaSetupCompletion({
@@ -721,7 +721,7 @@ export default function MarketingSettings() {
         setOauthResult(buildOAuthResult({ payload: { success: true, status: "fully_connected", message: "Meta setup complete" }, refreshed }));
       }
     } catch (err) {
-      toast.error(err?.message || "Webhook verification failed");
+      toast.error(err?.message || "فشل التحقق من Webhook");
     } finally {
       setWebhookSelfTestLoading(false);
     }
@@ -921,17 +921,17 @@ export default function MarketingSettings() {
             </div>
             <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
               <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">OAuth Redirect URI</div>
-              <code className="mt-2 block break-all rounded-xl bg-black/30 p-3 text-xs text-cyan-100">{setupCheck?.redirect_uri || "Not configured"}</code>
+              <code className="mt-2 block break-all rounded-xl bg-black/30 p-3 text-xs text-cyan-100">{setupCheck?.redirect_uri || "غير مهيأ"}</code>
               <div className="mt-3">
-                <CopyButton value={setupCheck?.redirect_uri || ""} label="Copy redirect URI" />
+                <CopyButton value={setupCheck?.redirect_uri || ""} label="نسخ رابط إعادة التوجيه" />
               </div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Webhook Callback URL</div>
-              <code className="mt-2 block break-all rounded-xl bg-black/30 p-3 text-xs text-amber-100">{setupCheck?.webhook_url || "Not configured"}</code>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">رابط استدعاء Webhook</div>
+              <code className="mt-2 block break-all rounded-xl bg-black/30 p-3 text-xs text-amber-100">{setupCheck?.webhook_url || "غير مهيأ"}</code>
               <div className="mt-3 flex flex-wrap gap-2">
-                <CopyButton value={setupCheck?.webhook_url || ""} label="Copy webhook URL" />
-                <CopyButton value={setupCheck?.verify_token_status === "configured" ? "configured" : ""} label="Copy verify status" />
+                <CopyButton value={setupCheck?.webhook_url || ""} label="نسخ رابط Webhook" />
+                <CopyButton value={setupCheck?.verify_token_status === "configured" ? "configured" : ""} label="نسخ حالة التحقق" />
               </div>
             </div>
           </div>
@@ -984,11 +984,11 @@ export default function MarketingSettings() {
               </div>
               <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
                 <div className="text-xs text-slate-400">Missing permissions</div>
-                <div className="mt-1 text-sm font-black text-white">{missingPermissions.length ? missingPermissions.join(", ") : "None"}</div>
+                <div className="mt-1 text-sm font-black text-white">{missingPermissions.length ? missingPermissions.join(", ") : "لا يوجد"}</div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-                <div className="text-xs text-slate-400">Next required action</div>
-                <div className="mt-1 text-sm font-black text-white">{setupCompletion.complete ? "Setup complete." : missingPermissions.length ? "Request missing permissions in Meta App Review." : liveWebhook.webhook_verified ? "Run live message and publish tests." : "Verify webhook subscription in Meta Developer."}</div>
+                <div className="text-xs text-slate-400">الإجراء التالي المطلوب</div>
+                <div className="mt-1 text-sm font-black text-white">{setupCompletion.complete ? "اكتمل الإعداد." : missingPermissions.length ? "اطلب الصلاحيات المفقودة في مراجعة تطبيق ميتا." : liveWebhook.webhook_verified ? "شغّل اختبارات الرسائل الحية والنشر." : "تحقق من اشتراك Webhook في Meta Developer."}</div>
               </div>
             </div>
           </section>
@@ -1264,8 +1264,8 @@ export default function MarketingSettings() {
               checks={[
                 { label: "Webhook سليم", ok: webhookReady || instagramStatus.webhook_healthy },
                 { label: "الرمز صالح", ok: tokenReady || instagramStatus.token_valid },
-                { label: "Receive DMs", ok: instagramDmOperationalConnected || liveCapabilities.instagram_dm?.details?.receive_dms },
-                { label: "Send replies", ok: instagramDmOperationalConnected || liveCapabilities.instagram_dm?.details?.send_replies },
+                { label: "استقبال الرسائل", ok: instagramDmOperationalConnected || liveCapabilities.instagram_dm?.details?.receive_dms },
+                { label: "إرسال الردود", ok: instagramDmOperationalConnected || liveCapabilities.instagram_dm?.details?.send_replies },
                 { label: "Story mention support", ok: liveCapabilities.instagram_dm?.details?.story_mention_support },
                 { label: "AI automation active", ok: instagramStatus.messaging_active || liveCapabilities.instagram_dm?.details?.automation_status === "enabled" },
               ]}
@@ -1289,26 +1289,26 @@ export default function MarketingSettings() {
             <FileText className="h-3.5 w-3.5" />
             {t("marketing.settings.capabilities.publishing", "النشر")}
           </div>
-          <h2 className="mt-3 text-xl font-black tracking-tight">{t("marketing.settings.capabilities.publishingTitle", "Meta publishing capabilities")}</h2>
+          <h2 className="mt-3 text-xl font-black tracking-tight">{t("marketing.settings.capabilities.publishingTitle", "قدرات النشر في ميتا")}</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             <CapabilityCard
               icon={FileText}
-              title={t("marketing.settings.capabilities.facebookPosts", "Facebook Page posts")}
-              subtitle={pageLabel || t("marketing.settings.capabilities.noFacebookPage", "No Facebook Page connected")}
+              title={t("marketing.settings.capabilities.facebookPosts", "منشورات صفحة فيسبوك")}
+              subtitle={pageLabel || t("marketing.settings.capabilities.noFacebookPage", "لا توجد صفحة فيسبوك متصلة")}
               connected={Boolean(facebookStatus.publishing_connected)}
               status={liveCapabilities.facebook_publishing?.status}
               checks={[
-                { label: "Feed publishing", ok: liveCapabilities.facebook_publishing?.details?.feed_publishing },
-                { label: "Media upload", ok: liveCapabilities.facebook_publishing?.details?.media_upload },
-                { label: "Scheduled publishing", ok: liveCapabilities.facebook_publishing?.details?.scheduled_publishing },
-                { label: "Failed publishes clear", ok: !liveCapabilities.facebook_publishing?.details?.failed_publishes },
+                { label: "نشر الخلاصة", ok: liveCapabilities.facebook_publishing?.details?.feed_publishing },
+                { label: "رفع الوسائط", ok: liveCapabilities.facebook_publishing?.details?.media_upload },
+                { label: "النشر المجدول", ok: liveCapabilities.facebook_publishing?.details?.scheduled_publishing },
+                { label: "تمت معالجة المنشورات الفاشلة", ok: !liveCapabilities.facebook_publishing?.details?.failed_publishes },
               ]}
               connectedLabel={t("marketing.settings.status.connected", "Connected")}
               disconnectedLabel={t("marketing.settings.status.disconnected", "Not connected")}
               emptyLabel={t("marketing.common.notAvailable", "Not available")}
               details={[
-                [t("marketing.settings.tokenStatus", "Token health"), form.token_health_status || form.token_status],
-                ["Missing permissions", liveCapabilities.facebook_publishing?.missing_permissions?.join(", ") || "None"],
+                [t("marketing.settings.tokenStatus", "حالة الرمز"), form.token_health_status || form.token_status],
+                ["الصلاحيات المفقودة", liveCapabilities.facebook_publishing?.missing_permissions?.join(", ") || "لا يوجد"],
                 [t("marketing.settings.capabilities.expires", "Expires"), formatDateTime(form.token_expires_at)],
               ]}
               onTest={() => runMetaPublishTest("facebook")}
@@ -1316,21 +1316,21 @@ export default function MarketingSettings() {
             <CapabilityCard
               icon={Sparkles}
               title={t("marketing.settings.capabilities.instagramPosts", "Instagram feed posts")}
-              subtitle={instagramLabel || t("marketing.settings.capabilities.noInstagramAccount", "No Instagram Business Account connected")}
+              subtitle={instagramLabel || t("marketing.settings.capabilities.noInstagramAccount", "لا يوجد حساب إنستجرام للأعمال متصل")}
               connected={Boolean(instagramStatus.publishing_connected)}
               status={liveCapabilities.instagram_publishing?.status}
               checks={[
-                { label: "Feed publishing", ok: liveCapabilities.instagram_publishing?.details?.feed_publishing },
-                { label: "Media upload", ok: liveCapabilities.instagram_publishing?.details?.media_upload },
-                { label: "Scheduled publishing", ok: liveCapabilities.instagram_publishing?.details?.scheduled_publishing },
-                { label: "Failed publishes clear", ok: !liveCapabilities.instagram_publishing?.details?.failed_publishes },
+                { label: "نشر الخلاصة", ok: liveCapabilities.instagram_publishing?.details?.feed_publishing },
+                { label: "رفع الوسائط", ok: liveCapabilities.instagram_publishing?.details?.media_upload },
+                { label: "النشر المجدول", ok: liveCapabilities.instagram_publishing?.details?.scheduled_publishing },
+                { label: "تمت معالجة المنشورات الفاشلة", ok: !liveCapabilities.instagram_publishing?.details?.failed_publishes },
               ]}
               connectedLabel={t("marketing.settings.status.connected", "Connected")}
               disconnectedLabel={t("marketing.settings.status.disconnected", "Not connected")}
               emptyLabel={t("marketing.common.notAvailable", "Not available")}
               details={[
-                [t("marketing.settings.tokenStatus", "Token health"), form.token_health_status || form.token_status],
-                ["Missing permissions", liveCapabilities.instagram_publishing?.missing_permissions?.join(", ") || "None"],
+                [t("marketing.settings.tokenStatus", "حالة الرمز"), form.token_health_status || form.token_status],
+                ["الصلاحيات المفقودة", liveCapabilities.instagram_publishing?.missing_permissions?.join(", ") || "لا يوجد"],
                 [t("marketing.settings.capabilities.expires", "Expires"), formatDateTime(form.token_expires_at)],
               ]}
               onTest={() => runMetaPublishTest("instagram")}
@@ -1343,7 +1343,7 @@ export default function MarketingSettings() {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">
                 <Zap className="h-3.5 w-3.5" />
-                Webhook diagnostics
+                تشخيص Webhook
               </div>
               <h2 className="mt-3 text-xl font-black tracking-tight">Live delivery health</h2>
             </div>
@@ -1358,7 +1358,7 @@ export default function MarketingSettings() {
           </div>
           <div className="mt-5 grid gap-3 md:grid-cols-4">
             {[
-              ["Webhook verified", liveWebhook.webhook_verified ? "Yes" : "No"],
+              ["Webhook verified", liveWebhook.webhook_verified ? "نعم" : "لا"],
               ["Subscribed apps", liveWebhook.subscribed_apps_status || metaStatus?.subscribed_apps?.subscribed_apps_status || "Unknown"],
               ["Subscription status", liveWebhook.webhook_subscription_status || metaStatus?.subscribed_apps?.webhook_subscription_status || "Unknown"],
               ["Verification status", liveWebhook.webhook_verification_status || metaStatus?.subscribed_apps?.webhook_verification_status || "Unknown"],
@@ -1369,7 +1369,7 @@ export default function MarketingSettings() {
               ["Last webhook event", formatDateTime(liveWebhook.last_webhook_event)],
               ["Last incoming message", formatDateTime(liveWebhook.last_incoming_message)],
               ["Last successful publish", formatDateTime(liveWebhook.last_successful_publish)],
-              ["Failed deliveries", liveWebhook.failed_webhook_deliveries ?? 0],
+              ["عمليات تسليم فاشلة", liveWebhook.failed_webhook_deliveries ?? 0],
               ["Last retry", formatDateTime(liveWebhook.last_retry)],
               ["Event throughput 24h", liveWebhook.event_throughput_24h ?? 0],
               ["Expected public URL", webhookSelfTest?.expected_public_url || liveWebhook.webhook_url || metaStatus?.webhook_url || "/api/meta/webhook"],
@@ -1389,7 +1389,7 @@ export default function MarketingSettings() {
           </div>
           <div className="mt-5 grid gap-3 md:grid-cols-5">
             {[
-              ["Token age", tokenIntelligence.age_days === null || tokenIntelligence.age_days === undefined ? "Unknown" : `${tokenIntelligence.age_days} days`],
+              ["عمر الرمز", tokenIntelligence.age_days === null || tokenIntelligence.age_days === undefined ? "غير معروف" : `${tokenIntelligence.age_days} يوم`],
               ["Expiration countdown", tokenIntelligence.expiration_countdown_seconds === null || tokenIntelligence.expiration_countdown_seconds === undefined ? "Unknown" : `${Math.max(0, Math.floor(tokenIntelligence.expiration_countdown_seconds / 3600))}h`],
               ["Refresh history", formatDateTime(tokenIntelligence.last_refresh_at)],
               ["Last refresh status", tokenIntelligence.last_refresh_status || "not_run"],
@@ -1411,7 +1411,7 @@ export default function MarketingSettings() {
                 {t("marketing.automation.commentDm.eyebrow")}
               </div>
               <h2 className="mt-3 text-xl font-black tracking-tight">{t("marketing.automation.commentDm.title")}</h2>
-              <p className="mt-2 text-sm text-slate-400">{t("marketing.settings.capabilities.automationHelp", "Comment-to-DM rules, auto replies, and automation logs.")} {t("marketing.settings.capabilities.activeRules", "Active rules")}: {activeRulesCount}</p>
+              <p className="mt-2 text-sm text-slate-400">{t("marketing.settings.capabilities.automationHelp", "قواعد التعليق إلى الرسالة والردود التلقائية وسجلات الأتمتة.")} {t("marketing.settings.capabilities.activeRules", "القواعد النشطة")}: {activeRulesCount}</p>
             </div>
             <button onClick={() => { setEditingRuleId(null); setRuleForm(blankRule); }} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">
               <Plus className="h-4 w-4" />
@@ -1427,10 +1427,10 @@ export default function MarketingSettings() {
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {[
-                  ["autoReply", "AI auto reply"],
-                  ["intentDetection", "AI intent detection"],
-                  ["humanEscalation", "Human escalation rules"],
-                  ["smartLeadDetection", "Smart lead detection"],
+                  ["autoReply", "الرد التلقائي بالذكاء الاصطناعي"],
+                  ["intentDetection", "اكتشاف النية بالذكاء الاصطناعي"],
+                  ["humanEscalation", "قواعد التصعيد البشري"],
+                  ["smartLeadDetection", "اكتشاف العملاء المحتملين الذكي"],
                 ].map(([key, label]) => (
                   <label key={key} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-slate-200">
                     <span>{label}</span>
@@ -1440,12 +1440,12 @@ export default function MarketingSettings() {
               </div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-              <div className="text-sm font-black text-white">Comment-to-DM performance</div>
+              <div className="text-sm font-black text-white">أداء التعليق إلى الرسالة</div>
               <div className="mt-4 grid grid-cols-3 gap-2">
                 {[
-                  ["Active rules", activeRulesCount],
+                  ["القواعد النشطة", activeRulesCount],
                   ["Sent replies", successfulRuleCount],
-                  ["Failed replies", failedRuleCount],
+                  ["الردود الفاشلة", failedRuleCount],
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
                     <div className="text-[11px] text-slate-500">{label}</div>
@@ -1499,15 +1499,15 @@ export default function MarketingSettings() {
                   <textarea value={ruleForm.response_message} onChange={(event) => setRuleForm((current) => ({ ...current, response_message: event.target.value }))} rows={4} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
                 </label>
                 <label className="space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Template</span>
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">القالب</span>
                   <input value={ruleForm.template_name || ""} onChange={(event) => setRuleForm((current) => ({ ...current, template_name: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
                 </label>
                 <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-slate-200">
                   <input type="checkbox" checked={Boolean(ruleForm.ai_generated_replies)} onChange={(event) => setRuleForm((current) => ({ ...current, ai_generated_replies: event.target.checked }))} />
-                  AI-generated replies
+                  الردود المُولدة بالذكاء الاصطناعي
                 </label>
                 <label className="space-y-2 md:col-span-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Fallback reply</span>
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">رد بديل</span>
                   <textarea value={ruleForm.fallback_reply || ""} onChange={(event) => setRuleForm((current) => ({ ...current, fallback_reply: event.target.value }))} rows={2} className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none" />
                 </label>
               </div>
@@ -1524,7 +1524,7 @@ export default function MarketingSettings() {
 
             <div className="space-y-3">
               <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-4">
-                <div className="text-sm font-black text-white">Preview simulator</div>
+                <div className="text-sm font-black text-white">محاكي المعاينة</div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <input value={simulator.commenter_name} onChange={(event) => setSimulator((current) => ({ ...current, commenter_name: event.target.value }))} className="rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-sm text-white outline-none" />
                   <input value={simulator.comment_text} onChange={(event) => setSimulator((current) => ({ ...current, comment_text: event.target.value }))} className="rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-sm text-white outline-none" />

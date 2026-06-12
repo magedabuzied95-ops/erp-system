@@ -132,7 +132,7 @@ const audioForVideo = (item = {}) => {
   const design = item.design_json || {};
   if (design.audio && typeof design.audio === "object" && Object.keys(design.audio).length) {
     return {
-      trend_label: design.audio.trend_label || (design.audio.is_trending_label === false ? "Curated" : "Trending"),
+      trend_label: design.audio.trend_label || (design.audio.is_trending_label === false ? "مختار" : "رائج"),
       ...design.audio,
     };
   }
@@ -143,7 +143,7 @@ const audioForVideo = (item = {}) => {
       mood: "urgent",
       platform_hint: "instagram/facebook",
       search_query: "Arabic fast beat urgency reel audio",
-      trend_label: "Trending",
+      trend_label: "رائج",
     };
   }
   if (text.includes("luxury") || text.includes("reveal")) {
@@ -152,7 +152,7 @@ const audioForVideo = (item = {}) => {
       mood: "soft luxury",
       platform_hint: "instagram/facebook",
       search_query: "soft luxury Arabic reel audio",
-      trend_label: "Trending",
+      trend_label: "رائج",
     };
   }
   if (text.includes("offer") || text.includes("blast")) {
@@ -161,7 +161,7 @@ const audioForVideo = (item = {}) => {
       mood: "popular remix",
       platform_hint: "instagram/facebook",
       search_query: "Arabic remix trending reel audio",
-      trend_label: "Trending",
+      trend_label: "رائج",
     };
   }
   return {
@@ -169,7 +169,7 @@ const audioForVideo = (item = {}) => {
     mood: "energetic",
     platform_hint: "instagram/facebook",
     search_query: "Arabic energetic sneakers beat reels",
-    trend_label: "Trending",
+    trend_label: "رائج",
   };
 };
 
@@ -246,7 +246,7 @@ export default function AiMarketingVideos() {
         : mode === "week"
           ? await generateAutonomousAiMarketingVideosWeekly(body)
           : await generateAutonomousAiMarketingVideosDaily(body);
-      toast.success(`Generated ${result?.generated_videos || 0} video queue items`);
+      toast.success(`تم إنشاء ${result?.generated_videos || 0} عنصرًا في طابور الفيديو`);
       await load();
     } catch (error) {
       toast.error(formatApiError(error, "Video generation failed"));
@@ -445,7 +445,7 @@ function VideoQueueRow({ item, onPreview, onApprove, onPublish }) {
       <div className="flex flex-wrap gap-2 md:justify-end">
         <button type="button" onClick={onPreview} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>Preview</button>
         {statusInfo.normalizedStatus === "published" && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>عرض المنشور</a> : null}
-        {showApprove ? <button type="button" onClick={onApprove} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>Approve</button> : null}
+        {showApprove ? <button type="button" onClick={onApprove} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>موافقة</button> : null}
         {showPublish ? <button type="button" onClick={onPublish} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>نشر</button> : null}
       </div>
     </div>
@@ -690,7 +690,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-2xl font-black">Video preview</h2>
-              <p className="mt-2 text-sm font-semibold text-slate-400">Preview-ready video queue item. MP4 generation and Reels publishing will be added later.</p>
+              <p className="mt-2 text-sm font-semibold text-slate-400">عنصر طابور فيديو جاهز للمعاينة. سيُضاف لاحقًا إنشاء MP4 ونشر Reels.</p>
             </div>
             <button type="button" onClick={onClose} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>
               <X className="h-4 w-4" />
@@ -739,8 +739,8 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
           </div>
           <div className="mt-5 rounded-2xl border border-white/10 bg-black/25 p-4">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-black text-white">CapCut-style timeline</div>
-              <Badge tone="cyan">{formatSeconds(playbackDuration)}s auto mode</Badge>
+              <div className="text-sm font-black text-white">خط زمني بأسلوب CapCut</div>
+              <Badge tone="cyan">{formatSeconds(playbackDuration)}ثانية / وضع تلقائي</Badge>
             </div>
             <div className="relative mt-4 h-20 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 p-2">
               <div className="absolute inset-x-2 top-2 flex h-8 overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]">
@@ -776,8 +776,8 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
           </div>
           <div className="mt-5 rounded-2xl border border-white/10 bg-black/25 p-4">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-black text-white">Scene timeline</div>
-              <Badge tone="cyan">{isPlaying ? "playing" : hasEnded ? "ended" : "click to seek"}</Badge>
+              <div className="text-sm font-black text-white">الخط الزمني للمشاهد</div>
+              <Badge tone="cyan">{isPlaying ? "قيد التشغيل" : hasEnded ? "انتهى" : "انقر للتنقل"}</Badge>
             </div>
             <div className="mt-3 grid gap-2">
               {scenes.map((scene, sceneIndex) => (
@@ -793,17 +793,17 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center justify-between gap-3">
-                        <div className="text-xs font-black uppercase tracking-[0.12em] text-cyan-100">{scene.label || `Scene ${sceneIndex + 1}`}</div>
+                      <div className="text-xs font-black uppercase tracking-[0.12em] text-cyan-100">{scene.label || `مشهد ${sceneIndex + 1}`}</div>
                         <div className="text-[11px] font-black text-slate-400">{formatSeconds(sceneStarts[sceneIndex] || 0)}s - {formatSeconds((sceneStarts[sceneIndex] || 0) + (sceneDurations[sceneIndex] || 0))}s</div>
                       </div>
                       <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
                         <div className="h-full rounded-full bg-cyan-200 transition-[width] duration-100" style={{ width: `${sceneFillPercent(sceneIndex)}%` }} />
                       </div>
                       <div className="mt-1 truncate text-sm font-black text-white">{scene.title}</div>
-                      <div className="mt-1 text-xs font-semibold text-slate-400">{scene.motion || "Motion hint"} | {scene.transition || "transition"} | {scene.effect || "effect"}</div>
+                      <div className="mt-1 text-xs font-semibold text-slate-400">{scene.motion || "إشارة حركة"} | {scene.transition || "انتقال"} | {scene.effect || "تأثير"}</div>
                       <div className="mt-2 flex flex-wrap gap-2">
-                        <div className="inline-flex rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white/70">{scene.animation_preset || "animation preset"}</div>
-                        <div className="inline-flex rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white/70">{scene.role || "scene image"}</div>
+                        <div className="inline-flex rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white/70">{scene.animation_preset || "إعداد الحركة"}</div>
+                        <div className="inline-flex rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white/70">{scene.role || "صورة المشهد"}</div>
                       </div>
                     </div>
                   </div>
@@ -812,7 +812,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
             </div>
           </div>
           <div className="mt-5 rounded-2xl border border-white/10 bg-black/25 p-4">
-            <div className="text-sm font-black text-white">AI script / captions timeline</div>
+            <div className="text-sm font-black text-white">خط زمني للنصوص / التعليقات</div>
             <div className="mt-3 grid gap-2">
               {captionsTimeline.map((caption, index) => (
                 <div key={`${caption.start_second}-${index}`} className="grid grid-cols-[70px_minmax(0,1fr)] gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3">
@@ -825,11 +825,11 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
           <div className="mt-5 flex flex-wrap gap-2">
             <button type="button" onClick={togglePlayback} className={`${buttonClass} bg-white text-slate-950 hover:bg-cyan-100`}>
               {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-              {isPlaying ? "Pause Preview" : hasEnded ? "Replay Preview" : "Play Preview"}
+              {isPlaying ? "إيقاف المعاينة" : hasEnded ? "إعادة تشغيل المعاينة" : "تشغيل المعاينة"}
             </button>
             <button type="button" onClick={replay} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>
               <RefreshCw className="h-4 w-4" />
-              Replay
+              إعادة التشغيل
             </button>
           </div>
           {audio.title ? (
@@ -837,9 +837,9 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-sm font-black text-white">
                   <Music2 className="h-4 w-4 text-cyan-200" />
-                  Suggested audio
+                  صوت مقترح
                 </div>
-                <Badge tone="cyan">{audio.trend_label || "Trending"}</Badge>
+                <Badge tone="cyan">{audio.trend_label || "رائج"}</Badge>
               </div>
               <div className="mt-2 text-sm font-black text-white">{audio.title}</div>
               <div className="mt-1 text-xs font-bold text-slate-400">{audio.platform_hint || "instagram/facebook"}</div>
@@ -855,16 +855,16 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
               <div className="mt-1 text-xs font-bold text-slate-400">{audio.search_query || audio.mood || ""}</div>
               <div className="mt-2 flex flex-wrap gap-2">
                 <div className="inline-flex rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">{audio.mood || "energetic"}</div>
-                <div className="inline-flex rounded-full border border-amber-200/20 bg-amber-300/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-100">{audio.trend_label || "Trending"}</div>
+                <div className="inline-flex rounded-full border border-amber-200/20 bg-amber-300/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-100">{audio.trend_label || "رائج"}</div>
               </div>
             </div>
           ) : null}
           <div className="mt-5 rounded-2xl border border-white/10 bg-black/25 p-4">
-            <div className="text-sm font-black text-white">Generated script / caption</div>
-            <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-300">{design.script || item.caption || "Script will appear here after generation."}</div>
+            <div className="text-sm font-black text-white">النص / التعليق المُولّد</div>
+            <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-300">{design.script || item.caption || "سيظهر النص هنا بعد الإنشاء."}</div>
           </div>
           <details className="mt-5 rounded-2xl border border-white/10 bg-black/30 p-4">
-            <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-slate-400">Technical debug</summary>
+            <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-slate-400">تشخيص تقني</summary>
             <pre className="mt-3 max-h-72 overflow-auto text-xs text-slate-300">{JSON.stringify(design, null, 2)}</pre>
           </details>
           <div className="mt-5 flex flex-wrap gap-2">
@@ -873,7 +873,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
             {showApprove ? (
               <button type="button" onClick={onApprove} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>
                 <Check className="h-4 w-4" />
-                Approve
+                موافقة
               </button>
             ) : null}
             {showPublish ? (
@@ -893,7 +893,7 @@ function Info({ label, value }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
       <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
-      <div className="mt-1 break-words text-sm font-black text-white">{value || "n/a"}</div>
+      <div className="mt-1 break-words text-sm font-black text-white">{value || "غير متاح"}</div>
     </div>
   );
 }

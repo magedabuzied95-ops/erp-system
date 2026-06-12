@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef } from "react";
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 
 const CAMERA_PERMISSION_DENIED_MESSAGE = "تم رفض إذن الكاميرا. فعّل الكاميرا من إعدادات المتصفح ثم حاول مرة أخرى.";
 const CAMERA_UNSUPPORTED_MESSAGE = "المتصفح أو الجهاز الحالي لا يدعم مسح الباركود أو QR بالكاميرا.";
@@ -79,6 +79,16 @@ const preferredBarcodeFormats = [
   "ean_8",
 ];
 
+const supportedBarcodeFormats = [
+  Html5QrcodeSupportedFormats.QR_CODE,
+  Html5QrcodeSupportedFormats.CODE_128,
+  Html5QrcodeSupportedFormats.CODE_39,
+  Html5QrcodeSupportedFormats.EAN_13,
+  Html5QrcodeSupportedFormats.EAN_8,
+  Html5QrcodeSupportedFormats.UPC_A,
+  Html5QrcodeSupportedFormats.UPC_E,
+];
+
 export default function BarcodeScanner({
   onScan,
   onPermissionDenied,
@@ -116,6 +126,7 @@ export default function BarcodeScanner({
     const handleDecodedValue = async (decodedText, stopCurrentScanner) => {
       if (!active || handledRef.current) return;
       handledRef.current = true;
+      console.info("[employee-scanner]", String(decodedText || "").trim());
       try {
         await stopCurrentScanner?.();
       } catch {
@@ -242,6 +253,7 @@ export default function BarcodeScanner({
           qrbox,
           aspectRatio: 1,
           disableFlip: false,
+          formatsToSupport: supportedBarcodeFormats,
           videoConstraints: {
             facingMode,
             width: { ideal: 1920 },

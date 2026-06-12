@@ -49,7 +49,7 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd, he
   const isAvailable = stock > 0 && (!variant || variantStock > 0);
   const activePrice = displaySellingPrice(safeProduct, variant);
   const comparePrice = displayComparePrice(safeProduct, variant);
-  const meta = [safeProduct?.brand, safeProduct?.category, safeProduct?.gender, safeProduct?.grade].filter(Boolean).join(" / ") || t("storefront.products.storeProduct", "Store product");
+  const meta = [safeProduct?.brand, safeProduct?.category, safeProduct?.gender, safeProduct?.grade].filter(Boolean).join(" / ") || t("storefront.products.storeProduct", "منتج من المتجر");
 
   const viewProduct = (event) => {
     event.stopPropagation();
@@ -59,7 +59,7 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd, he
   const quickAdd = (event) => {
     event.stopPropagation();
     if (!onQuickAdd || !variant || variantStock <= 0) {
-      toast.error(sfText("storefront.toasts.variantUnavailable", "This size or color is currently unavailable."));
+      toast.error(sfText("storefront.toasts.variantUnavailable", "هذا المقاس أو اللون غير متاح حاليًا."));
       return;
     }
     onQuickAdd(safeProduct, variant, 1);
@@ -79,20 +79,20 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd, he
             {comparePrice ? <span className="text-[11px] font-bold text-stone-400 line-through">{money(comparePrice)}</span> : null}
           </span>
           <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[10px] font-black ${isAvailable ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-200" : "bg-rose-50 text-rose-700 dark:bg-rose-400/10 dark:text-rose-200"}`}>
-            {isAvailable ? t("storefront.products.availableNow", "Available now") : t("storefront.products.unavailable", "Unavailable")}
+            {isAvailable ? t("storefront.products.availableNow", "متاح الآن") : t("storefront.products.unavailable", "غير متاح")}
           </span>
         </span>
       </button>
       <div className="sf-visual-actions">
-        <button type="button" onClick={viewProduct} className="sf-visual-action-primary">{t("storefront.products.viewProduct", "View product")}</button>
-        <button type="button" onClick={quickAdd} disabled={!isAvailable} className="sf-visual-action-soft">{t("storefront.cart.addToCart", "Add to cart")}</button>
-        <button type="button" onClick={(event) => { event.stopPropagation(); setShowSizes((value) => !value); }} className="sf-visual-action-soft">{t("storefront.products.sizes", "Sizes")}</button>
+        <button type="button" onClick={viewProduct} className="sf-visual-action-primary">{t("storefront.products.viewProduct", "عرض المنتج")}</button>
+        <button type="button" onClick={quickAdd} disabled={!isAvailable} className="sf-visual-action-soft">{t("storefront.cart.addToCart", "إضافة إلى السلة")}</button>
+        <button type="button" onClick={(event) => { event.stopPropagation(); setShowSizes((value) => !value); }} className="sf-visual-action-soft">{t("storefront.products.sizes", "المقاسات")}</button>
       </div>
       {showSizes ? (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {(variants.length ? variants : [variant]).filter(Boolean).map((item) => {
             const selected = String(item.id) === String(variant?.id);
-            const size = item.size || item.size_label || t("storefront.products.oneSize", "One size");
+            const size = item.size || item.size_label || t("storefront.products.oneSize", "مقاس واحد");
             const hasStock = variantHasStock(item);
             return (
               <button
@@ -147,8 +147,8 @@ function VisualSearchEmpty({ message, keywords, onPickTerm }) {
         <PackageSearch className="h-6 w-6" />
       </div>
       <div className="min-w-0">
-        <div className="text-sm font-black text-stone-50">{t("storefront.visualSearch.noSimilarProduct", "No similar product found")}</div>
-        <div className="mt-1 text-xs font-bold leading-5 text-stone-400">{message || t("storefront.visualSearch.emptyHint", "Try a clearer image or use the suggested keywords.")}</div>
+        <div className="text-sm font-black text-stone-50">{t("storefront.visualSearch.noSimilarProduct", "لم يتم العثور على منتج مشابه")}</div>
+        <div className="mt-1 text-xs font-bold leading-5 text-stone-400">{message || t("storefront.visualSearch.emptyHint", "جرّب صورة أوضح أو استخدم الكلمات المقترحة.")}</div>
         {keywords.length ? (
           <div className="mt-3 flex flex-wrap gap-2">
             {keywords.map((keyword) => (
@@ -178,9 +178,9 @@ export default function StorefrontVisualSearchResults({ products = [], loading, 
 
       <div className="flex items-center justify-between gap-3 px-1">
         <div className="min-w-0">
-          <h3 className="text-sm font-black text-stone-950 dark:text-white">{t("storefront.visualSearch.similarProducts", "Similar products")}</h3>
+          <h3 className="text-sm font-black text-stone-950 dark:text-white">{t("storefront.visualSearch.similarProducts", "منتجات مشابهة")}</h3>
           <p className="mt-0.5 truncate text-[11px] font-bold text-stone-500 dark:text-stone-400">
-            {loading ? t("storefront.visualSearch.analyzing", "Analyzing the image and finding closest products...") : visualSearch?.error || visualSearch?.message || t("storefront.visualSearch.resultsFromImage", "Results based on the uploaded image")}
+            {loading ? t("storefront.visualSearch.analyzing", "جاري تحليل الصورة والبحث عن أقرب المنتجات...") : visualSearch?.error || visualSearch?.message || t("storefront.visualSearch.resultsFromImage", "نتائج مبنية على الصورة المرفوعة")}
           </p>
         </div>
         <span className="shrink-0 rounded-full border border-stone-200 bg-stone-950 px-3 py-1 text-[11px] font-black text-white shadow-sm dark:border-white/10 dark:bg-white dark:text-stone-950">
@@ -204,7 +204,7 @@ export default function StorefrontVisualSearchResults({ products = [], loading, 
         </div>
       ) : (
         <VisualSearchEmpty
-          message={visualSearch?.error || visualSearch?.message || t("storefront.visualSearch.noSimilarProduct", "No similar product found")}
+          message={visualSearch?.error || visualSearch?.message || t("storefront.visualSearch.noSimilarProduct", "لم يتم العثور على منتج مشابه")}
           keywords={keywords}
           onPickTerm={onPickTerm}
         />

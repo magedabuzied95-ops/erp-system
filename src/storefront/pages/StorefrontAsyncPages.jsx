@@ -22,17 +22,17 @@ const storefrontAsyncDebugLog = (label, payload = {}) => {
 function OrderItemsSummaryLocal({ items = [], helpers }) {
   const { sfText, money, imageFor, fallbackProductImage } = helpers;
   if (!items.length) {
-    return <p className="sf-muted-empty mt-4 rounded-2xl bg-stone-50 p-4 font-bold text-stone-500">{sfText("storefront.orders.itemsLoading", "Product summary will appear here after loading order details.")}</p>;
+    return <p className="sf-muted-empty mt-4 rounded-2xl bg-stone-50 p-4 font-bold text-stone-500">{sfText("storefront.orders.itemsLoading", "سيظهر ملخص المنتجات هنا بعد تحميل تفاصيل الطلب.")}</p>;
   }
   return (
     <div className="sf-order-items mt-5 space-y-3">
-      <h3 className="sf-section-heading text-lg font-black">{sfText("storefront.orders.itemsSummary", "Product summary")}</h3>
+      <h3 className="sf-section-heading text-lg font-black">{sfText("storefront.orders.itemsSummary", "ملخص المنتجات")}</h3>
       {items.map((item) => (
         <div key={item.id || `${item.product_id}-${item.variant_id}`} className="sf-order-item-row flex min-w-0 items-center gap-3 rounded-2xl bg-stone-50 p-3">
           <img src={imageFor(item.product_image || item.image_url)} onError={fallbackProductImage} alt="" className="h-14 w-14 shrink-0 rounded-2xl object-cover" loading="lazy" decoding="async" width="56" height="56" />
           <div className="min-w-0 flex-1">
             <div className="sf-order-item-name truncate font-black">{item.product_name || item.name}</div>
-            <div className="sf-order-item-meta text-xs font-bold text-stone-500">{item.color || sfText("storefront.products.color", "Color")} / {item.size || sfText("storefront.products.size", "Size")} - {item.quantity}</div>
+            <div className="sf-order-item-meta text-xs font-bold text-stone-500">{item.color || sfText("storefront.products.color", "اللون")} / {item.size || sfText("storefront.products.size", "المقاس")} × {item.quantity}</div>
           </div>
           <div className="sf-order-item-price shrink-0 font-black">{money(item.total_amount || Number(item.price || item.sale_price || 0) * Number(item.quantity || 1))}</div>
         </div>
@@ -55,7 +55,7 @@ function TrackingResult({ data, helpers, components }) {
       <div className="sf-card-section border-b border-stone-100 p-5 md:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="sf-muted-text text-sm font-bold text-stone-500">{sfText("storefront.orders.orderNumber", "Order number")}</div>
+            <div className="sf-muted-text text-sm font-bold text-stone-500">{sfText("storefront.orders.orderNumber", "رقم الطلب")}</div>
             <OrderNumberBadge value={publicNumber} className="mt-2 border-[#7c3aed]/20 bg-[#7c3aed]/10 text-[#5b21b6]" />
           </div>
           <span className="rounded-full bg-stone-950 px-4 py-2 text-sm font-black text-white">{statusCopy(order.status || order.shipping_status || "pending")}</span>

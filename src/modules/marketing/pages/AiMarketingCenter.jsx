@@ -1358,7 +1358,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
                 className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/20`}
               >
                 <Check className="h-4 w-4" />
-                Approve
+                موافقة
               </button>
             ) : null}
             <details className="rounded-2xl border border-white/10 bg-black/25 p-3">
@@ -1473,7 +1473,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
                   className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/20`}
                 >
                   <Check className="h-4 w-4" />
-                  Approve
+                  موافقة
                 </button>
               ) : null}
               {showPublish ? (

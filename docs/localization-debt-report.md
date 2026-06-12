@@ -1,6 +1,6 @@
 # Localization Debt Report
 
-Generated: 2026-06-12T17:14:01.892Z
+Generated: 2026-06-12T18:19:17.056Z
 
 This report flags obvious hardcoded UI strings. It is intentionally conservative and may include false positives.
 
@@ -388,9 +388,9 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 647 [jsx-text] erp.store
 - 668 [jsx-text] ERP Store
 - 741 [jsx-text] erp.store
-- 742 [jsx-text] Story preview
+- 742 [jsx-text] معاينة القصة
 - 1078 [jsx-text] Product URL
-- 628 [title] Story slides
+- 628 [title] شرائح القصة
 - 1087 [prop-label] Price
 - 1088 [prop-label] Color
 - 1089 [prop-label] Size
@@ -403,43 +403,43 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 
 ### src\modules\marketing\pages\AiMarketingCenter.jsx
 - 768 [jsx-text] Stories and posts that stay clean
-- 1038 [jsx-text] Archive Selected
+- 1038 [jsx-text] أرشفة المحدد
 - 1039 [jsx-text] Delete Selected
-- 1040 [jsx-text] Publish Selected
+- 1040 [jsx-text] نشر المحدد
 - 1115 [jsx-text] Arabic Trend
-- 1117 [jsx-text] Facebook
-- 1118 [jsx-text] Instagram
+- 1117 [jsx-text] فيسبوك
+- 1118 [jsx-text] إنستجرام
 - 1135 [jsx-text] Preview
-- 1140 [jsx-text] View Post
-- 1141 [jsx-text] Restore
-- 1142 [jsx-text] Approve
-- 1144 [jsx-text] Archive
+- 1140 [jsx-text] عرض المنشور
+- 1141 [jsx-text] استعادة
+- 1142 [jsx-text] موافقة
+- 1144 [jsx-text] أرشفة
 - 1148 [jsx-text] Retry
 - 1191 [jsx-text] Generated story asset
 - 1198 [jsx-text] No generated story asset
 - 1203 [jsx-text] Story Slides
 - 1234 [jsx-text] Performance Brain
-- 1263 [jsx-text] Delete Published Content
+- 1263 [jsx-text] حذف المحتوى المنشور
 - 1272 [jsx-text] Cancel
 - 1291 [jsx-text] Content History
 - 1294 [jsx-text] Close
-- 1352 [jsx-text] Published
-- 1353 [jsx-text] View Post
+- 1352 [jsx-text] منشور
+- 1353 [jsx-text] عرض المنشور
 - 1365 [jsx-text] Technical JSON
-- 1400 [jsx-text] Story asset
+- 1400 [jsx-text] أصل القصة
 - 1401 [jsx-text] Rendered
-- 1413 [jsx-text] Story preview
+- 1413 [jsx-text] معاينة القصة
 - 1414 [jsx-text] 9:16 story creative. CTA is a visual sticker here; the product link stays stored for publishing.
 - 1416 [jsx-text] Close
 - 1426 [jsx-text] Story publish asset debug
-- 1467 [jsx-text] Published
-- 1468 [jsx-text] View Post
+- 1467 [jsx-text] منشور
+- 1468 [jsx-text] عرض المنشور
 - 1506 [jsx-text] Admin / debug
-- 1530 [jsx-text] Published image asset URLs
+- 1530 [jsx-text] روابط أصول الصور المنشورة
 - 1542 [jsx-text] Technical JSON
 - 808 [title] Content Lanes
 - 810 [title] New Arrivals
-- 811 [title] Last Size / Last Piece
+- 811 [title] آخر مقاس / آخر قطعة
 - 812 [title] AI Posts
 - 817 [title] Daily Volume
 - ... 51 more
@@ -452,30 +452,30 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 438 [jsx-text] Facebook
 - 439 [jsx-text] TikTok later
 - 446 [jsx-text] Preview
-- 447 [jsx-text] View Post
-- 448 [jsx-text] Approve
-- 449 [jsx-text] Publish
+- 447 [jsx-text] عرض المنشور
+- 448 [jsx-text] موافقة
+- 449 [jsx-text] نشر
 - 555 [jsx-text] = start && sceneTimelinePosition
 - 646 [jsx-text] Variant details
 - 656 [jsx-text] Price focus
 - 666 [jsx-text] Limited availability
 - 692 [jsx-text] Video preview
-- 693 [jsx-text] Preview-ready video queue item. MP4 generation and Reels publishing will be added later.
+- 693 [jsx-text] عنصر طابور فيديو جاهز للمعاينة. سيُضاف لاحقًا إنشاء MP4 ونشر Reels.
 - 719 [jsx-text] Video readiness
-- 742 [jsx-text] CapCut-style timeline
-- 779 [jsx-text] Scene timeline
-- 815 [jsx-text] AI script / captions timeline
-- 863 [jsx-text] Generated script / caption
-- 867 [jsx-text] Technical debug
-- 871 [jsx-text] Published
-- 872 [jsx-text] View Post
+- 742 [jsx-text] خط زمني بأسلوب CapCut
+- 779 [jsx-text] الخط الزمني للمشاهد
+- 815 [jsx-text] خط زمني للنصوص / التعليقات
+- 863 [jsx-text] النص / التعليق المُولّد
+- 867 [jsx-text] تشخيص تقني
+- 871 [jsx-text] منشور
+- 872 [jsx-text] عرض المنشور
 - 332 [title] Content Lanes
-- 344 [title] Video Templates
+- 344 [title] قوالب الفيديو
 - 356 [title] Daily Video Volume
 - 382 [title] Video Queue
 - 324 [prop-label] Video Queue
-- 325 [prop-label] Ready / Approved
-- 326 [prop-label] Failed
+- 325 [prop-label] جاهز / معتمد
+- 326 [prop-label] فشل
 - 701 [prop-label] Status
 - 702 [prop-label] Scheduled
 - 703 [prop-label] Playback
@@ -493,41 +493,41 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 905 [jsx-text] Use these values in Meta Developer settings. Secret values are never displayed here.
 - 911 [jsx-text] Environment
 - 923 [jsx-text] OAuth Redirect URI
-- 930 [jsx-text] Webhook Callback URL
+- 930 [jsx-text] رابط استدعاء Webhook
 - 945 [jsx-text] Required permissions
 - 951 [jsx-text] App review reminder: production messaging and publishing require Meta review approval for the requested permissions.
 - 954 [jsx-text] Setup steps
 - 971 [jsx-text] Post-OAuth result
 - 978 [jsx-text] Connected page
-- 982 [jsx-text] Connected Instagram account
+- 982 [jsx-text] حساب إنستجرام المتصل
 - 986 [jsx-text] Missing permissions
-- 990 [jsx-text] Next required action
+- 990 [jsx-text] الإجراء التالي المطلوب
 - 1005 [jsx-text] Connect Meta
-- 1028 [jsx-text] Login with Facebook
-- 1029 [jsx-text] Start the official Meta OAuth flow, grant permissions, then choose the Facebook Page and linked Instagram Business Account.
-- 1051 [jsx-text] Choose Facebook Page and Instagram Business Account
+- 1028 [jsx-text] تسجيل الدخول عبر فيسبوك
+- 1029 [jsx-text] ابدأ تدفق OAuth الرسمي من ميتا، ثم امنح الصلاحيات وبعدها اختر صفحة فيسبوك وحساب إنستجرام للأعمال المرتبط.
+- 1051 [jsx-text] اختيار صفحة فيسبوك وحساب إنستجرام للأعمال
 - 1069 [jsx-text] Verify webhook and capabilities
 - 1070 [jsx-text] Runs live permission checks, token diagnostics, and webhook delivery health.
 - 1090 [jsx-text] Setup checklist
 - 1122 [jsx-text] Connection
-- 1123 [jsx-text] Facebook Page and Instagram account
-- 1149 [jsx-text] Facebook Page
+- 1123 [jsx-text] صفحة فيسبوك وحساب إنستجرام
+- 1149 [jsx-text] صفحة فيسبوك
 - 1151 [jsx-text] Page ID is managed by the guided connection flow.
-- 1154 [jsx-text] Instagram Business Account
+- 1154 [jsx-text] حساب إنستجرام للأعمال
 - 1156 [jsx-text] Manual Account ID entry is hidden unless advanced mode is enabled.
 - 1348 [jsx-text] Live delivery health
-- 1443 [jsx-text] Comment-to-DM performance
-- 1502 [jsx-text] Template
-- 1510 [jsx-text] Fallback reply
-- 1527 [jsx-text] Preview simulator
-- 558 [toast] Choose a Facebook Page to complete Meta setup
+- 1443 [jsx-text] أداء التعليق إلى الرسالة
+- 1502 [jsx-text] القالب
+- 1510 [jsx-text] رد بديل
+- 1527 [jsx-text] محاكي المعاينة
+- 558 [toast] اختر صفحة فيسبوك لاستكمال إعداد ميتا
 - 639 [toast] Meta connection timed out. You can try again.
-- 690 [toast] Publishing permissions verified
-- 707 [toast] Webhook subscription verified
+- 690 [toast] تم التحقق من صلاحيات النشر
+- 707 [toast] تم التحقق من اشتراك Webhook
 - 744 [toast] Meta setup complete
-- 926 [prop-label] Copy redirect URI
-- 933 [prop-label] Copy webhook URL
-- 934 [prop-label] Copy verify status
+- 926 [prop-label] نسخ رابط إعادة التوجيه
+- 933 [prop-label] نسخ رابط Webhook
+- 934 [prop-label] نسخ حالة التحقق
 
 ## orders (97)
 
@@ -878,9 +878,9 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 
 ### src\modules\aiSupport\pages\AiFollowups.jsx
 - 163 [jsx-text] Follow-ups ready for staff action
-- 213 [jsx-text] Closed
-- 214 [jsx-text] Internal note sent
-- 214 [jsx-text] Ready to send manually
+- 213 [jsx-text] مغلقة
+- 214 [jsx-text] تم إرسال ملاحظة داخلية
+- 214 [jsx-text] جاهزة للإرسال اليدوي
 - 231 [placeholder] Edit the internal follow-up note before sending...
 - 178 [prop-label] Due follow-ups
 - 179 [prop-label] Scheduled
@@ -890,11 +890,11 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 ### src\modules\aiSupport\pages\AiInbox.jsx
 - 706 [jsx-text] : status === "human_takeover" ?
 - 751 [jsx-text] No transcript yet.
-- 791 [jsx-text] Customer
+- 791 [jsx-text] العميل
 - 823 [jsx-text] Staff
 - 861 [jsx-text] : status === "closed" ?
-- 872 [jsx-text] WhatsApp AI active
-- 932 [jsx-text] Conversation closed. Manual replies are disabled.
+- 872 [jsx-text] ذكاء واتساب نشط
+- 932 [jsx-text] المحادثة مغلقة. تم تعطيل الرد اليدوي.
 - 942 [jsx-text] Live send ready
 - 942 [jsx-text] Live channel unavailable
 - 944 [jsx-text] Sending a staff reply will take over this conversation and pause AI automation.
@@ -922,26 +922,26 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 1183 [jsx-text] Waiting for product, size, color, or buying signal.
 - 1212 [jsx-text] Quick send card
 - 1216 [jsx-text] No product match yet. Ask for model, category, size, color, or budget.
-- 1229 [jsx-text] Memory
-- 1234 [jsx-text] Memory will improve as the conversation continues.
-- 1283 [jsx-text] Customer context
+- 1229 [jsx-text] الذاكرة
+- 1234 [jsx-text] ستتحسن الذاكرة مع استمرار المحادثة.
+- 1283 [jsx-text] سياق العميل
 - 1385 [jsx-text] AI Debug
 - 1386 [jsx-text] Intent, route, memory, and recent decisions
-- 1500 [jsx-text] Skipped
+- 1500 [jsx-text] متخطى
 - ... 178 more
 
 ### src\modules\aiSupport\pages\AiSettings.jsx
 - 170 [jsx-text] AI Brain
 - 171 [jsx-text] AI Settings
 - 172 [jsx-text] Control automatic replies, tone, safety defaults, and debugging visibility for the Meta AI Inbox.
-- 206 [jsx-text] Channel
+- 206 [jsx-text] القناة
 - 208 [jsx-text] Facebook Messenger
 - 209 [jsx-text] Instagram DM
 - 210 [jsx-text] WhatsApp
 - 211 [jsx-text] Web chat
 - 215 [jsx-text] Platform
 - 219 [jsx-text] Optional Product ID
-- 225 [jsx-text] Customer message
+- 225 [jsx-text] رسالة العميل
 - 238 [jsx-text] Intent
 - 239 [jsx-text] Effective mode
 - 240 [jsx-text] Effective tone
@@ -974,10 +974,10 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - ... 6 more
 
 ### src\modules\aiSupport\pages\AiSupportConsole.jsx
-- 186 [jsx-text] Confidence
-- 216 [jsx-text] Not returned by endpoint.
+- 186 [jsx-text] مستوى الثقة
+- 216 [jsx-text] لم يُعدّه المسار.
 - 264 [jsx-text] no sources
-- 546 [jsx-text] AI Support Console
+- 546 [jsx-text] وحدة دعم الذكاء الاصطناعي
 - 567 [jsx-text] Resolved tenant id
 - 571 [jsx-text] Auth source used
 - 575 [jsx-text] Auth user source
@@ -989,16 +989,16 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 679 [jsx-text] No test run yet
 - 680 [jsx-text] Run a quick test or type a custom question.
 - 694 [jsx-text] No products returned.
-- 706 [jsx-text] Detected intent
+- 706 [jsx-text] النية المكتشفة
 - 710 [jsx-text] Context sources
 - 714 [jsx-text] Fallback reason
 - 719 [jsx-text] Source preview sent to AI
 - 723 [jsx-text] Full endpoint response
-- 749 [jsx-text] Customer orders started by AI chat, WhatsApp, Instagram, or Facebook inbox.
+- 749 [jsx-text] طلبات العملاء التي بدأت عبر دردشة الذكاء الاصطناعي أو واتساب أو إنستجرام أو صندوق وارد فيسبوك.
 - 768 [jsx-text] Loading AI order drafts...
-- 785 [jsx-text] Customer:
+- 785 [jsx-text] العميل:
 - 786 [jsx-text] Area:
-- 787 [jsx-text] Product:
+- 787 [jsx-text] المنتج:
 - 788 [jsx-text] Variant:
 - 789 [jsx-text] Total:
 - 790 [jsx-text] Conversation:
@@ -1006,9 +1006,9 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 828 [jsx-text] Tenant-scoped customer chat patterns, product demand signals, and handoff volume.
 - 847 [jsx-text] Human handoffs
 - 871 [jsx-text] Latest tenant-scoped AI support test conversations for quality and failure review.
-- 879 [jsx-text] All outcomes
-- 880 [jsx-text] Needs human support
-- 881 [jsx-text] Answered by AI
+- 879 [jsx-text] كل النتائج
+- 880 [jsx-text] يحتاج تدخلًا بشريًا
+- 881 [jsx-text] تمت الإجابة بالذكاء الاصطناعي
 - 919 [jsx-text] Loading history...
 - 923 [jsx-text] No AI support test history yet.
 - 596 [placeholder] Type a customer question...
@@ -1020,9 +1020,9 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 148 [jsx-text] قاعدة معرفة الدعم الذكي
 - 227 [jsx-text] التحقق
 - 96 [toast] راجع صيغة الهاتف أو واتساب
-- 110 [toast] تم حفظ قاعدة معرفة AI Support
+- 110 [toast] تم حفظ قاعدة معرفة الدعم الذكي
 - 130 [toast] تم تصفير قاعدة المعرفة
-- 120 [confirm] Reset AI Support knowledge base for this tenant?
+- 120 [confirm] هل تريد إعادة ضبط قاعدة معرفة الدعم الذكي لهذا المستأجر؟
 
 ### src\modules\analytics\pages\AnalyticsDashboard.jsx
 - 893 [jsx-text] Product
@@ -1258,21 +1258,21 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 643 [jsx-text] EMPLOYEE SCANNER
 - 644 [jsx-text] امسح الباركود أو QR بالكاميرا
 - 645 [jsx-text] وجّه الكاميرا نحو الكود وسيتم البحث مباشرة.
-- 1188 [jsx-text] منتجات بوابة الموظف
-- 1204 [jsx-text] بوابة الموظف
-- 1205 [jsx-text] كتالوج المنتجات
-- 1277 [jsx-text] الفلاتر
-- 1284 [jsx-text] النتائج
-- 1253 [placeholder] ابحث بالاسم أو الموديل أو الباركود أو الكود
-- 1243 [title] فتح ماسح الكاميرا
-- 1267 [title] الفلاتر
+- 1258 [jsx-text] Employee Portal Products
+- 1274 [jsx-text] Employee Portal
+- 1275 [jsx-text] كتالوج المنتجات
+- 1348 [jsx-text] الفلاتر
+- 1355 [jsx-text] النتائج
+- 1324 [placeholder] ابحث بالاسم أو الموديل أو الباركود أو الكود
+- 1314 [title] فتح ماسح الكاميرا
+- 1338 [title] الفلاتر
 - 651 [aria-label] إغلاق ماسح الكاميرا
-- 1242 [aria-label] فتح ماسح الكاميرا
-- 1266 [aria-label] الفلاتر
-- 1096 [toast] تم إرسال الطلب للمخزن
+- 1313 [aria-label] فتح ماسح الكاميرا
+- 1337 [aria-label] الفلاتر
+- 1099 [toast] تم إرسال الطلب للمخزن
 - 651 [prop-label] إغلاق ماسح الكاميرا
-- 1242 [prop-label] فتح ماسح الكاميرا
-- 1266 [prop-label] الفلاتر
+- 1313 [prop-label] فتح ماسح الكاميرا
+- 1337 [prop-label] الفلاتر
 
 ### src\modules\loyalty\pages\CustomerLoyaltyProfile.jsx
 - 95 [jsx-text] Customer loyalty profile

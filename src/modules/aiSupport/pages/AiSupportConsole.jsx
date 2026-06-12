@@ -233,7 +233,7 @@ function ProductCard({ product }) {
         )}
       </div>
       <div className="min-w-0">
-        <div className="truncate text-sm font-black text-white">{product.name || "Product"}</div>
+        <div className="truncate text-sm font-black text-white">{product.name || "منتج"}</div>
         <div className="mt-1 text-xs text-slate-400">{product.sku ? `SKU ${product.sku}` : "لم يتم إرجاع SKU"}</div>
         <div className="mt-3 flex flex-wrap gap-2">
           <Pill tone={product.availability === "available" ? "emerald" : "amber"}>{product.availability || "unknown"}</Pill>
@@ -784,7 +784,7 @@ export default function AiSupportConsole() {
                         <div className="mt-2 grid gap-2 text-sm text-slate-300 md:grid-cols-2">
                           <span><b className="text-white">العميل:</b> {draft.customer_name || "غير متاح"} - {draft.customer_phone || "غير متاح"}</span>
                           <span><b className="text-white">Area:</b> {[draft.governorate, draft.city_area].filter(Boolean).join(" / ") || "n/a"}</span>
-                          <span><b className="text-white">Product:</b> {firstItem.product_name || metadata.matched_product_id || "n/a"}</span>
+                          <span><b className="text-white">المنتج:</b> {firstItem.product_name || metadata.matched_product_id || "غير متاح"}</span>
                           <span><b className="text-white">Variant:</b> {firstItem.variant_name || metadata.matched_variant_id || "n/a"} x {firstItem.quantity || 1}</span>
                           <span><b className="text-white">Total:</b> {draft.total_amount || draft.total || firstItem.total_amount || 0}</span>
                           <span><b className="text-white">Conversation:</b> {draft.ai_agent_conversation_id || "n/a"}</span>
@@ -878,7 +878,7 @@ export default function AiSupportConsole() {
                 >
                   <option value="all">كل النتائج</option>
                   <option value="true">يحتاج تدخلًا بشريًا</option>
-                  <option value="false">Answered by AI</option>
+                  <option value="false">تمت الإجابة بالذكاء الاصطناعي</option>
                 </select>
                 <label className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-slate-200">
                   <input

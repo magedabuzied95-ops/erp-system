@@ -109,12 +109,12 @@ const STOREFRONT_SPLASH_SEEN_KEY = "m1_store_splash_seen";
 const STOREFRONT_SPLASH_DURATION_MS = 1100;
 const getSuccessMessages = () => {
   const messages = i18n.t("storefront.toasts.successMessages", { returnObjects: true });
-  return Array.isArray(messages) && messages.length ? messages : ["Great choice"];
+  return Array.isArray(messages) && messages.length ? messages : ["اختيار ممتاز"];
 };
 
 const getConversionTrustPoints = () => {
   const points = i18n.t("storefront.home.trustPoints", { returnObjects: true });
-  return Array.isArray(points) && points.length ? points : ["Secure payment", "Real photos", "Fast shipping"];
+  return Array.isArray(points) && points.length ? points : ["دفع آمن", "صور حقيقية", "شحن سريع"];
 };
 const homeSellingBadges = [
   { labelAr: "شحن سريع", labelEn: "Fast shipping", icon: Truck },
@@ -531,11 +531,11 @@ const getStatusLabels = () => {
 const SEARCH_RECENT_KEY = "storefront.search.recent";
 const getSearchPlaceholders = () => {
   const values = i18n.t("storefront.search.placeholders", { returnObjects: true });
-  return Array.isArray(values) && values.length ? values : ["Search Jordan 4...", "Search sneakers...", "Search size 42...", "Search by brand...", "Search by SKU..."];
+  return Array.isArray(values) && values.length ? values : ["ابحث عن Jordan 4...", "ابحث عن sneakers...", "ابحث عن المقاس 42...", "ابحث باسم العلامة...", "ابحث بواسطة SKU..."];
 };
 const getTrendingSearches = () => {
   const values = i18n.t("storefront.search.trending", { returnObjects: true });
-  return Array.isArray(values) && values.length ? values : ["Jordan 4", "Sneakers", "Size 42", "Mirror Original", "Adidas", "Black mens"];
+  return Array.isArray(values) && values.length ? values : ["Jordan 4", "Sneakers", "مقاس 42", "Mirror Original", "Adidas", "رجالي أسود"];
 };
 const getSearchFallbackSections = () => {
   const sections = i18n.t("storefront.search.fallbackSections", { returnObjects: true });
@@ -1868,7 +1868,7 @@ const lowStockLabel = (stock) => {
   const remaining = Number(stock || 0);
   if (remaining <= 1) return "Last Piece";
   if (remaining === 2) return "Almost Gone";
-  return "Low Stock";
+  return "مخزون منخفض";
 };
 const lowStockUrgencyClass = (stock) => {
   const remaining = Number(stock || 0);
@@ -2290,7 +2290,7 @@ const useStorefrontHome = () => {
       })
       .catch((error) => {
         if (!cancelled && error?.cause?.name !== "AbortError") {
-          setState({ loading: false, loaded: true, error: error?.message || "Failed to load storefront home", hero: null, collections: [], rawHome: null, requestUrl: homeRequestUrl });
+          setState({ loading: false, loaded: true, error: error?.message || "تعذر تحميل الصفحة الرئيسية للمتجر", hero: null, collections: [], rawHome: null, requestUrl: homeRequestUrl });
         }
       });
     return () => {
@@ -2321,7 +2321,7 @@ const useStorefrontBrands = () => {
       })
       .catch((error) => {
         if (!cancelled && error?.cause?.name !== "AbortError") {
-          setState({ loading: false, error: error?.message || "Failed to load storefront brands", brands: [] });
+          setState({ loading: false, error: error?.message || "تعذر تحميل العلامات التجارية في المتجر", brands: [] });
         }
       });
     return () => {
@@ -2348,7 +2348,7 @@ const useStorefrontGenderClassifications = () => {
       })
       .catch((error) => {
         if (!cancelled && error?.cause?.name !== "AbortError") {
-          setState({ loading: false, error: error?.message || "Failed to load gender classifications", options: [] });
+          setState({ loading: false, error: error?.message || "تعذر تحميل تصنيفات الجنس", options: [] });
         }
       });
     return () => {
@@ -2686,7 +2686,7 @@ function Storefront() {
       }
       return [...items, cartItem];
     });
-    toast.success(sfText("storefront.toasts.addedToCart", "Great choice. Added to cart."));
+    toast.success(sfText("storefront.toasts.addedToCart", "تمت الإضافة إلى السلة."));
     setCartOpen(true);
     playSoftClick();
     const aiClick = readRecentAiSuggestedProductClick(cartItem.product_id);
@@ -3113,7 +3113,7 @@ function CustomerCaptureSheet({ open, reason = "add_to_cart", initialName = "", 
           </div>
           <div className="min-w-0 flex-1">
             <h2 id="customer-capture-title" className="text-xl font-black leading-tight text-white">{t("storefront.customerCapture.title", "Save your cart and enjoy a faster experience")}</h2>
-            <p className="mt-1.5 text-sm font-semibold leading-6 text-white/64">{t("storefront.customerCapture.subtitle", "Register your phone to track orders and earn loyalty points")}</p>
+            <p className="mt-1.5 text-sm font-semibold leading-6 text-white/64">{t("storefront.customerCapture.subtitle", "سجّل رقم هاتفك لتتبع الطلبات والحصول على نقاط الولاء")}</p>
           </div>
           <button type="button" onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white/70 transition hover:bg-white/10 active:scale-95" aria-label={t("common.close", "Close")}>
             <X className="h-5 w-5" />
