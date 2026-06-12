@@ -1050,7 +1050,7 @@ const autoReplyModes = [
 ];
 
 const resolveChannelAutoReplyMode = (channelStatus = {}) => {
-  const mode = text(channelStatus.auto_reply_mode || channelStatus.ai_mode || "").toLowerCase();
+  const mode = clean(channelStatus.auto_reply_mode || channelStatus.ai_mode || "").toLowerCase();
   if (["off", "suggest_only", "auto_reply_after_approval", "fully_automatic"].includes(mode)) return mode;
   return channelStatus.ai_replies_enabled === true ? "suggest_only" : "off";
 };
@@ -2359,7 +2359,7 @@ export default function AiInbox() {
   const canViewAiDebug = useMemo(() => canViewAiDebugPanel(getCurrentUser?.() || {}), []);
 
   useEffect(() => {
-    const channelKey = text(selectedConversation?.channel || selectedConversation?.source);
+    const channelKey = clean(selectedConversation?.channel || selectedConversation?.source);
     const currentMode = resolveChannelAutoReplyMode(selectedChannelStatus);
     if (channelKey && currentMode !== "off") {
       lastEnabledAutoReplyModeRef.current[channelKey] = currentMode;
