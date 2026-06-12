@@ -26,6 +26,7 @@
     max-width: 100%;
     min-height: 100%;
     overflow-x: hidden;
+    overflow-anchor: none;
     scrollbar-gutter: stable;
     background: var(--bg);
   }
@@ -49,6 +50,7 @@
     width: 100%;
     max-width: 100%;
     overflow-x: hidden;
+    overflow-anchor: none;
     scrollbar-gutter: stable;
     color: var(--text);
     background: var(--bg);
@@ -734,6 +736,13 @@
       calc(100dvh - var(--sf-ai-chat-bottom) - env(safe-area-inset-top) - 1rem),
       640px
     );
+  }
+
+  @media (hover: hover) {
+    .storefront-page *,
+    [data-storefront] * {
+      scroll-margin-top: 0;
+    }
   }
 
   .storefront-shell .sf-ai-chat .sf-ai-chat-composer {

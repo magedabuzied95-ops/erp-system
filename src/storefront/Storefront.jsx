@@ -1755,12 +1755,19 @@ const aiSuggestedProductImage = (product = {}) => {
 };
 const fallbackProductImage = (event) => {
   if (event.currentTarget.dataset.fallbackApplied === "true") return;
+  const originalSrc = String(event.currentTarget.dataset.originalSrc || "").trim();
   event.currentTarget.dataset.fallbackApplied = "true";
   if (isAiSupportDebugEnabled()) {
     console.warn("[storefront-ai] suggested product image failed", {
       src: event.currentTarget.currentSrc || event.currentTarget.src,
       alt: event.currentTarget.alt,
     });
+  }
+  event.currentTarget.removeAttribute("srcset");
+  event.currentTarget.removeAttribute("sizes");
+  if (originalSrc && event.currentTarget.src !== originalSrc) {
+    event.currentTarget.src = originalSrc;
+    return;
   }
   event.currentTarget.src = "/favicon.svg";
 };
@@ -3012,7 +3019,7 @@ function Storefront() {
   );
 
   return (
-    <div dir={dir} data-language={language} data-theme={effectiveTheme} className={`storefront-shell min-h-dvh ${location.pathname === "/shop/checkout" ? "storefront-shell--checkout" : ""} ${isProductDetailsRoute ? "storefront-shell--product-detail" : ""} ${effectiveTheme === "dark" ? "dark storefront-dark bg-[#070b16] text-stone-100" : "bg-[#f7f4ee] text-stone-950"}`}>
+    <div dir={dir} data-storefront data-language={language} data-theme={effectiveTheme} className={`storefront-shell storefront-page min-h-dvh ${location.pathname === "/shop/checkout" ? "storefront-shell--checkout" : ""} ${isProductDetailsRoute ? "storefront-shell--product-detail" : ""} ${effectiveTheme === "dark" ? "dark storefront-dark bg-[#070b16] text-stone-100" : "bg-[#f7f4ee] text-stone-950"}`}>
       <InitialStorefrontSplash visible={showInitialSplash} />
       <Header
         cartCount={cartCount}
@@ -4195,10 +4202,10 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false })
               {activeCategory.label}
             </div>
             <div className="absolute start-4 top-4 z-20 flex gap-2">
-              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? 1 : -1); }} className="grid h-10 w-10 place-items-center rounded-full border border-white/12 bg-white/10 text-white shadow-sm backdrop-blur transition hover:bg-white hover:text-stone-950" aria-label="Previous slide">
+              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? 1 : -1); }} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-transparent bg-white/10 text-white shadow-sm backdrop-blur transition-[background-color,color,opacity,transform] duration-200 hover:bg-white/16 hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35" aria-label="Previous slide">
                 <ChevronLeft className={`h-4 w-4 ${isRtl ? "rotate-180" : ""}`} />
               </button>
-              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? -1 : 1); }} className="grid h-10 w-10 place-items-center rounded-full border border-white/12 bg-white/10 text-white shadow-sm backdrop-blur transition hover:bg-white hover:text-stone-950" aria-label="Next slide">
+              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? -1 : 1); }} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-transparent bg-white/10 text-white shadow-sm backdrop-blur transition-[background-color,color,opacity,transform] duration-200 hover:bg-white/16 hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35" aria-label="Next slide">
                 <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
               </button>
             </div>
@@ -6999,7 +7006,17 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       editedCheckoutFieldsRef.current.add("governorate");
       editedCheckoutFieldsRef.current.add("city_area");
     }
-    const selected = bostaLocations.cities.find((city) => String(city.id) === String(value));
+    const selected = bostaLocations.cities.find((city) => {
+      const cityIds = [
+        city.id,
+        city.value,
+        city.city_id,
+        city.provider_city_id,
+        city.governorate_id,
+        city.provider_governorate_id,
+      ].map((item) => String(item || "").trim()).filter(Boolean);
+      return cityIds.some((item) => String(item) === String(value));
+    });
     setForm((prev) => ({
       ...prev,
       governorate_id: selected?.provider_city_id || "",
@@ -7024,7 +7041,17 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     if (options.markDirty !== false) {
       editedCheckoutFieldsRef.current.add("city_area");
     }
-    const selected = bostaLocations.zones.find((zone) => String(zone.id) === String(value));
+    const selected = bostaLocations.zones.find((zone) => {
+      const zoneIds = [
+        zone.id,
+        zone.value,
+        zone.zoneId,
+        zone.provider_zone_id,
+        zone.provider_district_id,
+        zone.district_id,
+      ].map((item) => String(item || "").trim()).filter(Boolean);
+      return zoneIds.some((item) => String(item) === String(value));
+    });
     setForm((prev) => ({
       ...prev,
       zone_id: selected?.provider_zone_id || "",
