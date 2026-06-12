@@ -65,7 +65,7 @@ const ARABIC_MESSAGE_LIKE_NAME_TERMS = [
   "أهلا",
   "هاي",
 ];
-const isLikelyMessageLikeName = (value = "") => {
+export const isLikelyMessageLikeName = (value = "") => {
   const candidate = normalizeDisplayName(value);
   if (!candidate) return true;
   if (candidate.length > 80) return true;

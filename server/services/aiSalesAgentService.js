@@ -42,7 +42,7 @@ import {
 import { loadRecentSalesJourneyEvents, recordSalesJourneyEvents } from "./salesJourneyEventService.js";
 import { buildProactiveCloserPlan } from "./proactiveCloserService.js";
 import { composeAiSalesReply } from "./aiSalesReplyComposerService.js";
-import { resolveMessengerConversationDisplayName } from "./aiChannelAdapterService.js";
+import { isLikelyMessageLikeName, resolveMessengerConversationDisplayName } from "./aiChannelAdapterService.js";
 
 let schemaReadyPromise = null;
 let aiInboxSchemaReadyPromise = null;
@@ -764,7 +764,31 @@ export const upsertAiCustomerProfile = async ({ tenantId, sessionId = "", metada
   await ensureAiSalesAgentSchema();
   const phone = text(metadata.customer_phone || metadata.phone || "").replace(/[^\d+]/g, "");
   if (!tenantId || !phone) return null;
-  const firstName = extractFirstName(metadata.customer_name || metadata.full_name || "");
+  const channel = text(metadata.channel || "").toLowerCase();
+  const isMessengerChannel = ["facebook_messenger", "facebook", "messenger", "instagram"].includes(channel);
+  const firstNameSource = isMessengerChannel
+    ? text(
+        metadata.messenger_profile?.name ||
+          metadata.sender_name ||
+          metadata.profile_name ||
+          metadata.contact_name ||
+          metadata.external_sender_name ||
+          metadata.external_contact_name ||
+          metadata.customer_profile_name ||
+          metadata.full_name ||
+          ""
+      )
+    : text(metadata.customer_name || metadata.full_name || "");
+  const firstName = isMessengerChannel && isLikelyMessageLikeName(firstNameSource) ? "" : extractFirstName(firstNameSource);
+  console.log("[customer-name-write]", {
+    source: "aiSalesAgentService.upsertAiCustomerProfile",
+    channel,
+    tenant_id: tenantId,
+    session_id: text(sessionId),
+    phone,
+    first_name_source: firstNameSource,
+    first_name: firstName,
+  });
   const products = summarizeProducts(response.suggested_products);
   const sentiment = sentimentFromMessage(message);
   const memoryScore = Math.min(100, 20 + products.length * 5 + (response.ai_order ? 30 : 0) + (sentiment === "positive" ? 10 : 0));

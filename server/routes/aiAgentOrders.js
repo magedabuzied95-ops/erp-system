@@ -246,7 +246,9 @@ const routeChannelMessageThroughAi = async ({ req, tenantId, message, channel })
         session_id: message.external_conversation_id,
         customer_id: message.external_customer_id,
         customer_phone: message.external_customer_id,
-        customer_name: message.customer_name,
+        customer_name: ["facebook_messenger", "facebook", "messenger"].includes(String(channel || message.channel || "").toLowerCase())
+          ? String(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || "").trim()
+          : message.customer_name,
         channel,
         external_conversation_id: message.external_conversation_id,
         external_customer_id: message.external_customer_id,
@@ -879,7 +881,9 @@ router.post("/channels/whatsapp/webhook", async (req, res) => {
         channel: AI_AGENT_CHANNELS.WHATSAPP,
         externalConversationId: message.external_conversation_id,
         externalCustomerId: message.external_customer_id,
-        customerName: message.customer_name,
+        customerName: ["facebook_messenger", "facebook", "messenger"].includes(String(channel || message.channel || "").toLowerCase())
+          ? String(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || "").trim()
+          : message.customer_name,
         metadata: {
           phone_number_id: metadata.phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || "",
           display_phone_number: metadata.display_phone_number || "",
@@ -1123,7 +1127,9 @@ router.post("/channels/meta/webhook", async (req, res) => {
         channel,
         externalConversationId: conversationId,
         externalCustomerId: message.external_customer_id,
-        customerName: message.customer_name,
+        customerName: ["facebook_messenger", "facebook", "messenger"].includes(String(channel || message.channel || "").toLowerCase())
+          ? String(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || "").trim()
+          : message.customer_name,
         metadata: {
           page_id: process.env.META_PAGE_ID || accountId || "",
           instagram_business_account_id: process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID || "",
@@ -1298,7 +1304,9 @@ router.post("/channels/meta/webhook", async (req, res) => {
         productContext: replyProductContext,
         detectedSize,
         conversationId,
-        customerName: message.customer_name || "",
+        customerName: ["facebook_messenger", "facebook", "messenger"].includes(String(channel || message.channel || "").toLowerCase())
+          ? String(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || "").trim()
+          : message.customer_name || "",
       });
       const candidateReply = humanizedReply || commerceReplyForIntent(intent, replyProductContext, detectedSize) || reply.text || aiPayload.answer || "";
       if (humanizedReply) {

@@ -25,6 +25,7 @@ import {
   linkChannelConversationToCustomerProfile,
   logChannelEvent,
   normalizeOutgoingChannelReply,
+  isLikelyMessageLikeName,
   resolveMessengerConversationDisplayName,
   upsertChannelConversationMapping,
   verifyMetaWebhookSignature,
@@ -2506,7 +2507,16 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
   );
   const profileId = profileResult.rows[0]?.id || null;
   const storedProfilePicUrl = text(profileResult.rows[0]?.profile_pic_url);
-  const needsMessengerNameRepair = `(customer_name = '' OR customer_name = $4 OR customer_name = session_id OR LOWER(customer_name) IN ('anonymous','unknown customer') OR LENGTH(customer_name) > 80 OR customer_name ~ '[?!.:;]' OR customer_name ILIKE '%message%' OR customer_name ILIKE '%preview%' OR customer_name ILIKE '%snippet%' OR customer_name ILIKE '%reply%' OR customer_name ILIKE '%conversation%' OR customer_name ILIKE '%inbox%' OR customer_name ILIKE '%customer%' OR customer_name ILIKE '%order%' OR customer_name ILIKE '%product%' OR customer_name ILIKE '%stock%' OR customer_name ILIKE '%size%' OR customer_name ILIKE '%price%' OR customer_name ILIKE '%body%')`;
+  const needsMessengerNameRepair = `(customer_name = '' OR customer_name = $4 OR customer_name = session_id OR LOWER(customer_name) IN ('anonymous','unknown customer') OR LENGTH(customer_name) > 80 OR customer_name ~ '[?!.:;]' OR customer_name ILIKE '%message%' OR customer_name ILIKE '%preview%' OR customer_name ILIKE '%snippet%' OR customer_name ILIKE '%reply%' OR customer_name ILIKE '%conversation%' OR customer_name ILIKE '%inbox%' OR customer_name ILIKE '%customer%' OR customer_name ILIKE '%order%' OR customer_name ILIKE '%product%' OR customer_name ILIKE '%stock%' OR customer_name ILIKE '%size%' OR customer_name ILIKE '%price%' OR customer_name ILIKE '%body%' OR customer_name IN ('عايز','عايزة','عاوز','عاوزه','محتاج','محتاجة','محتاجه','ممكن','السلام عليكم','سلام عليكم','وريني','ابعت','ابعتلي','هات','هاتلي','فين','فيه','اهلا','أهلا','هاي'))`;
+  console.log("[customer-name-write]", {
+    source: "metaIntegrationService.persistMessengerProfile",
+    tenant_id: numberOrNull(tenantId),
+    conversation_id: text(conversationId),
+    psid: maskIdForLog(psid),
+    resolved_name: name,
+    profile_id: profileId,
+    profile_pic: profilePic,
+  });
   const sessionResult = await db.query(
     `
     UPDATE ai_support_sessions
@@ -2797,7 +2807,9 @@ export const syncMessengerProfileForConversation = async ({ tenantId, conversati
       channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
       externalConversationId: safeConversationId,
       externalCustomerId: psid,
-      customerName: message.customer_name,
+       customerName: ["facebook_messenger", "facebook", "messenger"].includes(text(message.channel).toLowerCase())
+         ? text(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || "")
+         : message.customer_name,
       customerAvatarUrl: message.customer_avatar_url,
       customerProfileId: message.customer_profile_id || null,
       metadata: {
@@ -2858,7 +2870,7 @@ export const syncMessengerProfileForConversation = async ({ tenantId, conversati
       success: Boolean(text(message.customer_name) || text(message.customer_avatar_url)),
       conversation_id: safeConversationId,
       external_customer_id: psid,
-      customer_name: message.customer_name || psid,
+      customer_name: text(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || message.customer_name || psid),
       customer_avatar_url: message.customer_avatar_url || "",
       customer_profile_id: message.customer_profile_id || null,
     };
@@ -5789,7 +5801,9 @@ const routeMessageThroughAi = async ({ req, message, config }) => {
     channel,
     externalConversationId: message.external_conversation_id,
     externalCustomerId: message.external_customer_id,
-    customerName: message.customer_name,
+    customerName: ["facebook_messenger", "facebook", "messenger"].includes(alias)
+      ? text(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || "")
+      : message.customer_name,
     text: normalizedForIntent || "Customer sent an attachment",
     original_message: originalMessage || "Customer sent an attachment",
     normalized_message: normalizedMessage,
@@ -5808,7 +5822,9 @@ const routeMessageThroughAi = async ({ req, message, config }) => {
       branch_id: config.branch_id || null,
       session_id: message.external_conversation_id,
       customer_id: customerContext?.customerId || aiMemory.customerId || message.external_customer_id,
-      customer_name: message.customer_name,
+      customer_name: ["facebook_messenger", "facebook", "messenger"].includes(channel)
+        ? text(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || "")
+        : message.customer_name,
       channel,
       adapter_channel: message.channel,
       external_conversation_id: message.external_conversation_id,
@@ -5880,7 +5896,9 @@ export const generateMetaUnifiedDecisionDryRun = async ({ message = {}, config =
     channel: alias,
     externalConversationId: message.external_conversation_id,
     externalCustomerId: message.external_customer_id,
-    customerName: message.customer_name || aiMemory.knownName || customerContext?.fullName || "",
+    customerName: ["facebook_messenger", "facebook", "messenger"].includes(alias)
+      ? text(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || aiMemory.knownName || customerContext?.fullName || "")
+      : message.customer_name || aiMemory.knownName || customerContext?.fullName || "",
     text: normalizedForIntent,
     original_message: originalMessage,
     normalized_message: normalizedMessage,
@@ -5903,7 +5921,9 @@ export const generateMetaUnifiedDecisionDryRun = async ({ message = {}, config =
       external_conversation_id: message.external_conversation_id,
       external_customer_id: message.external_customer_id,
       customer_id: customerContext?.customerId || aiMemory.customerId || message.external_customer_id,
-      customer_name: message.customer_name || aiMemory.knownName || customerContext?.fullName || "",
+      customer_name: ["facebook_messenger", "facebook", "messenger"].includes(alias)
+        ? text(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || aiMemory.knownName || customerContext?.fullName || "")
+        : message.customer_name || aiMemory.knownName || customerContext?.fullName || "",
       customer_phone: aiMemory.knownPhone || customerContext?.phone || "",
       ai_memory: aiMemory,
       aiConversationMemoryV2: conversationMemoryV2,
@@ -13292,10 +13312,11 @@ const isSalesControlWordName = (value = "") =>
   guardAiNameCapture({ messageText: value, route: "meta_sales_name_guard" }).blockedAsName ||
   ["تمام", "ماشي", "احجز", "احجزه", "عايزه", "عايزة", "هطلب", "اكد", "أكد"].includes(text(value).toLowerCase());
 
-const mergeSalesCustomerInfo = ({ known = {}, parsed = {}, messageText = "" } = {}) => {
+const mergeSalesCustomerInfo = ({ known = {}, parsed = {}, messageText = "", channel = "" } = {}) => {
   const address = parsed.customer_address || known.customerAddress || known.customer_address || "";
   const governorate = known.governorate || extractSalesGovernorate(messageText) || extractSalesGovernorate(address);
-  const parsedName = isSalesControlWordName(parsed.customer_name) ? "" : parsed.customer_name;
+  const isMessengerChannel = ["facebook_messenger", "facebook", "messenger"].includes(text(channel).toLowerCase());
+  const parsedName = isSalesControlWordName(parsed.customer_name) || (isMessengerChannel && isLikelyMessageLikeName(parsed.customer_name)) ? "" : parsed.customer_name;
   return {
     customerName: parsedName || known.customerName || known.customer_name || "",
     customerFirstName: splitFirstName(parsedName || known.customerName || known.customer_name || ""),
@@ -13353,8 +13374,20 @@ const loadKnownSalesCustomerInfo = async ({ tenantId, channel = "", conversation
   ).catch(() => ({ rows: [] }));
   const row = result.rows[0] || {};
   const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata : {};
+  const isMessengerChannel = ["facebook_messenger", "facebook", "messenger"].includes(text(channel).toLowerCase());
+  const messengerProfileName = text(
+    metadata.messenger_profile?.name ||
+      [metadata.messenger_profile?.first_name, metadata.messenger_profile?.last_name].filter(Boolean).join(" ") ||
+      metadata.sender_name ||
+      metadata.profile_name ||
+      metadata.contact_name ||
+      ""
+  );
+  const storedCustomerName = text(row.customer_name || metadata.checkout_customer_name || "");
   return {
-    customerName: text(row.customer_name || metadata.checkout_customer_name || ""),
+    customerName: isMessengerChannel && isLikelyMessageLikeName(storedCustomerName)
+      ? messengerProfileName || storedCustomerName
+      : storedCustomerName,
     customerPhone: normalizeEgyptPhone(metadata.checkout_customer_phone || ""),
     customerAddress: text(metadata.checkout_customer_address || ""),
     governorate: text(metadata.checkout_governorate || ""),
@@ -13700,6 +13733,16 @@ const loadCustomerBrainContext = async ({ config, message } = {}) => {
   const memory = getConversationMemory(conversationId) || {};
   const parsed = parseCheckoutCustomerDetails(message.message_text || "");
   const phone = parsed.customer_phone || memory.knownPhone || memory.customerPhone || "";
+  const isMessengerChannel = ["facebook_messenger", "facebook", "messenger"].includes(text(message.channel).toLowerCase());
+  const messengerProfileName = text(
+    message.raw?.messenger_profile?.name ||
+      [message.raw?.messenger_profile?.first_name, message.raw?.messenger_profile?.last_name].filter(Boolean).join(" ") ||
+      message.raw?.sender_name ||
+      message.raw?.profile_name ||
+      message.raw?.contact_name ||
+      ""
+  );
+  const safeKnownMessageName = isMessengerChannel && isLikelyMessageLikeName(message.customer_name) ? "" : message.customer_name;
   const match = await findAiCustomerProfile({
     tenantId: config.tenant_id,
     channel: message.channel,
@@ -13709,7 +13752,7 @@ const loadCustomerBrainContext = async ({ config, message } = {}) => {
   });
   const fallbackProfile = {
     id: match.profile?.id || memory.customerId || null,
-    first_name: match.profile?.first_name || splitFirstName(memory.knownName || message.customer_name || ""),
+    first_name: match.profile?.first_name || splitFirstName(memory.knownName || messengerProfileName || safeKnownMessageName || ""),
     last_name: match.profile?.last_name || "",
     phone: match.profile?.phone || phone || "",
     city_area: match.profile?.city_area || memory.lastAddressSummary || "",
@@ -13720,7 +13763,7 @@ const loadCustomerBrainContext = async ({ config, message } = {}) => {
   const orders = await loadRecentOrdersForCustomer({
     tenantId: config.tenant_id,
     phone: fallbackProfile.phone,
-    customerName: fullNameFromProfile(fallbackProfile) || message.customer_name || "",
+    customerName: fullNameFromProfile(fallbackProfile) || messengerProfileName || safeKnownMessageName || "",
   });
   const customerContext = customerProfileToContext({
     profile: fallbackProfile,
@@ -13765,7 +13808,10 @@ const learnCustomerBrainPreferences = async ({ config, message } = {}) => {
   const preferredBrands = distinctTextArray([...(memory.preferredBrands || []), ...brands], 12);
   const preferredCategories = distinctTextArray([...(memory.preferredCategories || []), ...categories], 12);
   const preferredColors = distinctTextArray([...(memory.preferredColors || []), color, memory.selectedColor, memory.activeColor], 12);
-  const knownName = isSalesControlWordName(parsed.customer_name) ? memory.knownName : (parsed.customer_name || memory.knownName || "");
+  const isMessengerChannel = ["facebook_messenger", "facebook", "messenger"].includes(text(message.channel).toLowerCase());
+  const knownName = isSalesControlWordName(parsed.customer_name) || (isMessengerChannel && isLikelyMessageLikeName(parsed.customer_name))
+    ? memory.knownName
+    : (parsed.customer_name || memory.knownName || "");
   const knownPhone = normalizeEgyptPhone(parsed.customer_phone || memory.knownPhone || "");
   const lastAddressSummary = parsed.customer_address || memory.lastAddressSummary || "";
   const learned = Boolean(size || brands.length || categories.length || color || parsed.customer_name || parsed.customer_phone || parsed.customer_address);
@@ -13803,6 +13849,15 @@ const learnCustomerBrainPreferences = async ({ config, message } = {}) => {
     favorite_brands: preferredBrands,
     viewed_products: distinctTextArray(memory.lastShownProductIds || memory.viewedProductIds || [], 20),
   };
+  console.log("[customer-name-write]", {
+    source: "metaIntegrationService.upsertCheckoutCustomerProfile",
+    tenant_id: config?.tenant_id || null,
+    conversation_id: text(message?.external_conversation_id || ""),
+    channel: text(message?.channel || ""),
+    parsed_customer_name: text(parsed?.customer_name || ""),
+    resolved_known_name: knownName,
+    phone: knownPhone,
+  });
   if (profileId) {
     await db.query(
       `
@@ -13841,6 +13896,10 @@ const learnCustomerBrainPreferences = async ({ config, message } = {}) => {
         city_area: lastAddressSummary,
         area: lastAddressSummary,
         channel: message.channel,
+        messenger_profile: message.raw?.messenger_profile || null,
+        sender_name: message.raw?.sender_name || "",
+        profile_name: message.raw?.profile_name || "",
+        contact_name: message.raw?.contact_name || "",
       },
       message: message.message_text,
       response: { answer: "", suggested_products: [] },
@@ -14254,7 +14313,9 @@ const ensureCheckoutDraftForMemory = async ({ config, message, memory = {}, sele
     session_id: message.external_conversation_id,
     external_customer_id: message.external_customer_id,
     customer_phone: message.external_customer_id,
-    customer_name: message.customer_name || "",
+    customer_name: ["facebook_messenger", "facebook", "messenger"].includes(text(message.channel).toLowerCase())
+      ? text(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || "")
+      : message.customer_name || "",
     allow_missing_phone: true,
     product,
     variant,
@@ -14369,6 +14430,7 @@ const handleSalesCloserV2IfMatched = async ({ config, message } = {}) => {
         customer_address: memory.customerAddress,
       },
       messageText: memory.customerAddress || "",
+      channel: message.channel,
     });
     const missing = missingSalesCheckoutFields(known);
     if (missing.length) {
@@ -14405,7 +14467,9 @@ const handleSalesCloserV2IfMatched = async ({ config, message } = {}) => {
       conversation_id: conversationId,
       session_id: conversationId,
       external_customer_id: message.external_customer_id,
-      customer_name: known.customerName || message.customer_name || "",
+      customer_name: ["facebook_messenger", "facebook", "messenger"].includes(text(message.channel).toLowerCase())
+        ? known.customerName || ""
+        : known.customerName || message.customer_name || "",
       customer_phone: known.customerPhone,
       customer_address: known.customerAddress,
       governorate: known.governorate,
@@ -14476,6 +14540,7 @@ const handleSalesCloserV2IfMatched = async ({ config, message } = {}) => {
     known: { ...knownCustomer, ...memory },
     parsed,
     messageText: message.message_text,
+    channel: message.channel,
   });
   const missing = missingSalesCheckoutFields(merged);
   const reusedAddressNeedsConfirmation = !missing.length &&
@@ -14740,6 +14805,7 @@ const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) =>
         customer_address: memory.customerAddress,
       },
       messageText: memory.customerAddress || "",
+      channel: message.channel,
     });
     const missing = missingSalesCheckoutFields(known);
     if (missing.length) {
@@ -14772,7 +14838,9 @@ const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) =>
         conversation_id: conversationId,
         session_id: conversationId,
         external_customer_id: message.external_customer_id,
-        customer_name: known.customerName || message.customer_name || "",
+        customer_name: ["facebook_messenger", "facebook", "messenger"].includes(text(message.channel).toLowerCase())
+          ? known.customerName || ""
+          : known.customerName || message.customer_name || "",
         customer_phone: known.customerPhone,
         customer_address: known.customerAddress,
         governorate: known.governorate,
@@ -14871,6 +14939,7 @@ const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) =>
     known: { ...knownCustomer, ...memory },
     parsed,
     messageText: message.message_text,
+    channel: message.channel,
   });
   const missing = missingSalesCheckoutFields(merged);
   const reusedAddressNeedsConfirmation = !missing.length &&
@@ -15353,7 +15422,9 @@ const handleOrderDraftIfMatched = async ({ config, message } = {}) => {
     session_id: message.external_conversation_id,
     external_customer_id: message.external_customer_id,
     customer_phone: message.external_customer_id,
-    customer_name: message.customer_name || "",
+    customer_name: ["facebook_messenger", "facebook", "messenger"].includes(text(message.channel).toLowerCase())
+      ? text(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || "")
+      : message.customer_name || "",
     allow_missing_phone: true,
     product,
     variant,
@@ -16651,7 +16722,9 @@ export const processMetaWebhook = async ({ req } = {}) => {
       channel: message.channel,
       externalConversationId: message.external_conversation_id,
       externalCustomerId: message.external_customer_id,
-      customerName: message.customer_name,
+       customerName: ["facebook_messenger", "facebook", "messenger"].includes(text(message.channel).toLowerCase())
+         ? text(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || "")
+         : message.customer_name,
       customerAvatarUrl: message.customer_avatar_url,
       customerProfileId: message.customer_profile_id || null,
       metadata: {

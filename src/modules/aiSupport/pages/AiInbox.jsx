@@ -308,25 +308,6 @@ const messengerDisplayName = (conversation = {}) => {
     : "";
   return firstNonEmpty(source.customer_name, profileName, identityKey);
 };
-const messengerDisplayDebugText = (conversation = {}) => {
-  const source = conversation || {};
-  const selectedCustomer = messengerSelectedCustomer(source);
-  const selectedCustomerMatches = messengerSelectedCustomerMatches(source);
-  return [
-    `source=${clean(source.source || source.channel || "")}`,
-    `channel=${clean(source.channel || source.source || "")}`,
-    `conversation_id=${clean(source.session_id || source.external_conversation_id || source.id || "")}`,
-    `external_customer_id=${messengerIdentityKey(source)}`,
-    `displayedName=${messengerDisplayName(source)}`,
-    `selectedCustomer.id=${clean(selectedCustomer?.id || selectedCustomer?.customer_id || "")}`,
-    `selectedCustomer.external_customer_id=${clean(selectedCustomer?.external_customer_id || "")}`,
-    `selectedCustomer.name=${clean(selectedCustomer?.name || selectedCustomer?.customer_name || selectedCustomer?.full_name || "")}`,
-    `selectedCustomer.matches=${selectedCustomerMatches ? "yes" : "no"}`,
-    `conversation.customer_name=${clean(source.customer_name || "")}`,
-    `conversation.sender_name=${clean(source.sender_name || "")}`,
-    `conversation.profile_name=${clean(source.profile_name || "")}`,
-  ].join(" | ");
-};
 const isMessengerConversation = (conversation = {}) => {
   const channel = normalizeConversationChannel(conversation);
   const source = clean(conversation?.channel || conversation?.source || conversation?.provider || conversation?.platform).toLowerCase();
@@ -704,7 +685,6 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="truncate text-[14px] font-black leading-5 text-white">{customerName}</div>
-              {isMessengerConversation(item) ? <div className="mt-1 break-words text-[10px] font-semibold leading-4 text-cyan-200/80">{messengerDisplayDebugText(item)}</div> : null}
               <div className="mt-1 flex flex-wrap items-center gap-1.5">
                 <Pill tone={isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>{channelBadgeLabel(channel)}</Pill>
               </div>
@@ -759,7 +739,6 @@ function InboxChatHeader({
               <div className="truncate text-lg font-black text-white">{name}</div>
               <span className={`inline-flex h-5 items-center rounded-full px-2 text-[10px] font-black uppercase tracking-[0.14em] ${aiEnabled ? "bg-emerald-300/12 text-emerald-100" : "bg-amber-300/12 text-amber-100"}`}>{aiLabel}</span>
             </div>
-            {isMessengerConversation(conversation) ? <div className="mt-1 break-words text-[10px] font-semibold leading-4 text-cyan-200/80">{messengerDisplayDebugText(conversation)}</div> : null}
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
               <Pill tone={isWhatsappChannel(channel) ? "emerald" : "cyan"}>{channelBadgeLabel(channel)}</Pill>
               <span className="text-slate-700">/</span>
@@ -1376,7 +1355,6 @@ function CustomerContextCard({ conversation = {} }) {
         <div className="min-w-0">
           <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">سياق العميل</div>
           <div className="mt-1 text-lg font-black text-white">{displayFallback(identityName, "No CRM match yet")}</div>
-          {isMessengerConversation(conversation) ? <div className="mt-1 break-words text-[10px] font-semibold leading-4 text-cyan-200/80">{messengerDisplayDebugText(conversation)}</div> : null}
         </div>
       </div>
       <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -1741,7 +1719,6 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-[15px] font-black leading-5 text-white">{identityName || "عميل غير معروف"}</div>
-                {isMessengerConversation(conversation) ? <div className="mt-1 break-words text-[10px] font-semibold leading-4 text-cyan-200/80">{messengerDisplayDebugText(conversation)}</div> : null}
                 <div className="mt-1 text-[12px] font-bold leading-5 text-slate-400">
                   <span dir="ltr" className="block break-words">{phone || "لا يوجد رقم بعد"}</span>
                 </div>
@@ -2173,7 +2150,6 @@ function RightToolsTabsPanel({
                   <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Customer snapshot</div>
                   <div className="mt-2 space-y-1 text-sm text-slate-300">
                     <div className="font-black text-white">{isMessengerConversation(conversation) ? messengerDisplayName(conversation) : getConversationDisplayName(conversation) || "Customer"}</div>
-                    {isMessengerConversation(conversation) ? <div className="break-words text-[10px] font-semibold leading-4 text-cyan-200/80">{messengerDisplayDebugText(conversation)}</div> : null}
                     <div dir="ltr">{clean(conversation.phone || conversation.customer_phone || conversation.external_customer_id || conversation.customer_profile?.phone) || "No phone"}</div>
                     <div>{channelLabel(conversation.channel || conversation.source)}</div>
                   </div>
