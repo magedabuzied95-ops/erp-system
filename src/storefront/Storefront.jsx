@@ -65,6 +65,7 @@ import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
 import { VirtualGrid, VirtualList } from "../shared/components/VirtualList";
 import { MobileBottomSheet } from "../shared/components/mobile/ResponsiveMobile";
+import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
 import instaPayLogo from "../assets/payments/instapay.png";
 import instaPayLogoWebp from "../assets/payments/instapay.webp";
 import vodafoneCashLogo from "../assets/payments/vodafone-cash.png";
@@ -927,6 +928,7 @@ const imageFor = (value) => {
   imageUrlCache.set(key, resolved);
   return resolved;
 };
+const responsiveImageProps = (value, preset = "grid") => getStorefrontResponsiveImageProps(imageFor(value), preset);
 const money = (value) => formatCurrency(Number(value || 0));
 const sfText = (key, fallback, options = {}) => i18n.t(String(key || ""), { defaultValue: fallback, ...options });
 const couponErrorKeyMap = {
@@ -4224,6 +4226,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false })
                     <img
                       key={`${activeCategory.id}-${productIdentityKey(slide.product, index)}-${slide.image}`}
                       src={imageFor(slide.image)}
+                      {...responsiveImageProps(slide.image, "hero")}
                       alt=""
                       onError={fallbackProductImage}
                       className={`absolute object-contain drop-shadow-[0_34px_34px_rgba(0,0,0,0.38)] transition-all duration-700 ease-out ${active ? "z-30 max-h-[310px] w-[88%] opacity-100 animate-[sfFadeUp_420ms_ease-out_both] md:max-h-[455px]" : index === 1 ? "z-20 max-h-[155px] w-[33%] -translate-x-[112%] translate-y-[36%] -rotate-12 opacity-56 md:max-h-[210px]" : index === 2 ? "z-20 max-h-[150px] w-[32%] translate-x-[112%] -translate-y-[34%] rotate-12 opacity-54 md:max-h-[205px]" : index === 3 ? "z-10 max-h-[130px] w-[27%] -translate-x-[132%] -translate-y-[34%] rotate-6 opacity-34 blur-[0.3px] md:max-h-[170px]" : "z-10 max-h-[130px] w-[27%] translate-x-[132%] translate-y-[36%] -rotate-6 opacity-34 blur-[0.3px] md:max-h-[170px]"}`}
@@ -4388,6 +4391,7 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false }) {
                   >
                     <img
                       src={imageFor(image)}
+                      {...responsiveImageProps(image, "hero")}
                       alt=""
                       onError={fallbackProductImage}
                       className="h-full w-full scale-125 object-contain p-1 transition duration-700 group-hover:scale-[1.32]"
@@ -4748,7 +4752,7 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
                     rank={index + 1}
                     density="compact"
                     eagerImage
-                    eagerImagePriority={repeatIndex === 0 && index < 4}
+                    imagePreset="small"
                   />
                 )}
               </div>
@@ -4852,6 +4856,7 @@ function BrandPromoBanner({ definition, products = [], reverse = false }) {
             <img
               key={`${definition.id}-${productIdentityKey(product, index)}`}
               src={imageFor(image)}
+              {...responsiveImageProps(image, "hero")}
               alt=""
               onError={fallbackProductImage}
               className={`absolute object-contain drop-shadow-[0_34px_34px_rgba(0,0,0,0.34)] transition duration-700 group-hover:scale-110 ${
@@ -5162,6 +5167,7 @@ function SimpleHomeProductGrid({ title, subtitle, products = [], loading = false
               <div className="aspect-[1.05/1] overflow-hidden bg-stone-100 p-2 dark:bg-white/5">
                 <img
                   src={imageFor(image)}
+                  {...responsiveImageProps(image, "grid")}
                   alt={product.name || ""}
                   onError={fallbackProductImage}
                   className="h-full w-full rounded-[0.9rem] object-contain transition duration-500 group-hover:scale-[1.05]"
@@ -5494,7 +5500,7 @@ const ProductRail = memo(function ProductRail({ title, subtitle, products, loadi
           </div>
         )) : visibleProducts.map((product, index) => (
           <div key={productCardKey(product, index)} className={`w-[82vw] max-w-[22rem] shrink-0 snap-start sm:w-[43vw] md:w-auto md:max-w-none md:basis-[calc((100%_-_2rem)/3)] xl:basis-[calc((100%_-_4rem)/5)] ${index >= 3 ? "md:hidden xl:block" : ""}`}>
-            <ProductCard product={product} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} railType={railType} rank={index + 1} featured={featuredFirst && index === 0} density={cardDensity} />
+            <ProductCard product={product} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} railType={railType} rank={index + 1} featured={featuredFirst && index === 0} density={cardDensity} imagePreset="grid" />
           </div>
         ))}
       </div>
@@ -5985,7 +5991,7 @@ const swatchColorStyle = (label = "") => {
   return { background: color };
 };
 
-const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProduct = null, colorOptions: providedColorOptions = null, selectedColor: providedSelectedColor = "", selectedVariant: providedSelectedVariant = null, availableSizes: providedAvailableSizes = null, wishlist, toggleWishlist, onAddToCart, railType = "default", rank = null, featured = false, density = "standard", sizeLimit = 4, eagerImage = false, eagerImagePriority = false }) {
+const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProduct = null, colorOptions: providedColorOptions = null, selectedColor: providedSelectedColor = "", selectedVariant: providedSelectedVariant = null, availableSizes: providedAvailableSizes = null, wishlist, toggleWishlist, onAddToCart, railType = "default", rank = null, featured = false, density = "standard", sizeLimit = 4, eagerImage = false, imagePreset = "grid" }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const product = groupedProduct || rawProduct || {};
@@ -6188,12 +6194,12 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           {displayImage ? (
             <img
               src={imageFor(displayImage)}
+              {...responsiveImageProps(displayImage, imagePreset)}
               alt={product.name}
               onError={fallbackProductImage}
               className="h-full w-full transform-gpu rounded-[0.85rem] object-contain object-center p-0 transition-transform duration-300 ease-out will-change-transform group-hover/product:-translate-y-0.5 group-hover/product:scale-[1.035] md:rounded-[1.15rem] md:scale-[1.01] md:group-hover/product:scale-[1.05]"
               loading={eagerImage ? "eager" : "lazy"}
               decoding="async"
-              fetchPriority={eagerImagePriority ? "high" : undefined}
               width="360"
               height="432"
             />
@@ -6327,7 +6333,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     prev.density === next.density &&
     prev.sizeLimit === next.sizeLimit &&
     prev.eagerImage === next.eagerImage &&
-    prev.eagerImagePriority === next.eagerImagePriority
+    prev.imagePreset === next.imagePreset
   );
 });
 
