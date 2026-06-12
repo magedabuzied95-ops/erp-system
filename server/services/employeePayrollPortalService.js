@@ -2082,6 +2082,38 @@ const validatePortalAttendanceGps = ({ branch, employee, data = {} }) => {
   return { verification_result: "inside_range", distance_meters: Math.round(distance), allowed_radius_meters: allowedRadius, latitude, longitude, accuracy: numberOrNull(data.gps_accuracy ?? data.accuracy ?? data.location?.accuracy) };
 };
 
+const logEmployeePortalCheckoutQuery = (queryName, params = []) => {
+  console.info("[employee-portal-attendance] checkout query", {
+    query_name: queryName,
+    params,
+    param_types: params.map((param) => typeof param),
+  });
+};
+
+const runEmployeePortalCheckoutQuery = async (queryName, sql, params = [], context = {}) => {
+  logEmployeePortalCheckoutQuery(queryName, params);
+  try {
+    return await db.query(sql, params);
+  } catch (error) {
+    console.error("[employee-portal-attendance] checkout query failed", {
+      query_name: queryName,
+      params,
+      param_types: params.map((param) => typeof param),
+      employee_id: context.employee_id ?? null,
+      branch_id: context.branch_id ?? null,
+      message: error?.message || "",
+      code: error?.code || "",
+      detail: error?.detail || "",
+      hint: error?.hint || "",
+    });
+    throw employeePortalError(
+      "attendance_checkout_failed",
+      "تعذر تسجيل الانصراف حاليًا. حاول مرة أخرى أو تواصل مع الإدارة.",
+      500
+    );
+  }
+};
+
 export const recordEmployeePortalAttendance = async ({ employee, data = {}, audit = {} }) => {
   await ensureEmployeePayrollPortalSchema(db);
   const action = clean(data.action_type || data.action).toLowerCase();
@@ -2260,44 +2292,56 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
     }).catch(() => null);
     return { action, attendance: result.rows[0], branch: { id: branch.id, name: branch.name } };
   }
-  const existing = await db.query(
+  const existing = await runEmployeePortalCheckoutQuery(
+    "attendance_existing_open_record",
     `
     SELECT *
     FROM attendance_logs
-    WHERE tenant_id = $1 AND employee_id = $2 AND attendance_date = $3::date
+    WHERE tenant_id = $1::bigint AND employee_id = $2::bigint AND attendance_date = $3::date
     LIMIT 1
     `,
-    [employee.tenant_id, employee.id, attendanceDate]
+    [employee.tenant_id, employee.id, attendanceDate],
+    { employee_id: employee.id, branch_id: branch.id }
   );
   const attendanceLogIdRaw = data.attendance_log_id || data.attendanceLogId || null;
   const attendanceLogId = attendanceLogIdRaw === null || attendanceLogIdRaw === undefined || attendanceLogIdRaw === ""
     ? null
     : Number(attendanceLogIdRaw);
   const attendanceLookup = attendanceLogId
-    ? await db.query(
-        `
-        SELECT *
-        FROM attendance_logs
-        WHERE tenant_id = $1
-          AND employee_id = $2
-          AND id = $3::bigint
-          AND COALESCE(check_out_at, check_out) IS NULL
-        LIMIT 1
-        `,
-        [employee.tenant_id, employee.id, attendanceLogId]
-      )
-    : await db.query(
-        `
-        SELECT *
-        FROM attendance_logs
-        WHERE tenant_id = $1
-          AND employee_id = $2
-          AND attendance_date = $3::date
-          AND COALESCE(check_out_at, check_out) IS NULL
-        LIMIT 1
-        `,
-        [employee.tenant_id, employee.id, attendanceDate]
-      );
+    ? (() => {
+        const params = [employee.tenant_id, employee.id, attendanceLogId];
+        return runEmployeePortalCheckoutQuery(
+          "attendance_lookup_by_id",
+          `
+          SELECT *
+          FROM attendance_logs
+          WHERE tenant_id = $1::bigint
+            AND employee_id = $2::bigint
+            AND id = $3::bigint
+            AND COALESCE(check_out_at, check_out) IS NULL
+          LIMIT 1
+          `,
+          params,
+          { employee_id: employee.id, branch_id: branch.id }
+        );
+      })()
+    : (() => {
+        const params = [employee.tenant_id, employee.id, attendanceDate];
+        return runEmployeePortalCheckoutQuery(
+          "attendance_lookup_by_date",
+          `
+          SELECT *
+          FROM attendance_logs
+          WHERE tenant_id = $1::bigint
+            AND employee_id = $2::bigint
+            AND attendance_date = $3::date
+            AND COALESCE(check_out_at, check_out) IS NULL
+          LIMIT 1
+          `,
+          params,
+          { employee_id: employee.id, branch_id: branch.id }
+        );
+      })();
   const attendanceRow = attendanceLookup.rows[0] || existing.rows[0] || null;
   console.info("[employee-portal-attendance] checkout lookup", {
     employee_id: employee.id,
@@ -2322,16 +2366,18 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
   const attendanceRecordId = attendanceRow.id || attendanceLogId || null;
   const checkOutAt = new Date();
   const shift = attendanceRow.selected_shift_id || attendanceRow.shift_id
-    ? (await db.query(
+    ? (await runEmployeePortalCheckoutQuery(
+        "shift_lookup_for_checkout",
         `
         SELECT *
         FROM employee_shifts
-        WHERE id = $1
+        WHERE id = $1::bigint
           AND employee_id::text = $2::text
           AND ($3::bigint IS NULL OR tenant_id = $3::bigint)
         LIMIT 1
         `,
-        [attendanceRow.selected_shift_id || attendanceRow.shift_id, employee.id, employee.tenant_id]
+        [attendanceRow.selected_shift_id || attendanceRow.shift_id, employee.id, employee.tenant_id],
+        { employee_id: employee.id, branch_id: branch.id }
       )).rows[0] || null
     : await getActiveEmployeeShift({ tenantId: employee.tenant_id, employeeId: employee.id });
   const metrics = calculateAttendanceMetrics({
@@ -2374,55 +2420,61 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
     metrics.overtime_minutes,
   ];
   const result = attendanceRecordId
-    ? await db.query(
+    ? await runEmployeePortalCheckoutQuery(
+        "checkout_update_by_id",
         `
         UPDATE attendance_logs
-        SET check_out = COALESCE(check_out, $11),
-            check_out_at = COALESCE(check_out_at, $11),
+        SET check_out = COALESCE(check_out, $11::timestamp),
+            check_out_at = COALESCE(check_out_at, $11::timestamp),
             check_out_latitude = COALESCE(check_out_latitude, $5::numeric),
             check_out_longitude = COALESCE(check_out_longitude, $6::numeric),
             check_out_gps_distance_meters = COALESCE(check_out_gps_distance_meters, $7::numeric),
             check_out_gps_verification_result = COALESCE(check_out_gps_verification_result, $8::varchar),
-            device_ip = COALESCE(device_ip, NULLIF($9, '')),
-            user_agent = COALESCE(user_agent, NULLIF($10, '')),
+            device_ip = COALESCE(device_ip, NULLIF($9::text, '')),
+            user_agent = COALESCE(user_agent, NULLIF($10::text, '')),
             attendance_source = 'employee_portal',
             status = 'checked_out',
-            work_minutes = $12,
-            late_minutes = $13,
-            early_leave_minutes = $14,
-            overtime_minutes = $15,
-            notes = TRIM(CONCAT_WS(E'\n', NULLIF(notes, ''), NULLIF($4, ''))),
+            work_minutes = $12::integer,
+            late_minutes = $13::integer,
+            early_leave_minutes = $14::integer,
+            overtime_minutes = $15::integer,
+            notes = TRIM(CONCAT_WS(E'\n', NULLIF(notes, ''), NULLIF($4::text, ''))),
             updated_at = NOW()
-        WHERE id = $16
-          AND tenant_id = $1
-          AND employee_id = $2
+        WHERE id = $16::bigint
+          AND tenant_id = $1::bigint
+          AND employee_id = $2::bigint
         RETURNING *
         `,
-        [...updateParams, attendanceRecordId]
+        [...updateParams, attendanceRecordId],
+        { employee_id: employee.id, branch_id: branch.id }
       )
-    : await db.query(
+    : await runEmployeePortalCheckoutQuery(
+        "checkout_update_by_date",
         `
         UPDATE attendance_logs
-        SET check_out = COALESCE(check_out, $11),
-            check_out_at = COALESCE(check_out_at, $11),
+        SET check_out = COALESCE(check_out, $11::timestamp),
+            check_out_at = COALESCE(check_out_at, $11::timestamp),
             check_out_latitude = COALESCE(check_out_latitude, $5::numeric),
             check_out_longitude = COALESCE(check_out_longitude, $6::numeric),
             check_out_gps_distance_meters = COALESCE(check_out_gps_distance_meters, $7::numeric),
             check_out_gps_verification_result = COALESCE(check_out_gps_verification_result, $8::varchar),
-            device_ip = COALESCE(device_ip, NULLIF($9, '')),
-            user_agent = COALESCE(user_agent, NULLIF($10, '')),
+            device_ip = COALESCE(device_ip, NULLIF($9::text, '')),
+            user_agent = COALESCE(user_agent, NULLIF($10::text, '')),
             attendance_source = 'employee_portal',
             status = 'checked_out',
-            work_minutes = $12,
-            late_minutes = $13,
-            early_leave_minutes = $14,
-            overtime_minutes = $15,
-            notes = TRIM(CONCAT_WS(E'\n', NULLIF(notes, ''), NULLIF($4, ''))),
+            work_minutes = $12::integer,
+            late_minutes = $13::integer,
+            early_leave_minutes = $14::integer,
+            overtime_minutes = $15::integer,
+            notes = TRIM(CONCAT_WS(E'\n', NULLIF(notes, ''), NULLIF($4::text, ''))),
             updated_at = NOW()
-        WHERE tenant_id = $1 AND employee_id = $2 AND attendance_date = $3::date
+        WHERE tenant_id = $1::bigint
+          AND employee_id = $2::bigint
+          AND attendance_date = $3::date
         RETURNING *
         `,
-        updateParams
+        updateParams,
+        { employee_id: employee.id, branch_id: branch.id }
       );
   await recordEmployeePortalAudit({ employee, action: "attendance_check_out", audit: auditWithGps, metadata: { branch_id: branch.id, attendance_id: result.rows[0]?.id } });
   await createNotification({
