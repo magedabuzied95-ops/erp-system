@@ -20,6 +20,8 @@ export const INVENTORY_COUNT_REASONS = [
 ];
 
 let schemaReadyPromise = null;
+const tableColumnsCache = new Map();
+const tableExistsCache = new Map();
 
 const queryable = (clientOrPool = db) => clientOrPool || db;
 const isTransactionClient = (clientOrPool) => typeof clientOrPool?.release === "function";
@@ -60,6 +62,162 @@ const normalizeImageValue = (value = "") => {
     );
   }
   return normalizeText(value);
+};
+
+const getTableColumns = async (client, tableName) => {
+  const cacheKey = String(tableName || "");
+  if (tableColumnsCache.has(cacheKey)) return tableColumnsCache.get(cacheKey);
+  const result = await client.query(
+    `
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = $1
+    `,
+    [cacheKey]
+  );
+  const columns = new Set(result.rows.map((row) => row.column_name));
+  tableColumnsCache.set(cacheKey, columns);
+  return columns;
+};
+
+const tableExists = async (client, tableName) => {
+  const cacheKey = String(tableName || "");
+  if (tableExistsCache.has(cacheKey)) return tableExistsCache.get(cacheKey);
+  const result = await client.query(
+    `
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = current_schema()
+      AND table_name = $1
+    LIMIT 1
+    `,
+    [cacheKey]
+  );
+  const exists = result.rows.length > 0;
+  tableExistsCache.set(cacheKey, exists);
+  return exists;
+};
+
+const firstAvailableColumnExpr = (alias, columns, candidates = [], fallback = "''") => {
+  const parts = candidates
+    .filter((column) => columns.has(column))
+    .map((column) => `NULLIF(${alias}.${column}, '')`);
+  return parts.length ? `COALESCE(${parts.join(", ")}, ${fallback})` : fallback;
+};
+
+const buildInventoryCountVariantImageSelects = async (client, { variantAlias = "v", productAlias = "p" } = {}) => {
+  const [variantColumns, productColumns, hasProductColorImages] = await Promise.all([
+    getTableColumns(client, "product_variants"),
+    getTableColumns(client, "products"),
+    tableExists(client, "product_color_images"),
+  ]);
+  const productColorImageColumns = hasProductColorImages ? await getTableColumns(client, "product_color_images") : new Set();
+
+  const productImageExpr = firstAvailableColumnExpr(
+    productAlias,
+    productColumns,
+    ["product_image_url", "image_url", "image", "photo_url", "thumbnail_url", "main_image_url", "main_image"],
+    "''"
+  );
+
+  const variantBaseImageExpr = firstAvailableColumnExpr(
+    variantAlias,
+    variantColumns,
+    ["image_url", "image", "photo_url", "thumbnail_url", "secure_url"],
+    productImageExpr
+  );
+
+  const colorImageColumnExpr = firstAvailableColumnExpr(
+    variantAlias,
+    variantColumns,
+    ["color_image_url"],
+    "''"
+  );
+
+  let productColorImageExpr = "";
+  if (hasProductColorImages && productColorImageColumns.size > 0) {
+    const whereParts = [];
+    if (productColorImageColumns.has("product_id")) {
+      whereParts.push(`pci.product_id = ${productAlias}.id`);
+    }
+    if (productColorImageColumns.has("variant_id")) {
+      whereParts.push(`pci.variant_id = ${variantAlias}.id`);
+    }
+
+    const colorMatchParts = [];
+    if (productColorImageColumns.has("color_name")) {
+      colorMatchParts.push(`LOWER(TRIM(COALESCE(pci.color_name, ''))) = LOWER(TRIM(COALESCE(${variantAlias}.color, '')))`);
+    }
+    if (productColorImageColumns.has("color_value")) {
+      colorMatchParts.push(`LOWER(TRIM(COALESCE(pci.color_value, ''))) = LOWER(TRIM(COALESCE(${variantAlias}.color, '')))`);
+    }
+    if (colorMatchParts.length) {
+      whereParts.push(`(${colorMatchParts.join(" OR ")})`);
+    }
+
+    if (whereParts.length > 0) {
+      const imageExpr = firstAvailableColumnExpr(
+        "pci",
+        productColorImageColumns,
+        ["image_url", "image", "url", "path", "photo_url", "thumbnail_url", "secure_url"],
+        "''"
+      );
+      const orderParts = [];
+      if (productColorImageColumns.has("is_primary")) orderParts.push("pci.is_primary DESC");
+      if (productColorImageColumns.has("sort_order")) orderParts.push("pci.sort_order ASC");
+      if (productColorImageColumns.has("id")) orderParts.push("pci.id ASC");
+      productColorImageExpr = `
+        (
+          SELECT ${imageExpr}
+          FROM product_color_images pci
+          WHERE ${whereParts.join(" AND ")}
+          ${orderParts.length ? `ORDER BY ${orderParts.join(", ")}` : ""}
+          LIMIT 1
+        )
+      `;
+    }
+  }
+
+  const colorImageExpr = productColorImageExpr
+    ? `COALESCE(${colorImageColumnExpr}, ${variantBaseImageExpr}, ${productColorImageExpr}, ${productImageExpr})`
+    : `COALESCE(${colorImageColumnExpr}, ${variantBaseImageExpr}, ${productImageExpr})`;
+
+  return {
+    productImageExpr,
+    productImageUrlExpr: productImageExpr,
+    colorImageExpr,
+    variantImageExpr: firstAvailableColumnExpr(
+      variantAlias,
+      variantColumns,
+      ["variant_image_url", "image_url", "image", "photo_url", "thumbnail_url", "secure_url"],
+      colorImageExpr
+    ),
+    imageUrlExpr: firstAvailableColumnExpr(
+      variantAlias,
+      variantColumns,
+      ["image_url", "variant_image_url", "image", "photo_url", "thumbnail_url", "secure_url"],
+      colorImageExpr
+    ),
+    mainImageUrlExpr: firstAvailableColumnExpr(
+      variantAlias,
+      variantColumns,
+      ["main_image_url", "main_image"],
+      colorImageExpr
+    ),
+    mainImageExpr: firstAvailableColumnExpr(
+      variantAlias,
+      variantColumns,
+      ["main_image", "main_image_url"],
+      colorImageExpr
+    ),
+    primaryImageUrlExpr: firstAvailableColumnExpr(
+      variantAlias,
+      variantColumns,
+      ["primary_image_url", "main_image_url", "main_image"],
+      colorImageExpr
+    ),
+  };
 };
 
 const resolveInventoryCountImageFields = (row = {}) => {
@@ -575,19 +733,25 @@ const fetchSessionItems = async (clientOrPool, { tenantId, sessionId, lock = fal
     params.push(tenantId);
     tenantClause = "AND (s.tenant_id = $2::bigint OR s.tenant_id IS NULL)";
   }
+  const imageSelects = await buildInventoryCountVariantImageSelects(dbClient);
   const result = await dbClient.query(
     `
     SELECT
       i.*,
       p.name AS product_name,
-      COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image,
-      COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url,
+      ${imageSelects.productImageExpr} AS product_image,
+      ${imageSelects.productImageUrlExpr} AS product_image_url,
       v.color AS variant_color,
       v.size AS variant_size,
       v.sku AS variant_sku,
       v.barcode AS variant_barcode,
       v.article_code AS variant_article_code,
-      COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS variant_image_url
+      ${imageSelects.variantImageExpr} AS variant_image_url,
+      ${imageSelects.colorImageExpr} AS color_image_url,
+      ${imageSelects.imageUrlExpr} AS image_url,
+      ${imageSelects.mainImageUrlExpr} AS main_image_url,
+      ${imageSelects.mainImageExpr} AS main_image,
+      ${imageSelects.primaryImageUrlExpr} AS primary_image_url
     FROM inventory_count_items i
     LEFT JOIN inventory_count_sessions s ON s.id = COALESCE(i.inventory_count_session_id, i.inventory_count_id)
     LEFT JOIN product_variants v ON v.id = COALESCE(i.product_variant_id, i.variant_id)
@@ -608,6 +772,7 @@ const fetchSessionItems = async (clientOrPool, { tenantId, sessionId, lock = fal
 
 const fetchVariantForSession = async (clientOrPool, { tenantId, productVariantId }) => {
   return withTransaction(clientOrPool, async (dbClient) => {
+  const imageSelects = await buildInventoryCountVariantImageSelects(dbClient);
   const result = await dbClient.query(
     `
     SELECT
@@ -620,14 +785,14 @@ const fetchVariantForSession = async (clientOrPool, { tenantId, productVariantId
       v.article_code,
       COALESCE(v.stock, 0)::int AS stock,
       p.name AS product_name,
-      COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image,
-      COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url,
-      COALESCE(NULLIF(v.color_image_url, ''), NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS color_image_url,
-      COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS variant_image_url,
-      COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS image_url,
-      COALESCE(NULLIF(v.main_image_url, ''), NULLIF(v.main_image, ''), NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS main_image_url,
-      COALESCE(NULLIF(v.main_image, ''), NULLIF(v.main_image_url, ''), NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS main_image,
-      COALESCE(NULLIF(v.main_image_url, ''), NULLIF(v.main_image, ''), NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS primary_image_url
+      ${imageSelects.productImageExpr} AS product_image,
+      ${imageSelects.productImageUrlExpr} AS product_image_url,
+      ${imageSelects.colorImageExpr} AS color_image_url,
+      ${imageSelects.variantImageExpr} AS variant_image_url,
+      ${imageSelects.imageUrlExpr} AS image_url,
+      ${imageSelects.mainImageUrlExpr} AS main_image_url,
+      ${imageSelects.mainImageExpr} AS main_image,
+      ${imageSelects.primaryImageUrlExpr} AS primary_image_url
     FROM product_variants v
     JOIN products p ON p.id = v.product_id
     WHERE v.id = $1
@@ -1093,6 +1258,7 @@ export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
 };
 
 const fetchInventoryCountProductVariants = async (dbClient, { tenantId, productId }) => {
+  const imageSelects = await buildInventoryCountVariantImageSelects(dbClient);
   const result = await dbClient.query(
     `
     SELECT
@@ -1107,14 +1273,14 @@ const fetchInventoryCountProductVariants = async (dbClient, { tenantId, productI
       v.barcode,
       v.article_code,
       COALESCE(v.stock, 0)::int AS stock,
-      COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image,
-      COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url,
-      COALESCE(NULLIF(v.color_image_url, ''), NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS color_image_url,
-      COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS variant_image_url,
-      COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS image_url,
-      COALESCE(NULLIF(v.main_image_url, ''), NULLIF(v.main_image, ''), NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS main_image_url,
-      COALESCE(NULLIF(v.main_image, ''), NULLIF(v.main_image_url, ''), NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS main_image,
-      COALESCE(NULLIF(v.main_image_url, ''), NULLIF(v.main_image, ''), NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS primary_image_url
+      ${imageSelects.productImageExpr} AS product_image,
+      ${imageSelects.productImageUrlExpr} AS product_image_url,
+      ${imageSelects.colorImageExpr} AS color_image_url,
+      ${imageSelects.variantImageExpr} AS variant_image_url,
+      ${imageSelects.imageUrlExpr} AS image_url,
+      ${imageSelects.mainImageUrlExpr} AS main_image_url,
+      ${imageSelects.mainImageExpr} AS main_image,
+      ${imageSelects.primaryImageUrlExpr} AS primary_image_url
     FROM product_variants v
     JOIN products p ON p.id = v.product_id
     WHERE ($1::bigint IS NULL OR v.tenant_id = $1::bigint OR v.tenant_id IS NULL)
