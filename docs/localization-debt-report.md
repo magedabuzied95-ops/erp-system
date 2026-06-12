@@ -1,466 +1,60 @@
 # Localization Debt Report
 
-Generated: 2026-06-12T19:51:58.154Z
+Generated: 2026-06-12T20:02:28.833Z
 
 This report flags obvious hardcoded UI strings. It is intentionally conservative and may include false positives.
 
-## accounting (161)
-
-### src\modules\accounting\pages\Accounts.jsx
-- 231 [jsx-text] شجرة الحسابات
-- 232 [jsx-text] الحسابات الافتراضية تُنشأ مرة واحدة فقط لكل مستأجر بدون تكرار.
-- 252 [jsx-text] جارٍ تحميل الحسابات...
-- 254 [jsx-text] لا توجد حسابات مطابقة للبحث.
-- 260 [jsx-text] الكود
-- 261 [jsx-text] اسم الحساب
-- 262 [jsx-text] النوع
-- 263 [jsx-text] الحساب الأب
-- 264 [jsx-text] الحالة
-- 265 [jsx-text] تاريخ الإنشاء
-- 343 [jsx-text] دفتر الأستاذ
-- 349 [jsx-text] لا توجد حركات ضمن الفلاتر الحالية.
-- 240 [placeholder] ابحث بالكود أو الاسم
-- 156 [title] دليل الحسابات
-- 157 [title] أساس محاسبي أولي مبني على دليل الحسابات مع الإبقاء على دفتر الأستاذ الحالي
-- 210 [title] تعذر تحميل الحسابات
-- 318 [title] جارٍ تحميل دفتر الأستاذ
-- 323 [title] تعذر تحميل دفتر الأستاذ
-- 222 [prop-label] إجمالي الحسابات
-- 223 [prop-label] الحسابات النشطة
-- 224 [prop-label] حسابات الأصول
-- 225 [prop-label] حسابات المصروفات
-
-### src\modules\accounting\pages\Expenses.jsx
-- 873 [jsx-text] إلغاء
-- 1284 [jsx-text] لا توجد بيانات للاتجاه
-- 1355 [jsx-text] تأكيد الإجراء
-- 1360 [jsx-text] إلغاء
-- 1241 [title] تعديل
-- 1276 [title] الاتجاه الشهري للمصروفات
-- 604 [toast] مطلوب عنوان المصروف والمبلغ
-- 666 [toast] تم تنفيذ الإجراء
-- 675 [toast] اسم الفئة مطلوب
-- 678 [toast] تم إنشاء الفئة
-- 683 [toast] الموظف والمبلغ مطلوبان
-- 686 [toast] تم إنشاء سلفة الموظف
-- 697 [toast] عنوان المصروف المتكرر والمبلغ مطلوبان
-- 700 [toast] تم إنشاء المصروف المتكرر
-
-### src\modules\accounting\pages\GeneralLedger.jsx
-- 192 [jsx-text] جارٍ تحميل الحركات...
-- 194 [jsx-text] اختر حسابًا لعرض دفتر الأستاذ العام.
-- 196 [jsx-text] لا توجد حركات ضمن الفلاتر الحالية.
-- 202 [jsx-text] التاريخ
-- 203 [jsx-text] القيد
-- 204 [jsx-text] المرجع
-- 205 [jsx-text] الوصف
-- 206 [jsx-text] مدين
-- 207 [jsx-text] دائن
-- 208 [jsx-text] الرصيد الجاري
-- 166 [placeholder] اختياري
-- 113 [title] دفتر الأستاذ
-- 114 [title] دفتر الأستاذ العام مبني مباشرة على الحسابات والقيود اليومية وسطور القيود
-- 144 [prop-label] الحساب
-- 159 [prop-label] من تاريخ
-- 162 [prop-label] إلى تاريخ
-- 165 [prop-label] الفرع
-- 179 [prop-label] الرصيد الافتتاحي
-- 180 [prop-label] إجمالي المدين
-- 181 [prop-label] إجمالي الدائن
-- 182 [prop-label] الرصيد الختامي
-
-### src\modules\accounting\pages\JournalEntries.jsx
-- 411 [jsx-text] قيد يومي يدوي
-- 412 [jsx-text] القيد غير المتوازن سيرفض من الباك إند قبل الحفظ.
-- 441 [jsx-text] الحساب
-- 442 [jsx-text] مدين
-- 443 [jsx-text] دائن
-- 444 [jsx-text] ملاحظات
-- 445 [jsx-text] حذف
-- 453 [jsx-text] اختر الحساب
-- 497 [jsx-text] معاينة الترحيل
-- 498 [jsx-text] هذه الشاشة تعرض القيود المقترحة فقط ولا تنفذ أي posting فعلي.
-- 504 [jsx-text] الكل
-- 505 [jsx-text] الطلبات
-- 506 [jsx-text] المشتريات
-- 507 [jsx-text] المصروفات
-- 539 [jsx-text] لا توجد نتائج معاينة حتى الآن.
-- 545 [jsx-text] المصدر
-- 546 [jsx-text] الوصف
-- 547 [jsx-text] التاريخ
-- 548 [jsx-text] المدين
-- 549 [jsx-text] الدائن
-- 550 [jsx-text] الحالة
-- 551 [jsx-text] السبب
-- 240 [title] قيود اليومية مع إدخال يدوي ومعاينة Backfill فقط بدون تشغيل تلقائي
-- 89 [toast] فشل تحميل القيود اليومية
-- 120 [toast] تعذر تحميل تفاصيل القيد
-- 194 [toast] تم إنشاء القيد بنجاح
-- 415 [prop-label] إجمالي المدين
-- 416 [prop-label] إجمالي الدائن
-- 417 [prop-label] الحالة
-- 422 [prop-label] الوصف
-- 425 [prop-label] التاريخ
-- 428 [prop-label] الفرع
-- 433 [prop-label] ملاحظات
-- 502 [prop-label] المصدر
-- 510 [prop-label] من تاريخ
-- 513 [prop-label] إلى تاريخ
-- 516 [prop-label] الحد الأقصى
-- 528 [prop-label] إجمالي العناصر
-- 529 [prop-label] جاهزة
-- 530 [prop-label] متخطاة
-- ... 1 more
-
-### src\modules\accounting\pages\Treasury.jsx
-- 190 [jsx-text] أرصدة الحسابات
-- 191 [jsx-text] الحسابات النقدية والتشغيلية المستخدمة في نقاط البيع والمشتريات والمصروفات والاستردادات والرواتب.
-- 209 [jsx-text] تعزيز
-- 210 [jsx-text] افتتاحي
-- 211 [jsx-text] تحويل
-- 221 [jsx-text] تحويل نقدية
-- 227 [jsx-text] تسجيل التحويل
-- 232 [jsx-text] تسوية يدوية
-- 236 [jsx-text] داخل
-- 237 [jsx-text] خارج
-- 241 [jsx-text] تسجيل التسوية
-- 250 [jsx-text] حركات النقدية
-- 251 [jsx-text] حركات حسابات غير قابلة للتعديل من المبيعات والمشتريات والمصروفات والسلف والاستردادات والتحويلات والتسويات.
-- 259 [jsx-text] تصفية
-- 270 [jsx-text] التاريخ
-- 271 [jsx-text] الحساب
-- 272 [jsx-text] النوع
-- 273 [jsx-text] المرجع
-- 274 [jsx-text] داخل
-- 275 [jsx-text] خارج
-- 276 [jsx-text] الرصيد
-- 223 [placeholder] من حساب
-- 224 [placeholder] إلى حساب
-- 225 [placeholder] المبلغ
-- 226 [placeholder] ملاحظات
-- 234 [placeholder] الحساب
-- 239 [placeholder] المبلغ
-- 240 [placeholder] ملاحظة تدقيقية
-- 254 [placeholder] كل الحسابات
-- 255 [placeholder] النوع
-- 256 [placeholder] المرجع
-- 257 [placeholder] الفرع
-- 150 [title] الخزينة
-- 151 [title] الأرصدة الفعلية للنقدية والبنوك والبطاقات والمحافظ وتسويات البطاقات، معززة بحركات مالية مرتبطة.
-- 101 [toast] اختر حساب المصدر وحساب الوجهة ومبلغًا أكبر من صفر
-- 108 [toast] تم تسجيل التحويل
-- 120 [toast] اختر حسابًا ومبلغًا أكبر من صفر
-- 127 [toast] تم تسجيل التسوية
-- 161 [prop-label] إجمالي النقدية
-- 162 [prop-label] إجمالي البنوك
-- ... 5 more
-
-### src\modules\accounting\pages\TrialBalance.jsx
-- 136 [jsx-text] يعتمد هذا التقرير فقط على `journal_entry_lines` المربوطة بقيود اليومية.
-- 140 [jsx-text] جارٍ تحميل ميزان المراجعة...
-- 142 [jsx-text] لا توجد أرصدة ضمن الفترة الحالية.
-- 148 [jsx-text] كود الحساب
-- 149 [jsx-text] اسم الحساب
-- 150 [jsx-text] نوع الحساب
-- 151 [jsx-text] إجمالي المدين
-- 152 [jsx-text] إجمالي الدائن
-- 168 [jsx-text] الإجمالي
-- 113 [placeholder] اختياري
-- 75 [title] ميزان المراجعة
-- 76 [title] ميزان مراجعة مبني فقط على الحسابات والقيود اليومية وسطور القيود
-- 106 [prop-label] من تاريخ
-- 109 [prop-label] إلى تاريخ
-- 112 [prop-label] الفرع
-- 126 [prop-label] إجمالي المدين
-- 127 [prop-label] إجمالي الدائن
-- 128 [prop-label] الحالة
-
-## inventory (318)
-
-### src\modules\inventory\pages\InventoryCount.jsx
-- 324 [jsx-text] 0 && (currentRank === 0 || candidateRank
-- 382 [jsx-text] 0 && (currentRank === 0 || candidateRank
-- 1115 [jsx-text] toNumber(item.difference_quantity, 0)
-- 1270 [jsx-text] البحث ومسح الباركود
-- 1271 [jsx-text] ابحث بالباركود أو رمز الصنف، وإذا كان التطابق مباشرًا ستُضاف القطعة تلقائيًا.
-- 1313 [jsx-text] الموديل المحدد
-- 1353 [jsx-text] جاري تحميل جلسة الجرد...
-- 1358 [jsx-text] لا توجد أصناف بعد
-- 1359 [jsx-text] ابدأ بالمسح أو البحث ثم أضف اللون إلى الجرد.
-- 1388 [jsx-text] بيانات الجلسة
-- 1404 [jsx-text] ملاحظات الجلسة
-- 1416 [jsx-text] عدد المجموعات
-- 1420 [jsx-text] إجمالي الفروق
-- 1427 [jsx-text] إرشادات
-- 1429 [jsx-text] • استخدم الماسح أو البحث السريع لإضافة قطعة مباشرة عند التطابق الدقيق.
-- 1430 [jsx-text] • البحث باسم المنتج يعرض كروت مجمعة حسب المنتج واللون فقط.
-- 1431 [jsx-text] • زر إضافة اللون للجرد يضيف كل المقاسات مرة واحدة بقيم فعلية صفرية.
-- 1432 [jsx-text] • مطابقة السيستم وتصفير اللون يعملان على كل المقاسات داخل اللون.
-- 1433 [jsx-text] • حذف اللون يتركه مطابقًا للسيستم حتى لا ينتج عنه فرق عند الاعتماد.
-- 1452 [jsx-text] جلسات الجرد
-- 1453 [jsx-text] راجع الجلسات الحالية وافتح أي جلسة لمتابعة الأصناف أو اعتماد الفروقات.
-- 1516 [jsx-text] جاري تحميل جلسات الجرد...
-- 1521 [jsx-text] لا توجد جلسات جرد بعد
-- 1522 [jsx-text] ابدأ جردًا جديدًا ثم افتحه للمسح أو الاعتماد.
-- 1752 [jsx-text] مطابقة السيستم
-- 1753 [jsx-text] تصفير
-- 1754 [jsx-text] حذف اللون
-- 1774 [jsx-text] 0 ? "text-emerald-300" : diff
-- 1782 [jsx-text] السيستم
-- 1783 [jsx-text] الفعلي
-- 1784 [jsx-text] الفرق
-- 1785 [jsx-text] السبب
-- 1786 [jsx-text] ملاحظات
-- 1812 [jsx-text] 0 ? "text-rose-300" : group.difference_total
-- 1817 [jsx-text] مطابقة
-- 1817 [jsx-text] تصفير
-- 1817 [jsx-text] حذف اللون
-- 1826 [jsx-text] 0 ? "text-rose-300" : diff
-- 1847 [jsx-text] مقاس
-- 1847 [jsx-text] المتوقع
-- ... 71 more
-
-### src\modules\inventory\pages\InventoryDashboard.jsx
-- 69 [jsx-text] (Number(stock || 0)
-- 828 [jsx-text] إجمالي المخزون
-- 832 [jsx-text] إجمالي القيمة
-- 836 [jsx-text] الحالة
-- 854 [jsx-text] المقاس
-- 856 [jsx-text] المخزون
-- 857 [jsx-text] القيمة
-- 858 [jsx-text] الحالة
-- 946 [jsx-text] إجمالي المخزون
-- 956 [jsx-text] المقاسات النشطة
-- 960 [jsx-text] الحد الأدنى للمقاسات النشطة
-
-### src\modules\inventory\pages\InventoryHistory.jsx
-- 107 [jsx-text] Number(movement.quantity_change || 0)
-- 167 [jsx-text] نوع الحركة
-- 173 [jsx-text] الكل
-- 196 [jsx-text] سجل الحركات
-- 197 [jsx-text] اضغط أي صف لعرض الكمية قبل الحركة وبعدها.
-- 213 [jsx-text] لا توجد حركات مسجلة.
-- 220 [jsx-text] الوقت
-- 221 [jsx-text] المنتج
-- 222 [jsx-text] الاختيار
-- 223 [jsx-text] النوع
-- 224 [jsx-text] قبل
-- 225 [jsx-text] التغيير
-- 226 [jsx-text] بعد
-- 227 [jsx-text] المستخدم
-- 228 [jsx-text] المرجع
-- 338 [jsx-text] الخط الزمني للمخزون
-- 156 [placeholder] ابحث عن منتج أو اختيار أو ملاحظات أو مستخدم...
-- 161 [placeholder] معرّف المنتج
-- 162 [placeholder] معرّف الاختيار
-- 113 [title] سجل المخزون
-- 114 [title] ابحث في سجل الحركات حسب المنتج أو الاختيار أو نوع الحركة أو التاريخ، ثم افتح أي صف لعرض خط زمني تفصيلي للمخزون.
-- 334 [aria-label] إغلاق تفاصيل الحركة
-- 143 [prop-label] الحركات
-- 144 [prop-label] واردة
-- 145 [prop-label] صادرة
-- 146 [prop-label] إجمالي الصفوف
-- 161 [prop-label] المنتج
-- 162 [prop-label] الاختيار
-- 164 [prop-label] إلى
-- 334 [prop-label] إغلاق تفاصيل الحركة
-- 347 [prop-label] نوع الحركة
-- 348 [prop-label] الكمية قبل
-- 349 [prop-label] التغيير في الكمية
-- 350 [prop-label] الكمية بعد
-- 351 [prop-label] المرجع
-- 352 [prop-label] المستخدم
-- 353 [prop-label] الوقت
-- 354 [prop-label] المخزن
-- 355 [prop-label] التكلفة
-- 356 [prop-label] ملاحظات
-
-### src\modules\inventory\pages\StockAdjustments.jsx
-- 662 [jsx-text] حد الاعتماد القابل للتعديل
-- 673 [jsx-text] جارٍ تحميل المخازن...
-- 679 [jsx-text] نتائج البحث عن المنتجات
-- 680 [jsx-text] ابحث بالاسم أو SKU أو الباركود. اضغط أي اختيار لتحميل الرصيد والمخزن الخاص به.
-- 741 [jsx-text] المنتج المحدد
-- 742 [jsx-text] يتم عرض الرصيد الحالي قبل تطبيق أي تسوية.
-- 794 [jsx-text] نموذج التسوية
-- 795 [jsx-text] حدد طريقة حركة المخزون ثم أكد التغيير بعد مراجعة الرصيد المستهدف.
-- 801 [jsx-text] نوع التسوية
-- 826 [jsx-text] الكمية
-- 855 [jsx-text] السبب
-- 870 [jsx-text] ملاحظات اختيارية
-- 910 [jsx-text] آخر التسويات
-- 911 [jsx-text] أحدث سجلات التسوية المحلية مع سياق المنتج.
-- 1085 [jsx-text] ماسح الباركود
-- 1086 [jsx-text] امسح باركود المنتج
-- 1152 [jsx-text] تأكيد التسوية
-- 1175 [jsx-text] نوع التسوية
-- 1181 [jsx-text] التغيير في الكمية
-- 1203 [jsx-text] اسم المعتمد
-- 1212 [jsx-text] ملاحظات الاعتماد
-- 1268 [jsx-text] سجل المنتج
-- 626 [placeholder] ابحث بالاسم أو SKU أو الباركود
-- 875 [placeholder] أضف ملاحظة قصيرة لسجل حركة المخزون
-- 1207 [placeholder] اسم المدير
-- 1217 [placeholder] ملاحظة اعتماد اختيارية
-- 568 [title] تسويات المخزون
-- 569 [title] ابحث عن المنتجات بالاسم أو SKU أو الباركود، وراجع الرصيد الحالي قبل التعديل، واحفظ كل تغيير داخل سجل حركات المخزون.
-- 1080 [aria-label] إغلاق الماسح
-- 1147 [aria-label] إغلاق تأكيد التسوية
-- 1264 [aria-label] إغلاق سجل المنتج
-- 271 [toast] جارٍ استخدام مخازن احتياطية
-- 389 [toast] تمت مطابقة الباركود مع أحد الاختيارات
-- 399 [toast] ليس لديك صلاحية تنفيذ تسويات المخزون
-- 403 [toast] اختر اختيارًا للمنتج أولًا
-- 407 [toast] يجب أن تكون الكمية 1 على الأقل
-- 411 [toast] لا يمكن أن ينخفض المخزون إلى أقل من صفر
-- 415 [toast] هذه التسوية تحتاج إلى اعتماد المدير
-- 484 [toast] تم تحديث المخزون وتسجيل الحركة
-- 502 [toast] ليس لديك صلاحية تنفيذ تسويات المخزون
-- ... 23 more
-
-### src\modules\inventory\pages\StockMovements.jsx
-- 468 [jsx-text] كل الأنواع
-- 478 [jsx-text] الدرجة
-- 484 [jsx-text] كل الدرجات
-- 494 [jsx-text] الفئة
-- 500 [jsx-text] كل الفئات
-- 510 [jsx-text] عدد الصفوف
-- 543 [jsx-text] سجل الحركات
-- 544 [jsx-text] مجمعة حسب المنتج. افتح أي منتج لفحص كل حركة تخص الاختيارات تحته.
-- 627 [jsx-text] حركات الاختيار
-- 628 [jsx-text] اضغط صف الاختيار لفتح خطه الزمني الكامل.
-- 672 [jsx-text] السبب:
-- 675 [jsx-text] المرجع:
-- 679 [jsx-text] المستخدم:
-- 682 [jsx-text] التاريخ/الوقت:
-- 685 [jsx-text] المخزن/الفرع:
-- 689 [jsx-text] SKU/الباركود:
-- 736 [jsx-text] ملخص الرصيد الحالي
-- 737 [jsx-text] الرصيد الحالي للاختيارات مجمّع حسب اللون والمقاس.
-- 779 [jsx-text] اللون
-- 780 [jsx-text] المقاس
-- 781 [jsx-text] الرصيد الحالي
-- 886 [jsx-text] سجل الاختيار
-- 926 [jsx-text] التسلسل الزمني الكامل للاختيار
-- 927 [jsx-text] المشتريات والمبيعات والمرتجعات والتحويلات والجرد والتسويات لهذا الاختيار تحديدًا.
-- 961 [jsx-text] السبب:
-- 964 [jsx-text] المرجع:
-- 967 [jsx-text] المستخدم:
-- 970 [jsx-text] التاريخ/الوقت:
-- 973 [jsx-text] المخزن/الفرع:
-- 977 [jsx-text] قبل / بعد:
-- 453 [placeholder] ابحث عن منتج أو SKU أو باركود أو لون أو مقاس أو سبب أو مستخدم...
-- 420 [title] حركات المخزون
-- 421 [title] تُجمَّع حسب المنتج حتى تبقى الاختيارات بحسب المقاس واللون واضحة وسهلة البحث والفحص.
-- 882 [aria-label] إغلاق سجل الاختيار
-- 440 [prop-label] مجموعات المنتجات
-- 441 [prop-label] صفوف الحركات
-- 442 [prop-label] صافي الكمية
-- 443 [prop-label] حد الصفوف
-- 601 [prop-label] عدد الحركات
-- 603 [prop-label] صافي التغيير
-- ... 20 more
-
-### src\modules\inventory\pages\StockTransfers.jsx
-- 132 [jsx-text] ملاحظات التحويل
-- 153 [jsx-text] سجل التحويلات
-- 156 [jsx-text] جارٍ تحميل المخازن...
-- 158 [jsx-text] لا توجد تحويلات محفوظة محليًا.
-- 179 [jsx-text] تحويل المخزون بين المخازن
-- 126 [placeholder] أدخل معرّف الاختيار
-- 137 [placeholder] ملاحظات التعبئة، تفاصيل السائق، سبب التحويل...
-- 94 [title] تحويل المخزون بين المخازن
-- 95 [title] إدارة تحويلات المخزون بين المخازن، ومراجعة السجل المحلي، وحفظ تفاصيل التحويل عندما تكون واجهة الخلفية غير مكتملة.
-- 39 [toast] جارٍ استخدام بيانات تحويل احتياطية
-- 56 [toast] معرّف الاختيار مطلوب
-- 77 [toast] تم إرسال التحويل
-- 88 [toast] مسار التحويل غير متاح. تم الحفظ محليًا.
-- 126 [prop-label] معرّف الاختيار
-- 127 [prop-label] من مخزن
-- 128 [prop-label] إلى مخزن
-- 129 [prop-label] الكمية
-
-### src\modules\inventory\pages\WarehousesDashboard.jsx
-- 324 [jsx-text] هذا مخزن افتراضي أو محمي، ولا يمكن تحويل حالته إلى غير نشط.
-- 406 [jsx-text] حذف المخزن
-- 426 [jsx-text] معرّف المخزن
-- 430 [jsx-text] المرجعيات الافتراضية
-- 317 [aria-label] إغلاق
-- 402 [aria-label] إغلاق
-- 102 [toast] تم حذف المخزن
-- 233 [prop-label] المنتجات
-- 234 [prop-label] الرصيد
-- 235 [prop-label] التحويلات
-- 317 [prop-label] إغلاق
-- 402 [prop-label] إغلاق
-- 418 [prop-label] المنتجات
-- 419 [prop-label] كمية المخزون
-- 420 [prop-label] التحويلات
-- 421 [prop-label] النشطة
-
-## marketing (192)
+## marketing (118)
 
 ### src\modules\marketing\components\PostEditorModal.jsx
-- 582 [jsx-text] erp.store
-- 613 [jsx-text] erp.store
-- 647 [jsx-text] erp.store
 - 668 [jsx-text] ERP Store
-- 741 [jsx-text] erp.store
-- 742 [jsx-text] معاينة القصة
 - 1078 [jsx-text] Product URL
-- 628 [title] شرائح القصة
 - 1087 [prop-label] Price
 - 1088 [prop-label] Color
 - 1089 [prop-label] Size
 
-### src\modules\marketing\components\StoryPreview.jsx
-- 46 [jsx-text] 0 && sale
-- 50 [jsx-text] 0 && now
-- 59 [jsx-text] 0 && (!regular || saleLikePrice
-- 260 [jsx-text] 1 && stock
-
 ### src\modules\marketing\pages\AiMarketingCenter.jsx
 - 768 [jsx-text] Stories and posts that stay clean
-- 1038 [jsx-text] أرشفة المحدد
 - 1039 [jsx-text] Delete Selected
-- 1040 [jsx-text] نشر المحدد
 - 1115 [jsx-text] Arabic Trend
-- 1117 [jsx-text] فيسبوك
-- 1118 [jsx-text] إنستجرام
 - 1135 [jsx-text] Preview
-- 1140 [jsx-text] عرض المنشور
-- 1141 [jsx-text] استعادة
-- 1142 [jsx-text] موافقة
-- 1144 [jsx-text] أرشفة
 - 1148 [jsx-text] Retry
 - 1191 [jsx-text] Generated story asset
 - 1198 [jsx-text] No generated story asset
 - 1203 [jsx-text] Story Slides
 - 1234 [jsx-text] Performance Brain
-- 1263 [jsx-text] حذف المحتوى المنشور
 - 1272 [jsx-text] Cancel
 - 1291 [jsx-text] Content History
 - 1294 [jsx-text] Close
-- 1352 [jsx-text] منشور
-- 1353 [jsx-text] عرض المنشور
 - 1365 [jsx-text] Technical JSON
-- 1400 [jsx-text] أصل القصة
 - 1401 [jsx-text] Rendered
-- 1413 [jsx-text] معاينة القصة
-- 1414 [jsx-text] 9:16 story creative. CTA is a visual sticker here; the product link stays stored for publishing.
 - 1416 [jsx-text] Close
 - 1426 [jsx-text] Story publish asset debug
-- 1467 [jsx-text] منشور
-- 1468 [jsx-text] عرض المنشور
 - 1506 [jsx-text] Admin / debug
-- 1530 [jsx-text] روابط أصول الصور المنشورة
 - 1542 [jsx-text] Technical JSON
 - 808 [title] Content Lanes
 - 810 [title] New Arrivals
-- 811 [title] آخر مقاس / آخر قطعة
 - 812 [title] AI Posts
 - 817 [title] Daily Volume
-- ... 51 more
+- 992 [title] Best Posting Windows
+- 1145 [title] Duplicate
+- 1149 [title] Delete
+- 1233 [title] AI Recommendations
+- 1349 [title] AI post preview
+- 1104 [aria-label] Select content
+- 492 [toast] Engine settings saved
+- 532 [toast] Queue item is missing an id. Queue updated.
+- 586 [toast] This item was already removed or refreshed. Queue updated.
+- 607 [toast] Queue item is missing an id.
+- 749 [toast] Posting insights synced
+- 800 [prop-label] Stories Generated Today
+- 801 [prop-label] Posts Generated Today
+- 819 [prop-label] Stories
+- 820 [prop-label] Posts
+- 849 [prop-label] Delete archived after days
+- 1104 [prop-label] Select content
+- 1419 [prop-label] Content type
+- ... 23 more
 
 ### src\modules\marketing\pages\AiMarketingVideos.jsx
 - 312 [jsx-text] Videos
@@ -470,30 +64,15 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 438 [jsx-text] Facebook
 - 439 [jsx-text] TikTok later
 - 446 [jsx-text] Preview
-- 447 [jsx-text] عرض المنشور
-- 448 [jsx-text] موافقة
-- 449 [jsx-text] نشر
-- 555 [jsx-text] = start && sceneTimelinePosition
 - 646 [jsx-text] Variant details
 - 656 [jsx-text] Price focus
 - 666 [jsx-text] Limited availability
 - 692 [jsx-text] Video preview
-- 693 [jsx-text] عنصر طابور فيديو جاهز للمعاينة. سيُضاف لاحقًا إنشاء MP4 ونشر Reels.
 - 719 [jsx-text] Video readiness
-- 742 [jsx-text] خط زمني بأسلوب CapCut
-- 779 [jsx-text] الخط الزمني للمشاهد
-- 815 [jsx-text] خط زمني للنصوص / التعليقات
-- 863 [jsx-text] النص / التعليق المُولّد
-- 867 [jsx-text] تشخيص تقني
-- 871 [jsx-text] منشور
-- 872 [jsx-text] عرض المنشور
 - 332 [title] Content Lanes
-- 344 [title] قوالب الفيديو
 - 356 [title] Daily Video Volume
 - 382 [title] Video Queue
 - 324 [prop-label] Video Queue
-- 325 [prop-label] جاهز / معتمد
-- 326 [prop-label] فشل
 - 701 [prop-label] Status
 - 702 [prop-label] Scheduled
 - 703 [prop-label] Playback
@@ -503,138 +82,52 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 707 [prop-label] Estimated engagement
 - 708 [prop-label] Motion style
 - 709 [prop-label] Reel energy
-- ... 6 more
+- 710 [prop-label] Hook strength
+- 711 [prop-label] Pacing
+- 712 [prop-label] CTA strength
+- 713 [prop-label] Trend fit
+- 714 [prop-label] Reel type
+- 715 [prop-label] Transition style
 
 ### src\modules\marketing\pages\MarketingSettings.jsx
-- 848 [jsx-text] 0 && completedSteps
 - 904 [jsx-text] Meta OAuth readiness
 - 905 [jsx-text] Use these values in Meta Developer settings. Secret values are never displayed here.
 - 911 [jsx-text] Environment
 - 923 [jsx-text] OAuth Redirect URI
-- 930 [jsx-text] رابط استدعاء Webhook
 - 945 [jsx-text] Required permissions
-- 951 [jsx-text] App review reminder: production messaging and publishing require Meta review approval for the requested permissions.
 - 954 [jsx-text] Setup steps
 - 971 [jsx-text] Post-OAuth result
 - 978 [jsx-text] Connected page
-- 982 [jsx-text] حساب إنستجرام المتصل
 - 986 [jsx-text] Missing permissions
-- 990 [jsx-text] الإجراء التالي المطلوب
 - 1005 [jsx-text] Connect Meta
-- 1028 [jsx-text] تسجيل الدخول عبر فيسبوك
-- 1029 [jsx-text] ابدأ تدفق OAuth الرسمي من ميتا، ثم امنح الصلاحيات وبعدها اختر صفحة فيسبوك وحساب إنستجرام للأعمال المرتبط.
-- 1051 [jsx-text] اختيار صفحة فيسبوك وحساب إنستجرام للأعمال
 - 1069 [jsx-text] Verify webhook and capabilities
 - 1070 [jsx-text] Runs live permission checks, token diagnostics, and webhook delivery health.
 - 1090 [jsx-text] Setup checklist
 - 1122 [jsx-text] Connection
-- 1123 [jsx-text] صفحة فيسبوك وحساب إنستجرام
-- 1149 [jsx-text] صفحة فيسبوك
 - 1151 [jsx-text] Page ID is managed by the guided connection flow.
-- 1154 [jsx-text] حساب إنستجرام للأعمال
 - 1156 [jsx-text] Manual Account ID entry is hidden unless advanced mode is enabled.
 - 1348 [jsx-text] Live delivery health
-- 1443 [jsx-text] أداء التعليق إلى الرسالة
-- 1502 [jsx-text] القالب
-- 1510 [jsx-text] رد بديل
-- 1527 [jsx-text] محاكي المعاينة
-- 558 [toast] اختر صفحة فيسبوك لاستكمال إعداد ميتا
 - 639 [toast] Meta connection timed out. You can try again.
-- 690 [toast] تم التحقق من صلاحيات النشر
-- 707 [toast] تم التحقق من اشتراك Webhook
 - 744 [toast] Meta setup complete
-- 926 [prop-label] نسخ رابط إعادة التوجيه
-- 933 [prop-label] نسخ رابط Webhook
-- 934 [prop-label] نسخ حالة التحقق
 
-## orders (97)
+## orders (9)
 
 ### src\modules\orders\pages\OrderDetails.jsx
 - 1342 [jsx-text] Bosta
-- 1350 [jsx-text] إنشاء شحنة Bosta
-- 1351 [jsx-text] تحديث الحالة
-- 1352 [jsx-text] إلغاء
-- 1374 [jsx-text] طباعة الملصق
-- 1356 [prop-label] المزود
-- 1357 [prop-label] المدينة
-- 1358 [prop-label] المنطقة
-- 1359 [prop-label] الحي
-- 1362 [prop-label] الشارع
-- 1363 [prop-label] المبنى
-- 1364 [prop-label] الطابق
-- 1365 [prop-label] الشقة
-- 1368 [prop-label] علامة مميزة
-- 1369 [prop-label] رقم التسليم
-- 1371 [prop-label] رابط الملصق
 
 ### src\modules\orders\pages\OrderReturnsPage.jsx
 - 337 [jsx-text] Returns Workspace
-- 338 [jsx-text] لوحة تشغيل المرتجعات
 - 404 [jsx-text] Orders module
-- 405 [jsx-text] مرتجعات الطلبات
-- 406 [jsx-text] إدارة المرتجعات والاسترداد وإعادة المخزون من نفس تجربة تشغيل الطلبات بشكل أسرع وأكثر وضوحاً.
-- 477 [jsx-text] البحث
-- 493 [jsx-text] التاريخ
-- 535 [jsx-text] لا توجد مرتجعات مطابقة
-- 536 [jsx-text] جرّب تعديل البحث أو الفلاتر الحالية.
-- 546 [jsx-text] الإجراء
-- 547 [jsx-text] رقم المرتجع / رقم الطلب
-- 548 [jsx-text] العميل
-- 549 [jsx-text] المنتجات المرتجعة
-- 550 [jsx-text] قيمة المرتجع
-- 551 [jsx-text] حالة المرتجع
-- 552 [jsx-text] حالة الاسترداد
-- 553 [jsx-text] إعادة للمخزون
-- 554 [jsx-text] التاريخ
-- 664 [jsx-text] نفس تدفق الإنشاء الحالي داخل drawer بدل الواجهة المنفصلة.
-- 858 [jsx-text] تمت الإعادة للمخزون
-- 483 [placeholder] ابحث برقم الفاتورة أو العميل أو الهاتف أو رقم التتبع
-- 867 [title] ملخص المرتجع
-- 878 [title] بيانات الطلب الأصلي
-- 889 [title] بيانات العميل
-- 898 [title] المنتجات المرتجعة
-- 918 [title] حركة المخزون
-- 927 [title] الاسترداد / الدفع
-- 937 [title] الملاحظات / السبب
-- 943 [title] الخط الزمني
-- 658 [aria-label] إغلاق
-- 849 [aria-label] إغلاق
-- 211 [toast] يمكن تعديل المرتجعات المحلية فقط حالياً.
-- 256 [toast] اختر منتجاً مرتجعاً واحداً على الأقل.
-- 282 [toast] تم تحديث المرتجع.
-- 302 [toast] لا يمكن حذف هذا المرتجع من هذه الواجهة.
-- 308 [toast] تم حذف المرتجع.
-- 328 [prop-label] إجمالي المرتجعات
-- 329 [prop-label] مرتجعات اليوم
-- 330 [prop-label] قيمة المرتجعات
-- 331 [prop-label] تمت إعادتها للمخزون
-- ... 19 more
 
 ### src\modules\orders\pages\OrdersDashboard.jsx
-- 214 [jsx-text] 0 && paid
-- 216 [jsx-text] 0 && shipping
-- 235 [jsx-text] = 0 && paid
-- 394 [jsx-text] 0 && paid
-- 1028 [jsx-text] البحث
-- 1042 [jsx-text] التاريخ
 - 1246 [jsx-text] : proofUrl ?
 - 1397 [jsx-text] : proofUrl ?
 - 1414 [jsx-text] WhatsApp
 - 1499 [jsx-text] WhatsApp
-- 1620 [jsx-text] 0 && paid
-- 1039 [prop-label] حالة الدفع
-- 1040 [prop-label] المصدر
-- 1365 [prop-label] البائع
-- 1366 [prop-label] الدفع
 - 1367 [prop-label] \u0637\u0631\u064a\u0642\u0629 \u0627\u0644\u0627\u0633\u062a\u0631\u062f\u0627\u062f
-- 1368 [prop-label] الشحن
-- 1370 [prop-label] دفع تعديل الفاتورة
-- 1461 [prop-label] البائع
-- 1462 [prop-label] الدفع
 - 1463 [prop-label] \u0637\u0631\u064a\u0642\u0629 \u0627\u0644\u0627\u0633\u062a\u0631\u062f\u0627\u062f
-- 1465 [prop-label] دفع تعديل الفاتورة
 
-## other (113)
+## other (109)
 
 ### src\App.jsx
 - 260 [title] Employee app screen crashed
@@ -648,10 +141,6 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 ### src\components\ai\AILiveLogs.jsx
 - 74 [jsx-text] Live AI Logs
 - 75 [jsx-text] Operational event stream, kept in memory only.
-- 105 [jsx-text] Waiting for AI events...
-
-### src\components\ai\AISuggestedReplies.jsx
-- 98 [jsx-text] المحادثة دي محتاجة تدخل بشري. اقتراحات الذكاء الاصطناعي للمراجعة فقط.
 
 ### src\components\dashboard\CommandCenterDashboard.jsx
 - 55 [jsx-text] Command Center
@@ -785,16 +274,11 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 ### src\modules\saas\components\SaaSShell.jsx
 - 8 [jsx-text] SaaS Multi-Tenant
 
-### src\services\realtimeFeedbackService.js
-- 218 [jsx-text] = start && current
-- 218 [jsx-text] = start || current
-
-## pages (1478)
+## pages (832)
 
 ### src\modules\aiSupport\pages\AiAgentAnalytics.jsx
 - 175 [jsx-text] AI Agent Analytics
 - 176 [jsx-text] Performance Dashboard
-- 177 [jsx-text] Commercial and operational performance for AI-assisted conversations, drafts, orders, follow-ups, objections, and product demand.
 - 183 [jsx-text] All branches
 - 219 [title] Lead Quality
 - 229 [title] Top Objections
@@ -832,7 +316,6 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 ### src\modules\aiSupport\pages\AiAgentSettings.jsx
 - 184 [jsx-text] AI Agent Control Center
 - 185 [jsx-text] Sales Agent Settings
-- 186 [jsx-text] Tenant-scoped controls for tone, sales rules, follow-ups, handoff triggers, and staff suggested replies.
 - 209 [jsx-text] Short
 - 209 [jsx-text] Balanced
 - 209 [jsx-text] Detailed
@@ -862,7 +345,6 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 219 [prop-label] Allow discount promises
 - 220 [prop-label] Max discount percent
 - 221 [prop-label] COD availability text
-- 222 [prop-label] Exchange / return policy text
 - 223 [prop-label] Delivery policy text
 - 227 [prop-label] Enable follow-ups
 - 229 [prop-label] Cooldown hours
@@ -870,7 +352,9 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 232 [prop-label] Stop after rejection
 - 233 [prop-label] Follow-up templates
 - 238 [prop-label] Angry customer
-- ... 9 more
+- 239 [prop-label] Low confidence
+- 240 [prop-label] Discount request
+- ... 7 more
 
 ### src\modules\aiSupport\pages\AiChannels.jsx
 - 585 [jsx-text] WhatsApp Gateway / Evolution API
@@ -895,10 +379,6 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 644 [placeholder] EVOLUTION_INSTANCE_NAME is not configured
 
 ### src\modules\aiSupport\pages\AiFollowups.jsx
-- 163 [jsx-text] Follow-ups ready for staff action
-- 213 [jsx-text] مغلقة
-- 214 [jsx-text] تم إرسال ملاحظة داخلية
-- 214 [jsx-text] جاهزة للإرسال اليدوي
 - 231 [placeholder] Edit the internal follow-up note before sending...
 - 178 [prop-label] Due follow-ups
 - 179 [prop-label] Scheduled
@@ -906,13 +386,8 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 181 [prop-label] Stopped / rejected
 
 ### src\modules\aiSupport\pages\AiInbox.jsx
-- 707 [jsx-text] : status === "human_takeover" ?
 - 752 [jsx-text] No transcript yet.
-- 792 [jsx-text] العميل
 - 824 [jsx-text] Staff
-- 862 [jsx-text] : status === "closed" ?
-- 873 [jsx-text] ذكاء واتساب نشط
-- 933 [jsx-text] المحادثة مغلقة. تم تعطيل الرد اليدوي.
 - 943 [jsx-text] Live send ready
 - 943 [jsx-text] Live channel unavailable
 - 945 [jsx-text] Sending a staff reply will take over this conversation and pause AI automation.
@@ -921,7 +396,6 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 1004 [jsx-text] 2-3 short Egyptian Arabic options that you can copy, edit, or send live.
 - 1013 [jsx-text] Channel setup needed
 - 1016 [jsx-text] Closed conversations cannot generate suggestions.
-- 1017 [jsx-text] No channel settings row was found for this channel. Open AI Channels to finish setup before enabling live sends.
 - 1019 [jsx-text] Generate a staff-only suggested reply. It stays separate from sent replies until you approve or edit it.
 - 1026 [jsx-text] Short reply
 - 1033 [jsx-text] Edit before send
@@ -937,29 +411,32 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 1174 [jsx-text] Reason
 - 1178 [jsx-text] Suggested action
 - 1190 [jsx-text] Purchase intent:
-- 1192 [jsx-text] Waiting for product, size, color, or buying signal.
 - 1221 [jsx-text] Quick send card
-- 1225 [jsx-text] No product match yet. Ask for model, category, size, color, or budget.
-- 1238 [jsx-text] الذاكرة
-- 1243 [jsx-text] ستتحسن الذاكرة مع استمرار المحادثة.
-- 1292 [jsx-text] سياق العميل
 - 1394 [jsx-text] AI Debug
 - 1395 [jsx-text] Intent, route, memory, and recent decisions
-- 1509 [jsx-text] متخطى
-- ... 178 more
+- 1579 [jsx-text] Close
+- 1596 [jsx-text] Trace error
+- 1686 [jsx-text] Channel
+- 1690 [jsx-text] Phone
+- 1743 [jsx-text] Not set yet
+- 1805 [jsx-text] Confirm Order
+- 1806 [jsx-text] Edit Draft
+- 1807 [jsx-text] Reject / Cancel
+- 1808 [jsx-text] Assign to human
+- 1809 [jsx-text] Resume AI
+- 1858 [jsx-text] Conversion probability
+- 1865 [jsx-text] Risk flags
+- ... 97 more
 
 ### src\modules\aiSupport\pages\AiSettings.jsx
 - 170 [jsx-text] AI Brain
 - 171 [jsx-text] AI Settings
-- 172 [jsx-text] Control automatic replies, tone, safety defaults, and debugging visibility for the Meta AI Inbox.
-- 206 [jsx-text] القناة
 - 208 [jsx-text] Facebook Messenger
 - 209 [jsx-text] Instagram DM
 - 210 [jsx-text] WhatsApp
 - 211 [jsx-text] Web chat
 - 215 [jsx-text] Platform
 - 219 [jsx-text] Optional Product ID
-- 225 [jsx-text] رسالة العميل
 - 238 [jsx-text] Intent
 - 239 [jsx-text] Effective mode
 - 240 [jsx-text] Effective tone
@@ -987,15 +464,14 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 278 [title] Safety
 - 278 [title] Defaults stay on to prevent bad commerce claims.
 - 286 [title] Debug Options
-- 286 [title] Visibility tools for the live AI Inbox console.
 - 253 [prop-label] Product URL
-- ... 6 more
+- 254 [prop-label] Image URL
+- 282 [prop-label] Escalate angry customers
+- 288 [prop-label] Show live AI logs
+- 289 [prop-label] Show conversation memory debug
 
 ### src\modules\aiSupport\pages\AiSupportConsole.jsx
-- 186 [jsx-text] مستوى الثقة
-- 216 [jsx-text] لم يُعدّه المسار.
 - 264 [jsx-text] no sources
-- 546 [jsx-text] وحدة دعم الذكاء الاصطناعي
 - 567 [jsx-text] Resolved tenant id
 - 571 [jsx-text] Auth source used
 - 575 [jsx-text] Auth user source
@@ -1007,40 +483,30 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 679 [jsx-text] No test run yet
 - 680 [jsx-text] Run a quick test or type a custom question.
 - 694 [jsx-text] No products returned.
-- 706 [jsx-text] النية المكتشفة
 - 710 [jsx-text] Context sources
 - 714 [jsx-text] Fallback reason
 - 719 [jsx-text] Source preview sent to AI
 - 723 [jsx-text] Full endpoint response
-- 749 [jsx-text] طلبات العملاء التي بدأت عبر دردشة الذكاء الاصطناعي أو واتساب أو إنستجرام أو صندوق وارد فيسبوك.
 - 768 [jsx-text] Loading AI order drafts...
-- 785 [jsx-text] العميل:
 - 786 [jsx-text] Area:
-- 787 [jsx-text] المنتج:
 - 788 [jsx-text] Variant:
 - 789 [jsx-text] Total:
 - 790 [jsx-text] Conversation:
 - 816 [jsx-text] No AI order drafts yet.
 - 828 [jsx-text] Tenant-scoped customer chat patterns, product demand signals, and handoff volume.
 - 847 [jsx-text] Human handoffs
-- 871 [jsx-text] Latest tenant-scoped AI support test conversations for quality and failure review.
-- 879 [jsx-text] كل النتائج
-- 880 [jsx-text] يحتاج تدخلًا بشريًا
-- 881 [jsx-text] تمت الإجابة بالذكاء الاصطناعي
 - 919 [jsx-text] Loading history...
 - 923 [jsx-text] No AI support test history yet.
 - 596 [placeholder] Type a customer question...
 - 850 [title] Top AI questions
 - 851 [title] Top product terms
-- ... 8 more
-
-### src\modules\aiSupport\pages\AiSupportKnowledgeBase.jsx
-- 148 [jsx-text] قاعدة معرفة الدعم الذكي
-- 227 [jsx-text] التحقق
-- 96 [toast] راجع صيغة الهاتف أو واتساب
-- 110 [toast] تم حفظ قاعدة معرفة الدعم الذكي
-- 130 [toast] تم تصفير قاعدة المعرفة
-- 120 [confirm] هل تريد إعادة ضبط قاعدة معرفة الدعم الذكي لهذا المستأجر؟
+- 852 [title] Top requested sizes
+- 853 [title] Top requested colors
+- 854 [title] Most suggested products
+- 855 [title] Most clicked AI products
+- 856 [title] Pending aliases
+- 860 [title] Fallback / no-answer questions
+- 860 [prop-label] No fallback questions logged.
 
 ### src\modules\analytics\pages\AnalyticsDashboard.jsx
 - 893 [jsx-text] Product
@@ -1067,7 +533,6 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 998 [title] Dead stock detection
 - 998 [title] Items that are moving slowly and are tying up working capital.
 - 1029 [title] Inventory risk snapshot
-- 1029 [title] System-wide risk signals for proactive replenishment.
 - 1050 [title] Cash efficiency
 - 1060 [title] Order velocity
 - 1061 [title] AI score
@@ -1082,30 +547,12 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 1016 [prop-label] Stock
 - 1017 [prop-label] Reason
 
-### src\modules\attendance\pages\AttendanceDashboard.jsx
-- 119 [jsx-text] ملخص حضور اليوم
-- 152 [jsx-text] جدول الموظفين المباشر
-- 162 [jsx-text] الموظف
-- 163 [jsx-text] الفرع
-- 164 [jsx-text] تسجيل الحضور
-- 165 [jsx-text] تسجيل الانصراف
-- 166 [jsx-text] الحالة
-- 167 [jsx-text] دقائق التأخير
-- 168 [jsx-text] دقائق الانصراف المبكر
-- 142 [prop-label] الحاضرون اليوم
-- 143 [prop-label] المتأخرون اليوم
-- 144 [prop-label] الغائبون اليوم
-- 145 [prop-label] الانصراف المبكر اليوم
-- 146 [prop-label] خارج نطاق GPS اليوم
-
 ### src\modules\attendance\pages\AttendanceReports.jsx
 - 128 [jsx-text] Export-ready attendance reports
 - 161 [jsx-text] From
 - 179 [jsx-text] Employee ID
 - 204 [jsx-text] Monthly totals
-- 205 [jsx-text] Grouped by month for the active filter range.
 - 210 [jsx-text] Loading monthly totals...
-- 212 [jsx-text] No totals available for this range.
 - 229 [jsx-text] Attendance table
 - 230 [jsx-text] Employee, branch, worked hours, and checkout status.
 - 239 [jsx-text] Employee
@@ -1168,101 +615,12 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 177 [prop-label] Longitude
 - 179 [prop-label] Attendance Radius (meters)
 
-### src\modules\employees\pages\EmployeeChatInbox.jsx
-- 814 [jsx-text] الموظفون / المحادثات
-- 815 [jsx-text] محادثات الموظفين
-- 872 [jsx-text] لا يوجد موظفون أو محادثات حتى الآن.
-- 902 [jsx-text] اليوم
-- 903 [jsx-text] هذه المحادثة خاصة بين الموظف والإدارة
-- 917 [jsx-text] رسائل غير مقروءة
-- 1014 [placeholder] اكتب رد الإدارة...
-- 1003 [aria-label] إرفاق ملف
-- 1007 [aria-label] تسجيل صوتي
-- 158 [prop-label] رسالة صوتية
-- 1003 [prop-label] إرفاق ملف
-- 1007 [prop-label] تسجيل صوتي
-
-### src\modules\employees\pages\EmployeeHub.jsx
-- 62 [jsx-text] مساحة العمل غير متاحة.
-- 143 [jsx-text] تعذر تحميل مساحة الرواتب. يرجى تحديث الصفحة.
-
 ### src\modules\employees\pages\EmployeePayrollPortal.jsx
-- 2693 [jsx-text] طلب من المخزن
-- 2702 [jsx-text] الجرد
 - 2740 [jsx-text] Sales Opportunities
-- 2741 [jsx-text] فرص البيع اليوم
-- 2742 [jsx-text] بطاقات سريعة تكشف آخر قطعة، آخر قطعتين، أو آخر مقاس في فرعك.
 - 2745 [jsx-text] Today
-- 2839 [jsx-text] بوابة الموظف كتطبيق
-- 2878 [jsx-text] إعادة ضبط الإشعارات
-- 2929 [jsx-text] نواقص العرض
-- 2930 [jsx-text] المقاسات المطلوبة للعرض الحالي وتاريخ التنفيذ.
-- 2939 [jsx-text] قيد التنفيذ
-- 2955 [jsx-text] قيد العرض
-- 3005 [jsx-text] تم التنفيذ
-- 3020 [jsx-text] تم العرض
-- 3569 [jsx-text] متصل الآن
-
-### src\modules\employees\pages\EmployeePortal.jsx
-- 97 [jsx-text] ط«ط¨ظ‘طھ ط¨ظˆط§ط¨ط© ط§ظ„ظ…ظˆط¸ظپ ط¹ظ„ظ‰ ط§ظ„ظ…ظˆط¨ط§ظٹظ„
-- 98 [jsx-text] ط§ظپطھط­ ط§ظ„طھط§ط³ظƒط§طھ ط¨ط³ط±ط¹ط© ظˆط§ط³طھظ‚ط¨ظ„ ط§ظ„طھظ†ط¨ظٹظ‡ط§طھ ط£ط«ظ†ط§ط، ط§ظ„ط´ظٹظپطھ.
-- 157 [jsx-text] طھطµط¹ظٹط¯
-- 418 [jsx-text] بوابة الموظف
-- 456 [jsx-text] ط¨ظˆط§ط¨ط© ط§ظ„ظ…ظˆط¸ظپ ط؛ظٹط± ظ…طھط§ط­ط©
-- 471 [jsx-text] ط¨ظˆط§ط¨ط© ط§ظ„ظ…ظˆط¸ظپ
-- 477 [jsx-text] ظ…ظ‡ط§ظ… ط§ظ„ظٹظˆظ…
-- 481 [jsx-text] ظ‚ظٹط¯ ط§ظ„طھظ†ظپظٹط°
-- 485 [jsx-text] ظ…ظƒطھظ…ظ„ط©
-- 521 [jsx-text] ط§ظ„ظ…ظ†طھط¬ط§طھ
-- 522 [jsx-text] ط§ظپطھط­ ط´ط§ط´ط© ط§ظ„ظ…ظ†طھط¬ط§طھ ط§ظ„ط³ط±ظٹط¹ط© ظˆظ†ط¯ط§ط، ط§ظ„ظ…ط®ط²ظ†
-- 524 [jsx-text] ظ†ط¯ط§ط، ط§ظ„ظ…ط®ط²ظ†
-- 529 [jsx-text] ط§ظ„ظ…ظ‡ط§ظ… ط§ظ„ظ…ط·ظ„ظˆط¨ط©
-- 536 [jsx-text] ظ„ط§ طھظˆط¬ط¯ ظ…ظ‡ط§ظ… ظ…ط·ظ„ظˆط¨ط© ط§ظ„ط¢ظ†.
-- 542 [jsx-text] ط§ظ„ظ…ظ‡ط§ظ… ط§ظ„ظ…ظƒطھظ…ظ„ط©
-- 547 [jsx-text] ظ„ظ… ظٹطھظ… ط¥ظƒظ…ط§ظ„ ط£ظٹ ظ…ظ‡ظ…ط© ط¨ط¹ط¯.
 
 ### src\modules\employees\pages\EmployeePortalInventory.jsx
 - 337 [jsx-text] Inventory
-- 338 [jsx-text] امسح الباركود
-- 908 [jsx-text] بوابة الموظف
-- 910 [jsx-text] الجرد
-- 967 [jsx-text] جردات الفرع
-- 968 [jsx-text] المسودة، قيد التنفيذ، المراجعة والمرفوضة.
-- 987 [jsx-text] جاري التحميل...
-- 1034 [jsx-text] اختر جردًا أو أنشئ جردًا جديدًا
-- 1094 [jsx-text] سبب الرفض
-- 1110 [jsx-text] اسم الجرد
-- 1119 [jsx-text] ملاحظات
-- 1132 [jsx-text] البحث والباركود
-- 1133 [jsx-text] ابحث عن المنتج أو امسح الباركود لإضافة الكمية.
-- 1194 [jsx-text] عناصر الجرد
-- 1231 [jsx-text] حذف اللون
-- 1368 [jsx-text] بوابة الموظف
-- 1369 [jsx-text] جردات الفرع
-- 1423 [jsx-text] القائمة
-- 1429 [jsx-text] جارِ التحميل...
-- 980 [placeholder] ابحث باسم الجرد أو الفرع
-- 1151 [placeholder] ابحث بالاسم أو الباركود
-- 1417 [placeholder] ابحث باسم الجرد أو الفرع
-- 332 [aria-label] ماسح الباركود
-- 920 [aria-label] جردات الفرع
-- 1228 [aria-label] حذف اللون
-- 1268 [aria-label] إنقاص الكمية
-- 1284 [aria-label] زيادة الكمية
-- 1375 [aria-label] إغلاق
-- 528 [toast] تم إنشاء الجرد
-- 549 [toast] تم حفظ الجرد
-- 564 [toast] تم بدء الجرد
-- 579 [toast] تم إرسال الجرد للمراجعة
-- 594 [toast] تم إعادة فتح الجرد للتعديل
-- 706 [toast] تمت إضافة اللون للجرد
-- 788 [toast] تعذر تحديد اللون للحذف
-- 806 [toast] تم حذف اللون من الجرد
-- 791 [confirm] هل تريد حذف هذا اللون من الجرد؟
-- 332 [prop-label] ماسح الباركود
-- 920 [prop-label] جردات الفرع
-- 1228 [prop-label] حذف اللون
-- ... 3 more
 
 ### src\modules\employees\pages\EmployeePortalProducts.jsx
 - 471 [jsx-text] Stock
@@ -1272,10 +630,7 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 598 [jsx-text] No colors
 - 605 [jsx-text] Sizes
 - 606 [jsx-text] Only available sizes appear
-- 632 [jsx-text] No available sizes for this color
 - 683 [jsx-text] EMPLOYEE SCANNER
-- 684 [jsx-text] امسح الباركود أو QR بالكاميرا
-- 685 [jsx-text] وجّه الكاميرا نحو الكود وسيتم البحث مباشرة.
 - 715 [jsx-text] Scanner Debug
 - 720 [jsx-text] Last raw value
 - 724 [jsx-text] Detected format
@@ -1285,34 +640,7 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 742 [jsx-text] Manual fallback
 - 1520 [jsx-text] Employee Portal Products
 - 1536 [jsx-text] Employee Portal
-- 1537 [jsx-text] كتالوج المنتجات
-- 1614 [jsx-text] الفلاتر
-- 1621 [jsx-text] النتائج
 - 753 [placeholder] Enter barcode manually
-- 1590 [placeholder] ابحث بالاسم أو الموديل أو الباركود أو الكود
-- 1580 [title] فتح ماسح الكاميرا
-- 1604 [title] الفلاتر
-- 691 [aria-label] إغلاق ماسح الكاميرا
-- 1579 [aria-label] فتح ماسح الكاميرا
-- 1603 [aria-label] الفلاتر
-- 1269 [toast] تم إرسال الطلب للمخزن
-- 691 [prop-label] إغلاق ماسح الكاميرا
-- 1579 [prop-label] فتح ماسح الكاميرا
-- 1603 [prop-label] الفلاتر
-
-### src\modules\loyalty\pages\CustomerLoyaltyProfile.jsx
-- 95 [jsx-text] ملف الولاء للعميل
-- 136 [jsx-text] سجل المعاملات
-- 143 [jsx-text] النوع
-- 144 [jsx-text] النقاط
-- 145 [jsx-text] القيمة
-- 146 [jsx-text] التاريخ
-- 164 [jsx-text] استبدال النقاط
-- 165 [jsx-text] حوّل النقاط إلى قيمة عند إتمام شراء العميل.
-- 168 [jsx-text] النقاط المطلوب استبدالها
-- 45 [toast] استخدام بيانات الولاء البديلة
-- 63 [toast] أدخل نقاطًا صحيحة
-- 78 [toast] تم استبدال النقاط
 
 ### src\modules\loyalty\pages\LoyaltyDashboard.jsx
 - 98 [jsx-text] Loyalty
@@ -1339,109 +667,33 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 144 [jsx-text] No rules found.
 - 151 [jsx-text] Rule editor
 - 179 [jsx-text] Active
-- 180 [jsx-text] Inactive rules do not apply to new orders
 - 49 [toast] Using loyalty rules fallback
 - 86 [toast] Loyalty rule updated
 - 90 [toast] Loyalty rule created
 
-### src\modules\managerPortal\pages\InventoryApprovals.jsx
-- 201 [jsx-text] اعتمادات الجرد
-- 202 [jsx-text] لا يوجد رمز بوابة صالح. افتح بوابة المدير ثم أعد المحاولة.
-- 224 [jsx-text] مركز اعتماد الجرد
-- 225 [jsx-text] اعتمادات الجرد
-- 261 [jsx-text] بحث
-- 276 [jsx-text] الجلسات المعروضة
-- 284 [jsx-text] جاري تحميل الجردات...
-- 323 [jsx-text] لا توجد جلسات قيد المراجعة الآن
-- 324 [jsx-text] ستظهر هنا الجردات التي أرسلها أمين المخزن للمراجعة.
-- 334 [jsx-text] جاري تحميل تفاصيل الجرد...
-- 340 [jsx-text] تفاصيل الجلسة
-- 356 [jsx-text] سبب الرفض
-- 373 [jsx-text] المنتج
-- 374 [jsx-text] اللون
-- 375 [jsx-text] المقاس
-- 376 [jsx-text] كمية السيستم
-- 377 [jsx-text] الكمية الفعلية
-- 378 [jsx-text] الفرق
-- 379 [jsx-text] السبب
-- 380 [jsx-text] الملاحظات
-- 395 [jsx-text] 0 ? "text-emerald-300" : diff
-- 402 [jsx-text] لا توجد أصناف داخل الجرد.
-- 443 [jsx-text] اختر جلسة من القائمة
-- 444 [jsx-text] سيظهر ملخص الأصناف والفروقات هنا.
-- 457 [jsx-text] رفض الجرد
-- 458 [jsx-text] أدخل سبب الرفض
-- 459 [jsx-text] السبب إلزامي وسيصل إلى أمين المخزن مع إشعار الرفض.
-- 266 [placeholder] ابحث باسم الجرد أو الفرع أو المخزن
-- 468 [placeholder] مثال: توجد فروقات غير مبررة أو تحتاج مراجعة ميدانية
-- 252 [title] جردات بانتظار المراجعة
-- 253 [title] جردات مرفوضة
-- 254 [title] جردات مكتملة اليوم
-- 255 [title] إجمالي فروقات اليوم
-- 362 [title] عدد الأصناف
-- 363 [title] إجمالي الزيادة
-- 364 [title] إجمالي العجز
-- 365 [title] إجمالي الفروقات
-- 158 [toast] تم اعتماد الجرد
-- 176 [toast] سبب الرفض مطلوب
-- 182 [toast] تم رفض الجرد
-
 ### src\modules\managerPortal\pages\ManagerPortal.jsx
-- 302 [jsx-text] الأكثر مبيعاً:
-- 307 [jsx-text] مطلوب إعادة طلب:
-- 311 [jsx-text] هو الأعلى مبيعاً.
-- 315 [jsx-text] أكثر ساعة مبيعاً حالياً:
-- 1590 [jsx-text] الإنشاء
-- 1594 [jsx-text] الاستحقاق
-- 1598 [jsx-text] المرفقات
-- 1602 [jsx-text] البدء/الإنهاء
-- 1705 [jsx-text] مركز قيادة المدير
-- 1711 [jsx-text] اليوم
-- 1716 [jsx-text] تحديث مباشر
-- 1744 [jsx-text] تعذر تحميل بعض البيانات
-- 1776 [jsx-text] بوابة المدير
-- 1798 [jsx-text] بوابة المدير
-- 1806 [jsx-text] مباشر
-- 1814 [jsx-text] جردات بانتظار الاعتماد
-- 1852 [jsx-text] بوابة المدير كتطبيق
-- 1910 [jsx-text] غير مقروء
-- 1914 [jsx-text] الإجمالي
-- 1924 [jsx-text] تحديد الكل كمقروء
-- 1932 [jsx-text] تحديث
-- 2040 [jsx-text] لا توجد إشعارات
-- 2086 [jsx-text] الإشعارات المباشرة
-- 2087 [jsx-text] تنبيهات
-- 2099 [jsx-text] تنبيهات المخزون
-- 2100 [jsx-text] عرض
-- 2151 [jsx-text] إعادة عرض منتج:
-- 2167 [jsx-text] مطلوب إعادة طلب:
-- 2265 [jsx-text] مبيعات اليوم
-- 2274 [jsx-text] الفواتير
-- 2278 [jsx-text] الوردية
-- 2282 [jsx-text] آخر نشاط
-- 2318 [jsx-text] إسناد اختياري
-- 2322 [jsx-text] منخفضة
-- 2323 [jsx-text] متوسطة
-- 2324 [jsx-text] عالية
-- 2325 [jsx-text] حرجة
-- 2348 [jsx-text] كل الحالات
-- 2349 [jsx-text] المهام المفتوحة
-- 2350 [jsx-text] المهام المكتملة
-- ... 185 more
+- 2693 [jsx-text] Customer-linked orders
+- 2698 [jsx-text] Online orders
+- 2703 [jsx-text] AI chat conversions
+- 2314 [title] Create task
+- 2536 [title] No seller data
+- 2689 [title] Conversion indicators
+- 2689 [title] Shown only when data exists
+- 2711 [title] No conversion data
+- 2715 [title] Top products
+- 2723 [title] Hourly trend
+- 1823 [aria-label] Open notifications
+- 1873 [aria-label] Close notifications
+- 1823 [prop-label] Open notifications
+- 1873 [prop-label] Close notifications
 
 ### src\modules\notifications\pages\NotificationsCenter.jsx
 - 62 [jsx-text] Notifications Center
-- 67 [jsx-text] الإشعارات
-- 74 [jsx-text] مركز متابعة أحداث ERP والويب سايت في الوقت الحقيقي.
-- 134 [jsx-text] لا توجد إشعارات
-- 135 [jsx-text] لا توجد نتائج مطابقة للفلاتر الحالية. غيّر الفلاتر أو جرّب التحديث لاحقا.
-- 103 [placeholder] بحث
 
 ### src\modules\permissions\pages\Permissions.jsx
 - 137 [jsx-text] Roles
 - 138 [jsx-text] Choose a role to edit its permission set.
 - 186 [jsx-text] Export permissions snapshot
-- 187 [jsx-text] Placeholder for CSV/PDF export once the backend exporter is available.
 - 110 [title] Permission Matrix
 - 59 [toast] Using local permissions fallback
 - 92 [toast] Permissions saved
@@ -1450,7 +702,6 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 
 ### src\modules\permissions\pages\Roles.jsx
 - 147 [jsx-text] Create role
-- 148 [jsx-text] Built-in roles are seeded; custom roles can be added locally even if the backend is offline.
 - 202 [jsx-text] Built in
 - 244 [jsx-text] Assigned permissions
 - 259 [jsx-text] Preset roles
@@ -1479,7 +730,6 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 205 [jsx-text] Assign roles from the matrix and preserve compatibility with legacy pages.
 - 227 [jsx-text] Role
 - 171 [placeholder] Full name
-- 172 [placeholder] user@company.com
 - 173 [placeholder] Initial password
 - 189 [placeholder] Search users...
 - 143 [title] User-Role Assignment
@@ -1501,10 +751,8 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 ### src\modules\reports\pages\Reports.jsx
 - 345 [jsx-text] Analytics & Reports
 - 347 [jsx-text] Analytics & Reports
-- 350 [jsx-text] window.print()
 - 366 [jsx-text] Enterprise Reports Center
 - 569 [jsx-text] Business Intelligence & Smart Recommendations
-- 676 [jsx-text] No items for the selected filters.
 - 782 [jsx-text] No report rows match the current filters.
 - 455 [placeholder] Search report rows
 - 413 [title] Daily Sales
@@ -1575,25 +823,12 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 71 [prop-label] POS receipt note
 
 ### src\modules\saas\pages\RegisterCompany.jsx
-- 102 [jsx-text] بيانات الشركة
-- 110 [jsx-text] كلمة المرور
 - 147 [jsx-text] Owner and staff accounts
 - 104 [placeholder] Acme Retail
-- 105 [placeholder] الاسم الكامل للمالك
-- 106 [placeholder] owner@company.com
 - 107 [placeholder] acme-retail
-- 116 [placeholder] كلمة مرور المالك
-- 87 [title] تسجيل شركة
-- 88 [title] أنشئ مساحة عمل للشركة وحساب المالك وبداية الاشتراك. إذا تعذر الاتصال بالخادم، سيتم حفظ المساحة محليًا وتسجيل الدخول عليها.
 - 149 [title] Owner account
 - 150 [title] Staff accounts
 - 151 [title] Workspace persistence
-- 24 [toast] اسم الشركة والبريد الإلكتروني وكلمة المرور مطلوبة
-- 79 [toast] تم إنشاء مساحة العمل للشركة
-- 104 [prop-label] اسم الشركة
-- 105 [prop-label] اسم المالك
-- 106 [prop-label] بريد المالك
-- 107 [prop-label] معرّف مساحة العمل
 
 ### src\modules\saas\pages\Workspace.jsx
 - 54 [jsx-text] Current workspace
@@ -1626,62 +861,17 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 287 [toast] Failed to create order
 
 ### src\modules\sales\pages\Customers.jsx
-- 84 [jsx-text] = 1 && value
-- 249 [jsx-text] كشف حساب عميل
-- 250 [jsx-text] كشف حساب العميل
-- 252 [jsx-text] العميل:
-- 253 [jsx-text] الهاتف:
-- 254 [jsx-text] الرصيد الحالي:
-- 255 [jsx-text] نقاط الولاء:
-- 259 [jsx-text] آخر تحديث
-- 262 [jsx-text] الرصيد الافتتاحي
-- 263 [jsx-text] الرصيد النهائي
-- 269 [jsx-text] الحركات
-- 273 [jsx-text] التاريخ
-- 274 [jsx-text] البيان
-- 275 [jsx-text] رقم الفاتورة/الطلب
-- 276 [jsx-text] مدين
-- 277 [jsx-text] دائن
-- 278 [jsx-text] الرصيد بعد الحركة
-- 298 [jsx-text] لا توجد حركات مطابقة
-- 305 [jsx-text] إجمالي المدين
-- 306 [jsx-text] إجمالي الدائن
-- 307 [jsx-text] الرصيد النهائي
-- 925 [jsx-text] السماح بالعمليات الشخصية
 - 959 [jsx-text] Per page
-- 991 [jsx-text] نقاط الولاء
-- 992 [jsx-text] رصيد المحفظة
-- 1228 [jsx-text] استيراد من النظام القديم
-- 1229 [jsx-text] استيراد العملاء ونقاط الولاء
-- 1246 [jsx-text] CSV, XLS, XLSX حتى 8MB
-- 1256 [jsx-text] الأعمدة المطلوبة أو المعروفة
-- 1272 [jsx-text] استبدال النقاط القديمة
-- 1273 [jsx-text] إضافة على النقاط الحالية
-- 1329 [jsx-text] معاينة الاستيراد
-- 1330 [jsx-text] ملخص الملف
-- 1332 [jsx-text] تم التنفيذ
-- 1408 [jsx-text] تدقيق محفظة العميل
-- 1477 [jsx-text] إضافة يدوية
-- 1478 [jsx-text] خصم يدوي
-- 1482 [jsx-text] حفظ
-- 1487 [jsx-text] سجل تدقيق المحفظة
-- 1490 [jsx-text] جاري التحميل...
-- ... 46 more
+- 1431 [aria-label] Close
+- 1613 [aria-label] Close
+- 1431 [prop-label] Close
+- 1613 [prop-label] Close
 
 ### src\modules\sales\pages\InvoicesLegacy.jsx
-- 353 [placeholder] ابحث في الفواتير...
-- 413 [placeholder] المنتج
-- 437 [placeholder] العميل
-- 461 [placeholder] الكمية
-- 485 [placeholder] السعر
 - 52 [confirm] Fill all fields
-- 99 [confirm] حذف الفاتورة؟
 
 ### src\modules\sales\pages\SalesEmployees.jsx
-- 250 [jsx-text] 0 && row.earned_commissions
-- 1543 [jsx-text] node server/scripts/employeeWalletSmokeTest.js
 - 789 [toast] Select an employee before saving sales settings
-- 793 [toast] Select a branch for this employee
 - 798 [toast] POS Alias should be 2 to 10 characters
 - 813 [toast] Sales settings saved
 - 827 [toast] Sales settings saved
@@ -1693,21 +883,7 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 738 [jsx-text] Developer settings are only available to super admin or developer users, or when debug settings are explicitly enabled.
 - 937 [jsx-text] Live homepage preview
 - 957 [jsx-text] Featured collections
-- 958 [jsx-text] Searchable collection selector replacement for the old JSON list.
-- 986 [jsx-text] محفظة Vodafone Cash
-- 987 [jsx-text] تحكم في الاسم الظاهر، الرقم، الشعار، والنص المساعد الذي يظهر للعميل.
-- 995 [jsx-text] نص مساعد
 - 1005 [jsx-text] InstaPay
-- 1006 [jsx-text] أدخل رابط الدفع المباشر وخصص الاسم الظاهر والنص المساعد والشعار.
-- 1013 [jsx-text] رابط الدفع InstaPay
-- 1014 [jsx-text] ضع رابط الدفع المباشر من تطبيق InstaPay
-- 1047 [jsx-text] إعدادات التوافق القديمة
-- 1048 [jsx-text] يُستخدم فقط إذا لم يتم إدخال رابط دفع مباشر.
-- 1056 [jsx-text] نص مساعد
-- 1066 [jsx-text] رسوم تأكيد الشحن
-- 1067 [jsx-text] اضبط الرسوم الظاهرة في خطوة الدفع داخل صفحة إتمام الطلب.
-- 1073 [jsx-text] نص الرسوم
-- 1077 [jsx-text] قيمة الرسوم
 - 1236 [jsx-text] Default shipping provider
 - 1237 [jsx-text] Select the fallback carrier used when a zone has no specific provider.
 - 1354 [jsx-text] Base URL
@@ -1727,7 +903,21 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 2634 [jsx-text] District
 - 2638 [jsx-text] Zone
 - 2699 [jsx-text] Shipping Zones - Fullscreen
-- ... 63 more
+- 2720 [jsx-text] Add Rule
+- 2860 [jsx-text] Provider mapping IDs
+- 3101 [jsx-text] Homepage
+- 3157 [jsx-text] Registry audit
+- 3170 [jsx-text] Runtime metadata
+- 3174 [jsx-text] Debug source: /settings/debug
+- 1359 [placeholder] Bosta API key
+- 1424 [placeholder] Search Bosta locations
+- 2232 [placeholder] Search governorate, city, area
+- 2279 [placeholder] provider city id
+- 2280 [placeholder] provider district id
+- 2281 [placeholder] provider zone id
+- 2641 [placeholder] Price
+- 2854 [placeholder] Free over
+- ... 36 more
 
 ### src\modules\shipping\pages\ShippingCenter.jsx
 - 94 [jsx-text] Shipment Drawer
@@ -1739,7 +929,6 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 147 [jsx-text] No webhook events received.
 - 256 [jsx-text] Operations
 - 257 [jsx-text] Shipping Center
-- 258 [jsx-text] Centralized shipment operations for Bosta and future providers with status monitoring, bulk actions, webhook timelines, and analytics.
 - 261 [jsx-text] Table View
 - 262 [jsx-text] Board View
 - 263 [jsx-text] Refresh
@@ -1806,17 +995,6 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 392 [prop-label] Warehouse
 - ... 5 more
 
-### src\modules\warehouse\pages\WarehouseLivePicks.jsx
-- 354 [jsx-text] alertKey(item) === alertKey(incoming) && alertAgeMs(item, now)
-- 434 [jsx-text] التقاط المخزن المباشر
-- 560 [jsx-text] بانتظار أول سحب من الـ POS
-- 561 [jsx-text] التنبيه سيظهر مباشرة بعد "إضافة للفاتورة" بدون أي إجراءات يدوية.
-- 538 [prop-label] اللون
-- 539 [prop-label] كود الأرتكل
-- 540 [prop-label] اسم المصنع
-- 544 [prop-label] البائع
-- 545 [prop-label] الوقت
-
 ### src\modules\website\pages\WebsiteSettings.jsx
 - 608 [jsx-text] Enable fake compare price
 - 609 [jsx-text] Show generated old prices on storefront cards and product pages.
@@ -1852,14 +1030,12 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 286 [toast] Failed to create order
 
 ### src\pages\Dashboard.jsx
-- 381 [jsx-text] 0 && resolved.final_price
 - 952 [title] No activity in this range
 - 822 [aria-label] Trend sparkline
 - 822 [prop-label] Trend sparkline
 
 ### src\pages\Login.jsx
 - 147 [placeholder] Email
-- 157 [placeholder] كلمة المرور
 - 167 [placeholder] Workspace / company slug
 
 ### src\pages\PublicProduct.jsx
@@ -1881,22 +1057,10 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 76 [confirm] Image Uploaded Successfully ✅
 - 84 [confirm] Upload Failed ❌
 
-## pos (231)
+## pos (114)
 
 ### src\modules\pos\components\CartSidebar.jsx
-- 884 [jsx-text] عملية شخصية
-- 889 [jsx-text] نوع العملية الشخصية
-- 895 [jsx-text] اختر النوع
-- 896 [jsx-text] هدية / مصروف
-- 897 [jsx-text] سلفة موظف
-- 898 [jsx-text] استخدام شخصي للمالك
-- 902 [jsx-text] ملاحظة
-- 980 [jsx-text] بيع آجل للعميل
-- 1421 [jsx-text] السعر
-- 2662 [jsx-text] 0 && balance
-- 2767 [jsx-text] مسموح بالسالب لهذا الحساب.
 - 2777 [jsx-text] Treasury adjustment
-- 908 [placeholder] اختياري
 - 2797 [placeholder] Recharge amount
 - 2803 [placeholder] Audit note
 - 2745 [title] Recharge / adjustment
@@ -1905,64 +1069,11 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 2784 [aria-label] Close
 - 2704 [toast] Enter a positive recharge amount
 - 2715 [toast] Treasury adjustment recorded
-- 1457 [prop-label] الخصم
-- 1465 [prop-label] إجمالي الأصناف الجديدة
-- 1467 [prop-label] المبلغ المدفوع الآن
-- 1468 [prop-label] رصيد العميل المتبقي / المحفظة
-- 1473 [prop-label] عدد المنتجات
-- 1664 [prop-label] خصم الكوبون
-- 2323 [prop-label] نقدي
 - 2330 [prop-label] Vodafone Cash
 - 2337 [prop-label] InstaPay
 - 2632 [prop-label] Clear payment amount
 - 2744 [prop-label] Recharge treasury account
 - 2784 [prop-label] Close
-
-### src\modules\pos\components\ProductGrid.jsx
-- 70 [jsx-text] 0) || min
-
-### src\modules\pos\components\RecentOperationsDrawer.jsx
-- 499 [jsx-text] طباعة
-- 505 [jsx-text] الصنف
-- 505 [jsx-text] الكمية
-- 505 [jsx-text] الإجمالي
-- 506 [jsx-text] لا توجد أصناف
-- 646 [jsx-text] العمليات الأخيرة
-- 647 [jsx-text] عرض، إعادة طباعة، تعديل، أو مرتجع الفواتير الأخيرة.
-- 812 [jsx-text] حذف نهائي
-- 813 [jsx-text] سيتم حذف الفاتورة نهائيًا ولا يمكن التراجع عن هذه العملية.
-- 814 [jsx-text] سيتم حذف السجلات المرتبطة واسترجاع المخزون إذا لم يكن مسترجعًا مسبقًا.
-- 822 [jsx-text] اكتب DELETE أو حذف للتأكيد
-- 832 [jsx-text] إلغاء
-- 942 [jsx-text] مرتجع POS
-- 943 [jsx-text] إنشاء مرتجع / استبدال
-- 946 [jsx-text] إغلاق
-- 966 [jsx-text] سبب المرتجع
-- 992 [jsx-text] طريقة رد المبلغ
-- 1010 [jsx-text] اختيار المنتجات المراد إرجاعها
-- 1034 [jsx-text] الكمية المرتجعة
-- 1109 [jsx-text] تفاصيل الفاتورة
-- 1112 [jsx-text] إغلاق
-- 1123 [jsx-text] المنتج
-- 1124 [jsx-text] الكمية
-- 1125 [jsx-text] السعر
-- 1126 [jsx-text] الإجمالي الفرعي
-- 1149 [jsx-text] لا توجد منتجات في هذه الفاتورة
-- 1154 [jsx-text] الإجمالي
-- 1159 [jsx-text] سجل الفاتورة
-- 1175 [jsx-text] لا يوجد سجل متاح لهذه الفاتورة
-- 659 [placeholder] بحث برقم الفاتورة أو العميل أو الهاتف
-- 985 [placeholder] اكتب السبب
-- 663 [title] تحديث
-- 677 [title] حدث خطأ
-- 679 [title] لا توجد عمليات
-- 640 [aria-label] إغلاق
-- 470 [toast] تعذر فتح نافذة الطباعة
-- 515 [toast] تم تجهيز الفاتورة للطباعة مرة أخرى
-- 574 [toast] لا يمكن عمل مرتجع لهذه الفاتورة
-- 595 [toast] اكتب DELETE أو حذف للتأكيد
-- 606 [toast] تم حذف الفاتورة نهائيًا
-- ... 10 more
 
 ### src\modules\pos\pages\POSPro.jsx
 - 4886 [jsx-text] Sales Receipt
@@ -2004,84 +1115,10 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 5848 [jsx-text] Story
 - 5849 [jsx-text] TikTok
 - 5850 [jsx-text] WhatsApp
-- 5862 [jsx-text] السماح بالعمليات الشخصية
-- ... 107 more
+- 6828 [jsx-text] : isFailed ?
+- ... 60 more
 
-## products (13)
-
-### src\modules\products\lib\barcodeLabels.js
-- 385 [jsx-text] = 32 && charCode
-- 1310 [jsx-text] رجوع / إغلاق
-- 1312 [jsx-text] طباعة
-- 420 [aria-label] ${text}
-- 1309 [aria-label] ${escapeHtml(previewTitle)}
-- 420 [prop-label] ${text}
-- 1309 [prop-label] ${escapeHtml(previewTitle)}
-
-### src\modules\products\lib\variantBulkSizes.js
-- 34 [jsx-text] 0 ? size
-
-### src\modules\products\pages\BarcodeLabels.jsx
-- 975 [jsx-text] طباعة QR ذكي للمنتج
-
-### src\modules\products\pages\ProductDetails.jsx
-- 393 [jsx-text] 0 && storedSalePrice
-- 54 [aria-label] ${label}
-- 54 [prop-label] ${label}
-
-### src\modules\products\pages\ProductsList.jsx
-- 436 [jsx-text] 0 && totalStock
-
-## purchases (32)
-
-### src\modules\purchases\lib\flowStore.js
-- 507 [jsx-text] Number(variant.stock || 0)
-
-### src\modules\purchases\pages\PurchaseOrder.jsx
-- 1093 [jsx-text] 0 && salePrice
-- 1509 [jsx-text] !item.unit_cost || item.unit_cost
-- 2468 [jsx-text] 0 && salePrice
-- 2854 [jsx-text] تحديد سعر البيع وسعر الخصم وسعر الجملة حسب المنتج أو النموذج.
-- 2871 [jsx-text] الألوان
-- 2875 [jsx-text] المقاسات
-- 2879 [jsx-text] الخيارات
-- 2899 [jsx-text] المنتجات:
-- 2900 [jsx-text] الخيارات:
-- 2901 [jsx-text] تمت:
-- 2970 [jsx-text] 0 && salePrice
-- 1946 [title] طي لوحة المنتج
-- 1988 [title] إغلاق لوحة المنتج
-- 2851 [title] أسعار نموذج المنتج
-- 1925 [aria-label] إغلاق لوحة المنتج
-- 1945 [aria-label] طي لوحة المنتج
-- 1987 [aria-label] إغلاق لوحة المنتج
-- 1925 [prop-label] إغلاق لوحة المنتج
-- 1945 [prop-label] طي لوحة المنتج
-- 1987 [prop-label] إغلاق لوحة المنتج
-- 2885 [prop-label] سعر البيع
-- 2886 [prop-label] سعر الخصم
-- 2887 [prop-label] سعر الجملة
-
-### src\modules\purchases\pages\ReorderSuggestions.jsx
-- 121 [jsx-text] = 6 && packQty
-
-### src\modules\purchases\pages\SupplierStatement.jsx
-- 80 [jsx-text] جاري تحميل كشف الحساب...
-- 145 [jsx-text] حركات الحساب
-- 66 [title] كشف حساب المورد
-- 127 [prop-label] إجمالي المشتريات
-- 128 [prop-label] إجمالي المدفوع
-- 129 [prop-label] الرصيد الافتتاحي
-- 130 [prop-label] الرصيد المستحق
-
-## shared (64)
-
-### src\shared\chat\SharedPortalChat.jsx
-- 428 [jsx-text] 42 && deltaY
-- 608 [jsx-text] لا توجد محادثات حتى الآن.
-
-### src\shared\components\DebugErrorBoundary.jsx
-- 12 [jsx-text] تم تحديث الموقع، برجاء إعادة تحميل الصفحة
+## shared (11)
 
 ### src\shared\components\invoices\OrderInvoiceCard.jsx
 - 178 [prop-label] New items total
@@ -2099,95 +1136,25 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 9 [jsx-text] Name
 - 16 [jsx-text] Product
 
-### src\shared\layouts\MainLayout.jsx
-- 200 [jsx-text] Math.max(query.length, token.length)
-- 547 [jsx-text] مساحة العمل
-- 565 [jsx-text] لوحة المؤسسة
-- 728 [jsx-text] لوحة المؤسسة
-- 749 [jsx-text] المتجر
-- 585 [placeholder] ابحث في الوحدات...
-- 738 [title] المتجر
-- 352 [aria-label] الإشعارات
-- 739 [aria-label] فتح المتجر
-- 785 [aria-label] تسجيل الخروج
-- 352 [prop-label] الإشعارات
-- 739 [prop-label] فتح المتجر
-- 785 [prop-label] تسجيل الخروج
-
-### src\shared\lib\saleMode.js
-- 57 [jsx-text] 0 && sale
-- 134 [jsx-text] 0 && discounted
-
-### src\shared\notifications\NotificationBell.jsx
-- 338 [jsx-text] تعذر تحميل الإشعارات
-- 375 [jsx-text] لا توجد إشعارات
-- 158 [title] غير مقروء
-- 263 [aria-label] فتح الإشعارات
-- 276 [aria-label] إغلاق الإشعارات
-- 307 [aria-label] إغلاق الإشعارات
-- 263 [prop-label] فتح الإشعارات
-- 276 [prop-label] إغلاق الإشعارات
-- 307 [prop-label] إغلاق الإشعارات
-
 ### src\shared\utils\colorNameFromImage.js
 - 64 [jsx-text] rgbToHsl(rgb).s
-- 96 [jsx-text] = 200 && hsl.h
-- 112 [jsx-text] 214 && Math.max(r, g, b) - Math.min(r, g, b)
 - 114 [jsx-text] alpha
-- 234 [jsx-text] = edgeDepth && x
-- 234 [jsx-text] = edgeDepth && y
-- 283 [jsx-text] = 215 && hsl.s
-- 319 [jsx-text] = 0.18 && position
-- 390 [jsx-text] = 188 && rgbToHsl(pixel).s
-- 479 [jsx-text] = 0.62 && component.borderRatio
-- 706 [jsx-text] = 215 && rgbToHsl(sample).s
-- 710 [jsx-text] = 80 && brightness
-- 712 [jsx-text] isNearBlack(sample) || brightnessOf(sample)
 - 713 [jsx-text] brightnessOf(sample)
-- 715 [jsx-text] = 232 && rgbToHsl(sample).s
-- 718 [jsx-text] = 70 && brightness
-- 741 [jsx-text] = 215 && hsl.s
-- 742 [jsx-text] = 195 && hsl.s
-- 743 [jsx-text] = 145 && brightness
-- 747 [jsx-text] 205 && hsl.s
-- 769 [jsx-text] DARK_PRIORITY_NAMES.has(cluster.name) || brightnessOf(cluster.rgb)
-- 791 [jsx-text] 0.32 && secondary.share
-- 792 [jsx-text] 0.32 && secondaryToPrimary
-- 793 [jsx-text] stats.whiteRatio * 0.75 && secondary.share
-- 862 [jsx-text] = 215 && rgbToHsl(sample).s
-- 865 [jsx-text] 0.18 || brightnessOf(rgb)
-- 893 [jsx-text] = 215 && rgbToHsl(sample).s
-- 905 [jsx-text] candidate.brightness
-- 930 [jsx-text] cluster && (brightnessOf(cluster.rgb)
 
-## storefront (36)
+## storefront (19)
 
 ### src\storefront\pages\StorefrontProductDetailPage.jsx
 - 430 [jsx-text] selectedSellingPrice ?
-- 432 [jsx-text] 0 && Number(activeVariant.stock || 0)
-- 495 [jsx-text] 0 && Number(activeVariant.stock || 0)
 
 ### src\storefront\Storefront.jsx
-- 1049 [jsx-text] 0 && purchaseSalePrice
-- 1807 [jsx-text] 0 && sale
-- 1833 [jsx-text] = 1 && stock
-- 1837 [jsx-text] 0 && totalStock
-- 2199 [jsx-text] 0 && salePrice
-- 2200 [jsx-text] 0 && salePrice
 - 3701 [jsx-text] (current
-- 3984 [jsx-text] 0 && productStock(product)
-- 4943 [jsx-text] العلامات التجارية
 - 5340 [jsx-text] LAST PIECE FINDER
 - 8207 [jsx-text] US Men
 - 8208 [jsx-text] US Women
 - 8374 [jsx-text] index
-- 9235 [jsx-text] item.price ?
 - 3139 [placeholder] 01xxxxxxxxx
-- 6402 [title] إغلاق
 - 4196 [aria-label] Previous slide
 - 4199 [aria-label] Next slide
-- 6403 [aria-label] إغلاق اختيار المقاس
-- 8958 [aria-label] واتساب
 - 8959 [aria-label] Instagram
 - 8960 [aria-label] Facebook
 - 4196 [prop-label] Previous slide
@@ -2196,9 +1163,6 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 5116 [prop-label] Nike edit
 - 5119 [prop-label] Jordan edit
 - 5122 [prop-label] Adidas edit
-- 6403 [prop-label] إغلاق اختيار المقاس
-- 7944 [prop-label] تم الدفع وإرفاق الإيصال
-- 8958 [prop-label] واتساب
 - 8959 [prop-label] Instagram
 - 8960 [prop-label] Facebook
 

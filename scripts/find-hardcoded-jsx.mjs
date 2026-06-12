@@ -19,8 +19,22 @@ const moduleRules = [
 ];
 
 const hasLetters = (value) => /[A-Za-z\u0600-\u06FF]/.test(value);
+const hasArabic = (value) => /[\u0600-\u06FF]/.test(value);
+const hasAsciiLetters = (value) => /[A-Za-z]/.test(value);
 const isProbablyClassName = (value) => /^(flex|grid|block|inline|hidden|absolute|relative|mt-|mb-|ms-|me-|px-|py-|text-|bg-|border|rounded|shadow|hover:|focus:|disabled:)/.test(value);
 const isProbablyUrl = (value) => /^(https?:|\/|#|data:|mailto:|tel:)/.test(value);
+const isProbablyCodeFragment = (value) =>
+  /&&|\|\||=>|===|!==|==|!=|\?\?|[\w$]+\.[\w$]+|\b(?:Number|String|Boolean|Object|Array|Math|Date|JSON|Intl|RegExp)\s*\(|\b(?:if|for|while|switch|return|const|let|var|new)\b/.test(
+    value
+  );
+const isProbablyJsxNoise = (value) =>
+  /^\d+\s*\?\s*["'`]/.test(value) ||
+  /^\d+\s*\?\s*[A-Za-z_$][\w$]*$/.test(value) ||
+  /^\$\{[^}]+\}$/.test(value) ||
+  /^\$\{[^}]+\}\s*$/.test(value) ||
+  /^\$\{[^}]+\}.*\$\{[^}]+\}$/.test(value) ||
+  /\btext-[a-z-]+\b/.test(value) ||
+  /\b(?:currentRank|candidateRank)\b/.test(value);
 const isTranslationCall = (text, index) => {
   const prefix = text.slice(Math.max(0, index - 24), index);
   return /(t|i18n\.t|posLabel|sfText|receiptPrintLabel|invoicePrintLabel)\($/.test(prefix.trim());
@@ -52,7 +66,11 @@ function shouldKeep(value) {
   if (!clean || clean.length < 3 || clean.length > 140) return false;
   if (allowed.has(clean)) return false;
   if (!hasLetters(clean)) return false;
+  if (!hasAsciiLetters(clean)) return false;
+  if (hasArabic(clean)) return false;
   if (isProbablyClassName(clean) || isProbablyUrl(clean)) return false;
+  if (isProbablyCodeFragment(clean)) return false;
+  if (isProbablyJsxNoise(clean)) return false;
   if (/^[A-Z0-9_./:-]+$/.test(clean) && clean.length < 16) return false;
   if (/^\{.*\}$/.test(clean)) return false;
   return true;
