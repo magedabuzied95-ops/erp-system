@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef } from "react";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
+import { BarcodeFormat, BrowserMultiFormatReader, DecodeHintType } from "@zxing/library";
 
 const CAMERA_PERMISSION_DENIED_MESSAGE = "تم رفض إذن الكاميرا. فعّل الكاميرا من إعدادات المتصفح ثم حاول مرة أخرى.";
 const CAMERA_UNSUPPORTED_MESSAGE = "المتصفح أو الجهاز الحالي لا يدعم مسح الباركود أو QR بالكاميرا.";
@@ -89,22 +90,53 @@ const supportedBarcodeFormats = [
   Html5QrcodeSupportedFormats.UPC_E,
 ];
 
+const zxing1dFormats = [
+  BarcodeFormat.CODE_128,
+  BarcodeFormat.CODE_39,
+  BarcodeFormat.EAN_13,
+  BarcodeFormat.EAN_8,
+  BarcodeFormat.UPC_A,
+  BarcodeFormat.UPC_E,
+];
+
+const normalizeFormatName = (value = "") => String(value || "").trim().toUpperCase();
+const formatHtml5ScanName = (result = {}) => normalizeFormatName(result?.result?.format?.formatName || result?.result?.debugData?.decoderName || "");
+const formatZxingScanName = (result = null) => {
+  if (!result?.getBarcodeFormat) return "";
+  const format = result.getBarcodeFormat();
+  return normalizeFormatName(BarcodeFormat?.[format] || format);
+};
+
 export default function BarcodeScanner({
   onScan,
   onPermissionDenied,
   onUnsupported,
   onError,
+  onDebugChange,
+  enable1dFallback = false,
   className = "",
   scannerClassName = "",
 }) {
   const scannerId = useId().replace(/:/g, "-");
   const html5QrCodeRef = useRef(null);
   const nativeVideoRef = useRef(null);
+  const zxingVideoRef = useRef(null);
   const nativeStreamRef = useRef(null);
   const nativeFrameRef = useRef(null);
+  const zxingReaderRef = useRef(null);
+  const zxingRunningRef = useRef(false);
   const detectorActiveRef = useRef(false);
   const handledRef = useRef(false);
   const startedRef = useRef(false);
+
+  const pushDebug = (payload = {}) => {
+    onDebugChange?.({
+      source: "scanner",
+      scannerId,
+      timestamp: new Date().toISOString(),
+      ...payload,
+    });
+  };
 
   useEffect(() => {
     if (!isCameraSupported()) {
@@ -123,17 +155,47 @@ export default function BarcodeScanner({
 
     let active = true;
 
-    const handleDecodedValue = async (decodedText, stopCurrentScanner) => {
+    const stopZxingScanner = async () => {
+      zxingRunningRef.current = false;
+      const reader = zxingReaderRef.current;
+      zxingReaderRef.current = null;
+      try {
+        reader?.reset?.();
+      } catch (error) {
+        console.warn("[barcode-scanner:zxing-reset-failed]", error);
+      }
+      const video = zxingVideoRef.current;
+      if (video) {
+        try {
+          video.pause?.();
+        } catch {
+          // noop
+        }
+        video.srcObject = null;
+      }
+    };
+
+    const handleDecodedValue = async (decodedText, stopCurrentScanner, metadata = {}) => {
       if (!active || handledRef.current) return;
       handledRef.current = true;
-      console.info("[employee-scanner]", String(decodedText || "").trim());
+      const scannedValue = String(decodedText || "").trim();
+      console.info("[employee-scanner]", scannedValue);
+      pushDebug({
+        stage: "decoded",
+        rawValue: scannedValue,
+        detectedFormat: normalizeFormatName(metadata.formatName || ""),
+        decoderSource: metadata.source || "",
+      });
       try {
         await stopCurrentScanner?.();
+        if (metadata.source === "zxing") {
+          await stopZxingScanner();
+        }
       } catch {
         // Ignore teardown errors during handoff.
       }
       startedRef.current = false;
-      onScan?.(String(decodedText || "").trim());
+      onScan?.(scannedValue, metadata);
     };
 
     const stopNativeScanner = async () => {
@@ -157,6 +219,7 @@ export default function BarcodeScanner({
         stream.getTracks().forEach((track) => track.stop());
       }
       nativeStreamRef.current = null;
+      await stopZxingScanner();
     };
 
     const startBarcodeDetectorScanner = async () => {
@@ -197,6 +260,7 @@ export default function BarcodeScanner({
 
       detectorActiveRef.current = true;
       startedRef.current = true;
+      pushDebug({ stage: "started", mode: "barcode-detector" });
 
       const scanFrame = async () => {
         if (!active || handledRef.current || !detectorActiveRef.current) return;
@@ -204,11 +268,19 @@ export default function BarcodeScanner({
           const barcodes = await detector.detect(video);
           const firstMatch = Array.isArray(barcodes) ? barcodes.find((item) => String(item?.rawValue || "").trim()) : null;
           if (firstMatch?.rawValue) {
-            await handleDecodedValue(firstMatch.rawValue, stopNativeScanner);
+            await handleDecodedValue(firstMatch.rawValue, stopNativeScanner, {
+              source: "barcode-detector",
+              formatName: firstMatch.format || "",
+            });
             return;
           }
         } catch (error) {
           console.warn("[barcode-scanner:barcode-detector-detect-failed]", error);
+          pushDebug({
+            stage: "error",
+            mode: "barcode-detector",
+            message: error?.message || String(error || ""),
+          });
         }
         nativeFrameRef.current = window.requestAnimationFrame(scanFrame);
       };
@@ -260,13 +332,83 @@ export default function BarcodeScanner({
             height: { ideal: 1080 },
           },
         },
-        async (decodedText) => {
-          await handleDecodedValue(decodedText, () => safeStopScanner(scanner));
+        async (decodedText, decodedResult) => {
+          await handleDecodedValue(decodedText, () => safeStopScanner(scanner), {
+            source: "html5-qrcode",
+            formatName: formatHtml5ScanName(decodedResult),
+          });
         },
         () => {}
       );
 
       startedRef.current = true;
+      pushDebug({ stage: "started", mode: "html5-qrcode" });
+
+      if (enable1dFallback) {
+        const container = typeof document !== "undefined" ? document.getElementById(scannerId) : null;
+        const renderedVideo = container?.querySelector?.("video");
+        const stream = renderedVideo?.srcObject instanceof MediaStream ? renderedVideo.srcObject : null;
+        const zxingVideo = zxingVideoRef.current;
+        if (stream && zxingVideo) {
+          try {
+            const hints = new Map();
+            hints.set(DecodeHintType.POSSIBLE_FORMATS, zxing1dFormats);
+            const reader = new BrowserMultiFormatReader(hints, 120);
+            zxingReaderRef.current = reader;
+            zxingRunningRef.current = true;
+            zxingVideo.muted = true;
+            zxingVideo.playsInline = true;
+            zxingVideo.setAttribute("playsinline", "true");
+            zxingVideo.style.display = "none";
+            pushDebug({ stage: "fallback_started", mode: "zxing-1d", enabled: true });
+            reader.decodeFromStream(stream, zxingVideo, async (result, error) => {
+              if (!active || handledRef.current || !zxingRunningRef.current) return;
+              if (result) {
+                const rawValue = String(result.getText?.() || "").trim();
+                const formatName = formatZxingScanName(result);
+                if (!rawValue) return;
+                if (formatName === "QR_CODE") {
+                  pushDebug({
+                    stage: "fallback_ignored",
+                    mode: "zxing-1d",
+                    rawValue,
+                    detectedFormat: formatName,
+                  });
+                  return;
+                }
+                await handleDecodedValue(rawValue, stopZxingScanner, {
+                  source: "zxing",
+                  formatName,
+                });
+                return;
+              }
+              if (error) {
+                pushDebug({
+                  stage: "fallback_error",
+                  mode: "zxing-1d",
+                  message: error?.message || String(error || ""),
+                });
+              }
+            }).catch((error) => {
+              console.warn("[barcode-scanner:zxing-fallback-start-failed]", error);
+              pushDebug({
+                stage: "fallback_error",
+                mode: "zxing-1d",
+                message: error?.message || String(error || ""),
+              });
+            });
+          } catch (error) {
+            console.warn("[barcode-scanner:zxing-fallback-failed]", error);
+            pushDebug({
+              stage: "fallback_error",
+              mode: "zxing-1d",
+              message: error?.message || String(error || ""),
+            });
+          }
+        } else {
+          pushDebug({ stage: "fallback_unavailable", mode: "zxing-1d" });
+        }
+      }
     };
 
     const startScanner = async () => {
@@ -285,7 +427,7 @@ export default function BarcodeScanner({
         }
         console.log("[SCANNER_INIT_START]");
         try {
-          if (hasBarcodeDetectorSupport()) {
+          if (!enable1dFallback && hasBarcodeDetectorSupport()) {
             console.log("[SCANNER_MODE]", { mode: "barcode-detector" });
             const startedWithDetector = await startBarcodeDetectorScanner();
             if (startedWithDetector) return;
@@ -347,13 +489,20 @@ export default function BarcodeScanner({
         safeClearScanner(scanner);
       });
     };
-  }, [onError, onPermissionDenied, onScan, onUnsupported, scannerId]);
+  }, [enable1dFallback, onDebugChange, onError, onPermissionDenied, onScan, onUnsupported, scannerId]);
 
   return (
     <div className={className}>
       <video
         ref={nativeVideoRef}
         className={`${scannerClassName} hidden`}
+        autoPlay
+        muted
+        playsInline
+      />
+      <video
+        ref={zxingVideoRef}
+        className="hidden"
         autoPlay
         muted
         playsInline

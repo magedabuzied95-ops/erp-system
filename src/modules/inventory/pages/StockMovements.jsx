@@ -254,7 +254,7 @@ function StockMovements() {
         groups.set(key, {
           key,
           product_id: movement.product_id ?? movement.productId ?? null,
-          product_name: normalizeText(movement.product_name || "Unknown product"),
+          product_name: normalizeText(movement.product_name || "منتج غير معروف"),
           product_code: normalizeText(movement.product_code || movement.product_sku || movement.sku || movement.variant_article_code || ""),
           product_grade: normalizeText(movement.product_grade || ""),
           category_name: normalizeText(movement.category_name || ""),

@@ -1272,6 +1272,7 @@ const buildProductSearchClause = ({ values, search }) => {
     "p.name",
     "p.sku",
     "p.barcode",
+    "p.qr_token",
   ];
   const variantFields = [
     "sv.sku",

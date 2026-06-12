@@ -21,7 +21,7 @@ function RegisterCompany() {
 
   const submit = async () => {
     if (!companyName.trim() || !ownerEmail.trim() || !password.trim()) {
-      toast.error("Company, owner email, and password are required");
+      toast.error("اسم الشركة والبريد الإلكتروني وكلمة المرور مطلوبة");
       return;
     }
 
@@ -76,7 +76,7 @@ function RegisterCompany() {
           company_name: tenant.companyName,
         },
       });
-      toast.success("Company workspace created");
+      toast.success("تم إنشاء مساحة العمل للشركة");
       navigate("/workspace");
       setLoading(false);
     }
@@ -84,36 +84,36 @@ function RegisterCompany() {
 
   return (
     <SaaSShell
-      title="Register Company"
-      subtitle="Create a tenant workspace, owner account, and subscription baseline. If the backend is unavailable, the workspace is stored locally and the user is signed in to that tenant."
+      title="تسجيل شركة"
+      subtitle="أنشئ مساحة عمل للشركة وحساب المالك وبداية الاشتراك. إذا تعذر الاتصال بالخادم، سيتم حفظ المساحة محليًا وتسجيل الدخول عليها."
       actions={
         <Link to="/login" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
-          Login
+          تسجيل الدخول
         </Link>
       }
       tabs={[
-        { to: "/register-company", label: "Register", end: true },
-        { to: "/workspace", label: "Workspace" },
-        { to: "/billing", label: "Billing" },
+        { to: "/register-company", label: "تسجيل" , end: true },
+        { to: "/workspace", label: "مساحة العمل" },
+        { to: "/billing", label: "الفوترة" },
       ]}
     >
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-          <h3 className="text-xl font-black text-white">Company profile</h3>
+          <h3 className="text-xl font-black text-white">بيانات الشركة</h3>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <Field label="Company name" value={companyName} onChange={setCompanyName} placeholder="Acme Retail" />
-            <Field label="Owner name" value={ownerName} onChange={setOwnerName} placeholder="Owner full name" />
-            <Field label="Owner email" value={ownerEmail} onChange={setOwnerEmail} placeholder="owner@company.com" />
-            <Field label="Workspace slug" value={workspaceSlug} onChange={setWorkspaceSlug} placeholder="acme-retail" />
+            <Field label="اسم الشركة" value={companyName} onChange={setCompanyName} placeholder="Acme Retail" />
+            <Field label="اسم المالك" value={ownerName} onChange={setOwnerName} placeholder="الاسم الكامل للمالك" />
+            <Field label="بريد المالك" value={ownerEmail} onChange={setOwnerEmail} placeholder="owner@company.com" />
+            <Field label="معرّف مساحة العمل" value={workspaceSlug} onChange={setWorkspaceSlug} placeholder="acme-retail" />
           </div>
           <label className="mt-4 block">
-            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Password</div>
+            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">كلمة المرور</div>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
-              placeholder="Owner password"
+              placeholder="كلمة مرور المالك"
             />
           </label>
           <div className="mt-5 flex flex-wrap gap-2">

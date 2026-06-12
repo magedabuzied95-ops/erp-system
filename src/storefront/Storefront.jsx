@@ -83,7 +83,7 @@ const LazyStorefrontVisualSearchResults = lazy(() => import("./components/Storef
 const LazyStorefrontProductGallery = lazy(() => import("./components/StorefrontProductGallery"));
 const LazyStorefrontCartPage = lazy(() => import("./pages/StorefrontAsyncPages").then((module) => ({ default: module.CartPageRoute })));
 const LazyStorefrontTrackOrderPage = lazy(() => import("./pages/StorefrontAsyncPages").then((module) => ({ default: module.TrackOrderPage })));
-const LazyStorefrontAccountPage = lazy(() => import("./pages/StorefrontAsyncPages").then((module) => ({ default: module.AccountPageRoute })));
+const LazyStorefrontAccountPage = lazy(() => import("./pages/StorefrontAccountPage.jsx").then((module) => ({ default: module.StorefrontAccountPage })));
 const LazyStorefrontWishlistPage = lazy(() => import("./pages/StorefrontAsyncPages").then((module) => ({ default: module.WishlistPageRoute })));
 const LazyStorefrontRecentPage = lazy(() => import("./pages/StorefrontAsyncPages").then((module) => ({ default: module.RecentPageRoute })));
 
@@ -370,7 +370,7 @@ const DEFAULT_STOREFRONT_PAYMENT_SETTINGS = {
 const getPaymentMethods = (paymentSettings = DEFAULT_STOREFRONT_PAYMENT_SETTINGS) => [
   {
     id: "cod",
-    title: sfText("storefront.checkout.payment.cod.title", "Cash on delivery"),
+    title: sfText("storefront.checkout.payment.cod.title", "الدفع عند الاستلام"),
     text: sfText("storefront.checkout.payment.cod.text", "Pay the full order amount when you receive it."),
   },
   {
@@ -2435,11 +2435,11 @@ function Storefront() {
   const storefrontSplashTimerRef = useRef(null);
   const handleStorefrontAddToCart = useCallback((product, variant, quantity = 1, options = {}) => {
     if (!variant || Number(variant.stock || 0) <= 0) {
-      toast.error(sfText("storefront.toasts.variantUnavailable", "This size or color is currently unavailable."));
+      toast.error(sfText("storefront.toasts.variantUnavailable", "هذا المقاس أو اللون غير متاح حاليًا."));
       return "unavailable";
     }
     if (!(displaySellingPrice(product, variant) > 0)) {
-      toast.error(sfText("storefront.toasts.priceUnavailable", "The price is currently unavailable."));
+      toast.error(sfText("storefront.toasts.priceUnavailable", "السعر غير متاح حاليًا."));
       return "unavailable";
     }
     const cartItem = buildCartItem(product, variant, quantity);
@@ -3133,7 +3133,7 @@ function CustomerCaptureSheet({ open, reason = "add_to_cart", initialName = "", 
             </div>
           </label>
           <label className="block">
-            <span className="mb-2 block text-xs font-black text-white/58">{t("storefront.form.mobileNumber", "Mobile number")}</span>
+            <span className="mb-2 block text-xs font-black text-white/58">{t("storefront.form.mobileNumber", "رقم الهاتف")}</span>
             <div className="flex min-h-[54px] items-center gap-3 rounded-2xl border border-white/12 bg-white/[0.075] px-4 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition focus-within:border-violet-300/40 focus-within:bg-white/[0.095]">
               <Phone className="h-4 w-4 shrink-0 text-violet-100/80" />
               <input value={phone} onChange={(event) => setPhone(event.target.value)} autoComplete="tel" inputMode="tel" dir="ltr" className="min-w-0 flex-1 bg-transparent text-right text-base font-bold text-white outline-none placeholder:text-white/32" placeholder="01xxxxxxxxx" />
@@ -3191,22 +3191,22 @@ const Header = memo(function Header({ cartCount, wishlistCount, onCart, onAddToC
       : t("storefront.header.languageEnglish", "English");
   const searchPlaceholders = getSearchPlaceholders();
   const announcementItems = [
-    { label: t("storefront.header.announcements.fastShipping", "Fast shipping in Egypt"), icon: <Truck className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.announcements.fastShipping", "شحن سريع داخل مصر"), icon: <Truck className="h-3.5 w-3.5" /> },
     { label: t("storefront.header.announcements.exchange", "14-day exchange"), icon: <RefreshCcw className="h-3.5 w-3.5" /> },
-    { label: t("storefront.header.announcements.cod", "Cash on delivery"), icon: <PackageCheck className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.announcements.cod", "الدفع عند الاستلام"), icon: <PackageCheck className="h-3.5 w-3.5" /> },
     { label: t("storefront.header.announcements.premium", "Mirror Premium products"), icon: <Sparkles className="h-3.5 w-3.5" /> },
-    { label: t("storefront.header.announcements.todayDeals", "Today deals"), icon: <BadgePercent className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.announcements.todayDeals", "عروض اليوم"), icon: <BadgePercent className="h-3.5 w-3.5" /> },
   ];
   const utilityItems = [
-    { label: "WhatsApp", to: "https://wa.me/", icon: <MessageCircle className="h-3.5 w-3.5" />, external: true },
-    { label: t("storefront.header.trackOrder", "Track Order"), to: "/shop/track", icon: <PackageSearch className="h-3.5 w-3.5" /> },
-    { label: t("storefront.header.wishlist", "Wishlist"), to: "/shop/wishlist", icon: <Heart className="h-3.5 w-3.5" /> },
-    { label: t("storefront.header.account", "Account"), to: "/shop/account", icon: <User className="h-3.5 w-3.5" /> },
+    { label: "واتساب", to: "https://wa.me/", icon: <MessageCircle className="h-3.5 w-3.5" />, external: true },
+    { label: t("storefront.header.trackOrder", "تتبع الطلب"), to: "/shop/track", icon: <PackageSearch className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.wishlist", "المفضلة"), to: "/shop/wishlist", icon: <Heart className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.account", "الحساب"), to: "/shop/account", icon: <User className="h-3.5 w-3.5" /> },
   ];
   const navItems = [
     [t("storefront.nav.categories", "Categories"), "/shop/products"],
     [t("storefront.nav.sale", "Sale"), "/shop/sale"],
-    [t("storefront.nav.new", "New"), "/shop/products?sort=new"],
+    [t("storefront.nav.new", "الجديد"), "/shop/products?sort=new"],
     [t("storefront.nav.men", "Men"), "/shop/products?q=رجالي"],
     [t("storefront.nav.women", "Women"), "/shop/products?q=حريمي"],
     [t("storefront.nav.kids", "Kids"), "/shop/products?q=أطفال"],
@@ -3554,10 +3554,10 @@ const Header = memo(function Header({ cartCount, wishlistCount, onCart, onAddToC
           >
             {themeIsDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </button>
-          <HeaderAction to="/shop/wishlist" label={t("storefront.header.wishlist", "Wishlist")} count={wishlistCount} icon={<Heart className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
-          <HeaderAction to="/shop/account" label={t("storefront.header.account", "Account")} icon={<User className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
+          <HeaderAction to="/shop/wishlist" label={t("storefront.header.wishlist", "المفضلة")} count={wishlistCount} icon={<Heart className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
+          <HeaderAction to="/shop/account" label={t("storefront.header.account", "الحساب")} icon={<User className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
           <div className="sf-secondary-action relative hidden md:block">
-            <button onClick={toggleNotifications} className="sf-header-action" aria-label={t("storefront.header.notifications", "Notifications")}>
+            <button onClick={toggleNotifications} className="sf-header-action" aria-label={t("storefront.header.notifications", "الإشعارات")}>
               <Bell className="h-5 w-5" />
             </button>
           {notificationsOpen ? (
@@ -3616,7 +3616,7 @@ const Header = memo(function Header({ cartCount, wishlistCount, onCart, onAddToC
       />
       {menuOpen ? (
         <div className="grid gap-2 border-t border-stone-200 bg-white/96 px-4 py-4 text-sm font-bold backdrop-blur dark:border-white/10 dark:bg-[#0b1020]/96 md:hidden">
-          {[t("storefront.nav.home", "Home"), t("storefront.nav.categories", "Categories"), t("storefront.nav.sale", "Sale"), t("storefront.nav.new", "New"), t("storefront.nav.men", "Men"), t("storefront.nav.women", "Women"), t("storefront.nav.sizeGuide", "Size guide"), t("storefront.nav.returns", "Returns policy")].map((label, index) => (
+          {[t("storefront.nav.home", "الرئيسية"), t("storefront.nav.categories", "الأقسام"), t("storefront.nav.sale", "العروض"), t("storefront.nav.new", "الجديد"), t("storefront.nav.men", "رجالي"), t("storefront.nav.women", "نسائي"), t("storefront.nav.sizeGuide", "دليل المقاسات"), t("storefront.nav.returns", "سياسة الاستبدال")].map((label, index) => (
             <Link key={label} to={["/shop", "/shop/products", "/shop/sale", "/shop/products?sort=new", "/shop/products?q=رجالي", "/shop/products?q=حريمي", "/shop/size-guide", "/shop/returns"][index]} onClick={() => setMenuOpen(false)} className="rounded-2xl px-3 py-3 transition hover:bg-stone-100 dark:hover:bg-white/5 active:scale-[0.98]">
               {label}
             </Link>
@@ -3751,7 +3751,7 @@ function PremiumSearch({
         type="button"
         onClick={onClose}
         className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-full border border-stone-200 bg-white text-stone-600 shadow-sm transition hover:bg-stone-950 hover:text-white dark:border-white/10 dark:bg-white/8 dark:text-white/72 dark:hover:bg-white/14"
-        aria-label={t("storefront.search.close", "Close search")}
+        aria-label={t("storefront.search.close", "إغلاق البحث")}
       >
         <X className="h-4 w-4" />
       </button>
@@ -3773,7 +3773,7 @@ function PremiumSearch({
     if (!mobileOpen) return null;
     return createPortal(
       <div className="sf-mobile-search-overlay fixed inset-0 z-[2147483000] overflow-hidden bg-[#030712] text-white md:hidden" dir="rtl" role="dialog" aria-modal="true">
-        <button type="button" onClick={onClose} className="sf-mobile-search-backdrop absolute inset-0 cursor-default" aria-label={t("storefront.search.close", "Close search")} />
+        <button type="button" onClick={onClose} className="sf-mobile-search-backdrop absolute inset-0 cursor-default" aria-label={t("storefront.search.close", "إغلاق البحث")} />
         <div className="sf-mobile-search-panel relative mx-auto flex h-dvh max-w-xl flex-col overflow-hidden px-4 pb-0 pt-[calc(1rem+env(safe-area-inset-top))]">
           <div className="sf-mobile-search-head sticky top-0 z-10 flex shrink-0 items-center gap-2 pb-4">
             <div className="min-w-0 flex-1">{searchInput}</div>
@@ -3792,7 +3792,7 @@ function PremiumSearch({
 
   return (
     <div className={`relative w-full max-w-[520px] justify-self-center transition-all duration-300 ${open ? "max-w-[640px]" : ""} ${className}`}>
-      {open ? <button type="button" onClick={onClose} className="fixed inset-0 z-40 hidden bg-stone-950/24 backdrop-blur-[2px] md:block" aria-label={t("storefront.search.close", "Close search")} /> : null}
+      {open ? <button type="button" onClick={onClose} className="fixed inset-0 z-40 hidden bg-stone-950/24 backdrop-blur-[2px] md:block" aria-label={t("storefront.search.close", "إغلاق البحث")} /> : null}
       <div className="relative z-50">
         {searchInput}
         {open ? <div className="absolute left-0 right-0 top-full mt-3 animate-[sfFadeUp_180ms_ease-out_both]">{resultsPanel}</div> : null}
@@ -5121,7 +5121,7 @@ function HomePage(props) {
       <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "العروض" : t("storefront.nav.sale", "Offers")} subtitle={normalizeLanguage(lang) === "ar" ? "خصومات وموديلات بسعر أفضل لفترة محدودة." : t("storefront.home.saleSubtitle", "Selected discounts for a limited time")} viewAllTo="/shop/products?sale=true" loading={saleLoading && !homeSections.sale.length} products={homeSections.sale} railType="sale" tone="sale" {...props} />
       <HomeFlowSeparator label="Adidas edit" />
       <BrandPromoBanner definition={brandHomeBanners[2]} products={homepageProductPool} />
-      <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "آخر المقاسات" : t("storefront.home.lastSizes", "Last Sizes")} subtitle={normalizeLanguage(lang) === "ar" ? "اختيارات محدودة قبل ما تخلص من المخزون." : t("storefront.home.lastSizesSubtitle", "Low-stock pairs before they disappear")} viewAllTo="/shop/products?lastSizes=true" loading={loading || storefrontHome.loading} products={homeSections.lastSizes} railType="last-size" tone="last" {...props} />
+      <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "آخر المقاسات" : t("storefront.home.lastSizes", "آخر المقاسات")} subtitle={normalizeLanguage(lang) === "ar" ? "اختيارات محدودة قبل نفاد المخزون." : t("storefront.home.lastSizesSubtitle", "أزواج منخفضة المخزون قبل نفادها")} viewAllTo="/shop/products?lastSizes=true" loading={loading || storefrontHome.loading} products={homeSections.lastSizes} railType="last-size" tone="last" {...props} />
       <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "الأكثر مشاهدة" : "Trending"} subtitle={normalizeLanguage(lang) === "ar" ? "موديلات رائجة ومختارة من أحدث المنتجات المتاحة." : "Popular picks, with newest products as fallback."} viewAllTo="/shop/products?sort=trending" loading={loading || storefrontHome.loading} products={homeSections.trending} railType="trending" tone="trending" {...props} />
       <Reviews />
       <HomeBrandsSection />
@@ -5448,7 +5448,7 @@ function LastPieceFinder({ open, onClose }) {
                   );
                 })()
               ))}
-              {!loading && !displayedProducts.length ? <LastPieceEmpty text="No critical low-stock products right now" /> : null}
+              {!loading && !displayedProducts.length ? <LastPieceEmpty text="لا توجد منتجات حرجة منخفضة المخزون الآن" /> : null}
             </div>
           ) : null}
         </div>
@@ -5694,12 +5694,12 @@ function GuidedSizeFilter({ sizes = [], selectedSize, onSelect, disabled }) {
     <div className={`mb-2.5 rounded-[0.9rem] border border-stone-200 bg-white p-2 shadow-[0_10px_24px_rgba(39,20,75,0.05)] dark:border-white/10 dark:bg-[#0b1020] md:mb-4 md:rounded-[1.35rem] md:p-3 ${disabled ? "opacity-55" : ""}`}>
       <div className="mb-1.5 flex items-center justify-between gap-2 md:mb-2 md:gap-3">
         <div>
-          <p className="text-[8.5px] font-black uppercase tracking-[0.14em] text-[#7c3aed] md:text-[10px] md:tracking-[0.18em]">{t("storefront.filters.sizeFilter", "Size Filter")}</p>
-          <h3 className="text-xs font-black md:text-sm">{t("storefront.filters.availableSize", "Available size filter")}</h3>
+          <p className="text-[8.5px] font-black uppercase tracking-[0.14em] text-[#7c3aed] md:text-[10px] md:tracking-[0.18em]">{t("storefront.filters.sizeFilter", "فلتر المقاسات")}</p>
+          <h3 className="text-xs font-black md:text-sm">{t("storefront.filters.availableSize", "المقاسات المتاحة")}</h3>
         </div>
         {selectedSize ? (
           <button type="button" onClick={() => onSelect("")} className="rounded-full bg-stone-100 px-2 py-1 text-[10.5px] font-black text-stone-600 transition hover:bg-stone-950 hover:text-white dark:bg-white/8 dark:text-stone-200 md:px-3 md:py-1.5 md:text-xs">
-            {t("storefront.filters.showAllSizes", "Show all sizes")}
+            {t("storefront.filters.showAllSizes", "عرض كل المقاسات")}
           </button>
         ) : null}
       </div>
@@ -5731,7 +5731,7 @@ function GuidedSizeFilter({ sizes = [], selectedSize, onSelect, disabled }) {
             </button>
           );
         })}
-        {!sizes.length ? <span className="rounded-full border border-dashed border-stone-200 px-2.5 py-1.5 text-[10.5px] font-bold text-stone-400 dark:border-white/10 md:px-4 md:py-2 md:text-xs">{t("storefront.filters.sizesAppearAfterType", "Sizes will appear after choosing product type")}</span> : null}
+        {!sizes.length ? <span className="rounded-full border border-dashed border-stone-200 px-2.5 py-1.5 text-[10.5px] font-bold text-stone-400 dark:border-white/10 md:px-4 md:py-2 md:text-xs">{t("storefront.filters.sizesAppearAfterType", "ستظهر المقاسات بعد اختيار نوع المنتج")}</span> : null}
       </div>
     </div>
   );
@@ -6207,7 +6207,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           {rank && railType === "bestseller" && rank <= 3 ? <span className="inline-flex h-6 items-center rounded-full bg-stone-950/92 px-2.5 text-[9px] font-black leading-none text-white shadow-[0_10px_22px_rgba(0,0,0,0.20)] backdrop-blur md:h-7 md:px-3 md:text-[10px] dark:bg-white dark:text-stone-950">TOP {rank}</span> : null}
           {discountPercent ? <span className="inline-flex h-6 items-center rounded-full border border-[#7c3aed]/15 bg-white/95 px-2.5 text-[9px] font-black leading-none text-[#6d28d9] shadow-[0_10px_22px_rgba(39,20,75,0.10)] backdrop-blur md:h-7 md:px-3 md:text-[10px] dark:border-white/10 dark:bg-[#0b1020] dark:text-[#d8b4fe]">-{discountPercent}%</span> : null}
         </div>
-        <button onClick={(event) => { event.stopPropagation(); handleWishlist(); }} className="absolute left-2 top-2 z-20 rounded-full bg-white/95 p-1.5 shadow-sm ring-1 ring-stone-200/70 transition duration-200 hover:text-rose-500 active:scale-95 md:left-2.5 md:top-2.5 md:p-1.5 dark:bg-white/5 dark:text-stone-100 dark:ring-white/10" aria-label={t("storefront.header.wishlist", "Wishlist")}>
+        <button onClick={(event) => { event.stopPropagation(); handleWishlist(); }} className="absolute left-2 top-2 z-20 rounded-full bg-white/95 p-1.5 shadow-sm ring-1 ring-stone-200/70 transition duration-200 hover:text-rose-500 active:scale-95 md:left-2.5 md:top-2.5 md:p-1.5 dark:bg-white/5 dark:text-stone-100 dark:ring-white/10" aria-label={t("storefront.header.wishlist", "المفضلة")}>
           <Heart className={`h-3.5 w-3.5 transition md:h-5 md:w-5 ${inWishlist ? "animate-[wishlist-pop_320ms_ease-out] fill-rose-500 text-rose-500" : "text-stone-700 dark:text-stone-200"}`} />
         </button>
         <button
@@ -6226,7 +6226,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
             className="sf-shimmer-button hidden min-h-10 min-w-[8.75rem] transform-gpu items-center justify-center gap-1.5 rounded-full border border-white/20 bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 px-4 py-2.5 text-[11px] font-black text-white shadow-[0_10px_22px_rgba(124,58,237,0.26)] backdrop-blur transition-[transform,box-shadow,filter] duration-200 ease-out hover:brightness-105 hover:shadow-[0_14px_32px_rgba(124,58,237,0.36)] active:scale-[0.96] disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100 md:inline-flex md:min-h-11 md:min-w-[9.25rem] md:px-4"
           >
             <ShoppingCart className="h-4 w-4" />
-            {canQuickAdd ? t("storefront.cart.quickAdd", "Quick add") : t("storefront.products.unavailable", "Unavailable")}
+            {canQuickAdd ? t("storefront.cart.quickAdd", "إضافة سريعة") : t("storefront.products.unavailable", "غير متوفر")}
           </button>
         </div>
           {product.low_stock ? <span className="absolute bottom-2 right-2 z-20 inline-flex h-5 items-center rounded-full border border-amber-200 bg-amber-50/95 px-2 text-[9px] font-black leading-none text-amber-800 shadow-sm backdrop-blur md:bottom-auto md:left-12 md:right-auto md:top-2.5 md:h-6 md:px-2.5 md:text-[10px] dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100">{t("storefront.products.onlyLeft", "{{count}} left", { count: product.total_stock })}</span> : null}
@@ -6276,7 +6276,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
             <span dir="ltr" className="inline-flex h-6 shrink-0 items-center justify-center rounded-full border border-stone-200/80 bg-white/[0.58] px-2 text-[9px] font-black leading-none text-stone-400 opacity-80 md:text-[10px] dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-500">+{extraSizeCount}</span>
           ) : null}
           {!visibleSizes.length ? (
-            <span className="inline-flex h-6 shrink-0 items-center rounded-full border border-stone-200 bg-white/[0.58] px-2 text-[9px] font-bold leading-none text-stone-400 md:text-[10px] dark:border-white/10 dark:bg-white/5 dark:text-stone-500">{t("storefront.products.oneSize", "One size")}</span>
+            <span className="inline-flex h-6 shrink-0 items-center rounded-full border border-stone-200 bg-white/[0.58] px-2 text-[9px] font-bold leading-none text-stone-400 md:text-[10px] dark:border-white/10 dark:bg-white/5 dark:text-stone-500">{t("storefront.products.oneSize", "مقاس واحد")}</span>
           ) : null}
         </div>
       </div>
@@ -6440,13 +6440,13 @@ function ProductCardVariantSheet({
                   disabled={!variantHasStock(variant)}
                   className={`h-10 rounded-xl border text-xs font-black transition ${active ? "border-[#d8b4fe]/70 bg-white text-stone-950" : "border-white/10 bg-white/6 text-white/75"} disabled:cursor-not-allowed disabled:opacity-35 disabled:line-through`}
                 >
-                  {size || t("storefront.products.oneSize", "One size")}
+                  {size || t("storefront.products.oneSize", "مقاس واحد")}
                 </button>
               );
             })}
             {!sizeOptions.length ? (
               <div className="col-span-4 rounded-xl border border-white/10 bg-white/5 p-3 text-center text-xs font-bold text-white/45">
-                {t("storefront.products.unavailable", "Unavailable")}
+                {t("storefront.products.unavailable", "غير متوفر")}
               </div>
             ) : null}
           </div>
@@ -6468,7 +6468,7 @@ function ProductCardVariantSheet({
           className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-l from-[#7c3aed] to-[#111827] text-sm font-black text-white shadow-[0_14px_34px_rgba(124,58,237,0.32)] disabled:cursor-not-allowed disabled:opacity-45"
         >
           <ShoppingCart className="h-4 w-4" />
-          {t("storefront.cart.addToCart", "Add to cart")}
+          {t("storefront.cart.addToCart", "أضف إلى السلة")}
         </button>
       </section>
     </div>,
@@ -6530,7 +6530,7 @@ function RelatedProducts({ currentId, ...props }) {
     <div className="mt-5 border-t border-white/[0.06] pt-5">
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-black text-stone-950 dark:text-white">{sfText("storefront.products.similarProducts", "Similar products")}</h2>
+          <h2 className="text-xl font-black text-stone-950 dark:text-white">{sfText("storefront.products.similarProducts", "منتجات مشابهة")}</h2>
           <p className="mt-1 text-xs font-bold text-stone-500 dark:text-white/55">{sfText("storefront.products.youMayAlsoLike", "You may also like")}</p>
         </div>
         <Link to="/shop/products" className="rounded-full border border-stone-200 bg-white/70 px-3 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:border-stone-950 dark:border-white/10 dark:bg-white/[0.055] dark:text-white/70 dark:hover:border-white/25 dark:hover:text-white">{sfText("storefront.common.viewAll", "View all")}</Link>
@@ -6552,8 +6552,8 @@ function RecentProductsSection({ currentId, recent = [] }) {
     <div className="mt-5 rounded-[1.25rem] border border-stone-200 bg-white/70 p-4 shadow-[0_14px_38px_rgba(39,20,75,0.05)] dark:border-white/[0.08] dark:bg-white/[0.04] dark:shadow-[0_20px_50px_rgba(0,0,0,0.20)]">
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-black text-stone-950 dark:text-white">{sfText("storefront.account.recentlyViewed", "Recently viewed")}</h2>
-          <p className="mt-1 text-xs font-bold text-stone-500 dark:text-white/55">{sfText("storefront.account.recentEmpty", "Recently viewed products will appear here")}</p>
+          <h2 className="text-xl font-black text-stone-950 dark:text-white">{sfText("storefront.account.recentlyViewed", "شوهد مؤخرًا")}</h2>
+          <p className="mt-1 text-xs font-bold text-stone-500 dark:text-white/55">{sfText("storefront.account.recentEmpty", "ستظهر المنتجات التي شاهدتها مؤخرًا هنا")}</p>
         </div>
         <Link to="/shop/recently-viewed" className="rounded-full border border-stone-200 bg-stone-100 px-3 py-2 text-xs font-black text-stone-700 dark:border-white/10 dark:bg-white/[0.055] dark:text-white/70">{sfText("storefront.common.viewAll", "View all")}</Link>
       </div>
@@ -7430,7 +7430,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
 
     if (step === 1) {
       if (!form.full_name.trim()) next.full_name = sfText("storefront.validation.fullNameRequired", "Enter your full name");
-      if (!phone) next.primary_phone = sfText("storefront.validation.phoneRequired", "Mobile number is required");
+      if (!phone) next.primary_phone = sfText("storefront.validation.phoneRequired", "رقم الهاتف مطلوب");
       else if (!/^01[0125][0-9]{8}$/.test(phone)) next.primary_phone = sfText("storefront.validation.invalidEgyptPhone", "Enter a valid Egyptian mobile number, example 01012345678");
     }
 
@@ -7446,7 +7446,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
 
     if (step === 3) {
       if (!form.payment_method) next.payment_method = sfText("storefront.validation.paymentMethodRequired", "Choose a payment method");
-      if (normalizeCheckoutPaymentMethod(form.payment_method) === "cod" && !codAvailable) next.payment_method = sfText("storefront.validation.codUnavailable", "Cash on delivery is not available for this customer");
+      if (normalizeCheckoutPaymentMethod(form.payment_method) === "cod" && !codAvailable) next.payment_method = sfText("storefront.validation.codUnavailable", "الدفع عند الاستلام غير متاح لهذا العميل");
       if (shippingProofRequired && !shippingPaymentFile) {
         next.shipping_payment_screenshot = sfText("storefront.validation.transferProofRequired", "Upload the transfer proof image to confirm the order");
       }
@@ -7661,35 +7661,35 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       const backendMessage = error?.responseBody?.message || error?.message;
       const couponReason = error?.responseBody?.details?.coupon?.reason || error?.responseBody?.coupon?.reason || backendMessage;
       const field = String(error?.responseBody?.field || "").toLowerCase();
-      toast.error(field === "coupon_code" ? couponErrorText(couponReason) : (backendMessage || sfText("storefront.toasts.checkoutFailed", "Something went wrong. Try again or contact us on WhatsApp.")));
+      toast.error(field === "coupon_code" ? couponErrorText(couponReason) : (backendMessage || sfText("storefront.toasts.checkoutFailed", "حدثت مشكلة. جرّب مرة أخرى أو تواصل معنا على واتساب.")));
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (!cart.length) return <EmptyState title={sfText("storefront.checkout.emptyCartTitle", "Your cart is empty")} text={sfText("storefront.checkout.emptyCartText", "Choose a product first, then continue checkout")} />;
+  if (!cart.length) return <EmptyState title={sfText("storefront.checkout.emptyCartTitle", "سلتك فارغة")} text={sfText("storefront.checkout.emptyCartText", "اختر منتجًا أولًا ثم أكمِل عملية الدفع")} />;
 
   return (
     <section className="sf-checkout-shell sf-checkout-page mx-auto max-w-7xl overflow-x-hidden px-4 pt-4 md:pt-7" data-theme={themeMode}>
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="sf-checkout-eyebrow text-sm font-black text-[#c4b5fd]">{sfText("storefront.checkout.eyebrow", "Checkout")}</p>
-          <h1 className="sf-checkout-title text-3xl font-black text-white md:text-4xl">{sfText("storefront.checkout.title", "Complete order")}</h1>
-          <p className="sf-checkout-subtitle mt-2 text-sm font-bold text-white/62">{sfText("storefront.checkout.subtitle", "Clear details, fast confirmation, and your order moves straight to preparation.")}</p>
+          <p className="sf-checkout-eyebrow text-sm font-black text-[#c4b5fd]">{sfText("storefront.checkout.eyebrow", "الدفع")}</p>
+          <h1 className="sf-checkout-title text-3xl font-black text-white md:text-4xl">{sfText("storefront.checkout.title", "إتمام الطلب")}</h1>
+          <p className="sf-checkout-subtitle mt-2 text-sm font-bold text-white/62">{sfText("storefront.checkout.subtitle", "بيانات واضحة وتأكيد سريع، ثم ينتقل طلبك مباشرة إلى التجهيز.")}</p>
         </div>
         <TrustPills compact />
       </div>
       <CheckoutProgress currentStep={checkoutStep} onStepChange={goToCheckoutStep} />
       <form id="storefront-checkout-form" noValidate onSubmit={submit} className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_390px]">
         <div className="min-w-0 space-y-3">
-          {checkoutStep === 1 ? <CheckoutSection number="1" title={sfText("storefront.checkout.sections.customer", "Customer details")}>
+          {checkoutStep === 1 ? <CheckoutSection number="1" title={sfText("storefront.checkout.sections.customer", "بيانات العميل")}>
             <div className="grid gap-2.5 md:grid-cols-2">
               <Field label={sfText("storefront.form.fullName", "Full name")} placeholder={sfText("storefront.form.fullNamePlaceholder", "Enter your full name")} value={form.full_name} onChange={(v) => setField("full_name", v)} required error={errors.full_name} />
               <Field label={sfText("storefront.form.primaryPhone", "Primary mobile number")} placeholder="01012345678" value={form.primary_phone} onChange={(v) => setField("primary_phone", v)} required error={errors.primary_phone} inputMode="tel" />
               <Field label={sfText("storefront.form.secondaryPhone", "Optional alternate number")} placeholder={sfText("storefront.form.secondaryPhonePlaceholder", "Alternative contact number")} value={form.secondary_phone} onChange={(v) => setField("secondary_phone", v)} inputMode="tel" />
             </div>
           </CheckoutSection> : null}
-          {checkoutStep === 2 ? <CheckoutSection number="2" title={sfText("storefront.checkout.sections.address", "Delivery address")} note={sfText("storefront.checkout.addressNote", "Write the full address so the courier can reach you quickly")}>
+          {checkoutStep === 2 ? <CheckoutSection number="2" title={sfText("storefront.checkout.sections.address", "عنوان التسليم")} note={sfText("storefront.checkout.addressNote", "اكتب العنوان الكامل حتى يصل إليك المندوب بسرعة")}>
             {latestAddressApplied ? (
               <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black leading-5 text-emerald-100">
                 <span>{sfText("storefront.checkout.latestAddressApplied", "We used your latest saved shipping address. You can edit it.")}</span>
@@ -7773,7 +7773,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
             </div>
           </CheckoutSection> : null}
           {checkoutStep === 3 ? (
-            <CheckoutSection number="3" title={sfText("storefront.checkout.sections.payment", "Payment method")}>
+            <CheckoutSection number="3" title={sfText("storefront.checkout.sections.payment", "طريقة الدفع")}>
               <div className="checkout-payment-clean mx-auto w-full max-w-[680px]">
                 {isShippingConfirmation ? (
                   <div className="grid gap-3">
@@ -7921,7 +7921,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                               }}
                               className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm font-black text-white/85 transition hover:bg-white/[0.08]"
                             >
-                              {sfText("storefront.checkout.removeCoupon", "Remove coupon")}
+                              {sfText("storefront.checkout.removeCoupon", "إزالة الكوبون")}
                             </button>
                           ) : null}
                         </div>
@@ -7971,7 +7971,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       </form>
       <div className="sf-checkout-sticky-actions fixed left-0 right-0 p-3 md:hidden">
         <div className="mx-auto flex max-w-lg items-center gap-3">
-          <button type="button" onClick={() => setSummaryOpen((value) => !value)} className="sf-checkout-total-chip min-h-13 flex-1 rounded-full px-4 py-3 text-right text-sm font-black">{isFinalCheckoutStep ? sfText("storefront.checkout.total", "Total") : sfText("storefront.checkout.orderSummary", "Order summary")}: {money(total)}</button>
+          <button type="button" onClick={() => setSummaryOpen((value) => !value)} className="sf-checkout-total-chip min-h-13 flex-1 rounded-full px-4 py-3 text-right text-sm font-black">{isFinalCheckoutStep ? sfText("storefront.checkout.total", "الإجمالي") : sfText("storefront.checkout.orderSummary", "ملخص الطلب")}: {money(total)}</button>
           <SubmitButton submitting={isFinalCheckoutStep && submitting} compact disabled={submitDisabled} label={checkoutActionLabel} />
         </div>
       </div>
@@ -8014,7 +8014,7 @@ function OrderSuccess({ profile }) {
   const order = loaded?.order || {};
   const publicNumber = displayOrderNumber(order) || displayOrderNumber(decodedOrderNumber);
   const items = loaded?.items || [];
-  const customerName = order.customer_name || loaded?.customer?.full_name || profile.full_name || t("storefront.customer.dearCustomer", "Dear customer");
+  const customerName = order.customer_name || loaded?.customer?.full_name || profile.full_name || t("storefront.customer.dearCustomer", "عميلنا الكريم");
   const total = order.total_amount || order.total || order.total_price || 0;
   const address = [order.governorate, order.city_area, order.customer_address || loaded?.checkout?.detailed_address].filter(Boolean).join(" - ");
   const paymentLabel = paymentCopy(order.payment_method || loaded?.checkout?.payment_method || "cod");
@@ -8022,10 +8022,10 @@ function OrderSuccess({ profile }) {
     (order.payment_method || loaded?.checkout?.payment_method) === "shipping_confirmation" ||
     order.payment_status === "awaiting_verification" ||
     order.status === "awaiting_verification";
-  const successTitle = isShippingAwaitingVerification ? t("storefront.success.awaitingVerificationTitle", "We received your order and transfer proof") : t("storefront.success.confirmedTitle", "Your order was confirmed successfully");
+  const successTitle = isShippingAwaitingVerification ? t("storefront.success.awaitingVerificationTitle", "استلمنا طلبك وإثبات التحويل") : t("storefront.success.confirmedTitle", "تم تأكيد طلبك بنجاح");
   const successSubtitle = isShippingAwaitingVerification
-    ? t("storefront.success.awaitingVerificationSubtitle", "We received your order and transfer proof. It will be reviewed and confirmed soon.")
-    : t("storefront.success.confirmedSubtitle", "Your order is now being prepared.");
+    ? t("storefront.success.awaitingVerificationSubtitle", "استلمنا طلبك وإثبات التحويل. سيجري مراجعته وتأكيده قريبًا.")
+    : t("storefront.success.confirmedSubtitle", "يتم الآن تجهيز طلبك.");
   const successStatus = isShippingAwaitingVerification ? t("storefront.status.awaiting_verification", "Awaiting transfer review") : statusCopy(order.status || "pending");
   const whatsAppHref = whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(`مرحبًا، أريد متابعة طلبي رقم ${publicNumber}`)}` : "";
 
@@ -8037,7 +8037,7 @@ function OrderSuccess({ profile }) {
           <Check className="h-12 w-12" />
         </div>
         <h1 className="mt-6 text-3xl font-black md:text-4xl">{successTitle}</h1>
-        <p className="mt-2 text-lg font-bold text-stone-600">{t("storefront.success.thanks", "Thank you for trusting us")}</p>
+        <p className="mt-2 text-lg font-bold text-stone-600">{t("storefront.success.thanks", "شكرًا لثقتك بنا")}</p>
         <p className="mt-1 text-sm font-bold text-stone-500">{successSubtitle}</p>
         <div className="mt-5 inline-flex rounded-full bg-[#f5f3ff] px-4 py-2 text-sm font-black text-[#6d28d9]">{message}</div>
       </div>
@@ -8045,38 +8045,38 @@ function OrderSuccess({ profile }) {
         <div className="space-y-4">
           <div className="sf-storefront-card rounded-[2rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] md:p-6">
             <div className="grid gap-3 sm:grid-cols-2">
-              <InfoBox label={t("storefront.orders.orderNumber", "Order number")} value={<OrderNumberBadge value={publicNumber} className="border-[#7c3aed]/20 bg-[#7c3aed]/10 text-[#5b21b6]" />} />
-              <InfoBox label={t("storefront.customer.customer", "Customer")} value={customerName} />
-              <InfoBox label={t("storefront.checkout.total", "Total")} value={total ? money(total) : t("storefront.success.orderRecorded", "Order recorded")} />
-              <InfoBox label={t("storefront.checkout.paymentMethod", "Payment method")} value={paymentLabel} />
-              <InfoBox label={t("storefront.orders.orderStatus", "Order status")} value={successStatus} />
-              <InfoBox label={t("storefront.orders.expectedDelivery", "Expected delivery")} value={t("storefront.orders.expectedDeliveryWindow", "2 to 5 business days")} />
+              <InfoBox label={t("storefront.orders.orderNumber", "رقم الطلب")} value={<OrderNumberBadge value={publicNumber} className="border-[#7c3aed]/20 bg-[#7c3aed]/10 text-[#5b21b6]" />} />
+              <InfoBox label={t("storefront.customer.customer", "العميل")} value={customerName} />
+              <InfoBox label={t("storefront.checkout.total", "الإجمالي")} value={total ? money(total) : t("storefront.success.orderRecorded", "تم تسجيل الطلب")} />
+              <InfoBox label={t("storefront.checkout.paymentMethod", "طريقة الدفع")} value={paymentLabel} />
+              <InfoBox label={t("storefront.orders.orderStatus", "حالة الطلب")} value={successStatus} />
+              <InfoBox label={t("storefront.orders.expectedDelivery", "موعد التسليم المتوقع")} value={t("storefront.orders.expectedDeliveryWindow", "من 2 إلى 5 أيام عمل")} />
             </div>
             <div className="sf-info-box mt-4 rounded-2xl bg-stone-50 p-4 text-right">
-              <div className="sf-info-label text-xs font-black text-stone-500">{t("storefront.checkout.deliveryAddress", "Delivery address")}</div>
-              <div className="sf-info-value mt-1 font-black">{address || t("storefront.orders.addressSaved", "Address saved with order")}</div>
+              <div className="sf-info-label text-xs font-black text-stone-500">{t("storefront.checkout.deliveryAddress", "عنوان الشحن")}</div>
+              <div className="sf-info-value mt-1 font-black">{address || t("storefront.orders.addressSaved", "تم حفظ العنوان مع الطلب")}</div>
             </div>
           </div>
           <div className="sf-storefront-card rounded-[2rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] md:p-6">
-            <h2 className="sf-section-heading text-xl font-black">{t("storefront.orders.tracking", "Order tracking")}</h2>
+            <h2 className="sf-section-heading text-xl font-black">{t("storefront.orders.tracking", "تتبع الطلب")}</h2>
             <SuccessTimeline />
           </div>
-          <Suspense fallback={<div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm font-bold text-white/60">{sfText("storefront.orders.itemsLoading", "Product summary will appear here after loading order details.")}</div>}>
+          <Suspense fallback={<div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm font-bold text-white/60">{sfText("storefront.orders.itemsLoading", "سيظهر ملخص المنتجات هنا بعد تحميل تفاصيل الطلب.")}</div>}>
             <OrderInvoiceCard className="sf-order-invoice-card" order={{ ...order, source: "Website" }} items={items} />
           </Suspense>
         </div>
         <aside className="sf-storefront-card h-max rounded-[2rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] lg:sticky lg:top-24">
           <div className="grid gap-3">
-            <Link to={`/shop/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="rounded-full bg-stone-950 px-5 py-4 text-center font-black text-white transition hover:bg-[#6d28d9]">{t("storefront.orders.trackOrder", "Track order")}</Link>
-            <Link to="/shop/products" className="sf-soft-pill rounded-full border border-stone-300 px-5 py-4 text-center font-black transition hover:border-[#7c3aed] hover:text-[#6d28d9]">{t("storefront.common.continueShopping", "Continue shopping")}</Link>
-            {whatsAppHref ? <a href={whatsAppHref} className="rounded-full border border-emerald-200 bg-emerald-50 px-5 py-4 text-center font-black text-emerald-700">{t("storefront.support.whatsapp", "Contact us on WhatsApp")}</a> : <button disabled className="rounded-full border border-stone-200 bg-stone-100 px-5 py-4 font-black text-stone-400">{t("storefront.support.whatsappUnavailable", "WhatsApp is currently unavailable")}</button>}
+            <Link to={`/shop/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="rounded-full bg-stone-950 px-5 py-4 text-center font-black text-white transition hover:bg-[#6d28d9]">{t("storefront.orders.trackOrder", "تتبع الطلب")}</Link>
+            <Link to="/shop/products" className="sf-soft-pill rounded-full border border-stone-300 px-5 py-4 text-center font-black transition hover:border-[#7c3aed] hover:text-[#6d28d9]">{t("storefront.common.continueShopping", "متابعة التسوق")}</Link>
+            {whatsAppHref ? <a href={whatsAppHref} className="rounded-full border border-emerald-200 bg-emerald-50 px-5 py-4 text-center font-black text-emerald-700">{t("storefront.support.whatsapp", "تواصل معنا على واتساب")}</a> : <button disabled className="rounded-full border border-stone-200 bg-stone-100 px-5 py-4 font-black text-stone-400">{t("storefront.support.whatsappUnavailable", "واتساب غير متاح حاليًا")}</button>}
           </div>
-          <div className="sf-info-box mt-5 rounded-2xl bg-[#f5f3ff] p-4 text-sm font-bold leading-6 text-stone-700">{t("storefront.success.reviewNotice", "We will review and prepare the order. If we need to confirm details, we will contact your phone number.")}</div>
+          <div className="sf-info-box mt-5 rounded-2xl bg-[#f5f3ff] p-4 text-sm font-bold leading-6 text-stone-700">{t("storefront.success.reviewNotice", "سنراجع الطلب ونجهزه، وإذا احتجنا لتأكيد أي تفاصيل سنتواصل مع رقم هاتفك.")}</div>
         </aside>
       </div>
       {products.length ? (
         <div className="mt-6">
-          <ProductRail title={t("storefront.nav.new", "New")} subtitle={t("storefront.success.recommendedProducts", "Products you may like")} products={products} loading={false} railType="new" wishlist={[]} toggleWishlist={() => undefined} onAddToCart={() => undefined} />
+          <ProductRail title={t("storefront.nav.new", "الجديد")} subtitle={t("storefront.success.recommendedProducts", "منتجات قد تعجبك")} products={products} loading={false} railType="new" wishlist={[]} toggleWishlist={() => undefined} onAddToCart={() => undefined} />
         </div>
       ) : null}
     </section>
@@ -8135,14 +8135,14 @@ function OrderTimeline({ timeline = [] }) {
 
 function FaqPage() {
   const items = [
-    [sfText("storefront.faq.deliveryTime.question", "Delivery time?"), sfText("storefront.faq.deliveryTime.answer", "Usually 2 to 5 business days depending on governorate and shipping provider.")],
-    [sfText("storefront.faq.paymentMethods.question", "Payment methods?"), sfText("storefront.faq.paymentMethods.answer", "Cash on delivery is available, and electronic payment support is ready to add.")],
-    [sfText("storefront.faq.exchangeReturns.question", "Exchange and return?"), sfText("storefront.faq.exchangeReturns.answer", "Available within 14 days under the policy conditions.")],
-    [sfText("storefront.faq.sizeHelp.question", "Size help?"), sfText("storefront.faq.sizeHelp.answer", "Use the size guide or contact us on WhatsApp.")],
-    [sfText("storefront.faq.trackOrder.question", "Track order?"), sfText("storefront.faq.trackOrder.answer", "Use the tracking page with order number and phone.")],
-    [sfText("storefront.faq.shippingProviders.question", "Shipping providers?"), sfText("storefront.faq.shippingProviders.answer", "The system is ready for Bosta, Mylerz, ShipBlu, and In Store Delivery.")],
+    [sfText("storefront.faq.deliveryTime.question", "مدة التوصيل؟"), sfText("storefront.faq.deliveryTime.answer", "عادةً من 2 إلى 5 أيام عمل حسب المحافظة وشركة الشحن.")],
+    [sfText("storefront.faq.paymentMethods.question", "طرق الدفع؟"), sfText("storefront.faq.paymentMethods.answer", "الدفع عند الاستلام متاح، كما يتم دعم وسائل الدفع الإلكتروني وفق إعدادات المتجر.")],
+    [sfText("storefront.faq.exchangeReturns.question", "الاستبدال والاسترجاع؟"), sfText("storefront.faq.exchangeReturns.answer", "متاح خلال 14 يومًا وفق شروط السياسة.")],
+    [sfText("storefront.faq.sizeHelp.question", "مساعدة المقاسات؟"), sfText("storefront.faq.sizeHelp.answer", "استخدم دليل المقاسات أو تواصل معنا عبر واتساب.")],
+    [sfText("storefront.faq.trackOrder.question", "تتبع الطلب؟"), sfText("storefront.faq.trackOrder.answer", "استخدم صفحة التتبع مع رقم الطلب ورقم الهاتف.")],
+    [sfText("storefront.faq.shippingProviders.question", "شركات الشحن؟"), sfText("storefront.faq.shippingProviders.answer", "النظام جاهز لشركات بوسطة وميـلرز وShipBlu والتسليم من المتجر.")],
   ];
-  return <StaticPage title={sfText("storefront.faq.title", "FAQ")} items={items} />;
+  return <StaticPage title={sfText("storefront.faq.title", "الأسئلة الشائعة")} items={items} />;
 }
 
 function ContactPage() {
@@ -8151,7 +8151,7 @@ function ContactPage() {
       title={sfText("storefront.contact.title", "Contact us")}
       items={[
         [sfText("storefront.contact.phone", "Phone"), "01000000000"],
-        [sfText("storefront.support.whatsapp", "WhatsApp"), sfText("storefront.contact.whatsappHint", "Tap the support button from any order page.")],
+        [sfText("storefront.support.whatsapp", "واتساب"), sfText("storefront.contact.whatsappHint", "اضغط زر الدعم من أي صفحة طلب.")],
         ["Instagram", "@store"],
         ["Facebook", "Store page"],
         [sfText("storefront.contact.address", "Address"), sfText("storefront.contact.addressPlaceholder", "Branch location appears here.")],
@@ -8236,7 +8236,7 @@ function SizeGuide() {
           </div>
           <a href="https://wa.me/" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full border border-emerald-300/30 bg-emerald-500 px-5 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(16,185,129,0.28)] transition hover:-translate-y-0.5 hover:bg-emerald-400 dark:border-emerald-300/25 dark:bg-emerald-500/95 dark:text-white">
             <MessageCircle className="h-4 w-4" />
-            {sfText("storefront.support.whatsappHelp", "WhatsApp help")}
+            {sfText("storefront.support.whatsappHelp", "مساعدة واتساب")}
           </a>
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -8384,10 +8384,10 @@ function CheckoutProgress({ currentStep = 1, onStepChange }) {
 
 function TrustPills({ compact = false }) {
   const items = [
-    [sfText("storefront.checkout.trust.safeData", "Your data is safe"), <Check className="h-4 w-4" />],
-    [sfText("storefront.checkout.trust.fastShipping", "Fast shipping"), <Truck className="h-4 w-4" />],
-    [sfText("storefront.checkout.trust.exchange", "Exchange within 14 days"), <PackageCheck className="h-4 w-4" />],
-    [sfText("storefront.checkout.trust.whatsapp", "WhatsApp support"), <MessageCircle className="h-4 w-4" />],
+    [sfText("storefront.checkout.trust.safeData", "بياناتك آمنة"), <Check className="h-4 w-4" />],
+    [sfText("storefront.checkout.trust.fastShipping", "شحن سريع"), <Truck className="h-4 w-4" />],
+    [sfText("storefront.checkout.trust.exchange", "استبدال خلال 14 يومًا"), <PackageCheck className="h-4 w-4" />],
+    [sfText("storefront.checkout.trust.whatsapp", "دعم واتساب"), <MessageCircle className="h-4 w-4" />],
   ];
   return (
     <div className={`sf-checkout-trust-pills grid grid-cols-2 gap-2 text-xs font-black text-white/70 ${compact ? "sm:grid-cols-4" : "sm:grid-cols-2"}`}>
@@ -8877,7 +8877,7 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-5">
           {!cart.length ? (
-            <EmptyState title={sfText("storefront.cart.emptyTitle", "Your cart is empty")} text={sfText("storefront.cart.emptyCheckoutText", "Choose a product first, then complete checkout")} />
+            <EmptyState title={sfText("storefront.cart.emptyTitle", "سلتك فارغة")} text={sfText("storefront.cart.emptyCheckoutText", "اختر منتجًا أولًا ثم أكمِل عملية الدفع")} />
           ) : (
             <div className="grid gap-3 pb-2">
               {cart.map((item) => (
@@ -8890,13 +8890,13 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
           <div className="shrink-0 border-t border-white/10 bg-[#070b16]/92 px-4 pb-[calc(1.35rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-24px_60px_rgba(0,0,0,0.34)] backdrop-blur-2xl sm:px-5">
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
-                <p className="text-xs font-black text-white/54">{sfText("storefront.checkout.total", "Total")}</p>
+                <p className="text-xs font-black text-white/54">{sfText("storefront.checkout.total", "الإجمالي")}</p>
                 <p className="mt-1 text-2xl font-black leading-none text-white">{money(total)}</p>
               </div>
-              <p className="max-w-32 text-start text-[11px] font-bold leading-5 text-white/46">{sfText("storefront.checkout.finalShippingAtCheckout", "Final shipping at checkout")}</p>
+              <p className="max-w-32 text-start text-[11px] font-bold leading-5 text-white/46">{sfText("storefront.checkout.finalShippingAtCheckout", "يُحسَب الشحن النهائي عند الدفع")}</p>
             </div>
             <Link to="/shop/checkout" onClick={onClose} className="sf-shimmer-button block min-h-14 rounded-full border border-[#a78bfa]/20 bg-[linear-gradient(135deg,rgba(124,58,237,0.96),rgba(17,24,39,0.98))] px-5 py-4 text-center text-base font-black text-white shadow-[0_18px_42px_rgba(124,58,237,0.26)] transition hover:-translate-y-0.5 hover:border-[#c4b5fd]/40 hover:shadow-[0_22px_54px_rgba(109,40,217,0.34)] active:translate-y-0 active:scale-[0.98]">
-              {sfText("storefront.checkout.actions.completePurchase", "Complete purchase")}
+              {sfText("storefront.checkout.actions.completePurchase", "إتمام الطلب")}
             </Link>
           </div>
         ) : null}
@@ -8923,7 +8923,7 @@ function MobileCartRow({ item, updateCart, removeFromCart }) {
       </div>
       <div className="mt-3 flex min-w-0 items-center justify-between gap-3">
         <QuantityStepper quantity={item.quantity} onMinus={() => updateCart(item.lineId, item.quantity - 1)} onPlus={() => updateCart(item.lineId, item.quantity + 1)} />
-        <button onClick={() => removeFromCart(item.lineId)} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-rose-300/20 bg-rose-500/10 text-rose-200 shadow-[0_10px_24px_rgba(244,63,94,0.10)] transition hover:bg-rose-500/16 hover:text-rose-100 active:scale-95" aria-label={sfText("storefront.cart.removeItem", "Remove item")}>
+        <button onClick={() => removeFromCart(item.lineId)} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-rose-300/20 bg-rose-500/10 text-rose-200 shadow-[0_10px_24px_rgba(244,63,94,0.10)] transition hover:bg-rose-500/16 hover:text-rose-100 active:scale-95" aria-label={sfText("storefront.cart.removeItem", "إزالة المنتج")}>
           <Trash2 className="h-5 w-5" />
         </button>
       </div>
@@ -8949,19 +8949,19 @@ function Footer() {
   return (
     <footer className="mt-4 border-t border-stone-200 bg-[#f0ebe2] px-4 py-6 md:mt-8 md:py-10 dark:border-white/10 dark:bg-[linear-gradient(180deg,#050816,#020617)] dark:text-white">
       <div className="mx-auto grid max-w-7xl gap-6 md:grid-cols-[1.2fr_0.8fr_0.8fr_1fr]">
-        <div><h3 className="text-2xl font-black tracking-normal">{sfText("storefront.footer.brand", "Storefront")}</h3><p className="mt-2 max-w-sm text-sm font-bold leading-6 text-stone-600 dark:text-stone-400">{sfText("storefront.footer.tagline", "A simple and fast shopping experience connected to real inventory.")}</p></div>
-        <FooterLinks title={sfText("storefront.footer.links", "Links")} links={[[sfText("storefront.returns.title", "Exchange policy"), "/shop/returns"], [sfText("storefront.nav.sizeGuide", "Size guide"), "/shop/size-guide"], [sfText("storefront.faq.title", "FAQ"), "/shop/faq"]]} />
-        <FooterLinks title={sfText("storefront.footer.contact", "Contact")} links={[[sfText("storefront.contact.title", "Contact"), "/shop/contact"], [sfText("storefront.support.whatsapp", "WhatsApp"), "https://wa.me/"], ["Instagram", "/shop/contact"]]} />
+        <div><h3 className="text-2xl font-black tracking-normal">{sfText("storefront.footer.brand", "المتجر")}</h3><p className="mt-2 max-w-sm text-sm font-bold leading-6 text-stone-600 dark:text-stone-400">{sfText("storefront.footer.tagline", "تجربة تسوق بسيطة وسريعة مرتبطة بالمخزون الحقيقي.")}</p></div>
+        <FooterLinks title={sfText("storefront.footer.links", "روابط")} links={[[sfText("storefront.returns.title", "سياسة الاستبدال"), "/shop/returns"], [sfText("storefront.nav.sizeGuide", "دليل المقاسات"), "/shop/size-guide"], [sfText("storefront.faq.title", "الأسئلة الشائعة"), "/shop/faq"]]} />
+        <FooterLinks title={sfText("storefront.footer.contact", "تواصل")} links={[[sfText("storefront.contact.title", "تواصل"), "/shop/contact"], [sfText("storefront.support.whatsapp", "واتساب"), "https://wa.me/"], ["Instagram", "/shop/contact"]]} />
         <div>
-          <h4 className="font-black">{sfText("storefront.footer.followUs", "Follow us")}</h4>
+          <h4 className="font-black">{sfText("storefront.footer.followUs", "تابعنا")}</h4>
           <div className="mt-3 flex gap-2">
-            <a href="https://wa.me/" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:text-emerald-600 dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-emerald-300/40 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-300" aria-label="WhatsApp"><MessageCircle className="h-5 w-5" /></a>
+            <a href="https://wa.me/" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:text-emerald-600 dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-emerald-300/40 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-300" aria-label="واتساب"><MessageCircle className="h-5 w-5" /></a>
             <Link to="/shop/contact" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-[#c4b5fd] hover:text-[#6d28d9] dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-[#c4b5fd]/40 dark:hover:bg-[#7c3aed]/12 dark:hover:text-[#d8b4fe]" aria-label="Instagram"><Camera className="h-5 w-5" /></Link>
             <Link to="/shop/contact" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-[#c4b5fd] hover:text-[#6d28d9] dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-[#c4b5fd]/40 dark:hover:bg-[#7c3aed]/12 dark:hover:text-[#d8b4fe]" aria-label="Facebook"><Send className="h-5 w-5" /></Link>
           </div>
           <a href="https://wa.me/" className="mt-4 inline-flex items-center justify-center gap-2 rounded-full border border-emerald-300/30 bg-stone-950 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#6d28d9] dark:bg-emerald-500 dark:text-white dark:shadow-[0_14px_34px_rgba(16,185,129,0.22)] dark:hover:bg-emerald-400">
             <MessageCircle className="h-4 w-4" />
-            {sfText("storefront.support.whatsappHelp", "WhatsApp help")}
+            {sfText("storefront.support.whatsappHelp", "مساعدة واتساب")}
           </a>
         </div>
       </div>
@@ -8979,7 +8979,7 @@ function MobileBottomNav({ count }) {
     { id: "home", to: "/shop", label: sfText("storefront.nav.home", "Home"), icon: Home },
     { id: "products", to: "/shop/products", label: sfText("storefront.nav.categories", "Categories"), icon: Menu },
     { id: "search", to: "/shop/products?search=1", label: sfText("storefront.common.search", "Search"), icon: Search },
-    { id: "wishlist", to: "/shop/wishlist", label: sfText("storefront.header.wishlist", "Wishlist"), icon: Heart },
+    { id: "wishlist", to: "/shop/wishlist", label: sfText("storefront.header.wishlist", "المفضلة"), icon: Heart },
     { id: "cart", to: "/shop/cart", label: sfText("storefront.cart.title", "Cart"), icon: ShoppingCart },
   ];
   const isActive = (item) => {
@@ -8997,7 +8997,7 @@ function MobileBottomNav({ count }) {
     <nav
       dir="rtl"
       className="fixed inset-x-0 bottom-0 z-40 h-[calc(var(--mobile-bottom-nav-height)+var(--safe-bottom))] border-t border-white/10 bg-slate-950/[0.88] px-3 pb-[var(--safe-bottom)] pt-1.5 shadow-[0_-18px_46px_rgba(0,0,0,0.32),0_1px_0_rgba(255,255,255,0.05)_inset] backdrop-blur-2xl md:hidden"
-      aria-label={sfText("storefront.nav.mobileNavigation", "Storefront mobile navigation")}
+      aria-label={sfText("storefront.nav.mobileNavigation", "تنقل المتجر على الهاتف")}
     >
       <div className="mx-auto grid h-full w-full max-w-[25.5rem] min-w-0 grid-cols-5 items-center gap-0.5 overflow-hidden">
         {links.map((item) => {
@@ -9203,7 +9203,7 @@ function SmallProductGrid({ items, action, onAddToCart }) {
       const product = productFromDetailsResponse(data);
       const variant = product?.variants?.find((candidate) => Number(candidate.stock || 0) > 0);
       if (!product || !variant) {
-        toast.error(sfText("storefront.toasts.sizeUnavailable", "This size is currently unavailable."));
+      toast.error(sfText("storefront.toasts.sizeUnavailable", "هذا المقاس غير متاح حاليًا."));
         return;
       }
       onAddToCart(product, variant, 1);
@@ -9237,8 +9237,8 @@ function SmallProductGrid({ items, action, onAddToCart }) {
             </Link>
           )}
           <div className="mt-3 grid gap-2">
-            {onAddToCart && !item.unavailable ? <button type="button" onClick={() => addWishlistItemToCart(item)} className="min-h-12 rounded-full bg-gradient-to-l from-[#4c1d95] via-[#6d28d9] to-[#111827] px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(109,40,217,0.3)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(109,40,217,0.38)]">{sfText("storefront.cart.addToCart", "Add to cart")}</button> : null}
-            {action ? <button type="button" onClick={() => action(item)} className="min-h-11 rounded-full border border-white/[0.1] bg-white/[0.045] px-4 py-2 text-sm font-black text-rose-200 transition hover:border-rose-400/70 hover:bg-rose-500 hover:text-white">{item.unavailable ? sfText("storefront.wishlist.removeFromWishlist", "إزالة من المفضلة") : sfText("storefront.common.remove", "Remove")}</button> : null}
+            {onAddToCart && !item.unavailable ? <button type="button" onClick={() => addWishlistItemToCart(item)} className="min-h-12 rounded-full bg-gradient-to-l from-[#4c1d95] via-[#6d28d9] to-[#111827] px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(109,40,217,0.3)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(109,40,217,0.38)]">{sfText("storefront.cart.addToCart", "أضف إلى السلة")}</button> : null}
+            {action ? <button type="button" onClick={() => action(item)} className="min-h-11 rounded-full border border-white/[0.1] bg-white/[0.045] px-4 py-2 text-sm font-black text-rose-200 transition hover:border-rose-400/70 hover:bg-rose-500 hover:text-white">{item.unavailable ? sfText("storefront.wishlist.removeFromWishlist", "إزالة من المفضلة") : sfText("storefront.common.remove", "إزالة")}</button> : null}
           </div>
         </div>
       ))}
@@ -9256,7 +9256,7 @@ function Reviews() {
   return (
     <section className="mx-auto max-w-7xl px-4 py-3 text-white md:py-7">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-2xl font-black text-white">{sfText("storefront.reviews.title", "Customer reviews")}</h2>
+        <h2 className="text-2xl font-black text-white">{sfText("storefront.reviews.title", "آراء العملاء")}</h2>
         <span className="rounded-full border border-white/[0.08] bg-white/[0.055] px-3 py-1.5 text-xs font-black text-[#c4b5fd] shadow-[0_0_28px_rgba(124,58,237,0.18)] backdrop-blur-xl">4.8 / 5</span>
       </div>
       <div className="grid gap-3 md:grid-cols-3">
@@ -9268,7 +9268,7 @@ function Reviews() {
                 <div className="flex gap-0.5 text-[#8b5cf6]">
                   {Array.from({ length: 5 }).map((_, index) => <Star key={index} className="h-3.5 w-3.5 fill-current" />)}
                 </div>
-                <div className="mt-1 inline-flex rounded-full border border-white/[0.08] bg-white/[0.045] px-2 py-0.5 text-[11px] font-black text-white/65">{sfText("storefront.reviews.verifiedCustomer", "Verified customer")}</div>
+                <div className="mt-1 inline-flex rounded-full border border-white/[0.08] bg-white/[0.045] px-2 py-0.5 text-[11px] font-black text-white/65">{sfText("storefront.reviews.verifiedCustomer", "عميل موثّق")}</div>
               </div>
             </div>
             <p className="mt-3 text-sm leading-6 text-white/90">{review}</p>
@@ -9292,8 +9292,8 @@ function MobileBuyBar({ product, variant, visible, onAddToCart, buyNow }) {
           <div className="truncate text-xs font-black text-white">{cleanDisplayText(product.name)}</div>
           <div className="text-sm font-black text-white/86">{money(displaySellingPrice(product, variant))}</div>
         </div>
-        <button onClick={onAddToCart} disabled={disabled} className="rounded-full bg-white px-3 py-2.5 text-xs font-black text-stone-950 shadow-[0_10px_24px_rgba(255,255,255,0.15)] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35 disabled:shadow-none">{sfText("storefront.cart.addToCart", "Add to cart")}</button>
-        <button onClick={buyNow} disabled={disabled} className="rounded-full border border-white/14 bg-white/[0.055] px-3 py-2.5 text-xs font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/[0.035] disabled:text-white/30">{sfText("storefront.cart.buyNow", "Buy now")}</button>
+        <button onClick={onAddToCart} disabled={disabled} className="rounded-full bg-white px-3 py-2.5 text-xs font-black text-stone-950 shadow-[0_10px_24px_rgba(255,255,255,0.15)] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35 disabled:shadow-none">{sfText("storefront.cart.addToCart", "أضف إلى السلة")}</button>
+        <button onClick={buyNow} disabled={disabled} className="rounded-full border border-white/14 bg-white/[0.055] px-3 py-2.5 text-xs font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/[0.035] disabled:text-white/30">{sfText("storefront.cart.buyNow", "اشترِ الآن")}</button>
       </div>
     </div>
   );
@@ -9419,9 +9419,9 @@ class StorefrontErrorBoundary extends Component {
         <div dir="rtl" className="min-h-screen bg-[#f7f4ee] px-4 py-10 text-center text-stone-950">
           <div className="mx-auto max-w-md rounded-[1.5rem] border border-stone-200 bg-white p-6 shadow-[0_18px_50px_rgba(39,20,75,0.08)]">
             <Sparkles className="mx-auto h-8 w-8 text-[#6d28d9]" />
-            <h1 className="mt-4 text-2xl font-black">{sfText("storefront.errors.simpleProblem", "Something went wrong")}</h1>
-            <p className="mt-2 text-sm font-bold leading-6 text-stone-500">{sfText("storefront.errors.cleanedTemporaryData", "We cleaned temporary browsing data. Try refreshing the page.")}</p>
-            <button onClick={() => location.reload()} className="mt-5 rounded-full bg-stone-950 px-5 py-3 text-sm font-black text-white">{sfText("storefront.common.refreshPage", "Refresh page")}</button>
+            <h1 className="mt-4 text-2xl font-black">{sfText("storefront.errors.simpleProblem", "حدثت مشكلة")}</h1>
+            <p className="mt-2 text-sm font-bold leading-6 text-stone-500">{sfText("storefront.errors.cleanedTemporaryData", "تم تنظيف بيانات التصفح المؤقتة. حاول تحديث الصفحة.")}</p>
+            <button onClick={() => location.reload()} className="mt-5 rounded-full bg-stone-950 px-5 py-3 text-sm font-black text-white">{sfText("storefront.common.refreshPage", "تحديث الصفحة")}</button>
           </div>
         </div>
       );

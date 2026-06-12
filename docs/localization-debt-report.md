@@ -1,6 +1,6 @@
 # Localization Debt Report
 
-Generated: 2026-06-12T18:19:17.056Z
+Generated: 2026-06-12T19:51:58.154Z
 
 This report flags obvious hardcoded UI strings. It is intentionally conservative and may include false positives.
 
@@ -175,7 +175,7 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 127 [prop-label] إجمالي الدائن
 - 128 [prop-label] الحالة
 
-## inventory (302)
+## inventory (318)
 
 ### src\modules\inventory\pages\InventoryCount.jsx
 - 324 [jsx-text] 0 && (currentRank === 0 || candidateRank
@@ -379,6 +379,24 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 127 [prop-label] من مخزن
 - 128 [prop-label] إلى مخزن
 - 129 [prop-label] الكمية
+
+### src\modules\inventory\pages\WarehousesDashboard.jsx
+- 324 [jsx-text] هذا مخزن افتراضي أو محمي، ولا يمكن تحويل حالته إلى غير نشط.
+- 406 [jsx-text] حذف المخزن
+- 426 [jsx-text] معرّف المخزن
+- 430 [jsx-text] المرجعيات الافتراضية
+- 317 [aria-label] إغلاق
+- 402 [aria-label] إغلاق
+- 102 [toast] تم حذف المخزن
+- 233 [prop-label] المنتجات
+- 234 [prop-label] الرصيد
+- 235 [prop-label] التحويلات
+- 317 [prop-label] إغلاق
+- 402 [prop-label] إغلاق
+- 418 [prop-label] المنتجات
+- 419 [prop-label] كمية المخزون
+- 420 [prop-label] التحويلات
+- 421 [prop-label] النشطة
 
 ## marketing (192)
 
@@ -771,7 +789,7 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 218 [jsx-text] = start && current
 - 218 [jsx-text] = start || current
 
-## pages (1469)
+## pages (1478)
 
 ### src\modules\aiSupport\pages\AiAgentAnalytics.jsx
 - 175 [jsx-text] AI Agent Analytics
@@ -888,46 +906,46 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 181 [prop-label] Stopped / rejected
 
 ### src\modules\aiSupport\pages\AiInbox.jsx
-- 706 [jsx-text] : status === "human_takeover" ?
-- 751 [jsx-text] No transcript yet.
-- 791 [jsx-text] العميل
-- 823 [jsx-text] Staff
-- 861 [jsx-text] : status === "closed" ?
-- 872 [jsx-text] ذكاء واتساب نشط
-- 932 [jsx-text] المحادثة مغلقة. تم تعطيل الرد اليدوي.
-- 942 [jsx-text] Live send ready
-- 942 [jsx-text] Live channel unavailable
-- 944 [jsx-text] Sending a staff reply will take over this conversation and pause AI automation.
-- 980 [jsx-text] Save draft
-- 981 [jsx-text] Approve AI reply
-- 1003 [jsx-text] 2-3 short Egyptian Arabic options that you can copy, edit, or send live.
-- 1012 [jsx-text] Channel setup needed
-- 1015 [jsx-text] Closed conversations cannot generate suggestions.
-- 1016 [jsx-text] No channel settings row was found for this channel. Open AI Channels to finish setup before enabling live sends.
-- 1018 [jsx-text] Generate a staff-only suggested reply. It stays separate from sent replies until you approve or edit it.
-- 1025 [jsx-text] Short reply
-- 1032 [jsx-text] Edit before send
-- 1033 [jsx-text] Send now
-- 1034 [jsx-text] Regenerate
-- 1098 [jsx-text] Quick send
-- 1099 [jsx-text] Send images
-- 1100 [jsx-text] Draft order
-- 1101 [jsx-text] Open product
-- 1107 [jsx-text] No matched products yet. Refresh after the customer sends a model, color, size, or category.
-- 1155 [jsx-text] Recommended next step
-- 1161 [jsx-text] Confidence
-- 1165 [jsx-text] Reason
-- 1169 [jsx-text] Suggested action
-- 1181 [jsx-text] Purchase intent:
-- 1183 [jsx-text] Waiting for product, size, color, or buying signal.
-- 1212 [jsx-text] Quick send card
-- 1216 [jsx-text] No product match yet. Ask for model, category, size, color, or budget.
-- 1229 [jsx-text] الذاكرة
-- 1234 [jsx-text] ستتحسن الذاكرة مع استمرار المحادثة.
-- 1283 [jsx-text] سياق العميل
-- 1385 [jsx-text] AI Debug
-- 1386 [jsx-text] Intent, route, memory, and recent decisions
-- 1500 [jsx-text] متخطى
+- 707 [jsx-text] : status === "human_takeover" ?
+- 752 [jsx-text] No transcript yet.
+- 792 [jsx-text] العميل
+- 824 [jsx-text] Staff
+- 862 [jsx-text] : status === "closed" ?
+- 873 [jsx-text] ذكاء واتساب نشط
+- 933 [jsx-text] المحادثة مغلقة. تم تعطيل الرد اليدوي.
+- 943 [jsx-text] Live send ready
+- 943 [jsx-text] Live channel unavailable
+- 945 [jsx-text] Sending a staff reply will take over this conversation and pause AI automation.
+- 981 [jsx-text] Save draft
+- 982 [jsx-text] Approve AI reply
+- 1004 [jsx-text] 2-3 short Egyptian Arabic options that you can copy, edit, or send live.
+- 1013 [jsx-text] Channel setup needed
+- 1016 [jsx-text] Closed conversations cannot generate suggestions.
+- 1017 [jsx-text] No channel settings row was found for this channel. Open AI Channels to finish setup before enabling live sends.
+- 1019 [jsx-text] Generate a staff-only suggested reply. It stays separate from sent replies until you approve or edit it.
+- 1026 [jsx-text] Short reply
+- 1033 [jsx-text] Edit before send
+- 1034 [jsx-text] Send now
+- 1035 [jsx-text] Regenerate
+- 1107 [jsx-text] Quick send
+- 1108 [jsx-text] Send images
+- 1109 [jsx-text] Draft order
+- 1110 [jsx-text] Open product
+- 1116 [jsx-text] No matched products yet. Refresh after the customer sends a model, color, size, or category.
+- 1164 [jsx-text] Recommended next step
+- 1170 [jsx-text] Confidence
+- 1174 [jsx-text] Reason
+- 1178 [jsx-text] Suggested action
+- 1190 [jsx-text] Purchase intent:
+- 1192 [jsx-text] Waiting for product, size, color, or buying signal.
+- 1221 [jsx-text] Quick send card
+- 1225 [jsx-text] No product match yet. Ask for model, category, size, color, or budget.
+- 1238 [jsx-text] الذاكرة
+- 1243 [jsx-text] ستتحسن الذاكرة مع استمرار المحادثة.
+- 1292 [jsx-text] سياق العميل
+- 1394 [jsx-text] AI Debug
+- 1395 [jsx-text] Intent, route, memory, and recent decisions
+- 1509 [jsx-text] متخطى
 - ... 178 more
 
 ### src\modules\aiSupport\pages\AiSettings.jsx
@@ -1247,46 +1265,54 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - ... 3 more
 
 ### src\modules\employees\pages\EmployeePortalProducts.jsx
-- 441 [jsx-text] Stock
-- 471 [jsx-text] No sizes
-- 509 [jsx-text] Variant selection
-- 547 [jsx-text] Colors
-- 568 [jsx-text] No colors
-- 575 [jsx-text] Sizes
-- 576 [jsx-text] Only available sizes appear
-- 602 [jsx-text] No available sizes for this color
-- 643 [jsx-text] EMPLOYEE SCANNER
-- 644 [jsx-text] امسح الباركود أو QR بالكاميرا
-- 645 [jsx-text] وجّه الكاميرا نحو الكود وسيتم البحث مباشرة.
-- 1258 [jsx-text] Employee Portal Products
-- 1274 [jsx-text] Employee Portal
-- 1275 [jsx-text] كتالوج المنتجات
-- 1348 [jsx-text] الفلاتر
-- 1355 [jsx-text] النتائج
-- 1324 [placeholder] ابحث بالاسم أو الموديل أو الباركود أو الكود
-- 1314 [title] فتح ماسح الكاميرا
-- 1338 [title] الفلاتر
-- 651 [aria-label] إغلاق ماسح الكاميرا
-- 1313 [aria-label] فتح ماسح الكاميرا
-- 1337 [aria-label] الفلاتر
-- 1099 [toast] تم إرسال الطلب للمخزن
-- 651 [prop-label] إغلاق ماسح الكاميرا
-- 1313 [prop-label] فتح ماسح الكاميرا
-- 1337 [prop-label] الفلاتر
+- 471 [jsx-text] Stock
+- 501 [jsx-text] No sizes
+- 539 [jsx-text] Variant selection
+- 577 [jsx-text] Colors
+- 598 [jsx-text] No colors
+- 605 [jsx-text] Sizes
+- 606 [jsx-text] Only available sizes appear
+- 632 [jsx-text] No available sizes for this color
+- 683 [jsx-text] EMPLOYEE SCANNER
+- 684 [jsx-text] امسح الباركود أو QR بالكاميرا
+- 685 [jsx-text] وجّه الكاميرا نحو الكود وسيتم البحث مباشرة.
+- 715 [jsx-text] Scanner Debug
+- 720 [jsx-text] Last raw value
+- 724 [jsx-text] Detected format
+- 728 [jsx-text] Resolver called
+- 732 [jsx-text] Resolver result
+- 736 [jsx-text] Source
+- 742 [jsx-text] Manual fallback
+- 1520 [jsx-text] Employee Portal Products
+- 1536 [jsx-text] Employee Portal
+- 1537 [jsx-text] كتالوج المنتجات
+- 1614 [jsx-text] الفلاتر
+- 1621 [jsx-text] النتائج
+- 753 [placeholder] Enter barcode manually
+- 1590 [placeholder] ابحث بالاسم أو الموديل أو الباركود أو الكود
+- 1580 [title] فتح ماسح الكاميرا
+- 1604 [title] الفلاتر
+- 691 [aria-label] إغلاق ماسح الكاميرا
+- 1579 [aria-label] فتح ماسح الكاميرا
+- 1603 [aria-label] الفلاتر
+- 1269 [toast] تم إرسال الطلب للمخزن
+- 691 [prop-label] إغلاق ماسح الكاميرا
+- 1579 [prop-label] فتح ماسح الكاميرا
+- 1603 [prop-label] الفلاتر
 
 ### src\modules\loyalty\pages\CustomerLoyaltyProfile.jsx
-- 95 [jsx-text] Customer loyalty profile
-- 136 [jsx-text] Transaction history
-- 143 [jsx-text] Type
-- 144 [jsx-text] Points
-- 145 [jsx-text] Value
-- 146 [jsx-text] Date
-- 164 [jsx-text] Redeem points
-- 165 [jsx-text] Convert points to value when the customer checks out.
-- 168 [jsx-text] Points to redeem
-- 45 [toast] Using loyalty customer fallback
-- 63 [toast] Enter valid points
-- 78 [toast] Points redeemed
+- 95 [jsx-text] ملف الولاء للعميل
+- 136 [jsx-text] سجل المعاملات
+- 143 [jsx-text] النوع
+- 144 [jsx-text] النقاط
+- 145 [jsx-text] القيمة
+- 146 [jsx-text] التاريخ
+- 164 [jsx-text] استبدال النقاط
+- 165 [jsx-text] حوّل النقاط إلى قيمة عند إتمام شراء العميل.
+- 168 [jsx-text] النقاط المطلوب استبدالها
+- 45 [toast] استخدام بيانات الولاء البديلة
+- 63 [toast] أدخل نقاطًا صحيحة
+- 78 [toast] تم استبدال النقاط
 
 ### src\modules\loyalty\pages\LoyaltyDashboard.jsx
 - 98 [jsx-text] Loyalty
@@ -1549,24 +1575,25 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 71 [prop-label] POS receipt note
 
 ### src\modules\saas\pages\RegisterCompany.jsx
-- 102 [jsx-text] Company profile
-- 110 [jsx-text] Password
+- 102 [jsx-text] بيانات الشركة
+- 110 [jsx-text] كلمة المرور
 - 147 [jsx-text] Owner and staff accounts
 - 104 [placeholder] Acme Retail
-- 105 [placeholder] Owner full name
+- 105 [placeholder] الاسم الكامل للمالك
 - 106 [placeholder] owner@company.com
 - 107 [placeholder] acme-retail
-- 116 [placeholder] Owner password
-- 87 [title] Register Company
+- 116 [placeholder] كلمة مرور المالك
+- 87 [title] تسجيل شركة
+- 88 [title] أنشئ مساحة عمل للشركة وحساب المالك وبداية الاشتراك. إذا تعذر الاتصال بالخادم، سيتم حفظ المساحة محليًا وتسجيل الدخول عليها.
 - 149 [title] Owner account
 - 150 [title] Staff accounts
 - 151 [title] Workspace persistence
-- 24 [toast] Company, owner email, and password are required
-- 79 [toast] Company workspace created
-- 104 [prop-label] Company name
-- 105 [prop-label] Owner name
-- 106 [prop-label] Owner email
-- 107 [prop-label] Workspace slug
+- 24 [toast] اسم الشركة والبريد الإلكتروني وكلمة المرور مطلوبة
+- 79 [toast] تم إنشاء مساحة العمل للشركة
+- 104 [prop-label] اسم الشركة
+- 105 [prop-label] اسم المالك
+- 106 [prop-label] بريد المالك
+- 107 [prop-label] معرّف مساحة العمل
 
 ### src\modules\saas\pages\Workspace.jsx
 - 54 [jsx-text] Current workspace
@@ -1832,7 +1859,7 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 
 ### src\pages\Login.jsx
 - 147 [placeholder] Email
-- 157 [placeholder] Password
+- 157 [placeholder] كلمة المرور
 - 167 [placeholder] Workspace / company slug
 
 ### src\pages\PublicProduct.jsx
@@ -1984,8 +2011,8 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 
 ### src\modules\products\lib\barcodeLabels.js
 - 385 [jsx-text] = 32 && charCode
-- 1310 [jsx-text] Back / Close
-- 1312 [jsx-text] Print
+- 1310 [jsx-text] رجوع / إغلاق
+- 1312 [jsx-text] طباعة
 - 420 [aria-label] ${text}
 - 1309 [aria-label] ${escapeHtml(previewTitle)}
 - 420 [prop-label] ${text}
@@ -2160,7 +2187,7 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 4196 [aria-label] Previous slide
 - 4199 [aria-label] Next slide
 - 6403 [aria-label] إغلاق اختيار المقاس
-- 8958 [aria-label] WhatsApp
+- 8958 [aria-label] واتساب
 - 8959 [aria-label] Instagram
 - 8960 [aria-label] Facebook
 - 4196 [prop-label] Previous slide
@@ -2171,7 +2198,7 @@ This report flags obvious hardcoded UI strings. It is intentionally conservative
 - 5122 [prop-label] Adidas edit
 - 6403 [prop-label] إغلاق اختيار المقاس
 - 7944 [prop-label] تم الدفع وإرفاق الإيصال
-- 8958 [prop-label] WhatsApp
+- 8958 [prop-label] واتساب
 - 8959 [prop-label] Instagram
 - 8960 [prop-label] Facebook
 

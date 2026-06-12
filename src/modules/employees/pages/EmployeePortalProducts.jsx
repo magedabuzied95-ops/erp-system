@@ -27,6 +27,11 @@ const sizeSort = (a, b) => {
 };
 const sortSizes = (sizes = []) => [...sizes].sort(sizeSort);
 const isDevBuild = Boolean(import.meta.env?.DEV);
+const formatScanDebugValue = (value = "") => {
+  const raw = text(value);
+  if (!raw) return "—";
+  return raw.length > 96 ? `${raw.slice(0, 96)}…` : raw;
+};
 
 const extractImageUrl = (value = {}) =>
   text(
@@ -335,6 +340,7 @@ const buildListParams = ({ search, filters }) => {
 const buildLookupParams = (directLookup) => {
   const params = { limit: 20, inStockOnly: 1 };
   if (directLookup.productId) params.productId = directLookup.productId;
+  if (directLookup.qrToken) params.qr_token = directLookup.qrToken;
   if (directLookup.barcode) params.barcode = directLookup.barcode;
   if (directLookup.sku) params.sku = directLookup.sku;
   if (directLookup.article) params.article = directLookup.article;
@@ -368,6 +374,7 @@ const productMatchesDirectLookup = (product = {}, directLookup = {}) => {
   const requestedColorId = text(directLookup.colorId);
   const requestedColor = text(directLookup.color);
   const requestedSize = text(directLookup.size);
+  const requestedQrToken = text(directLookup.qrToken);
   const productIds = [
     product.id,
     product.product_id,
@@ -375,11 +382,15 @@ const productMatchesDirectLookup = (product = {}, directLookup = {}) => {
   ].map((value) => text(value)).filter(Boolean);
 
   const variants = Array.isArray(product.variants) ? product.variants : [];
+  const productQrTokens = [product.qr_token, product.qrToken].map((value) => text(value)).filter(Boolean);
   const variantProductIds = variants
     .map((variant) => text(variant.product_id))
     .filter(Boolean);
   const variantIds = variants
     .map((variant) => text(variant.variant_id ?? variant.id))
+    .filter(Boolean);
+  const variantQrTokens = variants
+    .map((variant) => text(variant.qr_token ?? variant.qrToken))
     .filter(Boolean);
   const colorIds = variants
     .map((variant) => text(variant.color_id))
@@ -394,13 +405,17 @@ const productMatchesDirectLookup = (product = {}, directLookup = {}) => {
   const matchByProductId = requestedProductId
     ? productIds.includes(requestedProductId) || variantProductIds.includes(requestedProductId)
     : false;
+  const matchByQrToken = requestedQrToken
+    ? productQrTokens.includes(requestedQrToken) || variantQrTokens.includes(requestedQrToken)
+    : false;
   const matchByVariantId = requestedVariantId ? variantIds.includes(requestedVariantId) : false;
   const matchByColorId = requestedColorId ? colorIds.includes(requestedColorId) : false;
   const matchByColor = requestedColor ? colors.includes(requestedColor) : false;
   const matchBySize = requestedSize ? sizes.includes(requestedSize) : false;
 
   return {
-    matched: Boolean(matchByProductId || matchByVariantId || matchByColorId || matchByColor || matchBySize),
+    matched: Boolean(matchByQrToken || matchByProductId || matchByVariantId || matchByColorId || matchByColor || matchBySize),
+    matchByQrToken,
     matchByProductId,
     matchByVariantId,
     matchByColorId,
@@ -635,7 +650,17 @@ function ProductPickerSheet({
   );
 }
 
-function EmployeePortalCameraScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onError }) {
+function EmployeePortalCameraScannerModal({
+  onClose,
+  onScan,
+  onPermissionDenied,
+  onUnsupported,
+  onError,
+  scanDebug,
+  manualBarcodeValue,
+  onManualBarcodeChange,
+  onManualBarcodeSubmit,
+}) {
   if (typeof document === "undefined") return null;
 
   return createPortal(
@@ -676,12 +701,66 @@ function EmployeePortalCameraScannerModal({ onClose, onScan, onPermissionDenied,
               onPermissionDenied={onPermissionDenied}
               onUnsupported={onUnsupported}
               onError={onError}
+              onDebugChange={handleScannerDebugChange}
+              enable1dFallback
               className="overflow-hidden rounded-[1.35rem] bg-black"
               scannerClassName="min-h-[320px]"
             />
           </div>
           <div className="mt-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-center text-sm font-black text-emerald-100">
             قرّب الكاميرا وخلي الكيو آر داخل الإطار
+          </div>
+          <div className="mt-3 grid gap-3 rounded-3xl border border-cyan-400/20 bg-cyan-400/10 p-3 text-left">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">Scanner Debug</div>
+              <div className="text-[11px] font-bold text-cyan-100">{scanDebug?.stage ? text(scanDebug.stage).replace(/_/g, " ") : "idle"}</div>
+            </div>
+            <div className="grid gap-2 text-[11px] font-semibold text-cyan-50 sm:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-200/80">Last raw value</div>
+                <div className="mt-1 break-all text-sm text-white">{formatScanDebugValue(scanDebug?.rawValue || "")}</div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-200/80">Detected format</div>
+                <div className="mt-1 break-all text-sm text-white">{formatScanDebugValue(scanDebug?.detectedFormat || "")}</div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-200/80">Resolver called</div>
+                <div className="mt-1 text-sm text-white">{scanDebug?.resolverCalled ? "yes" : "no"}</div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-200/80">Resolver result</div>
+                <div className="mt-1 text-sm text-white">{formatScanDebugValue(scanDebug?.resolverResult || "idle")}</div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2 sm:col-span-2">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-200/80">Source</div>
+                <div className="mt-1 break-all text-sm text-white">{formatScanDebugValue(scanDebug?.source || "")}</div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 rounded-3xl border border-white/10 bg-white/[0.04] p-3">
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">Manual fallback</div>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <input
+                value={manualBarcodeValue}
+                onChange={(event) => onManualBarcodeChange?.(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    onManualBarcodeSubmit?.();
+                  }
+                }}
+                placeholder="Enter barcode manually"
+                className="min-h-11 flex-1 rounded-2xl border border-white/10 bg-black/30 px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
+              />
+              <button
+                type="button"
+                onClick={onManualBarcodeSubmit}
+                className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-emerald-400 px-4 text-sm font-black text-zinc-950 transition hover:bg-emerald-300"
+              >
+                Resolve
+              </button>
+            </div>
           </div>
           <div className="mt-3 text-center text-xs font-semibold text-zinc-500">
             يدعم باركود المنتجات وأكواد QR للبحث السريع داخل الكتالوج.
@@ -707,6 +786,7 @@ export default function EmployeePortalProducts() {
       colorId: text(searchParams.get("colorId") || searchParams.get("color_id") || ""),
       color: text(searchParams.get("color") || ""),
       size: text(searchParams.get("size") || ""),
+      qrToken: text(searchParams.get("qr_token") || searchParams.get("qrToken") || searchParams.get("qr") || ""),
       barcode: text(searchParams.get("barcode") || ""),
       sku: text(searchParams.get("sku") || ""),
       article: text(searchParams.get("article") || searchParams.get("article_code") || searchParams.get("articleCode") || ""),
@@ -714,7 +794,7 @@ export default function EmployeePortalProducts() {
     }),
     [queryKey]
   );
-  const directLookupActive = Boolean(directLookup.productId || directLookup.variantId || directLookup.colorId || directLookup.color || directLookup.size || directLookup.barcode || directLookup.sku || directLookup.article);
+  const directLookupActive = Boolean(directLookup.productId || directLookup.variantId || directLookup.colorId || directLookup.color || directLookup.size || directLookup.qrToken || directLookup.barcode || directLookup.sku || directLookup.article);
 
   const [employee, setEmployee] = useState(null);
   const [products, setProducts] = useState([]);
@@ -740,6 +820,15 @@ export default function EmployeePortalProducts() {
   const [loadingSubmit, setLoadingSubmit] = useState(false);
   const [resolvingScan, setResolvingScan] = useState(false);
   const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
+  const [scannerDebug, setScannerDebug] = useState({
+    stage: "idle",
+    rawValue: "",
+    detectedFormat: "",
+    resolverCalled: false,
+    resolverResult: "idle",
+    source: "",
+  });
+  const [manualBarcodeValue, setManualBarcodeValue] = useState("");
   const lookupDoneRef = useRef(false);
   const filtersPanelRef = useRef(null);
   const searchInputRef = useRef(null);
@@ -802,7 +891,7 @@ export default function EmployeePortalProducts() {
 
   useEffect(() => {
     if (lookupDoneRef.current) return;
-    if (!directLookup.productId && !directLookup.barcode && !directLookup.sku && !directLookup.article) return;
+    if (!directLookup.productId && !directLookup.qrToken && !directLookup.barcode && !directLookup.sku && !directLookup.article) return;
 
     let cancelled = false;
     (async () => {
@@ -870,7 +959,7 @@ export default function EmployeePortalProducts() {
     return () => {
       cancelled = true;
     };
-  }, [token, directLookup.productId, directLookup.variantId, directLookup.colorId, directLookup.color, directLookup.size, directLookup.barcode, directLookup.sku, directLookup.article, directLookup.action]);
+  }, [token, directLookup.productId, directLookup.variantId, directLookup.colorId, directLookup.color, directLookup.size, directLookup.qrToken, directLookup.barcode, directLookup.sku, directLookup.article, directLookup.action]);
 
   const normalizedProducts = useMemo(() => (Array.isArray(products) ? products : []).map(normalizeProduct), [products]);
 
@@ -909,6 +998,8 @@ export default function EmployeePortalProducts() {
 
       const matchedVariant = variants.find((variant) => {
         const variantCandidates = [
+          variant.qr_token,
+          variant.qrToken,
           variant.barcode,
           variant.sku,
           variant.article_code,
@@ -1185,6 +1276,25 @@ export default function EmployeePortalProducts() {
     }
   };
 
+  const handleScannerDebugChange = useCallback((payload = {}) => {
+    setScannerDebug((current) => ({
+      ...current,
+      ...payload,
+    }));
+  }, []);
+
+  const resetScannerDebug = useCallback(() => {
+    setScannerDebug({
+      stage: "idle",
+      rawValue: "",
+      detectedFormat: "",
+      resolverCalled: false,
+      resolverResult: "idle",
+      source: "",
+    });
+    setManualBarcodeValue("");
+  }, []);
+
   const resolveScannedProductLookup = useCallback(async (scannedValue) => {
     const lookupValue = String(scannedValue || "").trim();
     if (!lookupValue) return null;
@@ -1202,6 +1312,7 @@ export default function EmployeePortalProducts() {
 
     const response = await getEmployeePortalProducts(token, {
       search: lookupValue,
+      qr_token: lookupValue,
       barcode: lookupValue,
       sku: lookupValue,
       article: lookupValue,
@@ -1236,19 +1347,61 @@ export default function EmployeePortalProducts() {
     };
   }, [resolveScannedProductFromCatalog, token]);
 
-  const handleCameraScannerResult = useCallback((decodedValue) => {
-    const scannedValue = String(decodedValue || "").trim();
-    if (!scannedValue) return;
-    console.info("[employee-scanner]", scannedValue);
-    const smartQrParams = parseSmartQrScan(scannedValue);
-    setCameraScannerOpen(false);
+  const applyResolvedWarehouseRequestProduct = useCallback((result, resolutionMeta = {}) => {
+    if (!result?.product) return false;
 
+    const nextParams = new URLSearchParams();
+    const resolvedProductId = String(result.product.id ?? result.product.product_id ?? "");
+    nextParams.set("productId", resolvedProductId);
+    if (result.variant?.variant_id ?? result.variant?.id) nextParams.set("variantId", String(result.variant.variant_id ?? result.variant.id));
+    if (result.variant?.color_id ?? result.selection?.color_id) nextParams.set("colorId", String(result.variant?.color_id ?? result.selection?.color_id));
+    if (result.variant?.color || result.selection?.color) nextParams.set("color", String(result.variant?.color || result.selection?.color));
+    if (result.variant?.size || result.selection?.size) nextParams.set("size", String(result.variant?.size || result.selection?.size));
+    nextParams.set("action", "warehouse-request");
+
+    setScannerDebug((current) => ({
+      ...current,
+      resolverCalled: true,
+      resolverResult: "found",
+      source: resolutionMeta.source || current.source || "camera",
+      rawValue: resolutionMeta.rawValue || current.rawValue || "",
+      detectedFormat: resolutionMeta.detectedFormat || current.detectedFormat || "",
+    }));
+    setCameraScannerOpen(false);
+    const finalRedirectUrl = `/employee-portal/${encodeURIComponent(token)}/products?${nextParams.toString()}`;
+    navigate(finalRedirectUrl, { replace: true });
+    return true;
+  }, [navigate, token]);
+
+  const resolveWarehouseRequestScan = useCallback(async (decodedValue, metadata = {}) => {
+    const scannedValue = String(decodedValue || "").trim();
+    if (!scannedValue) return false;
+
+    const detectedFormat = text(metadata.formatName || metadata.detectedFormat || "");
+    const decoderSource = text(metadata.source || "camera");
+    console.info("[employee-scanner]", scannedValue);
+    setScannerDebug({
+      stage: "received",
+      rawValue: scannedValue,
+      detectedFormat,
+      resolverCalled: true,
+      resolverResult: "pending",
+      source: decoderSource,
+    });
+
+    const smartQrParams = parseSmartQrScan(scannedValue);
     if (smartQrParams) {
       const nextParams = new URLSearchParams();
       nextParams.set("productId", smartQrParams.productId);
       if (smartQrParams.variantId) nextParams.set("variantId", smartQrParams.variantId);
       if (smartQrParams.colorId) nextParams.set("colorId", smartQrParams.colorId);
       if (smartQrParams.action) nextParams.set("action", smartQrParams.action);
+      setScannerDebug((current) => ({
+        ...current,
+        resolverCalled: true,
+        resolverResult: "found",
+        source: `${decoderSource}:smart-qr`,
+      }));
       const finalRedirectUrl = `/employee-portal/${encodeURIComponent(token)}/products?${nextParams.toString()}`;
       console.info("[SMART_QR_REDIRECT]", {
         productId: smartQrParams.productId,
@@ -1256,52 +1409,58 @@ export default function EmployeePortalProducts() {
         colorId: smartQrParams.colorId,
         finalRedirectUrl,
       });
-      navigate(finalRedirectUrl, { replace: true });
-      return;
-    }
-
-    const applyResolvedProduct = (result) => {
-      if (!result?.product) return false;
-
-      const nextParams = new URLSearchParams();
-      const resolvedProductId = String(result.product.id ?? result.product.product_id ?? "");
-      nextParams.set("productId", resolvedProductId);
-      if (result.variant?.variant_id ?? result.variant?.id) nextParams.set("variantId", String(result.variant.variant_id ?? result.variant.id));
-      if (result.variant?.color_id ?? result.selection?.color_id) nextParams.set("colorId", String(result.variant?.color_id ?? result.selection?.color_id));
-      if (result.variant?.color || result.selection?.color) nextParams.set("color", String(result.variant?.color || result.selection?.color));
-      if (result.variant?.size || result.selection?.size) nextParams.set("size", String(result.variant?.size || result.selection?.size));
-      nextParams.set("action", "warehouse-request");
-
-      const finalRedirectUrl = `/employee-portal/${encodeURIComponent(token)}/products?${nextParams.toString()}`;
+      setCameraScannerOpen(false);
       navigate(finalRedirectUrl, { replace: true });
       return true;
-    };
+    }
 
     const localMatch = resolveScannedProductFromCatalog(scannedValue);
-    if (localMatch && applyResolvedProduct(localMatch)) {
-      return;
+    if (localMatch && applyResolvedWarehouseRequestProduct(localMatch, { source: decoderSource, detectedFormat, rawValue: scannedValue })) {
+      return true;
     }
 
     setResolvingScan(true);
-    resolveScannedProductLookup(scannedValue)
-      .then((result) => {
-        if (!applyResolvedProduct(result)) {
-          setSearch(scannedValue);
-          window.setTimeout(() => searchInputRef.current?.focus(), 0);
-        }
-      })
-      .catch((error) => {
-        console.warn("[employee-portal:scan-resolve-failed]", {
-          scannedValue,
-          message: error?.message || String(error || ""),
-        });
-        setSearch(scannedValue);
-        window.setTimeout(() => searchInputRef.current?.focus(), 0);
-      })
-      .finally(() => {
-        setResolvingScan(false);
+    try {
+      const result = await resolveScannedProductLookup(scannedValue);
+      if (applyResolvedWarehouseRequestProduct(result, { source: decoderSource, detectedFormat, rawValue: scannedValue })) {
+        return true;
+      }
+      setScannerDebug((current) => ({
+        ...current,
+        resolverCalled: true,
+        resolverResult: "not found",
+        source: decoderSource,
+      }));
+      setSearch(scannedValue);
+      window.setTimeout(() => searchInputRef.current?.focus(), 0);
+      return false;
+    } catch (error) {
+      console.warn("[employee-portal:scan-resolve-failed]", {
+        scannedValue,
+        message: error?.message || String(error || ""),
       });
-  }, [navigate, resolveScannedProductFromCatalog, resolveScannedProductLookup, token]);
+      setScannerDebug((current) => ({
+        ...current,
+        resolverCalled: true,
+        resolverResult: "error",
+        source: decoderSource,
+      }));
+      setSearch(scannedValue);
+      window.setTimeout(() => searchInputRef.current?.focus(), 0);
+      return false;
+    } finally {
+      setResolvingScan(false);
+    }
+  }, [applyResolvedWarehouseRequestProduct, resolveScannedProductFromCatalog, resolveScannedProductLookup, token]);
+
+  const handleCameraScannerResult = useCallback((decodedValue, metadata = {}) => resolveWarehouseRequestScan(decodedValue, metadata), [resolveWarehouseRequestScan]);
+
+  const handleManualBarcodeSubmit = useCallback(() => {
+    resolveWarehouseRequestScan(manualBarcodeValue, {
+      source: "manual",
+      formatName: "MANUAL_INPUT",
+    });
+  }, [manualBarcodeValue, resolveWarehouseRequestScan]);
 
   const handleCameraScannerPermissionDenied = useCallback((message = barcodeScannerMessages.permissionDenied) => {
     setCameraScannerOpen(false);
@@ -1410,7 +1569,11 @@ export default function EmployeePortalProducts() {
           <div className="flex min-w-0 items-center gap-2">
             <button
               type="button"
-              onClick={() => setCameraScannerOpen(true)}
+              onClick={() => {
+                resetScannerDebug();
+                setResolvingScan(false);
+                setCameraScannerOpen(true);
+              }}
               disabled={resolvingScan}
               className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-50"
               aria-label="فتح ماسح الكاميرا"
@@ -1486,11 +1649,19 @@ export default function EmployeePortalProducts() {
 
         {cameraScannerOpen ? (
           <EmployeePortalCameraScannerModal
-            onClose={() => setCameraScannerOpen(false)}
+            onClose={() => {
+              setCameraScannerOpen(false);
+              setResolvingScan(false);
+              resetScannerDebug();
+            }}
             onScan={handleCameraScannerResult}
             onPermissionDenied={handleCameraScannerPermissionDenied}
             onUnsupported={handleCameraScannerUnsupported}
             onError={handleCameraScannerError}
+            scanDebug={scannerDebug}
+            manualBarcodeValue={manualBarcodeValue}
+            onManualBarcodeChange={setManualBarcodeValue}
+            onManualBarcodeSubmit={handleManualBarcodeSubmit}
           />
         ) : null}
 

@@ -42,7 +42,7 @@ function CustomerLoyaltyProfile() {
       } catch (error) {
         if (!active) return;
         console.log(error);
-        toast.error("Using loyalty customer fallback");
+        toast.error("استخدام بيانات الولاء البديلة");
         setCustomer(loyaltyMockData.customerDetail.customer);
         setLoyalty(loyaltyMockData.customerDetail.loyalty);
         setTransactions(loyaltyMockData.customerDetail.transactions);
@@ -60,7 +60,7 @@ function CustomerLoyaltyProfile() {
   const handleRedeem = async () => {
     const redeemPoints = Number(points);
     if (!Number.isFinite(redeemPoints) || redeemPoints <= 0) {
-      toast.error("Enter valid points");
+      toast.error("أدخل نقاطًا صحيحة");
       return;
     }
 
@@ -75,10 +75,10 @@ function CustomerLoyaltyProfile() {
       }));
       setTransactions((current) => [response?.transaction, ...current].filter(Boolean));
       setPoints("");
-      toast.success("Points redeemed");
+      toast.success("تم استبدال النقاط");
     } catch (error) {
       console.log(error);
-      toast.error(error.message || "Redeem failed");
+      toast.error(error.message || "تعذر استبدال النقاط");
     } finally {
       setRedeeming(false);
     }
@@ -92,7 +92,7 @@ function CustomerLoyaltyProfile() {
             <UserCircle2 className="h-6 w-6" />
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-cyan-300/80">Customer loyalty profile</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-cyan-300/80">ملف الولاء للعميل</p>
             <h1 className="mt-2 text-3xl font-black">{loading ? "Loading..." : customer?.name}</h1>
             <p className="mt-2 text-sm text-zinc-400">
               {customer?.phone || "No phone"} {customer?.email ? `| ${customer.email}` : ""}
@@ -112,9 +112,9 @@ function CustomerLoyaltyProfile() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
           ["Tier", loyalty?.tier || "Bronze", ShieldCheck],
-          ["Available points", Number(loyalty?.available_points || 0).toLocaleString(), Gift],
+          ["النقاط المتاحة", Number(loyalty?.available_points || 0).toLocaleString(), Gift],
           ["Points earned", Number(loyalty?.total_points_earned || 0).toLocaleString(), ReceiptText],
-          ["Lifetime spent", Number(loyalty?.lifetime_spent || 0).toLocaleString(), ReceiptText],
+          ["إجمالي الإنفاق", Number(loyalty?.lifetime_spent || 0).toLocaleString(), ReceiptText],
         ].map(([label, value, Icon]) => (
           <div key={label} className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
             <div className="flex items-start justify-between gap-4">
@@ -133,17 +133,17 @@ function CustomerLoyaltyProfile() {
       <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
         <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold">Transaction history</h2>
+            <h2 className="text-lg font-bold">سجل المعاملات</h2>
             <span className={`rounded-full border px-3 py-1 text-xs font-bold ${tierStyles[loyalty?.tier] || tierStyles.Bronze}`}>{loyalty?.tier || "Bronze"}</span>
           </div>
           <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-white/5 text-xs uppercase tracking-[0.2em] text-zinc-500">
                 <tr>
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Points</th>
-                  <th className="px-4 py-3">Value</th>
-                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">النوع</th>
+                  <th className="px-4 py-3">النقاط</th>
+                  <th className="px-4 py-3">القيمة</th>
+                  <th className="px-4 py-3">التاريخ</th>
                 </tr>
               </thead>
               <tbody>
@@ -161,11 +161,11 @@ function CustomerLoyaltyProfile() {
         </div>
 
         <div className="rounded-3xl border border-white/10 bg-[#0b1220] p-5">
-          <h2 className="text-lg font-bold">Redeem points</h2>
-          <p className="mt-2 text-sm text-zinc-500">Convert points to value when the customer checks out.</p>
+          <h2 className="text-lg font-bold">استبدال النقاط</h2>
+          <p className="mt-2 text-sm text-zinc-500">حوّل النقاط إلى قيمة عند إتمام شراء العميل.</p>
 
           <label className="mt-5 block space-y-2 text-sm text-zinc-300">
-            <span className="block text-xs uppercase tracking-[0.2em] text-zinc-500">Points to redeem</span>
+            <span className="block text-xs uppercase tracking-[0.2em] text-zinc-500">النقاط المطلوب استبدالها</span>
             <input
               type="number"
               value={points}
@@ -181,7 +181,7 @@ function CustomerLoyaltyProfile() {
             className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 disabled:opacity-60"
           >
             <Gift className="h-4 w-4" />
-            {redeeming ? "Redeeming..." : "Redeem points"}
+            {redeeming ? "جارٍ الاستبدال..." : "استبدال النقاط"}
           </button>
         </div>
       </div>

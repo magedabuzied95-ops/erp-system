@@ -459,7 +459,7 @@ function StockAdjustments() {
         quantity_after: targetStock,
         reason: normalizeText(reason) || "تصحيح المخزون",
         notes: finalNotes,
-        user_name: normalizeText(currentUser?.name || currentUser?.full_name || currentUser?.email || "Current user"),
+        user_name: normalizeText(currentUser?.name || currentUser?.full_name || currentUser?.email || "المستخدم الحالي"),
         created_at: timestamp,
         approval_threshold: approvalThreshold,
         approval_required: requiresManagerApproval,
@@ -551,7 +551,7 @@ function StockAdjustments() {
         );
         return {
           ...record,
-          product_name: normalizeText(record.product_name || matched?.product_name || "Unknown product"),
+          product_name: normalizeText(record.product_name || matched?.product_name || "منتج غير معروف"),
           image_url: normalizeText(record.image_url || matched?.image_url || ""),
           color: normalizeText(record.color || matched?.color || ""),
           size: normalizeText(record.size || matched?.size || ""),

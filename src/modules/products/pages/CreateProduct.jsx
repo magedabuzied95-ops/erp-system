@@ -76,7 +76,7 @@ const readFileAsDataUrl = (file) =>
     reader.readAsDataURL(file);
   });
 
-const AI_PROGRESS_STEPS = ["Analyzing image...", "Generating SEO...", "Generating descriptions..."];
+const AI_PROGRESS_STEPS = ["جاري تحليل الصورة...", "جاري توليد تحسينات البحث...", "جاري توليد الأوصاف..."];
 
 const getSuggestionValue = (suggestions = {}, ...keys) => {
   for (const key of keys) {
@@ -94,7 +94,7 @@ const getDetectionConfidenceLabel = (suggestions = {}, key) => {
   const value = suggestions?.detection_confidence?.[key];
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return "";
-  return `${Math.max(0, Math.min(100, Math.round(numeric)))}% confidence`;
+  return `ثقة ${Math.max(0, Math.min(100, Math.round(numeric)))}%`;
 };
 
 const getAiImagePayload = (image = "") => {
@@ -199,7 +199,7 @@ const createColorImageItem = (value = {}, index = 0) => {
     preview: finalPreview,
     image_url: finalUrl,
     is_primary: Boolean(value?.is_primary ?? value?.isPrimary ?? index === 0),
-    name: value?.name || finalPreview.split("/").pop() || `Color image ${index + 1}`,
+    name: value?.name || finalPreview.split("/").pop() || `صورة لون ${index + 1}`,
   };
 };
 
@@ -287,7 +287,7 @@ function CreateProduct() {
   const [productType, setProductType] = useState("");
   const [grade, setGrade] = useState("");
   const [variationMode, setVariationMode] = useState("full_variations");
-  const [fixedSizeLabel, setFixedSizeLabel] = useState("One Size");
+  const [fixedSizeLabel, setFixedSizeLabel] = useState("مقاس واحد");
   const [brand, setBrand] = useState("");
   const [brandId, setBrandId] = useState("");
   const [unit, setUnit] = useState("");
@@ -1298,14 +1298,14 @@ function CreateProduct() {
   const applyBulkArticleCode = (targetGroupId = null, overwrite = false) => {
     const articleCode = String(bulkArticleCodeInput || "").trim();
     if (!articleCode) {
-      toast.error(t("products.editor.enterArticleCode", "Enter an article code first"));
+      toast.error(t("products.editor.enterArticleCode", "أدخل كود المقال أولًا"));
       return;
     }
 
     const isTargetGroup = (group) => !targetGroupId || group.id === targetGroupId;
     const targetGroups = colorGroups.filter(isTargetGroup);
     if (targetGroups.length === 0) {
-      toast.error(t("products.editor.addColorBeforeBulkArticle", "Add a color before applying article codes"));
+      toast.error(t("products.editor.addColorBeforeBulkArticle", "أضف لونًا قبل تطبيق أكواد المقال"));
       return;
     }
 
@@ -1314,7 +1314,7 @@ function CreateProduct() {
       (group.sizes || []).some((row) => String(row.article_code || "").trim())
     );
     if (hasExistingArticle && !overwrite) {
-      const confirmed = window.confirm(t("products.editor.confirmOverwriteArticleCodes", "Some variants already have article codes. Overwrite them?"));
+      const confirmed = window.confirm(t("products.editor.confirmOverwriteArticleCodes", "بعض المتغيرات تحتوي بالفعل على أكواد مقال. هل تريد استبدالها؟"));
       if (!confirmed) return;
     }
 
@@ -1337,7 +1337,7 @@ function CreateProduct() {
         };
       })
     );
-    toast.success(changedCount > 0 ? t("products.editor.articleCodeApplied", "Article code applied") : t("products.editor.noArticleCodesUpdated", "No article codes updated"));
+    toast.success(changedCount > 0 ? t("products.editor.articleCodeApplied", "تم تطبيق كود المقال") : t("products.editor.noArticleCodesUpdated", "لم يتم تحديث أي أكواد مقال"));
   };
 
   const removeSizeRow = (colorGroupId, sizeRowId) => {
@@ -1925,7 +1925,7 @@ function CreateProduct() {
         message: err?.message,
         stack: err?.stack,
       });
-      toast.error(err?.message || "Failed to create product");
+      toast.error(err?.message || "فشل إنشاء المنتج");
     } finally {
       setSaving(false);
     }
@@ -2017,7 +2017,7 @@ function CreateProduct() {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-black text-white">{t("products.editor.seoMetadata", "SEO metadata")}</p>
-          <p className="mt-1 text-xs text-zinc-400">{t("products.editor.seoMetadataHelp", "Search title, meta description, and keywords generated from product image and content.")}</p>
+          <p className="mt-1 text-xs text-zinc-400">{t("products.editor.seoMetadataHelp", "يتم توليد عنوان البحث والوصف والكلمات المفتاحية من صورة المنتج ومحتواه.")}</p>
         </div>
         <button
           type="button"
@@ -2025,7 +2025,7 @@ function CreateProduct() {
           disabled={seoGenerating}
           className="inline-flex h-9 items-center rounded-[12px] border border-white/10 bg-white/5 px-3 text-xs font-semibold text-zinc-100 transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100"
         >
-          {seoGenerating ? t("products.editor.generatingSeo", "Generating SEO...") : t("products.editor.regenerateSeoMetadata", "Regenerate SEO Metadata")}
+          {seoGenerating ? t("products.editor.generatingSeo", "جاري توليد تحسينات البحث...") : t("products.editor.regenerateSeoMetadata", "إعادة توليد بيانات تحسين البحث")}
         </button>
       </div>
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -2138,7 +2138,7 @@ function CreateProduct() {
 
   return (
     <ProductsShell
-      title={t("products.editor.createTitle", "Create Product")}
+      title={t("products.editor.createTitle", "إنشاء منتج")}
       description={t("products.editor.createDescription", "Enterprise-grade product intake with catalog metadata, pricing, media, barcode generation, and variant generation.")}
       actions={
         <Link
@@ -2161,7 +2161,7 @@ function CreateProduct() {
           <section className="rounded-[18px] border border-white/10 bg-[#10172a] p-4 shadow-[0_14px_42px_rgba(0,0,0,0.18)]">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h1 className="text-2xl font-semibold tracking-tight text-white">{t("products.editor.createTitle", "Create Product")}</h1>
+                <h1 className="text-2xl font-semibold tracking-tight text-white">{t("products.editor.createTitle", "إنشاء منتج")}</h1>
                 <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-400">
                   {t("products.editor.createWorkflowDescription")}
                 </p>
@@ -2306,7 +2306,7 @@ function CreateProduct() {
                     ) : (
                       <>
                         <Upload className="text-blue-400" size={42} />
-                        <p className="mt-4 text-lg font-semibold text-white">{t("products.editor.uploadProductImage", "Upload product image")}</p>
+                        <p className="mt-4 text-lg font-semibold text-white">{t("products.editor.uploadProductImage", "رفع صورة المنتج")}</p>
                         <p className="mt-2 text-sm text-zinc-400">{coverLabel || "PNG, JPG, WEBP"}</p>
                       </>
                     )}
@@ -3248,7 +3248,7 @@ function CreateProduct() {
                                   disabled={Boolean(colorDetecting[group.id]) || !getPrimaryColorImage(group)}
                                   className="inline-flex h-10 items-center justify-center rounded-[14px] border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
                                 >
-                                  Pick color
+                                  اختيار اللون
                                 </button>
                                 {mirrorEditionEnabled ? (
                                   <button
@@ -3258,7 +3258,7 @@ function CreateProduct() {
                                     className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[14px] border border-violet-400/20 bg-violet-400/10 px-3 text-sm font-semibold text-violet-100 transition hover:bg-violet-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                                   >
                                     {editionSuggestions[group.id]?.status === "loading" ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                                    Suggest Edition
+                                      اقتراح الإصدار
                                   </button>
                                 ) : null}
                                 </div>
@@ -3269,7 +3269,7 @@ function CreateProduct() {
                                       onClick={() => applyBulkSizes(group.id)}
                                       className="inline-flex h-10 items-center justify-center rounded-[14px] border border-emerald-500/20 bg-emerald-500/10 px-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/15"
                                     >
-                                      Apply bulk sizes
+                                      تطبيق الأحجام دفعة واحدة
                                     </button>
                                   ) : null}
                                   <button
@@ -3288,7 +3288,7 @@ function CreateProduct() {
                                       className="inline-flex h-10 items-center justify-center gap-2 rounded-[14px] border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white"
                                     >
                                       <Plus size={16} />
-                                      Add size
+                                      إضافة مقاس
                                     </button>
                                   ) : null}
                                 </div>
@@ -3327,17 +3327,17 @@ function CreateProduct() {
                                   >
                                       <div>
                                         <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
-                                          {isColorOnlyMode ? t("products.editor.fixedSize", "Fixed size") : t("products.fields.size", "Size")}
+                                          {isColorOnlyMode ? t("products.editor.fixedSize", "المقاس الثابت") : t("products.fields.size", "المقاس")}
                                         </label>
                                         <input
                                           value={row.size}
                                           onChange={(e) => updateSizeRow(group.id, row.id, "size", e.target.value)}
-                                          placeholder={isColorOnlyMode ? fixedSizeLabel || t("products.editor.oneSize") : "40"}
+                                          placeholder={isColorOnlyMode ? fixedSizeLabel || t("products.editor.oneSize", "مقاس واحد") : "40"}
                                           className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                                         />
                                       </div>
                                       <div>
-                                        <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{t("products.editor.stockQty", "Stock Qty")}</label>
+                                        <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{t("products.editor.stockQty", "الكمية المخزنة")}</label>
                                         <input
                                           type="number"
                                           min="0"
@@ -3347,7 +3347,7 @@ function CreateProduct() {
                                           placeholder="0"
                                           className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                                         />
-                                        <p className="mt-1 text-[10px] leading-4 text-zinc-500">{t("products.editor.preparationOnlyStock", "Preparation only. Real stock is added from purchase invoices.")}</p>
+                                        <p className="mt-1 text-[10px] leading-4 text-zinc-500">{t("products.editor.preparationOnlyStock", "للتجهيز فقط. تتم إضافة المخزون الفعلي من فواتير الشراء.")}</p>
                                       </div>
                                       <div>
                                         <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">SKU</label>
@@ -3363,7 +3363,7 @@ function CreateProduct() {
                                         <input
                                           value={row.barcode}
                                           onChange={(e) => updateSizeRow(group.id, row.id, "barcode", e.target.value)}
-                                          placeholder={t("products.editor.scanOrEnterBarcode", "Scan or enter barcode")}
+                                          placeholder={t("products.editor.scanOrEnterBarcode", "امسح أو أدخل الباركود")}
                                           className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                                         />
                                       </div>
@@ -3374,7 +3374,7 @@ function CreateProduct() {
                                           disabled={isColorOnlyMode || (group.sizes.length === 1 && rowIndex === 0)}
                                           className="inline-flex h-10 w-full items-center justify-center rounded-[12px] border border-white/10 bg-zinc-950 px-3 text-sm font-semibold text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
                                         >
-                                          Remove
+                                          إزالة
                                         </button>
                                       </div>
                                     </div>
@@ -3409,8 +3409,8 @@ function CreateProduct() {
                 {variantMatrix.length === 0 ? (
                   <div className="rounded-2xl border border-white/8 bg-white/5 p-5 text-sm text-zinc-400">
                     {isColorOnlyMode
-                      ? t("products.editor.addColorToPreview", "Add a color name to preview fixed-size color variants.")
-                      : t("products.editor.addColorAndSizeToPreview", "Add a color name and at least one size row to generate combinations.")}
+                      ? t("products.editor.addColorToPreview", "أضف اسم لون لمعاينة المتغيرات ثابتة المقاس.")
+                      : t("products.editor.addColorAndSizeToPreview", "أضف اسم لون وصفًا واحدًا على الأقل للمقاسات لتوليد التركيبات.")}
                   </div>
                 ) : (
                   variantMatrix.slice(0, 8).map((variant, index) => (
@@ -3422,7 +3422,7 @@ function CreateProduct() {
                           </p>
                           <p className="mt-1 text-xs font-mono text-zinc-500">{variant.sku}</p>
                         </div>
-                        <span className="block text-xs text-zinc-500">{variant.image_url ? t("products.editor.colorImageLinked", "Color image linked") : t("products.editor.noImageLinked", "No image linked")}</span>
+                        <span className="block text-xs text-zinc-500">{variant.image_url ? t("products.editor.colorImageLinked", "تم ربط صورة اللون") : t("products.editor.noImageLinked", "لا توجد صورة مرتبطة")}</span>
                       </div>
                     </div>
                   ))
@@ -3439,14 +3439,14 @@ function CreateProduct() {
             className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-6 py-3 font-semibold text-white disabled:opacity-60"
           >
             <Plus size={18} />
-            {saving ? t("common.saving", "Saving...") : t("products.editor.createTitle", "Create Product")}
+            {saving ? t("common.saving", "جارٍ الحفظ...") : t("products.editor.createTitle", "إنشاء منتج")}
           </button>
           <button
             type="button"
             onClick={() => navigate("/products")}
             className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-6 py-3 font-semibold text-white"
           >
-            Cancel
+            إلغاء
           </button>
         </div>
       </form>
@@ -3474,17 +3474,17 @@ function ColorPickModal({ target, onClose, onPick }) {
       <div className="w-full max-w-2xl rounded-[28px] border border-white/10 bg-zinc-950 p-4 shadow-2xl">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-black text-white">{t("products.editor.pickColor", "Pick color")}</p>
-            <p className="mt-1 text-xs text-zinc-400">{t("products.editor.pickColorHelp", "Click the real shoe material color, not the sole or background.")}</p>
+            <p className="text-sm font-black text-white">{t("products.editor.pickColor", "اختيار اللون")}</p>
+            <p className="mt-1 text-xs text-zinc-400">{t("products.editor.pickColorHelp", "انقر على لون مادة الحذاء الحقيقي، وليس النعل أو الخلفية.")}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 px-3 py-2 text-sm font-semibold text-white">
-            {t("common.close", "Close")}
+            {t("common.close", "إغلاق")}
           </button>
         </div>
         <div className="flex max-h-[70vh] items-center justify-center overflow-auto rounded-2xl bg-zinc-900">
           <img
             src={target.source}
-            alt={target.alt || t("products.editor.pickColor", "Pick color")}
+            alt={target.alt || t("products.editor.pickColor", "اختيار اللون")}
             className="max-h-[68vh] w-auto max-w-full cursor-crosshair object-contain"
             onClick={(event) => {
               const rect = event.currentTarget.getBoundingClientRect();
@@ -3550,18 +3550,18 @@ function ProductActionBar({ mode = "create", saving = false, hasUnsavedChanges =
   const { t } = useTranslation();
   const label =
     mode === "create"
-      ? t("products.editor.saveProduct", "Save Product")
-      : t("products.editor.updateProduct", "Update Product");
+      ? t("products.editor.saveProduct", "حفظ المنتج")
+      : t("products.editor.updateProduct", "تحديث المنتج");
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#0b1020]/95 px-4 py-3 shadow-[0_-18px_60px_rgba(0,0,0,0.38)] backdrop-blur md:left-auto md:right-6 md:bottom-6 md:w-auto md:min-w-[360px] md:rounded-[24px] md:border">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-zinc-500">{t("products.editor.productEditor", "Product Editor")}</p>
+          <p className="text-xs font-semibold text-zinc-500">{t("products.editor.productEditor", "محرر المنتج")}</p>
           <p className={`mt-1 text-sm font-semibold ${hasUnsavedChanges ? "text-amber-200" : "text-emerald-200"}`}>
             {hasUnsavedChanges
-              ? t("products.editor.unsavedChanges", "Unsaved changes")
-              : t("products.editor.noChangesYet", "No changes yet")}
+              ? t("products.editor.unsavedChanges", "توجد تغييرات غير محفوظة")
+              : t("products.editor.noChangesYet", "لا توجد تغييرات بعد")}
           </p>
         </div>
         <button
@@ -3571,7 +3571,7 @@ function ProductActionBar({ mode = "create", saving = false, hasUnsavedChanges =
           className={buttonClasses("primary", "h-11 w-full rounded-[14px] px-5 sm:w-auto")}
         >
           {saving ? <Loader2 size={16} strokeWidth={2} className="animate-spin" /> : <Save size={16} strokeWidth={2} />}
-          {saving ? t("common.saving", "Saving...") : label}
+          {saving ? t("common.saving", "جارٍ الحفظ...") : label}
         </button>
       </div>
     </div>

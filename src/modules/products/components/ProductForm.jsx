@@ -8,9 +8,9 @@ import { classificationGroupsToFieldOptions } from "../lib/productClassification
 
 const CATALOG_STRUCTURE_STORAGE_KEY = "product-form-show-catalog-structure";
 const PRODUCT_AUDIENCE_OPTIONS = [
-  { value: "men", label: "Men" },
-  { value: "women", label: "Women" },
-  { value: "kids", label: "Kids" },
+  { value: "men", label: "رجال" },
+  { value: "women", label: "نساء" },
+  { value: "kids", label: "أطفال" },
 ];
 
 function ProductForm({
@@ -122,8 +122,8 @@ function ProductForm({
             )}
             <span>
               {showCatalogStructure
-                ? t("products.form.hideCategorySelectors", "Hide category selectors")
-                : t("products.form.showCategorySelectors", "Show category selectors")}
+                ? t("products.form.hideCategorySelectors", "إخفاء محددات الفئات")
+                : t("products.form.showCategorySelectors", "إظهار محددات الفئات")}
             </span>
           </button>
         </div>
@@ -172,7 +172,7 @@ function ProductForm({
           }`}
         >
           <div className="rounded-2xl border border-white/8 bg-zinc-950/55 px-4 py-3 text-sm font-medium text-zinc-400">
-            {t("products.form.categorySelectorsHidden", "Category selectors are hidden")}
+            {t("products.form.categorySelectorsHidden", "محددات الفئات مخفية")}
           </div>
         </div>
 
@@ -279,7 +279,7 @@ function ProductForm({
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <AudienceCheckboxGroup
-            label={t("products.form.gender", "Audience")}
+            label={t("products.form.gender", "الجمهور")}
             value={selectedAudiences}
             onChange={(next) => {
               onAudiencesChange?.(next);
@@ -292,7 +292,7 @@ function ProductForm({
             value={productType}
             onChange={onProductTypeChange}
             options={classificationOptions.productType}
-            placeholder={t("products.form.selectProductType", "Select product type")}
+            placeholder={t("products.form.selectProductType", "اختر نوع المنتج")}
           />
 
           <SmartClassificationSelect
@@ -300,7 +300,7 @@ function ProductForm({
             value={grade}
             onChange={onGradeChange}
             options={classificationOptions.grade}
-            placeholder={t("products.form.selectGrade", "Select grade")}
+            placeholder={t("products.form.selectGrade", "اختر الدرجة")}
           />
         </div>
       </section>
@@ -311,7 +311,7 @@ function ProductForm({
             {t("products.form.purchaseSettings", "إعدادات الشراء")}
           </p>
           <p className="mt-1 text-sm text-zinc-400">
-            {t("products.form.purchaseSettingsHelp", "Store carton-aware purchase defaults on the product record.")}
+            {t("products.form.purchaseSettingsHelp", "احفظ افتراضيات الشراء المرتبطة بالكرتونة داخل سجل المنتج.")}
           </p>
         </div>
 
@@ -489,13 +489,13 @@ function SmartClassificationSelect({ label, value, onChange, options = [], place
       </select>
       {!hasSelectedOption ? (
         <div className="mt-2 flex items-center justify-between gap-3 rounded-2xl border border-amber-300/15 bg-amber-400/8 px-3 py-2 text-xs text-amber-100">
-          <span className="min-w-0 truncate">Unavailable value: {normalizedValue}</span>
+          <span className="min-w-0 truncate">قيمة غير متاحة: {normalizedValue}</span>
           <button
             type="button"
             onClick={() => onChange?.("")}
             className="shrink-0 rounded-xl border border-amber-200/20 bg-zinc-950/40 px-2.5 py-1 font-bold text-amber-50 transition hover:bg-amber-300/15"
           >
-            Clear
+            مسح
           </button>
         </div>
       ) : null}

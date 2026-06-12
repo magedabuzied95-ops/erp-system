@@ -90,6 +90,16 @@ const normalizeVariant = (row = {}, sourceProduct = row, saleModeSettings = {}) 
       row.factory_code ??
       row.factoryCode
   );
+  const qrToken = normalizeText(
+    row.qr_token ??
+      row.qrToken ??
+      row.product_qr_token ??
+      row.productQrToken ??
+      sourceProduct.qr_token ??
+      sourceProduct.qrToken ??
+      sourceProduct.product_qr_token ??
+      sourceProduct.productQrToken
+  );
   const variantImageUrl = resolvePosImageUrl(
     row.variant_image_url ??
       row.variantImageUrl ??
@@ -156,6 +166,8 @@ const normalizeVariant = (row = {}, sourceProduct = row, saleModeSettings = {}) 
     size,
     sku,
     barcode,
+    qr_token: qrToken,
+    qrToken,
     article_code: articleCode,
     image_url: imageUrl,
     product_image_url: productImageUrl,
@@ -279,6 +291,7 @@ const buildProductFromVariants = (productSeed, variants) => {
     stock: variants.reduce((sum, variant) => sum + Number(variant.stock_quantity ?? variant.stock ?? 0), 0),
     sku: variants.find((variant) => variant.sku)?.sku || normalizeText(productSeed.sku ?? productSeed.product_sku),
     barcode: variants.find((variant) => variant.barcode)?.barcode || normalizeText(productSeed.barcode ?? productSeed.product_barcode),
+    qr_token: normalizeText(productSeed.qr_token ?? productSeed.qrToken ?? productSeed.product_qr_token ?? productSeed.productQrToken),
     low_stock_threshold: normalizeNumber(productSeed.low_stock_threshold ?? productSeed.low_stock_alert ?? 10),
     variants,
   };

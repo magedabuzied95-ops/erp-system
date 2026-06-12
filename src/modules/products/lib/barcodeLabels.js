@@ -431,7 +431,7 @@ export const buildBarcodePrintHtml = ({
   template = LABEL_TEMPLATE_STANDARD,
   printSettings = {},
   copy = {},
-  previewTitle = "Print Barcode",
+  previewTitle = "طباعة الباركود",
   previewBackUrl = "",
   showPreviewChrome = false,
 } = {}) => {
@@ -1307,9 +1307,9 @@ export const buildBarcodePrintHtml = ({
         <div class="preview-shell">
           ${showPreviewChrome ? `
             <div class="preview-toolbar" role="banner" aria-label="${escapeHtml(previewTitle)}">
-              <button type="button" class="preview-toolbar-button" data-preview-action="close">Back / Close</button>
+              <button type="button" class="preview-toolbar-button" data-preview-action="close">رجوع / إغلاق</button>
               <div class="preview-toolbar-title">${escapeHtml(previewTitle)}</div>
-              <button type="button" class="preview-toolbar-button primary" data-preview-action="print">Print</button>
+              <button type="button" class="preview-toolbar-button primary" data-preview-action="print">طباعة</button>
             </div>
           ` : ""}
           <div class="page">
@@ -1329,7 +1329,7 @@ export const openBarcodePrintWindow = ({
   companyName = APP_NAME,
   companyLogo = "LOGO",
   copy = {},
-  previewTitle = "Print Barcode",
+  previewTitle = "طباعة الباركود",
   previewBackUrl = "",
   showPreviewChrome = false,
 } = {}) => {

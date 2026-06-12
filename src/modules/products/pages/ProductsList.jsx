@@ -81,9 +81,9 @@ const CLASSIFICATION_FILTER_FIELDS = [
   { key: "grade", field: "grade", labelKey: "products.filters.sourceQuality", fallbackLabel: "Source / quality" },
 ];
 const PRODUCT_AUDIENCE_OPTIONS = [
-  { value: "men", label_en: "Men", label_ar: "Men" },
-  { value: "women", label_en: "Women", label_ar: "Women" },
-  { value: "kids", label_en: "Kids", label_ar: "Kids" },
+  { value: "men", label_en: "رجال", label_ar: "رجال" },
+  { value: "women", label_en: "نساء", label_ar: "نساء" },
+  { value: "kids", label_en: "أطفال", label_ar: "أطفال" },
 ];
 
 const productStatusValue = (row = {}) => String(row.status || "").trim().toLowerCase();
@@ -210,11 +210,11 @@ const duplicateVariantPayload = (variant = {}, index = 0) => ({
 });
 
 const duplicateProductPayload = (row = {}) => ({
-  name: `${row.name || "Product"} Copy`,
+  name: `${row.name || "منتج"} نسخة`,
   description: "",
-  category: row.category || "Uncategorized",
+  category: row.category || "غير مصنف",
   category_id: row.category_id || null,
-  brand: row.brand || "Unbranded",
+  brand: row.brand || "بدون علامة",
   brand_id: row.brand_id || null,
   gender: row.gender || "",
   audiences: Array.isArray(row.audiences) ? row.audiences : [],
@@ -439,7 +439,7 @@ const getProductStockState = (product) => {
 
 const formatCardPrice = (value) => {
   const amount = Number(value || 0);
-  return `EGP ${new Intl.NumberFormat("en-US", {
+  return `ج.م ${new Intl.NumberFormat("ar-EG", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(Number.isFinite(amount) ? amount : 0)}`;
@@ -474,7 +474,7 @@ const uniquePriceValues = (values = []) => {
 
 const formatPriceRange = (values = []) => {
   const prices = uniquePriceValues(values);
-  if (!prices.length) return "—";
+  if (!prices.length) return "غير متاح";
   if (prices.length === 1) return formatCardPrice(prices[0]);
   return `${formatCardPrice(prices[0])} - ${formatCardPrice(prices[prices.length - 1])}`;
 };
@@ -508,14 +508,14 @@ const getCatalogPriceDisplay = (row = {}) => {
   return {
     cost: formatPriceRange(costValues),
     sell: formatPriceRange(sellValues),
-    sale: saleUnique.length ? formatPriceRange(saleValues) : "—",
+    sale: saleUnique.length ? formatPriceRange(saleValues) : "غير متاح",
     costVaries: costUnique.length > 1,
     sellVaries: sellUnique.length > 1,
     saleVaries: saleUnique.length > 1,
   };
 };
 
-function PriceLine({ label, value, varies = false, variesLabel = "Varies", tone = "muted" }) {
+function PriceLine({ label, value, varies = false, variesLabel = "متنوع", tone = "muted" }) {
   const toneClass =
     tone === "sell"
       ? "text-emerald-200"
@@ -622,9 +622,9 @@ function PriceEditorModal({ product, onClose, onSave }) {
       <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60">
         <div className="flex items-start justify-between gap-4 border-b border-white/10 p-5">
           <div className="min-w-0">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">{t("products.priceEditor.eyebrow", "Price-only update")}</p>
-            <h2 className="mt-1 truncate text-xl font-black text-white">{t("products.actionsMenu.editPrices", "Edit Prices")}</h2>
-            <p className="mt-1 truncate text-sm text-zinc-400">{product.name || product.product_name || `Product #${product.id}`}</p>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">{t("products.priceEditor.eyebrow", "تحديث الأسعار فقط")}</p>
+            <h2 className="mt-1 truncate text-xl font-black text-white">{t("products.actionsMenu.editPrices", "تعديل الأسعار")}</h2>
+            <p className="mt-1 truncate text-sm text-zinc-400">{product.name || product.product_name || `المنتج رقم ${product.id}`}</p>
           </div>
           <button type="button" onClick={onClose} disabled={saving} className="rounded-full border border-white/10 bg-white/5 p-2 text-white disabled:opacity-50">
             ×
@@ -641,12 +641,12 @@ function PriceEditorModal({ product, onClose, onSave }) {
                     <div className="min-w-0 self-center">
                       <div className="truncate text-sm font-black text-white">{variant.name}</div>
                       <div className="mt-1 text-xs text-zinc-500">
-                        {t("products.priceEditor.current", "Current")}: {formatPrice(variant.current_sale_price)}
+                        {t("products.priceEditor.current", "الحالي")}: {formatPrice(variant.current_sale_price)}
                         {variant.current_discount_price !== "" ? ` / ${formatPrice(variant.current_discount_price)}` : ""}
                       </div>
                     </div>
                     <PriceField compact label={t("products.priceEditor.salePrice", "سعر البيع")} value={variant.sale_price} onChange={(value) => setVariant(index, { sale_price: value })} />
-                    <PriceField compact label={t("products.priceEditor.discountPrice", "سعر السيل")} value={variant.discount_price} onChange={(value) => setVariant(index, { discount_price: value })} placeholder={t("products.priceEditor.empty", "Empty")} />
+                    <PriceField compact label={t("products.priceEditor.discountPrice", "سعر السيل")} value={variant.discount_price} onChange={(value) => setVariant(index, { discount_price: value })} placeholder={t("products.priceEditor.empty", "فارغ")} />
                   </div>
                 ))}
               </div>
@@ -656,7 +656,7 @@ function PriceEditorModal({ product, onClose, onSave }) {
         <div className="flex justify-end gap-2 border-t border-white/10 p-4">
           <button type="button" onClick={onClose} disabled={saving} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{t("common.cancel")}</button>
           <button type="button" onClick={submit} disabled={saving} className="rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-black text-black disabled:opacity-60">
-            {saving ? t("products.priceEditor.saving", "Saving...") : t("common.save", "Save")}
+            {saving ? t("products.priceEditor.saving", "جارٍ الحفظ...") : t("common.save", "حفظ")}
           </button>
         </div>
       </div>
@@ -675,7 +675,7 @@ function PriceField({ label, value, onChange, current, placeholder = "", compact
     <label className="block">
       <div className="mb-1 flex items-center justify-between gap-2">
         <span className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">{label}</span>
-        {current !== undefined ? <span className="text-[10px] font-semibold text-zinc-500">Current: {current}</span> : null}
+        {current !== undefined ? <span className="text-[10px] font-semibold text-zinc-500">الحالي: {current}</span> : null}
       </div>
       <input
         type="number"
@@ -703,7 +703,7 @@ function AdvancedPriceField({ label, value, onChange, onBlur, current, placehold
     <label className="block">
       <div className={compact ? "sr-only" : "mb-1 flex items-center justify-between gap-2"}>
         <span className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">{label}</span>
-        {current !== undefined ? <span className="text-[10px] font-semibold text-zinc-500">Current: {current}</span> : null}
+        {current !== undefined ? <span className="text-[10px] font-semibold text-zinc-500">الحالي: {current}</span> : null}
       </div>
       <input
         type="number"
@@ -934,8 +934,8 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
         <div className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-3">
           <div className="min-w-0">
             <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">{t("products.priceEditor.eyebrow", "Price-only update")}</p>
-            <h2 className="mt-0.5 truncate text-lg font-black text-white">{t("products.actionsMenu.editPrices", "Edit Prices")}</h2>
-            <p className="truncate text-sm text-zinc-400">{product.name || product.product_name || `Product #${product.id}`}</p>
+            <h2 className="mt-0.5 truncate text-lg font-black text-white">{t("products.actionsMenu.editPrices", "تعديل الأسعار")}</h2>
+            <p className="truncate text-sm text-zinc-400">{product.name || product.product_name || `المنتج رقم ${product.id}`}</p>
           </div>
           <button type="button" onClick={onClose} disabled={saving} className="rounded-full border border-white/10 bg-white/5 p-2 text-white outline-none transition hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">
             <X size={18} />
@@ -1015,7 +1015,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
           <div className="flex justify-end gap-2">
             <button type="button" onClick={onClose} disabled={saving} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white outline-none hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">{t("common.cancel")}</button>
             <button type="button" onClick={submit} disabled={saving || !changedCount} className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-black text-black outline-none hover:bg-emerald-400 focus:ring-2 focus:ring-emerald-300/40 disabled:opacity-60">
-              {saving ? t("products.priceEditor.saving", "Saving...") : t("common.save", "Save")}
+              {saving ? t("products.priceEditor.saving", "جارٍ الحفظ...") : t("common.save", "حفظ")}
             </button>
           </div>
         </div>
@@ -1458,7 +1458,7 @@ function ProductsList() {
       {
         key: "view",
         icon: Eye,
-        label: t("products.actionsMenu.view", "View"),
+        label: t("products.actionsMenu.view", "عرض"),
         placement: "dropdown",
         onClick: () => {
           console.log("[products:list] action click", { action: "view", productId: row.id });
@@ -1469,7 +1469,7 @@ function ProductsList() {
       {
         key: "edit",
         icon: Pencil,
-        label: t("products.actionsMenu.edit", "Edit"),
+        label: t("products.actionsMenu.edit", "تعديل"),
         placement: "primary",
         visibleFrom: "lg",
         onClick: () => {
@@ -1481,8 +1481,8 @@ function ProductsList() {
       {
         key: "advanced-pricing",
         icon: BadgeDollarSign,
-        label: t("products.actionsMenu.editPrices", "Edit Prices"),
-        inlineLabel: t("products.actionsMenu.prices", "Prices"),
+        label: t("products.actionsMenu.editPrices", "تعديل الأسعار"),
+        inlineLabel: t("products.actionsMenu.prices", "الأسعار"),
         placement: "primary",
         visibleFrom: "lg",
         onClick: () => {
@@ -1493,7 +1493,7 @@ function ProductsList() {
       {
         key: "stock",
         icon: PackageSearch,
-        label: t("products.actionsMenu.stock", "Stock"),
+        label: t("products.actionsMenu.stock", "المخزون"),
         placement: "primary",
         visibleFrom: "lg",
         onClick: () => handleOpenStock(row),
@@ -1501,8 +1501,8 @@ function ProductsList() {
       {
         key: "print-barcode",
         icon: Barcode,
-        label: t("products.actionsMenu.printBarcode", "Print Barcode"),
-        inlineLabel: t("products.actionsMenu.barcode", "Barcode"),
+        label: t("products.actionsMenu.printBarcode", "طباعة الباركود"),
+        inlineLabel: t("products.actionsMenu.barcode", "الباركود"),
         placement: "primary",
         visibleFrom: "xl",
         className: "hidden xl:inline-flex",
@@ -1511,7 +1511,7 @@ function ProductsList() {
       {
         key: "barcode-shop",
         icon: Barcode,
-        label: t("products.actionsMenu.barcodeShop", "Barcode Shop"),
+        label: t("products.actionsMenu.barcodeShop", "باركود المتجر"),
         placement: "dropdown",
         onClick: () => handleOpenBarcodeShop(row),
       },
@@ -1519,10 +1519,10 @@ function ProductsList() {
         key: canCreateMarketingPost ? "generate-marketing-post" : canPublishMarketingPost ? "generate-fast-story" : "marketing-story",
         icon: canCreateMarketingPost ? Megaphone : Zap,
         label: canCreateMarketingPost
-          ? t("products.actionsMenu.generateMarketingPost", "Generate Marketing Post")
+          ? t("products.actionsMenu.generateMarketingPost", "إنشاء منشور تسويقي")
           : canPublishMarketingPost
-            ? t("products.actionsMenu.generateFastStory", "Generate Fast Story")
-            : t("products.actionsMenu.marketing", "Marketing"),
+            ? t("products.actionsMenu.generateFastStory", "إنشاء قصة سريعة")
+            : t("products.actionsMenu.marketing", "التسويق"),
         placement: "primary",
         visibleFrom: "2xl",
         className: "hidden 2xl:inline-flex",
@@ -1532,7 +1532,7 @@ function ProductsList() {
       {
         key: "duplicate",
         icon: Copy,
-        label: t("products.actionsMenu.duplicate", "Duplicate"),
+        label: t("products.actionsMenu.duplicate", "نسخ"),
         placement: "dropdown",
         onClick: () => {
           console.log("[products:list] action click", { action: "duplicate", productId: row.id });
@@ -1550,7 +1550,7 @@ function ProductsList() {
       {
         key: "generate-marketing-post",
         icon: Megaphone,
-        label: t("products.actionsMenu.generateMarketingPost", "Generate Marketing Post"),
+        label: t("products.actionsMenu.generateMarketingPost", "إنشاء منشور تسويقي"),
         placement: "dropdown",
         hidden: !canCreateMarketingPost,
         onClick: () => {
@@ -1562,7 +1562,7 @@ function ProductsList() {
       {
         key: "generate-fast-story",
         icon: Zap,
-        label: t("products.actionsMenu.generateFastStory", "Generate Fast Story"),
+        label: t("products.actionsMenu.generateFastStory", "إنشاء قصة سريعة"),
         placement: "dropdown",
         hidden: !canPublishMarketingPost,
         onClick: () => {
@@ -1574,7 +1574,7 @@ function ProductsList() {
       {
         key: "schedule-story",
         icon: CalendarClock,
-        label: t("products.actionsMenu.scheduleStory", "Schedule Story"),
+        label: t("products.actionsMenu.scheduleStory", "جدولة القصة"),
         placement: "dropdown",
         hidden: !canUpdateMarketingPost,
         onClick: () => {
@@ -1586,7 +1586,7 @@ function ProductsList() {
       {
         key: "delete",
         icon: Trash2,
-        label: t("products.actionsMenu.delete", "Delete"),
+        label: t("products.actionsMenu.delete", "حذف"),
         placement: "dropdown",
         tone: "danger",
         onClick: () => {
@@ -1621,7 +1621,7 @@ function ProductsList() {
     try {
       const result = await deleteProduct(id);
       removeProductMeta(id);
-      toast.success(result?.message || t("products.actionsMenu.delete"));
+      toast.success(result?.message || t("products.actionsMenu.delete", "حذف"));
       setSelectedIds((prev) => prev.filter((item) => item !== id));
       setSelectedProduct((prev) => (prev?.id === id ? null : prev));
       await loadProducts();
@@ -1643,7 +1643,7 @@ function ProductsList() {
       const generated = await generateProductMarketingPost(product.id);
       setMarketingEditorPost(generated);
       setMarketingEditorOpen(true);
-      toast.success(t("products.actionsMenu.generateMarketingPost"));
+      toast.success(t("products.actionsMenu.generateMarketingPost", "إنشاء منشور تسويقي"));
     } catch (err) {
       console.error(err);
       const message = Number(err?.status || err?.responseBody?.status) === 403
@@ -1777,7 +1777,7 @@ function ProductsList() {
           ? `${deletedCount} deleted, ${archivedCount} archived`
           : archivedCount
             ? `${archivedCount} product${archivedCount === 1 ? "" : "s"} archived`
-            : t("products.actionsMenu.delete")
+            : t("products.actionsMenu.delete", "حذف")
       );
       setSelectedIds([]);
       await loadProducts();
@@ -2030,8 +2030,8 @@ function ProductsList() {
                 const displaySku = cleanSkuDisplay(row.sku);
                 const inactiveProduct = isInactiveProduct(row);
                 const statusToggleLabel = inactiveProduct
-                  ? t("products.actionsMenu.activateProduct", "Activate Product")
-                  : t("products.actionsMenu.deactivateProduct", "Deactivate Product");
+          ? t("products.actionsMenu.activateProduct", "تفعيل المنتج")
+          : t("products.actionsMenu.deactivateProduct", "إلغاء تفعيل المنتج");
                 const { dropdownActions } = getRowActions(row, statusToggleLabel);
                 const statusKey =
                   inactiveProduct
@@ -2045,7 +2045,7 @@ function ProductsList() {
                   statusKey === "inactive"
                     ? t("products.filters.inactive")
                     : statusKey === "out"
-                      ? "Out of stock"
+                    ? "نفد المخزون"
                       : statusKey === "low"
                         ? t("products.filters.lowStock")
                         : t("products.filters.active");
@@ -2093,7 +2093,7 @@ function ProductsList() {
                   <th className="px-4 py-2">{t("products.table.product")}</th>
                   <th className="px-4 py-2">{t("products.table.categoryBrand")}</th>
                   <th className="px-4 py-2">{t("products.table.stock")}</th>
-                  <th className="px-4 py-2">{t("products.table.costSale")}</th>
+                  <th className="px-4 py-2">{t("products.table.costSale", "التكلفة / البيع")}</th>
                   <th className="px-4 py-2">{t("products.table.status")}</th>
                   <th className="px-4 py-2 text-right">{t("products.table.actions")}</th>
                 </tr>
@@ -2125,8 +2125,8 @@ function ProductsList() {
                     const barcodeTitle = cleanSkuDisplay(row.barcode) ? `${displaySku ? `${displaySku} / ` : ""}${row.barcode}` : displaySku;
                     const inactiveProduct = isInactiveProduct(row);
                     const statusToggleLabel = inactiveProduct
-                      ? t("products.actionsMenu.activateProduct", "Activate Product")
-                      : t("products.actionsMenu.deactivateProduct", "Deactivate Product");
+                      ? t("products.actionsMenu.activateProduct", "تفعيل المنتج")
+                      : t("products.actionsMenu.deactivateProduct", "إلغاء تفعيل المنتج");
                     const { inlineActions, dropdownActions } = getRowActions(row, statusToggleLabel);
                     const statusKey =
                       inactiveProduct
@@ -2140,7 +2140,7 @@ function ProductsList() {
                       statusKey === "inactive"
                         ? t("products.filters.inactive")
                         : statusKey === "out"
-                          ? "Out of stock"
+                          ? "نفد المخزون"
                           : statusKey === "low"
                             ? t("products.filters.lowStock")
                             : t("products.filters.active");
@@ -2256,12 +2256,12 @@ function ProductsList() {
                                 });
                               }}
                               className="group/action relative ml-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.025] text-zinc-400 opacity-75 transition hover:border-emerald-300/25 hover:bg-emerald-400/10 hover:text-emerald-100 hover:opacity-100"
-                              title={t("products.actionsMenu.moreActions", "More actions")}
-                              aria-label={t("products.actionsMenu.moreActions", "More actions")}
+                              title={t("products.actionsMenu.moreActions", "المزيد من الإجراءات")}
+                              aria-label={t("products.actionsMenu.moreActions", "المزيد من الإجراءات")}
                             >
                               <MoreHorizontal size={15} />
                               <span className="pointer-events-none absolute bottom-full left-1/2 z-[110] mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-white/10 bg-zinc-950 px-2 py-1 text-[10px] font-bold text-white opacity-0 shadow-xl shadow-black/40 transition group-hover/action:opacity-100 group-focus-visible/action:opacity-100">
-                                {t("products.actionsMenu.moreActions", "More actions")}
+                                {t("products.actionsMenu.moreActions", "المزيد من الإجراءات")}
                               </span>
                             </button>
 
@@ -2367,8 +2367,8 @@ function ProductsList() {
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-zinc-400">
                   {isInactiveProduct(statusActionProduct)
-                    ? t("products.statusModal.activateDescription", "This product will be visible again in storefront and POS product results.")
-                    : t("products.statusModal.deactivateDescription", "Inactive products remain visible in admin, but are hidden from storefront, search, and POS sale results.")}
+                    ? t("products.statusModal.activateDescription", "سيظهر هذا المنتج مرة أخرى في المتجر ونقاط البيع.")
+                    : t("products.statusModal.deactivateDescription", "تظل المنتجات غير النشطة مرئية في الإدارة، لكنها تُخفى من المتجر والبحث ونتائج البيع في نقاط البيع.")}
                 </p>
                 <p className="mt-3 truncate text-sm font-semibold text-zinc-200">{statusActionProduct.name}</p>
               </div>
@@ -2391,8 +2391,8 @@ function ProductsList() {
                 }`}
               >
                 {isInactiveProduct(statusActionProduct)
-                  ? t("products.actionsMenu.activateProduct", "Activate Product")
-                  : t("products.actionsMenu.deactivateProduct", "Deactivate Product")}
+                  ? t("products.actionsMenu.activateProduct", "تفعيل المنتج")
+                  : t("products.actionsMenu.deactivateProduct", "إلغاء تفعيل المنتج")}
               </button>
             </div>
           </div>
@@ -2464,7 +2464,7 @@ function ProductsList() {
           onPublish={canPublishMarketingPost ? handlePublishMarketingPost : null}
           onSchedule={canUpdateMarketingPost ? handleScheduleMarketingPost : null}
           saving={marketingSaving}
-          title={t("products.actionsMenu.generateMarketingPost")}
+          title={t("products.actionsMenu.generateMarketingPost", "إنشاء منشور تسويقي")}
         />
       ) : null}
     </ProductsShell>

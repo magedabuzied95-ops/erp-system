@@ -105,12 +105,14 @@ const normalizeProduct = (row = {}, variants = []) => {
 
 const buildLookupSelection = (products = [], query = {}) => {
   const directProductId = toPositiveInt(query.productId ?? query.product_id);
+  const qrToken = clean(query.qr_token ?? query.qrToken ?? query.qr ?? "");
   const barcode = clean(query.barcode);
   const sku = clean(query.sku);
   const article = clean(query.article ?? query.article_code ?? query.articleCode);
-  if (!directProductId && !barcode && !sku && !article) return null;
+  if (!directProductId && !qrToken && !barcode && !sku && !article) return null;
 
   for (const product of products) {
+    const productQrToken = clean(product.qr_token);
     const productBarcode = clean(product.barcode);
     const productSku = clean(product.sku);
     const productArticle = clean(product.product_code || product.article_code);
@@ -126,10 +128,12 @@ const buildLookupSelection = (products = [], query = {}) => {
 
     const matchedVariant = (Array.isArray(product.variants) ? product.variants : []).find(
       (variant) => {
+        const variantQrToken = clean(variant.qr_token);
         const variantBarcode = clean(variant.barcode);
         const variantSku = clean(variant.sku);
         const variantArticle = clean(variant.article_code);
         return (
+          (qrToken && (variantQrToken === qrToken || variantBarcode === qrToken || variantSku === qrToken || variantArticle === qrToken)) ||
           (barcode && (variantBarcode === barcode || variantSku === barcode || variantArticle === barcode)) ||
           (sku && (variantSku === sku || variantBarcode === sku || variantArticle === sku)) ||
           (article && variantArticle === article)
@@ -147,6 +151,7 @@ const buildLookupSelection = (products = [], query = {}) => {
     }
 
     if (
+      (qrToken && (productQrToken === qrToken || productBarcode === qrToken || productSku === qrToken || productArticle === qrToken)) ||
       (barcode && (productBarcode === barcode || productSku === barcode || productArticle === barcode)) ||
       (sku && (productSku === sku || productBarcode === sku || productArticle === sku)) ||
       (article && productArticle === article)
@@ -179,6 +184,8 @@ const buildSearchClause = (values, search) => {
     OR COALESCE(p.sku, '') ILIKE ${partialParam}
     OR LOWER(TRIM(COALESCE(p.barcode, ''))) = LOWER(TRIM(${exactParam}))
     OR COALESCE(p.barcode, '') ILIKE ${partialParam}
+    OR LOWER(TRIM(COALESCE(p.qr_token, ''))) = LOWER(TRIM(${exactParam}))
+    OR COALESCE(p.qr_token, '') ILIKE ${partialParam}
     OR LOWER(TRIM(COALESCE(p.product_code, ''))) = LOWER(TRIM(${exactParam}))
     OR COALESCE(p.product_code, '') ILIKE ${partialParam}
     OR LOWER(TRIM(COALESCE(p.category, ''))) = LOWER(TRIM(${exactParam}))
@@ -305,6 +312,30 @@ const loadPortalCatalog = async ({ employee = null, query = {} } = {}) => {
     )`);
   }
 
+  const qrToken = clean(query.qr_token ?? query.qrToken ?? query.qr ?? "");
+  if (qrToken) {
+    values.push(qrToken);
+    const token = `$${values.length}`;
+    conditions.push(`(
+      LOWER(TRIM(COALESCE(p.qr_token, ''))) = LOWER(TRIM(${token}))
+      OR COALESCE(p.qr_token, '') ILIKE ${token}
+      OR LOWER(TRIM(COALESCE(p.barcode, ''))) = LOWER(TRIM(${token}))
+      OR LOWER(TRIM(COALESCE(p.product_code, ''))) = LOWER(TRIM(${token}))
+      OR EXISTS (
+        SELECT 1
+        FROM product_variants pv
+        WHERE pv.product_id = p.id
+          AND pv.is_active IS DISTINCT FROM FALSE
+          AND pv.deleted_at IS NULL
+          AND (
+            LOWER(TRIM(COALESCE(pv.barcode, ''))) = LOWER(TRIM(${token}))
+            OR LOWER(TRIM(COALESCE(pv.sku, ''))) = LOWER(TRIM(${token}))
+            OR LOWER(TRIM(COALESCE(pv.article_code, ''))) = LOWER(TRIM(${token}))
+          )
+      )
+    )`);
+  }
+
   const article = clean(query.article ?? query.article_code ?? query.articleCode);
   if (article) {
     values.push(article);
@@ -425,6 +456,8 @@ const buildPosCatalogQuery = (query = {}) => {
   const directSearch = firstNonEmpty(
     query.search,
     query.q,
+    query.qr_token,
+    query.qrToken,
     query.barcode,
     query.sku,
     query.article,
@@ -432,10 +465,12 @@ const buildPosCatalogQuery = (query = {}) => {
     query.articleCode
   );
   const productId = toPositiveInt(query.productId ?? query.product_id);
+  const qrToken = clean(query.qr_token ?? query.qrToken ?? query.qr ?? "");
   const sku = clean(query.sku);
   return {
     ...(directSearch ? { search: directSearch } : {}),
     ...(productId ? { productId } : {}),
+    ...(qrToken ? { qr_token: qrToken } : {}),
     ...(sku ? { sku } : {}),
   };
 };
