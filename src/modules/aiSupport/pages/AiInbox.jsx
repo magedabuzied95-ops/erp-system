@@ -234,6 +234,22 @@ const channelBadgeLabel = (value = "") => {
   if (key.includes("web")) return "ويب";
   return "الكل";
 };
+const explicitCrmStatus = (conversation = {}) =>
+  firstNonEmpty(
+    conversation?.customer_profile?.crm_status,
+    conversation?.customer_profile?.customer_status,
+    conversation?.customer_profile?.status,
+    conversation?.crm_status,
+    conversation?.customer_status
+  );
+const isInferenceLabel = (value = "") => /غالي|غالية|price_or_value_objection|objection_handling|objection|inference|inferred/i.test(clean(value));
+const headerStatusLabel = (conversation = {}) => {
+  const crmStatus = explicitCrmStatus(conversation);
+  if (crmStatus && !isInferenceLabel(crmStatus)) return `CRM: ${crmStatus}`;
+  const status = clean(conversation?.conversation_status || conversation?.status || "");
+  if (status === "human_takeover" || status === "closed") return "Manual";
+  return isConversationAiEnabled(conversation) ? "AI Active" : "AI Manual";
+};
 const isConversationAiEnabled = (conversation = {}) => conversation?.ai_enabled !== false;
 const fixedChannelOrder = ["whatsapp", "messenger", "instagram", "web"];
 const normalizeConversationChannel = (conversation = {}) => {
@@ -719,7 +735,7 @@ function InboxChatHeader({
   const phone = clean(conversation.phone || conversation.customer_phone || conversation.external_customer_id || conversation.customer_profile?.phone);
   const channel = conversation.channel || conversation.source || "web_chat";
   const aiEnabled = isConversationAiEnabled(conversation) && status !== "closed";
-  const aiLabel = aiEnabled && status !== "human_takeover" ? "AI Active" : "AI Paused";
+  const safeHeaderStatus = headerStatusLabel(conversation);
   return (
     <div className="rounded-3xl border border-white/10 bg-white/[0.05] p-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.18)] backdrop-blur">
       <div className="flex items-start justify-between gap-2.5">
@@ -737,7 +753,7 @@ function InboxChatHeader({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <div className="truncate text-lg font-black text-white">{name}</div>
-              <span className={`inline-flex h-5 items-center rounded-full px-2 text-[10px] font-black uppercase tracking-[0.14em] ${aiEnabled ? "bg-emerald-300/12 text-emerald-100" : "bg-amber-300/12 text-amber-100"}`}>{aiLabel}</span>
+              <span className={`inline-flex h-5 items-center rounded-full px-2 text-[10px] font-black uppercase tracking-[0.14em] ${safeHeaderStatus.startsWith("CRM:") ? "bg-white/[0.08] text-slate-100" : aiEnabled ? "bg-emerald-300/12 text-emerald-100" : "bg-amber-300/12 text-amber-100"}`}>{safeHeaderStatus}</span>
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
               <Pill tone={isWhatsappChannel(channel) ? "emerald" : "cyan"}>{channelBadgeLabel(channel)}</Pill>
@@ -1883,6 +1899,10 @@ function SalesIntelligencePanel({ conversation = {}, recommendationIntel = null,
   const followUp = conversation.follow_up_recommendation || conversation.sales_intelligence?.followUp || recommendationIntel?.follow_up_recommendation || {};
   const suggestions = asArray(conversation.cross_sell_suggestions || conversation.sales_intelligence?.crossSellSuggestions || recommendationIntel?.cross_sell_suggestions || salesCloserPlan.cross_sell_suggestions);
   const stateBadge = state.badge || {};
+  const stateReasonLabel = clean(state.state_reason || "").replace(/_/g, " ");
+  const objectionLabel = state.current_state === "OBJECTION_HANDLING" || /price_or_value_objection/i.test(clean(state.state_reason || ""))
+    ? "اعتراض على السعر"
+    : "";
   const score = Number(conversion.score || 0);
   const scoreLevel = clean(conversion.level || "").replace(/_/g, " ");
   const reasons = asArray(conversion.reasons);
@@ -1912,7 +1932,8 @@ function SalesIntelligencePanel({ conversation = {}, recommendationIntel = null,
       <SectionTitle icon={BadgePercent} title="Sales intelligence" />
       <div className="flex flex-wrap gap-2">
         <Pill tone={stateBadge.tone || "cyan"}>{stateBadge.label || state.current_state || "DISCOVERY"}</Pill>
-        {state.state_reason ? <Pill tone="zinc">{state.state_reason}</Pill> : null}
+        {objectionLabel ? <Pill tone="amber">{objectionLabel}</Pill> : null}
+        {state.state_reason && !objectionLabel ? <Pill tone="zinc">{stateReasonLabel}</Pill> : null}
         {state.confidence ? <Pill tone="zinc">{Math.round(Number(state.confidence || 0) * 100)}% confidence</Pill> : null}
       </div>
 
@@ -2316,7 +2337,6 @@ export default function AiInbox() {
             };
           }),
         }));
-        if (skipped) console.debug("[meta-inbox] meta_socket_duplicate_skipped", { session_id: sessionId, message_key: messageKey(incoming) });
       }
       if (conversationKey && conversationKey !== selectedSessionId) {
         setUnseenSessions((current) => [...new Set([conversationKey, ...current])].slice(0, 20));
@@ -2705,7 +2725,6 @@ export default function AiInbox() {
         tenant_id: tenantId,
         external_customer_id: selectedConversation.external_customer_id || "",
       }, { headers, perfComponent: "AiInbox.debugMessengerProfile" });
-      console.log("[messenger-profile-debug]", payload);
       window.alert(JSON.stringify(payload, null, 2));
       patchConversation(conversationIdentifier, (conversation) => ({
         ...conversation,
@@ -2745,7 +2764,6 @@ export default function AiInbox() {
       }));
       await loadAll({ silent: true });
     } catch (err) {
-      console.error("[messenger-profile-debug] failed", err);
       window.alert(JSON.stringify({ success: false, message: err?.message || "تعذر تشخيص ملف ماسنجر" }, null, 2));
       setError(err?.message || "تعذر تشخيص ملف ماسنجر");
     } finally {
