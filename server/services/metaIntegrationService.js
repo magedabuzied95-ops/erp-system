@@ -2660,15 +2660,6 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
   const profileId = profileResult.rows[0]?.id || null;
   const storedProfilePicUrl = text(profileResult.rows[0]?.profile_pic_url);
   const needsMessengerNameRepair = `(customer_name = '' OR customer_name = $4 OR customer_name = session_id OR LOWER(customer_name) IN ('anonymous','unknown customer') OR LENGTH(customer_name) > 80 OR customer_name ~ '[?!.:;]' OR customer_name ~ '(غالي|غالية|غاليه|عايز|عايزة|عايزه|عاوز|عاوزه|محتاج|محتاجة|محتاجه|محتاجين|ممكن|السلام عليكم|سلام عليكم|وريني|ابعت|ابعتلي|هات|هاتلي|فين|فيه|اهلا|أهلا|هاي)' OR customer_name ILIKE '%message%' OR customer_name ILIKE '%preview%' OR customer_name ILIKE '%snippet%' OR customer_name ILIKE '%reply%' OR customer_name ILIKE '%conversation%' OR customer_name ILIKE '%inbox%' OR customer_name ILIKE '%customer%' OR customer_name ILIKE '%order%' OR customer_name ILIKE '%product%' OR customer_name ILIKE '%stock%' OR customer_name ILIKE '%size%' OR customer_name ILIKE '%price%' OR customer_name ILIKE '%body%' OR customer_name IN ('عايز','عايزة','عاوز','عاوزه','محتاج','محتاجة','محتاجه','ممكن','السلام عليكم','سلام عليكم','وريني','ابعت','ابعتلي','هات','هاتلي','فين','فيه','اهلا','أهلا','هاي'))`;
-  console.log("[customer-name-write]", {
-    source: "metaIntegrationService.persistMessengerProfile",
-    tenant_id: numberOrNull(tenantId),
-    conversation_id: text(conversationId),
-    psid: maskIdForLog(psid),
-    resolved_name: name,
-    profile_id: profileId,
-    profile_pic: profilePic,
-  });
   const sessionResult = await db.query(
     `
     UPDATE ai_support_sessions
@@ -14067,15 +14058,6 @@ const learnCustomerBrainPreferences = async ({ config, message } = {}) => {
     favorite_brands: preferredBrands,
     viewed_products: distinctTextArray(memory.lastShownProductIds || memory.viewedProductIds || [], 20),
   };
-  console.log("[customer-name-write]", {
-    source: "metaIntegrationService.upsertCheckoutCustomerProfile",
-    tenant_id: config?.tenant_id || null,
-    conversation_id: text(message?.external_conversation_id || ""),
-    channel: text(message?.channel || ""),
-    parsed_customer_name: text(parsed?.customer_name || ""),
-    resolved_known_name: knownName,
-    phone: knownPhone,
-  });
   if (profileId) {
     await db.query(
       `

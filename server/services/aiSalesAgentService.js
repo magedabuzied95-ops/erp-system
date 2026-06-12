@@ -780,15 +780,6 @@ export const upsertAiCustomerProfile = async ({ tenantId, sessionId = "", metada
       )
     : text(metadata.customer_name || metadata.full_name || "");
   const firstName = isMessengerChannel && isLikelyMessageLikeName(firstNameSource) ? "" : extractFirstName(firstNameSource);
-  console.log("[customer-name-write]", {
-    source: "aiSalesAgentService.upsertAiCustomerProfile",
-    channel,
-    tenant_id: tenantId,
-    session_id: text(sessionId),
-    phone,
-    first_name_source: firstNameSource,
-    first_name: firstName,
-  });
   const products = summarizeProducts(response.suggested_products);
   const sentiment = sentimentFromMessage(message);
   const memoryScore = Math.min(100, 20 + products.length * 5 + (response.ai_order ? 30 : 0) + (sentiment === "positive" ? 10 : 0));
