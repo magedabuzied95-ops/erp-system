@@ -690,7 +690,8 @@ function MainLayout() {
       >
         <div className="flex min-h-screen w-full min-w-0 max-w-none flex-col overflow-x-hidden">
           <div className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur-2xl lg:top-0" style={{ "--topbar-height": "72px" }}>
-            <div className="flex items-center justify-between gap-3 px-3 py-3 sm:px-4 lg:px-6 xl:px-8 lg:py-5">
+            <div className="pointer-events-none absolute inset-0" aria-hidden="true" />
+            <div className="relative z-10 flex items-center justify-between gap-3 px-3 py-3 sm:px-4 lg:px-6 xl:px-8 lg:py-5">
               <div className="flex min-w-0 items-center gap-3 lg:hidden">
                 <button
                   type="button"
@@ -713,7 +714,7 @@ function MainLayout() {
                 </p>
               </div>
 
-              <div className="flex min-w-0 max-w-[calc(100vw-5rem)] items-center justify-end gap-2 overflow-x-auto sm:gap-2.5 lg:max-w-none lg:gap-3 lg:overflow-visible">
+              <div className="flex min-w-0 max-w-[calc(100vw-5rem)] items-center justify-end gap-2 overflow-x-auto pointer-events-auto sm:gap-2.5 lg:max-w-none lg:gap-3 lg:overflow-visible">
                 <button
                   type="button"
                   onClick={() => navigate("/shop")}

@@ -35,17 +35,32 @@ function LanguageSwitcher({ className = "", compact = false, menuPlacement = "bo
     { key: "en", label: enLabel },
   ];
 
+  const handleCompactToggleClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (import.meta.env.DEV) {
+      console.log("[mobile-language-toggle] tapped");
+    }
+    setOpen((value) => !value);
+  };
+
+  const handleLanguageClick = (next) => async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    await setLanguage(next);
+  };
+
   if (compact) {
     const opensUp = menuPlacement === "top";
     const alignEnd = align === "end";
 
     return (
-      <div ref={menuRef} className={`relative ${className}`.trim()}>
+      <div ref={menuRef} className={`relative z-[60] pointer-events-auto ${className}`.trim()}>
         <button
           type="button"
-          onClick={() => setOpen((value) => !value)}
+          onClick={handleCompactToggleClick}
           className={[
-            "inline-flex items-center justify-center gap-2 rounded-full border border-[var(--border)] bg-zinc-950/75 text-xs font-black text-[var(--text)] shadow-[0_10px_24px_rgba(0,0,0,0.14)] backdrop-blur transition hover:border-[var(--primary)]/45 hover:bg-[var(--surface-soft)] hover:text-[var(--text)]",
+            "relative z-[60] pointer-events-auto inline-flex items-center justify-center gap-2 rounded-full border border-[var(--border)] bg-zinc-950/75 text-xs font-black text-[var(--text)] shadow-[0_10px_24px_rgba(0,0,0,0.14)] backdrop-blur transition hover:border-[var(--primary)]/45 hover:bg-[var(--surface-soft)] hover:text-[var(--text)]",
             showCode ? "h-11 px-3" : "h-11 w-11",
           ].join(" ")}
           aria-haspopup="menu"
@@ -62,7 +77,7 @@ function LanguageSwitcher({ className = "", compact = false, menuPlacement = "bo
           <div
             role="menu"
             className={[
-              "absolute z-50 w-44 overflow-hidden rounded-xl border border-[var(--border)] bg-zinc-950 p-1 shadow-2xl shadow-black/40",
+              "absolute z-[70] w-44 overflow-hidden rounded-xl border border-[var(--border)] bg-zinc-950 p-1 shadow-2xl shadow-black/40",
               opensUp ? "bottom-full mb-2" : "top-full mt-2",
               alignEnd ? "right-0" : "left-0",
             ].join(" ")}
@@ -78,7 +93,7 @@ function LanguageSwitcher({ className = "", compact = false, menuPlacement = "bo
                   type="button"
                   role="menuitemradio"
                   aria-checked={active}
-                  onClick={() => setLanguage(language.key)}
+                  onClick={handleLanguageClick(language.key)}
                   className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold transition ${
                     active
                       ? "bg-[var(--primary)] text-white"
