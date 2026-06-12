@@ -41,23 +41,26 @@ const numberOrNull = (value) => {
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
 };
 
+const isGroupJid = (value = "") => /@g\.us$/i.test(toText(value));
+
 let channelSchemaReadyPromise = null;
 
 export const ensureAiChannelAdapterSchema = async (clientOrPool = db) => {
   if (!channelSchemaReadyPromise) {
     channelSchemaReadyPromise = (async () => {
       await clientOrPool.query(`
-        CREATE TABLE IF NOT EXISTS ai_channel_conversations (
-          id BIGSERIAL PRIMARY KEY,
-          tenant_id BIGINT NOT NULL,
-          channel TEXT NOT NULL,
-          external_conversation_id TEXT NOT NULL,
-          external_customer_id TEXT NOT NULL DEFAULT '',
-          customer_name TEXT NOT NULL DEFAULT '',
-          customer_avatar_url TEXT NOT NULL DEFAULT '',
-          last_message TEXT NOT NULL DEFAULT '',
-          customer_profile_id BIGINT NULL,
-          metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+      CREATE TABLE IF NOT EXISTS ai_channel_conversations (
+        id BIGSERIAL PRIMARY KEY,
+        tenant_id BIGINT NOT NULL,
+        channel TEXT NOT NULL,
+        external_conversation_id TEXT NOT NULL,
+        external_customer_id TEXT NOT NULL DEFAULT '',
+        is_group BOOLEAN NOT NULL DEFAULT FALSE,
+        customer_name TEXT NOT NULL DEFAULT '',
+        customer_avatar_url TEXT NOT NULL DEFAULT '',
+        last_message TEXT NOT NULL DEFAULT '',
+        customer_profile_id BIGINT NULL,
+        metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
           last_message_at TIMESTAMP NULL,
           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -67,6 +70,7 @@ export const ensureAiChannelAdapterSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS customer_avatar_url TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS is_group BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_channel_conversations_customer ON ai_channel_conversations (tenant_id, channel, external_customer_id)`);
       await clientOrPool.query(`
         CREATE TABLE IF NOT EXISTS ai_channel_settings (
@@ -619,14 +623,23 @@ export const upsertChannelConversationMapping = async ({
   lastMessageAt = null,
 } = {}) => {
   await ensureAiChannelAdapterSchema();
+  const isGroup = Boolean(
+    metadata?.is_group === true ||
+    metadata?.isGroup === true ||
+    isGroupJid(metadata?.remote_jid) ||
+    isGroupJid(metadata?.remoteJid) ||
+    isGroupJid(externalConversationId) ||
+    isGroupJid(externalCustomerId)
+  );
   const result = await db.query(
     `
     INSERT INTO ai_channel_conversations (
-      tenant_id, channel, external_conversation_id, external_customer_id, customer_name, customer_avatar_url, last_message, customer_profile_id, metadata, last_message_at, updated_at
+      tenant_id, channel, external_conversation_id, external_customer_id, is_group, customer_name, customer_avatar_url, last_message, customer_profile_id, metadata, last_message_at, updated_at
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::timestamp, NOW())
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::timestamp, NOW())
     ON CONFLICT (tenant_id, channel, external_conversation_id) DO UPDATE SET
       external_customer_id = COALESCE(NULLIF(EXCLUDED.external_customer_id, ''), ai_channel_conversations.external_customer_id),
+      is_group = COALESCE(EXCLUDED.is_group, ai_channel_conversations.is_group),
       customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_channel_conversations.customer_name),
       customer_avatar_url = COALESCE(NULLIF(EXCLUDED.customer_avatar_url, ''), ai_channel_conversations.customer_avatar_url),
       last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_channel_conversations.last_message),
@@ -641,6 +654,7 @@ export const upsertChannelConversationMapping = async ({
       normalizeChannel(channel),
       toText(externalConversationId),
       toText(externalCustomerId),
+      isGroup,
       toText(customerName),
       toText(customerAvatarUrl),
       toText(metadata?.last_message || metadata?.message_text || metadata?.messagePreview),

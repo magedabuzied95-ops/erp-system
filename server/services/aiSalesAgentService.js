@@ -509,6 +509,7 @@ export const ensureAiInboxSchema = async (clientOrPool = db) => {
         channel TEXT NOT NULL,
         external_conversation_id TEXT NOT NULL,
         external_customer_id TEXT NOT NULL DEFAULT '',
+        is_group BOOLEAN NOT NULL DEFAULT FALSE,
         customer_name TEXT NOT NULL DEFAULT '',
         customer_avatar_url TEXT NOT NULL DEFAULT '',
         last_message TEXT NOT NULL DEFAULT '',
@@ -521,6 +522,7 @@ export const ensureAiInboxSchema = async (clientOrPool = db) => {
       )
     `);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS external_customer_id TEXT NOT NULL DEFAULT ''`);
+    await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS is_group BOOLEAN NOT NULL DEFAULT FALSE`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS customer_avatar_url TEXT NOT NULL DEFAULT ''`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT ''`);
@@ -633,6 +635,45 @@ const leadTypeFrom = ({ memoryScore = 0, sentiment = "neutral", needsHumanSuppor
 };
 
 const leadBadgeKey = (leadType = "") => lower(leadType).replace(/\s+/g, "_");
+
+const isGroupJid = (value = "") => /@g\.us$/i.test(text(value));
+
+const isWhatsAppGroupConversation = (row = {}, conversationId = "") => {
+  const metadata = row?.metadata && typeof row.metadata === "object" ? row.metadata : {};
+  return Boolean(
+    row?.is_group === true ||
+    isGroupJid(row?.external_conversation_id) ||
+    isGroupJid(row?.external_customer_id) ||
+    isGroupJid(row?.session_id) ||
+    isGroupJid(row?.remote_jid) ||
+    isGroupJid(metadata.remote_jid) ||
+    isGroupJid(metadata.remoteJid) ||
+    isGroupJid(metadata.chat_id) ||
+    isGroupJid(metadata.chatId) ||
+    isGroupJid(metadata.conversation_id) ||
+    isGroupJid(metadata.conversationId) ||
+    isGroupJid(conversationId)
+  );
+};
+
+const whatsappInboxGroupFilterSql = (sessionAlias = "s", conversationAlias = "c") => `
+  NOT (
+    COALESCE(${conversationAlias}.channel, ${sessionAlias}.channel, ${sessionAlias}.source) = 'whatsapp'
+    AND (
+      COALESCE(${conversationAlias}.is_group, FALSE) = TRUE
+      OR COALESCE(${conversationAlias}.external_conversation_id, '') LIKE '%@g.us%'
+      OR COALESCE(${conversationAlias}.external_customer_id, '') LIKE '%@g.us%'
+      OR COALESCE(${conversationAlias}.metadata->>'remote_jid', '') LIKE '%@g.us%'
+      OR COALESCE(${conversationAlias}.metadata->>'remoteJid', '') LIKE '%@g.us%'
+      OR COALESCE(${conversationAlias}.metadata->>'chat_id', '') LIKE '%@g.us%'
+      OR COALESCE(${conversationAlias}.metadata->>'chatId', '') LIKE '%@g.us%'
+      OR COALESCE(${conversationAlias}.metadata->>'conversation_id', '') LIKE '%@g.us%'
+      OR COALESCE(${conversationAlias}.metadata->>'conversationId', '') LIKE '%@g.us%'
+      OR COALESCE(${sessionAlias}.session_id, '') LIKE '%@g.us%'
+      OR COALESCE(${sessionAlias}.source, '') = 'whatsapp' AND COALESCE(${sessionAlias}.session_id, '') LIKE '%@g.us%'
+    )
+  )
+`;
 
 export const normalizeInboxMessage = (row = {}) => ({
   id: row.id,
@@ -941,8 +982,27 @@ export const scheduleAiFollowupIfNeeded = async ({ tenantId, sessionId = "", met
 
 export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30, before = "" } = {}) => {
   await ensureAiSalesAgentSchema();
+  await ensureAiInboxSchema();
+  const safeConversationId = text(conversationId);
+  if (isGroupJid(safeConversationId)) {
+    return { messages: [], total: 0, has_more: false, next_before: "" };
+  }
+  const conversationMeta = await db.query(
+    `
+    SELECT c.*, s.session_id
+    FROM ai_channel_conversations c
+    LEFT JOIN ai_support_sessions s ON s.tenant_id = c.tenant_id AND s.session_id = c.external_conversation_id
+    WHERE c.tenant_id = $1
+      AND c.external_conversation_id = $2
+    LIMIT 1
+    `,
+    [tenantId, safeConversationId]
+  );
+  if (isWhatsAppGroupConversation(conversationMeta.rows[0] || {}, safeConversationId)) {
+    return { messages: [], total: 0, has_more: false, next_before: "" };
+  }
   const messageLimit = Math.min(100, Math.max(1, int(limit, 30)));
-  const params = [tenantId, text(conversationId), messageLimit];
+  const params = [tenantId, safeConversationId, messageLimit];
   const beforeClause = before
     ? (() => {
         params.push(before);
@@ -972,7 +1032,7 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
     WHERE tenant_id = $1
       AND session_id = $2
     `,
-    [tenantId, text(conversationId)]
+    [tenantId, safeConversationId]
   );
   const messages = result.rows.map(normalizeInboxMessage);
   const oldest = messages[0] || null;
@@ -993,6 +1053,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
   const inboxMessageLimit = Math.min(100, Math.max(1, int(messageLimit, 30)));
   const normalizedFilter = lower(filter || "all");
   const searchTerm = text(search);
+  clauses.push(whatsappInboxGroupFilterSql("s", "c"));
   if (normalizedFilter === "hot_leads") clauses.push("(COALESCE(o.draft_count, 0) > 0 OR COALESCE(p.memory_score, 0) >= 75)");
   if (normalizedFilter === "complaints") clauses.push("(m.needs_human_support = TRUE OR COALESCE(p.customer_sentiment, '') = 'negative')");
   if (["human_handoff", "human_takeover", "needs_human"].includes(normalizedFilter)) clauses.push("(s.status = 'human_takeover' OR m.needs_human_support = TRUE)");

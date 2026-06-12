@@ -527,6 +527,8 @@ const primaryEvolutionData = (payload = {}) => {
 const isLidJid = (value = "") => /@lid$/i.test(text(value));
 const isWhatsappPhoneJid = (value = "") => /@(s\.whatsapp\.net|c\.us)$/i.test(text(value));
 const isGroupJid = (value = "") => /@g\.us$/i.test(text(value));
+const isGroupConversationValue = (value = "") => isGroupJid(value);
+const isGroupConversationContext = (...values) => values.some((value) => isGroupConversationValue(value));
 const jidNumber = (value = "") => text(value).split("@")[0];
 const numberFromWhatsappJid = (value = "") => isWhatsappPhoneJid(value) ? normalizeEgyptPhone(jidNumber(value)) : "";
 const jidFromNumber = (value = "") => {
@@ -1696,6 +1698,10 @@ const extractWhatsappWebhookEnvelope = (payload = {}) => {
     key?.remoteJid ||
     data?.remoteJid ||
     data?.remote_jid ||
+    data?.chatId ||
+    data?.chat_id ||
+    data?.conversationId ||
+    data?.conversation_id ||
     data?.from ||
     data?.sender ||
     data?.participant ||
@@ -1709,6 +1715,22 @@ const extractWhatsappWebhookEnvelope = (payload = {}) => {
   const ownerJids = ownerJidsFromPayload({ payload, data, fromMe });
   const ownerJid = ownerJids[0] || "";
   const configuredBotNumber = ownerNumberFromJids(ownerJids);
+  const isGroup = isGroupConversationContext(
+    remoteJid,
+    sender,
+    participant,
+    key?.remoteJid,
+    data?.remoteJid,
+    data?.remote_jid,
+    data?.chatId,
+    data?.chat_id,
+    data?.conversationId,
+    data?.conversation_id,
+    payload?.chatId,
+    payload?.chat_id,
+    payload?.conversationId,
+    payload?.conversation_id
+  );
   return {
     data,
     key,
@@ -1719,6 +1741,7 @@ const extractWhatsappWebhookEnvelope = (payload = {}) => {
     sender,
     participant,
     fromMe,
+    isGroup,
     ownerJid,
     configuredBotNumber,
     instance: text(payload?.instance || payload?.instanceName || data?.instance || data?.instanceName || instanceName()),
@@ -1764,6 +1787,10 @@ const extractIncomingWhatsapp = async (payload = {}) => {
     key?.remoteJid ||
     data?.remoteJid ||
     data?.remote_jid ||
+    data?.chatId ||
+    data?.chat_id ||
+    data?.conversationId ||
+    data?.conversation_id ||
     data?.from ||
     data?.sender ||
     data?.participant ||
@@ -1772,6 +1799,8 @@ const extractIncomingWhatsapp = async (payload = {}) => {
     findFirstString(payload, ["remoteJid", "remote_jid", "from", "sender", "number", "phone"])
   );
   const fromMe = boolValue(key?.fromMe ?? data?.fromMe ?? data?.from_me ?? payload?.fromMe);
+  const sender = text(data?.sender || payload?.sender || "");
+  const participant = text(key?.participant || data?.key?.participant || data?.participant || payload?.participant || "");
   let replyTarget = resolveWhatsappReplyTarget({ payload, data, key, remoteJid, fromMe });
   if (fromMe === false && isLidJid(remoteJid) && !replyTarget.resolvedNumber) {
     const storedReplyTarget = await resolveStoredLidReplyTarget({
@@ -1783,6 +1812,22 @@ const extractIncomingWhatsapp = async (payload = {}) => {
     if (storedReplyTarget) replyTarget = storedReplyTarget;
   }
   const phone = replyTarget.resolvedNumber || (isLidJid(remoteJid) ? "" : normalizeEgyptPhone(jidNumber(remoteJid)));
+  const isGroup = Boolean(replyTarget.isGroup || isGroupConversationContext(
+    remoteJid,
+    sender,
+    participant,
+    key?.remoteJid,
+    data?.remoteJid,
+    data?.remote_jid,
+    data?.chatId,
+    data?.chat_id,
+    data?.conversationId,
+    data?.conversation_id,
+    payload?.chatId,
+    payload?.chat_id,
+    payload?.conversationId,
+    payload?.conversation_id
+  ));
   console.info("[whatsapp:reply-target-resolution]", {
     remoteJid,
     participant: replyTarget.participant,
@@ -1795,7 +1840,7 @@ const extractIncomingWhatsapp = async (payload = {}) => {
     resolvedJid: replyTarget.resolvedJid,
     resolvedNumber: replyTarget.resolvedNumber,
     reason: replyTarget.reason,
-    isGroup: replyTarget.isGroup,
+    isGroup,
     isLid: replyTarget.isLid,
   });
   let messageId = text(
@@ -1912,7 +1957,7 @@ const extractIncomingWhatsapp = async (payload = {}) => {
     instanceOwnerJid: replyTarget.instanceOwnerJid,
     ownerJid: replyTarget.ownerJid,
     configuredBotNumber: replyTarget.configuredBotNumber,
-    isGroup: replyTarget.isGroup,
+    isGroup,
     isLid: replyTarget.isLid,
     text: messageText,
     original_message: messageText,
@@ -2122,6 +2167,24 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
 
   await ensureAiSupportLogSchema();
   await logAiSupportMessageIndexes();
+  if (message.isGroup === true) {
+    console.info("[whatsapp:inbox-skipped]", {
+      reason: "group_chat",
+      remoteJid,
+      phone,
+      messageId: externalMessageId,
+      instance,
+    });
+    return {
+      saved: false,
+      duplicate: false,
+      reason: "group_chat",
+      session_id: sessionId,
+      dedupe_key: dedupeKey,
+      message: null,
+    };
+  }
+
   const conversation = await upsertChannelConversationMapping({
     tenantId,
     channel: AI_AGENT_CHANNELS.WHATSAPP,
@@ -2709,6 +2772,14 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
   if (String(process.env.WHATSAPP_AI_AUTO_REPLY).toLowerCase() === "false") {
     console.log("[whatsapp:ai-auto-reply-disabled]");
     return { triggered: false, sent: false, reason: "ai_auto_reply_disabled" };
+  }
+  if (message?.isGroup === true) {
+    console.info("[whatsapp:ai-skipped]", {
+      reason: "group_chat",
+      message_id: message?.message_id || message?.messageId || "",
+      remoteJid: text(message?.remoteJid || message?.remote_jid || ""),
+    });
+    return { triggered: false, sent: false, reason: "group_chat" };
   }
   const inboundText = text(message?.text || message?.message_text || message?.body || "");
   if (message?.fromMe === true) {
