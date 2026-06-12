@@ -42,6 +42,64 @@ const numberOrNull = (value) => {
 };
 
 const isGroupJid = (value = "") => /@g\.us$/i.test(toText(value));
+const normalizeDisplayName = (value = "") => toText(value).replace(/\s+/g, " ").trim();
+const isLikelyMessageLikeName = (value = "") => {
+  const candidate = normalizeDisplayName(value);
+  if (!candidate) return true;
+  if (candidate.length > 80) return true;
+  if (/[\r\n\t]/.test(candidate)) return true;
+  if (/[?!.:;،؛]/.test(candidate)) return true;
+  if (candidate.split(/\s+/).filter(Boolean).length > 6) return true;
+  if (/\d/.test(candidate) && !/^\+?\d[\d\s()-]*$/.test(candidate)) return true;
+  const lowerCandidate = candidate.toLowerCase();
+  return [
+    "message",
+    "preview",
+    "snippet",
+    "reply",
+    "conversation",
+    "inbox",
+    "customer",
+    "order",
+    "product",
+    "stock",
+    "size",
+    "price",
+    "body",
+  ].some((token) => lowerCandidate.includes(token));
+};
+
+export const resolveMessengerConversationDisplayName = ({
+  customerName = "",
+  customerProfile = {},
+  metadata = {},
+  externalCustomerId = "",
+} = {}) => {
+  const messengerProfile = metadata?.messenger_profile || {};
+  const profileFirstName = normalizeDisplayName(customerProfile?.first_name || messengerProfile?.first_name || metadata?.first_name || "");
+  const profileLastName = normalizeDisplayName(customerProfile?.last_name || messengerProfile?.last_name || metadata?.last_name || "");
+  const profileFullName = normalizeDisplayName([profileFirstName, profileLastName].filter(Boolean).join(" "));
+  const profileName = normalizeDisplayName(
+    customerProfile?.name ||
+      messengerProfile?.name ||
+      metadata?.sender_name ||
+      metadata?.profile_name ||
+      metadata?.contact_name ||
+      metadata?.external_sender_name ||
+      metadata?.external_contact_name ||
+      ""
+  );
+  const storedName = normalizeDisplayName(customerName);
+  const safeCandidates = [
+    profileFullName,
+    profileName,
+    storedName,
+  ].filter(Boolean);
+  const safeCandidate = safeCandidates.find((candidate) => !isLikelyMessageLikeName(candidate)) || "";
+  if (safeCandidate) return safeCandidate;
+  const safeExternalId = normalizeDisplayName(externalCustomerId);
+  return safeExternalId || storedName || profileName || profileFullName || "";
+};
 
 let channelSchemaReadyPromise = null;
 
@@ -625,6 +683,7 @@ export const upsertChannelConversationMapping = async ({
   lastMessageAt = null,
 } = {}) => {
   await ensureAiChannelAdapterSchema();
+  const normalizedChannel = normalizeChannel(channel);
   const isGroup = Boolean(
     metadata?.is_group === true ||
     metadata?.isGroup === true ||
@@ -633,6 +692,14 @@ export const upsertChannelConversationMapping = async ({
     isGroupJid(externalConversationId) ||
     isGroupJid(externalCustomerId)
   );
+  const resolvedCustomerName = normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER
+    ? resolveMessengerConversationDisplayName({
+        customerName,
+        customerProfile: metadata?.messenger_profile || {},
+        metadata,
+        externalCustomerId,
+      })
+    : toText(customerName);
   const result = await db.query(
     `
     INSERT INTO ai_channel_conversations (
@@ -653,11 +720,11 @@ export const upsertChannelConversationMapping = async ({
     `,
     [
       numberOrNull(tenantId),
-      normalizeChannel(channel),
+      normalizedChannel,
       toText(externalConversationId),
       toText(externalCustomerId),
       isGroup,
-      toText(customerName),
+      resolvedCustomerName,
       toText(customerAvatarUrl),
       toText(metadata?.last_message || metadata?.message_text || metadata?.messagePreview),
       numberOrNull(customerProfileId),

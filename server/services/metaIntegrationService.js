@@ -25,6 +25,7 @@ import {
   linkChannelConversationToCustomerProfile,
   logChannelEvent,
   normalizeOutgoingChannelReply,
+  resolveMessengerConversationDisplayName,
   upsertChannelConversationMapping,
   verifyMetaWebhookSignature,
 } from "./aiChannelAdapterService.js";
@@ -2371,6 +2372,40 @@ const ensureMessengerProfileStorage = async () => {
 
 const messengerDisplayName = ({ firstName = "", lastName = "", fallback = "" } = {}) =>
   [text(firstName), text(lastName)].filter(Boolean).join(" ") || text(fallback);
+const isUnsafeMessengerStoredName = (value = "") => {
+  const candidate = text(value);
+  if (!candidate) return true;
+  if (candidate.length > 80) return true;
+  if (/[\r\n\t]/.test(candidate)) return true;
+  if (/[?!.:;،؛]/.test(candidate)) return true;
+  if (candidate.split(/\s+/).filter(Boolean).length > 6) return true;
+  if (/\d/.test(candidate) && !/^\+?\d[\d\s()-]*$/.test(candidate)) return true;
+  const lowerCandidate = candidate.toLowerCase();
+  return [
+    "message",
+    "preview",
+    "snippet",
+    "reply",
+    "conversation",
+    "inbox",
+    "customer",
+    "order",
+    "product",
+    "stock",
+    "size",
+    "price",
+    "body",
+  ].some((token) => lowerCandidate.includes(token));
+};
+const safeMessengerDisplayName = ({ firstName = "", lastName = "", fallback = "", externalCustomerId = "" } = {}) => {
+  const resolved = resolveMessengerConversationDisplayName({
+    customerName: fallback,
+    customerProfile: { first_name: firstName, last_name: lastName, name: fallback },
+    metadata: {},
+    externalCustomerId,
+  });
+  return isUnsafeMessengerStoredName(resolved) ? text(externalCustomerId || fallback) : resolved;
+};
 
 const getCachedMessengerProfile = async ({ tenantId, channel, conversationId, psid } = {}) => {
   await ensureMessengerProfileStorage();
@@ -2409,10 +2444,16 @@ const getCachedMessengerProfile = async ({ tenantId, channel, conversationId, ps
   const metadataProfile = row.channel_metadata?.messenger_profile || {};
   const firstName = text(row.first_name || metadataProfile.first_name);
   const lastName = text(row.last_name || metadataProfile.last_name);
-  const name = messengerDisplayName({
+  const name = safeMessengerDisplayName({
     firstName,
     lastName,
-    fallback: row.channel_customer_name || row.session_customer_name,
+    fallback: resolveMessengerConversationDisplayName({
+      customerName: row.channel_customer_name || row.session_customer_name,
+      customerProfile: { first_name: row.first_name, last_name: row.last_name, name: row.channel_customer_name || row.session_customer_name },
+      metadata: row.channel_metadata || {},
+      externalCustomerId: row.external_customer_id || psid,
+    }),
+    externalCustomerId: row.external_customer_id || psid,
   });
   const avatarUrl = text(row.profile_pic_url || row.channel_customer_avatar_url || row.session_customer_avatar_url || metadataProfile.profile_pic);
   if (!name && !avatarUrl) return null;
@@ -2465,11 +2506,12 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
   );
   const profileId = profileResult.rows[0]?.id || null;
   const storedProfilePicUrl = text(profileResult.rows[0]?.profile_pic_url);
+  const needsMessengerNameRepair = `(customer_name = '' OR customer_name = $4 OR customer_name = session_id OR LOWER(customer_name) IN ('anonymous','unknown customer') OR LENGTH(customer_name) > 80 OR customer_name ~ '[?!.:;]' OR customer_name ILIKE '%message%' OR customer_name ILIKE '%preview%' OR customer_name ILIKE '%snippet%' OR customer_name ILIKE '%reply%' OR customer_name ILIKE '%conversation%' OR customer_name ILIKE '%inbox%' OR customer_name ILIKE '%customer%' OR customer_name ILIKE '%order%' OR customer_name ILIKE '%product%' OR customer_name ILIKE '%stock%' OR customer_name ILIKE '%size%' OR customer_name ILIKE '%price%' OR customer_name ILIKE '%body%')`;
   const sessionResult = await db.query(
     `
     UPDATE ai_support_sessions
     SET customer_name = CASE
-          WHEN $3::text <> '' AND (customer_name = '' OR customer_name = $4 OR customer_name = session_id OR LOWER(customer_name) IN ('anonymous','unknown customer')) THEN $3::text
+          WHEN $3::text <> '' AND ${needsMessengerNameRepair} THEN $3::text
           ELSE customer_name
         END,
         customer_avatar_url = COALESCE(NULLIF($5::text, ''), customer_avatar_url),
@@ -2484,7 +2526,7 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
     `
     UPDATE ai_support_messages
     SET customer_name = CASE
-          WHEN $3::text <> '' AND (customer_name = '' OR customer_name = $4 OR LOWER(customer_name) IN ('anonymous','unknown customer')) THEN $3::text
+          WHEN $3::text <> '' AND ${needsMessengerNameRepair} THEN $3::text
           ELSE customer_name
         END,
         customer_avatar_url = COALESCE(NULLIF($5::text, ''), customer_avatar_url)
@@ -2498,7 +2540,7 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
     `
     UPDATE ai_channel_conversations
     SET customer_name = CASE
-          WHEN $3::text <> '' AND (customer_name = '' OR customer_name = $4 OR external_customer_id = $4 OR LOWER(customer_name) IN ('anonymous','unknown customer')) THEN $3::text
+          WHEN $3::text <> '' AND ${needsMessengerNameRepair} THEN $3::text
           ELSE customer_name
         END,
         customer_avatar_url = COALESCE(NULLIF($5::text, ''), customer_avatar_url),
@@ -2677,7 +2719,12 @@ const enrichMessengerProfile = async ({ message, config, facebookPageId = "", in
     });
     return {
       ...message,
-      customer_name: cached?.name || message.customer_name || psid,
+      customer_name: safeMessengerDisplayName({
+        firstName: cached?.first_name || "",
+        lastName: cached?.last_name || "",
+        fallback: cached?.name || message.customer_name || "",
+        externalCustomerId: psid,
+      }),
       customer_avatar_url: cached?.profile_pic || message.customer_avatar_url || "",
       customer_profile_id: cached?.profile_id || null,
       raw: { ...(message.raw || {}), messenger_profile: cached || null },

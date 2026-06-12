@@ -42,6 +42,7 @@ import {
 import { loadRecentSalesJourneyEvents, recordSalesJourneyEvents } from "./salesJourneyEventService.js";
 import { buildProactiveCloserPlan } from "./proactiveCloserService.js";
 import { composeAiSalesReply } from "./aiSalesReplyComposerService.js";
+import { resolveMessengerConversationDisplayName } from "./aiChannelAdapterService.js";
 
 let schemaReadyPromise = null;
 let aiInboxSchemaReadyPromise = null;
@@ -1433,6 +1434,21 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       crossSellSuggestions: [],
       closer: { last_closer_action: "", last_closer_at: "", recommended_action: "CONTINUE", suggested_message: "", reasons: [], should_offer_closer: false },
     }));
+    const resolvedChannel = text(conversation.channel || conversation.session_channel || conversation.source);
+    const isMessengerConversation = ["facebook_messenger", "facebook", "messenger"].includes(lower(resolvedChannel));
+    const messengerDisplayName = isMessengerConversation
+      ? resolveMessengerConversationDisplayName({
+          customerName: conversation.session_customer_name || conversation.customer_name || "",
+          customerProfile: {
+            first_name: conversation.first_name,
+            last_name: conversation.last_name,
+            name: conversation.customer_name || conversation.session_customer_name || "",
+            external_customer_id: conversation.profile_external_customer_id || conversation.external_customer_id || "",
+          },
+          metadata: conversation.channel_metadata || {},
+          externalCustomerId: conversation.profile_external_customer_id || conversation.external_customer_id || "",
+        })
+      : "";
     const systemEvents = [
       conversation.conversation_status === "human_takeover" ? {
         type: "human_takeover",
@@ -1461,7 +1477,12 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       ...conversation,
       source: conversation.source || conversation.channel || "web_chat",
       channel: conversation.channel || conversation.session_channel || conversation.source || "web_chat",
-      customer_name: customerProfile.name || conversation.session_customer_name || conversation.first_name || conversation.external_customer_id || "",
+      customer_name: messengerDisplayName || customerProfile.name || conversation.session_customer_name || conversation.first_name || conversation.external_customer_id || "",
+      sender_name: isMessengerConversation ? messengerDisplayName : conversation.sender_name || "",
+      profile_name: isMessengerConversation ? messengerDisplayName : conversation.profile_name || "",
+      contact_name: isMessengerConversation ? messengerDisplayName : conversation.contact_name || "",
+      external_sender_name: conversation.external_sender_name || "",
+      external_contact_name: conversation.external_contact_name || "",
       customer_avatar_url: customerProfile.avatar_url || conversation.customer_avatar_url || "",
       last_message: conversation.customer_message || conversation.message_text || conversation.session_last_message || "",
       latest_message_preview: conversation.customer_message || conversation.message_text || conversation.ai_answer || conversation.session_last_message || "",

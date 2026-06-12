@@ -2388,6 +2388,25 @@ export default function AiInbox() {
       selectedConversationCacheRef.current = selectedConversation;
     }
   }, [selectedConversation]);
+  useEffect(() => {
+    if (!selectedConversation || !isMessengerConversation(selectedConversation)) return;
+    console.log("[AiInbox][messenger-selected-conversation]", {
+      channel: selectedConversation.channel || selectedConversation.source || "",
+      id: selectedConversation.id || selectedConversation.session_id || selectedConversation.external_conversation_id || "",
+      customer_name: selectedConversation.customer_name || "",
+      customer_profile_name: selectedConversation.customer_profile?.name || "",
+      sender_name: selectedConversation.sender_name || "",
+      profile_name: selectedConversation.profile_name || "",
+      contact_name: selectedConversation.contact_name || "",
+      external_sender_name: selectedConversation.external_sender_name || "",
+      external_contact_name: selectedConversation.external_contact_name || "",
+      external_customer_id: selectedConversation.external_customer_id || "",
+      latest_message_preview: selectedConversation.latest_message_preview || "",
+      latest_message: selectedConversation.last_message || "",
+      message_body: latestCustomerText(selectedConversation.messages) || selectedConversation.customer_message || "",
+      snippet: selectedConversation.ai_answer || selectedConversation.latest_message_preview || "",
+    });
+  }, [selectedConversation]);
   const safeConversation = selectedConversation || {};
   const lastCustomerMessage = useMemo(
     () => latestCustomerText(selectedConversation?.messages),
