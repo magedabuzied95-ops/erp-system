@@ -38,7 +38,18 @@ const money = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const labelForType = (value) => String(value || "").replaceAll("_", " ");
+const labelForType = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "cash_drawer") return "درج النقدية";
+  if (normalized === "safe") return "خزنة";
+  if (normalized === "bank") return "بنك";
+  if (normalized === "wallet") return "محفظة";
+  if (normalized === "digital_wallet") return "محفظة رقمية";
+  if (normalized === "card_settlement") return "تسويات البطاقات";
+  if (normalized === "ledger") return "دفتر";
+  if (normalized === "cash") return "نقدية";
+  return "غير معروف";
+};
 
 function FinancialAccounts() {
   const { t } = useTranslation();
@@ -266,7 +277,7 @@ function FinancialAccounts() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-black text-white">{labelForType(entry.entry_type)}</div>
-                    <div className="mt-1 text-xs text-zinc-500">{entry.source_type || "manual"} {entry.source_id ? `#${entry.source_id}` : ""}</div>
+                    <div className="mt-1 text-xs text-zinc-500">{translateSourceType(entry.source_type || "manual")} {entry.source_id ? `#${entry.source_id}` : ""}</div>
                     <div className="mt-1 text-xs text-zinc-500">{formatDateTime(entry.created_at)}</div>
                   </div>
                   <div className="text-right">
@@ -337,7 +348,7 @@ function FinancialAccounts() {
             </label>
             <label className="flex items-center gap-2 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-sm font-semibold text-amber-100">
               <input type="checkbox" checked={accountForm.allow_negative_balance} onChange={(event) => setAccountForm((current) => ({ ...current, allow_negative_balance: event.target.checked }))} />
-              Allow negative balance
+              السماح برصيد سالب
             </label>
             <button type="submit" disabled={saving === "account"} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-black text-black disabled:opacity-60">
               {saving === "account" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
@@ -374,6 +385,20 @@ function AccountSelect({ accounts, value, onChange, placeholder }) {
       ))}
     </select>
   );
+}
+
+function translateSourceType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "sale") return "بيع";
+  if (normalized === "purchase") return "شراء";
+  if (normalized === "return") return "مرتجع";
+  if (normalized === "manual") return "يدوي";
+  if (normalized === "expense") return "مصروف";
+  if (normalized === "inventory") return "مخزون";
+  if (normalized === "payment") return "سداد";
+  if (normalized === "transfer") return "تحويل";
+  if (normalized === "journal") return "قيد يومي";
+  return "غير معروف";
 }
 
 function AccountIcon({ type }) {

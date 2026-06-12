@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+﻿import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { AlertTriangle, Banknote, BriefcaseBusiness, CalendarDays, Calculator, CheckCircle2, Coins, CreditCard, ExternalLink, Gavel, Gift, Loader2, Plus, ReceiptText, RefreshCw, Save, Search, ShieldCheck, TrendingUp, WalletCards, X } from "lucide-react";
@@ -279,12 +279,12 @@ const PenaltyRow = memo(function PenaltyRow({ penalty, t, onApprove, onCancel })
         <div className="flex justify-end gap-2">
           {penalty.status !== "approved" ? (
             <button type="button" onClick={() => onApprove(penalty)} className="theme-button-soft h-9 px-3 text-xs">
-              {t("sales.penalties.status.approved", "Approved")}
+              {t("sales.penalties.status.approved", "\u0645\u0639\u062a\u0645\u062f")}
             </button>
           ) : null}
           {penalty.status !== "cancelled" ? (
             <button type="button" onClick={() => onCancel(penalty)} className="theme-button-soft h-9 px-3 text-xs text-rose-200">
-              {t("sales.penalties.status.cancelled", "Cancelled")}
+              {t("sales.penalties.status.cancelled", "\u0645\u0644\u063a\u064a")}
             </button>
           ) : null}
         </div>
@@ -354,7 +354,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
     [branches, selectedBranchId]
   );
   const branchOptions = useMemo(
-    () => branches.map((branch) => ({ value: String(branch.id), label: branch.name || branch.code || `Branch ${branch.id}` })),
+    () => branches.map((branch) => ({ value: String(branch.id), label: branch.name || branch.code || `الفرع ${branch.id}` })),
     [branches]
   );
   const employeeOptions = useMemo(() => {
@@ -432,7 +432,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
       issues.push({ key: "attendance_records", label: t("sales.payroll.unresolvedAttendanceRecords", "Unresolved attendance records") });
     }
     if ((safePayrollPreview?.employee_advances || []).some((advance) => String(advance.status || advance.deduction_status || "").toLowerCase() !== "settled")) {
-      issues.push({ key: "advance", label: t("sales.payroll.pendingAdvanceRequest", "Pending advance request") });
+      issues.push({ key: "advance", label: t("sales.payroll.pendingAdvanceRequest", "طلب سلفة قيد الانتظار") });
     }
     return issues;
   }, [payroll.employee_id, payrollBaseSalary, payrollEmployee, payrollSnapshot, safePayrollPreview, t]);
@@ -472,7 +472,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
       { label: t("sales.payroll.commissionsCalculated", "Commissions Calculated"), passed: Boolean(hasPreview) },
       { label: t("sales.payroll.advancesApplied", "Advances Applied"), passed: Boolean(hasPreview) },
       { label: t("sales.payroll.deductionsApplied", "Deductions Applied"), passed: Boolean(hasPreview) },
-      { label: t("sales.payroll.noPendingIssues", "No Pending Payroll Issues"), passed: payrollStatus.key === "READY_FOR_APPROVAL" },
+      { label: t("sales.payroll.noPendingIssues", "لا توجد مشكلات رواتب معلقة"), passed: payrollStatus.key === "READY_FOR_APPROVAL" },
     ];
   }, [payrollSnapshot.expected_working_days, payrollStatus.key, safePayrollPreview, t]);
   const payrollHistoryRows = useMemo(() => {
@@ -659,7 +659,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
         }
         await loadAll(initialBranchId);
     } catch (error) {
-        toast.error(error?.message || t("sales.errors.loadBranches", "Failed to load branches"));
+        toast.error(error?.message || t("sales.errors.loadBranches", "تعذر تحميل الفروع"));
         await loadAll("");
       }
     };
@@ -1189,13 +1189,13 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
       {!embedded ? (
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className={eyebrowClass}>{t("sales.eyebrow", "Employee Sales Profiles")}</div>
-          <h1 className="mt-2 text-3xl font-black leading-tight">{t("sales.title", "Sales Staff + Commissions")}</h1>
-          <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{t("sales.subtitle", "Configure sales staff, review commissions, and preview payroll by branch.")}</p>
+          <div className={eyebrowClass}>{t("sales.eyebrow", "ملفات موظفي المبيعات")}</div>
+          <h1 className="mt-2 text-3xl font-black leading-tight">{t("sales.title", "موظفو المبيعات والعمولات")}</h1>
+          <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{t("sales.subtitle", "قم بضبط موظفي المبيعات، وراجع العمولات، واستعرض الرواتب حسب الفرع.")}</p>
         </div>
         <button onClick={() => loadAll()} className="theme-button-soft px-4 py-3 text-sm">
           <RefreshCw className="h-4 w-4" />
-          {t("sales.refresh", "Refresh")}
+          {t("sales.refresh", "تحديث")}
         </button>
       </div>
       ) : null}
@@ -1203,17 +1203,17 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
       <section className="theme-card mb-4 p-4">
         <div className="grid gap-3 lg:grid-cols-[minmax(240px,340px)_minmax(0,1fr)] lg:items-center">
           <Select
-            label={t("sales.branch", "Branch")}
+            label={t("sales.branch", "الفرع")}
             value={selectedBranchId}
             onChange={changeBranch}
-            options={branchOptions.length ? branchOptions : [{ value: "", label: t("sales.noBranches", "No branches available") }]}
+            options={branchOptions.length ? branchOptions : [{ value: "", label: t("sales.noBranches", "لا توجد فروع متاحة") }]}
             isRtl={isRtl}
           />
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--muted)]">
             {selectedBranchName ? (
-              <span>{t("sales.branchContext", "Showing staff configuration, reports, and payroll for {{branch}}.", { branch: selectedBranchName })}</span>
+            <span>{t("sales.branchContext", "عرض إعدادات الموظفين والتقارير والرواتب للفرع {{branch}}.", { branch: selectedBranchName })}</span>
             ) : (
-              <span>{t("sales.branchMissing", "Create a branch first to assign sales staff by location.")}</span>
+                <span>{t("sales.branchMissing", "أنشئ فرعاً أولاً لتعيين موظفي المبيعات حسب الموقع.")}</span>
             )}
           </div>
         </div>
@@ -1272,7 +1272,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
             </div>
             {employees.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-8 text-center text-sm font-semibold text-[var(--muted)]">
-                {t("sales.staff.empty", "No employees found for this branch.")}
+                {t("sales.staff.empty", "لا يوجد موظفون لهذا الفرع.")}
               </div>
             ) : (
               <div ref={staffTableRef} className="max-h-[32rem] overflow-auto rounded-2xl border border-[var(--border)]">
@@ -1315,7 +1315,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
             <div className="mb-2.5 flex flex-wrap gap-1.5">
               {[
                 ["current", t("sales.reports.currentMonth", "Current month")],
-                ["previous", t("sales.reports.previousMonth", "Previous month")],
+                ["previous", t("sales.reports.previousMonth", "الشهر السابق")],
                 ["custom", t("sales.reports.customRange", "Custom range")],
               ].map(([mode, label]) => (
                 <button
@@ -1335,8 +1335,8 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               </div>
               <CompactSelect label={t("sales.reports.employee", "Employee")} value={filters.employee_id} onChange={(value) => setFilters((prev) => ({ ...prev, employee_id: value }))} options={[{ value: "", label: t("sales.reports.allEmployees", "All employees") }, ...employeeOptions]} isRtl={isRtl} />
               <div className="h-11 rounded-xl border border-[var(--border)] bg-black/10 px-3 py-2">
-                <span className={isRtl ? "block text-[10px] font-bold leading-4 text-[var(--muted)]" : "block text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--muted)]"}>{t("sales.branch", "Branch")}</span>
-                <div className="truncate text-[13px] font-semibold leading-5">{selectedBranchName || t("sales.reports.noBranchSelected", "No branch selected")}</div>
+                <span className={isRtl ? "block text-[10px] font-bold leading-4 text-[var(--muted)]" : "block text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--muted)]"}>{t("sales.branch", "الفرع")}</span>
+                <div className="truncate text-[13px] font-semibold leading-5">{selectedBranchName || t("sales.reports.noBranchSelected", "لم يتم اختيار فرع")}</div>
               </div>
               <button
                 onClick={refreshReport}
@@ -1539,7 +1539,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               <div className="mt-4 grid gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 text-xs font-bold text-[var(--muted)] md:grid-cols-2">
                 <div>{t("sales.payroll.selectedEmployee", "Selected employee")}: <span dir="auto">{payrollEmployee?.name || "-"}</span></div>
                 <div>{t("sales.payroll.portalUrl", "Portal URL")}: <span dir="ltr" className="break-all">{effectivePayrollPortalUrl || "-"}</span></div>
-                <div>{t("sales.payroll.pendingWalletRequests", "Pending wallet requests")}: <span dir="ltr">{pendingPortalRequestCount}</span></div>
+                <div>{t("sales.payroll.pendingWalletRequests", "طلبات المحفظة المعلقة")}: <span dir="ltr">{pendingPortalRequestCount}</span></div>
                 <div>{t("sales.payroll.smokeScript", "Smoke script")}: <span dir="ltr">node server/scripts/employeeWalletSmokeTest.js</span></div>
               </div>
             </section>
@@ -1569,7 +1569,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
                 ["points_per_badge", t("sales.payroll.pointsPerBadge", "Points / badge")],
                 ["monthly_sales_target", t("sales.payroll.defaultSalesTarget", "Default sales target")],
                 ["attendance_target_days", t("sales.payroll.defaultAttendanceTarget", "Attendance target")],
-                ["branch_kpi_target", t("sales.payroll.branchKpiTarget", "Branch KPI target")],
+                ["branch_kpi_target", t("sales.payroll.branchKpiTarget", "مستهدف الفرع")],
                 ["points_per_attendance_day", t("sales.payroll.pointsAttendance", "Points / attendance day")],
                 ["points_per_1000_sales", t("sales.payroll.pointsSales", "Points / 1000 sales")],
               ].map(([field, label]) => (
@@ -1640,7 +1640,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               />
               {!loading && penaltyEmployeeOptions.length === 0 ? (
                 <div className="md:col-span-2 xl:col-span-4 rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-bold text-[var(--muted)]">
-                  {t("sales.penalties.noEmployeesInBranch", "No employees found in this branch")}
+                  {t("sales.penalties.noEmployeesInBranch", "لا يوجد موظفون في هذا الفرع")}
                 </div>
               ) : null}
               <PayrollField type="date" label={t("sales.penalties.date", "Date")} value={penaltyForm.penalty_date} onChange={(value) => updatePenaltyForm("penalty_date", value)} isRtl={isRtl} />
@@ -1650,9 +1650,9 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
                 value={penaltyForm.status}
                 onChange={(value) => updatePenaltyForm("status", value)}
                 options={[
-                  { value: "approved", label: t("sales.penalties.status.approved", "Approved") },
-                  { value: "pending", label: t("sales.penalties.status.pending", "Pending") },
-                  { value: "cancelled", label: t("sales.penalties.status.cancelled", "Cancelled") },
+                  { value: "approved", label: t("sales.penalties.status.approved", "\u0645\u0639\u062a\u0645\u062f") },
+                  { value: "pending", label: t("sales.penalties.status.pending", "\u0642\u064a\u062f \u0627\u0644\u0627\u0646\u062a\u0638\u0627\u0631") },
+                  { value: "cancelled", label: t("sales.penalties.status.cancelled", "\u0645\u0644\u063a\u064a") },
                 ]}
                 isRtl={isRtl}
               />
@@ -1671,7 +1671,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
           <section className="theme-card p-4">
             <div className="mb-4 flex flex-col gap-1">
               <h3 className="text-lg font-black leading-7">{t("sales.penalties.listTitle", "Employee Penalties")}</h3>
-              <p className="text-sm leading-6 text-[var(--muted)]">{t("sales.penalties.listSubtitle", "Approved payroll-deductible penalties are included in payroll preview for overlapping periods.")}</p>
+              <p className="text-sm leading-6 text-[var(--muted)]">{t("sales.penalties.listSubtitle", "تُدرج العقوبات المعتمدة القابلة للخصم من الراتب ضمن معاينة الرواتب للفترات المتداخلة.")}</p>
             </div>
             {penaltiesLoading ? (
               <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-8 text-center text-sm font-semibold text-[var(--muted)]">
@@ -1745,8 +1745,8 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               />
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
-                  <span className={mutedLabelClass}>{t("sales.drawer.branch", "Branch")}</span>
-                  <div className="mt-2 font-black">{selectedBranchName || t("sales.reports.noBranchSelected", "No branch selected")}</div>
+                  <span className={mutedLabelClass}>{t("sales.drawer.branch", "الفرع")}</span>
+                  <div className="mt-2 font-black">{selectedBranchName || t("sales.reports.noBranchSelected", "لم يتم اختيار فرع")}</div>
                 </div>
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
                   <span className={mutedLabelClass}>{t("sales.drawer.employeeCode", "Employee code")}</span>
@@ -1787,7 +1787,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
                 <div className={mutedLabelClass}>{t("sales.drawer.productsWithoutCommission", "Products without commission")}</div>
                 <div className="mt-3 flex items-center gap-2 rounded-xl border border-[var(--border)] bg-black/10 px-3 py-2">
                   <Search className="h-4 w-4 text-[var(--muted)]" />
-                  <input value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder={t("sales.drawer.searchProducts", "Search products without commission")} className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--muted)]" />
+                  <input value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder={t("sales.drawer.searchProducts", "ابحث عن المنتجات بدون عمولة")} className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--muted)]" />
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {filteredProducts.map((product) => {
@@ -1839,7 +1839,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
         </div>
       ) : null}
 
-      {loading ? <div className="fixed inset-x-0 bottom-4 mx-auto w-fit rounded-full bg-black/80 px-4 py-2 text-sm font-bold text-white">{t("sales.loading", "Loading sales staff...")}</div> : null}
+      {loading ? <div className="fixed inset-x-0 bottom-4 mx-auto w-fit rounded-full bg-black/80 px-4 py-2 text-sm font-bold text-white">{t("sales.loading", "جاري تحميل موظفي المبيعات...")}</div> : null}
     </div>
   );
 }
@@ -1966,7 +1966,7 @@ function PayrollFinancialSummary({
     { label: t("sales.payroll.lateDays", "Late Days"), value: numberValue(payroll.late_hours ?? 0), tone: "amber" },
     { label: t("sales.payroll.earlyLeaveCount", "Early Leave Count"), value: numberValue(payroll.early_leave_hours ?? 0), tone: "sky" },
     { label: t("sales.payroll.overtimeHours", "Overtime Hours"), value: numberValue(payroll.overtime_hours ?? 0), tone: "cyan" },
-    { label: t("sales.payroll.approvedLeaves", "Approved Leaves"), value: numberValue((payroll.excluded_leave_days ?? 0) + (payroll.excluded_holiday_days ?? 0)), tone: "zinc" },
+    { label: t("sales.payroll.approvedLeaves", "الإجازات المعتمدة"), value: numberValue((payroll.excluded_leave_days ?? 0) + (payroll.excluded_holiday_days ?? 0)), tone: "zinc" },
   ];
   const deductionRows = [
     { label: t("sales.payroll.lateDeductions", "Late Deductions"), value: lateDeductions, deduction: true },
@@ -2028,7 +2028,7 @@ function PayrollFinancialSummary({
                 {formatPayrollMoney(netPay)}
               </div>
               <div className="mt-3 text-sm font-bold text-emerald-100/75">
-                {t("sales.payroll.comparedToPrevious", "Compared to Previous Payroll")}
+                {t("sales.payroll.comparedToPrevious", "مقارنة بالراتب السابق")}
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3 text-sm font-black sm:grid-cols-3">
                 {overviewCards.map((card) => (
@@ -2400,3 +2400,4 @@ function formatDeductions(value) {
 }
 
 export default SalesEmployees;
+

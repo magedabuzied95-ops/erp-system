@@ -23,7 +23,7 @@ function WarehousesDashboard() {
   const [editForm, setEditForm] = useState({ name: "", location: "", branch: "", status: "active" });
   const [editError, setEditError] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
-  const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
+  const isArabic = true;
   const labels = {
     edit: isArabic ? "تعديل" : "Edit",
     editWarehouse: isArabic ? "تعديل المخزن" : "Edit warehouse",
@@ -38,6 +38,12 @@ function WarehousesDashboard() {
     saving: isArabic ? "جارٍ الحفظ..." : "Saving...",
     success: isArabic ? "تم تعديل المخزن" : "Warehouse updated",
     nameRequired: isArabic ? "اسم المخزن مطلوب" : "Warehouse name required",
+  };
+  const formatWarehouseStatus = (value) => {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized === "active" || normalized === "نشط") return labels.active;
+    if (normalized === "inactive" || normalized === "غير نشط") return labels.inactive;
+    return value || labels.active;
   };
 
   useEffect(() => {
@@ -93,10 +99,10 @@ function WarehousesDashboard() {
       setDeleteError("");
       await api.delete(`/warehouses/${deleteTarget.id}`);
       setWarehouses((current) => current.filter((warehouse) => String(warehouse.id) !== String(deleteTarget.id)));
-      toast.success("Warehouse deleted");
+      toast.success(isArabic ? "تم حذف المخزن" : "Warehouse deleted");
       setDeleteTarget(null);
     } catch (err) {
-      const message = err?.responseBody?.message || err?.message || "Warehouse could not be deleted";
+      const message = err?.responseBody?.message || err?.message || (isArabic ? "تعذر حذف المخزن" : "Warehouse could not be deleted");
       setDeleteError(message);
       toast.error(message);
     } finally {
@@ -144,7 +150,7 @@ function WarehousesDashboard() {
       toast.success(labels.success);
       setEditTarget(null);
     } catch (err) {
-      const message = err?.responseBody?.message || err?.message || "Warehouse could not be updated";
+      const message = err?.responseBody?.message || err?.message || (isArabic ? "تعذر تحديث المخزن" : "Warehouse could not be updated");
       setEditError(message);
       toast.error(message);
     } finally {
@@ -217,16 +223,16 @@ function WarehousesDashboard() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-semibold text-white">{warehouse.name}</div>
-                    <div className="mt-1 text-xs text-zinc-500">{warehouse.location || "n/a"}</div>
+                    <div className="mt-1 text-xs text-zinc-500">{warehouse.location || (isArabic ? "غير متاح" : "n/a")}</div>
                   </div>
-                  <StatusBadge value={warehouse.status || "Active"} />
+                  <StatusBadge value={formatWarehouseStatus(warehouse.status)} />
                 </div>
                 <div className="mt-4 space-y-2 text-sm text-zinc-300">
-                  <div>{t("warehouses.row.branch")}: {warehouse.branch || "n/a"}</div>
+                  <div>{t("warehouses.row.branch")}: {warehouse.branch || (isArabic ? "غير متاح" : "n/a")}</div>
                   <div className="grid grid-cols-3 gap-2">
-                    <MiniStat label="Products" value={warehouse.products_count || 0} />
-                    <MiniStat label="Stock" value={warehouse.stock_qty ?? warehouse.stock_quantity ?? 0} />
-                    <MiniStat label="Transfers" value={warehouse.transfers_count ?? warehouse.transfer_references ?? 0} />
+                    <MiniStat label={isArabic ? "المنتجات" : "Products"} value={warehouse.products_count || 0} />
+                    <MiniStat label={isArabic ? "الرصيد" : "Stock"} value={warehouse.stock_qty ?? warehouse.stock_quantity ?? 0} />
+                    <MiniStat label={isArabic ? "التحويلات" : "Transfers"} value={warehouse.transfers_count ?? warehouse.transfer_references ?? 0} />
                   </div>
                 </div>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
@@ -238,7 +244,7 @@ function WarehousesDashboard() {
                     </button>
                     <button type="button" onClick={() => openDelete(warehouse)} className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-100 transition hover:border-rose-300/50 hover:bg-rose-500/20">
                       <Trash2 className="h-4 w-4" />
-                      Delete
+                      {isArabic ? "حذف" : "Delete"}
                     </button>
                     <Link to="/stock-transfers" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
                       <ArrowRightLeft className="h-4 w-4" />
@@ -301,19 +307,21 @@ function MiniStat({ label, value }) {
 }
 
 function EditWarehouseModal({ warehouse, form, labels, error, saving, onChange, onClose, onSave }) {
+  const { i18n } = useTranslation();
+  const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
   const isProtected = Boolean(warehouse.is_protected || warehouse.default_references);
   const setField = (field, value) => onChange((current) => ({ ...current, [field]: value }));
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label="Close" />
+      <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label={isArabic ? "إغلاق" : "Close"} />
       <div className="relative w-full max-w-xl rounded-t-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black sm:rounded-3xl">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">{labels.edit}</div>
             <h3 className="mt-1 text-xl font-black text-white">{labels.editWarehouse}</h3>
             {isProtected ? (
-              <p className="mt-2 text-sm leading-6 text-amber-100">Default/protected warehouse: status cannot be changed to inactive.</p>
+              <p className="mt-2 text-sm leading-6 text-amber-100">{isArabic ? "هذا مخزن افتراضي أو محمي، ولا يمكن تحويل حالته إلى غير نشط." : "Default/protected warehouse: status cannot be changed to inactive."}</p>
             ) : null}
           </div>
           <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white">
@@ -368,6 +376,8 @@ function EditField({ label, value, onChange, required = false }) {
 }
 
 function DeleteWarehouseModal({ warehouse, error, deleting, onClose, onConfirm }) {
+  const { i18n } = useTranslation();
+  const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
   const stockQuantity = Number(warehouse.stock_qty ?? warehouse.stock_quantity ?? 0);
   const productsCount = Number(warehouse.products_count || 0);
   const transferReferences = Number(warehouse.transfers_count ?? warehouse.transfer_references ?? 0);
@@ -378,25 +388,25 @@ function DeleteWarehouseModal({ warehouse, error, deleting, onClose, onConfirm }
   const usedInTransfers = transferReferences > 0 || activeTransferReferences > 0;
   const canDelete = hasServerId && !isProtected && !hasInventory && !usedInTransfers;
   const blockMessage = !hasServerId
-    ? "Backend warehouse id required"
+    ? (isArabic ? "مطلوب معرّف مخزن صالح من الخادم" : "Backend warehouse id required")
     : isProtected
-    ? "Default warehouse cannot be deleted"
+    ? (isArabic ? "لا يمكن حذف المخزن الافتراضي" : "Default warehouse cannot be deleted")
     : hasInventory
-      ? "Warehouse still contains inventory"
+      ? (isArabic ? "لا يزال المخزن يحتوي على مخزون" : "Warehouse still contains inventory")
       : usedInTransfers
-        ? "Warehouse is used in active transfers"
+        ? (isArabic ? "المخزن مستخدم في تحويلات نشطة" : "Warehouse is used in active transfers")
         : "";
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label="Close" />
+      <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label={isArabic ? "إغلاق" : "Close"} />
       <div className="relative w-full max-w-xl rounded-t-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black sm:rounded-3xl">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-300">Delete warehouse</div>
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-300">{isArabic ? "حذف المخزن" : "Delete warehouse"}</div>
             <h3 className="mt-1 text-xl font-black text-white">{warehouse.name}</h3>
             <p className="mt-2 text-sm leading-6 text-zinc-400">
-              Review usage before deleting. Empty duplicate warehouses can be removed safely.
+              {isArabic ? "راجع استخدام المخزن قبل الحذف. يمكن حذف المخازن المكررة الفارغة بأمان." : "Review usage before deleting. Empty duplicate warehouses can be removed safely."}
             </p>
           </div>
           <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white">
@@ -405,19 +415,19 @@ function DeleteWarehouseModal({ warehouse, error, deleting, onClose, onConfirm }
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <MiniStat label="Products" value={productsCount} />
-          <MiniStat label="Stock qty" value={stockQuantity} />
-          <MiniStat label="Transfers" value={transferReferences} />
-          <MiniStat label="Active" value={activeTransferReferences} />
+          <MiniStat label={isArabic ? "المنتجات" : "Products"} value={productsCount} />
+          <MiniStat label={isArabic ? "كمية المخزون" : "Stock qty"} value={stockQuantity} />
+          <MiniStat label={isArabic ? "التحويلات" : "Transfers"} value={transferReferences} />
+          <MiniStat label={isArabic ? "النشطة" : "Active"} value={activeTransferReferences} />
         </div>
 
         <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-zinc-300">
           <div className="flex items-center justify-between gap-3">
-            <span>Warehouse ID</span>
+            <span>{isArabic ? "معرّف المخزن" : "Warehouse ID"}</span>
             <span className="font-black text-white">{warehouse.id}</span>
           </div>
           <div className="mt-2 flex items-center justify-between gap-3">
-            <span>Default references</span>
+            <span>{isArabic ? "المرجعيات الافتراضية" : "Default references"}</span>
             <span className={isProtected ? "font-black text-amber-200" : "font-black text-emerald-200"}>{warehouse.default_references || 0}</span>
           </div>
         </div>
@@ -428,7 +438,7 @@ function DeleteWarehouseModal({ warehouse, error, deleting, onClose, onConfirm }
           </div>
         ) : (
           <div className="mt-4 rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-100">
-            This warehouse is empty and can be deleted.
+            {isArabic ? "هذا المخزن فارغ ويمكن حذفه." : "This warehouse is empty and can be deleted."}
           </div>
         )}
 
@@ -440,11 +450,11 @@ function DeleteWarehouseModal({ warehouse, error, deleting, onClose, onConfirm }
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <button type="button" onClick={onClose} disabled={deleting} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-50">
-            Cancel
+            {isArabic ? "إلغاء" : "Cancel"}
           </button>
           <button type="button" onClick={onConfirm} disabled={!canDelete || deleting} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-black text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-40">
             <Trash2 className="h-4 w-4" />
-            {deleting ? "Deleting..." : "Delete warehouse"}
+            {deleting ? (isArabic ? "جارٍ الحذف..." : "Deleting...") : (isArabic ? "حذف المخزن" : "Delete warehouse")}
           </button>
         </div>
       </div>

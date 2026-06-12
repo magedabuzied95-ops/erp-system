@@ -73,7 +73,7 @@ function ReorderSuggestions() {
           const backendMessage = err?.responseBody?.error || err?.responseBody?.message || err?.message || "";
           setError({
             message: t("purchases.reorder.loadFailed"),
-            detail: backendMessage && backendMessage !== "Request Failed" ? backendMessage : "",
+            detail: backendMessage && backendMessage !== "تعذر إتمام الطلب" ? backendMessage : "",
           });
           setDiagnostics(err?.responseBody?.diagnostics || null);
           setSuggestions([]);
@@ -296,7 +296,7 @@ function SuggestionCard({ item, creating, onCreateDraft, locale }) {
           <h3 className="truncate text-sm font-black text-white">{item.product_name}</h3>
           <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-bold text-zinc-400">
             <span>{item.color || t("purchases.reorder.noColor")}</span>
-            <span aria-hidden="true">·</span>
+            <span aria-hidden="true">•</span>
             <span>{item.supplier_name || t("purchases.reorder.unspecifiedSupplier")}</span>
           </div>
           <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[11px] font-black text-zinc-300">

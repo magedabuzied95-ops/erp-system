@@ -1,98 +1,98 @@
 {
-    "title":  "لوحة المخزون",
-    "subtitle":  "سجل حركة المخزون، وبطاقات التقييم، وتنبيهات انخفاض المخزون، ونظرة عامة على المخازن، وعناصر النقل المؤقتة.",
-    "history":  "سجل المخزون",
-    "adjustments":  "تسويات المخزون",
-    "tabs":  {
-                 "inventory":  "المخزون",
-                 "movements":  "الحركات",
-                 "adjustments":  "التسويات",
-                 "transfers":  "التحويلات",
-                 "warehouses":  "المخازن"
-             },
-    "kpis":  {
-                 "inventoryValue":  "قيمة المخزون",
-                 "lowStockAlerts":  "تنبيهات انخفاض المخزون",
-                 "inboundMoves":  "حركات واردة",
-                 "outboundMoves":  "حركات صادرة"
-             },
-    "searchPlaceholder":  "ابحث عن SKU أو المنتج أو اللون أو المقاس...",
-    "labels":  {
-                   "default":  "افتراضي",
-                   "oneSize":  "مقاس واحد",
-                   "notAvailable":  "غير متاح"
-               },
-    "status":  {
-                   "active":  "نشط",
-                   "low":  "منخفض",
-                   "inbound":  "وارد",
-                   "out":  "صادر"
-               },
-    "tableHeaders":  {
-                         "product":  "المنتج",
-                         "variant":  "الاختيار",
-                         "sku":  "SKU",
-                         "stock":  "المخزون",
-                         "value":  "القيمة",
-                         "status":  "الحالة"
-                     },
-    "alerts":  {
-                   "title":  "تنبيهات انخفاض المخزون",
-                   "subtitle":  "تنبيهات على مستوى الخيار عند المخزون 3 أو أقل.",
-                   "empty":  "لا توجد تنبيهات انخفاض مخزون."
-               },
-    "purchaseAlerts":  {
-                   "title":  "تنبيهات الشراء الذكية",
-                   "subtitle":  "تنبيهات شراء تعتمد على الكراتين فقط، إما بسبب مقاسات ناقصة أو الوصول لحد الكرتونة.",
-                   "filters":  {
-                                  "brand":  "العلامة التجارية",
-                                  "category":  "الفئة",
-                                  "manufacturer":  "المصنع",
-                                  "alertType":  "نوع التنبيه",
-                                  "all":  "الكل"
-                              },
-                   "groups":  {
-                                  "missing_sizes":  "مقاسات ناقصة",
-                                  "carton_threshold":  "وصل لحد الكرتونة"
-                              },
-                   "cards":  {
-                                 "product":  "المنتج",
-                                 "color":  "اللون",
-                                 "alertType":  "نوع التنبيه",
-                                 "reason":  "السبب",
-                                 "missingSizes":  "المقاسات الناقصة",
-                                 "totalStock":  "إجمالي المخزون",
-                                 "cartonSize":  "حجم الكرتونة",
-                                 "suggestedCartons":  "الكراتين المقترحة",
-                                 "viewSuggestions":  "عرض الاقتراحات"
-                             },
-                   "actions":  {
-                                  "selectVisible":  "تحديد الظاهرة",
-                                  "clearSelection":  "إلغاء التحديد",
-                                  "createDraft":  "إنشاء طلب شراء",
-                                  "creating":  "جارٍ الإنشاء...",
-                                  "selectAlert":  "تحديد التنبيه",
-                                  "deselectAlert":  "إلغاء تحديد التنبيه"
-                              },
-                   "messages":  {
-                                  "draftCreated":  "تم إنشاء مسودة الشراء",
-                                  "draftQueued":  "تم تجهيز مسودة الشراء",
-                                  "draftFailed":  "تعذر إنشاء مسودة الشراء"
-                              },
-                   "empty":  "لا توجد تنبيهات شراء ذكية."
-               },
-    "actions":  {
-                    "view":  "عرض",
-                    "editStock":  "تعديل المخزون"
-                },
-    "empty":  {
-                  "rowsTitle":  "لا توجد صفوف مخزون",
-                  "rowsSubtitle":  "جرّب بحثًا مختلفًا أو حمّل مخزون الخيارات الحي.",
-                  "warehouseTitle":  "نظرة عامة على المخازن",
-                  "timelineTitle":  "الخط الزمني للمخزون",
-                  "lowStockTitle":  "تنبيهات انخفاض المخزون",
-                  "lowStockEmpty":  "لا توجد تنبيهات انخفاض مخزون."
-              },
-    "fallbackError":  "يتم استخدام بيانات مخزون بديلة لأن أحد واجهات المخزون غير متاح.",
-    "fallbackToast":  "استخدام بيانات مخزون بديلة"
+  "title": "لوحة المخزون",
+  "subtitle": "سجل حركة المخزون، وبطاقات التقييم، وتنبيهات انخفاض المخزون، ونظرة عامة على المخازن، وعناصر النقل المؤقتة.",
+  "history": "سجل المخزون",
+  "adjustments": "تسويات المخزون",
+  "tabs": {
+    "inventory": "المخزون",
+    "movements": "الحركات",
+    "adjustments": "التسويات",
+    "transfers": "التحويلات",
+    "warehouses": "المخازن"
+  },
+  "kpis": {
+    "inventoryValue": "قيمة المخزون",
+    "lowStockAlerts": "تنبيهات انخفاض المخزون",
+    "inboundMoves": "حركات واردة",
+    "outboundMoves": "حركات صادرة"
+  },
+  "searchPlaceholder": "ابحث برمز الصنف أو المنتج أو اللون أو المقاس...",
+  "labels": {
+    "default": "افتراضي",
+    "oneSize": "مقاس واحد",
+    "notAvailable": "غير متاح"
+  },
+  "status": {
+    "active": "نشط",
+    "low": "منخفض",
+    "inbound": "وارد",
+    "out": "صادر"
+  },
+  "tableHeaders": {
+    "product": "المنتج",
+    "variant": "الاختيار",
+    "sku": "SKU",
+    "stock": "المخزون",
+    "value": "القيمة",
+    "status": "الحالة"
+  },
+  "alerts": {
+    "title": "تنبيهات انخفاض المخزون",
+    "subtitle": "تنبيهات على مستوى الاختيار عندما يصل المخزون إلى 3 أو أقل.",
+    "empty": "لا توجد تنبيهات انخفاض مخزون."
+  },
+  "purchaseAlerts": {
+    "title": "تنبيهات الشراء الذكية",
+    "subtitle": "تنبيهات شراء تعتمد على الكراتين فقط، بسبب المقاسات الناقصة أو بلوغ حد الكرتونة.",
+    "filters": {
+      "brand": "العلامة التجارية",
+      "category": "الفئة",
+      "manufacturer": "المصنع",
+      "alertType": "نوع التنبيه",
+      "all": "الكل"
+    },
+    "groups": {
+      "missing_sizes": "مقاسات ناقصة",
+      "carton_threshold": "بلغ حد الكرتونة"
+    },
+    "cards": {
+      "product": "المنتج",
+      "color": "اللون",
+      "alertType": "نوع التنبيه",
+      "reason": "السبب",
+      "missingSizes": "المقاسات الناقصة",
+      "totalStock": "إجمالي المخزون",
+      "cartonSize": "حجم الكرتونة",
+      "suggestedCartons": "الكراتين المقترحة",
+      "viewSuggestions": "عرض الاقتراحات"
+    },
+    "actions": {
+      "selectVisible": "تحديد الظاهر",
+      "clearSelection": "إلغاء التحديد",
+      "createDraft": "إنشاء طلب شراء",
+      "creating": "جارٍ الإنشاء...",
+      "selectAlert": "تحديد التنبيه",
+      "deselectAlert": "إلغاء تحديد التنبيه"
+    },
+    "messages": {
+      "draftCreated": "تم إنشاء مسودة الشراء",
+      "draftQueued": "تم تجهيز مسودة الشراء",
+      "draftFailed": "تعذر إنشاء مسودة الشراء"
+    },
+    "empty": "لا توجد تنبيهات شراء ذكية."
+  },
+  "actions": {
+    "view": "عرض",
+    "editStock": "تعديل المخزون"
+  },
+  "empty": {
+    "rowsTitle": "لا توجد صفوف مخزون",
+    "rowsSubtitle": "جرّب بحثًا مختلفًا أو حمّل مخزون الاختيارات المباشر.",
+    "warehouseTitle": "نظرة عامة على المخازن",
+    "timelineTitle": "الخط الزمني للمخزون",
+    "lowStockTitle": "تنبيهات انخفاض المخزون",
+    "lowStockEmpty": "لا توجد تنبيهات انخفاض مخزون."
+  },
+  "fallbackError": "يتم استخدام بيانات مخزون بديلة لأن واحدة أو أكثر من واجهات المخزون غير متاحة.",
+  "fallbackToast": "جارٍ استخدام بيانات مخزون بديلة"
 }

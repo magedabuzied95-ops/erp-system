@@ -110,7 +110,7 @@ function GeneralLedger() {
 
   return (
     <AccountingShell
-      title="General Ledger"
+      title="دفتر الأستاذ"
       subtitle="دفتر الأستاذ العام مبني مباشرة على الحسابات والقيود اليومية وسطور القيود"
       actions={
         <>
@@ -132,12 +132,12 @@ function GeneralLedger() {
         </>
       }
       tabs={[
-        { to: "/accounting", label: "Dashboard" },
-        { to: "/accounting/journal-entries", label: "Journal" },
-        { to: "/accounting/accounts", label: "Accounts" },
-        { to: "/accounting/general-ledger", label: "General Ledger", end: true },
-        { to: "/accounting/trial-balance", label: "Trial Balance" },
-        { to: "/accounting/reports", label: "Reports" },
+        { to: "/accounting", label: "لوحة التحكم" },
+        { to: "/accounting/journal-entries", label: "القيود اليومية" },
+        { to: "/accounting/accounts", label: "دليل الحسابات" },
+        { to: "/accounting/general-ledger", label: "دفتر الأستاذ", end: true },
+        { to: "/accounting/trial-balance", label: "ميزان المراجعة" },
+        { to: "/accounting/reports", label: "التقارير" },
       ]}
     >
       <form onSubmit={loadLedger} className="grid gap-3 rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 md:grid-cols-4">
@@ -213,7 +213,7 @@ function GeneralLedger() {
                   <tr key={`${row.journal_entry_id}-${index}`} className="transition hover:bg-white/[0.03]">
                     <Td>{formatDateTime(row.date)}</Td>
                     <Td className="font-semibold text-white">#{row.journal_entry_id}</Td>
-                    <Td>{row.reference || row.source_type || "-"}</Td>
+                    <Td>{row.reference || translateSourceType(row.source_type) || "-"}</Td>
                     <Td className="max-w-[340px] text-zinc-300">{row.description || "-"}</Td>
                     <Td align="right" className="font-black text-emerald-300">{row.debit ? formatCurrency(row.debit) : "-"}</Td>
                     <Td align="right" className="font-black text-rose-300">{row.credit ? formatCurrency(row.credit) : "-"}</Td>
@@ -244,6 +244,20 @@ function Banner({ text, tone = "amber" }) {
     rose: "border-rose-500/20 bg-rose-500/10 text-rose-100",
   };
   return <div className={`rounded-3xl border p-4 text-sm ${styles[tone] || styles.amber}`}>{text}</div>;
+}
+
+function translateSourceType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "sale") return "بيع";
+  if (normalized === "purchase") return "شراء";
+  if (normalized === "return") return "مرتجع";
+  if (normalized === "manual") return "يدوي";
+  if (normalized === "expense") return "مصروف";
+  if (normalized === "inventory") return "مخزون";
+  if (normalized === "payment") return "سداد";
+  if (normalized === "transfer") return "تحويل";
+  if (normalized === "journal") return "قيد يومي";
+  return "غير معروف";
 }
 
 function Th({ children, align = "left" }) {

@@ -240,11 +240,11 @@ function InventoryHistory() {
                       <td className="px-3 py-4 text-sm text-zinc-300">{formatDateTime(movement.created_at)}</td>
                       <td className="px-3 py-4">
                         <div className="font-semibold text-white">{movement.product_name || "منتج غير معروف"}</div>
-                        <div className="text-xs text-zinc-500">{movement.product_brand || "n/a"}</div>
+                        <div className="text-xs text-zinc-500">{movement.product_brand || "غير متاح"}</div>
                       </td>
                       <td className="px-3 py-4 text-sm text-zinc-300">
                         <div>{movement.variant_color || movement.variant_name || "افتراضي"}</div>
-                        <div className="text-xs text-zinc-500">{movement.variant_size || movement.variant_sku || "n/a"}</div>
+                        <div className="text-xs text-zinc-500">{movement.variant_size || movement.variant_sku || "غير متاح"}</div>
                       </td>
                       <td className="px-3 py-4">
                         <MovementBadge type={movement.movement_type} />
@@ -255,10 +255,10 @@ function InventoryHistory() {
                         {change}
                       </td>
                       <td className="px-3 py-4 text-sm text-zinc-300">{Number(movement.quantity_after || 0)}</td>
-                      <td className="px-3 py-4 text-sm text-zinc-300">{movement.created_by_name || "n/a"}</td>
+                      <td className="px-3 py-4 text-sm text-zinc-300">{movement.created_by_name || "غير متاح"}</td>
                       <td className="px-3 py-4 text-sm text-zinc-300">
-                        <div>{movement.reference_type || "n/a"}</div>
-                        <div className="text-xs text-zinc-500">#{movement.reference_id || "n/a"}</div>
+                        <div>{movement.reference_type || "غير متاح"}</div>
+                        <div className="text-xs text-zinc-500">#{movement.reference_id || "غير متاح"}</div>
                       </td>
                     </tr>
                   );
@@ -348,12 +348,12 @@ function TimelineDrawer({ movement, onClose }) {
           <Detail label="الكمية قبل" value={String(movement.quantity_before ?? 0)} />
           <Detail label="التغيير في الكمية" value={change >= 0 ? `+${change}` : String(change)} />
           <Detail label="الكمية بعد" value={String(movement.quantity_after ?? 0)} />
-          <Detail label="المرجع" value={`${movement.reference_type || "n/a"} #${movement.reference_id || "n/a"}`} />
-          <Detail label="المستخدم" value={movement.created_by_name || "n/a"} />
+          <Detail label="المرجع" value={`${movement.reference_type || "غير متاح"} #${movement.reference_id || "غير متاح"}`} />
+          <Detail label="المستخدم" value={movement.created_by_name || "غير متاح"} />
           <Detail label="الوقت" value={formatDateTime(movement.created_at)} />
-          <Detail label="المخزن" value={movement.warehouse_id || movement.branch_id || "n/a"} />
-          <Detail label="التكلفة" value={movement.total_cost !== null && movement.total_cost !== undefined ? formatCurrency(movement.total_cost) : "n/a"} />
-          <Detail label="ملاحظات" value={movement.notes || movement.note || "n/a"} />
+          <Detail label="المخزن" value={movement.warehouse_id || movement.branch_id || "غير متاح"} />
+          <Detail label="التكلفة" value={movement.total_cost !== null && movement.total_cost !== undefined ? formatCurrency(movement.total_cost) : "غير متاح"} />
+          <Detail label="ملاحظات" value={movement.notes || movement.note || "غير متاح"} />
         </div>
       </div>
     </div>

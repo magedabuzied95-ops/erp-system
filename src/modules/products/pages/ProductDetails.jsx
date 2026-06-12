@@ -159,15 +159,15 @@ const firstPositiveNumber = (...values) => {
 
 const truthyFlag = (value) => value === true || value === 1 || String(value || "").toLowerCase() === "true";
 
-const displayMoneyOrEmpty = (value) => {
+const displayMoneyOrEmpty = (value, fallback = "n/a") => {
   const parsed = toFiniteNumber(value);
-  return parsed === null ? "n/a" : formatCurrency(parsed);
+  return parsed === null ? fallback : formatCurrency(parsed);
 };
 
-const audienceLabel = (value) => ({
-  men: "Men",
-  women: "Women",
-  kids: "Kids",
+const audienceLabel = (value, isArabic = false) => ({
+  men: isArabic ? "رجالي" : "Men",
+  women: isArabic ? "حريمي" : "Women",
+  kids: isArabic ? "أطفال" : "Kids",
 }[value] || value);
 
 const sanitizeAudienceDescription = (description = "", audiences = []) => {
@@ -483,9 +483,11 @@ const formatDateTime = (value) => {
 };
 
 function ProductDetails() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
+  const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
+  const notAvailableText = t("products.records.notAvailable", isArabic ? "غير متاح" : "n/a");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [product, setProduct] = useState(null);
@@ -756,22 +758,22 @@ function ProductDetails() {
 
   return (
     <ProductsShell
-      title={t("products.details.title", "Product Details")}
-      description={t("products.details.description", "Complete product view with grouped variants, stock, pricing, gallery media, and quick actions.")}
+      title={t("products.details.title", "تفاصيل المنتج")}
+      description={t("products.details.description", "عرض كامل للمنتج مع الاختيارات المجمعة والمخزون والأسعار والصور والإجراءات السريعة.")}
       actions={
         <Link
           to="/products"
           className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-3 font-semibold text-white transition hover:bg-white/10"
         >
           <ArrowLeft size={18} />
-          {t("products.details.backToProducts", "Back to products")}
+          {t("products.details.backToProducts", "العودة إلى المنتجات")}
         </Link>
       }
     >
       {loading ? (
         <div className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-10 text-center text-zinc-400">
           <Loader2 className="mx-auto h-10 w-10 animate-spin text-emerald-400" />
-          <p className="mt-4 text-sm font-semibold text-white">{t("products.details.loading", "Loading product details...")}</p>
+          <p className="mt-4 text-sm font-semibold text-white">{t("products.details.loading", "جارٍ تحميل تفاصيل المنتج...")}</p>
         </div>
       ) : error ? (
         <div className="rounded-[34px] border border-red-500/20 bg-red-500/10 p-8 text-red-100">
@@ -818,7 +820,7 @@ function ProductDetails() {
                   </span>
                   {(product.audiences || []).map((audience) => (
                     <span key={audience} className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                      {audienceLabel(audience)}
+                      {audienceLabel(audience, isArabic)}
                     </span>
                   ))}
                 </div>
@@ -831,21 +833,21 @@ function ProductDetails() {
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                  <InfoCard label={t("products.fields.regularPrice", "Regular price")} value={displayMoneyOrEmpty(product.resolved_regular_price)} />
-                  <InfoCard label={t("products.fields.comparePrice", "Compare price")} value={displayMoneyOrEmpty(product.resolved_compare_price)} />
+                  <InfoCard label={t("products.fields.regularPrice", "Regular price")} value={displayMoneyOrEmpty(product.resolved_regular_price, notAvailableText)} />
+                  <InfoCard label={t("products.fields.comparePrice", "Compare price")} value={displayMoneyOrEmpty(product.resolved_compare_price, notAvailableText)} />
                   <InfoCard label={t("products.fields.salePrice", "Sale price")} value={product.sale_display_enabled && product.resolved_sale_price !== null ? formatCurrency(product.resolved_sale_price) : t("products.status.disabled", "Disabled")} />
-                  <InfoCard label={t("products.fields.costPrice", "Cost price")} value={displayMoneyOrEmpty(product.resolved_cost_price)} />
-                  <InfoCard label={t("products.fields.wholesalePrice", "Wholesale price")} value={displayMoneyOrEmpty(product.resolved_wholesale_price)} />
+                  <InfoCard label={t("products.fields.costPrice", "Cost price")} value={displayMoneyOrEmpty(product.resolved_cost_price, notAvailableText)} />
+                  <InfoCard label={t("products.fields.wholesalePrice", "Wholesale price")} value={displayMoneyOrEmpty(product.resolved_wholesale_price, notAvailableText)} />
                   <InfoCard label={t("products.fields.lastPurchasePriceUpdate", "Last purchase price update")} value={product.last_purchase_pricing_at ? String(product.last_purchase_pricing_at).slice(0, 16).replace("T", " ") : t("products.records.notYet", "Not yet")} />
                   <InfoCard label={t("products.fields.totalStock", "Total stock")} value={Number(displayTotalStock || totalStock || 0).toLocaleString()} />
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <DetailCard label={t("products.fields.category", "Category")} value={product.category_name || product.category || t("products.records.notAvailable", "n/a")} />
-                  <DetailCard label={t("products.fields.brand", "Brand")} value={product.brand_name || product.brand || t("products.records.notAvailable", "n/a")} />
-                  <DetailCard label={t("products.fields.unit", "Unit")} value={product.unit_name || product.unit_abbreviation || t("products.records.notAvailable", "n/a")} />
-                  <DetailCard label={t("products.fields.audience", "Audience")} value={(product.audiences || []).map(audienceLabel).join(", ") || t("products.records.notAvailable", "n/a")} />
-                  <DetailCard label={t("products.details.qrToken", "QR token")} value={product.qr_token || t("products.records.notAvailable", "n/a")} />
+                  <DetailCard label={t("products.fields.category", "Category")} value={product.category_name || product.category || notAvailableText} />
+                  <DetailCard label={t("products.fields.brand", "Brand")} value={product.brand_name || product.brand || notAvailableText} />
+                  <DetailCard label={t("products.fields.unit", "Unit")} value={product.unit_name || product.unit_abbreviation || notAvailableText} />
+                  <DetailCard label={t("products.fields.audience", "Audience")} value={(product.audiences || []).map((audience) => audienceLabel(audience, isArabic)).join("، ") || notAvailableText} />
+                  <DetailCard label={t("products.details.qrToken", "QR token")} value={product.qr_token || notAvailableText} />
                 </div>
               </div>
             </div>
@@ -911,7 +913,7 @@ function ProductDetails() {
                                 <th className="px-4 py-3 text-left">{t("products.fields.articleCode", "Article Code")}</th>
                                 <th className="px-4 py-3 text-left">{t("products.selected.barcode", "Barcode")}</th>
                                 <th className="px-4 py-3 text-left">{t("products.fields.price", "Price")}</th>
-                                <th className="px-4 py-3 text-left">{t("products.fields.history", "History")}</th>
+                                <th className="px-4 py-3 text-left">{t("products.fields.history", "السجل")}</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -936,7 +938,7 @@ function ProductDetails() {
                                       className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
                                     >
                                       <Clock3 className="h-4 w-4" />
-                                      {t("products.fields.history", "History")}
+                                      {t("products.fields.history", "السجل")}
                                     </Link>
                                   </td>
                                 </tr>
@@ -951,7 +953,7 @@ function ProductDetails() {
               </div>
             ) : (
               <div className="mt-5 rounded-[28px] border border-dashed border-white/10 bg-white/5 p-8 text-center">
-                <p className="text-lg font-black text-white">{t("products.details.noVariants", "No variants found. Add variants from Edit Product.")}</p>
+                <p className="text-lg font-black text-white">{t("products.details.noVariants", "لا توجد اختيارات لهذا المنتج. أضف الاختيارات من صفحة تعديل المنتج.")}</p>
                 <button
                   type="button"
                   onClick={() => navigate(`/products/${product.id}/edit`)}
@@ -969,7 +971,7 @@ function ProductDetails() {
               <div className="flex items-center gap-3">
                 <Clock3 className="text-cyan-400" />
                 <div>
-                  <h2 className="text-2xl font-black text-white">{t("products.stock.historyTitle", "Stock History")}</h2>
+                  <h2 className="text-2xl font-black text-white">{t("products.stock.historyTitle", "سجل المخزون")}</h2>
                   <p className="mt-1 text-sm text-zinc-400">{t("products.stock.historyDescription", "Recent inventory movements recorded for this product.")}</p>
                 </div>
               </div>
@@ -977,7 +979,7 @@ function ProductDetails() {
                 to={`/inventory/history?productId=${encodeURIComponent(product.id)}`}
                 className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
               >
-                {t("products.stock.fullHistory", "Full history")}
+                {t("products.stock.fullHistory", "السجل الكامل")}
               </Link>
             </div>
 
@@ -1024,7 +1026,7 @@ function ProductDetails() {
                     <tr>
                       <td colSpan={11} className="px-4 py-8 text-center text-zinc-400">
                         <Loader2 className="mr-2 inline h-4 w-4 animate-spin text-emerald-400" />
-                        {t("products.stock.loadingHistory", "Loading stock history...")}
+                        {t("products.stock.loadingHistory", "جارٍ تحميل سجل المخزون...")}
                       </td>
                     </tr>
                   ) : stockMovements.length === 0 ? (

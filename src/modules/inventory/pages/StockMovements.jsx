@@ -21,7 +21,21 @@ import { getProductsWithVariants } from "../../products/services/productsApi";
 
 const ROW_COUNT_OPTIONS = [50, 100, 200, 500];
 
-const movementTypeLabel = (value = "") => String(value || "movement").replace(/_/g, " ").toUpperCase();
+const MOVEMENT_TYPE_LABELS = {
+  purchase_in: "شراء وارد",
+  sale_out: "بيع صادر",
+  return_in: "مرتجع وارد",
+  adjustment: "تسوية",
+  transfer_in: "تحويل وارد",
+  transfer_out: "تحويل صادر",
+  count_adjustment: "تسوية جرد",
+  order_cancel_restore: "استرجاع إلغاء الطلب",
+  opening_balance: "رصيد افتتاحي",
+  inventory_count: "جرد مخزون",
+  manual_adjustment: "تعديل يدوي",
+};
+
+const movementTypeLabel = (value = "") => MOVEMENT_TYPE_LABELS[String(value || "").toLowerCase()] || "حركة مخزون";
 
 const normalizeText = (value = "") => String(value || "").trim();
 
@@ -54,7 +68,7 @@ const summarizeLocations = (movements = []) => {
     ])
   );
 
-  if (!locations.length) return "n/a";
+  if (!locations.length) return "غير محدد";
   if (locations.length <= 2) return locations.join(" · ");
   return `${locations.slice(0, 2).join(" · ")} +${locations.length - 2}`;
 };
@@ -339,7 +353,7 @@ function StockMovements() {
             if (!alive) return;
             const snapshot = {
               loading: false,
-              error: error?.message || "Failed to load current stock snapshot",
+              error: error?.message || "تعذر تحميل لقطة الرصيد الحالية",
               rows: buildProductStockRows(group),
             };
             snapshotCacheRef.current.set(cacheKey, snapshot);
@@ -530,7 +544,7 @@ function StockMovements() {
             <p className="mt-1 text-sm text-zinc-400">مجمعة حسب المنتج. افتح أي منتج لفحص كل حركة تخص الاختيارات تحته.</p>
           </div>
           <div className="text-sm text-zinc-400">
-            {groupedMovements.length} grouped products · {movements.length} rows
+            {groupedMovements.length} منتج مجمّع · {movements.length} صف
           </div>
         </div>
 
@@ -577,20 +591,20 @@ function StockMovements() {
                         {group.category_name ? <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-black text-zinc-300">{group.category_name}</span> : null}
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-zinc-400">
-                        {group.product_code ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">Code: {group.product_code}</span> : null}
+                        {group.product_code ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">كود المنتج: {group.product_code}</span> : null}
                         {group.manufacturer_name ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{group.manufacturer_name}</span> : null}
                         <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{summarizeLocations(group.movements)}</span>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:min-w-[420px] md:justify-self-end">
-                      <Stat label="Movements" value={group.movementCount} />
+                      <Stat label="عدد الحركات" value={group.movementCount} />
                       <Stat
-                        label="Net change"
+                        label="صافي التغيير"
                         value={formatSignedQuantity(group.totalDelta)}
                         tone={group.totalDelta >= 0 ? "emerald" : "rose"}
                       />
-                      <Stat label="Last date" value={group.lastMovementAt ? formatDateTime(group.lastMovementAt) : "n/a"} />
+                      <Stat label="آخر تاريخ" value={group.lastMovementAt ? formatDateTime(group.lastMovementAt) : "غير متاح"} />
                       <div className="flex items-center justify-end md:justify-center">
                         <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-zinc-300">
                           {expanded ? "طي" : "توسيع"}
@@ -613,7 +627,7 @@ function StockMovements() {
                           <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">حركات الاختيار</div>
                           <div className="mt-1 text-sm text-zinc-400">اضغط صف الاختيار لفتح خطه الزمني الكامل.</div>
                         </div>
-                        <div className="text-xs font-semibold text-zinc-500">{group.movements.length} rows</div>
+                        <div className="text-xs font-semibold text-zinc-500">{group.movements.length} صف</div>
                       </div>
 
                       <div className="grid gap-2">
@@ -655,25 +669,25 @@ function StockMovements() {
 
                                 <div className="mt-2 grid gap-1 text-xs text-zinc-400 md:grid-cols-2">
                                   <div>
-                                    <span className="font-black text-zinc-200">السبب:</span> {movement.reason || movement.notes || "n/a"}
+                                    <span className="font-black text-zinc-200">السبب:</span> {movement.reason || movement.notes || "غير متاح"}
                                   </div>
                                   <div>
                                     <span className="font-black text-zinc-200">المرجع:</span>{" "}
-                                    {movement.reference_type || "n/a"} #{movement.reference_id || "n/a"}
+                                    {movement.reference_type || "غير متاح"} #{movement.reference_id || "غير متاح"}
                                   </div>
                                   <div>
-                                    <span className="font-black text-zinc-200">المستخدم:</span> {movement.created_by_name || "n/a"}
+                                    <span className="font-black text-zinc-200">المستخدم:</span> {movement.created_by_name || "غير متاح"}
                                   </div>
                                   <div>
                                     <span className="font-black text-zinc-200">التاريخ/الوقت:</span> {formatDateTime(movement.created_at)}
                                   </div>
                                   <div>
                                     <span className="font-black text-zinc-200">المخزن/الفرع:</span>{" "}
-                                    {[movement.warehouse_name, movement.branch_name].filter(Boolean).join(" · ") || "n/a"}
+                                    {[movement.warehouse_name, movement.branch_name].filter(Boolean).join(" · ") || "غير متاح"}
                                   </div>
                                   <div>
                                     <span className="font-black text-zinc-200">SKU/الباركود:</span>{" "}
-                                    {[movement.sku || "n/a", movement.barcode || "n/a"].join(" / ")}
+                                    {[movement.sku || "غير متاح", movement.barcode || "غير متاح"].join(" / ")}
                                   </div>
                                 </div>
                               </div>
@@ -719,16 +733,16 @@ function CurrentStockSummary({ loading, error, rows }) {
     <div className="mb-4 rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Current Stock Summary</div>
-          <div className="mt-1 text-sm text-zinc-400">Live product_variants stock grouped by color and size.</div>
+          <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">ملخص الرصيد الحالي</div>
+          <div className="mt-1 text-sm text-zinc-400">الرصيد الحالي للاختيارات مجمّع حسب اللون والمقاس.</div>
         </div>
         {loading ? <Loader2 className="h-4 w-4 animate-spin text-emerald-400" /> : null}
       </div>
 
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        <Metric label="Total Current Stock" value={totalStock} tone="emerald" />
-        <Metric label="Number of Colors" value={numberOfColors} tone="blue" />
-        <Metric label="Number of Active Sizes" value={numberOfActiveSizes} tone="violet" />
+        <Metric label="إجمالي الرصيد الحالي" value={totalStock} tone="emerald" />
+        <Metric label="عدد الألوان" value={numberOfColors} tone="blue" />
+        <Metric label="عدد المقاسات النشطة" value={numberOfActiveSizes} tone="violet" />
       </div>
 
       {error ? <div className="mt-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</div> : null}
@@ -740,8 +754,8 @@ function CurrentStockSummary({ loading, error, rows }) {
               <div key={`${row.color}::${row.size}`} className="rounded-2xl border border-white/10 bg-black/20 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-black text-white">{row.color || "n/a"}</div>
-                    <div className="mt-1 text-xs text-zinc-400">{row.size || "n/a"}</div>
+                    <div className="truncate text-sm font-black text-white">{row.color || "غير محدد"}</div>
+                    <div className="mt-1 text-xs text-zinc-400">{row.size || "غير محدد"}</div>
                   </div>
                   <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-white tabular-nums">
                     {row.stock}
@@ -752,7 +766,7 @@ function CurrentStockSummary({ loading, error, rows }) {
           </div>
         ) : (
           <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 px-3 py-4 text-sm text-zinc-400">
-            No live stock snapshot available.
+            لا توجد لقطة رصيد مباشرة متاحة.
           </div>
         )}
       </div>
@@ -762,24 +776,24 @@ function CurrentStockSummary({ loading, error, rows }) {
           <table className="min-w-full border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-white/10 text-xs uppercase tracking-[0.18em] text-zinc-500">
-                <th className="px-4 py-3 font-semibold">Color</th>
-                <th className="px-4 py-3 font-semibold">Size</th>
-                <th className="px-4 py-3 font-semibold">Current Stock</th>
+                <th className="px-4 py-3 font-semibold">اللون</th>
+                <th className="px-4 py-3 font-semibold">المقاس</th>
+                <th className="px-4 py-3 font-semibold">الرصيد الحالي</th>
               </tr>
             </thead>
             <tbody>
               {rows.length ? (
                 rows.map((row) => (
                   <tr key={`${row.color}::${row.size}`} className="border-b border-white/5 last:border-b-0">
-                    <td className="px-4 py-3 font-semibold text-white">{row.color || "n/a"}</td>
-                    <td className="px-4 py-3 text-zinc-300">{row.size || "n/a"}</td>
+                    <td className="px-4 py-3 font-semibold text-white">{row.color || "غير محدد"}</td>
+                    <td className="px-4 py-3 text-zinc-300">{row.size || "غير محدد"}</td>
                     <td className="px-4 py-3 font-black text-emerald-300 tabular-nums">{row.stock}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
                   <td colSpan={3} className="px-4 py-6 text-center text-zinc-400">
-                    No live stock snapshot available.
+                    لا توجد لقطة رصيد مباشرة متاحة.
                   </td>
                 </tr>
               )}
@@ -842,7 +856,7 @@ function MovementBadge({ type }) {
 
   return (
     <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${palette[value] || "border-white/10 bg-white/5 text-white"}`}>
-      {value}
+      {movementTypeLabel(type)}
     </span>
   );
 }
@@ -874,8 +888,8 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
             <div className="mt-1 flex flex-wrap gap-2 text-xs font-semibold text-zinc-400">
               {movement.color ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{movement.color}</span> : null}
               {movement.size ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{movement.size}</span> : null}
-              {movement.sku ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">SKU: {movement.sku}</span> : null}
-              {movement.barcode ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">Barcode: {movement.barcode}</span> : null}
+              {movement.sku ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">رمز الصنف: {movement.sku}</span> : null}
+              {movement.barcode ? <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">الباركود: {movement.barcode}</span> : null}
             </div>
           </div>
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
@@ -900,30 +914,30 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
               <Detail label="الكمية قبل" value={Number(movement.quantity_before ?? movement.before_qty ?? 0)} />
               <Detail label="التغيير في الكمية" value={formatSignedQuantity(movement.quantity_change ?? movement.quantity_delta ?? movement.quantity ?? 0)} />
               <Detail label="الكمية بعد" value={Number(movement.quantity_after ?? movement.after_qty ?? 0)} />
-              <Detail label="المرجع" value={`${movement.reference_type || "n/a"} #${movement.reference_id || "n/a"}`} />
-              <Detail label="المستخدم" value={movement.created_by_name || "n/a"} />
-              <Detail label="المخزن / الفرع" value={[movement.warehouse_name, movement.branch_name].filter(Boolean).join(" • ") || "n/a"} />
+              <Detail label="المرجع" value={`${movement.reference_type || "غير متاح"} #${movement.reference_id || "غير متاح"}`} />
+              <Detail label="المستخدم" value={movement.created_by_name || "غير متاح"} />
+              <Detail label="المخزن / الفرع" value={[movement.warehouse_name, movement.branch_name].filter(Boolean).join(" • ") || "غير متاح"} />
               <Detail label="التاريخ/الوقت" value={formatDateTime(movement.created_at)} />
             </div>
           </aside>
 
           <section className="flex min-h-0 flex-col rounded-3xl border border-white/10 bg-black/10">
             <div className="border-b border-white/10 px-4 py-3">
-              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Complete variant timeline</div>
-              <div className="mt-1 text-sm text-zinc-400">Purchases, sales, returns, transfers, counts, and adjustments for this exact variant.</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">التسلسل الزمني الكامل للاختيار</div>
+              <div className="mt-1 text-sm text-zinc-400">المشتريات والمبيعات والمرتجعات والتحويلات والجرد والتسويات لهذا الاختيار تحديدًا.</div>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
               {loading ? (
                 <div className="flex h-full items-center justify-center py-16 text-zinc-400">
                   <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" />
-                  Loading variant history...
+                  جارٍ تحميل سجل الاختيار...
                 </div>
               ) : error ? (
                 <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-100">{error}</div>
               ) : movements.length === 0 ? (
                 <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10 text-center text-zinc-400">
-                  No movement history found for this variant.
+                  لا يوجد سجل حركات لهذا الاختيار.
                 </div>
               ) : (
                 <div className="grid gap-2">
@@ -933,7 +947,7 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
                     return (
                       <div key={String(item.id)} className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4 md:grid-cols-[48px_minmax(0,1.4fr)_auto]">
                         <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5 text-zinc-500">
-                          {itemImage ? <img src={itemImage} alt={item.product_name || "Variant"} className="h-full w-full object-cover" /> : <ImageIcon className="h-5 w-5" />}
+                          {itemImage ? <img src={itemImage} alt={item.product_name || "الاختيار"} className="h-full w-full object-cover" /> : <ImageIcon className="h-5 w-5" />}
                         </div>
 
                         <div className="min-w-0">
@@ -944,20 +958,20 @@ function VariantHistoryDrawer({ activeVariant, loading, error, movements, onClos
                           </div>
                           <div className="mt-2 grid gap-1 text-xs text-zinc-400 md:grid-cols-2">
                             <div>
-                              <span className="font-black text-zinc-200">السبب:</span> {item.reason || item.notes || "n/a"}
+                              <span className="font-black text-zinc-200">السبب:</span> {item.reason || item.notes || "غير متاح"}
                             </div>
                             <div>
-                              <span className="font-black text-zinc-200">المرجع:</span> {item.reference_type || "n/a"} #{item.reference_id || "n/a"}
+                              <span className="font-black text-zinc-200">المرجع:</span> {item.reference_type || "غير متاح"} #{item.reference_id || "غير متاح"}
                             </div>
                             <div>
-                              <span className="font-black text-zinc-200">المستخدم:</span> {item.created_by_name || "n/a"}
+                              <span className="font-black text-zinc-200">المستخدم:</span> {item.created_by_name || "غير متاح"}
                             </div>
                             <div>
                               <span className="font-black text-zinc-200">التاريخ/الوقت:</span> {formatDateTime(item.created_at)}
                             </div>
                             <div>
                               <span className="font-black text-zinc-200">المخزن/الفرع:</span>{" "}
-                              {[item.warehouse_name, item.branch_name].filter(Boolean).join(" · ") || "n/a"}
+                              {[item.warehouse_name, item.branch_name].filter(Boolean).join(" · ") || "غير متاح"}
                             </div>
                             <div>
                               <span className="font-black text-zinc-200">قبل / بعد:</span>{" "}

@@ -227,7 +227,7 @@ const request = async (
       clearTimeout(timeoutId);
     }
     if (networkError?.name === "AbortError" || networkError?.name === "TimeoutError") {
-      throw new Error(networkError?.message || "Request timed out", {
+      throw new Error(networkError?.message || "انتهت مهلة الطلب", {
         cause: networkError,
       });
     }
@@ -336,12 +336,12 @@ const request = async (
         url: requestUrl,
         status: response.status,
         responseBody: data,
-        message: data?.message || data?.error || "Request Failed",
+        message: data?.message || data?.error || "تعذر إتمام الطلب",
       }));
     }
 
     const error = new Error(
-      data.message || "Request Failed"
+      data.message || data.error || "تعذر إتمام الطلب"
     );
     error.status = response.status;
     error.responseBody = data;

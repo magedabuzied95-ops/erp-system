@@ -4883,7 +4883,7 @@ function POSPro() {
     printWindow.document.write(`
       <html lang="${printLang}" dir="${printDir}">
         <head>
-          <title>POS Receipt</title>
+          <title>Sales Receipt</title>
           ${styles}
           <style>
             * { box-sizing: border-box; }
@@ -5794,7 +5794,7 @@ function POSPro() {
               >
                 <div className="flex shrink-0 items-start justify-between gap-3 border-b border-white/10 px-4 py-4">
                   <div className="min-w-0">
-                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">ADD CUSTOMER</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">CUSTOMER</div>
                     <h3 id="pos-add-customer-title" className="mt-1 text-lg font-black text-white">Quick customer creation</h3>
                   </div>
                   <button
@@ -5808,7 +5808,7 @@ function POSPro() {
 
                 <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
                   <label className="block">
-                    <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">Customer Name</div>
+                    <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">Customer name</div>
                     <input
                       value={quickCustomer.name}
                       onChange={(e) => setQuickCustomer((prev) => ({ ...prev, name: e.target.value }))}
@@ -5818,7 +5818,7 @@ function POSPro() {
                   </label>
 
                   <label className="block">
-                    <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">Phone Number</div>
+                    <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-zinc-500">Phone number</div>
                     <input
                       value={quickCustomer.phone}
                       onChange={(e) => setQuickCustomer((prev) => ({ ...prev, phone: e.target.value }))}
@@ -5829,7 +5829,7 @@ function POSPro() {
 
                   {quickCustomerExistingMatch ? (
                     <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-100">
-                      Existing customer found: {quickCustomerExistingMatch.name || quickCustomerExistingMatch.phone}. Saving will select this customer without asking for a source.
+                      Existing customer found: {quickCustomerExistingMatch.name || quickCustomerExistingMatch.phone}. Saving will select this customer automatically.
                     </div>
                   ) : null}
 

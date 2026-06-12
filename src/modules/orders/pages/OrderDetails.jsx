@@ -56,12 +56,12 @@ const BOSTA_SUBSCRIPTION_REQUIRED_MESSAGE = "حساب بوسطة متصل بنج
 const getAttributionLabel = (order = {}) => {
   const source = String(order.attribution_type || order.marketing_source || "").toLowerCase();
   const platform = String(order.marketing_platform || order.marketing_source || "").toLowerCase();
-  if (source.includes("instagram") && source.includes("story")) return "Instagram Story";
-  if (source.includes("story")) return "Story";
-  if (platform === "facebook" || source.includes("facebook")) return "Facebook Post";
-  if (platform === "instagram" || source.includes("instagram")) return "Instagram Post";
-  if (platform === "whatsapp" || source.includes("whatsapp")) return "WhatsApp Campaign";
-  if (platform === "tiktok" || source.includes("tiktok")) return "TikTok Campaign";
+  if (source.includes("instagram") && source.includes("story")) return "قصة إنستغرام";
+  if (source.includes("story")) return "قصة";
+  if (platform === "facebook" || source.includes("facebook")) return "منشور فيسبوك";
+  if (platform === "instagram" || source.includes("instagram")) return "منشور إنستغرام";
+  if (platform === "whatsapp" || source.includes("whatsapp")) return "حملة واتساب";
+  if (platform === "tiktok" || source.includes("tiktok")) return "حملة تيك توك";
   if (order.marketing_campaign) return String(order.marketing_campaign);
   return "";
 };
@@ -69,25 +69,25 @@ const getAttributionLabel = (order = {}) => {
 const whatsappConfirmationBadge = (order = {}) => {
   if (order.whatsapp_cancelled_at) {
     return {
-      label: "Cancelled via WhatsApp",
+      label: "ملغي عبر واتساب",
       className: "border-rose-400/25 bg-rose-400/10 text-rose-200",
     };
   }
   if (order.whatsapp_confirmed_at) {
     return {
-      label: "Confirmed via WhatsApp",
+      label: "مؤكد عبر واتساب",
       className: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200",
     };
   }
   if (order.whatsapp_confirmation_sent_at && String(order.status || "").toLowerCase() === "pending_confirmation") {
     return {
-      label: "Awaiting WhatsApp Confirmation",
+      label: "بانتظار تأكيد واتساب",
       className: "border-amber-400/25 bg-amber-400/10 text-amber-200",
     };
   }
   if (order.whatsapp_payment_review_sent_at) {
     return {
-      label: "Payment review WhatsApp sent",
+      label: "تم إرسال مراجعة الدفع عبر واتساب",
       className: "border-cyan-400/25 bg-cyan-400/10 text-cyan-200",
     };
   }
@@ -97,23 +97,23 @@ const whatsappConfirmationBadge = (order = {}) => {
 const invoiceWhatsappBadge = (order = {}) => {
   if (!order.whatsapp_invoice_sent_at) return null;
   return {
-    label: "Invoice WhatsApp sent",
+    label: "تم إرسال فاتورة واتساب",
     className: "border-violet-400/25 bg-violet-400/10 text-violet-200",
   };
 };
 
 const shipmentWhatsappBadges = (order = {}) => [
   order.whatsapp_shipment_created_sent_at
-    ? { label: "Shipment WhatsApp sent", className: "border-sky-400/25 bg-sky-400/10 text-sky-200" }
+    ? { label: "تم إرسال الشحنة عبر واتساب", className: "border-sky-400/25 bg-sky-400/10 text-sky-200" }
     : null,
   order.whatsapp_shipped_sent_at
-    ? { label: "Shipped WhatsApp sent", className: "border-indigo-400/25 bg-indigo-400/10 text-indigo-200" }
+    ? { label: "تم إشعار الشحن عبر واتساب", className: "border-indigo-400/25 bg-indigo-400/10 text-indigo-200" }
     : null,
   order.whatsapp_out_for_delivery_sent_at
-    ? { label: "Out For Delivery WhatsApp sent", className: "border-amber-400/25 bg-amber-400/10 text-amber-200" }
+    ? { label: "تم إشعار في الطريق للتسليم عبر واتساب", className: "border-amber-400/25 bg-amber-400/10 text-amber-200" }
     : null,
   order.whatsapp_delivered_sent_at
-    ? { label: "Delivered WhatsApp sent", className: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200" }
+    ? { label: "تم إشعار التسليم عبر واتساب", className: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200" }
     : null,
 ].filter(Boolean);
 
@@ -292,21 +292,21 @@ const getPaymentBadge = (order = {}, fallback = "") => {
     firstValue(order.payment_status, order.paymentStatus, order.transfer_proof_status, order.status, fallback)
   );
   if (["partially paid", "partially_paid", "partial"].includes(raw)) {
-    return { label: "Partially Paid", className: "border-amber-500/25 bg-amber-500/10 text-amber-200" };
+    return { label: "مدفوع جزئياً", className: "border-amber-500/25 bg-amber-500/10 text-amber-200" };
   }
   if (["paid", "shipping paid", "confirmed", "approved"].includes(raw)) {
-    return { label: "Paid", className: "border-emerald-500/25 bg-emerald-500/10 text-emerald-200" };
+    return { label: "مدفوع", className: "border-emerald-500/25 bg-emerald-500/10 text-emerald-200" };
   }
   if (["awaiting verification", "pending", "unpaid"].includes(raw)) {
-    return { label: "Pending verification", className: "border-amber-500/25 bg-amber-500/10 text-amber-200" };
+    return { label: "بانتظار المراجعة", className: "border-amber-500/25 bg-amber-500/10 text-amber-200" };
   }
   if (raw === "rejected" || raw === "payment rejected") {
-    return { label: "Rejected", className: "border-rose-500/25 bg-rose-500/10 text-rose-200" };
+    return { label: "مرفوض", className: "border-rose-500/25 bg-rose-500/10 text-rose-200" };
   }
   if (raw === "refunded") {
-    return { label: "Refunded", className: "border-purple-500/25 bg-purple-500/10 text-purple-200" };
+    return { label: "مسترد", className: "border-purple-500/25 bg-purple-500/10 text-purple-200" };
   }
-  return { label: fallback || order.paymentStatus || "Pending verification", className: "border-zinc-500/25 bg-zinc-500/10 text-zinc-200" };
+  return { label: fallback || order.paymentStatus || "بانتظار المراجعة", className: "border-zinc-500/25 bg-zinc-500/10 text-zinc-200" };
 };
 
 const buildSmartInsights = (order = {}, items = [], shipping = {}) => {
@@ -684,9 +684,9 @@ function OrderDetails() {
   const handlePdf = async () => {
     const invoice = {
       invoiceNumber: order.invoice_number,
-      invoiceLabel: "Order Invoice",
-      companyName: "ERP System",
-      companyTagline: "Enterprise ERP and SaaS operations",
+      invoiceLabel: "فاتورة الطلب",
+      companyName: "نظام ERP",
+      companyTagline: "إدارة عمليات المؤسسة والاشتراكات",
       customerName: order.customer_name,
       customerPhone: order.customer_phone || "",
       customerEmail: order.customer_email || "",
@@ -698,7 +698,7 @@ function OrderDetails() {
         paidAmount: Number(order.paid_amount || 0),
         dueAmount: Number(order.due_amount || 0),
         changeAmount: Number(order.change_amount || 0),
-        method: order.payment_method || "n/a",
+        method: order.payment_method || "غير متاح",
       },
       items: previewItems.map((item) => {
         const unitPrice = getOrderItemUnitPrice(item);
@@ -765,7 +765,7 @@ function OrderDetails() {
 
   const shareWhatsApp = () => {
     const phone = normalizePhoneNumber(order.customer_phone || order.phone || "");
-    const message = buildOrderInvoiceWhatsappText(normalizeOrderInvoiceData(order, previewItems, { storeName: "ERP System" }));
+    const message = buildOrderInvoiceWhatsappText(normalizeOrderInvoiceData(order, previewItems, { storeName: "نظام ERP" }));
     window.open(buildWhatsappDeepLink({ phone, message }), "_blank", "noopener,noreferrer");
   };
 
@@ -776,7 +776,7 @@ function OrderDetails() {
       return;
     }
 
-    const message = buildOrderInvoiceWhatsappText(normalizeOrderInvoiceData(order, previewItems, { storeName: "ERP System" }));
+    const message = buildOrderInvoiceWhatsappText(normalizeOrderInvoiceData(order, previewItems, { storeName: "نظام ERP" }));
 
     window.open(buildWhatsappDeepLink({ phone, message }), "_blank", "noopener,noreferrer");
   };
@@ -1343,35 +1343,35 @@ function OrderDetails() {
                           <div className="mt-1 text-sm font-black text-white">{[bostaCityName, bostaZoneName, bostaDistrictName].filter(Boolean).join(" · ") || t("orders.fallback.notAvailable")}</div>
                           <div className="mt-1 text-xs font-semibold text-zinc-400">{shipping.shipping_address_line || order.customer_address || t("orders.fallback.notAvailable")}</div>
                           <div className="mt-1 text-[11px] font-semibold text-zinc-500">
-                            {[shipping.street_address, shipping.building_number ? `Building ${shipping.building_number}` : "", shipping.floor_number ? `Floor ${shipping.floor_number}` : "", shipping.apartment_number ? `Apartment ${shipping.apartment_number}` : "", order.landmark ? `Near ${order.landmark}` : ""].filter(Boolean).join(" · ") || t("orders.fallback.notAvailable")}
+                            {[shipping.street_address, shipping.building_number ? `مبنى ${shipping.building_number}` : "", shipping.floor_number ? `طابق ${shipping.floor_number}` : "", shipping.apartment_number ? `شقة ${shipping.apartment_number}` : "", order.landmark ? `بالقرب من ${order.landmark}` : ""].filter(Boolean).join(" · ") || t("orders.fallback.notAvailable")}
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          <button type="button" onClick={() => handleBostaAction("create")} className="h-9 rounded-xl bg-cyan-300 px-3 text-xs font-black text-zinc-950">Create Bosta Shipment</button>
-                          <button type="button" onClick={() => handleBostaAction("refresh")} className="h-9 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white">Refresh Status</button>
-                          <button type="button" onClick={() => handleBostaAction("cancel")} className="h-9 rounded-xl border border-rose-300/30 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100">Cancel</button>
+                  <button type="button" onClick={() => handleBostaAction("create")} className="h-9 rounded-xl bg-cyan-300 px-3 text-xs font-black text-zinc-950">إنشاء شحنة Bosta</button>
+                          <button type="button" onClick={() => handleBostaAction("refresh")} className="h-9 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white">تحديث الحالة</button>
+                          <button type="button" onClick={() => handleBostaAction("cancel")} className="h-9 rounded-xl border border-rose-300/30 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100">إلغاء</button>
                         </div>
                       </div>
                       <div className="mt-3 grid gap-2 sm:grid-cols-4">
-                        <Info label="Provider" value="Bosta" />
-                        <Info label="City" value={bostaCityName || t("orders.fallback.notAvailable")} />
-                        <Info label="Zone" value={bostaZoneName || t("orders.fallback.notAvailable")} />
-                        <Info label="District" value={bostaDistrictName || t("orders.fallback.notAvailable")} />
+                        <Info label="المزود" value="Bosta" />
+                        <Info label="المدينة" value={bostaCityName || t("orders.fallback.notAvailable")} />
+                        <Info label="المنطقة" value={bostaZoneName || t("orders.fallback.notAvailable")} />
+                        <Info label="الحي" value={bostaDistrictName || t("orders.fallback.notAvailable")} />
                       </div>
                       <div className="mt-3 grid gap-2 sm:grid-cols-4">
-                        <Info label="Street" value={shipping.street_address || t("orders.fallback.notAvailable")} />
-                        <Info label="Building" value={shipping.building_number || t("orders.fallback.notAvailable")} />
-                        <Info label="Floor" value={shipping.floor_number || t("orders.fallback.notAvailable")} />
-                        <Info label="Apartment" value={shipping.apartment_number || t("orders.fallback.notAvailable")} />
+                        <Info label="الشارع" value={shipping.street_address || t("orders.fallback.notAvailable")} />
+                        <Info label="المبنى" value={shipping.building_number || t("orders.fallback.notAvailable")} />
+                        <Info label="الطابق" value={shipping.floor_number || t("orders.fallback.notAvailable")} />
+                        <Info label="الشقة" value={shipping.apartment_number || t("orders.fallback.notAvailable")} />
                       </div>
                       <div className="mt-3 grid gap-2 sm:grid-cols-4">
-                        {order.landmark ? <Info label="Landmark" value={order.landmark} /> : null}
-                        <Info label="Delivery ID" value={shipping.shipping_provider_delivery_id || shipping.shipment_id || t("orders.fallback.notAvailable")} />
+                        {order.landmark ? <Info label="علامة مميزة" value={order.landmark} /> : null}
+                        <Info label="رقم التسليم" value={shipping.shipping_provider_delivery_id || shipping.shipment_id || t("orders.fallback.notAvailable")} />
                         <Info label={t("orders.shipping.trackingNumber")} value={shipping.tracking_number || t("orders.fallback.notAvailable")} />
-                        <Info label="Label URL" value={shipping.shipping_label_url || t("orders.fallback.notAvailable")} />
+                        <Info label="رابط الملصق" value={shipping.shipping_label_url || t("orders.fallback.notAvailable")} />
                       </div>
                       {shipping.shipping_label_url ? (
-                        <button type="button" onClick={() => window.open(shipping.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 h-9 rounded-xl border border-cyan-200/30 bg-cyan-200/10 px-3 text-xs font-black text-cyan-50 transition hover:bg-cyan-200/20">Print Label</button>
+                        <button type="button" onClick={() => window.open(shipping.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 h-9 rounded-xl border border-cyan-200/30 bg-cyan-200/10 px-3 text-xs font-black text-cyan-50 transition hover:bg-cyan-200/20">طباعة الملصق</button>
                       ) : null}
                       {bostaActionError ? (
                         <div className={`mt-3 rounded-xl border px-3 py-2 text-xs font-bold leading-5 ${
@@ -1385,13 +1385,13 @@ function OrderDetails() {
                                 ? "bg-amber-300/20 text-amber-100"
                                 : "bg-rose-300/20 text-rose-100"
                             }`}>
-                              {bostaActionError.code === BOSTA_SUBSCRIPTION_REQUIRED_CODE ? "Plan required" : "Bosta error"}
+                              {bostaActionError.code === BOSTA_SUBSCRIPTION_REQUIRED_CODE ? "الاشتراك مطلوب" : "خطأ Bosta"}
                             </span>
                             <span>{bostaActionError.message}</span>
                           </div>
                           {bostaActionError.code === BOSTA_SUBSCRIPTION_REQUIRED_CODE ? (
                             <Link to="/settings?category=shipping" className="mt-2 inline-flex items-center gap-1 rounded-lg border border-amber-200/25 bg-amber-200/10 px-2 py-1 text-[11px] font-black text-amber-50 transition hover:bg-amber-200/20">
-                              Shipping provider settings
+                              إعدادات مزود الشحن
                               <ExternalLink className="h-3 w-3" />
                             </Link>
                           ) : null}
@@ -1502,16 +1502,16 @@ function OrderDetails() {
                 {t("orders.shipping.createShipment")}
               </button>
               <button type="button" onClick={() => handleShipmentAction("retry")} className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">
-                {t("orders.shipping.retryShipment", "Retry shipment")}
+                {t("orders.shipping.retryShipment", "إعادة المحاولة")}
               </button>
               <button type="button" onClick={() => handleShipmentAction("mark_shipped")} className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white transition hover:bg-white/10">
-                {t("orders.shipping.markShipped", "Mark as shipped")}
+                {t("orders.shipping.markShipped", "تم الشحن")}
               </button>
               <button type="button" onClick={() => handleShipmentAction("mark_delivered")} className="h-10 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-400/15">
-                {t("orders.shipping.markDelivered", "Mark as delivered")}
+                {t("orders.shipping.markDelivered", "تم التسليم")}
               </button>
               <button type="button" onClick={() => handleShipmentAction("cancel")} className="h-10 rounded-xl border border-rose-400/20 bg-rose-400/10 px-3 text-xs font-semibold text-rose-100 transition hover:bg-rose-400/15">
-                {t("orders.shipping.cancelShipment", "Cancel shipment")}
+                {t("orders.shipping.cancelShipment", "إلغاء الشحنة")}
               </button>
               <button
                 type="button"

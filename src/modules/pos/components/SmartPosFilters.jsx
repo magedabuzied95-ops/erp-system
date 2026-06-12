@@ -83,6 +83,26 @@ export default function SmartPosFilters({
   onReset,
   onClose,
 }) {
+  const { i18n } = useTranslation();
+  const isArabic = String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar");
+  const copy = {
+    eyebrow: isArabic ? "فلاتر POS الذكية" : "SMART POS FILTERS",
+    title: isArabic ? "فلاتر نقطة البيع الذكية" : "Smart POS Filters",
+    subtitle: isArabic ? "اختر من التصنيفات النشطة فقط." : "Choose only from active classifications.",
+    close: isArabic ? "إغلاق الفلاتر" : "Close filters",
+    gender: isArabic ? "الجنس" : "Gender",
+    productType: isArabic ? "نوع المنتج" : "Product type",
+    grade: isArabic ? "الفئة" : "Grade",
+    size: isArabic ? "المقاس" : "Size",
+    brand: isArabic ? "العلامة التجارية" : "Brand",
+    allBrands: isArabic ? "كل العلامات التجارية" : "All brands",
+    manufacturer: isArabic ? "الشركة المصنعة" : "Manufacturer",
+    allManufacturers: isArabic ? "كل الشركات المصنعة" : "All manufacturers",
+    apply: isArabic ? "تطبيق الفلاتر" : "Apply filters",
+    reset: isArabic ? "إعادة الضبط" : "Reset",
+    cancel: isArabic ? "إلغاء" : "Cancel",
+  };
+
   if (!open || typeof document === "undefined") return null;
 
   const content = (
@@ -103,18 +123,18 @@ export default function SmartPosFilters({
       >
         <div className="flex items-start justify-between gap-3 border-b border-white/10 px-3 py-3 sm:px-4 sm:py-3.5">
           <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">SMART POS FILTERS</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">{copy.eyebrow}</div>
             <h2 id="smart-pos-filters-title" className="mt-0.5 text-lg font-black text-white sm:text-xl">
-              فلاتر POS الذكية
+              {copy.title}
             </h2>
-            <p className="mt-0.5 text-xs text-zinc-400 sm:text-sm">اختر من التصنيفات النشطة فقط.</p>
+            <p className="mt-0.5 text-xs text-zinc-400 sm:text-sm">{copy.subtitle}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
-            aria-label="إغلاق الفلاتر"
-            title="إغلاق الفلاتر"
+            aria-label={copy.close}
+            title={copy.close}
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -123,21 +143,21 @@ export default function SmartPosFilters({
         <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 sm:px-4 sm:py-4">
           <div className="grid gap-2 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
             <div className="grid gap-2">
-              <SmartFilterRow label="الجنس" options={smartFilterOptions?.gender} value={selectedGender} onChange={onGenderChange} />
-              <SmartFilterRow label="نوع المنتج" options={smartFilterOptions?.productType} value={selectedProductType} onChange={onProductTypeChange} />
-              <SmartFilterRow label="الفئة" options={smartFilterOptions?.grade} value={selectedGrade} onChange={onGradeChange} />
-              {Array.isArray(sizeOptions) && sizeOptions.length ? <SmartFilterRow label="المقاس" options={sizeOptions} value={selectedSize} onChange={onSizeChange} /> : null}
+              <SmartFilterRow label={copy.gender} options={smartFilterOptions?.gender} value={selectedGender} onChange={onGenderChange} />
+              <SmartFilterRow label={copy.productType} options={smartFilterOptions?.productType} value={selectedProductType} onChange={onProductTypeChange} />
+              <SmartFilterRow label={copy.grade} options={smartFilterOptions?.grade} value={selectedGrade} onChange={onGradeChange} />
+              {Array.isArray(sizeOptions) && sizeOptions.length ? <SmartFilterRow label={copy.size} options={sizeOptions} value={selectedSize} onChange={onSizeChange} /> : null}
             </div>
 
             <div className="grid gap-2">
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-2.5 py-2 sm:px-3 sm:py-2.5">
-                <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">العلامة التجارية</div>
+                <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">{copy.brand}</div>
                 <select
                   value={selectedBrandId}
                   onChange={(event) => onBrandChange(event.target.value)}
                   className="h-10 w-full rounded-[1.1rem] border border-white/10 bg-black/70 px-3 text-[13px] font-semibold text-white outline-none transition focus:border-emerald-400/50"
                 >
-                  <option value="all">كل العلامات التجارية</option>
+                  <option value="all">{copy.allBrands}</option>
                   {(brandOptions || []).map((brand) => (
                     <option key={brand.id || brand.name} value={brand.id}>
                       {brand.name}
@@ -147,13 +167,13 @@ export default function SmartPosFilters({
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-2.5 py-2 sm:px-3 sm:py-2.5">
-                <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">الشركة المصنعة</div>
+                <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">{copy.manufacturer}</div>
                 <select
                   value={selectedManufacturerId}
                   onChange={(event) => onManufacturerChange(event.target.value)}
                   className="h-10 w-full rounded-[1.1rem] border border-white/10 bg-black/70 px-3 text-[13px] font-semibold text-white outline-none transition focus:border-emerald-400/50"
                 >
-                  <option value="all">كل الشركات المصنعة</option>
+                  <option value="all">{copy.allManufacturers}</option>
                   {(manufacturerOptions || []).map((manufacturer) => (
                     <option key={manufacturer.id || manufacturer.name} value={manufacturer.id}>
                       {manufacturer.name}
@@ -172,7 +192,7 @@ export default function SmartPosFilters({
               onClick={onClose}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-emerald-500/90 px-4 text-sm font-black text-black transition hover:bg-emerald-400"
             >
-              تطبيق الفلاتر
+              {copy.apply}
             </button>
             <button
               type="button"
@@ -183,14 +203,14 @@ export default function SmartPosFilters({
                   : "border-white/10 bg-white/[0.03] text-zinc-500"
               }`}
             >
-              إعادة الضبط
+              {copy.reset}
             </button>
             <button
               type="button"
               onClick={onClose}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-transparent px-4 text-sm font-black text-zinc-300 transition hover:bg-white/[0.05] hover:text-white"
             >
-              إلغاء
+              {copy.cancel}
             </button>
           </div>
         </div>

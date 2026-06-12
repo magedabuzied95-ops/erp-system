@@ -20,6 +20,13 @@ export const BARCODE_PRINT_DEFAULTS = {
   showSizeColor: true,
 };
 
+export const DISPLAY_REFILL_BARCODE_DEFAULTS = {
+  defaultPrinter: "",
+  labelSize: "50x30",
+  copies: 1,
+  autoPrintWhenDisplayed: false,
+};
+
 export const BARCODE_PRINT_SETTING_KEYS = [
   "general.barcode_print_paper_size",
   "general.barcode_print_custom_paper_width_mm",
@@ -40,7 +47,13 @@ export const BARCODE_PRINT_SETTING_KEYS = [
   "general.barcode_print_show_price",
   "general.barcode_print_show_sku_article",
   "general.barcode_print_show_size_color",
+  "general.barcode_print_default_printer",
+  "general.barcode_print_display_label_size",
+  "general.barcode_print_display_copies",
+  "general.barcode_print_auto_print_on_displayed",
 ];
+
+const DISPLAY_REFILL_LABEL_SIZES = new Set(["40x30", "50x30", "50x100"]);
 
 const PAPER_PRESETS = {
   a4: { widthMm: 210, heightMm: 297, pageCss: "A4 portrait" },
@@ -84,6 +97,13 @@ export const barcodePrintSettingsFromValues = (values = {}) => ({
   showSizeColor: values["general.barcode_print_show_size_color"],
 });
 
+export const displayRefillBarcodeSettingsFromValues = (values = {}) => ({
+  defaultPrinter: values["general.barcode_print_default_printer"],
+  labelSize: values["general.barcode_print_display_label_size"],
+  copies: values["general.barcode_print_display_copies"],
+  autoPrintWhenDisplayed: values["general.barcode_print_auto_print_on_displayed"],
+});
+
 export const barcodePrintSettingsToValues = (settings = {}) => {
   const normalized = normalizeBarcodePrintSettings(settings);
   return {
@@ -106,6 +126,16 @@ export const barcodePrintSettingsToValues = (settings = {}) => {
     "general.barcode_print_show_price": normalized.showPrice,
     "general.barcode_print_show_sku_article": normalized.showSkuArticle,
     "general.barcode_print_show_size_color": normalized.showSizeColor,
+  };
+};
+
+export const displayRefillBarcodeSettingsToValues = (settings = {}) => {
+  const normalized = normalizeDisplayRefillBarcodeSettings(settings);
+  return {
+    "general.barcode_print_default_printer": normalized.defaultPrinter,
+    "general.barcode_print_display_label_size": normalized.labelSize,
+    "general.barcode_print_display_copies": normalized.copies,
+    "general.barcode_print_auto_print_on_displayed": normalized.autoPrintWhenDisplayed,
   };
 };
 
@@ -132,6 +162,16 @@ export const normalizeBarcodePrintSettings = (settings = {}) => {
     showPrice: coerceBoolean(settings.showPrice, BARCODE_PRINT_DEFAULTS.showPrice),
     showSkuArticle: coerceBoolean(settings.showSkuArticle, BARCODE_PRINT_DEFAULTS.showSkuArticle),
     showSizeColor: coerceBoolean(settings.showSizeColor, BARCODE_PRINT_DEFAULTS.showSizeColor),
+  };
+};
+
+export const normalizeDisplayRefillBarcodeSettings = (settings = {}) => {
+  const labelSize = String(settings.labelSize || DISPLAY_REFILL_BARCODE_DEFAULTS.labelSize).trim().toLowerCase();
+  return {
+    defaultPrinter: String(settings.defaultPrinter || DISPLAY_REFILL_BARCODE_DEFAULTS.defaultPrinter).trim(),
+    labelSize: DISPLAY_REFILL_LABEL_SIZES.has(labelSize) ? labelSize : DISPLAY_REFILL_BARCODE_DEFAULTS.labelSize,
+    copies: clampNumber(settings.copies, DISPLAY_REFILL_BARCODE_DEFAULTS.copies, 1, 999),
+    autoPrintWhenDisplayed: coerceBoolean(settings.autoPrintWhenDisplayed, DISPLAY_REFILL_BARCODE_DEFAULTS.autoPrintWhenDisplayed),
   };
 };
 

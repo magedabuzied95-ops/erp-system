@@ -1,230 +1,643 @@
 # Localization Debt Report
 
-Generated: 2026-05-19T23:33:07.811Z
+Generated: 2026-06-12T15:23:21.505Z
 
 This report flags obvious hardcoded UI strings. It is intentionally conservative and may include false positives.
 
-## Final Blocker Status - 2026-05-20
+## accounting (160)
 
-- Locale JSON parse / UTF-8 BOM check: passed for `src/locales/ar` and `src/locales/en`.
-- Locale parity: passed with `missingAr=0`, `missingEn=0`, `typeMismatch=0`.
-- Runtime translation-call key scan: passed with 0 missing keys without an explicit fallback.
-- Arabic corruption audit: passed via `scripts/audit-arabic-locales.mjs`.
-- Literal mojibake scan: passed with 0 real hits outside intentional corrupted-input matching aliases in `server/services/aiSupportContextService.js`.
-- `print:invoice.*` namespace blocker: fixed by resolving print labels through `print.invoice.*`.
-- Print/RTL static verification: passed for document `html[dir="rtl"]` / `html[dir="ltr"]`, numeric LTR isolation, Recharts isolation, POS/invoice print direction, `--print-dir`, and printable HTML `dir`.
-- Build: `npm.cmd run build` passed.
-- Lint: `npm.cmd run lint` passed with warnings only; no errors.
+### src\modules\accounting\pages\Accounts.jsx
+- 231 [jsx-text] شجرة الحسابات
+- 232 [jsx-text] الحسابات الافتراضية تُنشأ مرة واحدة فقط لكل مستأجر بدون تكرار.
+- 252 [jsx-text] جارٍ تحميل الحسابات...
+- 254 [jsx-text] لا توجد حسابات مطابقة للبحث.
+- 260 [jsx-text] الكود
+- 261 [jsx-text] اسم الحساب
+- 262 [jsx-text] النوع
+- 263 [jsx-text] الحساب الأب
+- 264 [jsx-text] الحالة
+- 265 [jsx-text] تاريخ الإنشاء
+- 343 [jsx-text] دفتر الأستاذ
+- 349 [jsx-text] لا توجد حركات ضمن الفلاتر الحالية.
+- 240 [placeholder] ابحث بالكود أو الاسم
+- 156 [title] دليل الحسابات
+- 157 [title] أساس محاسبي أولي مبني على Chart of Accounts مع الإبقاء على دفتر الأستاذ الحالي
+- 210 [title] تعذر تحميل الحسابات
+- 318 [title] جارٍ تحميل دفتر الأستاذ
+- 323 [title] تعذر تحميل دفتر الأستاذ
+- 222 [prop-label] إجمالي الحسابات
+- 223 [prop-label] الحسابات النشطة
+- 224 [prop-label] حسابات الأصول
+- 225 [prop-label] حسابات المصروفات
 
-Resolved blockers:
+### src\modules\accounting\pages\Expenses.jsx
+- 873 [jsx-text] Cancel
+- 1284 [jsx-text] No trend data
+- 1355 [jsx-text] Confirm action
+- 1360 [jsx-text] Cancel
+- 1241 [title] Edit
+- 1276 [title] Monthly expense trend
+- 604 [toast] Expense title and amount are required
+- 666 [toast] Action completed
+- 675 [toast] Category name is required
+- 678 [toast] Category created
+- 683 [toast] Employee and amount are required
+- 686 [toast] Employee advance created
+- 697 [toast] Recurring title and amount are required
+- 700 [toast] Recurring expense created
 
-- Added missing `branches` Arabic keys and full `branches.qr.*` key set in Arabic and English.
-- Confirmed `purchases.suppliersDashboard.*` key set exists in Arabic and English.
-- Replaced corrupted Arabic customer-facing AI support fallback text.
-- Replaced corrupted Arabic marketing AI prompt seed text.
-- Removed literal mojibake from sanitizer source by using Unicode escapes while preserving sanitization behavior.
+### src\modules\accounting\pages\GeneralLedger.jsx
+- 192 [jsx-text] جارٍ تحميل الحركات...
+- 194 [jsx-text] اختر حسابًا لعرض دفتر الأستاذ العام.
+- 196 [jsx-text] لا توجد حركات ضمن الفلاتر الحالية.
+- 202 [jsx-text] التاريخ
+- 203 [jsx-text] القيد
+- 204 [jsx-text] المرجع
+- 205 [jsx-text] الوصف
+- 206 [jsx-text] مدين
+- 207 [jsx-text] دائن
+- 208 [jsx-text] الرصيد الجاري
+- 166 [placeholder] اختياري
+- 113 [title] General Ledger
+- 114 [title] دفتر الأستاذ العام مبني مباشرة على الحسابات والقيود اليومية وسطور القيود
+- 144 [prop-label] الحساب
+- 159 [prop-label] من تاريخ
+- 162 [prop-label] إلى تاريخ
+- 165 [prop-label] الفرع
+- 179 [prop-label] الرصيد الافتتاحي
+- 180 [prop-label] إجمالي المدين
+- 181 [prop-label] إجمالي الدائن
+- 182 [prop-label] الرصيد الختامي
 
-## inventory (97)
+### src\modules\accounting\pages\JournalEntries.jsx
+- 411 [jsx-text] Manual Journal Entry
+- 412 [jsx-text] القيد غير المتوازن سيرفض من الباك إند قبل الحفظ.
+- 441 [jsx-text] الحساب
+- 442 [jsx-text] مدين
+- 443 [jsx-text] دائن
+- 444 [jsx-text] ملاحظات
+- 445 [jsx-text] حذف
+- 453 [jsx-text] اختر الحساب
+- 497 [jsx-text] Backfill Preview
+- 498 [jsx-text] هذه الشاشة تعرض القيود المقترحة فقط ولا تنفذ أي posting فعلي.
+- 504 [jsx-text] الكل
+- 505 [jsx-text] Orders
+- 506 [jsx-text] Purchases
+- 507 [jsx-text] Expenses
+- 539 [jsx-text] لا توجد نتائج معاينة حتى الآن.
+- 545 [jsx-text] المصدر
+- 546 [jsx-text] الوصف
+- 547 [jsx-text] التاريخ
+- 548 [jsx-text] المدين
+- 549 [jsx-text] الدائن
+- 550 [jsx-text] الحالة
+- 551 [jsx-text] السبب
+- 240 [title] قيود اليومية مع إدخال يدوي ومعاينة Backfill فقط بدون تشغيل تلقائي
+- 89 [toast] فشل تحميل القيود اليومية
+- 120 [toast] تعذر تحميل تفاصيل القيد
+- 194 [toast] تم إنشاء القيد بنجاح
+- 415 [prop-label] إجمالي المدين
+- 416 [prop-label] إجمالي الدائن
+- 417 [prop-label] الحالة
+- 422 [prop-label] الوصف
+- 425 [prop-label] التاريخ
+- 428 [prop-label] الفرع
+- 433 [prop-label] ملاحظات
+- 502 [prop-label] المصدر
+- 510 [prop-label] من تاريخ
+- 513 [prop-label] إلى تاريخ
+- 516 [prop-label] الحد الأقصى
+- 528 [prop-label] إجمالي العناصر
+- 529 [prop-label] جاهزة
+- 530 [prop-label] متخطاة
+- ... 1 more
 
-### src\modules\inventory\components\InventoryShell.jsx
-- 14 [jsx-text] Inventory flow
+### src\modules\accounting\pages\Treasury.jsx
+- 174 [jsx-text] Account Balances
+- 175 [jsx-text] Operational money accounts used by POS, purchases, expenses, refunds, and payroll.
+- 193 [jsx-text] Recharge
+- 194 [jsx-text] Opening
+- 195 [jsx-text] Transfer in
+- 205 [jsx-text] Transfer Money
+- 211 [jsx-text] Record Transfer
+- 216 [jsx-text] Manual Adjustment
+- 220 [jsx-text] Money in
+- 221 [jsx-text] Money out
+- 225 [jsx-text] Record Adjustment
+- 234 [jsx-text] Money Transactions
+- 235 [jsx-text] Immutable account movements from sales, purchases, expenses, advances, refunds, transfers, and adjustments.
+- 243 [jsx-text] Filter
+- 254 [jsx-text] Date
+- 255 [jsx-text] Account
+- 256 [jsx-text] Type
+- 257 [jsx-text] Reference
+- 259 [jsx-text] Out
+- 260 [jsx-text] Balance
+- 207 [placeholder] From account
+- 208 [placeholder] To account
+- 209 [placeholder] Amount
+- 210 [placeholder] Notes
+- 218 [placeholder] Account
+- 223 [placeholder] Amount
+- 224 [placeholder] Audit note
+- 238 [placeholder] All accounts
+- 239 [placeholder] Type
+- 240 [placeholder] Reference
+- 241 [placeholder] Branch
+- 134 [title] Treasury
+- 135 [title] Real cash, bank, card, wallet, and settlement balances backed by linked money transactions.
+- 85 [toast] Choose source, destination, and a positive amount
+- 92 [toast] Transfer recorded
+- 104 [toast] Choose an account and a positive amount
+- 111 [toast] Adjustment recorded
+- 145 [prop-label] Total Cash
+- 146 [prop-label] Total Bank
+- 147 [prop-label] Wallets
+- ... 4 more
+
+### src\modules\accounting\pages\TrialBalance.jsx
+- 136 [jsx-text] يعتمد هذا التقرير فقط على `journal_entry_lines` المربوطة بقيود اليومية.
+- 140 [jsx-text] جارٍ تحميل ميزان المراجعة...
+- 142 [jsx-text] لا توجد أرصدة ضمن الفترة الحالية.
+- 148 [jsx-text] كود الحساب
+- 149 [jsx-text] اسم الحساب
+- 150 [jsx-text] نوع الحساب
+- 151 [jsx-text] إجمالي المدين
+- 152 [jsx-text] إجمالي الدائن
+- 168 [jsx-text] الإجمالي
+- 113 [placeholder] اختياري
+- 75 [title] Trial Balance
+- 76 [title] ميزان مراجعة مبني فقط على الحسابات والقيود اليومية وسطور القيود
+- 106 [prop-label] من تاريخ
+- 109 [prop-label] إلى تاريخ
+- 112 [prop-label] الفرع
+- 126 [prop-label] إجمالي المدين
+- 127 [prop-label] إجمالي الدائن
+- 128 [prop-label] الحالة
+
+## inventory (302)
+
+### src\modules\inventory\pages\InventoryCount.jsx
+- 324 [jsx-text] 0 && (currentRank === 0 || candidateRank
+- 382 [jsx-text] 0 && (currentRank === 0 || candidateRank
+- 1115 [jsx-text] toNumber(item.difference_quantity, 0)
+- 1270 [jsx-text] البحث ومسح الباركود
+- 1271 [jsx-text] ابحث بالباركود أو رمز الصنف، وإذا كان التطابق مباشرًا ستُضاف القطعة تلقائيًا.
+- 1313 [jsx-text] الموديل المحدد
+- 1353 [jsx-text] جاري تحميل جلسة الجرد...
+- 1358 [jsx-text] لا توجد أصناف بعد
+- 1359 [jsx-text] ابدأ بالمسح أو البحث ثم أضف اللون إلى الجرد.
+- 1388 [jsx-text] بيانات الجلسة
+- 1404 [jsx-text] ملاحظات الجلسة
+- 1416 [jsx-text] عدد المجموعات
+- 1420 [jsx-text] إجمالي الفروق
+- 1427 [jsx-text] إرشادات
+- 1429 [jsx-text] • استخدم الماسح أو البحث السريع لإضافة قطعة مباشرة عند التطابق الدقيق.
+- 1430 [jsx-text] • البحث باسم المنتج يعرض كروت مجمعة حسب المنتج واللون فقط.
+- 1431 [jsx-text] • زر إضافة اللون للجرد يضيف كل المقاسات مرة واحدة بقيم فعلية صفرية.
+- 1432 [jsx-text] • مطابقة السيستم وتصفير اللون يعملان على كل المقاسات داخل اللون.
+- 1433 [jsx-text] • حذف اللون يتركه مطابقًا للسيستم حتى لا ينتج عنه فرق عند الاعتماد.
+- 1452 [jsx-text] جلسات الجرد
+- 1453 [jsx-text] راجع الجلسات الحالية وافتح أي جلسة لمتابعة الأصناف أو اعتماد الفروقات.
+- 1516 [jsx-text] جاري تحميل جلسات الجرد...
+- 1521 [jsx-text] لا توجد جلسات جرد بعد
+- 1522 [jsx-text] ابدأ جردًا جديدًا ثم افتحه للمسح أو الاعتماد.
+- 1752 [jsx-text] مطابقة السيستم
+- 1753 [jsx-text] تصفير
+- 1754 [jsx-text] حذف اللون
+- 1774 [jsx-text] 0 ? "text-emerald-300" : diff
+- 1782 [jsx-text] السيستم
+- 1783 [jsx-text] الفعلي
+- 1784 [jsx-text] الفرق
+- 1785 [jsx-text] السبب
+- 1786 [jsx-text] ملاحظات
+- 1812 [jsx-text] 0 ? "text-rose-300" : group.difference_total
+- 1817 [jsx-text] مطابقة
+- 1817 [jsx-text] تصفير
+- 1817 [jsx-text] حذف اللون
+- 1826 [jsx-text] 0 ? "text-rose-300" : diff
+- 1847 [jsx-text] مقاس
+- 1847 [jsx-text] المتوقع
+- ... 71 more
 
 ### src\modules\inventory\pages\InventoryDashboard.jsx
-- 310 [jsx-text] Total stock
-- 320 [jsx-text] Active sizes
-- 324 [jsx-text] Min active sizes
+- 69 [jsx-text] (Number(stock || 0)
+- 828 [jsx-text] إجمالي المخزون
+- 832 [jsx-text] إجمالي القيمة
+- 836 [jsx-text] الحالة
+- 854 [jsx-text] المقاس
+- 856 [jsx-text] المخزون
+- 857 [jsx-text] القيمة
+- 858 [jsx-text] الحالة
+- 946 [jsx-text] إجمالي المخزون
+- 956 [jsx-text] المقاسات النشطة
+- 960 [jsx-text] الحد الأدنى للمقاسات النشطة
 
 ### src\modules\inventory\pages\InventoryHistory.jsx
-- 87 [jsx-text] Number(movement.quantity_change || 0)
-- 146 [jsx-text] Movement type
-- 152 [jsx-text] All
-- 175 [jsx-text] Movement ledger
-- 176 [jsx-text] Click any row to inspect quantity before and after the movement.
-- 201 [jsx-text] Timestamp
-- 202 [jsx-text] Product
-- 203 [jsx-text] Variant
-- 204 [jsx-text] Type
-- 205 [jsx-text] Before
-- 206 [jsx-text] Change
-- 207 [jsx-text] After
-- 208 [jsx-text] User
-- 209 [jsx-text] Reference
-- 319 [jsx-text] Stock timeline
-- 135 [placeholder] Search product, variant, notes, user...
-- 140 [placeholder] Product ID
-- 141 [placeholder] Variant ID
-- 93 [title] Inventory History
-- 94 [title] Search the movement ledger by product, variant, movement type, and date. Open any row for a detailed stock timeline.
-- 315 [aria-label] Close movement details
-- 122 [prop-label] Movements
-- 123 [prop-label] Inbound
-- 124 [prop-label] Outbound
-- 125 [prop-label] Total rows
-- 140 [prop-label] Product
-- 141 [prop-label] Variant
-- 142 [prop-label] From
-- 315 [prop-label] Close movement details
-- 328 [prop-label] Movement type
-- 329 [prop-label] Quantity before
-- 330 [prop-label] Quantity change
-- 331 [prop-label] Quantity after
-- 332 [prop-label] Reference
-- 333 [prop-label] User
-- 334 [prop-label] Timestamp
-- 335 [prop-label] Warehouse
-- 336 [prop-label] Cost
-- 337 [prop-label] Notes
+- 107 [jsx-text] Number(movement.quantity_change || 0)
+- 167 [jsx-text] نوع الحركة
+- 173 [jsx-text] الكل
+- 196 [jsx-text] سجل الحركات
+- 197 [jsx-text] اضغط أي صف لعرض الكمية قبل الحركة وبعدها.
+- 213 [jsx-text] لا توجد حركات مسجلة.
+- 220 [jsx-text] الوقت
+- 221 [jsx-text] المنتج
+- 222 [jsx-text] الاختيار
+- 223 [jsx-text] النوع
+- 224 [jsx-text] قبل
+- 225 [jsx-text] التغيير
+- 226 [jsx-text] بعد
+- 227 [jsx-text] المستخدم
+- 228 [jsx-text] المرجع
+- 338 [jsx-text] الخط الزمني للمخزون
+- 156 [placeholder] ابحث عن منتج أو اختيار أو ملاحظات أو مستخدم...
+- 161 [placeholder] معرّف المنتج
+- 162 [placeholder] معرّف الاختيار
+- 113 [title] سجل المخزون
+- 114 [title] ابحث في سجل الحركات حسب المنتج أو الاختيار أو نوع الحركة أو التاريخ، ثم افتح أي صف لعرض خط زمني تفصيلي للمخزون.
+- 334 [aria-label] إغلاق تفاصيل الحركة
+- 143 [prop-label] الحركات
+- 144 [prop-label] واردة
+- 145 [prop-label] صادرة
+- 146 [prop-label] إجمالي الصفوف
+- 161 [prop-label] المنتج
+- 162 [prop-label] الاختيار
+- 164 [prop-label] إلى
+- 334 [prop-label] إغلاق تفاصيل الحركة
+- 347 [prop-label] نوع الحركة
+- 348 [prop-label] الكمية قبل
+- 349 [prop-label] التغيير في الكمية
+- 350 [prop-label] الكمية بعد
+- 351 [prop-label] المرجع
+- 352 [prop-label] المستخدم
+- 353 [prop-label] الوقت
+- 354 [prop-label] المخزن
+- 355 [prop-label] التكلفة
+- 356 [prop-label] ملاحظات
 
 ### src\modules\inventory\pages\StockAdjustments.jsx
-- 147 [jsx-text] Warehouse
-- 159 [jsx-text] Reason
-- 199 [jsx-text] Adjustment timeline
-- 202 [jsx-text] No adjustments recorded locally.
-- 221 [jsx-text] Warehouse selection
-- 224 [jsx-text] Loading warehouses...
-- 144 [placeholder] e.g. 102
-- 164 [placeholder] Damage, count correction, receipt variance, manual correction...
-- 113 [title] Stock Adjustments
-- 114 [title] Adjust inventory quantities, record inbound/outbound changes, and keep a local audit trail when the backend lacks a movement endpoint.
-- 40 [toast] Using fallback warehouses
-- 59 [toast] Variant id required
-- 92 [toast] Stock updated and tracked locally
-- 105 [toast] Backend update-stock unavailable. Saved adjustment locally.
-- 144 [prop-label] Variant ID
-- 145 [prop-label] Quantity
-- 175 [prop-label] Increment
-- 182 [prop-label] Decrement
+- 662 [jsx-text] حد الاعتماد القابل للتعديل
+- 673 [jsx-text] جارٍ تحميل المخازن...
+- 679 [jsx-text] نتائج البحث عن المنتجات
+- 680 [jsx-text] ابحث بالاسم أو SKU أو الباركود. اضغط أي اختيار لتحميل الرصيد والمخزن الخاص به.
+- 741 [jsx-text] المنتج المحدد
+- 742 [jsx-text] يتم عرض الرصيد الحالي قبل تطبيق أي تسوية.
+- 794 [jsx-text] نموذج التسوية
+- 795 [jsx-text] حدد طريقة حركة المخزون ثم أكد التغيير بعد مراجعة الرصيد المستهدف.
+- 801 [jsx-text] نوع التسوية
+- 826 [jsx-text] الكمية
+- 855 [jsx-text] السبب
+- 870 [jsx-text] ملاحظات اختيارية
+- 910 [jsx-text] آخر التسويات
+- 911 [jsx-text] أحدث سجلات التسوية المحلية مع سياق المنتج.
+- 1085 [jsx-text] ماسح الباركود
+- 1086 [jsx-text] امسح باركود المنتج
+- 1152 [jsx-text] تأكيد التسوية
+- 1175 [jsx-text] نوع التسوية
+- 1181 [jsx-text] التغيير في الكمية
+- 1203 [jsx-text] اسم المعتمد
+- 1212 [jsx-text] ملاحظات الاعتماد
+- 1268 [jsx-text] سجل المنتج
+- 626 [placeholder] ابحث بالاسم أو SKU أو الباركود
+- 875 [placeholder] أضف ملاحظة قصيرة لسجل حركة المخزون
+- 1207 [placeholder] اسم المدير
+- 1217 [placeholder] ملاحظة اعتماد اختيارية
+- 568 [title] تسويات المخزون
+- 569 [title] ابحث عن المنتجات بالاسم أو SKU أو الباركود، وراجع الرصيد الحالي قبل التعديل، واحفظ كل تغيير داخل سجل حركات المخزون.
+- 1080 [aria-label] إغلاق الماسح
+- 1147 [aria-label] إغلاق تأكيد التسوية
+- 1264 [aria-label] إغلاق سجل المنتج
+- 271 [toast] جارٍ استخدام مخازن احتياطية
+- 389 [toast] تمت مطابقة الباركود مع أحد الاختيارات
+- 399 [toast] ليس لديك صلاحية تنفيذ تسويات المخزون
+- 403 [toast] اختر اختيارًا للمنتج أولًا
+- 407 [toast] يجب أن تكون الكمية 1 على الأقل
+- 411 [toast] لا يمكن أن ينخفض المخزون إلى أقل من صفر
+- 415 [toast] هذه التسوية تحتاج إلى اعتماد المدير
+- 484 [toast] تم تحديث المخزون وتسجيل الحركة
+- 502 [toast] ليس لديك صلاحية تنفيذ تسويات المخزون
+- ... 23 more
 
 ### src\modules\inventory\pages\StockMovements.jsx
-- 53 [placeholder] Search movements...
-- 26 [title] Stock Movements
-- 27 [title] Inbound / outbound movement history, inventory timeline, and local adjustment records.
+- 468 [jsx-text] كل الأنواع
+- 478 [jsx-text] الدرجة
+- 484 [jsx-text] كل الدرجات
+- 494 [jsx-text] الفئة
+- 500 [jsx-text] كل الفئات
+- 510 [jsx-text] عدد الصفوف
+- 543 [jsx-text] سجل الحركات
+- 544 [jsx-text] مجمعة حسب المنتج. افتح أي منتج لفحص كل حركة تخص الاختيارات تحته.
+- 627 [jsx-text] حركات الاختيار
+- 628 [jsx-text] اضغط صف الاختيار لفتح خطه الزمني الكامل.
+- 672 [jsx-text] السبب:
+- 675 [jsx-text] المرجع:
+- 679 [jsx-text] المستخدم:
+- 682 [jsx-text] التاريخ/الوقت:
+- 685 [jsx-text] المخزن/الفرع:
+- 689 [jsx-text] SKU/الباركود:
+- 736 [jsx-text] ملخص الرصيد الحالي
+- 737 [jsx-text] الرصيد الحالي للاختيارات مجمّع حسب اللون والمقاس.
+- 779 [jsx-text] اللون
+- 780 [jsx-text] المقاس
+- 781 [jsx-text] الرصيد الحالي
+- 886 [jsx-text] سجل الاختيار
+- 926 [jsx-text] التسلسل الزمني الكامل للاختيار
+- 927 [jsx-text] المشتريات والمبيعات والمرتجعات والتحويلات والجرد والتسويات لهذا الاختيار تحديدًا.
+- 961 [jsx-text] السبب:
+- 964 [jsx-text] المرجع:
+- 967 [jsx-text] المستخدم:
+- 970 [jsx-text] التاريخ/الوقت:
+- 973 [jsx-text] المخزن/الفرع:
+- 977 [jsx-text] قبل / بعد:
+- 453 [placeholder] ابحث عن منتج أو SKU أو باركود أو لون أو مقاس أو سبب أو مستخدم...
+- 420 [title] حركات المخزون
+- 421 [title] تُجمَّع حسب المنتج حتى تبقى الاختيارات بحسب المقاس واللون واضحة وسهلة البحث والفحص.
+- 882 [aria-label] إغلاق سجل الاختيار
+- 440 [prop-label] مجموعات المنتجات
+- 441 [prop-label] صفوف الحركات
+- 442 [prop-label] صافي الكمية
+- 443 [prop-label] حد الصفوف
+- 601 [prop-label] عدد الحركات
+- 603 [prop-label] صافي التغيير
+- ... 20 more
 
 ### src\modules\inventory\pages\StockTransfers.jsx
-- 131 [jsx-text] Transfer notes
-- 152 [jsx-text] Transfer history
-- 155 [jsx-text] Loading warehouses...
-- 157 [jsx-text] No transfers recorded locally.
-- 178 [jsx-text] Warehouse transfer placeholder
-- 125 [placeholder] Variant identifier
-- 136 [placeholder] Packing notes, driver details, transfer reason...
-- 94 [title] Warehouse Transfer Placeholder
-- 95 [title] Outbound / inbound transfer workflow, stock handoff placeholder, and local transfer history.
-- 39 [toast] Using fallback transfer data
-- 56 [toast] Variant ID required
-- 77 [toast] Transfer submitted
-- 88 [toast] Transfer endpoint unavailable. Saved locally as placeholder.
-- 125 [prop-label] Variant ID
-- 126 [prop-label] From warehouse
-- 127 [prop-label] To warehouse
-- 128 [prop-label] Quantity
+- 132 [jsx-text] ملاحظات التحويل
+- 153 [jsx-text] سجل التحويلات
+- 156 [jsx-text] جارٍ تحميل المخازن...
+- 158 [jsx-text] لا توجد تحويلات محفوظة محليًا.
+- 179 [jsx-text] تحويل المخزون بين المخازن
+- 126 [placeholder] أدخل معرّف الاختيار
+- 137 [placeholder] ملاحظات التعبئة، تفاصيل السائق، سبب التحويل...
+- 94 [title] تحويل المخزون بين المخازن
+- 95 [title] إدارة تحويلات المخزون بين المخازن، ومراجعة السجل المحلي، وحفظ تفاصيل التحويل عندما تكون واجهة الخلفية غير مكتملة.
+- 39 [toast] جارٍ استخدام بيانات تحويل احتياطية
+- 56 [toast] معرّف الاختيار مطلوب
+- 77 [toast] تم إرسال التحويل
+- 88 [toast] مسار التحويل غير متاح. تم الحفظ محليًا.
+- 126 [prop-label] معرّف الاختيار
+- 127 [prop-label] من مخزن
+- 128 [prop-label] إلى مخزن
+- 129 [prop-label] الكمية
 
-### src\modules\inventory\pages\WarehousesDashboard.jsx
-- 315 [jsx-text] Default/protected warehouse: status cannot be changed to inactive.
-- 395 [jsx-text] Delete warehouse
-- 415 [jsx-text] Warehouse ID
-- 419 [jsx-text] Default references
-- 308 [aria-label] Close
-- 391 [aria-label] Close
-- 96 [toast] Warehouse deleted
-- 226 [prop-label] Products
-- 227 [prop-label] Stock
-- 228 [prop-label] Transfers
-- 308 [prop-label] Close
-- 391 [prop-label] Close
-- 407 [prop-label] Products
-- 408 [prop-label] Stock qty
-- 409 [prop-label] Transfers
-- 410 [prop-label] Active
-
-## marketing (9)
+## marketing (192)
 
 ### src\modules\marketing\components\PostEditorModal.jsx
-- 145 [jsx-text] erp.store
-- 176 [jsx-text] erp.store
-- 201 [jsx-text] erp.store
-- 222 [jsx-text] ERP Store
+- 582 [jsx-text] erp.store
+- 613 [jsx-text] erp.store
+- 647 [jsx-text] erp.store
+- 668 [jsx-text] ERP Store
+- 741 [jsx-text] erp.store
+- 742 [jsx-text] Story preview
+- 1078 [jsx-text] Product URL
+- 628 [title] Story slides
+- 1087 [prop-label] Price
+- 1088 [prop-label] Color
+- 1089 [prop-label] Size
 
 ### src\modules\marketing\components\StoryPreview.jsx
-- 34 [jsx-text] 0 && sale
-- 38 [jsx-text] 0 && now
-- 47 [jsx-text] 0 && (!regular || saleLikePrice
-- 254 [jsx-text] 1 && stock
+- 46 [jsx-text] 0 && sale
+- 50 [jsx-text] 0 && now
+- 59 [jsx-text] 0 && (!regular || saleLikePrice
+- 260 [jsx-text] 1 && stock
 
 ### src\modules\marketing\pages\AiMarketingCenter.jsx
-- 578 [jsx-text] Ctrl/Cmd + K
+- 768 [jsx-text] Stories and posts that stay clean
+- 1038 [jsx-text] Archive Selected
+- 1039 [jsx-text] Delete Selected
+- 1040 [jsx-text] Publish Selected
+- 1115 [jsx-text] Arabic Trend
+- 1117 [jsx-text] Facebook
+- 1118 [jsx-text] Instagram
+- 1135 [jsx-text] Preview
+- 1140 [jsx-text] View Post
+- 1141 [jsx-text] Restore
+- 1142 [jsx-text] Approve
+- 1144 [jsx-text] Archive
+- 1148 [jsx-text] Retry
+- 1191 [jsx-text] Generated story asset
+- 1198 [jsx-text] No generated story asset
+- 1203 [jsx-text] Story Slides
+- 1234 [jsx-text] Performance Brain
+- 1263 [jsx-text] Delete Published Content
+- 1272 [jsx-text] Cancel
+- 1291 [jsx-text] Content History
+- 1294 [jsx-text] Close
+- 1352 [jsx-text] Published
+- 1353 [jsx-text] View Post
+- 1365 [jsx-text] Technical JSON
+- 1400 [jsx-text] Story asset
+- 1401 [jsx-text] Rendered
+- 1413 [jsx-text] Story preview
+- 1414 [jsx-text] 9:16 story creative. CTA is a visual sticker here; the product link stays stored for publishing.
+- 1416 [jsx-text] Close
+- 1426 [jsx-text] Story publish asset debug
+- 1467 [jsx-text] Published
+- 1468 [jsx-text] View Post
+- 1506 [jsx-text] Admin / debug
+- 1530 [jsx-text] Published image asset URLs
+- 1542 [jsx-text] Technical JSON
+- 808 [title] Content Lanes
+- 810 [title] New Arrivals
+- 811 [title] Last Size / Last Piece
+- 812 [title] AI Posts
+- 817 [title] Daily Volume
+- ... 51 more
 
-## orders (6)
+### src\modules\marketing\pages\AiMarketingVideos.jsx
+- 312 [jsx-text] Videos
+- 358 [jsx-text] Videos per day
+- 434 [jsx-text] video
+- 437 [jsx-text] Instagram
+- 438 [jsx-text] Facebook
+- 439 [jsx-text] TikTok later
+- 446 [jsx-text] Preview
+- 447 [jsx-text] View Post
+- 448 [jsx-text] Approve
+- 449 [jsx-text] Publish
+- 555 [jsx-text] = start && sceneTimelinePosition
+- 646 [jsx-text] Variant details
+- 656 [jsx-text] Price focus
+- 666 [jsx-text] Limited availability
+- 692 [jsx-text] Video preview
+- 693 [jsx-text] Preview-ready video queue item. MP4 generation and Reels publishing will be added later.
+- 719 [jsx-text] Video readiness
+- 742 [jsx-text] CapCut-style timeline
+- 779 [jsx-text] Scene timeline
+- 815 [jsx-text] AI script / captions timeline
+- 863 [jsx-text] Generated script / caption
+- 867 [jsx-text] Technical debug
+- 871 [jsx-text] Published
+- 872 [jsx-text] View Post
+- 332 [title] Content Lanes
+- 344 [title] Video Templates
+- 356 [title] Daily Video Volume
+- 382 [title] Video Queue
+- 324 [prop-label] Video Queue
+- 325 [prop-label] Ready / Approved
+- 326 [prop-label] Failed
+- 701 [prop-label] Status
+- 702 [prop-label] Scheduled
+- 703 [prop-label] Playback
+- 704 [prop-label] Preset
+- 705 [prop-label] Quality score
+- 706 [prop-label] Aspect ratio
+- 707 [prop-label] Estimated engagement
+- 708 [prop-label] Motion style
+- 709 [prop-label] Reel energy
+- ... 6 more
+
+### src\modules\marketing\pages\MarketingSettings.jsx
+- 848 [jsx-text] 0 && completedSteps
+- 904 [jsx-text] Meta OAuth readiness
+- 905 [jsx-text] Use these values in Meta Developer settings. Secret values are never displayed here.
+- 911 [jsx-text] Environment
+- 923 [jsx-text] OAuth Redirect URI
+- 930 [jsx-text] Webhook Callback URL
+- 945 [jsx-text] Required permissions
+- 951 [jsx-text] App review reminder: production messaging and publishing require Meta review approval for the requested permissions.
+- 954 [jsx-text] Setup steps
+- 971 [jsx-text] Post-OAuth result
+- 978 [jsx-text] Connected page
+- 982 [jsx-text] Connected Instagram account
+- 986 [jsx-text] Missing permissions
+- 990 [jsx-text] Next required action
+- 1005 [jsx-text] Connect Meta
+- 1028 [jsx-text] Login with Facebook
+- 1029 [jsx-text] Start the official Meta OAuth flow, grant permissions, then choose the Facebook Page and linked Instagram Business Account.
+- 1051 [jsx-text] Choose Facebook Page and Instagram Business Account
+- 1069 [jsx-text] Verify webhook and capabilities
+- 1070 [jsx-text] Runs live permission checks, token diagnostics, and webhook delivery health.
+- 1090 [jsx-text] Setup checklist
+- 1122 [jsx-text] Connection
+- 1123 [jsx-text] Facebook Page and Instagram account
+- 1149 [jsx-text] Facebook Page
+- 1151 [jsx-text] Page ID is managed by the guided connection flow.
+- 1154 [jsx-text] Instagram Business Account
+- 1156 [jsx-text] Manual Account ID entry is hidden unless advanced mode is enabled.
+- 1348 [jsx-text] Live delivery health
+- 1443 [jsx-text] Comment-to-DM performance
+- 1502 [jsx-text] Template
+- 1510 [jsx-text] Fallback reply
+- 1527 [jsx-text] Preview simulator
+- 558 [toast] Choose a Facebook Page to complete Meta setup
+- 639 [toast] Meta connection timed out. You can try again.
+- 690 [toast] Publishing permissions verified
+- 707 [toast] Webhook subscription verified
+- 744 [toast] Meta setup complete
+- 926 [prop-label] Copy redirect URI
+- 933 [prop-label] Copy webhook URL
+- 934 [prop-label] Copy verify status
+
+## orders (97)
+
+### src\modules\orders\pages\OrderDetails.jsx
+- 1342 [jsx-text] Bosta
+- 1350 [jsx-text] إنشاء شحنة Bosta
+- 1351 [jsx-text] تحديث الحالة
+- 1352 [jsx-text] إلغاء
+- 1374 [jsx-text] طباعة الملصق
+- 1356 [prop-label] المزود
+- 1357 [prop-label] المدينة
+- 1358 [prop-label] المنطقة
+- 1359 [prop-label] الحي
+- 1362 [prop-label] الشارع
+- 1363 [prop-label] المبنى
+- 1364 [prop-label] الطابق
+- 1365 [prop-label] الشقة
+- 1368 [prop-label] علامة مميزة
+- 1369 [prop-label] رقم التسليم
+- 1371 [prop-label] رابط الملصق
+
+### src\modules\orders\pages\OrderReturnsPage.jsx
+- 337 [jsx-text] Returns Workspace
+- 338 [jsx-text] لوحة تشغيل المرتجعات
+- 404 [jsx-text] Orders module
+- 405 [jsx-text] مرتجعات الطلبات
+- 406 [jsx-text] إدارة المرتجعات والاسترداد وإعادة المخزون من نفس تجربة تشغيل الطلبات بشكل أسرع وأكثر وضوحاً.
+- 477 [jsx-text] البحث
+- 493 [jsx-text] التاريخ
+- 535 [jsx-text] لا توجد مرتجعات مطابقة
+- 536 [jsx-text] جرّب تعديل البحث أو الفلاتر الحالية.
+- 546 [jsx-text] الإجراء
+- 547 [jsx-text] رقم المرتجع / رقم الطلب
+- 548 [jsx-text] العميل
+- 549 [jsx-text] المنتجات المرتجعة
+- 550 [jsx-text] قيمة المرتجع
+- 551 [jsx-text] حالة المرتجع
+- 552 [jsx-text] حالة الاسترداد
+- 553 [jsx-text] إعادة للمخزون
+- 554 [jsx-text] التاريخ
+- 664 [jsx-text] نفس تدفق الإنشاء الحالي داخل drawer بدل الواجهة المنفصلة.
+- 858 [jsx-text] تمت الإعادة للمخزون
+- 483 [placeholder] ابحث برقم الفاتورة أو العميل أو الهاتف أو رقم التتبع
+- 867 [title] ملخص المرتجع
+- 878 [title] بيانات الطلب الأصلي
+- 889 [title] بيانات العميل
+- 898 [title] المنتجات المرتجعة
+- 918 [title] حركة المخزون
+- 927 [title] الاسترداد / الدفع
+- 937 [title] الملاحظات / السبب
+- 943 [title] الخط الزمني
+- 658 [aria-label] إغلاق
+- 849 [aria-label] إغلاق
+- 211 [toast] يمكن تعديل المرتجعات المحلية فقط حالياً.
+- 256 [toast] اختر منتجاً مرتجعاً واحداً على الأقل.
+- 282 [toast] تم تحديث المرتجع.
+- 302 [toast] لا يمكن حذف هذا المرتجع من هذه الواجهة.
+- 308 [toast] تم حذف المرتجع.
+- 328 [prop-label] إجمالي المرتجعات
+- 329 [prop-label] مرتجعات اليوم
+- 330 [prop-label] قيمة المرتجعات
+- 331 [prop-label] تمت إعادتها للمخزون
+- ... 19 more
 
 ### src\modules\orders\pages\OrdersDashboard.jsx
-- 87 [jsx-text] 0 && paid
-- 89 [jsx-text] 0 && shipping
-- 837 [jsx-text] : proofUrl ?
-- 976 [jsx-text] : proofUrl ?
-- 953 [prop-label] Payment
-- 954 [prop-label] Shipping
+- 214 [jsx-text] 0 && paid
+- 216 [jsx-text] 0 && shipping
+- 235 [jsx-text] = 0 && paid
+- 394 [jsx-text] 0 && paid
+- 1028 [jsx-text] البحث
+- 1042 [jsx-text] التاريخ
+- 1246 [jsx-text] : proofUrl ?
+- 1397 [jsx-text] : proofUrl ?
+- 1414 [jsx-text] WhatsApp
+- 1499 [jsx-text] WhatsApp
+- 1620 [jsx-text] 0 && paid
+- 1039 [prop-label] حالة الدفع
+- 1040 [prop-label] المصدر
+- 1365 [prop-label] البائع
+- 1366 [prop-label] الدفع
+- 1367 [prop-label] \u0637\u0631\u064a\u0642\u0629 \u0627\u0644\u0627\u0633\u062a\u0631\u062f\u0627\u062f
+- 1368 [prop-label] الشحن
+- 1370 [prop-label] دفع تعديل الفاتورة
+- 1461 [prop-label] البائع
+- 1462 [prop-label] الدفع
+- 1463 [prop-label] \u0637\u0631\u064a\u0642\u0629 \u0627\u0644\u0627\u0633\u062a\u0631\u062f\u0627\u062f
+- 1465 [prop-label] دفع تعديل الفاتورة
 
-## other (323)
+## other (113)
 
 ### src\App.jsx
-- 208 [title] Application screen crashed
+- 260 [title] Employee app screen crashed
+- 273 [title] Application screen crashed
 
 ### src\components\activity\LiveActivityFeed.jsx
 - 37 [jsx-text] Paused
 - 116 [aria-label] Loading activity
 - 116 [prop-label] Loading activity
 
-### src\components\dashboard\ActiveVisitorsCard.jsx
-- 11 [title] Storefront Live
+### src\components\ai\AILiveLogs.jsx
+- 74 [jsx-text] Live AI Logs
+- 75 [jsx-text] Operational event stream, kept in memory only.
+- 105 [jsx-text] Waiting for AI events...
 
-### src\components\dashboard\AIActivityCard.jsx
-- 9 [jsx-text] AI Activity
-- 13 [prop-label] Escalations
-- 14 [prop-label] Signals
+### src\components\ai\AISuggestedReplies.jsx
+- 98 [jsx-text] المحادثة دي محتاجة تدخل بشري. اقتراحات الذكاء الاصطناعي للمراجعة فقط.
 
 ### src\components\dashboard\CommandCenterDashboard.jsx
 - 55 [jsx-text] Command Center
 - 56 [jsx-text] Live operations cockpit
-
-### src\components\dashboard\InventoryPulseCard.jsx
-- 9 [jsx-text] Inventory Pulse
-- 19 [jsx-text] No critical stock pressure right now.
-- 22 [prop-label] Fast movers
-- 23 [prop-label] Pending transfers
-
-### src\components\dashboard\LiveSalesTicker.jsx
-- 19 [jsx-text] Live Sales Ticker
-- 20 [jsx-text] Recent revenue events
-
-### src\components\dashboard\RealtimeAlertsCard.jsx
-- 15 [jsx-text] Realtime Alerts
-- 22 [jsx-text] No critical operational alerts right now.
-
-### src\components\dashboard\RealtimeBranchStatusCard.jsx
-- 8 [jsx-text] Branch Status
-- 15 [jsx-text] Single branch mode or no branch activity yet.
-
-### src\components\dashboard\RevenuePulseCard.jsx
-- 9 [jsx-text] Revenue Pulse
-- 12 [prop-label] Avg order
-- 13 [prop-label] Orders
-- 14 [prop-label] Peak period
-- 15 [prop-label] Best branch
-
-### src\components\dashboard\StaffActivityCard.jsx
-- 8 [jsx-text] Staff Activity
-- 10 [prop-label] Checked in
-- 11 [prop-label] Open shifts
-- 12 [prop-label] Task events
-- 13 [prop-label] Urgent tasks
-
-### src\components\dashboard\TodayTargetsCard.jsx
-- 8 [jsx-text] Today Targets
-- 14 [prop-label] Conversion
-
-### src\components\dashboard\TopSellingNowCard.jsx
-- 8 [jsx-text] Top Selling Now
-- 15 [jsx-text] Top sellers will appear after sales activity.
 
 ### src\components\ProductCard.jsx
 - 10 [jsx-text] Nike Air Max
@@ -246,6 +659,13 @@ Resolved blockers:
 
 ### src\modules\analytics\components\AiInsightCard.jsx
 - 17 [jsx-text] AI insight
+
+### src\modules\analytics\components\AnalyticsCharts.jsx
+- 57 [title] Sales trend
+- 57 [title] Order movement and sales velocity using backend chart data.
+- 77 [title] Channel mix
+- 77 [title] Sales distribution across commerce channels.
+- 90 [prop-label] No sales channel data available.
 
 ### src\modules\analytics\lib\analyticsExport.js
 - 222 [jsx-text] Selected filters
@@ -290,94 +710,18 @@ Resolved blockers:
 - 323 [jsx-text] AI customer intelligence
 - ... 7 more
 
-### src\modules\attendance\components\AttendanceWorkspace.jsx
-- 840 [jsx-text] HR / Attendance
-- 841 [jsx-text] Attendance & Shift Management
-- 898 [jsx-text] Admin tools
-- 899 [jsx-text] Attendance Device Management
-- 980 [jsx-text] Today's chart
-- 981 [jsx-text] Branch attendance mix
-- 983 [jsx-text] Present / Late / Overtime
-- 1006 [jsx-text] Status
-- 1007 [jsx-text] Daily summary
-- 1015 [jsx-text] Total employees
-- 1019 [jsx-text] Worked hours
-- 1024 [jsx-text] Today
-- 1026 [jsx-text] Attendance logs automatically link to POS when shifts are opened from the kiosk.
-- 1034 [jsx-text] Recent logs
-- 1035 [jsx-text] Attendance list
-- 1044 [jsx-text] Employee
-- 1045 [jsx-text] Branch
-- 1046 [jsx-text] Shift
-- 1047 [jsx-text] Check-in
-- 1048 [jsx-text] Check-out
-- 1049 [jsx-text] Status
-- 1050 [jsx-text] Worked
-- 1054 [jsx-text] No attendance logs for the selected day.
-- 1087 [jsx-text] Employee list
-- 1088 [jsx-text] Employees & shifts
-- 1127 [jsx-text] Name
-- 1128 [jsx-text] Code
-- 1129 [jsx-text] Branch
-- 1130 [jsx-text] Role
-- 1131 [jsx-text] Status
-- 1132 [jsx-text] Shift
-- 1133 [jsx-text] Check-in
-- 1134 [jsx-text] Actions
-- 1138 [jsx-text] No employees found.
-- 1212 [jsx-text] Employee profile
-- 1266 [jsx-text] Shift assignment
-- 1327 [jsx-text] Device security
-- 1328 [jsx-text] Attendance device approvals
-- 1357 [jsx-text] Employee
-- 1358 [jsx-text] Status
-- ... 99 more
+### src\modules\attendance\components\AttendanceCenter.jsx
+- 453 [jsx-text] QR Branch
+- 453 [jsx-text] Manual
+- 453 [jsx-text] Imported
+- 477 [title] Attendance trend
+- 478 [title] Late arrivals trend
+- 479 [title] Branch attendance comparison
+- 480 [title] Employee attendance ranking
 
-### src\modules\employees\components\EmployeeAnalyticsShell.jsx
-- 20 [jsx-text] Employee analytics
-
-### src\modules\employees\components\EmployeeAnalyticsWorkspace.jsx
-- 338 [jsx-text] Date filters refetch the employee analytics backend automatically.
-- 404 [jsx-text] Refreshing
-- 421 [jsx-text] Revenue by employee
-- 422 [jsx-text] Sales and commission mix
-- 445 [jsx-text] Shift analytics
-- 446 [jsx-text] Shift revenue trend
-- 478 [jsx-text] Employee
-- 479 [jsx-text] Role
-- 480 [jsx-text] Sales
-- 481 [jsx-text] Orders
-- 482 [jsx-text] Avg Order
-- 483 [jsx-text] Commission
-- 484 [jsx-text] Refunds
-- 516 [jsx-text] Commission rules
-- 517 [jsx-text] Configurable rules
-- 532 [jsx-text] Global
-- 533 [jsx-text] Product
-- 534 [jsx-text] Category
-- 535 [jsx-text] Employee
-- 542 [jsx-text] Percentage
-- 543 [jsx-text] Fixed
-- 574 [jsx-text] Sale
-- 575 [jsx-text] Item
-- 598 [jsx-text] Value:
-- 599 [jsx-text] Priority:
-- 600 [jsx-text] Applies to:
-- 601 [jsx-text] Scope ID:
-- 609 [jsx-text] Commission transactions
-- 614 [jsx-text] Employee
-- 615 [jsx-text] Invoice
-- 616 [jsx-text] Sale
-- 617 [jsx-text] Commission
-- 618 [jsx-text] Status
-- 654 [jsx-text] Orders:
-- 655 [jsx-text] Avg order:
-- 656 [jsx-text] Commission:
-- 657 [jsx-text] Shift:
-- 676 [jsx-text] Sales
-- 677 [jsx-text] Orders
-- 678 [jsx-text] Avg order
-- ... 25 more
+### src\modules\employees\components\ChatImageAttachment.jsx
+- 64 [jsx-text] Image unavailable
+- 73 [jsx-text] Open image
 
 ### src\modules\employees\components\roles\CreateRoleModal.jsx
 - 57 [placeholder] Role Name
@@ -386,6 +730,12 @@ Resolved blockers:
 - 116 [placeholder] Name
 - 124 [placeholder] Email
 - 132 [placeholder] Password
+
+### src\modules\employees\components\WhatsAppRecordingBar.jsx
+- 73 [aria-label] Delete recording
+- 108 [aria-label] Send recording
+- 73 [prop-label] Delete recording
+- 108 [prop-label] Send recording
 
 ### src\modules\employees\lib\employeeAnalyticsExport.js
 - 136 [jsx-text] Employee Analytics Report
@@ -421,45 +771,45 @@ Resolved blockers:
 - 218 [jsx-text] = start && current
 - 218 [jsx-text] = start || current
 
-## pages (874)
+## pages (1469)
 
 ### src\modules\aiSupport\pages\AiAgentAnalytics.jsx
-- 174 [jsx-text] AI Agent Analytics
-- 175 [jsx-text] Performance Dashboard
-- 176 [jsx-text] Commercial and operational performance for AI-assisted conversations, drafts, orders, follow-ups, objections, and product demand.
-- 182 [jsx-text] All branches
-- 218 [title] Lead Quality
-- 228 [title] Top Objections
-- 232 [title] Follow-up Performance
-- 247 [title] Top Products Asked About
-- 256 [title] Top Products Converted
-- 266 [title] High Interest, Low Conversion
-- 276 [title] Products With Stock Conflicts
-- 200 [prop-label] AI-assisted revenue
-- 201 [prop-label] AI-created drafts
-- 202 [prop-label] Confirmed AI orders
-- 203 [prop-label] Conversion rate
-- 204 [prop-label] Average order value
-- 205 [prop-label] Abandoned / recovered
-- 209 [prop-label] Total conversations
-- 210 [prop-label] AI replies
-- 211 [prop-label] Human takeovers
-- 212 [prop-label] Avg response time
-- 213 [prop-label] Waiting customers
-- 214 [prop-label] Closed conversations
-- 220 [prop-label] Hot leads
-- 221 [prop-label] Warm leads
-- 222 [prop-label] Cold leads
-- 223 [prop-label] VIP customers
-- 224 [prop-label] Complaints
-- 234 [prop-label] Scheduled
-- 235 [prop-label] Due
-- 236 [prop-label] Sent
-- 237 [prop-label] Manually sent
-- 238 [prop-label] Snoozed
-- 239 [prop-label] Cancelled
-- 240 [prop-label] Recovered after follow-up
-- 241 [prop-label] Stopped after rejection
+- 175 [jsx-text] AI Agent Analytics
+- 176 [jsx-text] Performance Dashboard
+- 177 [jsx-text] Commercial and operational performance for AI-assisted conversations, drafts, orders, follow-ups, objections, and product demand.
+- 183 [jsx-text] All branches
+- 219 [title] Lead Quality
+- 229 [title] Top Objections
+- 233 [title] Follow-up Performance
+- 248 [title] Top Products Asked About
+- 257 [title] Top Products Converted
+- 267 [title] High Interest, Low Conversion
+- 277 [title] Products With Stock Conflicts
+- 201 [prop-label] AI-assisted revenue
+- 202 [prop-label] AI-created drafts
+- 203 [prop-label] Confirmed AI orders
+- 204 [prop-label] Conversion rate
+- 205 [prop-label] Average order value
+- 206 [prop-label] Abandoned / recovered
+- 210 [prop-label] Total conversations
+- 211 [prop-label] AI replies
+- 212 [prop-label] Human takeovers
+- 213 [prop-label] Avg response time
+- 214 [prop-label] Waiting customers
+- 215 [prop-label] Closed conversations
+- 221 [prop-label] Hot leads
+- 222 [prop-label] Warm leads
+- 223 [prop-label] Cold leads
+- 224 [prop-label] VIP customers
+- 225 [prop-label] Complaints
+- 235 [prop-label] Scheduled
+- 236 [prop-label] Due
+- 237 [prop-label] Sent
+- 238 [prop-label] Manually sent
+- 239 [prop-label] Snoozed
+- 240 [prop-label] Cancelled
+- 241 [prop-label] Recovered after follow-up
+- 242 [prop-label] Stopped after rejection
 
 ### src\modules\aiSupport\pages\AiAgentSettings.jsx
 - 184 [jsx-text] AI Agent Control Center
@@ -505,7 +855,26 @@ Resolved blockers:
 - ... 9 more
 
 ### src\modules\aiSupport\pages\AiChannels.jsx
-- 21 [jsx-text] AI Channels
+- 585 [jsx-text] WhatsApp Gateway / Evolution API
+- 603 [jsx-text] Gateway connection settings
+- 606 [jsx-text] Provider
+- 614 [jsx-text] Connection status
+- 622 [jsx-text] API URL
+- 631 [jsx-text] API Key
+- 640 [jsx-text] Instance Name
+- 652 [jsx-text] Send manual test message
+- 655 [jsx-text] Egyptian phone
+- 665 [jsx-text] Message
+- 720 [jsx-text] Off
+- 721 [jsx-text] Suggest only
+- 722 [jsx-text] Fully automatic
+- 733 [jsx-text] Inherit global
+- 734 [jsx-text] Casual Egyptian
+- 735 [jsx-text] Professional
+- 736 [jsx-text] Luxury seller
+- 626 [placeholder] EVOLUTION_API_URL is not configured
+- 635 [placeholder] EVOLUTION_API_KEY is missing
+- 644 [placeholder] EVOLUTION_INSTANCE_NAME is not configured
 
 ### src\modules\aiSupport\pages\AiFollowups.jsx
 - 163 [jsx-text] Follow-ups ready for staff action
@@ -519,47 +888,90 @@ Resolved blockers:
 - 181 [prop-label] Stopped / rejected
 
 ### src\modules\aiSupport\pages\AiInbox.jsx
-- 205 [jsx-text] Waiting
-- 206 [jsx-text] Human takeover
-- 207 [jsx-text] Closed
-- 209 [jsx-text] Confirmed
-- 219 [jsx-text] No transcript yet.
-- 286 [jsx-text] : status === "closed" ?
-- 294 [jsx-text] Take over
-- 295 [jsx-text] Return to AI
-- 296 [jsx-text] Close
-- 301 [jsx-text] Assign
-- 317 [jsx-text] Conversation closed. Manual replies are disabled.
-- 320 [jsx-text] AI active. Take over the conversation to send manual staff replies.
-- 332 [jsx-text] Send
-- 355 [jsx-text] Closed conversations cannot generate suggestions.
-- 357 [jsx-text] Generate staff-only reply suggestions, then click one to edit it in the composer.
-- 424 [jsx-text] Unknown
-- 454 [jsx-text] No draft for this conversation.
-- 486 [jsx-text] Confirm Order
-- 487 [jsx-text] Edit Draft
-- 488 [jsx-text] Reject / Cancel
-- 489 [jsx-text] Assign to human
-- 490 [jsx-text] Resume AI
-- 678 [jsx-text] AI Inbox Pro
-- 679 [jsx-text] Sales Command Center
-- 680 [jsx-text] AI conversations, lead scoring, customer memory, visual selling context, and order drafts in one workspace.
-- 709 [jsx-text] ) : !loading ?
-- 725 [jsx-text] Takeover
-- 726 [jsx-text] Closed
-- 727 [jsx-text] Waiting customer
-- 300 [placeholder] Employee/admin name
-- 331 [placeholder] Write a staff reply...
-- 324 [title] Manual reply
-- 347 [title] AI Suggested Replies
-- 381 [title] Customer profile
-- 392 [title] Viewed products
-- 393 [title] Abandoned products
-- 394 [title] Previous orders
-- 396 [title] Sentiment & memory
-- 452 [title] Order draft panel
-- 707 [title] Conversations list
-- ... 22 more
+- 706 [jsx-text] : status === "human_takeover" ?
+- 751 [jsx-text] No transcript yet.
+- 791 [jsx-text] Customer
+- 823 [jsx-text] Staff
+- 861 [jsx-text] : status === "closed" ?
+- 872 [jsx-text] WhatsApp AI active
+- 932 [jsx-text] Conversation closed. Manual replies are disabled.
+- 942 [jsx-text] Live send ready
+- 942 [jsx-text] Live channel unavailable
+- 944 [jsx-text] Sending a staff reply will take over this conversation and pause AI automation.
+- 980 [jsx-text] Save draft
+- 981 [jsx-text] Approve AI reply
+- 1003 [jsx-text] 2-3 short Egyptian Arabic options that you can copy, edit, or send live.
+- 1012 [jsx-text] Channel setup needed
+- 1015 [jsx-text] Closed conversations cannot generate suggestions.
+- 1016 [jsx-text] No channel settings row was found for this channel. Open AI Channels to finish setup before enabling live sends.
+- 1018 [jsx-text] Generate a staff-only suggested reply. It stays separate from sent replies until you approve or edit it.
+- 1025 [jsx-text] Short reply
+- 1032 [jsx-text] Edit before send
+- 1033 [jsx-text] Send now
+- 1034 [jsx-text] Regenerate
+- 1098 [jsx-text] Quick send
+- 1099 [jsx-text] Send images
+- 1100 [jsx-text] Draft order
+- 1101 [jsx-text] Open product
+- 1107 [jsx-text] No matched products yet. Refresh after the customer sends a model, color, size, or category.
+- 1155 [jsx-text] Recommended next step
+- 1161 [jsx-text] Confidence
+- 1165 [jsx-text] Reason
+- 1169 [jsx-text] Suggested action
+- 1181 [jsx-text] Purchase intent:
+- 1183 [jsx-text] Waiting for product, size, color, or buying signal.
+- 1212 [jsx-text] Quick send card
+- 1216 [jsx-text] No product match yet. Ask for model, category, size, color, or budget.
+- 1229 [jsx-text] Memory
+- 1234 [jsx-text] Memory will improve as the conversation continues.
+- 1283 [jsx-text] Customer context
+- 1385 [jsx-text] AI Debug
+- 1386 [jsx-text] Intent, route, memory, and recent decisions
+- 1500 [jsx-text] Skipped
+- ... 178 more
+
+### src\modules\aiSupport\pages\AiSettings.jsx
+- 170 [jsx-text] AI Brain
+- 171 [jsx-text] AI Settings
+- 172 [jsx-text] Control automatic replies, tone, safety defaults, and debugging visibility for the Meta AI Inbox.
+- 206 [jsx-text] Channel
+- 208 [jsx-text] Facebook Messenger
+- 209 [jsx-text] Instagram DM
+- 210 [jsx-text] WhatsApp
+- 211 [jsx-text] Web chat
+- 215 [jsx-text] Platform
+- 219 [jsx-text] Optional Product ID
+- 225 [jsx-text] Customer message
+- 238 [jsx-text] Intent
+- 239 [jsx-text] Effective mode
+- 240 [jsx-text] Effective tone
+- 241 [jsx-text] Would auto-send
+- 242 [jsx-text] Safety guard reason
+- 246 [jsx-text] Product context
+- 256 [jsx-text] No product context found.
+- 259 [jsx-text] Memory fallback
+- 262 [jsx-text] Last product:
+- 266 [jsx-text] No memory fallback used.
+- 270 [jsx-text] Final reply preview
+- 220 [placeholder] Example: 123
+- 186 [title] Auto Reply Mode
+- 186 [title] Global behavior. Fully automatic only sends when the channel setting also allows it.
+- 188 [title] Off
+- 189 [title] Suggest only
+- 190 [title] Fully automatic
+- 194 [title] Tone
+- 194 [title] Lightweight instruction used by the AI reply layer.
+- 196 [title] Casual Egyptian
+- 197 [title] Professional
+- 198 [title] Luxury seller
+- 202 [title] AI Test Playground
+- 202 [title] Simulate an AI reply without sending anything to Meta or changing memory.
+- 278 [title] Safety
+- 278 [title] Defaults stay on to prevent bad commerce claims.
+- 286 [title] Debug Options
+- 286 [title] Visibility tools for the live AI Inbox console.
+- 253 [prop-label] Product URL
+- ... 6 more
 
 ### src\modules\aiSupport\pages\AiSupportConsole.jsx
 - 186 [jsx-text] Confidence
@@ -613,142 +1025,101 @@ Resolved blockers:
 - 120 [confirm] Reset AI Support knowledge base for this tenant?
 
 ### src\modules\analytics\pages\AnalyticsDashboard.jsx
-- 976 [jsx-text] Product
-- 977 [jsx-text] Variant
-- 978 [jsx-text] Stock
-- 979 [jsx-text] Avg daily sales
-- 980 [jsx-text] Days remaining
-- 981 [jsx-text] Reorder qty
-- 982 [jsx-text] Risk
-- 1038 [jsx-text] Product
-- 1039 [jsx-text] Variant
-- 1040 [jsx-text] Stock
-- 1041 [jsx-text] Last sold
-- 1042 [jsx-text] Days without sales
-- 1043 [jsx-text] Blocked capital
-- 1044 [jsx-text] Risk
-- 1045 [jsx-text] Recommendation
-- 718 [title] Sales trend
-- 718 [title] Order movement and sales velocity using backend chart data.
-- 742 [title] Channel mix
-- 742 [title] Sales distribution across commerce channels.
-- 831 [title] AI insights
-- 831 [title] Narrative intelligence generated from the latest ERP signals.
-- 851 [title] Predicted sales
-- 851 [title] Forecasted demand with confidence scoring.
-- 1015 [title] AI Dead Stock Intelligence
-- 1015 [title] Identify slow-moving inventory with blocked capital and clear action recommendations.
-- 1081 [title] Dead stock detection
-- 1081 [title] Items that are moving slowly and are tying up working capital.
-- 1112 [title] Inventory risk snapshot
-- 1112 [title] System-wide risk signals for proactive replenishment.
-- 1133 [title] Cash efficiency
-- 1143 [title] Order velocity
-- 1144 [title] AI score
-- 1145 [title] Dead stock ratio
-- 1146 [title] Smart alerts
-- 769 [prop-label] No sales channel data available.
-- 1019 [prop-label] Items flagged
-- 1021 [prop-label] Blocked capital
-- 1025 [prop-label] Critical risks
-- 1029 [prop-label] Clearance targets
-- 1097 [prop-label] Color
-- ... 3 more
+- 893 [jsx-text] Product
+- 894 [jsx-text] Variant
+- 895 [jsx-text] Stock
+- 896 [jsx-text] Avg daily sales
+- 897 [jsx-text] Days remaining
+- 898 [jsx-text] Reorder qty
+- 899 [jsx-text] Risk
+- 955 [jsx-text] Product
+- 956 [jsx-text] Variant
+- 957 [jsx-text] Stock
+- 958 [jsx-text] Last sold
+- 959 [jsx-text] Days without sales
+- 960 [jsx-text] Blocked capital
+- 961 [jsx-text] Risk
+- 962 [jsx-text] Recommendation
+- 748 [title] AI insights
+- 748 [title] Narrative intelligence generated from the latest ERP signals.
+- 768 [title] Predicted sales
+- 768 [title] Forecasted demand with confidence scoring.
+- 932 [title] AI Dead Stock Intelligence
+- 932 [title] Identify slow-moving inventory with blocked capital and clear action recommendations.
+- 998 [title] Dead stock detection
+- 998 [title] Items that are moving slowly and are tying up working capital.
+- 1029 [title] Inventory risk snapshot
+- 1029 [title] System-wide risk signals for proactive replenishment.
+- 1050 [title] Cash efficiency
+- 1060 [title] Order velocity
+- 1061 [title] AI score
+- 1062 [title] Dead stock ratio
+- 1063 [title] Smart alerts
+- 936 [prop-label] Items flagged
+- 938 [prop-label] Blocked capital
+- 942 [prop-label] Critical risks
+- 946 [prop-label] Clearance targets
+- 1014 [prop-label] Color
+- 1015 [prop-label] Size
+- 1016 [prop-label] Stock
+- 1017 [prop-label] Reason
 
 ### src\modules\attendance\pages\AttendanceDashboard.jsx
-- 109 [jsx-text] Today&apos;s attendance overview
-- 142 [jsx-text] Attendance log
-- 152 [jsx-text] Employee
-- 153 [jsx-text] Branch
-- 154 [jsx-text] Check in
-- 155 [jsx-text] Check out
-- 156 [jsx-text] Worked
-- 157 [jsx-text] Status
-- 132 [prop-label] Present now
-- 133 [prop-label] Checked out
-- 134 [prop-label] Missing checkout
-- 135 [prop-label] Late employees
-- 136 [prop-label] Total employees
+- 119 [jsx-text] Today&apos;s attendance overview
+- 152 [jsx-text] Live employee table
+- 162 [jsx-text] Employee
+- 163 [jsx-text] Branch
+- 164 [jsx-text] Check in
+- 165 [jsx-text] Check out
+- 166 [jsx-text] Status
+- 167 [jsx-text] Late Minutes
+- 168 [jsx-text] Early Leave Minutes
+- 142 [prop-label] Present Today
+- 143 [prop-label] Late Today
+- 144 [prop-label] Absent Today
+- 145 [prop-label] Early Checkout Today
+- 146 [prop-label] Outside GPS Today
 
 ### src\modules\attendance\pages\AttendanceReports.jsx
-- 119 [jsx-text] Export-ready attendance reports
-- 152 [jsx-text] From
-- 170 [jsx-text] Employee ID
-- 195 [jsx-text] Monthly totals
-- 196 [jsx-text] Grouped by month for the active filter range.
-- 201 [jsx-text] Loading monthly totals...
-- 203 [jsx-text] No totals available for this range.
-- 220 [jsx-text] Attendance table
-- 221 [jsx-text] Employee, branch, worked hours, and checkout status.
-- 230 [jsx-text] Employee
-- 231 [jsx-text] Branch
-- 232 [jsx-text] Date
-- 233 [jsx-text] Check in
-- 234 [jsx-text] Check out
-- 235 [jsx-text] Worked
-- 236 [jsx-text] Status
-- 175 [placeholder] All employees
-- 185 [prop-label] Present
-- 186 [prop-label] Checked out
-- 187 [prop-label] Missing checkout
-- 188 [prop-label] Late
-- 189 [prop-label] Worked hours
+- 128 [jsx-text] Export-ready attendance reports
+- 161 [jsx-text] From
+- 179 [jsx-text] Employee ID
+- 204 [jsx-text] Monthly totals
+- 205 [jsx-text] Grouped by month for the active filter range.
+- 210 [jsx-text] Loading monthly totals...
+- 212 [jsx-text] No totals available for this range.
+- 229 [jsx-text] Attendance table
+- 230 [jsx-text] Employee, branch, worked hours, and checkout status.
+- 239 [jsx-text] Employee
+- 240 [jsx-text] Branch
+- 241 [jsx-text] Date
+- 242 [jsx-text] Check in
+- 243 [jsx-text] Check out
+- 244 [jsx-text] Worked
+- 245 [jsx-text] Status
+- 184 [placeholder] All employees
+- 194 [prop-label] Present
+- 195 [prop-label] Checked out
+- 196 [prop-label] Missing checkout
+- 197 [prop-label] Late
+- 198 [prop-label] Worked hours
 
 ### src\modules\attendance\pages\PublicBranchAttendance.jsx
-- 213 [jsx-text] Attendance
-- 239 [jsx-text] Location
-- 273 [jsx-text] Phone or employee code
-- 298 [jsx-text] Employee identified
-- 225 [title] Branch map preview
+- 223 [jsx-text] Attendance
+- 249 [jsx-text] Location
+- 283 [jsx-text] Phone or employee code
+- 308 [jsx-text] Employee identified
+- 235 [title] Branch map preview
 
 ### src\modules\attendance\pages\StaffQrAttendance.jsx
-- 157 [jsx-text] Scan branch QR, then confirm GPS
-- 200 [jsx-text] Processing QR and GPS location...
-- 213 [jsx-text] Result
-- 219 [prop-label] Employee
-- 220 [prop-label] Branch
-- 221 [prop-label] Time
-- 222 [prop-label] Distance
-- 223 [prop-label] Allowed radius
-
-### src\modules\coupons\pages\CouponsManager.jsx
-- 208 [jsx-text] Offline Coupon Campaigns
-- 209 [jsx-text] Generate street-distributed coupons, track redemption, and export printable sheets without mock analytics.
-- 229 [jsx-text] Campaigns
-- 275 [jsx-text] Edit
-- 276 [jsx-text] Delete
-- 288 [jsx-text] All statuses
-- 289 [jsx-text] Active
-- 290 [jsx-text] Unused
-- 291 [jsx-text] Used
-- 292 [jsx-text] Expired
-- 298 [jsx-text] Code
-- 299 [jsx-text] Discount
-- 300 [jsx-text] Usage
-- 301 [jsx-text] Status
-- 302 [jsx-text] Expires
-- 370 [jsx-text] Cancel
-- 371 [jsx-text] Save
-- 270 [placeholder] Qty
-- 285 [placeholder] Search coupon code
-- 358 [placeholder] Optional
-- 141 [toast] Campaign updated
-- 145 [toast] Campaign created
-- 158 [toast] Campaign deleted
-- 255 [prop-label] No coupon campaigns yet.
-- 317 [prop-label] No coupons match this filter.
-- 322 [prop-label] Select or create a coupon campaign.
-- 353 [prop-label] Name
-- 354 [prop-label] Code prefix
-- 355 [prop-label] Discount type
-- 356 [prop-label] Discount value
-- 357 [prop-label] Minimum order
-- 358 [prop-label] Max discount
-- 359 [prop-label] Usage per coupon
-- 360 [prop-label] Target coupons
-- 361 [prop-label] Starts at
-- 362 [prop-label] Expires at
-- 363 [prop-label] Channel
+- 162 [jsx-text] Scan branch QR, then confirm GPS
+- 205 [jsx-text] Processing QR and GPS location...
+- 218 [jsx-text] Result
+- 224 [prop-label] Employee
+- 225 [prop-label] Branch
+- 226 [prop-label] Time
+- 227 [prop-label] Distance
+- 228 [prop-label] Allowed radius
 
 ### src\modules\employees\pages\ActivityLogs.jsx
 - 237 [placeholder] Search logs...
@@ -779,48 +1150,129 @@ Resolved blockers:
 - 177 [prop-label] Longitude
 - 179 [prop-label] Attendance Radius (meters)
 
-### src\modules\employees\pages\EmployeePortal.jsx
-- 103 [jsx-text] ثبّت بوابة الموظف على الموبايل
-- 104 [jsx-text] افتح التاسكات بسرعة واستقبل التنبيهات أثناء الشيفت.
-- 152 [jsx-text] تفعيل تنبيهات التاسكات
-- 184 [jsx-text] تصعيد
-- 471 [jsx-text] بوابة الموظف غير متاحة
-- 486 [jsx-text] بوابة الموظف
-- 492 [jsx-text] مهام اليوم
-- 496 [jsx-text] قيد التنفيذ
-- 500 [jsx-text] مكتملة
-- 528 [jsx-text] المهام المطلوبة
-- 535 [jsx-text] لا توجد مهام مطلوبة الآن.
-- 541 [jsx-text] المهام المكتملة
-- 546 [jsx-text] لم يتم إكمال أي مهمة بعد.
+### src\modules\employees\pages\EmployeeChatInbox.jsx
+- 814 [jsx-text] الموظفون / المحادثات
+- 815 [jsx-text] محادثات الموظفين
+- 872 [jsx-text] لا يوجد موظفون أو محادثات حتى الآن.
+- 902 [jsx-text] اليوم
+- 903 [jsx-text] هذه المحادثة خاصة بين الموظف والإدارة
+- 917 [jsx-text] رسائل غير مقروءة
+- 1014 [placeholder] اكتب رد الإدارة...
+- 1003 [aria-label] إرفاق ملف
+- 1007 [aria-label] تسجيل صوتي
+- 158 [prop-label] رسالة صوتية
+- 1003 [prop-label] إرفاق ملف
+- 1007 [prop-label] تسجيل صوتي
 
-### src\modules\employees\pages\StaffTasks.jsx
-- 154 [jsx-text] Completed
-- 157 [jsx-text] Escalated
-- 391 [jsx-text] Employee Tasks
-- 392 [jsx-text] Attendance-aware task assignment, redistribution, inventory counts, and performance tracking.
-- 449 [jsx-text] Admin-controlled assignment, due time, proof rules, and recurring metadata.
-- 458 [jsx-text] Auto assign employee
-- 462 [jsx-text] Any branch
-- 472 [jsx-text] Photo proof
-- 473 [jsx-text] QR verification
-- 474 [jsx-text] GPS validation
-- 493 [jsx-text] Employee portal settings
-- 494 [jsx-text] Controls QR check-in redirect and task visibility enforcement.
-- 559 [jsx-text] Task queue
-- 564 [jsx-text] All statuses
-- 568 [jsx-text] All employees
-- 572 [jsx-text] All branches
-- 576 [jsx-text] All priorities
-- 608 [jsx-text] Performance
-- 629 [jsx-text] Audit trail
-- 639 [jsx-text] No task history yet.
-- 456 [placeholder] Task title
-- 475 [placeholder] Task details
-- 476 [placeholder] Checklist items, one per line
-- 365 [toast] Task updated
-- 368 [toast] Task created
-- 377 [toast] Task deleted
+### src\modules\employees\pages\EmployeeHub.jsx
+- 62 [jsx-text] Workspace unavailable.
+- 143 [jsx-text] Payroll workspace failed to render. Please refresh.
+
+### src\modules\employees\pages\EmployeePayrollPortal.jsx
+- 2690 [jsx-text] طلب من المخزن
+- 2699 [jsx-text] الجرد
+- 2737 [jsx-text] Sales Opportunities
+- 2738 [jsx-text] فرص البيع اليوم
+- 2739 [jsx-text] بطاقات سريعة تكشف آخر قطعة، آخر قطعتين، أو آخر مقاس في فرعك.
+- 2742 [jsx-text] Today
+- 2836 [jsx-text] بوابة الموظف كتطبيق
+- 2875 [jsx-text] إعادة ضبط الإشعارات
+- 2926 [jsx-text] نواقص العرض
+- 2927 [jsx-text] المقاسات المطلوبة للعرض الحالي وتاريخ التنفيذ.
+- 2936 [jsx-text] قيد التنفيذ
+- 2952 [jsx-text] قيد العرض
+- 3002 [jsx-text] تم التنفيذ
+- 3017 [jsx-text] تم العرض
+- 3566 [jsx-text] متصل الآن
+
+### src\modules\employees\pages\EmployeePortal.jsx
+- 97 [jsx-text] ط«ط¨ظ‘طھ ط¨ظˆط§ط¨ط© ط§ظ„ظ…ظˆط¸ظپ ط¹ظ„ظ‰ ط§ظ„ظ…ظˆط¨ط§ظٹظ„
+- 98 [jsx-text] ط§ظپطھط­ ط§ظ„طھط§ط³ظƒط§طھ ط¨ط³ط±ط¹ط© ظˆط§ط³طھظ‚ط¨ظ„ ط§ظ„طھظ†ط¨ظٹظ‡ط§طھ ط£ط«ظ†ط§ط، ط§ظ„ط´ظٹظپطھ.
+- 157 [jsx-text] طھطµط¹ظٹط¯
+- 418 [jsx-text] بوابة الموظف
+- 456 [jsx-text] ط¨ظˆط§ط¨ط© ط§ظ„ظ…ظˆط¸ظپ ط؛ظٹط± ظ…طھط§ط­ط©
+- 471 [jsx-text] ط¨ظˆط§ط¨ط© ط§ظ„ظ…ظˆط¸ظپ
+- 477 [jsx-text] ظ…ظ‡ط§ظ… ط§ظ„ظٹظˆظ…
+- 481 [jsx-text] ظ‚ظٹط¯ ط§ظ„طھظ†ظپظٹط°
+- 485 [jsx-text] ظ…ظƒطھظ…ظ„ط©
+- 521 [jsx-text] ط§ظ„ظ…ظ†طھط¬ط§طھ
+- 522 [jsx-text] ط§ظپطھط­ ط´ط§ط´ط© ط§ظ„ظ…ظ†طھط¬ط§طھ ط§ظ„ط³ط±ظٹط¹ط© ظˆظ†ط¯ط§ط، ط§ظ„ظ…ط®ط²ظ†
+- 524 [jsx-text] ظ†ط¯ط§ط، ط§ظ„ظ…ط®ط²ظ†
+- 529 [jsx-text] ط§ظ„ظ…ظ‡ط§ظ… ط§ظ„ظ…ط·ظ„ظˆط¨ط©
+- 536 [jsx-text] ظ„ط§ طھظˆط¬ط¯ ظ…ظ‡ط§ظ… ظ…ط·ظ„ظˆط¨ط© ط§ظ„ط¢ظ†.
+- 542 [jsx-text] ط§ظ„ظ…ظ‡ط§ظ… ط§ظ„ظ…ظƒطھظ…ظ„ط©
+- 547 [jsx-text] ظ„ظ… ظٹطھظ… ط¥ظƒظ…ط§ظ„ ط£ظٹ ظ…ظ‡ظ…ط© ط¨ط¹ط¯.
+
+### src\modules\employees\pages\EmployeePortalInventory.jsx
+- 337 [jsx-text] Inventory
+- 338 [jsx-text] امسح الباركود
+- 908 [jsx-text] Employee Portal
+- 910 [jsx-text] الجرد
+- 967 [jsx-text] جردات الفرع
+- 968 [jsx-text] المسودة، قيد التنفيذ، المراجعة والمرفوضة.
+- 987 [jsx-text] جاري التحميل...
+- 1034 [jsx-text] اختر جردًا أو أنشئ جردًا جديدًا
+- 1094 [jsx-text] سبب الرفض
+- 1110 [jsx-text] اسم الجرد
+- 1119 [jsx-text] ملاحظات
+- 1132 [jsx-text] البحث والباركود
+- 1133 [jsx-text] ابحث عن المنتج أو امسح الباركود لإضافة الكمية.
+- 1194 [jsx-text] عناصر الجرد
+- 1231 [jsx-text] حذف اللون
+- 1368 [jsx-text] Employee Portal
+- 1369 [jsx-text] جردات الفرع
+- 1423 [jsx-text] القائمة
+- 1429 [jsx-text] جارِ التحميل...
+- 980 [placeholder] ابحث باسم الجرد أو الفرع
+- 1151 [placeholder] ابحث بالاسم أو الباركود
+- 1417 [placeholder] ابحث باسم الجرد أو الفرع
+- 332 [aria-label] ماسح الباركود
+- 920 [aria-label] جردات الفرع
+- 1228 [aria-label] حذف اللون
+- 1268 [aria-label] إنقاص الكمية
+- 1284 [aria-label] زيادة الكمية
+- 1375 [aria-label] إغلاق
+- 528 [toast] تم إنشاء الجرد
+- 549 [toast] تم حفظ الجرد
+- 564 [toast] تم بدء الجرد
+- 579 [toast] تم إرسال الجرد للمراجعة
+- 594 [toast] تم إعادة فتح الجرد للتعديل
+- 706 [toast] تمت إضافة اللون للجرد
+- 788 [toast] تعذر تحديد اللون للحذف
+- 806 [toast] تم حذف اللون من الجرد
+- 791 [confirm] هل تريد حذف هذا اللون من الجرد؟
+- 332 [prop-label] ماسح الباركود
+- 920 [prop-label] جردات الفرع
+- 1228 [prop-label] حذف اللون
+- ... 3 more
+
+### src\modules\employees\pages\EmployeePortalProducts.jsx
+- 426 [jsx-text] Stock
+- 456 [jsx-text] No sizes
+- 494 [jsx-text] Variant selection
+- 532 [jsx-text] Colors
+- 553 [jsx-text] No colors
+- 560 [jsx-text] Sizes
+- 561 [jsx-text] Only available sizes appear
+- 587 [jsx-text] No available sizes for this color
+- 628 [jsx-text] EMPLOYEE SCANNER
+- 629 [jsx-text] امسح الباركود أو QR بالكاميرا
+- 630 [jsx-text] وجّه الكاميرا نحو الكود وسيتم البحث مباشرة.
+- 1170 [jsx-text] Employee Portal Products
+- 1186 [jsx-text] Employee Portal
+- 1187 [jsx-text] كتالوج المنتجات
+- 1259 [jsx-text] الفلاتر
+- 1266 [jsx-text] النتائج
+- 1235 [placeholder] ابحث بالاسم أو الموديل أو الباركود أو الكود
+- 1225 [title] فتح ماسح الكاميرا
+- 1249 [title] الفلاتر
+- 636 [aria-label] إغلاق ماسح الكاميرا
+- 1224 [aria-label] فتح ماسح الكاميرا
+- 1248 [aria-label] الفلاتر
+- 1078 [toast] تم إرسال الطلب للمخزن
+- 636 [prop-label] إغلاق ماسح الكاميرا
+- 1224 [prop-label] فتح ماسح الكاميرا
+- 1248 [prop-label] الفلاتر
 
 ### src\modules\loyalty\pages\CustomerLoyaltyProfile.jsx
 - 95 [jsx-text] Customer loyalty profile
@@ -865,6 +1317,91 @@ Resolved blockers:
 - 49 [toast] Using loyalty rules fallback
 - 86 [toast] Loyalty rule updated
 - 90 [toast] Loyalty rule created
+
+### src\modules\managerPortal\pages\InventoryApprovals.jsx
+- 201 [jsx-text] اعتمادات الجرد
+- 202 [jsx-text] لا يوجد رمز بوابة صالح. افتح بوابة المدير ثم أعد المحاولة.
+- 224 [jsx-text] مركز اعتماد الجرد
+- 225 [jsx-text] اعتمادات الجرد
+- 261 [jsx-text] بحث
+- 276 [jsx-text] الجلسات المعروضة
+- 284 [jsx-text] جاري تحميل الجردات...
+- 323 [jsx-text] لا توجد جلسات قيد المراجعة الآن
+- 324 [jsx-text] ستظهر هنا الجردات التي أرسلها أمين المخزن للمراجعة.
+- 334 [jsx-text] جاري تحميل تفاصيل الجرد...
+- 340 [jsx-text] تفاصيل الجلسة
+- 356 [jsx-text] سبب الرفض
+- 373 [jsx-text] المنتج
+- 374 [jsx-text] اللون
+- 375 [jsx-text] المقاس
+- 376 [jsx-text] كمية السيستم
+- 377 [jsx-text] الكمية الفعلية
+- 378 [jsx-text] الفرق
+- 379 [jsx-text] السبب
+- 380 [jsx-text] الملاحظات
+- 395 [jsx-text] 0 ? "text-emerald-300" : diff
+- 402 [jsx-text] لا توجد أصناف داخل الجرد.
+- 443 [jsx-text] اختر جلسة من القائمة
+- 444 [jsx-text] سيظهر ملخص الأصناف والفروقات هنا.
+- 457 [jsx-text] رفض الجرد
+- 458 [jsx-text] أدخل سبب الرفض
+- 459 [jsx-text] السبب إلزامي وسيصل إلى أمين المخزن مع إشعار الرفض.
+- 266 [placeholder] ابحث باسم الجرد أو الفرع أو المخزن
+- 468 [placeholder] مثال: توجد فروقات غير مبررة أو تحتاج مراجعة ميدانية
+- 252 [title] جردات بانتظار المراجعة
+- 253 [title] جردات مرفوضة
+- 254 [title] جردات مكتملة اليوم
+- 255 [title] إجمالي فروقات اليوم
+- 362 [title] عدد الأصناف
+- 363 [title] إجمالي الزيادة
+- 364 [title] إجمالي العجز
+- 365 [title] إجمالي الفروقات
+- 158 [toast] تم اعتماد الجرد
+- 176 [toast] سبب الرفض مطلوب
+- 182 [toast] تم رفض الجرد
+
+### src\modules\managerPortal\pages\ManagerPortal.jsx
+- 302 [jsx-text] الأكثر مبيعاً:
+- 307 [jsx-text] مطلوب إعادة طلب:
+- 311 [jsx-text] هو الأعلى مبيعاً.
+- 315 [jsx-text] أكثر ساعة مبيعاً حالياً:
+- 1590 [jsx-text] الإنشاء
+- 1594 [jsx-text] الاستحقاق
+- 1598 [jsx-text] المرفقات
+- 1602 [jsx-text] البدء/الإنهاء
+- 1705 [jsx-text] مركز قيادة المدير
+- 1711 [jsx-text] اليوم
+- 1716 [jsx-text] تحديث مباشر
+- 1744 [jsx-text] تعذر تحميل بعض البيانات
+- 1776 [jsx-text] بوابة المدير
+- 1798 [jsx-text] بوابة المدير
+- 1806 [jsx-text] مباشر
+- 1814 [jsx-text] جردات بانتظار الاعتماد
+- 1852 [jsx-text] بوابة المدير كتطبيق
+- 1910 [jsx-text] غير مقروء
+- 1914 [jsx-text] الإجمالي
+- 1924 [jsx-text] تحديد الكل كمقروء
+- 1932 [jsx-text] تحديث
+- 2040 [jsx-text] لا توجد إشعارات
+- 2086 [jsx-text] الإشعارات المباشرة
+- 2087 [jsx-text] تنبيهات
+- 2099 [jsx-text] تنبيهات المخزون
+- 2100 [jsx-text] عرض
+- 2151 [jsx-text] إعادة عرض منتج:
+- 2167 [jsx-text] مطلوب إعادة طلب:
+- 2265 [jsx-text] مبيعات اليوم
+- 2274 [jsx-text] الفواتير
+- 2278 [jsx-text] الوردية
+- 2282 [jsx-text] آخر نشاط
+- 2318 [jsx-text] إسناد اختياري
+- 2322 [jsx-text] منخفضة
+- 2323 [jsx-text] متوسطة
+- 2324 [jsx-text] عالية
+- 2325 [jsx-text] حرجة
+- 2348 [jsx-text] كل الحالات
+- 2349 [jsx-text] المهام المفتوحة
+- 2350 [jsx-text] المهام المكتملة
+- ... 185 more
 
 ### src\modules\notifications\pages\NotificationsCenter.jsx
 - 62 [jsx-text] Notifications Center
@@ -1062,108 +1599,142 @@ Resolved blockers:
 - 287 [toast] Failed to create order
 
 ### src\modules\sales\pages\Customers.jsx
-- 379 [jsx-text] رصيد المحفظة
-- 526 [jsx-text] Customer Wallet Audit
-- 565 [jsx-text] النوع
-- 583 [jsx-text] إضافة يدوية
-- 584 [jsx-text] خصم يدوي
-- 588 [jsx-text] حفظ
-- 593 [jsx-text] Wallet audit timeline
-- 596 [jsx-text] Loading...
-- 600 [jsx-text] لا توجد حركات مطابقة للفلاتر.
-- 586 [placeholder] المبلغ
-- 587 [placeholder] سبب/ملاحظات التعديل
-- 549 [aria-label] Close
-- 140 [confirm] يجب إدخال سبب/ملاحظات للتعديل اليدوي.
-- 549 [prop-label] Close
-- 562 [prop-label] من تاريخ
-- 563 [prop-label] إلى تاريخ
-- 570 [prop-label] رقم الفاتورة
-- 571 [prop-label] أقل مبلغ
-- 572 [prop-label] أكبر مبلغ
+- 84 [jsx-text] = 1 && value
+- 249 [jsx-text] كشف حساب عميل
+- 250 [jsx-text] كشف حساب العميل
+- 252 [jsx-text] العميل:
+- 253 [jsx-text] الهاتف:
+- 254 [jsx-text] الرصيد الحالي:
+- 255 [jsx-text] نقاط الولاء:
+- 259 [jsx-text] آخر تحديث
+- 262 [jsx-text] الرصيد الافتتاحي
+- 263 [jsx-text] الرصيد النهائي
+- 269 [jsx-text] الحركات
+- 273 [jsx-text] التاريخ
+- 274 [jsx-text] البيان
+- 275 [jsx-text] رقم الفاتورة/الطلب
+- 276 [jsx-text] مدين
+- 277 [jsx-text] دائن
+- 278 [jsx-text] الرصيد بعد الحركة
+- 298 [jsx-text] لا توجد حركات مطابقة
+- 305 [jsx-text] إجمالي المدين
+- 306 [jsx-text] إجمالي الدائن
+- 307 [jsx-text] الرصيد النهائي
+- 925 [jsx-text] السماح بالعمليات الشخصية
+- 959 [jsx-text] Per page
+- 991 [jsx-text] نقاط الولاء
+- 992 [jsx-text] رصيد المحفظة
+- 1228 [jsx-text] استيراد من النظام القديم
+- 1229 [jsx-text] استيراد العملاء ونقاط الولاء
+- 1246 [jsx-text] CSV, XLS, XLSX حتى 8MB
+- 1256 [jsx-text] الأعمدة المطلوبة أو المعروفة
+- 1272 [jsx-text] استبدال النقاط القديمة
+- 1273 [jsx-text] إضافة على النقاط الحالية
+- 1329 [jsx-text] معاينة الاستيراد
+- 1330 [jsx-text] ملخص الملف
+- 1332 [jsx-text] تم التنفيذ
+- 1408 [jsx-text] تدقيق محفظة العميل
+- 1477 [jsx-text] إضافة يدوية
+- 1478 [jsx-text] خصم يدوي
+- 1482 [jsx-text] حفظ
+- 1487 [jsx-text] سجل تدقيق المحفظة
+- 1490 [jsx-text] جاري التحميل...
+- ... 46 more
 
 ### src\modules\sales\pages\InvoicesLegacy.jsx
-- 353 [placeholder] Search invoices...
-- 413 [placeholder] Product
-- 437 [placeholder] Customer
-- 461 [placeholder] Quantity
-- 485 [placeholder] Price
+- 353 [placeholder] ابحث في الفواتير...
+- 413 [placeholder] المنتج
+- 437 [placeholder] العميل
+- 461 [placeholder] الكمية
+- 485 [placeholder] السعر
 - 52 [confirm] Fill all fields
-- 99 [confirm] Delete Invoice?
+- 99 [confirm] حذف الفاتورة؟
 
 ### src\modules\sales\pages\SalesEmployees.jsx
-- 132 [jsx-text] Sales Staff
-- 133 [jsx-text] Sales Staff + Commissions
-- 134 [jsx-text] POS assignment, item-level commission exclusions, reports, and payroll previews.
-- 156 [jsx-text] Commission type
-- 158 [jsx-text] Percent
-- 159 [jsx-text] Fixed
-- 203 [jsx-text] POS commission settings
-- 204 [jsx-text] Controls checkout blocking and fixed commission behavior.
-- 206 [jsx-text] Save settings
-- 214 [jsx-text] Fixed mode
-- 216 [jsx-text] Fixed per invoice
-- 217 [jsx-text] Fixed per item
-- 224 [jsx-text] Employees
-- 247 [jsx-text] Commission report
-- 248 [jsx-text] Item-level net sales with returns and exclusions applied.
-- 250 [jsx-text] Apply filters
-- 270 [jsx-text] Employee
-- 271 [jsx-text] Sales
-- 272 [jsx-text] Invoices
-- 273 [jsx-text] Items
-- 274 [jsx-text] Returns
-- 275 [jsx-text] Net
-- 276 [jsx-text] Commission
-- 299 [jsx-text] Payroll breakdown preview
-- 324 [jsx-text] Loading sales staff...
-- 172 [placeholder] Search products to exclude
-- 93 [toast] Sales employee saved
-- 106 [toast] Sales settings saved
-- 111 [toast] Select an employee for payroll preview
-- 149 [prop-label] Name
-- 151 [prop-label] Code
-- 152 [prop-label] Phone
-- 162 [prop-label] Value
-- 253 [prop-label] Start
-- 254 [prop-label] End
-- 255 [prop-label] Employee
-- 256 [prop-label] Branch ID
-- 259 [prop-label] Sales
-- 260 [prop-label] Invoices
-- 261 [prop-label] Items
-- ... 12 more
+- 250 [jsx-text] 0 && row.earned_commissions
+- 1543 [jsx-text] node server/scripts/employeeWalletSmokeTest.js
+- 789 [toast] Select an employee before saving sales settings
+- 793 [toast] Select a branch for this employee
+- 798 [toast] POS Alias should be 2 to 10 characters
+- 813 [toast] Sales settings saved
+- 827 [toast] Sales settings saved
 
-### src\modules\settings\pages\AppearanceSettings.jsx
-- 202 [jsx-text] Realtime feedback
-- 225 [jsx-text] Volume
-- 240 [jsx-text] Sound theme
-- 268 [title] Enable sounds
-- 274 [title] Critical only
-- 280 [title] Mute AI
-- 286 [title] POS mode
-- 292 [title] Silent hours
-- 298 [title] Browser alerts
-- 254 [prop-label] Silent start
-- 259 [prop-label] Silent end
+### src\modules\settings\pages\SettingsCenter.jsx
+- 359 [jsx-text] Settings Center error
+- 361 [jsx-text] Retry
+- 737 [jsx-text] Settings debug is unavailable
+- 738 [jsx-text] Developer settings are only available to super admin or developer users, or when debug settings are explicitly enabled.
+- 937 [jsx-text] Live homepage preview
+- 957 [jsx-text] Featured collections
+- 958 [jsx-text] Searchable collection selector replacement for the old JSON list.
+- 986 [jsx-text] محفظة Vodafone Cash
+- 987 [jsx-text] تحكم في الاسم الظاهر، الرقم، الشعار، والنص المساعد الذي يظهر للعميل.
+- 995 [jsx-text] نص مساعد
+- 1005 [jsx-text] InstaPay
+- 1006 [jsx-text] أدخل رابط الدفع المباشر وخصص الاسم الظاهر والنص المساعد والشعار.
+- 1013 [jsx-text] رابط الدفع InstaPay
+- 1014 [jsx-text] ضع رابط الدفع المباشر من تطبيق InstaPay
+- 1047 [jsx-text] إعدادات التوافق القديمة
+- 1048 [jsx-text] يُستخدم فقط إذا لم يتم إدخال رابط دفع مباشر.
+- 1056 [jsx-text] نص مساعد
+- 1066 [jsx-text] رسوم تأكيد الشحن
+- 1067 [jsx-text] اضبط الرسوم الظاهرة في خطوة الدفع داخل صفحة إتمام الطلب.
+- 1073 [jsx-text] نص الرسوم
+- 1077 [jsx-text] قيمة الرسوم
+- 1236 [jsx-text] Default shipping provider
+- 1237 [jsx-text] Select the fallback carrier used when a zone has no specific provider.
+- 1354 [jsx-text] Base URL
+- 1358 [jsx-text] API key
+- 1442 [jsx-text] Dropoff
+- 1443 [jsx-text] Pickup
+- 2235 [jsx-text] All governorates
+- 2239 [jsx-text] All providers
+- 2243 [jsx-text] Import Egypt locations
+- 2244 [jsx-text] Export
+- 2262 [jsx-text] Add location
+- 2289 [jsx-text] No locations match the current filters.
+- 2553 [jsx-text] Governorate
+- 2554 [jsx-text] City
+- 2626 [jsx-text] Governorate
+- 2630 [jsx-text] City / Markaz
+- 2634 [jsx-text] District
+- 2638 [jsx-text] Zone
+- 2699 [jsx-text] Shipping Zones - Fullscreen
+- ... 63 more
 
-### src\modules\settings\pages\Currencies.jsx
-- 55 [jsx-text] Currency settings
-- 57 [jsx-text] ERP Currency
-- 64 [jsx-text] Preview
-- 75 [jsx-text] Currency profile
-- 76 [jsx-text] Choose a supported currency or edit the fields directly.
-- 82 [jsx-text] Preset
-- 88 [jsx-text] Custom
-- 98 [jsx-text] Currency code
-- 108 [jsx-text] Currency symbol
-- 118 [jsx-text] Locale
-- 131 [jsx-text] Stored value
-- 137 [jsx-text] Supported currencies
-- 122 [placeholder] ar-EG
-- 34 [toast] Currency code, symbol, and locale are required
-- 39 [toast] Currency settings saved
-- 45 [toast] Currency reset to default
+### src\modules\shipping\pages\ShippingCenter.jsx
+- 94 [jsx-text] Shipment Drawer
+- 122 [jsx-text] Address
+- 125 [jsx-text] Print Label
+- 129 [jsx-text] Shipping Timeline
+- 136 [jsx-text] No timeline events yet.
+- 140 [jsx-text] Webhook Events
+- 147 [jsx-text] No webhook events received.
+- 256 [jsx-text] Operations
+- 257 [jsx-text] Shipping Center
+- 258 [jsx-text] Centralized shipment operations for Bosta and future providers with status monitoring, bulk actions, webhook timelines, and analytics.
+- 261 [jsx-text] Table View
+- 262 [jsx-text] Board View
+- 263 [jsx-text] Refresh
+- 272 [jsx-text] Delivery Success Rate
+- 273 [jsx-text] Return Rate
+- 274 [jsx-text] Average Delivery Time
+- 275 [jsx-text] Orders Per Provider
+- 276 [jsx-text] Orders Per City
+- 286 [jsx-text] All providers
+- 287 [jsx-text] All branches
+- 288 [jsx-text] All shipping statuses
+- 289 [jsx-text] All payment statuses
+- 290 [jsx-text] COD / Prepaid
+- 290 [jsx-text] Prepaid
+- 295 [jsx-text] Create Shipments
+- 296 [jsx-text] Refresh Status
+- 297 [jsx-text] Print Labels
+- 298 [jsx-text] Mark Ready
+- 299 [jsx-text] Export CSV
+- 334 [jsx-text] No shipments match the current filters.
+- 284 [placeholder] Search order, customer, phone, tracking...
+- 211 [toast] Select shipments first
 
 ### src\modules\smartWarehouse\pages\SmartWarehouse.jsx
 - 319 [jsx-text] Active section
@@ -1208,39 +1779,39 @@ Resolved blockers:
 - 392 [prop-label] Warehouse
 - ... 5 more
 
+### src\modules\warehouse\pages\WarehouseLivePicks.jsx
+- 354 [jsx-text] alertKey(item) === alertKey(incoming) && alertAgeMs(item, now)
+- 434 [jsx-text] التقاط المخزن المباشر
+- 560 [jsx-text] بانتظار أول سحب من الـ POS
+- 561 [jsx-text] التنبيه سيظهر مباشرة بعد "إضافة للفاتورة" بدون أي إجراءات يدوية.
+- 538 [prop-label] اللون
+- 539 [prop-label] كود الأرتكل
+- 540 [prop-label] اسم المصنع
+- 544 [prop-label] البائع
+- 545 [prop-label] الوقت
+
 ### src\modules\website\pages\WebsiteSettings.jsx
-- 110 [jsx-text] Website Settings
-- 134 [jsx-text] Storefront Pricing Settings
-- 153 [jsx-text] Enable fake compare price
-- 154 [jsx-text] Show generated old prices on storefront cards and product pages.
-- 165 [jsx-text] Fake compare percent
-- 177 [jsx-text] Rounding mode
-- 183 [jsx-text] none
-- 184 [jsx-text] nearest_10
-- 185 [jsx-text] nearest_50
-- 186 [jsx-text] nearest_100
-- 195 [jsx-text] Existing Sale Prices
-- 221 [jsx-text] Sale label
-- 230 [jsx-text] Active indicator
-- 258 [jsx-text] Minimum price protection
-- 259 [jsx-text] Prevent global sale prices from going below cost plus margin.
-- 269 [jsx-text] Minimum margin percent
-- 283 [jsx-text] Next configuration fields
-- 225 [placeholder] Summer Sale
-- 248 [placeholder] Comma separated
-- 290 [placeholder] Coming soon
-- 71 [toast] Failed to load website settings
-- 93 [toast] Storefront pricing settings saved
+- 608 [jsx-text] Enable fake compare price
+- 609 [jsx-text] Show generated old prices on storefront cards and product pages.
+- 615 [jsx-text] Rounding mode
+- 617 [jsx-text] none
+- 618 [jsx-text] nearest_10
+- 619 [jsx-text] nearest_50
+- 620 [jsx-text] nearest_100
+- 627 [jsx-text] Existing Sale Prices
+- 613 [prop-label] Fake compare percent
 
 ### src\pages\ActivityLogs.jsx
 - 237 [placeholder] Search logs...
 
 ### src\pages\Branches.jsx
-- 479 [jsx-text] Branch attendance
-- 484 [jsx-text] 1. Scan QR
-- 485 [jsx-text] 2. Enter code/phone
-- 486 [jsx-text] 3. Check in/out
-- 743 [title] Branch map preview
+- 514 [jsx-text] Branch attendance
+- 519 [jsx-text] 1. Scan QR
+- 520 [jsx-text] 2. Enter code/phone
+- 521 [jsx-text] 3. Check in/out
+- 792 [title] Branch map preview
+- 450 [toast] Short link copied
+- 453 [toast] Failed to copy short link
 
 ### src\pages\CreateOrder.jsx
 - 329 [placeholder] Customer Name
@@ -1254,47 +1825,10 @@ Resolved blockers:
 - 286 [toast] Failed to create order
 
 ### src\pages\Dashboard.jsx
-- 253 [jsx-text] 0 && resolved.final_price
-- 410 [jsx-text] ERP Control Center
-- 418 [jsx-text] Today
-- 419 [jsx-text] Yesterday
-- 420 [jsx-text] Last 7 days
-- 421 [jsx-text] This month
-- 422 [jsx-text] Custom range
-- 432 [jsx-text] All branches
-- 466 [jsx-text] Existing Sale Prices Active
-- 587 [jsx-text] Getting started today
-- 588 [jsx-text] No sales activity exists for this filter yet. Start from one of the operational shortcuts below.
-- 824 [jsx-text] Payment methods
-- 725 [title] Revenue vs Orders
-- 739 [title] No sales in this range
-- 741 [title] Hourly Sales
-- 751 [title] No hourly activity
-- 777 [title] No activity in this range
-- 805 [title] Low stock products
-- 806 [title] Fast moving products
-- 807 [title] Top sizes sold
-- 808 [title] Top colors sold
-- 832 [title] No payments yet
-- 847 [title] Insights will appear after sales activity
-- 854 [title] No branch sales yet
-- 872 [title] No marketing attribution yet
-- 891 [title] Best selling products
-- 905 [title] No records yet
-- 923 [title] Notifications
-- 928 [title] Low stock alerts
-- 930 [title] Stock is healthy
-- 932 [title] Recent invoices
-- 934 [title] No invoices yet
-- 936 [title] POS sessions
-- 938 [title] No open POS sessions
-- 940 [title] Live stream
-- 651 [aria-label] Trend sparkline
-- 436 [prop-label] Socket
-- 438 [prop-label] Online
-- 449 [prop-label] Open POS
-- 450 [prop-label] Add Product
-- ... 17 more
+- 381 [jsx-text] 0 && resolved.final_price
+- 952 [title] No activity in this range
+- 822 [aria-label] Trend sparkline
+- 822 [prop-label] Trend sparkline
 
 ### src\pages\Login.jsx
 - 147 [placeholder] Email
@@ -1320,167 +1854,212 @@ Resolved blockers:
 - 76 [confirm] Image Uploaded Successfully ✅
 - 84 [confirm] Upload Failed ❌
 
-## pos (120)
+## pos (231)
 
 ### src\modules\pos\components\CartSidebar.jsx
-- 338 [jsx-text] Cart
-- 355 [jsx-text] Cart is empty
-- 356 [jsx-text] Search products or scan a barcode to start selling.
-- 559 [jsx-text] رصيد المحفظة
-- 731 [jsx-text] Facebook
-- 732 [jsx-text] Instagram
-- 733 [jsx-text] Story
-- 734 [jsx-text] TikTok
-- 735 [jsx-text] WhatsApp
-- 833 [jsx-text] Thermal / A4
-- 949 [jsx-text] فاتورة بيع
-- 969 [jsx-text] المنتج
-- 970 [jsx-text] المقاس / اللون
-- 971 [jsx-text] الكمية
-- 972 [jsx-text] السعر
-- 973 [jsx-text] الإجمالي
-- 976 [jsx-text] لا توجد منتجات
-- 1011 [jsx-text] الإجمالي النهائي
-- 1230 [jsx-text] خدمة العملاء
-- 1233 [jsx-text] خدمة العملاء
-- 1007 [prop-label] المجموع الفرعي
-- 1008 [prop-label] الخصم
-- 1009 [prop-label] الخدمة
-- 1016 [prop-label] عدد المنتجات
-- 1017 [prop-label] إجمالي الكمية
-- 1023 [prop-label] المدفوع من المحفظة
-- 1024 [prop-label] المتبقي نقدي/بطاقة
-- 1025 [prop-label] رصيد المحفظة بعد العملية
-- 1205 [prop-label] Coupon Discount
-
-### src\modules\pos\components\ProductAvailabilityModal.jsx
-- 125 [jsx-text] Barcode Shop
-- 170 [jsx-text] Colors
-- 200 [jsx-text] Sizes
-- 240 [jsx-text] Selected variant
-- 163 [prop-label] Brand
-- 164 [prop-label] Category
-- 242 [prop-label] Color
-- 243 [prop-label] Size
-- 245 [prop-label] Barcode
-- 246 [prop-label] Stock
-- 247 [prop-label] Price
+- 884 [jsx-text] عملية شخصية
+- 889 [jsx-text] نوع العملية الشخصية
+- 895 [jsx-text] اختر النوع
+- 896 [jsx-text] هدية / مصروف
+- 897 [jsx-text] سلفة موظف
+- 898 [jsx-text] استخدام شخصي للمالك
+- 902 [jsx-text] ملاحظة
+- 980 [jsx-text] بيع آجل للعميل
+- 1421 [jsx-text] السعر
+- 2662 [jsx-text] 0 && balance
+- 2767 [jsx-text] مسموح بالسالب لهذا الحساب.
+- 2777 [jsx-text] Treasury adjustment
+- 908 [placeholder] اختياري
+- 2797 [placeholder] Recharge amount
+- 2803 [placeholder] Audit note
+- 2745 [title] Recharge / adjustment
+- 2632 [aria-label] Clear payment amount
+- 2744 [aria-label] Recharge treasury account
+- 2784 [aria-label] Close
+- 2704 [toast] Enter a positive recharge amount
+- 2715 [toast] Treasury adjustment recorded
+- 1457 [prop-label] الخصم
+- 1465 [prop-label] إجمالي الأصناف الجديدة
+- 1467 [prop-label] المبلغ المدفوع الآن
+- 1468 [prop-label] رصيد العميل المتبقي / المحفظة
+- 1473 [prop-label] عدد المنتجات
+- 1664 [prop-label] خصم الكوبون
+- 2323 [prop-label] نقدي
+- 2330 [prop-label] Vodafone Cash
+- 2337 [prop-label] InstaPay
+- 2632 [prop-label] Clear payment amount
+- 2744 [prop-label] Recharge treasury account
+- 2784 [prop-label] Close
 
 ### src\modules\pos\components\ProductGrid.jsx
-- 57 [jsx-text] 0) || min
+- 70 [jsx-text] 0) || min
 
 ### src\modules\pos\components\RecentOperationsDrawer.jsx
-- 411 [jsx-text] العمليات الأخيرة
-- 412 [jsx-text] عرض، إعادة طباعة، تعديل، إلغاء، أو مرتجع الفواتير الأخيرة.
-- 632 [jsx-text] مرتجع POS
-- 633 [jsx-text] إنشاء مرتجع / استبدال
-- 636 [jsx-text] إغلاق
-- 656 [jsx-text] سبب المرتجع
-- 682 [jsx-text] طريقة رد المبلغ
-- 705 [jsx-text] اختيار المنتجات المراد إرجاعها
-- 722 [jsx-text] الكمية المرتجعة
-- 790 [jsx-text] تفاصيل الفاتورة
-- 793 [jsx-text] إغلاق
-- 798 [jsx-text] المنتج
-- 799 [jsx-text] الكمية
-- 800 [jsx-text] السعر
-- 801 [jsx-text] الإجمالي الفرعي
-- 818 [jsx-text] لا توجد منتجات في هذه الفاتورة
-- 823 [jsx-text] الإجمالي
-- 828 [jsx-text] سجل الفاتورة
-- 844 [jsx-text] لا يوجد سجل متاح لهذه الفاتورة
-- 424 [placeholder] بحث برقم الفاتورة أو العميل أو الهاتف
-- 675 [placeholder] اكتب السبب
-- 428 [title] تحديث
-- 442 [title] حدث خطأ
-- 444 [title] لا توجد عمليات
-- 405 [aria-label] إغلاق
-- 295 [toast] تم تجهيز الفاتورة للطباعة مرة أخرى
-- 335 [toast] لا يمكن إلغاء فاتورة ملغاة أو مستردة
-- 339 [toast] إلغاء الفواتير متاح للأدمن فقط
-- 346 [toast] تم إلغاء الفاتورة وإرجاع المخزون
-- 357 [toast] لا يمكن عمل مرتجع لهذه الفاتورة
-- 596 [toast] اختر المنتجات المراد إرجاعها
-- 405 [prop-label] إغلاق
-- 513 [prop-label] الدفع
-- 514 [prop-label] الحالة
-- 515 [prop-label] الكاشير
-- 516 [prop-label] التاريخ
-- 526 [prop-label] طباعة مرة أخرى
-- 527 [prop-label] عرض التفاصيل
-- 528 [prop-label] إعادة بيع
-- 529 [prop-label] تعديل الفاتورة
-- ... 3 more
+- 499 [jsx-text] طباعة
+- 505 [jsx-text] الصنف
+- 505 [jsx-text] الكمية
+- 505 [jsx-text] الإجمالي
+- 506 [jsx-text] لا توجد أصناف
+- 646 [jsx-text] العمليات الأخيرة
+- 647 [jsx-text] عرض، إعادة طباعة، تعديل، أو مرتجع الفواتير الأخيرة.
+- 812 [jsx-text] حذف نهائي
+- 813 [jsx-text] سيتم حذف الفاتورة نهائيًا ولا يمكن التراجع عن هذه العملية.
+- 814 [jsx-text] سيتم حذف السجلات المرتبطة واسترجاع المخزون إذا لم يكن مسترجعًا مسبقًا.
+- 822 [jsx-text] اكتب DELETE أو حذف للتأكيد
+- 832 [jsx-text] إلغاء
+- 942 [jsx-text] مرتجع POS
+- 943 [jsx-text] إنشاء مرتجع / استبدال
+- 946 [jsx-text] إغلاق
+- 966 [jsx-text] سبب المرتجع
+- 992 [jsx-text] طريقة رد المبلغ
+- 1010 [jsx-text] اختيار المنتجات المراد إرجاعها
+- 1034 [jsx-text] الكمية المرتجعة
+- 1109 [jsx-text] تفاصيل الفاتورة
+- 1112 [jsx-text] إغلاق
+- 1123 [jsx-text] المنتج
+- 1124 [jsx-text] الكمية
+- 1125 [jsx-text] السعر
+- 1126 [jsx-text] الإجمالي الفرعي
+- 1149 [jsx-text] لا توجد منتجات في هذه الفاتورة
+- 1154 [jsx-text] الإجمالي
+- 1159 [jsx-text] سجل الفاتورة
+- 1175 [jsx-text] لا يوجد سجل متاح لهذه الفاتورة
+- 659 [placeholder] بحث برقم الفاتورة أو العميل أو الهاتف
+- 985 [placeholder] اكتب السبب
+- 663 [title] تحديث
+- 677 [title] حدث خطأ
+- 679 [title] لا توجد عمليات
+- 640 [aria-label] إغلاق
+- 470 [toast] تعذر فتح نافذة الطباعة
+- 515 [toast] تم تجهيز الفاتورة للطباعة مرة أخرى
+- 574 [toast] لا يمكن عمل مرتجع لهذه الفاتورة
+- 595 [toast] اكتب DELETE أو حذف للتأكيد
+- 606 [toast] تم حذف الفاتورة نهائيًا
+- ... 10 more
 
 ### src\modules\pos\pages\POSPro.jsx
-- 2837 [jsx-text] POS Receipt
-- 3230 [jsx-text] SMART POS FILTERS
-- 3234 [jsx-text] اختار من التصنيفات النشطة فقط.
-- 3290 [jsx-text] Brand
-- 3296 [jsx-text] All brands
-- 3306 [jsx-text] Manufacturer
-- 3312 [jsx-text] All manufacturers
-- 3369 [jsx-text] ADD CUSTOMER
-- 3370 [jsx-text] Quick customer creation
-- 3383 [jsx-text] Customer Name
-- 3393 [jsx-text] Phone Number
-- 3462 [jsx-text] Product browser
-- 3463 [jsx-text] Fast add-to-cart grid
-- 3388 [placeholder] Enter customer name
-- 3398 [placeholder] Enter phone number
-- 3241 [title] Close filters
-- 3240 [aria-label] Close filters
-- 1283 [toast] Some cart items are no longer available and were removed.
-- 1285 [toast] Cart quantities were adjusted to live stock.
-- 1383 [toast] This customer cannot be selected because its ID is missing.
-- 2281 [toast] لا توجد منتجات صالحة لإعادة البيع
-- 2953 [toast] PDF preview blocked
-- 2966 [toast] PDF generated
-- 2968 [toast] PDF export failed
-- 3005 [toast] تعذر إنشاء رابط الفاتورة
-- 3043 [toast] No invoice link available
-- 3049 [toast] Invoice link copied
-- 3051 [toast] Unable to copy invoice link
-- 3057 [toast] No invoice link available
-- 3078 [toast] Cart cleared
-- 3240 [prop-label] Close filters
-- 3251 [prop-label] الجنس
-- 3260 [prop-label] نوع المنتج
-- 3269 [prop-label] الستايل
-- 3278 [prop-label] الفئة
-- 4152 [prop-label] Invoices
+- 4886 [jsx-text] Sales Receipt
+- 5540 [jsx-text] Shift report
+- 5556 [jsx-text] Print
+- 5562 [jsx-text] Payment breakdown
+- 5562 [jsx-text] Method
+- 5562 [jsx-text] Count
+- 5562 [jsx-text] Total
+- 5562 [jsx-text] No payments
+- 5563 [jsx-text] Seller performance
+- 5563 [jsx-text] Seller
+- 5563 [jsx-text] Invoices
+- 5563 [jsx-text] Sales
+- 5563 [jsx-text] No seller data
+- 5564 [jsx-text] Top products
+- 5564 [jsx-text] Product
+- 5564 [jsx-text] Qty
+- 5564 [jsx-text] Share
+- 5564 [jsx-text] Total
+- 5564 [jsx-text] No products
+- 5565 [jsx-text] Audit timeline
+- 5565 [jsx-text] Time
+- 5565 [jsx-text] Action
+- 5565 [jsx-text] Reference
+- 5565 [jsx-text] Amount
+- 5565 [jsx-text] No events
+- 5566 [jsx-text] Cashier signature
+- 5566 [jsx-text] Manager signature
+- 5734 [jsx-text] Sale Prices
+- 5798 [jsx-text] Quick customer creation
+- 5811 [jsx-text] Customer name
+- 5821 [jsx-text] Phone number
+- 5838 [jsx-text] Customer came from
+- 5844 [jsx-text] Select source
+- 5845 [jsx-text] Other
+- 5846 [jsx-text] Facebook
+- 5847 [jsx-text] Instagram
+- 5848 [jsx-text] Story
+- 5849 [jsx-text] TikTok
+- 5850 [jsx-text] WhatsApp
+- 5862 [jsx-text] السماح بالعمليات الشخصية
+- ... 107 more
 
-## products (6)
+## products (9)
 
 ### src\modules\products\lib\barcodeLabels.js
-- 361 [aria-label] ${text}
-- 361 [prop-label] ${text}
+- 378 [jsx-text] = 32 && charCode
+- 413 [aria-label] ${text}
+- 413 [prop-label] ${text}
 
 ### src\modules\products\lib\variantBulkSizes.js
 - 34 [jsx-text] 0 ? size
 
+### src\modules\products\pages\BarcodeLabels.jsx
+- 975 [jsx-text] طباعة QR ذكي للمنتج
+
 ### src\modules\products\pages\ProductDetails.jsx
+- 393 [jsx-text] 0 && storedSalePrice
 - 54 [aria-label] ${label}
 - 54 [prop-label] ${label}
 
 ### src\modules\products\pages\ProductsList.jsx
-- 266 [jsx-text] 0 && totalStock
+- 436 [jsx-text] 0 && totalStock
 
-## purchases (6)
+## purchases (32)
 
 ### src\modules\purchases\lib\flowStore.js
-- 485 [jsx-text] Number(variant.stock || 0)
+- 507 [jsx-text] Number(variant.stock || 0)
 
 ### src\modules\purchases\pages\PurchaseOrder.jsx
-- 619 [jsx-text] 0 && salePrice
-- 934 [jsx-text] !item.unit_cost || item.unit_cost
-- 1595 [jsx-text] 0 && salePrice
-- 1925 [jsx-text] 0 && salePrice
+- 1093 [jsx-text] 0 && salePrice
+- 1509 [jsx-text] !item.unit_cost || item.unit_cost
+- 2468 [jsx-text] 0 && salePrice
+- 2854 [jsx-text] تحديد سعر البيع وسعر الخصم وسعر الجملة حسب المنتج أو النموذج.
+- 2871 [jsx-text] الألوان
+- 2875 [jsx-text] المقاسات
+- 2879 [jsx-text] الخيارات
+- 2899 [jsx-text] المنتجات:
+- 2900 [jsx-text] الخيارات:
+- 2901 [jsx-text] تمت:
+- 2970 [jsx-text] 0 && salePrice
+- 1946 [title] طي لوحة المنتج
+- 1988 [title] إغلاق لوحة المنتج
+- 2851 [title] أسعار نموذج المنتج
+- 1925 [aria-label] إغلاق لوحة المنتج
+- 1945 [aria-label] طي لوحة المنتج
+- 1987 [aria-label] إغلاق لوحة المنتج
+- 1925 [prop-label] إغلاق لوحة المنتج
+- 1945 [prop-label] طي لوحة المنتج
+- 1987 [prop-label] إغلاق لوحة المنتج
+- 2885 [prop-label] سعر البيع
+- 2886 [prop-label] سعر الخصم
+- 2887 [prop-label] سعر الجملة
 
 ### src\modules\purchases\pages\ReorderSuggestions.jsx
 - 121 [jsx-text] = 6 && packQty
 
-## shared (59)
+### src\modules\purchases\pages\SupplierStatement.jsx
+- 80 [jsx-text] جاري تحميل كشف الحساب...
+- 145 [jsx-text] حركات الحساب
+- 66 [title] كشف حساب المورد
+- 127 [prop-label] إجمالي المشتريات
+- 128 [prop-label] إجمالي المدفوع
+- 129 [prop-label] الرصيد الافتتاحي
+- 130 [prop-label] الرصيد المستحق
+
+## shared (64)
+
+### src\shared\chat\SharedPortalChat.jsx
+- 428 [jsx-text] 42 && deltaY
+- 608 [jsx-text] لا توجد محادثات حتى الآن.
+
+### src\shared\components\DebugErrorBoundary.jsx
+- 12 [jsx-text] تم تحديث الموقع، برجاء إعادة تحميل الصفحة
+
+### src\shared\components\invoices\OrderInvoiceCard.jsx
+- 178 [prop-label] New items total
+- 180 [prop-label] Amount paid now
+- 181 [prop-label] Remaining customer credit / wallet balance
+
+### src\shared\components\mobile\ResponsiveMobile.jsx
+- 26 [aria-label] Close
+- 26 [prop-label] Close
 
 ### src\shared\components\Sidebar.jsx
 - 28 [jsx-text] ERP PRO
@@ -1490,37 +2069,34 @@ Resolved blockers:
 - 16 [jsx-text] Product
 
 ### src\shared\layouts\MainLayout.jsx
-- 163 [jsx-text] Workspace
-- 178 [jsx-text] ERP PRO
-- 300 [jsx-text] Store
-- 289 [title] Store
-- 25 [aria-label] Notifications unavailable
-- 145 [aria-label] Close sidebar
-- 170 [aria-label] Close sidebar
-- 268 [aria-label] Open menu
-- 290 [aria-label] Open Store
-- 329 [aria-label] Logout
-- 25 [prop-label] Notifications unavailable
-- 145 [prop-label] Close sidebar
-- 170 [prop-label] Close sidebar
-- 268 [prop-label] Open menu
-- 290 [prop-label] Open Store
-- 329 [prop-label] Logout
+- 200 [jsx-text] Math.max(query.length, token.length)
+- 547 [jsx-text] مساحة العمل
+- 565 [jsx-text] لوحة المؤسسة
+- 728 [jsx-text] لوحة المؤسسة
+- 749 [jsx-text] المتجر
+- 585 [placeholder] ابحث في الوحدات...
+- 738 [title] المتجر
+- 352 [aria-label] الإشعارات
+- 739 [aria-label] فتح المتجر
+- 785 [aria-label] تسجيل الخروج
+- 352 [prop-label] الإشعارات
+- 739 [prop-label] فتح المتجر
+- 785 [prop-label] تسجيل الخروج
 
 ### src\shared\lib\saleMode.js
 - 57 [jsx-text] 0 && sale
 - 134 [jsx-text] 0 && discounted
 
 ### src\shared\notifications\NotificationBell.jsx
-- 345 [jsx-text] Could not load notifications
-- 382 [jsx-text] No notifications
-- 153 [title] Unread
-- 270 [aria-label] Open notifications
-- 283 [aria-label] Close notifications
-- 314 [aria-label] Close notifications
-- 270 [prop-label] Open notifications
-- 283 [prop-label] Close notifications
-- 314 [prop-label] Close notifications
+- 338 [jsx-text] تعذر تحميل الإشعارات
+- 375 [jsx-text] لا توجد إشعارات
+- 158 [title] غير مقروء
+- 263 [aria-label] فتح الإشعارات
+- 276 [aria-label] إغلاق الإشعارات
+- 307 [aria-label] إغلاق الإشعارات
+- 263 [prop-label] فتح الإشعارات
+- 276 [prop-label] إغلاق الإشعارات
+- 307 [prop-label] إغلاق الإشعارات
 
 ### src\shared\utils\colorNameFromImage.js
 - 64 [jsx-text] rgbToHsl(rgb).s
@@ -1553,26 +2129,45 @@ Resolved blockers:
 - 905 [jsx-text] candidate.brightness
 - 930 [jsx-text] cluster && (brightnessOf(cluster.rgb)
 
-## storefront (20)
+## storefront (36)
+
+### src\storefront\pages\StorefrontProductDetailPage.jsx
+- 430 [jsx-text] selectedSellingPrice ?
+- 432 [jsx-text] 0 && Number(activeVariant.stock || 0)
+- 495 [jsx-text] 0 && Number(activeVariant.stock || 0)
 
 ### src\storefront\Storefront.jsx
-- 566 [jsx-text] 0 && sale
-- 570 [jsx-text] 0 && now
-- 1022 [jsx-text] = 1 && stock
-- 1026 [jsx-text] 0 && totalStock
-- 2617 [jsx-text] MONÉ
-- 2800 [jsx-text] (current
-- 3461 [jsx-text] featured
-- 3770 [jsx-text] LAST PIECE FINDER
-- 5171 [jsx-text] 0 && Number(variant.stock || 0)
-- 6610 [jsx-text] US Men
-- 6611 [jsx-text] US Women
-- 6777 [jsx-text] index
-- 7374 [jsx-text] item.price ?
-- 2263 [placeholder] 01xxxxxxxxx
-- 7114 [aria-label] WhatsApp
-- 7115 [aria-label] Instagram
-- 7116 [aria-label] Facebook
-- 7114 [prop-label] WhatsApp
-- 7115 [prop-label] Instagram
-- 7116 [prop-label] Facebook
+- 1049 [jsx-text] 0 && purchaseSalePrice
+- 1807 [jsx-text] 0 && sale
+- 1833 [jsx-text] = 1 && stock
+- 1837 [jsx-text] 0 && totalStock
+- 2199 [jsx-text] 0 && salePrice
+- 2200 [jsx-text] 0 && salePrice
+- 3701 [jsx-text] (current
+- 3984 [jsx-text] 0 && productStock(product)
+- 4943 [jsx-text] العلامات التجارية
+- 5340 [jsx-text] LAST PIECE FINDER
+- 8207 [jsx-text] US Men
+- 8208 [jsx-text] US Women
+- 8374 [jsx-text] index
+- 9235 [jsx-text] item.price ?
+- 3139 [placeholder] 01xxxxxxxxx
+- 6402 [title] إغلاق
+- 4196 [aria-label] Previous slide
+- 4199 [aria-label] Next slide
+- 6403 [aria-label] إغلاق اختيار المقاس
+- 8958 [aria-label] WhatsApp
+- 8959 [aria-label] Instagram
+- 8960 [aria-label] Facebook
+- 4196 [prop-label] Previous slide
+- 4199 [prop-label] Next slide
+- 5114 [prop-label] This week
+- 5116 [prop-label] Nike edit
+- 5119 [prop-label] Jordan edit
+- 5122 [prop-label] Adidas edit
+- 6403 [prop-label] إغلاق اختيار المقاس
+- 7944 [prop-label] تم الدفع وإرفاق الإيصال
+- 8958 [prop-label] WhatsApp
+- 8959 [prop-label] Instagram
+- 8960 [prop-label] Facebook
+

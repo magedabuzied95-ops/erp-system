@@ -1,6 +1,6 @@
 import { ORDER_LIFECYCLE_STATUSES, ORDER_STATUS_LABELS } from "./orderStatus.js";
 import { defaultEgyptShippingLocations } from "./egyptShippingLocations.js";
-import { BARCODE_PRINT_DEFAULTS } from "./barcodePrintSettings.js";
+import { BARCODE_PRINT_DEFAULTS, DISPLAY_REFILL_BARCODE_DEFAULTS } from "./barcodePrintSettings.js";
 
 const label = (en, ar) => ({ en, ar });
 
@@ -90,6 +90,10 @@ const definitions = [
   ["general.barcode_print_show_price", "general", "boolean", BARCODE_PRINT_DEFAULTS.showPrice, "Show price", "إظهار السعر", "Display the sale price on the barcode label.", "إظهار السعر داخل ملصق الباركود.", { usedBy: ["Barcode Labels"] }],
   ["general.barcode_print_show_sku_article", "general", "boolean", BARCODE_PRINT_DEFAULTS.showSkuArticle, "Show SKU / article", "إظهار SKU / الكود", "Display the SKU or article code on the barcode label.", "إظهار SKU أو كود الصنف داخل الملصق.", { usedBy: ["Barcode Labels"] }],
   ["general.barcode_print_show_size_color", "general", "boolean", BARCODE_PRINT_DEFAULTS.showSizeColor, "Show size / color", "إظهار المقاس / اللون", "Display size and color on the barcode label.", "إظهار المقاس واللون داخل الملصق.", { usedBy: ["Barcode Labels"] }],
+  ["general.barcode_print_default_printer", "general", "text", DISPLAY_REFILL_BARCODE_DEFAULTS.defaultPrinter, "Default barcode printer", "الطابعة الافتراضية للباركود", "Preferred printer name for barcode labels. Browser print still controls the final printer selection.", "اسم الطابعة المفضل لملصقات الباركود. يظل اختيار الطابعة النهائي من خلال نافذة الطباعة في المتصفح.", { validation: { maxLength: 160 }, usedBy: ["Display Shortages", "Barcode Labels"] }],
+  ["general.barcode_print_display_label_size", "general", "select", DISPLAY_REFILL_BARCODE_DEFAULTS.labelSize, "Label size", "مقاس الملصق", "Default label size used when printing from display shortages.", "مقاس الملصق الافتراضي المستخدم عند الطباعة من نواقص العرض.", { options: [option("40x30", "40×30 mm", "40×30 مم"), option("50x30", "50×30 mm", "50×30 مم"), option("50x100", "50×100 mm", "50×100 مم")], usedBy: ["Display Shortages"] }],
+  ["general.barcode_print_display_copies", "general", "number", DISPLAY_REFILL_BARCODE_DEFAULTS.copies, "Number of copies", "عدد النسخ", "How many barcode labels to print for each display shortage item.", "عدد ملصقات الباركود التي تتم طباعتها لكل عنصر من نواقص العرض.", { validation: { min: 1, max: 999 }, usedBy: ["Display Shortages"] }],
+  ["general.barcode_print_auto_print_on_displayed", "general", "boolean", DISPLAY_REFILL_BARCODE_DEFAULTS.autoPrintWhenDisplayed, "Auto print when marking as displayed", "الطباعة التلقائية عند تعليم العنصر كمعروض", "Automatically print barcode labels after the Displayed action succeeds.", "طباعة ملصقات الباركود تلقائيًا بعد نجاح إجراء تم العرض.", { usedBy: ["Display Shortages"] }],
 
   ["orders.order_number_prefix", "orders", "text", "ORD", "Order number prefix", "بادئة رقم الطلب", "Prefix for generated order numbers.", "بادئة أرقام الطلبات."],
   ["orders.invoice_number_prefix", "orders", "text", "INV", "Invoice number prefix", "بادئة رقم الفاتورة", "Prefix for invoice numbers.", "بادئة أرقام الفواتير."],

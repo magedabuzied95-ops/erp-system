@@ -701,7 +701,7 @@ function PurchaseOrder() {
         const editResponse = await api.get(`/purchases/${editPurchaseId}`);
         const loadedPurchase = normalizePurchase(editResponse?.purchase || editResponse?.data || {});
         if (!loadedPurchase?.id && !loadedPurchase?.purchase_number && !loadedPurchase?.invoice_number) {
-          throw new Error(t("purchases.details.notFoundSubtitle", "Purchase invoice was not found."));
+          throw new Error(t("purchases.details.notFoundSubtitle", "لم يتم العثور على فاتورة الشراء."));
         }
         setEditPurchase(loadedPurchase);
         setSupplierId(loadedPurchase.supplier_id ? String(loadedPurchase.supplier_id) : "");
@@ -1193,8 +1193,8 @@ function PurchaseOrder() {
           line_id: variant.line_id,
           variant,
           product_name: variant.product_name,
-          color: variant.color || "Default",
-          size: variant.size || "One size",
+          color: variant.color || "افتراضي",
+          size: variant.size || "مقاس واحد",
           currentQty: existing ? money(existing.quantity) : 0,
           savedQty,
           newQty: savedQty,
@@ -1922,7 +1922,7 @@ function PurchaseOrder() {
               setProductPanelExpanded(false);
               setProductPickerOpen(false);
             }}
-            aria-label="Close product panel"
+            aria-label="إغلاق لوحة المنتج"
           />
         ) : null}
 
@@ -1942,8 +1942,8 @@ function PurchaseOrder() {
                 setProductPickerOpen(false);
               }}
               className="fixed right-6 top-6 z-[60] inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-zinc-950/95 text-white shadow-2xl shadow-black/40 transition hover:bg-white/10 sm:right-8 sm:top-8"
-              aria-label="Collapse product panel"
-              title="Collapse product panel"
+              aria-label="طي لوحة المنتج"
+              title="طي لوحة المنتج"
             >
               <Minimize2 className="h-4 w-4" />
             </button>
@@ -1971,8 +1971,8 @@ function PurchaseOrder() {
                     setProductPickerOpen(false);
                   }}
                   className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-white"
-                  aria-label={productPanelExpanded ? "Collapse product panel" : "Expand product panel"}
-                  title={productPanelExpanded ? "Collapse product panel" : "Expand product panel"}
+                  aria-label={productPanelExpanded ? "طي لوحة المنتج" : "توسيع لوحة المنتج"}
+                  title={productPanelExpanded ? "طي لوحة المنتج" : "توسيع لوحة المنتج"}
                 >
                   {productPanelExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                 </button>
@@ -1984,8 +1984,8 @@ function PurchaseOrder() {
                       setProductPickerOpen(false);
                     }}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-rose-300/30 hover:bg-rose-400/10 hover:text-white"
-                    aria-label="Close product panel"
-                    title="Close product panel"
+                    aria-label="إغلاق لوحة المنتج"
+                    title="إغلاق لوحة المنتج"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -2356,7 +2356,7 @@ function PurchaseCart({
             className="group inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-2 py-1.5 text-[11px] font-black text-emerald-100 shadow-lg shadow-emerald-950/10 transition hover:border-emerald-300/60 hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <ReceiptText className="h-4 w-4 text-emerald-300" />
-            Bulk Purchase Price
+            سعر شراء جماعي
           </button>
           <button
             type="button"
@@ -2365,7 +2365,7 @@ function PurchaseCart({
             className="group inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-cyan-400/25 bg-cyan-400/10 px-2 py-1.5 text-[11px] font-black text-cyan-100 shadow-lg shadow-cyan-950/10 transition hover:border-cyan-300/60 hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <ShoppingCart className="h-4 w-4 text-cyan-300" />
-            Bulk Selling Price
+            سعر بيع جماعي
           </button>
           <button
             type="button"
@@ -2374,7 +2374,7 @@ function PurchaseCart({
             className="group inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-amber-400/25 bg-amber-400/10 px-2 py-1.5 text-[11px] font-black text-amber-100 shadow-lg shadow-amber-950/10 transition hover:border-amber-300/60 hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Percent className="h-4 w-4 text-amber-300" />
-            Bulk Sale Price
+            سعر خصم جماعي
           </button>
         </div>
         <p className="mt-1.5 text-[11px] leading-4 text-zinc-500">
@@ -2469,33 +2469,19 @@ function CartLine({ item, variants, showCostError = false, onChangeVariant, onUp
   const saleAboveSelling = salePrice > sellingPrice;
   const lineTotal = money(item.quantity) * purchasePrice;
   const numberInputClass = "h-5 w-full bg-transparent text-right text-xs font-semibold text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
-  const labels = isArabic
-    ? {
-        quantity: "الكمية",
-        purchasePrice: "سعر الشراء",
-        sellingPrice: "سعر البيع",
-        salePrice: "سعر السيل",
-        variant: "المتغير",
-        total: "الإجمالي",
-        lastPurchase: "آخر شراء",
-        enterCost: "أدخل سعر الشراء",
-        saleOptional: "اختياري للتخفيضات والعروض",
-        belowCost: "سعر السيل أقل من سعر الشراء",
-        aboveSelling: "سعر السيل أعلى من سعر البيع",
-      }
-    : {
-        quantity: "Quantity",
-        purchasePrice: "Purchase Price",
-        sellingPrice: "Selling Price",
-        salePrice: "Sale Price",
-        variant: "Variant",
-        total: "Total",
-        lastPurchase: "Last purchase",
-        enterCost: "Enter purchase cost",
-        saleOptional: "Optional promo price",
-        belowCost: "Sale price is below purchase price",
-        aboveSelling: "Sale price is above regular selling price",
-      };
+  const labels = {
+    quantity: "الكمية",
+    purchasePrice: "سعر الشراء",
+    sellingPrice: "سعر البيع",
+    salePrice: "سعر الخصم",
+    variant: "المتغير",
+    total: "الإجمالي",
+    lastPurchase: "آخر شراء",
+    enterCost: "أدخل سعر الشراء",
+    saleOptional: "اختياري للتخفيضات والعروض",
+    belowCost: "سعر الخصم أقل من سعر الشراء",
+    aboveSelling: "سعر الخصم أعلى من سعر البيع",
+  };
 
   return (
     <div className="relative rounded-xl border border-white/10 bg-white/[0.035] p-2 transition hover:border-white/15 hover:bg-white/[0.055]">
@@ -2508,7 +2494,7 @@ function CartLine({ item, variants, showCostError = false, onChangeVariant, onUp
         <div className="min-w-0">
           <div className="truncate text-[13px] font-black leading-5 text-white">{item.product_name}</div>
           <div className="truncate text-[10px] font-semibold leading-4 text-zinc-500">
-            {item.barcode || item.sku || "No SKU"} · {item.color || "Default"} / {item.size || "One size"}
+            {item.barcode || item.sku || "بدون SKU"} • {item.color || "افتراضي"} / {item.size || "مقاس واحد"}
           </div>
         </div>
       </div>
@@ -2520,13 +2506,13 @@ function CartLine({ item, variants, showCostError = false, onChangeVariant, onUp
             <select value={item.variant_id || ""} onChange={(event) => onChangeVariant(item.line_id, event.target.value)} className="h-5 w-full bg-transparent text-[11px] font-semibold text-zinc-200 outline-none focus:text-white">
               {variants.map((variant) => (
                 <option key={variant.line_id} value={variant.variant_id || ""}>
-                  {variant.color || "Default"} / {variant.size || "One size"}
+                  {variant.color || "افتراضي"} / {variant.size || "مقاس واحد"}
                 </option>
               ))}
             </select>
           ) : (
             <div className="h-5 truncate text-[11px] font-semibold leading-5 text-zinc-400">
-              {item.color || "Default"} / {item.size || "One size"}
+              {item.color || "افتراضي"} / {item.size || "مقاس واحد"}
             </div>
           )}
         </label>
@@ -2788,8 +2774,8 @@ const modelPricingInitialRows = (items = []) =>
     return {
       product_id: group.product_id,
       product_name: group.product_name,
-      colors: uniqueValues(group.items.map((item) => item.color || "Default")),
-      sizes: uniqueValues(group.items.map((item) => item.size || "One size")),
+      colors: uniqueValues(group.items.map((item) => item.color || "افتراضي")),
+      sizes: uniqueValues(group.items.map((item) => item.size || "مقاس واحد")),
       variants_count: group.items.length,
       selling_price: priceInputValue(first.selling_price ?? first.price),
       sale_price: priceInputValue(first.sale_price),
@@ -2801,11 +2787,11 @@ const validateModelPricingRow = (row) => {
   const sellingPrice = Number(row.selling_price);
   const salePrice = row.sale_price === "" ? null : Number(row.sale_price);
   const wholesalePrice = row.wholesale_price === "" ? null : Number(row.wholesale_price);
-  if (!Number.isFinite(sellingPrice) || sellingPrice <= 0) return "Selling price must be greater than 0.";
-  if (salePrice !== null && (!Number.isFinite(salePrice) || salePrice <= 0)) return "Sale price must be greater than 0.";
-  if (wholesalePrice !== null && (!Number.isFinite(wholesalePrice) || wholesalePrice <= 0)) return "Wholesale price must be greater than 0.";
-  if (salePrice !== null && salePrice > sellingPrice) return "Sale price should not be greater than selling price.";
-  if (wholesalePrice !== null && wholesalePrice > sellingPrice) return "Wholesale price should not be greater than selling price.";
+  if (!Number.isFinite(sellingPrice) || sellingPrice <= 0) return "يجب أن يكون سعر البيع أكبر من 0.";
+  if (salePrice !== null && (!Number.isFinite(salePrice) || salePrice <= 0)) return "يجب أن يكون سعر الخصم أكبر من 0.";
+  if (wholesalePrice !== null && (!Number.isFinite(wholesalePrice) || wholesalePrice <= 0)) return "يجب أن يكون سعر الجملة أكبر من 0.";
+  if (salePrice !== null && salePrice > sellingPrice) return "لا يجب أن يكون سعر الخصم أكبر من سعر البيع.";
+  if (wholesalePrice !== null && wholesalePrice > sellingPrice) return "لا يجب أن يكون سعر الجملة أكبر من سعر البيع.";
   return "";
 };
 
@@ -2862,12 +2848,12 @@ function BulkModelPricingModal({ items = [], onClose, onApply }) {
   };
 
   return (
-    <Modal eyebrow="Bulk pricing" title="Product model prices" onClose={onClose}>
+    <Modal eyebrow="تسعير جماعي" title="أسعار نموذج المنتج" onClose={onClose}>
       <div className="flex max-h-[82vh] flex-col gap-4">
         <div className="rounded-3xl border border-cyan-400/25 bg-cyan-400/10 p-4">
-          <div className="text-sm font-black text-white">Set selling, sale, and wholesale prices by product/model.</div>
+          <div className="text-sm font-black text-white">تحديد سعر البيع وسعر الخصم وسعر الجملة حسب المنتج أو النموذج.</div>
           <p className="mt-2 text-sm leading-6 text-zinc-300">
-            Applying prices updates purchase invoice lines locally only. It does not receive stock.
+            تطبيق الأسعار يحدّث بنود فاتورة الشراء محليًا فقط، ولا ينفّذ الاستلام.
           </p>
         </div>
 
@@ -2882,23 +2868,23 @@ function BulkModelPricingModal({ items = [], onClose, onApply }) {
                       <div className="truncate text-sm font-black text-white">{row.product_name}</div>
                       <div className="mt-2 grid gap-1.5 text-xs font-semibold text-zinc-400 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
                         <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                          <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-600">Colors</div>
-                          <div className="mt-1 truncate text-zinc-200">{summarizeValues(row.colors, "Default")}</div>
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-600">الألوان</div>
+                          <div className="mt-1 truncate text-zinc-200">{summarizeValues(row.colors, "افتراضي")}</div>
                         </div>
                         <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                          <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-600">Sizes</div>
-                          <div className="mt-1 truncate text-zinc-200">{summarizeValues(row.sizes, "One size")}</div>
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-600">المقاسات</div>
+                          <div className="mt-1 truncate text-zinc-200">{summarizeValues(row.sizes, "مقاس واحد")}</div>
                         </div>
                         <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                          <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-600">Variants</div>
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-600">الخيارات</div>
                           <div className="mt-1 text-zinc-200">{row.variants_count}</div>
                         </div>
                       </div>
                     </div>
                     <div className="grid gap-2 sm:grid-cols-3">
-                      <ModelPriceField label="Selling price" value={row.selling_price} required onChange={(value) => setRowField(key, "selling_price", value)} />
-                      <ModelPriceField label="Sale price" value={row.sale_price} onChange={(value) => setRowField(key, "sale_price", value)} />
-                      <ModelPriceField label="Wholesale price" value={row.wholesale_price} onChange={(value) => setRowField(key, "wholesale_price", value)} />
+                      <ModelPriceField label="سعر البيع" value={row.selling_price} required onChange={(value) => setRowField(key, "selling_price", value)} />
+                      <ModelPriceField label="سعر الخصم" value={row.sale_price} onChange={(value) => setRowField(key, "sale_price", value)} />
+                      <ModelPriceField label="سعر الجملة" value={row.wholesale_price} onChange={(value) => setRowField(key, "wholesale_price", value)} />
                     </div>
                   </div>
                   {errors[key] ? <div className="mt-2 rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100">{errors[key]}</div> : null}
@@ -2910,19 +2896,19 @@ function BulkModelPricingModal({ items = [], onClose, onApply }) {
 
         <div className="shrink-0 rounded-2xl border border-white/10 bg-zinc-950/95 p-3">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-zinc-400">
-            <span>Products: <b className="text-white">{productCount}</b></span>
-            <span>Variants: <b className="text-white">{variantsCount}</b></span>
-            <span>Completed: <b className="text-emerald-200">{completedCount}</b> / {productCount}</span>
+            <span>المنتجات: <b className="text-white">{productCount}</b></span>
+            <span>الخيارات: <b className="text-white">{variantsCount}</b></span>
+            <span>تمت: <b className="text-emerald-200">{completedCount}</b> / {productCount}</span>
           </div>
           <div className="grid gap-2 sm:grid-cols-3">
             <button type="button" onClick={apply} className="rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-black text-black transition hover:bg-cyan-300">
-              Apply prices
+              تطبيق الأسعار
             </button>
             <button type="button" onClick={saveAndClose} className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400">
-              Save and close
+              حفظ وإغلاق
             </button>
             <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
-              Close without saving
+              إغلاق دون حفظ
             </button>
           </div>
         </div>
@@ -2943,7 +2929,7 @@ function ModelPriceField({ label, value, required = false, onChange }) {
         step="0.01"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        placeholder={required ? "0.00" : "Optional"}
+        placeholder={required ? "0.00" : "اختياري"}
         className="mt-1 h-9 w-full bg-transparent text-sm font-black text-white outline-none placeholder:text-zinc-700 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         dir="ltr"
       />
@@ -2966,8 +2952,8 @@ function BulkPriceModal({ mode, items = [], onClose, onApply }) {
   const affectedItems = selectedGroups.flatMap((group) => group.items);
   const hasValidValue = Number.isFinite(price) && price >= 0 && value !== "";
   const previewRows = selectedGroups.map((group) => {
-    const colors = uniqueValues(group.items.map((item) => item.color || "Default"));
-    const sizes = uniqueValues(group.items.map((item) => item.size || "One size"));
+    const colors = uniqueValues(group.items.map((item) => item.color || "افتراضي"));
+    const sizes = uniqueValues(group.items.map((item) => item.size || "مقاس واحد"));
     const oldPrices = group.items.map((item) => bulkOldPrice(item, mode));
     const newPrices = hasValidValue ? group.items.map((item) => bulkNewPrice(item, mode, method, price)) : [];
     return {
@@ -3075,13 +3061,13 @@ function BulkPriceModal({ mode, items = [], onClose, onApply }) {
 
         {target === "all" ? (
           <div className="rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-100">
-            This will update all products in this purchase invoice.
+            سيتم تحديث جميع المنتجات في فاتورة الشراء هذه.
           </div>
         ) : null}
 
         <label className="block">
           <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">
-            {isSale && method === "percent" ? "Discount percentage" : isSale && method === "amount" ? "Discount amount" : "Price"}
+            {isSale && method === "percent" ? "نسبة الخصم" : isSale && method === "amount" ? "قيمة الخصم" : "السعر"}
           </div>
           <input
             autoFocus
@@ -3153,21 +3139,21 @@ function RunModal({ mode, initialProduct, productGroups, onClose, onAdd }) {
   const { t } = useTranslation();
   const [productId, setProductId] = useState(String(initialProduct?.product_id || productGroups[0]?.product_id || ""));
   const selected = productGroups.find((group) => String(group.product_id) === String(productId)) || productGroups[0] || null;
-  const colors = Array.from(new Set(toArray(selected?.variants).map((item) => item.color || "Default")));
-  const [color, setColor] = useState(colors[0] || "Default");
+  const colors = Array.from(new Set(toArray(selected?.variants).map((item) => item.color || "افتراضي")));
+  const [color, setColor] = useState(colors[0] || "افتراضي");
   const [expandedColors, setExpandedColors] = useState(() => new Set(colors));
   const [qtyMap, setQtyMap] = useState({});
   const [cartonQty, setCartonQty] = useState(1);
 
   useEffect(() => {
-    const nextColors = Array.from(new Set(toArray(selected?.variants).map((item) => item.color || "Default")));
-    setColor(nextColors[0] || "Default");
+    const nextColors = Array.from(new Set(toArray(selected?.variants).map((item) => item.color || "افتراضي")));
+    setColor(nextColors[0] || "افتراضي");
     setExpandedColors(new Set(nextColors));
     setQtyMap({});
   }, [productId]);
 
   const colorOptions = colors.map((colorName) => {
-    const variants = toArray(selected?.variants).filter((item) => (item.color || "Default") === colorName);
+    const variants = toArray(selected?.variants).filter((item) => (item.color || "افتراضي") === colorName);
     const variant =
       variants.find((item) => firstText(item.variant_image_url, item.color_image, item.color_image_url)) ||
       variants.find((item) => item.image_url) ||
@@ -3182,9 +3168,9 @@ function RunModal({ mode, initialProduct, productGroups, onClose, onAdd }) {
   const visibleColors = mode === "color" || mode === "full" || mode === "carton" ? colors : [color];
   const rows = visibleColors.map((colorName) => ({
     color: colorName,
-    variants: toArray(selected?.variants).filter((item) => (item.color || "Default") === colorName),
+    variants: toArray(selected?.variants).filter((item) => (item.color || "افتراضي") === colorName),
   }));
-  const selectedColorVariants = toArray(selected?.variants).filter((item) => (item.color || "Default") === color);
+  const selectedColorVariants = toArray(selected?.variants).filter((item) => (item.color || "افتراضي") === color);
   const selectedColorVariant = colorOptions.find((option) => String(option.color) === String(color))?.variant || selectedColorVariants[0] || toArray(selected?.variants)[0] || {};
 
   const setAll = (qty) => {

@@ -1,26 +1,37 @@
 import { memo } from "react";
 import { Bot } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export const AIActivityCard = memo(function AIActivityCard({ metrics, events = [], insights = [] }) {
+  const { i18n } = useTranslation();
+  const isArabic = String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar");
+  const copy = {
+    title: isArabic ? "نشاط الذكاء الاصطناعي" : "AI Activity",
+    active: isArabic ? "نشط" : "active",
+    escalations: isArabic ? "التصعيدات" : "Escalations",
+    signals: isArabic ? "الإشارات" : "Signals",
+    fallback: isArabic ? "نشاط دعم الذكاء الاصطناعي" : "AI support activity",
+    empty: isArabic ? "ستظهر محادثات الذكاء الاصطناعي عند تفاعل العملاء." : "AI conversations will appear as customers interact.",
+  };
   const aiEvents = events.filter((event) => event.category === "ai").slice(0, 3);
   return (
     <section className="rounded-2xl border border-white/[0.07] bg-zinc-950/58 p-4 shadow-2xl shadow-black/20 backdrop-blur-2xl">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm font-black text-white"><Bot className="h-4 w-4 text-sky-300" />AI Activity</div>
-        <span className="rounded-full bg-sky-400/10 px-2 py-1 text-[10px] font-black text-sky-100">{metrics.activeAiConversations} active</span>
+        <div className="flex items-center gap-2 text-sm font-black text-white"><Bot className="h-4 w-4 text-sky-300" />{copy.title}</div>
+        <span className="rounded-full bg-sky-400/10 px-2 py-1 text-[10px] font-black text-sky-100">{metrics.activeAiConversations} {copy.active}</span>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <Metric label="Escalations" value={metrics.aiEscalations} />
-        <Metric label="Signals" value={aiEvents.length || insights.length} />
+        <Metric label={copy.escalations} value={metrics.aiEscalations} />
+        <Metric label={copy.signals} value={aiEvents.length || insights.length} />
       </div>
       <div className="mt-3 space-y-2">
         {(aiEvents.length ? aiEvents : insights.slice(0, 3)).map((item, index) => (
           <div key={`${item.title}-${index}`} className="rounded-xl bg-white/[0.035] px-3 py-2">
             <div className="truncate text-xs font-black text-white">{item.title}</div>
-            <div className="mt-1 line-clamp-2 text-xs text-zinc-500">{item.description || item.body || "AI support activity"}</div>
+            <div className="mt-1 line-clamp-2 text-xs text-zinc-500">{item.description || item.body || copy.fallback}</div>
           </div>
         ))}
-        {!aiEvents.length && !insights.length ? <Empty text="AI conversations will appear as customers interact." /> : null}
+        {!aiEvents.length && !insights.length ? <Empty text={copy.empty} /> : null}
       </div>
     </section>
   );

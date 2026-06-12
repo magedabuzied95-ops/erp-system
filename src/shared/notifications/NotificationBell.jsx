@@ -23,17 +23,17 @@ import useDismissableLayer from "../hooks/useDismissableLayer";
 import AnimatedBadgeCounter from "../../components/feedback/AnimatedBadgeCounter";
 import RealtimeGlowWrapper from "../../components/feedback/RealtimeGlowWrapper";
 
-const groupOrder = ["Today", "Yesterday", "Earlier"];
+const groupOrder = ["اليوم", "الأمس", "الأقدم"];
 
 const moduleLabels = {
-  staff_tasks: "Staff Tasks",
-  orders: "Orders",
-  payments: "Payments",
-  inventory: "Inventory",
-  purchases: "Purchases",
-  employees: "Employees",
-  security: "Security",
-  system: "System",
+  staff_tasks: "مهام الفريق",
+  orders: "الطلبات",
+  payments: "المدفوعات",
+  inventory: "المخزون",
+  purchases: "المشتريات",
+  employees: "الموظفون",
+  security: "الأمان",
+  system: "النظام",
 };
 
 const typeIcon = {
@@ -81,15 +81,15 @@ const iconClass = {
 
 export const relativeTime = (value) => {
   const time = new Date(value || Date.now()).getTime();
-  if (!Number.isFinite(time)) return "Just now";
+  if (!Number.isFinite(time)) return "الآن";
   const diff = Math.max(0, Date.now() - time);
   const minute = 60 * 1000;
   const hour = 60 * minute;
   const day = 24 * hour;
-  if (diff < minute) return "Just now";
-  if (diff < hour) return `${Math.floor(diff / minute)}m ago`;
-  if (diff < day) return `${Math.floor(diff / hour)}h ago`;
-  if (diff < 7 * day) return `${Math.floor(diff / day)}d ago`;
+  if (diff < minute) return "الآن";
+  if (diff < hour) return `منذ ${Math.floor(diff / minute)} د`;
+  if (diff < day) return `منذ ${Math.floor(diff / hour)} س`;
+  if (diff < 7 * day) return `منذ ${Math.floor(diff / day)} ي`;
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(time));
 };
 
@@ -98,9 +98,9 @@ const dayGroup = (value) => {
   const today = new Date();
   const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
   const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-  if (startOfDate === startOfToday) return "Today";
-  if (startOfDate === startOfToday - 86400000) return "Yesterday";
-  return "Earlier";
+  if (startOfDate === startOfToday) return "اليوم";
+  if (startOfDate === startOfToday - 86400000) return "الأمس";
+  return "الأقدم";
 };
 
 const dedupeNotifications = (rows = []) => {
@@ -122,7 +122,7 @@ export function NotificationCard({ notification, onOpen, onAction }) {
   const category = safeNotification.category || "system";
   const Icon = typeIcon[safeNotification.type] || categoryIcon[category] || AlertTriangle;
   const isUnread = !safeNotification.is_read;
-  const moduleLabel = moduleLabels[category] || category || "System";
+  const moduleLabel = moduleLabels[category] || category || "النظام";
   const priority = safeNotification.priority || "medium";
   const hasAction = Boolean(safeNotification.action_url);
   const handleAction = onOpen || onAction;
@@ -149,13 +149,13 @@ export function NotificationCard({ notification, onOpen, onAction }) {
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0">
-              <h3 className="truncate text-sm font-black tracking-tight">{safeNotification.title || "Notification"}</h3>
+              <h3 className="truncate text-sm font-black tracking-tight">{safeNotification.title || "إشعار"}</h3>
               <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                {safeNotification.message || "No additional details were provided."}
+                {safeNotification.message || "لا توجد تفاصيل إضافية متاحة."}
               </p>
             </div>
             {isUnread ? (
-              <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-sky-500 shadow-[0_0_12px_rgba(14,165,233,0.65)] dark:bg-cyan-300" title="Unread" />
+              <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-sky-500 shadow-[0_0_12px_rgba(14,165,233,0.65)] dark:bg-cyan-300" title="غير مقروء" />
             ) : null}
           </div>
 
@@ -176,7 +176,7 @@ export function NotificationCard({ notification, onOpen, onAction }) {
                 className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-slate-950 px-3 text-xs font-black text-white transition hover:bg-slate-800 dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
-                {safeNotification.action_label || "Open"}
+                {safeNotification.action_label || "فتح"}
               </button>
             ) : null}
             {isUnread ? (
@@ -186,7 +186,7 @@ export function NotificationCard({ notification, onOpen, onAction }) {
                 className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 transition hover:border-sky-300 hover:text-sky-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:border-cyan-300/40 dark:hover:text-cyan-100"
               >
                 <Check className="h-3.5 w-3.5" />
-                Mark read
+                وضع كمقروء
               </button>
             ) : null}
           </div>
@@ -235,7 +235,7 @@ export default function NotificationBell() {
 
   const rows = useMemo(() => dedupeNotifications(notifications), [notifications]);
   const grouped = useMemo(() => {
-    const groups = { Today: [], Yesterday: [], Earlier: [] };
+    const groups = { اليوم: [], الأمس: [], الأقدم: [] };
     rows.forEach((item) => {
       groups[dayGroup(item.created_at)].push(item);
     });
@@ -260,7 +260,7 @@ export default function NotificationBell() {
           "relative inline-flex h-11 w-11 items-center justify-center rounded-full border text-[var(--text)] shadow-sm transition duration-200",
           "border-[var(--border)] bg-[var(--card)] hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-lg dark:hover:border-cyan-300/35",
         ].join(" ")}
-        aria-label="Open notifications"
+        aria-label="فتح الإشعارات"
         aria-expanded={open}
       >
         <Bell className="h-5 w-5" />
@@ -273,7 +273,7 @@ export default function NotificationBell() {
             type="button"
             className="absolute inset-0 bg-slate-950/35 backdrop-blur-[2px] transition-opacity"
             onClick={() => setOpen(false)}
-            aria-label="Close notifications"
+            aria-label="إغلاق الإشعارات"
           />
           <aside
             ref={panelRef}
@@ -291,20 +291,20 @@ export default function NotificationBell() {
                 <div className="min-w-0">
                   <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-sky-700 dark:border-cyan-300/20 dark:bg-cyan-300/10 dark:text-cyan-100">
                     <Sparkles className="h-3.5 w-3.5" />
-                    Realtime
+                    مباشر
                   </div>
                   <h2 id="notifications-drawer-title" className="mt-3 text-2xl font-black tracking-tight">
-                    Notifications
+                    الإشعارات
                   </h2>
                   <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                    Task updates, operational alerts, and security events for your account.
+                    آخر التحديثات التشغيلية والتنبيهات الأمنية الخاصة بحسابك.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
                   className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:border-cyan-300/35"
-                  aria-label="Close notifications"
+                  aria-label="إغلاق الإشعارات"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -318,7 +318,7 @@ export default function NotificationBell() {
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-sky-300 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:border-cyan-300/35 dark:hover:text-cyan-100"
                 >
                   <CheckCheck className="h-4 w-4" />
-                  Mark all read
+                  تحديد الكل كمقروء
                 </button>
                 <button
                   type="button"
@@ -326,7 +326,7 @@ export default function NotificationBell() {
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 text-xs font-black text-white transition hover:bg-slate-800 dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200"
                 >
                   <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                  Refresh
+                  تحديث
                 </button>
               </div>
             </div>
@@ -335,14 +335,14 @@ export default function NotificationBell() {
               {error ? (
                 <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-center dark:border-rose-400/25 dark:bg-rose-500/10">
                   <AlertTriangle className="mx-auto h-8 w-8 text-rose-600 dark:text-rose-200" />
-                  <h3 className="mt-3 text-sm font-black">Could not load notifications</h3>
+                  <h3 className="mt-3 text-sm font-black">تعذر تحميل الإشعارات</h3>
                   <p className="mt-2 text-sm text-rose-700 dark:text-rose-100">{error}</p>
                   <button
                     type="button"
                     onClick={() => refresh()}
                     className="mt-4 rounded-xl bg-rose-600 px-4 py-2 text-sm font-black text-white transition hover:bg-rose-500"
                   >
-                    Retry
+                    إعادة المحاولة
                   </button>
                 </div>
               ) : loading && !hasRows ? (
@@ -372,9 +372,9 @@ export default function NotificationBell() {
                   <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-100 text-slate-500 ring-1 ring-slate-200 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10">
                     <Inbox className="h-8 w-8" />
                   </div>
-                  <h3 className="mt-5 text-lg font-black">No notifications</h3>
+                  <h3 className="mt-5 text-lg font-black">لا توجد إشعارات</h3>
                   <p className="mt-2 max-w-xs text-sm leading-6 text-slate-500 dark:text-slate-400">
-                    New Staff Tasks and operational alerts will appear here as they arrive.
+                    ستظهر هنا مهام الفريق والتنبيهات التشغيلية فور وصولها.
                   </p>
                 </div>
               )}

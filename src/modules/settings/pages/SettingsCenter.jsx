@@ -52,7 +52,13 @@ import { api } from "../../../shared/api/api";
 import { getCurrentUser } from "../../../shared/auth/authStorage";
 import { normalizeSettingsCategory, settingsCategories, settingsByCategory, settingsByKey } from "../../../../shared/settingsRegistry.js";
 import { defaultEgyptShippingLocations } from "../../../../shared/egyptShippingLocations.js";
-import { BARCODE_PRINT_DEFAULTS, BARCODE_PRINT_SETTING_KEYS, barcodePrintSettingsToValues } from "../../../../shared/barcodePrintSettings.js";
+import {
+  BARCODE_PRINT_DEFAULTS,
+  BARCODE_PRINT_SETTING_KEYS,
+  DISPLAY_REFILL_BARCODE_DEFAULTS,
+  barcodePrintSettingsToValues,
+  displayRefillBarcodeSettingsToValues,
+} from "../../../../shared/barcodePrintSettings.js";
 
 const copy = {
   en: {
@@ -97,45 +103,45 @@ const copy = {
     close: "Close",
   },
   ar: {
-    title: "Settings Center",
-    subtitle: "Manage your entire ERP from one place.",
-    description: "Manage company, operations, orders, AI and security settings.",
-    search: "Search settings",
-    save: "Save Changes",
-    saving: "Saving",
-    discard: "Discard",
-    preview: "Preview",
-    lastSaved: "Last saved",
-    neverSaved: "Not saved this session",
-    unsaved: "unsaved changes",
-    saved: "Settings saved",
-    loadFailed: "Unable to load settings",
-    saveFailed: "Unable to save settings",
-    empty: "No settings match your search.",
-    advanced: "Advanced / Developer Settings",
-    advancedHint: "Registry audit and raw operational metadata for internal troubleshooting.",
-    protected: "Protected",
-    enabled: "Enabled",
-    disabled: "Disabled",
-    openStore: "Open Store",
-    previewStore: "Preview Store",
-    copyUrl: "Copy URL",
-    testShipping: "Test Shipping",
-    shippingRules: "View Shipping Rules",
-    testAi: "Test AI",
-    openInbox: "Open AI Inbox",
-    modified: "Modified",
-    searchResult: "Jump to",
-    collectionHint: "Type a collection slug and press Enter.",
-    uploadHelper: "Upload support can be connected later.",
-    pasteImageUrl: "Paste image URL",
-    clearImage: "Clear image",
-    imageUnavailable: "Image unavailable",
-    retry: "Retry",
-    apiErrorTitle: "Settings could not be loaded",
-    apiErrorHint: "Check your connection or backend session, then try again.",
-    previewTitle: "Storefront Preview",
-    close: "Close",
+    title: "مركز الإعدادات",
+    subtitle: "إدارة إعدادات النظام بالكامل من شاشة واحدة.",
+    description: "تحكم في إعدادات الشركة والتشغيل والطلبات والذكاء الاصطناعي والأمان.",
+    search: "ابحث في الإعدادات",
+    save: "حفظ التغييرات",
+    saving: "جارِ الحفظ",
+    discard: "تجاهل التغييرات",
+    preview: "معاينة",
+    lastSaved: "آخر حفظ",
+    neverSaved: "لم يتم الحفظ في هذه الجلسة",
+    unsaved: "تغييرات غير محفوظة",
+    saved: "تم حفظ الإعدادات",
+    loadFailed: "تعذر تحميل الإعدادات",
+    saveFailed: "تعذر حفظ الإعدادات",
+    empty: "لا توجد إعدادات مطابقة لعملية البحث.",
+    advanced: "إعدادات متقدمة / المطور",
+    advancedHint: "مراجعة السجل والبيانات التشغيلية الخام لأغراض الدعم الداخلي.",
+    protected: "محمي",
+    enabled: "مفعل",
+    disabled: "معطل",
+    openStore: "فتح المتجر",
+    previewStore: "معاينة المتجر",
+    copyUrl: "نسخ الرابط",
+    testShipping: "اختبار الشحن",
+    shippingRules: "عرض قواعد الشحن",
+    testAi: "اختبار الذكاء الاصطناعي",
+    openInbox: "فتح صندوق الذكاء الاصطناعي",
+    modified: "معدل",
+    searchResult: "انتقال إلى",
+    collectionHint: "اكتب معرف المجموعة ثم اضغط Enter.",
+    uploadHelper: "يمكن ربط ميزة الرفع لاحقاً.",
+    pasteImageUrl: "ألصق رابط الصورة",
+    clearImage: "مسح الصورة",
+    imageUnavailable: "الصورة غير متاحة",
+    retry: "إعادة المحاولة",
+    apiErrorTitle: "تعذر تحميل الإعدادات",
+    apiErrorHint: "تحقق من الاتصال أو جلسة الخادم ثم حاول مرة أخرى.",
+    previewTitle: "معاينة واجهة المتجر",
+    close: "إغلاق",
   },
 };
 
@@ -503,9 +509,12 @@ function SettingsCenterContent({ debugMode = false }) {
 
   const updateValue = (key, value) => setValues((current) => ({ ...current, [key]: value }));
   const resetBarcodePrintDefaults = () => {
-    const nextDefaults = barcodePrintSettingsToValues(BARCODE_PRINT_DEFAULTS);
+    const nextDefaults = {
+      ...barcodePrintSettingsToValues(BARCODE_PRINT_DEFAULTS),
+      ...displayRefillBarcodeSettingsToValues(DISPLAY_REFILL_BARCODE_DEFAULTS),
+    };
     setValues((current) => ({ ...current, ...nextDefaults }));
-    toast.success(language === "ar" ? "طھظ…طھ ط¥ط¹ط§ط¯ط© ط¥ط¹ط¯ط§ط¯ط§طھ ط·ط¨ط§ط¹ط© ط§ظ„ط¨ط§ط±ظƒظˆط¯ ظ„ظ„ظˆط¶ط¹ ط§ظ„ط§ظپطھط±ط§ط¶ظٹ" : "Barcode print settings reset to defaults");
+    toast.success(language === "ar" ? "تمت إعادة إعدادات طباعة الباركود إلى الوضع الافتراضي" : "Barcode print settings reset to defaults");
   };
   const updateHero = (patch) => {
     const current = safeParseJson(values["storefront.homepage_hero"], {});
@@ -514,7 +523,7 @@ function SettingsCenterContent({ debugMode = false }) {
 
   const discard = () => {
     setValues({ ...originalValues });
-    toast.success("Discarded");
+    toast.success(language === "ar" ? "تم تجاهل التغييرات" : "Changes discarded");
   };
 
   const save = async () => {
@@ -853,7 +862,7 @@ function SettingsCenterContent({ debugMode = false }) {
                           className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
                         >
                           <RefreshCw className="h-4 w-4" />
-                          {language === "ar" ? "ط¥ط¹ط§ط¯ط© ط§ظ„ط§ظپطھط±ط§ط¶ظٹ" : "Reset defaults"}
+                          {language === "ar" ? "إعادة الافتراضي" : "Reset defaults"}
                         </button>
                       ) : null}
                     </div>
@@ -1718,46 +1727,46 @@ const shippingUi = {
     headers: ["Governorate", "City / Markaz", "Area / District", "Price", "COD", "Proof", "ETA", "Provider", "Free over", "Min COD", "Active", ""],
   },
   ar: {
-    defaultPrice: "ط³ط¹ط± ط§ظ„ط´ط­ظ† ط§ظ„ط§ظپطھط±ط§ط¶ظٹ",
-    activeZones: "ط§ظ„ظ…ظ†ط§ط·ظ‚ ط§ظ„ظ…ظپط¹ظ„ط©",
-    codZones: "ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…",
-    proofZones: "ظ…ط·ظ„ظˆط¨ ط¥ط«ط¨ط§طھ",
-    freeRules: "ظ‚ظˆط§ط¹ط¯ ط§ظ„ط´ط­ظ† ط§ظ„ظ…ط¬ط§ظ†ظٹ",
-    overviewTitle: "ظ…ظ„ط®طµ ط§ظ„ط´ط­ظ†",
-    overviewDescription: "ط³ط¹ط± ط§ط­طھظٹط§ط·ظٹ ظˆظ‚ظˆط§ط¹ط¯ طھط´ط؛ظٹظ„ ظٹط³طھط®ط¯ظ…ظ‡ط§ ط§ظ„ط¯ظپط¹ ظپظٹ ط§ظ„ظ…طھط¬ط±.",
-    zonesTitle: "ظ…ظ†ط§ط·ظ‚ ط§ظ„ط´ط­ظ†",
-    zonesDescription: "طھط·ط§ط¨ظ‚ ط§ظ„ظ…ظ†ط·ظ‚ط© ط£ظˆظ„ط§طŒ ط«ظ… ط§ظ„ظ…ط¯ظٹظ†ط©/ط§ظ„ظ…ط±ظƒط²طŒ ط«ظ… ط§ظ„ظ…ط­ط§ظپط¸ط©طŒ ط«ظ… ط§ظ„ط³ط¹ط± ط§ظ„ط§ظپطھط±ط§ط¶ظٹ.",
-    codTitle: "ظ‚ظˆط§ط¹ط¯ ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…",
-    codDescription: "ط¥ط¹ط¯ط§ط¯ ط¹ط§ظ… ظ„ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ… ظ…ط¹ ط§ط³طھط«ظ†ط§ط،ط§طھ ظ„ظƒظ„ ظ…ظ†ط·ظ‚ط©.",
-    codBody: "ط§ظ„ط¥ط¹ط¯ط§ط¯ ط§ظ„ط¹ط§ظ… ظ…ظˆط¬ظˆط¯ ظپظٹ ط§ظ„ظ…ط¯ظپظˆط¹ط§طھ. ط§ظ„ط§ط³طھط«ظ†ط§ط،ط§طھ ط­ط³ط¨ ط§ظ„ظ…ظ†ط·ظ‚ط© طھط¸ظ‡ط± ظ…ط¨ط§ط´ط±ط© ط¯ط§ط®ظ„ ط¬ط¯ظˆظ„ ط§ظ„ط´ط­ظ†.",
-    proofTitle: "ظ‚ظˆط§ط¹ط¯ ط¥ط«ط¨ط§طھ ط¯ظپط¹ ط§ظ„ط´ط­ظ†",
-    proofDescription: "ط§ط³طھط®ط¯ظ… ظ…ظپطھط§ط­ ط§ظ„ط¥ط«ط¨ط§طھ ظ„ظƒظ„ ظ…ظ†ط·ظ‚ط© ظ„طھط­ط¯ظٹط¯ ظ‡ظ„ ظ…ط·ظ„ظˆط¨ طµظˆط±ط© طھط­ظˆظٹظ„ ط£ظ… ظ„ط§.",
-    proofBody: "ظ‚ظˆط§ط¹ط¯ ط§ظ„ط¥ط«ط¨ط§طھ ط¯ط§ط®ظ„ ظ…ظ†ط§ط·ظ‚ ط§ظ„ط´ط­ظ† ظ„طھط¨ظ‚ظ‰ ط§ط³طھط«ظ†ط§ط،ط§طھ ط¯ظ…ظٹط§ط· ظˆط§ظ„ظ…ط¯ظ† ظˆط§ظ„ظ…ظ†ط§ط·ظ‚ ظˆط§ط¶ط­ط© ط¨ط¬ط§ظ†ط¨ ط§ظ„ط³ط¹ط±.",
-    providersTitle: "ط´ط±ظƒط§طھ ط§ظ„ط´ط­ظ†",
-    providersDescription: "ط´ط±ظƒط© ط§ظ„ط´ط­ظ† ط§ظ„ط§ظپطھط±ط§ط¶ظٹط© ظˆط¨ظٹط§ظ†ط§طھ ط§ظ„طھظƒط§ظ…ظ„ ظ„ط¥ظ†ط´ط§ط، ط§ظ„ط´ط­ظ†ط§طھ ظ„ط§ط­ظ‚ط§.",
-    search: "ط¨ط­ط« ط¨ط§ظ„ظ…ط­ط§ظپط¸ط© ط£ظˆ ط§ظ„ظ…ط¯ظٹظ†ط© ط£ظˆ ط§ظ„ظ…ظ†ط·ظ‚ط© ط£ظˆ ط§ظ„ط´ط±ظƒط©",
-    allGovernorates: "ط¥ط¶ط§ظپط© ظƒظ„ ظ…ط­ط§ظپط¸ط§طھ ظ…طµط±",
-    addZone: "ط¥ط¶ط§ظپط© ظ…ظ†ط·ظ‚ط©",
-    import: "ط§ط³طھظٹط±ط§ط¯",
-    export: "طھطµط¯ظٹط±",
-    bulk: "طھط­ط¯ظٹط« ط¬ظ…ط§ط¹ظٹ",
-    governorateFilter: "ط§ظ„ظ…ط­ط§ظپط¸ط©",
-    all: "ط§ظ„ظƒظ„",
-    selected: "ظ…ط­ط¯ط¯",
-    quickTitle: "ط¥ط¶ط§ظپط© ط³ط±ظٹط¹ط©",
-    createGovernorate: "ظ…ط­ط§ظپط¸ط© ظپظ‚ط·",
-    createCity: "ظ…ط­ط§ظپط¸ط© + ظ…ط¯ظٹظ†ط©",
-    createArea: "ظ…ط­ط§ظپط¸ط© + ظ…ط¯ظٹظ†ط© + ظ…ظ†ط·ظ‚ط©",
-    bulkPrice: "طھط­ط¯ظٹط¯ ط³ط¹ط± ط§ظ„ظ…ط®طھط§ط±",
-    bulkEstimate: "طھط­ط¯ظٹط¯ ظ…ط¯ط© ط§ظ„طھظˆطµظٹظ„",
-    enableCod: "طھظپط¹ظٹظ„ COD",
-    disableCod: "ط¥ظٹظ‚ط§ظپ COD",
-    requireProof: "ط·ظ„ط¨ ط¥ط«ط¨ط§طھ",
-    skipProof: "ط¨ط¯ظˆظ† ط¥ط«ط¨ط§طھ",
-    deleteSelected: "ط­ط°ظپ ط§ظ„ظ…ط®طھط§ط±",
-    empty: "ظ„ط§ طھظˆط¬ط¯ ظ…ظ†ط§ط·ظ‚ ط´ط­ظ† ظ…ط·ط§ط¨ظ‚ط© ظ„ظ„ظپظ„ط§طھط± ط§ظ„ط­ط§ظ„ظٹط©.",
-    seeded: "طھظ…طھ ط¥ط¶ط§ظپط© ظ…ط­ط§ظپط¸ط§طھ ظ…طµط±",
-    headers: ["ط§ظ„ظ…ط­ط§ظپط¸ط©", "ط§ظ„ظ…ط¯ظٹظ†ط© / ط§ظ„ظ…ط±ظƒط²", "ط§ظ„ظ…ظ†ط·ظ‚ط© / ط§ظ„ط­ظٹ", "ط§ظ„ط³ط¹ط±", "COD", "ط¥ط«ط¨ط§طھ", "ط§ظ„ظ…ط¯ط©", "ط§ظ„ط´ط±ظƒط©", "ظ…ط¬ط§ظ†ظٹ ط¨ط¹ط¯", "ط­ط¯ COD", "ظ…ظپط¹ظ„", ""],
+    defaultPrice: "سعر الشحن الافتراضي",
+    activeZones: "المناطق النشطة",
+    codZones: "مناطق الدفع عند الاستلام",
+    proofZones: "مناطق إثبات الدفع",
+    freeRules: "قواعد الشحن المجاني",
+    overviewTitle: "ملخص الشحن",
+    overviewDescription: "سعر افتراضي وقواعد تشغيل يستخدمها المتجر في خطوة الدفع.",
+    zonesTitle: "مناطق الشحن",
+    zonesDescription: "يتم التطابق حسب المنطقة أولاً، ثم المدينة/المركز، ثم المحافظة، ثم السعر الافتراضي.",
+    codTitle: "قواعد الدفع عند الاستلام",
+    codDescription: "إعداد عام للدفع عند الاستلام مع استثناءات خاصة بكل منطقة.",
+    codBody: "الإعداد العام يوجد في قسم المدفوعات، بينما تظهر الاستثناءات الخاصة بكل منطقة داخل جدول الشحن.",
+    proofTitle: "قواعد إثبات دفع الشحن",
+    proofDescription: "استخدم هذا المفتاح لتحديد ما إذا كانت صورة التحويل مطلوبة لكل منطقة.",
+    proofBody: "تظهر قواعد إثبات الدفع داخل مناطق الشحن حتى تبقى الاستثناءات واضحة بجانب السعر.",
+    providersTitle: "شركات الشحن",
+    providersDescription: "شركة الشحن الافتراضية وبيانات التكامل اللازمة لإنشاء الشحنات لاحقاً.",
+    search: "ابحث بالمحافظة أو المدينة أو المنطقة أو شركة الشحن",
+    allGovernorates: "إضافة كل محافظات مصر",
+    addZone: "إضافة منطقة",
+    import: "استيراد",
+    export: "تصدير",
+    bulk: "تحديث جماعي",
+    governorateFilter: "المحافظة",
+    all: "الكل",
+    selected: "المحدد",
+    quickTitle: "إضافة سريعة",
+    createGovernorate: "محافظة فقط",
+    createCity: "محافظة + مدينة",
+    createArea: "محافظة + مدينة + منطقة",
+    bulkPrice: "تحديث السعر للمحدد",
+    bulkEstimate: "تحديث مدة التوصيل",
+    enableCod: "تفعيل COD",
+    disableCod: "إيقاف COD",
+    requireProof: "إلزام بإثبات",
+    skipProof: "بدون إثبات",
+    deleteSelected: "حذف المحدد",
+    empty: "لا توجد مناطق شحن مطابقة للفلاتر الحالية.",
+    seeded: "تمت إضافة محافظات مصر",
+    headers: ["المحافظة", "المدينة / المركز", "المنطقة / الحي", "السعر", "COD", "إثبات", "المدة", "الشركة", "مجاني بعد", "حد COD", "مفعل", ""],
   },
 };
 

@@ -1,8 +1,11 @@
 import { NavLink } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { Warehouse } from "lucide-react";
 
 function InventoryShell({ title, subtitle, actions, tabs = [], children }) {
+  const { t } = useTranslation();
+
   return (
     <div dir="rtl" className="min-h-screen bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,var(--primary)_10%,transparent),transparent_32%),linear-gradient(180deg,var(--bg)_0%,var(--surface)_100%)] text-right text-[var(--text)]">
       <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-4 px-4 py-4 lg:px-6">
@@ -11,7 +14,7 @@ function InventoryShell({ title, subtitle, actions, tabs = [], children }) {
             <div>
               <div className="flex items-center gap-2 text-[var(--primary)]">
                 <Warehouse className="h-5 w-5" />
-                <span className="text-xs font-semibold uppercase tracking-[0.18em]">مسار المخزون</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.18em]">{t("inventory.title", "Inventory")}</span>
               </div>
               <h1 className="mt-2 text-3xl font-black tracking-tight text-[var(--text)]">{title}</h1>
               <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">{subtitle}</p>

@@ -14,19 +14,12 @@ const roundMoney = (value) => Math.round((Number(value || 0) + Number.EPSILON) *
 const toArray = (value) => (Array.isArray(value) ? value : []);
 
 const typeLabel = (kind, isArabic) => {
-  const labels = isArabic
-    ? {
-        purchase_invoice: "فاتورة شراء",
-        purchase_payment: "سداد شراء",
-        purchase_payment_reversal: "عكس سداد",
-        adjustment: "تسوية",
-      }
-    : {
-        purchase_invoice: "Purchase invoice",
-        purchase_payment: "Purchase payment",
-        purchase_payment_reversal: "Payment reversal",
-        adjustment: "Adjustment",
-      };
+  const labels = {
+    purchase_invoice: "فاتورة شراء",
+    purchase_payment: "سداد شراء",
+    purchase_payment_reversal: "عكس سداد",
+    adjustment: "تسوية",
+  };
   return labels[kind] || kind || (isArabic ? "حركة" : "Transaction");
 };
 
@@ -70,8 +63,8 @@ function SupplierStatement() {
 
   return (
     <FlowShell
-      title={isArabic ? "كشف حساب المورد" : "Supplier Statement"}
-      subtitle={`${supplier.name || "-"} ${supplier.supplier_code ? `· ${supplier.supplier_code}` : ""}`.trim()}
+      title="كشف حساب المورد"
+      subtitle={`${supplier.name || "-"} ${supplier.supplier_code ? `• ${supplier.supplier_code}` : ""}`.trim()}
       tabs={[
         { to: "/purchases", label: isArabic ? "المشتريات" : "Purchases", end: true },
         { to: "/purchases/create", label: isArabic ? "إنشاء فاتورة" : "Create purchase" },
@@ -84,7 +77,7 @@ function SupplierStatement() {
       {loading ? (
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-10 text-center text-zinc-400">
           <Loader2 className="mx-auto h-6 w-6 animate-spin" />
-          <div className="mt-3">{isArabic ? "جاري تحميل كشف الحساب..." : "Loading supplier statement..."}</div>
+          <div className="mt-3">جاري تحميل كشف الحساب...</div>
         </div>
       ) : null}
 
@@ -124,17 +117,17 @@ function SupplierStatement() {
                   className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  {isArabic ? "العودة للموردين" : "Back to suppliers"}
+                  العودة للموردين
                 </Link>
               </div>
             </div>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <StatCard label={isArabic ? "إجمالي المشتريات" : "Total purchases"} value={formatCurrency(totals.total_purchases || 0)} icon={<ReceiptText className="h-4 w-4" />} tone="rose" />
-            <StatCard label={isArabic ? "إجمالي المدفوع" : "Total paid"} value={formatCurrency(totals.total_paid || 0)} icon={<Wallet className="h-4 w-4" />} tone="emerald" />
-            <StatCard label={isArabic ? "الرصيد الافتتاحي" : "Opening balance"} value={formatCurrency(openingBalance)} icon={<FileText className="h-4 w-4" />} tone="blue" />
-            <StatCard label={isArabic ? "الرصيد المستحق" : "Outstanding balance"} value={formatCurrency(finalBalance)} icon={<Wallet className="h-4 w-4" />} tone="amber" />
+            <StatCard label="إجمالي المشتريات" value={formatCurrency(totals.total_purchases || 0)} icon={<ReceiptText className="h-4 w-4" />} tone="rose" />
+            <StatCard label="إجمالي المدفوع" value={formatCurrency(totals.total_paid || 0)} icon={<Wallet className="h-4 w-4" />} tone="emerald" />
+            <StatCard label="الرصيد الافتتاحي" value={formatCurrency(openingBalance)} icon={<FileText className="h-4 w-4" />} tone="blue" />
+            <StatCard label="الرصيد المستحق" value={formatCurrency(finalBalance)} icon={<Wallet className="h-4 w-4" />} tone="amber" />
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
@@ -149,9 +142,9 @@ function SupplierStatement() {
 
           <div className="mt-4 rounded-3xl border border-white/10 bg-zinc-950/80 shadow-2xl shadow-black/10">
             <div className="border-b border-white/10 px-4 py-4">
-              <h3 className="text-2xl font-black text-white">{isArabic ? "حركات الحساب" : "Statement entries"}</h3>
+              <h3 className="text-2xl font-black text-white">حركات الحساب</h3>
               <p className="mt-1 text-sm text-zinc-400">
-                {isArabic ? "الترتيب زمني من الأقدم إلى الأحدث" : "Chronological order from oldest to newest"}
+                الترتيب زمني من الأقدم إلى الأحدث
               </p>
             </div>
             <div className="overflow-x-auto">
@@ -181,7 +174,7 @@ function SupplierStatement() {
                   )) : (
                     <tr>
                       <td colSpan={7} className="px-4 py-10 text-center text-zinc-500">
-                        {isArabic ? "لا توجد حركات مسجلة بعد" : "No statement entries yet"}
+                        لا توجد حركات مسجلة بعد
                       </td>
                     </tr>
                   )}

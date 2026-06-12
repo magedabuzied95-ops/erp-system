@@ -110,7 +110,7 @@ function JournalEntries() {
       setDrawerLoading(true);
       setSelectedEntry({
         id: entryId,
-        entry_number: "Loading...",
+        entry_number: "جارٍ التحميل...",
         lines: [],
       });
       const result = await accountingApi.getJournalEntryDetail(entryId);
@@ -261,8 +261,8 @@ function JournalEntries() {
         { to: "/accounting", label: t("accounting.tabs.dashboard") },
         { to: "/accounting/journal-entries", label: t("accounting.tabs.journal"), end: true },
         { to: "/accounting/accounts", label: t("accounting.tabs.accounts") },
-        { to: "/accounting/general-ledger", label: "General Ledger" },
-        { to: "/accounting/trial-balance", label: "Trial Balance" },
+        { to: "/accounting/general-ledger", label: "دفتر الأستاذ" },
+        { to: "/accounting/trial-balance", label: "ميزان المراجعة" },
         { to: "/accounting/reports", label: t("accounting.tabs.reports") },
         { to: "/accounting/audit-trail", label: t("accounting.tabs.auditTrail") },
       ]}
@@ -279,21 +279,21 @@ function JournalEntries() {
           onClick={() => setActiveTab("list")}
           className={`rounded-2xl px-4 py-2 text-sm font-black transition ${activeTab === "list" ? "bg-cyan-500 text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
         >
-          Journal Entries
+          القيود اليومية
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("manual")}
           className={`rounded-2xl px-4 py-2 text-sm font-black transition ${activeTab === "manual" ? "bg-cyan-500 text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
         >
-          Manual Entry
+          إدخال يدوي
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("preview")}
           className={`rounded-2xl px-4 py-2 text-sm font-black transition ${activeTab === "preview" ? "bg-cyan-500 text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
         >
-          Backfill Preview
+          معاينة الترحيل
         </button>
       </div>
 
@@ -385,7 +385,7 @@ function JournalEntries() {
                           <div className="font-semibold text-white">{entry.entry_number}</div>
                           <div className="mt-1 text-xs text-zinc-500">#{entry.id}</div>
                         </Td>
-                        <Td className="text-right">{entry.reference_type || "manual"}</Td>
+                        <Td className="text-right">{translateReferenceType(entry.reference_type || "manual")}</Td>
                         <Td className="text-right">
                           <div className="max-w-[340px] truncate text-zinc-200">{entry.description || t("accounting.journal.fallbacks.journalEntry")}</div>
                           <div className="mt-1 text-xs text-zinc-500">{entry.notes || t("accounting.common.labels.noNotes")}</div>
@@ -408,13 +408,13 @@ function JournalEntries() {
         <form onSubmit={submitJournalEntry} className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <h3 className="text-xl font-black text-white">Manual Journal Entry</h3>
+              <h3 className="text-xl font-black text-white">قيد يومي يدوي</h3>
               <p className="mt-1 text-sm text-zinc-400">القيد غير المتوازن سيرفض من الباك إند قبل الحفظ.</p>
             </div>
             <div className="grid gap-2 sm:grid-cols-3">
               <MiniStat label="إجمالي المدين" value={formatCurrency(debitPreview)} tone="emerald" />
               <MiniStat label="إجمالي الدائن" value={formatCurrency(creditPreview)} tone="rose" />
-              <MiniStat label="الحالة" value={Math.abs(debitPreview - creditPreview) < 0.01 && debitPreview > 0 ? "Balanced" : "Unbalanced"} tone={Math.abs(debitPreview - creditPreview) < 0.01 && debitPreview > 0 ? "cyan" : "amber"} />
+              <MiniStat label="الحالة" value={Math.abs(debitPreview - creditPreview) < 0.01 && debitPreview > 0 ? "متوازن" : "غير متوازن"} tone={Math.abs(debitPreview - creditPreview) < 0.01 && debitPreview > 0 ? "cyan" : "amber"} />
             </div>
           </div>
 
@@ -494,7 +494,7 @@ function JournalEntries() {
       {activeTab === "preview" ? (
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <div>
-            <h3 className="text-xl font-black text-white">Backfill Preview</h3>
+            <h3 className="text-xl font-black text-white">معاينة الترحيل</h3>
             <p className="mt-1 text-sm text-zinc-400">هذه الشاشة تعرض القيود المقترحة فقط ولا تنفذ أي posting فعلي.</p>
           </div>
 
@@ -502,9 +502,9 @@ function JournalEntries() {
             <Field label="المصدر">
               <select value={previewState.source_type} onChange={(event) => setPreviewState((current) => ({ ...current, source_type: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white outline-none">
                 <option value="">الكل</option>
-                <option value="order">Orders</option>
-                <option value="purchase">Purchases</option>
-                <option value="expense">Expenses</option>
+                <option value="order">الطلبات</option>
+                <option value="purchase">المشتريات</option>
+                <option value="expense">المصروفات</option>
               </select>
             </Field>
             <Field label="من تاريخ">
@@ -554,7 +554,7 @@ function JournalEntries() {
                 <tbody className="divide-y divide-white/10">
                   {previewResult.items.map((item, index) => (
                     <tr key={`${item.source_type}-${item.source_id}-${index}`}>
-                      <Td className="text-right font-semibold text-white">{item.source_type} #{item.source_id}</Td>
+                      <Td className="text-right font-semibold text-white">{translateReferenceType(item.source_type)} #{item.source_id}</Td>
                       <Td className="text-right text-zinc-300">{item.description || "-"}</Td>
                       <Td className="text-right">{item.entry_date ? formatDateTime(item.entry_date) : "-"}</Td>
                       <Td className="text-right font-semibold text-emerald-300">{formatCurrency(item.totals?.debit || 0)}</Td>
@@ -608,7 +608,7 @@ function EntryDrawer({ entry, loading, onClose, t }) {
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
               <DetailStat label={t("accounting.journal.labels.debitTotal")} value={formatCurrency(debitTotal)} tone="emerald" />
               <DetailStat label={t("accounting.journal.labels.creditTotal")} value={formatCurrency(creditTotal)} tone="rose" />
-              <DetailStat label={t("accounting.common.labels.reference")} value={`${entry.reference_type || "manual"} #${entry.reference_id || "-"}`} tone="cyan" />
+              <DetailStat label={t("accounting.common.labels.reference")} value={`${translateReferenceType(entry.reference_type || "manual")} #${entry.reference_id || "-"}`} tone="cyan" />
             </div>
 
             <div className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
@@ -623,7 +623,7 @@ function EntryDrawer({ entry, loading, onClose, t }) {
                   <span className="text-zinc-500">{t("accounting.common.labels.notes")}:</span> {entry.notes || t("accounting.common.labels.noNotes")}
                 </div>
                 <div>
-                  <span className="text-zinc-500">{t("accounting.common.labels.status")}:</span> {entry.status || "posted"}
+                  <span className="text-zinc-500">{t("accounting.common.labels.status")}:</span> {translateStatus(entry.status || "posted")}
                 </div>
               </div>
             </div>
@@ -691,13 +691,32 @@ function FilterChip({ value, onChange, options }) {
 
 function movementTypes() {
   return [
-    { value: "", label: "All" },
-    { value: "purchase", label: "Purchase" },
-    { value: "order", label: "Order" },
-    { value: "return", label: "Return" },
-    { value: "manual", label: "Manual" },
-    { value: "expense", label: "Expense" },
+    { value: "", label: "الكل" },
+    { value: "purchase", label: "شراء" },
+    { value: "order", label: "طلب" },
+    { value: "return", label: "مرتجع" },
+    { value: "manual", label: "يدوي" },
+    { value: "expense", label: "مصروف" },
   ];
+}
+
+function translateReferenceType(type) {
+  const normalized = String(type || "").trim().toLowerCase();
+  if (normalized === "purchase") return "شراء";
+  if (normalized === "order") return "طلب";
+  if (normalized === "return") return "مرتجع";
+  if (normalized === "manual") return "يدوي";
+  if (normalized === "expense") return "مصروف";
+  if (normalized === "inventory") return "مخزون";
+  return "غير معروف";
+}
+
+function translateStatus(status) {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "posted") return "مرحّل";
+  if (normalized === "draft") return "مسودة";
+  if (normalized === "void") return "ملغي";
+  return "غير معروف";
 }
 
 function MiniStat({ label, value, tone = "zinc" }) {

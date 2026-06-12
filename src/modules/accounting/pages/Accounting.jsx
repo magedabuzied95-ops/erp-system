@@ -81,11 +81,11 @@ function Accounting() {
       }
       tabs={[
         { to: "/accounting", label: t("accounting.tabs.dashboard"), end: true },
-        { to: "/accounting/treasury", label: "Treasury" },
+        { to: "/accounting/treasury", label: "الخزينة" },
         { to: "/accounting/journal-entries", label: t("accounting.tabs.journal") },
         { to: "/accounting/accounts", label: t("accounting.tabs.accounts") },
-        { to: "/accounting/general-ledger", label: "General Ledger" },
-        { to: "/accounting/trial-balance", label: "Trial Balance" },
+        { to: "/accounting/general-ledger", label: "دفتر الأستاذ" },
+        { to: "/accounting/trial-balance", label: "ميزان المراجعة" },
         { to: "/accounting/financial-accounts", label: t("accounting.tabs.financialAccounts") },
         { to: "/accounting/payment-method-mappings", label: t("accounting.tabs.paymentMappings") },
         { to: "/accounting/reports", label: t("accounting.tabs.reports") },
@@ -162,10 +162,10 @@ function Accounting() {
               {t("accounting.links.journal")}
             </Link>
             <Link className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/general-ledger">
-              General Ledger
+              دفتر الأستاذ
             </Link>
             <Link className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/accounting/trial-balance">
-              Trial Balance
+              ميزان المراجعة
             </Link>
             <Link className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:bg-white/10" to="/inventory/history">
               {t("accounting.links.inventory")}

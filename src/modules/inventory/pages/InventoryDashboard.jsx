@@ -76,6 +76,15 @@ const getLowStockRowStatus = (stock, threshold) => {
   return { label: "متاح", tone: "safe" };
 };
 
+const formatInventoryStatusLabel = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "active" || normalized === "متاح" || normalized === "نشط") return "نشط";
+  if (normalized === "low" || normalized === "منخفض") return "منخفض";
+  if (normalized === "inbound" || normalized === "incoming" || normalized === "وارد") return "وارد";
+  if (normalized === "out" || normalized === "outbound" || normalized === "صادر") return "صادر";
+  return value || "نشط";
+};
+
 const lowStockStatusPillClasses = {
   critical: "border-rose-300/30 bg-rose-500/15 text-rose-100",
   warning: "border-amber-300/30 bg-amber-500/15 text-amber-100",
@@ -717,7 +726,7 @@ function InventoryDashboard() {
                         <div className="truncate text-sm text-zinc-300"><InlineLtrValue>{variant.sku || "—"}</InlineLtrValue></div>
                         <div className="font-bold text-white"><InlineLtrValue>{variant.stock}</InlineLtrValue></div>
                         <div className="truncate text-sm text-zinc-300"><InlineLtrValue>{formatCurrency(Number(variant.stock || 0) * Number(variant.price || 0))}</InlineLtrValue></div>
-                        <StatusBadge value={low ? t("inventory.status.low") : t("inventory.status.active")} />
+                        <StatusBadge value={low ? formatInventoryStatusLabel(t("inventory.status.low")) : formatInventoryStatusLabel(t("inventory.status.active"))} />
                         <div className="flex justify-end">
                           <Link to={`/inventory/variant/${variant.id}/history`} className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-white">
                             <Clock3 className="h-4 w-4" />
@@ -743,7 +752,7 @@ function InventoryDashboard() {
                       <div className="font-semibold text-white">{warehouse.name}</div>
                       <div className="mt-1 text-xs text-zinc-500">{warehouse.location || t("inventory.labels.notAvailable")}</div>
                     </div>
-                    <StatusBadge value={warehouse.status || t("inventory.status.active")} />
+                    <StatusBadge value={formatInventoryStatusLabel(warehouse.status || t("inventory.status.active"))} />
                   </div>
                 </div>
               ))}
@@ -760,7 +769,7 @@ function InventoryDashboard() {
                       <div className="font-semibold text-white">{movement.product_name || movement.variant_name || t("inventory.tabs.movements")}</div>
                       <div className="mt-1 text-xs text-zinc-500">{formatDateTime(movement.created_at || movement.date)}</div>
                     </div>
-                    <StatusBadge value={movement.direction || t("inventory.status.inbound")} />
+                    <StatusBadge value={formatInventoryStatusLabel(movement.direction || t("inventory.status.inbound"))} />
                   </div>
                 </div>
               ))}
@@ -925,7 +934,7 @@ function InventoryDashboard() {
                             <div className="mt-1 line-clamp-2 text-sm leading-6 text-zinc-300">
                               {isProductTotalAlert
                                 ? `${alertReason || "تنبيه إجمالي المنتج"}: إجمالي المخزون ${totalStock}، وعدد المقاسات النشطة ${activeSizesCount}.`
-                                : `${productName}${alert.size ? ` / size ${alert.size}` : ""}${alert.color ? ` / ${alert.color}` : ""}`}
+                                : `${productName}${alert.size ? ` / المقاس ${alert.size}` : ""}${alert.color ? ` / ${alert.color}` : ""}`}
                             </div>
                           </div>
                           <span className="shrink-0 rounded-full border border-rose-300/30 bg-rose-400/15 px-2.5 py-1 text-[10px] font-black text-rose-100">

@@ -289,9 +289,6 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
                   </span>
                 </button>
               </div>
-              <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">
-                DEBUG: ProductAvailabilityModal CTA render path
-              </div>
               {selectedVariant ? (
                 <div className="mt-3 sm:hidden">
                   <button
@@ -345,18 +342,19 @@ function Info({ label, value, compact = false, className = "" }) {
 }
 
 function StatusBadge({ available, low, compact = false }) {
+  const { t } = useTranslation();
   if (!available) {
     return (
       <span className={`inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-1 text-[10px] font-bold text-red-300 ${compact ? "px-1.5 py-0.5" : ""}`}>
         <AlertTriangle className="h-3 w-3" />
-        <span className={compact ? "sr-only sm:not-sr-only" : ""}>Out</span>
+        <span className={compact ? "sr-only sm:not-sr-only" : ""}>{t("pos.variantSelector.outOfStock", "Out of stock")}</span>
       </span>
     );
   }
 
   return (
     <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${compact ? "px-1.5 py-0.5" : ""} ${low ? "bg-amber-500/10 text-amber-300" : "bg-emerald-500/10 text-emerald-300"}`}>
-      {low ? "Low stock" : "In stock"}
+      {low ? t("pos.variantSelector.lowStock", "Low stock") : t("pos.variantSelector.inStock", "In stock")}
     </span>
   );
 }

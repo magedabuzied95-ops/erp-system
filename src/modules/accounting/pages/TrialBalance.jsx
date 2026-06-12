@@ -72,7 +72,7 @@ function TrialBalance() {
 
   return (
     <AccountingShell
-      title="Trial Balance"
+      title="ميزان المراجعة"
       subtitle="ميزان مراجعة مبني فقط على الحسابات والقيود اليومية وسطور القيود"
       actions={
         <>
@@ -94,12 +94,12 @@ function TrialBalance() {
         </>
       }
       tabs={[
-        { to: "/accounting", label: "Dashboard" },
-        { to: "/accounting/journal-entries", label: "Journal" },
-        { to: "/accounting/accounts", label: "Accounts" },
-        { to: "/accounting/general-ledger", label: "General Ledger" },
-        { to: "/accounting/trial-balance", label: "Trial Balance", end: true },
-        { to: "/accounting/reports", label: "Reports" },
+        { to: "/accounting", label: "لوحة التحكم" },
+        { to: "/accounting/journal-entries", label: "القيود اليومية" },
+        { to: "/accounting/accounts", label: "دليل الحسابات" },
+        { to: "/accounting/general-ledger", label: "دفتر الأستاذ" },
+        { to: "/accounting/trial-balance", label: "ميزان المراجعة", end: true },
+        { to: "/accounting/reports", label: "التقارير" },
       ]}
     >
       <form onSubmit={applyFilters} className="grid gap-3 rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10 md:grid-cols-4">

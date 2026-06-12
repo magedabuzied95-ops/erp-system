@@ -248,16 +248,16 @@ const getPaymentLabel = (mode, paymentSummary = {}) => {
   };
   if (productionLabels[raw]) return productionLabels[raw];
   const labels = {
-    cash: "ظ†ظ‚ط¯ط§ظ‹",
-    card: "ظپظٹط²ط§",
-    visa: "ظپظٹط²ط§",
-    wallet: "ظ…ط­ظپط¸ط©",
-    split: "ظ…طھط¹ط¯ط¯",
+    cash: "نقدًا",
+    card: "فيزا",
+    visa: "فيزا",
+    wallet: "محفظة",
+    split: "متعدد",
     transfer: POS_ARABIC_TEXT.transfer,
     bank_transfer: POS_ARABIC_TEXT.transfer,
     personal: "عملية شخصية",
   };
-  return labels[raw] || (raw ? raw : "ظ†ظ‚ط¯ط§ظ‹");
+  return labels[raw] || (raw ? raw : "نقدًا");
 };
 
 const getSellerName = (customer = {}) => {
@@ -548,8 +548,8 @@ function CartSidebar({
       <div className="theme-card pos-cart-panel flex min-h-0 flex-1 flex-col overflow-hidden p-3 shadow-xl shadow-[var(--shadow)]">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Invoice</div>
-            <h2 className="text-lg font-black text-white">{cart.length} items</h2>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{posLabel("cart.invoice", "Invoice")}</div>
+            <h2 className="text-lg font-black text-white">{cart.length} {posLabel("cart.items", "items")}</h2>
           </div>
           <button
             type="button"
@@ -557,7 +557,7 @@ function CartSidebar({
             className="theme-button-soft px-3 py-2 text-xs"
           >
             <Trash2 className="h-4 w-4" />
-            Clear
+            {posLabel("actions.clear", "Clear")}
           </button>
         </div>
 
@@ -565,8 +565,8 @@ function CartSidebar({
           {cart.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-6 text-center">
               <ReceiptText className="mx-auto h-10 w-10 text-[var(--muted)]" />
-              <p className="mt-3 text-sm font-semibold text-[var(--text)]">Cart is empty</p>
-              <p className="mt-2 text-xs text-[var(--muted)]">Search products or scan a barcode to start selling.</p>
+              <p className="mt-3 text-sm font-semibold text-[var(--text)]">{posLabel("cart.empty", "Cart is empty")}</p>
+              <p className="mt-2 text-xs text-[var(--muted)]">{posLabel("cart.emptyHint", "Search products or scan a barcode to start selling.")}</p>
             </div>
           ) : (
             cart.map((item) => {
@@ -1418,7 +1418,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
           <div>{POS_ARABIC_TEXT.item}</div>
           <div>{POS_ARABIC_TEXT.sizeColor}</div>
           <div className="text-center">{POS_ARABIC_TEXT.quantity}</div>
-          <div className="text-left">ط§ظ„ط³ط¹ط±</div>
+          <div className="text-left">السعر</div>
           <div className="text-left">{POS_ARABIC_TEXT.total}</div>
         </div>
         {cart.length === 0 ? (
@@ -1428,7 +1428,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
             const unitPrice = getReceiptItemUnitPrice(item);
             const lineTotal = getReceiptItemTotal(item);
             const imageSrc = getInvoiceItemImage(item);
-            const variant = [item.size, item.color].filter(Boolean).join(" / ") || "ط؛ظٹط± ظ…ط­ط¯ط¯";
+            const variant = [item.size, item.color].filter(Boolean).join(" / ") || "غير محدد";
 
             return (
               <div key={String(item.key || item.variant_id || item.name)} className="grid grid-cols-[minmax(0,1.5fr)_74px_40px_64px_70px] gap-1 border-b border-zinc-100 px-2 py-2.5 text-[11px] last:border-b-0">
@@ -1454,7 +1454,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
       <section className="mt-2 grid gap-2 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm shadow-zinc-100/70 sm:grid-cols-[1.25fr_0.85fr]">
         <div className="space-y-1.5 text-[12px] sm:border-l sm:border-dashed sm:border-zinc-200 sm:pl-3">
           <SummaryLine label={POS_ARABIC_TEXT.subtotal} value={formatCurrency(totals.subtotal || 0)} />
-          {premiumDiscount > 0 ? <SummaryLine label="ط§ظ„ط®طµظ…" value={`- ${formatCurrency(premiumDiscount)}`} /> : null}
+          {premiumDiscount > 0 ? <SummaryLine label="الخصم" value={`- ${formatCurrency(premiumDiscount)}`} /> : null}
           {premiumService > 0 ? <SummaryLine label={POS_ARABIC_TEXT.service} value={formatCurrency(premiumService)} /> : null}
           <div className="flex items-center justify-between border-t border-zinc-200 pt-2 text-lg font-black text-emerald-700">
             <span>{POS_ARABIC_TEXT.finalTotal}</span>
@@ -1462,15 +1462,15 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
           </div>
           {exchangeMode ? (
             <div className="mt-2 space-y-1 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[11px] font-bold text-zinc-800">
-              <SummaryLine label="New items total" value={formatCurrency(totals.total || 0)} />
-              <SummaryLine label={`Exchange credit from invoice ${exchangeInvoiceNumber || ""}`} value={`- ${formatCurrency(exchangeCreditAmount)}`} />
-              <SummaryLine label="Amount paid now" value={formatCurrency(amountPaidNow)} />
-              {exchangeCustomerCredit > 0 ? <SummaryLine label="Remaining customer credit / wallet balance" value={formatCurrency(exchangeCustomerCredit)} /> : null}
+              <SummaryLine label="إجمالي الأصناف الجديدة" value={formatCurrency(totals.total || 0)} />
+              <SummaryLine label={`رصيد الاستبدال من الفاتورة ${exchangeInvoiceNumber || ""}`} value={`- ${formatCurrency(exchangeCreditAmount)}`} />
+              <SummaryLine label="المبلغ المدفوع الآن" value={formatCurrency(amountPaidNow)} />
+              {exchangeCustomerCredit > 0 ? <SummaryLine label="رصيد العميل المتبقي / المحفظة" value={formatCurrency(exchangeCustomerCredit)} /> : null}
             </div>
           ) : null}
         </div>
         <div className="space-y-1.5 text-[12px]">
-          <MetricLine icon={Package} label="ط¹ط¯ط¯ ط§ظ„ظ…ظ†طھط¬ط§طھ" value={cart.length} />
+          <MetricLine icon={Package} label="عدد المنتجات" value={cart.length} />
           <MetricLine icon={ShoppingBag} label={POS_ARABIC_TEXT.totalQuantity} value={premiumTotalQuantity} />
         </div>
       </section>
@@ -1593,12 +1593,12 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
         <div className="space-y-1.5">
           <ReceiptInfo icon={FileText} label={receiptLabel("invoice", POS_ARABIC_TEXT.invoice)} value={invoiceNumber} />
           <ReceiptInfo icon={User} label={receiptLabel("seller", POS_ARABIC_TEXT.seller)} value={sellerName} />
-          <ReceiptInfo icon={User} label={receiptLabel("customer", "ط§ظ„ط¹ظ…ظٹظ„")} value={customer?.name || receiptLabel("walkIn", "Walk-in Customer")} />
+          <ReceiptInfo icon={User} label={receiptLabel("customer", "العميل")} value={customer?.name || receiptLabel("walkIn", "Walk-in Customer")} />
         </div>
         <div className="space-y-1.5">
-          <ReceiptInfo icon={Star} label={receiptLabel("tier", "ط§ظ„ط¹ط¶ظˆظٹط©")} value={tier} />
+          <ReceiptInfo icon={Star} label={receiptLabel("tier", "العضوية")} value={tier} />
           <ReceiptInfo icon={CreditCard} label={receiptLabel("payment", POS_ARABIC_TEXT.paymentMethod)} value={paymentSummary.paymentStatus} />
-          <ReceiptInfo icon={CalendarDays} label={receiptLabel("date", "ط§ظ„طھط§ط±ظٹط®")} value={receiptDate} />
+          <ReceiptInfo icon={CalendarDays} label={receiptLabel("date", "التاريخ")} value={receiptDate} />
         </div>
       </div>
 
@@ -1606,7 +1606,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
         <div className="grid grid-cols-[1fr_38px_66px_72px] gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">
           <div>{receiptLabel("item", POS_ARABIC_TEXT.item)}</div>
           <div className="text-center">{receiptLabel("qty", POS_ARABIC_TEXT.quantity)}</div>
-          <div className="text-right">{receiptLabel("price", "ط§ظ„ط³ط¹ط±")}</div>
+          <div className="text-right">{receiptLabel("price", "السعر")}</div>
           <div className="text-right">{receiptLabel("total", POS_ARABIC_TEXT.total)}</div>
         </div>
         <div className="mt-1.5 space-y-1.5">
@@ -1660,8 +1660,8 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
       <div className="mt-3 space-y-1.5 text-[13px]">
         <ReceiptTotalRow label={receiptLabel("subtotal", POS_ARABIC_TEXT.subtotal)} value={formatCurrency(totals.subtotal)} />
         <ReceiptTotalRow label={receiptLabel("discounts", POS_ARABIC_TEXT.discounts)} value={`- ${formatCurrency(totals.itemDiscountTotal + totals.invoiceDiscount)}`} />
-        <ReceiptTotalRow label={receiptLabel("loyaltyDiscount", "ط®طµظ… ط§ظ„ظˆظ„ط§ط،")} value={`- ${formatCurrency(totals.loyaltyDiscount || 0)}`} />
-        {Number(totals.couponDiscount || 0) > 0 ? <ReceiptTotalRow label="Coupon Discount" value={`- ${formatCurrency(totals.couponDiscount || 0)}`} /> : null}
+        <ReceiptTotalRow label={receiptLabel("loyaltyDiscount", "خصم الولاء")} value={`- ${formatCurrency(totals.loyaltyDiscount || 0)}`} />
+        {Number(totals.couponDiscount || 0) > 0 ? <ReceiptTotalRow label="خصم الكوبون" value={`- ${formatCurrency(totals.couponDiscount || 0)}`} /> : null}
         <ReceiptTotalRow label={receiptLabel("serviceFee", POS_ARABIC_TEXT.serviceFee)} value={formatCurrency(totals.serviceFee)} />
         <div className="h-px bg-emerald-500" />
         <div className="flex items-end justify-between gap-4 pt-1">
@@ -2320,7 +2320,7 @@ function EditPaymentDifferenceCard({
                 active={String(refundMethod || "").toLowerCase() === "cash"}
                 onClick={() => onRefundMethodChange?.("cash")}
                 icon={<Banknote className="h-4 w-4" />}
-                label="ظ†ظ‚ط¯ظٹ"
+                label="نقدي"
                 tone="green"
               />
               <ModeButton
@@ -2764,8 +2764,8 @@ function PaymentAccountPanel({ status, loading = false, onAdjusted }) {
             <span className="text-zinc-500">{POS_ARABIC_TEXT.account}</span>
             <span className="truncate text-right">{accountName}</span>
           </div>
-          {status.allow_negative_balance && shortage > 0 ? <div className="text-amber-100">ظ…ط³ظ…ظˆط­ ط¨ط§ظ„ط³ط§ظ„ط¨ ظ„ظ‡ط°ط§ ط§ظ„ط­ط³ط§ط¨.</div> : null}
-          {!status.allow_negative_balance && fallback ? <div className="text-emerald-100">ظٹظˆط¬ط¯ ط±طµظٹط¯ ظƒط§ظپ ظپظٹ {fallbackName}</div> : null}
+          {status.allow_negative_balance && shortage > 0 ? <div className="text-amber-100">مسموح بالسالب لهذا الحساب.</div> : null}
+          {!status.allow_negative_balance && fallback ? <div className="text-emerald-100">يوجد رصيد كافٍ في {fallbackName}</div> : null}
         </div>
       </details>
 

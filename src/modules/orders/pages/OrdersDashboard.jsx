@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -239,7 +239,7 @@ const isCodShippingPartial = (order = {}) =>
   isPartialPaymentStatus(order.payment_status || order.paymentStatus) ||
   (isCodPaymentMethod(order) && remainingCodAmount(order) > 0);
 const paymentBadgeValue = (order = {}) =>
-  isCodShippingPartial(order) ? "Partially Paid" : order.paymentStatus || order.payment_status || "Unpaid";
+  isCodShippingPartial(order) ? "مدفوع جزئياً" : order.paymentStatus || order.payment_status || "غير مدفوع";
 const firstValue = (...values) => values.map((value) => text(value)).find(Boolean) || "";
 const numberValue = (...values) => {
   const value = values.find((item) => item !== null && item !== undefined && item !== "");
@@ -303,12 +303,12 @@ const getDateInputValue = (date = new Date()) => {
 const getAttributionLabel = (order = {}) => {
   const source = lower(order.attribution_type || order.marketing_source);
   const platform = lower(order.marketing_platform || order.marketing_source);
-  if (source.includes("instagram") && source.includes("story")) return "Instagram Story";
-  if (source.includes("story")) return "Story";
-  if (platform === "facebook" || source.includes("facebook")) return "Facebook Post";
-  if (platform === "instagram" || source.includes("instagram")) return "Instagram Post";
-  if (platform === "whatsapp" || source.includes("whatsapp")) return "WhatsApp Campaign";
-  if (platform === "tiktok" || source.includes("tiktok")) return "TikTok Campaign";
+  if (source.includes("instagram") && source.includes("story")) return "قصة إنستغرام";
+  if (source.includes("story")) return "قصة";
+  if (platform === "facebook" || source.includes("facebook")) return "منشور فيسبوك";
+  if (platform === "instagram" || source.includes("instagram")) return "منشور إنستغرام";
+  if (platform === "whatsapp" || source.includes("whatsapp")) return "حملة واتساب";
+  if (platform === "tiktok" || source.includes("tiktok")) return "حملة تيك توك";
   if (order.marketing_campaign) return String(order.marketing_campaign);
   return "";
 };
@@ -348,8 +348,8 @@ const getPosDisplay = (order = {}) =>
   );
 const paymentStatusLabels = (language) => ({
   paid: localizedCopy(language, "\u0645\u062f\u0641\u0648\u0639", "Paid"),
-  partially_paid: localizedCopy(language, "\u062c\u0632\u0626\u064a", "Partial"),
-  deferred: localizedCopy(language, "\u0622\u062c\u0644", "Deferred"),
+  partially_paid: localizedCopy(language, "\u062c\u0632\u0626\u064a", "\u062c\u0632\u0626\u064a"),
+  deferred: localizedCopy(language, "\u0622\u062c\u0644", "\u0622\u062c\u0644"),
 });
 const paymentMethodLabels = (language) => ({
   cash: localizedCopy(language, "\u0643\u0627\u0634", "Cash"),
@@ -486,44 +486,44 @@ const isCriticalOrder = (order = {}) => {
 };
 
 const priorityFor = (order = {}) => {
-  if (isCriticalOrder(order)) return { label: "Critical", className: "border-rose-400/35 bg-rose-400/10 shadow-rose-950/20" };
-  if (isClosedOrder(order)) return { label: "Return/cancel", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
-  if (isAwaitingVerification(order)) return { label: "Verify", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
-  if (isDelayedPending(order)) return { label: "Delayed", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
-  if (isHighValue(order)) return { label: "High value", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
+  if (isCriticalOrder(order)) return { label: "حرج", className: "border-rose-400/35 bg-rose-400/10 shadow-rose-950/20" };
+  if (isClosedOrder(order)) return { label: "مرتجع/ملغى", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
+  if (isAwaitingVerification(order)) return { label: "مراجعة", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
+  if (isDelayedPending(order)) return { label: "متأخر", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
+  if (isHighValue(order)) return { label: "قيمة مرتفعة", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
   if (paymentStatusOf(order) === "cod") return { label: "COD", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
-  return { label: "Normal", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
+  return { label: "عادي", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
 };
 
 const buildTimeline = (order = {}) => {
   const items = [
-    { key: "created", label: "Order created", at: order.created_at, done: Boolean(order.created_at), tone: "emerald" },
+    { key: "created", label: "تم إنشاء الطلب", at: order.created_at, done: Boolean(order.created_at), tone: "emerald" },
   ];
   if (getShippingProofRawValue(order)) {
-    items.push({ key: "payment_uploaded", label: "Payment proof uploaded", at: order.created_at, done: true, tone: "amber" });
+    items.push({ key: "payment_uploaded", label: "تم رفع إثبات الدفع", at: order.created_at, done: true, tone: "amber" });
   }
   if (order.shipping_payment_verified_at) {
     const rejected = paymentStatusOf(order) === "rejected" || lower(order.transfer_proof_status) === "rejected";
-    items.push({ key: "payment_verified", label: rejected ? "Payment rejected" : "Payment confirmed", at: order.shipping_payment_verified_at, done: true, tone: rejected ? "rose" : "emerald" });
+    items.push({ key: "payment_verified", label: rejected ? "تم رفض الدفع" : "تم تأكيد الدفع", at: order.shipping_payment_verified_at, done: true, tone: rejected ? "rose" : "emerald" });
   }
   if (["confirmed", "ready_to_ship", "shipment_created", "out_for_delivery", "delivered"].includes(statusOf(order))) {
-    items.push({ key: "confirmed", label: "Order confirmed", at: order.updated_at, done: true, tone: "blue" });
+    items.push({ key: "confirmed", label: "تم تأكيد الطلب", at: order.updated_at, done: true, tone: "blue" });
   }
   const shipping = shippingStatusOf(order);
   if (["ready_to_ship"].includes(shipping) || ["ready_to_ship"].includes(statusOf(order))) {
-    items.push({ key: "ready_to_ship", label: "Ready to ship", at: order.updated_at, done: true, tone: "blue" });
+    items.push({ key: "ready_to_ship", label: "جاهز للشحن", at: order.updated_at, done: true, tone: "blue" });
   }
   if (["shipment_created", "out_for_delivery", "delivered"].includes(shipping) || ["shipment_created", "out_for_delivery", "delivered"].includes(statusOf(order))) {
-    items.push({ key: "shipment_created", label: "Shipment created", at: order.updated_at, done: true, tone: "blue" });
+    items.push({ key: "shipment_created", label: "تم إنشاء الشحنة", at: order.updated_at, done: true, tone: "blue" });
   }
   if (shipping === "delivered" || statusOf(order) === "delivered") {
-    items.push({ key: "delivered", label: "Delivered", at: order.updated_at, done: true, tone: "emerald" });
+    items.push({ key: "delivered", label: "تم التسليم", at: order.updated_at, done: true, tone: "emerald" });
   }
   if (isClosedOrder(order)) {
     const returnedOrRefunded = isReturnedOrRefundedOrder(order);
     items.push({
       key: "closed",
-      label: returnedOrRefunded ? "Returned/refunded" : "Cancelled",
+      label: returnedOrRefunded ? "\u0645\u0631\u062a\u062c\u0639/\u0645\u0633\u062a\u0631\u062f" : "\u0645\u0644\u063a\u0649",
       at: order.cancelled_at || order.returned_at || order.deleted_at || order.updated_at,
       done: true,
       tone: "rose",
@@ -531,7 +531,7 @@ const buildTimeline = (order = {}) => {
     if (order.refund_method) {
       items.push({
         key: "refund_method",
-        label: `Refund method: ${refundMethodLabel(order.refund_method)}`,
+        label: `\u0637\u0631\u064a\u0642\u0629 \u0627\u0644\u0627\u0633\u062a\u0631\u062f\u0627\u062f: ${refundMethodLabel(order.refund_method)}`,
         at: order.returned_at || order.return_completed_at || order.refunded_at || order.updated_at,
         done: true,
         tone: "cyan",
@@ -786,7 +786,7 @@ function OrdersDashboard() {
     if (!permanentDeleteTarget?.id) return;
     const confirmation = permanentDeleteConfirm.trim();
     if (confirmation !== "DELETE" && confirmation !== "حذف") {
-      toast.error(tt(t, "orders.permanentDelete.confirmRequired", "Type DELETE or حذف to confirm."));
+      toast.error(tt(t, "orders.permanentDelete.confirmRequired", "اكتب DELETE أو حذف للتأكيد."));
       return;
     }
     try {
@@ -797,9 +797,9 @@ function OrdersDashboard() {
       if (selectedOrder && String(selectedOrder.id) === String(permanentDeleteTarget.id)) setSelectedOrder(null);
       setPermanentDeleteTarget(null);
       setPermanentDeleteConfirm("");
-      toast.success(tt(t, "orders.permanentDelete.success", "Invoice permanently deleted."));
+      toast.success(tt(t, "orders.permanentDelete.success", "تم حذف الفاتورة نهائياً."));
     } catch (err) {
-      toast.error(err.responseBody?.message || err.message || tt(t, "orders.permanentDelete.failed", "Failed to permanently delete invoice."));
+      toast.error(err.responseBody?.message || err.message || tt(t, "orders.permanentDelete.failed", "تعذر حذف الفاتورة نهائياً."));
     } finally {
       setPermanentDeleting(false);
     }
@@ -845,7 +845,7 @@ function OrdersDashboard() {
       toast.error(t("orders.bulk.selectPhoneFirst"));
       return;
     }
-    const message = encodeURIComponent(t("orders.bulk.whatsappMessage", { order: orderCode(first), status: first.status || "Pending" }));
+    const message = encodeURIComponent(t("orders.bulk.whatsappMessage", { order: orderCode(first), status: first.status || "قيد المراجعة" }));
     window.open(`https://wa.me/${String(phone).replace(/\D/g, "")}?text=${message}`, "_blank", "noreferrer");
   };
 
@@ -1193,15 +1193,15 @@ function RowMenu({ t, order, openOrder, editOrder, cancelOrder, archiveOrder, pe
             />
             <MenuButton icon={<Trash2 className="h-4 w-4" />} label={t("orders.actionsMenu.archiveOrder")} onClick={() => runAction(() => archiveOrder(order))} />
             <MenuButton icon={<FileText className="h-4 w-4" />} label={t("orders.actionsMenu.openDetailsPage")} onClick={() => runAction(() => navigate(`/orders/${order.id}`))} />
-            <MenuButton icon={<Copy className="h-4 w-4" />} label={t("orders.actionsMenu.copyInvoiceLink", "Copy Invoice Link")} onClick={() => runAction(() => {
+            <MenuButton icon={<Copy className="h-4 w-4" />} label={t("orders.actionsMenu.copyInvoiceLink", "نسخ رابط الفاتورة")} onClick={() => runAction(() => {
               copyText(publicInvoiceUrl(order))
-                .then(() => toast.success(t("orders.actionsMenu.invoiceLinkCopied", "Invoice link copied")))
-                .catch(() => toast.error(t("orders.actionsMenu.invoiceLinkCopyFailed", "Unable to copy invoice link")));
+                .then(() => toast.success(t("orders.actionsMenu.invoiceLinkCopied", "\u062a\u0645 \u0646\u0633\u062e \u0631\u0627\u0628\u0637 \u0627\u0644\u0641\u0627\u062a\u0648\u0631\u0629")))
+                .catch(() => toast.error(t("orders.actionsMenu.invoiceLinkCopyFailed", "\u062a\u0639\u0630\u0631 \u0646\u0633\u062e \u0631\u0627\u0628\u0637 \u0627\u0644\u0641\u0627\u062a\u0648\u0631\u0629")));
             })} />
             <div className="my-1 border-t border-white/10" />
             <MenuButton
               icon={<Trash2 className="h-4 w-4" />}
-              label={tt(t, "orders.actionsMenu.permanentDelete", "Permanent Delete")}
+              label={tt(t, "orders.actionsMenu.permanentDelete", "\u062d\u0630\u0641 \u0646\u0647\u0627\u0626\u064a")}
               tone="rose"
               onClick={() => runAction(() => permanentDeleteOrder(order))}
             />
@@ -1362,12 +1362,12 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
           <div className="grid gap-3 sm:grid-cols-2">
             <InfoTile icon={User} label={t("orders.drawer.customer")} value={getCustomerDisplayName(order, t("orders.fallback.walkInCustomer"))} />
             <InfoTile icon={Phone} label={t("orders.drawer.phone")} value={order.customer_phone || t("orders.fallback.noPhone")} />
-            <InfoTile icon={User} label="Seller" value={getSellerDisplayName(order) || "n/a"} />
-            <InfoTile icon={CreditCard} label="Payment" value={`${order.payment_method || "n/a"} · ${paymentBadgeValue(order)}`} />
-            {order.refund_method ? <InfoTile icon={RotateCcw} label="Refund method" value={refundMethodLabel(order.refund_method)} /> : null}
-            <InfoTile icon={Truck} label="Shipping" value={`${order.shipping_provider || "manual"} · ${order.shipping_status || "pending"}`} />
+            <InfoTile icon={User} label="البائع" value={getSellerDisplayName(order) || "غير متاح"} />
+            <InfoTile icon={CreditCard} label="الدفع" value={`${order.payment_method || "غير متاح"} · ${paymentBadgeValue(order)}`} />
+            {order.refund_method ? <InfoTile icon={RotateCcw} label="\u0637\u0631\u064a\u0642\u0629 \u0627\u0644\u0627\u0633\u062a\u0631\u062f\u0627\u062f" value={refundMethodLabel(order.refund_method)} /> : null}
+            <InfoTile icon={Truck} label="الشحن" value={`${order.shipping_provider || "يدوي"} · ${order.shipping_status || "قيد الانتظار"}`} />
             <InfoTile icon={DollarSign} label={t("orders.table.total")} value={formatCurrency(totalValue(order))} />
-            {isEditedPaymentOrder(order) ? <InfoTile icon={Pencil} label="Invoice edit payment" value={`Original paid: ${formatCurrency(editOriginalPaidOf(order))} / Additional paid: ${formatCurrency(editAdditionalPaidOf(order))} / Final total: ${formatCurrency(totalValue(order))}`} /> : null}
+            {isEditedPaymentOrder(order) ? <InfoTile icon={Pencil} label="دفع تعديل الفاتورة" value={`المدفوع الأصلي: ${formatCurrency(editOriginalPaidOf(order))} / المدفوع الإضافي: ${formatCurrency(editAdditionalPaidOf(order))} / الإجمالي النهائي: ${formatCurrency(totalValue(order))}`} /> : null}
             <InfoTile icon={MapPin} label={t("orders.drawer.address")} value={address || t("orders.fallback.noAddress")} />
           </div>
 
@@ -1409,7 +1409,7 @@ function OrderDrawer({ t, order, onClose, updateShippingPayment, navigate, editO
               toast.error(t("orders.bulk.selectPhoneFirst"));
               return;
             }
-            const message = encodeURIComponent(t("orders.bulk.whatsappMessage", { order: orderCode(order), status: order.status || "Pending" }));
+            const message = encodeURIComponent(t("orders.bulk.whatsappMessage", { order: orderCode(order), status: order.status || "قيد المراجعة" }));
             window.open(`https://wa.me/${String(order.customer_phone).replace(/\D/g, "")}?text=${message}`, "_blank", "noreferrer");
           }} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-bold hover:bg-white/10">WhatsApp</button>
           <button type="button" disabled={!isAwaitingVerification(order)} onClick={() => updateShippingPayment(order.id, "confirm")} className="rounded-xl bg-emerald-500 px-3 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45">{t("orders.payment.confirmPay")}</button>
@@ -1434,7 +1434,7 @@ function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate,
       toast.error(t("orders.bulk.selectPhoneFirst"));
       return;
     }
-    const message = encodeURIComponent(t("orders.bulk.whatsappMessage", { order: orderCode(order), status: order.status || "Pending" }));
+    const message = encodeURIComponent(t("orders.bulk.whatsappMessage", { order: orderCode(order), status: order.status || "قيد المراجعة" }));
     window.open(`https://wa.me/${String(order.customer_phone).replace(/\D/g, "")}?text=${message}`, "_blank", "noreferrer");
   };
 
@@ -1458,11 +1458,11 @@ function OrderPreviewPanel({ t, order, onClose, updateShippingPayment, navigate,
         <div className="grid gap-2">
           <InfoTile icon={User} label={t("orders.drawer.customer")} value={customerName} />
           <InfoTile icon={Phone} label={t("orders.drawer.phone")} value={order.customer_phone || t("orders.fallback.noPhone")} />
-          <InfoTile icon={User} label="Seller" value={sellerName || "n/a"} />
-          <InfoTile icon={CreditCard} label="Payment" value={`${order.payment_method || "n/a"} / ${paymentBadgeValue(order)}`} />
-          {order.refund_method ? <InfoTile icon={RotateCcw} label="Refund method" value={refundMethodLabel(order.refund_method)} /> : null}
+          <InfoTile icon={User} label="البائع" value={sellerName || "غير متاح"} />
+          <InfoTile icon={CreditCard} label="الدفع" value={`${order.payment_method || "غير متاح"} / ${paymentBadgeValue(order)}`} />
+          {order.refund_method ? <InfoTile icon={RotateCcw} label="\u0637\u0631\u064a\u0642\u0629 \u0627\u0644\u0627\u0633\u062a\u0631\u062f\u0627\u062f" value={refundMethodLabel(order.refund_method)} /> : null}
           <InfoTile icon={DollarSign} label={t("orders.table.total")} value={formatCurrency(totalValue(order))} />
-          {isEditedPaymentOrder(order) ? <InfoTile icon={Pencil} label="Invoice edit payment" value={`Original paid: ${formatCurrency(editOriginalPaidOf(order))} / Additional paid: ${formatCurrency(editAdditionalPaidOf(order))} / Final total: ${formatCurrency(totalValue(order))}`} /> : null}
+          {isEditedPaymentOrder(order) ? <InfoTile icon={Pencil} label="دفع تعديل الفاتورة" value={`المدفوع الأصلي: ${formatCurrency(editOriginalPaidOf(order))} / المدفوع الإضافي: ${formatCurrency(editAdditionalPaidOf(order))} / الإجمالي النهائي: ${formatCurrency(totalValue(order))}`} /> : null}
           <InfoTile icon={MapPin} label={t("orders.drawer.address")} value={address || t("orders.fallback.noAddress")} />
         </div>
 
@@ -1622,10 +1622,10 @@ function PaidAmountCell({ order }) {
     return (
       <div className="table-cell-stack px-2">
         <div className="truncate text-[10px] font-bold text-zinc-300">
-          Original paid: <CurrencyText value={formatCurrency(editOriginalPaidOf(order))} />
+          المدفوع الأصلي: <CurrencyText value={formatCurrency(editOriginalPaidOf(order))} />
         </div>
         <div className="truncate text-[10px] font-bold text-emerald-200">
-          Additional paid: <CurrencyText value={formatCurrency(editAdditionalPaidOf(order))} />
+          المدفوع الإضافي: <CurrencyText value={formatCurrency(editAdditionalPaidOf(order))} />
         </div>
         {editRefundDueOf(order) > 0 ? (
           <div className="truncate text-[10px] font-bold text-amber-100">
@@ -1750,7 +1750,7 @@ function InfoTile({ icon: Icon, label, value }) {
         <Icon className="h-3.5 w-3.5" />
         {label}
       </div>
-      <div className="mt-2 break-words text-sm font-bold text-white"><CurrencyText value={value || "n/a"} /></div>
+      <div className="mt-2 break-words text-sm font-bold text-white"><CurrencyText value={value || "غير متاح"} /></div>
     </div>
   );
 }
@@ -1834,7 +1834,7 @@ function OrderEditModal({ t, order, saving, onClose, onSave }) {
     setForm({
       customer_name: order.customer_name || "",
       customer_phone: order.customer_phone || "",
-      status: order.status || "Pending",
+      status: order.status || "قيد المراجعة",
       payment_status: order.payment_status || order.paymentStatus || "unpaid",
       source: getOrderSource(order) || order.source || order.channel || "pos",
       channel: getOrderSource(order) || order.channel || order.source || "pos",
@@ -1906,8 +1906,39 @@ function OrderEditModal({ t, order, saving, onClose, onSave }) {
             <EditField label={t("orders.edit.customerName")} value={form.customer_name} onChange={(value) => updateField("customer_name", value)} />
             <EditField label={t("orders.drawer.phone")} value={form.customer_phone} onChange={(value) => updateField("customer_phone", value)} />
             <EditField label={t("orders.edit.branchId")} value={form.branch_id} onChange={(value) => updateField("branch_id", value)} />
-            <EditSelect label={t("orders.table.status")} value={form.status} onChange={(value) => updateField("status", value)} options={["Pending", "Confirmed", "Paid", "Shipped", "Delivered", "Cancelled", "Returned"]} />
-            <EditSelect label={t("orders.edit.paymentStatus")} value={form.payment_status} onChange={(value) => updateField("payment_status", value)} options={["unpaid", "pending", "awaiting_verification", "partially_paid", "paid", "cod", "rejected", "refunded"]} />
+            <EditSelect
+              label={t("orders.table.status")}
+              value={form.status}
+              onChange={(value) => updateField("status", value)}
+              options={["Pending", "Confirmed", "Paid", "Shipped", "Delivered", "Cancelled", "Returned"]}
+              labels={{
+                Pending: "قيد الانتظار",
+                Confirmed: "مؤكد",
+                Paid: "مدفوع",
+                Shipped: "مشحون",
+                Delivered: "تم التسليم",
+                Cancelled: "ملغي",
+                Returned: "مرتجع",
+              }}
+              t={t}
+            />
+            <EditSelect
+              label={t("orders.edit.paymentStatus")}
+              value={form.payment_status}
+              onChange={(value) => updateField("payment_status", value)}
+              options={["unpaid", "pending", "awaiting_verification", "partially_paid", "paid", "cod", "rejected", "refunded"]}
+              labels={{
+                unpaid: "غير مدفوع",
+                pending: "قيد الانتظار",
+                awaiting_verification: "بانتظار المراجعة",
+                partially_paid: "مدفوع جزئياً",
+                paid: "مدفوع",
+                cod: "الدفع عند الاستلام",
+                rejected: "مرفوض",
+                refunded: "مسترد",
+              }}
+              t={t}
+            />
             <EditSelect label={t("orders.edit.sourceChannel")} value={form.source} onChange={(value) => { updateField("source", value); updateField("channel", value); }} options={SOURCE_FILTERS.filter((item) => item !== "all")} labels={SOURCE_LABELS} t={t} />
           </div>
           <Section title={t("orders.drawer.items")}>
@@ -2011,20 +2042,20 @@ function ArchiveOrderModal({ t, order, archiving, onClose, onConfirm }) {
 
 function PermanentDeleteOrderModal({ t, order, value, deleting, onChange, onClose, onConfirm }) {
   if (!order) return null;
-  const canConfirm = value.trim() === "DELETE" || value.trim() === "حذف";
+    const canConfirm = value.trim() === "DELETE" || value.trim() === "حذف";
   return (
     <div className="fixed inset-0 z-[60]">
-      <button type="button" aria-label={tt(t, "orders.permanentDelete.closeModal", "Close permanent delete modal")} className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={onClose} />
+      <button type="button" aria-label={tt(t, "orders.permanentDelete.closeModal", "إغلاق نافذة الحذف النهائي")} className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={onClose} />
       <section className="absolute left-1/2 top-1/2 w-[min(34rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-rose-400/35 bg-zinc-950 p-5 text-white shadow-2xl shadow-rose-950/20">
         <div className="flex items-start gap-3">
           <div className="rounded-xl bg-rose-500/15 p-2 text-rose-200"><Trash2 className="h-5 w-5" /></div>
           <div className="min-w-0">
-            <h2 className="text-lg font-black">{tt(t, "orders.permanentDelete.title", "Permanent Delete")}</h2>
+            <h2 className="text-lg font-black">{tt(t, "orders.permanentDelete.title", "حذف نهائي")}</h2>
             <p className="mt-2 text-sm leading-6 text-rose-100">
-              {tt(t, "orders.permanentDelete.description", "This will permanently delete the invoice and cannot be undone.")}
+              {tt(t, "orders.permanentDelete.description", "سيتم حذف الفاتورة نهائياً ولا يمكن التراجع عن ذلك.")}
             </p>
             <p className="mt-1 text-sm leading-6 text-zinc-300">
-              {tt(t, "orders.permanentDelete.stockNote", "Related records will be removed and stock will be restored when it has not already been restored.")}
+              {tt(t, "orders.permanentDelete.stockNote", "ستُزال السجلات المرتبطة وسيُعاد المخزون إذا لم تتم استعادته مسبقاً.")}
             </p>
           </div>
         </div>
@@ -2033,7 +2064,7 @@ function PermanentDeleteOrderModal({ t, order, value, deleting, onChange, onClos
           <ConfirmMetric label={t("orders.table.total")} value={formatCurrency(totalValue(order))} />
         </div>
         <label className="mt-5 block">
-          <div className="mb-1.5 text-xs font-black text-rose-100">{tt(t, "orders.permanentDelete.typeConfirm", "Type DELETE or حذف to confirm")}</div>
+          <div className="mb-1.5 text-xs font-black text-rose-100">{tt(t, "orders.permanentDelete.typeConfirm", "اكتب DELETE أو حذف للتأكيد")}</div>
           <input
             value={value}
             onChange={(event) => onChange(event.target.value)}
@@ -2050,7 +2081,7 @@ function PermanentDeleteOrderModal({ t, order, value, deleting, onChange, onClos
             disabled={!canConfirm || deleting}
             className={`rounded-xl px-4 py-2 text-sm font-black text-white transition-all duration-200 ${canConfirm && !deleting ? "bg-rose-600 shadow-lg shadow-rose-950/25 hover:bg-rose-500" : "cursor-not-allowed bg-rose-500/35 opacity-55"}`}
           >
-            {deleting ? tt(t, "orders.permanentDelete.deleting", "Deleting...") : tt(t, "orders.permanentDelete.confirm", "Permanently Delete")}
+            {deleting ? tt(t, "orders.permanentDelete.deleting", "جاري الحذف...") : tt(t, "orders.permanentDelete.confirm", "حذف نهائي")}
           </button>
         </div>
       </section>
@@ -2104,3 +2135,6 @@ const timelineDot = (tone) => ({
 }[tone] || "bg-zinc-400");
 
 export default OrdersDashboard;
+
+
+

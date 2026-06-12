@@ -31,33 +31,49 @@ const ENTERPRISE_GROUPS = [
 ];
 
 const GROUP_TITLE_KEYS = {
-  Main: "sidebar.groups.main",
-  Sales: "sidebar.groups.sales",
-  Operations: "Operations",
-  "Products & Inventory": "sidebar.groups.productsInventory",
-  Purchasing: "sidebar.groups.purchasing",
-  Employees: "sidebar.groups.employees",
-  Finance: "sidebar.groups.finance",
-  "AI & Marketing": "sidebar.groups.aiMarketing",
-  "System Settings": "sidebar.groups.systemSettings",
+  Main: "الرئيسية",
+  Sales: "المبيعات",
+  Operations: "العمليات",
+  "Products & Inventory": "المنتجات والمخزون",
+  Purchasing: "المشتريات",
+  Employees: "الموظفون",
+  Finance: "المالية",
+  "AI & Marketing": "الذكاء والتسويق",
+  "System Settings": "إعدادات النظام",
 };
 
 const HEADER_QUICK_ACTION_ROUTES = ["/orders", "/products/add", "/products", "/marketing/ai-center"];
 const QUICK_ACCESS_LABELS = {
-  "/orders": "sidebar.quickAccess.orders",
-  "/products/add": "sidebar.quickAccess.product",
-  "/marketing/ai-center": "sidebar.quickAccess.aiCenter",
-  "/products": "sidebar.quickAccess.products",
+  "/orders": "الطلبات",
+  "/products/add": "إضافة منتج",
+  "/marketing/ai-center": "مركز التسويق الذكي",
+  "/products": "المنتجات",
 };
 const SIDEBAR_SUBGROUP_TITLE_KEYS = {
-  "AI Marketing": "sidebar.subgroups.aiMarketing",
-  "AI Support": "sidebar.subgroups.aiSupport",
-  "System Settings": "sidebar.subgroups.systemSettings",
+  "AI Marketing": "التسويق الذكي",
+  "AI Support": "دعم الذكاء",
+  "System Settings": "إعدادات النظام",
 };
 
 const SYSTEM_PREFERENCE_ROUTES = new Set(["/settings", "/settings/appearance", "/settings/company", "/settings/storefront", "/settings/shipping", "/settings/payments"]);
 const AI_MARKETING_ROUTES = new Set(["/marketing/ai-center", "/marketing/ai-center/videos", "/admin/ai-inbox", "/admin/ai-followups", "/admin/ai-channels", "/admin/ai-agent-analytics"]);
 const AI_SUPPORT_ROUTES = new Set(["/admin/ai-support-console", "/admin/ai-support-knowledge-base", "/admin/ai-agent-settings"]);
+const ARABIC_GROUP_LABELS = {
+  Main: "الرئيسية",
+  Sales: "المبيعات",
+  Operations: "العمليات",
+  "Products & Inventory": "المنتجات والمخزون",
+  Purchasing: "المشتريات",
+  Employees: "الموظفون",
+  Finance: "المالية",
+  "AI & Marketing": "الذكاء والتسويق",
+  "System Settings": "إعدادات النظام",
+};
+const ARABIC_SUBGROUP_LABELS = {
+  "AI Marketing": "التسويق الذكي",
+  "AI Support": "دعم الذكاء",
+  "System Settings": "إعدادات النظام",
+};
 
 const sidebarSubgroupForItem = (groupTitle, item) => {
   const to = String(item.to || "");
@@ -226,17 +242,17 @@ const buildEnterpriseSidebarGroups = (sections) => {
       seen.add(key);
       const groupTitle = groupForSidebarItem(section.sourceTitle || section.title, item);
       const sidebarLabel = item.to === "/settings/appearance"
-        ? "Theme"
+        ? "المظهر"
         : item.to === "/settings"
-          ? "Settings Center"
+          ? "مركز الإعدادات"
         : item.to === "/settings/company"
-          ? "General"
+          ? "عام"
         : item.to === "/settings/storefront"
-          ? "Storefront"
+          ? "المتجر الإلكتروني"
         : item.to === "/settings/shipping"
-          ? "Shipping"
+          ? "الشحن"
         : item.to === "/settings/payments"
-          ? "Payments"
+          ? "المدفوعات"
           : undefined;
       const sidebarIcon = item.to === "/settings/appearance"
         ? Paintbrush
@@ -303,11 +319,10 @@ function SidebarNavItem({ item, location, collapsed = false, onNavigate }) {
 }
 
 function HeaderQuickActionButton({ item, location, onNavigate }) {
-  const { t } = useTranslation();
   const Icon = item.icon;
   const active = sidebarItemActive(item, location);
   const labelKey = QUICK_ACCESS_LABELS[item.to];
-  const label = labelKey ? t(labelKey) : item.sidebarLabel || item.label;
+  const label = labelKey || item.sidebarLabel || item.label;
   return (
     <NavLink
       to={item.to}
@@ -329,11 +344,12 @@ function HeaderQuickActionButton({ item, location, onNavigate }) {
 }
 
 function NotificationBellFallback() {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
       className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] text-[var(--text)] opacity-70 shadow-sm"
-      aria-label="Notifications unavailable"
+      aria-label="الإشعارات"
       disabled
     >
       <Bell className="h-5 w-5" />
@@ -350,12 +366,13 @@ function SidebarNotificationBadge({ item }) {
 }
 
 function RealtimePill({ label }) {
+  const { t } = useTranslation();
   const realtime = useRealtimeConnection();
   const connected = realtime.connected;
   return (
     <div className="hidden h-11 items-center justify-center gap-2 rounded-full border border-cyan-300/25 bg-zinc-950/75 px-3 text-sm font-black text-cyan-100 shadow-[0_10px_30px_rgba(0,0,0,0.18),0_0_22px_rgba(34,211,238,0.12)] backdrop-blur sm:flex sm:px-4">
       <span className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.85)]" : "bg-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.75)]"}`} />
-      <span className="hidden md:inline">{connected ? label : "Realtime reconnecting"}</span>
+      <span className="hidden md:inline">{connected ? label : "جارٍ إعادة الاتصال"}</span>
     </div>
   );
 }
@@ -373,7 +390,7 @@ function MainLayout() {
   const [openGroups, setOpenGroups] = useState(() => readSidebarJson(SIDEBAR_GROUPS_STORAGE_KEY, {}));
   const [sidebarSearch, setSidebarSearch] = useState("");
   const currentTenant = getCurrentTenant();
-  const workspaceName = currentTenant?.companyName || currentTenant?.name || currentTenant?.slug || t("common.enterpriseDashboard");
+  const workspaceName = currentTenant?.companyName || currentTenant?.name || currentTenant?.slug || "لوحة المؤسسة";
 
   useEffect(() => {
     if (!getToken()) {
@@ -419,7 +436,7 @@ function MainLayout() {
   const isRtl = dir === "rtl";
   const isPosActive = location.pathname === "/pos" || location.pathname.startsWith("/pos/");
   const isStoreActive = location.pathname === "/shop" || location.pathname.startsWith("/shop/");
-  const posLabel = t("sidebar.posPro");
+  const posLabel = "نقطة البيع";
   const searchQuery = normalizeSearchText(sidebarSearch);
   const activeGroupTitle = useMemo(() => {
     const activeGroup = groupedSections.find((group) => group.items.some((item) => sidebarItemActive(item, location)));
@@ -509,7 +526,7 @@ function MainLayout() {
       {mobileDrawerOpen ? (
         <button
           type="button"
-          aria-label="Close sidebar"
+          aria-label={t("common.close", "إغلاق")}
           onClick={() => setMobileDrawerOpen(false)}
           className="fixed inset-0 z-40 bg-black/60 lg:hidden"
         />
@@ -527,14 +544,14 @@ function MainLayout() {
       >
         <div className="mb-4 flex items-center justify-between lg:hidden">
           <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted)]">Workspace</div>
+            <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted)]">مساحة العمل</div>
             <div className="truncate text-sm font-bold text-[var(--text)]">{workspaceName}</div>
           </div>
           <button
             type="button"
             onClick={() => setMobileDrawerOpen(false)}
             className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-2 text-[var(--text)]"
-            aria-label="Close sidebar"
+            aria-label={t("common.close", "إغلاق")}
           >
             <X className="h-5 w-5" />
           </button>
@@ -545,14 +562,14 @@ function MainLayout() {
             <div className={["flex items-center gap-2", sidebarCompact ? "justify-center" : "justify-between"].join(" ")}>
               <div className="min-w-0">
                 <h1 className={["font-black tracking-tight text-[var(--text)]", sidebarCompact ? "text-center text-lg" : "text-2xl"].join(" ")}>ERP</h1>
-                {sidebarCompact ? null : <p className="mt-0.5 truncate text-xs text-[var(--muted)]">{t("common.enterpriseDashboard")}</p>}
+                {sidebarCompact ? null : <p className="mt-0.5 truncate text-xs text-[var(--muted)]">لوحة المؤسسة</p>}
               </div>
               <button
                 type="button"
                 onClick={() => setSidebarCollapsed((value) => !value)}
                 className="hidden h-8 w-8 shrink-0 place-items-center rounded-xl border border-[var(--border)] text-[var(--muted)] transition hover:bg-[var(--surface-soft)] hover:text-[var(--text)] lg:grid"
-                title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                title={sidebarCollapsed ? "توسيع الشريط الجانبي" : "طي الشريط الجانبي"}
+                aria-label={sidebarCollapsed ? "توسيع الشريط الجانبي" : "طي الشريط الجانبي"}
               >
                 <CollapseIcon className="h-4 w-4" />
               </button>
@@ -565,16 +582,16 @@ function MainLayout() {
               <input
                 value={sidebarSearch}
                 onChange={(event) => setSidebarSearch(event.target.value)}
-                placeholder={t("sidebar.searchModules")}
+                placeholder="ابحث في الوحدات..."
                 className="h-10 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] ps-9 pe-3 text-sm font-semibold text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:bg-[var(--surface-soft)]"
               />
             </label>
           </div>
 
-          <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pe-1" aria-label="Main navigation">
+          <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pe-1" aria-label={t("common.mainNavigation", "التنقل الرئيسي")}>
             {visibleGroupedSections.length ? visibleGroupedSections.map((group) => {
               const isOpen = Boolean(searchQuery || openGroups[group.title] || activeGroupTitle === group.title);
-              const groupLabel = t(GROUP_TITLE_KEYS[group.title] || group.title, group.title);
+              const groupLabel = ARABIC_GROUP_LABELS[group.title] || group.title;
               const activeInGroup = group.items.some((item) => sidebarItemActive(item, location));
               const rootItems = [];
               const nestedSections = [];
@@ -615,7 +632,7 @@ function MainLayout() {
                         ))}
                         {nestedSections.map((nestedSection) => {
                           const nestedKey = `nested:${group.title}:${nestedSection.title}`;
-                          const nestedTitle = t(SIDEBAR_SUBGROUP_TITLE_KEYS[nestedSection.title] || nestedSection.title, nestedSection.title);
+                          const nestedTitle = ARABIC_SUBGROUP_LABELS[nestedSection.title] || nestedSection.title;
                           const nestedOpen = Boolean(searchQuery || (openGroups[nestedKey] ?? true));
                           const nestedActive = nestedSection.items.some((item) => sidebarItemActive(item, location));
                           return (
@@ -676,11 +693,11 @@ function MainLayout() {
           <button
             type="button"
             onClick={handleLogout}
-            title={sidebarCompact ? t("common.logout") : undefined}
+            title={sidebarCompact ? "تسجيل الخروج" : undefined}
             className={["flex w-full items-center justify-center rounded-xl bg-[var(--danger)] text-sm font-black text-white shadow-lg", sidebarCompact ? "h-10 px-2" : "gap-2 px-3 py-2"].join(" ")}
           >
             <LogOut className="h-4 w-4" />
-            {sidebarCompact ? null : t("common.logout")}
+            {sidebarCompact ? null : "تسجيل الخروج"}
           </button>
         </div>
       </aside>
@@ -697,7 +714,7 @@ function MainLayout() {
                   type="button"
                   onClick={() => setMobileDrawerOpen(true)}
                   className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)]"
-                  aria-label="Open menu"
+                  aria-label={t("common.openMenu", "فتح القائمة")}
                 >
                   <Menu className="h-5 w-5" />
                 </button>
@@ -708,9 +725,9 @@ function MainLayout() {
               </div>
 
               <div className="hidden min-w-0 lg:block">
-                <h2 className="text-2xl font-bold tracking-tight text-[var(--text)]">{t("common.enterpriseDashboard")}</h2>
+                <h2 className="text-2xl font-bold tracking-tight text-[var(--text)]">لوحة المؤسسة</h2>
                 <p className="mt-1 text-sm text-[var(--muted)]">
-                  {t("common.welcomeBack")}, {user?.name}
+                  عودة موفقة، {user?.name}
                 </p>
               </div>
 
@@ -718,8 +735,8 @@ function MainLayout() {
                 <button
                   type="button"
                   onClick={() => navigate("/shop")}
-                  title="Store"
-                  aria-label="Open Store"
+                  title="المتجر"
+                  aria-label="فتح المتجر"
                   className={[
                     "group inline-flex h-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200 sm:px-4",
                     "bg-zinc-950/75 text-[var(--text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
@@ -729,7 +746,7 @@ function MainLayout() {
                   ].join(" ")}
                 >
                   <ShoppingBag className="h-4 w-4 text-emerald-300 transition group-hover:text-emerald-200" />
-                  <span className="hidden sm:inline">Store</span>
+                  <span className="hidden sm:inline">المتجر</span>
                 </button>
                 {headerQuickActionItems.length ? (
                   <div className="hidden min-w-0 max-w-[34vw] items-center gap-1.5 overflow-x-auto pe-1 lg:flex 2xl:max-w-none">
@@ -765,7 +782,7 @@ function MainLayout() {
                   type="button"
                   onClick={handleLogout}
                   className="inline-flex h-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-semibold text-[var(--text)] lg:hidden"
-                  aria-label="Logout"
+                  aria-label="تسجيل الخروج"
                 >
                   <LogOut className="h-4 w-4" />
                 </button>

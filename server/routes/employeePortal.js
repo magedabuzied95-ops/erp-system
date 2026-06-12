@@ -34,11 +34,18 @@ import {
   markDisplayRefillAlertRead,
   resolveDisplayRefillAlert,
 } from "../services/displayRefillAlertService.js";
+import { getSettingsByCategory } from "../services/settingsService.js";
 import { getSalesOpportunitiesForScope } from "../services/salesOpportunityService.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { emitToRooms } from "../utils/socket.js";
 import { isPerfDebugEnabled, logPerfTiming } from "../utils/perfDebug.js";
+import {
+  barcodePrintSettingsFromValues,
+  displayRefillBarcodeSettingsFromValues,
+  normalizeBarcodePrintSettings,
+  normalizeDisplayRefillBarcodeSettings,
+} from "../../shared/barcodePrintSettings.js";
 
 const router = express.Router();
 const invalidPortalLinkMessage = "رابط بوابة الموظف غير صحيح أو تم تغييره. اطلب رابط جديد من الإدارة.";
@@ -1136,6 +1143,11 @@ router.get("/:token/display-refill-alerts", async (req, res) => {
       limit: req.query.limit || 50,
       status: req.query.status || "all",
     });
+    const barcodeSettingsRecords = await getSettingsByCategory("barcode_printing").catch(() => []);
+    const barcodeSettingsValues = barcodeSettingsRecords.reduce((acc, item) => {
+      acc[item.key] = item.value;
+      return acc;
+    }, {});
     console.info("[display-refill-alert:employee-load]", {
       tenant_id: tenantId,
       employee_id: employee.id,
@@ -1151,6 +1163,8 @@ router.get("/:token/display-refill-alerts", async (req, res) => {
     return res.json({
       success: true,
       alerts,
+      barcode_printing_settings: normalizeBarcodePrintSettings(barcodePrintSettingsFromValues(barcodeSettingsValues)),
+      display_refill_barcode_settings: normalizeDisplayRefillBarcodeSettings(displayRefillBarcodeSettingsFromValues(barcodeSettingsValues)),
       pending_unread_count: alerts.filter((item) => item.status === "pending" && !item.is_read).length,
       completed_count: alerts.filter((item) => item.status === "resolved").length,
     });

@@ -76,7 +76,7 @@ const getImageUrl = (product = {}, variant = {}) =>
   );
 
 const getProductDisplayName = (product = {}, variant = {}) =>
-  normalizeText(product.name || product.product_name || variant.product_name || variant.name || "Unnamed product");
+  normalizeText(product.name || product.product_name || variant.product_name || variant.name || "منتج غير مسمى");
 
 const getWarehouseName = (variant = {}, warehouses = []) => {
   const direct = normalizeText(variant.warehouse_name || variant.warehouse || "");
@@ -87,7 +87,7 @@ const getWarehouseName = (variant = {}, warehouses = []) => {
 };
 
 const getVariantLabel = (variant = {}) =>
-  [normalizeText(variant.color || "Default"), normalizeText(variant.size || "One Size")]
+  [normalizeText(variant.color || "افتراضي"), normalizeText(variant.size || "مقاس موحد")]
     .filter(Boolean)
     .join(" / ");
 
@@ -558,7 +558,7 @@ function StockAdjustments() {
           sku: normalizeText(record.sku || matched?.sku || ""),
           barcode: normalizeText(record.barcode || matched?.barcode || ""),
           warehouse_name: normalizeText(record.warehouse_name || matched?.warehouse_name || ""),
-          user_name: normalizeText(record.user_name || currentUser?.name || "Current user"),
+          user_name: normalizeText(record.user_name || currentUser?.name || "المستخدم الحالي"),
         };
       });
   }, [allVariants, currentUser?.name, localAdjustments]);
@@ -597,7 +597,7 @@ function StockAdjustments() {
       {!canAdjust ? (
         <div className="mb-4 rounded-3xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-50">
           <ShieldAlert className="mr-2 inline h-4 w-4" />
-          Stock adjustments are restricted to users with inventory edit permission.
+            تسويات المخزون متاحة فقط للمستخدمين الذين لديهم صلاحية تعديل المخزون.
         </div>
       ) : null}
 
@@ -635,7 +635,7 @@ function StockAdjustments() {
                   className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
                 >
                   <Camera className="h-4 w-4" />
-                  Scan barcode
+                  مسح الباركود
                 </button>
                 <button
                   type="button"
@@ -646,7 +646,7 @@ function StockAdjustments() {
                   className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
                 >
                   <X className="h-4 w-4" />
-                  Clear
+                  مسح
                 </button>
               </div>
             </div>
@@ -654,12 +654,12 @@ function StockAdjustments() {
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               <PolicyCard label="سياسة التسوية" value={`حد الاعتماد: ${approvalThreshold}`} tone="blue" />
               <PolicyCard
-                label="Current mode"
+                label="وضع الاعتماد"
                 value={requiresManagerApproval ? "يلزم اعتماد المدير" : "اعتماد عادي"}
                 tone={requiresManagerApproval ? "amber" : "emerald"}
               />
               <label className="block">
-                <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Configurable threshold</div>
+                <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">حد الاعتماد القابل للتعديل</div>
                 <input
                   type="number"
                   min="1"
@@ -670,27 +670,27 @@ function StockAdjustments() {
                 />
               </label>
             </div>
-            {warehouseLoading ? <div className="mt-3 text-xs text-zinc-500">Loading warehouses...</div> : null}
+            {warehouseLoading ? <div className="mt-3 text-xs text-zinc-500">جارٍ تحميل المخازن...</div> : null}
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/10">
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div>
-                <h3 className="text-xl font-black text-white">Product search results</h3>
+                <h3 className="text-xl font-black text-white">نتائج البحث عن المنتجات</h3>
                 <p className="mt-1 text-sm text-zinc-400">ابحث بالاسم أو SKU أو الباركود. اضغط أي اختيار لتحميل الرصيد والمخزن الخاص به.</p>
               </div>
-              <div className="text-sm text-zinc-400">{filteredVariants.length} matches</div>
+                <div className="text-sm text-zinc-400">{filteredVariants.length} نتيجة</div>
             </div>
 
             {catalogLoading ? (
               <div className="flex items-center justify-center py-16 text-zinc-400">
                 <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" />
-                Loading products...
+                جارٍ تحميل المنتجات...
               </div>
             ) : filteredVariants.length === 0 ? (
               <div className="p-8 text-center text-zinc-400">
                 <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10">
-                  Type at least one search term to find a product variant, or scan a barcode to jump straight to a match.
+                  اكتب كلمة بحث واحدة على الأقل للوصول إلى اختيار المنتج، أو امسح الباركود للانتقال مباشرة إلى نتيجة مطابقة.
                 </div>
               </div>
             ) : (
@@ -713,17 +713,17 @@ function StockAdjustments() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="truncate text-base font-semibold text-white">{variant.product_name}</div>
-                            <div className="mt-1 text-sm text-zinc-400">{getVariantLabel(variant) || "Default / One Size"}</div>
+                            <div className="mt-1 text-sm text-zinc-400">{getVariantLabel(variant) || "افتراضي / مقاس موحد"}</div>
                           </div>
                           <div className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${selected ? "bg-cyan-400 text-black" : "border border-white/10 bg-white/5 text-white"}`}>
-                            {selected ? "Selected" : "Select"}
+                            {selected ? "محدد" : "تحديد"}
                           </div>
                         </div>
                         <div className="mt-3 grid gap-2 text-xs text-zinc-500 sm:grid-cols-2">
-                          <div>SKU: {variant.sku || "n/a"}</div>
-                          <div>Barcode: {variant.barcode || "n/a"}</div>
-                          <div>Stock: {asNumber(variant.stock, 0).toLocaleString()}</div>
-                          <div>المخزن: {getWarehouseName(variant, warehouses) || "n/a"}</div>
+                          <div>رمز الصنف: {variant.sku || "غير متاح"}</div>
+                          <div>الباركود: {variant.barcode || "غير متاح"}</div>
+                          <div>الرصيد: {asNumber(variant.stock, 0).toLocaleString()}</div>
+                          <div>المخزن: {getWarehouseName(variant, warehouses) || "غير متاح"}</div>
                         </div>
                       </div>
                     </button>
@@ -738,14 +738,14 @@ function StockAdjustments() {
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h3 className="text-xl font-black text-white">Selected product</h3>
+                <h3 className="text-xl font-black text-white">المنتج المحدد</h3>
                 <p className="mt-1 text-sm text-zinc-400">يتم عرض الرصيد الحالي قبل تطبيق أي تسوية.</p>
               </div>
             </div>
 
             {!selectedVariant ? (
               <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-zinc-400">
-                Choose a product variant from the search results to review its stock and complete an adjustment.
+                اختر اختيارًا من نتائج البحث لمراجعة الرصيد الحالي وإكمال التسوية.
               </div>
             ) : (
               <div className="space-y-4">
@@ -754,17 +754,17 @@ function StockAdjustments() {
                   <div className="min-w-0 flex-1">
                     <div className="text-2xl font-black text-white">{selectedVariant.product_name}</div>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      <InfoPill label="Color" value={selectedVariant.color || "Default"} />
-                      <InfoPill label="Size" value={selectedVariant.size || "One Size"} />
+                        <InfoPill label="اللون" value={selectedVariant.color || "افتراضي"} />
+                        <InfoPill label="المقاس" value={selectedVariant.size || "مقاس موحد"} />
                     </div>
                   </div>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <DetailCard label="SKU" value={selectedVariant.sku || "n/a"} />
-                  <DetailCard label="Barcode" value={selectedVariant.barcode || "n/a"} />
+                  <DetailCard label="رمز الصنف" value={selectedVariant.sku || "غير متاح"} />
+                  <DetailCard label="الباركود" value={selectedVariant.barcode || "غير متاح"} />
                   <DetailCard label="الرصيد الحالي" value={asNumber(selectedVariant.stock, 0).toLocaleString()} tone="emerald" />
-                  <DetailCard label="Warehouse" value={selectedWarehouseName || "n/a"} />
+                  <DetailCard label="المخزن" value={selectedWarehouseName || "غير متاح"} />
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -791,8 +791,8 @@ function StockAdjustments() {
 
           <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
             <div className="mb-4">
-              <h3 className="text-xl font-black text-white">Adjustment form</h3>
-              <p className="mt-1 text-sm text-zinc-400">Choose how stock should move, then confirm the change after reviewing the target quantity.</p>
+                <h3 className="text-xl font-black text-white">نموذج التسوية</h3>
+                <p className="mt-1 text-sm text-zinc-400">حدد طريقة حركة المخزون ثم أكد التغيير بعد مراجعة الرصيد المستهدف.</p>
             </div>
 
             <div className="space-y-4">
@@ -823,7 +823,7 @@ function StockAdjustments() {
                 </div>
 
                 <label className="block">
-                  <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Quantity</div>
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">الكمية</div>
                   <div className="flex items-stretch gap-2">
                     <button
                       type="button"
@@ -867,21 +867,21 @@ function StockAdjustments() {
               </label>
 
               <label className="block">
-                <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Optional notes</div>
+                <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">ملاحظات اختيارية</div>
                 <textarea
                   rows={4}
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
-                  placeholder="Add a short audit note for the movement record"
+                  placeholder="أضف ملاحظة قصيرة لسجل حركة المخزون"
                   className="w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500"
                 />
               </label>
 
               <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <DetailCard label="Stock before" value={asNumber(currentStock, 0).toLocaleString()} />
-                  <DetailCard label="Delta" value={`${signedDelta >= 0 ? "+" : ""}${signedDelta.toLocaleString()}`} tone={signedDelta >= 0 ? "emerald" : "rose"} />
-                  <DetailCard label="Stock after" value={targetStock.toLocaleString()} tone={targetStock >= currentStock ? "emerald" : "rose"} />
+                  <DetailCard label="الرصيد قبل" value={asNumber(currentStock, 0).toLocaleString()} />
+                  <DetailCard label="التغيير" value={`${signedDelta >= 0 ? "+" : ""}${signedDelta.toLocaleString()}`} tone={signedDelta >= 0 ? "emerald" : "rose"} />
+                  <DetailCard label="الرصيد بعد" value={targetStock.toLocaleString()} tone={targetStock >= currentStock ? "emerald" : "rose"} />
                 </div>
 
                 {requiresManagerApproval ? (
@@ -898,7 +898,7 @@ function StockAdjustments() {
                   className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-500 px-4 py-3 text-sm font-black text-black transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Save className="h-4 w-4" />
-                  Apply adjustment
+                  تطبيق التسوية
                 </button>
               </div>
             </div>
@@ -940,9 +940,9 @@ function StockAdjustments() {
 
                           <div className="mt-3 grid gap-2 text-xs text-zinc-500 sm:grid-cols-2">
                             <div>النوع: {adjustment.adjustment_type === "decrease" ? "خفض المخزون" : "زيادة المخزون"}</div>
-                            <div>المستخدم: {adjustment.user_name || "n/a"}</div>
+                            <div>المستخدم: {adjustment.user_name || "غير متاح"}</div>
                             <div>الوقت: {formatDateTime(adjustment.created_at)}</div>
-                            <div>المخزن: {adjustment.warehouse_name || "n/a"}</div>
+                            <div>المخزن: {adjustment.warehouse_name || "غير متاح"}</div>
                           </div>
 
                           <div className="mt-3 text-sm text-zinc-300">{adjustment.reason || "لم يتم توفير سبب"}</div>
@@ -1007,7 +1007,7 @@ function StockAdjustments() {
       {historyOpen && selectedVariant ? (
         <ProductHistoryDrawer
           productName={selectedVariant.product_name}
-          variantLabel={getVariantLabel(selectedVariant) || "Default / One Size"}
+          variantLabel={getVariantLabel(selectedVariant) || "افتراضي / مقاس موحد"}
           movements={historyMovements}
           loading={historyLoading}
           error={historyError}
@@ -1077,21 +1077,21 @@ function ProductThumb({ imageUrl, productName, large = false, compact = false })
 function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onError }) {
   return (
     <div className="fixed inset-0 z-50">
-      <button type="button" onClick={onClose} className="absolute inset-0 bg-black/80" aria-label="Close scanner" />
+      <button type="button" onClick={onClose} className="absolute inset-0 bg-black/80" aria-label="إغلاق الماسح" />
       <div className="absolute inset-x-0 bottom-0 top-0 mx-auto flex w-full max-w-3xl items-center justify-center p-4">
         <div className="w-full rounded-[2rem] border border-white/10 bg-zinc-950 shadow-[0_30px_100px_rgba(0,0,0,0.55)]">
           <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
             <div>
               <div className="text-xs uppercase tracking-[0.24em] text-zinc-500">ماسح الباركود</div>
-              <h3 className="mt-1 text-xl font-black text-white">Scan product barcode</h3>
+              <h3 className="mt-1 text-xl font-black text-white">امسح باركود المنتج</h3>
             </div>
             <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
-              Close
+              إغلاق
             </button>
           </div>
           <div className="space-y-4 p-5">
             <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-zinc-300">
-              Camera support is used when available. If the device does not support scanning, enter the SKU or barcode in the search box instead.
+              سيتم استخدام الكاميرا عند توفرها. إذا كان الجهاز لا يدعم المسح، أدخل رمز الصنف أو الباركود في مربع البحث بدلًا من ذلك.
             </div>
             <div className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-black">
               <BarcodeScanner
@@ -1106,7 +1106,7 @@ function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onEr
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={onClose} className="inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-4 py-3 text-sm font-black text-black">
                 <CheckCircle2 className="h-4 w-4" />
-                Done
+                تم
               </button>
             </div>
           </div>
@@ -1144,16 +1144,16 @@ function ConfirmationModal({
 }) {
   return (
     <div className="fixed inset-0 z-50">
-      <button type="button" onClick={onClose} className="absolute inset-0 bg-black/80" aria-label="Close confirmation" />
+      <button type="button" onClick={onClose} className="absolute inset-0 bg-black/80" aria-label="إغلاق تأكيد التسوية" />
       <div className="absolute inset-x-0 bottom-0 top-0 mx-auto flex w-full max-w-3xl items-center justify-center p-4">
         <div className="w-full rounded-[2rem] border border-white/10 bg-zinc-950 shadow-[0_30px_100px_rgba(0,0,0,0.55)]">
           <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
             <div>
-              <div className="text-xs uppercase tracking-[0.24em] text-zinc-500">Confirm adjustment</div>
+              <div className="text-xs uppercase tracking-[0.24em] text-zinc-500">تأكيد التسوية</div>
               <h3 className="mt-1 text-xl font-black text-white">{productName}</h3>
             </div>
             <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
-              Close
+              إغلاق
             </button>
           </div>
 
@@ -1162,12 +1162,12 @@ function ConfirmationModal({
 
             <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <DetailCard label="Variant" value={[color, size].filter(Boolean).join(" / ") || "Default"} />
-                <DetailCard label="Warehouse" value={warehouseName || "n/a"} />
-                <DetailCard label="SKU" value={sku || "n/a"} />
-                <DetailCard label="Barcode" value={barcode || "n/a"} />
+                <DetailCard label="الاختيار" value={[color, size].filter(Boolean).join(" / ") || "افتراضي"} />
+                <DetailCard label="المخزن" value={warehouseName || "غير متاح"} />
+                <DetailCard label="رمز الصنف" value={sku || "غير متاح"} />
+                <DetailCard label="الباركود" value={barcode || "غير متاح"} />
                 <DetailCard label="الرصيد الحالي" value={currentStock.toLocaleString()} />
-                <DetailCard label="Target stock" value={targetStock.toLocaleString()} tone={targetStock >= currentStock ? "emerald" : "rose"} />
+                <DetailCard label="الرصيد المستهدف" value={targetStock.toLocaleString()} tone={targetStock >= currentStock ? "emerald" : "rose"} />
               </div>
 
               <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
@@ -1185,7 +1185,7 @@ function ConfirmationModal({
                   </span>
                 </div>
                 <div className="mt-2 text-sm text-zinc-300">
-                  السبب: <span className="font-semibold text-white">{reason || "n/a"}</span>
+                  السبب: <span className="font-semibold text-white">{reason || "غير متاح"}</span>
                 </div>
                 {notes ? (
                   <div className="mt-2 text-sm text-zinc-300">
@@ -1238,7 +1238,7 @@ function ConfirmationModal({
 
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">
-                  Cancel
+                  إلغاء
                 </button>
                 <button
                   type="button"
@@ -1247,7 +1247,7 @@ function ConfirmationModal({
                   className="inline-flex items-center gap-2 rounded-2xl bg-blue-500 px-4 py-3 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  {requiresManagerApproval ? "Approve and apply" : "Apply adjustment"}
+                  {requiresManagerApproval ? "اعتماد وتطبيق" : "تطبيق التسوية"}
                 </button>
               </div>
             </div>
@@ -1261,16 +1261,16 @@ function ConfirmationModal({
 function ProductHistoryDrawer({ productName, variantLabel, movements, loading, error, onClose, warehouseName }) {
   return (
     <div className="fixed inset-0 z-50">
-      <button type="button" onClick={onClose} className="absolute inset-0 bg-black/70" aria-label="Close product history" />
+      <button type="button" onClick={onClose} className="absolute inset-0 bg-black/70" aria-label="إغلاق سجل المنتج" />
       <div className="absolute right-0 top-0 h-full w-full max-w-[720px] border-l border-white/10 bg-zinc-950 shadow-[0_30px_100px_rgba(0,0,0,0.5)]">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Product history</p>
+            <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">سجل المنتج</p>
             <h3 className="mt-1 text-xl font-black text-white">{productName}</h3>
             <p className="mt-1 text-sm text-zinc-400">{[variantLabel, warehouseName].filter(Boolean).join(" / ")}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
-            Close
+            إغلاق
           </button>
         </div>
 
@@ -1278,13 +1278,13 @@ function ProductHistoryDrawer({ productName, variantLabel, movements, loading, e
           {loading ? (
             <div className="flex items-center justify-center rounded-3xl border border-white/10 bg-white/5 py-16 text-zinc-400">
               <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-400" />
-              Loading product history...
+              جارٍ تحميل سجل المنتج...
             </div>
           ) : error ? (
             <div className="rounded-3xl border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-100">{error}</div>
           ) : movements.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">
-              No inventory movements found for this variant.
+              لا توجد حركات مخزون لهذا الاختيار.
             </div>
           ) : (
             movements.map((movement) => {
@@ -1295,7 +1295,7 @@ function ProductHistoryDrawer({ productName, variantLabel, movements, loading, e
                 <div key={String(movement.id)} className="rounded-3xl border border-white/10 bg-white/5 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="font-semibold text-white">{movement.movement_type || "ADJUSTMENT"}</div>
+                      <div className="font-semibold text-white">{movement.movement_type || "تسوية"}</div>
                       <div className="mt-1 text-xs text-zinc-500">{formatDateTime(movement.created_at)}</div>
                     </div>
                     <div className={`rounded-full px-3 py-1 text-xs font-semibold ${delta >= 0 ? "bg-emerald-500/10 text-emerald-200" : "bg-rose-500/10 text-rose-200"}`}>
@@ -1307,10 +1307,10 @@ function ProductHistoryDrawer({ productName, variantLabel, movements, loading, e
                   <div className="mt-4 grid gap-2 text-sm text-zinc-300 sm:grid-cols-2">
                     <div>قبل: {before.toLocaleString()}</div>
                     <div>بعد: {after.toLocaleString()}</div>
-                    <div>المستخدم: {movement.created_by_name || movement.user_name || "n/a"}</div>
-                    <div>المخزن: {movement.warehouse_name || "n/a"}</div>
-                    <div className="sm:col-span-2">السبب: {movement.reason || movement.notes || "n/a"}</div>
-                    <div className="sm:col-span-2">المرجع: {movement.reference_type || "n/a"} #{movement.reference_id || "n/a"}</div>
+                    <div>المستخدم: {movement.created_by_name || movement.user_name || "غير متاح"}</div>
+                    <div>المخزن: {movement.warehouse_name || "غير متاح"}</div>
+                    <div className="sm:col-span-2">السبب: {movement.reason || movement.notes || "غير متاح"}</div>
+                    <div className="sm:col-span-2">المرجع: {movement.reference_type || "غير متاح"} #{movement.reference_id || "غير متاح"}</div>
                   </div>
                 </div>
               );

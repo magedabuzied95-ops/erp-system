@@ -116,6 +116,9 @@ const getStatementMovementMeta = (row = {}) => {
   if (personalType === "OWNER_USE" || transactionType === "personal_owner_use") {
     return { label: "استخدام شخصي", tone: "violet" };
   }
+  if (String(row.payment_method || "").trim().toLowerCase() === "credit_sale") {
+    return { label: "آجل", tone: "amber" };
+  }
   if (transactionType === "order_payment") {
     return { label: "مبيعات عادية", tone: "emerald" };
   }
@@ -594,7 +597,7 @@ function Customers() {
       console.error("[customers] failed to load customer statement:", error);
       setStatementData(null);
       setWalletAudit([]);
-      setStatementError(error?.message || "Failed to load customer statement");
+      setStatementError(error?.message || "تعذر تحميل كشف الحساب");
       return null;
     } finally {
       setAuditLoading(false);
@@ -1100,8 +1103,8 @@ function Customers() {
 
         <section className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-slate-900/45 p-5 shadow-2xl shadow-black/20 backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
           <div className="text-sm text-zinc-400">
-            Page {currentPage.toLocaleString("en-US")} of {totalPages.toLocaleString("en-US")}
-            {pagination.hasMore ? " | More customers available" : ""}
+            الصفحة {currentPage.toLocaleString("en-US")} من {totalPages.toLocaleString("en-US")}
+            {pagination.hasMore ? " | يوجد المزيد من العملاء" : ""}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -1110,7 +1113,7 @@ function Customers() {
               disabled={currentPage <= 1 || loading}
               className="inline-flex h-10 items-center justify-center rounded-xl border border-white/10 bg-slate-950/70 px-4 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Previous
+              السابق
             </button>
             {pageWindow.map((pageNumber, index) => {
               const previous = pageWindow[index - 1];
@@ -1139,7 +1142,7 @@ function Customers() {
               disabled={currentPage >= totalPages || loading}
               className="inline-flex h-10 items-center justify-center rounded-xl border border-white/10 bg-slate-950/70 px-4 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Next
+              التالي
             </button>
           </div>
         </section>
@@ -1402,7 +1405,7 @@ function CustomerProfileDrawer({
       <aside className="h-full w-full max-w-5xl overflow-y-auto border-l border-white/10 bg-slate-950 p-5 text-white shadow-2xl shadow-black/40">
         <div className="flex flex-col gap-3 border-b border-white/10 pb-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">Customer Wallet Audit</div>
+            <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">تدقيق محفظة العميل</div>
             <h2 className="mt-2 text-3xl font-black">{customer?.name || "عميل"}</h2>
             <div className="mt-2 flex flex-wrap gap-3 text-sm text-zinc-300">
               <span className="inline-flex items-center gap-2"><Phone className="h-4 w-4 text-zinc-500" />{customer?.phone || "-"}</span>
@@ -1481,10 +1484,10 @@ function CustomerProfileDrawer({
         </section>
 
         <section className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
-          <div className="border-b border-white/10 px-4 py-3 text-sm font-black text-white">Wallet audit timeline</div>
+          <div className="border-b border-white/10 px-4 py-3 text-sm font-black text-white">سجل تدقيق المحفظة</div>
           <div className="divide-y divide-white/10">
             {auditLoading ? (
-              <div className="px-4 py-8 text-center text-sm font-bold text-emerald-300">Loading...</div>
+              <div className="px-4 py-8 text-center text-sm font-bold text-emerald-300">جاري التحميل...</div>
             ) : walletAudit.length ? (
               walletAudit.map((item) => <TimelineItem key={item.id} item={item} />)
             ) : (
@@ -1634,25 +1637,29 @@ function CustomerStatementDrawer({
             <Filter className="h-4 w-4" />
             فلترة كشف الحساب
           </div>
-          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <AuditInput label="من تاريخ" type="date" value={filters.date_from} onChange={(value) => updateFilter("date_from", value)} />
-            <AuditInput label="إلى تاريخ" type="date" value={filters.date_to} onChange={(value) => updateFilter("date_to", value)} />
-            <label className="block">
-              <span className="text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">النوع</span>
-              <select value={filters.transaction_type} onChange={(event) => updateFilter("transaction_type", event.target.value)} className={`${inputClass} mt-2`}>
-                {walletTypeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-                <option value="personal_gift">هدية / مصروف</option>
-                <option value="personal_employee_advance">سلفة موظف</option>
-                <option value="personal_owner_use">استخدام شخصي</option>
-              </select>
-            </label>
-            <AuditInput label="رقم الفاتورة" value={filters.invoice_number} onChange={(value) => updateFilter("invoice_number", value)} />
-            <AuditInput label="أقل مبلغ" type="number" value={filters.amount_min} onChange={(value) => updateFilter("amount_min", value)} />
-            <AuditInput label="أكبر مبلغ" type="number" value={filters.amount_max} onChange={(value) => updateFilter("amount_max", value)} />
+          <div className="grid gap-3">
+            <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+              <AuditInput label="من تاريخ" type="date" value={filters.date_from} onChange={(value) => updateFilter("date_from", value)} />
+              <AuditInput label="إلى تاريخ" type="date" value={filters.date_to} onChange={(value) => updateFilter("date_to", value)} />
+              <AuditInput label="رقم الفاتورة" value={filters.invoice_number} onChange={(value) => updateFilter("invoice_number", value)} />
+              <AuditInput label="أقل مبلغ" type="number" value={filters.amount_min} onChange={(value) => updateFilter("amount_min", value)} />
+              <AuditInput label="أكبر مبلغ" type="number" value={filters.amount_max} onChange={(value) => updateFilter("amount_max", value)} />
+            </div>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {statementFilterOptions.map((option) => {
+                const active = String(filters.transaction_type || "") === option.value;
+                return (
+                  <button
+                    key={option.value || "all"}
+                    type="button"
+                    onClick={() => updateFilter("transaction_type", option.value)}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-black transition ${active ? getStatementBadgeClass(option.tone) : "border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
+                  >
+                    <span>{option.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </section>
 

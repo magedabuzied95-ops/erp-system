@@ -41,6 +41,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useTranslation } from "react-i18next";
 
 import { socket } from "../socket";
 import LiveActivityFeed from "../components/activity/LiveActivityFeed";
@@ -109,11 +110,129 @@ const shortTime = (value) => {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 };
 
-const getGreeting = () => {
+const getDashboardCopy = (isArabic) => ({
+  widgetTitles: {
+    sales: isArabic ? "تحليلات المبيعات المباشرة" : "Live Sales Analytics",
+    activity: isArabic ? "سجل النشاط" : "Activity Feed",
+    inventory: isArabic ? "ذكاء المخزون" : "Inventory Intelligence",
+    pos: isArabic ? "مراقبة نقطة البيع المباشرة" : "POS Live Monitor",
+    ai: isArabic ? "رؤى الذكاء الاصطناعي" : "AI Insights",
+    branches: isArabic ? "أداء الفروع" : "Branch Performance",
+    marketing: isArabic ? "تحليلات التسويق" : "Marketing Analytics",
+    products: isArabic ? "المنتجات الأعلى مبيعًا" : "Best Selling Products",
+  },
+  greeting: {
+    morning: isArabic ? "صباح الخير" : "Good morning",
+    afternoon: isArabic ? "مساء الخير" : "Good afternoon",
+    evening: isArabic ? "مساء الخير" : "Good evening",
+  },
+  executiveControlCenter: isArabic ? "مركز التحكم التنفيذي" : "Executive Control Center",
+  admin: isArabic ? "المدير" : "Admin",
+  workspace: isArabic ? "مساحة العمل" : "Workspace",
+  updated: isArabic ? "آخر تحديث" : "Updated",
+  today: isArabic ? "اليوم" : "Today",
+  yesterday: isArabic ? "أمس" : "Yesterday",
+  last7Days: isArabic ? "آخر 7 أيام" : "Last 7 days",
+  thisMonth: isArabic ? "هذا الشهر" : "This month",
+  customRange: isArabic ? "نطاق مخصص" : "Custom range",
+  allBranches: isArabic ? "كل الفروع" : "All branches",
+  socket: isArabic ? "الاتصال" : "Socket",
+  pos: "POS",
+  focusMode: isArabic ? "وضع التركيز" : "Focus mode",
+  fullMode: isArabic ? "الوضع الكامل" : "Full mode",
+  refresh: isArabic ? "تحديث" : "Refresh",
+  connected: isArabic ? "متصل" : "Connected",
+  livePolling: isArabic ? "تحديث دوري مباشر" : "Live Polling",
+  active: isArabic ? "نشط" : "Active",
+  ready: isArabic ? "جاهز" : "Ready",
+  orders: isArabic ? "الطلبات" : "Orders",
+  product: isArabic ? "منتج" : "Product",
+  products: isArabic ? "المنتجات" : "Products",
+  aiCenter: isArabic ? "مركز الذكاء الاصطناعي" : "AI Center",
+  lowStockProduct: isArabic ? "منتج منخفض المخزون" : "Low stock product",
+  remaining: isArabic ? "متبقٍ" : "remaining",
+  latestActivity: isArabic ? "آخر نشاط" : "Latest activity",
+  noCriticalAlerts: isArabic ? "لا توجد تنبيهات حرجة" : "No critical alerts",
+  operationsCalm: isArabic ? "العمليات مستقرة" : "Operations are calm",
+  revenueToday: isArabic ? "إيراد اليوم" : "Revenue today",
+  ordersToday: isArabic ? "طلبات اليوم" : "Orders today",
+  aov: isArabic ? "متوسط الطلب" : "AOV",
+  activePos: isArabic ? "نقاط البيع النشطة" : "Active POS",
+  lowStock: isArabic ? "مخزون منخفض" : "Low stock",
+  needsAttention: isArabic ? "يحتاج متابعة" : "Needs attention",
+  healthy: isArabic ? "سليم" : "Healthy",
+  latestAlert: isArabic ? "آخر تنبيه" : "Latest alert",
+  salesAnalytics: isArabic ? "تحليلات المبيعات" : "Sales analytics",
+  inventoryIntelligence: isArabic ? "ذكاء المخزون" : "Inventory intelligence",
+  aiInsights: isArabic ? "رؤى الذكاء الاصطناعي" : "AI insights",
+  staffActivity: isArabic ? "نشاط الموظفين" : "Staff activity",
+  marketingAnalytics: isArabic ? "تحليلات التسويق" : "Marketing analytics",
+  activityFeed: isArabic ? "سجل النشاط" : "Activity feed",
+  existingSalePricesActive: isArabic ? "أسعار التخفيض المحفوظة مفعلة" : "Existing Sale Prices Active",
+  savedSalePricesLive: isArabic ? "تم تفعيل المنتجات ذات أسعار التخفيض المحفوظة." : "Products with saved sale prices are now live.",
+  affectedProducts: isArabic ? "المنتجات المتأثرة" : "Affected products",
+  estimatedDiscountImpact: isArabic ? "الأثر التقديري للخصم" : "Est. discount impact",
+  activeCashiers: isArabic ? "الكاشيرون النشطون" : "Active cashiers",
+  openShifts: isArabic ? "الورديات المفتوحة" : "Open shifts",
+  currentCarts: isArabic ? "السلات الحالية" : "Current carts",
+  widgets: isArabic ? "العناصر" : "Widgets",
+  compact: isArabic ? "مضغوط" : "Compact",
+  wide: isArabic ? "واسع" : "Wide",
+  gettingStartedToday: isArabic ? "ابدأ اليوم" : "Getting started today",
+  noSalesForFilter: isArabic ? "لا يوجد نشاط مبيعات لهذا الفلتر بعد. ابدأ من أحد الاختصارات التشغيلية التالية." : "No sales activity exists for this filter yet. Start from one of the operational shortcuts below.",
+  createFirstProduct: isArabic ? "إنشاء أول منتج" : "Create first product",
+  makeFirstPosSale: isArabic ? "تنفيذ أول عملية بيع POS" : "Make first POS sale",
+  addSupplier: isArabic ? "إضافة مورد" : "Add supplier",
+  createPurchaseInvoice: isArabic ? "إنشاء فاتورة شراء" : "Create purchase invoice",
+  trendSparkline: isArabic ? "اتجاه الأداء" : "Trend sparkline",
+  revenueVsOrders: isArabic ? "الإيراد مقابل الطلبات" : "Revenue vs Orders",
+  noSalesInRange: isArabic ? "لا توجد مبيعات في هذا النطاق" : "No sales in this range",
+  salesTrendAppears: isArabic ? "ستظهر اتجاهات الإيراد والطلبات بعد إنشاء فواتير فعلية." : "Revenue and order trends will appear after real invoices are created.",
+  hourlySales: isArabic ? "المبيعات حسب الساعة" : "Hourly Sales",
+  noHourlyActivity: isArabic ? "لا توجد حركة حسب الساعة" : "No hourly activity",
+  hourlySalesAppear: isArabic ? "ستُعرض المبيعات حسب الساعة من نشاط نقطة البيع والطلبات." : "Hourly sales will populate from POS and order activity.",
+  noActivityInRange: isArabic ? "لا يوجد نشاط في هذا النطاق" : "No activity in this range",
+  activityAppears: isArabic ? "ستظهر هنا مباشرة الطلبات والمرتجعات وحركات المخزون والعملاء والورديات." : "Orders, refunds, stock moves, customers, and shift events will appear here live.",
+  lowStockProducts: isArabic ? "منتجات منخفضة المخزون" : "Low stock products",
+  fastMovingProducts: isArabic ? "المنتجات الأسرع حركة" : "Fast moving products",
+  sold: isArabic ? "مباع" : "sold",
+  topSizesSold: isArabic ? "المقاسات الأعلى مبيعًا" : "Top sizes sold",
+  topColorsSold: isArabic ? "الألوان الأعلى مبيعًا" : "Top colors sold",
+  unknown: isArabic ? "غير معروف" : "Unknown",
+  currentCartCounts: isArabic ? "عدد السلات الحالية" : "Current cart counts",
+  averageCheckout: isArabic ? "متوسط مدة الدفع" : "Average checkout",
+  paymentMethods: isArabic ? "طرق الدفع" : "Payment methods",
+  noPaymentsYet: isArabic ? "لا توجد مدفوعات بعد" : "No payments yet",
+  paymentDistributionAppears: isArabic ? "سيظهر توزيع طرق الدفع بعد عمليات نقطة البيع الفعلية." : "Payment distribution appears after real POS transactions.",
+  lastInvoice: isArabic ? "آخر فاتورة" : "Last invoice",
+  insightsAppear: isArabic ? "ستظهر الرؤى بعد وجود نشاط مبيعات" : "Insights will appear after sales activity",
+  insightsNeedData: isArabic ? "يحتاج النظام إلى مبيعات ومخزون ونشاط فروع فعلي ليولّد رؤى مفيدة." : "The system needs real sales, inventory, and branch activity before it can generate useful business insights.",
+  noBranchSalesYet: isArabic ? "لا توجد مبيعات فروع بعد" : "No branch sales yet",
+  branchComparisonAppears: isArabic ? "ستظهر مقارنة الفروع عند ربط الفواتير بالفروع." : "Branch comparison appears once invoices are linked to branches.",
+  noMarketingAttribution: isArabic ? "لا توجد نسبة تسويقية بعد" : "No marketing attribution yet",
+  marketingAnalyticsAppear: isArabic ? "ستظهر تحليلات التسويق عندما تحمل الطلبات مصدر الحملة." : "Marketing analytics will appear when orders carry campaign attribution.",
+  attributedSales: isArabic ? "المبيعات المنسوبة" : "Attributed sales",
+  bestSellingProducts: isArabic ? "المنتجات الأعلى مبيعًا" : "Best selling products",
+  noRecordsYet: isArabic ? "لا توجد سجلات بعد" : "No records yet",
+  widgetAutoFill: isArabic ? "سيتم ملء هذا العنصر تلقائيًا من نشاط النظام الفعلي." : "This widget will fill automatically from real system activity.",
+  notifications: isArabic ? "الإشعارات" : "Notifications",
+  systemUpdate: isArabic ? "تحديث نظام" : "System update",
+  systemLive: isArabic ? "النظام مباشر" : "System live",
+  noNewAlerts: isArabic ? "لا توجد تنبيهات جديدة" : "No new alerts",
+  lowStockAlerts: isArabic ? "تنبيهات المخزون المنخفض" : "Low stock alerts",
+  stockHealthy: isArabic ? "المخزون بحالة جيدة" : "Stock is healthy",
+  lowStockAppear: isArabic ? "ستظهر تنبيهات المخزون المنخفض عندما تهبط المنتجات أسفل الحد المحدد." : "Low stock alerts will appear when products fall below their thresholds.",
+  recentInvoices: isArabic ? "أحدث الفواتير" : "Recent invoices",
+  noInvoicesYet: isArabic ? "لا توجد فواتير بعد" : "No invoices yet",
+  recentInvoicesAppear: isArabic ? "ستظهر أحدث الفواتير بعد مبيعات نقطة البيع أو الطلبات." : "Recent invoices will appear after POS or order sales.",
+  liveUpdate: isArabic ? "تحديث مباشر" : "Live update",
+});
+
+const getGreeting = (copy) => {
   const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
+  if (hour < 12) return copy.greeting.morning;
+  if (hour < 18) return copy.greeting.afternoon;
+  return copy.greeting.evening;
 };
 
 const sparkPath = (values = [], width = 112, height = 34) => {
@@ -138,6 +257,9 @@ const dayLabel = (value) => {
 };
 
 function Dashboard() {
+  const { i18n } = useTranslation();
+  const isArabic = String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar");
+  const copy = React.useMemo(() => getDashboardCopy(isArabic), [isArabic]);
   const user = getCurrentUser();
   const tenant = getCurrentTenant();
   const role = roleKey(getRole(user));
@@ -176,8 +298,12 @@ function Dashboard() {
           return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
         })
       : allowed;
-    return ordered.map((widget) => ({ ...widget, size: sizes[widget.id] || widget.size }));
-  }, [order, role, sizes]);
+    return ordered.map((widget) => ({
+      ...widget,
+      title: copy.widgetTitles[widget.id] || widget.title,
+      size: sizes[widget.id] || widget.size,
+    }));
+  }, [copy.widgetTitles, order, role, sizes]);
 
   const visibleWidgets = availableWidgets.filter((widget) => !hidden.includes(widget.id));
 
@@ -315,7 +441,7 @@ function Dashboard() {
         liveActivity: [
           {
             type: payload?.type || "order",
-            title: payload?.invoice_number || payload?.invoiceNumber || payload?.title || "Live update",
+            title: payload?.invoice_number || payload?.invoiceNumber || payload?.title || copy.liveUpdate,
             amount: Number(payload?.total_amount || payload?.total || payload?.amount || 0),
             status: payload?.status || payload?.payment_status || "live",
             created_at: payload?.created_at || new Date().toISOString(),
@@ -353,37 +479,37 @@ function Dashboard() {
       socket.off("disconnect", markDisconnected);
       socket.off("connect_error", markDisconnected);
     };
-  }, [loadDashboard]);
+  }, [copy.liveUpdate, loadDashboard]);
 
   const overview = data.overview || {};
   const openPosShifts = data.posLive?.openShifts || [];
   const hasPosActivity = openPosShifts.length > 0 || Number(data.posLive?.currentCartCounts || 0) > 0;
   const socketStatus = hasSocketClient && socketConnected
-    ? { value: "Connected", tone: "emerald", pulse: true }
-    : { value: "Live Polling", tone: "slate", pulse: false };
+    ? { value: copy.connected, tone: "emerald", pulse: true }
+    : { value: copy.livePolling, tone: "slate", pulse: false };
   const posStatus = hasPosActivity
-    ? { value: "Active", tone: "emerald", pulse: true }
-    : { value: "Ready", tone: "slate", pulse: false };
+    ? { value: copy.active, tone: "emerald", pulse: true }
+    : { value: copy.ready, tone: "slate", pulse: false };
   const quickActions = [
     { to: "/pos", icon: Store, label: "POS", primary: true },
-    { to: "/orders", icon: ReceiptText, label: "Orders" },
-    { to: "/products/add", icon: Plus, label: "Product" },
-    { to: "/products", icon: Boxes, label: "Products" },
-    { to: "/marketing/ai-center", icon: Brain, label: "AI Center" },
+    { to: "/orders", icon: ReceiptText, label: copy.orders },
+    { to: "/products/add", icon: Plus, label: copy.product },
+    { to: "/products", icon: Boxes, label: copy.products },
+    { to: "/marketing/ai-center", icon: Brain, label: copy.aiCenter },
   ];
   const latestAlert = React.useMemo(() => {
     const low = (data.lowStock || [])[0];
-    if (low) return { tone: "amber", title: low.name || "Low stock product", detail: `${number(low.stock)} / ${number(low.threshold)} remaining` };
+    if (low) return { tone: "amber", title: low.name || copy.lowStockProduct, detail: `${number(low.stock)} / ${number(low.threshold)} ${copy.remaining}` };
     const activity = (data.liveActivity || [])[0];
-    if (activity) return { tone: "slate", title: activity.title || activity.type || "Latest activity", detail: shortTime(activity.created_at) };
-    return { tone: "emerald", title: "No critical alerts", detail: "Operations are calm" };
-  }, [data.liveActivity, data.lowStock]);
+    if (activity) return { tone: "slate", title: activity.title || activity.type || copy.latestActivity, detail: shortTime(activity.created_at) };
+    return { tone: "emerald", title: copy.noCriticalAlerts, detail: copy.operationsCalm };
+  }, [copy, data.liveActivity, data.lowStock]);
   const executiveCards = [
-    { label: "Revenue today", value: formatCurrency(overview.kpis?.todaySales?.value || overview.today?.sales || 0), icon: Banknote, tone: "emerald", detail: percent(overview.kpis?.todaySales?.growth || 0) },
-    { label: "Orders today", value: number(overview.kpis?.todayOrders?.value ?? overview.today?.orders), icon: ShoppingCart, tone: "slate", detail: `${formatCurrency(overview.kpis?.averageOrderValue?.value || 0)} AOV` },
-    { label: "Active POS", value: number(openPosShifts.length), icon: MonitorDot, tone: hasPosActivity ? "emerald" : "slate", detail: posStatus.value },
-    { label: "Low stock", value: number(data.lowStock.length || overview.kpis?.lowStockProducts?.value), icon: AlertTriangle, tone: data.lowStock.length ? "amber" : "emerald", detail: data.lowStock.length ? "Needs attention" : "Healthy" },
-    { label: "Latest alert", value: latestAlert.title, icon: Bell, tone: latestAlert.tone, detail: latestAlert.detail, textValue: true },
+    { label: copy.revenueToday, value: formatCurrency(overview.kpis?.todaySales?.value || overview.today?.sales || 0), icon: Banknote, tone: "emerald", detail: percent(overview.kpis?.todaySales?.growth || 0) },
+    { label: copy.ordersToday, value: number(overview.kpis?.todayOrders?.value ?? overview.today?.orders), icon: ShoppingCart, tone: "slate", detail: `${formatCurrency(overview.kpis?.averageOrderValue?.value || 0)} ${copy.aov}` },
+    { label: copy.activePos, value: number(openPosShifts.length), icon: MonitorDot, tone: hasPosActivity ? "emerald" : "slate", detail: posStatus.value },
+    { label: copy.lowStock, value: number(data.lowStock.length || overview.kpis?.lowStockProducts?.value), icon: AlertTriangle, tone: data.lowStock.length ? "amber" : "emerald", detail: data.lowStock.length ? copy.needsAttention : copy.healthy },
+    { label: copy.latestAlert, value: latestAlert.title, icon: Bell, tone: latestAlert.tone, detail: latestAlert.detail, textValue: true },
   ];
   const hasSalesData = [...(data.salesTrend || []), ...(data.hourlySales || [])].some((row) => Number(row.revenue || row.sales || row.orders || 0) > 0);
   const hasInventoryData = Boolean((data.inventory?.lowStock || []).length || (data.inventory?.fastMovingProducts || []).length || (data.inventory?.topSizes || []).length || (data.inventory?.topColors || []).length);
@@ -392,12 +518,12 @@ function Dashboard() {
   const hasMarketingData = Boolean((data.marketing?.channels || []).some((row) => Number(row.sales || row.orders || 0) > 0));
   const hasActivityData = Boolean((data.liveActivity || []).length);
   const secondarySections = [
-    { id: "sales", label: "Sales analytics", icon: LineChartIcon, show: hasSalesData, render: () => <SalesAnalytics salesTrend={data.salesTrend} hourlySales={data.hourlySales} /> },
-    { id: "inventory", label: "Inventory intelligence", icon: Warehouse, show: hasInventoryData, render: () => <InventoryIntelligence inventory={data.inventory} /> },
-    { id: "ai", label: "AI insights", icon: Brain, show: hasAiData, render: () => <AiInsights insights={data.aiInsights} /> },
-    { id: "staff", label: "Staff activity", icon: Users, show: hasStaffData, render: () => <StaffActivity posLive={data.posLive} /> },
-    { id: "marketing", label: "Marketing analytics", icon: Activity, show: hasMarketingData, render: () => <MarketingAnalytics marketing={data.marketing} /> },
-    { id: "activity", label: "Activity feed", icon: Bell, show: hasActivityData, render: () => <LiveActivityFeed initialEvents={data.liveActivity} /> },
+    { id: "sales", label: copy.salesAnalytics, icon: LineChartIcon, show: hasSalesData, render: () => <SalesAnalytics salesTrend={data.salesTrend} hourlySales={data.hourlySales} /> },
+    { id: "inventory", label: copy.inventoryIntelligence, icon: Warehouse, show: hasInventoryData, render: () => <InventoryIntelligence inventory={data.inventory} /> },
+    { id: "ai", label: copy.aiInsights, icon: Brain, show: hasAiData, render: () => <AiInsights insights={data.aiInsights} /> },
+    { id: "staff", label: copy.staffActivity, icon: Users, show: hasStaffData, render: () => <StaffActivity posLive={data.posLive} /> },
+    { id: "marketing", label: copy.marketingAnalytics, icon: Activity, show: hasMarketingData, render: () => <MarketingAnalytics marketing={data.marketing} /> },
+    { id: "activity", label: copy.activityFeed, icon: Bell, show: hasActivityData, render: () => <LiveActivityFeed initialEvents={data.liveActivity} /> },
   ].filter((section) => section.show);
   const activeSecondary = secondarySections.find((section) => section.id === activeSection) || secondarySections[0];
 
@@ -406,11 +532,11 @@ function Dashboard() {
       <div className="sticky top-0 z-20 -mx-4 border-b border-slate-700/45 bg-[#07111f]/88 px-4 py-4 backdrop-blur-xl sm:-mx-6 sm:px-6">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Executive Control Center</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{copy.executiveControlCenter}</div>
             <h1 className="mt-1 text-2xl font-black tracking-normal text-white md:text-4xl">
-              {getGreeting()}, {user?.name || "Admin"}
+              {getGreeting(copy)}, {user?.name || copy.admin}
             </h1>
-            <div className="mt-1 text-sm font-semibold text-slate-400">{tenant?.name || tenant?.companyName || "Workspace"}{lastUpdated ? ` · Updated ${shortTime(lastUpdated)}` : ""}</div>
+            <div className="mt-1 text-sm font-semibold text-slate-400">{tenant?.name || tenant?.companyName || copy.workspace}{lastUpdated ? ` · ${copy.updated} ${shortTime(lastUpdated)}` : ""}</div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-300 xl:justify-end">
             <div className="flex max-w-full flex-wrap items-center gap-1.5 rounded-2xl border border-slate-700/50 bg-slate-900/55 p-1">
@@ -419,11 +545,11 @@ function Dashboard() {
               ))}
             </div>
             <select value={filters.range} onChange={(event) => setFilters((current) => ({ ...current, range: event.target.value }))} className="h-10 rounded-xl border border-slate-700 bg-slate-950/70 px-3 text-xs font-bold text-white outline-none transition hover:border-slate-500">
-              <option value="today">Today</option>
-              <option value="yesterday">Yesterday</option>
-              <option value="7d">Last 7 days</option>
-              <option value="month">This month</option>
-              <option value="custom">Custom range</option>
+              <option value="today">{copy.today}</option>
+              <option value="yesterday">{copy.yesterday}</option>
+              <option value="7d">{copy.last7Days}</option>
+              <option value="month">{copy.thisMonth}</option>
+              <option value="custom">{copy.customRange}</option>
             </select>
             {filters.range === "custom" ? (
               <>
@@ -433,22 +559,22 @@ function Dashboard() {
             ) : null}
             {branches.length > 1 ? (
               <select value={filters.branch_id} onChange={(event) => setFilters((current) => ({ ...current, branch_id: event.target.value }))} className="h-10 rounded-xl border border-slate-700 bg-slate-950/70 px-3 text-xs font-bold text-white outline-none">
-                <option value="all">All branches</option>
+                <option value="all">{copy.allBranches}</option>
                 {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
               </select>
             ) : null}
-            <StatusPill label="Socket" value={socketStatus.value} tone={socketStatus.tone} pulse={socketStatus.pulse} />
-            <StatusPill label="POS" value={posStatus.value} tone={posStatus.tone} pulse={posStatus.pulse} />
+            <StatusPill label={copy.socket} value={socketStatus.value} tone={socketStatus.tone} pulse={socketStatus.pulse} />
+            <StatusPill label={copy.pos} value={posStatus.value} tone={posStatus.tone} pulse={posStatus.pulse} />
             <button
               type="button"
               onClick={() => setFocusMode((value) => !value)}
               className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${focusMode ? "border-emerald-400/35 bg-emerald-500/12 text-emerald-100" : "border-slate-700 bg-slate-900/70 text-slate-200 hover:border-slate-500"}`}
             >
-              {focusMode ? "Focus mode" : "Full mode"}
+              {focusMode ? copy.focusMode : copy.fullMode}
             </button>
             <button type="button" onClick={() => loadDashboard()} className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/70 px-3 transition hover:border-slate-500 hover:bg-slate-800/75">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              Refresh
+              {copy.refresh}
             </button>
           </div>
         </div>
@@ -473,11 +599,11 @@ function Dashboard() {
           ) : null}
           {!focusMode && data.saleMode?.sale_mode_enabled ? (
             <section className="rounded-3xl border border-amber-400/20 bg-amber-500/10 p-5">
-              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200">Existing Sale Prices Active</div>
-              <div className="mt-2 text-lg font-black text-white">{data.saleMode.sale_mode_label || "Products with saved sale prices are now live."}</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200">{copy.existingSalePricesActive}</div>
+              <div className="mt-2 text-lg font-black text-white">{data.saleMode.sale_mode_label || copy.savedSalePricesLive}</div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <TodayCard label="Affected products" value={number(data.saleModeAnalytics?.affectedProductsCount || 0)} pulse />
-                <TodayCard label="Est. discount impact" value={formatCurrency(data.saleModeAnalytics?.estimatedDiscountImpact || 0)} pulse />
+                <TodayCard label={copy.affectedProducts} value={number(data.saleModeAnalytics?.affectedProductsCount || 0)} pulse />
+                <TodayCard label={copy.estimatedDiscountImpact} value={formatCurrency(data.saleModeAnalytics?.estimatedDiscountImpact || 0)} pulse />
               </div>
             </section>
           ) : null}
@@ -550,14 +676,16 @@ function ExecutiveSection({ sections, activeId, onSelect, children }) {
 }
 
 function StaffActivity({ posLive }) {
+  const { i18n } = useTranslation();
+  const copy = getDashboardCopy(String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar"));
   const activeCashiers = Number(posLive?.activeCashiers || 0);
   const openShifts = posLive?.openShifts || [];
   if (!activeCashiers && !openShifts.length) return null;
   return (
     <div className="grid gap-4 md:grid-cols-3">
-      <MetricTile label="Active cashiers" value={number(activeCashiers)} icon={Users} />
-      <MetricTile label="Open shifts" value={number(openShifts.length)} icon={MonitorDot} />
-      <MetricTile label="Current carts" value={number(posLive?.currentCartCounts)} icon={ShoppingCart} />
+      <MetricTile label={copy.activeCashiers} value={number(activeCashiers)} icon={Users} />
+      <MetricTile label={copy.openShifts} value={number(openShifts.length)} icon={MonitorDot} />
+      <MetricTile label={copy.currentCarts} value={number(posLive?.currentCartCounts)} icon={ShoppingCart} />
     </div>
   );
 }
@@ -615,18 +743,20 @@ function QuickAction({ to, icon: Icon, label, primary = false }) {
 }
 
 function GettingStarted() {
+  const { i18n } = useTranslation();
+  const copy = getDashboardCopy(String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar"));
   const items = [
-    { to: "/products/add", label: "Create first product", icon: Package },
-    { to: "/pos", label: "Make first POS sale", icon: ShoppingCart },
-    { to: "/suppliers", label: "Add supplier", icon: Users },
-    { to: "/purchases/create", label: "Create purchase invoice", icon: ReceiptText },
+    { to: "/products/add", label: copy.createFirstProduct, icon: Package },
+    { to: "/pos", label: copy.makeFirstPosSale, icon: ShoppingCart },
+    { to: "/suppliers", label: copy.addSupplier, icon: Users },
+    { to: "/purchases/create", label: copy.createPurchaseInvoice, icon: ReceiptText },
   ];
   return (
     <section className="mt-4 rounded-2xl border border-emerald-300/15 bg-gradient-to-br from-emerald-400/10 via-white/[0.035] to-sky-400/5 p-4 shadow-2xl shadow-black/15">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">Getting started today</div>
-          <p className="mt-1 text-sm text-zinc-400">No sales activity exists for this filter yet. Start from one of the operational shortcuts below.</p>
+          <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">{copy.gettingStartedToday}</div>
+          <p className="mt-1 text-sm text-zinc-400">{copy.noSalesForFilter}</p>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {items.map(({ to, label, icon: Icon }) => (
@@ -701,11 +831,13 @@ function SkeletonLine({ className = "h-4 w-full" }) {
 }
 
 function WidgetManager({ widgets, hidden, onToggle }) {
+  const { i18n } = useTranslation();
+  const copy = getDashboardCopy(String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar"));
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.06] bg-white/[0.035] p-2 shadow-xl shadow-black/10 backdrop-blur-xl">
       <span className="inline-flex h-9 items-center gap-2 px-2 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">
         <LayoutGrid className="h-3.5 w-3.5" />
-        Widgets
+        {copy.widgets}
       </span>
       {widgets.map((widget) => (
         <button
@@ -723,6 +855,8 @@ function WidgetManager({ widgets, hidden, onToggle }) {
 }
 
 function WidgetShell({ widget, children, onToggleSize, onDropWidget }) {
+  const { i18n } = useTranslation();
+  const copy = getDashboardCopy(String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar"));
   return (
     <section
       draggable
@@ -737,7 +871,7 @@ function WidgetShell({ widget, children, onToggleSize, onDropWidget }) {
           <h2 className="truncate text-base font-black text-white">{widget.title}</h2>
         </div>
         <button type="button" onClick={() => onToggleSize(widget.id)} className="rounded-lg border border-white/[0.07] bg-white/[0.045] px-2 py-1 text-[11px] font-bold text-zinc-300 transition hover:bg-white/[0.08]">
-          {widget.size === "wide" ? "Compact" : "Wide"}
+          {widget.size === "wide" ? copy.compact : copy.wide}
         </button>
       </div>
       {children}
@@ -759,11 +893,13 @@ function WidgetSkeleton() {
 }
 
 function SalesAnalytics({ salesTrend, hourlySales }) {
+  const { i18n } = useTranslation();
+  const copy = getDashboardCopy(String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar"));
   const hasTrend = (salesTrend || []).some((row) => Number(row.revenue || 0) > 0 || Number(row.orders || 0) > 0);
   const hasHourly = (hourlySales || []).some((row) => Number(row.sales || 0) > 0 || Number(row.orders || 0) > 0);
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <ChartCard title="Revenue vs Orders">
+      <ChartCard title={copy.revenueVsOrders}>
         {hasTrend ? <ResponsiveContainer width="100%" height={220}>
           <AreaChart data={salesTrend} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
             <defs>
@@ -776,9 +912,9 @@ function SalesAnalytics({ salesTrend, hourlySales }) {
             <Area type="monotone" dataKey="revenue" stroke="#67e8f9" strokeWidth={2.5} fill="url(#salesGradient)" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
             <Area type="monotone" dataKey="orders" stroke="#94a3b8" strokeWidth={1.8} fill="transparent" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
           </AreaChart>
-        </ResponsiveContainer> : <EmptyChart title="No sales in this range" message="Revenue and order trends will appear after real invoices are created." />}
+        </ResponsiveContainer> : <EmptyChart title={copy.noSalesInRange} message={copy.salesTrendAppears} />}
       </ChartCard>
-      <ChartCard title="Hourly Sales">
+      <ChartCard title={copy.hourlySales}>
         {hasHourly ? <ResponsiveContainer width="100%" height={220}>
           <BarChart data={hourlySales} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
             <CartesianGrid stroke="rgba(148,163,184,0.12)" vertical={false} />
@@ -787,7 +923,7 @@ function SalesAnalytics({ salesTrend, hourlySales }) {
             <Tooltip content={<DashboardTooltip />} />
             <Bar dataKey="sales" fill="#67e8f9" opacity={0.72} radius={[8, 8, 3, 3]} />
           </BarChart>
-        </ResponsiveContainer> : <EmptyChart title="No hourly activity" message="Hourly sales will populate from POS and order activity." />}
+        </ResponsiveContainer> : <EmptyChart title={copy.noHourlyActivity} message={copy.hourlySalesAppear} />}
       </ChartCard>
     </div>
   );
@@ -838,29 +974,33 @@ function LegacyDashboardActivityFeed({ rows }) {
 }
 
 function InventoryIntelligence({ inventory }) {
+  const { i18n } = useTranslation();
+  const copy = getDashboardCopy(String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar"));
   const low = inventory?.lowStock || [];
   return (
     <div className="grid gap-3 lg:grid-cols-2">
-      <MiniList title="Low stock products" rows={low} getLabel={(row) => row.name} getValue={(row) => `${row.stock}/${row.threshold}`} icon={AlertTriangle} />
-      <MiniList title="Fast moving products" rows={inventory?.fastMovingProducts || []} getLabel={(row) => row.name} getValue={(row) => `${row.quantity} sold`} icon={TrendingUp} />
-      <MiniList title="Top sizes sold" rows={inventory?.topSizes || []} getLabel={(row) => row.size || "Unknown"} getValue={(row) => row.quantity} icon={Boxes} />
-      <MiniList title="Top colors sold" rows={inventory?.topColors || []} getLabel={(row) => row.color || "Unknown"} getValue={(row) => row.quantity} icon={Warehouse} />
+      <MiniList title={copy.lowStockProducts} rows={low} getLabel={(row) => row.name} getValue={(row) => `${row.stock}/${row.threshold}`} icon={AlertTriangle} />
+      <MiniList title={copy.fastMovingProducts} rows={inventory?.fastMovingProducts || []} getLabel={(row) => row.name} getValue={(row) => `${row.quantity} ${copy.sold}`} icon={TrendingUp} />
+      <MiniList title={copy.topSizesSold} rows={inventory?.topSizes || []} getLabel={(row) => row.size || copy.unknown} getValue={(row) => row.quantity} icon={Boxes} />
+      <MiniList title={copy.topColorsSold} rows={inventory?.topColors || []} getLabel={(row) => row.color || copy.unknown} getValue={(row) => row.quantity} icon={Warehouse} />
     </div>
   );
 }
 
 function PosLiveMonitor({ posLive }) {
+  const { i18n } = useTranslation();
+  const copy = getDashboardCopy(String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar"));
   const rows = posLive?.paymentDistribution || [];
   return (
     <div className="grid gap-4 lg:grid-cols-[0.85fr_1fr]">
       <div className="space-y-3">
-        <MetricTile label="Active cashiers" value={number(posLive?.activeCashiers)} icon={Users} />
-        <MetricTile label="Open shifts" value={number((posLive?.openShifts || []).length)} icon={MonitorDot} />
-        <MetricTile label="Current cart counts" value={number(posLive?.currentCartCounts)} icon={ShoppingCart} />
-        <MetricTile label="Average checkout" value={`${number(posLive?.averageCheckoutTimeSeconds)}s`} icon={LineChartIcon} />
+        <MetricTile label={copy.activeCashiers} value={number(posLive?.activeCashiers)} icon={Users} />
+        <MetricTile label={copy.openShifts} value={number((posLive?.openShifts || []).length)} icon={MonitorDot} />
+        <MetricTile label={copy.currentCartCounts} value={number(posLive?.currentCartCounts)} icon={ShoppingCart} />
+        <MetricTile label={copy.averageCheckout} value={`${number(posLive?.averageCheckoutTimeSeconds)}s`} icon={LineChartIcon} />
       </div>
       <div className="rounded-xl border border-white/[0.06] bg-white/[0.035] p-3 shadow-inner shadow-white/[0.02]">
-        <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-zinc-500">Payment methods</div>
+        <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-zinc-500">{copy.paymentMethods}</div>
         {rows.length ? <ResponsiveContainer width="100%" height={220}>
           <PieChart>
             <Pie data={rows} dataKey="amount" nameKey="method" innerRadius={54} outerRadius={86} paddingAngle={4}>
@@ -868,14 +1008,16 @@ function PosLiveMonitor({ posLive }) {
             </Pie>
             <Tooltip content={<DashboardTooltip />} />
           </PieChart>
-        </ResponsiveContainer> : <PremiumEmpty icon={CreditCard} title="No payments yet" message="Payment distribution appears after real POS transactions." compact />}
-        <div className="text-xs text-zinc-400">Last invoice: {posLive?.lastInvoice?.invoice_number || "-"}</div>
+        </ResponsiveContainer> : <PremiumEmpty icon={CreditCard} title={copy.noPaymentsYet} message={copy.paymentDistributionAppears} compact />}
+        <div className="text-xs text-zinc-400">{copy.lastInvoice}: {posLive?.lastInvoice?.invoice_number || "-"}</div>
       </div>
     </div>
   );
 }
 
 function AiInsights({ insights }) {
+  const { i18n } = useTranslation();
+  const copy = getDashboardCopy(String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar"));
   return (
     <div className="grid gap-3">
       {(insights || []).length ? insights.map((item, index) => (
@@ -883,14 +1025,16 @@ function AiInsights({ insights }) {
           <div className="flex items-center gap-2 text-sm font-black text-emerald-100"><Brain className="h-4 w-4" />{item.title}</div>
           <p className="mt-2 text-sm leading-6 text-zinc-300">{item.body}</p>
         </div>
-      )) : <PremiumEmpty icon={Brain} title="Insights will appear after sales activity" message="The system needs real sales, inventory, and branch activity before it can generate useful business insights." />}
+      )) : <PremiumEmpty icon={Brain} title={copy.insightsAppear} message={copy.insightsNeedData} />}
     </div>
   );
 }
 
 function BranchPerformance({ rows }) {
+  const { i18n } = useTranslation();
+  const copy = getDashboardCopy(String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar"));
   const hasData = (rows || []).some((row) => Number(row.sales || 0) > 0 || Number(row.orders || 0) > 0);
-  if (!hasData) return <EmptyChart title="No branch sales yet" message="Branch comparison appears once invoices are linked to branches." />;
+  if (!hasData) return <EmptyChart title={copy.noBranchSalesYet} message={copy.branchComparisonAppears} />;
   return (
     <ResponsiveContainer width="100%" height={240}>
       <BarChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
@@ -905,9 +1049,11 @@ function BranchPerformance({ rows }) {
 }
 
 function MarketingAnalytics({ marketing }) {
+  const { i18n } = useTranslation();
+  const copy = getDashboardCopy(String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar"));
   const rows = (marketing?.channels || []).map((row) => ({ ...row, sales: Number(row.sales || 0), orders: Number(row.orders || 0) }));
   const hasData = rows.some((row) => row.sales > 0 || row.orders > 0);
-  if (!hasData) return <EmptyChart title="No marketing attribution yet" message="Marketing analytics will appear when orders carry campaign attribution." />;
+  if (!hasData) return <EmptyChart title={copy.noMarketingAttribution} message={copy.marketingAnalyticsAppear} />;
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_0.8fr]">
       <ResponsiveContainer width="100%" height={250}>
@@ -919,16 +1065,20 @@ function MarketingAnalytics({ marketing }) {
           <Bar dataKey="sales" fill="#67e8f9" opacity={0.72} radius={[8, 8, 3, 3]} />
         </BarChart>
       </ResponsiveContainer>
-      <MetricTile label="Attributed sales" value={formatCurrency(marketing?.attributedSales || 0)} icon={Activity} />
+      <MetricTile label={copy.attributedSales} value={formatCurrency(marketing?.attributedSales || 0)} icon={Activity} />
     </div>
   );
 }
 
 function TopProducts({ rows }) {
-  return <MiniList title="Best selling products" rows={rows} getLabel={(row) => row.name} getValue={(row) => `${row.quantity} · ${formatCurrency(row.revenue)}`} icon={Package} />;
+  const { i18n } = useTranslation();
+  const copy = getDashboardCopy(String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar"));
+  return <MiniList title={copy.bestSellingProducts} rows={rows} getLabel={(row) => row.name} getValue={(row) => `${row.quantity} · ${formatCurrency(row.revenue)}`} icon={Package} />;
 }
 
 function MiniList({ title, rows, getLabel, getValue, icon: Icon }) {
+  const { i18n } = useTranslation();
+  const copy = getDashboardCopy(String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar"));
   return (
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3 shadow-inner shadow-white/[0.02]">
       <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-zinc-500"><Icon className="h-4 w-4" />{title}</div>
@@ -939,7 +1089,7 @@ function MiniList({ title, rows, getLabel, getValue, icon: Icon }) {
             <span className="shrink-0 font-black text-emerald-200">{getValue(row)}</span>
           </div>
         ))}
-        {!(rows || []).length ? <PremiumEmpty icon={Icon} title="No records yet" message="This widget will fill automatically from real system activity." compact /> : null}
+        {!(rows || []).length ? <PremiumEmpty icon={Icon} title={copy.noRecordsYet} message={copy.widgetAutoFill} compact /> : null}
       </div>
     </div>
   );
@@ -955,20 +1105,22 @@ function MetricTile({ label, value, icon: Icon }) {
 }
 
 function RightSidebar({ lowStock, recentInvoices, activity }) {
+  const { i18n } = useTranslation();
+  const copy = getDashboardCopy(String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar"));
   const notifications = (activity || []).slice(0, 5);
   return (
     <aside className="space-y-4 xl:sticky xl:top-28 xl:self-start">
-      <SidePanel title="Notifications" icon={Bell}>
-        {notifications.map((item, index) => <NotificationLine key={`${item.created_at}-${index}`} tone="slate" label={item.title || item.type || "System update"} value={shortTime(item.created_at)} />)}
-        {!notifications.length ? <NotificationLine tone="emerald" label="System live" value="No new alerts" pulse /> : null}
+      <SidePanel title={copy.notifications} icon={Bell}>
+        {notifications.map((item, index) => <NotificationLine key={`${item.created_at}-${index}`} tone="slate" label={item.title || item.type || copy.systemUpdate} value={shortTime(item.created_at)} />)}
+        {!notifications.length ? <NotificationLine tone="emerald" label={copy.systemLive} value={copy.noNewAlerts} pulse /> : null}
       </SidePanel>
-      <SidePanel title="Low stock alerts" icon={AlertTriangle}>
+      <SidePanel title={copy.lowStockAlerts} icon={AlertTriangle}>
         {(lowStock || []).slice(0, 6).map((item) => <NotificationLine key={`${item.id}-${item.sku}`} tone="amber" label={item.name} value={`${item.stock}/${item.threshold}`} />)}
-        {!(lowStock || []).length ? <PremiumEmpty icon={AlertTriangle} title="Stock is healthy" message="Low stock alerts will appear when products fall below their thresholds." compact /> : null}
+        {!(lowStock || []).length ? <PremiumEmpty icon={AlertTriangle} title={copy.stockHealthy} message={copy.lowStockAppear} compact /> : null}
       </SidePanel>
-      <SidePanel title="Recent invoices" icon={ReceiptText}>
+      <SidePanel title={copy.recentInvoices} icon={ReceiptText}>
         {(recentInvoices || []).slice(0, 6).map((invoice) => <NotificationLine key={invoice.id} tone="emerald" label={invoice.invoice_number} value={formatCurrency(invoice.total)} />)}
-        {!(recentInvoices || []).length ? <PremiumEmpty icon={ReceiptText} title="No invoices yet" message="Recent invoices will appear after POS or order sales." compact /> : null}
+        {!(recentInvoices || []).length ? <PremiumEmpty icon={ReceiptText} title={copy.noInvoicesYet} message={copy.recentInvoicesAppear} compact /> : null}
       </SidePanel>
     </aside>
   );

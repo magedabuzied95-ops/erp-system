@@ -291,8 +291,8 @@ function CashRegisters() {
               <div key={event.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="font-black text-white">{event.event_type.replaceAll("_", " ")}</div>
-                    <div className="mt-1 text-xs text-zinc-500">{event.source_type || "manual"} {event.source_id ? `#${event.source_id}` : ""}</div>
+                    <div className="font-black text-white">{translateEventType(event.event_type)}</div>
+                    <div className="mt-1 text-xs text-zinc-500">{translateSourceType(event.source_type || "manual")} {event.source_id ? `#${event.source_id}` : ""}</div>
                   </div>
                   <div className="text-right">
                     <div className="font-black text-white">{formatCurrency(event.amount)}</div>
@@ -471,6 +471,30 @@ function Th({ children, align = "left" }) {
 
 function Td({ children, align = "left", className = "" }) {
   return <td className={["px-4 py-4 align-top", align === "right" ? "text-right" : "", className].join(" ")}>{children}</td>;
+}
+
+function translateEventType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "sale_cash") return "بيع نقدي";
+  if (normalized === "refund_cash") return "استرداد نقدي";
+  if (normalized === "expense_cash") return "مصروف نقدي";
+  if (normalized === "cash_in") return "داخل";
+  if (normalized === "cash_out") return "خارج";
+  return "غير معروف";
+}
+
+function translateSourceType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "sale") return "بيع";
+  if (normalized === "purchase") return "شراء";
+  if (normalized === "return") return "مرتجع";
+  if (normalized === "manual") return "يدوي";
+  if (normalized === "expense") return "مصروف";
+  if (normalized === "inventory") return "مخزون";
+  if (normalized === "payment") return "سداد";
+  if (normalized === "transfer") return "تحويل";
+  if (normalized === "journal") return "قيد يومي";
+  return "غير معروف";
 }
 
 export default CashRegisters;

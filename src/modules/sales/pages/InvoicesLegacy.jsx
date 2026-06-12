@@ -1,4 +1,4 @@
-import {
+﻿import {
   useMemo,
   useState
 } from "react";
@@ -97,7 +97,7 @@ function Sales() {
 
       const confirmDelete =
         window.confirm(
-          "Delete Invoice?"
+          "حذف الفاتورة؟"
         );
 
       if (!confirmDelete)
@@ -199,7 +199,7 @@ function Sales() {
             dark:text-white
             "
           >
-            Sales PRO 💰
+            إدارة المبيعات 💰
           </h1>
 
           <p
@@ -209,7 +209,7 @@ function Sales() {
             text-lg
             "
           >
-            Enterprise sales & invoice management
+            إدارة المبيعات والفواتير للمؤسسة
           </p>
 
         </div>
@@ -227,7 +227,7 @@ function Sales() {
           font-black
           "
         >
-          Smart Sales
+          نظام المبيعات الذكي
         </div>
 
       </div>
@@ -256,7 +256,7 @@ function Sales() {
         >
 
           <p className="text-gray-500">
-            Total Revenue
+            إجمالي الإيرادات
           </p>
 
           <h2
@@ -287,7 +287,7 @@ function Sales() {
         >
 
           <p className="text-gray-500">
-            Total Invoices
+            إجمالي الفواتير
           </p>
 
           <h2
@@ -318,7 +318,7 @@ function Sales() {
         >
 
           <p className="opacity-90">
-            Sold Products
+            المنتجات المباعة
           </p>
 
           <h2
@@ -350,7 +350,7 @@ function Sales() {
         <input
           type="text"
 
-          placeholder="Search invoices..."
+          placeholder="ابحث في الفواتير..."
 
           value={search}
 
@@ -395,7 +395,7 @@ function Sales() {
           dark:text-white
           "
         >
-          Create Invoice
+          إنشاء فاتورة
         </h2>
 
         <div
@@ -410,7 +410,7 @@ function Sales() {
           <input
             type="text"
 
-            placeholder="Product"
+            placeholder="المنتج"
 
             value={product}
 
@@ -434,7 +434,7 @@ function Sales() {
           <input
             type="text"
 
-            placeholder="Customer"
+            placeholder="العميل"
 
             value={customer}
 
@@ -458,7 +458,7 @@ function Sales() {
           <input
             type="number"
 
-            placeholder="Quantity"
+            placeholder="الكمية"
 
             value={quantity}
 
@@ -482,7 +482,7 @@ function Sales() {
           <input
             type="number"
 
-            placeholder="Price"
+            placeholder="السعر"
 
             value={price}
 
@@ -520,7 +520,7 @@ function Sales() {
           transition
           "
         >
-          Add Invoice
+          إضافة فاتورة
         </button>
 
       </div>
@@ -628,7 +628,7 @@ function Sales() {
                               mt-1
                               "
                             >
-                              Invoice #
+                              فاتورة #
                               {sale.id}
                             </p>
 
@@ -757,7 +757,7 @@ function Sales() {
                       "
                     >
 
-                      No Sales Found
+                      لا توجد مبيعات
 
                     </td>
 
@@ -779,3 +779,4 @@ function Sales() {
 }
 
 export default Sales;
+

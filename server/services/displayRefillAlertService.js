@@ -249,7 +249,102 @@ const normalizeAlert = (row = {}) => ({
   updated_at: row.updated_at || null,
   resolved_at: row.resolved_at || null,
   resolved_by_employee_id: row.resolved_by_employee_id || null,
+  barcode: repairText(row.barcode || row.product_barcode || ""),
+  sku: repairText(row.sku || row.product_sku || ""),
+  sale_price: Number(row.sale_price || 0),
+  product_image_url: row.product_image_url || row.image_url || "",
+  variant_image_url: row.variant_image_url || "",
 });
+
+const enrichAlertsWithBarcodeData = async (alerts = []) => {
+  const rows = Array.isArray(alerts) ? alerts : [];
+  if (!rows.length) return rows;
+
+  const productIds = [...new Set(rows.map((alert) => numberOrNull(alert.product_id)).filter(Boolean))];
+  const variantIds = [...new Set(rows.map((alert) => numberOrNull(alert.variant_id)).filter(Boolean))];
+  if (!productIds.length) return rows;
+
+  const [productColumns, variantColumns] = await Promise.all([
+    getTableColumns("products"),
+    getTableColumns("product_variants"),
+  ]);
+
+  const productBarcodeSql = textCoalesceSql([
+    ...textColumnTerms("p", productColumns, ["barcode", "product_barcode", "sku"]),
+  ]);
+  const productSkuSql = textCoalesceSql([
+    ...textColumnTerms("p", productColumns, ["sku", "article_code", "product_sku"]),
+  ]);
+  const productImageSql = textCoalesceSql([
+    ...textColumnTerms("p", productColumns, ["product_image_url", "image_url", "image", "photo_url", "thumbnail_url"]),
+  ]);
+  const productPriceSql = numericCoalesceSql("p", productColumns, ["sale_price", "selling_price", "regular_price", "price"], "0");
+
+  const productResult = await db.query(
+    `
+    SELECT
+      p.id AS product_id,
+      ${productBarcodeSql} AS barcode,
+      ${productSkuSql} AS sku,
+      ${productImageSql} AS product_image_url,
+      ${productPriceSql} AS sale_price
+    FROM products p
+    WHERE p.id = ANY($1::bigint[])
+    `,
+    [productIds]
+  );
+  const productMap = new Map(productResult.rows.map((row) => [String(row.product_id), row]));
+
+  const variantMap = new Map();
+  if (variantIds.length) {
+    const variantBarcodeSql = textCoalesceSql([
+      ...textColumnTerms("pv", variantColumns, ["barcode", "variant_barcode", "sku", "variant_sku"]),
+      ...textColumnTerms("p", productColumns, ["barcode", "product_barcode", "sku"]),
+    ]);
+    const variantSkuSql = textCoalesceSql([
+      ...textColumnTerms("pv", variantColumns, ["sku", "variant_sku", "article_code", "variant_article_code"]),
+      ...textColumnTerms("p", productColumns, ["sku", "article_code", "product_sku"]),
+    ]);
+    const variantImageSql = textCoalesceSql([
+      ...textColumnTerms("pv", variantColumns, ["variant_image_url", "color_image_url", "image_url", "image"]),
+      ...textColumnTerms("p", productColumns, ["product_image_url", "image_url", "image", "photo_url", "thumbnail_url"]),
+    ]);
+    const variantPriceSql = numericCoalesceSql("pv", variantColumns, ["sale_price", "selling_price", "regular_price", "price", "variant_price"], productPriceSql);
+
+    const variantResult = await db.query(
+      `
+      SELECT
+        pv.id AS variant_id,
+        pv.product_id,
+        ${variantBarcodeSql} AS barcode,
+        ${variantSkuSql} AS sku,
+        ${variantImageSql} AS variant_image_url,
+        ${productImageSql} AS product_image_url,
+        ${variantPriceSql} AS sale_price
+      FROM product_variants pv
+      LEFT JOIN products p ON p.id = pv.product_id
+      WHERE pv.id = ANY($1::bigint[])
+      `,
+      [variantIds]
+    );
+    variantResult.rows.forEach((row) => {
+      variantMap.set(String(row.variant_id), row);
+    });
+  }
+
+  return rows.map((alert) => {
+    const product = productMap.get(String(alert.product_id || ""));
+    const variant = variantMap.get(String(alert.variant_id || ""));
+    return {
+      ...alert,
+      barcode: repairText(variant?.barcode || product?.barcode || alert.barcode || ""),
+      sku: repairText(variant?.sku || product?.sku || alert.sku || ""),
+      sale_price: Number(variant?.sale_price ?? product?.sale_price ?? alert.sale_price ?? 0),
+      variant_image_url: variant?.variant_image_url || alert.variant_image_url || "",
+      product_image_url: variant?.product_image_url || product?.product_image_url || alert.product_image_url || alert.image_url || "",
+    };
+  });
+};
 
 const loadOrderItems = async ({ orderId, sellerEmployeeId } = {}) => {
   const [orderItemColumns, variantColumns, productColumns] = await Promise.all([
@@ -1182,7 +1277,7 @@ export const listDisplayRefillAlertsForEmployee = async ({ employeeId, tenantId 
     query_mode: queryMode,
   });
   const result = await db.query(queryText, params);
-  return result.rows.map(normalizeAlert);
+  return enrichAlertsWithBarcodeData(result.rows.map(normalizeAlert));
 };
 
 export const listRecentDisplayRefillAlerts = async ({ limit = 20 } = {}) => {
@@ -1197,7 +1292,7 @@ export const listRecentDisplayRefillAlerts = async ({ limit = 20 } = {}) => {
     `,
     [safeLimit]
   );
-  return result.rows.map(normalizeAlert);
+  return enrichAlertsWithBarcodeData(result.rows.map(normalizeAlert));
 };
 
 export const markDisplayRefillAlertRead = async ({ employeeId, tenantId = null, branchId = null, alertId } = {}) => {

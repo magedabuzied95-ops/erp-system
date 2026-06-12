@@ -254,23 +254,23 @@ export const seedSuppliers = () => [
 export const seedWarehouses = () => [
   {
     id: "wh-1",
-    name: "Main Warehouse",
-    location: "Cairo",
-    branch: "Main",
+    name: "المخزن الرئيسي",
+    location: "القاهرة",
+    branch: "الفرع الرئيسي",
     status: "Active",
   },
   {
     id: "wh-2",
-    name: "City Center Store",
-    location: "Downtown",
-    branch: "Branch",
+    name: "متجر وسط المدينة",
+    location: "وسط المدينة",
+    branch: "فرع",
     status: "Active",
   },
   {
     id: "wh-3",
-    name: "Airport Depot",
-    location: "Airport Road",
-    branch: "Branch",
+    name: "مخزن المطار",
+    location: "طريق المطار",
+    branch: "فرع",
     status: "Active",
   },
 ];
@@ -280,7 +280,7 @@ export const seedPurchases = () => [
     id: "pur-1001",
     invoice_number: "PUR-1001",
     supplier_name: "North Star Trading",
-    warehouse_name: "Main Warehouse",
+    warehouse_name: "المخزن الرئيسي",
     status: "Received",
     payment_status: "Paid",
     total: 8400,
@@ -303,7 +303,7 @@ export const seedPurchases = () => [
     id: "pur-1002",
     invoice_number: "PUR-1002",
     supplier_name: "Delta Fashion Supply",
-    warehouse_name: "City Center Store",
+    warehouse_name: "متجر وسط المدينة",
     status: "Ordered",
     payment_status: "Pending",
     total: 3200,
@@ -358,13 +358,30 @@ export const normalizeSupplier = (supplier) => {
 
 export const normalizeWarehouse = (warehouse) => {
   const meta = getWarehouseMeta()[String(warehouse.id)] || {};
+  const normalizeFallbackWarehouseText = (value, fallbackMap = {}) => {
+    const normalizedValue = String(value || "").trim();
+    return fallbackMap[normalizedValue] || normalizedValue;
+  };
   const stockQty = Number(warehouse.stock_qty ?? warehouse.stock_quantity ?? warehouse.stockQuantity ?? 0);
   const transfersCount = Number(warehouse.transfers_count ?? warehouse.transfer_references ?? warehouse.transferReferences ?? 0);
   const activeTransfersCount = Number(warehouse.active_transfers_count ?? warehouse.active_transfer_references ?? warehouse.activeTransferReferences ?? 0);
   return {
     ...warehouse,
+    name: normalizeFallbackWarehouseText(meta.name || warehouse.name, {
+      "Main Warehouse": "المخزن الرئيسي",
+      "City Center Store": "متجر وسط المدينة",
+      "Airport Depot": "مخزن المطار",
+    }),
+    location: normalizeFallbackWarehouseText(meta.location || warehouse.location, {
+      Cairo: "القاهرة",
+      Downtown: "وسط المدينة",
+      "Airport Road": "طريق المطار",
+    }),
     status: meta.status || warehouse.status || "Active",
-    branch: meta.branch || warehouse.branch || warehouse.branch_name || "Main",
+    branch: normalizeFallbackWarehouseText(meta.branch || warehouse.branch || warehouse.branch_name || "الفرع الرئيسي", {
+      Main: "الفرع الرئيسي",
+      Branch: "فرع",
+    }),
     notes: meta.notes || warehouse.notes || "",
     products_count: Number(warehouse.products_count || warehouse.productsCount || 0),
     stock_qty: stockQty,
@@ -386,8 +403,13 @@ export const normalizePurchase = (purchase) => ({
   legacy_purchase_number: purchase.legacy_purchase_number || purchase.legacyPurchaseNumber || "",
   status: purchase.status || "Draft",
   payment_status: purchase.payment_status || "Pending",
-  warehouse_name: purchase.warehouse_name || "Main Warehouse",
-  supplier_name: purchase.supplier_name || "Unknown supplier",
+  warehouse_name:
+    {
+      "Main Warehouse": "المخزن الرئيسي",
+      "City Center Store": "متجر وسط المدينة",
+      "Airport Depot": "مخزن المطار",
+    }[purchase.warehouse_name] || purchase.warehouse_name || "المخزن الرئيسي",
+  supplier_name: purchase.supplier_name || "مورد غير معروف",
   items: Array.isArray(purchase.items) ? purchase.items : [],
   notes: purchase.notes || "",
   subtotal: Number(purchase.subtotal ?? purchase.total ?? 0),

@@ -1,14 +1,17 @@
 import { memo } from "react";
 import { Users } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export const ActiveVisitorsCard = memo(function ActiveVisitorsCard({ metrics }) {
+  const { i18n } = useTranslation();
+  const isArabic = String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar");
   const rows = [
-    ["Visitors online", metrics.activeCustomers],
-    ["Active carts", metrics.activeCarts],
-    ["Active checkouts", metrics.activeCheckouts],
-    ["Abandoned carts", metrics.abandonedCarts],
+    [isArabic ? "الزوار المتصلون" : "Visitors online", metrics.activeCustomers],
+    [isArabic ? "السلات النشطة" : "Active carts", metrics.activeCarts],
+    [isArabic ? "عمليات الدفع النشطة" : "Active checkouts", metrics.activeCheckouts],
+    [isArabic ? "السلات المتروكة" : "Abandoned carts", metrics.abandonedCarts],
   ];
-  return <MiniCommandCard title="Storefront Live" icon={Users} rows={rows} />;
+  return <MiniCommandCard title={isArabic ? "المتجر المباشر" : "Storefront Live"} icon={Users} rows={rows} />;
 });
 
 function MiniCommandCard({ title, icon: Icon, rows }) {

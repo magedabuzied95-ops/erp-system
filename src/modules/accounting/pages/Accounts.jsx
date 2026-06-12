@@ -154,7 +154,7 @@ function Accounts() {
   return (
     <AccountingShell
       title="دليل الحسابات"
-      subtitle="أساس محاسبي أولي مبني على Chart of Accounts مع الإبقاء على دفتر الأستاذ الحالي"
+      subtitle="أساس محاسبي أولي مبني على دليل الحسابات مع الإبقاء على دفتر الأستاذ الحالي"
       actions={
         <>
           <Link to="/accounting/reports" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
@@ -179,8 +179,8 @@ function Accounts() {
         { to: "/accounting", label: t("accounting.tabs.dashboard") },
         { to: "/accounting/journal-entries", label: t("accounting.tabs.journal") },
         { to: "/accounting/accounts", label: t("accounting.tabs.accounts"), end: true },
-        { to: "/accounting/general-ledger", label: "General Ledger" },
-        { to: "/accounting/trial-balance", label: "Trial Balance" },
+        { to: "/accounting/general-ledger", label: "دفتر الأستاذ" },
+        { to: "/accounting/trial-balance", label: "ميزان المراجعة" },
         { to: "/accounting/reports", label: t("accounting.tabs.reports") },
         { to: "/accounting/audit-trail", label: t("accounting.tabs.auditTrail") },
       ]}
@@ -191,14 +191,14 @@ function Accounts() {
           onClick={() => setView("chart")}
           className={`rounded-2xl px-4 py-2 text-sm font-black transition ${view === "chart" ? "bg-cyan-500 text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
         >
-          Chart of Accounts
+          دليل الحسابات
         </button>
         <button
           type="button"
           onClick={() => setView("ledgers")}
           className={`rounded-2xl px-4 py-2 text-sm font-black transition ${view === "ledgers" ? "bg-cyan-500 text-black" : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"}`}
         >
-          Ledger View
+          عرض دفتر الأستاذ
         </button>
       </div>
 
@@ -421,11 +421,27 @@ function StateBanner({ icon, title, text, action }) {
 }
 
 function SourceBadge({ label }) {
+  const translated = translateSourceType(label);
   return (
     <span className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2.5 py-1 text-xs font-black text-cyan-200">
-      {String(label || "ledger").replaceAll("_", " ")}
+      {translated}
     </span>
   );
+}
+
+function translateSourceType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "ledger") return "دفتر";
+  if (normalized === "purchase") return "شراء";
+  if (normalized === "order") return "طلب";
+  if (normalized === "return") return "مرتجع";
+  if (normalized === "manual") return "يدوي";
+  if (normalized === "expense") return "مصروف";
+  if (normalized === "inventory") return "مخزون";
+  if (normalized === "payment") return "سداد";
+  if (normalized === "transfer") return "تحويل";
+  if (normalized === "cash") return "نقدية";
+  return "غير معروف";
 }
 
 function Th({ children, align = "left" }) {

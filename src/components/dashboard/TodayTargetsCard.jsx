@@ -1,18 +1,28 @@
 import { memo } from "react";
 import { Target } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export const TodayTargetsCard = memo(function TodayTargetsCard({ metrics, target = 0, formatCurrency }) {
+  const { i18n } = useTranslation();
+  const isArabic = String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar");
+  const copy = {
+    title: isArabic ? "أهداف اليوم" : "Today Targets",
+    of: isArabic ? "من" : "of",
+    noTarget: isArabic ? "لا يوجد هدف يومي مُعدّ." : "No daily target configured",
+    conversion: isArabic ? "معدل التحويل" : "Conversion",
+    aov: isArabic ? "متوسط الطلب" : "AOV",
+  };
   const progress = target ? Math.min(100, (metrics.todaySales / target) * 100) : 0;
   return (
     <section className="rounded-2xl border border-white/[0.07] bg-zinc-950/58 p-4 shadow-2xl shadow-black/20 backdrop-blur-2xl">
-      <div className="mb-3 flex items-center gap-2 text-sm font-black text-white"><Target className="h-4 w-4 text-emerald-300" />Today Targets</div>
-      <div className="text-sm text-zinc-400">{target ? `${formatCurrency(metrics.todaySales)} of ${formatCurrency(target)}` : "No daily target configured"}</div>
+      <div className="mb-3 flex items-center gap-2 text-sm font-black text-white"><Target className="h-4 w-4 text-emerald-300" />{copy.title}</div>
+      <div className="text-sm text-zinc-400">{target ? `${formatCurrency(metrics.todaySales)} ${copy.of} ${formatCurrency(target)}` : copy.noTarget}</div>
       <div className="mt-3 h-3 overflow-hidden rounded-full bg-white/[0.06]">
         <div className="h-full rounded-full bg-emerald-300 transition-all duration-500 motion-reduce:transition-none" style={{ width: `${progress}%` }} />
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <Tiny label="Conversion" value={`${metrics.conversionRate.toFixed(1)}%`} />
-        <Tiny label="AOV" value={formatCurrency(metrics.averageOrderValue)} />
+        <Tiny label={copy.conversion} value={`${metrics.conversionRate.toFixed(1)}%`} />
+        <Tiny label={copy.aov} value={formatCurrency(metrics.averageOrderValue)} />
       </div>
     </section>
   );

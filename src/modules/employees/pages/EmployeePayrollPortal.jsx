@@ -31,6 +31,7 @@ import {
   Trophy,
   UserRound,
   WalletCards,
+  Printer,
   X,
 } from "lucide-react";
 
@@ -39,6 +40,13 @@ import { API_ORIGIN, SOCKET_URL } from "../../../shared/constants/app";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveEmployeeProfileImageUrl } from "../../../shared/lib/imageUrls";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
+import {
+  BARCODE_PRINT_DEFAULTS,
+  DISPLAY_REFILL_BARCODE_DEFAULTS,
+  normalizeBarcodePrintSettings,
+  normalizeDisplayRefillBarcodeSettings,
+} from "../../../../shared/barcodePrintSettings.js";
+import { expandLabelCopies, openBarcodePrintWindow } from "../../products/lib/barcodeLabels.js";
 import PortalChatComposer from "../../../shared/chat/PortalChatComposer";
 import PortalChatMessageList from "../../../shared/chat/PortalChatMessageList";
 import { allowedPortalChatAttachment } from "../../../shared/chat/portalChatUtils";
@@ -468,6 +476,99 @@ const money = (value) => {
 };
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
+const DISPLAY_REFILL_PRINT_TEMPLATE = "standard";
+const DISPLAY_REFILL_PRINT_COPY = {
+  title: "طباعة باركود نواقص العرض",
+  color: "اللون",
+  size: "المقاس",
+  sku: "الكود",
+  price: "السعر",
+};
+
+const resolveDisplayRefillPrintJob = (barcodeSettings = {}, displaySettings = {}) => {
+  const baseSettings = normalizeBarcodePrintSettings(barcodeSettings);
+  const refillSettings = normalizeDisplayRefillBarcodeSettings(displaySettings);
+
+  if (refillSettings.labelSize === "50x100") {
+    return {
+      template: "thermal_portrait",
+      sheetMode: "custom",
+      printSettings: normalizeBarcodePrintSettings({
+        ...baseSettings,
+        paperSize: "custom",
+        customPaperWidthMm: 50,
+        customPaperHeightMm: 100,
+        labelWidthMm: 50,
+        labelHeightMm: 100,
+        labelsPerRow: 1,
+        labelsPerPage: 1,
+        gapMm: 0,
+        marginTopMm: 1.5,
+        marginRightMm: 1.5,
+        marginBottomMm: 1.5,
+        marginLeftMm: 1.5,
+      }),
+    };
+  }
+
+  const isCompact = refillSettings.labelSize === "40x30";
+  const widthMm = isCompact ? 40 : 50;
+  const heightMm = 30;
+
+  return {
+    template: DISPLAY_REFILL_PRINT_TEMPLATE,
+    sheetMode: "custom",
+    printSettings: normalizeBarcodePrintSettings({
+      ...baseSettings,
+      paperSize: "custom",
+      customPaperWidthMm: widthMm,
+      customPaperHeightMm: heightMm,
+      labelWidthMm: widthMm,
+      labelHeightMm: heightMm,
+      labelsPerRow: 1,
+      labelsPerPage: 1,
+      gapMm: 0,
+      marginTopMm: 1,
+      marginRightMm: 1,
+      marginBottomMm: 1,
+      marginLeftMm: 1,
+      barcodeHeight: isCompact ? 40 : 44,
+      showProductImage: false,
+      showPrice: false,
+    }),
+  };
+};
+
+const buildDisplayRefillLabelItems = (alert, copies = 1) => {
+  const productId = alert?.product_id || null;
+  const variantId = alert?.variant_id || null;
+  const barcode = String(alert?.barcode || alert?.sku || (productId ? `SKU-${productId}` : "") || "").trim();
+  const sku = String(alert?.sku || barcode || "").trim();
+  const imageUrl = alert?.variant_image_url || alert?.product_image_url || alert?.image_url || "";
+  const quantity = Math.max(1, Number(copies || 1));
+
+  return expandLabelCopies([
+    {
+      key: `display-refill:${alert?.id || productId || variantId || "label"}`,
+      productId,
+      variantId,
+      productName: String(alert?.product_name || "Product").trim(),
+      color: String(alert?.color_name || "Default").trim() || "Default",
+      size: String(alert?.replacement_size || alert?.sold_size || "One size").trim() || "One size",
+      sku,
+      barcode,
+      barcodeValue: barcode,
+      salePrice: Number(alert?.sale_price || 0),
+      effectivePrice: Number(alert?.sale_price || 0),
+      displayPrice: Number(alert?.sale_price || 0),
+      comparePrice: 0,
+      saleActive: false,
+      imageUrl,
+      resolvedImage: imageUrl,
+      quantity,
+    },
+  ]);
+};
 
 const safeNow = () => {
   try {
@@ -1115,6 +1216,8 @@ export default function EmployeePayrollPortal() {
   const [displayRefillAlerts, setDisplayRefillAlerts] = useState([]);
   const [displayRefillLoading, setDisplayRefillLoading] = useState(false);
   const [displayRefillSavingId, setDisplayRefillSavingId] = useState("");
+  const [barcodePrintSettings, setBarcodePrintSettings] = useState(() => normalizeBarcodePrintSettings(BARCODE_PRINT_DEFAULTS));
+  const [displayRefillBarcodeSettings, setDisplayRefillBarcodeSettings] = useState(() => normalizeDisplayRefillBarcodeSettings(DISPLAY_REFILL_BARCODE_DEFAULTS));
   const [completedExpanded, setCompletedExpanded] = useState(false);
   const [badgeCounts, setBadgeCounts] = useState({ unreadChats: 0, pendingNotifications: 0, newTasks: 0, unreadNotifications: 0, displayRefillAlerts: 0 });
   const [notificationSeenVersion, setNotificationSeenVersion] = useState(0);
@@ -1256,6 +1359,8 @@ export default function EmployeePayrollPortal() {
         completed_count: response.completed_count ?? null,
       });
       setDisplayRefillAlerts(alerts);
+      setBarcodePrintSettings(normalizeBarcodePrintSettings(response.barcode_printing_settings || BARCODE_PRINT_DEFAULTS));
+      setDisplayRefillBarcodeSettings(normalizeDisplayRefillBarcodeSettings(response.display_refill_barcode_settings || DISPLAY_REFILL_BARCODE_DEFAULTS));
     } catch (err) {
       console.warn("[employee-payroll-portal] display refill alerts load failed", err);
     } finally {
@@ -1768,19 +1873,64 @@ export default function EmployeePayrollPortal() {
     };
   }, [activeTab, portal, token, profile.id, loadPortalByToken, showPortalToast]);
 
+  const printDisplayRefillBarcode = useCallback((alert) => {
+    if (!alert) return false;
+    const labels = buildDisplayRefillLabelItems(alert, displayRefillBarcodeSettings.copies);
+    if (!labels.length || !labels[0]?.barcodeValue) {
+      showPortalToast("بيانات الباركود غير متاحة لهذا المنتج", "error");
+      return false;
+    }
+
+    const printJob = resolveDisplayRefillPrintJob(barcodePrintSettings, displayRefillBarcodeSettings);
+    console.info("[display-refill-barcode-print]", {
+      alert_id: alert.id || null,
+      product_id: alert.product_id || null,
+      variant_id: alert.variant_id || null,
+      printer: displayRefillBarcodeSettings.defaultPrinter || "",
+      label_size: displayRefillBarcodeSettings.labelSize,
+      copies: displayRefillBarcodeSettings.copies,
+    });
+
+    const popup = openBarcodePrintWindow({
+      labels,
+      sheetMode: printJob.sheetMode,
+      template: printJob.template,
+      printSettings: printJob.printSettings,
+      copy: DISPLAY_REFILL_PRINT_COPY,
+    });
+
+    if (!popup) {
+      showPortalToast("اسمح بفتح نافذة الطباعة ثم أعد المحاولة", "error");
+      return false;
+    }
+
+    return true;
+  }, [barcodePrintSettings, displayRefillBarcodeSettings, showPortalToast]);
+
   const resolveDisplayRefill = useCallback(async (alertId) => {
     if (!token || !alertId) return;
     try {
       setDisplayRefillSavingId(String(alertId));
+      const targetAlert = safeArray(displayRefillAlerts).find((item) => String(item.id) === String(alertId)) || null;
       const response = await api.patch(`/employee-portal/${encodeURIComponent(token)}/display-refill-alerts/${encodeURIComponent(alertId)}/resolve`);
       setDisplayRefillAlerts((current) => safeArray(current).map((item) => String(item.id) === String(alertId) ? { ...item, ...(response.alert || {}), status: "resolved", is_read: true } : item));
       showPortalToast("تم تحديث نواقص العرض");
+      if (displayRefillBarcodeSettings.autoPrintWhenDisplayed && targetAlert) {
+        window.setTimeout(() => {
+          printDisplayRefillBarcode({
+            ...targetAlert,
+            ...(response.alert || {}),
+            status: "resolved",
+            is_read: true,
+          });
+        }, 0);
+      }
     } catch (err) {
       showPortalToast(err?.message || "تعذر تحديث نواقص العرض", "error");
     } finally {
       setDisplayRefillSavingId("");
     }
-  }, [showPortalToast, token]);
+  }, [displayRefillAlerts, displayRefillBarcodeSettings.autoPrintWhenDisplayed, printDisplayRefillBarcode, showPortalToast, token]);
 
   const overviewCards = useMemo(() => {
     if (!portal) return [];
@@ -2821,15 +2971,25 @@ export default function EmployeePayrollPortal() {
                               </div>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => resolveDisplayRefill(alert.id)}
-                            disabled={isSaving}
-                            className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-[13px] font-black text-white disabled:opacity-60"
-                          >
-                            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}
-                            تم العرض
-                          </button>
+                          <div className="mt-2 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => resolveDisplayRefill(alert.id)}
+                              disabled={isSaving}
+                              className="inline-flex h-9 min-w-[6.75rem] items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-[13px] font-black text-white disabled:opacity-60"
+                            >
+                              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}
+                              تم العرض
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => printDisplayRefillBarcode(alert)}
+                              className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-[13px] font-black text-slate-800"
+                            >
+                              <Printer className="h-4 w-4" />
+                              Print Barcode
+                            </button>
+                          </div>
                         </article>
                       );
                     }) : hasDisplayRefillAlerts ? (
@@ -2876,10 +3036,20 @@ export default function EmployeePayrollPortal() {
                                 </div>
                               </div>
                             </div>
-                            <button type="button" disabled className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl bg-slate-200 px-3 text-[13px] font-black text-slate-600">
-                              <CheckCheck className="h-4 w-4" />
-                              تم التنفيذ
-                            </button>
+                            <div className="mt-2 flex items-center gap-2">
+                              <button type="button" disabled className="inline-flex h-9 min-w-[6.75rem] items-center justify-center gap-2 rounded-xl bg-slate-200 px-3 text-[13px] font-black text-slate-600">
+                                <CheckCheck className="h-4 w-4" />
+                                تم التنفيذ
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => printDisplayRefillBarcode(alert)}
+                                className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-[13px] font-black text-slate-800"
+                              >
+                                <Printer className="h-4 w-4" />
+                                Print Barcode
+                              </button>
+                            </div>
                           </article>
                         );
                       })}

@@ -340,18 +340,18 @@ function PurchasesDashboard() {
         const qty = Number(item.quantity || item.qty || 0);
         const cost = Number(item.cost_price ?? item.unit_cost ?? item.purchase_price ?? 0);
         const subtotal = Number(item.subtotal ?? qty * cost);
-        return `<tr><td>${escapeHtml(item.product_name || item.name || purchasePrintLabel("item", "Item"))}</td><td>${escapeHtml(variant)}</td><td class="number">${qty}</td><td class="amount">${formatCurrency(cost)}</td><td class="amount">${formatCurrency(subtotal)}</td></tr>`;
+        return `<tr><td>${escapeHtml(item.product_name || item.name || purchasePrintLabel("item", "الصنف"))}</td><td>${escapeHtml(variant)}</td><td class="number">${qty}</td><td class="amount">${formatCurrency(cost)}</td><td class="amount">${formatCurrency(subtotal)}</td></tr>`;
       })
       .join("");
     const html = wrapPrintableHtml({
-      title: purchase.invoice_number || purchasePrintLabel("purchaseInvoice", "Purchase invoice"),
+      title: purchase.invoice_number || purchasePrintLabel("purchaseInvoice", "فاتورة شراء"),
       language: printLanguage,
       body: `
         <main class="print-sheet" dir="${printDir}">
-          <button onclick="window.print()">${escapeHtml(purchasePrintLabel("printSavePdf", "Print / Save PDF"))}</button>
+          <button onclick="window.print()">${escapeHtml(purchasePrintLabel("printSavePdf", "طباعة / حفظ PDF"))}</button>
           <header class="print-header">
             <div>
-              <h1 class="print-title">${escapeHtml(purchasePrintLabel("purchaseInvoice", "Purchase invoice"))}</h1>
+              <h1 class="print-title">${escapeHtml(purchasePrintLabel("purchaseInvoice", "فاتورة شراء"))}</h1>
               <div class="muted number">${escapeHtml(purchase.invoice_number)}</div>
             </div>
             <div>
@@ -362,16 +362,16 @@ function PurchasesDashboard() {
           </header>
           <section class="print-card">
             <table>
-              <thead><tr><th>${escapeHtml(purchasePrintLabel("product", "Product"))}</th><th>${escapeHtml(purchasePrintLabel("variant", "Variant"))}</th><th>${escapeHtml(purchasePrintLabel("quantity", "Qty"))}</th><th>${escapeHtml(purchasePrintLabel("cost", "Cost"))}</th><th>${escapeHtml(purchasePrintLabel("subtotal", "Subtotal"))}</th></tr></thead>
+              <thead><tr><th>${escapeHtml(purchasePrintLabel("product", "الصنف"))}</th><th>${escapeHtml(purchasePrintLabel("variant", "المتغير"))}</th><th>${escapeHtml(purchasePrintLabel("quantity", "الكمية"))}</th><th>${escapeHtml(purchasePrintLabel("cost", "التكلفة"))}</th><th>${escapeHtml(purchasePrintLabel("subtotal", "الإجمالي الفرعي"))}</th></tr></thead>
               <tbody>${rows}</tbody>
             </table>
           </section>
-          <div class="total">${escapeHtml(purchasePrintLabel("total", "Total"))}: <span class="amount">${formatCurrency(purchase.total)}</span></div>
+          <div class="total">${escapeHtml(purchasePrintLabel("total", "الإجمالي"))}: <span class="amount">${formatCurrency(purchase.total)}</span></div>
         </main>
       `,
     });
     if (!openPrintHtml(html)) {
-      toast.error(purchasePrintLabel("allowPopups", "Allow popups to export the invoice."));
+      toast.error(purchasePrintLabel("allowPopups", "اسمح بالنوافذ المنبثقة لتصدير الفاتورة."));
     }
   };
 

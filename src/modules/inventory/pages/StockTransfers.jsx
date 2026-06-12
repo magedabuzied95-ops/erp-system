@@ -71,7 +71,7 @@ function StockTransfers() {
         ...payload,
         notes,
         created_at: new Date().toISOString(),
-        status: "Transferred",
+        status: "تم التحويل",
       };
       saveInventoryTransfers([record, ...transfers]);
       toast.success("تم إرسال التحويل");
@@ -82,7 +82,7 @@ function StockTransfers() {
         ...payload,
         notes,
         created_at: new Date().toISOString(),
-        status: "Draft",
+        status: "مسودة",
       };
       saveInventoryTransfers([record, ...transfers]);
       toast.error("مسار التحويل غير متاح. تم الحفظ محليًا.");
@@ -164,7 +164,7 @@ function StockTransfers() {
                         <div className="font-semibold text-white">الاختيار {transfer.variant_id}</div>
                         <div className="mt-1 text-xs text-zinc-500">{formatDateTime(transfer.created_at)}</div>
                       </div>
-                      <StatusBadge value={transfer.status || "Draft"} />
+                      <StatusBadge value={transfer.status || "مسودة"} />
                     </div>
                     <div className="mt-2 text-sm text-zinc-300">
                       {transfer.from_warehouse} ← {transfer.to_warehouse} • الكمية {transfer.quantity}
