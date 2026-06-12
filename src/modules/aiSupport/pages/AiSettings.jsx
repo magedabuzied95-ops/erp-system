@@ -105,7 +105,7 @@ export default function AiSettings() {
       const payload = await api.getAISettings({ params: { tenant_id: tenantId }, headers });
       setSettings(mergeSettings(payload.settings));
     } catch (err) {
-      setError(err?.message || "Failed to load AI settings");
+      setError(err?.message || "تعذر تحميل إعدادات الذكاء الاصطناعي");
     } finally {
       setLoading(false);
     }
@@ -130,7 +130,7 @@ export default function AiSettings() {
       setSettings(mergeSettings(payload.settings));
       setToast("AI settings saved.");
     } catch (err) {
-      setError(err?.message || "Failed to save AI settings");
+      setError(err?.message || "تعذر حفظ إعدادات الذكاء الاصطناعي");
     } finally {
       setSaving(false);
     }
@@ -150,7 +150,7 @@ export default function AiSettings() {
       }, { headers });
       setTestResult(payload.result || null);
     } catch (err) {
-      setError(err?.message || "Failed to test AI reply");
+      setError(err?.message || "تعذر اختبار رد الذكاء الاصطناعي");
     } finally {
       setTesting(false);
     }
@@ -203,7 +203,7 @@ export default function AiSettings() {
           <div className="grid gap-3 lg:grid-cols-[0.85fr_1fr]">
             <div className="grid gap-3">
               <label className="block">
-                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Channel</span>
+                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">القناة</span>
                 <select value={playground.channelId} onChange={(event) => updatePlaygroundChannel(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-cyan-300/40">
                   <option value="facebook_messenger">Facebook Messenger</option>
                   <option value="instagram">Instagram DM</option>
@@ -222,7 +222,7 @@ export default function AiSettings() {
             </div>
             <div className="grid gap-3">
               <label className="block">
-                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Customer message</span>
+                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">رسالة العميل</span>
                 <textarea value={playground.message} onChange={(event) => setPlayground((current) => ({ ...current, message: event.target.value }))} className="mt-2 min-h-36 w-full resize-y rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm font-bold leading-6 text-white outline-none focus:border-cyan-300/40" />
               </label>
               <button type="button" onClick={runPlayground} disabled={testing || !playground.message.trim()} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-300 px-4 text-sm font-black text-slate-950 disabled:opacity-50">
@@ -247,8 +247,8 @@ export default function AiSettings() {
                   {testResult.productContext ? (
                     <div className="mt-2 space-y-1 text-sm text-slate-300">
                       <div><b className="text-white">{testResult.productContext.name || "Unnamed product"}</b></div>
-                      <div>Price: {testResult.productContext.salePrice || testResult.productContext.price || "n/a"}</div>
-                      <div>Stock: {testResult.productContext.inStock ? "In stock" : "Out of stock"}</div>
+                      <div>السعر: {testResult.productContext.salePrice || testResult.productContext.price || "غير متاح"}</div>
+                      <div>المخزون: {testResult.productContext.inStock ? "متوفر" : "غير متوفر"}</div>
                       <div>Sizes: {(testResult.productContext.sizes || []).join(", ") || "n/a"}</div>
                       <UrlRow label="Product URL" value={testResult.productContext.productUrl} />
                       <UrlRow label="Image URL" value={testResult.productContext.imageUrl} />
@@ -277,8 +277,8 @@ export default function AiSettings() {
         <div className="grid gap-5 lg:grid-cols-2">
           <Section icon={ShieldCheck} title="Safety" subtitle="Defaults stay on to prevent bad commerce claims.">
             <div className="grid gap-3">
-              <Toggle label="Never fake stock" checked={settings.safety.no_fake_stock !== false} onChange={(value) => patchGroup("safety", "no_fake_stock", value)} />
-              <Toggle label="Never fake prices" checked={settings.safety.no_fake_price !== false} onChange={(value) => patchGroup("safety", "no_fake_price", value)} />
+              <Toggle label="لا تختلق المخزون" checked={settings.safety.no_fake_stock !== false} onChange={(value) => patchGroup("safety", "no_fake_stock", value)} />
+              <Toggle label="لا تختلق الأسعار" checked={settings.safety.no_fake_price !== false} onChange={(value) => patchGroup("safety", "no_fake_price", value)} />
               <Toggle label="Escalate angry customers" checked={settings.safety.escalate_angry_customers !== false} onChange={(value) => patchGroup("safety", "escalate_angry_customers", value)} />
             </div>
           </Section>

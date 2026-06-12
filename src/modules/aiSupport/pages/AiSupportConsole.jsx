@@ -183,7 +183,7 @@ function ConfidenceBar({ value }) {
   return (
     <div>
       <div className="mb-2 flex items-center justify-between text-xs font-black uppercase tracking-[0.16em] text-slate-400">
-        <span>Confidence</span>
+        <span>مستوى الثقة</span>
         <span>{Math.round(confidence * 100)}%</span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-white/10">
@@ -213,7 +213,7 @@ function Pill({ children, tone = "slate" }) {
 
 function JsonBlock({ value }) {
   if (value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0)) {
-    return <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm text-slate-500">Not returned by endpoint.</div>;
+    return <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm text-slate-500">لم يُعدّه المسار.</div>;
   }
   return (
     <pre className="max-h-72 overflow-auto rounded-2xl border border-white/10 bg-slate-950/80 p-4 text-xs leading-5 text-slate-200">
@@ -234,11 +234,11 @@ function ProductCard({ product }) {
       </div>
       <div className="min-w-0">
         <div className="truncate text-sm font-black text-white">{product.name || "Product"}</div>
-        <div className="mt-1 text-xs text-slate-400">{product.sku ? `SKU ${product.sku}` : "No SKU returned"}</div>
+        <div className="mt-1 text-xs text-slate-400">{product.sku ? `SKU ${product.sku}` : "لم يتم إرجاع SKU"}</div>
         <div className="mt-3 flex flex-wrap gap-2">
           <Pill tone={product.availability === "available" ? "emerald" : "amber"}>{product.availability || "unknown"}</Pill>
-          <Pill tone="cyan">{product.price ?? "-"} price</Pill>
-          <Pill>{Number(product.total_stock || 0)} stock</Pill>
+          <Pill tone="cyan">{product.price ?? "-"} السعر</Pill>
+          <Pill>{Number(product.total_stock || 0)} مخزون</Pill>
         </div>
       </div>
     </div>
@@ -254,7 +254,7 @@ function HistoryRow({ item }) {
           <h3 className="mt-2 text-base font-black text-white">{item.customer_message}</h3>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Pill tone={item.needs_human_support ? "amber" : "emerald"}>{item.needs_human_support ? "Needs human" : "AI answered"}</Pill>
+          <Pill tone={item.needs_human_support ? "amber" : "emerald"}>{item.needs_human_support ? "يحتاج تدخلًا بشريًا" : "أجاب الذكاء الاصطناعي"}</Pill>
           <Pill tone={Number(item.confidence || 0) < 0.5 ? "rose" : "cyan"}>{Math.round(Number(item.confidence || 0) * 100)}%</Pill>
           {item.detected_intent ? <Pill>{item.detected_intent}</Pill> : null}
         </div>
@@ -340,7 +340,7 @@ export default function AiSupportConsole() {
       });
       setHistory(asArray(payload?.history));
     } catch (err) {
-      setHistoryError(err?.message || "Failed to load AI support history");
+      setHistoryError(err?.message || "تعذر تحميل سجل دعم الذكاء الاصطناعي");
     } finally {
       setHistoryLoading(false);
     }
@@ -384,7 +384,7 @@ export default function AiSupportConsole() {
       });
       setOrderDrafts(asArray(payload?.drafts));
     } catch (err) {
-      setOrderDraftsError(err?.message || "Failed to load AI order drafts");
+      setOrderDraftsError(err?.message || "تعذر تحميل مسودات الطلبات الذكية");
     } finally {
       setOrderDraftsLoading(false);
     }
@@ -426,7 +426,7 @@ export default function AiSupportConsole() {
       });
       setHistory([]);
     } catch (err) {
-      setHistoryError(err?.message || "Failed to clear AI support history");
+      setHistoryError(err?.message || "تعذر مسح سجل دعم الذكاء الاصطناعي");
     } finally {
       setHistoryLoading(false);
     }
@@ -506,7 +506,7 @@ export default function AiSupportConsole() {
       }
       await loadOrderDrafts();
     } catch (err) {
-      setOrderDraftsError(err?.message || "Failed to update AI order");
+      setOrderDraftsError(err?.message || "تعذر تحديث طلب الذكاء الاصطناعي");
     } finally {
       setOrderDraftsLoading(false);
     }
@@ -543,7 +543,7 @@ export default function AiSupportConsole() {
                   <ShieldAlert className="h-4 w-4" />
                   Internal testing only - not visible to customers
                 </div>
-                <h1 className="mt-4 text-3xl font-black tracking-tight md:text-4xl">AI Support Console</h1>
+                <h1 className="mt-4 text-3xl font-black tracking-tight md:text-4xl">وحدة دعم الذكاء الاصطناعي</h1>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
                   Test customer-style product and store policy questions, then review saved answers before public release.
                 </p>
@@ -587,7 +587,7 @@ export default function AiSupportConsole() {
               <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/20">
                 <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-slate-400">
                   <MessageSquareText className="h-4 w-4" />
-                  Customer-like question
+                  سؤال يشبه سؤال العميل
                 </div>
                 <textarea
                   value={message}
@@ -647,7 +647,7 @@ export default function AiSupportConsole() {
                   </div>
                   {response ? (
                     <Pill tone={response.needs_human_support ? "amber" : "emerald"}>
-                      {response.needs_human_support ? "Needs human support" : "Answered"}
+                      {response.needs_human_support ? "يحتاج تدخلًا بشريًا" : "تمت الإجابة"}
                     </Pill>
                   ) : null}
                 </div>
@@ -703,7 +703,7 @@ export default function AiSupportConsole() {
                 </div>
                 <div className="grid gap-3 md:grid-cols-3">
                   <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-                    <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Detected intent</div>
+                    <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">النية المكتشفة</div>
                     <div className="mt-2 text-sm font-black text-white">{debugPayload.detected_intent || "-"}</div>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
@@ -746,7 +746,7 @@ export default function AiSupportConsole() {
                   <ShoppingCart className="h-4 w-4" />
                   AI Order Drafts
                 </div>
-                <p className="mt-2 text-sm text-slate-400">Customer orders started by AI chat, WhatsApp, Instagram, or Facebook inbox.</p>
+                <p className="mt-2 text-sm text-slate-400">طلبات العملاء التي بدأت عبر دردشة الذكاء الاصطناعي أو واتساب أو إنستجرام أو صندوق وارد فيسبوك.</p>
               </div>
               <button
                 type="button"
@@ -782,7 +782,7 @@ export default function AiSupportConsole() {
                           <Pill tone="cyan">{Number(draft.ai_agent_confidence || 0).toFixed(2)}</Pill>
                         </div>
                         <div className="mt-2 grid gap-2 text-sm text-slate-300 md:grid-cols-2">
-                          <span><b className="text-white">Customer:</b> {draft.customer_name || "n/a"} - {draft.customer_phone || "n/a"}</span>
+                          <span><b className="text-white">العميل:</b> {draft.customer_name || "غير متاح"} - {draft.customer_phone || "غير متاح"}</span>
                           <span><b className="text-white">Area:</b> {[draft.governorate, draft.city_area].filter(Boolean).join(" / ") || "n/a"}</span>
                           <span><b className="text-white">Product:</b> {firstItem.product_name || metadata.matched_product_id || "n/a"}</span>
                           <span><b className="text-white">Variant:</b> {firstItem.variant_name || metadata.matched_variant_id || "n/a"} x {firstItem.quantity || 1}</span>
@@ -876,8 +876,8 @@ export default function AiSupportConsole() {
                   onChange={(event) => setHistoryFilters((current) => ({ ...current, needs_human_support: event.target.value }))}
                   className="h-10 rounded-2xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none"
                 >
-                  <option value="all">All outcomes</option>
-                  <option value="true">Needs human support</option>
+                  <option value="all">كل النتائج</option>
+                  <option value="true">يحتاج تدخلًا بشريًا</option>
                   <option value="false">Answered by AI</option>
                 </select>
                 <label className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-slate-200">

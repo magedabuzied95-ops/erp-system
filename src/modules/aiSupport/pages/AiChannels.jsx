@@ -540,12 +540,12 @@ export default function AiChannels() {
                 <ShieldCheck className="h-3.5 w-3.5" />
                 {tr("eyebrow", "AI support command center")}
               </div>
-              <h1 className="mt-3 text-3xl font-black tracking-tight md:text-4xl">{tr("title", "AI Channels Control Center")}</h1>
+              <h1 className="mt-3 text-3xl font-black tracking-tight md:text-4xl">{tr("title", "مركز التحكم في القنوات الذكية")}</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
                 {tr("subtitle", "Monitor every AI customer channel, handoff queue, inbox signal, and response metric from one operational view.")}
               </p>
               <p className="mt-3 inline-flex rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2 text-xs font-bold text-slate-300">
-                {tr("note.externalChannels", "External channels require API connection. Website chat can run locally first.")}
+                {tr("note.externalChannels", "القنوات الخارجية تحتاج إلى اتصال API، بينما يمكن تشغيل دردشة الموقع محليًا أولًا.")}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -569,7 +569,7 @@ export default function AiChannels() {
             <KpiCard icon={Activity} label={tr("health.status", "AI support status")} value={online ? tr("status.online", "Online") : tr("status.offline", "Offline")} tone={online ? "emerald" : "amber"} />
             <KpiCard icon={Users} label={tr("health.active", "Active conversations")} value={activeConversations} />
             <KpiCard icon={AlertTriangle} label={tr("health.waiting", "Waiting for human takeover")} value={waitingHuman} tone="amber" />
-            <KpiCard icon={Clock3} label={tr("health.avgResponse", "Average response time")} value={seconds(analytics?.averageResponseSeconds)} tone="violet" />
+            <KpiCard icon={Clock3} label={tr("health.avgResponse", "متوسط زمن الاستجابة")} value={seconds(analytics?.averageResponseSeconds)} tone="violet" />
             <KpiCard icon={CheckCircle2} label={tr("health.resolvedToday", "Resolved by AI today")} value={resolvedToday || number(analytics?.closedConversations)} tone="emerald" />
           </div>
           {actionMessage ? <div className="mt-4 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-3 text-sm font-bold text-cyan-100">{actionMessage}</div> : null}
@@ -630,7 +630,7 @@ export default function AiChannels() {
                 <label className="block">
                   <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">API Key</span>
                   <input
-                    value={whatsappGateway?.apiKeyConfigured ? "Configured" : ""}
+                    value={whatsappGateway?.apiKeyConfigured ? "مهيأ" : ""}
                     readOnly
                     placeholder="EVOLUTION_API_KEY is missing"
                     className="mt-1 h-11 w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 text-sm font-bold text-white outline-none placeholder:text-slate-600"
@@ -678,7 +678,7 @@ export default function AiChannels() {
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-300 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:opacity-50"
                 >
                   {busyAction === "whatsapp-gateway:test" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  Send test
+                      إرسال اختبار
                 </button>
               </div>
             </div>
@@ -766,8 +766,8 @@ export default function AiChannels() {
                             </div>
                             <div className="mt-1 truncate font-black text-white">
                               {channel.key === "facebook"
-                                ? channel.metaChannel?.page_name || channel.metaConfig?.facebook_page_name || channel.metaConfig?.page_name || channel.metaConfig?.facebook_page_id || tr("empty.notConnected", "Not connected")
-                                : channel.metaChannel?.username || channel.metaConfig?.instagram_username || channel.metaConfig?.instagram_business_account_id || tr("empty.notConnected", "Not connected")}
+                                ? channel.metaChannel?.page_name || channel.metaConfig?.facebook_page_name || channel.metaConfig?.page_name || channel.metaConfig?.facebook_page_id || tr("empty.notConnected", "غير متصل")
+                                : channel.metaChannel?.username || channel.metaConfig?.instagram_username || channel.metaConfig?.instagram_business_account_id || tr("empty.notConnected", "غير متصل")}
                             </div>
                           </div>
                         </div>
@@ -789,7 +789,7 @@ export default function AiChannels() {
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div className="rounded-xl border border-white/10 bg-slate-950/30 p-2"><div className="text-slate-500">{tr("card.liveConversations", "Live conversations")}</div><div className="mt-1 font-black text-white">{channel.liveConversations}</div></div>
                         <div className="rounded-xl border border-white/10 bg-slate-950/30 p-2"><div className="text-slate-500">{tr("card.unread", "Unread")}</div><div className="mt-1 font-black text-white">{channel.unread}</div></div>
-                        <div className="rounded-xl border border-white/10 bg-slate-950/30 p-2"><div className="text-slate-500">{tr("card.aiRepliesSent", "AI replies sent")}</div><div className="mt-1 font-black text-white">{channel.aiRepliesSent}</div></div>
+                        <div className="rounded-xl border border-white/10 bg-slate-950/30 p-2"><div className="text-slate-500">{tr("card.aiRepliesSent", "الردود المرسلة بالذكاء الاصطناعي")}</div><div className="mt-1 font-black text-white">{channel.aiRepliesSent}</div></div>
                         <div className="rounded-xl border border-white/10 bg-slate-950/30 p-2"><div className="text-slate-500">{tr("card.lastInbound", "Last inbound")}</div><div className="mt-1 font-black text-white">{safeDate(channel.lastInbound, tr("empty.never", "Never"))}</div></div>
                       </div>
                       <div className="flex items-center justify-between gap-3">
@@ -832,7 +832,7 @@ export default function AiChannels() {
                       className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-black text-slate-950 transition hover:bg-cyan-100"
                     >
                       <Settings className="h-4 w-4" />
-                      {tr("actions.manageMeta", "Manage Meta connection")}
+                      {tr("actions.manageMeta", "إدارة اتصال ميتا")}
                     </Link>
                   ) : channel.key === "whatsapp" ? (
                     <button
@@ -841,7 +841,7 @@ export default function AiChannels() {
                       className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-black text-slate-950 transition hover:bg-cyan-100"
                     >
                       <Settings className="h-4 w-4" />
-                      {tr("actions.configure", "Configure")}
+                      {tr("actions.configure", "إعداد")}
                     </button>
                   ) : (
                     <Link
@@ -849,18 +849,18 @@ export default function AiChannels() {
                       className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-white px-3 text-sm font-black text-slate-950 transition hover:bg-cyan-100"
                     >
                       {channel.connected || channel.localAvailable ? <Inbox className="h-4 w-4" /> : <Settings className="h-4 w-4" />}
-                      {channel.connected || channel.localAvailable ? tr("actions.manage", "Manage") : tr("actions.configure", "Configure")}
+                      {channel.connected || channel.localAvailable ? tr("actions.manage", "إدارة") : tr("actions.configure", "إعداد")}
                     </Link>
                   )}
                   <div className="grid grid-cols-2 gap-2">
                     <Link to="/admin/ai-inbox" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
                       <ExternalLink className="h-3.5 w-3.5" />
-                      {tr("actions.viewInbox", "View inbox")}
+                      {tr("actions.viewInbox", "عرض الصندوق")}
                     </Link>
                     {META_CHANNEL_KEYS.has(channel.key) ? (
                     <button type="button" onClick={() => sendTestMessage(channel.key)} disabled={busyAction === `test:${channel.key}`} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10 disabled:opacity-50">
                       {busyAction === `test:${channel.key}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                      {tr("actions.sendTest", "Send test")}
+                      {tr("actions.sendTest", "إرسال اختبار")}
                     </button>
                     ) : channel.key === "whatsapp" ? (
                     <button type="button" onClick={openWhatsappGatewaySettings} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:bg-white/10">
@@ -878,15 +878,15 @@ export default function AiChannels() {
                     <div className="grid grid-cols-2 gap-2">
                       <button type="button" onClick={() => loadPage()} disabled={loading} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 text-xs font-black text-cyan-100 transition hover:bg-cyan-400/15 disabled:opacity-50">
                         <RefreshCw className="h-3.5 w-3.5" />
-                        {tr("actions.resync", "Re-sync")}
+                        {tr("actions.resync", "إعادة المزامنة")}
                       </button>
                       <button type="button" onClick={() => pauseAutomation(channel.apiKey)} disabled={busyAction === `pause:${channel.apiKey}` || !channel.aiAutomationActive} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 text-xs font-black text-amber-100 transition hover:bg-amber-400/15 disabled:opacity-50">
                         {busyAction === `pause:${channel.apiKey}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PauseCircle className="h-3.5 w-3.5" />}
-                        {tr("actions.pauseAutomation", "Pause AI")}
+                        {tr("actions.pauseAutomation", "إيقاف الذكاء الاصطناعي مؤقتًا")}
                       </button>
                       <Link to="/marketing/settings?section=automation" className="col-span-2 inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/15">
                         <Bot className="h-3.5 w-3.5" />
-                        {tr("actions.automationRules", "Automation rules")}
+                        {tr("actions.automationRules", "قواعد الأتمتة")}
                       </Link>
                     </div>
                   ) : null}
@@ -902,11 +902,11 @@ export default function AiChannels() {
               <div>
                 <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-cyan-100">
                   <Inbox className="h-4 w-4" />
-                  {tr("inbox.title", "Live Inbox Preview")}
+                  {tr("inbox.title", "معاينة الصندوق المباشر")}
                 </div>
                 <p className="mt-1 text-sm text-slate-400">{tr("inbox.subtitle", "Latest AI conversations across connected and local channels.")}</p>
               </div>
-              <Link to="/admin/ai-inbox" className="shrink-0 text-sm font-black text-cyan-100 hover:text-cyan-50">{tr("actions.openInbox", "Open inbox")}</Link>
+              <Link to="/admin/ai-inbox" className="shrink-0 text-sm font-black text-cyan-100 hover:text-cyan-50">{tr("actions.openInbox", "فتح الصندوق")}</Link>
             </div>
 
             {loading ? (
@@ -916,18 +916,18 @@ export default function AiChannels() {
                 <table className="w-full min-w-[48rem] text-start text-sm">
                   <thead className="text-xs uppercase tracking-[0.14em] text-slate-500">
                     <tr>
-                      <th className="px-3 py-2 text-start font-black">{tr("inbox.customer", "Customer")}</th>
-                      <th className="px-3 py-2 text-start font-black">{tr("inbox.channel", "Channel")}</th>
-                      <th className="px-3 py-2 text-start font-black">{tr("inbox.message", "Last message")}</th>
-                      <th className="px-3 py-2 text-start font-black">{tr("inbox.intent", "Detected intent")}</th>
-                      <th className="px-3 py-2 text-start font-black">{tr("inbox.aiStatus", "AI status")}</th>
-                      <th className="px-3 py-2 text-start font-black">{tr("inbox.time", "Time")}</th>
+                      <th className="px-3 py-2 text-start font-black">{tr("inbox.customer", "العميل")}</th>
+                      <th className="px-3 py-2 text-start font-black">{tr("inbox.channel", "القناة")}</th>
+                      <th className="px-3 py-2 text-start font-black">{tr("inbox.message", "آخر رسالة")}</th>
+                      <th className="px-3 py-2 text-start font-black">{tr("inbox.intent", "النية المكتشفة")}</th>
+                      <th className="px-3 py-2 text-start font-black">{tr("inbox.aiStatus", "حالة الذكاء الاصطناعي")}</th>
+                      <th className="px-3 py-2 text-start font-black">{tr("inbox.time", "الوقت")}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/10">
                     {latestConversations.map((conversation, index) => (
                       <tr key={conversation.session_id || index}>
-                        <td className="px-3 py-3 font-black text-white">{conversation.customer_name || tr("empty.guest", "Guest customer")}</td>
+                        <td className="px-3 py-3 font-black text-white">{conversation.customer_name || tr("empty.guest", "عميل ضيف")}</td>
                         <td className="px-3 py-3 text-slate-200">{tr(`channels.${conversation.source_channel}`, conversation.source_channel)}</td>
                         <td className="max-w-[16rem] truncate px-3 py-3 text-slate-300">{formatMessagePreview(conversation)}</td>
                         <td className="px-3 py-3 text-slate-300">{formatIntent(conversation)}</td>
@@ -941,8 +941,8 @@ export default function AiChannels() {
             ) : (
               <EmptyPanel
                 icon={MessageCircle}
-                title={tr("empty.noConversationsTitle", "No AI conversations yet")}
-                text={tr("empty.noConversations", "No AI conversations yet. Connect a channel or enable website chat to start receiving messages.")}
+                title={tr("empty.noConversationsTitle", "لا توجد محادثات ذكاء اصطناعي بعد")}
+                text={tr("empty.noConversations", "لا توجد محادثات ذكاء اصطناعي بعد. اربط قناة أو فعّل دردشة الموقع لبدء استقبال الرسائل.")}
               />
             )}
 
@@ -967,7 +967,7 @@ export default function AiChannels() {
           <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-5 shadow-xl shadow-black/10">
             <div className="mb-4 inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-cyan-100">
               <BarChart3 className="h-4 w-4" />
-              {tr("analytics.title", "AI Analytics Snapshot")}
+              {tr("analytics.title", "ملخص تحليلات الذكاء الاصطناعي")}
             </div>
 
             {analyticsLoading ? (
@@ -975,20 +975,20 @@ export default function AiChannels() {
             ) : (
               <div className="space-y-5">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <KpiCard icon={AlertTriangle} label={tr("analytics.takeoverRate", "Human takeover rate")} value={total ? percent(number(analytics?.humanTakeovers) / total) : "0%"} tone="amber" />
-                  <KpiCard icon={Sparkles} label={tr("analytics.resolutionRate", "AI resolution rate")} value={total ? percent(number(analytics?.closedConversations) / total) : "0%"} tone="emerald" />
-                  <KpiCard icon={Clock3} label={tr("analytics.avgResponse", "Average response time")} value={seconds(analytics?.averageResponseSeconds)} tone="violet" />
-                  <KpiCard icon={Bot} label={tr("analytics.aiReplies", "AI replies")} value={number(analytics?.aiReplies)} />
+                  <KpiCard icon={AlertTriangle} label={tr("analytics.takeoverRate", "معدل التدخل البشري")} value={total ? percent(number(analytics?.humanTakeovers) / total) : "0%"} tone="amber" />
+                  <KpiCard icon={Sparkles} label={tr("analytics.resolutionRate", "معدل حل الذكاء الاصطناعي")} value={total ? percent(number(analytics?.closedConversations) / total) : "0%"} tone="emerald" />
+                  <KpiCard icon={Clock3} label={tr("analytics.avgResponse", "متوسط زمن الاستجابة")} value={seconds(analytics?.averageResponseSeconds)} tone="violet" />
+                  <KpiCard icon={Bot} label={tr("analytics.aiReplies", "ردود الذكاء الاصطناعي")} value={number(analytics?.aiReplies)} />
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-slate-950/25 p-4">
-                  <div className="mb-3 text-sm font-black text-white">{tr("analytics.topIntents", "Top detected intents")}</div>
-                  <BarList rows={topIntentRows} empty={tr("empty.noAnalytics", "No analytics data yet.")} />
+                  <div className="mb-3 text-sm font-black text-white">{tr("analytics.topIntents", "أكثر النيات اكتشافًا")}</div>
+                  <BarList rows={topIntentRows} empty={tr("empty.noAnalytics", "لا توجد بيانات تحليلات بعد.")} />
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-slate-950/25 p-4">
-                  <div className="mb-3 text-sm font-black text-white">{tr("analytics.sentiment", "Sentiment distribution")}</div>
-                  <BarList rows={sentimentRows} empty={tr("empty.noSentiment", "No sentiment signals yet.")} />
+                  <div className="mb-3 text-sm font-black text-white">{tr("analytics.sentiment", "توزيع المشاعر")}</div>
+                  <BarList rows={sentimentRows} empty={tr("empty.noSentiment", "لا توجد إشارات مشاعر بعد.")} />
                 </div>
               </div>
             )}

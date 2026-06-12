@@ -37,8 +37,8 @@ const templatePresets = [
 
 const unwrapSettings = (payload) => payload?.settings || payload || {};
 const formatApiError = (error, fallback) => {
-  if (Number(error?.status) === 401) return "Session expired or unauthorized";
-  if (Number(error?.status) === 403) return error?.message || "You do not have permission to use this AI Marketing Center action";
+  if (Number(error?.status) === 401) return "انتهت الجلسة أو لم يُسمح بالوصول";
+  if (Number(error?.status) === 403) return error?.message || "ليست لديك صلاحية استخدام هذا الإجراء في مركز التسويق بالذكاء الاصطناعي";
   return error?.message || fallback;
 };
 
@@ -221,7 +221,7 @@ export default function AiMarketingVideos() {
         return nextQueue;
       });
     } catch (error) {
-      toast.error(formatApiError(error, "Failed to load AI video queue"));
+      toast.error(formatApiError(error, "تعذر تحميل طابور فيديو الذكاء الاصطناعي"));
     } finally {
       setLoading(false);
     }
@@ -266,12 +266,12 @@ export default function AiMarketingVideos() {
       matchedStateItem: Boolean(item),
     });
     if (type === "publish" && !canPublishQueueItem(item)) {
-      toast(isPublishedQueueItem(item) ? "This queue item is already published." : "Approve this queue item before publishing.");
+      toast(isPublishedQueueItem(item) ? "هذا العنصر منشور بالفعل." : "وافق على هذا العنصر قبل النشر.");
       await load();
       return;
     }
     if (type === "approve" && !canApproveQueueItem(item)) {
-      toast(isPublishedQueueItem(item) ? "This queue item is already published." : "This queue item is not pending approval.");
+      toast(isPublishedQueueItem(item) ? "هذا العنصر منشور بالفعل." : "هذا العنصر ليس بانتظار الموافقة.");
       await load();
       return;
     }
@@ -322,8 +322,8 @@ export default function AiMarketingVideos() {
 
       <section className="grid gap-3 md:grid-cols-3">
         <Kpi label="Video Queue" value={counts.total} />
-        <Kpi label="Ready / Approved" value={counts.ready} tone="emerald" />
-        <Kpi label="Failed" value={counts.failed} tone={counts.failed ? "rose" : "slate"} />
+        <Kpi label="جاهز / معتمد" value={counts.ready} tone="emerald" />
+        <Kpi label="فشل" value={counts.failed} tone={counts.failed ? "rose" : "slate"} />
       </section>
 
       <div className="mt-6 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -341,7 +341,7 @@ export default function AiMarketingVideos() {
           </section>
 
           <section className={`${cardClass} p-5`}>
-            <SectionTitle icon={Zap} title="Video Templates" />
+            <SectionTitle icon={Zap} title="قوالب الفيديو" />
             <div className="mt-4 grid gap-2">
               {templatePresets.map(([name, description]) => (
                 <div key={name} className="rounded-2xl border border-white/10 bg-black/20 p-3">
@@ -439,14 +439,14 @@ function VideoQueueRow({ item, onPreview, onApprove, onPublish }) {
           <Badge>TikTok later</Badge>
           <Badge tone={statusTone(statusInfo.normalizedStatus)}>{statusInfo.displayStatus}</Badge>
         </div>
-        <div className="mt-2 truncate text-sm font-black text-white">{item.title || item.design_json?.product_name || "Queued video"}</div>
+        <div className="mt-2 truncate text-sm font-black text-white">{item.title || item.design_json?.product_name || "فيديو في الطابور"}</div>
         <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-400">{item.caption}</div>
       </div>
       <div className="flex flex-wrap gap-2 md:justify-end">
         <button type="button" onClick={onPreview} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>Preview</button>
-        {statusInfo.normalizedStatus === "published" && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>View Post</a> : null}
+        {statusInfo.normalizedStatus === "published" && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>عرض المنشور</a> : null}
         {showApprove ? <button type="button" onClick={onApprove} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>Approve</button> : null}
-        {showPublish ? <button type="button" onClick={onPublish} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>Publish</button> : null}
+        {showPublish ? <button type="button" onClick={onPublish} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>نشر</button> : null}
       </div>
     </div>
   );
@@ -868,8 +868,8 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
             <pre className="mt-3 max-h-72 overflow-auto text-xs text-slate-300">{JSON.stringify(design, null, 2)}</pre>
           </details>
           <div className="mt-5 flex flex-wrap gap-2">
-            {showPublished ? <Badge tone="emerald">Published</Badge> : null}
-            {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>View Post</a> : null}
+            {showPublished ? <Badge tone="emerald">منشور</Badge> : null}
+            {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>عرض المنشور</a> : null}
             {showApprove ? (
               <button type="button" onClick={onApprove} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>
                 <Check className="h-4 w-4" />
@@ -879,7 +879,7 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
             {showPublish ? (
               <button type="button" onClick={onPublish} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>
                 <Send className="h-4 w-4" />
-                Publish
+                نشر
               </button>
             ) : null}
           </div>

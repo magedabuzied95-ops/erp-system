@@ -32,7 +32,7 @@ const downloadProtected = async (endpoint, filename) => {
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new Error(payload?.message || "Export failed");
+    throw new Error(payload?.message || "فشل التصدير");
   }
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);
@@ -74,7 +74,7 @@ export default function CouponsManager() {
       setCampaigns(rows);
       setSelectedId((current) => current || rows[0]?.id || null);
     } catch (error) {
-      toast.error(error.message || cText("loadFailed", "Failed to load coupon campaigns"));
+      toast.error(error.message || cText("loadFailed", "تعذر تحميل حملات الكوبونات"));
     } finally {
       setLoading(false);
     }
@@ -98,7 +98,7 @@ export default function CouponsManager() {
       setCoupons(couponResponse.coupons || []);
       setStats(statsResponse.stats || null);
     } catch (error) {
-      toast.error(error.message || cText("loadFailed", "Failed to load coupon campaigns"));
+      toast.error(error.message || cText("loadFailed", "تعذر تحميل حملات الكوبونات"));
     } finally {
       setCouponsLoading(false);
     }
@@ -142,28 +142,28 @@ export default function CouponsManager() {
       };
       if (editing?.id) {
         await api.put(`/coupons/campaigns/${editing.id}`, payload);
-        toast.success(cText("saved", "Campaign saved"));
+        toast.success(cText("saved", "تم حفظ الحملة"));
       } else {
         const response = await api.post("/coupons/campaigns", payload);
         setSelectedId(response.campaign?.id || null);
-        toast.success(cText("saved", "Campaign saved"));
+        toast.success(cText("saved", "تم حفظ الحملة"));
       }
       setModalOpen(false);
       await loadCampaigns();
     } catch (error) {
-      toast.error(error.message || cText("saveFailed", "Failed to save campaign"));
+      toast.error(error.message || cText("saveFailed", "تعذر حفظ الحملة"));
     }
   };
 
   const deleteCampaign = async (campaign) => {
-    if (!window.confirm(cText("deleteConfirm", `Delete campaign "${campaign.name}" and its coupons?`, { name: campaign.name }))) return;
+    if (!window.confirm(cText("deleteConfirm", `هل تريد حذف الحملة "${campaign.name}" وأكوادها؟`, { name: campaign.name }))) return;
     try {
       await api.delete(`/coupons/campaigns/${campaign.id}`);
-      toast.success(cText("deleted", "Campaign deleted"));
+      toast.success(cText("deleted", "تم حذف الحملة"));
       setSelectedId(null);
       await loadCampaigns();
     } catch (error) {
-      toast.error(error.message || cText("deleteFailed", "Failed to delete campaign"));
+      toast.error(error.message || cText("deleteFailed", "تعذر حذف الحملة"));
     }
   };
 
@@ -173,11 +173,11 @@ export default function CouponsManager() {
       const response = await api.post(`/coupons/campaigns/${selectedCampaign.id}/generate`, {
         quantity: generateQty ? Number(generateQty) : undefined,
       });
-      toast.success(cText("generated", "{{count}} coupons generated", { count: number(response.generated) }));
+      toast.success(cText("generated", "تم إنشاء {{count}} كوبون", { count: number(response.generated) }));
       setGenerateQty("");
       await Promise.all([loadCampaigns(), loadCoupons()]);
     } catch (error) {
-      toast.error(error.message || cText("generateFailed", "Failed to generate coupons"));
+      toast.error(error.message || cText("generateFailed", "تعذر إنشاء الكوبونات"));
     }
   };
 
@@ -192,13 +192,13 @@ export default function CouponsManager() {
   };
 
   const statCards = [
-    [cText("headers.totalGenerated", "Total generated"), stats?.total_coupons],
-    [cText("headers.used", "Used"), stats?.used_coupons],
-    [cText("headers.unused", "Unused"), stats?.unused_coupons],
-    [cText("headers.expired", "Expired"), stats?.expired_coupons],
-    [cText("headers.totalDiscount", "Total discount"), formatCurrency(stats?.total_discount_amount || 0)],
-    [cText("headers.salesGenerated", "Sales generated"), formatCurrency(stats?.total_sales_amount || 0)],
-    [cText("headers.conversionRate", "Conversion rate"), `${Number(stats?.conversion_rate || 0).toFixed(2)}%`],
+    [cText("headers.totalGenerated", "إجمالي الكوبونات المولدة"), stats?.total_coupons],
+    [cText("headers.used", "مستخدمة"), stats?.used_coupons],
+    [cText("headers.unused", "غير مستخدمة"), stats?.unused_coupons],
+    [cText("headers.expired", "منتهية"), stats?.expired_coupons],
+    [cText("headers.totalDiscount", "إجمالي الخصم"), formatCurrency(stats?.total_discount_amount || 0)],
+    [cText("headers.salesGenerated", "المبيعات المحققة"), formatCurrency(stats?.total_sales_amount || 0)],
+    [cText("headers.conversionRate", "معدل التحويل"), `${Number(stats?.conversion_rate || 0).toFixed(2)}%`],
   ];
 
   return (
@@ -207,14 +207,14 @@ export default function CouponsManager() {
         <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-violet-300/20 bg-violet-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-violet-100">
             <TicketPercent className="h-4 w-4" />
-            {cText("eyebrow", "Coupons")}
+            {cText("eyebrow", "الكوبونات")}
           </div>
-          <h1 className="mt-3 text-3xl font-black tracking-tight md:text-4xl">{cText("title", "Coupon campaigns")}</h1>
-          <p className="mt-2 max-w-2xl text-sm text-zinc-400">{cText("subtitle", "Create, generate, track, and export coupon codes from the ERP.")}</p>
+          <h1 className="mt-3 text-3xl font-black tracking-tight md:text-4xl">{cText("title", "حملات الكوبونات")}</h1>
+          <p className="mt-2 max-w-2xl text-sm text-zinc-400">{cText("subtitle", "أنشئ أكواد الكوبونات وولّدها وتابعها وصدّرها من داخل النظام.")}</p>
         </div>
         <button type="button" onClick={openCreate} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-violet-400 px-4 text-sm font-black text-black shadow-lg shadow-violet-950/30">
           <Plus className="h-4 w-4" />
-          {cText("new", "New campaign")}
+          {cText("new", "حملة جديدة")}
         </button>
       </div>
 
@@ -230,7 +230,7 @@ export default function CouponsManager() {
       <div className="mt-5 grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
         <aside className="rounded-3xl border border-white/10 bg-zinc-950/70 p-3 shadow-2xl shadow-black/20 backdrop-blur-xl">
           <div className="mb-3 flex items-center justify-between px-1">
-            <h2 className="text-sm font-black text-white">{cText("campaignLabel", "Campaigns")}</h2>
+            <h2 className="text-sm font-black text-white">{cText("campaignLabel", "الحملات")}</h2>
             {loading ? <Loader2 className="h-4 w-4 animate-spin text-violet-200" /> : null}
           </div>
           <div className="space-y-2">
@@ -247,16 +247,16 @@ export default function CouponsManager() {
                     <div className="mt-1 text-xs text-zinc-500">{campaign.code_prefix} / {campaign.channel}</div>
                   </div>
                   <span className={`rounded-full px-2 py-1 text-[10px] font-black ${campaign.is_active ? "bg-emerald-400/10 text-emerald-200" : "bg-zinc-500/10 text-zinc-400"}`}>
-                    {campaign.is_active ? cText("active", "Active") : cText("inactive", "Off")}
+                    {campaign.is_active ? cText("active", "نشط") : cText("inactive", "متوقف")}
                   </span>
                 </div>
                 <div className="mt-3 flex gap-2 text-xs">
-                  <span className="rounded-full bg-white/5 px-2 py-1">{number(campaign.generated_count)} {cText("generatedSuffix", "generated")}</span>
-                  <span className="rounded-full bg-white/5 px-2 py-1">{number(campaign.used_count)} {cText("usedSuffix", "used")}</span>
+                  <span className="rounded-full bg-white/5 px-2 py-1">{number(campaign.generated_count)} {cText("generatedSuffix", "مولدة")}</span>
+                  <span className="rounded-full bg-white/5 px-2 py-1">{number(campaign.used_count)} {cText("usedSuffix", "مستخدمة")}</span>
                 </div>
               </button>
             ))}
-            {!loading && !campaigns.length ? <EmptyState label={cText("empty", "No coupon campaigns yet.")} /> : null}
+            {!loading && !campaigns.length ? <EmptyState label={cText("empty", "لا توجد حملات كوبونات بعد.")} /> : null}
           </div>
         </aside>
 
@@ -271,13 +271,13 @@ export default function CouponsManager() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <input value={generateQty} onChange={(e) => setGenerateQty(e.target.value)} type="number" min="1" placeholder={cText("targetQty", "Qty")} className="h-10 w-24 rounded-2xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none" />
+                  <input value={generateQty} onChange={(e) => setGenerateQty(e.target.value)} type="number" min="1" placeholder={cText("targetQty", "الكمية")} className="h-10 w-24 rounded-2xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none" />
                   <button type="button" onClick={generate} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-emerald-300/25 bg-emerald-400/15 px-3 text-sm font-black text-emerald-100">
                     <Sparkles className="h-4 w-4" />
-                    {cText("actions.generate", "Generate")}
+                    {cText("actions.generate", "إنشاء")}
                   </button>
-                  <button type="button" onClick={() => openEdit(selectedCampaign)} className="h-10 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-bold text-white">{cText("actions.edit", "Edit")}</button>
-                  <button type="button" onClick={() => deleteCampaign(selectedCampaign)} className="h-10 rounded-2xl border border-rose-300/20 bg-rose-500/10 px-3 text-sm font-bold text-rose-100">{cText("actions.delete", "Delete")}</button>
+                  <button type="button" onClick={() => openEdit(selectedCampaign)} className="h-10 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-bold text-white">{cText("actions.edit", "تعديل")}</button>
+                  <button type="button" onClick={() => deleteCampaign(selectedCampaign)} className="h-10 rounded-2xl border border-rose-300/20 bg-rose-500/10 px-3 text-sm font-bold text-rose-100">{cText("actions.delete", "حذف")}</button>
                   <button type="button" onClick={exportPdf} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-bold text-white"><FileText className="h-4 w-4" />{cText("actions.exportPdf", "PDF")}</button>
                   <button type="button" onClick={exportCsv} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-bold text-white"><Download className="h-4 w-4" />{cText("actions.exportCsv", "CSV")}</button>
                 </div>
@@ -286,24 +286,24 @@ export default function CouponsManager() {
               <div className="mt-4 flex flex-col gap-3 md:flex-row">
                 <label className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-                  <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={cText("searchPlaceholder", "Search coupon code")} className="h-11 w-full rounded-2xl border border-white/10 bg-black/30 pl-10 pr-3 text-sm text-white outline-none" />
+                  <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={cText("searchPlaceholder", "ابحث عن الكود")} className="h-11 w-full rounded-2xl border border-white/10 bg-black/30 pl-10 pr-3 text-sm text-white outline-none" />
                 </label>
                 <select value={status} onChange={(e) => setStatus(e.target.value)} className="h-11 rounded-2xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none">
-                  <option value="all">{cText("filters.allStatuses", "All statuses")}</option>
-                  <option value="active">{cText("active", "Active")}</option>
-                  <option value="unused">{cText("headers.unused", "Unused")}</option>
-                  <option value="used">{cText("headers.used", "Used")}</option>
-                  <option value="expired">{cText("headers.expired", "Expired")}</option>
+                  <option value="all">{cText("filters.allStatuses", "كل الحالات")}</option>
+                  <option value="active">{cText("active", "نشط")}</option>
+                  <option value="unused">{cText("headers.unused", "غير مستخدم")}</option>
+                  <option value="used">{cText("headers.used", "مستخدم")}</option>
+                  <option value="expired">{cText("headers.expired", "منتهي")}</option>
                 </select>
               </div>
 
               <div className="mt-4 overflow-hidden rounded-2xl border border-white/10">
                 <div className="grid grid-cols-[1.1fr_0.8fr_0.7fr_0.7fr_0.8fr] gap-3 bg-white/[0.04] px-4 py-3 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">
-                  <div>{cText("headers.code", "Code")}</div>
-                  <div>{cText("headers.discount", "Discount")}</div>
-                  <div>{cText("headers.usage", "Usage")}</div>
-                  <div>{cText("headers.status", "Status")}</div>
-                  <div>{cText("headers.expires", "Expires")}</div>
+                  <div>{cText("headers.code", "الكود")}</div>
+                  <div>{cText("headers.discount", "الخصم")}</div>
+                  <div>{cText("headers.usage", "الاستخدام")}</div>
+                  <div>{cText("headers.status", "الحالة")}</div>
+                  <div>{cText("headers.expires", "ينتهي")}</div>
                 </div>
                 {couponsLoading ? (
                   Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-14 animate-pulse border-t border-white/5 bg-white/[0.025]" />)
@@ -318,12 +318,12 @@ export default function CouponsManager() {
                     </div>
                   ))
                 ) : (
-                  <EmptyState label={cText("emptyFiltered", "No coupons match this filter.")} />
+                  <EmptyState label={cText("emptyFiltered", "لا توجد كوبونات تطابق هذا المرشح.")} />
                 )}
               </div>
             </>
           ) : (
-            <EmptyState label={cText("emptySelection", "Select or create a coupon campaign.")} />
+            <EmptyState label={cText("emptySelection", "اختر حملة كوبونات أو أنشئ واحدة جديدة.")} />
           )}
         </main>
       </div>
@@ -350,31 +350,31 @@ function CampaignModal({ form, setForm, editing, onClose, onSave }) {
       <div className="w-full max-w-3xl rounded-3xl border border-white/10 bg-zinc-950 p-5 text-white shadow-2xl shadow-black/50">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-xs font-black uppercase tracking-[0.2em] text-violet-300">{editing ? cText("modal.edit", "Edit campaign") : cText("modal.create", "New campaign")}</div>
-            <h2 className="mt-1 text-2xl font-black">{editing ? editing.name : cText("modal.title", "Coupon campaign")}</h2>
+            <div className="text-xs font-black uppercase tracking-[0.2em] text-violet-300">{editing ? cText("modal.edit", "تعديل الحملة") : cText("modal.create", "حملة جديدة")}</div>
+            <h2 className="mt-1 text-2xl font-black">{editing ? editing.name : cText("modal.title", "حملة كوبونات")}</h2>
           </div>
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/[0.04] p-2 text-zinc-300"><X className="h-4 w-4" /></button>
         </div>
         <div className="mt-5 grid gap-3 md:grid-cols-2">
-          <Field label={cText("fields.name", "Name")} value={form.name} onChange={(value) => update("name", value)} />
-          <Field label={cText("fields.codePrefix", "Code prefix")} value={form.code_prefix} onChange={(value) => update("code_prefix", toCouponCode(value))} />
-          <Select label={cText("fields.discountType", "Discount type")} value={form.discount_type} onChange={(value) => update("discount_type", value)} options={[["percentage", cText("types.percentage", "Percentage")], ["fixed", cText("types.fixed", "Fixed")]]} />
-          <Field label={cText("fields.discountValue", "Discount value")} type="number" value={form.discount_value} onChange={(value) => update("discount_value", value)} />
-          <Field label={cText("fields.minimumOrder", "Minimum order")} type="number" value={form.minimum_order_amount} onChange={(value) => update("minimum_order_amount", value)} />
-          <Field label={cText("fields.maxDiscount", "Max discount")} type="number" value={form.max_discount_amount} onChange={(value) => update("max_discount_amount", value)} placeholder={cText("optional", "Optional")} />
-          <Field label={cText("fields.usagePerCoupon", "Usage per coupon")} type="number" value={form.usage_limit_per_coupon} onChange={(value) => update("usage_limit_per_coupon", value)} />
-          <Field label={cText("fields.targetCoupons", "Target coupons")} type="number" value={form.total_coupons} onChange={(value) => update("total_coupons", value)} />
-          <Field label={cText("fields.startsAt", "Starts at")} type="datetime-local" value={form.starts_at} onChange={(value) => update("starts_at", value)} />
-          <Field label={cText("fields.expiresAt", "Expires at")} type="datetime-local" value={form.expires_at} onChange={(value) => update("expires_at", value)} />
-          <Select label={cText("fields.channel", "Channel")} value={form.channel} onChange={(value) => update("channel", value)} options={[["offline", cText("channels.offline", "Offline")], ["website", cText("channels.website", "Website")], ["pos", cText("channels.pos", "POS")], ["all", cText("channels.all", "All")]]} />
+          <Field label={cText("fields.name", "الاسم")} value={form.name} onChange={(value) => update("name", value)} />
+          <Field label={cText("fields.codePrefix", "بادئة الكود")} value={form.code_prefix} onChange={(value) => update("code_prefix", toCouponCode(value))} />
+          <Select label={cText("fields.discountType", "نوع الخصم")} value={form.discount_type} onChange={(value) => update("discount_type", value)} options={[["percentage", cText("types.percentage", "نسبة")], ["fixed", cText("types.fixed", "قيمة ثابتة")]]} />
+          <Field label={cText("fields.discountValue", "قيمة الخصم")} type="number" value={form.discount_value} onChange={(value) => update("discount_value", value)} />
+          <Field label={cText("fields.minimumOrder", "الحد الأدنى للطلب")} type="number" value={form.minimum_order_amount} onChange={(value) => update("minimum_order_amount", value)} />
+          <Field label={cText("fields.maxDiscount", "أقصى خصم")} type="number" value={form.max_discount_amount} onChange={(value) => update("max_discount_amount", value)} placeholder={cText("optional", "اختياري")} />
+          <Field label={cText("fields.usagePerCoupon", "حد الاستخدام لكل كوبون")} type="number" value={form.usage_limit_per_coupon} onChange={(value) => update("usage_limit_per_coupon", value)} />
+          <Field label={cText("fields.targetCoupons", "عدد الكوبونات المستهدفة")} type="number" value={form.total_coupons} onChange={(value) => update("total_coupons", value)} />
+          <Field label={cText("fields.startsAt", "يبدأ في")} type="datetime-local" value={form.starts_at} onChange={(value) => update("starts_at", value)} />
+          <Field label={cText("fields.expiresAt", "ينتهي في")} type="datetime-local" value={form.expires_at} onChange={(value) => update("expires_at", value)} />
+          <Select label={cText("fields.channel", "القناة")} value={form.channel} onChange={(value) => update("channel", value)} options={[["offline", cText("channels.offline", "غير متصل")], ["website", cText("channels.website", "الموقع")], ["pos", cText("channels.pos", "نقاط البيع")], ["all", cText("channels.all", "الكل")]]} />
           <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold">
             <input type="checkbox" checked={Boolean(form.is_active)} onChange={(e) => update("is_active", e.target.checked)} />
-            {cText("fields.activeCampaign", "Active campaign")}
+            {cText("fields.activeCampaign", "الحملة نشطة")}
           </label>
         </div>
         <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black">{cText("actions.cancel", "Cancel")}</button>
-          <button type="button" onClick={onSave} className="h-11 rounded-2xl bg-violet-400 px-5 text-sm font-black text-black">{cText("actions.save", "Save")}</button>
+          <button type="button" onClick={onClose} className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black">{cText("actions.cancel", "إلغاء")}</button>
+          <button type="button" onClick={onSave} className="h-11 rounded-2xl bg-violet-400 px-5 text-sm font-black text-black">{cText("actions.save", "حفظ")}</button>
         </div>
       </div>
     </div>

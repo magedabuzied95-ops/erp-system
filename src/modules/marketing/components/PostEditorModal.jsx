@@ -597,7 +597,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
           <div className="flex gap-2 overflow-x-auto border-b border-white/10 p-3">
             {thumbnailUrls.slice(0, 6).map((url, index) => (
               <div key={url} className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-white/10">
-                <img src={url} alt={`Instagram media ${index + 1}`} className="h-full w-full object-cover" />
+                <img src={url} alt={`وسائط إنستجرام ${index + 1}`} className="h-full w-full object-cover" />
               </div>
             ))}
           </div>
@@ -625,7 +625,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
     const storySlides = buildStoryCreativeSlides({ form, mediaUrls });
     return (
       <div className="mx-auto w-full max-w-[620px]">
-        <StoryCreativePreview slides={storySlides} showThumbnails={storySlides.length > 1} title="Story slides" />
+        <StoryCreativePreview slides={storySlides} showThumbnails={storySlides.length > 1} title="شرائح القصة" />
       </div>
     );
   }
@@ -688,7 +688,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
         <div className="flex gap-2 overflow-x-auto border-t border-white/10 p-3">
           {thumbnailUrls.slice(0, 7).map((url, index) => (
             <div key={url} className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-white/10">
-              <img src={url} alt={`Facebook media ${index + 1}`} className="h-full w-full object-cover" />
+              <img src={url} alt={`وسائط فيسبوك ${index + 1}`} className="h-full w-full object-cover" />
             </div>
           ))}
         </div>
@@ -739,7 +739,7 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
           <div className="grid h-9 w-9 place-items-center rounded-full bg-slate-950 text-xs font-black text-white">ERP</div>
           <div>
             <div className="text-xs font-black text-slate-950">erp.store</div>
-            <div className="text-[10px] font-bold uppercase tracking-normal text-slate-600">Story preview</div>
+            <div className="text-[10px] font-bold uppercase tracking-normal text-slate-600">معاينة القصة</div>
           </div>
         </div>
         <div className="rounded-full bg-white/80 px-3 py-1 text-[11px] font-black text-slate-950 shadow-lg backdrop-blur">{badge}</div>
@@ -800,7 +800,7 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
   );
 }
 
-export function StoryCreativePreview({ slides = [], activeIndex = null, onSelectSlide, showThumbnails = true, title = "Story slides", compact = false }) {
+export function StoryCreativePreview({ slides = [], activeIndex = null, onSelectSlide, showThumbnails = true, title = "شرائح القصة", compact = false }) {
   const [activeStorySlideIndex, setActiveStorySlideIndex] = useState(0);
   const safeSlides = slides.length ? slides : [{}];
   const isControlled = Number.isInteger(activeIndex);

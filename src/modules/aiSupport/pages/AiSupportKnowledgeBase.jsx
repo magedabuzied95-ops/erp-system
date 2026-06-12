@@ -20,7 +20,7 @@ const defaultForm = {
 };
 
 const fields = [
-  { key: "store_name", label: "اسم المتجر الظاهر", type: "input", placeholder: "مثال: Mirror Store" },
+  { key: "store_name", label: "اسم المتجر الظاهر", type: "input", placeholder: "مثال: المتجر التجريبي" },
   { key: "phone", label: "رقم الهاتف العام", type: "input", inputMode: "tel", placeholder: "+201000000000" },
   { key: "whatsapp", label: "رقم واتساب", type: "input", inputMode: "tel", placeholder: "+201000000000" },
   { key: "branch_working_hours", label: "مواعيد عمل الفروع", rows: 4, placeholder: "مثال: السبت - الخميس من 12 ظهرًا إلى 11 مساءً" },
@@ -107,7 +107,7 @@ export default function AiSupportKnowledgeBase() {
       const next = { ...defaultForm, ...(payload?.knowledge_base || form) };
       setForm(next);
       setInitialForm(next);
-      toast.success("تم حفظ قاعدة معرفة AI Support");
+      toast.success("تم حفظ قاعدة معرفة الدعم الذكي");
     } catch (err) {
       setError(err?.message || "تعذر حفظ الإعدادات");
       toast.error(err?.message || "تعذر حفظ الإعدادات");
@@ -117,7 +117,7 @@ export default function AiSupportKnowledgeBase() {
   };
 
   const reset = async () => {
-    if (!window.confirm("Reset AI Support knowledge base for this tenant?")) return;
+    if (!window.confirm("هل تريد إعادة ضبط قاعدة معرفة الدعم الذكي لهذا المستأجر؟")) return;
     setSaving(true);
     setError("");
     try {
@@ -143,11 +143,11 @@ export default function AiSupportKnowledgeBase() {
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">
               <Bot className="h-4 w-4" />
-              AI Support
+              الدعم الذكي
             </div>
             <h1 className="mt-4 text-3xl font-black tracking-tight text-[var(--text)]">قاعدة معرفة الدعم الذكي</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
-              هذه المعلومات عامة ومسموح استخدامها في ردود AI Support. لا تضف بيانات داخلية أو أسعار غير مؤكدة هنا.
+              هذه المعلومات عامة ومسموح استخدامها في ردود الدعم الذكي. لا تضف بيانات داخلية أو أسعار غير مؤكدة هنا.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -220,7 +220,7 @@ export default function AiSupportKnowledgeBase() {
               نطاق الاستخدام
             </div>
             <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-              تحفظ هذه البيانات داخل `website_settings.settings` لهذا الـ tenant فقط، وتظهر في `source_previews` داخل AI Support Console.
+              تحفظ هذه البيانات داخل `website_settings.settings` لهذا المستأجر فقط، وتظهر في `source_previews` داخل وحدة دعم الذكاء الاصطناعي.
             </p>
           </div>
           <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl shadow-[var(--shadow)]">

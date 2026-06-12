@@ -96,7 +96,7 @@ export default function AiFollowups() {
         return next;
       });
     } catch (err) {
-      setError(err?.message || "Failed to load AI follow-ups");
+      setError(err?.message || "تعذر تحميل المتابعات الذكية");
     } finally {
       setLoading(false);
     }
@@ -207,21 +207,21 @@ export default function AiFollowups() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-black ${statusTone[row.bucket] || statusTone.scheduled}`}>
-                        {row.bucket === "due" ? "Due now" : row.bucket}
+                        {row.bucket === "due" ? "حان الاستحقاق" : row.bucket}
                       </span>
                       <span className="inline-flex rounded-full border border-white/10 bg-slate-950/50 px-3 py-1 text-xs font-black text-slate-300">{row.source_channel || "web_chat"}</span>
-                      {closed ? <span className="inline-flex items-center gap-1 rounded-full border border-rose-300/20 bg-rose-400/10 px-3 py-1 text-xs font-black text-rose-100"><PauseCircle className="h-3.5 w-3.5" />Closed</span> : null}
-                      {row.status === "sent_internal" ? <span className="inline-flex rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-100">Internal note sent</span> : <span className="inline-flex rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1 text-xs font-black text-amber-100">Ready to send manually</span>}
+                      {closed ? <span className="inline-flex items-center gap-1 rounded-full border border-rose-300/20 bg-rose-400/10 px-3 py-1 text-xs font-black text-rose-100"><PauseCircle className="h-3.5 w-3.5" />مغلقة</span> : null}
+                      {row.status === "sent_internal" ? <span className="inline-flex rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-100">تم إرسال ملاحظة داخلية</span> : <span className="inline-flex rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1 text-xs font-black text-amber-100">جاهزة للإرسال اليدوي</span>}
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-400">
-                      <span className="font-black text-white">{row.customer?.name || "Customer"}</span>
+                      <span className="font-black text-white">{row.customer?.name || "العميل"}</span>
                       {row.customer?.phone ? <span>{row.customer.phone}</span> : null}
-                      <span>Trigger: {row.trigger_type || "-"}</span>
-                      <span>Due: {dateTime(row.scheduled_at)}</span>
-                      <span>Cooldown: {row.cooldown_until ? dateTime(row.cooldown_until) : "clear"}</span>
+                      <span>المحفّز: {row.trigger_type || "-"}</span>
+                      <span>الاستحقاق: {dateTime(row.scheduled_at)}</span>
+                      <span>فترة التهدئة: {row.cooldown_until ? dateTime(row.cooldown_until) : "غير محدد"}</span>
                     </div>
                     <div className="mt-3 rounded-xl border border-white/10 bg-slate-950/50 p-3 text-sm leading-6 text-slate-200" dir="auto">
-                      {row.suggested_message || "No suggested message stored for this follow-up."}
+                      {row.suggested_message || "لا توجد رسالة مقترحة محفوظة لهذه المتابعة."}
                     </div>
                     <textarea
                       value={drafts[row.id] || ""}

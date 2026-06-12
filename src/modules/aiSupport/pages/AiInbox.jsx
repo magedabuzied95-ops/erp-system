@@ -460,7 +460,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
   const customerName = customerDisplayName(item) || "Customer";
   const avatarUrl = customerAvatarUrl(item);
-  const lastMessage = item.latest_message_preview || item.last_message || item.customer_message || item.ai_answer || "No messages yet.";
+  const lastMessage = item.latest_message_preview || item.last_message || item.customer_message || item.ai_answer || "لا توجد رسائل بعد.";
   const unreadCount = Number(item.unread_count || item.unread || 0);
   const aiState = item.conversation_status === "closed" || item.conversation_status === "human_takeover" || item.needs_human_support ? "Paused" : "Active";
   const containerTone =
@@ -496,7 +496,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
             <span className="shrink-0 text-[11px] font-bold text-slate-500">{relativeTime(item.last_message_at || item.last_activity_at || item.updated_at)}</span>
           </div>
           <p dir={isRtlText(lastMessage) ? "rtl" : "auto"} className="mt-2 line-clamp-2 text-[13px] leading-6 text-slate-300">{lastMessage}</p>
-          {unreadCount ? <div className="mt-2 flex justify-end"><span className="inline-flex h-5 items-center rounded-full bg-rose-400/12 px-2 text-[10px] font-black text-rose-100">Unread {unreadCount}</span></div> : null}
+          {unreadCount ? <div className="mt-2 flex justify-end"><span className="inline-flex h-5 items-center rounded-full bg-rose-400/12 px-2 text-[10px] font-black text-rose-100">غير مقروء {unreadCount}</span></div> : null}
         </div>
       </div>
     </button>
@@ -592,7 +592,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
   const customerName = customerDisplayName(item) || "Customer";
   const avatarUrl = customerAvatarUrl(item);
-  const lastMessage = item.latest_message_preview || item.last_message || item.customer_message || item.ai_answer || "No messages yet.";
+  const lastMessage = item.latest_message_preview || item.last_message || item.customer_message || item.ai_answer || "لا توجد رسائل بعد.";
   const unreadCount = Number(item.unread_count || item.unread || 0);
   const containerTone = active
     ? "border-cyan-300/50 bg-cyan-300/12 shadow-[0_0_0_1px_rgba(34,211,238,0.2),0_18px_45px_rgba(8,145,178,0.16)]"
@@ -650,7 +650,7 @@ function InboxChatHeader({
   if (!conversation) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
   const avatarUrl = customerAvatarUrl(conversation);
-  const name = customerDisplayName(conversation) || "Customer";
+  const name = customerDisplayName(conversation) || "عميل";
   const phone = clean(conversation.phone || conversation.customer_phone || conversation.external_customer_id || conversation.customer_profile?.phone);
   const channel = conversation.channel || conversation.source || "web_chat";
   const aiEnabled = channelStatus.ai_replies_enabled !== false && status !== "closed";
@@ -710,7 +710,7 @@ function InboxChatHeader({
           <Radio className="h-3 w-3" />
           {(channelStatus.live_operational || channelStatus.effective_enabled || channelStatus.messaging_active) ? "Live channel" : "Channel standby"}
         </Pill>
-        {conversation.unread_count ? <Pill tone="rose">Unread {conversation.unread_count}</Pill> : null}
+        {conversation.unread_count ? <Pill tone="rose">غير مقروء {conversation.unread_count}</Pill> : null}
         {conversation.assigned_user_name || conversation.assigned_user?.name ? <Pill tone="zinc"><UserCheck className="h-3.5 w-3.5" />{conversation.assigned_user_name || conversation.assigned_user?.name}</Pill> : null}
         <div className="ms-auto flex flex-wrap items-center gap-2">
           {status === "closed" ? (
@@ -778,7 +778,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
         <div className="flex justify-center">
           <button type="button" onClick={onLoadOlder} disabled={loadingOlder} className="inline-flex h-7 items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 text-[10px] font-black text-slate-300 disabled:opacity-50">
             {loadingOlder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock3 className="h-3.5 w-3.5" />}
-            Load older messages
+            تحميل الرسائل الأقدم
           </button>
         </div>
       ) : null}
@@ -788,7 +788,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
             <div className="flex justify-start">
               <div className="max-w-[88%] rounded-3xl rounded-tl-sm border border-white/10 bg-white/[0.06] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
                 <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
-                  <span>Customer</span>
+                  <span>العميل</span>
                   <span>/</span>
                   <span>{channelLabel(message.channel || conversation.channel)}</span>
                   <span>/</span>
@@ -869,7 +869,7 @@ function ConversationActions({ conversation, channelStatus = {}, loading, assign
             {tokenActive ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
             {tokenActive ? "Token ready" : "Token issue"}
           </Pill>
-          {whatsappAiActive ? <Pill tone="cyan"><Bot className="h-3 w-3" />WhatsApp AI active</Pill> : null}
+          {whatsappAiActive ? <Pill tone="cyan"><Bot className="h-3 w-3" />ذكاء واتساب نشط</Pill> : null}
           <Pill tone="zinc"><UserCheck className="h-3 w-3" />{assigned}</Pill>
         </div>
         <details className="group relative ml-auto">
@@ -929,7 +929,7 @@ function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraf
   const status = conversation.conversation_status || conversation.status || "ai_active";
   const canSendLive = conversation.live_sending_available === true;
   if (status === "closed") {
-    return <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">Conversation closed. Manual replies are disabled.</div>;
+    return <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">المحادثة مغلقة. تم تعطيل الرد اليدوي.</div>;
   }
   const submit = () => {
     if (clean(value)) onSend();
@@ -1153,7 +1153,7 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
       <div className="mb-3 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">Recommended next step</div>
-          <Pill tone={leadTone}>{lead.label || "cold"} / {Number(lead.score || 0).toFixed(0)}%</Pill>
+          <Pill tone={leadTone}>{lead.label || "بارد"} / {Number(lead.score || 0).toFixed(0)}%</Pill>
         </div>
         <p className="mt-2 text-sm font-black leading-6 text-white">{recommendedStep}</p>
         <div className="mt-3 grid gap-2 sm:grid-cols-3">
@@ -1175,7 +1175,7 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
         <div className="space-y-3">
           <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3">
             <div className="mb-2 flex items-center justify-between gap-2">
-              <Pill tone={leadTone}>{(lead.label || "cold").toUpperCase()} lead</Pill>
+              <Pill tone={leadTone}>{(lead.label || "بارد")} محتمل</Pill>
               <span className="text-xl font-black text-white">{Number(lead.score || 0).toFixed(0)}%</span>
             </div>
             <div className="text-xs leading-5 text-slate-400">Purchase intent: <span className="font-black text-slate-100">{intent.purchase_intent || "unknown"}</span></div>
@@ -1226,12 +1226,12 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
             ))}
           </div> : null}
           <div className="rounded-xl border border-white/10 bg-slate-950/45 p-3">
-            <div className="mb-2 flex items-center gap-2 text-xs font-black text-slate-100"><BadgePercent className="h-4 w-4 text-amber-200" />Memory</div>
+            <div className="mb-2 flex items-center gap-2 text-xs font-black text-slate-100"><BadgePercent className="h-4 w-4 text-amber-200" />الذاكرة</div>
             <div className="flex flex-wrap gap-1.5">
               {memory.preferred_size ? <Pill tone="zinc">Size {memory.preferred_size}</Pill> : null}
               {asArray(memory.preferred_colors).slice(0, 3).map((item) => <Pill key={item} tone="zinc">{item}</Pill>)}
               {asArray(memory.favorite_models).slice(0, 3).map((item) => <Pill key={item} tone="zinc">{item}</Pill>)}
-              {!memory.preferred_size && !asArray(memory.preferred_colors).length && !asArray(memory.favorite_models).length ? <span className="text-xs text-slate-500">Memory will improve as the conversation continues.</span> : null}
+              {!memory.preferred_size && !asArray(memory.preferred_colors).length && !asArray(memory.favorite_models).length ? <span className="text-xs text-slate-500">ستتحسن الذاكرة مع استمرار المحادثة.</span> : null}
             </div>
           </div>
         </div>
@@ -1280,7 +1280,7 @@ function CustomerContextCard({ conversation = {} }) {
       <div className="mb-3 flex items-center gap-3">
         {avatarUrl ? <img src={avatarUrl} alt="" className="h-12 w-12 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" /> : <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/[0.07] text-slate-200"><User className="h-5 w-5" /></span>}
         <div className="min-w-0">
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Customer context</div>
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">سياق العميل</div>
           <div className="mt-1 text-lg font-black text-white">{displayFallback(identityName, "No CRM match yet")}</div>
         </div>
       </div>
@@ -1288,13 +1288,13 @@ function CustomerContextCard({ conversation = {} }) {
         <Info label="Matched CRM customer" value={profile.id ? `Profile #${profile.id}` : "No CRM match yet"} />
         <Info label="Phone / external ID" value={profile.phone || conversation?.phone || conversation?.external_customer_id || "Not set yet"} />
         <Info label="Channel" value={channelLabel(conversation?.channel || conversation?.source)} />
-        <Info label="Preferred size" value={profile.preferred_size || channelMemory.last_selected_size || "Not set yet"} />
+        <Info label="المقاس المفضل" value={profile.preferred_size || channelMemory.last_selected_size || "غير محدد بعد"} />
         <Info label="Last product" value={lastProductLabel} />
         <Info label="Last intent" value={latest.detected_intent || conversation?.detected_intent || "Not set yet"} />
       </div>
       <div className="mb-3 grid gap-2 sm:grid-cols-4">
         <Info label="Sentiment" value={profile.customer_sentiment || "neutral"} />
-        <Info label="Memory score" value={Number(memoryScore || 0).toFixed(0)} />
+        <Info label="درجة الذاكرة" value={Number(memoryScore || 0).toFixed(0)} />
         <Info label="Last order" value={lastOrder?.invoice_number || lastOrder?.order_number || lastOrder?.id || "No order yet"} />
         <Info label="Last size" value={lastSize || "Not set yet"} />
       </div>
@@ -1403,7 +1403,7 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
       {open ? (
         <div className="mt-4 space-y-4">
           {error ? <div className="rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
-          {loading && !data ? <LoadingBlock text="Loading AI debug metadata..." /> : null}
+          {loading && !data ? <LoadingBlock text="جارٍ تحميل بيانات التشخيص..." /> : null}
           {data ? (
             <>
               <div className="flex flex-wrap gap-2">
@@ -1436,7 +1436,7 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
                 <DebugField label="Colors" value={visualColors} />
                 <DebugField label="Correction used" value={visualPro.correction_used === true ? "true" : visualPro.correction_used === false ? "false" : ""} />
                 <DebugField label="Top rank reason" value={visualPro.reason_why_candidate_ranked_first || ""} />
-                <DebugField label="Customer preference score" value={visualPro.customerPreferenceScore !== undefined ? Number(visualPro.customerPreferenceScore || 0).toFixed(2) : ""} />
+                <DebugField label="درجة تفضيل العميل" value={visualPro.customerPreferenceScore !== undefined ? Number(visualPro.customerPreferenceScore || 0).toFixed(2) : ""} />
                 <DebugField label="Preferred sizes" value={preferredSizes} />
                 <DebugField label="Preferred brands" value={preferredBrands} />
                 <DebugField label="Preferred colors" value={preferredColors} />
@@ -1511,7 +1511,7 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
                         {event.reply_preview ? <p className="mt-2 rounded-lg bg-cyan-300/5 p-2 text-xs leading-5 text-cyan-100" dir={isRtlText(event.reply_preview) ? "rtl" : "auto"}>{shortText(event.reply_preview, 180)}</p> : null}
                       </div>
                     );
-                  }) : <EmptyBlock text="No AI debug decisions have been stored for this conversation yet." />}
+                  }) : <EmptyBlock text="لم يتم حفظ أي قرارات تشخيص لهذه المحادثة بعد." />}
                 </div>
               </div>
 
@@ -1555,10 +1555,10 @@ function AiTraceModal({ open, loading, error, data, onClose, onRefresh }) {
           <div>
             <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-cyan-100">
               <Brain className="h-4 w-4" />
-              AI Trace
+              أثر الذكاء الاصطناعي
             </div>
             <div className="mt-1 text-xs text-slate-500">
-              {latestTrace ? `${latestTrace.channel} / ${latestTrace.session_id} / ${absoluteTime(latestTrace.created_at)}` : "Latest AI reply decision timeline"}
+              {latestTrace ? `${latestTrace.channel} / ${latestTrace.session_id} / ${absoluteTime(latestTrace.created_at)}` : "سجل أحدث قرار لرد الذكاء الاصطناعي"}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1573,8 +1573,8 @@ function AiTraceModal({ open, loading, error, data, onClose, onRefresh }) {
 
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           {error ? <div className="mb-3 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
-          {loading && !latestTrace ? <LoadingBlock text="Loading AI trace..." /> : null}
-          {!loading && !latestTrace ? <EmptyBlock text="No AI trace has been recorded for this conversation yet." /> : null}
+          {loading && !latestTrace ? <LoadingBlock text="جارٍ تحميل تتبع الذكاء الاصطناعي..." /> : null}
+          {!loading && !latestTrace ? <EmptyBlock text="لم يتم تسجيل أي تتبع للذكاء الاصطناعي لهذه المحادثة بعد." /> : null}
           {latestTrace ? (
             <div className="space-y-4">
               <div className="grid gap-2 sm:grid-cols-3">
@@ -1603,7 +1603,7 @@ function AiTraceModal({ open, loading, error, data, onClose, onRefresh }) {
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          {selectedIds.length ? <Pill tone="emerald">Selected {selectedIds.join(", ")}</Pill> : null}
+          {selectedIds.length ? <Pill tone="emerald">المحدد {selectedIds.join(", ")}</Pill> : null}
                           {rejectedIds.length ? <Pill tone="amber">Rejected {rejectedIds.length}</Pill> : null}
                         </div>
                       </div>
@@ -1625,7 +1625,7 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
   const identityName = customerDisplayName(conversation);
   const avatarUrl = customerAvatarUrl(conversation);
   const hasMessengerProfile = Boolean(identityName || avatarUrl || clean(conversation?.external_customer_id));
-  const crmLabel = profile.id ? `Linked profile #${profile.id}` : hasMessengerProfile ? "Messenger Profile Only" : "No matched CRM customer";
+  const crmLabel = profile.id ? `الملف المرتبط #${profile.id}` : hasMessengerProfile ? "ملف ماسنجر فقط" : "لا يوجد عميل CRM مطابق";
   const channel = conversation?.channel || conversation?.source || "web_chat";
   const channelName = channelLabel(channel);
   const phone = clean(profile.phone || conversation?.phone || conversation?.customer_phone || conversation?.external_customer_id);
@@ -1645,9 +1645,9 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <div className="text-[15px] font-black leading-5 text-white">{identityName || "Unknown customer"}</div>
+                <div className="text-[15px] font-black leading-5 text-white">{identityName || "عميل غير معروف"}</div>
                 <div className="mt-1 text-[12px] font-bold leading-5 text-slate-400">
-                  <span dir="ltr" className="block break-words">{phone || "No phone yet"}</span>
+                  <span dir="ltr" className="block break-words">{phone || "لا يوجد رقم بعد"}</span>
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   <Pill tone={isWhatsappChannel(channel) ? "emerald" : "cyan"}>{channelName}</Pill>
@@ -1661,7 +1661,7 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
                   className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-2 text-[10px] font-black text-cyan-100 disabled:opacity-50"
                 >
                   {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                  Sync
+                  مزامنة
                 </button>
               ) : null}
             </div>
@@ -1857,7 +1857,7 @@ function SalesIntelligencePanel({ conversation = {}, recommendationIntel = null,
           <div className="mt-2 flex flex-wrap gap-1.5">
             {risks.slice(0, 3).map((risk) => <Pill key={risk} tone="amber">{risk}</Pill>)}
           </div>
-          {conversion.recommended_action ? <div className="mt-3 text-sm text-slate-300">Recommended action: <span className="font-black text-white">{conversion.recommended_action}</span></div> : null}
+          {conversion.recommended_action ? <div className="mt-3 text-sm text-slate-300">الإجراء الموصى به: <span className="font-black text-white">{conversion.recommended_action}</span></div> : null}
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
@@ -2007,23 +2007,23 @@ function RightToolsTabsPanel({
               saving={modeSaving}
             />
             <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
-              <SectionTitle icon={Bot} title="AI reply engine" action={aiTrace?.loading ? <Pill tone="cyan">Typing...</Pill> : null} />
+              <SectionTitle icon={Bot} title="محرك رد الذكاء الاصطناعي" action={aiTrace?.loading ? <Pill tone="cyan">جاري الكتابة...</Pill> : null} />
               <div className="mt-3 grid gap-2">
                 <button type="button" onClick={() => onOpenAiTrace?.()} disabled={aiTrace?.loading} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50">
                   {aiTrace?.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
-                  AI Trace
+                  أثر الذكاء الاصطناعي
                 </button>
                 <button type="button" onClick={() => onSyncMessengerProfile?.()} disabled={profileSyncing} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50">
                   {profileSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                  Sync Messenger Profile
+                  مزامنة ملف ماسنجر
                 </button>
                 <button type="button" onClick={() => onDebugMessengerProfile?.()} disabled={profileDebugging} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-black text-amber-100 disabled:opacity-50">
                   {profileDebugging ? <Loader2 className="h-4 w-4 animate-spin" /> : <InfoIcon className="h-4 w-4" />}
-                  Debug Messenger Profile
+                  تشخيص ملف ماسنجر
                 </button>
                 <button type="button" onClick={() => onResetAiState?.()} disabled={resettingAiState} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-rose-300/20 bg-rose-300/10 px-3 text-xs font-black text-rose-100 disabled:opacity-50">
                   {resettingAiState ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                  Reset AI State
+                  إعادة ضبط حالة الذكاء الاصطناعي
                 </button>
               </div>
             </div>
@@ -2169,7 +2169,7 @@ export default function AiInbox() {
       }
     } catch (err) {
       if (seq !== requestSeqRef.current) return;
-      setError(err?.message || "Failed to load AI inbox");
+      setError(err?.message || "تعذر تحميل صندوق محادثات الذكاء الاصطناعي");
     } finally {
       if (seq === requestSeqRef.current && !silent) setLoading(false);
       if (seq === requestSeqRef.current) isRefreshingRef.current = false;
@@ -2210,7 +2210,7 @@ export default function AiInbox() {
       const sessionId = payload.session_id || payload.message?.session_id || "";
       const incoming = payload.message || null;
       if (incoming?.sender_type === "customer" || incoming?.customer_message) {
-        setToast({ tone: "cyan", text: "Customer replied" });
+        setToast({ tone: "cyan", text: "ردّ العميل" });
       }
       if (incoming?.id || incoming?.dedupe_key || incoming?.external_message_id) {
         let skipped = false;
@@ -2367,7 +2367,7 @@ export default function AiInbox() {
       });
       setAiDebug((current) => ({ ...current, sessionId, loading: false, data: payload, error: "" }));
     } catch (err) {
-      setAiDebug((current) => ({ ...current, sessionId, loading: false, error: err?.message || "Failed to load AI debug metadata" }));
+      setAiDebug((current) => ({ ...current, sessionId, loading: false, error: err?.message || "تعذر تحميل بيانات تشخيص الذكاء الاصطناعي" }));
     }
   }, [canViewAiDebug, headers, selectedConversation?.channel, selectedConversation?.session_id, selectedConversation?.source, tenantId]);
 
@@ -2395,7 +2395,7 @@ export default function AiInbox() {
       });
       setAiTrace((current) => ({ ...current, sessionId, loading: false, data: payload, error: "" }));
     } catch (err) {
-      setAiTrace((current) => ({ ...current, sessionId, loading: false, error: err?.message || "Failed to load AI trace" }));
+      setAiTrace((current) => ({ ...current, sessionId, loading: false, error: err?.message || "تعذر تحميل أثر الذكاء الاصطناعي" }));
     }
   }, [headers, selectedConversation?.channel, selectedConversation?.session_id, selectedConversation?.source, tenantId]);
 
@@ -2438,7 +2438,7 @@ export default function AiInbox() {
         };
       });
     } catch (err) {
-      setToast({ tone: "rose", text: err?.message || "Failed to load older messages" });
+      setToast({ tone: "rose", text: err?.message || "تعذر تحميل الرسائل الأقدم" });
     } finally {
       setOlderMessagesLoading(false);
     }
@@ -2467,7 +2467,7 @@ export default function AiInbox() {
       }
       await loadAll();
     } catch (err) {
-      setError(err?.message || "Failed to update draft");
+      setError(err?.message || "تعذر تحديث المسودة");
     } finally {
       setLoading(false);
     }
@@ -2502,7 +2502,7 @@ export default function AiInbox() {
           escalated_at: null,
           returned_to_ai_at: returned.returned_to_ai_at || new Date().toISOString(),
         }));
-        setToast({ tone: "emerald", text: "Conversation returned to AI. طھظ… ط¥ط±ط¬ط§ط¹ ط§ظ„ظ…ط­ط§ط¯ط«ط© ظ„ظ„ط°ظƒط§ط، ط§ظ„ط§طµط·ظ†ط§ط¹ظٹ." });
+        setToast({ tone: "emerald", text: "أعيدت المحادثة إلى الذكاء الاصطناعي." });
       } else if (action === "reopen") {
         const payload = await api.post(aiAgentInboxEndpoint(selectedConversation?.session_id, "/reopen"), { tenant_id: tenantId }, { headers });
         const returned = payload.conversation || {};
@@ -2527,7 +2527,7 @@ export default function AiInbox() {
           escalated_at: null,
           returned_to_ai_at: returned.returned_to_ai_at || new Date().toISOString(),
         }));
-        setToast({ tone: "emerald", text: "Conversation reopened and returned to AI." });
+        setToast({ tone: "emerald", text: "تمت إعادة فتح المحادثة وإعادتها إلى الذكاء الاصطناعي." });
       } else if (action === "assign") {
         const payload = await api.patch(aiAgentInboxEndpoint(selectedConversation?.session_id, "/assign"), { tenant_id: tenantId, assigned_user_name: currentAssignName }, { headers, perfComponent: "AiInbox.assign" });
         const returned = payload.conversation || {};
@@ -2550,7 +2550,7 @@ export default function AiInbox() {
       }
       if (action === "takeover") await loadAll({ silent: true });
     } catch (err) {
-      setError(err?.message || "Failed to update conversation");
+      setError(err?.message || "تعذر تحديث المحادثة");
     } finally {
       setLoading(false);
     }
@@ -2588,8 +2588,8 @@ export default function AiInbox() {
       setToast({ tone: "emerald", text: "Profile synced" });
       await loadAll({ silent: true });
     } catch (err) {
-      setToast({ tone: "rose", text: "Could not fetch Messenger profile" });
-      setError(err?.message || "Could not fetch Messenger profile");
+      setToast({ tone: "rose", text: "تعذر جلب ملف ماسنجر" });
+      setError(err?.message || "تعذر جلب ملف ماسنجر");
     } finally {
       setProfileSyncing(false);
     }
@@ -2646,8 +2646,8 @@ export default function AiInbox() {
       await loadAll({ silent: true });
     } catch (err) {
       console.error("[messenger-profile-debug] failed", err);
-      window.alert(JSON.stringify({ success: false, message: err?.message || "Could not debug Messenger profile" }, null, 2));
-      setError(err?.message || "Could not debug Messenger profile");
+      window.alert(JSON.stringify({ success: false, message: err?.message || "تعذر تشخيص ملف ماسنجر" }, null, 2));
+      setError(err?.message || "تعذر تشخيص ملف ماسنجر");
     } finally {
       setProfileDebugging(false);
     }
@@ -2673,7 +2673,7 @@ export default function AiInbox() {
       }
     } catch (err) {
       setToast({ tone: "rose", text: err?.message || "Failed to reset AI state" });
-      setError(err?.message || "Failed to reset AI state");
+      setError(err?.message || "تعذر إعادة ضبط حالة الذكاء الاصطناعي");
     } finally {
       setResettingAiState(false);
     }
@@ -2729,7 +2729,7 @@ export default function AiInbox() {
       }
     } catch (err) {
       setToast({ tone: "rose", text: err?.message || "Send failed" });
-      setError(err?.message || "Failed to send manual reply");
+      setError(err?.message || "تعذر إرسال الرد اليدوي");
       patchConversation(sessionId, (conversation) => ({
         ...conversation,
         messages: asArray(conversation.messages).map((item) => item.id === optimistic.id ? { ...item, delivery_status: "failed", delivery_error: err?.message || "Send failed" } : item),
@@ -2758,7 +2758,7 @@ export default function AiInbox() {
       }
     } catch (err) {
       setToast({ tone: "rose", text: err?.message || "Save failed" });
-      setError(err?.message || "Failed to save draft");
+      setError(err?.message || "تعذر حفظ المسودة");
     } finally {
       setLoading(false);
     }
@@ -2980,18 +2980,18 @@ export default function AiInbox() {
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100">
                 <Bot className="h-4 w-4" />
-                AI Inbox Pro
+                صندوق محادثات الذكاء الاصطناعي
               </div>
-              <div className="mt-1 text-xl font-black text-white">Sales Command Center</div>
+              <div className="mt-1 text-xl font-black text-white">مركز قيادة المبيعات</div>
             </div>
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => setConsoleOpen(true)} className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.07] px-3 text-xs font-black text-slate-100">
                 <Brain className="h-4 w-4" />
-                AI Logs
+                سجلات الذكاء الاصطناعي
               </button>
               <button type="button" onClick={loadAll} disabled={loading} className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-cyan-300 px-3 text-xs font-black text-slate-950 disabled:opacity-50">
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                Refresh
+                تحديث
               </button>
             </div>
           </div>
@@ -3001,19 +3001,19 @@ export default function AiInbox() {
         <details className="shrink-0 rounded-3xl border border-white/10 bg-white/[0.045] shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
             <div>
-              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Sales Command Center KPIs</div>
-              <div className="mt-1 text-sm font-black text-white">Collapsed by default</div>
+              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">مؤشرات مركز المبيعات</div>
+              <div className="mt-1 text-sm font-black text-white">مطوية افتراضيًا</div>
             </div>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-[11px] font-black text-slate-200">
               <ChevronDown className="h-4 w-4" />
-              Expand
+              توسيع
             </span>
           </summary>
           <div className="grid gap-3 border-t border-white/10 p-3 md:grid-cols-4">
-            <Metric icon={Radio} label="Live Meta threads" value={realMetaCount} tone="emerald" />
-            <Metric icon={MessageSquareText} label="All conversations" value={conversations.length} tone="cyan" />
-            <Metric icon={Clock3} label="Unread / waiting" value={conversations.filter((item) => item.unread || item.needs_human_support).length} tone="amber" />
-            <Metric icon={EyeOff} label="Demo data hidden" value="On" tone="violet" />
+            <Metric icon={Radio} label="محادثات ميتا الحية" value={realMetaCount} tone="emerald" />
+            <Metric icon={MessageSquareText} label="كل المحادثات" value={conversations.length} tone="cyan" />
+            <Metric icon={Clock3} label="غير المقروء / بانتظار" value={conversations.filter((item) => item.unread || item.needs_human_support).length} tone="amber" />
+            <Metric icon={EyeOff} label="بيانات العرض مخفية" value="مفعل" tone="violet" />
           </div>
         </details>
 
@@ -3033,11 +3033,11 @@ export default function AiInbox() {
           <aside className={`flex min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)] md:w-[300px] md:max-w-[300px] ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
             <div className="shrink-0 space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <SectionTitle icon={MessageSquareText} title="Conversations" action={<Pill tone="zinc">{filteredConversations.length} shown</Pill>} />
+                <SectionTitle icon={MessageSquareText} title="المحادثات" action={<Pill tone="zinc">{filteredConversations.length} ظاهرة</Pill>} />
               </div>
               <div className="xl:hidden">
                 <div className="flex gap-2 overflow-x-auto pb-1">
-                  <button type="button" onClick={() => setChannelFilter("all")} className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black ${channelFilter === "all" ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white"}`}>All</button>
+                  <button type="button" onClick={() => setChannelFilter("all")} className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black ${channelFilter === "all" ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white"}`}>الكل</button>
                   {channelSummaries.channels.map((channel) => (
                     <button key={channel.key} type="button" onClick={() => setChannelFilter(channel.key)} className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black ${channelFilter === channel.key ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white"}`}>
                       {channel.label}
@@ -3048,15 +3048,15 @@ export default function AiInbox() {
               <div className="flex flex-col gap-3">
                 <label className="relative min-w-0">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                  <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search customer, external ID, phone, or message" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
+                  <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث عن العميل أو المعرّف الخارجي أو الهاتف أو الرسالة" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
                 </label>
                 <div className="flex flex-wrap items-center gap-2">
                   <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
                     <ArrowUpDown className="h-4 w-4 text-slate-500" />
-                    <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Sort</span>
+                    <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">الترتيب</span>
                     <select value={leadSort} onChange={(event) => setLeadSort(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
-                      <option value="recent">Most recent</option>
-                      <option value="lead_score_desc">Highest lead score first</option>
+                      <option value="recent">الأحدث</option>
+                      <option value="lead_score_desc">أعلى درجة للعميل أولًا</option>
                     </select>
                   </label>
                 </div>
@@ -3068,7 +3068,7 @@ export default function AiInbox() {
                   ))}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Lead filters</span>
+                  <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">مرشحات العملاء المحتملين</span>
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     {leadFilters.map((item) => (
                       <button
@@ -3095,7 +3095,7 @@ export default function AiInbox() {
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-hidden pr-1">
-              {loading && !conversations.length ? <LoadingBlock text="Loading conversations..." /> : null}
+              {loading && !conversations.length ? <LoadingBlock text="جارٍ تحميل المحادثات..." /> : null}
               {filteredConversations.length ? (
                 <VirtualList
                   items={filteredConversations}
@@ -3113,7 +3113,7 @@ export default function AiInbox() {
                     </div>
                   )}
                 />
-              ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? "No real Meta messages yet. Demo data is hidden so live webhook conversations stay clear." : "No real conversations match the selected filters."} /> : null}
+              ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? "لا توجد رسائل Meta حقيقية بعد. بيانات العرض مخفية كي تبقى محادثات الويبهوك الحية واضحة." : "لا توجد محادثات حقيقية تطابق المرشحات المحددة."} /> : null}
             </div>
           </aside>
 
@@ -3250,24 +3250,24 @@ export default function AiInbox() {
         </section>
 
         <section className="hidden grid gap-3 md:grid-cols-4">
-          <Metric icon={Radio} label="Live Meta threads" value={realMetaCount} tone="emerald" />
-          <Metric icon={MessageSquareText} label="All conversations" value={conversations.length} tone="cyan" />
-          <Metric icon={Clock3} label="Unread / waiting" value={conversations.filter((item) => item.unread || item.needs_human_support).length} tone="amber" />
-          <Metric icon={EyeOff} label="Demo data hidden" value="On" tone="violet" />
+          <Metric icon={Radio} label="محادثات Meta الحية" value={realMetaCount} tone="emerald" />
+          <Metric icon={MessageSquareText} label="كل المحادثات" value={conversations.length} tone="cyan" />
+          <Metric icon={Clock3} label="غير مقروء / بانتظار الرد" value={conversations.filter((item) => item.unread || item.needs_human_support).length} tone="amber" />
+          <Metric icon={EyeOff} label="بيانات العرض مخفية" value="مفعّل" tone="violet" />
         </section>
 
         <section className="hidden rounded-2xl border border-white/10 bg-white/[0.045] p-3">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <label className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search customer, external ID, phone, or message" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث عن العميل أو المعرف الخارجي أو الهاتف أو الرسالة" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
             </label>
             <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
               <ArrowUpDown className="h-4 w-4 text-slate-500" />
-              <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Sort</span>
+              <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">الترتيب</span>
               <select value={leadSort} onChange={(event) => setLeadSort(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
-                <option value="recent">Most recent</option>
-                <option value="lead_score_desc">Highest lead score first</option>
+                <option value="recent">الأحدث</option>
+                <option value="lead_score_desc">الأعلى في درجة العميل أولًا</option>
               </select>
             </label>
           </div>
@@ -3334,14 +3334,14 @@ export default function AiInbox() {
                   />
 
                   <div className="mt-2 grid gap-2 rounded-2xl border border-white/10 bg-slate-950/60 p-2 text-[11px] sm:grid-cols-3">
-                    <div><span className="text-slate-500">Webhook</span><div className={selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "Healthy" : "Failed"}</div></div>
-                    <div><span className="text-slate-500">Token</span><div className={selectedTokenActive ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedTokenActive ? "Active" : "Expired"}</div></div>
-                    <div><span className="text-slate-500">Messaging</span><div className={selectedMessagingActive ? "font-black text-emerald-100" : "font-black text-slate-300"}>{selectedMessagingActive ? "Active" : "Inactive"}</div></div>
+                    <div><span className="text-slate-500">Webhook</span><div className={selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "سليم" : "فشل"}</div></div>
+                    <div><span className="text-slate-500">Token</span><div className={selectedTokenActive ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedTokenActive ? "نشط" : "منتهي"}</div></div>
+                    <div><span className="text-slate-500">Messaging</span><div className={selectedMessagingActive ? "font-black text-emerald-100" : "font-black text-slate-300"}>{selectedMessagingActive ? "نشط" : "غير نشط"}</div></div>
                     {safeConversation.escalation_reason || safeConversation.last_escalation_keyword ? (
                       <div className="sm:col-span-3">
-                        <span className="text-slate-500">Escalation</span>
+                        <span className="text-slate-500">التصعيد</span>
                         <div className="font-black text-amber-100">
-                          {safeConversation.escalation_reason || "Needs human"}
+                          {safeConversation.escalation_reason || "يحتاج تدخلًا بشريًا"}
                           {safeConversation.last_escalation_keyword ? ` / ${safeConversation.last_escalation_keyword}` : ""}
                         </div>
                       </div>
@@ -3349,13 +3349,13 @@ export default function AiInbox() {
                   </div>
 
                   <div className="mt-2 grid gap-2 rounded-2xl border border-white/10 bg-slate-950/65 p-2.5 lg:grid-cols-4">
-                    <Info label="Lead score" value={conversationLeadScore(safeConversation)} />
-                    <Info label="Lead temperature" value={conversationLeadTemperature(safeConversation)} />
-                    <Info label="Recommended action" value={conversationRecommendedSalesAction(safeConversation)} />
+                    <Info label="درجة العميل المحتمل" value={conversationLeadScore(safeConversation)} />
+                    <Info label="حرارة العميل" value={conversationLeadTemperature(safeConversation)} />
+                    <Info label="الإجراء الموصى به" value={conversationRecommendedSalesAction(safeConversation)} />
                     <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3 lg:col-span-4">
-                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Lead reasons</div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">أسباب العميل المحتمل</div>
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        {conversationLeadReasons(safeConversation).length ? conversationLeadReasons(safeConversation).map((reason) => <Pill key={reason} tone="zinc">{reason.replace(/_/g, " ")}</Pill>) : <span className="text-sm text-slate-500">No lead reasons yet</span>}
+                        {conversationLeadReasons(safeConversation).length ? conversationLeadReasons(safeConversation).map((reason) => <Pill key={reason} tone="zinc">{reason.replace(/_/g, " ")}</Pill>) : <span className="text-sm text-slate-500">لا توجد أسباب بعد</span>}
                       </div>
                     </div>
                   </div>
@@ -3380,12 +3380,12 @@ export default function AiInbox() {
                   <details className="group mb-3 rounded-2xl border border-white/10 bg-slate-950/50 p-3">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
                       <div>
-                        <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Developer tools</div>
-                        <div className="mt-1 text-sm font-black text-white">Debug, profile sync, traces, and state reset</div>
+                        <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">أدوات المطور</div>
+                        <div className="mt-1 text-sm font-black text-white">تشخيص، مزامنة الملف، التتبعات، وإعادة الضبط</div>
                       </div>
                       <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-[11px] font-black text-slate-200">
                         <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
-                        Toggle
+                        تبديل
                       </span>
                     </summary>
                     <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_auto]">
@@ -3399,7 +3399,7 @@ export default function AiInbox() {
                               className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-violet-300/20 bg-violet-300/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50"
                             >
                               {aiTrace.loading && aiTrace.sessionId === safeConversation.session_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
-                              AI Trace
+                              أثر الذكاء الاصطناعي
                             </button>
                           ) : null}
                           <button
@@ -3409,7 +3409,7 @@ export default function AiInbox() {
                             className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"
                           >
                             {profileSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                            Sync Messenger Profile
+                            مزامنة ملف ماسنجر
                           </button>
                           <button
                             type="button"
@@ -3418,7 +3418,7 @@ export default function AiInbox() {
                             className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-black text-amber-100 disabled:opacity-50"
                           >
                             {profileDebugging ? <Loader2 className="h-4 w-4 animate-spin" /> : <InfoIcon className="h-4 w-4" />}
-                            Debug Messenger Profile
+                            تشخيص ملف ماسنجر
                           </button>
                           <button
                             type="button"
@@ -3427,14 +3427,14 @@ export default function AiInbox() {
                             className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-rose-300/20 bg-rose-300/10 px-3 text-xs font-black text-rose-100 disabled:opacity-50"
                           >
                             {resettingAiState ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                            Reset AI State
+                            إعادة ضبط حالة الذكاء الاصطناعي
                           </button>
                         </div>
                       </div>
                       <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
                         <button type="button" onClick={() => setProfileOpen((value) => !value)} className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black text-slate-100">
                           {profileOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-                          {profileOpen ? "Hide profile" : "Show profile"}
+                          {profileOpen ? "إخفاء الملف" : "إظهار الملف"}
                         </button>
                       </div>
                     </div>
@@ -3460,11 +3460,11 @@ export default function AiInbox() {
                       saving={modeSaving}
                     />
                     <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-                      <SectionTitle icon={Sparkles} title="AI reply engine" action={aiReply.loading ? <Pill tone="cyan">Typing...</Pill> : null} />
+                      <SectionTitle icon={Sparkles} title="محرك رد الذكاء الاصطناعي" action={aiReply.loading ? <Pill tone="cyan">جاري الكتابة...</Pill> : null} />
                       {aiReply.error ? <div className="mb-3 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{aiReply.error}</div> : null}
                       <div className="grid gap-2 sm:grid-cols-2">
-                        <button type="button" onClick={() => generateAiReply({ persist: false })} disabled={aiReply.loading || safeConversation.conversation_status === "closed"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50">{aiReply.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}Draft AI reply</button>
-                        <button type="button" onClick={() => generateAiReply({ persist: true })} disabled={aiReply.loading || safeConversation.conversation_status !== "ai_active"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"><Bot className="h-4 w-4" />Save AI reply</button>
+                        <button type="button" onClick={() => generateAiReply({ persist: false })} disabled={aiReply.loading || safeConversation.conversation_status === "closed"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50">{aiReply.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}مسودة رد الذكاء الاصطناعي</button>
+                        <button type="button" onClick={() => generateAiReply({ persist: true })} disabled={aiReply.loading || safeConversation.conversation_status !== "ai_active"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"><Bot className="h-4 w-4" />حفظ رد الذكاء الاصطناعي</button>
                       </div>
                     </div>
                   </div>
@@ -3496,10 +3496,10 @@ export default function AiInbox() {
                       <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-2.5">
                         <div className="mb-1.5 flex items-center justify-between gap-3">
                           <div>
-                            <h3 className="text-sm font-black leading-5">Conversation timeline</h3>
-                            <p className="text-[11px] leading-4.5 text-slate-400">Live thread, staff replies, and message events.</p>
+                            <h3 className="text-sm font-black leading-5">سجل المحادثة</h3>
+                            <p className="text-[11px] leading-4.5 text-slate-400">تسلسل مباشر للرسائل وردود الموظفين وأحداث المحادثة.</p>
                           </div>
-                          {selectedConversation?.messages?.length ? <Pill tone="zinc">{selectedConversation.messages.length} messages</Pill> : null}
+                          {selectedConversation?.messages?.length ? <Pill tone="zinc">{selectedConversation.messages.length} رسالة</Pill> : null}
                         </div>
                         <div className="max-h-[44rem] overflow-y-auto pr-1">
                           <Transcript conversation={selectedConversation} loadingOlder={olderMessagesLoading} onLoadOlder={loadOlderMessages} />
@@ -3527,20 +3527,20 @@ export default function AiInbox() {
                     </div>
                   </div>
                 </>
-              ) : <EmptyBlock text="Select a conversation to inspect the transcript." />}
+              ) : <EmptyBlock text="اختر محادثة لعرض سجلها." />}
             </div>
           </main>
 
           <aside className="hidden min-w-0 w-full shrink-0 space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-3 xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100vh-15rem)] xl:w-[228px] xl:max-w-[228px] xl:flex-col xl:overflow-y-auto">
             <SectionTitle
               icon={MessageSquareText}
-              title="Conversations list"
-              action={<Pill tone="zinc">{filteredConversations.length} shown</Pill>}
+              title="قائمة المحادثات"
+              action={<Pill tone="zinc">{filteredConversations.length} ظاهرة</Pill>}
             />
-            {loading && !conversations.length ? <LoadingBlock text="Loading conversations..." /> : null}
+            {loading && !conversations.length ? <LoadingBlock text="جارٍ تحميل المحادثات..." /> : null}
             <div className="block">
               <div className="flex gap-2 overflow-x-auto pb-1">
-                <button type="button" onClick={() => setChannelFilter("all")} className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black ${channelFilter === "all" ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white"}`}>All</button>
+                <button type="button" onClick={() => setChannelFilter("all")} className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black ${channelFilter === "all" ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white"}`}>الكل</button>
                 {channelSummaries.channels.map((channel) => (
                   <button key={channel.key} type="button" onClick={() => setChannelFilter(channel.key)} className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black ${channelFilter === channel.key ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white"}`}>
                     {channel.label}
@@ -3551,15 +3551,15 @@ export default function AiInbox() {
             <div className="flex flex-col gap-3">
               <label className="relative min-w-0">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search customer, external ID, phone, or message" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
+                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث عن العميل أو المعرف الخارجي أو الهاتف أو الرسالة" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
               </label>
               <div className="flex flex-wrap items-center gap-2">
                 <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
                   <ArrowUpDown className="h-4 w-4 text-slate-500" />
-                  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Sort</span>
+                  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">الترتيب</span>
                   <select value={leadSort} onChange={(event) => setLeadSort(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
-                    <option value="recent">Most recent</option>
-                    <option value="lead_score_desc">Highest lead score first</option>
+                    <option value="recent">الأحدث</option>
+                    <option value="lead_score_desc">الأعلى في درجة العميل أولًا</option>
                   </select>
                 </label>
               </div>
@@ -3571,7 +3571,7 @@ export default function AiInbox() {
                 ))}
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Lead filters</span>
+                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">مرشحات العملاء المحتملين</span>
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   {leadFilters.map((item) => (
                     <button
@@ -3597,7 +3597,7 @@ export default function AiInbox() {
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-hidden pr-1">
-              {loading && !conversations.length ? <LoadingBlock text="Loading conversations..." /> : null}
+              {loading && !conversations.length ? <LoadingBlock text="جارٍ تحميل المحادثات..." /> : null}
               {filteredConversations.length ? (
                 <VirtualList
                   items={filteredConversations}
@@ -3615,7 +3615,7 @@ export default function AiInbox() {
                     </div>
                   )}
                 />
-              ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? "No real Meta messages yet. Demo data is hidden so live webhook conversations stay clear." : "No real conversations match the selected filters."} /> : null}
+              ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? "لا توجد رسائل Meta حقيقية بعد. بيانات العرض مخفية كي تبقى محادثات الويبهوك الحية واضحة." : "لا توجد محادثات حقيقية تطابق المرشحات المحددة."} /> : null}
             </div>
           </aside>
         </section>

@@ -59,12 +59,12 @@ const EMPTY_SETTINGS = {
 
 const QUEUE_FILTERS = [
   { value: "all", label: "All" },
-  { value: "published", label: "Published" },
-  { value: "pending_approval", label: "Pending Approval" },
-  { value: "ready", label: "Ready" },
-  { value: "queued", label: "Queued" },
-  { value: "failed", label: "Failed" },
-  { value: "archived", label: "Archived" },
+  { value: "published", label: "منشور" },
+  { value: "pending_approval", label: "بانتظار الموافقة" },
+  { value: "ready", label: "جاهز" },
+  { value: "queued", label: "في الطابور" },
+  { value: "failed", label: "فشل" },
+  { value: "archived", label: "مؤرشف" },
 ];
 
 const cardClass = "rounded-2xl border border-white/10 bg-white/[0.055] shadow-2xl shadow-black/20 backdrop-blur-xl";
@@ -434,7 +434,7 @@ function AiMarketingCenter() {
       if (logQueueCount) logQueueDeleteDebug({ queueReloadResultCount: nextQueue.length });
       return nextQueue;
     } catch (error) {
-      toast.error(formatApiError(error, "Failed to load AI Marketing Center"));
+      toast.error(formatApiError(error, "تعذر تحميل مركز تسويق الذكاء الاصطناعي"));
       return [];
     } finally {
       if (!silent) setLoading(false);
@@ -534,13 +534,13 @@ function AiMarketingCenter() {
       return;
     }
     if (action === "publish" && !canPublishQueueItem(targetItem)) {
-      toast(isPublishedQueueItem(targetItem) ? "This queue item is already published." : "Approve this queue item before publishing.");
+      toast(isPublishedQueueItem(targetItem) ? "هذا العنصر منشور بالفعل." : "وافق على هذا العنصر قبل النشر.");
       const nextQueue = await load();
       setPreview((current) => (current && String(current.id) === String(id) ? (action === "delete" ? null : nextQueue.find((item) => String(item.id) === String(id)) || current) : current));
       return;
     }
     if (action === "approve" && !canApproveQueueItem(targetItem)) {
-      toast(isPublishedQueueItem(targetItem) ? "This queue item is already published." : "This queue item is not pending approval.");
+      toast(isPublishedQueueItem(targetItem) ? "هذا العنصر منشور بالفعل." : "هذا العنصر ليس بانتظار الموافقة.");
       const nextQueue = await load();
       setPreview((current) => (current && String(current.id) === String(id) ? nextQueue.find((item) => String(item.id) === String(id)) || current : current));
       return;
@@ -628,7 +628,7 @@ function AiMarketingCenter() {
               },
             }
           : null;
-      if (!updatedItem?.id) throw new Error("Story asset generation returned no queue item or asset URL.");
+      if (!updatedItem?.id) throw new Error("لم تُرجع عملية إنشاء عنصر القصة أي عنصر قائمة أو رابط أصل.");
       const itemWithTopLevelUrls = assetUrl
         ? {
             ...updatedItem,
@@ -642,9 +642,9 @@ function AiMarketingCenter() {
         : updatedItem;
       setQueue((current) => current.map((row) => (String(row.id) === String(id) ? itemWithTopLevelUrls : row)));
       setPreview((current) => (current && String(current.id) === String(id) ? itemWithTopLevelUrls : current));
-      toast.success(payload?.queued ? "Story asset queued" : "Story asset generated");
+      toast.success(payload?.queued ? "تمت إضافة أصل القصة إلى الطابور" : "تم إنشاء أصل القصة");
     } catch (error) {
-      const message = formatApiError(error, "Story asset generation failed");
+      const message = formatApiError(error, "فشل إنشاء أصل القصة");
       setPreview((current) =>
         current && String(current.id) === String(id)
           ? {
@@ -725,7 +725,7 @@ function AiMarketingCenter() {
       setHistoryRows(await getAutonomousAiMarketingQueueTimeline(item.id));
     } catch (error) {
       setHistoryRows([]);
-      toast.error(formatApiError(error, "Failed to load content history"));
+      toast.error(formatApiError(error, "تعذر تحميل سجل المحتوى"));
     }
   };
 
@@ -750,7 +750,7 @@ function AiMarketingCenter() {
       await load();
       setOverview((current) => ({ ...current, posting_insights: nextInsights }));
     } catch (error) {
-      toast.error(formatApiError(error, "Failed to sync posting insights"));
+      toast.error(formatApiError(error, "تعذر مزامنة بيانات النشر"));
     } finally {
       setSyncingInsights(false);
     }
@@ -784,7 +784,7 @@ function AiMarketingCenter() {
           </button>
           <button type="button" onClick={() => runGeneration("daily")} disabled={running || !canCreateMarketing} className={`${buttonClass} bg-white text-slate-950 hover:bg-cyan-100`}>
             <Wand2 className="h-4 w-4" />
-            {running ? "Queued..." : canCreateMarketing ? "Generate Queue" : "No create permission"}
+            {running ? "في الطابور..." : canCreateMarketing ? "إنشاء الطابور" : "لا توجد صلاحية إنشاء"}
           </button>
         </div>
       </div>
@@ -796,10 +796,10 @@ function AiMarketingCenter() {
       ) : null}
 
       <section className="grid gap-3 md:grid-cols-4">
-        <Kpi label="AI Status" value={overview.ai_status || (settings.active ? "Active" : "Paused")} tone={settings.active ? "emerald" : "amber"} />
+        <Kpi label="حالة الذكاء الاصطناعي" value={overview.ai_status || (settings.active ? "نشط" : "متوقف مؤقتًا")} tone={settings.active ? "emerald" : "amber"} />
         <Kpi label="Stories Generated Today" value={overview.stories_generated_today || 0} />
         <Kpi label="Posts Generated Today" value={overview.posts_generated_today || 0} />
-        <Kpi label="Pending Approval" value={overview.pending_approval || 0} tone="amber" />
+        <Kpi label="بانتظار الموافقة" value={overview.pending_approval || 0} tone="amber" />
       </section>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -808,7 +808,7 @@ function AiMarketingCenter() {
             <SectionTitle icon={<Sparkles className="h-4 w-4" />} title="Content Lanes" />
             <div className="mt-4 grid gap-3">
               <StrategyCard title="New Arrivals" text="Newest active products with stock and usable images." checked={settings.active_strategies?.new_arrivals !== false} onChange={(value) => toggleStrategy("new_arrivals", value)} />
-              <StrategyCard title="Last Size / Last Piece" text="Variant stock only. Active sellable sizes with stock 1-2." checked={settings.active_strategies?.last_size !== false} onChange={(value) => toggleStrategy("last_size", value)} />
+              <StrategyCard title="آخر مقاس / آخر قطعة" text="يعرض فقط المتغيرات القابلة للبيع مع مخزون 1-2." checked={settings.active_strategies?.last_size !== false} onChange={(value) => toggleStrategy("last_size", value)} />
               <StrategyCard title="AI Posts" text="Single product and carousel posts with captions and hashtags." checked={settings.active_strategies?.ai_posts !== false} onChange={(value) => toggleStrategy("ai_posts", value)} />
             </div>
           </section>
@@ -843,9 +843,9 @@ function AiMarketingCenter() {
           </section>
 
           <section className={`${cardClass} p-5`}>
-            <SectionTitle icon={<Archive className="h-4 w-4" />} title="Cleanup Management" />
+          <SectionTitle icon={<Archive className="h-4 w-4" />} title="إدارة التنظيف" />
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <NumberField label="Archive after days" value={settings.auto_archive_published_after_days} onChange={(value) => patchSettings({ auto_archive_published_after_days: value })} />
+              <NumberField label="الأرشفة بعد أيام" value={settings.auto_archive_published_after_days} onChange={(value) => patchSettings({ auto_archive_published_after_days: value })} />
               <NumberField label="Delete archived after days" value={settings.auto_delete_archived_after_days} onChange={(value) => patchSettings({ auto_delete_archived_after_days: value })} />
             </div>
           </section>
@@ -855,8 +855,8 @@ function AiMarketingCenter() {
 
         <main className="space-y-4">
           <RecommendationsPanel overview={overview} />
-          <QueueSection title="Stories" icon={<Image className="h-4 w-4" />} items={stories} empty="No story candidates queued." statusFilter={storyStatusFilter} onStatusFilter={setStoryStatusFilter} selectedIds={selectedIds} onToggleSelected={toggleSelected} onBulkAction={runBulkAction} onPreview={setPreview} onHistory={openHistory} onAction={updateQueueItem} publishingIds={publishingIds} actionDisabled={loading} />
-          <QueueSection title="Posts" icon={<Send className="h-4 w-4" />} items={posts} empty="No AI posts queued." statusFilter={postStatusFilter} onStatusFilter={setPostStatusFilter} selectedIds={selectedIds} onToggleSelected={toggleSelected} onBulkAction={runBulkAction} onPreview={setPreview} onHistory={openHistory} onAction={updateQueueItem} publishingIds={publishingIds} actionDisabled={loading} />
+          <QueueSection title="القصص" icon={<Image className="h-4 w-4" />} items={stories} empty="لا توجد عناصر قصة في الطابور." statusFilter={storyStatusFilter} onStatusFilter={setStoryStatusFilter} selectedIds={selectedIds} onToggleSelected={toggleSelected} onBulkAction={runBulkAction} onPreview={setPreview} onHistory={openHistory} onAction={updateQueueItem} publishingIds={publishingIds} actionDisabled={loading} />
+          <QueueSection title="المنشورات" icon={<Send className="h-4 w-4" />} items={posts} empty="لا توجد منشورات ذكاء اصطناعي في الطابور." statusFilter={postStatusFilter} onStatusFilter={setPostStatusFilter} selectedIds={selectedIds} onToggleSelected={toggleSelected} onBulkAction={runBulkAction} onPreview={setPreview} onHistory={openHistory} onAction={updateQueueItem} publishingIds={publishingIds} actionDisabled={loading} />
         </main>
       </div>
 
@@ -968,7 +968,7 @@ const insightStateText = (insights, syncing) => {
   const source = String(insights?.source || "fallback");
   const status = String(insights?.status || "");
   const reason = String(insights?.fallback_reason || insights?.reason || insights?.message || "").trim();
-  if (source !== "fallback") return "Using Instagram/Facebook insights";
+  if (source !== "fallback") return "يتم استخدام رؤى إنستجرام/فيسبوك";
   if (status === "permission_missing") return "Permission missing: insights permission required";
   if (status === "missing_token") return "Meta connected token is missing";
   if (status === "no_insights") return reason || "Connected but no insights yet";
@@ -1035,9 +1035,9 @@ function QueueSection({ title, icon, items, empty, statusFilter = "all", onStatu
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-black/20 p-2">
         <Badge>{selectedCount} selected</Badge>
-        <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("archive")} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>Archive Selected</button>
+        <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("archive")} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>أرشفة المحدد</button>
         <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("delete")} className={`${buttonClass} border border-rose-300/20 bg-rose-400/10 text-rose-100`}>Delete Selected</button>
-        <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("publish")} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>Publish Selected</button>
+        <button type="button" disabled={!selectedCount} onClick={() => onBulkAction?.("publish")} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>نشر المحدد</button>
       </div>
       <div className="mt-4 grid gap-3">
         {groups.length ? groups.map((group) => (
@@ -1109,20 +1109,20 @@ function QueueItem({ item, queueType = "queue", selected = false, onToggleSelect
           <Badge>{contentLabel}</Badge>
           {isFeedContent && (design.color_name || item.color) ? <Badge>{design.color_name || item.color}</Badge> : null}
           <Badge>{platformLabel(item)}</Badge>
-          <Badge tone={normalizedStatus === "published" ? "emerald" : normalizedStatus === "archived" ? "amber" : ["failed", "publish_failed"].includes(normalizedStatus) ? "rose" : displayStatus === "Publishing" || normalizedStatus === "publishing" ? "amber" : "slate"}>{displayStatus}</Badge>
+          <Badge tone={normalizedStatus === "published" ? "emerald" : normalizedStatus === "archived" ? "amber" : ["failed", "publish_failed"].includes(normalizedStatus) ? "rose" : displayStatus === "Publishing" || normalizedStatus === "publishing" ? "amber" : "slate"}>{displayStatus === "Publishing" ? "جارٍ النشر" : displayStatus}</Badge>
           {sizesLabel ? <Badge tone={isLastPiece ? "amber" : "slate"}>{sizesLabel}</Badge> : null}
           {isLastPiece && design.stock ? <Badge tone="amber">stock {design.stock}</Badge> : null}
           {design.audio ? <Badge tone="cyan"><Music2 className="h-3 w-3" /> Arabic Trend</Badge> : null}
           <Badge tone={performanceScore >= 70 ? "emerald" : performanceScore >= 40 ? "amber" : performanceScore > 0 ? "rose" : "slate"}>{performanceLabel}</Badge>
-          {hasFacebook ? <Badge tone="cyan">Facebook</Badge> : null}
-          {hasInstagram ? <Badge tone="cyan">Instagram</Badge> : null}
+          {hasFacebook ? <Badge tone="cyan">فيسبوك</Badge> : null}
+          {hasInstagram ? <Badge tone="cyan">إنستجرام</Badge> : null}
         </div>
-        <div className="mt-2 truncate text-sm font-black text-white">{item.title || design.product_name || "Queued content"}</div>
+        <div className="mt-2 truncate text-sm font-black text-white">{item.title || design.product_name || "محتوى في الطابور"}</div>
         <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-400" dir="rtl">{isStoryContent && !isFeedContent ? storyQueueCaption(item) : item.caption}</div>
         {normalizedStatus === "published" || normalizedStatus === "publish_failed" ? (
           <div className="mt-2 flex flex-wrap gap-2 text-xs font-black">
-            <span className={hasFacebook ? "text-emerald-200" : "text-rose-200"}>Facebook: {hasFacebook ? "OK" : "Failed"}</span>
-            <span className={hasInstagram ? "text-emerald-200" : "text-rose-200"}>Instagram: {hasInstagram ? "OK" : "Failed"}</span>
+            <span className={hasFacebook ? "text-emerald-200" : "text-rose-200"}>فيسبوك: {hasFacebook ? "سليم" : "فشل"}</span>
+            <span className={hasInstagram ? "text-emerald-200" : "text-rose-200"}>إنستجرام: {hasInstagram ? "سليم" : "فشل"}</span>
             {item.platform_error_message || item.publish_error ? <span className="text-rose-200">{item.platform_error_message || item.publish_error}</span> : null}
           </div>
         ) : null}
@@ -1137,11 +1137,11 @@ function QueueItem({ item, queueType = "queue", selected = false, onToggleSelect
             <History className="h-4 w-4" />
             History
           </button>
-          {normalizedStatus === "published" && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>View Post</a> : null}
-          {isArchived ? <button type="button" onClick={onRestore} disabled={actionDisabled} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>Restore</button> : null}
-          {!isArchived && showApprove ? <button type="button" onClick={onApprove} disabled={actionDisabled} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>Approve</button> : null}
-          {!isArchived && showPublish ? <button type="button" onClick={onPublish} disabled={publishing || actionDisabled} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>{publishing ? "Publishing..." : normalizedStatus === "publish_failed" || hasFailedPlatform ? "Retry Publish" : "Publish"}</button> : null}
-          {!isArchived ? <button type="button" onClick={onArchive} disabled={actionDisabled} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>Archive</button> : null}
+          {normalizedStatus === "published" && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>عرض المنشور</a> : null}
+          {isArchived ? <button type="button" onClick={onRestore} disabled={actionDisabled} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>استعادة</button> : null}
+          {!isArchived && showApprove ? <button type="button" onClick={onApprove} disabled={actionDisabled} className={`${buttonClass} border border-emerald-300/20 bg-emerald-400/10 text-emerald-100`}>موافقة</button> : null}
+          {!isArchived && showPublish ? <button type="button" onClick={onPublish} disabled={publishing || actionDisabled} className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>{publishing ? "جارٍ النشر..." : normalizedStatus === "publish_failed" || hasFailedPlatform ? "إعادة محاولة النشر" : "نشر"}</button> : null}
+          {!isArchived ? <button type="button" onClick={onArchive} disabled={actionDisabled} className={`${buttonClass} border border-amber-300/20 bg-amber-400/10 text-amber-100`}>أرشفة</button> : null}
           <button type="button" title="Duplicate" onClick={onDuplicate} disabled={actionDisabled} className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-300/20 bg-cyan-400/10 text-cyan-100">
             <Copy className="h-4 w-4" />
           </button>
@@ -1235,7 +1235,7 @@ function RecommendationsPanel({ overview = {} }) {
       </div>
       {insufficient ? (
         <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-4 text-sm font-bold text-slate-300">
-          {overview.performance_insufficient_data_message || "Not enough performance data yet. Publish more content and sync insights to unlock recommendations."}
+          {overview.performance_insufficient_data_message || "لا توجد بيانات أداء كافية بعد. انشر المزيد من المحتوى ومزامن الرؤى لعرض التوصيات."}
         </div>
       ) : (
         <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -1260,10 +1260,10 @@ function DeletePublishedContentModal({ target, onClose, onConfirm }) {
   return (
     <div className="fixed inset-0 z-[60] grid place-items-center bg-black/75 p-4">
       <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950 p-5 text-white shadow-2xl">
-        <h2 className="text-xl font-black">Delete Published Content</h2>
+        <h2 className="text-xl font-black">حذف المحتوى المنشور</h2>
         <p className="mt-3 text-sm font-semibold leading-6 text-slate-300">
-          This will remove the generated content from the AI Marketing Center database and media storage.
-          It will NOT automatically delete the content from Facebook or Instagram unless platform deletion is explicitly supported.
+          سيؤدي ذلك إلى حذف المحتوى المولّد من قاعدة بيانات مركز التسويق ومن التخزين الوسيط.
+          لن يحذف المحتوى تلقائيًا من فيسبوك أو إنستجرام إلا إذا كانت عملية الحذف على المنصة مدعومة صراحةً.
         </p>
         <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-3 text-sm font-bold text-slate-300">
           {target?.title || target?.caption || (target?.bulk ? `${target.ids?.length || 0} selected items` : `Queue item ${target?.id || ""}`)}
@@ -1349,8 +1349,8 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
         title="AI post preview"
         actionSlot={
           <div className="grid gap-3">
-            {showPublished ? <Badge tone="emerald">Published</Badge> : null}
-            {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>View Post</a> : null}
+            {showPublished ? <Badge tone="emerald">منشور</Badge> : null}
+            {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>عرض المنشور</a> : null}
             {showApprove ? (
               <button
                 type="button"
@@ -1397,7 +1397,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
         ) : renderedStoryAssetUrl ? (
           <div className="rounded-3xl border border-white/10 bg-black/30 p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h3 className="text-sm font-black uppercase tracking-[0.18em] text-slate-300">Story asset</h3>
+              <h3 className="text-sm font-black uppercase tracking-[0.18em] text-slate-300">أصل القصة</h3>
               <Badge tone="emerald">Rendered</Badge>
             </div>
             <div className="mx-auto aspect-[9/16] max-h-[72vh] overflow-hidden rounded-[28px] border border-white/10 bg-slate-950 shadow-2xl">
@@ -1405,12 +1405,12 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
             </div>
           </div>
         ) : (
-          <StoryCreativePreview slides={storySlides} title="Story slides" />
+          <StoryCreativePreview slides={storySlides} title="شرائح القصة" />
         )}
         <div>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-2xl font-black">Story preview</h2>
+              <h2 className="text-2xl font-black">معاينة القصة</h2>
               <p className="mt-2 text-sm font-semibold text-slate-400">9:16 story creative. CTA is a visual sticker here; the product link stays stored for publishing.</p>
             </div>
             <button type="button" onClick={onClose} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>Close</button>
@@ -1419,7 +1419,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
             <Info label="Content type" value={item.content_type} />
             <Info label="Layout" value={design.layout_type} />
             <Info label="Sizes" value={sizesLabel || "n/a"} />
-            <Info label="Story link" value={storyLink || "n/a"} />
+            <Info label="رابط القصة" value={storyLink || "غير متاح"} />
           </div>
           <div className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-4">
             <div className="mb-3 grid gap-2">
@@ -1434,7 +1434,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
                 className={`${buttonClass} border border-amber-300/25 bg-amber-300/15 text-amber-100 hover:bg-amber-300/25 disabled:opacity-60`}
               >
                 <RefreshCw className={`h-4 w-4 ${generatingStoryAsset ? "animate-spin" : ""}`} />
-                {generatingStoryAsset ? "Generating Story Asset..." : "Generate Story Asset"}
+                {generatingStoryAsset ? "جارٍ إنشاء أصل القصة..." : "إنشاء أصل القصة"}
               </button>
             </div>
             <div className="grid gap-2">
@@ -1464,8 +1464,8 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
               <ScheduleBadge item={item} />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              {showPublished ? <Badge tone="emerald">Published</Badge> : null}
-              {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>View Post</a> : null}
+              {showPublished ? <Badge tone="emerald">منشور</Badge> : null}
+              {showPublished && postUrl ? <a href={postUrl} target="_blank" rel="noreferrer" className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100`}>عرض المنشور</a> : null}
               {showApprove ? (
                 <button
                   type="button"
@@ -1483,7 +1483,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
                   className={`${buttonClass} border border-cyan-300/20 bg-cyan-400/10 text-cyan-100 hover:bg-cyan-400/20`}
                 >
                   <Send className="h-4 w-4" />
-                  Publish
+                  نشر
                 </button>
               ) : null}
             </div>
@@ -1514,7 +1514,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
               <Info label="Stored product URL" value={storyLink || "n/a"} />
               {storyAssetError ? (
                 <div className="rounded-xl border border-rose-300/25 bg-rose-400/10 p-3 text-xs font-bold leading-5 text-rose-100">
-                  Story asset error: {storyAssetError}
+                  خطأ في أصل القصة: {storyAssetError}
                 </div>
               ) : null}
               <button
@@ -1524,10 +1524,10 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
                 className={`${buttonClass} border border-amber-300/25 bg-amber-300/15 text-amber-100 hover:bg-amber-300/25 disabled:opacity-60`}
               >
                 <RefreshCw className={`h-4 w-4 ${generatingStoryAsset ? "animate-spin" : ""}`} />
-                {generatingStoryAsset ? "Generating Story Asset..." : "Generate Story Asset"}
+                {generatingStoryAsset ? "جارٍ إنشاء أصل القصة..." : "إنشاء أصل القصة"}
               </button>
               <div className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-3">
-                <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-amber-100">Published image asset URLs</div>
+                <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-amber-100">روابط أصول الصور المنشورة</div>
                 <div className="grid gap-2">
                   <DebugUrlRow label="productImageUrl" value={debugUrls.productImageUrl} />
                   <DebugUrlRow label="rendered_image_url" value={debugUrls.rendered_image_url} />

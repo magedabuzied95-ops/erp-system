@@ -37,7 +37,7 @@ const blankRule = {
   trigger_keywords: "",
   excluded_keywords: "",
   match_mode: "any",
-  response_message: "Hi {{commenter_name}}, thanks for your comment. Send us your size and we will help you order.",
+    response_message: "مرحبًا {{commenter_name}}، شكرًا لتعليقك. أرسل لنا المقاس وسنساعدك في الطلب.",
   fallback_reply: "Thanks for your message. A team member will follow up shortly.",
   ai_generated_replies: true,
   template_name: "Default lead reply",
@@ -279,7 +279,7 @@ export default function MarketingSettings() {
     smartLeadDetection: true,
   });
   const [simulator, setSimulator] = useState({
-    commenter_name: "Customer",
+    commenter_name: "العميل",
     comment_text: "price and size please",
   });
   const [ruleForm, setRuleForm] = useState(blankRule);
@@ -533,7 +533,7 @@ export default function MarketingSettings() {
         config.instagram_username ||
         config.instagram_business_account_id ||
         form.instagram_account_id ||
-        "No Instagram account selected",
+        "لم يتم اختيار حساب إنستجرام",
     };
   };
 
@@ -555,7 +555,7 @@ export default function MarketingSettings() {
           setOauthPages(Array.isArray(pagesPayload.pages) ? pagesPayload.pages : []);
           setOauthResult(buildOAuthResult({ payload, refreshed }));
           setWizardStep(1);
-          toast.success("Choose a Facebook Page to complete Meta setup");
+          toast.success("اختر صفحة فيسبوك لاستكمال إعداد ميتا");
           return;
         }
         setOauthPages([]);
@@ -687,7 +687,7 @@ export default function MarketingSettings() {
   const runMetaPublishTest = async (platform = "facebook") => {
     try {
       await testMetaPublish({ platform });
-      toast.success("Publishing permissions verified");
+      toast.success("تم التحقق من صلاحيات النشر");
       await loadMetaDiagnostics();
       await refreshMetaStatus();
     } catch (err) {
@@ -837,11 +837,11 @@ export default function MarketingSettings() {
       (tokenReady && webhookReady && (metaConfig.instagram_business_account_id || form.instagram_account_id))
   );
   const setupSteps = [
-    { label: "Login with Facebook", done: setupCompletion.oauth_connected },
-    { label: "Choose Facebook Page", done: setupCompletion.page_selected },
-    { label: "Choose Instagram Business Account", done: setupCompletion.instagram_connected },
-    { label: "Save permissions", done: permissionsReady },
-    { label: "Verify webhook", done: webhookReady },
+    { label: "تسجيل الدخول عبر فيسبوك", done: setupCompletion.oauth_connected },
+    { label: "اختيار صفحة فيسبوك", done: setupCompletion.page_selected },
+    { label: "اختيار حساب إنستجرام للأعمال", done: setupCompletion.instagram_connected },
+    { label: "حفظ الصلاحيات", done: permissionsReady },
+    { label: "التحقق من Webhook", done: webhookReady },
     { label: "Complete setup", done: setupCompletion.complete },
   ];
   const completedSteps = setupSteps.filter((step) => step.done).length;
@@ -909,7 +909,7 @@ export default function MarketingSettings() {
           <div className="mt-5 grid gap-3 lg:grid-cols-3">
             <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
               <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Environment</div>
-              <div className="mt-2 text-sm font-black text-white">{setupCheck?.env_ready ? "Ready" : "Not ready"}</div>
+      <div className="mt-2 text-sm font-black text-white">{setupCheck?.env_ready ? "جاهز" : "غير جاهز"}</div>
               <div className="mt-3 space-y-2 text-xs text-slate-300">
                 {["META_APP_ID", "META_APP_SECRET", "META_REDIRECT_URI", "META_VERIFY_TOKEN"].map((key) => (
                   <div key={key} className="flex items-center justify-between gap-3">
@@ -979,7 +979,7 @@ export default function MarketingSettings() {
                 <div className="mt-1 font-black text-white">{oauthResult.page || pageLabel || "Not available"}</div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-                <div className="text-xs text-slate-400">Connected Instagram account</div>
+                <div className="text-xs text-slate-400">حساب إنستجرام المتصل</div>
                 <div className="mt-1 font-black text-white">{oauthResult.instagram || instagramLabel || "Not linked"}</div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
@@ -1004,13 +1004,13 @@ export default function MarketingSettings() {
                 </div>
                 <h2 className="mt-3 text-2xl font-black tracking-tight">Connect Meta</h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                  Guided setup uses Facebook login, page selection, Instagram account discovery, permission verification, and webhook checks. Manual IDs remain available in advanced mode.
+                  يستخدم الإعداد الموجّه تسجيل الدخول عبر فيسبوك واختيار الصفحة واكتشاف حساب إنستجرام والتحقق من الصلاحيات وفحوصات Webhook. وتبقى المعرّفات اليدوية متاحة في الوضع المتقدم.
                 </p>
               </div>
               <StatusBadge status={setupCompletion.overall_status || metaHealth?.overall_status || metaCapabilities?.status || setupStatus} />
             </div>
             <div className="mt-5 grid gap-3 md:grid-cols-3">
-              {["Login with Facebook", "Choose Page", "Verify Webhook"].map((label, index) => (
+              {["تسجيل الدخول عبر فيسبوك", "اختيار صفحة", "التحقق من Webhook"].map((label, index) => (
                 <button
                   key={label}
                   onClick={() => setWizardStep(index)}
@@ -1025,8 +1025,8 @@ export default function MarketingSettings() {
               {wizardStep === 0 ? (
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <div className="font-black text-white">Login with Facebook</div>
-                    <p className="mt-1 text-sm text-slate-400">Start the official Meta OAuth flow, grant permissions, then choose the Facebook Page and linked Instagram Business Account.</p>
+                    <div className="font-black text-white">تسجيل الدخول عبر فيسبوك</div>
+                    <p className="mt-1 text-sm text-slate-400">ابدأ تدفق OAuth الرسمي من ميتا، ثم امنح الصلاحيات وبعدها اختر صفحة فيسبوك وحساب إنستجرام للأعمال المرتبط.</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button onClick={connectMetaOAuth} disabled={oauthLoading} className="inline-flex items-center gap-2 rounded-xl bg-[#1877f2] px-4 py-3 text-sm font-black text-white disabled:opacity-60">
@@ -1048,15 +1048,15 @@ export default function MarketingSettings() {
                 </div>
               ) : wizardStep === 1 ? (
                 <div>
-                  <div className="font-black text-white">Choose Facebook Page and Instagram Business Account</div>
-                  <p className="mt-1 text-sm text-slate-400">The connected token is used to discover the Page and linked Instagram Business Account. Current selections: {pageLabel || "No page"} / {instagramLabel || "No Instagram account"}.</p>
+                  <div className="font-black text-white">اختيار صفحة فيسبوك وحساب إنستجرام للأعمال</div>
+                  <p className="mt-1 text-sm text-slate-400">يُستخدم الرمز المتصل لاكتشاف الصفحة وحساب إنستجرام المرتبط. الاختيارات الحالية: {pageLabel || "لا توجد صفحة"} / {instagramLabel || "لا يوجد حساب إنستجرام"}.</p>
                   {oauthPages.length ? (
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
                       {oauthPages.map((page) => (
                         <button key={page.page_id} onClick={() => chooseOAuthPage(page)} disabled={oauthLoading} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left transition hover:bg-white/[0.07] disabled:opacity-60">
                           <div className="font-black text-white">{page.page_name || page.page_id}</div>
                           <div className="mt-1 text-xs text-slate-400">Page ID: {page.page_id}</div>
-                          <div className="mt-2 text-xs text-cyan-200">Instagram: {page.instagram_username || page.instagram_business_account_id || "No linked Business Account"}</div>
+                          <div className="mt-2 text-xs text-cyan-200">إنستجرام: {page.instagram_username || page.instagram_business_account_id || "لا يوجد حساب أعمال مرتبط"}</div>
                           <div className="mt-2 text-xs text-slate-500">Token: {page.page_access_token_masked || "configured"}</div>
                         </button>
                       ))}
@@ -1120,7 +1120,7 @@ export default function MarketingSettings() {
           <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Connection</div>
-              <h2 className="mt-1 text-xl font-black text-white">Facebook Page and Instagram account</h2>
+              <h2 className="mt-1 text-xl font-black text-white">صفحة فيسبوك وحساب إنستجرام</h2>
             </div>
             <button onClick={() => setAdvancedMode((value) => !value)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white">
               {advancedMode ? "Guided mode" : "Advanced mode"}
@@ -1146,12 +1146,12 @@ export default function MarketingSettings() {
           </div> : (
             <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Facebook Page</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">صفحة فيسبوك</div>
                 <div className="mt-2 font-black text-white">{pageLabel || "Not selected"}</div>
                 <p className="mt-1 text-xs text-slate-400">Page ID is managed by the guided connection flow.</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Instagram Business Account</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">حساب إنستجرام للأعمال</div>
                 <div className="mt-2 font-black text-white">{instagramLabel || "Not selected"}</div>
                 <p className="mt-1 text-xs text-slate-400">Manual Account ID entry is hidden unless advanced mode is enabled.</p>
               </div>
@@ -1232,13 +1232,13 @@ export default function MarketingSettings() {
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             <CapabilityCard
               icon={MessageCircle}
-              title={t("marketing.settings.capabilities.facebookMessenger", "Facebook Messenger")}
-              subtitle={pageLabel || t("marketing.settings.capabilities.noFacebookPage", "No Facebook Page connected")}
+              title={t("marketing.settings.capabilities.facebookMessenger", "ماسنجر فيسبوك")}
+              subtitle={pageLabel || t("marketing.settings.capabilities.noFacebookPage", "لا توجد صفحة فيسبوك متصلة")}
               connected={messengerOperationalConnected}
               status={messengerOperationalConnected ? "connected" : liveCapabilities.messenger?.status}
               checks={[
-                { label: "Webhook healthy", ok: webhookReady || facebookStatus.webhook_healthy },
-                { label: "Token valid", ok: tokenReady || facebookStatus.token_valid },
+                { label: "Webook سليم", ok: webhookReady || facebookStatus.webhook_healthy },
+                { label: "الرمز صالح", ok: tokenReady || facebookStatus.token_valid },
                 { label: "Receive messages", ok: messengerOperationalConnected || liveCapabilities.messenger?.details?.receive_messages },
                 { label: "Send replies", ok: messengerOperationalConnected || liveCapabilities.messenger?.details?.send_replies },
                 { label: "AI automation active", ok: facebookStatus.messaging_active || liveCapabilities.messenger?.details?.auto_replies },
@@ -1248,8 +1248,8 @@ export default function MarketingSettings() {
               emptyLabel={t("marketing.common.notAvailable", "Not available")}
               details={[
                 [t("marketing.settings.capabilities.page", "Page"), pageLabel],
-                ["Webhook", webhookReady ? "Healthy" : "Needs attention"],
-                ["Token", tokenReady ? "Valid" : "Needs attention"],
+                ["Webhook", webhookReady ? "سليم" : "يحتاج اهتمامًا"],
+                ["Token", tokenReady ? "صالح" : "يحتاج اهتمامًا"],
                 ["Missing permissions", liveCapabilities.messenger?.missing_permissions?.join(", ") || "None"],
                 [t("marketing.settings.capabilities.lastSync", "Last sync"), formatDateTime(metaConfig.last_sync_at)],
               ]}
@@ -1257,13 +1257,13 @@ export default function MarketingSettings() {
             />
             <CapabilityCard
               icon={Send}
-              title={t("marketing.settings.capabilities.instagramDm", "Instagram DM")}
-              subtitle={instagramLabel || t("marketing.settings.capabilities.noInstagramAccount", "No Instagram Business Account connected")}
+              title={t("marketing.settings.capabilities.instagramDm", "رسائل إنستجرام")}
+              subtitle={instagramLabel || t("marketing.settings.capabilities.noInstagramAccount", "لا يوجد حساب إنستجرام للأعمال متصل")}
               connected={instagramDmOperationalConnected}
               status={instagramDmOperationalConnected ? "connected" : liveCapabilities.instagram_dm?.status}
               checks={[
-                { label: "Webhook healthy", ok: webhookReady || instagramStatus.webhook_healthy },
-                { label: "Token valid", ok: tokenReady || instagramStatus.token_valid },
+                { label: "Webhook سليم", ok: webhookReady || instagramStatus.webhook_healthy },
+                { label: "الرمز صالح", ok: tokenReady || instagramStatus.token_valid },
                 { label: "Receive DMs", ok: instagramDmOperationalConnected || liveCapabilities.instagram_dm?.details?.receive_dms },
                 { label: "Send replies", ok: instagramDmOperationalConnected || liveCapabilities.instagram_dm?.details?.send_replies },
                 { label: "Story mention support", ok: liveCapabilities.instagram_dm?.details?.story_mention_support },
@@ -1274,8 +1274,8 @@ export default function MarketingSettings() {
               emptyLabel={t("marketing.common.notAvailable", "Not available")}
               details={[
                 [t("marketing.settings.capabilities.igBusinessAccount", "IG Business Account"), instagramLabel],
-                ["Webhook", webhookReady ? "Healthy" : "Needs attention"],
-                ["Token", tokenReady ? "Valid" : "Needs attention"],
+                ["Webhook", webhookReady ? "سليم" : "يحتاج اهتمامًا"],
+                ["Token", tokenReady ? "صالح" : "يحتاج اهتمامًا"],
                 ["Missing permissions", liveCapabilities.instagram_dm?.missing_permissions?.join(", ") || "None"],
                 [t("marketing.settings.capabilities.lastSync", "Last sync"), formatDateTime(metaConfig.last_sync_at)],
               ]}
@@ -1287,7 +1287,7 @@ export default function MarketingSettings() {
         <section id="marketing-settings-publishing" className="scroll-mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-violet-200">
             <FileText className="h-3.5 w-3.5" />
-            {t("marketing.settings.capabilities.publishing", "Publishing")}
+            {t("marketing.settings.capabilities.publishing", "النشر")}
           </div>
           <h2 className="mt-3 text-xl font-black tracking-tight">{t("marketing.settings.capabilities.publishingTitle", "Meta publishing capabilities")}</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
