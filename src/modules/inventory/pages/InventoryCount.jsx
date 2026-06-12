@@ -242,23 +242,23 @@ const sizeSortValue = (value) => {
 };
 
 const normalizeCountVariant = (record = {}) => {
-  const productId = record.product_id ?? record.productId ?? record.product?.id ?? null;
-  const variantId = record.product_variant_id ?? record.variant_id ?? record.variantId ?? record.id ?? null;
-  const productName = normalizeText(record.product_name ?? record.productName ?? record.name ?? "");
-  const productSku = normalizeText(record.product_sku ?? record.productSku ?? record.sku ?? "");
-  const productBarcode = normalizeText(record.product_barcode ?? record.productBarcode ?? record.barcode ?? "");
-  const color = normalizeText(record.color ?? record.variant_color ?? record.color_name ?? "");
-  const size = normalizeText(record.size ?? record.variant_size ?? record.size_name ?? "");
-  const sku = normalizeText(record.sku ?? record.variant_sku ?? "");
-  const barcode = normalizeText(record.barcode ?? record.variant_barcode ?? "");
-  const articleCode = normalizeText(record.article_code ?? record.variant_article_code ?? "");
+  const productId = record.product_id || record.productId || (record.product ? record.product.id : null) || null;
+  const variantId = record.product_variant_id || record.variant_id || record.variantId || record.id || null;
+  const productName = normalizeText(record.product_name || record.productName || record.name || "");
+  const productSku = normalizeText(record.product_sku || record.productSku || record.sku || "");
+  const productBarcode = normalizeText(record.product_barcode || record.productBarcode || record.barcode || "");
+  const color = normalizeText(record.color || record.variant_color || record.color_name || "");
+  const size = normalizeText(record.size || record.variant_size || record.size_name || "");
+  const sku = normalizeText(record.sku || record.variant_sku || "");
+  const barcode = normalizeText(record.barcode || record.variant_barcode || "");
+  const articleCode = normalizeText(record.article_code || record.variant_article_code || "");
   const imageData = resolveCountVariantImageData(record);
   const systemQuantity = toNumber(record.system_quantity ?? record.stock ?? record.expected_qty ?? 0);
   const countedQuantity = toNumber(record.counted_quantity ?? record.actual_qty ?? 0);
-  const differenceQuantity = toNumber(record.difference_quantity ?? record.difference_qty ?? countedQuantity - systemQuantity);
+  const differenceQuantity = toNumber(record.difference_quantity ?? record.difference_qty ?? (countedQuantity - systemQuantity));
 
   return {
-    id: record.id ?? null,
+    id: record.id || null,
     product_id: productId,
     product_variant_id: variantId,
     product_name: productName,
@@ -273,8 +273,8 @@ const normalizeCountVariant = (record = {}) => {
     system_quantity: systemQuantity,
     counted_quantity: countedQuantity,
     difference_quantity: differenceQuantity,
-    reason: normalizeText(record.reason ?? ""),
-    notes: normalizeText(record.notes ?? ""),
+    reason: normalizeText(record.reason || ""),
+    notes: normalizeText(record.notes || ""),
     variant_color: color,
     variant_size: size,
     variant_sku: sku,
@@ -689,7 +689,7 @@ function InventoryCountPage() {
         notes: newSessionForm.notes || "",
       });
       const createdSession = response?.session;
-      if (!createdSession?.id) throw new Error("فشل إنشاء الجلسة");
+      if (!createdSession?.id) throw new Error("فشل إنشاء جلسة الجرد");
       setScopeModalOpen(false);
       toast.success("تم بدء جلسة الجرد");
       navigate(`/inventory/count/${createdSession.id}`);
@@ -752,7 +752,7 @@ function InventoryCountPage() {
 
   const approveSessionHandler = async () => {
     if (!routeSessionId) return;
-    const confirmed = window.confirm("هل تريد موافقة واعتماد الجرد؟ سيتم إنشاء حركات المخزون لكل فرق.");
+    const confirmed = window.confirm("هل تريد اعتماد الجرد الآن؟ سيتم إنشاء حركات مخزون رسمية لكل فرق.");
     if (!confirmed) return;
     try {
       setApprovingSession(true);
@@ -1130,7 +1130,7 @@ function InventoryCountPage() {
     <>
       <InventoryShell
         title="الجرد"
-        subtitle="إدارة جلسات الجرد، البحث بالباركود أو SKU، واعتماد الفروقات عبر حركات مخزون رسمية فقط."
+        subtitle="إدارة جلسات الجرد، والبحث بالباركود أو رمز الصنف، واعتماد الفروقات عبر حركات مخزون رسمية فقط."
         actions={
           <div className="flex flex-wrap gap-2">
             {isDetail ? (
@@ -1267,8 +1267,8 @@ function InventoryCountPage() {
               <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <h2 className="text-xl font-black text-white">بحث / سكان باركود</h2>
-                    <p className="mt-1 text-sm text-zinc-400">ابحث بالباركود أو SKU، ولو كان التطابق مباشرًا سيتم عد قطعة تلقائيًا.</p>
+                    <h2 className="text-xl font-black text-white">البحث ومسح الباركود</h2>
+                    <p className="mt-1 text-sm text-zinc-400">ابحث بالباركود أو رمز الصنف، وإذا كان التطابق مباشرًا ستُضاف القطعة تلقائيًا.</p>
                   </div>
                   <button
                     type="button"
@@ -1276,7 +1276,7 @@ function InventoryCountPage() {
                     className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
                   >
                     <Camera className="h-4 w-4" />
-                    سكانر
+                      فتح الماسح
                   </button>
                 </div>
 
@@ -1292,7 +1292,7 @@ function InventoryCountPage() {
                           void lookupVariants();
                         }
                       }}
-                      placeholder="ابحث بالباركود أو SKU أو اسم المنتج"
+                      placeholder="ابحث بالباركود أو رمز الصنف أو اسم المنتج"
                       className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-11 pr-4 text-sm text-white outline-none placeholder:text-zinc-500"
                     />
                   </div>
@@ -1310,7 +1310,7 @@ function InventoryCountPage() {
                 {selectedLookupGroup ? (
                   <div className="mt-3 flex flex-col gap-3 rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-4 lg:flex-row lg:items-center lg:justify-between">
                     <div className="min-w-0">
-                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">Selected Model</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">الموديل المحدد</div>
                       <div className="mt-1 truncate text-sm font-bold text-white">{selectedLookupGroup.product_name || "منتج"}</div>
                       <div className="mt-1 text-xs text-emerald-100/80">
                         {selectedLookupGroup.colors?.length || 0} ألوان · {selectedLookupGroup.variants.length} مقاسات
@@ -1356,7 +1356,7 @@ function InventoryCountPage() {
                     <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-10 text-center text-zinc-400">
                       <ClipboardList className="mx-auto h-12 w-12 text-zinc-500" />
                       <h3 className="mt-4 text-xl font-black text-white">لا توجد أصناف بعد</h3>
-                      <p className="mt-2 text-sm text-zinc-400">ابدأ بالسكان أو البحث ثم أضف اللون للجرد.</p>
+                      <p className="mt-2 text-sm text-zinc-400">ابدأ بالمسح أو البحث ثم أضف اللون إلى الجرد.</p>
                     </div>
                   ) : (
                     visibleGroupedItems.map((group) => (
@@ -1426,7 +1426,7 @@ function InventoryCountPage() {
               <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
                 <h3 className="text-xl font-black text-white">إرشادات</h3>
                 <ul className="mt-4 space-y-3 text-sm leading-7 text-zinc-300">
-                  <li>• استخدم السكانر أو البحث السريع لإضافة قطعة مباشرة عند التطابق الدقيق.</li>
+                  <li>• استخدم الماسح أو البحث السريع لإضافة قطعة مباشرة عند التطابق الدقيق.</li>
                   <li>• البحث باسم المنتج يعرض كروت مجمعة حسب المنتج واللون فقط.</li>
                   <li>• زر إضافة اللون للجرد يضيف كل المقاسات مرة واحدة بقيم فعلية صفرية.</li>
                   <li>• مطابقة السيستم وتصفير اللون يعملان على كل المقاسات داخل اللون.</li>
@@ -1606,9 +1606,9 @@ function InventoryCountPage() {
         <ScannerModal
           onClose={() => setScannerOpen(false)}
           onScan={handleScannerScan}
-          onUnsupported={(message) => toast.error(message || "السكانر غير مدعوم")}
+          onUnsupported={(message) => toast.error(message || "الماسح غير مدعوم على هذا الجهاز")}
           onPermissionDenied={(message) => toast.error(message || "تم رفض إذن الكاميرا")}
-          onError={(message) => toast.error(message || "تعذر تشغيل السكانر")}
+          onError={(message) => toast.error(message || "تعذر تشغيل الماسح")}
         />
       ) : null}
     </>
@@ -1682,30 +1682,13 @@ function LookupGroupCard({ group, busy, selected, onAddModel }) {
           <div className="min-w-0">
             <div className="text-lg font-bold text-white">{group.product_name || "منتج"}</div>
             <div className="mt-1 text-sm text-zinc-400">{group.colors?.length ? `${group.colors.length} ألوان` : "لون غير محدد"}</div>
-            <div className="mt-1 text-xs text-zinc-500">
-              عدد المقاسات: {group.variants.length} · السيستم: {group.system_total}
-            </div>
+            <div className="mt-1 text-xs text-zinc-500">عدد المقاسات: {group.variants.length} · السيستم: {group.system_total}</div>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onAddModel}
-          disabled={busy}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:opacity-40"
-        >
+        <button type="button" onClick={onAddModel} disabled={busy} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:opacity-40">
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
           إضافة الموديل للجرد
-        </button>
-
-        <button
-          type="button"
-          onClick={onAddModel}
-          disabled={busy}
-          className="hidden inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:opacity-40"
-        >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          إضافة اللون للجرد
         </button>
       </div>
 
@@ -1753,7 +1736,7 @@ function GroupedCountCard({
         onNotesCommit={onNotesCommit}
         expanded={expanded}
         onToggleExpanded={onToggleExpanded}
-        />
+      />
     );
   }
 
@@ -1761,65 +1744,19 @@ function GroupedCountCard({
     <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <div className="text-lg font-black text-white">
-            {group.product_name || "منتج"} - {group.color || "لون"}
-          </div>
-          <div className="mt-1 text-sm text-zinc-400">
-            {group.variants.length} مقاس · السيستم: {group.system_total} · الفعلي: {group.counted_total} · الفرق: {group.difference_total}
-          </div>
+          <div className="text-lg font-black text-white">{group.product_name || "منتج"} - {group.color || "لون"}</div>
+          <div className="mt-1 text-sm text-zinc-400">{group.variants.length} مقاس · السيستم: {group.system_total} · الفعلي: {group.counted_total} · الفرق: {group.difference_total}</div>
         </div>
-
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={onAddColor}
-            disabled={disabled || busy}
-            className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:opacity-40"
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            إضافة اللون للجرد
-          </button>
-          <button
-            type="button"
-            onClick={onMatchSystem}
-            disabled={disabled || busy}
-            className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:opacity-40"
-          >
-            <CheckCircle2 className="h-4 w-4" />
-            مطابقة السيستم
-          </button>
-          <button
-            type="button"
-            onClick={onZero}
-            disabled={disabled || busy}
-            className="inline-flex items-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/15 disabled:opacity-40"
-          >
-            <RotateCcw className="h-4 w-4" />
-            تصفير
-          </button>
-          <button
-            type="button"
-            onClick={onRemove}
-            disabled={disabled || busy}
-            className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:opacity-40"
-          >
-            <Trash2 className="h-4 w-4" />
-            حذف اللون
-          </button>
+          <button type="button" onClick={onAddColor} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}إضافة اللون للجرد</button>
+          <button type="button" onClick={onMatchSystem} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:opacity-40"><CheckCircle2 className="h-4 w-4" />مطابقة السيستم</button>
+          <button type="button" onClick={onZero} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/15 disabled:opacity-40"><RotateCcw className="h-4 w-4" />تصفير</button>
+          <button type="button" onClick={onRemove} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:opacity-40"><Trash2 className="h-4 w-4" />حذف اللون</button>
         </div>
       </div>
-
       <div className="mt-4 space-y-3">
         {group.variants.map((variant) => (
-          <MemoDesktopGroupedCountRow
-            key={String(variant.id)}
-            item={variant}
-            disabled={disabled}
-            onCountChange={onCountChange}
-            onCountCommit={onCountCommit}
-            onReasonCommit={onReasonCommit}
-            onNotesCommit={onNotesCommit}
-          />
+          <MemoDesktopGroupedCountRow key={String(variant.id)} item={variant} disabled={disabled} onCountChange={onCountChange} onCountCommit={onCountCommit} onReasonCommit={onReasonCommit} onNotesCommit={onNotesCommit} />
         ))}
       </div>
     </div>
@@ -1831,212 +1768,53 @@ function DesktopGroupedCountRow({ item, disabled, onCountChange, onCountCommit, 
   const system = Number(item.system_quantity || 0);
   const diff = Number(item.difference_quantity || counted - system);
   const [notes, setNotes] = useState(item.notes || "");
-
   useEffect(() => {
     setNotes(item.notes || "");
   }, [item.notes]);
-
   const diffTone = diff > 0 ? "text-emerald-300" : diff < 0 ? "text-rose-300" : "text-zinc-300";
-
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
       <div className="flex flex-col gap-3 xl:grid xl:grid-cols-[minmax(120px,1fr)_90px_120px_90px_160px_minmax(0,1fr)_44px] xl:items-center">
         <div className="min-w-0">
           <div className="font-semibold text-white">{item.size || "مقاس غير محدد"}</div>
-          <div className="mt-1 text-xs text-zinc-400">
-            SKU: {item.variant_sku || "n/a"} · Barcode: {item.variant_barcode || "n/a"}
-          </div>
+          <div className="mt-1 text-xs text-zinc-400">رمز الصنف: {item.variant_sku || "غير متاح"} · الباركود: {item.variant_barcode || "غير متاح"}</div>
         </div>
-
-        <div>
-          <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">السيستم</div>
-          <div className="mt-1 text-sm font-black text-white">{system}</div>
-        </div>
-
-        <label className="block">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">الفعلي</div>
-          <input
-            type="number"
-            disabled={disabled}
-            value={counted}
-            onChange={(event) => onCountChange(item.id, event.target.value)}
-            onBlur={(event) => onCountCommit(item.id, { counted_quantity: Number(event.target.value || 0) })}
-            className="mt-1 w-full rounded-xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none disabled:opacity-50"
-          />
-        </label>
-
-        <div>
-          <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">الفرق</div>
-          <div className={`mt-1 text-sm font-black ${diffTone}`}>{diff > 0 ? "+" : ""}{diff}</div>
-        </div>
-
-        <label className="block">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">السبب</div>
-          <select
-            disabled={disabled}
-            value={item.reason || "أخرى"}
-            onChange={(event) => onReasonCommit(item.id, { reason: event.target.value })}
-            className="mt-1 w-full rounded-xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none disabled:opacity-50"
-          >
-            {COUNT_REASONS.map((reason) => (
-              <option key={reason} value={reason} className="bg-zinc-950 text-white">
-                {reason}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">ملاحظات</div>
-          <input
-            disabled={disabled}
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            onBlur={(event) => onNotesCommit(item.id, { notes: event.target.value })}
-            placeholder="ملاحظات"
-            className="mt-1 w-full rounded-xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500 disabled:opacity-50"
-          />
-        </label>
-
-        <div className="flex justify-end">
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => onCountCommit(item.id, { counted_quantity: counted })}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white transition hover:bg-white/10 disabled:opacity-40"
-            title="حفظ"
-          >
-            <Save className="h-4 w-4" />
-          </button>
-        </div>
+        <div><div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">السيستم</div><div className="mt-1 text-sm font-black text-white">{system}</div></div>
+        <label className="block"><div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">الفعلي</div><input type="number" disabled={disabled} value={counted} onChange={(event) => onCountChange(item.id, event.target.value)} onBlur={(event) => onCountCommit(item.id, { counted_quantity: Number(event.target.value || 0) })} className="mt-1 w-full rounded-xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none disabled:opacity-50" /></label>
+        <div><div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">الفرق</div><div className={`mt-1 text-sm font-black ${diffTone}`}>{diff > 0 ? "+" : ""}{diff}</div></div>
+        <label className="block"><div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">السبب</div><select disabled={disabled} value={item.reason || "أخرى"} onChange={(event) => onReasonCommit(item.id, { reason: event.target.value })} className="mt-1 w-full rounded-xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none disabled:opacity-50">{COUNT_REASONS.map((reason) => (<option key={reason} value={reason} className="bg-zinc-950 text-white">{reason}</option>))}</select></label>
+        <label className="block"><div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">ملاحظات</div><input disabled={disabled} value={notes} onChange={(event) => setNotes(event.target.value)} onBlur={(event) => onNotesCommit(item.id, { notes: event.target.value })} placeholder="ملاحظات" className="mt-1 w-full rounded-xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500 disabled:opacity-50" /></label>
+        <div className="flex justify-end"><button type="button" disabled={disabled} onClick={() => onCountCommit(item.id, { counted_quantity: counted })} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white transition hover:bg-white/10 disabled:opacity-40" title="حفظ"><Save className="h-4 w-4" /></button></div>
       </div>
     </div>
   );
 }
 
-function MobileGroupedCountCard({
-  group,
-  disabled,
-  busy,
-  onAddColor,
-  onMatchSystem,
-  onZero,
-  onRemove,
-  onCountChange,
-  onCountCommit,
-  onReasonCommit,
-  onNotesCommit,
-  expanded,
-  onToggleExpanded,
-}) {
+function MobileGroupedCountCard({ group, disabled, busy, onAddColor, onMatchSystem, onZero, onRemove, onCountChange, onCountCommit, onReasonCommit, onNotesCommit, expanded, onToggleExpanded }) {
   const inputRefs = useRef(new Map());
   const resolvedImage = resolveInventoryImage(group);
-
   const focusNextSize = (itemId, currentInput) => {
     const currentIndex = group.variants.findIndex((variant) => String(variant.id) === String(itemId));
     const nextVariant = group.variants[currentIndex + 1];
-    if (!nextVariant) {
-      currentInput?.blur?.();
-      return;
-    }
+    if (!nextVariant) { currentInput?.blur?.(); return; }
     const nextInput = inputRefs.current.get(String(nextVariant.id));
     nextInput?.focus?.();
     nextInput?.select?.();
   };
-
   return (
     <div className="rounded-2xl border border-white/10 bg-zinc-950/90 p-3 shadow-lg shadow-black/10">
       <button type="button" onClick={onToggleExpanded} className="w-full text-start" aria-expanded={expanded}>
         <div className="flex items-start gap-3">
-          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900">
-            {resolvedImage ? (
-              <img src={resolvedImage} alt={group.product_name || "منتج"} className="h-full w-full object-cover" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-950 text-zinc-500">
-                <ClipboardList className="h-6 w-6" />
-              </div>
-            )}
-          </div>
+          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900">{resolvedImage ? <img src={resolvedImage} alt={group.product_name || "منتج"} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-950 text-zinc-500"><ClipboardList className="h-6 w-6" /></div>}</div>
           <div className="min-w-0 flex-1">
-            <div className="text-lg font-black leading-snug text-white">
-              {group.product_name || "منتج"} - {group.color || "لون"}
-            </div>
-            <div className="mt-1 text-sm text-zinc-400">
-              {group.variants.length} مقاس · السيستم: {group.system_total} · الفعلي: {group.counted_total}
-            </div>
-            <div className={`mt-1 text-sm font-black ${group.difference_total > 0 ? "text-rose-300" : group.difference_total < 0 ? "text-amber-300" : "text-emerald-300"}`}>
-              {group.difference_total > 0 ? `زيادة ${group.difference_total}` : group.difference_total < 0 ? `عجز ${Math.abs(group.difference_total)}` : "تمام"}
-            </div>
+            <div className="text-lg font-black leading-snug text-white">{group.product_name || "منتج"} - {group.color || "لون"}</div>
+            <div className="mt-1 text-sm text-zinc-400">{group.variants.length} مقاس · السيستم: {group.system_total} · الفعلي: {group.counted_total}</div>
+            <div className={`mt-1 text-sm font-black ${group.difference_total > 0 ? "text-rose-300" : group.difference_total < 0 ? "text-amber-300" : "text-emerald-300"}`}>{group.difference_total > 0 ? `زيادة ${group.difference_total}` : group.difference_total < 0 ? `عجز ${Math.abs(group.difference_total)}` : "مطابق"}</div>
           </div>
         </div>
-        <div className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">
-          {expanded ? "إخفاء المقاسات" : "عرض المقاسات"}
-        </div>
+        <div className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white">{expanded ? "إخفاء المقاسات" : "عرض المقاسات"}</div>
       </button>
-
-      {expanded ? (
-        <div className="mt-3 space-y-2">
-          {group.variants.map((variant) => (
-            <MemoGroupedCountRow
-              key={String(variant.id)}
-              item={variant}
-              compact
-              disabled={disabled}
-              inputRef={(node) => {
-                if (node) {
-                  inputRefs.current.set(String(variant.id), node);
-                } else {
-                  inputRefs.current.delete(String(variant.id));
-                }
-              }}
-              onCountChange={onCountChange}
-              onCountCommit={onCountCommit}
-              onReasonCommit={onReasonCommit}
-              onNotesCommit={onNotesCommit}
-              onAdvance={focusNextSize}
-            />
-          ))}
-
-          <div className="flex flex-wrap gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onAddColor}
-              disabled={disabled || busy}
-              className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:opacity-40"
-            >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              إضافة اللون للجرد
-            </button>
-            <button
-              type="button"
-              onClick={onMatchSystem}
-              disabled={disabled || busy}
-              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:opacity-40"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              مطابق
-            </button>
-            <button
-              type="button"
-              onClick={onZero}
-              disabled={disabled || busy}
-              className="inline-flex items-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/15 disabled:opacity-40"
-            >
-              <RotateCcw className="h-4 w-4" />
-              تصفير
-            </button>
-            <button
-              type="button"
-              onClick={onRemove}
-              disabled={disabled || busy}
-              className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:opacity-40"
-            >
-              <Trash2 className="h-4 w-4" />
-              حذف اللون
-            </button>
-          </div>
-        </div>
-      ) : null}
+      {expanded ? <div className="mt-3 space-y-2">{group.variants.map((variant) => (<MemoGroupedCountRow key={String(variant.id)} item={variant} compact disabled={disabled} inputRef={(node) => { if (node) { inputRefs.current.set(String(variant.id), node); } else { inputRefs.current.delete(String(variant.id)); } }} onCountChange={onCountChange} onCountCommit={onCountCommit} onReasonCommit={onReasonCommit} onNotesCommit={onNotesCommit} onAdvance={focusNextSize} />))}<div className="flex flex-wrap gap-2 pt-2"><button type="button" onClick={onAddColor} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}إضافة اللون للجرد</button><button type="button" onClick={onMatchSystem} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:opacity-40"><CheckCircle2 className="h-4 w-4" />مطابقة</button><button type="button" onClick={onZero} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/15 disabled:opacity-40"><RotateCcw className="h-4 w-4" />تصفير</button><button type="button" onClick={onRemove} disabled={disabled || busy} className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:opacity-40"><Trash2 className="h-4 w-4" />حذف اللون</button></div></div> : null}
     </div>
   );
 }
@@ -2053,244 +1831,22 @@ function GroupedCountRow({ item, compact = false, disabled, inputRef, onCountCha
   const saveTimerRef = useRef(null);
   const reasonDraftRef = useRef(reasonDraft);
   const notesRef = useRef(notes);
-
-  useEffect(() => {
-    setReasonDraft(item.reason || "أخرى");
-  }, [item.reason]);
-
-  useEffect(() => {
-    setNotes(item.notes || "");
-  }, [item.notes]);
-
-  useEffect(() => {
-    reasonDraftRef.current = reasonDraft;
-  }, [reasonDraft]);
-
-  useEffect(() => {
-    notesRef.current = notes;
-  }, [notes]);
-
-  useEffect(() => () => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-  }, []);
-
-  const scheduleCountSave = (nextValue) => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      void onCountCommit(item.id, {
-        counted_quantity: Number(nextValue || 0),
-        reason: reasonDraftRef.current || "",
-        notes: notesRef.current || "",
-      });
-    }, 250);
-  };
-
-  const handleCountChange = (value) => {
-    if (disabled) return;
-    onCountChange(item.id, value);
-    scheduleCountSave(value);
-  };
-
-  const commitCount = (nextValue) => {
-    if (disabled) return;
-    const normalized = Math.max(0, Number(nextValue || 0));
-    onCountChange(item.id, String(normalized));
-    scheduleCountSave(normalized);
-  };
-
+  useEffect(() => { setReasonDraft(item.reason || "أخرى"); }, [item.reason]);
+  useEffect(() => { setNotes(item.notes || ""); }, [item.notes]);
+  useEffect(() => { reasonDraftRef.current = reasonDraft; }, [reasonDraft]);
+  useEffect(() => { notesRef.current = notes; }, [notes]);
+  useEffect(() => () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); }, []);
+  const scheduleCountSave = (nextValue) => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); saveTimerRef.current = setTimeout(() => { void onCountCommit(item.id, { counted_quantity: Number(nextValue || 0), reason: reasonDraftRef.current || "", notes: notesRef.current || "" }); }, 250); };
+  const handleCountChange = (value) => { if (disabled) return; onCountChange(item.id, value); scheduleCountSave(value); };
+  const commitCount = (nextValue) => { if (disabled) return; const normalized = Math.max(0, Number(nextValue || 0)); onCountChange(item.id, String(normalized)); scheduleCountSave(normalized); };
   const incrementCount = () => commitCount(counted + 1);
   const decrementCount = () => commitCount(Math.max(0, counted - 1));
-
-  const handleReasonChange = (reason) => {
-    if (disabled) return;
-    setReasonDraft(reason);
-    void onReasonCommit(item.id, { reason });
-  };
-
-  const handleNotesBlur = (value) => {
-    if (disabled) return;
-    void onNotesCommit(item.id, { notes: value });
-  };
-
+  const handleReasonChange = (reason) => { if (disabled) return; setReasonDraft(reason); void onReasonCommit(item.id, { reason }); };
+  const handleNotesBlur = (value) => { if (disabled) return; void onNotesCommit(item.id, { notes: value }); };
   if (compact) {
-    return (
-      <div
-        className="inventory-count-mobile-row-compact rounded-xl border border-white/10 bg-white/[0.04] shadow-none"
-        style={{ boxShadow: "none", borderRadius: "14px", padding: "8px 10px" }}
-      >
-        <span style={{ display: "none" }} data-testid="mobile-grouped-count-row" />
-        <div className="grid min-h-[52px] grid-cols-[minmax(0,1fr)_72px_minmax(0,1.35fr)_64px] items-center gap-2">
-          <div className="min-w-0">
-            <div className="truncate text-sm font-black leading-tight text-white">{item.size || "--"}</div>
-            <div className="mt-0.5 text-[9px] uppercase tracking-[0.16em] text-zinc-500">مقاس</div>
-          </div>
-
-          <div className="min-w-0">
-            <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">المتوقع</div>
-            <div className="mt-0.5 text-sm font-black tabular-nums text-white">{system}</div>
-          </div>
-
-          <div className="min-w-0">
-            <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">الفعلي</div>
-            <div className="mt-1 flex items-center gap-1.5">
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={decrementCount}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/30 text-base font-black text-white transition-colors hover:bg-white/10 disabled:opacity-40"
-                aria-label="إنقاص الكمية"
-              >
-                -
-              </button>
-              <input
-                ref={inputRef}
-                type="number"
-                inputMode="numeric"
-                disabled={disabled}
-                value={counted}
-                onChange={(event) => handleCountChange(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    onAdvance?.(item.id, event.currentTarget);
-                  }
-                }}
-                className="h-7 w-16 shrink-0 rounded-lg border border-white/10 bg-zinc-950/70 px-1.5 text-center text-sm font-black text-white outline-none tabular-nums placeholder:text-zinc-500 disabled:opacity-50"
-              />
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={incrementCount}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-emerald-500/15 text-base font-black text-emerald-200 transition-colors hover:bg-emerald-500/25 disabled:opacity-40"
-                aria-label="زيادة الكمية"
-              >
-                +
-              </button>
-            </div>
-          </div>
-
-          <div className="min-w-[64px] text-end">
-            <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">الفرق</div>
-            <div className={`mt-0.5 text-sm font-black tabular-nums ${diffTone}`}>
-              {diff > 0 ? `+${diff}` : diff < 0 ? `-${Math.abs(diff)}` : "تمام"}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return (<div className="inventory-count-mobile-row-compact rounded-xl border border-white/10 bg-white/[0.04] shadow-none" style={{ boxShadow: "none", borderRadius: "14px", padding: "8px 10px" }}><span style={{ display: "none" }} data-testid="mobile-grouped-count-row" /><div className="grid min-h-[52px] grid-cols-[minmax(0,1fr)_72px_minmax(0,1.35fr)_64px] items-center gap-2"><div className="min-w-0"><div className="truncate text-sm font-black leading-tight text-white">{item.size || "--"}</div><div className="mt-0.5 text-[9px] uppercase tracking-[0.16em] text-zinc-500">مقاس</div></div><div className="min-w-0"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">المتوقع</div><div className="mt-0.5 text-sm font-black tabular-nums text-white">{system}</div></div><div className="min-w-0"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">الفعلي</div><div className="mt-1 flex items-center gap-1.5"><button type="button" disabled={disabled} onClick={decrementCount} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/30 text-base font-black text-white transition-colors hover:bg-white/10 disabled:opacity-40" aria-label="إنقاص الكمية">-</button><input ref={inputRef} type="number" inputMode="numeric" disabled={disabled} value={counted} onChange={(event) => handleCountChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); onAdvance?.(item.id, event.currentTarget); } }} className="h-7 w-16 shrink-0 rounded-lg border border-white/10 bg-zinc-950/70 px-1.5 text-center text-sm font-black text-white outline-none tabular-nums placeholder:text-zinc-500 disabled:opacity-50" /><button type="button" disabled={disabled} onClick={incrementCount} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-emerald-500/15 text-base font-black text-emerald-200 transition-colors hover:bg-emerald-500/25 disabled:opacity-40" aria-label="زيادة الكمية">+</button></div></div><div className="min-w-[64px] text-end"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">الفرق</div><div className={`mt-0.5 text-sm font-black tabular-nums ${diffTone}`}>{diff > 0 ? `+${diff}` : diff < 0 ? `-${Math.abs(diff)}` : "مطابق"}</div></div></div></div>);
   }
-
-  return (
-    <div
-      className="inventory-count-mobile-row-compact rounded-xl border border-white/10 bg-white/[0.04] px-2 py-2 shadow-none"
-      style={{ boxShadow: "none", borderRadius: "14px", padding: "8px 10px" }}
-    >
-      <span style={{ display: "none" }} data-testid="mobile-grouped-count-row" />
-      <div className="grid min-h-[48px] grid-cols-[44px_minmax(0,1fr)_72px] items-center gap-2">
-        <div className="min-w-0">
-          <div className="truncate text-sm font-black leading-tight text-white">{item.size || "--"}</div>
-          <div className="mt-0.5 text-[9px] uppercase tracking-[0.16em] text-zinc-500">مقاس</div>
-        </div>
-
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[10px] font-semibold text-zinc-400">
-            <span className="uppercase tracking-[0.18em]">المتوقع</span>
-            <span className="tabular-nums text-white">{system}</span>
-          </div>
-
-          <div className="mt-1.5 flex items-center gap-1.5">
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={decrementCount}
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/30 text-base font-black text-white transition-colors hover:bg-white/10 disabled:opacity-40"
-              aria-label="إنقاص الكمية"
-            >
-              -
-            </button>
-            <input
-              ref={inputRef}
-              type="number"
-              inputMode="numeric"
-              disabled={disabled}
-              value={counted}
-              onChange={(event) => handleCountChange(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  onAdvance?.(item.id, event.currentTarget);
-                }
-              }}
-              className="h-7 w-14 shrink-0 rounded-lg border border-white/10 bg-zinc-950/70 px-1.5 text-center text-sm font-black text-white outline-none tabular-nums placeholder:text-zinc-500 disabled:opacity-50"
-            />
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={incrementCount}
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-emerald-500/15 text-base font-black text-emerald-200 transition-colors hover:bg-emerald-500/25 disabled:opacity-40"
-              aria-label="زيادة الكمية"
-            >
-              +
-            </button>
-          </div>
-        </div>
-
-        <div className="min-w-[72px] text-end">
-          <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">الفرق</div>
-          <div className={`mt-0.5 text-sm font-black tabular-nums ${diffTone}`}>
-            {diff > 0 ? `+${diff}` : diff < 0 ? `-${Math.abs(diff)}` : "تمام"}
-          </div>
-        </div>
-      </div>
-
-      {hasDetails ? (
-        <div className="mt-2">
-          <button
-            type="button"
-            onClick={() => setShowDetails((current) => !current)}
-          className="inline-flex items-center rounded-xl border border-white/10 bg-black/20 px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-white/10"
-          >
-            {showDetails ? "إخفاء التفاصيل" : "تفاصيل اختيارية"}
-          </button>
-          {showDetails ? (
-            <div className="mt-2 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs leading-6 text-zinc-400">
-              {item.variant_sku ? <div className="truncate">SKU: {item.variant_sku}</div> : null}
-              {item.variant_barcode ? <div className="truncate">Barcode: {item.variant_barcode}</div> : null}
-              {item.variant_article_code ? <div className="truncate">Article: {item.variant_article_code}</div> : null}
-              {item.product_id ? <div className="truncate">Product ID: {item.product_id}</div> : null}
-              {item.product_variant_id || item.id ? <div className="truncate">Variant ID: {item.product_variant_id || item.id}</div> : null}
-              <label className="mt-2 block">
-                <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">السبب</div>
-                <select
-                  disabled={disabled}
-                  value={reasonDraft}
-                  onChange={(event) => handleReasonChange(event.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none disabled:opacity-50"
-                >
-                  {COUNT_REASONS.map((reason) => (
-                    <option key={reason} value={reason} className="bg-zinc-950 text-white">
-                      {reason}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="mt-2 block">
-                <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">ملاحظات</div>
-                <input
-                  disabled={disabled}
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  onBlur={(event) => handleNotesBlur(event.target.value)}
-                  placeholder="ملاحظات"
-                  className="w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500 disabled:opacity-50"
-                />
-              </label>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
-  );
+  return (<div className="inventory-count-mobile-row-compact rounded-xl border border-white/10 bg-white/[0.04] px-2 py-2 shadow-none" style={{ boxShadow: "none", borderRadius: "14px", padding: "8px 10px" }}><span style={{ display: "none" }} data-testid="mobile-grouped-count-row" /><div className="grid min-h-[48px] grid-cols-[44px_minmax(0,1fr)_72px] items-center gap-2"><div className="min-w-0"><div className="truncate text-sm font-black leading-tight text-white">{item.size || "--"}</div><div className="mt-0.5 text-[9px] uppercase tracking-[0.16em] text-zinc-500">مقاس</div></div><div className="min-w-0"><div className="flex items-center gap-2 text-[10px] font-semibold text-zinc-400"><span className="uppercase tracking-[0.18em]">المتوقع</span><span className="tabular-nums text-white">{system}</span></div><div className="mt-1.5 flex items-center gap-1.5"><button type="button" disabled={disabled} onClick={decrementCount} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/30 text-base font-black text-white transition-colors hover:bg-white/10 disabled:opacity-40" aria-label="إنقاص الكمية">-</button><input ref={inputRef} type="number" inputMode="numeric" disabled={disabled} value={counted} onChange={(event) => handleCountChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); onAdvance?.(item.id, event.currentTarget); } }} className="h-7 w-14 shrink-0 rounded-lg border border-white/10 bg-zinc-950/70 px-1.5 text-center text-sm font-black text-white outline-none tabular-nums placeholder:text-zinc-500 disabled:opacity-50" /><button type="button" disabled={disabled} onClick={incrementCount} className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-emerald-500/15 text-base font-black text-emerald-200 transition-colors hover:bg-emerald-500/25 disabled:opacity-40" aria-label="زيادة الكمية">+</button></div></div><div className="min-w-[72px] text-end"><div className="text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-500">الفرق</div><div className={`mt-0.5 text-sm font-black tabular-nums ${diffTone}`}>{diff > 0 ? `+${diff}` : diff < 0 ? `-${Math.abs(diff)}` : "مطابق"}</div></div></div>{hasDetails ? <div className="mt-2"><button type="button" onClick={() => setShowDetails((current) => !current)} className="inline-flex items-center rounded-xl border border-white/10 bg-black/20 px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-white/10">{showDetails ? "إخفاء التفاصيل" : "تفاصيل إضافية"}</button>{showDetails ? <div className="mt-2 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs leading-6 text-zinc-400">{item.variant_sku ? <div className="truncate">رمز الصنف: {item.variant_sku}</div> : null}{item.variant_barcode ? <div className="truncate">الباركود: {item.variant_barcode}</div> : null}{item.variant_article_code ? <div className="truncate">رقم الصنف: {item.variant_article_code}</div> : null}{item.product_id ? <div className="truncate">معرّف المنتج: {item.product_id}</div> : null}{item.product_variant_id || item.id ? <div className="truncate">معرّف المتغير: {item.product_variant_id || item.id}</div> : null}<label className="mt-2 block"><div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">السبب</div><select disabled={disabled} value={reasonDraft} onChange={(event) => handleReasonChange(event.target.value)} className="w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none disabled:opacity-50">{COUNT_REASONS.map((reason) => (<option key={reason} value={reason} className="bg-zinc-950 text-white">{reason}</option>))}</select></label><label className="mt-2 block"><div className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">ملاحظات</div><input disabled={disabled} value={notes} onChange={(event) => setNotes(event.target.value)} onBlur={(event) => handleNotesBlur(event.target.value)} placeholder="ملاحظات" className="w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-500 disabled:opacity-50" /></label></div> : null}</div> : null}</div>);
 }
 
 const areRowPropsEqual = (prev, next) =>
@@ -2340,7 +1896,7 @@ const MemoGroupedCountRow = memo(GroupedCountRow, areRowPropsEqual);
 function ScopeModal({ branches, warehouses, form, setForm, onClose, onCreate }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label="Close" />
+      <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label="إغلاق" />
       <div className="relative w-full max-w-2xl rounded-t-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black sm:rounded-3xl">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -2348,44 +1904,17 @@ function ScopeModal({ branches, warehouses, form, setForm, onClose, onCreate }) 
             <h3 className="mt-1 text-xl font-black text-white">حدد نطاق الجرد</h3>
             <p className="mt-2 text-sm leading-6 text-zinc-400">اختر فرعًا أو مخزنًا إذا كان متاحًا، ثم ابدأ جلسة الجرد.</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white">
-            <X className="h-5 w-5" />
-          </button>
+          <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white"><X className="h-5 w-5" /></button>
         </div>
-
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <Field label="اسم الجلسة" value={form.title} onChange={(value) => setForm((current) => ({ ...current, title: value }))} />
-          <SelectField
-            label="الفرع"
-            value={form.branchId}
-            onChange={(value) => setForm((current) => ({ ...current, branchId: value }))}
-            options={[{ value: "", label: "بدون فرع" }, ...branches.map((branch) => ({ value: String(branch.id), label: branch.name }))]}
-          />
-          <SelectField
-            label="المخزن"
-            value={form.warehouseId}
-            onChange={(value) => setForm((current) => ({ ...current, warehouseId: value }))}
-            options={[{ value: "", label: "بدون مخزن" }, ...warehouses.map((warehouse) => ({ value: String(warehouse.id), label: warehouse.name }))]}
-          />
-          <label className="block md:col-span-2">
-            <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">ملاحظات</div>
-            <textarea
-              value={form.notes}
-              onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
-              rows={4}
-              placeholder="ملاحظات عامة"
-              className="w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500"
-            />
-          </label>
+          <SelectField label="الفرع" value={form.branchId} onChange={(value) => setForm((current) => ({ ...current, branchId: value }))} options={[{ value: "", label: "بدون فرع" }, ...branches.map((branch) => ({ value: String(branch.id), label: branch.name }))]} />
+          <SelectField label="المخزن" value={form.warehouseId} onChange={(value) => setForm((current) => ({ ...current, warehouseId: value }))} options={[{ value: "", label: "بدون مخزن" }, ...warehouses.map((warehouse) => ({ value: String(warehouse.id), label: warehouse.name }))]} />
+          <label className="block md:col-span-2"><div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">ملاحظات</div><textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} rows={4} placeholder="ملاحظات عامة" className="w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500" /></label>
         </div>
-
         <div className="mt-5 flex justify-end gap-3">
-          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
-            إلغاء
-          </button>
-          <button type="button" onClick={onCreate} className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400">
-            بدء الجرد
-          </button>
+          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">إلغاء</button>
+          <button type="button" onClick={onCreate} className="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black transition hover:bg-emerald-400">بدء الجرد</button>
         </div>
       </div>
     </div>
@@ -2395,30 +1924,20 @@ function ScopeModal({ branches, warehouses, form, setForm, onClose, onCreate }) 
 function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onError }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-      <button type="button" className="absolute inset-0" onClick={onClose} aria-label="Close scanner" />
+      <button type="button" className="absolute inset-0" onClick={onClose} aria-label="إغلاق الماسح" />
       <div className="relative w-full max-w-2xl rounded-3xl border border-white/10 bg-zinc-950 p-4 shadow-2xl shadow-black">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">سكانر الباركود</div>
-            <h3 className="mt-1 text-xl font-black text-white">امسح الباركود أو QR</h3>
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">ماسح الباركود</div>
+            <h3 className="mt-1 text-xl font-black text-white">امسح الباركود أو رمز QR</h3>
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white">
-            <X className="h-5 w-5" />
-          </button>
+          <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white"><X className="h-5 w-5" /></button>
         </div>
         <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
-          <BarcodeScanner
-            onScan={onScan}
-            onPermissionDenied={onPermissionDenied}
-            onUnsupported={onUnsupported}
-            onError={onError}
-            className="w-full"
-            scannerClassName="h-[420px] w-full"
-          />
+          <BarcodeScanner onScan={onScan} onPermissionDenied={onPermissionDenied} onUnsupported={onUnsupported} onError={onError} className="w-full" scannerClassName="h-[420px] w-full" />
         </div>
       </div>
     </div>
   );
 }
-
 export default InventoryCountPage;
