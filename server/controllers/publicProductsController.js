@@ -15,6 +15,7 @@ import {
   buildAbsolutePublicUrl,
 } from "../services/productOgImageService.js";
 import { resolvePublicProductImageUrl } from "../services/aiProductCards.js";
+import { formatCurrency } from "../../src/shared/lib/currency.js";
 import { normalizeAttributionPlatform } from "../utils/marketingAttribution.js";
 import { isMirrorProduct, mirrorProductTitle, slugifyEdition } from "../utils/mirrorProduct.js";
 
@@ -84,6 +85,14 @@ const normalizeProductRow = (row = {}) => ({
 });
 
 const firstText = (...values) => values.map((value) => String(value || "").trim()).find(Boolean) || "";
+const variantHasStock = (variant = {}) => Number(variant?.stock || 0) > 0;
+const variantColorKey = (variant = {}) => String(variant?.color || variant?.color_name || "").trim().toLowerCase();
+const firstDisplayVariant = (variants = []) =>
+  variants.find((variant) => variantHasStock(variant) && (variant?.primary_image_url || variant?.image_url)) ||
+  variants.find((variant) => variantHasStock(variant)) ||
+  variants.find((variant) => variant?.primary_image_url || variant?.image_url) ||
+  variants[0] ||
+  null;
 const escapeHtml = (value = "") =>
   String(value || "")
     .replace(/&/g, "&amp;")
@@ -128,6 +137,121 @@ const productLookupFilters = [
 
 const productSeoTitle = (product = {}) => firstText(product.meta_title, product.seo_title, product.name, "Product");
 const productSeoDescription = (product = {}) => firstText(product.seo_description, product.description_en, product.description_ar, product.description, product.name);
+const storefrontSaleModeOn = (product = {}, variant = {}) => {
+  const source = variant && Object.keys(variant || {}).length ? variant : product;
+  const flag = source?.sale_mode_enabled ?? source?.sale_price_enabled ?? source?.global_sale_enabled ?? source?.sale_prices_enabled;
+  if (flag === true || flag === 1 || flag === "1") return true;
+  if (typeof flag === "string" && ["true", "yes", "on", "sale", "active"].includes(flag.trim().toLowerCase())) return true;
+  return Number(source?.sale_price || 0) > 0;
+};
+const resolveStorefrontPrice = (product = {}, variant = {}) => {
+  const num = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  };
+  const productOriginal =
+    num(product?.custom_compare_price) ||
+    num(product?.compare_base_price) ||
+    num(product?.original_price) ||
+    num(product?.base_price) ||
+    num(product?.list_price) ||
+    num(product?.regular_price) ||
+    num(product?.compare_at_price);
+  const variantOriginal =
+    num(variant?.custom_compare_price) ||
+    num(variant?.compare_base_price) ||
+    num(variant?.original_price) ||
+    num(variant?.base_price) ||
+    num(variant?.list_price) ||
+    num(variant?.regular_price) ||
+    num(variant?.compare_at_price);
+  const saleModeOn = storefrontSaleModeOn(product, variant);
+  const salePrice = num(variant?.sale_price ?? product?.sale_price);
+  const activePrice = saleModeOn && salePrice > 0
+    ? salePrice
+    : num(variant?.selling_price ?? variant?.price ?? product?.selling_price ?? product?.price ?? product?.regular_price);
+  const originalPrice = productOriginal || variantOriginal;
+  const comparePrice = originalPrice && originalPrice > activePrice ? originalPrice : 0;
+  return { originalPrice, activePrice, comparePrice, saleModeOn };
+};
+const getSelectedPublicProductVariant = ({ product = {}, variants = [], query = {} } = {}) => {
+  const normalizedVariant = String(query.variant || query.variantId || query.variant_id || "").trim();
+  const normalizedColor = String(query.color || query.colorName || query.color_name || "").trim().toLowerCase();
+  const normalizedColorId = String(query.colorId || query.color_id || "").trim();
+  const normalizedSize = String(query.size || query.sizeLabel || "").trim();
+  const requestedColorKey = normalizedColor || normalizedColorId.toLowerCase();
+  const findById = (candidate) =>
+    candidate &&
+    variants.find((variant) => String(variant.id || variant.variant_id || "").trim() === candidate && variantHasStock(variant)) ||
+    candidate &&
+    variants.find((variant) => String(variant.id || variant.variant_id || "").trim() === candidate);
+  const findByEditionSlug = (candidate) =>
+    candidate &&
+    variants.find((variant) => String(variant.edition_slug || "").trim() === candidate && variantHasStock(variant)) ||
+    candidate &&
+    variants.find((variant) => String(variant.edition_slug || "").trim() === candidate);
+  const findByColorId = (candidate) =>
+    candidate &&
+    variants.find((variant) => String(variant.color_id || "").trim() === candidate && variantHasStock(variant)) ||
+    candidate &&
+    variants.find((variant) => String(variant.color_id || "").trim() === candidate);
+  const findBySizeAndColor = (size, colorKey) =>
+    size &&
+    variants.find(
+      (variant) =>
+        String(variant.size || "").trim() === size &&
+        (!colorKey || variantColorKey(variant) === colorKey) &&
+        variantHasStock(variant)
+    ) ||
+    size &&
+    variants.find(
+      (variant) =>
+        String(variant.size || "").trim() === size &&
+        (!colorKey || variantColorKey(variant) === colorKey)
+    );
+  const findByColor = (colorKey) =>
+    colorKey &&
+    variants.find((variant) => variantColorKey(variant) === colorKey && variantHasStock(variant)) ||
+    colorKey &&
+    variants.find((variant) => variantColorKey(variant) === colorKey);
+
+  return (
+    findById(normalizedVariant) ||
+    findByEditionSlug(normalizedVariant) ||
+    findByColorId(normalizedColorId) ||
+    findBySizeAndColor(normalizedSize, requestedColorKey) ||
+    findByColor(requestedColorKey) ||
+    findBySizeAndColor(normalizedSize, "") ||
+    firstDisplayVariant(variants)
+  );
+};
+const getShareAvailableSizes = ({ variants = [], query = {}, selectedVariant = null } = {}) => {
+  const hasVariantSelection = Boolean(String(query.variant || query.variantId || query.variant_id || query.color || query.colorName || query.color_name || query.colorId || query.color_id || "").trim());
+  const selectedKey = selectedVariant ? variantColorKey(selectedVariant) : "";
+  const scopeVariants = hasVariantSelection && selectedKey
+    ? variants.filter((variant) => variantColorKey(variant) === selectedKey)
+    : variants;
+  return [...new Set(
+    scopeVariants
+      .filter(variantHasStock)
+      .map((variant) => String(variant.size || "").trim())
+      .filter(Boolean)
+  )];
+};
+const buildProductShareDescription = ({ product = {}, variants = [], query = {} } = {}) => {
+  const selectedVariant = getSelectedPublicProductVariant({ product, variants, query });
+  const selectedPrice = resolveStorefrontPrice(product, selectedVariant);
+  const priceText = selectedPrice.activePrice > 0 ? formatCurrency(selectedPrice.activePrice, { language: "en" }) : "";
+  const availableSizes = getShareAvailableSizes({ variants, query, selectedVariant });
+  const lines = [productSeoDescription(product)].filter(Boolean);
+  if (availableSizes.length) {
+    lines.push(`Available sizes: ${availableSizes.join(", ")}`);
+  }
+  if (priceText) {
+    lines.push(`Price: ${priceText}`);
+  }
+  return lines.join("\n");
+};
 
 const productPagePath = (product = {}) => `/shop/product/${String(product.slug || product.canonical_slug || product.id || "")}`;
 
@@ -330,23 +454,23 @@ const getSelectedPublicProductImage = ({ product = {}, variants = [], query = {}
   return fallback.replace(/^http:\/\//i, "https://");
 };
 
-const renderProductShareHtml = async ({ req, product, imageUrl }) => {
+const renderProductShareHtml = async ({ req, product, imageUrl, description }) => {
   const shell = await loadStorefrontShell();
   const title = escapeHtml(firstText(product.meta_title, product.seo_title, product.name, "Product"));
-  const description = escapeHtml(firstText(product.seo_description, product.description_en, product.description_ar, product.description, product.name));
+  const descriptionText = escapeHtml(description || firstText(product.seo_description, product.description_en, product.description_ar, product.description, product.name));
   const absoluteUrl = escapeHtml(buildAbsolutePublicUrl(req, req.originalUrl || req.url || `/shop/product/${product.slug || product.canonical_slug || product.id || ""}`));
   const absoluteImage = escapeHtml((imageUrl || "").replace(/^http:\/\//i, "https://"));
   const metaBlock = `
     <title>${title}</title>
     <meta property="og:title" content="${title}" />
-    <meta property="og:description" content="${description}" />
+    <meta property="og:description" content="${descriptionText}" />
     <meta property="og:image" content="${absoluteImage}" />
     <meta property="og:image:secure_url" content="${absoluteImage}" />
     <meta property="og:type" content="product" />
     <meta property="og:url" content="${absoluteUrl}" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="${title}" />
-    <meta name="twitter:description" content="${description}" />
+    <meta name="twitter:description" content="${descriptionText}" />
     <meta name="twitter:image" content="${absoluteImage}" />
   `;
   const normalizedShell = shell.replace(/<title>[\s\S]*?<\/title>/i, "").replace("</head>", `${metaBlock}\n  </head>`);
@@ -528,10 +652,12 @@ export const getPublicProductSharePage = async (req, res) => {
 
     const selectedImage = getSelectedPublicProductImage({ product: row, variants: normalizedVariants, query: req.query || {} });
     const normalizedProduct = normalizeProductRow({ ...row, image_url: selectedImage, public_image_url: selectedImage });
+    const description = buildProductShareDescription({ product: normalizedProduct, variants: normalizedVariants, query: req.query || {} });
     const html = await renderProductShareHtml({
       req,
       product: normalizedProduct,
       imageUrl: selectedImage,
+      description,
     });
     return res.status(200).type("html").send(html);
   } catch (error) {
