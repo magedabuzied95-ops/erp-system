@@ -56,6 +56,23 @@ const SIDEBAR_SUBGROUP_TITLE_KEYS = {
 };
 
 const SYSTEM_PREFERENCE_ROUTES = new Set(["/settings", "/settings/appearance", "/settings/company", "/settings/storefront", "/settings/shipping", "/settings/payments"]);
+const SETTINGS_CENTER_SIDEBAR_HIDE_ROUTES = new Set([
+  "/settings/company",
+  "/settings/currencies",
+  "/settings/appearance",
+  "/settings/storefront",
+  "/settings/shipping",
+  "/settings/payments",
+]);
+const SETTINGS_CENTER_ACTIVE_ROUTES = new Set([
+  "/settings",
+  "/settings/company",
+  "/settings/currencies",
+  "/settings/appearance",
+  "/settings/storefront",
+  "/settings/shipping",
+  "/settings/payments",
+]);
 const AI_MARKETING_ROUTES = new Set(["/marketing/ai-center", "/marketing/ai-center/videos", "/admin/ai-inbox", "/admin/ai-followups", "/admin/ai-channels", "/admin/ai-agent-analytics"]);
 const AI_SUPPORT_ROUTES = new Set(["/admin/ai-support-console", "/admin/ai-support-knowledge-base", "/admin/ai-agent-settings"]);
 const ARABIC_GROUP_LABELS = {
@@ -126,6 +143,7 @@ const CONCRETE_SIDEBAR_PATHS = new Set([
 
 const sidebarItemActive = (item, location) => {
   const { pathname, search } = splitRoute(item.to);
+  if (item.to === "/settings" && SETTINGS_CENTER_ACTIVE_ROUTES.has(location.pathname)) return true;
   if (search) return location.pathname === pathname && location.search === `?${search}`;
   if (location.pathname === pathname && !location.search) return true;
   if (CONCRETE_SIDEBAR_PATHS.has(location.pathname)) return false;
@@ -237,6 +255,7 @@ const buildEnterpriseSidebarGroups = (sections) => {
   sections.forEach((section) => {
     section.items.forEach((item) => {
       if (item.to === "/settings" || item.to === "/settings/appearance" || item.to === "/settings/company" || item.to === "/settings/storefront" || item.to === "/settings/shipping" || item.to === "/settings/payments") canAccessSettings = true;
+      if (SETTINGS_CENTER_SIDEBAR_HIDE_ROUTES.has(String(item.to || ""))) return;
       const key = item.to || `${section.title}:${item.label}`;
       if (seen.has(key)) return;
       seen.add(key);
