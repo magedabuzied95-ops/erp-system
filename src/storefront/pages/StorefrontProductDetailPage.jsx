@@ -380,9 +380,10 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   };
   const shareProduct = async () => {
     const url = typeof window !== "undefined" ? window.location.href : "";
+    const sharePayload = { url };
     try {
       if (navigator.share) {
-        await navigator.share({ title: displayTitle, text: descriptionText, url });
+        await navigator.share(sharePayload);
         return;
       }
       await navigator.clipboard?.writeText(url);
