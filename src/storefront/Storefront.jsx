@@ -6221,29 +6221,34 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
             </div>
           )}
         </Link>
-        <div className="absolute right-2 top-2 z-20 flex flex-col items-start gap-1 md:right-2.5 md:top-2.5">
-          {rank && railType === "bestseller" && rank <= 3 ? <span className="inline-flex h-6 items-center rounded-full bg-stone-950/92 px-2.5 text-[9px] font-black leading-none text-white shadow-[0_10px_22px_rgba(0,0,0,0.20)] backdrop-blur md:h-7 md:px-3 md:text-[10px] dark:bg-white dark:text-stone-950">TOP {rank}</span> : null}
-          {discountPercent ? <span className="inline-flex h-6 items-center rounded-full border border-[#7c3aed]/15 bg-white/95 px-2.5 text-[9px] font-black leading-none text-[#6d28d9] shadow-[0_10px_22px_rgba(39,20,75,0.10)] backdrop-blur md:h-7 md:px-3 md:text-[10px] dark:border-white/10 dark:bg-[#0b1020] dark:text-[#d8b4fe]">-{discountPercent}%</span> : null}
+        <div className="absolute right-3.5 top-3.5 z-20 flex flex-col items-start gap-1.5 md:right-4 md:top-4">
+          {rank && railType === "bestseller" && rank <= 3 ? <span className="inline-flex min-h-7 items-center rounded-full bg-stone-950/92 px-3 py-1 text-[9px] font-black leading-none text-white shadow-[0_10px_22px_rgba(0,0,0,0.20)] backdrop-blur md:min-h-8 md:px-3.5 md:text-[10px] dark:bg-white dark:text-stone-950">TOP {rank}</span> : null}
+          {discountPercent ? <span className="inline-flex min-h-8 items-center rounded-full border border-[#a78bfa]/40 bg-[linear-gradient(135deg,#7c3aed,#6d28d9_55%,#4c1d95)] px-3 py-1 text-[10px] font-extrabold leading-none tracking-[0.02em] text-white shadow-[0_10px_24px_rgba(124,58,237,0.28),0_0_0_1px_rgba(196,181,253,0.18)_inset] backdrop-blur md:min-h-9 md:px-3.5 md:text-[11px] dark:border-white/10 dark:bg-[linear-gradient(135deg,#7c3aed,#4c1d95)] dark:text-[#ffffff]">-{discountPercent}%</span> : null}
         </div>
-        <button onClick={(event) => { event.stopPropagation(); handleWishlist(); }} className="absolute left-2 top-2 z-20 rounded-full bg-white/95 p-1.5 shadow-sm ring-1 ring-stone-200/70 transition duration-200 hover:text-rose-500 active:scale-95 md:left-2.5 md:top-2.5 md:p-1.5 dark:bg-white/5 dark:text-stone-100 dark:ring-white/10" aria-label={t("storefront.header.wishlist", "المفضلة")}>
-          <Heart className={`h-3.5 w-3.5 transition md:h-5 md:w-5 ${inWishlist ? "animate-[wishlist-pop_320ms_ease-out] fill-rose-500 text-rose-500" : "text-stone-700 dark:text-stone-200"}`} />
+        <button
+          onClick={(event) => { event.stopPropagation(); handleWishlist(); }}
+          className="absolute left-3.5 top-3.5 z-20 grid h-11 w-11 place-items-center rounded-full border border-white/55 bg-white/92 text-stone-700 shadow-[0_12px_28px_rgba(15,23,42,0.18),0_0_0_1px_rgba(255,255,255,0.7)_inset] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:scale-[1.03] hover:border-white/75 hover:bg-white active:scale-95 active:translate-y-0 md:h-12 md:w-12 dark:border-white/10 dark:bg-white/5 dark:text-stone-100 dark:shadow-[0_12px_28px_rgba(0,0,0,0.18),0_0_0_1px_rgba(255,255,255,0.05)_inset] dark:hover:bg-white/10"
+          aria-label={t("storefront.header.wishlist", "المفضلة")}
+        >
+          <Heart className={`h-5 w-5 transition duration-200 md:h-[22px] md:w-[22px] ${inWishlist ? "animate-[wishlist-pop_320ms_ease-out] fill-rose-500 text-rose-500" : "text-slate-600 dark:text-stone-200"}`} />
         </button>
         <button
           type="button"
           onClick={handleMobileCart}
           disabled={!sellableVariants.length && !canQuickAdd}
-          className="absolute bottom-2 left-2 z-30 grid h-8 w-8 place-items-center rounded-full border border-white/20 bg-stone-950/88 text-white shadow-[0_8px_18px_rgba(0,0,0,0.20)] backdrop-blur transition active:scale-95 disabled:opacity-45 md:hidden"
-          aria-label={t("storefront.products.chooseSize", "Choose size")}
+          className="absolute bottom-3 left-3 z-30 inline-flex min-h-12 min-w-12 items-center justify-center gap-1.5 rounded-full border border-[#c4b5fd]/40 bg-[linear-gradient(135deg,#7c3aed,#6d28d9_55%,#4c1d95)] px-4 py-3 text-xs font-black text-white shadow-[0_14px_34px_rgba(124,58,237,0.32),0_0_0_1px_rgba(196,181,253,0.16)_inset] backdrop-blur transition duration-200 hover:-translate-y-0.5 hover:border-[#ddd6fe]/60 hover:shadow-[0_18px_42px_rgba(124,58,237,0.42)] active:translate-y-0 active:scale-95 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-stone-500/70 disabled:text-white/60 disabled:shadow-none md:hidden"
+          aria-label={t("storefront.cart.addToCart", "أضف إلى السلة")}
         >
-          <ShoppingCart className="h-3.5 w-3.5" />
+          <ShoppingCart className="h-4 w-4 text-white" />
+          <span className="sr-only">{t("storefront.cart.addToCart", "أضف إلى السلة")}</span>
         </button>
-        <div className="absolute bottom-2.5 left-1/2 z-40 -translate-x-1/2 md:bottom-3">
+        <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 md:bottom-3.5">
           <button
             onClick={handleQuickAdd}
             disabled={!canQuickAdd}
-            className="sf-shimmer-button hidden min-h-10 min-w-[8.75rem] transform-gpu items-center justify-center gap-1.5 rounded-full border border-white/20 bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 px-4 py-2.5 text-[11px] font-black text-white shadow-[0_10px_22px_rgba(124,58,237,0.26)] backdrop-blur transition-[transform,box-shadow,filter] duration-200 ease-out hover:brightness-105 hover:shadow-[0_14px_32px_rgba(124,58,237,0.36)] active:scale-[0.96] disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100 md:inline-flex md:min-h-11 md:min-w-[9.25rem] md:px-4"
+            className="sf-shimmer-button inline-flex min-h-12 min-w-[9.5rem] transform-gpu items-center justify-center gap-2 rounded-full border border-[#c4b5fd]/45 bg-[linear-gradient(135deg,#7c3aed,#6d28d9_55%,#4c1d95)] px-5 py-3 text-[12px] font-black text-white shadow-[0_14px_34px_rgba(124,58,237,0.32),0_0_0_1px_rgba(196,181,253,0.16)_inset] backdrop-blur transition-[transform,box-shadow,filter] duration-200 ease-out hover:-translate-y-0.5 hover:border-[#ddd6fe]/60 hover:shadow-[0_18px_42px_rgba(124,58,237,0.42)] active:scale-[0.96] disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100"
           >
-            <ShoppingCart className="h-4 w-4" />
+            <ShoppingCart className="h-[18px] w-[18px] text-white" />
             {canQuickAdd ? t("storefront.cart.quickAdd", "إضافة سريعة") : t("storefront.products.unavailable", "غير متوفر")}
           </button>
         </div>
@@ -6252,9 +6257,9 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
         <div className={`flex flex-1 flex-col md:p-3.5 md:pt-3 ${densityClasses.body}`}>
         <Link to={detailsUrl} className={`line-clamp-2 font-extrabold tracking-normal text-stone-900 transition hover:text-[#6d28d9] md:h-10 md:text-[13.5px] md:leading-5 dark:text-stone-100 ${densityClasses.title}`}>{product.name}</Link>
         <div className="mt-1 flex min-h-5 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 md:mt-2 md:min-h-6 md:gap-x-2">
-          <span className={`font-black leading-none text-stone-950 md:text-[1.22rem] dark:text-white ${densityClasses.price}`}>{money(sellingPrice)}</span>
-          {comparePrice ? <span className="text-[10.5px] font-semibold leading-none text-stone-400 line-through dark:text-stone-500 md:text-[11px]">{money(comparePrice)}</span> : null}
-          {discountPercent ? <span className="rounded-full bg-[#7c3aed]/10 px-1.5 py-0.5 text-[9px] font-black leading-none text-[#6d28d9] dark:bg-[#d8b4fe]/10 dark:text-[#d8b4fe]">-{discountPercent}%</span> : null}
+          <span className={`font-black leading-none text-stone-950 md:text-[1.28rem] dark:text-white ${densityClasses.price}`}>{money(sellingPrice)}</span>
+          {comparePrice ? <span className="text-[9.5px] font-semibold leading-none text-stone-400 line-through opacity-70 dark:text-stone-500 md:text-[10px]">{money(comparePrice)}</span> : null}
+          {discountPercent ? <span className="inline-flex items-center rounded-full border border-[#a78bfa]/20 bg-[linear-gradient(135deg,#7c3aed,#6d28d9_55%,#4c1d95)] px-2 py-0.5 text-[9px] font-extrabold leading-none tracking-[0.02em] text-white shadow-[0_8px_18px_rgba(124,58,237,0.20),0_0_0_1px_rgba(196,181,253,0.10)_inset] dark:border-white/10 dark:bg-[linear-gradient(135deg,#7c3aed,#4c1d95)] dark:text-white">-{discountPercent}%</span> : null}
         </div>
         {colorGroups.length > 1 ? (
           <div className="mt-1.5 flex min-h-6 items-center gap-1 overflow-hidden md:mt-2 md:min-h-7 md:gap-1.5">
@@ -6284,17 +6289,17 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                 key={`${activeColorGroup?.key || "default"}-${size}`}
                 type="button"
                 onClick={(event) => { event.stopPropagation(); setSelectedVariantId(variant.id); setSelectedColorKeyState(variantColorKey(variant)); }}
-                className={`inline-flex shrink-0 items-center justify-center rounded-full border font-black leading-none transition duration-200 md:h-6 md:px-2 md:text-[10px] ${densityClasses.chip} ${selected ? "border-[#7c3aed] bg-[#6d28d9] text-white shadow-[0_8px_18px_rgba(124,58,237,0.22)] dark:border-[#d8b4fe] dark:bg-[#d8b4fe] dark:text-stone-950" : "border-stone-200/80 bg-white/[0.62] text-stone-600 opacity-75 hover:border-[#7c3aed]/45 hover:text-[#6d28d9] hover:opacity-100 dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-300 dark:opacity-70 dark:hover:border-[#d8b4fe]/50 dark:hover:text-white dark:hover:opacity-100"} disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300 disabled:line-through disabled:opacity-45 dark:disabled:bg-white/5 dark:disabled:text-stone-500`}
+                className={`inline-flex shrink-0 items-center justify-center rounded-full border font-black leading-none transition duration-200 md:h-6 md:px-2 md:text-[10px] ${densityClasses.chip} ${selected ? "border-[#7c3aed] bg-[#6d28d9] text-white shadow-[0_10px_22px_rgba(124,58,237,0.28)] ring-2 ring-[#c4b5fd]/25 dark:border-[#d8b4fe] dark:bg-[#d8b4fe] dark:text-stone-950" : "border-stone-300/90 bg-white text-stone-700 hover:border-[#7c3aed]/45 hover:text-[#6d28d9] dark:border-white/12 dark:bg-white/[0.055] dark:text-stone-300 dark:hover:border-[#d8b4fe]/50 dark:hover:text-white"} disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300 disabled:line-through disabled:opacity-45 dark:disabled:bg-white/5 dark:disabled:text-stone-500`}
               >
                 {size}
               </button>
             );
           })}
           {extraSizeCount ? (
-            <span dir="ltr" className="inline-flex h-6 shrink-0 items-center justify-center rounded-full border border-stone-200/80 bg-white/[0.58] px-2 text-[9px] font-black leading-none text-stone-400 opacity-80 md:text-[10px] dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-500">+{extraSizeCount}</span>
+            <span dir="ltr" className="inline-flex h-6 shrink-0 items-center justify-center rounded-full border border-stone-300/90 bg-white px-2 text-[9px] font-black leading-none text-stone-500 shadow-sm md:text-[10px] dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-500">+{extraSizeCount}</span>
           ) : null}
           {!visibleSizes.length ? (
-            <span className="inline-flex h-6 shrink-0 items-center rounded-full border border-stone-200 bg-white/[0.58] px-2 text-[9px] font-bold leading-none text-stone-400 md:text-[10px] dark:border-white/10 dark:bg-white/5 dark:text-stone-500">{t("storefront.products.oneSize", "مقاس واحد")}</span>
+            <span className="inline-flex h-6 shrink-0 items-center rounded-full border border-stone-300/90 bg-white px-2 text-[9px] font-bold leading-none text-stone-500 shadow-sm md:text-[10px] dark:border-white/10 dark:bg-white/5 dark:text-stone-500">{t("storefront.products.oneSize", "مقاس واحد")}</span>
           ) : null}
         </div>
       </div>
