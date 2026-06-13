@@ -375,6 +375,27 @@ Object.assign(labels.ar, {
   requestsShort: "طلبات",
   pendingTasks: "مهام معلقة",
   salaryNotGenerated: "لم يتم إنشاء راتب هذا الشهر بعد",
+  payrollSummary: "ملخص الراتب",
+  employeeName: "اسم الموظف",
+  payrollMonth: "شهر المرتب",
+  basicSalary: "الراتب الأساسي",
+  bonusesAndCommissions: "المكافآت والعمولات",
+  attendanceDeductions: "خصومات الحضور",
+  blockingIssueMissingAttendance: "بيانات حضور ناقصة",
+  blockingIssueUnresolvedAttendance: "سجلات حضور غير محسومة",
+  blockingIssuePendingAdvances: "طلبات سلفة معلقة",
+  statusReadyToApprove: "جاهز للاعتماد",
+  statusBlockingApproval: "يوجد ما يمنع الاعتماد",
+  statusApproved: "معتمد",
+  statusPaid: "مدفوع",
+  calculateSalary: "حساب الراتب",
+  approveSalary: "اعتماد الراتب",
+  markAsPaid: "تسجيل كمدفوع",
+  payrollHistory: "سجل الراتب",
+  attendanceSnapshot: "لقطة الحضور",
+  technicalValidationChecklist: "قائمة التحقق التقنية",
+  showDetails: "إظهار التفاصيل",
+  hideDetails: "إخفاء التفاصيل",
   noTasksToday: "لا توجد مهام اليوم",
   noTasksSubtitle: "كل شيء مكتمل حاليا.",
   noRequestsSubmitted: "لم تقدم أي طلبات بعد.",
@@ -445,6 +466,27 @@ Object.assign(labels.en, {
   requestsShort: "Requests",
   pendingTasks: "Pending Tasks",
   salaryNotGenerated: "This month salary has not been generated yet.",
+  payrollSummary: "Payroll summary",
+  employeeName: "Employee name",
+  payrollMonth: "Payroll month",
+  basicSalary: "Basic salary",
+  bonusesAndCommissions: "Bonuses/commissions",
+  attendanceDeductions: "Attendance deductions",
+  blockingIssueMissingAttendance: "Missing attendance data",
+  blockingIssueUnresolvedAttendance: "Unresolved attendance records",
+  blockingIssuePendingAdvances: "Pending advance requests",
+  statusReadyToApprove: "Ready to approve",
+  statusBlockingApproval: "Issues blocking approval",
+  statusApproved: "Approved",
+  statusPaid: "Paid",
+  calculateSalary: "Calculate salary",
+  approveSalary: "Approve salary",
+  markAsPaid: "Mark as paid",
+  payrollHistory: "Payroll history",
+  attendanceSnapshot: "Attendance snapshot",
+  technicalValidationChecklist: "Technical validation checklist",
+  showDetails: "Show details",
+  hideDetails: "Hide details",
   noTasksToday: "No tasks assigned today.",
   noTasksSubtitle: "Everything is clear right now.",
   noRequestsSubmitted: "You have not submitted any requests.",
@@ -1669,8 +1711,68 @@ export default function EmployeePayrollPortal() {
   const badges = safeArray(performanceData.achievements || rewardPoints.badges);
   const leaderboard = safeArray(portal?.leaderboard);
   const walletTransactions = safeArray(portal?.recent_wallet_transactions);
+  const recentAdvances = safeArray(portal?.recent_advances);
   const lazyWarnings = safeArray(portal?.warnings);
   const leaderboardLazy = lazyWarnings.some((warning) => warning?.section === "leaderboard" && warning?.code === "lazy");
+  const payrollBlockingIssues = useMemo(() => {
+    const issues = [];
+    const attendanceRecordsCount = Number(attendance?.records_count || attendanceRows.length || 0);
+    const hasMissingAttendanceData = attendanceRecordsCount <= 0 || (Number(expectedDays || 0) > 0 && Number(presentDays || 0) === 0 && attendanceRows.length === 0);
+    const hasUnresolvedAttendance = attendanceRows.some((row) => {
+      const rowStatus = String(row?.status || row?.attendance_status || row?.daily_status || "").trim().toLowerCase();
+      const hasOpenCheckout = Boolean((row?.check_in_at || row?.check_in) && !(row?.check_out_at || row?.check_out));
+      return ["pending", "open", "unresolved", "missing_checkout", "missing-checkout", "missing checkout"].includes(rowStatus) || hasOpenCheckout;
+    });
+    const hasPendingAdvances = employeeRequests.some((item) => {
+      const requestType = String(item?.request_type || item?.type || "").trim().toLowerCase();
+      const requestStatus = String(item?.status || "").trim().toLowerCase();
+      return requestType === "advance" && requestStatus === "pending";
+    }) || recentAdvances.some((item) => {
+      const deductionStatus = String(item?.deduction_status || item?.status || "").trim().toLowerCase();
+      return ["pending", "open", "due"].includes(deductionStatus);
+    });
+
+    if (hasMissingAttendanceData) issues.push(ui("blockingIssueMissingAttendance"));
+    if (hasUnresolvedAttendance) issues.push(ui("blockingIssueUnresolvedAttendance"));
+    if (hasPendingAdvances) issues.push(ui("blockingIssuePendingAdvances"));
+    return issues;
+  }, [attendance?.records_count, attendanceRows, employeeRequests, expectedDays, presentDays, recentAdvances, ui]);
+  const payrollLifecycle = useMemo(() => {
+    const statusKey = String(payrollStatusValue || "").trim().toLowerCase();
+    if (["paid", "settled", "completed"].includes(statusKey)) {
+      return { key: "paid", label: ui("statusPaid"), tone: "emerald" };
+    }
+    if (["approved", "approved_for_payment"].includes(statusKey)) {
+      return { key: "approved", label: ui("statusApproved"), tone: "blue" };
+    }
+    if (payrollBlockingIssues.length) {
+      return { key: "blocked", label: ui("statusBlockingApproval"), tone: "amber" };
+    }
+    return { key: "ready", label: ui("statusReadyToApprove"), tone: "green" };
+  }, [payrollBlockingIssues.join("|"), payrollStatusValue, ui]);
+  const payrollPrimaryActionLabel = payrollLifecycle.key === "paid"
+    ? ui("markAsPaid")
+    : payrollLifecycle.key === "approved"
+      ? ui("markAsPaid")
+      : payrollLifecycle.key === "blocked"
+        ? ui("calculateSalary")
+        : payrollExists
+          ? ui("approveSalary")
+          : ui("calculateSalary");
+  const payrollLifecycleBadgeClassName = payrollLifecycle.tone === "emerald"
+    ? "bg-emerald-100 text-emerald-800"
+    : payrollLifecycle.tone === "blue"
+      ? "bg-sky-100 text-sky-800"
+      : payrollLifecycle.tone === "amber"
+        ? "bg-amber-100 text-amber-800"
+        : "bg-emerald-100 text-emerald-800";
+  const payrollLifecycleDotClassName = payrollLifecycle.tone === "emerald"
+    ? "bg-emerald-500"
+    : payrollLifecycle.tone === "blue"
+      ? "bg-sky-500"
+      : payrollLifecycle.tone === "amber"
+        ? "bg-amber-500"
+        : "bg-emerald-500";
   const requestBadgeIds = useMemo(
     () => employeeRequests
       .filter((item) => ["approved", "rejected"].includes(String(item.status || "").toLowerCase()))
@@ -3277,31 +3379,143 @@ export default function EmployeePayrollPortal() {
               ))}
             </nav>
 
-            {activeTab === "salary" && payrollExists ? <div className="rounded-3xl bg-slate-950 p-4 text-white shadow-xl shadow-slate-300">
-              <div className="text-xs font-black text-slate-300">{ui("currentNetSalary")}</div>
-              <div className="mt-2 text-4xl font-black tabular-nums" dir="ltr">{payrollExists ? money(wallet.current_net_salary ?? portal.net_salary) : "-"}</div>
-              <div className="mt-4 grid grid-cols-2 gap-2 text-sm font-black">
-                <div className="rounded-2xl bg-white/10 px-3 py-2">
-                  <div className="text-xs text-slate-300">{text.payrollPeriod}</div>
-                  <div className="mt-1 tabular-nums" dir="ltr">{portal.current_payroll_period}</div>
-                </div>
-                <div className="rounded-2xl bg-white/10 px-3 py-2">
-                  <div className="text-xs text-slate-300">{text.payrollStatus}</div>
-                  <div className="mt-1">{statusLabel(payrollStatusValue, text)}</div>
-                </div>
-              </div>
-            </div> : null}
+            {activeTab === "salary" ? (
+              <div className="grid gap-3">
+                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="text-base font-black text-slate-950">{ui("payrollSummary")}</h3>
+                      <div className="mt-1 text-xs font-bold text-slate-500">
+                        {ui("employeeName")}: <span className="text-slate-950" dir="auto">{portal?.payslip?.employee_name || profile.name || portal?.employee_name || "-"}</span>
+                      </div>
+                      <div className="mt-1 text-xs font-bold text-slate-500">
+                        {ui("payrollMonth")}: <span className="text-slate-950" dir="ltr">{portal?.current_payroll_period || portal?.payslip?.payroll_period || "-"}</span>
+                      </div>
+                    </div>
+                    <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[11px] font-black ${payrollLifecycleBadgeClassName}`}>
+                      {payrollLifecycle.label}
+                    </span>
+                  </div>
 
-            {activeTab === "salary" && !payrollExists ? (
-              <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center shadow-sm">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100">
-                  <FileText className="h-6 w-6 text-slate-500" />
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    {[
+                      { label: ui("basicSalary"), value: money(portal?.base_salary), subtitle: text.baseSalary },
+                      { label: ui("bonusesAndCommissions"), value: money((portal?.sales_commission ?? portal?.commissions ?? 0) + (portal?.bonuses ?? 0)), subtitle: `${text.commission} + ${text.bonuses}` },
+                      { label: ui("attendanceDeductions"), value: money(portal?.absence_deduction ?? attendance?.deducted_absence_amount ?? portal?.payslip?.absence_deduction ?? 0), subtitle: text.absenceDeductions },
+                      { label: text.advances, value: money(wallet.total_advances ?? portal?.advances), subtitle: ui("totalAdvancesSubtitle") },
+                      { label: ui("totalDeductions"), value: money(wallet.total_deductions ?? portal?.total_deductions), subtitle: text.totalDeductions },
+                      { label: ui("netSalary"), value: payrollExists ? money(wallet.current_net_salary ?? portal?.net_salary ?? portal?.payslip?.net_salary) : "-", subtitle: payrollExists ? (portal?.current_payroll_period || ui("currentMonthSubtitle")) : ui("salaryNotGenerated") },
+                    ].map((item) => (
+                      <div key={item.label} className="rounded-2xl bg-slate-50 px-3 py-2.5">
+                        <div className="text-[11px] font-black text-slate-500">{item.label}</div>
+                        <div className="mt-1 text-[15px] font-black text-slate-950" dir="ltr">{item.value}</div>
+                        <div className="mt-1 text-[11px] font-bold text-slate-400" dir="auto">{item.subtitle}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-3">
+                    <div className="flex items-center gap-2">
+                      <span className={`h-2.5 w-2.5 rounded-full ${payrollLifecycleDotClassName}`} />
+                      <div className="text-sm font-black text-slate-950">{ui("payrollStatus")}: {payrollLifecycle.label}</div>
+                    </div>
+                    {payrollLifecycle.key === "blocked" && payrollBlockingIssues.length ? (
+                      <ul className="mt-2 space-y-1.5 text-sm font-bold text-slate-700">
+                        {payrollBlockingIssues.map((issue) => (
+                          <li key={issue} className="flex items-start gap-2">
+                            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                            <span>{issue}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+
+                  <button type="button" className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white shadow-sm">
+                    <CheckCircle2 className="h-4 w-4" />
+                    {payrollPrimaryActionLabel}
+                  </button>
                 </div>
-                <h2 className="mt-3 text-xl font-black">{ui("salaryNotGenerated")}</h2>
-                <div className="mt-4 rounded-2xl bg-slate-50 px-3 py-3 text-sm font-black text-slate-700">
-                  <div className="text-xs text-slate-500">{text.payrollPeriod}</div>
-                  <div className="mt-1 tabular-nums" dir="ltr">{portal.current_payroll_period}</div>
-                </div>
+
+                <details className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-base font-black text-slate-950">
+                    <span>{ui("payrollHistory")}</span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-600">{walletTransactions.length}</span>
+                  </summary>
+                  <div className="mt-3 grid gap-2">
+                    {walletTransactions.length ? walletTransactions.slice(0, 6).map((item) => (
+                      <div key={item.id || `${item.type || "transaction"}-${item.created_at || item.date || item.amount || ""}`} className="rounded-2xl bg-slate-50 px-3 py-2.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-black text-slate-950" dir="auto">{walletTransactionTypeLabel(item, text, language)}</div>
+                            {item.description ? <div className="mt-1 text-xs font-bold text-slate-500" dir="auto">{item.description}</div> : null}
+                          </div>
+                          <div className="shrink-0 text-sm font-black text-slate-950" dir="ltr">{money(item.amount)}</div>
+                        </div>
+                        <div className="mt-1 text-[11px] font-bold text-slate-400"><DateSafe>{formatWalletDateLocal(item.created_at || item.date, language)}</DateSafe></div>
+                      </div>
+                    )) : (
+                      <div className="rounded-2xl border border-dashed border-slate-200 px-3 py-4 text-center text-sm font-bold text-slate-500">{text.noTransactions}</div>
+                    )}
+                  </div>
+                </details>
+
+                <details className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-base font-black text-slate-950">
+                    <span>{ui("attendanceSnapshot")}</span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-600">{attendanceRows.length}</span>
+                  </summary>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm font-bold">
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-slate-500">{text.attendanceDays}</div>
+                      <div className="mt-1 text-xl font-black tabular-nums">{attendance.attended_days || 0}</div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-slate-500">{text.absenceDays}</div>
+                      <div className="mt-1 text-xl font-black tabular-nums">{attendance.absence_days || 0}</div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-slate-500">{text.lateDays}</div>
+                      <div className="mt-1 text-xl font-black tabular-nums">{attendance.late_days || 0}</div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-slate-500">{text.overtimeHours}</div>
+                      <div className="mt-1 text-xl font-black tabular-nums">{attendance.overtime_hours || 0}</div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-slate-500">{ui("attendedDays")}</div>
+                      <div className="mt-1 text-lg font-black tabular-nums" dir="ltr">{presentDays} / {expectedDays} {ui("attendedDaysSuffix")}</div>
+                    </div>
+                    <div className="rounded-2xl bg-red-50 p-3 text-red-950">
+                      <div className="text-red-700">{text.deductedAbsenceAmount}</div>
+                      <div className="mt-1 text-xl font-black tabular-nums" dir="ltr">{money(attendance.deducted_absence_amount || portal?.absence_deduction || 0)}</div>
+                    </div>
+                  </div>
+                </details>
+
+                <details className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-base font-black text-slate-950">
+                    <span>{ui("technicalValidationChecklist")}</span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-600">5</span>
+                  </summary>
+                  <div className="mt-3 grid gap-2 text-sm font-bold">
+                    {[
+                      { label: ui("employeeName"), ok: Boolean(portal?.payslip?.employee_name || profile.name) },
+                      { label: ui("payrollMonth"), ok: Boolean(portal?.current_payroll_period || portal?.payslip?.payroll_period) },
+                      { label: ui("attendanceSnapshot"), ok: attendanceRows.length > 0 || Number(attendance?.records_count || 0) > 0 },
+                      { label: ui("payrollHistory"), ok: walletTransactions.length > 0 },
+                      { label: ui("statusBlockingApproval"), ok: payrollBlockingIssues.length === 0 },
+                    ].map((item) => (
+                      <div key={item.label} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2.5">
+                        <span>{item.label}</span>
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black ${item.ok ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          {item.ok ? ui("statusApproved") : ui("statusBlockingApproval")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
               </div>
             ) : null}
 
@@ -3358,33 +3572,6 @@ export default function EmployeePayrollPortal() {
               </div>
             </div> : null}
 
-            {activeTab === "salary" && payrollExists ? <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="text-base font-black">{ui("payrollBreakdown")}</h3>
-              <div className="mt-3 grid gap-2 text-sm font-bold">
-                {[
-                  ["+", text.baseSalary, portal.base_salary],
-                  ["+", text.commission, portal.sales_commission ?? portal.commissions],
-                  ["+", text.bonuses, portal.bonuses],
-                  ["-", text.advances, portal.advances],
-                  ["-", text.penalties, portal.penalties],
-                  ["-", text.deductions, portal.total_deductions],
-                ].map(([sign, label, value]) => (
-                  <div key={label} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2">
-                    <span>{sign} {label}</span>
-                    <span className={sign === "+" ? "text-emerald-700" : "text-red-700"} dir="ltr">{money(value)}</span>
-                  </div>
-                ))}
-                <div className="mt-1 flex items-center justify-between border-t border-slate-200 pt-3 text-base font-black">
-                  <span>{text.netSalary}</span>
-                  <span dir="ltr">{payrollExists ? money(wallet.current_net_salary ?? portal.net_salary) : "-"}</span>
-                </div>
-              </div>
-              <button type="button" onClick={downloadPayslip} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-black text-white">
-                <Download className="h-4 w-4" />
-                {text.downloadPayslip}
-              </button>
-            </div> : null}
-
             {activeTab === "attendance" ? (
               <>
                 <EmployeeStatsCards cards={attendanceSummaryCards} />
@@ -3430,7 +3617,7 @@ export default function EmployeePayrollPortal() {
                     </div>
                     <div className="rounded-2xl bg-red-50 p-3 text-red-950">
                       <div className="text-red-700">{text.deductedAbsenceAmount}</div>
-                      <div className="mt-1 text-xl font-black tabular-nums" dir="ltr">{money(attendance.deducted_absence_amount || portal.absence_deduction || 0)}</div>
+                      <div className="mt-1 text-xl font-black tabular-nums" dir="ltr">{money(attendance.deducted_absence_amount || portal?.absence_deduction || 0)}</div>
                     </div>
                   </div>
                 </div>
