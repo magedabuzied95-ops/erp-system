@@ -26,6 +26,7 @@ import BarcodeScanner from "../../../components/BarcodeScanner";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
+import { normalizePosCatalogProduct } from "../../pos/services/posProductsApi";
 import {
   createEmployeePortalInventorySession,
   getEmployeePortalInventorySession,
@@ -266,6 +267,31 @@ const normalizeVariant = (record = {}) => {
     difference_quantity: differenceQuantity,
     reason: clean(record.reason ?? ""),
     notes: clean(record.notes ?? ""),
+  };
+};
+
+const normalizeInventoryFilterRecord = (record = {}) => {
+  const normalizedProduct = normalizePosCatalogProduct(record.product || record);
+  const normalizedVariant = normalizeVariant({
+    ...normalizedProduct,
+    ...record,
+    product: record.product || normalizedProduct,
+  });
+
+  return {
+    ...normalizedVariant,
+    category: clean(normalizedProduct.category || normalizedProduct.category_name || record.category || record.grade || normalizedVariant.category),
+    type: clean(normalizedProduct.type || normalizedProduct.product_type || normalizedProduct.productType || record.type || record.product_type || record.productType || normalizedVariant.type),
+    brand: clean(normalizedProduct.brand || normalizedProduct.brand_name || record.brand || record.brand_name || normalizedVariant.brand),
+    manufacturer_name: clean(
+      normalizedProduct.manufacturer_name ||
+      normalizedProduct.manufacturer ||
+      record.manufacturer_name ||
+      record.manufacturer ||
+      record.manufacturerName ||
+      normalizedVariant.manufacturer_name
+    ),
+    gender: clean(normalizedProduct.gender || record.gender || normalizedVariant.gender),
   };
 };
 
@@ -532,7 +558,7 @@ export default function EmployeePortalInventory() {
     const seen = new Set();
     const records = [];
     for (const record of [...items, ...lookupResults]) {
-      const variant = normalizeVariant(record);
+      const variant = normalizeInventoryFilterRecord(record);
       const key = [
         variant.product_id,
         variant.product_name,
@@ -591,16 +617,18 @@ export default function EmployeePortalInventory() {
     setFilters((current) => ({ ...current, [key]: value }));
   }, []);
   const matchesInventoryBaseFilters = useCallback((record) => {
-    const matchesCategory = filters.category === "all" || clean(record.category) === clean(filters.category);
-    const matchesType = filters.type === "all" || clean(record.type) === clean(filters.type);
-    const matchesBrand = filters.brand === "all" || clean(record.brand) === clean(filters.brand);
-    const matchesManufacturer = filters.manufacturer === "all" || clean(record.manufacturer_name) === clean(filters.manufacturer);
-    const matchesGender = filters.gender === "all" || clean(record.gender) === clean(filters.gender);
-    const matchesStock = !filters.inStockOnly || Number(record.system_quantity || record.stock || 0) > 0;
+    const normalized = normalizeInventoryFilterRecord(record);
+    const matchesCategory = filters.category === "all" || clean(normalized.category) === clean(filters.category);
+    const matchesType = filters.type === "all" || clean(normalized.type) === clean(filters.type);
+    const matchesBrand = filters.brand === "all" || clean(normalized.brand) === clean(filters.brand);
+    const matchesManufacturer = filters.manufacturer === "all" || clean(normalized.manufacturer_name) === clean(filters.manufacturer);
+    const matchesGender = filters.gender === "all" || clean(normalized.gender) === clean(filters.gender);
+    const matchesStock = !filters.inStockOnly || Number(normalized.system_quantity || normalized.stock || 0) > 0;
     return matchesCategory && matchesType && matchesBrand && matchesManufacturer && matchesGender && matchesStock;
   }, [filters]);
   const matchesInventoryFilters = useCallback((record) => {
-    const matchesSize = selectedFilterSize === "all" || clean(record.size) === clean(selectedFilterSize);
+    const normalized = normalizeInventoryFilterRecord(record);
+    const matchesSize = selectedFilterSize === "all" || clean(normalized.size) === clean(selectedFilterSize);
     return matchesInventoryBaseFilters(record) && matchesSize;
   }, [matchesInventoryBaseFilters, selectedFilterSize]);
   const filteredLookupResults = useMemo(
