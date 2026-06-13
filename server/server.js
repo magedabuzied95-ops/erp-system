@@ -501,7 +501,6 @@ const { default: staffTasksRoutes } = await import("./routes/staffTasks.js");
 const { default: employeePortalRoutes } = await import("./routes/employeePortal.js");
 const { default: managerPortalRoutes } = await import("./routes/managerPortal.js");
 const { default: adminStaffTasksRoutes } = await import("./routes/adminStaffTasks.js");
-const { default: adminMessengerRepairRoutes } = await import("./routes/adminMessengerRepair.js");
 const { default: settingsRoutes } = await import("./routes/settings.js");
 const { default: whatsappGatewayRoutes } = await import("./routes/whatsappGateway.js");
 const { ensureProductSchema, ensureProductVariantSchema, warmProductsMetadataCache } = await import("./controllers/productsController.js");
@@ -911,7 +910,6 @@ console.log("[server] Manager portal routes mounted", {
   hasManagerChatSend: registeredManagerPortalEndpoints.includes("POST /api/manager-portal/:token/chat/:threadId/messages"),
   routes: registeredManagerPortalEndpoints,
 });
-app.use("/api/admin", adminMessengerRepairRoutes);
 app.use("/api/admin/staff-tasks", adminStaffTasksRoutes);
 console.log("[routes] /api/roles mounted");
 console.log("[server] marketing automation routes mounted");
