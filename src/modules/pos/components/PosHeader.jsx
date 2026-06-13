@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   BadgeCheck,
@@ -44,6 +44,12 @@ function PosHeader({
       }),
     [customerPhoneSearch, customerSearch, normalizedCustomerSearch, safeCustomers]
   );
+  const selectCustomerSuggestion = useCallback((item) => {
+    onSelectCustomer?.(item);
+    setCustomerSearchActive(false);
+    setActiveCustomerIndex(-1);
+    window.setTimeout(() => customerSearchRef.current?.blur(), 0);
+  }, [onSelectCustomer]);
   const showCustomerSuggestions =
     customerSearchActive &&
     !selectedCustomer &&
@@ -174,19 +180,16 @@ function PosHeader({
                     const active = String(selectedCustomerId) === String(itemId);
                     const phone = item.phone || item.mobile || item.whatsapp || "No phone";
                     return (
-                      <button
-                        key={String(itemId || `${item.name}-${phone}-${index}`)}
-                        type="button"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onMouseEnter={() => setActiveCustomerIndex(index)}
-                        onClick={(event) => {
-                          onSelectCustomer?.(item);
-                          setCustomerSearchActive(false);
-                          setActiveCustomerIndex(-1);
-                          customerSearchRef.current?.blur();
-                          event.currentTarget.blur();
-                        }}
-                        className={`mb-1 w-full rounded-2xl border px-3 py-2.5 text-left transition ${
+                    <button
+                      key={String(itemId || `${item.name}-${phone}-${index}`)}
+                      type="button"
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        selectCustomerSuggestion(item);
+                      }}
+                      onMouseEnter={() => setActiveCustomerIndex(index)}
+                      onClick={() => selectCustomerSuggestion(item)}
+                      className={`mb-1 w-full rounded-2xl border px-3 py-2.5 text-left transition ${
                         active || activeCustomerIndex === index
                           ? "border-[var(--primary)]/30 bg-[var(--primary-soft)] text-[var(--primary)]"
                           : "border-[var(--border)] bg-[var(--card)] text-[var(--text)] hover:bg-[var(--primary-soft)]/60"

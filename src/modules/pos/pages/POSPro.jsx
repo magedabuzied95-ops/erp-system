@@ -2201,8 +2201,25 @@ function POSPro() {
     if (selectedCustomerId) return null;
     const input = String(customerSearch || "").trim();
     if (!isPosPhoneLikeSearch(input)) return null;
+    const normalizedInputPhone = normalizePhone(input).replace(/\D/g, "");
     const inputVariants = getPosPhoneExactVariants(input);
     const matchesById = new Map();
+
+    if (normalizedInputPhone) {
+      (Array.isArray(customers) ? customers : []).forEach((item) => {
+        const itemId = item?.id || item?.customer_id;
+        if (!itemId) return;
+        const itemPhones = [item?.phone, item?.mobile, item?.whatsapp]
+          .map((value) => normalizePhone(value || "").replace(/\D/g, ""))
+          .filter(Boolean);
+        if (itemPhones.includes(normalizedInputPhone)) {
+          matchesById.set(String(itemId), item);
+        }
+      });
+      if (matchesById.size === 1) return Array.from(matchesById.values())[0];
+      matchesById.clear();
+    }
+
     (Array.isArray(customers) ? customers : []).forEach((item) => {
       const itemId = item?.id || item?.customer_id;
       if (!itemId || !customerMatchesPhoneVariants(item, inputVariants)) return;

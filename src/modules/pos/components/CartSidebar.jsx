@@ -1,6 +1,7 @@
 ﻿import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { memo } from "react";
+import { useCallback } from "react";
 import i18n from "../../../i18n/i18n";
 import toast from "react-hot-toast";
 import {
@@ -1865,6 +1866,12 @@ function InvoiceCustomerPicker({
       }),
     [customerPhoneSearch, customerSearch, normalizedCustomerSearch, safeCustomers]
   );
+  const selectCustomerSuggestion = useCallback((item) => {
+    onSelectCustomer?.(item);
+    setCustomerSearchActive(false);
+    setActiveCustomerIndex(-1);
+    window.setTimeout(() => customerSearchRef.current?.blur(), 0);
+  }, [onSelectCustomer]);
   const showCustomerSuggestions =
     customerSearchActive &&
     !selectedCustomer &&
@@ -2021,15 +2028,12 @@ function InvoiceCustomerPicker({
                   <button
                     key={String(itemId || `${item.name}-${phone}-${index}`)}
                     type="button"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onMouseEnter={() => setActiveCustomerIndex(index)}
-                    onClick={(event) => {
-                      onSelectCustomer?.(item);
-                      setCustomerSearchActive(false);
-                      setActiveCustomerIndex(-1);
-                      customerSearchRef.current?.blur();
-                      event.currentTarget.blur();
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      selectCustomerSuggestion(item);
                     }}
+                    onMouseEnter={() => setActiveCustomerIndex(index)}
+                    onClick={() => selectCustomerSuggestion(item)}
                     className={`mb-1 w-full rounded-xl border px-3 py-2 text-left transition ${
                       active || activeCustomerIndex === index
                         ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100"
