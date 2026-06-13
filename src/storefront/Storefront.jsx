@@ -8197,6 +8197,7 @@ function ContactPage() {
 }
 
 function SizeGuide() {
+  const darkMode = typeof document !== "undefined" && (document.documentElement.classList.contains("dark") || document.body.classList.contains("storefront-dark"));
   const sizeRows = [
     { eu: 39, foot: "24.8 cm", usMen: "6.5", usWomen: "8", uk: "6", note: sfText("storefront.sizeGuide.notes.39", "Good for relatively small feet") },
     { eu: 40, foot: "25.4 cm", usMen: "7", usWomen: "8.5", uk: "6.5", note: sfText("storefront.sizeGuide.notes.40", "A common daily choice") },
@@ -8213,17 +8214,17 @@ function SizeGuide() {
     ["4", sfText("storefront.sizeGuide.steps.larger.title", "Choose the larger"), sfText("storefront.sizeGuide.steps.larger.text", "Repeat for both feet and choose based on the larger foot.")],
   ];
   return (
-    <section className="mx-auto max-w-6xl px-4 py-8 text-stone-950 dark:text-white md:py-12" dir="rtl">
+    <section className={`sf-size-guide-page mx-auto max-w-6xl px-4 py-8 md:py-12 ${darkMode ? "text-white" : "text-[#0f172a]"}`} dir="rtl">
       <div className="mb-6 flex flex-col gap-3 md:mb-8 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-black text-[#7c3aed] dark:text-[#c4b5fd]">{sfText("storefront.sizeGuide.eyebrow", "Shoe Fit Guide")}</p>
-          <h1 className="mt-1 text-3xl font-black tracking-normal md:text-5xl">{sfText("storefront.sizeGuide.title", "Size guide")}</h1>
-          <p className="mt-3 max-w-2xl text-sm font-bold leading-7 text-stone-600 dark:text-slate-300 md:text-base">
+          <p className={`text-sm font-black ${darkMode ? "text-[#c4b5fd]" : "text-[#7c3aed]"}`}>{sfText("storefront.sizeGuide.eyebrow", "Shoe Fit Guide")}</p>
+          <h1 className={`mt-1 text-3xl font-black tracking-normal md:text-5xl ${darkMode ? "text-white" : "text-[#0f172a]"}`}>{sfText("storefront.sizeGuide.title", "Size guide")}</h1>
+          <p className={`mt-3 max-w-2xl text-sm font-bold leading-7 md:text-base ${darkMode ? "text-slate-300" : "text-[#475569]"}`}>
             {sfText("storefront.sizeGuide.subtitle", "Measurements are approximate and may vary slightly by foot shape, shoe material, and model design. If your foot is wide or between sizes, choose the larger size.")}
           </p>
         </div>
-        <div className="inline-flex w-fit items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-700 shadow-sm dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-200">
-          <Footprints className="h-4 w-4 text-[#7c3aed] dark:text-[#c4b5fd]" />
+        <div className={`inline-flex w-fit items-center gap-2 rounded-full border px-4 py-2 text-xs font-black shadow-sm ${darkMode ? "border-white/10 bg-white/[0.06] text-slate-200" : "border-slate-300 bg-white text-[#0f172a]"}`}>
+          <Footprints className={`h-4 w-4 ${darkMode ? "text-[#c4b5fd]" : "text-[#7c3aed]"}`} />
           {sfText("storefront.sizeGuide.centimeterMeasurement", "Foot measurement in centimeters")}
         </div>
       </div>
@@ -8269,8 +8270,8 @@ function SizeGuide() {
               {sfText("storefront.sizeGuide.measurementIntro", "Correct measurement helps you choose the closest size from the first time. Stand while measuring because foot length increases slightly with weight.")}
             </p>
           </div>
-          <a href="https://wa.me/" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full border border-emerald-300/30 bg-emerald-500 px-5 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(16,185,129,0.28)] transition hover:-translate-y-0.5 hover:bg-emerald-400 dark:border-emerald-300/25 dark:bg-emerald-500/95 dark:text-white">
-            <MessageCircle className="h-4 w-4" />
+          <a href="https://wa.me/" className={`inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full border px-5 py-3 text-sm font-black shadow-[0_14px_34px_rgba(16,185,129,0.28)] transition hover:-translate-y-0.5 ${darkMode ? "border-emerald-300/25 bg-emerald-500/95 text-white hover:bg-emerald-400" : "border-slate-300 bg-white text-[#0f172a] hover:border-[#cbd5e1] hover:bg-[#f8fafc]"}`}>
+            <MessageCircle className={`h-4 w-4 ${darkMode ? "text-white" : "text-[#7c3aed]"}`} />
             {sfText("storefront.support.whatsappHelp", "مساعدة واتساب")}
           </a>
         </div>
@@ -8422,7 +8423,7 @@ function TrustPills({ compact = false }) {
     [sfText("storefront.checkout.trust.safeData", "بياناتك آمنة"), <Check className="h-4 w-4" />],
     [sfText("storefront.checkout.trust.fastShipping", "شحن سريع"), <Truck className="h-4 w-4" />],
     [sfText("storefront.checkout.trust.exchange", "استبدال خلال 14 يومًا"), <PackageCheck className="h-4 w-4" />],
-    [sfText("storefront.checkout.trust.whatsapp", "دعم واتساب"), <MessageCircle className="h-4 w-4" />],
+    [sfText("storefront.checkout.trust.whatsapp", "دعم واتساب"), <MessageCircle className={`h-4 w-4 ${darkMode ? "text-white" : "text-[#7c3aed]"}`} />],
   ];
   return (
     <div className={`sf-checkout-trust-pills grid grid-cols-2 gap-2 text-xs font-black text-white/70 ${compact ? "sm:grid-cols-4" : "sm:grid-cols-2"}`}>
@@ -9000,7 +9001,7 @@ function Footer() {
             <Link to="/shop/contact" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-[#c4b5fd] hover:text-[#6d28d9] dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-[#c4b5fd]/40 dark:hover:bg-[#7c3aed]/12 dark:hover:text-[#d8b4fe]" aria-label="Facebook"><Send className="h-5 w-5" /></Link>
           </div>
           <a href="https://wa.me/" className="mt-4 inline-flex items-center justify-center gap-2 rounded-full border border-emerald-300/30 bg-stone-950 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#6d28d9] dark:bg-emerald-500 dark:text-white dark:shadow-[0_14px_34px_rgba(16,185,129,0.22)] dark:hover:bg-emerald-400">
-            <MessageCircle className="h-4 w-4" />
+            <MessageCircle className={`h-4 w-4 ${darkMode ? "text-white" : "text-[#7c3aed]"}`} />
             {sfText("storefront.support.whatsappHelp", "مساعدة واتساب")}
           </a>
         </div>
@@ -9481,6 +9482,8 @@ function StorefrontWithBoundary() {
 }
 
 export default StorefrontWithBoundary;
+
+
 
 
 
