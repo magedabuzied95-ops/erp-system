@@ -4322,6 +4322,7 @@ const homeProductWithImage = (product = {}) => {
 
 function ShopByMainCategories({ products = [], lang = "ar", loading = false }) {
   const isRtl = normalizeLanguage(lang) === "ar";
+  const darkMode = isStorefrontDarkMode();
   const sourceProducts = useMemo(
     () => uniqueProductsByIdentity(products)
       .filter((product) => product?.id && product?.name && isAvailableProduct(product))
@@ -4345,14 +4346,14 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false }) {
     <section className="mx-auto max-w-[1360px] px-4 py-10 md:py-16" dir={isRtl ? "rtl" : "ltr"}>
       <div className={`mb-8 flex items-end justify-between gap-3 md:mb-11 ${isRtl ? "text-right" : "text-left"}`}>
         <div>
-          <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#7c3aed] dark:text-[#f8e7b3]">
+          <div className={`mb-2 text-[10px] font-black uppercase tracking-[0.18em] ${darkMode ? "text-[#f8e7b3]" : "text-[#7c3aed]"}`}>
             {isRtl ? "تسوق حسب القسم" : "Shop by category"}
           </div>
-          <h2 className="text-3xl font-black tracking-normal text-stone-950 dark:text-stone-100 md:text-6xl">
+          <h2 className={`text-3xl font-black tracking-normal md:text-6xl ${darkMode ? "text-stone-100" : "text-[#0f172a]"}`}>
             {isRtl ? "تسوق حسب الأقسام الرئيسية" : "Shop By Main Categories"}
           </h2>
         </div>
-        <Link to="/shop/products" className="hidden min-h-11 items-center justify-center rounded-full border border-stone-200 bg-white px-6 text-xs font-black text-stone-800 shadow-[0_14px_34px_rgba(39,20,75,0.08)] transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 hover:bg-stone-950 hover:text-white dark:border-white/10 dark:bg-white/5 dark:text-stone-200 dark:hover:bg-white dark:hover:text-stone-950 sm:inline-flex">
+        <Link to="/shop/products" className={`hidden min-h-11 items-center justify-center rounded-full border px-6 text-xs font-black shadow-[0_14px_34px_rgba(39,20,75,0.08)] transition hover:-translate-y-0.5 active:scale-[0.98] sm:inline-flex ${darkMode ? "border-white/10 bg-white/5 text-stone-200 hover:bg-white hover:text-stone-950 dark:hover:bg-white dark:hover:text-stone-950" : "border-slate-300 bg-white text-[#0f172a] hover:border-[#7c3aed]/50 hover:bg-white hover:text-[#0f172a]"}`}>
           {isRtl ? "عرض الكل" : sfText("common.viewAll", "View all")}
         </Link>
       </div>
@@ -4420,6 +4421,7 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false }) {
 
 function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", products = [], loading = false, railType = "default", tone = "default", wishlist, toggleWishlist, onAddToCart }) {
   const isRtl = normalizeLanguage(i18n.language) === "ar";
+  const darkMode = isStorefrontDarkMode();
   const railViewportRef = useRef(null);
   const railTrackRef = useRef(null);
   const railCardRefs = useRef([]);
@@ -4704,12 +4706,12 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
       <div className={sectionTone}>
         <div className="mb-4 flex items-end justify-between gap-3 text-right md:mb-6">
           <div className="min-w-0">
-            <div className={`mb-1 text-[10px] font-black uppercase tracking-[0.18em] md:text-[11px] ${toneConfig.eyebrow || "text-[#7c3aed] dark:text-[#f8e7b3]"}`}>{sfText("storefront.common.shopNow", "Shop Now")}</div>
-            <h2 className="text-[1.75rem] font-black tracking-normal text-stone-950 dark:text-stone-100 md:text-4xl">{title}</h2>
-            {subtitle ? <p className="mt-1 text-xs font-bold leading-5 text-stone-500 dark:text-stone-400 md:text-base md:leading-6">{subtitle}</p> : null}
+            <div className={`mb-1 text-[10px] font-black uppercase tracking-[0.18em] md:text-[11px] ${toneConfig.eyebrow || (darkMode ? "text-[#f8e7b3]" : "text-[#7c3aed]")}`}>{sfText("storefront.common.shopNow", "Shop Now")}</div>
+            <h2 className={`text-[1.75rem] font-black tracking-normal md:text-4xl ${darkMode ? "text-stone-100" : "text-[#0f172a]"}`}>{title}</h2>
+            {subtitle ? <p className={`mt-1 text-xs font-bold leading-5 md:text-base md:leading-6 ${darkMode ? "text-stone-400" : "text-[#475569]"}`}>{subtitle}</p> : null}
             <div className={`mt-2 h-1 w-16 rounded-full bg-gradient-to-l ${toneConfig.line || "from-[#7c3aed] to-[#f8e7b3]"}`} />
           </div>
-          <Link to={viewAllTo} className={`mb-0.5 inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-800 shadow-[0_14px_34px_rgba(39,20,75,0.09)] transition hover:-translate-y-0.5 hover:bg-stone-950 hover:text-white active:scale-[0.98] md:min-h-12 md:px-6 dark:border-white/10 dark:bg-white/5 dark:text-stone-200 dark:hover:bg-white dark:hover:text-stone-950 ${toneConfig.button || "hover:border-[#7c3aed]/50"}`}>
+          <Link to={viewAllTo} className={`mb-0.5 inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full border px-4 py-2 text-xs font-black shadow-[0_14px_34px_rgba(39,20,75,0.09)] transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-12 md:px-6 ${darkMode ? "border-white/10 bg-white/5 text-stone-200 hover:bg-white hover:text-stone-950 dark:hover:bg-white dark:hover:text-stone-950" : "border-slate-300 bg-white text-[#0f172a] hover:border-[#7c3aed]/50 hover:bg-white hover:text-[#0f172a]"} ${toneConfig.button || "hover:border-[#7c3aed]/50"}`}>
             {isRtl ? "عرض الكل" : sfText("common.viewAll", "View all")}
             <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
           </Link>
