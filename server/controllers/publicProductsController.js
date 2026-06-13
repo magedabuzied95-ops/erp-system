@@ -243,7 +243,7 @@ const buildProductShareDescription = ({ product = {}, variants = [], query = {} 
   const selectedPrice = resolveStorefrontPrice(product, selectedVariant);
   const priceText = selectedPrice.activePrice > 0 ? formatCurrency(selectedPrice.activePrice, { language: "en" }) : "";
   const availableSizes = getShareAvailableSizes({ variants, query, selectedVariant });
-  const lines = [productSeoDescription(product)].filter(Boolean);
+  const lines = [];
   if (availableSizes.length) {
     lines.push(`Available sizes: ${availableSizes.join(", ")}`);
   }
