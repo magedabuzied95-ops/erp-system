@@ -53,6 +53,12 @@ const applyThemeVariables = (theme, accentId, density) => {
     body.style.background = "var(--bg)";
     body.style.color = "var(--text)";
   }
+
+  const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+  const themeColor = theme.mode === "light" ? variables.bg || "#f7f4ee" : variables.bg || "#050816";
+  if (themeColorMeta) {
+    themeColorMeta.setAttribute("content", themeColor);
+  }
 };
 
 export function ThemeProvider({ children }) {

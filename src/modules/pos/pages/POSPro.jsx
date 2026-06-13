@@ -1395,6 +1395,18 @@ function POSPro() {
   const isRtl = String(i18n.language || "").toLowerCase().startsWith("ar");
   const currentTenant = useMemo(() => getCurrentTenant() || {}, []);
   const currentUser = useMemo(() => getCurrentUser() || {}, []);
+  const resolvedPosBranchId = useMemo(
+    () =>
+      String(
+        posShiftBranch?.id ||
+          currentUser?.branch_id ||
+          currentUser?.branchId ||
+          currentUser?.default_branch_id ||
+          currentUser?.defaultBranchId ||
+          ""
+      ).trim(),
+    [currentUser?.branchId, currentUser?.branch_id, currentUser?.defaultBranchId, currentUser?.default_branch_id, posShiftBranch?.id]
+  );
   const activeSalesperson = useMemo(
     () => salesEmployees.find((employee) => String(employee.id || "") === String(selectedSalespersonId || "")) || null,
     [salesEmployees, selectedSalespersonId]
@@ -2007,7 +2019,7 @@ function POSPro() {
     try {
       if (!silent) setPosShiftLoading(true);
       const response = await api.get("/pos/shifts/active", {
-        params: { branch_id: branchId || undefined },
+        params: { branch_id: branchId || resolvedPosBranchId || undefined },
         suppressErrorStatuses: [400, 404],
       });
       setActivePosShift(response?.shift || null);
@@ -2028,14 +2040,14 @@ function POSPro() {
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      loadActivePosShift({ silent: true, branchId: posShiftBranch?.id || currentUser?.branch_id || null });
+      loadActivePosShift({ silent: true, branchId: resolvedPosBranchId || null });
     }, 45000);
     return () => window.clearInterval(timer);
-  }, [currentUser?.branch_id, loadActivePosShift, posShiftBranch?.id]);
+  }, [loadActivePosShift, resolvedPosBranchId]);
 
   const loadSellerUsers = useCallback(async ({ silent = false } = {}) => {
     const activeShiftBranchId = activePosShift?.branch_id || "";
-    const selectedBranchId = posShiftBranch?.id || currentUser?.branch_id || "";
+    const selectedBranchId = resolvedPosBranchId || "";
     const branchId = activeShiftBranchId || selectedBranchId || "";
     if (posShiftLoading) {
       if (import.meta.env.DEV) {
@@ -2128,7 +2140,7 @@ function POSPro() {
     } finally {
       setSellersLoading(false);
     }
-  }, [activePosShift?.id, activePosShift?.branch_id, canOverrideSeller, currentUser, posShiftBranch?.id, posShiftLoading, salesEmployees.length]);
+  }, [activePosShift?.id, activePosShift?.branch_id, canOverrideSeller, posShiftLoading, resolvedPosBranchId, salesEmployees.length]);
 
   useEffect(() => {
     loadSellerUsers({ silent: sellersLoaded || salesEmployees.length > 0 });
@@ -3905,7 +3917,7 @@ function POSPro() {
     try {
       setAttendanceLoading(true);
       const response = await api.post("/pos/shifts/open", {
-        branch_id: posShiftBranch?.id || currentUser?.branch_id || null,
+        branch_id: resolvedPosBranchId || null,
         opening_cash: Number(openingCash || 0),
       });
       setActivePosShift(response?.shift || null);
@@ -6943,7 +6955,35 @@ function ShiftGate({
   const { t } = useTranslation();
   const branchName = branch?.name || currentUser?.branch_name || "";
   const userName = currentUser?.name || currentUser?.email || "";
-  const hasBranch = Boolean(branch?.id || currentUser?.branch_id);
+  const resolvedBranchId = String(
+    branch?.id ||
+      currentUser?.branch_id ||
+      currentUser?.branchId ||
+      currentUser?.default_branch_id ||
+      currentUser?.defaultBranchId ||
+      ""
+  ).trim();
+  const hasBranch = Boolean(resolvedBranchId);
+  const disabledReason = !hasBranch
+    ? "missing_branch"
+    : attendanceLoading
+      ? "opening_shift"
+      : posShiftLoading
+        ? "active_shift_loading"
+        : "";
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    console.log("[pos-shift-gate]", {
+      branch_id: resolvedBranchId || null,
+      user: currentUser?.id || currentUser?.email || currentUser?.name || null,
+      loading: {
+        attendanceLoading: Boolean(attendanceLoading),
+        posShiftLoading: Boolean(posShiftLoading),
+      },
+      disabledReason: disabledReason || "none",
+    });
+  }, [attendanceLoading, currentUser?.email, currentUser?.id, currentUser?.name, disabledReason, posShiftLoading, resolvedBranchId]);
 
   return (
     <div className="flex flex-1 items-center justify-center px-2 py-8">

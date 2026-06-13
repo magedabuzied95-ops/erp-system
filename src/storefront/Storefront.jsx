@@ -5854,7 +5854,7 @@ function MobileFilterTrigger({ activeFilterCount = 0, onOpen }) {
     <button
       type="button"
       onClick={onOpen}
-      className="fixed right-4 z-30 inline-flex items-center gap-2 rounded-full border border-white/15 bg-stone-950/92 px-4 py-3 text-xs font-black text-white shadow-[0_18px_44px_rgba(0,0,0,0.28)] backdrop-blur-xl transition active:scale-95 md:hidden"
+      className="sf-mobile-filter-trigger fixed right-4 z-30 inline-flex items-center gap-2 rounded-full border border-white/15 bg-stone-950/92 px-4 py-3 text-xs font-black text-white shadow-[0_18px_44px_rgba(0,0,0,0.28)] backdrop-blur-xl transition active:scale-95 md:hidden"
       style={{ bottom: "calc(var(--mobile-bottom-nav-height, 76px) + env(safe-area-inset-bottom) + 1rem)" }}
     >
       <SlidersHorizontal className="h-4 w-4" />
@@ -5869,7 +5869,7 @@ function MobileFilterDrawer({ open, sections, lang, draftFilters, setDraftFilter
   const visibleSections = renderableFilterSections(sections);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
+    <div className="sf-mobile-filter-drawer fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
       <button type="button" className="absolute inset-0 bg-stone-950/55 backdrop-blur-sm" onClick={onClose} aria-label={t("storefront.filters.closeFilters", "Close filters")} />
       <div className="absolute inset-x-0 bottom-0 max-h-[82dvh] overflow-hidden rounded-t-[1.5rem] border border-white/10 bg-[linear-gradient(180deg,#101426_0%,#070b16_100%)] text-white shadow-[0_-24px_70px_rgba(0,0,0,0.42)]">
         <div className="mx-auto mt-2.5 h-1.5 w-10 rounded-full bg-white/20" />
@@ -6193,7 +6193,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const densityClasses = cardDensityClasses[density] || cardDensityClasses.standard;
 
   return (
-    <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onClick={openDetails} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={`group/product relative flex h-full min-h-0 transform-gpu cursor-pointer flex-col overflow-hidden rounded-[1.2rem] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(250,248,244,0.94)_48%,rgba(245,241,234,0.84))] shadow-[0_10px_26px_rgba(39,20,75,0.07),inset_0_1px_0_rgba(255,255,255,0.8)] ring-1 ring-stone-200/55 transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-1 hover:border-[#a78bfa]/38 hover:ring-[#7c3aed]/22 hover:shadow-[0_18px_44px_rgba(39,20,75,0.12),0_0_0_1px_rgba(124,58,237,0.08)_inset] md:rounded-[1.55rem] dark:border-white/[0.08] dark:bg-[linear-gradient(145deg,rgba(17,24,39,0.95),rgba(11,16,32,0.93)_52%,rgba(8,13,25,0.98))] dark:ring-white/[0.05] dark:shadow-[0_14px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.05)] dark:hover:border-[#a78bfa]/24 dark:hover:shadow-[0_20px_54px_rgba(0,0,0,0.32),0_0_24px_rgba(124,58,237,0.10)] ${featured ? "md:shadow-[0_18px_52px_rgba(109,40,217,0.12)]" : ""}`}>
+    <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onClick={openDetails} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={`sf-product-card group/product relative flex h-full min-h-0 transform-gpu cursor-pointer flex-col overflow-hidden rounded-[1.2rem] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(250,248,244,0.94)_48%,rgba(245,241,234,0.84))] shadow-[0_10px_26px_rgba(39,20,75,0.07),inset_0_1px_0_rgba(255,255,255,0.8)] ring-1 ring-stone-200/55 transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-1 hover:border-[#a78bfa]/38 hover:ring-[#7c3aed]/22 hover:shadow-[0_18px_44px_rgba(39,20,75,0.12),0_0_0_1px_rgba(124,58,237,0.08)_inset] md:rounded-[1.55rem] dark:border-white/[0.08] dark:bg-[linear-gradient(145deg,rgba(17,24,39,0.95),rgba(11,16,32,0.93)_52%,rgba(8,13,25,0.98))] dark:ring-white/[0.05] dark:shadow-[0_14px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.05)] dark:hover:border-[#a78bfa]/24 dark:hover:shadow-[0_20px_54px_rgba(0,0,0,0.32),0_0_24px_rgba(124,58,237,0.10)] ${featured ? "md:shadow-[0_18px_52px_rgba(109,40,217,0.12)]" : ""}`}>
       <div className="pointer-events-none absolute inset-x-8 top-8 h-14 rounded-full bg-[#a78bfa]/0 blur-xl transition duration-300 group-hover/product:bg-[#a78bfa]/10" />
       <div className={`relative overflow-visible bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.12),transparent_28%),linear-gradient(180deg,#fbfaf7_0%,#eee7dc_100%)] md:p-3 dark:bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.10),transparent_28%),linear-gradient(180deg,#101426_0%,#0b1020_100%)] ${densityClasses.image}`}>
         <div className="absolute inset-x-8 top-[18%] h-24 rounded-full bg-white/40 blur-lg dark:bg-white/[0.07]" />
@@ -6377,7 +6377,7 @@ function ProductCardVariantSheet({
   }, [onClose]);
 
   return createPortal(
-    <div className="fixed inset-0 z-[90] pointer-events-auto md:hidden" role="dialog" aria-modal="true">
+    <div className="sf-product-variant-sheet fixed inset-0 z-[90] pointer-events-auto md:hidden" role="dialog" aria-modal="true">
       <button
         type="button"
         className="absolute inset-0 z-0 bg-stone-950/62 backdrop-blur-sm"
@@ -6385,7 +6385,7 @@ function ProductCardVariantSheet({
         aria-label={t("common.close", "Close")}
       />
       <section
-        className="absolute inset-x-0 bottom-0 z-10 rounded-t-[1.55rem] border border-white/10 bg-[linear-gradient(180deg,#101426_0%,#070b16_100%)] p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] text-white shadow-[0_-24px_70px_rgba(0,0,0,0.42)]"
+        className="sf-product-variant-sheet-panel absolute inset-x-0 bottom-0 z-10 rounded-t-[1.55rem] border border-white/10 bg-[linear-gradient(180deg,#101426_0%,#070b16_100%)] p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] text-white shadow-[0_-24px_70px_rgba(0,0,0,0.42)]"
         onClick={(event) => event.stopPropagation()}
         onPointerUp={(event) => event.stopPropagation()}
       >
@@ -9029,7 +9029,7 @@ function MobileBottomNav({ count }) {
   return (
     <nav
       dir="rtl"
-      className="fixed inset-x-0 bottom-0 z-40 h-[calc(var(--mobile-bottom-nav-height)+var(--safe-bottom))] border-t border-white/10 bg-slate-950/[0.88] px-3 pb-[var(--safe-bottom)] pt-1.5 shadow-[0_-18px_46px_rgba(0,0,0,0.32),0_1px_0_rgba(255,255,255,0.05)_inset] backdrop-blur-2xl md:hidden"
+      className="sf-mobile-bottom-nav fixed inset-x-0 bottom-0 z-40 h-[calc(var(--mobile-bottom-nav-height)+var(--safe-bottom))] border-t border-white/10 bg-slate-950/[0.88] px-3 pb-[var(--safe-bottom)] pt-1.5 shadow-[0_-18px_46px_rgba(0,0,0,0.32),0_1px_0_rgba(255,255,255,0.05)_inset] backdrop-blur-2xl md:hidden"
       aria-label={sfText("storefront.nav.mobileNavigation", "تنقل المتجر على الهاتف")}
     >
       <div className="mx-auto grid h-full w-full max-w-[25.5rem] min-w-0 grid-cols-5 items-center gap-0.5 overflow-hidden">
