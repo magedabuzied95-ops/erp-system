@@ -2900,8 +2900,6 @@ export default function EmployeePayrollPortal() {
                 ))}
               </div>
             </div>
-            <div className="h-6 shrink-0" aria-hidden="true" />
-
             {showHomeTabSections ? (
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => setActiveTab("requests")} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-800 shadow-sm">
