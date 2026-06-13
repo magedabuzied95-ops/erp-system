@@ -5,11 +5,13 @@ import { useCallback } from "react";
 import i18n from "../../../i18n/i18n";
 import toast from "react-hot-toast";
 import {
+  Check,
   Banknote,
   CalendarDays,
   CheckCircle2,
   Copy,
   Clock3,
+  ChevronDown,
   ExternalLink,
   CreditCard,
   FileText,
@@ -2197,23 +2199,163 @@ function pickVariantForColor(variants = [], color = "", preferredSize = "") {
 }
 
 function CartVariantSelect({ label, value, options = [], onChange, disabled = false }) {
-  return (
-    <label className="inline-flex h-6 max-w-[8rem] items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-1.5 text-[10px] font-black text-[var(--text)]">
-      <span className="sr-only">{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange?.(event.target.value)}
-        disabled={disabled}
-        className="min-w-0 max-w-full bg-transparent text-[10px] font-black text-[var(--text)] outline-none disabled:opacity-70"
-        title={label}
+  const [open, setOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState(null);
+  const rootRef = useRef(null);
+  const buttonRef = useRef(null);
+  const menuRef = useRef(null);
+  const selectedOption = options.find((option) => String(option.value) === String(value)) || options[0] || null;
+
+  const updateMenuPosition = useCallback(() => {
+    if (typeof window === "undefined" || !buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const menuWidth = Math.max(Math.ceil(rect.width), 176);
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const margin = 8;
+    const estimatedHeight = Math.min(280, Math.max(120, options.length * 40 + 16));
+
+    let left = rect.left;
+    left = Math.max(margin, Math.min(left, viewportWidth - menuWidth - margin));
+
+    let top = rect.bottom + 6;
+    if (top + estimatedHeight > viewportHeight - margin) {
+      top = rect.top - estimatedHeight - 6;
+    }
+    top = Math.max(margin, top);
+
+    setMenuStyle({
+      position: "fixed",
+      top: `${Math.round(top)}px`,
+      left: `${Math.round(left)}px`,
+      minWidth: `${Math.round(menuWidth)}px`,
+    });
+  }, [options.length]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    updateMenuPosition();
+
+    const handlePointerDown = (event) => {
+      if (rootRef.current?.contains(event.target) || menuRef.current?.contains(event.target)) return;
+      setOpen(false);
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    const handleViewportChange = () => updateMenuPosition();
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("scroll", handleViewportChange, true);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("scroll", handleViewportChange, true);
+    };
+  }, [open, updateMenuPosition]);
+
+  useEffect(() => {
+    if (!open) return;
+    updateMenuPosition();
+  }, [open, selectedOption?.value, updateMenuPosition]);
+
+  const handleSelect = (option) => {
+    if (!option || option.disabled) return;
+    onChange?.(option.value);
+    setOpen(false);
+  };
+
+  const handleToggle = () => {
+    if (disabled || options.length <= 1) return;
+    setOpen((current) => !current);
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key === "Escape") {
+      setOpen(false);
+      return;
+    }
+    if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      if (!disabled && options.length > 1) setOpen(true);
+    }
+  };
+
+  const displayLabel = selectedOption ? (selectedOption.suffix ? `${selectedOption.label} - ${selectedOption.suffix}` : selectedOption.label) : label;
+
+  const menu = open && typeof document !== "undefined" && menuStyle
+    ? createPortal(
+      <div
+        ref={menuRef}
+        role="listbox"
+        aria-label={label}
+        style={menuStyle}
+        className="z-[9999] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] shadow-2xl shadow-black/45 backdrop-blur-xl"
       >
-        {options.map((option) => (
-          <option key={option.value || option.label} value={option.value} disabled={option.disabled}>
-            {option.suffix ? `${option.label} - ${option.suffix}` : option.label}
-          </option>
-        ))}
-      </select>
-    </label>
+        <div className="max-h-72 overflow-auto p-1.5">
+          {options.map((option) => {
+            const active = String(option.value) === String(value);
+            return (
+              <button
+                key={option.value || option.label}
+                type="button"
+                role="option"
+                aria-selected={active}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  handleSelect(option);
+                }}
+                className={`flex w-full items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-right text-[10px] font-black transition ${
+                  active
+                    ? "bg-[var(--primary-soft)] text-[var(--primary)]"
+                    : option.disabled
+                      ? "cursor-not-allowed text-[var(--muted)] opacity-60"
+                      : "text-[var(--text)] hover:bg-black/20"
+                }`}
+                disabled={option.disabled}
+              >
+                <span className="min-w-0 flex-1 truncate">{option.suffix ? `${option.label} - ${option.suffix}` : option.label}</span>
+                {active ? <Check className="h-3.5 w-3.5 shrink-0" /> : null}
+              </button>
+            );
+          })}
+        </div>
+      </div>,
+      document.body
+    )
+    : null;
+
+  return (
+    <>
+      <div ref={rootRef} className="relative inline-flex max-w-[8rem]">
+        <button
+          ref={buttonRef}
+          type="button"
+          onClick={handleToggle}
+          onKeyDown={handleKeyDown}
+          disabled={disabled || options.length <= 1}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          title={displayLabel}
+          className="inline-flex h-6 min-w-0 max-w-[8rem] items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-1.5 text-[10px] font-black text-[var(--text)] outline-none transition hover:border-[var(--primary)]/30 hover:bg-[var(--surface-soft)] disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          <span className="min-w-0 flex-1 truncate">{displayLabel}</span>
+          <ChevronDown className={`h-3 w-3 shrink-0 text-[var(--muted)] transition ${open ? "rotate-180" : ""}`} />
+        </button>
+      </div>
+      {menu}
+    </>
   );
 }
 
