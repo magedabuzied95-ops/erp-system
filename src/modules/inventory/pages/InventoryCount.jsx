@@ -1314,14 +1314,23 @@ function InventoryCountPage() {
     const positive = visibleItems.filter((item) => toNumber(item.difference_quantity, 0) > 0).length;
     const negative = visibleItems.filter((item) => toNumber(item.difference_quantity, 0) < 0).length;
     const absoluteDiff = visibleItems.reduce((sum, item) => sum + Math.abs(toNumber(item.difference_quantity, 0)), 0);
+    const countedQuantity = visibleItems.reduce((sum, item) => sum + toNumber(item.counted_quantity, 0), 0);
+    const systemQuantity = visibleItems.reduce((sum, item) => sum + toNumber(item.system_quantity, 0), 0);
     return {
       total: visibleItems.length,
       positive,
       negative,
       absoluteDiff,
       groups: visibleGroupedItems.length,
+      countedQuantity,
+      systemQuantity,
+      varianceQuantity: countedQuantity - systemQuantity,
     };
   }, [visibleGroupedItems]);
+  const countProgressPercent = Math.min(
+    100,
+    Math.round(((itemSummary.countedQuantity || 0) / Math.max(itemSummary.systemQuantity || itemSummary.countedQuantity || 1, 1)) * 100)
+  );
 
   const selectedBranchName = branches.find((branch) => String(branch.id) === String(newSessionForm.branchId))?.name || "";
   const selectedWarehouseName = warehouses.find((warehouse) => String(warehouse.id) === String(newSessionForm.warehouseId))?.name || "";
@@ -1363,7 +1372,7 @@ function InventoryCountPage() {
             <div className="space-y-4">
               {sessionError ? <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{sessionError}</div> : null}
 
-              <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+              <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -1468,17 +1477,35 @@ function InventoryCountPage() {
                 <div className="flex min-w-0 items-center justify-between gap-2">
                   <div className="min-w-0">
                     <h2 className="text-xl font-black text-white">البحث ومسح الباركود</h2>
-                    <p className="mt-1 text-sm text-zinc-400">ابحث بالباركود أو رمز الصنف، وإذا كان التطابق مباشرًا ستُضاف القطعة تلقائيًا.</p>
+                    <div className="mt-2 inline-flex max-w-full rounded-2xl border border-cyan-400/15 bg-cyan-400/10 px-3 py-2 text-[11px] font-bold leading-5 text-cyan-50">
+                      Inventory counts are submitted for review before final approval.
+                    </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => setScannerOpen(true)}
-                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-50 sm:inline-flex"
                     aria-label="فتح ماسح الكاميرا"
                     title="فتح ماسح الكاميرا"
                   >
                     <Camera className="h-4 w-4" />
                   </button>
+                </div>
+
+                <div className="mt-3 grid gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setScannerOpen(true)}
+                    className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black shadow-[0_10px_28px_rgba(16,185,129,0.22)] transition hover:bg-emerald-400"
+                  >
+                    <Camera className="h-4 w-4" />
+                    امسح الباركود
+                  </button>
+                  <div className="hidden items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500 sm:flex">
+                    <span className="h-px w-10 bg-white/10" />
+                    OR
+                    <span className="h-px w-10 bg-white/10" />
+                  </div>
                 </div>
 
                 <div className="mt-4 flex min-w-0 items-center gap-2">
@@ -1527,12 +1554,55 @@ function InventoryCountPage() {
                     onClick={() => {
                       setScannerOpen(true);
                     }}
-                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-50 sm:inline-flex"
                     aria-label="فتح ماسح الكاميرا"
                     title="فتح ماسح الكاميرا"
                   >
                     <Camera className="h-4 w-4" />
                   </button>
+                </div>
+
+                <div className="mt-3 grid gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLookupQuery("");
+                      setSelectedLookupProductId("");
+                      searchInputRef.current?.focus?.();
+                    }}
+                    className="inline-flex min-h-11 items-center gap-2 self-start rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-xs font-black text-white transition hover:bg-white/[0.08]"
+                  >
+                    + إضافة منتج يدوياً
+                  </button>
+
+                  <div className="grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 sm:grid-cols-3">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Products Counted</div>
+                      <div className="mt-1 text-lg font-black text-white">{itemSummary.groups}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Total Quantity Counted</div>
+                      <div className="mt-1 text-lg font-black text-white">{itemSummary.countedQuantity}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Variance Count</div>
+                      <div className={`mt-1 text-lg font-black ${itemSummary.varianceQuantity > 0 ? "text-rose-200" : itemSummary.varianceQuantity < 0 ? "text-amber-200" : "text-emerald-200"}`}>
+                        {itemSummary.varianceQuantity > 0 ? `+${itemSummary.varianceQuantity}` : itemSummary.varianceQuantity < 0 ? itemSummary.varianceQuantity : "0"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {session?.status === "in_progress" ? (
+                    <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-3 text-sm font-bold text-emerald-50">
+                      <div className="flex items-center justify-between gap-3">
+                        <span>{itemSummary.countedQuantity} units counted</span>
+                        <span className="text-emerald-100/80">{countProgressPercent}%</span>
+                      </div>
+                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+                        <div className="h-full rounded-full bg-emerald-400 transition-all duration-300" style={{ width: `${countProgressPercent}%` }} />
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 <InventoryCountFiltersModal
@@ -1636,15 +1706,17 @@ function InventoryCountPage() {
             </div>
 
             <div className="space-y-4">
-              <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+              <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
                 <h3 className="text-xl font-black text-white">بيانات الجلسة</h3>
-                <div className="mt-4 grid gap-3">
+                <div className="mt-3 grid gap-2">
                   <Field label="اسم الجلسة" value={newSessionForm.title} onChange={(value) => setNewSessionForm((current) => ({ ...current, title: value }))} />
                   <SelectField
                     label="الفرع"
                     value={newSessionForm.branchId}
                     onChange={(value) => setNewSessionForm((current) => ({ ...current, branchId: value }))}
                     options={[{ value: "", label: "بدون فرع" }, ...branches.map((branch) => ({ value: String(branch.id), label: branch.name }))]}
+                    compactAction
+                    badge={itemSummary.groups || 0}
                   />
                   <SelectField
                     label="المخزن"
@@ -1657,13 +1729,13 @@ function InventoryCountPage() {
                     <textarea
                       value={newSessionForm.notes}
                       onChange={(event) => setNewSessionForm((current) => ({ ...current, notes: event.target.value }))}
-                      rows={5}
-                      placeholder="ملاحظات عامة حول الجرد أو منطقة العمل"
-                      className="w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white outline-none placeholder:text-zinc-500"
-                    />
-                  </label>
-                </div>
-                <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-zinc-300">
+                    rows={4}
+                    placeholder="ملاحظات عامة حول الجرد أو منطقة العمل"
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                  />
+                </label>
+              </div>
+                <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-zinc-300">
                   <div className="flex items-center justify-between gap-3">
                     <span>عدد المجموعات</span>
                     <span className="font-black text-white">{itemSummary.groups}</span>
@@ -1675,9 +1747,9 @@ function InventoryCountPage() {
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
+              <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-4 shadow-2xl shadow-black/10">
                 <h3 className="text-xl font-black text-white">إرشادات</h3>
-                <ul className="mt-4 space-y-3 text-sm leading-7 text-zinc-300">
+                <ul className="mt-3 space-y-2 text-sm leading-6 text-zinc-300">
                   <li>• استخدم الماسح أو البحث السريع لإضافة قطعة مباشرة عند التطابق الدقيق.</li>
                   <li>• البحث باسم المنتج يعرض كروت مجمعة حسب المنتج واللون فقط.</li>
                   <li>• زر إضافة اللون للجرد يضيف كل المقاسات مرة واحدة بقيم فعلية صفرية.</li>
@@ -1897,21 +1969,27 @@ function Field({ label, value, onChange, placeholder = "" }) {
   );
 }
 
-function SelectField({ label, value, onChange, options = [] }) {
+function SelectField({ label, value, onChange, options = [], badge = null, compactAction = false }) {
   return (
     <label className="block">
-      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value} className="bg-zinc-950 text-white">
-            {option.label}
-          </option>
-        ))}
-      </select>
+      <div className="mb-2 flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+        <span>{label}</span>
+        {badge !== null ? <span className="inline-flex min-h-5 items-center justify-center rounded-full bg-white/10 px-2 text-[10px] font-black text-white">{badge}</span> : null}
+      </div>
+      <div className="relative">
+        <select
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className={`w-full appearance-none rounded-2xl border bg-white/5 py-3 text-sm text-white outline-none ${compactAction ? "cursor-pointer border-emerald-400/25 px-4 pr-12 font-black shadow-sm" : "border-white/10 px-4"}`}
+        >
+          {options.map((option) => (
+            <option key={option.value} value={option.value} className="bg-zinc-950 text-white">
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <ChevronLeft className={`pointer-events-none absolute end-4 top-1/2 h-4 w-4 -translate-y-1/2 ${compactAction ? "text-emerald-200" : "text-zinc-500"}`} />
+      </div>
     </label>
   );
 }
