@@ -9033,7 +9033,7 @@ function MobileBottomNav({ count }) {
   return (
     <nav
       dir="rtl"
-      className="sf-mobile-bottom-nav fixed inset-x-0 bottom-0 z-40 h-[calc(var(--mobile-bottom-nav-height)+var(--safe-bottom))] border-t border-white/10 bg-slate-950/[0.88] px-3 pb-[var(--safe-bottom)] pt-1.5 shadow-[0_-18px_46px_rgba(0,0,0,0.32),0_1px_0_rgba(255,255,255,0.05)_inset] backdrop-blur-2xl md:hidden"
+      className="sf-mobile-bottom-nav fixed inset-x-0 bottom-0 z-[48] h-[calc(var(--mobile-bottom-nav-height)+var(--safe-bottom))] border-t border-white/10 bg-slate-950/[0.88] px-3 pb-[var(--safe-bottom)] pt-1.5 shadow-[0_-18px_46px_rgba(0,0,0,0.32),0_1px_0_rgba(255,255,255,0.05)_inset] backdrop-blur-2xl md:hidden"
       aria-label={sfText("storefront.nav.mobileNavigation", "تنقل المتجر على الهاتف")}
     >
       <div className="mx-auto grid h-full w-full max-w-[25.5rem] min-w-0 grid-cols-5 items-center gap-0.5 overflow-hidden">
@@ -9049,21 +9049,21 @@ function MobileBottomNav({ count }) {
               className={[
                 "group relative flex min-h-[2.75rem] min-w-0 flex-col items-center justify-center gap-0 rounded-2xl px-0.5 text-[9.5px] font-semibold leading-none transition duration-300",
                 active
-                  ? "scale-[1.03] bg-white/12 text-white shadow-[0_0_24px_rgba(16,185,129,0.20)]"
-                  : "text-slate-400 hover:bg-white/[0.06] hover:text-slate-100",
+                  ? "scale-[1.03] bg-white/14 text-white shadow-[0_0_24px_rgba(124,58,237,0.22)]"
+                  : "text-slate-200/92 hover:bg-white/[0.08] hover:text-white",
               ].join(" ")}
             >
               <span
                 className={[
                   "grid h-6 w-6 place-items-center rounded-full transition duration-300",
-                  active ? "bg-emerald-400/16 text-emerald-200" : "text-slate-300 group-hover:text-white",
+                  active ? "bg-[#7c3aed]/18 text-white" : "text-slate-100/90 group-hover:text-white",
                 ].join(" ")}
               >
                 <Icon className="h-[17px] w-[17px]" strokeWidth={2.15} />
               </span>
-              <span className={`max-w-full truncate ${active ? "font-black text-white" : "font-semibold"}`}>{item.label}</span>
+              <span className={`max-w-full truncate ${active ? "font-black text-white" : "font-semibold text-slate-100/92"}`}>{item.label}</span>
               {item.id === "cart" && badgeCount > 0 ? (
-                <span className="absolute left-2 top-1 min-w-4 rounded-full border border-white/20 bg-rose-500 px-1.5 py-0.5 text-[8.5px] font-black leading-none text-white shadow-[0_0_14px_rgba(244,63,94,0.55)] animate-[pulse_1.8s_ease-in-out_infinite]">
+                <span className="absolute left-2 top-1 min-w-4 rounded-full border border-white/25 bg-rose-500 px-1.5 py-0.5 text-[8.5px] font-black leading-none text-white shadow-[0_0_14px_rgba(244,63,94,0.55)] animate-[pulse_1.8s_ease-in-out_infinite]">
                   {badgeCount > 99 ? "99+" : badgeCount}
                 </span>
               ) : null}
@@ -9322,15 +9322,14 @@ function MobileBuyBar({ product, variant, visible, onAddToCart, buyNow }) {
   return (
     <div
       dir="rtl"
-      className="sf-mobile-buy-bar fixed inset-x-3 z-30 mx-auto max-w-md rounded-[1rem] border border-white/[0.08] bg-[linear-gradient(180deg,#07111f_0%,#050b16_100%)] p-2 text-white shadow-[0_18px_48px_rgba(0,0,0,0.35)] backdrop-blur-xl transition md:hidden"
+      className="sf-mobile-buy-bar fixed inset-x-3 z-[52] mx-auto max-w-md rounded-[1rem] border border-[#a78bfa]/28 bg-[linear-gradient(135deg,#7c3aed,#6d28d9_55%,#4c1d95)] px-3 py-3 text-white shadow-[0_18px_48px_rgba(124,58,237,0.34),0_0_0_1px_rgba(196,181,253,0.16)_inset] transition md:hidden"
     >
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-1.5">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
         <div className="min-w-0">
           <div className="truncate text-xs font-black text-white">{cleanDisplayText(product.name)}</div>
-          <div className="text-sm font-black text-white/86">{money(displaySellingPrice(product, variant))}</div>
+          <div className="mt-0.5 text-sm font-black text-white">{money(displaySellingPrice(product, variant))}</div>
         </div>
-        <button onClick={onAddToCart} disabled={disabled} className="rounded-full bg-white px-3 py-2.5 text-xs font-black text-stone-950 shadow-[0_10px_24px_rgba(255,255,255,0.15)] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35 disabled:shadow-none">{sfText("storefront.cart.addToCart", "أضف إلى السلة")}</button>
-        <button onClick={buyNow} disabled={disabled} className="rounded-full border border-white/14 bg-white/[0.055] px-3 py-2.5 text-xs font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/[0.035] disabled:text-white/30">{sfText("storefront.cart.buyNow", "اشترِ الآن")}</button>
+        <button onClick={onAddToCart} disabled={disabled} className="inline-flex min-h-12 items-center justify-center rounded-full bg-white px-4 py-3 text-sm font-black text-stone-950 shadow-[0_10px_24px_rgba(255,255,255,0.16)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-white/18 disabled:text-white/55 disabled:shadow-none">{sfText("storefront.cart.addToCart", "أضف إلى السلة")}</button>
       </div>
     </div>
   );

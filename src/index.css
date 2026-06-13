@@ -509,7 +509,7 @@
     --mobile-bottom-nav-height: 64px;
     --checkout-sticky-actions-height: 0px;
     --sf-floating-gap: 10px;
-    --sf-mobile-buy-bar-bottom: calc(var(--mobile-bottom-nav-height, 64px) + var(--safe-bottom) + 0.75rem);
+    --sf-mobile-buy-bar-bottom: calc(var(--mobile-bottom-nav-height, 64px) + var(--safe-bottom) + 1rem);
     --sf-ai-chat-bottom: calc(
       var(--mobile-bottom-nav-height, 64px) +
       var(--product-sticky-actions-height, 0px) +
@@ -1752,18 +1752,27 @@
   }
 
   .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav a {
-    color: rgba(71, 85, 105, 0.9);
+    color: #334155 !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav a[aria-current="page"] {
-    background: rgba(124, 58, 237, 0.08) !important;
+    background: rgba(124, 58, 237, 0.12) !important;
     color: #0f172a !important;
-    box-shadow: 0 10px 24px rgba(124, 58, 237, 0.12) !important;
+    box-shadow: 0 12px 28px rgba(124, 58, 237, 0.16) !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav a[aria-current="page"] span:first-child {
-    background: rgba(124, 58, 237, 0.12) !important;
+    background: rgba(124, 58, 237, 0.16) !important;
     color: #6d28d9 !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav a span:first-child {
+    color: #334155 !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav a[aria-current="page"] span:last-child,
+  .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav a:hover span:last-child {
+    color: #0f172a !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-mobile-filter-trigger {
@@ -1783,15 +1792,13 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
   }
 
-  .storefront-shell:not(.storefront-dark) .sf-mobile-buy-bar,
-  .storefront-shell:not(.storefront-dark) .sf-cart-drawer {
+  .storefront-shell:not(.storefront-dark) .sf-mobile-buy-bar {
     background:
-      radial-gradient(circle at 18% 0%, rgba(124, 58, 237, 0.05), transparent 34%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.96)) !important;
-    color: var(--sf-light-text) !important;
+      linear-gradient(135deg, rgba(124, 58, 237, 0.98), rgba(109, 40, 217, 0.98) 56%, rgba(76, 29, 149, 0.98)) !important;
+    color: #ffffff !important;
     box-shadow:
-      0 18px 48px rgba(15, 23, 42, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.88) !important;
+      0 18px 48px rgba(124, 58, 237, 0.28),
+      0 0 0 1px rgba(255, 255, 255, 0.14) inset !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-cart-drawer-footer {
