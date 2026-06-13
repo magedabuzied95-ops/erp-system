@@ -7789,7 +7789,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                 </>
               )}
               <TextField label={sfText("storefront.checkout.fullAddress", "العنوان الكامل")} placeholder={sfText("storefront.checkout.fullAddressPlaceholder", "الشارع، رقم العمارة، الدور، الشقة")} value={form.detailed_address} onChange={(v) => setField("detailed_address", v)} required error={errors.detailed_address} />
-              <div className="md:col-span-2 rounded-[1.25rem] border border-white/10 bg-white/[0.035] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+              <div className="sf-checkout-bosta-card md:col-span-2 rounded-[1.25rem] border border-white/10 bg-white/[0.035] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs font-black uppercase tracking-[0.14em] text-white/54">{sfText("storefront.checkout.bostaAddressDetails", "تفاصيل عنوان Bosta")}</p>
                   {bostaMode ? <span className="rounded-full bg-cyan-300/15 px-2.5 py-1 text-[10px] font-black text-cyan-100">{sfText("storefront.checkout.requiredForBosta", "مطلوب لـ Bosta")}</span> : null}
@@ -8484,7 +8484,7 @@ function SuccessTimeline() {
 function Field({ label, value, onChange, required, error, inputMode, placeholder }) {
   return (
     <label className="sf-field sf-checkout-field block">
-      <span className="sf-field-label mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
+      <span className="sf-field-label sf-checkout-field-label mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
       <input required={required} inputMode={inputMode} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-2xl border bg-white/[0.055] px-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
       {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
     </label>
@@ -8494,7 +8494,7 @@ function Field({ label, value, onChange, required, error, inputMode, placeholder
 function TextField({ label, value, onChange, required, error, compact, placeholder }) {
   return (
     <label className="sf-checkout-field block md:col-span-2">
-      <span className="mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
+      <span className="sf-checkout-field-label mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
       <textarea required={required} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} rows={compact ? 2 : 3} className={`sf-field-input sf-checkout-field-input ${compact ? "sf-checkout-notes-textarea max-h-[90px]" : ""} w-full resize-y rounded-2xl border bg-white/[0.055] p-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
       {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
     </label>
@@ -8513,7 +8513,7 @@ function CityAreaField({ governorate, options, value, onChange, manual, onManual
 
   return (
     <div className="sf-checkout-field block">
-      <span className="mb-1.5 block text-sm font-black text-white/82">المدينة / المنطقة{required ? " *" : ""}</span>
+      <span className="sf-checkout-field-label mb-1.5 block text-sm font-black text-white/82">المدينة / المنطقة{required ? " *" : ""}</span>
       <Suspense fallback={<CityAreaNativeSelect governorate={governorate} options={selectOptions} value={manual ? MANUAL_CITY_AREA : value} onChange={onChange} required={required} error={error} />}>
         <Select
           instanceId="checkout-city-area"
@@ -8789,7 +8789,7 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
         <span className="min-w-0 flex-1 truncate text-start">{triggerLabel}</span>
         {loading ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[#c4b5fd]" /> : <ChevronLeft className={`h-4 w-4 shrink-0 text-white/60 transition ${open ? "rotate-[-90deg]" : ""}`} />}
       </button>
-      {helperText ? <p className="mt-1.5 text-xs font-bold text-white/46">{helperText}</p> : null}
+      {helperText ? <p className="sf-checkout-picker-text mt-1.5 text-xs font-bold text-white/46">{helperText}</p> : null}
       {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
 
       {open ? (
@@ -8956,7 +8956,7 @@ function MobileCartRow({ item, updateCart, removeFromCart }) {
       </div>
       <div className="mt-3 flex min-w-0 items-center justify-between gap-3">
         <QuantityStepper quantity={item.quantity} onMinus={() => updateCart(item.lineId, item.quantity - 1)} onPlus={() => updateCart(item.lineId, item.quantity + 1)} />
-        <button onClick={() => removeFromCart(item.lineId)} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-rose-300/20 bg-rose-500/10 text-rose-200 shadow-[0_10px_24px_rgba(244,63,94,0.10)] transition hover:bg-rose-500/16 hover:text-rose-100 active:scale-95" aria-label={sfText("storefront.cart.removeItem", "إزالة المنتج")}>
+        <button onClick={() => removeFromCart(item.lineId)} className="sf-cart-remove-button grid h-11 w-11 shrink-0 place-items-center rounded-full border border-rose-300/20 bg-rose-500/10 text-rose-200 shadow-[0_10px_24px_rgba(244,63,94,0.10)] transition hover:bg-rose-500/16 hover:text-rose-100 active:scale-95" aria-label={sfText("storefront.cart.removeItem", "إزالة المنتج")}>
           <Trash2 className="h-5 w-5" />
         </button>
       </div>
@@ -8966,12 +8966,12 @@ function MobileCartRow({ item, updateCart, removeFromCart }) {
 
 function QuantityStepper({ quantity, onMinus, onPlus }) {
   return (
-    <div className="sf-quantity-stepper inline-flex h-11 shrink-0 items-center gap-1 rounded-full border border-white/10 bg-black/20 p-1 shadow-inner shadow-black/30">
-      <button onClick={onMinus} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/[0.065] text-white/78 shadow-sm transition hover:bg-white/[0.10] hover:text-white active:scale-95" aria-label={sfText("storefront.cart.decreaseQuantity", "Decrease quantity")}>
+    <div className="sf-quantity-stepper sf-cart-quantity-stepper inline-flex h-11 shrink-0 items-center gap-1 rounded-full border border-white/10 bg-black/20 p-1 shadow-inner shadow-black/30">
+      <button onClick={onMinus} className="sf-cart-quantity-button grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/[0.065] text-white/78 shadow-sm transition hover:bg-white/[0.10] hover:text-white active:scale-95" aria-label={sfText("storefront.cart.decreaseQuantity", "Decrease quantity")}>
         <Minus className="h-4 w-4" />
       </button>
       <span className="min-w-9 px-1 text-center text-sm font-black tabular-nums text-white">{quantity}</span>
-      <button onClick={onPlus} className="grid h-9 w-9 place-items-center rounded-full border border-[#a78bfa]/30 bg-[#7c3aed]/24 text-white shadow-[0_10px_22px_rgba(124,58,237,0.16)] transition hover:bg-[#7c3aed]/34 active:scale-95" aria-label={sfText("storefront.cart.increaseQuantity", "Increase quantity")}>
+      <button onClick={onPlus} className="sf-cart-quantity-button grid h-9 w-9 place-items-center rounded-full border border-[#a78bfa]/30 bg-[#7c3aed]/24 text-white shadow-[0_10px_22px_rgba(124,58,237,0.16)] transition hover:bg-[#7c3aed]/34 active:scale-95" aria-label={sfText("storefront.cart.increaseQuantity", "Increase quantity")}>
         +
       </button>
     </div>
