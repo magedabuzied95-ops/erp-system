@@ -1134,6 +1134,117 @@ function EmployeeHeaderAvatar({ src = "", originalSrc = "", initials = "", alt =
   );
 }
 
+function EmployeeStatsCards({ cards = [] }) {
+  if (!cards.length) return null;
+
+  return (
+    <div className="relative z-0 mt-0 grid grid-cols-2 gap-2 [transform:none]">
+      {cards.map(({ label, value, subtitle, Icon, numeric, accent }) => {
+        const accentClasses = {
+          green: {
+            stripe: "bg-emerald-500",
+            iconWrap: "bg-emerald-50 text-emerald-700",
+          },
+          blue: {
+            stripe: "bg-sky-500",
+            iconWrap: "bg-sky-50 text-sky-700",
+          },
+          amber: {
+            stripe: "bg-amber-500",
+            iconWrap: "bg-amber-50 text-amber-700",
+          },
+          slate: {
+            stripe: "bg-slate-500",
+            iconWrap: "bg-slate-100 text-slate-700",
+          },
+        }[accent] || {
+          stripe: "bg-slate-500",
+          iconWrap: "bg-slate-100 text-slate-700",
+        };
+
+        return (
+          <div key={label} className="relative min-h-[84px] overflow-hidden rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
+            <span className={`absolute inset-y-3 right-0 w-1 rounded-l-full ${accentClasses.stripe}`} aria-hidden="true" />
+            <div className="flex items-start justify-between gap-2">
+              <div className="text-[10px] font-black leading-4 text-slate-500">{label}</div>
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl ${accentClasses.iconWrap}`}>
+                <Icon className="h-3.5 w-3.5" />
+              </span>
+            </div>
+            <div className={`mt-3 break-words text-[18px] font-black leading-5 tabular-nums text-slate-950 ${numeric ? "text-start" : ""}`} dir={numeric ? "ltr" : "auto"}>{value}</div>
+            <div className="mt-1 text-[10px] font-bold leading-4 text-slate-400">{subtitle}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function AttendancePanel({
+  attendanceSaving,
+  canCheckOutToday,
+  currentShift = {},
+  employeeStatus,
+  isCheckedIn,
+  onCheckIn,
+  onCheckOut,
+  portalNotice,
+  submitAttendanceAction,
+  text,
+  todayCheckIn,
+  ui,
+  workedMinutes,
+  language,
+}) {
+  return (
+    <section className="rounded-3xl bg-slate-950 p-3 text-white shadow-xl shadow-slate-300 md:p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-black text-slate-300">{text.attendanceTab}</div>
+          <h3 className="mt-1 text-xl font-black leading-7 md:text-2xl">{isCheckedIn ? ui("checkedIn") : ui("notCheckedIn")}</h3>
+        </div>
+        <span className={`rounded-full px-2.5 py-1 text-[11px] font-black md:px-3 md:text-xs ${isCheckedIn ? "bg-emerald-400 text-emerald-950" : "bg-white/10 text-white"}`}>{employeeStatus}</span>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-1.5 text-xs font-bold md:mt-4 md:gap-2">
+        <div className="rounded-2xl bg-white/10 px-2.5 py-2 md:p-3">
+          <div className="text-[11px] text-slate-300">{text.checkIn}</div>
+          <div className="mt-0.5 text-[13px] font-black md:mt-1 md:text-sm"><DateSafe>{formatTimeLocal(todayCheckIn, language)}</DateSafe></div>
+        </div>
+        <div className="rounded-2xl bg-white/10 px-2.5 py-2 md:p-3">
+          <div className="text-[11px] text-slate-300">{ui("workedToday")}</div>
+          <div className="mt-0.5 text-[13px] font-black md:mt-1 md:text-sm" dir="ltr">{formatMinutesShort(workedMinutes)}</div>
+        </div>
+        <div className="rounded-2xl bg-white/10 px-2.5 py-2 md:p-3">
+          <div className="text-[11px] text-slate-300">{ui("startTime")}</div>
+          <div className="mt-0.5 text-[13px] font-black md:mt-1 md:text-sm"><DateSafe>{formatShiftTimeLocal(currentShift.start_time || currentShift.startTime, language)}</DateSafe></div>
+        </div>
+        <div className="rounded-2xl bg-white/10 px-2.5 py-2 md:p-3">
+          <div className="text-[11px] text-slate-300">{ui("endTime")}</div>
+          <div className="mt-0.5 text-[13px] font-black md:mt-1 md:text-sm"><DateSafe>{formatShiftTimeLocal(currentShift.end_time || currentShift.endTime, language)}</DateSafe></div>
+        </div>
+      </div>
+      {todayCheckIn ? <div className="mt-2.5 text-[11px] font-bold text-slate-300 md:mt-3 md:text-xs">{ui("checkedInAt")} <DateSafe>{formatTimeLocal(todayCheckIn, language)}</DateSafe></div> : null}
+      <div className="mt-3 grid grid-cols-2 gap-2 md:mt-4">
+        <button type="button" onClick={() => onCheckIn()} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-3 text-sm font-black text-emerald-950 disabled:opacity-50">
+          {attendanceSaving === "check_in" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+          {text.checkIn}
+        </button>
+        {canCheckOutToday ? (
+          <button type="button" onClick={() => onCheckOut()} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-white px-3 text-sm font-black text-slate-950 disabled:opacity-50">
+            {attendanceSaving === "check_out" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
+            {text.checkOut}
+          </button>
+        ) : (
+          <div className="min-h-12 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center text-[11px] font-bold leading-5 text-slate-400">
+            {ui("notCheckedIn")}
+          </div>
+        )}
+      </div>
+      {portalNotice ? <div className="mt-2.5 rounded-2xl bg-white/10 px-3 py-2 text-sm font-bold leading-6 text-white md:mt-3" dir="auto">{portalNotice}</div> : null}
+    </section>
+  );
+}
+
 function HeaderBadgeButton({ count = 0, label, Icon, onClick, tone = "slate" }) {
   const toneClassName = {
     emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
@@ -1939,15 +2050,41 @@ export default function EmployeePayrollPortal() {
     }
   }, [displayRefillAlerts, displayRefillBarcodeSettings.autoPrintWhenDisplayed, printDisplayRefillBarcode, showPortalToast, token]);
 
-  const overviewCards = useMemo(() => {
+  const attendanceSummaryCards = useMemo(() => {
     if (!portal) return [];
     return [
-      { label: text.netSalary, value: payrollExists ? money(wallet.current_net_salary ?? portal.net_salary) : "-", icon: WalletCards, tone: "emerald" },
-      { label: text.totalAdvances, value: money(wallet.total_advances ?? portal.advances), icon: CreditCard, tone: "amber" },
-      { label: text.pendingCommissions, value: money(wallet.pending_commissions), icon: Coins, tone: "sky" },
-      { label: text.totalDeductions, value: money(wallet.total_deductions ?? portal.total_deductions), icon: ReceiptText, tone: "red" },
+      {
+        label: ui("attendanceDays"),
+        value: `${presentDays} ${ui("daysUnit")}`,
+        subtitle: `${ui("fromTotalDays")} ${expectedDays} ${ui("daysUnit")}`,
+        Icon: CalendarDays,
+        accent: "green",
+      },
+      {
+        label: ui("pendingTasks"),
+        value: pendingTasks.length,
+        subtitle: ui("openTasksSubtitle"),
+        Icon: ClipboardList,
+        accent: "slate",
+      },
+      {
+        label: text.advances,
+        value: money(wallet.total_advances ?? portal.advances),
+        subtitle: ui("totalAdvancesSubtitle"),
+        Icon: CreditCard,
+        numeric: true,
+        accent: "amber",
+      },
+      {
+        label: text.netSalary,
+        value: payrollExists ? money(wallet.current_net_salary ?? portal.net_salary) : "-",
+        subtitle: portal.current_payroll_period || ui("currentMonthSubtitle"),
+        Icon: WalletCards,
+        numeric: true,
+        accent: "blue",
+      },
     ];
-  }, [payrollExists, portal, text, wallet]);
+  }, [expectedDays, payrollExists, pendingTasks.length, portal, presentDays, text, ui, wallet]);
 
   const payslipCards = useMemo(() => {
     if (!portal) return [];
@@ -3108,81 +3245,7 @@ export default function EmployeePayrollPortal() {
 
             {activeTab === "home" ? (
               <>
-                <div className="relative z-0 mt-0 grid grid-cols-2 gap-2 [transform:none]">
-                  {[
-                    {
-                      label: ui("attendanceDays"),
-                      value: `${presentDays} ${ui("daysUnit")}`,
-                      subtitle: `${ui("fromTotalDays")} ${expectedDays} ${ui("daysUnit")}`,
-                      Icon: CalendarDays,
-                      accent: "green",
-                    },
-                    {
-                      label: ui("pendingTasks"),
-                      value: pendingTasks.length,
-                      subtitle: ui("openTasksSubtitle"),
-                      Icon: ClipboardList,
-                      accent: "slate",
-                    },
-                    {
-                      label: text.advances,
-                      value: money(wallet.total_advances ?? portal.advances),
-                      subtitle: ui("totalAdvancesSubtitle"),
-                      Icon: CreditCard,
-                      numeric: true,
-                      accent: "amber",
-                    },
-                    {
-                      label: text.netSalary,
-                      value: payrollExists ? money(wallet.current_net_salary ?? portal.net_salary) : "-",
-                      subtitle: portal.current_payroll_period || ui("currentMonthSubtitle"),
-                      Icon: WalletCards,
-                      numeric: true,
-                      accent: "blue",
-                    },
-                  ].map(({ label, value, subtitle, Icon, numeric, accent }) => {
-                    const accentClasses = {
-                      green: {
-                        stripe: "bg-emerald-500",
-                        iconWrap: "bg-emerald-50 text-emerald-700",
-                      },
-                      blue: {
-                        stripe: "bg-sky-500",
-                        iconWrap: "bg-sky-50 text-sky-700",
-                      },
-                      amber: {
-                        stripe: "bg-amber-500",
-                        iconWrap: "bg-amber-50 text-amber-700",
-                      },
-                      slate: {
-                        stripe: "bg-slate-500",
-                        iconWrap: "bg-slate-100 text-slate-700",
-                      },
-                    }[accent] || {
-                      stripe: "bg-slate-500",
-                      iconWrap: "bg-slate-100 text-slate-700",
-                    };
-
-                    return (
-                    <div key={label} className="relative min-h-[84px] overflow-hidden rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
-                      <span className={`absolute inset-y-3 right-0 w-1 rounded-l-full ${accentClasses.stripe}`} aria-hidden="true" />
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="text-[10px] font-black leading-4 text-slate-500">{label}</div>
-                        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl ${accentClasses.iconWrap}`}>
-                          <Icon className="h-3.5 w-3.5" />
-                        </span>
-                      </div>
-                      <div className={`mt-3 break-words text-[18px] font-black leading-5 tabular-nums text-slate-950 ${numeric ? "text-start" : ""}`} dir={numeric ? "ltr" : "auto"}>{value}</div>
-                      <div className="mt-1 text-[10px] font-bold leading-4 text-slate-400">{subtitle}</div>
-                    </div>
-                  );})}
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <button type="button" onClick={() => submitAttendanceAction("check_in")} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-emerald-600 px-3 text-[11px] font-black text-white shadow-sm disabled:opacity-50">
-                    {attendanceSaving === "check_in" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                    <span className="truncate">{text.checkIn}</span>
-                  </button>
+                <div className="grid grid-cols-2 gap-2">
                   <button type="button" onClick={() => setActiveTab("requests")} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-800 shadow-sm">
                     <MessageCircle className="h-3.5 w-3.5 shrink-0" />
                     <span className="truncate">{ui("advanceRequest")}</span>
@@ -3198,41 +3261,6 @@ export default function EmployeePayrollPortal() {
                     <span className="truncate">{ui("talkToManagement")}</span>
                   </button>
                 </div>
-
-                <section className="rounded-3xl bg-slate-950 p-3 text-white shadow-xl shadow-slate-300 md:p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-xs font-black text-slate-300">{text.attendanceTab}</div>
-                      <h3 className="mt-1 text-xl font-black leading-7 md:text-2xl">{isCheckedIn ? ui("checkedIn") : ui("notCheckedIn")}</h3>
-                    </div>
-                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-black md:px-3 md:text-xs ${isCheckedIn ? "bg-emerald-400 text-emerald-950" : "bg-white/10 text-white"}`}>{employeeStatus}</span>
-                  </div>
-                  <div className="mt-3 grid grid-cols-2 gap-1.5 text-xs font-bold md:mt-4 md:gap-2">
-                    <div className="rounded-2xl bg-white/10 px-2.5 py-2 md:p-3"><div className="text-[11px] text-slate-300">{text.checkIn}</div><div className="mt-0.5 text-[13px] font-black md:mt-1 md:text-sm"><DateSafe>{formatTimeLocal(todayCheckIn, language)}</DateSafe></div></div>
-                    <div className="rounded-2xl bg-white/10 px-2.5 py-2 md:p-3"><div className="text-[11px] text-slate-300">{ui("workedToday")}</div><div className="mt-0.5 text-[13px] font-black md:mt-1 md:text-sm" dir="ltr">{formatMinutesShort(workedMinutes)}</div></div>
-                    <div className="rounded-2xl bg-white/10 px-2.5 py-2 md:p-3"><div className="text-[11px] text-slate-300">{ui("startTime")}</div><div className="mt-0.5 text-[13px] font-black md:mt-1 md:text-sm"><DateSafe>{formatShiftTimeLocal(currentShift.start_time || currentShift.startTime, language)}</DateSafe></div></div>
-                    <div className="rounded-2xl bg-white/10 px-2.5 py-2 md:p-3"><div className="text-[11px] text-slate-300">{ui("endTime")}</div><div className="mt-0.5 text-[13px] font-black md:mt-1 md:text-sm"><DateSafe>{formatShiftTimeLocal(currentShift.end_time || currentShift.endTime, language)}</DateSafe></div></div>
-                  </div>
-                  {todayCheckIn ? <div className="mt-2.5 text-[11px] font-bold text-slate-300 md:mt-3 md:text-xs">{ui("checkedInAt")} <DateSafe>{formatTimeLocal(todayCheckIn, language)}</DateSafe></div> : null}
-                  <div className="mt-3 grid grid-cols-2 gap-2 md:mt-4">
-                    <button type="button" onClick={() => submitAttendanceAction("check_in")} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-3 text-sm font-black text-emerald-950 disabled:opacity-50">
-                      {attendanceSaving === "check_in" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                      {text.checkIn}
-                    </button>
-                    {canCheckOutToday ? (
-                      <button type="button" onClick={() => submitAttendanceAction("check_out")} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-white px-3 text-sm font-black text-slate-950 disabled:opacity-50">
-                        {attendanceSaving === "check_out" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
-                        {text.checkOut}
-                      </button>
-                    ) : (
-                      <div className="min-h-12 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-center text-[11px] font-bold leading-5 text-slate-400">
-                        {ui("notCheckedIn")}
-                      </div>
-                    )}
-                  </div>
-                  {portalNotice ? <div className="mt-2.5 rounded-2xl bg-white/10 px-3 py-2 text-sm font-bold leading-6 text-white md:mt-3" dir="auto">{portalNotice}</div> : null}
-                </section>
-
                 </>
               ) : null}
 
@@ -3358,35 +3386,57 @@ export default function EmployeePayrollPortal() {
               </button>
             </div> : null}
 
-            {activeTab === "attendance" ? <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="text-base font-black">{text.attendanceSummary}</h3>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-sm font-bold">
-                <div className="rounded-2xl bg-slate-50 p-3">
-                  <div className="text-slate-500">{text.presentDays}</div>
-                  <div className="mt-1 text-xl font-black tabular-nums">{attendance.attended_days || 0}</div>
+            {activeTab === "attendance" ? (
+              <>
+                <EmployeeStatsCards cards={attendanceSummaryCards} />
+
+                <AttendancePanel
+                  attendanceSaving={attendanceSaving}
+                  canCheckOutToday={canCheckOutToday}
+                  currentShift={currentShift}
+                  employeeStatus={employeeStatus}
+                  isCheckedIn={isCheckedIn}
+                  onCheckIn={() => submitAttendanceAction("check_in")}
+                  onCheckOut={() => submitAttendanceAction("check_out")}
+                  portalNotice={portalNotice}
+                  text={text}
+                  todayCheckIn={todayCheckIn}
+                  ui={ui}
+                  workedMinutes={workedMinutes}
+                  language={language}
+                />
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <h3 className="text-base font-black">{text.attendanceSummary}</h3>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm font-bold">
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-slate-500">{text.presentDays}</div>
+                      <div className="mt-1 text-xl font-black tabular-nums">{attendance.attended_days || 0}</div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-slate-500">{text.absentDays}</div>
+                      <div className="mt-1 text-xl font-black tabular-nums">{attendance.absence_days || 0}</div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-slate-500">{text.lateDays}</div>
+                      <div className="mt-1 text-xl font-black tabular-nums">{attendance.late_days || 0}</div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-slate-500">{text.overtimeHours}</div>
+                      <div className="mt-1 text-xl font-black tabular-nums">{attendance.overtime_hours || 0}</div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-3">
+                      <div className="text-slate-500">{ui("attendedDays")}</div>
+                      <div className="mt-1 text-xl font-black tabular-nums" dir="ltr">{presentDays} / {expectedDays} {ui("attendedDaysSuffix")}</div>
+                    </div>
+                    <div className="rounded-2xl bg-red-50 p-3 text-red-950">
+                      <div className="text-red-700">{text.deductedAbsenceAmount}</div>
+                      <div className="mt-1 text-xl font-black tabular-nums" dir="ltr">{money(attendance.deducted_absence_amount || portal.absence_deduction || 0)}</div>
+                    </div>
+                  </div>
                 </div>
-                <div className="rounded-2xl bg-slate-50 p-3">
-                  <div className="text-slate-500">{text.absentDays}</div>
-                  <div className="mt-1 text-xl font-black tabular-nums">{attendance.absence_days || 0}</div>
-                </div>
-                <div className="rounded-2xl bg-slate-50 p-3">
-                  <div className="text-slate-500">{text.lateDays}</div>
-                  <div className="mt-1 text-xl font-black tabular-nums">{attendance.late_days || 0}</div>
-                </div>
-                <div className="rounded-2xl bg-slate-50 p-3">
-                  <div className="text-slate-500">{text.overtimeHours}</div>
-                  <div className="mt-1 text-xl font-black tabular-nums">{attendance.overtime_hours || 0}</div>
-                </div>
-                <div className="rounded-2xl bg-slate-50 p-3">
-                  <div className="text-slate-500">{ui("attendedDays")}</div>
-                  <div className="mt-1 text-xl font-black tabular-nums" dir="ltr">{presentDays} / {expectedDays} {ui("attendedDaysSuffix")}</div>
-                </div>
-                <div className="rounded-2xl bg-red-50 p-3 text-red-950">
-                  <div className="text-red-700">{text.deductedAbsenceAmount}</div>
-                  <div className="mt-1 text-xl font-black tabular-nums" dir="ltr">{money(attendance.deducted_absence_amount || portal.absence_deduction || 0)}</div>
-                </div>
-              </div>
-            </div> : null}
+              </>
+            ) : null}
 
             {activeTab === "attendance" ? <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
