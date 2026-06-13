@@ -26,7 +26,8 @@ import BarcodeScanner from "../../../components/BarcodeScanner";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
-import { normalizePosCatalogProduct } from "../../pos/services/posProductsApi";
+import { normalizePosCatalogProduct, normalizePosSellableProducts } from "../../pos/services/posProductsApi";
+import { getEmployeePortalProducts } from "../services/employeePortalProductsApi";
 import {
   createEmployeePortalInventorySession,
   getEmployeePortalInventorySession,
@@ -218,6 +219,11 @@ const sessionFilters = [
   { value: "all", label: "الكل", statuses: null },
 ];
 
+const buildCatalogParams = () => ({
+  limit: 120,
+  inStockOnly: 1,
+});
+
 const normalizeVariant = (record = {}) => {
   const productId = record.product_id ?? record.productId ?? null;
   const variantId = record.product_variant_id ?? record.variant_id ?? record.variantId ?? record.id ?? null;
@@ -294,6 +300,10 @@ const normalizeInventoryFilterRecord = (record = {}) => {
     gender: clean(normalizedProduct.gender || record.gender || normalizedVariant.gender),
   };
 };
+
+const normalizeInventoryCatalog = (payload = []) =>
+  normalizePosSellableProducts(Array.isArray(payload) ? payload : [])
+    .map((product) => normalizePosCatalogProduct(product));
 
 const groupVariants = (records = []) => {
   const groups = new Map();
@@ -420,6 +430,7 @@ export default function EmployeePortalInventory() {
   const [sessionSubmitting, setSessionSubmitting] = useState(false);
   const [sessionReopening, setSessionReopening] = useState(false);
   const [itemSavingId, setItemSavingId] = useState("");
+  const [catalogProducts, setCatalogProducts] = useState([]);
   const [lookupQuery, setLookupQuery] = useState("");
   const [lookupResults, setLookupResults] = useState([]);
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -457,6 +468,26 @@ export default function EmployeePortalInventory() {
   useEffect(() => {
     itemSavingIdRef.current = itemSavingId;
   }, [itemSavingId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await getEmployeePortalProducts(token, buildCatalogParams());
+        if (cancelled) return;
+        setCatalogProducts(normalizeInventoryCatalog(response?.products));
+      } catch (error) {
+        if (cancelled) return;
+        console.warn("[employee-portal-inventory] catalog load failed", error);
+        setCatalogProducts([]);
+      }
+    }, 180);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [token]);
 
   useEffect(
     () => () => {
@@ -554,6 +585,26 @@ export default function EmployeePortalInventory() {
   }, [sessionSearch, sessions, statusFilter]);
 
   const groupedItems = useMemo(() => groupVariants(items), [items]);
+  const inventoryCatalogSource = useMemo(() => {
+    const seen = new Set();
+    const records = [];
+    for (const record of catalogProducts) {
+      const variant = normalizeInventoryFilterRecord(record);
+      const key = [
+        variant.product_id,
+        variant.product_name,
+        variant.color,
+        variant.size,
+        variant.sku,
+        variant.barcode,
+        variant.article_code,
+      ].map((value) => clean(value)).join("::");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      records.push(variant);
+    }
+    return records;
+  }, [catalogProducts]);
   const inventoryFilterSource = useMemo(() => {
     const seen = new Set();
     const records = [];
@@ -575,13 +626,13 @@ export default function EmployeePortalInventory() {
     return records;
   }, [items, lookupResults]);
   const filterOptions = useMemo(() => {
-    const categories = uniqueTextValues(inventoryFilterSource.map((record) => record.category));
-    const types = uniqueTextValues(inventoryFilterSource.map((record) => record.type));
-    const brands = uniqueTextValues(inventoryFilterSource.map((record) => record.brand));
-    const manufacturers = uniqueTextValues(inventoryFilterSource.map((record) => record.manufacturer_name));
-    const genders = uniqueTextValues(inventoryFilterSource.map((record) => record.gender));
+    const categories = uniqueTextValues(inventoryCatalogSource.map((record) => record.category));
+    const types = uniqueTextValues(inventoryCatalogSource.map((record) => record.type));
+    const brands = uniqueTextValues(inventoryCatalogSource.map((record) => record.brand));
+    const manufacturers = uniqueTextValues(inventoryCatalogSource.map((record) => record.manufacturer_name));
+    const genders = uniqueTextValues(inventoryCatalogSource.map((record) => record.gender));
     return { categories, types, brands, manufacturers, genders };
-  }, [inventoryFilterSource]);
+  }, [inventoryCatalogSource]);
   const optionWithCounts = useCallback((values, records, valueForRecord) => values.map((value) => ({
     id: value,
     name: value,
@@ -596,12 +647,27 @@ export default function EmployeePortalInventory() {
     [filters, selectedFilterSize]
   );
   const smartFilterOptions = useMemo(() => ({
-    gender: optionWithCounts(filterOptions.genders, inventoryFilterSource, (record) => record.gender),
-    productType: optionWithCounts(filterOptions.types, inventoryFilterSource, (record) => record.type),
-    grade: optionWithCounts(filterOptions.categories, inventoryFilterSource, (record) => record.category),
-  }), [filterOptions, inventoryFilterSource, optionWithCounts]);
+    gender: optionWithCounts(filterOptions.genders, inventoryCatalogSource, (record) => record.gender),
+    productType: optionWithCounts(filterOptions.types, inventoryCatalogSource, (record) => record.type),
+    grade: optionWithCounts(filterOptions.categories, inventoryCatalogSource, (record) => record.category),
+  }), [filterOptions, inventoryCatalogSource, optionWithCounts]);
   const brandOptions = useMemo(() => filterOptions.brands.map((brand) => ({ id: brand, name: brand })), [filterOptions.brands]);
   const manufacturerOptions = useMemo(() => filterOptions.manufacturers.map((manufacturer) => ({ id: manufacturer, name: manufacturer })), [filterOptions.manufacturers]);
+  const filterGroups = useMemo(() => {
+    const sizeCount = new Set(inventoryCatalogSource.map((record) => clean(record.size)).filter(Boolean)).size;
+    return [
+      { key: "gender", title: "Gender", count: smartFilterOptions.gender?.length || 0 },
+      { key: "productType", title: "Product type", count: smartFilterOptions.productType?.length || 0 },
+      { key: "grade", title: "Grade", count: smartFilterOptions.grade?.length || 0 },
+      { key: "size", title: "Size", count: sizeCount },
+      { key: "brand", title: "Brand", count: brandOptions.length },
+      { key: "manufacturer", title: "Manufacturer", count: manufacturerOptions.length },
+    ];
+  }, [inventoryCatalogSource, brandOptions.length, manufacturerOptions.length, smartFilterOptions.gender, smartFilterOptions.productType, smartFilterOptions.grade]);
+  const filterDebugText = useMemo(() => {
+    const sizeCount = new Set(inventoryCatalogSource.map((record) => clean(record.size)).filter(Boolean)).size;
+    return `Filters debug: gender=${smartFilterOptions.gender?.length || 0}, productType=${smartFilterOptions.productType?.length || 0}, grade=${smartFilterOptions.grade?.length || 0}, size=${sizeCount}, brand=${brandOptions.length}, manufacturer=${manufacturerOptions.length}`;
+  }, [inventoryCatalogSource, brandOptions.length, manufacturerOptions.length, smartFilterOptions.gender, smartFilterOptions.productType, smartFilterOptions.grade]);
   const resetFilters = useCallback(() => {
     setFilters({
       category: "all",
@@ -637,14 +703,14 @@ export default function EmployeePortalInventory() {
   );
   const lookupGroups = useMemo(() => groupVariants(filteredLookupResults), [filteredLookupResults]);
   const availableSizes = useMemo(() => {
-    const filteredBaseRecords = inventoryFilterSource.filter(matchesInventoryBaseFilters);
+    const filteredBaseRecords = inventoryCatalogSource.filter(matchesInventoryBaseFilters);
     const sizes = new Map();
     for (const record of filteredBaseRecords) {
       if (!record.size) continue;
       sizes.set(record.size, (sizes.get(record.size) || 0) + 1);
     }
     return sortSizes([...sizes.entries()].map(([id, count]) => ({ id, name: id, count })));
-  }, [inventoryFilterSource, matchesInventoryBaseFilters]);
+  }, [inventoryCatalogSource, matchesInventoryBaseFilters]);
 
   useEffect(() => {
     if (selectedFilterSize === "all") return;
@@ -1370,8 +1436,7 @@ export default function EmployeePortalInventory() {
                         <Loader2 className="h-4 w-4 animate-spin" />
                         جاري البحث...
                       </div>
-                    ) : null}
-                  </div>
+                    ) : null}                  </div>
                   {lookupGroups.length ? (
                     <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-2">
                       {lookupGroups.map((group) => (
