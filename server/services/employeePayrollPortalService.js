@@ -2469,6 +2469,7 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
         WHERE id = $16::bigint
           AND tenant_id = $1::bigint
           AND employee_id = $2::bigint
+          AND attendance_date = $3::date
         RETURNING *
         `,
         [...updateParams, attendanceRecordId],
