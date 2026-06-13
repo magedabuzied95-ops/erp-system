@@ -7724,8 +7724,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
           </CheckoutSection> : null}
           {checkoutStep === 2 ? <CheckoutSection number="2" title={sfText("storefront.checkout.sections.address", "عنوان التسليم")} note={sfText("storefront.checkout.addressNote", "اكتب العنوان الكامل حتى يصل إليك المندوب بسرعة")}>
             {latestAddressApplied ? (
-              <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black leading-5 text-emerald-100">
-                <span>{sfText("storefront.checkout.latestAddressApplied", "We used your latest saved shipping address. You can edit it.")}</span>
+              <div className="sf-checkout-address-success mb-3 flex items-center justify-between gap-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black leading-5 text-emerald-100">
+                <span className="sf-checkout-address-success-text">{sfText("storefront.checkout.latestAddressApplied", "We used your latest saved shipping address. You can edit it.")}</span>
                 <button type="button" onClick={useNewAddress} className="shrink-0 rounded-full border border-emerald-200/20 bg-white/10 px-3 py-1 text-[10px] font-black text-white transition hover:bg-white/15">
                   استخدم عنوان جديد
                 </button>
@@ -8426,8 +8426,8 @@ function TrustPills({ compact = false }) {
     <div className={`sf-checkout-trust-pills grid grid-cols-2 gap-2 text-xs font-black text-white/70 ${compact ? "sm:grid-cols-4" : "sm:grid-cols-2"}`}>
       {items.map(([label, icon]) => (
         <span key={label} className="sf-checkout-trust-pill inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.055] px-3 py-2 shadow-[0_10px_28px_rgba(0,0,0,0.18)] backdrop-blur-xl">
-          <span className="text-[#c4b5fd]">{icon}</span>
-          <span className="truncate">{label}</span>
+          <span className="sf-checkout-trust-pill-icon text-[#c4b5fd]">{icon}</span>
+          <span className="sf-checkout-trust-pill-text truncate">{label}</span>
         </span>
       ))}
     </div>
