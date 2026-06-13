@@ -2903,6 +2903,25 @@ export default function EmployeePayrollPortal() {
             <div className="h-6 shrink-0" aria-hidden="true" />
 
             {showHomeTabSections ? (
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setActiveTab("requests")} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-800 shadow-sm">
+                  <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{ui("advanceRequest")}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setChatOpen(true);
+                  }}
+                  className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-slate-950 px-3 text-[11px] font-black text-white shadow-sm"
+                >
+                  <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{ui("talkToManagement")}</span>
+                </button>
+              </div>
+            ) : null}
+
+            {showHomeTabSections ? (
               <section className="rounded-[28px] border border-slate-800 bg-[linear-gradient(180deg,#0b1220,#111827)] p-4 text-white shadow-[0_16px_30px_rgba(2,6,23,0.18)]">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -3245,27 +3264,6 @@ export default function EmployeePayrollPortal() {
                 </div>
               </div>
             ) : null}
-
-            {activeTab === "home" ? (
-              <>
-                <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => setActiveTab("requests")} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-800 shadow-sm">
-                    <MessageCircle className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{ui("advanceRequest")}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setChatOpen(true);
-                    }}
-                    className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-slate-950 px-3 text-[11px] font-black text-white shadow-sm"
-                  >
-                    <MessageCircle className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{ui("talkToManagement")}</span>
-                  </button>
-                </div>
-                </>
-              ) : null}
 
             <nav className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 mx-auto grid max-w-md grid-cols-7 gap-0.5 rounded-2xl border border-slate-200 bg-white/95 p-1 shadow-lg backdrop-blur">
               {mobileTabs.map(([key, label, Icon]) => (
