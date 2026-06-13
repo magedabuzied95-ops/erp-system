@@ -3473,11 +3473,11 @@ const Header = memo(function Header({ cartCount, wishlistCount, onCart, onAddToC
       data-compact={!compactDisabled && isCompact ? "true" : "false"}
       className="sf-luxury-header sticky top-0 z-40 border-b border-stone-200/70 bg-[#fcfaf6]/88 shadow-[0_16px_48px_rgba(39,20,75,0.07)] backdrop-blur-2xl transition-all duration-300 dark:border-white/10 dark:bg-[#090d18]/92 dark:shadow-[0_16px_48px_rgba(0,0,0,0.28)]"
     >
-      <div className="sf-announcement-row h-10 overflow-hidden bg-[linear-gradient(105deg,#09090b,#1c1917_42%,#312e81)] text-white/90 backdrop-blur transition-all duration-300">
+      <div className="sf-announcement-row sf-header-announcement h-10 overflow-hidden bg-[linear-gradient(105deg,#09090b,#1c1917_42%,#312e81)] text-white/90 backdrop-blur transition-all duration-300">
         <div className="sf-announcement-track h-full">
           {[...announcementItems, ...announcementItems].map((item, index) => (
             <span key={`${item.label}-${index}`} className="inline-flex h-full items-center gap-2 px-7 text-[12px] font-medium tracking-wide text-stone-100/95">
-              <span className="text-white/72">{item.icon}</span>
+              <span className="sf-header-announcement-icon text-white/72">{item.icon}</span>
               {item.label}
             </span>
           ))}
@@ -3508,15 +3508,15 @@ const Header = memo(function Header({ cartCount, wishlistCount, onCart, onAddToC
           </div>
         </div>
       </div>
-      <div className="sf-main-row mx-auto grid max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2.5 transition-all duration-300 md:grid-cols-[auto_auto_minmax(320px,520px)_auto] md:gap-5 md:py-3">
+      <div className="sf-main-row sf-header-main mx-auto grid max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2.5 transition-all duration-300 md:grid-cols-[auto_auto_minmax(320px,520px)_auto] md:gap-5 md:py-3">
         <button className="grid h-11 w-11 place-items-center rounded-2xl border border-stone-200/80 bg-white/70 transition hover:border-stone-300 hover:bg-white active:scale-95 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 md:hidden" onClick={() => setMenuOpen((value) => !value)} aria-label={t("storefront.header.menu", "Menu")}>
           {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </button>
-        <Link to="/shop" className="group inline-flex items-center gap-2 text-stone-950 transition hover:text-[#6d28d9] dark:text-white">
-          <span className="grid h-10 w-10 place-items-center rounded-2xl bg-stone-950 text-sm font-black tracking-[0.18em] text-white shadow-[0_12px_30px_rgba(28,25,23,0.16)] transition group-hover:scale-105 group-hover:bg-[#6d28d9] dark:bg-white dark:text-stone-950 dark:group-hover:text-white">MS</span>
+        <Link to="/shop" className="sf-header-logo group inline-flex items-center gap-2 text-stone-950 transition hover:text-[#6d28d9] dark:text-white">
+          <span className="sf-header-logo-chip grid h-10 w-10 place-items-center rounded-2xl bg-stone-950 text-sm font-black tracking-[0.18em] text-white shadow-[0_12px_30px_rgba(28,25,23,0.16)] transition group-hover:scale-105 group-hover:bg-[#6d28d9] dark:bg-white dark:text-stone-950 dark:group-hover:text-white">MS</span>
           <span className="hidden leading-none sm:block">
-            <span className="block text-xl font-black tracking-[0.18em]">MONE</span>
-            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.32em] text-stone-500 dark:text-stone-400">{t("storefront.header.tagline", "Premium Shoes")}</span>
+            <span className="sf-header-logo-title block text-xl font-black tracking-[0.18em]">MONE</span>
+            <span className="sf-header-logo-subtitle mt-1 block text-[10px] font-semibold uppercase tracking-[0.32em] text-stone-500 dark:text-stone-400">{t("storefront.header.tagline", "Premium Shoes")}</span>
           </span>
         </Link>
         <nav className="sf-collapsible-nav hidden items-center gap-1 text-sm font-bold text-stone-700 dark:text-stone-300 md:flex">
@@ -3524,7 +3524,7 @@ const Header = memo(function Header({ cartCount, wishlistCount, onCart, onAddToC
             <NavLink
               key={label}
               to={to}
-              className={({ isActive }) => `sf-nav-link relative rounded-full px-3 py-2 transition ${isActive ? "text-stone-950 dark:text-white" : "hover:text-stone-950 dark:hover:text-white"}`}
+              className={({ isActive }) => `sf-nav-link sf-header-nav-link relative rounded-full px-3 py-2 transition ${isActive ? "text-stone-950 dark:text-white" : "hover:text-stone-950 dark:hover:text-white"}`}
             >
               {label}
             </NavLink>
@@ -3594,9 +3594,9 @@ const Header = memo(function Header({ cartCount, wishlistCount, onCart, onAddToC
             setSearchOpen(true);
             setMobileSearchOpen(true);
           }}
-          className="flex h-12 w-full items-center gap-3 rounded-2xl border border-stone-200/90 bg-white/70 px-4 text-right text-sm font-bold text-stone-500 shadow-[0_12px_32px_rgba(39,20,75,0.055)] backdrop-blur dark:border-white/10 dark:bg-white/6 dark:text-stone-400"
+          className="sf-mobile-search-trigger flex h-12 w-full items-center gap-3 rounded-2xl border border-stone-200/90 bg-white/70 px-4 text-right text-sm font-bold text-stone-500 shadow-[0_12px_32px_rgba(39,20,75,0.055)] backdrop-blur dark:border-white/10 dark:bg-white/6 dark:text-stone-400"
         >
-          <Search className="h-4.5 w-4.5 text-[#7c3aed]" />
+          <Search className="sf-mobile-search-trigger-icon h-4.5 w-4.5 text-[#7c3aed]" />
           <span>{searchPlaceholders[placeholderIndex] || searchPlaceholders[0]}</span>
         </button>
       </div>
@@ -3723,9 +3723,9 @@ function PremiumSearch({
 
   const searchInput = (
     <form onSubmit={onSubmit} className="relative">
-      <div className="group relative overflow-hidden rounded-[1.35rem] border border-white/50 bg-white/72 shadow-[0_18px_50px_rgba(39,20,75,0.10)] backdrop-blur-2xl transition duration-300 focus-within:border-[#a78bfa]/70 focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(124,58,237,0.10),0_24px_70px_rgba(109,40,217,0.18)] dark:border-white/10 dark:bg-white/[0.075] dark:focus-within:bg-white/[0.10]">
+      <div className="sf-header-search group relative overflow-hidden rounded-[1.35rem] border border-white/50 bg-white/72 shadow-[0_18px_50px_rgba(39,20,75,0.10)] backdrop-blur-2xl transition duration-300 focus-within:border-[#a78bfa]/70 focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(124,58,237,0.10),0_24px_70px_rgba(109,40,217,0.18)] dark:border-white/10 dark:bg-white/[0.075] dark:focus-within:bg-white/[0.10]">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_20%,rgba(216,180,254,0.22),transparent_28%)] opacity-0 transition group-focus-within:opacity-100" />
-        <Search className="pointer-events-none absolute end-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-[#7c3aed] dark:text-[#d8b4fe]" />
+        <Search className="sf-header-search-icon pointer-events-none absolute end-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-[#7c3aed] dark:text-[#d8b4fe]" />
         <input
           ref={inputRef}
           value={value}
@@ -3736,16 +3736,16 @@ function PremiumSearch({
           }}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className="relative z-10 h-13 w-full truncate bg-transparent pe-12 ps-24 text-sm font-bold text-stone-950 outline-none placeholder:text-stone-400 dark:text-white dark:placeholder:text-stone-500 md:h-12"
+          className="sf-header-search-input relative z-10 h-13 w-full truncate bg-transparent pe-12 ps-24 text-sm font-bold text-stone-950 outline-none placeholder:text-stone-400 dark:text-white dark:placeholder:text-stone-500 md:h-12"
           aria-label={t("storefront.search.aria", "Search storefront")}
           role="combobox"
           aria-expanded={Boolean(open || mobileOpen)}
         />
         <div className="absolute start-2 top-1/2 z-20 flex -translate-y-1/2 items-center gap-1.5">
-          <button type="button" onClick={onVoice} className="grid h-8 w-8 place-items-center rounded-full bg-stone-950/5 text-stone-600 transition hover:bg-[#7c3aed] hover:text-white dark:bg-white/8 dark:text-stone-200" aria-label={t("storefront.search.voice", "Voice search")}>
+          <button type="button" onClick={onVoice} className="sf-header-search-icon-button grid h-8 w-8 place-items-center rounded-full bg-stone-950/5 text-stone-600 transition hover:bg-[#7c3aed] hover:text-white dark:bg-white/8 dark:text-stone-200" aria-label={t("storefront.search.voice", "Voice search")}>
             <Mic className="h-4 w-4" />
           </button>
-          <button type="button" onClick={() => fileInputRef.current?.click()} className="grid h-8 w-8 place-items-center rounded-full bg-stone-950/5 text-stone-600 transition hover:bg-[#7c3aed] hover:text-white dark:bg-white/8 dark:text-stone-200" aria-label={t("storefront.search.image", "Image search")}>
+          <button type="button" onClick={() => fileInputRef.current?.click()} className="sf-header-search-icon-button grid h-8 w-8 place-items-center rounded-full bg-stone-950/5 text-stone-600 transition hover:bg-[#7c3aed] hover:text-white dark:bg-white/8 dark:text-stone-200" aria-label={t("storefront.search.image", "Image search")}>
             <ImagePlus className="h-4 w-4" />
           </button>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onImage} />

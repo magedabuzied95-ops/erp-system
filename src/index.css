@@ -1591,6 +1591,102 @@
     -webkit-backdrop-filter: blur(14px) saturate(1.02);
   }
 
+  .storefront-shell:not(.storefront-dark) .sf-header-announcement {
+    background:
+      linear-gradient(105deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.97) 42%, rgba(224, 231, 255, 0.96)) !important;
+    color: #0f172a !important;
+    border-color: rgba(148, 163, 184, 0.24) !important;
+    box-shadow:
+      inset 0 -1px 0 rgba(148, 163, 184, 0.18),
+      0 8px 22px rgba(15, 23, 42, 0.04) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-header-announcement,
+  .storefront-shell:not(.storefront-dark) .sf-header-announcement .sf-announcement-track,
+  .storefront-shell:not(.storefront-dark) .sf-header-announcement span,
+  .storefront-shell:not(.storefront-dark) .sf-header-announcement .text-stone-100,
+  .storefront-shell:not(.storefront-dark) .sf-header-announcement .text-stone-100\/95 {
+    color: #0f172a !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-header-announcement-icon,
+  .storefront-shell:not(.storefront-dark) .sf-header-announcement-icon svg {
+    color: #6d28d9 !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-header-logo,
+  .storefront-shell:not(.storefront-dark) .sf-header-logo-title,
+  .storefront-shell:not(.storefront-dark) .sf-header-logo-subtitle {
+    color: #0f172a !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-header-logo-chip {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96)) !important;
+    color: #0f172a !important;
+    border: 1px solid rgba(148, 163, 184, 0.32) !important;
+    box-shadow:
+      0 14px 30px rgba(15, 23, 42, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.92) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-header-search,
+  .storefront-shell:not(.storefront-dark) .sf-mobile-search-trigger {
+    border-color: rgba(148, 163, 184, 0.36) !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+    box-shadow:
+      0 14px 36px rgba(15, 23, 42, 0.07),
+      inset 0 1px 0 rgba(255, 255, 255, 0.92) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-header-search:focus-within {
+    border-color: rgba(124, 58, 237, 0.36) !important;
+    box-shadow:
+      0 0 0 4px rgba(124, 58, 237, 0.08),
+      0 18px 42px rgba(109, 40, 217, 0.14),
+      inset 0 1px 0 rgba(255, 255, 255, 0.94) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-header-search-input {
+    color: #0f172a !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-header-search-input::placeholder {
+    color: rgba(51, 65, 85, 0.9) !important;
+    -webkit-text-fill-color: rgba(51, 65, 85, 0.9) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-header-search-icon,
+  .storefront-shell:not(.storefront-dark) .sf-header-search-icon svg,
+  .storefront-shell:not(.storefront-dark) .sf-header-search-icon-button {
+    color: #6d28d9 !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-header-search-icon-button {
+    border-color: rgba(148, 163, 184, 0.24) !important;
+    background: rgba(248, 250, 252, 0.98) !important;
+    box-shadow:
+      0 10px 24px rgba(15, 23, 42, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.94) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-header-search-icon-button:hover {
+    border-color: rgba(124, 58, 237, 0.28) !important;
+    background: rgba(124, 58, 237, 0.08) !important;
+    color: #6d28d9 !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-header-nav-link,
+  .storefront-shell:not(.storefront-dark) .sf-header-main .sf-nav-link {
+    color: #0f172a !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-header-nav-link:hover,
+  .storefront-shell:not(.storefront-dark) .sf-header-nav-link.active,
+  .storefront-shell:not(.storefront-dark) .sf-header-main .sf-nav-link:hover,
+  .storefront-shell:not(.storefront-dark) .sf-header-main .sf-nav-link.active {
+    color: #6d28d9 !important;
+  }
+
   .storefront-shell:not(.storefront-dark) .sf-announcement-row {
     background:
       linear-gradient(105deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96) 42%, rgba(238, 242, 255, 0.96)) !important;
