@@ -1744,35 +1744,38 @@
   }
 
   .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav {
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96)) !important;
+    background: #ffffff !important;
     box-shadow:
       0 -14px 36px rgba(15, 23, 42, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.88) !important;
+      inset 0 1px 0 rgba(255, 255, 255, 0.92) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    opacity: 1 !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav a {
-    color: #334155 !important;
+    color: #64748b !important;
+    opacity: 1 !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav a[aria-current="page"] {
-    background: rgba(124, 58, 237, 0.12) !important;
-    color: #0f172a !important;
+    background: rgba(124, 58, 237, 0.10) !important;
+    color: #7c3aed !important;
     box-shadow: 0 12px 28px rgba(124, 58, 237, 0.16) !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav a[aria-current="page"] span:first-child {
-    background: rgba(124, 58, 237, 0.16) !important;
+    background: rgba(124, 58, 237, 0.14) !important;
     color: #6d28d9 !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav a span:first-child {
-    color: #334155 !important;
+    color: #64748b !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav a[aria-current="page"] span:last-child,
   .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav a:hover span:last-child {
-    color: #0f172a !important;
+    color: #7c3aed !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-mobile-filter-trigger {
@@ -1799,6 +1802,9 @@
     box-shadow:
       0 18px 48px rgba(124, 58, 237, 0.28),
       0 0 0 1px rgba(255, 255, 255, 0.14) inset !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    opacity: 1 !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-cart-drawer-footer {
