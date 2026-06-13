@@ -2256,13 +2256,50 @@
 
   .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .sf-checkout-field-label,
   .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .sf-checkout-picker-text,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .text-white\/82,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .text-white\/70,
   .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .text-emerald-100,
   .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .text-green-100,
   .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .text-white\/70,
   .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .text-white\/60,
   .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .text-white\/58,
   .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .text-white\/54 {
-    color: var(--sf-light-text) !important;
+    color: #1e293b !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .checkout-picker-search,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .checkout-picker-list button,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .checkout-picker-list .checkout-picker-empty {
+    border-color: #cbd5e1 !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+    color: #0f172a !important;
+    box-shadow:
+      0 12px 28px rgba(15, 23, 42, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.92) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .checkout-picker-search input::placeholder {
+    color: #64748b !important;
+    opacity: 1 !important;
+    -webkit-text-fill-color: #64748b !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .checkout-picker-search svg,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .checkout-picker-search button svg {
+    color: #334155 !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .checkout-picker-list button:hover {
+    border-color: #c4b5fd !important;
+    background: rgba(124, 58, 237, 0.05) !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .checkout-picker-list button .text-white {
+    color: #0f172a !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .checkout-picker-list button .text-white\/42 {
+    color: #64748b !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-product-summary-card {

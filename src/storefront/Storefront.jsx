@@ -7792,7 +7792,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
               <div className="sf-checkout-bosta-card md:col-span-2 rounded-[1.25rem] border border-white/10 bg-white/[0.035] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs font-black uppercase tracking-[0.14em] text-white/54">{sfText("storefront.checkout.bostaAddressDetails", "تفاصيل عنوان Bosta")}</p>
-                  {bostaMode ? <span className="rounded-full bg-cyan-300/15 px-2.5 py-1 text-[10px] font-black text-cyan-100">{sfText("storefront.checkout.requiredForBosta", "مطلوب لـ Bosta")}</span> : null}
+                  {bostaMode ? <span className="rounded-full border border-cyan-300/30 bg-cyan-50 px-2.5 py-1 text-[10px] font-black text-cyan-800 shadow-[0_8px_18px_rgba(15,118,110,0.08)] dark:border-cyan-300/25 dark:bg-cyan-300/15 dark:text-cyan-100">{sfText("storefront.checkout.requiredForBosta", "مطلوب لـ Bosta")}</span> : null}
                 </div>
                 <div className="grid gap-2.5 md:grid-cols-4">
                   <Field label={sfText("storefront.checkout.streetAddress", "عنوان الشارع")} placeholder={sfText("storefront.checkout.streetAddressPlaceholder", "الشارع أو المنطقة")} value={form.street_address} onChange={(v) => setField("street_address", v)} required={bostaMode} error={errors.street_address} />
@@ -8513,7 +8513,7 @@ function CityAreaField({ governorate, options, value, onChange, manual, onManual
 
   return (
     <div className="sf-checkout-field block">
-      <span className="sf-checkout-field-label mb-1.5 block text-sm font-black text-white/82">المدينة / المنطقة{required ? " *" : ""}</span>
+      <span className={`sf-checkout-field-label mb-1.5 block text-sm font-black ${darkMode ? "text-white/82" : "text-slate-800"}`}>المدينة / المنطقة{required ? " *" : ""}</span>
       <Suspense fallback={<CityAreaNativeSelect governorate={governorate} options={selectOptions} value={manual ? MANUAL_CITY_AREA : value} onChange={onChange} required={required} error={error} />}>
         <Select
           instanceId="checkout-city-area"
@@ -8546,7 +8546,7 @@ function CityAreaField({ governorate, options, value, onChange, manual, onManual
               borderColor: error
                 ? "rgba(253,164,175,0.78)"
                 : state.isFocused
-                  ? "#a78bfa"
+                  ? "#7c3aed"
                   : darkMode
                     ? "rgba(255,255,255,0.12)"
                     : "rgba(148,163,184,0.28)",
@@ -8563,9 +8563,9 @@ function CityAreaField({ governorate, options, value, onChange, manual, onManual
             valueContainer: (base) => ({ ...base, paddingInline: 10 }),
             input: (base) => ({ ...base, color: darkMode ? "#ffffff" : "#0f172a", fontSize: 15, fontWeight: 700 }),
             singleValue: (base) => ({ ...base, color: darkMode ? "#ffffff" : "#0f172a", fontSize: 15, fontWeight: 700 }),
-            placeholder: (base) => ({ ...base, color: darkMode ? "rgba(255,255,255,0.38)" : "rgba(100,116,139,0.78)", fontSize: 15, fontWeight: 700 }),
-            dropdownIndicator: (base) => ({ ...base, color: darkMode ? "rgba(255,255,255,0.58)" : "rgba(71,85,105,0.82)" }),
-            indicatorSeparator: (base) => ({ ...base, backgroundColor: darkMode ? "rgba(255,255,255,0.12)" : "rgba(148,163,184,0.28)" }),
+            placeholder: (base) => ({ ...base, color: darkMode ? "rgba(255,255,255,0.38)" : "#64748b", opacity: 1, fontSize: 15, fontWeight: 700 }),
+            dropdownIndicator: (base) => ({ ...base, color: darkMode ? "rgba(255,255,255,0.58)" : "rgba(71,85,105,0.9)" }),
+            indicatorSeparator: (base) => ({ ...base, backgroundColor: darkMode ? "rgba(255,255,255,0.12)" : "rgba(148,163,184,0.32)" }),
             menu: (base) => ({ ...base, zIndex: 80, borderRadius: 16, overflow: "hidden", direction: "rtl", backgroundColor: darkMode ? "#0b1020" : "#ffffff", border: darkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(226,232,240,0.92)", boxShadow: darkMode ? "0 24px 60px rgba(0,0,0,0.42)" : "0 24px 60px rgba(15,23,42,0.16)" }),
             menuPortal: (base) => ({ ...base, zIndex: 9999 }),
             option: (base, state) => ({
@@ -8592,7 +8592,7 @@ function CityAreaField({ governorate, options, value, onChange, manual, onManual
           className={`sf-field-input sf-checkout-field-input mt-2 min-h-14 w-full rounded-2xl border bg-white/[0.055] px-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`}
         />
       ) : null}
-      {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
+      {error ? <span className={`mt-1.5 block text-xs font-black ${darkMode ? "text-rose-200" : "text-rose-600"}`}>{error}</span> : null}
     </div>
   );
 }
@@ -8605,13 +8605,13 @@ function CityAreaNativeSelect({ governorate, options, value, onChange, required,
       disabled={!governorate}
       value={value || ""}
       onChange={(event) => onChange(event.target.value)}
-      className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-2xl border px-4 text-[15px] font-bold shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] disabled:opacity-60 ${darkMode ? "bg-white/[0.055] text-white placeholder:text-white/34 border-white/12 focus:bg-white/[0.075]" : "bg-white text-stone-950 placeholder:text-stone-400 border-stone-200 focus:bg-white"} ${error ? "border-rose-300/70 focus:border-rose-300" : ""}`}
+      className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-2xl border px-4 text-[15px] font-bold shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[#7c3aed] focus:shadow-[0_0_0_4px_rgba(124,58,237,0.12),0_18px_38px_rgba(124,58,237,0.16)] disabled:opacity-60 ${darkMode ? "bg-white/[0.055] text-white placeholder:text-white/34 border-white/12 focus:bg-white/[0.075]" : "bg-white text-[#0f172a] placeholder:text-[#64748b] border-slate-300 focus:bg-white" } ${error ? (darkMode ? "border-rose-300/70 focus:border-rose-300" : "border-rose-300/80 focus:border-rose-400") : ""}`}
     >
-      <option value="" className={darkMode ? "bg-[#0b1020] text-white" : "bg-white text-stone-950"}>
+      <option value="" className={darkMode ? "bg-[#0b1020] text-white" : "bg-white text-[#0f172a]"}>
         {governorate ? sfText("storefront.checkout.cityAreaPlaceholder", "اختار أو ابحث داخل المدينة / المنطقة") : sfText("storefront.checkout.chooseGovernorateFirst", "اختار المحافظة أولًا")}
       </option>
       {options.map((option) => (
-        <option key={option.value} value={option.value} className={darkMode ? "bg-[#0b1020] text-white" : "bg-white text-stone-950"}>
+        <option key={option.value} value={option.value} className={darkMode ? "bg-[#0b1020] text-white" : "bg-white text-[#0f172a]"}>
           {option.label}
         </option>
       ))}
@@ -8623,12 +8623,12 @@ function SelectField({ label, value, onChange, options, labels = {}, required, e
   const darkMode = isStorefrontDarkMode();
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
-      <select required={required} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-2xl border px-4 text-[15px] font-bold shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${darkMode ? "bg-white/[0.055] text-white placeholder:text-white/34 border-white/12 focus:bg-white/[0.075]" : "bg-white text-stone-950 placeholder:text-stone-400 border-stone-200 focus:bg-white"} ${error ? "border-rose-300/70 focus:border-rose-300" : ""}`}>
-        <option value="" className={darkMode ? "bg-[#0b1020] text-white" : "bg-white text-stone-950"}>{sfText("storefront.common.choose", "اختار")}</option>
-        {options.map((option) => <option key={option} value={option} className={darkMode ? "bg-[#0b1020] text-white" : "bg-white text-stone-950"}>{labels[option] || option}</option>)}
+      <span className={`mb-1.5 block text-sm font-black ${darkMode ? "text-white/82" : "text-slate-800"}`}>{label}{required ? " *" : ""}</span>
+      <select required={required} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-2xl border px-4 text-[15px] font-bold shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[#7c3aed] focus:shadow-[0_0_0_4px_rgba(124,58,237,0.12),0_18px_38px_rgba(124,58,237,0.16)] ${darkMode ? "bg-white/[0.055] text-white placeholder:text-white/34 border-white/12 focus:bg-white/[0.075]" : "bg-white text-[#0f172a] placeholder:text-[#64748b] border-slate-300 focus:bg-white"} ${error ? (darkMode ? "border-rose-300/70 focus:border-rose-300" : "border-rose-300/80 focus:border-rose-400") : ""}`}>
+        <option value="" className={darkMode ? "bg-[#0b1020] text-white" : "bg-white text-[#0f172a]"}>{sfText("storefront.common.choose", "اختار")}</option>
+        {options.map((option) => <option key={option} value={option} className={darkMode ? "bg-[#0b1020] text-white" : "bg-white text-[#0f172a]"}>{labels[option] || option}</option>)}
       </select>
-      {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
+      {error ? <span className={`mt-1.5 block text-xs font-black ${darkMode ? "text-rose-200" : "text-rose-600"}`}>{error}</span> : null}
     </label>
   );
 }
@@ -8676,6 +8676,7 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
   const containerRef = useRef(null);
   const inputRef = useRef(null);
   const isMobile = useIsMobileViewport();
+  const darkMode = isStorefrontDarkMode();
   const selectedOption = useMemo(() => options.find((option) => String(option.id) === String(value)) || null, [options, value]);
   const deferredQuery = useDeferredValue(query);
   const filteredOptions = useMemo(() => {
@@ -8715,18 +8716,18 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
   const panelBody = (
     <div className="flex min-h-0 flex-1 flex-col gap-2.5">
       <div className="checkout-picker-search-wrap">
-        <label className="checkout-picker-search flex items-center gap-2">
-          <Search className="h-4 w-4 shrink-0 text-white/42" />
+        <label className={`checkout-picker-search flex items-center gap-2 ${darkMode ? "" : "border border-slate-300 bg-white text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
+          <Search className={`h-4 w-4 shrink-0 ${darkMode ? "text-white/42" : "text-slate-600"}`} />
           <input
             ref={inputRef}
             dir="auto"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={searchHint}
-            className="min-w-0 flex-1 bg-transparent text-sm font-bold text-white outline-none placeholder:text-white/34"
+            className={`min-w-0 flex-1 bg-transparent text-sm font-bold outline-none ${darkMode ? "text-white placeholder:text-white/34" : "text-slate-900 placeholder:text-slate-500"}`}
           />
           {query ? (
-            <button type="button" onClick={() => setQuery("")} className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/52 transition hover:bg-white/[0.08] hover:text-white" aria-label={sfText("storefront.common.clear", "Clear")}>
+            <button type="button" onClick={() => setQuery("")} className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border transition ${darkMode ? "border-white/10 bg-white/[0.04] text-white/52 hover:bg-white/[0.08] hover:text-white" : "border-slate-300 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`} aria-label={sfText("storefront.common.clear", "Clear")}>
               <X className="h-4 w-4" />
             </button>
           ) : null}
@@ -8734,8 +8735,8 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
       </div>
 
       {loading ? (
-        <div className="flex min-h-24 items-center justify-center rounded-[1rem] border border-white/10 bg-white/[0.03] px-4 py-4 text-sm font-bold text-white/62">
-          <Loader2 className="mr-2 h-4 w-4 animate-spin text-[#c4b5fd]" />
+        <div className={`flex min-h-24 items-center justify-center rounded-[1rem] border px-4 py-4 text-sm font-bold ${darkMode ? "border-white/10 bg-white/[0.03] text-white/62" : "border-slate-300 bg-white text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
+          <Loader2 className={`mr-2 h-4 w-4 animate-spin ${darkMode ? "text-[#c4b5fd]" : "text-[#7c3aed]"}`} />
           {loadingText}
         </div>
       ) : filteredOptions.length ? (
@@ -8752,23 +8753,27 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
                 onClick={() => chooseOption(option)}
                 className={`group mb-1.5 flex w-full items-center gap-2.5 rounded-[14px] border px-3 py-2.5 text-right transition duration-150 ${
                   selected
-                    ? "border-[#a78bfa]/30 bg-[#7c3aed]/10"
-                    : "border-white/10 bg-white/[0.025] hover:border-[#a78bfa]/22 hover:bg-white/[0.045]"
+                    ? darkMode
+                      ? "border-[#a78bfa]/30 bg-[#7c3aed]/10"
+                      : "border-[#c4b5fd] bg-[#f5f3ff]"
+                    : darkMode
+                      ? "border-white/10 bg-white/[0.025] hover:border-[#a78bfa]/22 hover:bg-white/[0.045]"
+                      : "border-slate-300 bg-white hover:border-[#a78bfa]/30 hover:bg-[#faf5ff]"
                 }`}
               >
-                <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border transition ${selected ? "border-[#c4b5fd] bg-[#7c3aed]/90 text-white" : "border-white/14 bg-white/[0.03] text-transparent group-hover:border-[#a78bfa]/45"}`}>
+                <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border transition ${selected ? (darkMode ? "border-[#c4b5fd] bg-[#7c3aed]/90 text-white" : "border-[#7c3aed] bg-[#7c3aed] text-white") : (darkMode ? "border-white/14 bg-white/[0.03] text-transparent group-hover:border-[#a78bfa]/45" : "border-slate-300 bg-white text-transparent group-hover:border-[#7c3aed]/35")}`}>
                   <Check className="h-3.5 w-3.5" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-black text-white">{option.label}</span>
-                  {option.secondary ? <span className="mt-0.5 block truncate text-[11px] font-semibold leading-4 text-white/42">{option.secondary}</span> : null}
+                  <span className={`block truncate text-sm font-black ${darkMode ? "text-white" : "text-slate-900"}`}>{option.label}</span>
+                  {option.secondary ? <span className={`mt-0.5 block truncate text-[11px] font-semibold leading-4 ${darkMode ? "text-white/42" : "text-slate-500"}`}>{option.secondary}</span> : null}
                 </span>
               </button>
             );
           }}
         />
       ) : (
-        <div className="flex min-h-24 items-center justify-center rounded-[1rem] border border-white/10 bg-white/[0.03] px-4 py-4 text-sm font-black text-white/62">
+        <div className={`flex min-h-24 items-center justify-center rounded-[1rem] border px-4 py-4 text-sm font-black ${darkMode ? "border-white/10 bg-white/[0.03] text-white/62" : "border-slate-300 bg-white text-slate-600 shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
           {emptyText}
         </div>
       )}
@@ -8777,28 +8782,28 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
 
   return (
     <div ref={containerRef} className="relative block">
-      <span className="mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
+      <span className={`mb-1.5 block text-sm font-black ${darkMode ? "text-white/82" : "text-slate-800"}`}>{label}{required ? " *" : ""}</span>
       <button
         type="button"
         onClick={() => !isBlocked && setOpen((current) => !current)}
         disabled={isBlocked}
-        className={`flex min-h-[48px] w-full items-center gap-3 rounded-[16px] border bg-white/[0.045] px-3.5 text-right text-sm font-bold text-white shadow-[0_10px_22px_rgba(0,0,0,0.14),inset_0_1px_0_rgba(255,255,255,0.03)] outline-none backdrop-blur transition duration-150 focus:border-[#a78bfa] focus:bg-white/[0.065] focus:shadow-[0_0_0_3px_rgba(167,139,250,0.12),0_12px_28px_rgba(124,58,237,0.10)] disabled:cursor-not-allowed disabled:opacity-65 ${error ? "border-rose-300/70 focus:border-rose-300" : "border-white/10"}`}
+        className={`flex min-h-[48px] w-full items-center gap-3 rounded-[16px] border px-3.5 text-right text-sm font-bold outline-none backdrop-blur transition duration-150 focus:border-[#7c3aed] focus:shadow-[0_0_0_3px_rgba(124,58,237,0.12),0_12px_28px_rgba(124,58,237,0.10)] disabled:cursor-not-allowed disabled:opacity-65 ${darkMode ? `bg-white/[0.045] text-white shadow-[0_10px_22px_rgba(0,0,0,0.14),inset_0_1px_0_rgba(255,255,255,0.03)] focus:bg-white/[0.065] ${error ? "border-rose-300/70 focus:border-rose-300" : "border-white/10"}` : `bg-white text-slate-900 shadow-[0_12px_28px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.92)] focus:bg-white ${error ? "border-rose-300/80 focus:border-rose-400" : "border-slate-300"}`}`}
         aria-haspopup="dialog"
         aria-expanded={open}
       >
         <span className="min-w-0 flex-1 truncate text-start">{triggerLabel}</span>
-        {loading ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[#c4b5fd]" /> : <ChevronLeft className={`h-4 w-4 shrink-0 text-white/60 transition ${open ? "rotate-[-90deg]" : ""}`} />}
+        {loading ? <Loader2 className={`h-4 w-4 shrink-0 animate-spin ${darkMode ? "text-[#c4b5fd]" : "text-[#7c3aed]"}`} /> : <ChevronLeft className={`h-4 w-4 shrink-0 transition ${darkMode ? "text-white/60" : "text-slate-600"} ${open ? "rotate-[-90deg]" : ""}`} />}
       </button>
-      {helperText ? <p className="sf-checkout-picker-text mt-1.5 text-xs font-bold text-white/46">{helperText}</p> : null}
-      {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
+      {helperText ? <p className={`sf-checkout-picker-text mt-1.5 text-xs font-bold ${darkMode ? "text-white/46" : "text-slate-500"}`}>{helperText}</p> : null}
+      {error ? <span className={`mt-1.5 block text-xs font-black ${darkMode ? "text-rose-200" : "text-rose-600"}`}>{error}</span> : null}
 
       {open ? (
         isMobile ? (
-          <MobileBottomSheet open={open} title={panelTitle} onClose={close} className="checkout-picker-sheet bg-[#050816] text-white" titleClassName="text-sm">
+          <MobileBottomSheet open={open} title={panelTitle} onClose={close} className={darkMode ? "checkout-picker-sheet bg-[#050816] text-white" : "checkout-picker-sheet bg-[#f8fafc] text-slate-900"} titleClassName="text-sm">
             {panelBody}
           </MobileBottomSheet>
         ) : (
-          <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-[16px] border border-white/10 bg-[linear-gradient(180deg,rgba(8,12,26,0.98),rgba(5,8,18,0.98))] p-2.5 text-white shadow-[0_18px_46px_rgba(0,0,0,0.28)] backdrop-blur-2xl">
+          <div className={`absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-[16px] border p-2.5 backdrop-blur-2xl ${darkMode ? "border-white/10 bg-[linear-gradient(180deg,rgba(8,12,26,0.98),rgba(5,8,18,0.98))] text-white shadow-[0_18px_46px_rgba(0,0,0,0.28)]" : "border-slate-300 bg-white text-slate-900 shadow-[0_18px_46px_rgba(15,23,42,0.14)]"}`}>
             {panelBody}
           </div>
         )
