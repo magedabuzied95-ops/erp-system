@@ -2333,46 +2333,41 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
   const attendanceLogIdRaw = data.attendance_log_id || data.attendanceLogId || null;
   const attendanceLogId = attendanceLogIdRaw === null || attendanceLogIdRaw === undefined || attendanceLogIdRaw === ""
     ? null
-    : Number(attendanceLogIdRaw);
-  const attendanceLookupResult = attendanceLogId
-    ? (() => {
-        const params = [employee.tenant_id, employee.id, attendanceLogId];
-        return runEmployeePortalCheckoutQuery(
-          "attendance_lookup_by_id",
-          `
-          SELECT *
-          FROM attendance_logs
-          WHERE tenant_id = $1::bigint
-            AND employee_id = $2::bigint
-            AND id = $3::bigint
-            AND COALESCE(check_out_at, check_out) IS NULL
-          LIMIT 1
-          `,
-          params,
-          { employee_id: employee.id, branch_id: branch.id }
-        );
-      })()
-    : (() => {
-        const params = [employee.tenant_id, employee.id, attendanceDate];
-        return runEmployeePortalCheckoutQuery(
-          "attendance_lookup_by_date",
-          `
-          SELECT *
-          FROM attendance_logs
-          WHERE tenant_id = $1::bigint
-            AND employee_id = $2::bigint
-            AND attendance_date = $3::date
-            AND COALESCE(check_out_at, check_out) IS NULL
-          LIMIT 1
-          `,
-          params,
-          { employee_id: employee.id, branch_id: branch.id }
-        );
-      })();
+    : Number.parseInt(String(attendanceLogIdRaw), 10);
+  const hasAttendanceLogId = Number.isFinite(attendanceLogId) && attendanceLogId > 0;
+  const attendanceLookupResult = hasAttendanceLogId
+    ? runEmployeePortalCheckoutQuery(
+        "attendance_lookup_by_id",
+        `
+        SELECT *
+        FROM attendance_logs
+        WHERE tenant_id = $1::bigint
+          AND employee_id = $2::bigint
+          AND id = $3::bigint
+          AND COALESCE(check_out_at, check_out) IS NULL
+        LIMIT 1
+        `,
+        [employee.tenant_id, employee.id, attendanceLogId],
+        { employee_id: employee.id, branch_id: branch.id }
+      )
+    : runEmployeePortalCheckoutQuery(
+        "attendance_lookup_by_date",
+        `
+        SELECT *
+        FROM attendance_logs
+        WHERE tenant_id = $1::bigint
+          AND employee_id = $2::bigint
+          AND attendance_date = $3::date
+          AND COALESCE(check_out_at, check_out) IS NULL
+        LIMIT 1
+        `,
+        [employee.tenant_id, employee.id, attendanceDate],
+        { employee_id: employee.id, branch_id: branch.id }
+      );
   const attendanceLookup = await attendanceLookupResult;
   if (!attendanceLookup) {
     console.warn("[employee-portal-attendance] checkout step returned no result", {
-      step: attendanceLogId ? "attendance_lookup_by_id" : "attendance_lookup_by_date",
+      step: hasAttendanceLogId ? "attendance_lookup_by_id" : "attendance_lookup_by_date",
       employee_id: employee.id,
       branch_id: branch.id,
     });
