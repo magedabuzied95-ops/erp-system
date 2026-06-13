@@ -9322,14 +9322,17 @@ function MobileBuyBar({ product, variant, visible, onAddToCart, buyNow }) {
   return (
     <div
       dir="rtl"
-      className="sf-mobile-buy-bar fixed inset-x-3 z-[52] mx-auto max-w-md rounded-[1rem] border border-[#a78bfa]/28 bg-[linear-gradient(135deg,#7c3aed,#6d28d9_55%,#4c1d95)] px-3 py-3 text-white shadow-[0_18px_48px_rgba(124,58,237,0.34),0_0_0_1px_rgba(196,181,253,0.16)_inset] transition md:hidden"
+      className="sf-mobile-buy-bar fixed inset-x-3 z-[52] mx-auto max-w-md rounded-[1rem] px-3 py-3 text-white transition md:hidden"
     >
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-        <div className="min-w-0">
+        <div className="sf-mobile-buy-bar-meta min-w-0">
           <div className="truncate text-xs font-black text-white">{cleanDisplayText(product.name)}</div>
           <div className="mt-0.5 text-sm font-black text-white">{money(displaySellingPrice(product, variant))}</div>
         </div>
-        <button onClick={onAddToCart} disabled={disabled} className="inline-flex min-h-12 items-center justify-center rounded-full bg-white px-4 py-3 text-sm font-black text-stone-950 shadow-[0_10px_24px_rgba(255,255,255,0.16)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-white/18 disabled:text-white/55 disabled:shadow-none">{sfText("storefront.cart.addToCart", "أضف إلى السلة")}</button>
+        <button onClick={onAddToCart} disabled={disabled} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-l from-[#7c3aed] to-[#111827] px-4 py-3 text-sm font-black text-white shadow-[0_18px_42px_rgba(124,58,237,0.34)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#7c3aed]/35 disabled:text-white/60 disabled:shadow-none">
+          <ShoppingCart className="h-4 w-4" />
+          {sfText("storefront.cart.addToCart", "إضافة للسلة")}
+        </button>
       </div>
     </div>
   );
