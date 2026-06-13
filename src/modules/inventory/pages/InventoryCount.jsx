@@ -1464,19 +1464,20 @@ function InventoryCountPage() {
                 <MetricCard label="إجمالي الفروق" value={itemSummary.absoluteDiff} tone="amber" />
               </div>
 
-              <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
+              <section className="mt-3 rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-3 shadow-[0_20px_50px_rgba(0,0,0,0.2)] backdrop-blur">
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <div className="min-w-0">
                     <h2 className="text-xl font-black text-white">البحث ومسح الباركود</h2>
                     <p className="mt-1 text-sm text-zinc-400">ابحث بالباركود أو رمز الصنف، وإذا كان التطابق مباشرًا ستُضاف القطعة تلقائيًا.</p>
                   </div>
                   <button
                     type="button"
                     onClick={() => setScannerOpen(true)}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label="فتح ماسح الكاميرا"
+                    title="فتح ماسح الكاميرا"
                   >
                     <Camera className="h-4 w-4" />
-                      فتح الماسح
                   </button>
                 </div>
 
@@ -1631,7 +1632,7 @@ function InventoryCountPage() {
                     ))
                   )}
                 </div>
-              </div>
+              </section>
             </div>
 
             <div className="space-y-4">
