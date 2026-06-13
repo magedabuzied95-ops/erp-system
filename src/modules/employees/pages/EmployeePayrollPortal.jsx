@@ -1402,6 +1402,7 @@ export default function EmployeePayrollPortal() {
           payroll_generated: Boolean(response.portal?.payroll_generated),
           silent,
         });
+        return response.portal || null;
       } catch (err) {
         if (activeRef && !activeRef.current) return;
         if (!silent) setPortal(null);
@@ -1411,6 +1412,7 @@ export default function EmployeePayrollPortal() {
           status: err?.status || err?.responseBody?.status,
           silent,
         });
+        return null;
       } finally {
         if (!silent && (!activeRef || activeRef.current)) setLoading(false);
       }
@@ -2548,11 +2550,16 @@ export default function EmployeePayrollPortal() {
         timezone: browserTimeZone(),
         location,
       });
-      if (response.portal) setPortal(response.portal);
+      const refreshedPortal = await loadPortalByToken({ silent: true, clearNotice: false });
+      if (!refreshedPortal && response.portal) setPortal(response.portal);
       setPortalNotice(actionType === "check_out" ? text.checkoutSaved : text.attendanceSaved);
       logPagePerf("employee-wallet.attendance-action", startedAt, { action: actionType });
     } catch (err) {
       const code = err?.responseBody?.code;
+      if (code === "already_checked_in") {
+        const refreshedPortal = await loadPortalByToken({ silent: true, clearNotice: false });
+        if (!refreshedPortal && err?.responseBody?.portal) setPortal(err.responseBody.portal);
+      }
       if (actionType === "check_out") {
         console.warn("[employee-portal-attendance:checkout-rejected]", {
           employee_id: profile.id || portal?.employee?.id || null,

@@ -2170,29 +2170,48 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
       `,
       [employee.tenant_id, employee.id, attendanceDate, branch.id]
     );
-    if (existing.rows[0]) {
-      if (existing.rows[0].check_in || existing.rows[0].check_in_at) {
+    const existingRow = existing.rows[0] || null;
+    if (existingRow) {
+      const existingHasCheckout = Boolean(existingRow.check_out || existingRow.check_out_at || String(existingRow.status || "").toLowerCase() === "checked_out");
+      if ((existingRow.check_in || existingRow.check_in_at) && !existingHasCheckout) {
         throw employeePortalError("already_checked_in", "تم تسجيل الحضور بالفعل", 409);
+      }
+      if (existingHasCheckout) {
+        console.info("[employee-portal-attendance] reopening checked-out attendance", {
+          employee_id: employee.id,
+          branch_id: branch.id,
+          attendance_record_id: existingRow.id || null,
+          attendance_date: attendanceDate,
+        });
       }
       const result = await db.query(
         `
         UPDATE attendance_logs
-        SET check_in = COALESCE(check_in, $12),
-            check_in_at = COALESCE(check_in_at, $12),
-            check_in_latitude = COALESCE(check_in_latitude, $6::numeric),
-            check_in_longitude = COALESCE(check_in_longitude, $7::numeric),
-            check_in_gps_distance_meters = COALESCE(check_in_gps_distance_meters, $8::numeric),
-            check_in_gps_verification_result = COALESCE(check_in_gps_verification_result, $9::varchar),
-            shift_id = COALESCE(shift_id, $13::bigint),
-            selected_shift_id = COALESCE(selected_shift_id, $13::bigint),
-            resolved_shift_start_time = COALESCE(resolved_shift_start_time, $14::timestamp),
-            resolved_shift_end_time = COALESCE(resolved_shift_end_time, $15::timestamp),
+        SET check_in = $12::timestamp,
+            check_in_at = $12::timestamp,
+            check_in_latitude = $6::numeric,
+            check_in_longitude = $7::numeric,
+            check_in_gps_distance_meters = $8::numeric,
+            check_in_gps_verification_result = $9::varchar,
+            shift_id = $13::bigint,
+            selected_shift_id = $13::bigint,
+            resolved_shift_start_time = $14::timestamp,
+            resolved_shift_end_time = $15::timestamp,
             shift_resolution_status = $16,
             late_minutes = $17,
             device_ip = COALESCE(device_ip, NULLIF($10, '')),
             user_agent = COALESCE(user_agent, NULLIF($11, '')),
             attendance_source = 'employee_portal',
-            status = CASE WHEN check_out IS NULL AND check_out_at IS NULL THEN 'checked_in' ELSE status END,
+            check_out = NULL,
+            check_out_at = NULL,
+            check_out_latitude = NULL,
+            check_out_longitude = NULL,
+            check_out_gps_distance_meters = NULL,
+            check_out_gps_verification_result = NULL,
+            work_minutes = 0,
+            early_leave_minutes = NULL,
+            overtime_minutes = NULL,
+            status = 'checked_in',
             notes = TRIM(CONCAT_WS(E'\n', NULLIF(notes, ''), NULLIF($5, ''))),
             updated_at = NOW()
         WHERE id = $1
@@ -2202,7 +2221,7 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
         RETURNING *
         `,
         [
-          existing.rows[0].id,
+          existingRow.id,
           employee.tenant_id,
           employee.id,
           attendanceDate,
