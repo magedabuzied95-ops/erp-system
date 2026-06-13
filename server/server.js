@@ -469,7 +469,7 @@ const { default: manufacturersRoutes } = await import("./routes/manufacturers.js
 const { default: purchaseRoutes } = await import("./routes/purchases.js");
 const { default: publicInvoiceRoutes } = await import("./routes/publicInvoices.js");
 const { default: publicProductsRoutes } = await import("./routes/publicProducts.js");
-const { getPublicProductOgImage, getPublicProductShareMetadata } = await import("./controllers/publicProductsController.js");
+const { getPublicProductOgImage, getPublicProductShareMetadata, getPublicProductSharePage } = await import("./controllers/publicProductsController.js");
 const { default: storefrontRoutes } = await import("./routes/storefront.js");
 const { default: shippingRoutes } = await import("./modules/shipping/shipping.routes.js");
 const { default: liveActivityRoutes } = await import("./routes/liveActivity.js");
@@ -815,6 +815,7 @@ app.use("/api/public/invoices", publicInvoiceRoutes);
 app.use("/api/public/products", publicProductsRoutes);
 app.use("/api/storefront", storefrontRoutes);
 app.use("/api/shipping", shippingRoutes);
+app.get("/shop/product/:identifier", getPublicProductSharePage);
 app.get("/api/website/products/:slug/og-image", getPublicProductOgImage);
 app.get("/api/website/products/:slug/share-meta", getPublicProductShareMetadata);
 app.use("/api/website", liveActivityRoutes);

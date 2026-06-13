@@ -1,4 +1,6 @@
 import db from "../database/db.js";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import {
   attachGroupedColorImages,
   attachVariantImages,
@@ -12,6 +14,7 @@ import {
   OG_IMAGE_WIDTH,
   buildAbsolutePublicUrl,
 } from "../services/productOgImageService.js";
+import { resolvePublicProductImageUrl } from "../services/aiProductCards.js";
 import { normalizeAttributionPlatform } from "../utils/marketingAttribution.js";
 import { isMirrorProduct, mirrorProductTitle, slugifyEdition } from "../utils/mirrorProduct.js";
 
@@ -81,6 +84,13 @@ const normalizeProductRow = (row = {}) => ({
 });
 
 const firstText = (...values) => values.map((value) => String(value || "").trim()).find(Boolean) || "";
+const escapeHtml = (value = "") =>
+  String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 const slugifyProductName = (value = "") =>
   String(value || "")
     .trim()
@@ -281,6 +291,70 @@ const deriveColorGroupsFromVariants = (variants = []) => {
   return Array.from(seen.values());
 };
 
+let storefrontShellPromise = null;
+const loadStorefrontShell = async () => {
+  if (!storefrontShellPromise) {
+    storefrontShellPromise = (async () => {
+      const candidates = [
+        path.join(process.cwd(), "dist", "index.html"),
+        path.join(process.cwd(), "index.html"),
+      ];
+      for (const candidate of candidates) {
+        try {
+          return await readFile(candidate, "utf8");
+        } catch {
+          // Try the next candidate.
+        }
+      }
+      return `<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><title>M1 Employee Portal</title></head><body><div id="root"></div></body></html>`;
+    })();
+  }
+  return storefrontShellPromise;
+};
+
+const getSelectedPublicProductImage = ({ product = {}, variants = [], query = {} } = {}) => {
+  const normalizedVariant = String(query.variant || query.variantId || query.variant_id || "").trim();
+  const normalizedColor = String(query.color || query.colorName || query.color_name || "").trim().toLowerCase();
+  const normalizedSize = String(query.size || query.sizeLabel || "").trim().toLowerCase();
+  const selectedVariant =
+    (normalizedVariant && variants.find((variant) => String(variant.id || variant.variant_id || "").trim() === normalizedVariant)) ||
+    (normalizedColor && variants.find((variant) => String(variant.color || variant.color_name || "").trim().toLowerCase() === normalizedColor)) ||
+    (normalizedSize && variants.find((variant) => String(variant.size || "").trim().toLowerCase() === normalizedSize)) ||
+    variants.find((variant) => variant.primary_image_url || variant.image_url) ||
+    null;
+
+  const rawImage = selectedVariant?.primary_image_url || selectedVariant?.image_url || product.public_image_url || product.image_url || product.image || product.photo_url || product.thumbnail_url || "";
+  const resolved = resolvePublicProductImageUrl(rawImage, { baseUrl: process.env.STORE_FRONT_URL || process.env.PUBLIC_APP_URL || process.env.FRONTEND_URL || "" });
+  if (resolved) return resolved.replace(/^http:\/\//i, "https://");
+  const fallback = resolvePublicProductImageUrl(product.public_image_url || product.image_url || product.image || "", { baseUrl: process.env.STORE_FRONT_URL || process.env.PUBLIC_APP_URL || process.env.FRONTEND_URL || "" });
+  return fallback.replace(/^http:\/\//i, "https://");
+};
+
+const renderProductShareHtml = async ({ req, product, imageUrl }) => {
+  const shell = await loadStorefrontShell();
+  const title = escapeHtml(firstText(product.meta_title, product.seo_title, product.name, "Product"));
+  const description = escapeHtml(firstText(product.seo_description, product.description_en, product.description_ar, product.description, product.name));
+  const absoluteUrl = escapeHtml(buildAbsolutePublicUrl(req, req.originalUrl || req.url || `/shop/product/${product.slug || product.canonical_slug || product.id || ""}`));
+  const absoluteImage = escapeHtml((imageUrl || "").replace(/^http:\/\//i, "https://"));
+  const metaBlock = `
+    <title>${title}</title>
+    <meta property="og:title" content="${title}" />
+    <meta property="og:description" content="${description}" />
+    <meta property="og:image" content="${absoluteImage}" />
+    <meta property="og:image:secure_url" content="${absoluteImage}" />
+    <meta property="og:type" content="product" />
+    <meta property="og:url" content="${absoluteUrl}" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${title}" />
+    <meta name="twitter:description" content="${description}" />
+    <meta name="twitter:image" content="${absoluteImage}" />
+  `;
+  const normalizedShell = shell.replace(/<title>[\s\S]*?<\/title>/i, "").replace("</head>", `${metaBlock}\n  </head>`);
+  return normalizedShell.includes('<div id="root"></div>')
+    ? normalizedShell
+    : normalizedShell.replace("</body>", '<div id="root"></div></body>');
+};
+
 export const getPublicProductById = async (req, res) => {
   try {
     await ensurePublicProductEditionSchema();
@@ -395,6 +469,74 @@ export const getPublicProductShareMetadata = async (req, res) => {
   } catch (error) {
     console.error("[public-products] share metadata error", error);
     res.status(500).json({ success: false, message: "Failed to load product share metadata" });
+  }
+};
+
+export const getPublicProductSharePage = async (req, res) => {
+  try {
+    await ensurePublicProductEditionSchema();
+    await ensureProductVariantImagesSchema();
+    const identifier = String(req.params.identifier || req.params.slug || req.params.id || "").trim();
+    const row = identifier ? await loadPublicProductRow(identifier) : null;
+    if (!row) {
+      logPublicProductNotFound(req, identifier);
+      return res.status(404).send("Product not found");
+    }
+
+    const variantsResult = await db.query(
+      `
+      SELECT
+        id,
+        product_id,
+        color,
+        size,
+        sku,
+        barcode,
+        image_url,
+        cost_price,
+        price,
+        sale_price,
+        stock,
+        edition_name,
+        edition_slug
+      FROM product_variants
+      WHERE product_id = $1::bigint
+        AND is_active IS DISTINCT FROM FALSE
+        AND deleted_at IS NULL
+      ORDER BY id ASC
+      `,
+      [row.id]
+    );
+
+    const imageBundleMap = await loadProductVariantImages(db, [row.id]).catch(() => new Map());
+    const imageBundle = imageBundleMap.get(String(row.id)) || null;
+    const normalizedVariants = attachVariantImages(
+      (variantsResult.rows || []).map((variant) => ({
+        ...variant,
+        id: variant.id,
+        variant_id: variant.id,
+        stock: variant.stock,
+        price: variant.price,
+        sale_price: variant.sale_price,
+        edition_name: variant.edition_name || "",
+        edition_slug: variant.edition_slug || slugifyEdition(variant.edition_name),
+        image_url: variant.image_url || "",
+      })),
+      imageBundle
+    );
+    attachGroupedColorImages(deriveColorGroupsFromVariants(normalizedVariants), imageBundle);
+
+    const selectedImage = getSelectedPublicProductImage({ product: row, variants: normalizedVariants, query: req.query || {} });
+    const normalizedProduct = normalizeProductRow({ ...row, image_url: selectedImage, public_image_url: selectedImage });
+    const html = await renderProductShareHtml({
+      req,
+      product: normalizedProduct,
+      imageUrl: selectedImage,
+    });
+    return res.status(200).type("html").send(html);
+  } catch (error) {
+    console.error("[public-products] share page error", error);
+    return res.status(500).send("Failed to load product page");
   }
 };
 
