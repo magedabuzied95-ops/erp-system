@@ -8419,6 +8419,7 @@ function CheckoutProgress({ currentStep = 1, onStepChange }) {
 }
 
 function TrustPills({ compact = false }) {
+  const darkMode = typeof document !== "undefined" && (document.documentElement.classList.contains("dark") || document.body.classList.contains("storefront-dark"));
   const items = [
     [sfText("storefront.checkout.trust.safeData", "بياناتك آمنة"), <Check className="h-4 w-4" />],
     [sfText("storefront.checkout.trust.fastShipping", "شحن سريع"), <Truck className="h-4 w-4" />],
@@ -8987,6 +8988,7 @@ function QuantityStepper({ quantity, onMinus, onPlus }) {
 }
 
 function Footer() {
+  const darkMode = typeof document !== "undefined" && (document.documentElement.classList.contains("dark") || document.body.classList.contains("storefront-dark"));
   return (
     <footer className="mt-4 border-t border-stone-200 bg-[#f0ebe2] px-4 py-6 md:mt-8 md:py-10 dark:border-white/10 dark:bg-[linear-gradient(180deg,#050816,#020617)] dark:text-white">
       <div className="mx-auto grid max-w-7xl gap-6 md:grid-cols-[1.2fr_0.8fr_0.8fr_1fr]">
