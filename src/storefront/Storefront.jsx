@@ -1,4 +1,4 @@
-﻿import { Component, useEffect, useMemo, useRef, useState } from "react";
+import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { memo, useCallback } from "react";
 import { useDeferredValue } from "react";
 import { Link, NavLink, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -2631,7 +2631,7 @@ function Storefront() {
     }
   }, [themeMode]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (typeof document === "undefined") return;
     document.body.classList.toggle("storefront-dark", effectiveTheme === "dark");
     document.documentElement.classList.toggle("dark", effectiveTheme === "dark");
@@ -4320,9 +4320,9 @@ const homeProductWithImage = (product = {}) => {
   return slide.image ? { ...slide, product } : null;
 };
 
-function ShopByMainCategories({ products = [], lang = "ar", loading = false }) {
+function ShopByMainCategories({ products = [], lang = "ar", loading = false, themeMode = "light" }) {
   const isRtl = normalizeLanguage(lang) === "ar";
-  const darkMode = isStorefrontDarkMode();
+  const darkMode = themeMode === "dark";
   const sourceProducts = useMemo(
     () => uniqueProductsByIdentity(products)
       .filter((product) => product?.id && product?.name && isAvailableProduct(product))
@@ -4419,9 +4419,9 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false }) {
   );
 }
 
-function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", products = [], loading = false, railType = "default", tone = "default", wishlist, toggleWishlist, onAddToCart }) {
+function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", products = [], loading = false, railType = "default", tone = "default", wishlist, toggleWishlist, onAddToCart, themeMode = "light" }) {
   const isRtl = normalizeLanguage(i18n.language) === "ar";
-  const darkMode = isStorefrontDarkMode();
+  const darkMode = themeMode === "dark";
   const railViewportRef = useRef(null);
   const railTrackRef = useRef(null);
   const railCardRefs = useRef([]);
@@ -5127,7 +5127,7 @@ function HomePage(props) {
   return (
     <div className="sf-page pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] md:pb-0">
       <FeaturedCategoriesHero products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} />
-      <ShopByMainCategories products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} />
+      <ShopByMainCategories products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} themeMode={props.themeMode} />
       <HomeFlowSeparator label="This week" />
       <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "الأكثر طلبًا هذا الأسبوع" : "Most Popular This Week"} subtitle={normalizeLanguage(lang) === "ar" ? "الموديلات اللي عليها طلب ومشاهدة أعلى." : "Best-selling and most-viewed picks."} viewAllTo="/shop/products?sort=popular" loading={loading || storefrontHome.loading} products={homeSections.mostPopular} railType="bestseller" tone="popular" {...props} />
       <HomeFlowSeparator label="Nike edit" />
@@ -7745,6 +7745,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     placeholder={sfText("storefront.checkout.chooseGovernorate", "اختار المحافظة / المدينة")}
                     searchPlaceholder="ابحث عن محافظة"
                     loadingText={sfText("storefront.checkout.loadingGovernorates", "Loading governorates...")}
+                    themeMode={themeMode}
                   />
                   <CheckoutLocationPicker
                     label={sfText("storefront.checkout.zone", "المنطقة")}
@@ -7759,6 +7760,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     placeholder={form.shipping_city_id ? sfText("storefront.checkout.chooseZone", "اختار المنطقة") : sfText("storefront.checkout.chooseGovernorateFirst", "اختار المحافظة أولًا")}
                     searchPlaceholder={sfText("storefront.checkout.searchZones", "ابحث داخل المناطق")}
                     loadingText={sfText("storefront.checkout.loadingZones", "جارٍ تحميل المناطق...")}
+                    themeMode={themeMode}
                     helperText={form.shipping_city_id ? sfText("storefront.checkout.zoneSearchHint", "ابحث داخل المناطق التابعة للمحافظة المختارة.") : ""}
                     emptyText={sfText("storefront.common.noResults", "لا توجد نتائج")}
                   />
@@ -7775,16 +7777,17 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     placeholder={form.shipping_zone_id ? sfText("storefront.checkout.chooseDistrict", "اختار الحي") : sfText("storefront.checkout.chooseZoneFirst", "اختار المنطقة أولًا")}
                     searchPlaceholder={sfText("storefront.checkout.searchDistricts", "ابحث داخل الأحياء")}
                     loadingText={sfText("storefront.checkout.loadingDistricts", "جارٍ تحميل الأحياء...")}
+                    themeMode={themeMode}
                     helperText={form.shipping_zone_id ? sfText("storefront.checkout.districtSearchHint", "ابحث داخل الأحياء التابعة للمنطقة المختارة.") : ""}
                     emptyText={sfText("storefront.common.noResults", "لا توجد نتائج")}
                   />
                 </>
               ) : (
                 <>
-                  <SelectField label={sfText("storefront.checkout.governorate", "المحافظة")} value={form.governorate_id || form.governorate} onChange={setGovernorate} options={locationGovernorates.length ? locationGovernorates.map((item) => item.governorate_id) : governorates} labels={Object.fromEntries(locationGovernorates.map((item) => [item.governorate_id, checkoutLocationName(item, i18n.language, "governorate")]))} required error={errors.governorate} />
-                  <SelectField label={sfText("storefront.checkout.city", "المدينة / المركز")} value={form.city_id || ""} onChange={setCityArea} options={locationCities.map((item) => item.city_id)} labels={Object.fromEntries(locationCities.map((item) => [item.city_id, checkoutLocationName(item, i18n.language, "city")]))} required error={!form.city_id && errors.city_area ? errors.city_area : ""} />
-                  <SelectField label={sfText("storefront.checkout.area", "الحي / المنطقة")} value={form.area_id || ""} onChange={setCityArea} options={locationAreas.map((item) => item.area_id)} labels={Object.fromEntries(locationAreas.map((item) => [item.area_id, checkoutLocationName(item, i18n.language, "area")]))} required error={errors.city_area} />
-                  {!locationGovernorates.length ? <CityAreaField governorate={form.governorate} options={cityAreaOptions} value={form.city_area} onChange={setCityArea} manual={manualCityArea} onManualChange={(value) => setField("city_area", value)} required error={errors.city_area} /> : null}
+                  <SelectField themeMode={themeMode} label={sfText("storefront.checkout.governorate", "المحافظة")} value={form.governorate_id || form.governorate} onChange={setGovernorate} options={locationGovernorates.length ? locationGovernorates.map((item) => item.governorate_id) : governorates} labels={Object.fromEntries(locationGovernorates.map((item) => [item.governorate_id, checkoutLocationName(item, i18n.language, "governorate")]))} required error={errors.governorate} />
+                  <SelectField themeMode={themeMode} label={sfText("storefront.checkout.city", "المدينة / المركز")} value={form.city_id || ""} onChange={setCityArea} options={locationCities.map((item) => item.city_id)} labels={Object.fromEntries(locationCities.map((item) => [item.city_id, checkoutLocationName(item, i18n.language, "city")]))} required error={!form.city_id && errors.city_area ? errors.city_area : ""} />
+                  <SelectField themeMode={themeMode} label={sfText("storefront.checkout.area", "الحي / المنطقة")} value={form.area_id || ""} onChange={setCityArea} options={locationAreas.map((item) => item.area_id)} labels={Object.fromEntries(locationAreas.map((item) => [item.area_id, checkoutLocationName(item, i18n.language, "area")]))} required error={errors.city_area} />
+                  {!locationGovernorates.length ? <CityAreaField themeMode={themeMode} governorate={form.governorate} options={cityAreaOptions} value={form.city_area} onChange={setCityArea} manual={manualCityArea} onManualChange={(value) => setField("city_area", value)} required error={errors.city_area} /> : null}
                 </>
               )}
               <TextField label={sfText("storefront.checkout.fullAddress", "العنوان الكامل")} placeholder={sfText("storefront.checkout.fullAddressPlaceholder", "الشارع، رقم العمارة، الدور، الشقة")} value={form.detailed_address} onChange={(v) => setField("detailed_address", v)} required error={errors.detailed_address} />
@@ -8500,12 +8503,12 @@ function TextField({ label, value, onChange, required, error, compact, placehold
   );
 }
 
-function CityAreaField({ governorate, options, value, onChange, manual, onManualChange, required, error }) {
+function CityAreaField({ governorate, options, value, onChange, manual, onManualChange, required, error, themeMode = "light" }) {
   const selectOptions = [
     ...options.map((option) => ({ value: option, label: option })),
     { value: MANUAL_CITY_AREA, label: MANUAL_CITY_AREA },
   ];
-  const darkMode = isStorefrontDarkMode();
+  const darkMode = themeMode === "dark";
   const selectedOption = manual
     ? selectOptions[selectOptions.length - 1]
     : selectOptions.find((option) => option.value === value) || null;
@@ -8513,7 +8516,7 @@ function CityAreaField({ governorate, options, value, onChange, manual, onManual
   return (
     <div className="sf-checkout-field block">
       <span className={`sf-checkout-field-label mb-1.5 block text-sm font-black ${darkMode ? "text-white/82" : "text-slate-800"}`}>المدينة / المنطقة{required ? " *" : ""}</span>
-      <Suspense fallback={<CityAreaNativeSelect governorate={governorate} options={selectOptions} value={manual ? MANUAL_CITY_AREA : value} onChange={onChange} required={required} error={error} />}>
+      <Suspense fallback={<CityAreaNativeSelect themeMode={themeMode} governorate={governorate} options={selectOptions} value={manual ? MANUAL_CITY_AREA : value} onChange={onChange} required={required} error={error} />}>
         <Select
           instanceId="checkout-city-area"
           inputId="checkout-city-area"
@@ -8596,8 +8599,8 @@ function CityAreaField({ governorate, options, value, onChange, manual, onManual
   );
 }
 
-function CityAreaNativeSelect({ governorate, options, value, onChange, required, error }) {
-  const darkMode = isStorefrontDarkMode();
+function CityAreaNativeSelect({ governorate, options, value, onChange, required, error, themeMode = "light" }) {
+  const darkMode = themeMode === "dark";
   return (
     <select
       required={required}
@@ -8618,8 +8621,8 @@ function CityAreaNativeSelect({ governorate, options, value, onChange, required,
   );
 }
 
-function SelectField({ label, value, onChange, options, labels = {}, required, error }) {
-  const darkMode = isStorefrontDarkMode();
+function SelectField({ label, value, onChange, options, labels = {}, required, error, themeMode = "light" }) {
+  const darkMode = themeMode === "dark";
   return (
     <label className="block">
       <span className={`mb-1.5 block text-sm font-black ${darkMode ? "text-white/82" : "text-slate-800"}`}>{label}{required ? " *" : ""}</span>
@@ -8675,7 +8678,7 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
   const containerRef = useRef(null);
   const inputRef = useRef(null);
   const isMobile = useIsMobileViewport();
-  const darkMode = isStorefrontDarkMode();
+  const darkMode = themeMode === "dark";
   const selectedOption = useMemo(() => options.find((option) => String(option.id) === String(value)) || null, [options, value]);
   const deferredQuery = useDeferredValue(query);
   const filteredOptions = useMemo(() => {
@@ -9478,6 +9481,10 @@ function StorefrontWithBoundary() {
 }
 
 export default StorefrontWithBoundary;
+
+
+
+
 
 
 
