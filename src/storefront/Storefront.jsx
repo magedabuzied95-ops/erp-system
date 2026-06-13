@@ -7791,8 +7791,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
               <TextField label={sfText("storefront.checkout.fullAddress", "العنوان الكامل")} placeholder={sfText("storefront.checkout.fullAddressPlaceholder", "الشارع، رقم العمارة، الدور، الشقة")} value={form.detailed_address} onChange={(v) => setField("detailed_address", v)} required error={errors.detailed_address} />
               <div className="md:col-span-2 rounded-[1.25rem] border border-white/10 bg-white/[0.035] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-white/54">{sfText("storefront.checkout.bostaAddressDetails", "Bosta address details")}</p>
-                  {bostaMode ? <span className="rounded-full bg-cyan-300/15 px-2.5 py-1 text-[10px] font-black text-cyan-100">{sfText("storefront.checkout.requiredForBosta", "Required for Bosta")}</span> : null}
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-white/54">{sfText("storefront.checkout.bostaAddressDetails", "تفاصيل عنوان Bosta")}</p>
+                  {bostaMode ? <span className="rounded-full bg-cyan-300/15 px-2.5 py-1 text-[10px] font-black text-cyan-100">{sfText("storefront.checkout.requiredForBosta", "مطلوب لـ Bosta")}</span> : null}
                 </div>
                 <div className="grid gap-2.5 md:grid-cols-4">
                   <Field label={sfText("storefront.checkout.streetAddress", "عنوان الشارع")} placeholder={sfText("storefront.checkout.streetAddressPlaceholder", "الشارع أو المنطقة")} value={form.street_address} onChange={(v) => setField("street_address", v)} required={bostaMode} error={errors.street_address} />
@@ -7801,8 +7801,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                   <Field label={sfText("storefront.checkout.apartmentNumber", "الشقة")} placeholder={sfText("storefront.checkout.apartmentNumberPlaceholder", "7")} value={form.apartment_number} onChange={(v) => setField("apartment_number", v)} />
                 </div>
               </div>
-              <Field label={sfText("storefront.checkout.landmark", "Landmark")} placeholder={sfText("storefront.checkout.landmarkPlaceholder", "Near...")} value={form.landmark} onChange={(v) => setField("landmark", v)} />
-              <TextField label={sfText("storefront.checkout.deliveryNotes", "Delivery notes")} placeholder={sfText("storefront.checkout.deliveryNotesPlaceholder", "Preferred time or courier note")} value={form.delivery_notes} onChange={(v) => setField("delivery_notes", v)} />
+              <Field label={sfText("storefront.checkout.landmark", "معلم مشهور")} placeholder={sfText("storefront.checkout.landmarkPlaceholder", "بالقرب من...")} value={form.landmark} onChange={(v) => setField("landmark", v)} />
+              <TextField label={sfText("storefront.checkout.deliveryNotes", "ملاحظات التسليم")} placeholder={sfText("storefront.checkout.deliveryNotesPlaceholder", "وقت مفضل أو ملاحظة للمندوب")} value={form.delivery_notes} onChange={(v) => setField("delivery_notes", v)} />
             </div>
           </CheckoutSection> : null}
           {checkoutStep === 3 ? (
@@ -7859,7 +7859,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                           <button
                             type="button"
                             onClick={() => window.open(activeTransferPaymentUrl, "_blank", "noopener,noreferrer")}
-                            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-[#a78bfa]/20 bg-[linear-gradient(135deg,rgba(124,58,237,0.98),rgba(17,24,39,0.98))] px-4 py-3 text-sm font-black text-white shadow-[0_16px_36px_rgba(124,58,237,0.24)] transition hover:-translate-y-0.5 hover:border-[#c4b5fd]/36 hover:bg-[#6d28d9]"
+                            className="sf-checkout-instapay-button inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-[#a78bfa]/20 bg-[linear-gradient(135deg,rgba(124,58,237,0.98),rgba(17,24,39,0.98))] px-4 py-3 text-sm font-black text-white shadow-[0_16px_36px_rgba(124,58,237,0.24)] transition hover:-translate-y-0.5 hover:border-[#c4b5fd]/36 hover:bg-[#6d28d9]"
                           >
                             {sfText("storefront.checkout.transfer.openInstapayLinkAr", "ادفع عبر InstaPay")}
                           </button>
@@ -8920,15 +8920,15 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
           )}
         </div>
         {cart.length ? (
-          <div className="shrink-0 border-t border-white/10 bg-[#070b16]/92 px-4 pb-[calc(1.35rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-24px_60px_rgba(0,0,0,0.34)] backdrop-blur-2xl sm:px-5">
+          <div className="sf-cart-drawer-footer shrink-0 border-t border-white/10 bg-[#070b16]/92 px-4 pb-[calc(1.35rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-24px_60px_rgba(0,0,0,0.34)] backdrop-blur-2xl sm:px-5">
             <div className="mb-3 flex items-end justify-between gap-3">
-              <div>
+              <div className="sf-cart-drawer-total">
                 <p className="text-xs font-black text-white/54">{sfText("storefront.checkout.total", "الإجمالي")}</p>
                 <p className="mt-1 text-2xl font-black leading-none text-white">{money(total)}</p>
               </div>
               <p className="max-w-32 text-start text-[11px] font-bold leading-5 text-white/46">{sfText("storefront.checkout.finalShippingAtCheckout", "يُحسَب الشحن النهائي عند الدفع")}</p>
             </div>
-            <Link to="/shop/checkout" onClick={onClose} className="sf-shimmer-button block min-h-14 rounded-full border border-[#a78bfa]/20 bg-[linear-gradient(135deg,rgba(124,58,237,0.96),rgba(17,24,39,0.98))] px-5 py-4 text-center text-base font-black text-white shadow-[0_18px_42px_rgba(124,58,237,0.26)] transition hover:-translate-y-0.5 hover:border-[#c4b5fd]/40 hover:shadow-[0_22px_54px_rgba(109,40,217,0.34)] active:translate-y-0 active:scale-[0.98]">
+            <Link to="/shop/checkout" onClick={onClose} className="sf-cart-drawer-checkout-button sf-shimmer-button block min-h-14 rounded-full border border-[#a78bfa]/20 bg-[linear-gradient(135deg,rgba(124,58,237,0.96),rgba(17,24,39,0.98))] px-5 py-4 text-center text-base font-black text-white shadow-[0_18px_42px_rgba(124,58,237,0.26)] transition hover:-translate-y-0.5 hover:border-[#c4b5fd]/40 hover:shadow-[0_22px_54px_rgba(109,40,217,0.34)] active:translate-y-0 active:scale-[0.98]">
               {sfText("storefront.checkout.actions.completePurchase", "إتمام الطلب")}
             </Link>
           </div>
@@ -9270,8 +9270,8 @@ function SmallProductGrid({ items, action, onAddToCart }) {
             </Link>
           )}
           <div className="mt-3 grid gap-2">
-            {onAddToCart && !item.unavailable ? <button type="button" onClick={() => addWishlistItemToCart(item)} className="min-h-12 rounded-full bg-gradient-to-l from-[#4c1d95] via-[#6d28d9] to-[#111827] px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(109,40,217,0.3)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(109,40,217,0.38)]">{sfText("storefront.cart.addToCart", "أضف إلى السلة")}</button> : null}
-            {action ? <button type="button" onClick={() => action(item)} className="min-h-11 rounded-full border border-white/[0.1] bg-white/[0.045] px-4 py-2 text-sm font-black text-rose-200 transition hover:border-rose-400/70 hover:bg-rose-500 hover:text-white">{item.unavailable ? sfText("storefront.wishlist.removeFromWishlist", "إزالة من المفضلة") : sfText("storefront.common.remove", "إزالة")}</button> : null}
+            {onAddToCart && !item.unavailable ? <button type="button" onClick={() => addWishlistItemToCart(item)} className="sf-wishlist-add-button min-h-12 rounded-full bg-gradient-to-l from-[#4c1d95] via-[#6d28d9] to-[#111827] px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(109,40,217,0.3)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(109,40,217,0.38)]">{sfText("storefront.cart.addToCart", "أضف إلى السلة")}</button> : null}
+            {action ? <button type="button" onClick={() => action(item)} className="sf-wishlist-remove-button min-h-11 rounded-full border border-white/[0.1] bg-white/[0.045] px-4 py-2 text-sm font-black text-rose-200 transition hover:border-rose-400/70 hover:bg-rose-500 hover:text-white">{item.unavailable ? sfText("storefront.wishlist.removeFromWishlist", "إزالة من المفضلة") : sfText("storefront.common.remove", "إزالة")}</button> : null}
           </div>
         </div>
       ))}
