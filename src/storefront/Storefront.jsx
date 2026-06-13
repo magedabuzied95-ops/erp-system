@@ -3624,9 +3624,9 @@ const Header = memo(function Header({ cartCount, wishlistCount, onCart, onAddToC
         mobileOnly
       />
       {menuOpen ? (
-        <div className="grid gap-2 border-t border-stone-200 bg-white/96 px-4 py-4 text-sm font-bold backdrop-blur dark:border-white/10 dark:bg-[#0b1020]/96 md:hidden">
+        <div className="sf-mobile-menu-drawer grid gap-2 border-t border-stone-200 bg-white/96 px-4 py-4 text-sm font-bold backdrop-blur dark:border-white/10 dark:bg-[#0b1020]/96 md:hidden">
           {[t("storefront.nav.home", "الرئيسية"), t("storefront.nav.categories", "الأقسام"), t("storefront.nav.sale", "العروض"), t("storefront.nav.new", "الجديد"), t("storefront.nav.men", "رجالي"), t("storefront.nav.women", "نسائي"), t("storefront.nav.sizeGuide", "دليل المقاسات"), t("storefront.nav.returns", "سياسة الاستبدال")].map((label, index) => (
-            <Link key={label} to={["/shop", "/shop/products", "/shop/sale", "/shop/products?sort=new", "/shop/products?q=رجالي", "/shop/products?q=حريمي", "/shop/size-guide", "/shop/returns"][index]} onClick={() => setMenuOpen(false)} className="rounded-2xl px-3 py-3 transition hover:bg-stone-100 dark:hover:bg-white/5 active:scale-[0.98]">
+            <Link key={label} to={["/shop", "/shop/products", "/shop/sale", "/shop/products?sort=new", "/shop/products?q=رجالي", "/shop/products?q=حريمي", "/shop/size-guide", "/shop/returns"][index]} onClick={() => setMenuOpen(false)} className="sf-mobile-menu-item rounded-2xl px-3 py-3 transition hover:bg-stone-100 dark:hover:bg-white/5 active:scale-[0.98]">
               {label}
             </Link>
           ))}

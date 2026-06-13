@@ -1699,6 +1699,37 @@
     color: #6d28d9 !important;
   }
 
+  .storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer {
+    border-color: #e2e8f0 !important;
+    background:
+      radial-gradient(circle at 18% 0%, rgba(124, 58, 237, 0.04), transparent 34%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.97)) !important;
+    color: #0f172a !important;
+    box-shadow:
+      0 18px 48px rgba(15, 23, 42, 0.14),
+      inset 0 1px 0 rgba(255, 255, 255, 0.92) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    opacity: 1 !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer,
+  .storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer * {
+    text-shadow: none !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-mobile-menu-item {
+    border: 1px solid transparent !important;
+    color: #0f172a !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-mobile-menu-item:hover,
+  .storefront-shell:not(.storefront-dark) .sf-mobile-menu-item:focus-visible {
+    border-color: rgba(124, 58, 237, 0.16) !important;
+    background: rgba(124, 58, 237, 0.06) !important;
+    color: #7c3aed !important;
+  }
+
   .storefront-shell:not(.storefront-dark) .sf-announcement-row {
     background:
       linear-gradient(105deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96) 42%, rgba(238, 242, 255, 0.96)) !important;
