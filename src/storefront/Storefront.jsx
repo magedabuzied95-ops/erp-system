@@ -6166,30 +6166,30 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const cardDensityClasses = {
     hero: {
       image: "aspect-[1.02/1] p-1.5",
-      body: "p-2.5 pt-2",
-      title: "h-9 text-[12.5px] leading-[1.25rem]",
+      body: "p-3 pt-2.5",
+      title: "min-h-11 text-[13px] leading-[1.35rem]",
       price: "text-[17px]",
-      sizes: "mt-2 min-h-7 gap-1",
+      sizes: "mt-3 min-h-8 gap-1.5",
       chip: "h-6 px-2 text-[9px]",
       color: "h-6 w-6",
       swatch: "h-3.5 w-3.5",
     },
     standard: {
       image: "aspect-[0.96/1] p-1.5",
-      body: "p-2.5 pt-2",
-      title: "h-10 text-[12.5px] leading-5",
+      body: "p-3 pt-2.5",
+      title: "min-h-11 text-[13.25px] leading-[1.35rem]",
       price: "text-[16px]",
-      sizes: "mt-2 min-h-7 gap-1",
+      sizes: "mt-3 min-h-8 gap-1.5",
       chip: "h-6 px-2 text-[9px]",
       color: "h-[22px] w-[22px]",
       swatch: "h-3 w-3",
     },
     compact: {
       image: "aspect-[0.98/1] p-1.5",
-      body: "p-2.5 pt-2",
-      title: "h-10 text-[12.25px] leading-5",
+      body: "p-3 pt-2.5",
+      title: "min-h-10 text-[12.75px] leading-[1.3rem]",
       price: "text-[15.5px]",
-      sizes: "mt-2 min-h-7 gap-1",
+      sizes: "mt-3 min-h-8 gap-1.5",
       chip: "h-6 px-2 text-[9px]",
       color: "h-6 w-6",
       swatch: "h-3 w-3",
@@ -6232,37 +6232,16 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
         >
           <Heart className={`h-5 w-5 transition duration-200 md:h-[22px] md:w-[22px] ${inWishlist ? "animate-[wishlist-pop_320ms_ease-out] fill-rose-500 text-rose-500" : "text-slate-600 dark:text-stone-200"}`} />
         </button>
-        <button
-          type="button"
-          onClick={handleMobileCart}
-          disabled={!sellableVariants.length && !canQuickAdd}
-          className="absolute bottom-3 left-3 z-30 inline-flex min-h-12 min-w-12 items-center justify-center gap-1.5 rounded-full border border-[#c4b5fd]/40 bg-[linear-gradient(135deg,#7c3aed,#6d28d9_55%,#4c1d95)] px-4 py-3 text-xs font-black text-white shadow-[0_14px_34px_rgba(124,58,237,0.32),0_0_0_1px_rgba(196,181,253,0.16)_inset] backdrop-blur transition duration-200 hover:-translate-y-0.5 hover:border-[#ddd6fe]/60 hover:shadow-[0_18px_42px_rgba(124,58,237,0.42)] active:translate-y-0 active:scale-95 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-stone-500/70 disabled:text-white/60 disabled:shadow-none md:hidden"
-          aria-label={t("storefront.cart.addToCart", "أضف إلى السلة")}
-        >
-          <ShoppingCart className="h-4 w-4 text-white" />
-          <span className="sr-only">{t("storefront.cart.addToCart", "أضف إلى السلة")}</span>
-        </button>
-        <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 md:bottom-3.5">
-          <button
-            onClick={handleQuickAdd}
-            disabled={!canQuickAdd}
-            className="sf-shimmer-button inline-flex min-h-12 min-w-[9.5rem] transform-gpu items-center justify-center gap-2 rounded-full border border-[#c4b5fd]/45 bg-[linear-gradient(135deg,#7c3aed,#6d28d9_55%,#4c1d95)] px-5 py-3 text-[12px] font-black text-white shadow-[0_14px_34px_rgba(124,58,237,0.32),0_0_0_1px_rgba(196,181,253,0.16)_inset] backdrop-blur transition-[transform,box-shadow,filter] duration-200 ease-out hover:-translate-y-0.5 hover:border-[#ddd6fe]/60 hover:shadow-[0_18px_42px_rgba(124,58,237,0.42)] active:scale-[0.96] disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100"
-          >
-            <ShoppingCart className="h-[18px] w-[18px] text-white" />
-            {canQuickAdd ? t("storefront.cart.quickAdd", "إضافة سريعة") : t("storefront.products.unavailable", "غير متوفر")}
-          </button>
-        </div>
           {product.low_stock ? <span className="absolute bottom-2 right-2 z-20 inline-flex h-5 items-center rounded-full border border-amber-200 bg-amber-50/95 px-2 text-[9px] font-black leading-none text-amber-800 shadow-sm backdrop-blur md:bottom-auto md:left-12 md:right-auto md:top-2.5 md:h-6 md:px-2.5 md:text-[10px] dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100">{t("storefront.products.onlyLeft", "{{count}} left", { count: product.total_stock })}</span> : null}
       </div>
         <div className={`flex flex-1 flex-col md:p-3.5 md:pt-3 ${densityClasses.body}`}>
-        <Link to={detailsUrl} className={`line-clamp-2 font-extrabold tracking-normal text-stone-900 transition hover:text-[#6d28d9] md:h-10 md:text-[13.5px] md:leading-5 dark:text-stone-100 ${densityClasses.title}`}>{product.name}</Link>
-        <div className="mt-1 flex min-h-5 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 md:mt-2 md:min-h-6 md:gap-x-2">
+        <Link to={detailsUrl} className={`line-clamp-2 font-black tracking-[-0.01em] text-stone-900 transition hover:text-[#6d28d9] md:text-[13.75px] md:leading-5 dark:text-stone-100 ${densityClasses.title}`}>{product.name}</Link>
+        <div className="mt-2 flex min-h-6 flex-wrap items-baseline gap-x-2 gap-y-0.5 md:mt-2.5 md:min-h-7 md:gap-x-2">
           <span className={`font-black leading-none text-stone-950 md:text-[1.28rem] dark:text-white ${densityClasses.price}`}>{money(sellingPrice)}</span>
           {comparePrice ? <span className="text-[9.5px] font-semibold leading-none text-stone-400 line-through opacity-70 dark:text-stone-500 md:text-[10px]">{money(comparePrice)}</span> : null}
-          {discountPercent ? <span className="inline-flex items-center rounded-full border border-[#a78bfa]/20 bg-[linear-gradient(135deg,#7c3aed,#6d28d9_55%,#4c1d95)] px-2 py-0.5 text-[9px] font-extrabold leading-none tracking-[0.02em] text-white shadow-[0_8px_18px_rgba(124,58,237,0.20),0_0_0_1px_rgba(196,181,253,0.10)_inset] dark:border-white/10 dark:bg-[linear-gradient(135deg,#7c3aed,#4c1d95)] dark:text-white">-{discountPercent}%</span> : null}
         </div>
         {colorGroups.length > 1 ? (
-          <div className="mt-1.5 flex min-h-6 items-center gap-1 overflow-hidden md:mt-2 md:min-h-7 md:gap-1.5">
+          <div className="mt-2 flex min-h-6 items-center gap-1 overflow-hidden md:mt-2.5 md:min-h-7 md:gap-1.5">
             {visibleColorOptions.map((group) => {
               const active = String(group.key) === String(selectedColorKey);
               return (
@@ -6281,7 +6260,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
             {extraColorCount ? <span dir="ltr" className="inline-flex h-6 shrink-0 items-center rounded-full border border-stone-200/80 bg-white/[0.58] px-2 text-[9px] font-black leading-none text-stone-500 dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-400">+{extraColorCount}</span> : null}
           </div>
         ) : null}
-        <div className={`sf-scroll flex flex-nowrap overflow-x-auto pb-0.5 md:mt-2.5 md:min-h-12 md:flex-wrap md:content-start md:gap-1 md:overflow-hidden ${densityClasses.sizes}`}>
+        <div className={`sf-scroll flex flex-nowrap overflow-x-auto pb-0.5 md:mt-3 md:min-h-12 md:flex-wrap md:content-start md:gap-1.5 md:overflow-hidden ${densityClasses.sizes}`}>
           {visibleSizes.map(({ size, variant }) => {
             const selected = String(availableVariant?.id) === String(variant?.id);
             return (
@@ -6302,6 +6281,16 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
             <span className="inline-flex h-6 shrink-0 items-center rounded-full border border-stone-300/90 bg-white px-2 text-[9px] font-bold leading-none text-stone-500 shadow-sm md:text-[10px] dark:border-white/10 dark:bg-white/5 dark:text-stone-500">{t("storefront.products.oneSize", "مقاس واحد")}</span>
           ) : null}
         </div>
+        <button
+          type="button"
+          onClick={handleQuickAdd}
+          disabled={!canQuickAdd}
+          className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-[#c4b5fd]/45 bg-[linear-gradient(135deg,#7c3aed,#6d28d9_55%,#4c1d95)] px-4 py-3 text-[12px] font-black text-white shadow-[0_14px_34px_rgba(124,58,237,0.32),0_0_0_1px_rgba(196,181,253,0.16)_inset] backdrop-blur transition duration-200 hover:-translate-y-0.5 hover:border-[#ddd6fe]/60 hover:shadow-[0_18px_42px_rgba(124,58,237,0.42)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100"
+          aria-label={canQuickAdd ? t("storefront.cart.addToCart", "أضف إلى السلة") : t("storefront.products.unavailable", "غير متوفر")}
+        >
+          <ShoppingCart className="h-[18px] w-[18px] text-white" />
+          {canQuickAdd ? t("storefront.cart.addToCart", "أضف إلى السلة") : t("storefront.products.unavailable", "غير متوفر")}
+        </button>
       </div>
       {variantSheetOpen ? (
         <Suspense fallback={null}>
