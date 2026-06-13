@@ -387,6 +387,7 @@ export default function EmployeePortalInventory() {
   const itemSaveTimersRef = useRef(new Map());
   const itemSavePatchRef = useRef(new Map());
   const itemSavingIdRef = useRef("");
+  const lookupInputRef = useRef(null);
 
   const isEditable = ["draft", "in_progress"].includes(String(session?.status || ""));
   const isRejected = String(session?.status || "") === "rejected";
@@ -500,6 +501,10 @@ export default function EmployeePortalInventory() {
   const differenceTotal = useMemo(() => items.reduce((sum, item) => sum + toNumber(item.difference_quantity, 0), 0), [items]);
   const expectedTotal = useMemo(() => items.reduce((sum, item) => sum + toNumber(item.system_quantity, 0), 0), [items]);
   const countedTotal = useMemo(() => items.reduce((sum, item) => sum + toNumber(item.counted_quantity, 0), 0), [items]);
+  const progressPercent = useMemo(() => {
+    if (!expectedTotal) return 0;
+    return Math.max(0, Math.min(100, Math.round((countedTotal / expectedTotal) * 100)));
+  }, [countedTotal, expectedTotal]);
 
   const refreshCurrentSession = useCallback(async () => {
     if (!selectedSessionId) return;
@@ -827,6 +832,11 @@ export default function EmployeePortalInventory() {
       ? `زيادة: ${Math.abs(differenceTotal)}`
       : `عجز: ${Math.abs(differenceTotal)}`;
 
+  const handleManualAddProduct = useCallback(() => {
+    lookupInputRef.current?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    lookupInputRef.current?.focus?.();
+  }, []);
+
   return (
     <div dir="rtl" className="employee-portal-inventory min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.10),_transparent_28%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)] px-3 py-3 text-slate-950 sm:px-4 sm:py-4">
       <style>{`
@@ -900,17 +910,22 @@ export default function EmployeePortalInventory() {
           className="px-0"
         />
 
-        <section className="rounded-[2rem] border border-white/70 bg-white/95 p-4 shadow-2xl shadow-slate-200/60 backdrop-blur">
-          <div className="inventory-wrap flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <section className="rounded-[2rem] border border-white/70 bg-white/95 p-3 shadow-2xl shadow-slate-200/60 backdrop-blur sm:p-4">
+          <div className="inventory-wrap flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="flex items-center gap-2 text-emerald-700">
                 <Warehouse className="h-5 w-5" />
                 <span className="text-xs font-black uppercase tracking-[0.18em]">بوابة الموظف</span>
               </div>
-              <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">الجرد</h1>
-              <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-500">
-                أمين المخزن ينشئ الجرد ويعد الكميات ويرسله للمراجعة فقط. لا يظهر اعتماد نهائي هنا.
-              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">الجرد</h1>
+                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">
+                  Inventory UX v2
+                </span>
+              </div>
+              <div className="mt-2 inline-flex max-w-3xl rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold leading-5 text-sky-800 sm:text-sm">
+                تُرسل كميات الجرد للمراجعة قبل الاعتماد النهائي.
+              </div>
             </div>
             <div className="inventory-actions flex min-w-0 gap-2">
               <button
@@ -1038,7 +1053,7 @@ export default function EmployeePortalInventory() {
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="inventory-wrap flex min-w-0 flex-col gap-3 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="inventory-wrap flex min-w-0 flex-col gap-3 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-3 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <h2 className="text-2xl font-black text-slate-950">{titleDraft || session.title || "جرد جديد"}</h2>
@@ -1050,7 +1065,7 @@ export default function EmployeePortalInventory() {
                       {session.branch_name || "الفرع"}{session.warehouse_name ? ` • ${session.warehouse_name}` : ""}
                     </div>
                   </div>
-                  <div className="inventory-actions flex min-w-0 gap-2">
+                  <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
                     {session.status === "draft" ? (
                       <button
                         type="button"
@@ -1062,24 +1077,26 @@ export default function EmployeePortalInventory() {
                         بدء الجرد
                       </button>
                     ) : null}
-                    <button
-                      type="button"
-                      onClick={handleSaveSessionMeta}
-                      disabled={sessionSaving || !isEditable}
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 disabled:opacity-60"
-                    >
-                      <Save className="h-4 w-4" />
-                      حفظ
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSubmitSession}
-                      disabled={sessionSubmitting || !isEditable}
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-60"
-                    >
-                      {sessionSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                      إرسال للمراجعة
-                    </button>
+                    <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={handleSaveSessionMeta}
+                        disabled={sessionSaving || !isEditable}
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 disabled:opacity-60"
+                      >
+                        <Save className="h-4 w-4" />
+                        حفظ
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSubmitSession}
+                        disabled={sessionSubmitting || !isEditable}
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-60"
+                      >
+                        {sessionSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        إرسال للمراجعة
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -1105,46 +1122,78 @@ export default function EmployeePortalInventory() {
                   </div>
                 ) : null}
 
-                <div className="grid min-w-0 gap-3 lg:grid-cols-[1fr_1fr]">
-                  <label className="inventory-wrap block rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                <div className="grid min-w-0 gap-2 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <div className="text-xs font-black text-slate-400">Products Counted</div>
+                    <div className="mt-1 text-lg font-black text-slate-950">{groupedItems.length}</div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <div className="text-xs font-black text-slate-400">Quantity Counted</div>
+                    <div className="mt-1 text-lg font-black text-slate-950">{countedTotal}</div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <div className="text-xs font-black text-slate-400">Variance Count</div>
+                    <div className={`mt-1 text-lg font-black ${differenceTotal === 0 ? "text-emerald-700" : differenceTotal > 0 ? "text-amber-700" : "text-rose-700"}`}>
+                      {differenceTotal}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <div className="flex items-center justify-between gap-3 text-xs font-black text-slate-500">
+                    <span>{countedTotal} units counted</span>
+                    <span>{progressPercent}%</span>
+                  </div>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-emerald-500 transition-all"
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid min-w-0 gap-2 lg:grid-cols-[1fr_1fr]">
+                  <label className="inventory-wrap block rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
                     <div className="text-xs font-black text-slate-400">اسم الجرد</div>
                     <input
                       value={titleDraft}
                       onChange={(event) => setTitleDraft(event.target.value)}
                       disabled={!isEditable}
-                      className="mt-2 w-full bg-transparent text-base font-semibold text-slate-950 outline-none disabled:opacity-70"
+                      className="mt-1.5 w-full bg-transparent text-base font-semibold text-slate-950 outline-none disabled:opacity-70"
                     />
                   </label>
-                  <label className="inventory-wrap block rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <label className="inventory-wrap block rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
                     <div className="text-xs font-black text-slate-400">ملاحظات</div>
                     <input
                       value={notesDraft}
                       onChange={(event) => setNotesDraft(event.target.value)}
                       disabled={!isEditable}
-                      className="mt-2 w-full bg-transparent text-base font-semibold text-slate-950 outline-none disabled:opacity-70"
+                      className="mt-1.5 w-full bg-transparent text-base font-semibold text-slate-950 outline-none disabled:opacity-70"
                     />
                   </label>
                 </div>
 
-                <section className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <section className="rounded-[1.5rem] border border-slate-200 bg-white p-3 shadow-sm">
+                  <div className="flex min-w-0 flex-col gap-3">
                     <div className="inventory-wrap">
                       <h3 className="text-lg font-black text-slate-950">البحث والباركود</h3>
-                      <p className="text-xs font-semibold text-slate-500">ابحث عن المنتج أو امسح الباركود لإضافة الكمية.</p>
+                      <p className="text-xs font-semibold text-slate-500">امسح الباركود أولاً، أو استخدم البحث اليدوي عند الحاجة.</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setScannerOpen(true)}
                       disabled={!isEditable}
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 disabled:opacity-60"
+                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white shadow-sm disabled:opacity-60"
                     >
                       <ScanBarcode className="h-4 w-4" />
-                      سكان
+                      مسح الباركود
                     </button>
+                    <div className="text-center text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">أو</div>
                   </div>
                   <label className="inventory-search mt-3 flex min-w-0 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
                     <Search className="h-4 w-4 shrink-0 text-slate-400" />
                     <input
+                      ref={lookupInputRef}
                       value={lookupQuery}
                       onChange={(event) => setLookupQuery(event.target.value)}
                       disabled={!isEditable}
@@ -1152,6 +1201,15 @@ export default function EmployeePortalInventory() {
                       className="w-full bg-transparent text-base font-semibold text-slate-950 outline-none placeholder:text-slate-400 disabled:opacity-70"
                     />
                   </label>
+                  <button
+                    type="button"
+                    onClick={handleManualAddProduct}
+                    disabled={!isEditable}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-2xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-black text-emerald-700 disabled:opacity-60"
+                  >
+                    <Plus className="h-4 w-4" />
+                    + Add Product Manually
+                  </button>
                   {lookupLoading ? (
                     <div className="mt-3 flex items-center gap-2 text-sm font-black text-slate-500">
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -1188,7 +1246,7 @@ export default function EmployeePortalInventory() {
                   ) : null}
                 </section>
 
-                <section className="inventory-wrap rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
+                <section className="inventory-wrap rounded-[1.5rem] border border-slate-200 bg-white p-3 shadow-sm">
                   <div className="flex min-w-0 items-start justify-between gap-3">
                     <div className="inventory-title">
                       <h3 className="text-lg font-black text-slate-950">عناصر الجرد</h3>
@@ -1201,7 +1259,7 @@ export default function EmployeePortalInventory() {
                     </div>
                   </div>
 
-                  <div className="mt-4 space-y-3">
+                  <div className="mt-3 space-y-3">
                     {groupedItems.length ? groupedItems.map((group) => (
                       <div key={group.key} className="inventory-wrap rounded-2xl border border-slate-200 bg-slate-50 p-3">
                         <div className="flex min-w-0 items-start gap-3">
