@@ -4488,6 +4488,9 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
     },
   }[tone] || {};
   const sectionTone = toneConfig.shell || "bg-transparent";
+  const eyebrowClass = darkMode
+    ? (toneConfig.eyebrow || "text-[#7c3aed] dark:text-[#f8e7b3]")
+    : (tone === "popular" ? "text-[#334155]" : "text-[#7c3aed]");
   const railItems = loading && !visibleProducts.length
     ? Array.from({ length: 3 }, (_, repeatIndex) =>
         skeletonItems.map((_, index) => ({
@@ -4706,7 +4709,7 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
       <div className={sectionTone}>
         <div className="mb-4 flex items-end justify-between gap-3 text-right md:mb-6">
           <div className="min-w-0">
-            <div className={`mb-1 text-[10px] font-black uppercase tracking-[0.18em] md:text-[11px] ${toneConfig.eyebrow || (darkMode ? "text-[#f8e7b3]" : "text-[#7c3aed]")}`}>{sfText("storefront.common.shopNow", "Shop Now")}</div>
+            <div className={`mb-1 text-[10px] font-black uppercase tracking-[0.18em] md:text-[11px] ${eyebrowClass}`}>{sfText("storefront.common.shopNow", "Shop Now")}</div>
             <h2 className={`text-[1.75rem] font-black tracking-normal md:text-4xl ${darkMode ? "text-stone-100" : "text-[#0f172a]"}`}>{title}</h2>
             {subtitle ? <p className={`mt-1 text-xs font-bold leading-5 md:text-base md:leading-6 ${darkMode ? "text-stone-400" : "text-[#475569]"}`}>{subtitle}</p> : null}
             <div className={`mt-2 h-1 w-16 rounded-full bg-gradient-to-l ${toneConfig.line || "from-[#7c3aed] to-[#f8e7b3]"}`} />
