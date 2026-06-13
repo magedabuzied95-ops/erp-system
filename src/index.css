@@ -1730,6 +1730,33 @@
     color: #7c3aed !important;
   }
 
+  @supports (-webkit-touch-callout: none) {
+    .storefront-shell[data-language="ar"] {
+      -webkit-text-size-adjust: 100%;
+      text-rendering: optimizeLegibility;
+    }
+
+    .storefront-shell[data-language="ar"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, label, small, li) {
+      letter-spacing: normal !important;
+      font-kerning: normal;
+      font-feature-settings: "liga" 1, "calt" 1, "rlig" 1;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      -webkit-text-fill-color: currentColor;
+    }
+
+    .storefront-shell[data-language="ar"] :is(
+        .tracking-\[0\.18em\],
+        .tracking-\[0\.2em\],
+        .tracking-\[0\.22em\],
+        .tracking-wide,
+        .tracking-wider,
+        .tracking-widest
+      ) {
+      letter-spacing: normal !important;
+    }
+  }
+
   .storefront-shell:not(.storefront-dark) .sf-announcement-row {
     background:
       linear-gradient(105deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96) 42%, rgba(238, 242, 255, 0.96)) !important;
