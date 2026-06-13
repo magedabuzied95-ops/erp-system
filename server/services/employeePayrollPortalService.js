@@ -16,6 +16,10 @@ const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
+const toAttendanceMinutes = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0;
+};
 
 const clean = (value = "") => String(value || "").trim();
 const firstNonEmpty = (...values) => values.map((value) => clean(value)).find(Boolean) || "";
@@ -2209,8 +2213,8 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
             check_out_gps_distance_meters = NULL,
             check_out_gps_verification_result = NULL,
             work_minutes = 0,
-            early_leave_minutes = NULL,
-            overtime_minutes = NULL,
+            early_leave_minutes = 0,
+            overtime_minutes = 0,
             status = 'checked_in',
             notes = TRIM(CONCAT_WS(E'\n', NULLIF(notes, ''), NULLIF($5, ''))),
             updated_at = NOW()
@@ -2237,7 +2241,7 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
           shiftResolution.resolvedStartTime,
           shiftResolution.resolvedEndTime,
           shiftResolution.status,
-          shiftResolution.lateMinutes || 0,
+          toAttendanceMinutes(shiftResolution.lateMinutes),
         ]
       );
       await recordEmployeePortalAudit({ employee, action: "attendance_check_in", audit: auditWithGps, metadata: { branch_id: branch.id, attendance_id: result.rows[0]?.id, duplicate: true } });
@@ -2259,7 +2263,7 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
           attendance_id: result.rows[0]?.id || null,
           branch_id: branch.id,
           action: "check_in",
-          late_minutes: shiftResolution.lateMinutes || 0,
+          late_minutes: toAttendanceMinutes(shiftResolution.lateMinutes),
         },
       }).catch(() => null);
       return { action, attendance: result.rows[0], branch: { id: branch.id, name: branch.name } };
@@ -2292,7 +2296,7 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
         shiftResolution.resolvedStartTime,
         shiftResolution.resolvedEndTime,
         shiftResolution.status,
-        shiftResolution.lateMinutes || 0,
+        toAttendanceMinutes(shiftResolution.lateMinutes),
       ]
     );
     await recordEmployeePortalAudit({ employee, action: "attendance_check_in", audit: auditWithGps, metadata: { branch_id: branch.id, attendance_id: result.rows[0]?.id } });
@@ -2314,7 +2318,7 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
         attendance_id: result.rows[0]?.id || null,
         branch_id: branch.id,
         action: "check_in",
-        late_minutes: shiftResolution.lateMinutes || 0,
+        late_minutes: toAttendanceMinutes(shiftResolution.lateMinutes),
       },
     }).catch(() => null);
     return { action, attendance: result.rows[0], branch: { id: branch.id, name: branch.name } };
@@ -2454,10 +2458,10 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
     audit.ip || "",
     audit.userAgent || audit.user_agent || "",
     checkOutAt,
-    metrics.work_minutes,
-    metrics.late_minutes,
-    metrics.early_leave_minutes,
-    metrics.overtime_minutes,
+    toAttendanceMinutes(metrics.work_minutes),
+    toAttendanceMinutes(metrics.late_minutes),
+    toAttendanceMinutes(metrics.early_leave_minutes),
+    toAttendanceMinutes(metrics.overtime_minutes),
   ];
   const result = attendanceRecordId
     ? await runEmployeePortalCheckoutQuery(

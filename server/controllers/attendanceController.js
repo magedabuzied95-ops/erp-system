@@ -48,6 +48,10 @@ const ATTENDANCE_RATE_LIMIT_WINDOW_MS = Math.max(Number(process.env.ATTENDANCE_R
 const ATTENDANCE_RATE_LIMIT_MAX = Math.max(Number(process.env.ATTENDANCE_RATE_LIMIT_MAX || 12), 3);
 
 const attendanceRateLimit = new Map();
+const normalizeAttendanceMinutes = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0;
+};
 
 const normalizeLookupValue = (value = "") => String(value || "").trim();
 const normalizeBranchEntryKey = (value = "") => {
@@ -2133,7 +2137,7 @@ export const checkIn = async (req, res) => {
         attendanceDate,
         checkInAt,
         attendanceSource || "manual",
-        shiftResolution.lateMinutes || 0,
+        normalizeAttendanceMinutes(shiftResolution.lateMinutes),
         shift?.id || null,
         shiftResolution.resolvedStartTime,
         shiftResolution.resolvedEndTime,
@@ -2364,10 +2368,10 @@ export const checkOut = async (req, res) => {
       RETURNING *
       `,
       [
-        metrics.work_minutes,
-        metrics.late_minutes,
-        metrics.early_leave_minutes,
-        metrics.overtime_minutes,
+        normalizeAttendanceMinutes(metrics.work_minutes),
+        normalizeAttendanceMinutes(metrics.late_minutes),
+        normalizeAttendanceMinutes(metrics.early_leave_minutes),
+        normalizeAttendanceMinutes(metrics.overtime_minutes),
         notes || "",
         attendanceRow.id,
         tenantId,
@@ -4070,7 +4074,7 @@ const createPublicAttendanceEvent = async ({ client, req, branch, employee, acti
         deviceContext?.deviceKey || null,
         deviceContext?.userAgent || null,
         deviceContext?.ipAddress || null,
-        shiftResolution.lateMinutes || 0,
+        normalizeAttendanceMinutes(shiftResolution.lateMinutes),
         selectedShift?.id || null,
         shiftResolution.resolvedStartTime,
         shiftResolution.resolvedEndTime,
@@ -4110,8 +4114,8 @@ const createPublicAttendanceEvent = async ({ client, req, branch, employee, acti
         ip_address = COALESCE(ip_address, $11),
         attendance_source = 'qr_branch',
         status = 'checked_out',
-        worked_hours = ROUND(($6::numeric / 60.0), 2),
-        work_minutes = $6,
+        worked_hours = ROUND((COALESCE($6::numeric, 0) / 60.0), 2),
+        work_minutes = COALESCE($6::integer, 0),
         updated_at = NOW()
       WHERE id = $7
       RETURNING *
@@ -4122,7 +4126,7 @@ const createPublicAttendanceEvent = async ({ client, req, branch, employee, acti
         longitude,
         gpsVerification.distanceMeters,
         gpsVerification.result,
-        metrics.work_minutes,
+        normalizeAttendanceMinutes(metrics.work_minutes),
         attendanceState.attendance.id,
         deviceContext?.deviceFingerprint || null,
         deviceContext?.deviceKey || null,
@@ -5265,8 +5269,8 @@ export const scanQrAttendance = async (req, res) => {
         user_agent = COALESCE(user_agent, $9),
         ip_address = COALESCE(ip_address, $10),
         status = 'checked_out',
-        worked_hours = ROUND(($5::numeric / 60.0), 2),
-        work_minutes = $5,
+        worked_hours = ROUND((COALESCE($5::numeric, 0) / 60.0), 2),
+        work_minutes = COALESCE($5::integer, 0),
         updated_at = NOW()
       WHERE id = $6
       RETURNING *
@@ -5276,7 +5280,7 @@ export const scanQrAttendance = async (req, res) => {
         longitude,
         gpsVerification.distanceMeters,
         gpsVerification.result,
-        metrics.work_minutes,
+        normalizeAttendanceMinutes(metrics.work_minutes),
         todayLog.id,
         deviceContext.deviceFingerprint || null,
         deviceContext.deviceKey || null,
