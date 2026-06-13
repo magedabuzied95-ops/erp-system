@@ -291,6 +291,16 @@ export const getAiSupportConversationState = async ({ tenantId, sessionId, chann
   if (!safeTenantId || !safeSessionId) return null;
   await ensureAiSupportLogSchema();
 
+  const sessionState = await db.query(
+    `
+    SELECT *
+    FROM ai_support_sessions
+    WHERE tenant_id = $1 AND session_id = $2
+    LIMIT 1
+    `,
+    [safeTenantId, safeSessionId]
+  );
+
   if (safeChannel) {
     const channelState = await db.query(
       `
@@ -302,19 +312,12 @@ export const getAiSupportConversationState = async ({ tenantId, sessionId, chann
       [safeTenantId, safeChannel, safeSessionId]
     );
     if (channelState.rows[0]) {
-      const sessionState = await db.query(
-        `
-        SELECT *
-        FROM ai_support_sessions
-        WHERE tenant_id = $1 AND session_id = $2
-        LIMIT 1
-        `,
-        [safeTenantId, safeSessionId]
-      );
       return {
         ...(sessionState.rows[0] || {}),
         ...channelState.rows[0],
-        ai_enabled: channelState.rows[0].ai_enabled !== false,
+        ai_enabled: channelState.rows[0].ai_enabled !== undefined
+          ? channelState.rows[0].ai_enabled !== false
+          : sessionState.rows[0]?.ai_enabled !== false,
         channel: channelState.rows[0].channel || sessionState.rows[0]?.channel || safeChannel,
         session_id: safeSessionId,
         external_conversation_id: safeSessionId,
@@ -322,18 +325,7 @@ export const getAiSupportConversationState = async ({ tenantId, sessionId, chann
     }
   }
 
-  const result = await db.query(
-    `
-    SELECT *
-    FROM ai_support_sessions
-    WHERE tenant_id = $1
-      AND session_id = $2
-      AND ($3::text = '' OR channel = $3)
-    LIMIT 1
-    `,
-    [safeTenantId, safeSessionId, safeChannel]
-  );
-  return result.rows[0] || null;
+  return sessionState.rows[0] || null;
 };
 
 export const updateAiSupportConversationAiEnabled = async ({
@@ -353,51 +345,29 @@ export const updateAiSupportConversationAiEnabled = async ({
   }
   await ensureAiSupportLogSchema();
 
-  if (isMetaConversationChannel(safeChannel)) {
-    const result = await db.query(
-      `
-      INSERT INTO ai_channel_conversations (
-        tenant_id,
-        channel,
-        external_conversation_id,
-        ai_enabled,
-        updated_at
-      )
-      VALUES ($1::bigint, $2::text, $3::text, $4::boolean, NOW())
-      ON CONFLICT (tenant_id, channel, external_conversation_id) DO UPDATE SET
-        ai_enabled = EXCLUDED.ai_enabled,
-        updated_at = NOW()
-      RETURNING *
-      `,
-      [safeTenantId, safeChannel, safeSessionId, safeEnabled]
-    );
-    const sessionState = await db.query(
-      `
-      SELECT *
-      FROM ai_support_sessions
-      WHERE tenant_id = $1 AND session_id = $2
-      LIMIT 1
-      `,
-      [safeTenantId, safeSessionId]
-    );
-    console.log("[ai-toggle] conversation ai state updated", {
-      tenant_id: safeTenantId,
-      conversation_id: safeSessionId,
-      channel: safeChannel,
-      target: "ai_channel_conversations",
-      ai_enabled: safeEnabled,
-    });
-    return {
-      ...(sessionState.rows[0] || {}),
-      ...(result.rows[0] || {}),
-      ai_enabled: safeEnabled,
-      channel: safeChannel,
-      session_id: safeSessionId,
-      external_conversation_id: safeSessionId,
-    };
-  }
-
-  const result = await db.query(
+  const sessionState = await db.query(
+    `
+    SELECT channel
+    FROM ai_support_sessions
+    WHERE tenant_id = $1 AND session_id = $2
+    LIMIT 1
+    `,
+    [safeTenantId, safeSessionId]
+  );
+  const existingChannelRows = await db.query(
+    `
+    SELECT DISTINCT channel
+    FROM ai_channel_conversations
+    WHERE tenant_id = $1 AND external_conversation_id = $2
+    `,
+    [safeTenantId, safeSessionId]
+  );
+  const resolvedChannels = [...new Set([
+    safeChannel,
+    normalizeConversationChannel(sessionState.rows[0]?.channel || ""),
+    ...existingChannelRows.rows.map((row) => normalizeConversationChannel(row.channel || "")),
+  ].map((value) => normalizeConversationChannel(value)).filter(Boolean))];
+  const sessionResult = await db.query(
     `
     INSERT INTO ai_support_sessions (
       tenant_id,
@@ -417,14 +387,55 @@ export const updateAiSupportConversationAiEnabled = async ({
     `,
     [safeTenantId, numberOrNull(actorUserId), safeSessionId, toText(source, "admin_console"), safeEnabled]
   );
+  for (const resolvedChannel of resolvedChannels) {
+    await db.query(
+      `
+      INSERT INTO ai_channel_conversations (
+        tenant_id,
+        channel,
+        external_conversation_id,
+        ai_enabled,
+        updated_at
+      )
+      VALUES ($1::bigint, $2::text, $3::text, $4::boolean, NOW())
+      ON CONFLICT (tenant_id, channel, external_conversation_id) DO UPDATE SET
+        ai_enabled = EXCLUDED.ai_enabled,
+        updated_at = NOW()
+      `,
+      [safeTenantId, resolvedChannel, safeSessionId, safeEnabled]
+    );
+  }
+
+  const channelResult = resolvedChannels.length
+    ? await db.query(
+        `
+        SELECT *
+        FROM ai_channel_conversations
+        WHERE tenant_id = $1
+          AND external_conversation_id = $2
+          AND channel = ANY($3::text[])
+        ORDER BY updated_at DESC, id DESC
+        LIMIT 1
+        `,
+        [safeTenantId, safeSessionId, resolvedChannels]
+      )
+    : { rows: [] };
+
   console.log("[ai-toggle] conversation ai state updated", {
     tenant_id: safeTenantId,
     conversation_id: safeSessionId,
-    channel: safeChannel,
-    target: "ai_support_sessions",
+    channel: safeChannel || resolvedChannels[0] || "",
+    targets: ["ai_support_sessions", ...resolvedChannels.map(() => "ai_channel_conversations")],
     ai_enabled: safeEnabled,
   });
-  return result.rows[0] || null;
+  return {
+    ...(sessionResult.rows[0] || {}),
+    ...(channelResult.rows[0] || {}),
+    ai_enabled: safeEnabled,
+    channel: safeChannel || channelResult.rows[0]?.channel || sessionResult.rows[0]?.channel || resolvedChannels[0] || "",
+    session_id: safeSessionId,
+    external_conversation_id: safeSessionId,
+  };
 };
 
 export const updateAiSupportConversationState = async ({
