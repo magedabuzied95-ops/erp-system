@@ -1778,6 +1778,157 @@
     color: #7c3aed !important;
   }
 
+  .storefront-shell:not(.storefront-dark) .sf-product-details-page,
+  .storefront-shell:not(.storefront-dark) .sf-product-summary-card,
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card,
+  .storefront-shell:not(.storefront-dark) .sf-product-quantity-card,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-page,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card {
+    color: #0f172a !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-product-summary-card :is(h1, h2, h3, h4, p, span, label, small, li, a),
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card :is(h1, h2, h3, h4, p, span, label, small, li, a),
+  .storefront-shell:not(.storefront-dark) .sf-product-quantity-card :is(h1, h2, h3, h4, p, span, label, small, li, a),
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section :is(h1, h2, h3, h4, p, span, label, small, li, a),
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary :is(h1, h2, h3, h4, p, span, label, small, li, a),
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card :is(h1, h2, h3, h4, p, span, label, small, li, a),
+  .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav a,
+  .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav a span {
+    color: #0f172a !important;
+    opacity: 1 !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-product-summary-card .text-white,
+  .storefront-shell:not(.storefront-dark) .sf-product-summary-card .text-white\/90,
+  .storefront-shell:not(.storefront-dark) .sf-product-summary-card .text-white\/86,
+  .storefront-shell:not(.storefront-dark) .sf-product-summary-card .text-white\/82,
+  .storefront-shell:not(.storefront-dark) .sf-product-summary-card .text-white\/80,
+  .storefront-shell:not(.storefront-dark) .sf-product-summary-card .text-white\/75,
+  .storefront-shell:not(.storefront-dark) .sf-product-summary-card .text-white\/70,
+  .storefront-shell:not(.storefront-dark) .sf-product-summary-card .text-white\/65,
+  .storefront-shell:not(.storefront-dark) .sf-product-summary-card .text-white\/62,
+  .storefront-shell:not(.storefront-dark) .sf-product-summary-card .text-white\/60,
+  .storefront-shell:not(.storefront-dark) .sf-product-summary-card .text-white\/58,
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card .text-white,
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card .text-white\/90,
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card .text-white\/82,
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card .text-white\/80,
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card .text-white\/75,
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card .text-white\/70,
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card .text-white\/65,
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card .text-white\/60,
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card .text-white\/58,
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card .text-white\/54,
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card .text-white\/50,
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card .text-white\/46,
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card .text-white\/42,
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card .text-white\/40,
+  .storefront-shell:not(.storefront-dark) .sf-product-option-card .text-white\/35,
+  .storefront-shell:not(.storefront-dark) .sf-product-quantity-card .text-white,
+  .storefront-shell:not(.storefront-dark) .sf-product-quantity-card .text-white\/82,
+  .storefront-shell:not(.storefront-dark) .sf-product-quantity-card .text-white\/70,
+  .storefront-shell:not(.storefront-dark) .sf-product-quantity-card .text-white\/60,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/90,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/86,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/82,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/80,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/75,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/74,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/70,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/65,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/64,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/62,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/60,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/58,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/56,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/54,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/52,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/50,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/48,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/46,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/42,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/40,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/38,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .text-white\/34,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/90,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/86,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/82,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/80,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/75,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/74,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/70,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/65,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/64,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/62,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/60,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/58,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/56,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/54,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/52,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/50,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/48,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/46,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/42,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/40,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/38,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .text-white\/34,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .text-white,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .text-white\/90,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .text-white\/82,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .text-white\/80,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .text-white\/75,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .text-white\/70,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .text-white\/65,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .text-white\/60,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .text-white\/58,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .text-white\/54,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .text-white\/50,
+  .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav .text-white,
+  .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav .text-white\/92,
+  .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav .text-white\/90,
+  .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav .text-white\/80,
+  .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav .text-white\/75,
+  .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav .text-white\/70,
+  .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav .text-slate-100,
+  .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav .text-slate-200,
+  .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav .opacity-30,
+  .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav .opacity-40,
+  .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav .opacity-50 {
+    color: #0f172a !important;
+    opacity: 1 !important;
+    -webkit-text-fill-color: #0f172a !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .sf-checkout-field-label,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section .sf-field-label,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .sf-info-label,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-summary .sf-order-item-meta,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .sf-checkout-field-label,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .sf-checkout-picker-text,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .sf-field-label {
+    color: #1e293b !important;
+    font-weight: 700 !important;
+    opacity: 1 !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section input::placeholder,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section textarea::placeholder,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-section select::placeholder,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card input::placeholder,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card textarea::placeholder,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card select::placeholder,
+  .storefront-shell:not(.storefront-dark) .sf-checkout-bosta-card .checkout-picker-search input::placeholder,
+  .storefront-shell:not(.storefront-dark) .checkout-picker-search input::placeholder {
+    color: #64748b !important;
+    opacity: 1 !important;
+    -webkit-text-fill-color: #64748b !important;
+  }
+
   .storefront-shell:not(.storefront-dark) .sf-mobile-filter-trigger {
     border-color: rgba(148, 163, 184, 0.26) !important;
     color: var(--sf-light-text) !important;
