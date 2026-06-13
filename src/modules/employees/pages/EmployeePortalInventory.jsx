@@ -917,12 +917,7 @@ export default function EmployeePortalInventory() {
                 <Warehouse className="h-5 w-5" />
                 <span className="text-xs font-black uppercase tracking-[0.18em]">بوابة الموظف</span>
               </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">الجرد</h1>
-                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">
-                  Inventory UX v2
-                </span>
-              </div>
+              <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">الجرد</h1>
               <div className="mt-2 inline-flex max-w-3xl rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold leading-5 text-sky-800 sm:text-sm">
                 تُرسل كميات الجرد للمراجعة قبل الاعتماد النهائي.
               </div>
@@ -1053,7 +1048,7 @@ export default function EmployeePortalInventory() {
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="inventory-wrap flex min-w-0 flex-col gap-3 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="inventory-wrap flex min-w-0 flex-col gap-2 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-2.5 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <h2 className="text-2xl font-black text-slate-950">{titleDraft || session.title || "جرد جديد"}</h2>
@@ -1071,7 +1066,7 @@ export default function EmployeePortalInventory() {
                         type="button"
                         onClick={handleOpenSession}
                         disabled={sessionOpening}
-                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 disabled:opacity-60"
+                        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-60"
                       >
                         {sessionOpening ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
                         بدء الجرد
@@ -1082,7 +1077,7 @@ export default function EmployeePortalInventory() {
                         type="button"
                         onClick={handleSaveSessionMeta}
                         disabled={sessionSaving || !isEditable}
-                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 disabled:opacity-60"
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-700 disabled:opacity-60"
                       >
                         <Save className="h-4 w-4" />
                         حفظ
@@ -1091,7 +1086,7 @@ export default function EmployeePortalInventory() {
                         type="button"
                         onClick={handleSubmitSession}
                         disabled={sessionSubmitting || !isEditable}
-                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-60"
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-3 text-sm font-black text-white disabled:opacity-60"
                       >
                         {sessionSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                         إرسال للمراجعة
@@ -1122,26 +1117,14 @@ export default function EmployeePortalInventory() {
                   </div>
                 ) : null}
 
-                <div className="grid min-w-0 gap-2 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                    <div className="text-xs font-black text-slate-400">Products Counted</div>
-                    <div className="mt-1 text-lg font-black text-slate-950">{groupedItems.length}</div>
-                  </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                    <div className="text-xs font-black text-slate-400">Quantity Counted</div>
-                    <div className="mt-1 text-lg font-black text-slate-950">{countedTotal}</div>
-                  </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                    <div className="text-xs font-black text-slate-400">Variance Count</div>
-                    <div className={`mt-1 text-lg font-black ${differenceTotal === 0 ? "text-emerald-700" : differenceTotal > 0 ? "text-amber-700" : "text-rose-700"}`}>
-                      {differenceTotal}
-                    </div>
-                  </div>
-                </div>
-
                 <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                  <div className="flex items-center justify-between gap-3 text-xs font-black text-slate-500">
-                    <span>{countedTotal} units counted</span>
+                  <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-black text-slate-600">
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">المنتجات: {groupedItems.length}</span>
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">الكمية: {countedTotal}</span>
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">الفروقات: {differenceTotal}</span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-3 text-[11px] font-black text-slate-500">
+                    <span>{countedTotal} قطعة معدودة</span>
                     <span>{progressPercent}%</span>
                   </div>
                   <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
@@ -1208,7 +1191,7 @@ export default function EmployeePortalInventory() {
                     className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-2xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-black text-emerald-700 disabled:opacity-60"
                   >
                     <Plus className="h-4 w-4" />
-                    + Add Product Manually
+                    إضافة منتج يدويًا
                   </button>
                   {lookupLoading ? (
                     <div className="mt-3 flex items-center gap-2 text-sm font-black text-slate-500">
