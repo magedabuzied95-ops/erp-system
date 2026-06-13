@@ -32,7 +32,7 @@ export default function StorefrontCheckoutSummary({
   } = components;
   const shippingText = governorate
     ? shippingQuote.loading
-      ? t("common.loading", "Loading...")
+      ? t("common.loading", "جارٍ التحميل...")
       : money(deliveryFee)
     : t("storefront.checkout.chooseGovernorate", "اختر المحافظة");
   const deliveryText = shippingQuote.estimated_delivery_text || t("storefront.checkout.expectedDeliveryNotice", "التسليم المتوقع خلال 2 إلى 5 أيام عمل حسب المحافظة.");
@@ -53,7 +53,7 @@ export default function StorefrontCheckoutSummary({
                 <div className="sf-order-item-name truncate text-sm font-black leading-5 text-white">{item.name}</div>
                 <div className="sf-order-item-meta mt-1 inline-flex rounded-full bg-white/[0.055] px-2 py-1 text-[11px] font-black text-white/60 ring-1 ring-white/10">{item.color || t("storefront.products.color", "اللون")} / {item.size || t("storefront.products.size", "المقاس")} × {item.quantity}</div>
                 <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-white/42">
-                  <span>{t("storefront.checkout.unitPrice", "Unit price")} {money(item.price)}</span>
+                  <span>{t("storefront.checkout.unitPrice", "سعر الوحدة")} {money(item.price)}</span>
                   {comparePrice ? <span className="line-through">{money(comparePrice)}</span> : null}
                 </div>
               </div>
@@ -63,16 +63,16 @@ export default function StorefrontCheckoutSummary({
         })}
       </div>
       <div className="sf-checkout-summary-totals mt-4 rounded-2xl border border-white/10 bg-black/20 p-4 shadow-inner shadow-black/30">
-        <SummaryRow dark label={t("storefront.checkout.products", "Products")} value={money(subtotal)} />
-        <SummaryRow dark label={t("storefront.checkout.discount", "Discount")} value={discount ? `-${money(discount)}` : money(0)} />
-        <SummaryRow dark label={t("storefront.checkout.shipping", "Shipping")} value={shippingText} />
-        <SummaryRow dark label={t("storefront.checkout.total", "Total")} value={money(total)} strong />
-        {codAmount ? <SummaryRow dark label={paymentMethod === "cod" ? t("storefront.checkout.codOnDelivery", "COD on delivery") : t("storefront.checkout.remainingOnDelivery", "Remaining on delivery")} value={money(codAmount)} /> : null}
+        <SummaryRow dark label={t("storefront.checkout.products", "المنتجات")} value={money(subtotal)} />
+        <SummaryRow dark label={t("storefront.checkout.discount", "الخصم")} value={discount ? `-${money(discount)}` : money(0)} />
+        <SummaryRow dark label={t("storefront.checkout.shipping", "الشحن")} value={shippingText} />
+        <SummaryRow dark label={t("storefront.checkout.total", "الإجمالي")} value={money(total)} strong />
+        {codAmount ? <SummaryRow dark label={paymentMethod === "cod" ? t("storefront.checkout.codOnDelivery", "المتبقي عند الاستلام") : t("storefront.checkout.remainingOnDelivery", "المتبقي عند الاستلام")} value={money(codAmount)} /> : null}
       </div>
       <div className="sf-checkout-summary-notes mt-3 grid gap-2 text-xs font-bold text-white/58">
         {import.meta.env.DEV && governorate ? (
           <span className="rounded-2xl border border-sky-300/20 bg-sky-400/10 px-3 py-2 text-sky-100">
-            Shipping dev: {shippingQuote.match_level || "default"} {shippingQuote.zone?.governorate ? `- ${[shippingQuote.zone.governorate, shippingQuote.zone.city, shippingQuote.zone.area].filter(Boolean).join(" / ")}` : ""}
+            شحن dev: {shippingQuote.match_level || "default"} {shippingQuote.zone?.governorate ? `- ${[shippingQuote.zone.governorate, shippingQuote.zone.city, shippingQuote.zone.area].filter(Boolean).join(" / ")}` : ""}
           </span>
         ) : null}
         <span className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-emerald-100">{deliveryText}</span>

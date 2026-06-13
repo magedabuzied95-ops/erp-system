@@ -7456,8 +7456,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     const composedAddress = [
       form.street_address || form.detailed_address,
       form.building_number ? `Building ${form.building_number}` : "",
-      form.floor_number ? `Floor ${form.floor_number}` : "",
-      form.apartment_number ? `Apartment ${form.apartment_number}` : "",
+      form.floor_number ? `الدور ${form.floor_number}` : "",
+      form.apartment_number ? `الشقة ${form.apartment_number}` : "",
       form.landmark ? `Near ${form.landmark}` : "",
     ].filter(Boolean).join(", ");
 
@@ -7735,21 +7735,21 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
               {bostaMode ? (
                 <>
                   <CheckoutLocationPicker
-                    label={sfText("storefront.checkout.governorate", "City / Governorate")}
-                    mobileTitle={sfText("storefront.checkout.governorate", "City / Governorate")}
+                    label={sfText("storefront.checkout.governorate", "المحافظة / المدينة")}
+                    mobileTitle={sfText("storefront.checkout.governorate", "المحافظة / المدينة")}
                     value={form.shipping_city_id || ""}
                     onChange={setBostaCity}
                     options={bostaCityOptions}
                     loading={bostaLocations.loadingCities}
                     required
                     error={errors.governorate}
-                    placeholder={sfText("storefront.checkout.chooseGovernorate", "Choose city / governorate")}
+                    placeholder={sfText("storefront.checkout.chooseGovernorate", "اختار المحافظة / المدينة")}
                     searchPlaceholder="ابحث عن محافظة"
                     loadingText={sfText("storefront.checkout.loadingGovernorates", "Loading governorates...")}
                   />
                   <CheckoutLocationPicker
-                    label={sfText("storefront.checkout.zone", "Zone")}
-                    mobileTitle={sfText("storefront.checkout.zone", "Zone")}
+                    label={sfText("storefront.checkout.zone", "المنطقة")}
+                    mobileTitle={sfText("storefront.checkout.zone", "المنطقة")}
                     value={form.shipping_zone_id || ""}
                     onChange={setBostaZone}
                     options={bostaZoneOptions}
@@ -7757,15 +7757,15 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     required
                     disabled={!form.shipping_city_id}
                     error={!form.shipping_zone_id && errors.city_area ? errors.city_area : ""}
-                    placeholder={form.shipping_city_id ? sfText("storefront.checkout.chooseZone", "Choose zone") : sfText("storefront.checkout.chooseGovernorateFirst", "Choose governorate first")}
-                    searchPlaceholder="ابحث عن منطقة"
-                    loadingText={sfText("storefront.checkout.loadingZones", "Loading zones...")}
-                    helperText={form.shipping_city_id ? sfText("storefront.checkout.zoneSearchHint", "Search zones inside the selected governorate.") : ""}
-                    emptyText="لا توجد نتائج"
+                    placeholder={form.shipping_city_id ? sfText("storefront.checkout.chooseZone", "اختار المنطقة") : sfText("storefront.checkout.chooseGovernorateFirst", "اختار المحافظة أولًا")}
+                    searchPlaceholder={sfText("storefront.checkout.searchZones", "ابحث داخل المناطق")}
+                    loadingText={sfText("storefront.checkout.loadingZones", "جارٍ تحميل المناطق...")}
+                    helperText={form.shipping_city_id ? sfText("storefront.checkout.zoneSearchHint", "ابحث داخل المناطق التابعة للمحافظة المختارة.") : ""}
+                    emptyText={sfText("storefront.common.noResults", "لا توجد نتائج")}
                   />
                   <CheckoutLocationPicker
-                    label={sfText("storefront.checkout.area", "District")}
-                    mobileTitle={sfText("storefront.checkout.area", "District")}
+                    label={sfText("storefront.checkout.area", "الحي")}
+                    mobileTitle={sfText("storefront.checkout.area", "الحي")}
                     value={form.shipping_district_id || ""}
                     onChange={setBostaDistrict}
                     options={bostaDistrictOptions}
@@ -7773,32 +7773,32 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     required
                     disabled={!form.shipping_zone_id}
                     error={!form.shipping_district_id ? errors.city_area : ""}
-                    placeholder={form.shipping_zone_id ? sfText("storefront.checkout.chooseDistrict", "Choose district") : sfText("storefront.checkout.chooseZoneFirst", "Choose zone first")}
-                    searchPlaceholder="ابحث عن حي / منطقة"
-                    loadingText={sfText("storefront.checkout.loadingDistricts", "Loading districts...")}
-                    helperText={form.shipping_zone_id ? sfText("storefront.checkout.districtSearchHint", "Search districts inside the selected zone.") : ""}
-                    emptyText="لا توجد نتائج"
+                    placeholder={form.shipping_zone_id ? sfText("storefront.checkout.chooseDistrict", "اختار الحي") : sfText("storefront.checkout.chooseZoneFirst", "اختار المنطقة أولًا")}
+                    searchPlaceholder={sfText("storefront.checkout.searchDistricts", "ابحث داخل الأحياء")}
+                    loadingText={sfText("storefront.checkout.loadingDistricts", "جارٍ تحميل الأحياء...")}
+                    helperText={form.shipping_zone_id ? sfText("storefront.checkout.districtSearchHint", "ابحث داخل الأحياء التابعة للمنطقة المختارة.") : ""}
+                    emptyText={sfText("storefront.common.noResults", "لا توجد نتائج")}
                   />
                 </>
               ) : (
                 <>
-                  <SelectField label={sfText("storefront.checkout.governorate", "Governorate")} value={form.governorate_id || form.governorate} onChange={setGovernorate} options={locationGovernorates.length ? locationGovernorates.map((item) => item.governorate_id) : governorates} labels={Object.fromEntries(locationGovernorates.map((item) => [item.governorate_id, checkoutLocationName(item, i18n.language, "governorate")]))} required error={errors.governorate} />
-                  <SelectField label={sfText("storefront.checkout.city", "City / Markaz")} value={form.city_id || ""} onChange={setCityArea} options={locationCities.map((item) => item.city_id)} labels={Object.fromEntries(locationCities.map((item) => [item.city_id, checkoutLocationName(item, i18n.language, "city")]))} required error={!form.city_id && errors.city_area ? errors.city_area : ""} />
-                  <SelectField label={sfText("storefront.checkout.area", "Area / District")} value={form.area_id || ""} onChange={setCityArea} options={locationAreas.map((item) => item.area_id)} labels={Object.fromEntries(locationAreas.map((item) => [item.area_id, checkoutLocationName(item, i18n.language, "area")]))} required error={errors.city_area} />
+                  <SelectField label={sfText("storefront.checkout.governorate", "المحافظة")} value={form.governorate_id || form.governorate} onChange={setGovernorate} options={locationGovernorates.length ? locationGovernorates.map((item) => item.governorate_id) : governorates} labels={Object.fromEntries(locationGovernorates.map((item) => [item.governorate_id, checkoutLocationName(item, i18n.language, "governorate")]))} required error={errors.governorate} />
+                  <SelectField label={sfText("storefront.checkout.city", "المدينة / المركز")} value={form.city_id || ""} onChange={setCityArea} options={locationCities.map((item) => item.city_id)} labels={Object.fromEntries(locationCities.map((item) => [item.city_id, checkoutLocationName(item, i18n.language, "city")]))} required error={!form.city_id && errors.city_area ? errors.city_area : ""} />
+                  <SelectField label={sfText("storefront.checkout.area", "الحي / المنطقة")} value={form.area_id || ""} onChange={setCityArea} options={locationAreas.map((item) => item.area_id)} labels={Object.fromEntries(locationAreas.map((item) => [item.area_id, checkoutLocationName(item, i18n.language, "area")]))} required error={errors.city_area} />
                   {!locationGovernorates.length ? <CityAreaField governorate={form.governorate} options={cityAreaOptions} value={form.city_area} onChange={setCityArea} manual={manualCityArea} onManualChange={(value) => setField("city_area", value)} required error={errors.city_area} /> : null}
                 </>
               )}
-              <TextField label={sfText("storefront.checkout.fullAddress", "Full address")} placeholder={sfText("storefront.checkout.fullAddressPlaceholder", "Street, building number, floor, apartment")} value={form.detailed_address} onChange={(v) => setField("detailed_address", v)} required error={errors.detailed_address} />
+              <TextField label={sfText("storefront.checkout.fullAddress", "العنوان الكامل")} placeholder={sfText("storefront.checkout.fullAddressPlaceholder", "الشارع، رقم العمارة، الدور، الشقة")} value={form.detailed_address} onChange={(v) => setField("detailed_address", v)} required error={errors.detailed_address} />
               <div className="md:col-span-2 rounded-[1.25rem] border border-white/10 bg-white/[0.035] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs font-black uppercase tracking-[0.14em] text-white/54">{sfText("storefront.checkout.bostaAddressDetails", "Bosta address details")}</p>
                   {bostaMode ? <span className="rounded-full bg-cyan-300/15 px-2.5 py-1 text-[10px] font-black text-cyan-100">{sfText("storefront.checkout.requiredForBosta", "Required for Bosta")}</span> : null}
                 </div>
                 <div className="grid gap-2.5 md:grid-cols-4">
-                  <Field label={sfText("storefront.checkout.streetAddress", "Street address")} placeholder={sfText("storefront.checkout.streetAddressPlaceholder", "Street or neighborhood")} value={form.street_address} onChange={(v) => setField("street_address", v)} required={bostaMode} error={errors.street_address} />
-                  <Field label={sfText("storefront.checkout.buildingNumber", "Building number")} placeholder={sfText("storefront.checkout.buildingNumberPlaceholder", "12")} value={form.building_number} onChange={(v) => setField("building_number", v)} required={bostaMode} error={errors.building_number} />
-                  <Field label={sfText("storefront.checkout.floorNumber", "Floor")} placeholder={sfText("storefront.checkout.floorNumberPlaceholder", "3")} value={form.floor_number} onChange={(v) => setField("floor_number", v)} />
-                  <Field label={sfText("storefront.checkout.apartmentNumber", "Apartment")} placeholder={sfText("storefront.checkout.apartmentNumberPlaceholder", "7")} value={form.apartment_number} onChange={(v) => setField("apartment_number", v)} />
+                  <Field label={sfText("storefront.checkout.streetAddress", "عنوان الشارع")} placeholder={sfText("storefront.checkout.streetAddressPlaceholder", "الشارع أو المنطقة")} value={form.street_address} onChange={(v) => setField("street_address", v)} required={bostaMode} error={errors.street_address} />
+                  <Field label={sfText("storefront.checkout.buildingNumber", "رقم العمارة")} placeholder={sfText("storefront.checkout.buildingNumberPlaceholder", "12")} value={form.building_number} onChange={(v) => setField("building_number", v)} required={bostaMode} error={errors.building_number} />
+                  <Field label={sfText("storefront.checkout.floorNumber", "الدور")} placeholder={sfText("storefront.checkout.floorNumberPlaceholder", "3")} value={form.floor_number} onChange={(v) => setField("floor_number", v)} />
+                  <Field label={sfText("storefront.checkout.apartmentNumber", "الشقة")} placeholder={sfText("storefront.checkout.apartmentNumberPlaceholder", "7")} value={form.apartment_number} onChange={(v) => setField("apartment_number", v)} />
                 </div>
               </div>
               <Field label={sfText("storefront.checkout.landmark", "Landmark")} placeholder={sfText("storefront.checkout.landmarkPlaceholder", "Near...")} value={form.landmark} onChange={(v) => setField("landmark", v)} />
@@ -7942,7 +7942,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                             disabled={couponLoading || !String(form.coupon || "").trim()}
                             className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-[#a78bfa]/25 bg-[#7c3aed] px-4 text-sm font-black text-white transition hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            {couponLoading ? sfText("common.loading", "Loading...") : sfText("storefront.checkout.applyCoupon", "Apply coupon")}
+                            {couponLoading ? sfText("common.loading", "جارٍ التحميل...") : sfText("storefront.checkout.applyCoupon", "تطبيق الكوبون")}
                           </button>
                           {couponValidation?.valid ? (
                             <button
@@ -8525,8 +8525,8 @@ function CityAreaField({ governorate, options, value, onChange, manual, onManual
           value={selectedOption}
           placeholder={
             governorate
-              ? sfText("storefront.checkout.cityAreaPlaceholder", "Choose or search city / area")
-              : sfText("storefront.checkout.chooseGovernorateFirst", "Choose governorate first")
+              ? sfText("storefront.checkout.cityAreaPlaceholder", "اختار أو ابحث داخل المدينة / المنطقة")
+              : sfText("storefront.checkout.chooseGovernorateFirst", "اختار المحافظة أولًا")
           }
           noOptionsMessage={() => sfText("storefront.common.noResults", "No results")}
           onChange={(option) => onChange(option?.value || "")}
@@ -8586,7 +8586,7 @@ function CityAreaField({ governorate, options, value, onChange, manual, onManual
       {manual ? (
         <input
           required={required}
-          placeholder={sfText("storefront.checkout.cityAreaManualPlaceholder", "Write city or area")}
+          placeholder={sfText("storefront.checkout.cityAreaManualPlaceholder", "اكتب المدينة أو المنطقة")}
           value={value}
           onChange={(event) => onManualChange(event.target.value)}
           className={`sf-field-input sf-checkout-field-input mt-2 min-h-14 w-full rounded-2xl border bg-white/[0.055] px-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`}
@@ -8608,7 +8608,7 @@ function CityAreaNativeSelect({ governorate, options, value, onChange, required,
       className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-2xl border px-4 text-[15px] font-bold shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] disabled:opacity-60 ${darkMode ? "bg-white/[0.055] text-white placeholder:text-white/34 border-white/12 focus:bg-white/[0.075]" : "bg-white text-stone-950 placeholder:text-stone-400 border-stone-200 focus:bg-white"} ${error ? "border-rose-300/70 focus:border-rose-300" : ""}`}
     >
       <option value="" className={darkMode ? "bg-[#0b1020] text-white" : "bg-white text-stone-950"}>
-        {governorate ? sfText("storefront.checkout.cityAreaPlaceholder", "Choose or search city / area") : sfText("storefront.checkout.chooseGovernorateFirst", "Choose governorate first")}
+        {governorate ? sfText("storefront.checkout.cityAreaPlaceholder", "اختار أو ابحث داخل المدينة / المنطقة") : sfText("storefront.checkout.chooseGovernorateFirst", "اختار المحافظة أولًا")}
       </option>
       {options.map((option) => (
         <option key={option.value} value={option.value} className={darkMode ? "bg-[#0b1020] text-white" : "bg-white text-stone-950"}>
@@ -8625,7 +8625,7 @@ function SelectField({ label, value, onChange, options, labels = {}, required, e
     <label className="block">
       <span className="mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
       <select required={required} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-2xl border px-4 text-[15px] font-bold shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${darkMode ? "bg-white/[0.055] text-white placeholder:text-white/34 border-white/12 focus:bg-white/[0.075]" : "bg-white text-stone-950 placeholder:text-stone-400 border-stone-200 focus:bg-white"} ${error ? "border-rose-300/70 focus:border-rose-300" : ""}`}>
-        <option value="" className={darkMode ? "bg-[#0b1020] text-white" : "bg-white text-stone-950"}>{sfText("storefront.common.choose", "Choose")}</option>
+        <option value="" className={darkMode ? "bg-[#0b1020] text-white" : "bg-white text-stone-950"}>{sfText("storefront.common.choose", "اختار")}</option>
         {options.map((option) => <option key={option} value={option} className={darkMode ? "bg-[#0b1020] text-white" : "bg-white text-stone-950"}>{labels[option] || option}</option>)}
       </select>
       {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
@@ -8707,10 +8707,10 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
     onChange(option.id);
     close();
   };
-  const triggerLabel = selectedOption?.label || (loading ? loadingText : placeholder || sfText("storefront.common.choose", "Choose"));
+  const triggerLabel = selectedOption?.label || (loading ? loadingText : placeholder || sfText("storefront.common.choose", "اختار"));
   const isBlocked = disabled;
   const panelTitle = mobileTitle || label;
-  const searchHint = searchPlaceholder || sfText("storefront.checkout.searchLocations", "Search");
+  const searchHint = searchPlaceholder || sfText("storefront.checkout.searchLocations", "ابحث");
 
   const panelBody = (
     <div className="flex min-h-0 flex-1 flex-col gap-2.5">
