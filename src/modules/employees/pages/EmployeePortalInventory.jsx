@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ChevronRight,
   ClipboardList,
+  Filter,
   Loader2,
   Plus,
   RefreshCw,
@@ -24,6 +25,7 @@ import toast from "react-hot-toast";
 import BarcodeScanner from "../../../components/BarcodeScanner";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
+import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import {
   createEmployeePortalInventorySession,
   getEmployeePortalInventorySession,
@@ -38,6 +40,14 @@ import {
 } from "../services/employeePortalInventoryApi";
 
 const clean = (value = "") => String(value || "").trim();
+const lower = (value = "") => clean(value).toLowerCase();
+const uniqueTextValues = (values = []) => [...new Set(values.map((value) => clean(value)).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ar"));
+const sortSizes = (sizes = []) => [...sizes].sort((a, b) => {
+  const left = Number(a);
+  const right = Number(b);
+  if (Number.isFinite(left) && Number.isFinite(right)) return left - right;
+  return String(a).localeCompare(String(b), "ar");
+});
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -218,6 +228,11 @@ const normalizeVariant = (record = {}) => {
   const sku = clean(record.sku ?? record.variant_sku ?? "");
   const barcode = clean(record.barcode ?? record.variant_barcode ?? "");
   const articleCode = clean(record.article_code ?? record.variant_article_code ?? "");
+  const gender = clean(record.gender ?? record.product_gender ?? record.product?.gender ?? "");
+  const type = clean(record.type ?? record.product_type ?? record.product?.type ?? "");
+  const category = clean(record.category ?? record.category_name ?? record.grade ?? record.product?.category ?? "");
+  const brand = clean(record.brand ?? record.brand_name ?? record.product?.brand ?? "");
+  const manufacturer_name = clean(record.manufacturer_name ?? record.manufacturer ?? record.product?.manufacturer_name ?? record.product?.manufacturer ?? "");
   const imageUrl = resolveInventoryImageUrl(...getInventoryImageCandidates(record));
   const systemQuantity = toNumber(record.system_quantity ?? record.stock ?? record.expected_qty ?? 0);
   const countedQuantity = toNumber(record.counted_quantity ?? record.actual_qty ?? 0);
@@ -235,6 +250,11 @@ const normalizeVariant = (record = {}) => {
     sku,
     barcode,
     article_code: articleCode,
+    gender,
+    type,
+    category,
+    brand,
+    manufacturer_name,
     image_url: imageUrl,
     image: imageUrl,
     product_image: imageUrl,
@@ -378,6 +398,16 @@ export default function EmployeePortalInventory() {
   const [lookupResults, setLookupResults] = useState([]);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState("active");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filters, setFilters] = useState({
+    category: "all",
+    type: "all",
+    brand: "all",
+    manufacturer: "all",
+    gender: "all",
+    inStockOnly: true,
+  });
+  const [selectedFilterSize, setSelectedFilterSize] = useState("all");
   const [sessionSearch, setSessionSearch] = useState("");
   const [titleDraft, setTitleDraft] = useState("");
   const [notesDraft, setNotesDraft] = useState("");
@@ -388,6 +418,7 @@ export default function EmployeePortalInventory() {
   const itemSavePatchRef = useRef(new Map());
   const itemSavingIdRef = useRef("");
   const lookupInputRef = useRef(null);
+  const filtersPanelRef = useRef(null);
 
   const isEditable = ["draft", "in_progress"].includes(String(session?.status || ""));
   const isRejected = String(session?.status || "") === "rejected";
@@ -497,7 +528,102 @@ export default function EmployeePortalInventory() {
   }, [sessionSearch, sessions, statusFilter]);
 
   const groupedItems = useMemo(() => groupVariants(items), [items]);
-  const lookupGroups = useMemo(() => groupVariants(lookupResults), [lookupResults]);
+  const inventoryFilterSource = useMemo(() => {
+    const seen = new Set();
+    const records = [];
+    for (const record of [...items, ...lookupResults]) {
+      const variant = normalizeVariant(record);
+      const key = [
+        variant.product_id,
+        variant.product_name,
+        variant.color,
+        variant.size,
+        variant.sku,
+        variant.barcode,
+        variant.article_code,
+      ].map((value) => clean(value)).join("::");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      records.push(variant);
+    }
+    return records;
+  }, [items, lookupResults]);
+  const filterOptions = useMemo(() => {
+    const categories = uniqueTextValues(inventoryFilterSource.map((record) => record.category));
+    const types = uniqueTextValues(inventoryFilterSource.map((record) => record.type));
+    const brands = uniqueTextValues(inventoryFilterSource.map((record) => record.brand));
+    const manufacturers = uniqueTextValues(inventoryFilterSource.map((record) => record.manufacturer_name));
+    const genders = uniqueTextValues(inventoryFilterSource.map((record) => record.gender));
+    return { categories, types, brands, manufacturers, genders };
+  }, [inventoryFilterSource]);
+  const optionWithCounts = useCallback((values, records, valueForRecord) => values.map((value) => ({
+    id: value,
+    name: value,
+    count: records.filter((record) => clean(valueForRecord(record)) === clean(value)).length,
+  })), []);
+  const activeFilterCount = useMemo(
+    () =>
+      ["category", "type", "brand", "manufacturer", "gender"].reduce(
+        (count, key) => count + (filters[key] !== "all" ? 1 : 0),
+        selectedFilterSize !== "all" ? 1 : 0
+      ),
+    [filters, selectedFilterSize]
+  );
+  const smartFilterOptions = useMemo(() => ({
+    gender: optionWithCounts(filterOptions.genders, inventoryFilterSource, (record) => record.gender),
+    productType: optionWithCounts(filterOptions.types, inventoryFilterSource, (record) => record.type),
+    grade: optionWithCounts(filterOptions.categories, inventoryFilterSource, (record) => record.category),
+  }), [filterOptions, inventoryFilterSource, optionWithCounts]);
+  const brandOptions = useMemo(() => filterOptions.brands.map((brand) => ({ id: brand, name: brand })), [filterOptions.brands]);
+  const manufacturerOptions = useMemo(() => filterOptions.manufacturers.map((manufacturer) => ({ id: manufacturer, name: manufacturer })), [filterOptions.manufacturers]);
+  const resetFilters = useCallback(() => {
+    setFilters({
+      category: "all",
+      type: "all",
+      brand: "all",
+      manufacturer: "all",
+      gender: "all",
+      inStockOnly: true,
+    });
+    setSelectedFilterSize("all");
+  }, []);
+  const updateFilter = useCallback((key, value) => {
+    setFilters((current) => ({ ...current, [key]: value }));
+  }, []);
+  const matchesInventoryBaseFilters = useCallback((record) => {
+    const matchesCategory = filters.category === "all" || clean(record.category) === clean(filters.category);
+    const matchesType = filters.type === "all" || clean(record.type) === clean(filters.type);
+    const matchesBrand = filters.brand === "all" || clean(record.brand) === clean(filters.brand);
+    const matchesManufacturer = filters.manufacturer === "all" || clean(record.manufacturer_name) === clean(filters.manufacturer);
+    const matchesGender = filters.gender === "all" || clean(record.gender) === clean(filters.gender);
+    const matchesStock = !filters.inStockOnly || Number(record.system_quantity || record.stock || 0) > 0;
+    return matchesCategory && matchesType && matchesBrand && matchesManufacturer && matchesGender && matchesStock;
+  }, [filters]);
+  const matchesInventoryFilters = useCallback((record) => {
+    const matchesSize = selectedFilterSize === "all" || clean(record.size) === clean(selectedFilterSize);
+    return matchesInventoryBaseFilters(record) && matchesSize;
+  }, [matchesInventoryBaseFilters, selectedFilterSize]);
+  const filteredLookupResults = useMemo(
+    () => lookupResults.filter(matchesInventoryFilters),
+    [lookupResults, matchesInventoryFilters]
+  );
+  const lookupGroups = useMemo(() => groupVariants(filteredLookupResults), [filteredLookupResults]);
+  const availableSizes = useMemo(() => {
+    const filteredBaseRecords = inventoryFilterSource.filter(matchesInventoryBaseFilters);
+    const sizes = new Map();
+    for (const record of filteredBaseRecords) {
+      if (!record.size) continue;
+      sizes.set(record.size, (sizes.get(record.size) || 0) + 1);
+    }
+    return sortSizes([...sizes.entries()].map(([id, count]) => ({ id, name: id, count })));
+  }, [inventoryFilterSource, matchesInventoryBaseFilters]);
+
+  useEffect(() => {
+    if (selectedFilterSize === "all") return;
+    if (!availableSizes.some((option) => option.id === selectedFilterSize)) {
+      setSelectedFilterSize("all");
+    }
+  }, [availableSizes, selectedFilterSize]);
   const differenceTotal = useMemo(() => items.reduce((sum, item) => sum + toNumber(item.difference_quantity, 0), 0), [items]);
   const expectedTotal = useMemo(() => items.reduce((sum, item) => sum + toNumber(item.system_quantity, 0), 0), [items]);
   const countedTotal = useMemo(() => items.reduce((sum, item) => sum + toNumber(item.counted_quantity, 0), 0), [items]);
@@ -1157,48 +1283,67 @@ export default function EmployeePortalInventory() {
                 </div>
 
                 <section className="rounded-[1.5rem] border border-slate-200 bg-white p-3 shadow-sm">
-                  <div className="flex min-w-0 flex-col gap-3">
-                    <div className="inventory-wrap">
-                      <h3 className="text-lg font-black text-slate-950">البحث والباركود</h3>
-                      <p className="text-xs font-semibold text-slate-500">امسح الباركود أولاً، أو استخدم البحث اليدوي عند الحاجة.</p>
-                    </div>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFiltersOpen(true)}
+                      aria-expanded={filtersOpen}
+                      className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border transition ${
+                        filtersOpen || activeFilterCount > 0
+                          ? "border-violet-400/40 bg-violet-500/10 text-violet-700 shadow-[0_0_18px_rgba(124,58,237,0.12)]"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700"
+                      }`}
+                      aria-label="الفلاتر"
+                      title="الفلاتر"
+                    >
+                      <span className="relative inline-flex">
+                        <Filter className="h-4 w-4" />
+                        {activeFilterCount > 0 ? (
+                          <span className="absolute -right-2 -top-2 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-violet-600 px-1 text-[10px] font-black text-white">
+                            {activeFilterCount > 99 ? "99+" : activeFilterCount}
+                          </span>
+                        ) : null}
+                      </span>
+                    </button>
+                    <label className="inventory-search flex h-11 min-w-0 flex-1 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3">
+                      <Search className="h-4 w-4 shrink-0 text-slate-400" />
+                      <input
+                        ref={lookupInputRef}
+                        value={lookupQuery}
+                        onChange={(event) => setLookupQuery(event.target.value)}
+                        disabled={!isEditable}
+                        placeholder="ابحث بالاسم أو الباركود"
+                        className="w-full bg-transparent text-base font-semibold text-slate-950 outline-none placeholder:text-slate-400 disabled:opacity-70"
+                      />
+                    </label>
                     <button
                       type="button"
                       onClick={() => setScannerOpen(true)}
                       disabled={!isEditable}
-                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white shadow-sm disabled:opacity-60"
+                      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700 disabled:opacity-60"
+                      aria-label="مسح الباركود"
+                      title="مسح الباركود"
                     >
-                      <ScanBarcode className="h-4 w-4" />
-                      مسح الباركود
+                      <Camera className="h-4 w-4" />
                     </button>
-                    <div className="text-center text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">أو</div>
                   </div>
-                  <label className="inventory-search mt-3 flex min-w-0 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                    <Search className="h-4 w-4 shrink-0 text-slate-400" />
-                    <input
-                      ref={lookupInputRef}
-                      value={lookupQuery}
-                      onChange={(event) => setLookupQuery(event.target.value)}
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleManualAddProduct}
                       disabled={!isEditable}
-                      placeholder="ابحث بالاسم أو الباركود"
-                      className="w-full bg-transparent text-base font-semibold text-slate-950 outline-none placeholder:text-slate-400 disabled:opacity-70"
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleManualAddProduct}
-                    disabled={!isEditable}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-2xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-black text-emerald-700 disabled:opacity-60"
-                  >
-                    <Plus className="h-4 w-4" />
-                    إضافة منتج يدويًا
-                  </button>
-                  {lookupLoading ? (
-                    <div className="mt-3 flex items-center gap-2 text-sm font-black text-slate-500">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      جاري البحث...
-                    </div>
-                  ) : null}
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-black text-emerald-700 disabled:opacity-60"
+                    >
+                      <Plus className="h-4 w-4" />
+                      إضافة منتج يدويًا
+                    </button>
+                    {lookupLoading ? (
+                      <div className="inline-flex items-center gap-2 text-sm font-black text-slate-500">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        جاري البحث...
+                      </div>
+                    ) : null}
+                  </div>
                   {lookupGroups.length ? (
                     <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-2">
                       {lookupGroups.map((group) => (
@@ -1368,6 +1513,30 @@ export default function EmployeePortalInventory() {
           sessionSaving={sessionSaving}
         />
       ) : null}
+
+      <SmartPosFilters
+        open={filtersOpen}
+        panelRef={filtersPanelRef}
+        smartFilterOptions={smartFilterOptions}
+        selectedGender={filters.gender}
+        onGenderChange={(value) => updateFilter("gender", value)}
+        selectedProductType={filters.type}
+        onProductTypeChange={(value) => updateFilter("type", value)}
+        selectedGrade={filters.category}
+        onGradeChange={(value) => updateFilter("category", value)}
+        brandOptions={brandOptions}
+        selectedBrandId={filters.brand}
+        onBrandChange={(value) => updateFilter("brand", value)}
+        manufacturerOptions={manufacturerOptions}
+        selectedManufacturerId={filters.manufacturer}
+        onManufacturerChange={(value) => updateFilter("manufacturer", value)}
+        sizeOptions={availableSizes}
+        selectedSize={selectedFilterSize}
+        onSizeChange={setSelectedFilterSize}
+        activeSmartFilterCount={activeFilterCount}
+        onReset={resetFilters}
+        onClose={() => setFiltersOpen(false)}
+      />
     </div>
   );
 }
