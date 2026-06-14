@@ -2538,35 +2538,54 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
     let deliveryStatus = "stored";
     let deliveryError = "";
     let externalMessageId = "";
+    let storedOnlyReason = "";
 
     if (normalizedChannel === AI_AGENT_CHANNELS.WEB_CHAT || !normalizedChannel) {
       sendResult = { sent: true, delivery_status: "stored" };
     } else if (normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP) {
       if (!externalCustomerId) {
-        throw Object.assign(new Error("Conversation has no WhatsApp recipient id."), { status: 409, code: "WHATSAPP_RECIPIENT_MISSING" });
+        console.warn("[ai-inbox][product-card-send] missing WhatsApp recipient id, storing transcript message only", {
+          tenantId,
+          conversationId,
+          channel,
+          normalizedChannel,
+        });
+        sendResult = { sent: true, delivery_status: "stored_only", fallback_only: true };
+        deliveryStatus = "stored_only";
+        storedOnlyReason = "whatsapp_recipient_missing";
+      } else {
+        sendResult = await sendWhatsAppCloudReply({
+          to: externalCustomerId,
+          reply: { text: fallbackText, product_cards: [] },
+          messageText: fallbackText,
+        });
+        deliveryStatus = sendResult.sent ? "sent" : "not_sent";
+        externalMessageId = sendResult.message_id || "";
       }
-      sendResult = await sendWhatsAppCloudReply({
-        to: externalCustomerId,
-        reply: { text: fallbackText, product_cards: [] },
-        messageText: fallbackText,
-      });
-      deliveryStatus = sendResult.sent ? "sent" : "not_sent";
-      externalMessageId = sendResult.message_id || "";
     } else if (normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER || normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM) {
       if (!externalCustomerId) {
-        throw Object.assign(new Error("Conversation has no Meta recipient id."), { status: 409, code: "META_RECIPIENT_MISSING" });
+        console.warn("[ai-inbox][product-card-send] missing Meta recipient id, storing transcript message only", {
+          tenantId,
+          conversationId,
+          channel,
+          normalizedChannel,
+        });
+        sendResult = { sent: true, delivery_status: "stored_only", fallback_only: true };
+        deliveryStatus = "stored_only";
+        storedOnlyReason = "meta_recipient_missing";
+      } else {
+        sendResult = await sendMetaInboxOutboundMessage({
+          tenantId,
+          channel: normalizedChannel,
+          messageText: fallbackText,
+          recipientId: externalCustomerId,
+          conversationId,
+          pageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
+          instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
+        });
+        deliveryStatus = sendResult.sent ? "sent" : "not_sent";
+        externalMessageId = sendResult.message_id || "";
       }
-      sendResult = await sendMetaInboxOutboundMessage({
-        tenantId,
-        channel: normalizedChannel,
-        messageText: fallbackText,
-        recipientId: externalCustomerId,
-        conversationId,
-        pageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
-        instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
-      });
-      deliveryStatus = sendResult.sent ? "sent" : "not_sent";
-      externalMessageId = sendResult.message_id || "";
     } else {
       console.warn("[ai-inbox][product-card-send] unsupported channel, storing fallback transcript message only", {
         tenantId,
@@ -2582,6 +2601,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
       });
       sendResult = { sent: true, delivery_status: "stored_only", fallback_only: true };
       deliveryStatus = "stored_only";
+      storedOnlyReason = "unsupported_channel";
     }
 
     const message = await appendManualAiSupportReply({
@@ -2634,6 +2654,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
       success: true,
       sent: sendResult.sent === true,
       delivery_status: deliveryStatus,
+      reason: storedOnlyReason || undefined,
       message,
       product_cards: productCards,
       meta: sendResult.meta || null,
