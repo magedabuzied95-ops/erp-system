@@ -1381,16 +1381,16 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
       ) : null}
 
       {activeTab === "payroll" ? (
-        <main className="space-y-4">
-          <section className="theme-card p-3">
-            <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <main className="space-y-3">
+          <section className="theme-card p-2.5">
+            <div className="mb-1.5 flex flex-col gap-1.5 sm:flex-row sm:items-end sm:justify-between">
               <div className="min-w-0">
                 <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">{t("sales.payroll.title", "الرواتب")}</div>
                 <h2 className="mt-1 text-xl font-black leading-8 text-[var(--text)]">{t("sales.payroll.title", "الرواتب")}</h2>
                 <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{t("sales.payroll.subtitle", "اختر الموظف ثم راجع راتبه")}</p>
               </div>
             </div>
-            <div className="grid gap-2 xl:grid-cols-[minmax(280px,1.4fr)_minmax(220px,.8fr)]">
+            <div className="grid gap-1.5 xl:grid-cols-[minmax(280px,1.4fr)_minmax(220px,.8fr)]">
               <PayrollSelect
                 label={t("sales.payroll.employee", "الموظف")}
                 value={payroll.employee_id}
@@ -1417,7 +1417,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
             </div>
           </section>
 
-          <section className="theme-card p-3">
+          <section className="theme-card p-2.5">
             <PayrollFinancialSummary
               payroll={payrollSnapshot}
               payrollPreview={safePayrollPreview}
@@ -1727,7 +1727,7 @@ function CompactSelect({ label, value, onChange, options = [], isRtl = false }) 
 
 function PayrollField({ label, value, onChange, type = "text", isRtl = false }) {
   return (
-    <label className="h-[64px] rounded-2xl border border-[var(--border)] bg-black/10 px-4 pt-4 pb-3">
+    <label className="h-[56px] rounded-2xl border border-[var(--border)] bg-black/10 px-4 pt-3 pb-2.5">
       <span className={`block ${labelClass(isRtl, "text-[11px]")}`}>{label}</span>
       <input dir={isRtl ? "rtl" : "ltr"} type={type} value={value} onChange={(e) => onChange(e.target.value)} className="mt-2.5 w-full bg-transparent text-start text-base font-semibold tabular-nums outline-none md:text-lg" />
     </label>
@@ -1736,7 +1736,7 @@ function PayrollField({ label, value, onChange, type = "text", isRtl = false }) 
 
 function PayrollSelect({ label, value, onChange, options = [], isRtl = false }) {
   return (
-    <label className="h-[64px] rounded-2xl border border-[var(--border)] bg-black/10 px-4 pt-4 pb-3">
+    <label className="h-[56px] rounded-2xl border border-[var(--border)] bg-black/10 px-4 pt-3 pb-2.5">
       <span className={`block ${labelClass(isRtl, "text-[11px]")}`}>{label}</span>
       <select dir={isRtl ? "rtl" : "ltr"} value={value} onChange={(e) => onChange(e.target.value)} className="mt-2.5 w-full bg-transparent text-start text-base font-semibold outline-none md:text-lg">
         {options.map((option) => (
@@ -1829,16 +1829,21 @@ function PayrollFinancialSummary({
   );
 
   return (
-    <div dir={isRtl ? "rtl" : "ltr"} className="space-y-3">
-      <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-3 shadow-sm">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+    <div dir={isRtl ? "rtl" : "ltr"} className="space-y-2.5">
+      <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-2.5 shadow-sm">
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">
               {t("sales.payroll.summaryTitle", "ملخص الراتب")}
             </div>
-            <h3 className="mt-1 text-xl font-black leading-8 text-[var(--text)]">
+            <h3 className="mt-1 text-xl font-black leading-7 text-[var(--text)]">
               {hasPayrollDetails ? (displayEmployeeName || payroll.employee_name || t("sales.payroll.employee", "اسم الموظف")) : t("sales.payroll.noPayrollForEmployee", "لا يوجد راتب محسوب لهذا الموظف.")}
             </h3>
+            {hasPayrollDetails ? (
+              <div className="mt-0.5 text-xs font-bold text-[var(--muted)]" dir="ltr">
+                {payroll.current_payroll_period || payroll.payroll_period || safePayrollPreview?.current_payroll_period || safePayrollPreview?.payroll_period || "-"}
+              </div>
+            ) : null}
           </div>
           <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-black ${statusToneClass}`}>
             <ShieldCheck className="h-4 w-4" />
@@ -1847,14 +1852,14 @@ function PayrollFinancialSummary({
         </div>
 
         {selectedEmployeeName && payroll.employee_name && !employeeMatches ? (
-          <div className="mt-2 rounded-2xl border border-amber-300/25 bg-amber-400/10 px-3 py-2 text-sm font-bold text-amber-100">
+          <div className="mt-2 rounded-2xl border border-amber-300/25 bg-amber-400/10 px-3 py-2 text-sm font-bold leading-5 text-amber-100">
             {t("sales.payroll.otherEmployeeWarning", "أنت تعرض راتب موظف آخر.")}
           </div>
         ) : null}
 
-        <div className={`mt-3 rounded-2xl border px-3 py-2.5 ${isPaid ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100" : isBlocked ? "border-amber-300/25 bg-amber-400/10 text-amber-100" : "border-emerald-300/25 bg-emerald-400/10 text-emerald-100"}`}>
+        <div className={`mt-2 rounded-2xl border px-3 py-2 ${isPaid ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100" : isBlocked ? "border-amber-300/25 bg-amber-400/10 text-amber-100" : "border-emerald-300/25 bg-emerald-400/10 text-emerald-100"}`}>
           {hasPayrollDetails ? (
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               {[
                 { label: t("sales.payroll.baseSalary", "الراتب الأساسي"), value: formatPayrollMoney(baseSalary), dir: "ltr" },
                 { label: t("sales.payroll.bonusesAndCommissions", "العمولة / المكافآت"), value: formatPayrollMoney(commissions + bonuses), dir: "ltr" },
@@ -1862,7 +1867,7 @@ function PayrollFinancialSummary({
                 { label: t("sales.payroll.totalDeductions", "الخصومات"), value: formatDeductions(totalDeductions), dir: "ltr" },
                 { label: t("sales.payroll.netSalary", "صافي الراتب"), value: formatPayrollMoney(netPay), dir: "ltr", featured: true },
               ].map((item) => (
-                <div key={item.label} className={`flex items-center justify-between gap-3 rounded-2xl border px-3 py-2 ${item.featured ? "border-emerald-300/25 bg-emerald-400/10" : "border-[var(--border)] bg-[var(--surface)]/70"}`}>
+                <div key={item.label} className={`flex items-center justify-between gap-3 rounded-2xl border px-3 py-1.5 ${item.featured ? "border-emerald-300/25 bg-emerald-400/10" : "border-[var(--border)] bg-[var(--surface)]/70"}`}>
                   <div className="text-sm font-bold text-[var(--muted)]">{item.label}</div>
                   <div dir={item.dir || "auto"} className={`text-sm font-black tabular-nums text-[var(--text)] ${item.featured ? "text-base" : ""}`}>{item.value}</div>
                 </div>
@@ -1877,8 +1882,8 @@ function PayrollFinancialSummary({
 
         {hasPayrollDetails && isBlocked ? (
           <div className="mt-2 rounded-2xl border px-3 py-2.5 text-amber-100 bg-amber-400/10 border-amber-300/25">
-            <div className="text-sm font-black">{statusLabel}</div>
-            <ul className="mt-1.5 space-y-1 text-xs font-bold leading-5">
+            <div className="text-sm font-black leading-5">{statusLabel}</div>
+            <ul className="mt-1 space-y-0.5 text-xs font-bold leading-5">
               {(issues.length ? issues : [{ key: "generic", label: t("sales.payroll.blockedGeneric", "لا يمكن اعتماد الراتب الآن") }]).map((issue) => (
                 <li key={issue.key} className="flex items-start gap-2">
                   <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
@@ -1889,7 +1894,7 @@ function PayrollFinancialSummary({
           </div>
         ) : null}
 
-        <div className="mt-3">
+        <div className="mt-2">
           {actionHandler ? (
             <button
               type="button"
@@ -1913,12 +1918,12 @@ function PayrollFinancialSummary({
         </div>
       </section>
 
-      <details className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-3 shadow-sm">
+      <details className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-2.5 shadow-sm">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-base font-black leading-7 text-[var(--text)]">
           <span>{t("sales.payroll.moreDetails", "تفاصيل إضافية")}</span>
         </summary>
 
-        <div className="mt-3 space-y-3">
+        <div className="mt-2 space-y-2">
           <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/70 p-3">
             <div className="flex items-center justify-between gap-3">
               <h4 className="text-sm font-black text-[var(--text)]">{t("sales.payroll.historyTitle", "سجل الراتب")}</h4>
