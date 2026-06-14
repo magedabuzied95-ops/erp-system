@@ -159,6 +159,25 @@ const repairArabicMojibakeDeep = (value) => {
   return value;
 };
 
+const productBaseUrl = (product = {}) => `/shop/product/${product.slug || product.id}`;
+const appendProductUrlParams = (url = "", entries = []) => {
+  const [path, query = ""] = String(url || "").split("?");
+  const params = new URLSearchParams(query);
+  entries.forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim() !== "") params.set(key, String(value));
+  });
+  const suffix = params.toString();
+  return `${path}${suffix ? `?${suffix}` : ""}`;
+};
+const productUrl = (product = {}) => {
+  const variantId = product.selected_variant_id || product.display_variant_id || product.matched_variant_id || "";
+  const color = product.color_key || product.display_color_key || product.color || product.display_color || "";
+  return appendProductUrlParams(productBaseUrl(product), [
+    ["variant", variantId],
+    ["color", color],
+  ]);
+};
+
 const compactImageValue = (value = "") => {
   const text = String(value || "");
   if (!text || text.startsWith("data:") || text.length > 500) return "";
@@ -447,6 +466,51 @@ const useStorefrontBrands = () => {
   return state;
 };
 
+const useLastPiece = (params = {}, options = {}) => {
+  const enabled = options.enabled !== false;
+  const [state, setState] = useState({ loading: true, error: "", categories: [], sizes: [], products: [], hooks: {} });
+  const queryKey = JSON.stringify(params);
+  const queryString = useMemo(() => {
+    const query = new URLSearchParams();
+    const queryParams = JSON.parse(queryKey || "{}");
+    Object.entries(queryParams).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") query.set(key, value);
+    });
+    return query.toString();
+  }, [queryKey]);
+
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let cancelled = false;
+    deferReactState(() => {
+      if (!cancelled) setState((prev) => ({ ...prev, loading: true, error: "" }));
+    });
+    cachedStorefrontGet(`/storefront/last-piece${queryString ? `?${queryString}` : ""}`, { ttlMs: STOREFRONT_LAST_PIECE_CACHE_TTL_MS })
+      .then((data) => {
+        if (!cancelled) {
+          setState({
+            loading: false,
+            error: "",
+            categories: data.categories || [],
+            sizes: data.sizes || [],
+            products: data.products || [],
+            hooks: data.hooks || {},
+          });
+        }
+      })
+      .catch((error) => {
+        if (!cancelled && error?.cause?.name !== "AbortError") {
+          setState({ loading: false, error: error.message, categories: [], sizes: [], products: [], hooks: {} });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, queryString]);
+
+  return state;
+};
+
 const useStorefrontGenderClassifications = () => {
   const cachedGenderData = getCachedStorefrontGetData("/storefront/classifications/gender", { ttlMs: STOREFRONT_GENDER_CACHE_TTL_MS });
   const [state, setState] = useState(() => ({
@@ -704,6 +768,35 @@ const isCriticalLowStockVariant = (variant = {}) => {
 const isLastPieceProduct = (product = {}) => {
   const totalStock = productTotalStock(product);
   return totalStock > 0 && totalStock <= LAST_PIECE_MAX_STOCK;
+};
+const lastPieceProductUrl = (product, variant = {}) => {
+  return appendProductUrlParams(productBaseUrl(product), [
+    ["variant", variant.edition_slug || variant.id || ""],
+    ["size", variant.size || ""],
+    ["color", variant.color || ""],
+  ]);
+};
+const lastPieceProductVariants = (product = {}, limit = 3) => (
+  (Array.isArray(product?.variants) ? product.variants : [])
+    .filter((variant) => sellableVariantStock(variant) > 0)
+    .sort((a, b) =>
+      sellableVariantStock(a) - sellableVariantStock(b) ||
+      String(a.size || "").localeCompare(String(b.size || ""), "ar", { numeric: true }) ||
+      String(a.color || "").localeCompare(String(b.color || ""), "ar", { numeric: true })
+    )
+    .slice(0, limit)
+);
+const lastPieceMatchingVariant = (product = {}, selectedSize = "") => {
+  const variants = Array.isArray(product?.variants) ? product.variants : [];
+  const targetSize = String(selectedSize || "").trim().toLowerCase();
+  const candidates = targetSize
+    ? variants.filter((variant) => String(variant?.size || "").trim().toLowerCase() === targetSize && sellableVariantStock(variant) > 0)
+    : variants.filter((variant) => sellableVariantStock(variant) > 0);
+  return candidates.sort((a, b) =>
+    sellableVariantStock(a) - sellableVariantStock(b) ||
+    String(a.size || "").localeCompare(String(b.size || ""), "ar", { numeric: true }) ||
+    String(a.color || "").localeCompare(String(b.color || ""), "ar", { numeric: true })
+  )[0] || null;
 };
 const normalizeAudienceValue = (value = "") => {
   const normalized = String(value || "").trim().toLowerCase();
