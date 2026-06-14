@@ -1381,43 +1381,8 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
       ) : null}
 
       {activeTab === "payroll" ? (
-        <main className="space-y-3">
-          <section className="theme-card p-2">
-            <div className="mb-1 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-              <div className="min-w-0">
-                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">{t("sales.payroll.title", "الرواتب")}</div>
-                <h2 className="mt-1 text-xl font-black leading-8 text-[var(--text)]">{t("sales.payroll.title", "الرواتب")}</h2>
-                <p className="mt-0.5 text-sm leading-6 text-[var(--muted)]">{t("sales.payroll.subtitle", "اختر الموظف ثم راجع راتبه")}</p>
-              </div>
-            </div>
-            <div className="grid gap-1 xl:grid-cols-[minmax(280px,1.4fr)_minmax(220px,.8fr)]">
-              <PayrollSelect
-                label={t("sales.payroll.employee", "الموظف")}
-                value={payroll.employee_id}
-                onChange={(value) => {
-                  const employee = employees.find((item) => String(item.id) === String(value));
-                  setPayrollEmployeeAdjusted(true);
-                  setPayrollCalculateStatus("");
-                  setPayroll((prev) => ({ ...prev, employee_id: value, base_salary: employee ? employee.salary ?? employee.base_salary ?? 0 : prev.base_salary, deductions: 0 }));
-                }}
-                options={[{ value: "", label: t("sales.payroll.selectEmployee", "اختر الموظف") }, ...employeeOptions]}
-                isRtl={isRtl}
-              />
-              <PayrollSelect
-                label={t("sales.payroll.month", "الشهر")}
-                value={rangeMode}
-                onChange={(value) => applyRangeMode(value)}
-                options={[
-                  { value: "current", label: t("sales.payroll.currentMonth", "الشهر الحالي") },
-                  { value: "previous", label: t("sales.payroll.previousMonth", "الشهر السابق") },
-                  { value: "custom", label: t("sales.payroll.customMonth", "شهر مخصص") },
-                ]}
-                isRtl={isRtl}
-              />
-            </div>
-          </section>
-
-          <section className="theme-card p-2.5">
+        <main className="space-y-2">
+          <div>
             <PayrollFinancialSummary
               payroll={payrollSnapshot}
               payrollPreview={safePayrollPreview}
@@ -1426,6 +1391,16 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               currentPayrollFinalized={Boolean(safePayrollPreview?.payroll_run || safePayrollPreview?.finalized)}
               status={payrollStatus}
               issues={payrollStatusIssues}
+              employeeId={payroll.employee_id}
+              employeeOptions={employeeOptions}
+              rangeMode={rangeMode}
+              onEmployeeChange={(value) => {
+                const employee = employees.find((item) => String(item.id) === String(value));
+                setPayrollEmployeeAdjusted(true);
+                setPayrollCalculateStatus("");
+                setPayroll((prev) => ({ ...prev, employee_id: value, base_salary: employee ? employee.salary ?? employee.base_salary ?? 0 : prev.base_salary, deductions: 0 }));
+              }}
+              onRangeModeChange={applyRangeMode}
               selectedEmployeeName={payrollEmployee?.name || ""}
               isRtl={isRtl}
               t={t}
@@ -1434,7 +1409,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               calculating={payrollCalculating}
               finalizing={payrollFinalizing}
             />
-          </section>
+          </div>
 
         </main>
       ) : null}
@@ -1764,6 +1739,11 @@ function PayrollFinancialSummary({
   currentPayrollFinalized = false,
   status,
   issues = [],
+  employeeId = "",
+  employeeOptions = [],
+  rangeMode = "",
+  onEmployeeChange,
+  onRangeModeChange,
   selectedEmployeeName = "",
   isRtl,
   t,
@@ -1832,7 +1812,28 @@ function PayrollFinancialSummary({
   return (
     <div dir={isRtl ? "rtl" : "ltr"} className="space-y-2.5">
       <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-2.5 shadow-sm">
-        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between">
+        <div className="grid gap-1 xl:grid-cols-[minmax(280px,1.4fr)_minmax(220px,.8fr)]">
+          <PayrollSelect
+            label={t("sales.payroll.employee", "الموظف")}
+            value={employeeId}
+            onChange={onEmployeeChange || (() => {})}
+            options={[{ value: "", label: t("sales.payroll.selectEmployee", "اختر الموظف") }, ...employeeOptions]}
+            isRtl={isRtl}
+          />
+          <PayrollSelect
+            label={t("sales.payroll.month", "الشهر")}
+            value={rangeMode}
+            onChange={onRangeModeChange || (() => {})}
+            options={[
+              { value: "current", label: t("sales.payroll.currentMonth", "الشهر الحالي") },
+              { value: "previous", label: t("sales.payroll.previousMonth", "الشهر السابق") },
+              { value: "custom", label: t("sales.payroll.customMonth", "شهر مخصص") },
+            ]}
+            isRtl={isRtl}
+          />
+        </div>
+
+        <div className="mt-2 flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">
               {t("sales.payroll.summaryTitle", "ملخص الراتب")}
