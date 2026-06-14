@@ -752,6 +752,15 @@ const productStock = (product = {}) => productTotalStock(product);
 const isAvailableProduct = (product = {}) => productStock(product) > 0;
 const stockScore = (product = {}) => productTotalStock(product);
 const newestScore = (product = {}) => new Date(product.created_at || 0).getTime() || Number(product.id || 0);
+const popularScore = (product = {}) => {
+  const sold = Number(product.total_sold ?? product.sold_count ?? product.sales_count ?? product.order_count ?? product.orders_count ?? product.units_sold ?? 0);
+  const viewed = Number(product.views_count ?? product.view_count ?? product.product_views ?? product.analytics?.views ?? 0);
+  const featured = product.featured || product.is_featured || product.home_featured ? 1 : 0;
+  return (Number.isFinite(sold) ? sold * 1000 : 0) +
+    (Number.isFinite(viewed) ? viewed * 10 : 0) +
+    (featured * 500) +
+    Math.min(stockScore(product), 100);
+};
 const hasSale = (product = {}) => {
   const sale = Number(product?.sale_price ?? product?.offer_price ?? 0);
   const regular = storefrontSellingPrice(product);
