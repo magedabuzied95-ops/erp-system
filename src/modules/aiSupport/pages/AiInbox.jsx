@@ -2238,6 +2238,7 @@ export default function AiInbox() {
   const [suggestedReplies, setSuggestedReplies] = useState({ sessionId: "", items: [], intent: "", confidence: 0, error: "" });
   const [socialComments, setSocialComments] = useState({ items: [], loading: false, error: "" });
   const [socialCommentsFilter, setSocialCommentsFilter] = useState("all");
+  const [inboxSection, setInboxSection] = useState("conversations");
   const [aiDebug, setAiDebug] = useState({ sessionId: "", open: false, loading: false, data: null, error: "" });
   const [aiTrace, setAiTrace] = useState({ sessionId: "", open: false, loading: false, data: null, error: "" });
   const [suggesting, setSuggesting] = useState(false);
@@ -3635,17 +3636,6 @@ export default function AiInbox() {
                     onAction={updateConversationAction}
                   />
 
-                  <div className="mt-3">
-                    <SocialCommentsPanel
-                      items={socialComments.items}
-                      loading={socialComments.loading}
-                      error={socialComments.error}
-                      filter={socialCommentsFilter}
-                      onFilterChange={setSocialCommentsFilter}
-                      onRefresh={() => void loadAll({ silent: true })}
-                    />
-                  </div>
-
                   <details className="group mb-3 rounded-2xl border border-white/10 bg-slate-950/50 p-3">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
                       <div>
@@ -3806,86 +3796,131 @@ export default function AiInbox() {
               title="قائمة المحادثات"
               action={<Pill tone="zinc">{filteredConversations.length} ظاهرة</Pill>}
             />
-            {loading && !conversations.length ? <LoadingBlock text="جارٍ تحميل المحادثات..." /> : null}
-            <div className="block">
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                <button type="button" onClick={() => setChannelFilter("all")} className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black ${channelFilter === "all" ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white"}`}>الكل</button>
-                {channelSummaries.channels.map((channel) => (
-                  <button key={channel.key} type="button" onClick={() => setChannelFilter(channel.key)} className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black ${channelFilter === channel.key ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white"}`}>
-                    {channel.label}
-                  </button>
-                ))}
-              </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setInboxSection("conversations")}
+                className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
+                  inboxSection === "conversations"
+                    ? "bg-cyan-300 text-slate-950"
+                    : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
+                }`}
+              >
+                المحادثات
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${inboxSection === "conversations" ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
+                  {filteredConversations.length}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setInboxSection("social_comments")}
+                className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
+                  inboxSection === "social_comments"
+                    ? "bg-cyan-300 text-slate-950"
+                    : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
+                }`}
+              >
+                تعليقات السوشيال
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${inboxSection === "social_comments" ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
+                  {socialComments.items.length}
+                </span>
+              </button>
             </div>
-            <div className="flex flex-col gap-3">
-              <label className="relative min-w-0">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث عن العميل أو المعرف الخارجي أو الهاتف أو الرسالة" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
-              </label>
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
-                  <ArrowUpDown className="h-4 w-4 text-slate-500" />
-                  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">الترتيب</span>
-                  <select value={leadSort} onChange={(event) => setLeadSort(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
-                    <option value="recent">الأحدث</option>
-                    <option value="lead_score_desc">الأعلى في درجة العميل أولًا</option>
-                  </select>
-                </label>
-              </div>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {filters.map((item) => (
-                  <button key={item.key} type="button" onClick={() => setFilter(item.key)} className={`h-9 shrink-0 rounded-xl px-3 text-[11px] font-black transition ${filter === item.key ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"}`}>
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">مرشحات العملاء المحتملين</span>
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {leadFilters.map((item) => (
-                    <button
-                      key={item.key}
-                      type="button"
-                      onClick={() => setLeadFilter(item.key)}
-                      className={`h-9 shrink-0 rounded-xl px-3 text-[11px] font-black transition ${
-                        leadFilter === item.key
-                          ? item.key === "ready_to_buy"
-                            ? "bg-emerald-300 text-slate-950"
-                            : item.key === "hot"
-                              ? "bg-rose-300 text-slate-950"
-                              : item.key === "warm"
-                                ? "bg-amber-300 text-slate-950"
-                                : "bg-cyan-300 text-slate-950"
-                          : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
+            {inboxSection === "conversations" ? (
+              <>
+                {loading && !conversations.length ? <LoadingBlock text="جارٍ تحميل المحادثات..." /> : null}
+                <div className="block">
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    <button type="button" onClick={() => setChannelFilter("all")} className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black ${channelFilter === "all" ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white"}`}>الكل</button>
+                    {channelSummaries.channels.map((channel) => (
+                      <button key={channel.key} type="button" onClick={() => setChannelFilter(channel.key)} className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black ${channelFilter === channel.key ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white"}`}>
+                        {channel.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </div>
-            <div className="min-h-0 flex-1 overflow-hidden pr-1">
-              {loading && !conversations.length ? <LoadingBlock text="جارٍ تحميل المحادثات..." /> : null}
-              {filteredConversations.length ? (
-                <VirtualList
-                  items={filteredConversations}
-                  estimateSize={96}
-                  className="h-full pr-1"
-                  itemKey={(item) => item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`}
-                  renderItem={(item) => (
-                    <div className="pb-2">
-                      <ConversationListItem
-                        item={item}
-                        unseen={unseenSessions.includes(item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
-                        active={selectedConversation?.conversation_key === (item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
-                        onSelect={handleSelectConversation}
-                      />
+                <div className="flex flex-col gap-3">
+                  <label className="relative min-w-0">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                    <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث عن العميل أو المعرف الخارجي أو الهاتف أو الرسالة" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
+                  </label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
+                      <ArrowUpDown className="h-4 w-4 text-slate-500" />
+                      <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">الترتيب</span>
+                      <select value={leadSort} onChange={(event) => setLeadSort(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
+                        <option value="recent">الأحدث</option>
+                        <option value="lead_score_desc">الأعلى في درجة العميل أولًا</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {filters.map((item) => (
+                      <button key={item.key} type="button" onClick={() => setFilter(item.key)} className={`h-9 shrink-0 rounded-xl px-3 text-[11px] font-black transition ${filter === item.key ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"}`}>
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">مرشحات العملاء المحتملين</span>
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {leadFilters.map((item) => (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={() => setLeadFilter(item.key)}
+                          className={`h-9 shrink-0 rounded-xl px-3 text-[11px] font-black transition ${
+                            leadFilter === item.key
+                              ? item.key === "ready_to_buy"
+                                ? "bg-emerald-300 text-slate-950"
+                                : item.key === "hot"
+                                  ? "bg-rose-300 text-slate-950"
+                                  : item.key === "warm"
+                                    ? "bg-amber-300 text-slate-950"
+                                    : "bg-cyan-300 text-slate-950"
+                              : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
                     </div>
-                  )}
+                  </div>
+                </div>
+                <div className="min-h-0 flex-1 overflow-hidden pr-1">
+                  {loading && !conversations.length ? <LoadingBlock text="جارٍ تحميل المحادثات..." /> : null}
+                  {filteredConversations.length ? (
+                    <VirtualList
+                      items={filteredConversations}
+                      estimateSize={96}
+                      className="h-full pr-1"
+                      itemKey={(item) => item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`}
+                      renderItem={(item) => (
+                        <div className="pb-2">
+                          <ConversationListItem
+                            item={item}
+                            unseen={unseenSessions.includes(item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
+                            active={selectedConversation?.conversation_key === (item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
+                            onSelect={handleSelectConversation}
+                          />
+                        </div>
+                      )}
+                    />
+                  ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? "لا توجد رسائل Meta حقيقية بعد. بيانات العرض مخفية كي تبقى محادثات الويبهوك الحية واضحة." : "لا توجد محادثات حقيقية تطابق المرشحات المحددة."} /> : null}
+                </div>
+              </>
+            ) : (
+              <div className="min-h-0 flex-1 overflow-hidden pr-1">
+                <SocialCommentsPanel
+                  items={socialComments.items}
+                  loading={socialComments.loading}
+                  error={socialComments.error}
+                  filter={socialCommentsFilter}
+                  onFilterChange={setSocialCommentsFilter}
+                  onRefresh={() => void loadAll({ silent: true })}
                 />
-              ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? "لا توجد رسائل Meta حقيقية بعد. بيانات العرض مخفية كي تبقى محادثات الويبهوك الحية واضحة." : "لا توجد محادثات حقيقية تطابق المرشحات المحددة."} /> : null}
-            </div>
+              </div>
+            )}
           </aside>
         </section>
       </div>
