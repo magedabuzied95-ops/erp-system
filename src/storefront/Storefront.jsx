@@ -6567,6 +6567,250 @@ const getSessionId = () => {
   return id;
 };
 
+const readStorefrontStorage = (key, fallback) => {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (raw === null || raw === "") return fallback;
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+};
+
+const writeStorefrontStorage = (key, value) => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore storage quota and privacy mode errors.
+  }
+};
+
+const normalizeStorefrontItem = (item = {}) => ({
+  ...item,
+  id: item.id || item.product_id || item.variant_id || item.slug || "",
+});
+
+const normalizeCartLine = (product = {}, variant = {}, quantity = 1) => {
+  const image = variantImage(variant) || displayImageForProduct(product, variant) || product.image_url || product.product_image_url || "";
+  const price = displaySellingPrice(product, variant);
+  const compareAtPrice = Number(variant.compare_at_price ?? product.compare_at_price ?? product.original_price ?? 0) || 0;
+  return {
+    lineId: [
+      product.id || product.slug || product.name || "product",
+      variant.id || variant.sku || variant.size || variant.color || "variant",
+    ].join(":"),
+    product_id: product.id || "",
+    variant_id: variant.id || "",
+    name: cleanDisplayText(mirrorProductTitle(product, variant) || product.name || product.title || ""),
+    slug: product.slug || "",
+    image_url: image,
+    product_image: image,
+    color: variantColorName(variant) || variant.color || "",
+    size: variant.size || "",
+    quantity: Math.max(1, Number(quantity || 1)),
+    price,
+    sale_price: price,
+    compare_at_price: compareAtPrice,
+    total_amount: price * Math.max(1, Number(quantity || 1)),
+  };
+};
+
+const OrderNumberBadge = ({ value, className = "" }) => {
+  const text = displayPublicOrderNumber(value);
+  return <span className={`inline-flex min-h-9 items-center justify-center rounded-full border px-3 py-1.5 text-sm font-black ${className}`.trim()} dir="ltr">{text}</span>;
+};
+
+function Storefront() {
+  const location = useLocation();
+  const [cart, setCart] = useState(() => readStorefrontStorage(CART_KEY, []));
+  const [wishlist, setWishlist] = useState(() => readStorefrontStorage(WISHLIST_KEY, []));
+  const [recent, setRecent] = useState(() => readStorefrontStorage(RECENT_KEY, []));
+  const [profile, setProfile] = useState(() => readStorefrontStorage(PROFILE_KEY, { full_name: "", primary_phone: "", phone: "" }));
+  const [themeMode, setThemeMode] = useState(() => readStorefrontStorage(THEME_KEY, "light"));
+  const [routeReady, setRouteReady] = useState(false);
+
+  useEffect(() => {
+    setRouteReady(true);
+  }, []);
+
+  useEffect(() => {
+    writeStorefrontStorage(CART_KEY, cart);
+  }, [cart]);
+
+  useEffect(() => {
+    writeStorefrontStorage(WISHLIST_KEY, wishlist);
+  }, [wishlist]);
+
+  useEffect(() => {
+    writeStorefrontStorage(RECENT_KEY, recent);
+  }, [recent]);
+
+  useEffect(() => {
+    writeStorefrontStorage(PROFILE_KEY, profile);
+  }, [profile]);
+
+  useEffect(() => {
+    writeStorefrontStorage(THEME_KEY, themeMode);
+    if (typeof document === "undefined") return;
+    document.body.classList.toggle("storefront-dark", themeMode === "dark");
+  }, [themeMode]);
+
+  const clearCart = useCallback(() => setCart([]), []);
+
+  const updateCart = useCallback((lineId, quantity) => {
+    setCart((prev) => {
+      const nextQuantity = Number(quantity || 0);
+      if (nextQuantity <= 0) return prev.filter((item) => item.lineId !== lineId);
+      return prev.map((item) => (item.lineId === lineId ? { ...item, quantity: nextQuantity, total_amount: Number(item.price || 0) * nextQuantity } : item));
+    });
+  }, []);
+
+  const removeFromCart = useCallback((lineId) => {
+    setCart((prev) => prev.filter((item) => item.lineId !== lineId));
+  }, []);
+
+  const onAddToCart = useCallback((product, variant, quantity = 1) => {
+    if (!product || !variant) return;
+    const nextLine = normalizeCartLine(product, variant, quantity);
+    setCart((prev) => {
+      const existingIndex = prev.findIndex((item) => String(item.product_id) === String(nextLine.product_id) && String(item.variant_id) === String(nextLine.variant_id));
+      if (existingIndex >= 0) {
+        return prev.map((item, index) => {
+          if (index !== existingIndex) return item;
+          const nextQuantity = Number(item.quantity || 0) + Number(quantity || 1);
+          return { ...item, quantity: nextQuantity, total_amount: Number(item.price || 0) * nextQuantity };
+        });
+      }
+      return [...prev, nextLine];
+    });
+    return "added";
+  }, []);
+
+  const toggleWishlist = useCallback((product) => {
+    const item = normalizeStorefrontItem(product);
+    if (!item.id) return;
+    setWishlist((prev) => {
+      const exists = prev.some((entry) => String(entry.id) === String(item.id));
+      return exists ? prev.filter((entry) => String(entry.id) !== String(item.id)) : [item, ...prev];
+    });
+  }, []);
+
+  const rememberProduct = useCallback((product) => {
+    const item = normalizeStorefrontItem(product);
+    if (!item.id) return;
+    setRecent((prev) => {
+      const next = [item, ...prev.filter((entry) => String(entry.id) !== String(item.id))];
+      return next.slice(0, 20);
+    });
+  }, []);
+
+  const helpers = useMemo(() => ({
+    sfText,
+    money,
+    imageFor,
+    fallbackProductImage,
+    displayOrderNumber: displayPublicOrderNumber,
+    statusCopy,
+    paymentCopy,
+    shippingProviderCopy,
+    formatDate,
+    supportHref,
+    deferReactState,
+    getStatusLabels,
+    getPaymentMethods,
+    productFromDetailsResponse,
+    productToSocialMeta,
+    displayCartItemPrice,
+    displayCartItemComparePrice,
+  }), []);
+
+  const components = useMemo(() => ({
+    EmptyState,
+    Field,
+    InfoBox,
+    OrderNumberBadge,
+    OrderTimeline,
+    Panel,
+    SelectField,
+    SmallProductGrid,
+    SmallProductList,
+    SummaryRow,
+    TextField,
+    TrustPills,
+    CheckoutProgress,
+    CityAreaField,
+  }), []);
+
+  if (!routeReady) return <StorefrontPageFallback />;
+
+  return (
+    <Routes>
+      <Route
+        index
+        element={<HomePage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} themeMode={themeMode} />}
+      />
+      <Route
+        path="products"
+        element={<LazyStorefrontProductListingPage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} />}
+      />
+      <Route
+        path="sale"
+        element={<LazyStorefrontProductListingPage sale wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} />}
+      />
+      <Route
+        path="product/:identifier"
+        element={<LazyStorefrontProductDetailPage onAddToCart={onAddToCart} toggleWishlist={toggleWishlist} wishlist={wishlist} rememberProduct={rememberProduct} recent={recent} profile={profile} />}
+      />
+      <Route
+        path="cart"
+        element={<LazyStorefrontCartPage cart={cart} updateCart={updateCart} removeFromCart={removeFromCart} helpers={helpers} components={components} />}
+      />
+      <Route
+        path="checkout"
+        element={<CheckoutPage cart={cart} clearCart={clearCart} profile={profile} setProfile={setProfile} themeMode={themeMode} />}
+      />
+      <Route
+        path="track"
+        element={<LazyStorefrontTrackOrderPage helpers={helpers} components={components} />}
+      />
+      <Route
+        path="account"
+        element={<LazyStorefrontAccountPage profile={profile} setProfile={setProfile} wishlist={wishlist} recent={recent} onAddToCart={onAddToCart} helpers={helpers} components={components} />}
+      />
+      <Route
+        path="wishlist"
+        element={<LazyStorefrontWishlistPage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} helpers={helpers} components={components} />}
+      />
+      <Route
+        path="recently-viewed"
+        element={<LazyStorefrontRecentPage recent={recent} helpers={helpers} components={components} />}
+      />
+      <Route
+        path="faq"
+        element={<FaqPage />}
+      />
+      <Route
+        path="contact"
+        element={<ContactPage />}
+      />
+      <Route
+        path="size-guide"
+        element={<SizeGuide />}
+      />
+      <Route
+        path="returns"
+        element={<ReturnsPolicy />}
+      />
+      <Route
+        path="*"
+        element={<HomePage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} themeMode={themeMode} />}
+      />
+    </Routes>
+  );
+}
+
 export {
   LazyFiltersDrawer,
   LazyProductCardVariantSheet,
