@@ -3646,49 +3646,352 @@ function HeaderAction({ to, icon, count, label, className = "" }) {
   );
 }
 
-function Header({ cartCount, wishlistCount, onCart, effectiveTheme, onToggleTheme }) {
-  const { t } = useTranslation();
+function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme, onToggleTheme }) {
+  const { i18n: storefrontI18n, t } = useTranslation();
+  const [search, setSearch] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [visualSearch, setVisualSearch] = useState({ active: false, keywords: [], message: "", error: "", previewUrl: "", fileName: "" });
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [recentSearches, setRecentSearches] = useState(() => readJson(SEARCH_RECENT_KEY, []));
+  const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [isCompact, setIsCompact] = useState(false);
+  const visualPreviewUrlRef = useRef("");
+  const selectedVisualImageRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const isCompact = location.pathname !== "/shop" && location.pathname !== "/shop/";
+  const deferredSearch = useDeferredValue(search);
+  const compactDisabled = /^\/shop\/product\/[^/]+/.test(location.pathname);
+  const currentLanguage = normalizeLanguage(storefrontI18n.resolvedLanguage || storefrontI18n.language || "en");
+  const nextLanguage = currentLanguage === "ar" ? "en" : "ar";
+  const languageLabel =
+    nextLanguage === "ar"
+      ? t("storefront.header.languageArabic", "Arabic")
+      : t("storefront.header.languageEnglish", "English");
+  const searchPlaceholders = getSearchPlaceholders();
+  const announcementItems = [
+    { label: t("storefront.header.announcements.fastShipping", "شحن سريع داخل مصر"), icon: <Truck className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.announcements.exchange", "14-day exchange"), icon: <RefreshCcw className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.announcements.cod", "الدفع عند الاستلام"), icon: <PackageCheck className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.announcements.premium", "Mirror Premium products"), icon: <Sparkles className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.announcements.todayDeals", "عروض اليوم"), icon: <BadgePercent className="h-3.5 w-3.5" /> },
+  ];
+  const utilityItems = [
+    { label: "واتساب", to: "https://wa.me/", icon: <MessageCircle className="h-3.5 w-3.5" />, external: true },
+    { label: t("storefront.header.trackOrder", "تتبع الطلب"), to: "/shop/track", icon: <PackageSearch className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.wishlist", "المفضلة"), to: "/shop/wishlist", icon: <Heart className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.account", "الحساب"), to: "/shop/account", icon: <User className="h-3.5 w-3.5" /> },
+  ];
+  const navItems = [
+    [t("storefront.nav.categories", "Categories"), "/shop/products"],
+    [t("storefront.nav.sale", "Sale"), "/shop/sale"],
+    [t("storefront.nav.new", "الجديد"), "/shop/products?sort=new"],
+    [t("storefront.nav.men", "Men"), "/shop/products?q=رجالي"],
+    [t("storefront.nav.women", "Women"), "/shop/products?q=حريمي"],
+    [t("storefront.nav.kids", "Kids"), "/shop/products?q=أطفال"],
+  ];
   const themeIsDark = effectiveTheme === "dark";
   const themeToggleLabel = themeIsDark
     ? t("storefront.header.lightMode", "Switch to light mode")
     : t("storefront.header.darkMode", "Switch to dark mode");
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    let frameId = 0;
+    let lastCompactState = null;
+    const updateCompact = () => {
+      frameId = 0;
+      const nextCompact = !compactDisabled && window.scrollY > 72;
+      if (lastCompactState === nextCompact) return;
+      lastCompactState = nextCompact;
+      setIsCompact((current) => (current === nextCompact ? current : nextCompact));
+    };
+    const onScroll = () => {
+      if (frameId) return;
+      frameId = window.requestAnimationFrame(updateCompact);
+    };
+    updateCompact();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [compactDisabled]);
 
-  const navItems = [
-    [t("storefront.nav.home", "الرئيسية"), "/shop"],
-    [t("storefront.nav.categories", "Categories"), "/shop/products"],
-    [t("storefront.nav.sale", "Sale"), "/shop/sale"],
-    [t("storefront.nav.new", "الجديد"), "/shop/products?sort=new"],
-  ];
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setPlaceholderIndex((current) => (current + 1) % searchPlaceholders.length);
+    }, 2600);
+    return () => window.clearInterval(timer);
+  }, [searchPlaceholders.length]);
+
+  useEffect(() => () => {
+    if (visualPreviewUrlRef.current) URL.revokeObjectURL(visualPreviewUrlRef.current);
+  }, []);
+
+  const clearVisualSearch = useCallback(() => {
+    if (visualPreviewUrlRef.current) {
+      URL.revokeObjectURL(visualPreviewUrlRef.current);
+      visualPreviewUrlRef.current = "";
+    }
+    selectedVisualImageRef.current = null;
+    setVisualSearch({ active: false, keywords: [], message: "", error: "", previewUrl: "", fileName: "" });
+  }, []);
+
+  useEffect(() => {
+    setSearchOpen(false);
+    setMobileSearchOpen(false);
+    setActiveSearchIndex(-1);
+    setSearchLoading(false);
+    setSuggestions([]);
+    clearVisualSearch();
+  }, [clearVisualSearch, location.pathname, location.search]);
+
+  useEffect(() => {
+    if (visualSearch.active) {
+      return;
+    }
+    const normalizedSearch = deferredSearch.trim();
+    if (normalizedSearch.length < 2) {
+      let cancelled = false;
+      deferReactState(() => {
+        if (cancelled) return;
+        setSuggestions([]);
+        setSearchLoading(false);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+    let cancelled = false;
+    const controller = new AbortController();
+    deferReactState(() => {
+      if (!cancelled) setSearchLoading(true);
+    });
+    const timer = setTimeout(() => {
+      api.get(`/storefront/products/search?q=${encodeURIComponent(normalizedSearch)}&limit=8`, { signal: controller.signal })
+        .then((data) => {
+          if (!cancelled) setSuggestions(data.products || []);
+        })
+        .catch((error) => {
+          if (!cancelled && error?.cause?.name !== "AbortError") setSuggestions([]);
+        })
+        .finally(() => {
+          if (!cancelled) setSearchLoading(false);
+        });
+    }, 180);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [deferredSearch, visualSearch.active]);
+
+  const handleSearchChange = useCallback((value) => {
+    setSearch(value);
+    if (visualSearch.active) {
+      clearVisualSearch();
+    }
+  }, [clearVisualSearch, visualSearch.active]);
+
+  const rememberSearch = useCallback((value) => {
+    const term = String(value || "").trim();
+    if (!term) return;
+    setRecentSearches((current) => {
+      const next = [term, ...current.filter((item) => item !== term)].slice(0, 8);
+      writeJson(SEARCH_RECENT_KEY, next);
+      return next;
+    });
+  }, []);
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setMobileSearchOpen(false);
+    setActiveSearchIndex(-1);
+    setSearchLoading(false);
+    clearVisualSearch();
+  }, [clearVisualSearch]);
+  const handleQuickSearchAdd = useCallback((...args) => {
+    closeSearch();
+    onAddToCart(...args);
+  }, [closeSearch, onAddToCart]);
+
+  const submit = (event) => {
+    event.preventDefault();
+    const term = search.trim();
+    if (!term) return;
+    rememberSearch(term);
+    closeSearch();
+    navigate(`/shop/products?q=${encodeURIComponent(term)}`);
+  };
+
+  const pickSearchTerm = (term) => {
+    const value = String(term || "").trim();
+    if (!value) return;
+    setSearch(value);
+    rememberSearch(value);
+    closeSearch();
+    navigate(`/shop/products?q=${encodeURIComponent(value)}`);
+  };
+
+  const pickProduct = (product, options = {}) => {
+    if (!product?.id) return;
+    rememberSearch(product.name || search);
+    closeSearch();
+    if (!options.keepQuery) setSearch("");
+    navigate(productUrl(product));
+  };
+
+  const handleVoiceSearch = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast.error(sfText("storefront.toasts.voiceUnsupported", "Voice search is not supported in this browser."));
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = "ar-EG";
+    recognition.interimResults = false;
+    recognition.onresult = (event) => {
+      const transcript = event.results?.[0]?.[0]?.transcript || "";
+      setSearch(transcript);
+      setSearchOpen(true);
+      setMobileSearchOpen(window.innerWidth < 768);
+    };
+    recognition.start();
+  };
+
+  const handleImageSearch = async (event) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      selectedVisualImageRef.current = file;
+      const supportedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+      if (!supportedTypes.has(file.type)) {
+        toast.error(sfText("storefront.toasts.unsupportedImageType", "Unsupported image type. Use JPG, PNG, or WEBP."));
+        selectedVisualImageRef.current = null;
+        event.target.value = "";
+        return;
+      }
+      if (file.size > 8 * 1024 * 1024) {
+        toast.error(sfText("storefront.toasts.imageTooLarge", "The image is too large. Upload a smaller image."));
+        selectedVisualImageRef.current = null;
+        event.target.value = "";
+        return;
+      }
+      const label = file.name.replace(/\.[^.]+$/, "") || "بحث بالصورة";
+      if (visualPreviewUrlRef.current) URL.revokeObjectURL(visualPreviewUrlRef.current);
+      const previewUrl = URL.createObjectURL(file);
+      visualPreviewUrlRef.current = previewUrl;
+      setSearch(`بحث بالصورة: ${label}`);
+      setSuggestions([]);
+      setVisualSearch({ active: true, keywords: [], message: "", error: "", previewUrl, fileName: file.name });
+      setSearchLoading(true);
+      setSearchOpen(true);
+      setMobileSearchOpen(true);
+      const formData = new FormData();
+      formData.append("image", selectedVisualImageRef.current);
+      const tenantId = resolveStorefrontTenantId();
+      formData.append("tenant_id", tenantId);
+      const endpoint = "/storefront/products/visual-search";
+      try {
+        const data = await api.post(endpoint, formData, { timeoutMs: 45000, headers: { "x-tenant-id": tenantId } });
+        const products = Array.isArray(data.products) ? data.products : [];
+        setSuggestions(products);
+        setVisualSearch({
+          active: true,
+          keywords: Array.isArray(data.keywords) ? data.keywords : [],
+          message: products.length ? "" : data.message || "لم نجد منتج مطابق للصورة",
+          error: "",
+          previewUrl,
+          fileName: file.name,
+        });
+      } catch (error) {
+        const message =
+          error?.responseBody?.message ||
+          error?.responseBody?.error ||
+          (error?.message && error.message !== "Request Failed" ? error.message : "") ||
+          "تعذر البحث بالصورة الآن";
+        setSuggestions([]);
+        setVisualSearch({ active: true, keywords: [], message: "", error: message, previewUrl, fileName: file.name });
+        toast.error(message);
+      } finally {
+        setSearchLoading(false);
+        selectedVisualImageRef.current = null;
+      }
+    }
+    event.target.value = "";
+  };
+
+  const toggleNotifications = () => {
+    setNotificationsOpen((value) => {
+      const next = !value;
+      if (next && notifications.length === 0) {
+        cachedStorefrontGet("/storefront/notifications", { ttlMs: 30 * 1000 })
+          .then((data) => setNotifications(data.notifications || []))
+          .catch(() => setNotifications([]));
+      }
+      return next;
+    });
+  };
+
+  const switchLanguage = async () => {
+    persistApplicationLanguage(nextLanguage);
+    await storefrontI18n.changeLanguage(nextLanguage);
+    applyDocumentLanguage(nextLanguage);
+  };
 
   return (
-    <header className="sf-luxury-header sticky top-0 z-40 border-b border-stone-200/70 bg-[#fcfaf6]/88 shadow-[0_16px_48px_rgba(39,20,75,0.07)] backdrop-blur-2xl transition-all duration-300 dark:border-white/10 dark:bg-[#090d18]/92 dark:shadow-[0_16px_48px_rgba(0,0,0,0.28)]">
+    <header
+      data-compact={!compactDisabled && isCompact ? "true" : "false"}
+      className="sf-luxury-header sticky top-0 z-40 border-b border-stone-200/70 bg-[#fcfaf6]/88 shadow-[0_16px_48px_rgba(39,20,75,0.07)] backdrop-blur-2xl transition-all duration-300 dark:border-white/10 dark:bg-[#090d18]/92 dark:shadow-[0_16px_48px_rgba(0,0,0,0.28)]"
+    >
+      <div className="sf-announcement-row sf-header-announcement h-10 overflow-hidden bg-[linear-gradient(105deg,#09090b,#1c1917_42%,#312e81)] text-white/90 backdrop-blur transition-all duration-300">
+        <div className="sf-announcement-track h-full">
+          {[...announcementItems, ...announcementItems].map((item, index) => (
+            <span key={`${item.label}-${index}`} className="inline-flex h-full items-center gap-2 px-7 text-[12px] font-medium tracking-wide text-stone-100/95">
+              <span className="sf-header-announcement-icon text-white/72">{item.icon}</span>
+              {item.label}
+            </span>
+          ))}
+        </div>
+      </div>
       <div className="sf-utility-row hidden border-b border-stone-200/70 bg-white/45 px-4 text-xs font-semibold text-stone-500 transition-all duration-300 dark:border-white/10 dark:bg-white/[0.035] dark:text-stone-400 sm:block">
         <div className="mx-auto flex h-9 max-w-7xl items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <span className="rounded-full px-2.5 py-1">{sfText("storefront.header.tagline", "Premium Shoes")}</span>
-            <span className="h-3 w-px bg-stone-300/80 dark:bg-white/12" />
-            <button type="button" onClick={() => navigate("/shop/track")} className="rounded-full px-2.5 py-1 transition hover:bg-white hover:text-stone-950 dark:hover:bg-white/8 dark:hover:text-white">
-              {sfText("storefront.header.trackOrder", "تتبع الطلب")}
-            </button>
+          <div className="flex items-center gap-1.5">
+            {utilityItems.map((item) => {
+              const className = "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 transition hover:bg-white hover:text-stone-950 dark:hover:bg-white/8 dark:hover:text-white";
+              return item.external ? (
+                <a key={item.label} href={item.to} className={className}>
+                  {item.icon}
+                  <span>{item.label}</span>
+                </a>
+              ) : (
+                <Link key={item.label} to={item.to} className={className}>
+                  {item.icon}
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
           </div>
           <div className="hidden items-center gap-2 lg:flex">
-            <button type="button" onClick={onToggleTheme} className="rounded-full px-2.5 py-1 transition hover:bg-white hover:text-stone-950 dark:hover:bg-white/8 dark:hover:text-white" aria-label={themeToggleLabel}>
-              {themeIsDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </button>
+            <button type="button" onClick={switchLanguage} className="rounded-full px-2.5 py-1 transition hover:bg-white hover:text-stone-950 dark:hover:bg-white/8 dark:hover:text-white">{languageLabel}</button>
             <span className="h-3 w-px bg-stone-300/80 dark:bg-white/12" />
             <button type="button" className="rounded-full px-2.5 py-1 transition hover:bg-white hover:text-stone-950 dark:hover:bg-white/8 dark:hover:text-white">{getCurrency().code}</button>
           </div>
         </div>
       </div>
       <div className="sf-main-row sf-header-main mx-auto grid max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2.5 transition-all duration-300 md:grid-cols-[auto_auto_minmax(320px,520px)_auto] md:gap-5 md:py-3">
+        <button className="grid h-11 w-11 place-items-center rounded-2xl border border-stone-200/80 bg-white/70 transition hover:border-stone-300 hover:bg-white active:scale-95 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 md:hidden" onClick={() => setMenuOpen((value) => !value)} aria-label={t("storefront.header.menu", "Menu")}>
+          {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+        </button>
         <Link to="/shop" className="sf-header-logo group inline-flex items-center gap-2 text-stone-950 transition hover:text-[#6d28d9] dark:text-white">
           <span className="sf-header-logo-chip grid h-10 w-10 place-items-center rounded-2xl bg-stone-950 text-sm font-black tracking-[0.18em] text-white shadow-[0_12px_30px_rgba(28,25,23,0.16)] transition group-hover:scale-105 group-hover:bg-[#6d28d9] dark:bg-white dark:text-stone-950 dark:group-hover:text-white">MS</span>
           <span className="hidden leading-none sm:block">
             <span className="sf-header-logo-title block text-xl font-black tracking-[0.18em]">MONE</span>
-            <span className="sf-header-logo-subtitle mt-1 block text-[10px] font-semibold uppercase tracking-[0.32em] text-stone-500 dark:text-stone-400">{sfText("storefront.header.tagline", "Premium Shoes")}</span>
+            <span className="sf-header-logo-subtitle mt-1 block text-[10px] font-semibold uppercase tracking-[0.32em] text-stone-500 dark:text-stone-400">{t("storefront.header.tagline", "Premium Shoes")}</span>
           </span>
         </Link>
         <nav className="sf-collapsible-nav hidden items-center gap-1 text-sm font-bold text-stone-700 dark:text-stone-300 md:flex">
@@ -3702,34 +4005,108 @@ function Header({ cartCount, wishlistCount, onCart, effectiveTheme, onToggleThem
             </NavLink>
           ))}
         </nav>
+        <PremiumSearch
+          value={search}
+          onChange={handleSearchChange}
+          onSubmit={submit}
+          onOpen={() => setSearchOpen(true)}
+          onClose={closeSearch}
+          open={searchOpen}
+          mobileOpen={mobileSearchOpen}
+          setMobileOpen={setMobileSearchOpen}
+          placeholder={searchPlaceholders[placeholderIndex] || searchPlaceholders[0]}
+          suggestions={suggestions}
+          loading={searchLoading}
+          visualSearch={visualSearch}
+          recentSearches={recentSearches}
+          activeIndex={activeSearchIndex}
+          setActiveIndex={setActiveSearchIndex}
+          onPickTerm={pickSearchTerm}
+          onPickProduct={pickProduct}
+          onQuickAdd={handleQuickSearchAdd}
+          onVoice={handleVoiceSearch}
+          onImage={handleImageSearch}
+          className="hidden md:block"
+        />
         <div className="flex items-center justify-end gap-2">
-          <HeaderAction to="/shop/wishlist" label={sfText("storefront.header.wishlist", "المفضلة")} count={wishlistCount} icon={<Heart className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
-          <HeaderAction to="/shop/account" label={sfText("storefront.header.account", "الحساب")} icon={<User className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
-          <button onClick={onCart} className="sf-header-action sf-cart-action" aria-label={sfText("storefront.cart.title", "Cart")}>
+          <button
+            type="button"
+            onClick={onToggleTheme}
+            className="sf-header-action"
+            aria-label={themeToggleLabel}
+            title={themeToggleLabel}
+          >
+            {themeIsDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </button>
+          <HeaderAction to="/shop/wishlist" label={t("storefront.header.wishlist", "المفضلة")} count={wishlistCount} icon={<Heart className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
+          <HeaderAction to="/shop/account" label={t("storefront.header.account", "الحساب")} icon={<User className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
+          <div className="sf-secondary-action relative hidden md:block">
+            <button onClick={toggleNotifications} className="sf-header-action" aria-label={t("storefront.header.notifications", "الإشعارات")}>
+              <Bell className="h-5 w-5" />
+            </button>
+          {notificationsOpen ? (
+            <div className="absolute left-0 top-12 z-50 w-80 rounded-3xl border border-stone-200 bg-white p-3 shadow-2xl dark:border-white/10 dark:bg-[#0b1020]">
+              <div className="mb-2 px-2 text-sm font-black">{t("storefront.header.notifications", "Notifications")}</div>
+              {notifications.length ? notifications.slice(0, 6).map((item) => (
+                <div key={item.id} className="rounded-2xl bg-stone-50 p-3 dark:bg-white/5">
+                  <div className="text-sm font-black">{item.title}</div>
+                  <div className="mt-1 text-xs font-bold text-stone-500">{item.body}</div>
+                </div>
+              )) : <div className="rounded-2xl bg-stone-50 p-3 text-sm font-bold text-stone-500 dark:bg-white/5">{t("storefront.header.noNotifications", "No notifications right now")}</div>}
+            </div>
+          ) : null}
+          </div>
+          <button onClick={onCart} className="sf-header-action sf-cart-action" aria-label={t("storefront.cart.title", "Cart")}>
             <ShoppingCart className="h-5 w-5" />
             {cartCount ? <span className="sf-action-badge">{cartCount}</span> : null}
           </button>
         </div>
       </div>
       <div className="sf-mobile-search bg-[#fcfaf6]/94 px-4 pb-3 pt-1 backdrop-blur transition-all duration-300 dark:bg-[#090d18]/96 md:hidden">
-        <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={() => navigate("/shop/products")} className="flex h-12 items-center justify-center rounded-2xl border border-stone-200/90 bg-white/70 text-sm font-black text-stone-700 shadow-[0_12px_32px_rgba(39,20,75,0.055)] backdrop-blur dark:border-white/10 dark:bg-white/6 dark:text-stone-300">
-            {sfText("storefront.nav.categories", "الأقسام")}
-          </button>
-          <button type="button" onClick={onToggleTheme} className="flex h-12 items-center justify-center rounded-2xl border border-stone-200/90 bg-white/70 text-sm font-black text-stone-700 shadow-[0_12px_32px_rgba(39,20,75,0.055)] backdrop-blur dark:border-white/10 dark:bg-white/6 dark:text-stone-300">
-            {themeIsDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setSearchOpen(true);
+            setMobileSearchOpen(true);
+          }}
+          className="sf-mobile-search-trigger flex h-12 w-full items-center gap-3 rounded-2xl border border-stone-200/90 bg-white/70 px-4 text-right text-sm font-bold text-stone-500 shadow-[0_12px_32px_rgba(39,20,75,0.055)] backdrop-blur dark:border-white/10 dark:bg-white/6 dark:text-stone-400"
+        >
+          <Search className="sf-mobile-search-trigger-icon h-4.5 w-4.5 text-[#7c3aed]" />
+          <span>{searchPlaceholders[placeholderIndex] || searchPlaceholders[0]}</span>
+        </button>
       </div>
-      <div className={isCompact ? "hidden" : "block md:hidden"}>
-        <div className="grid gap-2 border-t border-stone-200 bg-white/96 px-4 py-4 text-sm font-bold backdrop-blur dark:border-white/10 dark:bg-[#0b1020]/96">
-          {navItems.map(([label, to]) => (
-            <Link key={label} to={to} className="rounded-2xl px-3 py-3 transition hover:bg-stone-100 dark:hover:bg-white/5 active:scale-[0.98]">
+      <PremiumSearch
+        value={search}
+        onChange={handleSearchChange}
+        onSubmit={submit}
+        onOpen={() => setSearchOpen(true)}
+        onClose={closeSearch}
+        open={searchOpen}
+        mobileOpen={mobileSearchOpen}
+        setMobileOpen={setMobileSearchOpen}
+        placeholder={searchPlaceholders[placeholderIndex] || searchPlaceholders[0]}
+        suggestions={suggestions}
+        loading={searchLoading}
+        visualSearch={visualSearch}
+        recentSearches={recentSearches}
+        activeIndex={activeSearchIndex}
+        setActiveIndex={setActiveSearchIndex}
+        onPickTerm={pickSearchTerm}
+        onPickProduct={pickProduct}
+        onQuickAdd={handleQuickSearchAdd}
+        onVoice={handleVoiceSearch}
+        onImage={handleImageSearch}
+        mobileOnly
+      />
+      {menuOpen ? (
+        <div className="grid gap-2 border-t border-stone-200 bg-white/96 px-4 py-4 text-sm font-bold backdrop-blur dark:border-white/10 dark:bg-[#0b1020]/96 md:hidden">
+          {[t("storefront.nav.home", "الرئيسية"), t("storefront.nav.categories", "الأقسام"), t("storefront.nav.sale", "العروض"), t("storefront.nav.new", "الجديد"), t("storefront.nav.men", "رجالي"), t("storefront.nav.women", "نسائي"), t("storefront.nav.sizeGuide", "دليل المقاسات"), t("storefront.nav.returns", "سياسة الاستبدال")].map((label, index) => (
+            <Link key={label} to={["/shop", "/shop/products", "/shop/sale", "/shop/products?sort=new", "/shop/products?q=رجالي", "/shop/products?q=حريمي", "/shop/size-guide", "/shop/returns"][index]} onClick={() => setMenuOpen(false)} className="rounded-2xl px-3 py-3 transition hover:bg-stone-100 dark:hover:bg-white/5 active:scale-[0.98]">
               {label}
             </Link>
           ))}
         </div>
-      </div>
+      ) : null}
     </header>
   );
 }
@@ -7474,5 +7851,4 @@ function StorefrontWithBoundary() {
 }
 
 export default StorefrontWithBoundary;
-
 
