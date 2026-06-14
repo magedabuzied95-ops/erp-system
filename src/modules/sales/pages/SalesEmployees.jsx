@@ -1398,6 +1398,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               checklist={payrollChecklist}
               changeIndicator={payrollChangeIndicator}
               periodLabel={payrollPeriodLabelValue}
+              selectedEmployeeName={payrollEmployee?.name || ""}
               isRtl={isRtl}
               t={t}
               onCalculate={handleCalculatePayroll}
@@ -1408,39 +1409,46 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
           </section>
 
           <section className="theme-card p-4">
-            <div className="mb-4 flex items-center gap-3">
-              <Calculator className="h-5 w-5 text-[var(--primary)]" />
-              <div>
-                <h2 className="text-xl font-black leading-8">{t("sales.payroll.title", "Payroll Calculator")}</h2>
-                <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{t("sales.payroll.subtitle", "Uses the selected report period and calculated commission for the chosen employee.")}</p>
+            <details className="group">
+              <summary className="flex cursor-pointer list-none items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Calculator className="h-5 w-5 text-[var(--primary)]" />
+                    <h2 className="text-xl font-black leading-8">{t("sales.payroll.title", "إنشاء راتب جديد")}</h2>
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{t("sales.payroll.subtitle", "اختر موظفاً ثم احسب راتبه للشهر الحالي.")}</p>
+                </div>
+                <span className="mt-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-black text-[var(--muted)] group-open:hidden">
+                  {t("sales.payroll.collapsed", "اضغط لفتح القسم")}
+                </span>
+              </summary>
+              <div className="mt-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)]/70 p-4">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(260px,1.35fr)_repeat(3,minmax(160px,.9fr))_minmax(190px,.85fr)] xl:items-end">
+                  <PayrollSelect label={t("sales.payroll.employee", "Employee")} value={payroll.employee_id} onChange={(value) => {
+                    const employee = employees.find((item) => String(item.id) === String(value));
+                    setPayrollEmployeeAdjusted(true);
+                    setPayrollCalculateStatus("");
+                    setPayroll((prev) => ({ ...prev, employee_id: value, base_salary: employee ? employee.salary ?? employee.base_salary ?? 0 : prev.base_salary, deductions: 0 }));
+                  }} options={[{ value: "", label: t("sales.payroll.selectEmployee", "Select employee") }, ...employeeOptions]} isRtl={isRtl} />
+                  <PayrollField type="number" label={t("sales.payroll.baseSalary", "Base Salary")} value={payroll.base_salary} onChange={(value) => updatePayrollField("base_salary", value)} isRtl={isRtl} />
+                  <PayrollField type="number" label={t("sales.payroll.bonuses", "Bonuses")} value={payroll.bonuses} onChange={(value) => updatePayrollField("bonuses", value)} isRtl={isRtl} />
+                  <PayrollField type="number" label={t("sales.payroll.deductions", "Deductions")} value={payroll.deductions} onChange={(value) => updatePayrollField("deductions", value)} isRtl={isRtl} />
+                  <button type="button" onClick={handleCalculatePayroll} disabled={payrollCalculating} className="theme-button-primary h-[64px] justify-center px-5 text-base font-black disabled:cursor-not-allowed disabled:opacity-60">
+                    <BriefcaseBusiness className={`h-4 w-4 ${payrollCalculating ? "animate-pulse" : ""}`} />
+                    {payrollCalculating ? t("sales.payroll.calculating", "Calculating...") : t("sales.payroll.calculate", "Calculate Salary")}
+                  </button>
+                </div>
+                {payrollEmployeeAdjusted ? (
+                  <div className="mt-2 text-xs font-semibold leading-5 text-[var(--muted)]">{t("sales.payroll.adjustedHint", "Payroll preview employee can be adjusted independently.")}</div>
+                ) : null}
+                {payrollCalculateStatus === "success" ? (
+                  <div className="mt-2 text-xs font-semibold leading-5 text-emerald-300">{t("sales.payroll.calculateSuccess", "Salary calculated")}</div>
+                ) : null}
+                {payrollCalculateStatus === "error" ? (
+                  <div className="mt-2 text-xs font-semibold leading-5 text-rose-300">{t("sales.payroll.calculateError", "Salary calculation failed")}</div>
+                ) : null}
               </div>
-            </div>
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/70 p-4">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(260px,1.35fr)_repeat(3,minmax(160px,.9fr))_minmax(190px,.85fr)] xl:items-end">
-                <PayrollSelect label={t("sales.payroll.employee", "Employee")} value={payroll.employee_id} onChange={(value) => {
-                  const employee = employees.find((item) => String(item.id) === String(value));
-                  setPayrollEmployeeAdjusted(true);
-                  setPayrollCalculateStatus("");
-                  setPayroll((prev) => ({ ...prev, employee_id: value, base_salary: employee ? employee.salary ?? employee.base_salary ?? 0 : prev.base_salary, deductions: 0 }));
-                }} options={[{ value: "", label: t("sales.payroll.selectEmployee", "Select employee") }, ...employeeOptions]} isRtl={isRtl} />
-                <PayrollField type="number" label={t("sales.payroll.baseSalary", "Base Salary")} value={payroll.base_salary} onChange={(value) => updatePayrollField("base_salary", value)} isRtl={isRtl} />
-                <PayrollField type="number" label={t("sales.payroll.bonuses", "Bonuses")} value={payroll.bonuses} onChange={(value) => updatePayrollField("bonuses", value)} isRtl={isRtl} />
-                <PayrollField type="number" label={t("sales.payroll.deductions", "Deductions")} value={payroll.deductions} onChange={(value) => updatePayrollField("deductions", value)} isRtl={isRtl} />
-                <button type="button" onClick={handleCalculatePayroll} disabled={payrollCalculating} className="theme-button-primary h-[64px] justify-center px-5 text-base font-black disabled:cursor-not-allowed disabled:opacity-60">
-                  <BriefcaseBusiness className={`h-4 w-4 ${payrollCalculating ? "animate-pulse" : ""}`} />
-                  {payrollCalculating ? t("sales.payroll.calculating", "Calculating...") : t("sales.payroll.calculate", "Calculate Salary")}
-                </button>
-              </div>
-              {payrollEmployeeAdjusted ? (
-                <div className="mt-2 text-xs font-semibold leading-5 text-[var(--muted)]">{t("sales.payroll.adjustedHint", "Payroll preview employee can be adjusted independently.")}</div>
-              ) : null}
-              {payrollCalculateStatus === "success" ? (
-                <div className="mt-2 text-xs font-semibold leading-5 text-emerald-300">{t("sales.payroll.calculateSuccess", "Salary calculated")}</div>
-              ) : null}
-              {payrollCalculateStatus === "error" ? (
-                <div className="mt-2 text-xs font-semibold leading-5 text-rose-300">{t("sales.payroll.calculateError", "Salary calculation failed")}</div>
-              ) : null}
-            </div>
+            </details>
           </section>
 
           <section className="theme-card p-4">
@@ -1937,6 +1945,7 @@ function PayrollFinancialSummary({
   checklist = [],
   changeIndicator = null,
   periodLabel,
+  selectedEmployeeName = "",
   isRtl,
   t,
   onCalculate,
@@ -2015,14 +2024,16 @@ function PayrollFinancialSummary({
 
   return (
     <div dir={isRtl ? "rtl" : "ltr"} className="space-y-4">
-      <div className="rounded-full border border-emerald-300/25 bg-emerald-400/10 px-3 py-2 text-center text-xs font-black text-emerald-100">
-        NEW SIMPLE PAYROLL UI
-      </div>
       <section className="theme-card p-4">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className={isRtl ? "text-[11px] font-bold text-[var(--muted)]" : "text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]"}>{t("sales.payroll.summary", "ملخص الراتب")}</div>
             <h3 className="mt-1 text-2xl font-black leading-8">{periodLabel}</h3>
+            <div className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-black ${selectedEmployeeName && selectedEmployeeName.trim() && payroll.employee_name && String(selectedEmployeeName).trim() === String(payroll.employee_name).trim() ? "bg-emerald-400/10 text-emerald-100" : "bg-amber-400/10 text-amber-100"}`}>
+              {selectedEmployeeName && selectedEmployeeName.trim() && payroll.employee_name && String(selectedEmployeeName).trim() === String(payroll.employee_name).trim()
+                ? t("sales.payroll.currentlyShowing", `يعرض حالياً راتب: ${payroll.employee_name}`, { name: payroll.employee_name })
+                : t("sales.payroll.otherEmployeeWarning", "أنت تعرض راتب موظف آخر.")}
+            </div>
             <div className="mt-2 text-sm font-bold text-[var(--muted)]">
               {t("sales.payroll.employee", "الموظف")}: <span className="text-[var(--text)]" dir="auto">{payroll.employee_name || "-"}</span>
             </div>
