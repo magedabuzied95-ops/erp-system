@@ -1727,18 +1727,18 @@ function CompactSelect({ label, value, onChange, options = [], isRtl = false }) 
 
 function PayrollField({ label, value, onChange, type = "text", isRtl = false }) {
   return (
-    <label className="h-[64px] rounded-2xl border border-[var(--border)] bg-black/10 px-4 py-3">
+    <label className="h-[64px] rounded-2xl border border-[var(--border)] bg-black/10 px-4 pt-4 pb-3">
       <span className={`block ${labelClass(isRtl, "text-[11px]")}`}>{label}</span>
-      <input dir={isRtl ? "rtl" : "ltr"} type={type} value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 w-full bg-transparent text-start text-base font-semibold tabular-nums outline-none md:text-lg" />
+      <input dir={isRtl ? "rtl" : "ltr"} type={type} value={value} onChange={(e) => onChange(e.target.value)} className="mt-2.5 w-full bg-transparent text-start text-base font-semibold tabular-nums outline-none md:text-lg" />
     </label>
   );
 }
 
 function PayrollSelect({ label, value, onChange, options = [], isRtl = false }) {
   return (
-    <label className="h-[64px] rounded-2xl border border-[var(--border)] bg-black/10 px-4 py-3">
+    <label className="h-[64px] rounded-2xl border border-[var(--border)] bg-black/10 px-4 pt-4 pb-3">
       <span className={`block ${labelClass(isRtl, "text-[11px]")}`}>{label}</span>
-      <select dir={isRtl ? "rtl" : "ltr"} value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 w-full bg-transparent text-start text-base font-semibold outline-none md:text-lg">
+      <select dir={isRtl ? "rtl" : "ltr"} value={value} onChange={(e) => onChange(e.target.value)} className="mt-2.5 w-full bg-transparent text-start text-base font-semibold outline-none md:text-lg">
         {options.map((option) => (
           <option key={option.value} value={option.value}>{option.label}</option>
         ))}
