@@ -3923,6 +3923,49 @@ const secondsUntil = (value) => {
 
 const getTokenForConfig = (row = {}) => decryptSecret(row.page_access_token_encrypted || row.page_access_token || row.access_token_encrypted || "");
 
+const resolveMarketingSettingsWebhookToken = async ({
+  tenantId,
+  facebookPageId = "",
+  instagramBusinessAccountId = "",
+} = {}) => {
+  const scopedTenantId = numberOrNull(tenantId);
+  if (!scopedTenantId) return { token: "", source: "", row: null };
+  const result = await db.query(
+    `
+    SELECT *
+    FROM marketing_settings
+    WHERE tenant_id = $1
+      AND (provider = 'meta' OR page_id <> '' OR page_access_token <> '' OR access_token_encrypted <> '')
+      AND ($2::text = '' OR COALESCE(page_id, '') = '' OR TRIM(page_id::text) = $2)
+      AND ($3::text = '' OR COALESCE(instagram_account_id, '') = '' OR TRIM(instagram_account_id::text) = $3)
+    ORDER BY updated_at DESC
+    LIMIT 1
+    `,
+    [scopedTenantId, text(facebookPageId), text(instagramBusinessAccountId)]
+  ).catch(() => ({ rows: [] }));
+  const row = result.rows[0] || null;
+  if (!row) return { token: "", source: "", row: null };
+  for (const field of ["page_access_token", "access_token_encrypted"]) {
+    const value = text(row[field]);
+    if (!value) continue;
+    try {
+      const token = value.startsWith("enc:v1:") ? decryptSecret(value) : value;
+      if (token) {
+        return { token, source: `marketing_settings.${field}`, row };
+      }
+    } catch (error) {
+      console.warn("[meta-webhook] webhook_enable_marketing_token_candidate_failed", {
+        tenant_id: scopedTenantId,
+        source: `marketing_settings.${field}`,
+        config_id: row.id || null,
+        message: error?.message || "Unable to decrypt marketing settings token",
+        stack: error?.stack || "",
+      });
+    }
+  }
+  return { token: "", source: "", row };
+};
+
 const metaAppConfig = () => ({
   appId: text(process.env.META_APP_ID || process.env.FACEBOOK_APP_ID),
   appSecret: text(process.env.META_APP_SECRET || process.env.FACEBOOK_APP_SECRET),
@@ -4427,12 +4470,44 @@ export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageA
     step: "resolve_token_start",
     config_id: row?.id || null,
   });
-  const token = text(pageAccessToken) || (row ? getTokenForConfig(row) : "");
+  let token = text(pageAccessToken);
+  let tokenSource = token ? "request.pageAccessToken" : "";
+  let tokenRecovery = "";
+  let tokenResolutionError = null;
+  let fallbackTokenRow = null;
+  if (!token && row) {
+    try {
+      token = getTokenForConfig(row);
+      tokenSource = token ? "meta_integration_configs" : "";
+    } catch (error) {
+      tokenResolutionError = error;
+      console.warn("[meta-webhook] webhook_enable_token_decrypt_failed", {
+        tenant_id: numberOrNull(tenantId),
+        config_id: row?.id || null,
+        function: "subscribeMetaPageToWebhooks",
+        message: error?.message || "Unable to decrypt Meta webhook token",
+        stack: error?.stack || "",
+      });
+      const fallback = await resolveMarketingSettingsWebhookToken({
+        tenantId,
+        facebookPageId: resolvedPageId,
+        instagramBusinessAccountId: row?.instagram_business_account_id || "",
+      });
+      token = fallback.token;
+      tokenSource = fallback.token ? fallback.source : "";
+      fallbackTokenRow = fallback.row || null;
+      tokenRecovery = fallback.token ? "marketing_settings_fallback" : "";
+    }
+  }
   console.log("[meta-webhook] subscribeMetaPageToWebhooks_step", {
     tenant_id: numberOrNull(tenantId),
     function: "subscribeMetaPageToWebhooks",
     step: "resolve_token_done",
     token_saved: Boolean(token),
+    token_source: tokenSource || "",
+    token_recovery: tokenRecovery || "",
+    token_resolution_error: Boolean(tokenResolutionError),
+    fallback_token_row_found: Boolean(fallbackTokenRow),
   });
   console.log("[meta-webhook] meta_verify_webhook_config_selected", {
     tenant_id: numberOrNull(tenantId),
@@ -4470,9 +4545,30 @@ export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageA
   };
 
   if (!resolvedPageId || !token) {
-    result.error = "Facebook Page ID and Page access token are required";
+    result.error = "reconnect_required: webhook token unavailable";
+    result.token_resolution_status = "token_unavailable";
     await updateWebhookSubscriptionStatus({ tenantId, status: result, webhookEnabled: false });
     return result;
+  }
+
+  if (tokenRecovery === "marketing_settings_fallback" && row?.id) {
+    await db.query(
+      `
+      UPDATE meta_integration_configs
+      SET page_access_token_encrypted = CASE WHEN $2::text <> '' THEN $2::text ELSE page_access_token_encrypted END,
+          updated_at = NOW()
+      WHERE id = $1
+      `,
+      [row.id, encryptSecret(token)]
+    ).catch((error) => {
+      console.warn("[meta-webhook] webhook_enable_token_resave_failed", {
+        tenant_id: numberOrNull(tenantId),
+        config_id: row?.id || null,
+        function: "subscribeMetaPageToWebhooks",
+        message: error?.message || "Unable to persist recovered webhook token",
+        stack: error?.stack || "",
+      });
+    });
   }
 
   const postSubscription = async (fields) =>
