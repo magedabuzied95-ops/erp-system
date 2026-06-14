@@ -4136,7 +4136,9 @@ function PremiumSearch({
 }) {
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
-  const chips = value.trim() ? [] : [...recentSearches, ...TRENDING_SEARCHES].filter(Boolean);
+  const trendingSearches = getTrendingSearches();
+  const searchFallbackSections = getSearchFallbackSections();
+  const chips = value.trim() ? [] : [...recentSearches, ...trendingSearches].filter(Boolean);
   const keyboardItems = [...suggestions.map((item) => ({ type: "product", item })), ...chips.map((term) => ({ type: "term", term }))];
 
   useEffect(() => {
@@ -4279,12 +4281,12 @@ function SearchQuickSections({ value, loading, suggestions, chips, activeIndex, 
 
       {!query ? (
         <>
-          <SearchChips title="الأكثر بحثًا" items={TRENDING_SEARCHES} onPick={onPickTerm} />
+          <SearchChips title="الأكثر بحثًا" items={trendingSearches} onPick={onPickTerm} />
           {chips.length ? <SearchChips title="بحثت مؤخرًا" items={chips.slice(0, 6)} onPick={onPickTerm} /> : null}
           <div className="grid gap-2 sm:grid-cols-3">
-            <SearchQuickCard title="الأقسام" items={SEARCH_FALLBACK_SECTIONS.categories} onPick={onPickTerm} />
-            <SearchQuickCard title="البراندات" items={SEARCH_FALLBACK_SECTIONS.brands} onPick={onPickTerm} />
-            <SearchQuickCard title="ستايلات" items={SEARCH_FALLBACK_SECTIONS.styles} onPick={onPickTerm} />
+            <SearchQuickCard title="الأقسام" items={searchFallbackSections.categories || []} onPick={onPickTerm} />
+            <SearchQuickCard title="البراندات" items={searchFallbackSections.brands || []} onPick={onPickTerm} />
+            <SearchQuickCard title="ستايلات" items={searchFallbackSections.styles || []} onPick={onPickTerm} />
           </div>
         </>
       ) : null}
