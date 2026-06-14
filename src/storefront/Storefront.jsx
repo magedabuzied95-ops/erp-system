@@ -324,6 +324,129 @@ const useProducts = (params = {}) => {
 
   return state;
 };
+
+const normalizeHomeProduct = (product = {}) => {
+  const link = storefrontPathFromLink(product.link || product.product_url || product.url);
+  const image = compactImageValue(
+    product.image_url ||
+      product.product_image_url ||
+      product.thumbnail_url ||
+      product.photo_url ||
+      product.image ||
+      (Array.isArray(product.gallery_images) ? product.gallery_images[0] : "")
+  );
+  const price = Number(product.price || product.final_price || product.selling_price || product.regular_price || 0) || 0;
+  const salePrice = Number(product.sale_price || 0) || 0;
+  const sourceSellingPrice = Number(product.selling_price || product.price || price || 0) || 0;
+  const id = firstTextValue(product.id, product.product_id, product.productId, product.card_id, product.slug, product.canonical_slug);
+  const name = firstTextValue(product.name, product.title, product.product_name, product.productName);
+  return {
+    ...product,
+    id,
+    product_id: product.product_id || product.productId || id,
+    card_id: product.card_id || id,
+    slug: product.slug || product.canonical_slug || id,
+    name,
+    image_url: image,
+    product_image_url: product.product_image_url || image,
+    gallery_images: Array.isArray(product.gallery_images) ? product.gallery_images : image ? [image] : [],
+    price,
+    final_price: price,
+    selling_price: price || sourceSellingPrice,
+    regular_price: Number(product.regular_price || product.original_price || product.compare_at_price || sourceSellingPrice || price || 0) || 0,
+    sale_price: salePrice,
+    sale_price_enabled: Boolean(product.sale_price_enabled && salePrice > 0 && sourceSellingPrice > 0 && salePrice < sourceSellingPrice),
+    sale_mode_applied: Boolean(product.sale_price_enabled && salePrice > 0 && sourceSellingPrice > 0 && salePrice < sourceSellingPrice),
+    total_stock: Number(product.total_stock ?? product.stock ?? 1) || 0,
+    stock: Number(product.stock ?? product.total_stock ?? 1) || 0,
+    link,
+  };
+};
+
+const normalizeHomeCollection = (collection = {}) => ({
+  ...collection,
+  key: collection.key || collection.id || collection.slug || collection.title || "",
+  title: collection.title || collection.name || collection.label || "",
+  subtitle: collection.subtitle || collection.description || "",
+  products: (Array.isArray(collection.products) ? collection.products : []).map(normalizeHomeProduct).filter((product) => product.id && product.name),
+});
+
+const getStorefrontHomeFromResponse = (response = {}) =>
+  response?.home ||
+  response?.data?.home ||
+  response?.result?.home ||
+  response?.payload?.home ||
+  response?.storefront?.home ||
+  response ||
+  {};
+
+const normalizeStorefrontBrand = (brand = {}) => {
+  const image = compactImageValue(brand.logo_url || brand.image_url || brand.logo || brand.image || brand.logoUrl || brand.imageUrl || "");
+  const id = firstTextValue(brand.id, brand.brand_id, brand.brandId, brand.slug, brand.canonical_slug);
+  const name = firstTextValue(brand.name, brand.title, brand.brand_name);
+  return {
+    ...brand,
+    id,
+    name,
+    slug: firstTextValue(brand.slug, brand.brand_slug, brand.brandSlug, id),
+    logo_url: image,
+    image_url: image,
+    sort_order: Number(brand.sort_order ?? brand.sortOrder ?? 0) || 0,
+  };
+};
+
+const useStorefrontHome = () => {
+  const [state, setState] = useState({ loading: true, error: "", hero: null, collections: [] });
+
+  useEffect(() => {
+    let cancelled = false;
+    cachedStorefrontGet("/storefront/home", { ttlMs: STOREFRONT_HOME_CACHE_TTL_MS })
+      .then((json) => {
+        const home = getStorefrontHomeFromResponse(json);
+        const hero = home.hero ? normalizeHomeProduct(home.hero) : null;
+        const collections = (Array.isArray(home.featured_collections) ? home.featured_collections : [])
+          .map(normalizeHomeCollection)
+          .filter((collection) => collection.products.length);
+        if (!cancelled) setState({ loading: false, error: "", hero: hero?.id ? hero : null, collections });
+      })
+      .catch((error) => {
+        if (!cancelled && error?.cause?.name !== "AbortError") {
+          setState({ loading: false, error: error?.message || "Failed to load storefront home", hero: null, collections: [] });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return state;
+};
+
+const useStorefrontBrands = () => {
+  const [state, setState] = useState({ loading: true, error: "", brands: [] });
+
+  useEffect(() => {
+    let cancelled = false;
+    cachedStorefrontGet("/storefront/brands", { ttlMs: STOREFRONT_BRANDS_CACHE_TTL_MS })
+      .then((data) => {
+        const brands = (Array.isArray(data?.brands) ? data.brands : Array.isArray(data?.data) ? data.data : [])
+          .map(normalizeStorefrontBrand)
+          .filter((brand) => brand.id && brand.name && brand.logo_url);
+        if (!cancelled) setState({ loading: false, error: "", brands });
+      })
+      .catch((error) => {
+        if (!cancelled && error?.cause?.name !== "AbortError") {
+          setState({ loading: false, error: error?.message || "Failed to load storefront brands", brands: [] });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return state;
+};
+
 const useStorefrontGenderClassifications = () => {
   const cachedGenderData = getCachedStorefrontGetData("/storefront/classifications/gender", { ttlMs: STOREFRONT_GENDER_CACHE_TTL_MS });
   const [state, setState] = useState(() => ({
@@ -689,6 +812,90 @@ const CUSTOMER_CAPTURE_SHOWN_KEY = "storefront.customer_capture_shown";
 const CUSTOMER_CAPTURE_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 const STOREFRONT_SPLASH_SEEN_KEY = "m1_store_splash_seen";
 const STOREFRONT_SPLASH_DURATION_MS = 1100;
+const storefrontGetCache = new Map();
+const storefrontGetInFlight = new Map();
+const storefrontProductDetailsCache = new Map();
+const storefrontProductDetailsInFlight = new Map();
+const storefrontPrefetchedDetails = new Set();
+const STOREFRONT_GET_CACHE_TTL_MS = 60 * 1000;
+const STOREFRONT_PRODUCTS_CACHE_TTL_MS = 30 * 1000;
+const STOREFRONT_HOME_CACHE_TTL_MS = 60 * 1000;
+const STOREFRONT_BRANDS_CACHE_TTL_MS = 10 * 60 * 1000;
+const STOREFRONT_GENDER_CACHE_TTL_MS = 10 * 60 * 1000;
+const STOREFRONT_LAST_PIECE_CACHE_TTL_MS = 20 * 1000;
+const STOREFRONT_PRODUCT_DETAILS_CACHE_TTL_MS = 60 * 1000;
+const STOREFRONT_PREFETCH_LIMIT = 12;
+const storefrontDebugLog = (label, payload = {}) => {
+  if (!import.meta.env.DEV) return;
+  console.log(label, payload);
+};
+const cachedStorefrontGet = (url, { ttlMs = STOREFRONT_GET_CACHE_TTL_MS } = {}) => {
+  if (ttlMs <= 0) {
+    storefrontDebugLog("[storefront-cache-miss]", { url, ttlMs, strategy: "no-store" });
+    return api.get(url, { cache: "no-store", headers: { "Cache-Control": "no-cache", Pragma: "no-cache" } });
+  }
+  const now = Date.now();
+  const cached = storefrontGetCache.get(url);
+  if (cached && now - cached.at < ttlMs) {
+    storefrontDebugLog("[storefront-cache-hit]", { url, ttlMs, ageMs: now - cached.at });
+    return Promise.resolve(cached.data);
+  }
+  if (storefrontGetInFlight.has(url)) {
+    storefrontDebugLog("[storefront-cache-hit]", { url, ttlMs, strategy: "in-flight" });
+    return storefrontGetInFlight.get(url);
+  }
+  storefrontDebugLog("[storefront-cache-miss]", { url, ttlMs, strategy: "network" });
+  const request = api.get(url)
+    .then((data) => {
+      storefrontGetCache.set(url, { at: Date.now(), data });
+      return data;
+    })
+    .finally(() => {
+      storefrontGetInFlight.delete(url);
+    });
+  storefrontGetInFlight.set(url, request);
+  return request;
+};
+const getCachedStorefrontGetData = (url, { ttlMs = STOREFRONT_GET_CACHE_TTL_MS } = {}) => {
+  const cached = storefrontGetCache.get(url);
+  if (!cached) return null;
+  return Date.now() - cached.at < ttlMs ? cached.data : null;
+};
+const getCachedProductDetails = (identifier, { ttlMs = STOREFRONT_PRODUCT_DETAILS_CACHE_TTL_MS } = {}) => {
+  const key = String(identifier || "").trim();
+  if (!key) return null;
+  const cached = storefrontProductDetailsCache.get(key);
+  if (!cached) return null;
+  const ageMs = Date.now() - cached.at;
+  if (ageMs >= ttlMs) {
+    storefrontProductDetailsCache.delete(key);
+    return null;
+  }
+  storefrontDebugLog("[storefront-cache-hit]", { url: `/storefront/products/resolve/${encodeURIComponent(key)}`, ttlMs, ageMs, strategy: "product-details-memory" });
+  return cached.data;
+};
+const setCachedProductDetails = (identifier, data) => {
+  const key = String(identifier || "").trim();
+  if (!key || !data) return;
+  storefrontProductDetailsCache.set(key, { at: Date.now(), data });
+};
+const cleanupStorefrontStorage = () => {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  try {
+    [
+      CART_KEY,
+      WISHLIST_KEY,
+      RECENT_KEY,
+      PROFILE_KEY,
+      THEME_KEY,
+    ].forEach((key) => window.localStorage.removeItem(key));
+    Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index)).filter(Boolean).forEach((key) => {
+      if (STOREFRONT_CACHE_PREFIXES.some((prefix) => key === prefix || key.startsWith(`${prefix}.`) || key.startsWith(`${prefix}:`))) {
+        window.localStorage.removeItem(key);
+      }
+    });
+  } catch {}
+};
 const getSuccessMessages = () => {
   const messages = i18n.t("storefront.toasts.successMessages", { returnObjects: true });
   return Array.isArray(messages) && messages.length ? messages : ["?????? ?????", "???? ??? ?????? ????", "?????? ???", "?????? ?? ????? ???"];
@@ -1289,6 +1496,57 @@ const displayCartItemComparePrice = (item = {}) => {
   const activePrice = displayCartItemPrice(item);
   const original = Number(item.original_price || item.base_price || item.list_price || item.compare_at_price || item.regular_price || 0);
   return original > activePrice ? original : 0;
+};
+
+const firstArrayItem = (value) => (Array.isArray(value) && value.length ? value[0] : null);
+const storefrontPathFromLink = (value = "") => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const url = new URL(raw, typeof window !== "undefined" ? window.location.origin : "https://storefront.local");
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return raw.startsWith("/") ? raw : "";
+  }
+};
+const nestedProductFor = (item = {}) => {
+  if (item?.product && typeof item.product === "object") return item.product;
+  if (item?.item?.product && typeof item.item.product === "object") return item.item.product;
+  if (item?.data?.product && typeof item.data.product === "object") return item.data.product;
+  return {};
+};
+const nestedVariantFor = (item = {}, product = {}) => {
+  if (item?.variant && typeof item.variant === "object") return item.variant;
+  if (item?.product_variant && typeof item.product_variant === "object") return item.product_variant;
+  if (item?.matched_variant && typeof item.matched_variant === "object") return item.matched_variant;
+  const variants = Array.isArray(product?.variants) ? product.variants : [];
+  return firstDisplayVariant(variants) || {};
+};
+const resolveProductImage = (item = {}, product = {}, variant = {}) => {
+  const itemFirstImage = firstArrayItem(item.images);
+  const productFirstImage = firstArrayItem(product.images) || firstArrayItem(product.gallery_images);
+  return compactImageValue(
+    variant.image_url ||
+      variant.image ||
+      variant.primary_image ||
+      item.image_url ||
+      item.image ||
+      item.primary_image ||
+      item.thumbnail ||
+      item.thumbnail_url ||
+      itemFirstImage?.image_url ||
+      itemFirstImage?.url ||
+      itemFirstImage ||
+      product.image_url ||
+      product.image ||
+      product.primary_image ||
+      product.thumbnail ||
+      product.thumbnail_url ||
+      productFirstImage?.image_url ||
+      productFirstImage?.url ||
+      productFirstImage ||
+      ""
+  );
 };
 
 const displayComparePrice = (product = {}, variant = {}) => {
