@@ -4701,12 +4701,7 @@ export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageA
     missing_optional_fields: result.missing_optional_fields,
     error: result.error || "",
   });
-  return {
-    ...(result || {}),
-    timeline_message_id: inserted?.id || null,
-    delivery_status: inserted?.delivery_status || "sent",
-    external_message_id: inserted?.external_message_id || result?.message_id || "",
-  };
+  return result;
 };
 
 export const verifyMetaWebhookEnablement = async ({ tenantId } = {}) => {
