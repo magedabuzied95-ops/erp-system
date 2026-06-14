@@ -1382,15 +1382,15 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
 
       {activeTab === "payroll" ? (
         <main className="space-y-3">
-          <section className="theme-card p-2.5">
-            <div className="mb-1.5 flex flex-col gap-1.5 sm:flex-row sm:items-end sm:justify-between">
+          <section className="theme-card p-2">
+            <div className="mb-1 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div className="min-w-0">
                 <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">{t("sales.payroll.title", "الرواتب")}</div>
                 <h2 className="mt-1 text-xl font-black leading-8 text-[var(--text)]">{t("sales.payroll.title", "الرواتب")}</h2>
-                <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{t("sales.payroll.subtitle", "اختر الموظف ثم راجع راتبه")}</p>
+                <p className="mt-0.5 text-sm leading-6 text-[var(--muted)]">{t("sales.payroll.subtitle", "اختر الموظف ثم راجع راتبه")}</p>
               </div>
             </div>
-            <div className="grid gap-1.5 xl:grid-cols-[minmax(280px,1.4fr)_minmax(220px,.8fr)]">
+            <div className="grid gap-1 xl:grid-cols-[minmax(280px,1.4fr)_minmax(220px,.8fr)]">
               <PayrollSelect
                 label={t("sales.payroll.employee", "الموظف")}
                 value={payroll.employee_id}
@@ -1727,7 +1727,7 @@ function CompactSelect({ label, value, onChange, options = [], isRtl = false }) 
 
 function PayrollField({ label, value, onChange, type = "text", isRtl = false }) {
   return (
-    <label className="h-[56px] rounded-2xl border border-[var(--border)] bg-black/10 px-4 pt-3 pb-2.5">
+    <label className="h-[64px] rounded-2xl border border-[var(--border)] bg-black/10 px-4 pt-3 pb-2.5">
       <span className={`block ${labelClass(isRtl, "text-[11px]")}`}>{label}</span>
       <input dir={isRtl ? "rtl" : "ltr"} type={type} value={value} onChange={(e) => onChange(e.target.value)} className="mt-2.5 w-full bg-transparent text-start text-base font-semibold tabular-nums outline-none md:text-lg" />
     </label>
@@ -1736,7 +1736,7 @@ function PayrollField({ label, value, onChange, type = "text", isRtl = false }) 
 
 function PayrollSelect({ label, value, onChange, options = [], isRtl = false }) {
   return (
-    <label className="h-[56px] rounded-2xl border border-[var(--border)] bg-black/10 px-4 pt-3 pb-2.5">
+    <label className="h-[64px] rounded-2xl border border-[var(--border)] bg-black/10 px-4 pt-3 pb-2.5">
       <span className={`block ${labelClass(isRtl, "text-[11px]")}`}>{label}</span>
       <select dir={isRtl ? "rtl" : "ltr"} value={value} onChange={(e) => onChange(e.target.value)} className="mt-2.5 w-full bg-transparent text-start text-base font-semibold outline-none md:text-lg">
         {options.map((option) => (
@@ -1821,6 +1821,7 @@ function PayrollFinancialSummary({
   const actionDisabled = isPaid ? true : calculating || finalizing;
   const hasPayrollDetails = Boolean(safePayrollPreview || payroll.employee_name || currentPayrollFinalized);
   const displayEmployeeName = selectedEmployeeName || payroll.employee_name || "";
+  const payrollMonthLabel = payroll.current_payroll_period || payroll.payroll_period || safePayrollPreview?.current_payroll_period || safePayrollPreview?.payroll_period || "";
   const employeeMatches = Boolean(
     selectedEmployeeName &&
     String(selectedEmployeeName).trim() &&
@@ -1839,9 +1840,9 @@ function PayrollFinancialSummary({
             <h3 className="mt-1 text-xl font-black leading-7 text-[var(--text)]">
               {hasPayrollDetails ? (displayEmployeeName || payroll.employee_name || t("sales.payroll.employee", "اسم الموظف")) : t("sales.payroll.noPayrollForEmployee", "لا يوجد راتب محسوب لهذا الموظف.")}
             </h3>
-            {hasPayrollDetails ? (
+            {hasPayrollDetails && payrollMonthLabel ? (
               <div className="mt-0.5 text-xs font-bold text-[var(--muted)]" dir="ltr">
-                {payroll.current_payroll_period || payroll.payroll_period || safePayrollPreview?.current_payroll_period || safePayrollPreview?.payroll_period || "-"}
+                {payrollMonthLabel}
               </div>
             ) : null}
           </div>
