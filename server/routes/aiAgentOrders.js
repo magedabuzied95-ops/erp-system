@@ -2065,6 +2065,101 @@ const buildProductCardFallbackText = (cards = []) =>
     .filter(Boolean)
     .join("\n\n");
 
+let aiChannelConversationHasConversationKeyPromise = null;
+const hasAiChannelConversationKeyColumn = async () => {
+  if (aiChannelConversationHasConversationKeyPromise) return aiChannelConversationHasConversationKeyPromise;
+  aiChannelConversationHasConversationKeyPromise = db
+    .query(`
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'ai_channel_conversations'
+        AND column_name = 'conversation_key'
+      LIMIT 1
+    `)
+    .then((result) => result.rows.length > 0)
+    .catch(() => false);
+  return aiChannelConversationHasConversationKeyPromise;
+};
+
+const resolveProductCardSendConversation = async ({ tenantId, conversationId }) => {
+  const safeTenantId = Number(tenantId);
+  const safeConversationId = envText(conversationId);
+  const hasConversationKeyColumn = await hasAiChannelConversationKeyColumn();
+  const lookupFields = [
+    "ai_support_sessions.session_id",
+    "ai_channel_conversations.external_conversation_id",
+    "ai_channel_conversations.external_customer_id",
+    ...(hasConversationKeyColumn ? ["ai_channel_conversations.conversation_key"] : []),
+  ];
+
+  const sessionResult = await db.query(
+    `
+    SELECT *
+    FROM ai_support_sessions
+    WHERE tenant_id = $1
+      AND session_id = $2
+    LIMIT 1
+    `,
+    [safeTenantId, safeConversationId]
+  );
+  let sessionRow = sessionResult.rows[0] || null;
+
+  const channelQuery = `
+    SELECT *
+    FROM ai_channel_conversations
+    WHERE tenant_id = $1
+      AND (
+        external_conversation_id = $2
+        OR external_customer_id = $2
+        ${hasConversationKeyColumn ? "OR conversation_key = $2" : ""}
+      )
+    ORDER BY
+      CASE
+        WHEN external_conversation_id = $2 THEN 0
+        WHEN external_customer_id = $2 THEN 1
+        ${hasConversationKeyColumn ? "WHEN conversation_key = $2 THEN 2" : ""}
+        ELSE 3
+      END,
+      updated_at DESC,
+      id DESC
+    LIMIT 1
+  `;
+  const channelResult = await db.query(channelQuery, [safeTenantId, safeConversationId]);
+  const channelRow = channelResult.rows[0] || null;
+
+  if (!sessionRow && channelRow?.external_conversation_id) {
+    const linkedSession = await db.query(
+      `
+      SELECT *
+      FROM ai_support_sessions
+      WHERE tenant_id = $1
+        AND session_id = $2
+      LIMIT 1
+      `,
+      [safeTenantId, channelRow.external_conversation_id]
+    );
+    sessionRow = linkedSession.rows[0] || null;
+  }
+
+  const conversation = sessionRow || channelRow
+    ? {
+        ...(sessionRow || {}),
+        ...(channelRow || {}),
+        session_id: sessionRow?.session_id || channelRow?.external_conversation_id || safeConversationId,
+        channel: channelRow?.channel || sessionRow?.channel || sessionRow?.source || channelRow?.source || "",
+        source: sessionRow?.source || channelRow?.channel || channelRow?.source || "",
+        external_conversation_id: channelRow?.external_conversation_id || sessionRow?.session_id || safeConversationId,
+        external_customer_id: channelRow?.external_customer_id || sessionRow?.external_customer_id || "",
+        customer_name: channelRow?.customer_name || sessionRow?.customer_name || sessionRow?.session_customer_name || "",
+        customer_avatar_url: channelRow?.customer_avatar_url || sessionRow?.customer_avatar_url || sessionRow?.session_customer_avatar_url || "",
+        channel_metadata: channelRow?.metadata || sessionRow?.channel_metadata || {},
+      }
+    : null;
+
+  return { conversation, lookupFields, hasConversationKeyColumn };
+};
+
 router.post("/conversations/:conversationId/create-draft-order", protect, permit("settings", "edit"), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
@@ -2408,13 +2503,15 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
 
   let conversation = null;
   try {
-    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 1000 });
-    conversation = inbox.conversations.find((item) =>
-      item.session_id === conversationId ||
-      item.external_conversation_id === conversationId ||
-      item.external_customer_id === conversationId
-    ) || null;
+    const resolved = await resolveProductCardSendConversation({ tenantId, conversationId });
+    conversation = resolved.conversation;
     if (!conversation) {
+      console.warn("[ai-inbox][product-card-send] conversation lookup failed", {
+        tenantId,
+        conversationId,
+        acceptedLookupFields: resolved.lookupFields,
+        hasConversationKeyColumn: resolved.hasConversationKeyColumn,
+      });
       throw Object.assign(new Error(`Conversation not found for tenant ${tenantId}: ${conversationId}`), {
         status: 404,
         code: "AI_INBOX_CONVERSATION_NOT_FOUND",
