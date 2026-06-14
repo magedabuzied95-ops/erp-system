@@ -195,6 +195,47 @@ const productUrl = (product = {}) => {
   ]);
 };
 
+const normalizeWishlistProduct = (item = {}) => {
+  const nestedItem = item?.item && typeof item.item === "object" ? item.item : {};
+  const product = nestedProductFor(item);
+  const variant = nestedVariantFor(item, product);
+  const productIdValue = item?.product && typeof item.product !== "object" ? item.product : "";
+  const id = firstTextValue(item.id, item.product_id, item.productId, productIdValue, nestedItem.id, nestedItem.product_id, nestedItem.productId, product.id, product.product_id, product.productId);
+  const title = firstTextValue(item.name, item.title, item.product_name, item.productName, nestedItem.name, nestedItem.title, nestedItem.product_name, product.name, product.title, product.product_name);
+  const slug = firstTextValue(item.slug, item.product_slug, item.canonical_slug, nestedItem.slug, nestedItem.product_slug, nestedItem.canonical_slug, product.slug, product.product_slug, product.canonical_slug, id);
+  const image = resolveProductImage({ ...nestedItem, ...item }, product, variant);
+  const price = displaySellingPrice(product, variant) || firstNumberValue(item.price, nestedItem.price, product.selling_price, product.regular_price, product.price);
+  const comparePrice = displayComparePrice(product, variant);
+  const originalPrice = storefrontOriginalPrice(product, variant) || firstNumberValue(item.original_price, item.base_price, item.list_price, item.compare_at_price, item.regular_price, nestedItem.original_price, product.original_price, product.base_price, product.list_price, product.regular_price);
+  const stock = Number(item.stock ?? item.total_stock ?? item.available_stock ?? nestedItem.stock ?? nestedItem.total_stock ?? nestedItem.available_stock ?? variant.stock ?? variant.quantity ?? product.total_stock ?? product.stock ?? 0) || 0;
+  const hasRenderableData = Boolean(title || image || price);
+  return {
+    ...product,
+    ...item,
+    id,
+    product_id: id,
+    productId: id,
+    name: title,
+    title,
+    slug,
+    image_url: image,
+    image,
+    price,
+    selling_price: storefrontSellingPrice(product, variant) || price,
+    regular_price: originalPrice,
+    original_price: originalPrice,
+    base_price: originalPrice,
+    list_price: originalPrice,
+    compare_base_price: originalPrice,
+    sale_price: firstNumberValue(item.sale_price, nestedItem.sale_price, product.sale_price),
+    compare_at_price: comparePrice,
+    variant,
+    stock,
+    total_stock: Number(item.total_stock ?? product.total_stock ?? stock) || stock,
+    unavailable: !hasRenderableData,
+  };
+};
+
 const compactImageValue = (value = "") => {
   const text = String(value || "");
   if (!text || text.startsWith("data:") || text.length > 500) return "";
