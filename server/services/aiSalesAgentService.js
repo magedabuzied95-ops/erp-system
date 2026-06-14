@@ -60,6 +60,21 @@ const int = (value, fallback = 0) => {
 };
 const json = (value) => JSON.stringify(value === undefined ? null : value);
 const asArray = (value) => (Array.isArray(value) ? value : []);
+const asProductCards = (value) => {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === "object") return [value];
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
 const uniqueArray = (items = []) => [...new Set(asArray(items).map((item) => text(item)).filter(Boolean))];
 const isRegressionTestContext = () => Boolean(getPerfContext()?.is_regression_test || getPerfContext()?.dry_run);
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, numeric(value, 0)));
@@ -696,10 +711,13 @@ export const normalizeInboxMessage = (row = {}) => ({
   staff_user_name: row.staff_user_name || "",
   delivery_status: row.delivery_status || "",
   delivery_error: row.delivery_error || "",
+  message_type: row.message_type || "",
   confidence: Number(row.confidence || 0),
   needs_human_support: row.needs_human_support === true,
   detected_intent: row.detected_intent || "",
   suggested_products: asArray(row.suggested_products),
+  product_cards: asProductCards(row.product_cards),
+  productCards: asProductCards(row.product_cards),
   visual_attachments: asArray(row.visual_attachments),
   suggested_actions: asArray(row.suggested_actions),
   created_at: row.created_at,
