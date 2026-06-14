@@ -2580,8 +2580,8 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
           AI_AGENT_CHANNELS.INSTAGRAM,
         ],
       });
-      sendResult = { sent: true, delivery_status: "stored", fallback_only: true };
-      deliveryStatus = "stored";
+      sendResult = { sent: true, delivery_status: "stored_only", fallback_only: true };
+      deliveryStatus = "stored_only";
     }
 
     const message = await appendManualAiSupportReply({
