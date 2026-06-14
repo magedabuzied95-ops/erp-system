@@ -1800,7 +1800,6 @@ function PayrollFinancialSummary({
       : onCalculate;
   const actionDisabled = isPaid ? true : calculating || finalizing;
   const hasPayrollDetails = Boolean(safePayrollPreview || payroll.employee_name || currentPayrollFinalized);
-  const displayEmployeeName = selectedEmployeeName || payroll.employee_name || "";
   const payrollMonthLabel = payroll.current_payroll_period || payroll.payroll_period || safePayrollPreview?.current_payroll_period || safePayrollPreview?.payroll_period || "";
   const employeeMatches = Boolean(
     selectedEmployeeName &&
@@ -1838,13 +1837,10 @@ function PayrollFinancialSummary({
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">
               {t("sales.payroll.summaryTitle", "ملخص الراتب")}
             </div>
-            <h3 className="mt-1 text-xl font-black leading-7 text-[var(--text)]">
-              {hasPayrollDetails ? (displayEmployeeName || payroll.employee_name || t("sales.payroll.employee", "اسم الموظف")) : t("sales.payroll.noPayrollForEmployee", "لا يوجد راتب محسوب لهذا الموظف.")}
-            </h3>
             {hasPayrollDetails && payrollMonthLabel ? (
-              <div className="mt-0.5 text-xs font-bold text-[var(--muted)]" dir="ltr">
+              <h3 className="mt-1 text-xl font-black leading-7 text-[var(--text)]" dir="ltr">
                 {payrollMonthLabel}
-              </div>
+              </h3>
             ) : null}
           </div>
           <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-black ${statusToneClass}`}>
@@ -1870,8 +1866,8 @@ function PayrollFinancialSummary({
                 { label: t("sales.payroll.netSalary", "صافي الراتب"), value: formatPayrollMoney(netPay), dir: "ltr", featured: true },
               ].map((item) => (
                 <div key={item.label} className={`flex items-center justify-between gap-3 rounded-2xl border px-3 py-1.5 ${item.featured ? "border-emerald-300/25 bg-emerald-400/10" : "border-[var(--border)] bg-[var(--surface)]/70"}`}>
-                  <div className="text-sm font-bold text-[var(--muted)]">{item.label}</div>
-                  <div dir={item.dir || "auto"} className={`text-sm font-black tabular-nums text-[var(--text)] ${item.featured ? "text-base" : ""}`}>{item.value}</div>
+                  <div className="order-2 text-sm font-bold text-right text-[var(--muted)]">{item.label}</div>
+                  <div dir={item.dir || "auto"} className={`order-1 text-sm font-black tabular-nums text-left text-[var(--text)] ${item.featured ? "text-base" : ""}`}>{item.value}</div>
                 </div>
               ))}
             </div>
@@ -1883,7 +1879,7 @@ function PayrollFinancialSummary({
         </div>
 
         {hasPayrollDetails && isBlocked ? (
-          <div className="mt-2 rounded-2xl border px-3 py-2.5 text-amber-100 bg-amber-400/10 border-amber-300/25">
+          <div className="mt-2 rounded-2xl border px-3 py-2 text-amber-100 bg-amber-400/10 border-amber-300/25">
             <div className="text-sm font-black leading-5">{statusLabel}</div>
             <ul className="mt-1 space-y-0.5 text-xs font-bold leading-5">
               {(issues.length ? issues : [{ key: "generic", label: t("sales.payroll.blockedGeneric", "لا يمكن اعتماد الراتب الآن") }]).map((issue) => (
