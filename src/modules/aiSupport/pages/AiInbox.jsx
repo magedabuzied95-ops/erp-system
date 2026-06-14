@@ -3791,12 +3791,8 @@ export default function AiInbox() {
           </main>
 
           <aside className="hidden min-w-0 w-full shrink-0 space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-3 xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100vh-15rem)] xl:w-[228px] xl:max-w-[228px] xl:flex-col xl:overflow-y-auto">
-            <SectionTitle
-              icon={MessageSquareText}
-              title="قائمة المحادثات"
-              action={<Pill tone="zinc">{filteredConversations.length} ظاهرة</Pill>}
-            />
-            <div className="flex flex-wrap gap-2">
+            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-2">
+              <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => setInboxSection("conversations")}
@@ -3826,6 +3822,12 @@ export default function AiInbox() {
                 </span>
               </button>
             </div>
+            </div>
+            <SectionTitle
+              icon={MessageSquareText}
+              title={inboxSection === "social_comments" ? "تعليقات السوشيال" : "قائمة المحادثات"}
+              action={<Pill tone="zinc">{inboxSection === "social_comments" ? socialComments.items.length : filteredConversations.length} {inboxSection === "social_comments" ? "تعليق" : "ظاهرة"}</Pill>}
+            />
             {inboxSection === "conversations" ? (
               <>
                 {loading && !conversations.length ? <LoadingBlock text="جارٍ تحميل المحادثات..." /> : null}
