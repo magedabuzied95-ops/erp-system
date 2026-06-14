@@ -3293,6 +3293,38 @@ export default function AiInbox() {
               <div className="flex items-center justify-between gap-3">
                 <SectionTitle icon={MessageSquareText} title="المحادثات" action={<Pill tone="zinc">{filteredConversations.length} ظاهرة</Pill>} />
               </div>
+              <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-2">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setInboxSection("conversations")}
+                    className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
+                      inboxSection === "conversations"
+                        ? "bg-cyan-300 text-slate-950"
+                        : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
+                    }`}
+                  >
+                    المحادثات
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${inboxSection === "conversations" ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
+                      {filteredConversations.length}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInboxSection("social_comments")}
+                    className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
+                      inboxSection === "social_comments"
+                        ? "bg-cyan-300 text-slate-950"
+                        : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
+                    }`}
+                  >
+                    تعليقات السوشيال
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${inboxSection === "social_comments" ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
+                      {socialComments.items.length}
+                    </span>
+                  </button>
+                </div>
+              </div>
               <div className="xl:hidden">
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   <button type="button" onClick={() => setChannelFilter("all")} className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black ${channelFilter === "all" ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white"}`}>الكل</button>
@@ -3791,38 +3823,6 @@ export default function AiInbox() {
           </main>
 
           <aside className="hidden min-w-0 w-full shrink-0 space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-3 xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100vh-15rem)] xl:w-[228px] xl:max-w-[228px] xl:flex-col xl:overflow-y-auto">
-            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-2">
-              <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setInboxSection("conversations")}
-                className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
-                  inboxSection === "conversations"
-                    ? "bg-cyan-300 text-slate-950"
-                    : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
-                }`}
-              >
-                المحادثات
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${inboxSection === "conversations" ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
-                  {filteredConversations.length}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setInboxSection("social_comments")}
-                className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
-                  inboxSection === "social_comments"
-                    ? "bg-cyan-300 text-slate-950"
-                    : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
-                }`}
-              >
-                تعليقات السوشيال
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${inboxSection === "social_comments" ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
-                  {socialComments.items.length}
-                </span>
-              </button>
-            </div>
-            </div>
             <SectionTitle
               icon={MessageSquareText}
               title={inboxSection === "social_comments" ? "تعليقات السوشيال" : "قائمة المحادثات"}
