@@ -7066,6 +7066,7 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
   emptyText = sfText("storefront.common.noResults"),
   loadingText = sfText("storefront.common.loading"),
   helperText = "",
+  themeMode = "light",
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
