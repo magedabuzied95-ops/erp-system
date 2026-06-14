@@ -1747,7 +1747,21 @@ router.get("/social-comments/recent", protect, permit("settings", "view"), async
     const rows = await listRecentSocialCommentAutomationRuns({ tenantId, limit });
     return res.json({
       success: true,
-      items: rows,
+      items: rows.map((row) => ({
+        id: row.id,
+        platform: row.platform,
+        channel: row.channel,
+        post_id: row.post_id,
+        post_permalink: row.post_permalink,
+        comment_id: row.comment_id,
+        commenter_name: row.commenter_name,
+        original_comment_text: row.original_comment_text,
+        classification_label: row.classification_label,
+        classification_score: row.classification_score,
+        action_taken: row.action_taken,
+        created_at: row.created_at,
+        raw_payload: row.raw_payload,
+      })),
       total: rows.length,
     });
   } catch (error) {

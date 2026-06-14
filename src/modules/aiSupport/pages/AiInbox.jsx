@@ -51,6 +51,7 @@ import AIStatusBadge from "../../../components/ai/AIStatusBadge";
 import AILiveLogs from "../../../components/ai/AILiveLogs";
 import ProductCardMessage from "../components/ProductCardMessage";
 import ProductCardPicker from "../components/ProductCardPicker";
+import SocialCommentsPanel from "../components/SocialCommentsPanel";
 import { useTenant } from "../../saas/context/TenantContext";
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -2235,6 +2236,8 @@ export default function AiInbox() {
   const [productCardSending, setProductCardSending] = useState(false);
   const [assignNameDraft, setAssignNameDraft] = useState({ sessionId: "", value: "" });
   const [suggestedReplies, setSuggestedReplies] = useState({ sessionId: "", items: [], intent: "", confidence: 0, error: "" });
+  const [socialComments, setSocialComments] = useState({ items: [], loading: false, error: "" });
+  const [socialCommentsFilter, setSocialCommentsFilter] = useState("all");
   const [aiDebug, setAiDebug] = useState({ sessionId: "", open: false, loading: false, data: null, error: "" });
   const [aiTrace, setAiTrace] = useState({ sessionId: "", open: false, loading: false, data: null, error: "" });
   const [suggesting, setSuggesting] = useState(false);
@@ -2263,12 +2266,14 @@ export default function AiInbox() {
     isRefreshingRef.current = true;
     const seq = ++requestSeqRef.current;
     if (!silent) setLoading(true);
+    if (!silent) setSocialComments((current) => ({ ...current, loading: true, error: "" }));
     setError("");
     try {
-      const [inboxPayload, draftsPayload, analyticsPayload, channelPayload] = await Promise.all([
+      const [inboxPayload, draftsPayload, analyticsPayload, socialCommentsPayload, channelPayload] = await Promise.all([
         api.get("/ai-inbox/conversations", { params: { tenant_id: tenantId, filter, search: debouncedSearch, limit: 50, message_limit: 30 }, headers, perfComponent: "AiInbox.conversations" }),
         api.get("/ai-agent/orders/drafts", { params: { tenant_id: tenantId, limit: 50 }, headers, perfComponent: "AiInbox.drafts" }),
         api.get("/ai-agent/analytics", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.analytics" }),
+        api.get("/ai-inbox/social-comments/recent", { params: { tenant_id: tenantId, limit: 50 }, headers, perfComponent: "AiInbox.socialComments" }).catch(() => ({ items: [] })),
         api.get("/ai-agent/channels/status", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.channels" }).catch(() => ({ channels: {} })),
       ]);
       if (seq !== requestSeqRef.current) return;
@@ -2285,6 +2290,7 @@ export default function AiInbox() {
       setInbox({ conversations: nextConversations, followups: asArray(inboxPayload.followups) });
       setDrafts(asArray(draftsPayload.drafts));
       setAnalytics(analyticsPayload.analytics || {});
+      setSocialComments({ items: asArray(socialCommentsPayload.items), loading: false, error: "" });
       setChannelStatus(channelPayload.channels || {});
       if (!activeSelectedId && nextConversations[0]?.conversation_key) {
         setSelectedSessionId(nextConversations[0].conversation_key);
@@ -2294,6 +2300,7 @@ export default function AiInbox() {
       setError(err?.message || "تعذر تحميل صندوق محادثات الذكاء الاصطناعي");
     } finally {
       if (seq === requestSeqRef.current && !silent) setLoading(false);
+      if (seq === requestSeqRef.current) setSocialComments((current) => ({ ...current, loading: false }));
       if (seq === requestSeqRef.current) isRefreshingRef.current = false;
     }
   }, [debouncedSearch, filter, headers, tenantId]);
@@ -3627,6 +3634,17 @@ export default function AiInbox() {
                     onAssignNameChange={updateAssignName}
                     onAction={updateConversationAction}
                   />
+
+                  <div className="mt-3">
+                    <SocialCommentsPanel
+                      items={socialComments.items}
+                      loading={socialComments.loading}
+                      error={socialComments.error}
+                      filter={socialCommentsFilter}
+                      onFilterChange={setSocialCommentsFilter}
+                      onRefresh={() => void loadAll({ silent: true })}
+                    />
+                  </div>
 
                   <details className="group mb-3 rounded-2xl border border-white/10 bg-slate-950/50 p-3">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
