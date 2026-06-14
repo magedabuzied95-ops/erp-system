@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { useMemo, memo } from "react";
 import { ExternalLink, RefreshCw, MessageSquareText, User } from "lucide-react";
 
 const clean = (value = "") => String(value || "").trim();
@@ -77,6 +77,7 @@ function SocialCommentsPanel({
   loading = false,
   error = "",
   filter = "all",
+  debugInfo = null,
   onFilterChange,
   onRefresh,
 }) {
@@ -94,6 +95,15 @@ function SocialCommentsPanel({
             تعليقات السوشيال
           </div>
           <div className="mt-1 text-sm font-black text-white">آخر التعليقات المخزنة في نظام الأتمتة</div>
+          {debugInfo ? (
+            <div className="mt-1 text-[11px] font-semibold leading-5 text-slate-400">
+              {debugInfo.request_url ? <span className="mr-2">URL: {debugInfo.request_url}</span> : null}
+              {debugInfo.tenant_id ? <span className="mr-2">tenant: {debugInfo.tenant_id}</span> : null}
+              {typeof debugInfo.status !== "undefined" ? <span className="mr-2">status: {String(debugInfo.status)}</span> : null}
+              {typeof debugInfo.count !== "undefined" ? <span>count: {String(debugInfo.count)}</span> : null}
+              {debugInfo.error ? <span className="block text-rose-200">error: {debugInfo.error}</span> : null}
+            </div>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <button

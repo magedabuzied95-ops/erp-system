@@ -2238,6 +2238,7 @@ export default function AiInbox() {
   const [suggestedReplies, setSuggestedReplies] = useState({ sessionId: "", items: [], intent: "", confidence: 0, error: "" });
   const [socialComments, setSocialComments] = useState({ items: [], loading: false, error: "" });
   const [socialCommentsFilter, setSocialCommentsFilter] = useState("all");
+  const [socialCommentsDebug, setSocialCommentsDebug] = useState({ request_url: "", tenant_id: "", status: "", count: "", error: "" });
   const [inboxSection, setInboxSection] = useState("conversations");
   const [aiDebug, setAiDebug] = useState({ sessionId: "", open: false, loading: false, data: null, error: "" });
   const [aiTrace, setAiTrace] = useState({ sessionId: "", open: false, loading: false, data: null, error: "" });
@@ -2268,13 +2269,13 @@ export default function AiInbox() {
     const seq = ++requestSeqRef.current;
     if (!silent) setLoading(true);
     if (!silent) setSocialComments((current) => ({ ...current, loading: true, error: "" }));
+    if (!silent) setSocialCommentsDebug((current) => ({ ...current, error: "" }));
     setError("");
     try {
-      const [inboxPayload, draftsPayload, analyticsPayload, socialCommentsPayload, channelPayload] = await Promise.all([
+      const [inboxPayload, draftsPayload, analyticsPayload, channelPayload] = await Promise.all([
         api.get("/ai-inbox/conversations", { params: { tenant_id: tenantId, filter, search: debouncedSearch, limit: 50, message_limit: 30 }, headers, perfComponent: "AiInbox.conversations" }),
         api.get("/ai-agent/orders/drafts", { params: { tenant_id: tenantId, limit: 50 }, headers, perfComponent: "AiInbox.drafts" }),
         api.get("/ai-agent/analytics", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.analytics" }),
-        api.get("/ai-inbox/social-comments/recent", { params: { tenant_id: tenantId, limit: 50 }, headers, perfComponent: "AiInbox.socialComments" }).catch(() => ({ items: [] })),
         api.get("/ai-agent/channels/status", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.channels" }).catch(() => ({ channels: {} })),
       ]);
       if (seq !== requestSeqRef.current) return;
@@ -2291,10 +2292,57 @@ export default function AiInbox() {
       setInbox({ conversations: nextConversations, followups: asArray(inboxPayload.followups) });
       setDrafts(asArray(draftsPayload.drafts));
       setAnalytics(analyticsPayload.analytics || {});
-      setSocialComments({ items: asArray(socialCommentsPayload.items), loading: false, error: "" });
       setChannelStatus(channelPayload.channels || {});
       if (!activeSelectedId && nextConversations[0]?.conversation_key) {
         setSelectedSessionId(nextConversations[0].conversation_key);
+      }
+
+      const socialCommentsRequestUrl = `/api/ai-inbox/social-comments/recent?tenant_id=${encodeURIComponent(tenantId)}&limit=50`;
+      console.info("[ai-support] social_comments_request", {
+        request_url: socialCommentsRequestUrl,
+        tenant_id: tenantId,
+      });
+      try {
+        const socialCommentsPayload = await api.get("/ai-inbox/social-comments/recent", {
+          params: { tenant_id: tenantId, limit: 50 },
+          headers,
+          perfComponent: "AiInbox.socialComments",
+        });
+        if (seq !== requestSeqRef.current) return;
+        const items = asArray(socialCommentsPayload.items);
+        const status = Number(socialCommentsPayload?.__status || 200) || 200;
+        console.info("[ai-support] social_comments_response", {
+          request_url: socialCommentsRequestUrl,
+          tenant_id: tenantId,
+          status,
+          count: items.length,
+        });
+        setSocialComments({ items, loading: false, error: "" });
+        setSocialCommentsDebug({
+          request_url: socialCommentsRequestUrl,
+          tenant_id: tenantId,
+          status,
+          count: items.length,
+          error: "",
+        });
+      } catch (socialCommentsError) {
+        if (seq !== requestSeqRef.current) return;
+        const status = Number(socialCommentsError?.status || socialCommentsError?.responseBody?.status || 0) || "";
+        const message = socialCommentsError?.responseBody?.message || socialCommentsError?.message || "تعذر تحميل تعليقات السوشيال";
+        console.error("[ai-support] social_comments_request_failed", {
+          request_url: socialCommentsRequestUrl,
+          tenant_id: tenantId,
+          status,
+          error: message,
+        });
+        setSocialComments({ items: [], loading: false, error: message });
+        setSocialCommentsDebug({
+          request_url: socialCommentsRequestUrl,
+          tenant_id: tenantId,
+          status,
+          count: 0,
+          error: message,
+        });
       }
     } catch (err) {
       if (seq !== requestSeqRef.current) return;
@@ -3918,6 +3966,7 @@ export default function AiInbox() {
                   loading={socialComments.loading}
                   error={socialComments.error}
                   filter={socialCommentsFilter}
+                  debugInfo={socialCommentsDebug}
                   onFilterChange={setSocialCommentsFilter}
                   onRefresh={() => void loadAll({ silent: true })}
                 />

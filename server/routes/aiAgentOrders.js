@@ -1744,7 +1744,19 @@ router.get("/social-comments/recent", protect, permit("settings", "view"), async
   try {
     const tenantId = toTenantId(req);
     const limit = Math.min(50, Math.max(1, Number(req.query?.limit || 50) || 50));
+    console.log("[social-comments] recent request", {
+      tenant_id: tenantId,
+      user_id: req.user?.id ?? req.user?.user_id ?? null,
+      user_role: req.user?.role ?? req.user?.userType ?? null,
+      limit,
+    });
     const rows = await listRecentSocialCommentAutomationRuns({ tenantId, limit });
+    console.log("[social-comments] recent response", {
+      tenant_id: tenantId,
+      user_id: req.user?.id ?? req.user?.user_id ?? null,
+      user_role: req.user?.role ?? req.user?.userType ?? null,
+      rows_count: rows.length,
+    });
     return res.json({
       success: true,
       items: rows.map((row) => ({
