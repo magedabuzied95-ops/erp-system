@@ -37,6 +37,10 @@ import {
   markMessageProcessingStatus,
 } from "./aiMessageDeduplication.js";
 import {
+  extractSocialCommentWebhookEvents,
+  storeSocialCommentAutomationRuns,
+} from "./socialCommentAutomationService.js";
+import {
   normalizeProductCards,
   productCardReplyText,
   resolvePublicProductImageUrl,
@@ -16882,6 +16886,10 @@ export const processMetaWebhook = async ({ req } = {}) => {
   const appSecret = decryptSecret(config.app_secret_encrypted);
   const signatureOk = verifyMetaWebhookSignature({ rawBody: req.rawBody, signature: req.headers?.["x-hub-signature-256"], appSecret });
   if (!signatureOk) throw Object.assign(new Error("Invalid Meta webhook signature"), { status: 403 });
+  const commentEvents = extractSocialCommentWebhookEvents({ body: req.body, tenantId: config.tenant_id });
+  const storedCommentEvents = commentEvents.length
+    ? await storeSocialCommentAutomationRuns({ tenantId: config.tenant_id, events: commentEvents })
+    : [];
   const messages = extractMetaWebhookMessages({ body: req.body, tenantId: config.tenant_id }).filter((message) => message.message_text || message.attachments?.length);
   const results = [];
   for (const incomingMessage of messages) {
@@ -17931,7 +17939,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
     }
   }
   await db.query(`UPDATE meta_integration_configs SET last_sync_at = NOW(), updated_at = NOW() WHERE tenant_id = $1`, [config.tenant_id]).catch(() => {});
-  return { processed: results.length, results };
+  return { processed: results.length, social_comment_events_processed: storedCommentEvents.length, results };
 };
 
 export const getPublicWebhookVerificationConfig = async ({ verifyToken } = {}) => {

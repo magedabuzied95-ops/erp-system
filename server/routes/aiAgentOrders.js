@@ -68,6 +68,9 @@ import {
   snoozeAiFollowup,
 } from "../services/aiSalesAgentService.js";
 import {
+  listRecentSocialCommentAutomationRuns,
+} from "../services/socialCommentAutomationService.js";
+import {
   appendManualAiSupportReply,
   assignAiSupportConversation,
   getAiSupportConversationState,
@@ -1734,6 +1737,21 @@ router.get("/conversations/:conversationId/messages", protect, permit("settings"
     return res.json({ success: true, conversation_id: conversationId, ...payload });
   } catch (error) {
     return sendError(res, error, "Failed to load AI inbox messages");
+  }
+});
+
+router.get("/social-comments/recent", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const limit = Math.min(50, Math.max(1, Number(req.query?.limit || 50) || 50));
+    const rows = await listRecentSocialCommentAutomationRuns({ tenantId, limit });
+    return res.json({
+      success: true,
+      items: rows,
+      total: rows.length,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to load recent social comment automation runs");
   }
 });
 
