@@ -739,6 +739,31 @@ const productCardKey = (product = {}, fallback = "") =>
   product.card_id ||
   product.storefront_card_id ||
   [product.id, product.color_key || product.display_color_key || product.selected_variant_id || product.display_variant_id || product.matched_variant_id || fallback].filter(Boolean).join(":");
+const productIdentityKey = (product = {}, fallback = "") =>
+  String(product.product_id || product.id || product.slug || productCardKey(product, fallback) || fallback || "");
+const uniqueProductsByIdentity = (products = []) => {
+  const seen = new Set();
+  return (Array.isArray(products) ? products : []).filter((product, index) => {
+    const key = productIdentityKey(product, index);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+const pickHomeProducts = ({ preferred = [], fallback = [], exclude = new Set(), limit = 8 } = {}) => {
+  const picked = [];
+  const pickedKeys = new Set();
+  const add = (product, index) => {
+    const key = productIdentityKey(product, index);
+    if (!key || pickedKeys.has(key)) return;
+    if (exclude.has(key)) return;
+    picked.push(product);
+    pickedKeys.add(key);
+  };
+  (Array.isArray(preferred) ? preferred : []).forEach(add);
+  if (picked.length < limit) (Array.isArray(fallback) ? fallback : []).forEach(add);
+  return picked.slice(0, limit);
+};
 const getProductColorGroups = (product = {}) => {
   const groups = new Map();
   const variants = Array.isArray(product?.variants) ? product.variants : [];
