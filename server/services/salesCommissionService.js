@@ -450,6 +450,8 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
       monthly_days_off_excluded: 0,
       excluded_leave_days: 0,
       excluded_holiday_days: 0,
+      missing_attendance_dates: [],
+      open_attendance_logs: [],
     };
   }
 
@@ -518,6 +520,26 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
   );
   const attendanceByDate = new Map(attendanceResult.rows.map((row) => [dateKey(row.attendance_date), row]));
   const qrRecordsCount = attendanceResult.rows.reduce((sum, row) => sum + Number(row.qr_records_count || 0), 0);
+  const openAttendanceResult = await db.query(
+    `
+    SELECT
+      id,
+      attendance_date,
+      COALESCE(check_in_at, check_in) AS check_in_time,
+      COALESCE(check_out_at, check_out) AS check_out_time,
+      status
+    FROM attendance_logs
+    WHERE employee_id::text = $1::text
+      AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+      AND attendance_date BETWEEN $3::date AND $4::date
+      AND ($5::text IS NULL OR branch_id::text = $5::text)
+      AND LOWER(COALESCE(attendance_source, '')) = ANY($6::text[])
+      AND COALESCE(check_in_at, check_in) IS NOT NULL
+      AND COALESCE(check_out_at, check_out) IS NULL
+    ORDER BY attendance_date ASC, id ASC
+    `,
+    [employeeId, tenantId, periodStart, periodEnd, attendanceBranchId, QR_ATTENDANCE_SOURCES]
+  );
   let absenceDays = 0;
   let missingHours = 0;
   let lateHours = 0;
@@ -571,6 +593,14 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
   const lateDeduction = lateHours * hourlyRate;
   const earlyLeaveDeduction = earlyLeaveHours * hourlyRate;
   const attendanceDeductionTotal = absenceDeduction + missingHoursDeduction + lateDeduction + earlyLeaveDeduction;
+  const missingAttendanceDates = expectedDates.filter((item) => !attendanceByDate.has(item));
+  const openAttendanceLogs = openAttendanceResult.rows.map((row) => ({
+    id: row.id,
+    attendance_date: row.attendance_date ? dateKey(row.attendance_date) : "",
+    check_in_time: row.check_in_time || null,
+    check_out_time: row.check_out_time || null,
+    status: row.status || "",
+  }));
 
   return {
     absence_days: Number(absenceDays.toFixed(2)),
@@ -592,6 +622,8 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
     monthly_days_off_excluded: excludedDaysOff,
     excluded_leave_days: leaveDates.size + vacationDates.size,
     excluded_holiday_days: holidayDates.size,
+    missing_attendance_dates: missingAttendanceDates,
+    open_attendance_logs: openAttendanceLogs,
   };
 };
 
@@ -622,6 +654,84 @@ export const listActiveEmployeeAdvancesForPayroll = async ({ clientOrPool = db, 
     advance_status: row.status || row.deduction_status || "pending",
     settlement_status: row.status || row.deduction_status || "pending",
   }));
+};
+
+const buildPayrollApprovalBlockers = ({ employee = {}, payrollSnapshot = {}, attendanceDeductions = {}, advanceRows = [], penaltyRows = [], payrollPeriod = "" } = {}) => {
+  const blockers = [];
+  const append = (blocker) => {
+    if (!blocker?.message_ar) return;
+    blockers.push(blocker);
+  };
+
+  if (!employee?.id) {
+    append({
+      type: "employee_missing",
+      severity: "hard",
+      message_ar: "بيانات الموظف غير موجودة",
+      reference_id: null,
+    });
+    return blockers;
+  }
+
+  if (!toNumber(payrollSnapshot.base_salary) && !toNumber(employee.salary)) {
+    append({
+      type: "salary_missing",
+      severity: "hard",
+      message_ar: "إعداد المرتب غير مكتمل",
+      reference_id: Number(employee.id) || null,
+    });
+  }
+
+  const missingDates = Array.isArray(attendanceDeductions.missing_attendance_dates) ? attendanceDeductions.missing_attendance_dates : [];
+  if (missingDates.length) {
+    append({
+      type: "attendance_missing",
+      severity: "hard",
+      message_ar: `بيانات حضور ناقصة: ${missingDates.join(", ")}`,
+      reference_id: Number(employee.id) || null,
+      date: missingDates[0] || null,
+    });
+  }
+
+  const openLogs = Array.isArray(attendanceDeductions.open_attendance_logs) ? attendanceDeductions.open_attendance_logs : [];
+  openLogs.forEach((log) => {
+    append({
+      type: "attendance_unresolved",
+      severity: "hard",
+      message_ar: `سجل حضور غير محسوم: attendance_log_id=${log.id} دخول بدون انصراف`,
+      reference_id: Number(log.id) || null,
+      date: log.attendance_date || null,
+    });
+  });
+
+  advanceRows
+    .filter((row) => String(row.status || row.deduction_status || "").toLowerCase() !== "settled")
+    .forEach((row) => {
+      append({
+        type: "pending_advance",
+        severity: "warning",
+        message_ar: `طلب سلفة معلق: advance_id=${row.id} مبلغ ${formatPayrollAmount(row.outstanding_amount ?? row.amount)} ج.م`,
+        reference_id: Number(row.id) || null,
+        date: row.deduction_month || payrollPeriod || null,
+        amount: Number(toNumber(row.outstanding_amount ?? row.amount).toFixed(2)),
+      });
+    });
+
+  penaltyRows
+    .filter((row) => String(row.status || "").toLowerCase() !== "cancelled")
+    .forEach((row) => {
+      if (!row.id) return;
+      append({
+        type: "approved_penalty",
+        severity: "warning",
+        message_ar: `خصم معتمد: penalty_id=${row.id} مبلغ ${formatPayrollAmount(row.amount ?? row.payroll_deduction_amount)} ج.م`,
+        reference_id: Number(row.id) || null,
+        date: row.penalty_date || row.payroll_period_start || payrollPeriod || null,
+        amount: Number(toNumber(row.amount ?? row.payroll_deduction_amount).toFixed(2)),
+      });
+    });
+
+  return blockers;
 };
 
 const addSalesEmployeeForeignKeys = async (clientOrPool = db) => {
@@ -1446,6 +1556,12 @@ const formatCommissionAmount = (value = 0) =>
     maximumFractionDigits: 2,
   });
 
+const formatPayrollAmount = (value = 0) =>
+  Number(toNumber(value).toFixed(2)).toLocaleString("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+
 const orderCreatedDate = (order = {}) => {
   const value = order.created_at || order.order_date || order.date || new Date();
   try {
@@ -2131,7 +2247,22 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
       status: row.status,
     })),
   };
+  const approvalBlockers = buildPayrollApprovalBlockers({
+    employee,
+    payrollSnapshot,
+    attendanceDeductions,
+    advanceRows,
+    penaltyRows,
+    payrollPeriod: deductionMonth,
+  });
+  const hasHardApprovalBlockers = approvalBlockers.some((blocker) => String(blocker.severity || "").toLowerCase() === "hard");
   if (shouldFinalize) {
+    if (hasHardApprovalBlockers) {
+      const error = new Error("Payroll approval blocked");
+      error.status = 409;
+      error.blockers = approvalBlockers;
+      throw error;
+    }
     try {
       await db.query(`
         CREATE TABLE IF NOT EXISTS employee_payroll_runs (
@@ -2327,6 +2458,7 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
     employee_advances: advanceRows,
     employee_penalties: penaltyRows,
     payroll_run: payrollRun,
+    approval_blockers: approvalBlockers,
     payroll_snapshot: shouldFinalize ? payrollSnapshot : null,
     breakdown: report.rows,
     commission_report: report,

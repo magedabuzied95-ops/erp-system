@@ -406,34 +406,42 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
   const payrollAttendanceOnlyDeductions = Math.max(0, payrollAttendanceDeductions - payrollLateDeductions);
   const payrollTotalDeductions = numberValue(payrollSnapshot.deductions ?? payrollManualDeductions + payrollAdvanceDeductions + payrollPenaltyDeductions + payrollAttendanceDeductions);
   const payrollSubtotal = payrollBaseSalary + payrollCommissions + payrollBonuses;
-  const payrollStatusIssues = useMemo(() => {
+  const payrollBlockerDetails = useMemo(() => {
+    const detailed = Array.isArray(safePayrollPreview?.approval_blockers) ? safePayrollPreview.approval_blockers : [];
+    if (detailed.length) {
+      return detailed;
+    }
     const issues = [];
     const hasEmployee = Boolean(payroll.employee_id);
     if (!hasEmployee) {
-      issues.push({ key: "employee", label: t("sales.payroll.selectEmployee", "اختر الموظف") });
+      issues.push({ key: "employee", severity: "hard", message_ar: t("sales.payroll.selectEmployee", "اختر الموظف") });
       return issues;
     }
     if (!payrollEmployee) {
-      issues.push({ key: "employee_missing", label: t("sales.payroll.missingEmployee", "بيانات الموظف غير موجودة") });
+      issues.push({ key: "employee_missing", severity: "hard", message_ar: t("sales.payroll.missingEmployee", "بيانات الموظف غير موجودة") });
     }
     if (!payrollBaseSalary) {
-      issues.push({ key: "salary", label: t("sales.payroll.missingSalarySetup", "إعداد المرتب غير مكتمل") });
+      issues.push({ key: "salary", severity: "hard", message_ar: t("sales.payroll.missingSalarySetup", "إعداد المرتب غير مكتمل") });
     }
     if (!safePayrollPreview) {
-      issues.push({ key: "preview", label: t("sales.payroll.calculatePrompt", "احسب الراتب لمراجعة الإجماليات") });
+      issues.push({ key: "preview", severity: "warning", message_ar: t("sales.payroll.calculatePrompt", "احسب الراتب لمراجعة الإجماليات") });
       return issues;
     }
+    if (Array.isArray(safePayrollPreview?.approval_blockers) && safePayrollPreview.approval_blockers.length) {
+      return safePayrollPreview.approval_blockers;
+    }
     if (numberValue(payrollSnapshot.expected_working_days) > 0 && numberValue(payrollSnapshot.attended_days) === 0) {
-      issues.push({ key: "attendance", label: t("sales.payroll.missingAttendanceData", "بيانات حضور ناقصة") });
+      issues.push({ key: "attendance", severity: "hard", message_ar: t("sales.payroll.missingAttendanceData", "بيانات حضور ناقصة") });
     }
     if (numberValue(payrollSnapshot.qr_records_count) === 0 && numberValue(payrollSnapshot.expected_working_days) > 0) {
-      issues.push({ key: "attendance_records", label: t("sales.payroll.unresolvedAttendanceRecords", "سجلات حضور غير محسومة") });
+      issues.push({ key: "attendance_records", severity: "hard", message_ar: t("sales.payroll.unresolvedAttendanceRecords", "سجلات حضور غير محسومة") });
     }
     if ((safePayrollPreview?.employee_advances || []).some((advance) => String(advance.status || advance.deduction_status || "").toLowerCase() !== "settled")) {
-      issues.push({ key: "advance", label: t("sales.payroll.pendingAdvanceRequest", "طلبات سلفة معلقة") });
+      issues.push({ key: "advance", severity: "warning", message_ar: t("sales.payroll.pendingAdvanceRequest", "طلبات سلفة معلقة") });
     }
     return issues;
   }, [payroll.employee_id, payrollBaseSalary, payrollEmployee, payrollSnapshot, safePayrollPreview, t]);
+  const hardPayrollBlockers = payrollBlockerDetails.filter((issue) => String(issue.severity || "").toLowerCase() === "hard");
   const payrollStatus = useMemo(() => {
     if (!payroll.employee_id) {
       return { key: "BLOCKED", label: t("sales.payroll.blocked", "يوجد أخطاء تمنع الاعتماد"), tone: "rose" };
@@ -444,17 +452,14 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
     if (!safePayrollPreview) {
       return { key: "REQUIRES_REVIEW", label: t("sales.payroll.requiresReview", "يحتاج مراجعة"), tone: "amber" };
     }
-    const blockedIssue = payrollStatusIssues.find((issue) =>
-      ["salary", "attendance", "attendance_records", "employee_missing"].includes(issue.key)
-    );
-    if (blockedIssue) {
+    if (hardPayrollBlockers.length) {
       return { key: "BLOCKED", label: t("sales.payroll.blocked", "يوجد أخطاء تمنع الاعتماد"), tone: "rose" };
     }
-    if (payrollStatusIssues.length) {
+    if (payrollBlockerDetails.length) {
       return { key: "REQUIRES_REVIEW", label: t("sales.payroll.requiresReview", "يحتاج مراجعة"), tone: "amber" };
     }
     return { key: "READY_FOR_APPROVAL", label: t("sales.payroll.readyForApproval", "جاهز للاعتماد"), tone: "emerald" };
-  }, [payroll.employee_id, payrollBaseSalary, payrollStatusIssues, safePayrollPreview, t]);
+  }, [hardPayrollBlockers.length, payroll.employee_id, payrollBaseSalary, payrollBlockerDetails.length, safePayrollPreview, t]);
   const payrollChangeIndicator = useMemo(() => {
     const previous = payrollHistory[1]?.payroll || null;
     const previousNet = numberValue(previous?.net_pay ?? previous?.final_salary);
@@ -1413,7 +1418,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               historyLoading={payrollHistoryLoading}
               payrollRun={safePayrollPreview?.payroll_run || null}
               status={payrollStatus}
-              issues={payrollStatusIssues}
+              issues={payrollBlockerDetails}
               employeeId={payroll.employee_id}
               employeeOptions={employeeOptions}
               rangeMode={rangeMode}
@@ -1811,6 +1816,7 @@ function PayrollFinancialSummary({
     { label: t("sales.payroll.approvedLeaves", "الإجازات المعتمدة"), value: numberValue((payroll.excluded_leave_days ?? 0) + (payroll.excluded_holiday_days ?? 0)) },
   ];
   const advanceRows = Array.isArray(safePayrollPreview?.employee_advances) ? safePayrollPreview.employee_advances : [];
+  const payrollBlockerDetails = Array.isArray(issues) ? issues : [];
   const isReadyForApproval = status?.key === "READY_FOR_APPROVAL";
   const isHardBlocked = status?.key === "BLOCKED";
   const isPaid = payrollStatus === "paid" || paymentStatus === "paid";
@@ -1911,7 +1917,7 @@ function PayrollFinancialSummary({
           </div>
         ) : null}
 
-        <div className={`mt-2 rounded-2xl border px-3 py-2 ${isPaid ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100" : isBlocked ? "border-amber-300/25 bg-amber-400/10 text-amber-100" : "border-emerald-300/25 bg-emerald-400/10 text-emerald-100"}`}>
+        <div className={`mt-2 rounded-2xl border px-3 py-2 ${isPaid ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100" : hardPayrollBlockers.length ? "border-amber-300/25 bg-amber-400/10 text-amber-100" : "border-emerald-300/25 bg-emerald-400/10 text-emerald-100"}`}>
           {hasPayrollDetails ? (
             <div className="space-y-1">
               {[
@@ -1934,14 +1940,14 @@ function PayrollFinancialSummary({
           )}
         </div>
 
-        {hasPayrollDetails && isBlocked ? (
+        {hasPayrollDetails && payrollBlockerDetails.length ? (
           <div className="mt-2 rounded-2xl border px-3 py-2 text-amber-100 bg-amber-400/10 border-amber-300/25">
-            <div className="text-sm font-black leading-5">{statusLabel}</div>
+            <div className="text-sm font-black leading-5">{t("sales.payroll.cannotApproveNow", "لا يمكن اعتماد الراتب الآن")}</div>
             <ul className="mt-1 space-y-0.5 text-xs font-bold leading-5">
-              {(issues.length ? issues : [{ key: "generic", label: t("sales.payroll.blockedGeneric", "لا يمكن اعتماد الراتب الآن") }]).map((issue) => (
-                <li key={issue.key} className="flex items-start gap-2">
+              {(payrollBlockerDetails.length ? payrollBlockerDetails : [{ key: "generic", message_ar: t("sales.payroll.blockedGeneric", "لا يمكن اعتماد الراتب الآن") }]).map((issue) => (
+                <li key={`${issue.type || issue.key || "generic"}-${issue.reference_id || issue.date || issue.amount || issue.message_ar || issue.label}`} className="flex items-start gap-2">
                   <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
-                  <span dir="auto">{issue.label}</span>
+                  <span dir="auto">{issue.message_ar || issue.label}</span>
                 </li>
               ))}
             </ul>
@@ -1992,7 +1998,7 @@ function PayrollFinancialSummary({
                       <div className="text-sm font-black text-[var(--text)]">{row.label}</div>
                       <div className="text-xs text-[var(--muted)]" dir="ltr">{row.period}</div>
                     </div>
-                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-black ${row.finalized || (row.isCurrent && isPaid) ? "bg-emerald-500/15 text-emerald-200" : row.isCurrent && isApproved ? "bg-sky-500/15 text-sky-100" : row.isCurrent && isBlocked ? "bg-amber-500/15 text-amber-100" : "bg-white/5 text-white"}`}>
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-black ${row.finalized || (row.isCurrent && isPaid) ? "bg-emerald-500/15 text-emerald-200" : row.isCurrent && isApproved ? "bg-sky-500/15 text-sky-100" : row.isCurrent && hardPayrollBlockers.length ? "bg-amber-500/15 text-amber-100" : "bg-white/5 text-white"}`}>
                       {row.finalized || (row.isCurrent && isPaid) ? t("sales.payroll.paid", "مدفوع") : row.isCurrent ? statusLabel : t("sales.payroll.calculated", "محسوب")}
                     </span>
                   </div>

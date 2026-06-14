@@ -112,7 +112,11 @@ export const finalizeSalesEmployeePayroll = async (req, res) => {
     return res.json({ success: true, finalized: true, ...preview });
   } catch (error) {
     console.error("[sales-employees] payroll finalize error", error);
-    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to finalize payroll" });
+    return res.status(error.status || 500).json({
+      success: false,
+      message: error.message || "Failed to finalize payroll",
+      blockers: Array.isArray(error.blockers) ? error.blockers : undefined,
+    });
   }
 };
 
