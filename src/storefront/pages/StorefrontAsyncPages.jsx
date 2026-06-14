@@ -209,16 +209,16 @@ function CartContent({ cart, updateCart, removeFromCart, helpers, components }) 
   const { sfText, money, displayCartItemPrice, displayCartItemComparePrice, imageFor, fallbackProductImage } = helpers;
   const { EmptyState, SummaryRow } = components;
   const subtotal = cart.reduce((sum, item) => sum + displayCartItemPrice(item) * item.quantity, 0);
-  if (!cart.length) return <EmptyState title={sfText("storefront.cart.emptyTitle", "Your cart is waiting")} text={sfText("storefront.cart.emptyText", "Start from products and check the latest drops")} />;
+  if (!cart.length) return <EmptyState title="السلة فارغة" text="اختر منتجًا أولًا ثم أكمل الدفع" actionLabel="تسوق الآن" />;
   return (
-    <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_320px]">
+    <div dir="rtl" className="mt-5 grid gap-5 lg:grid-cols-[1fr_320px]">
       <div className="space-y-3">
         {cart.map((item) => (
-        <div key={item.lineId} className="sf-order-item-row flex gap-3 rounded-3xl border border-stone-200 bg-white p-3">
+        <div key={item.lineId} dir="rtl" className="sf-order-item-row flex gap-3 rounded-3xl border border-stone-200 bg-white p-3 text-right">
             <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" className="h-24 w-24 rounded-2xl object-cover" loading="lazy" decoding="async" width="96" height="96" />
             <div className="min-w-0 flex-1">
               <div className="font-black">{item.name}</div>
-              <div className="mt-1 text-xs font-bold text-stone-500">{item.color || sfText("storefront.products.color", "Color")} / {item.size || sfText("storefront.products.size", "Size")}</div>
+              <div className="mt-1 text-xs font-bold text-stone-500">{item.color || "اللون"} / {item.size || "المقاس"}</div>
               <div className="mt-2 flex flex-wrap items-center gap-2 font-black">
                 {displayCartItemComparePrice(item) ? <span className="text-sm text-stone-400 line-through">{money(displayCartItemComparePrice(item))}</span> : null}
                 <span>{money(displayCartItemPrice(item))}</span>
@@ -227,19 +227,19 @@ function CartContent({ cart, updateCart, removeFromCart, helpers, components }) 
                 <button onClick={() => updateCart(item.lineId, item.quantity - 1)} className="rounded-full border border-stone-200 p-2"><Minus className="h-4 w-4" /></button>
                 <span className="w-7 text-center font-black">{item.quantity}</span>
                 <button onClick={() => updateCart(item.lineId, item.quantity + 1)} className="rounded-full border border-stone-200 px-3 py-1.5">+</button>
-                <button onClick={() => removeFromCart(item.lineId)} className="ms-auto rounded-full p-2 text-rose-600" aria-label={sfText("storefront.cart.removeItem", "ط¥ط²ط§ظ„ط© ط§ظ„ظ…ظ†طھط¬")}><Trash2 className="h-5 w-5" /></button>
+                <button onClick={() => removeFromCart(item.lineId)} className="ms-auto rounded-full p-2 text-rose-600" aria-label={sfText("storefront.cart.removeItem", "حذف المنتج")}><Trash2 className="h-5 w-5" /></button>
               </div>
             </div>
           </div>
         ))}
       </div>
-      <aside className="sf-storefront-card h-max rounded-3xl border border-stone-200 bg-white p-5">
-        <h2 className="text-xl font-black">{sfText("storefront.checkout.orderSummary", "ظ…ظ„ط®طµ ط§ظ„ط·ظ„ط¨")}</h2>
-        <SummaryRow label={sfText("storefront.checkout.products", "ط§ظ„ظ…ظ†طھط¬ط§طھ")} value={money(subtotal)} />
-        <SummaryRow label={sfText("storefront.checkout.estimatedShipping", "ط§ظ„ط´ط­ظ† ط§ظ„طھظ‚ط¯ظٹط±ظٹ")} value={money(0)} />
-        <SummaryRow label={sfText("storefront.checkout.total", "ط§ظ„ط¥ط¬ظ…ط§ظ„ظٹ")} value={money(subtotal)} strong />
-        <Link to="/shop/checkout" className="mt-5 block rounded-full bg-stone-950 px-5 py-4 text-center font-black text-white">{sfText("storefront.checkout.actions.completePurchase", "ط¥طھظ…ط§ظ… ط§ظ„ط·ظ„ط¨")}</Link>
-        <p className="mt-3 text-xs font-bold text-stone-500">{sfText("storefront.checkout.finalCostNote", "طھط¸ظ‡ط± ط§ظ„طھظƒظ„ظپط© ط§ظ„ظ†ظ‡ط§ط¦ظٹط© ظپظٹ طµظپط­ط© ط¥طھظ…ط§ظ… ط§ظ„ط·ظ„ط¨ ط­ط³ط¨ ط§ظ„ظ…ط­ط§ظپط¸ط©.")}</p>
+      <aside dir="rtl" className="sf-storefront-card h-max rounded-3xl border border-stone-200 bg-white p-5 text-right">
+        <h2 className="text-xl font-black">ملخص الطلب</h2>
+        <SummaryRow rtl label="المنتجات" value={money(subtotal)} />
+        <SummaryRow rtl label="الشحن التقديري" value={money(0)} />
+        <SummaryRow rtl label="الإجمالي" value={money(subtotal)} strong />
+        <Link to="/shop/checkout" className="mt-5 block rounded-full bg-stone-950 px-5 py-4 text-center font-black text-white">إتمام الشراء</Link>
+        <p className="mt-3 text-xs font-bold text-stone-500">يُحتسب الشحن النهائي عند الدفع</p>
       </aside>
     </div>
   );
@@ -248,8 +248,8 @@ function CartContent({ cart, updateCart, removeFromCart, helpers, components }) 
 export function CartPageRoute({ cart, updateCart, removeFromCart, helpers, components }) {
   const { sfText } = helpers;
   return (
-    <section className="mx-auto max-w-5xl px-4 py-6">
-      <h1 className="text-3xl font-black">{sfText("storefront.cart.title", "Cart")}</h1>
+    <section dir="rtl" className="mx-auto max-w-5xl px-4 py-6">
+      <h1 className="text-3xl font-black">السلة</h1>
       <CartContent cart={cart} updateCart={updateCart} removeFromCart={removeFromCart} helpers={helpers} components={components} />
     </section>
   );

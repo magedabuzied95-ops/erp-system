@@ -7290,17 +7290,17 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
   return (
     <div className="fixed inset-0 z-50">
       <button className="absolute inset-0 bg-black/55 backdrop-blur-[3px]" onClick={onClose} aria-label={sfText("storefront.common.close")} />
-      <aside className="sf-cart-drawer absolute inset-x-0 bottom-0 flex max-h-[94dvh] min-h-[72dvh] w-full min-w-0 flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,18,33,0.98),rgba(7,10,20,0.98))] text-white shadow-[0_-28px_80px_rgba(0,0,0,0.48),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl md:inset-y-0 md:end-0 md:start-auto md:max-h-none md:min-h-0 md:w-[28rem] md:rounded-s-[2rem] md:rounded-tr-none">
+      <aside dir="rtl" className="sf-cart-drawer absolute inset-x-0 bottom-0 flex max-h-[94dvh] min-h-[72dvh] w-full min-w-0 flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,18,33,0.98),rgba(7,10,20,0.98))] text-white shadow-[0_-28px_80px_rgba(0,0,0,0.48),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl md:inset-y-0 md:end-0 md:start-auto md:max-h-none md:min-h-0 md:w-[28rem] md:rounded-s-[2rem] md:rounded-tr-none">
         <div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-white/[0.035] px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-5">
           <div className="min-w-0">
-            <p className="text-xs font-black text-[#c4b5fd]">{cart.length ? sfText("storefront.products.productCount", "{{count}} منتج", { count: cart.length }) : sfText("storefront.cart.readyToShop")}</p>
-            <h2 className="mt-1 truncate text-2xl font-black text-white">{sfText("storefront.cart.title")}</h2>
+            <p className="text-xs font-black text-[#c4b5fd]">{cart.length ? sfText("storefront.products.productCount", "{{count}} منتج", { count: cart.length }) : "جاهزة للتسوق"}</p>
+            <h2 className="mt-1 truncate text-2xl font-black text-white">السلة</h2>
           </div>
           <button onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.065] text-white/74 shadow-[0_12px_28px_rgba(0,0,0,0.24)] transition hover:bg-white/[0.10] hover:text-white active:scale-95" aria-label={sfText("storefront.common.close")}><X className="h-5 w-5" /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-5">
           {!cart.length ? (
-            <EmptyState title={sfText("storefront.cart.emptyTitle")} text={sfText("storefront.cart.emptyCheckoutText")} />
+            <EmptyState title="السلة فارغة" text="اختر منتجًا أولًا ثم أكمل الدفع" actionLabel="تسوق الآن" />
           ) : (
             <div className="grid gap-3 pb-2">
               {cart.map((item) => (
@@ -7310,8 +7310,8 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
           )}
         </div>
         {cart.length ? (
-          <div className="sf-cart-drawer-footer shrink-0 border-t border-white/10 bg-[#070b16]/92 px-4 pb-[calc(1.35rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-24px_60px_rgba(0,0,0,0.34)] backdrop-blur-2xl sm:px-5">
-            <div className="mb-3 flex items-end justify-between gap-3">
+          <div dir="rtl" className="sf-cart-drawer-footer shrink-0 border-t border-white/10 bg-[#070b16]/92 px-4 pb-[calc(1.35rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-24px_60px_rgba(0,0,0,0.34)] backdrop-blur-2xl sm:px-5">
+            <div className="mb-3 flex items-end justify-between gap-3 text-right">
               <div className="sf-cart-drawer-total">
                 <p className="text-xs font-black text-white/54">{sfText("storefront.checkout.total")}</p>
                 <p className="mt-1 text-2xl font-black leading-none text-white">{money(total)}</p>
@@ -7330,14 +7330,14 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
 
 function MobileCartRow({ item, updateCart, removeFromCart }) {
   return (
-    <article className="sf-cart-row w-full min-w-0 rounded-[1.35rem] border border-white/10 bg-white/[0.055] p-3 text-white shadow-[0_16px_42px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-xl">
+    <article dir="rtl" className="sf-cart-row w-full min-w-0 rounded-[1.35rem] border border-white/10 bg-white/[0.055] p-3 text-right text-white shadow-[0_16px_42px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-xl">
       <div className="flex min-w-0 items-start gap-3">
         <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-white/[0.065] ring-1 ring-white/10">
           <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" width="80" height="80" />
         </div>
         <div className="min-w-0 flex-1 self-stretch">
           <h3 className="line-clamp-2 break-words text-sm font-black leading-5 text-white">{item.name}</h3>
-          <p className="mt-1 inline-flex max-w-full rounded-full border border-white/10 bg-white/[0.055] px-2 py-1 text-xs font-bold text-white/58">{item.color || sfText("storefront.products.color")} / {item.size || sfText("storefront.products.size")}</p>
+          <p className="mt-1 inline-flex max-w-full rounded-full border border-white/10 bg-white/[0.055] px-2 py-1 text-xs font-bold text-white/58">{item.color || sfText("storefront.products.color", "اللون")} / {item.size || sfText("storefront.products.size", "المقاس")}</p>
           <p className="mt-2 flex flex-wrap items-center gap-2 text-sm font-black text-white">
             {displayCartItemComparePrice(item) ? <span className="text-xs text-white/38 line-through">{money(displayCartItemComparePrice(item))}</span> : null}
             <span>{money(displayCartItemPrice(item))}</span>
@@ -7346,7 +7346,7 @@ function MobileCartRow({ item, updateCart, removeFromCart }) {
       </div>
       <div className="mt-3 flex min-w-0 items-center justify-between gap-3">
         <QuantityStepper quantity={item.quantity} onMinus={() => updateCart(item.lineId, item.quantity - 1)} onPlus={() => updateCart(item.lineId, item.quantity + 1)} />
-        <button onClick={() => removeFromCart(item.lineId)} className="sf-cart-remove-button grid h-11 w-11 shrink-0 place-items-center rounded-full border border-rose-300/20 bg-rose-500/10 text-rose-200 shadow-[0_10px_24px_rgba(244,63,94,0.10)] transition hover:bg-rose-500/16 hover:text-rose-100 active:scale-95" aria-label={sfText("storefront.cart.removeItem")}>
+        <button onClick={() => removeFromCart(item.lineId)} className="sf-cart-remove-button grid h-11 w-11 shrink-0 place-items-center rounded-full border border-rose-300/20 bg-rose-500/10 text-rose-200 shadow-[0_10px_24px_rgba(244,63,94,0.10)] transition hover:bg-rose-500/16 hover:text-rose-100 active:scale-95" aria-label="حذف المنتج">
           <Trash2 className="h-5 w-5" />
         </button>
       </div>
@@ -7462,11 +7462,11 @@ function MobileBottomNav({ count }) {
   );
 }
 
-function SummaryRow({ label, value, strong, dark = false }) {
+function SummaryRow({ label, value, strong, dark = false, rtl = false }) {
   if (dark) {
-    return <div className={`sf-summary-row flex items-center justify-between gap-3 ${strong ? "mt-3 border-t border-white/10 pt-3 text-xl font-black text-white" : "mt-2 text-sm font-bold text-white/58"}`}><span className="sf-summary-row-label">{label}</span><span className={`sf-summary-row-value ${strong ? "rounded-full border border-[#a78bfa]/20 bg-[#7c3aed]/18 px-3 py-1 text-white shadow-[0_10px_24px_rgba(124,58,237,0.18)]" : "font-black text-white"}`}>{value}</span></div>;
+    return <div className={`sf-summary-row flex items-center justify-between gap-3 ${rtl ? "flex-row-reverse text-right" : ""} ${strong ? "mt-3 border-t border-white/10 pt-3 text-xl font-black text-white" : "mt-2 text-sm font-bold text-white/58"}`}><span className="sf-summary-row-label">{label}</span><span className={`sf-summary-row-value ${strong ? "rounded-full border border-[#a78bfa]/20 bg-[#7c3aed]/18 px-3 py-1 text-white shadow-[0_10px_24px_rgba(124,58,237,0.18)]" : "font-black text-white"}`}>{value}</span></div>;
   }
-  return <div className={`sf-summary-row flex items-center justify-between gap-3 ${strong ? "mt-3 border-t border-stone-200 pt-3 text-xl font-black text-stone-950" : "mt-2 text-sm font-bold text-stone-600"}`}><span className="sf-summary-row-label">{label}</span><span className={`sf-summary-row-value ${strong ? "rounded-full bg-white px-3 py-1 shadow-sm" : "font-black text-stone-800"}`}>{value}</span></div>;
+  return <div className={`sf-summary-row flex items-center justify-between gap-3 ${rtl ? "flex-row-reverse text-right" : ""} ${strong ? "mt-3 border-t border-stone-200 pt-3 text-xl font-black text-stone-950" : "mt-2 text-sm font-bold text-stone-600"}`}><span className="sf-summary-row-label">{label}</span><span className={`sf-summary-row-value ${strong ? "rounded-full bg-white px-3 py-1 shadow-sm" : "font-black text-stone-800"}`}>{value}</span></div>;
 }
 
 function InfoLine({ icon, text }) {
