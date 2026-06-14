@@ -58,6 +58,21 @@ import { formatCurrency } from "../../../shared/lib/currency";
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const money = (value) => formatCurrency(value);
 const clean = (value = "") => String(value || "").trim();
+const normalizeProductCardsValue = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
+    } catch {
+      return [];
+    }
+  }
+  if (value && typeof value === "object") return [value];
+  return [];
+};
 const encodeConversationId = (value = "") => {
   const raw = clean(value);
   try {
@@ -852,7 +867,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
       {messages.map((message) => (
         <div key={messageKey(message)} className="space-y-2">
           {(() => {
-            const productCards = asArray(message.product_cards || message.productCards);
+            const productCards = normalizeProductCardsValue(message.product_cards || message.productCards);
             const isProductCardMessage = message.message_type === "product_card" || productCards.length > 0;
             if (!isProductCardMessage) return null;
             return (
@@ -894,7 +909,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
               </div>
             </div>
           ) : null}
-          {message.staff_message && message.message_type !== "product_card" && !asArray(message.product_cards || message.productCards).length ? (
+          {message.staff_message && message.message_type !== "product_card" && !normalizeProductCardsValue(message.product_cards || message.productCards).length ? (
             <div className="flex justify-end">
               <div className="max-w-[88%] rounded-3xl rounded-tr-sm border border-emerald-300/15 bg-emerald-400/10 p-5 shadow-[0_10px_30px_rgba(16,185,129,0.12)]">
                 <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-emerald-100">
@@ -2324,7 +2339,7 @@ export default function AiInbox() {
       }
       if (incoming?.id || incoming?.dedupe_key || incoming?.external_message_id) {
         let skipped = false;
-        const incomingProductCards = asArray(incoming.product_cards || incoming.productCards);
+        const incomingProductCards = normalizeProductCardsValue(incoming.product_cards || incoming.productCards);
         const incomingPreview =
           incoming.customer_message ||
           incoming.message_text ||
@@ -2933,7 +2948,7 @@ export default function AiInbox() {
 
       const returnedMessage = payload?.message || null;
       if (returnedMessage) {
-        const returnedCards = asArray(returnedMessage.product_cards || returnedMessage.productCards || cards);
+        const returnedCards = normalizeProductCardsValue(returnedMessage.product_cards || returnedMessage.productCards || cards);
         patchConversation(conversationIdentifier, (conversation) => ({
           ...conversation,
           messages: uniqueMessages([...asArray(conversation.messages), { ...returnedMessage, product_cards: returnedCards }]),

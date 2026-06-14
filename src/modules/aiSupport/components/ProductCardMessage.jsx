@@ -37,12 +37,18 @@ const cardImage = (card = {}) =>
 export default function ProductCardMessage({ message = {}, cards = [] }) {
   const items = asArray(cards).filter(Boolean);
   if (!items.length) return null;
+  const deliveryStatus = clean(message.delivery_status || "");
 
   return (
     <div className="rounded-3xl rounded-tr-sm border border-cyan-300/15 bg-cyan-300/10 p-4 shadow-[0_10px_30px_rgba(8,145,178,0.14)]">
       <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
         <ShoppingBag className="h-3.5 w-3.5" />
         <span>إرسال منتج</span>
+        {deliveryStatus ? (
+          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] tracking-[0.08em] text-slate-200">
+            {deliveryStatus}
+          </span>
+        ) : null}
         {message.created_at ? <span className="text-slate-500">{absoluteTime(message.created_at)}</span> : null}
         {items.length > 1 ? <span className="text-slate-500">{items.length} منتجات</span> : null}
       </div>
