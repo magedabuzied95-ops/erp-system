@@ -1817,6 +1817,8 @@ function PayrollFinancialSummary({
   ];
   const advanceRows = Array.isArray(safePayrollPreview?.employee_advances) ? safePayrollPreview.employee_advances : [];
   const payrollBlockerDetails = Array.isArray(issues) ? issues : [];
+  const hardPayrollBlockers = payrollBlockerDetails.filter((issue) => String(issue?.severity || "").toLowerCase() === "hard");
+  const softPayrollBlockers = payrollBlockerDetails.filter((issue) => String(issue?.severity || "").toLowerCase() !== "hard");
   const isReadyForApproval = status?.key === "READY_FOR_APPROVAL";
   const isHardBlocked = status?.key === "BLOCKED";
   const isPaid = payrollStatus === "paid" || paymentStatus === "paid";
@@ -1944,7 +1946,7 @@ function PayrollFinancialSummary({
           <div className="mt-2 rounded-2xl border px-3 py-2 text-amber-100 bg-amber-400/10 border-amber-300/25">
             <div className="text-sm font-black leading-5">{t("sales.payroll.cannotApproveNow", "لا يمكن اعتماد الراتب الآن")}</div>
             <ul className="mt-1 space-y-0.5 text-xs font-bold leading-5">
-              {(payrollBlockerDetails.length ? payrollBlockerDetails : [{ key: "generic", message_ar: t("sales.payroll.blockedGeneric", "لا يمكن اعتماد الراتب الآن") }]).map((issue) => (
+              {(hardPayrollBlockers.length ? hardPayrollBlockers : softPayrollBlockers.length ? softPayrollBlockers : [{ key: "generic", message_ar: t("sales.payroll.blockedGeneric", "لا يمكن اعتماد الراتب الآن") }]).map((issue) => (
                 <li key={`${issue.type || issue.key || "generic"}-${issue.reference_id || issue.date || issue.amount || issue.message_ar || issue.label}`} className="flex items-start gap-2">
                   <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
                   <span dir="auto">{issue.message_ar || issue.label}</span>
