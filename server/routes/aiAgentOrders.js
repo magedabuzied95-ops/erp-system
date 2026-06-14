@@ -2065,6 +2065,16 @@ const buildProductCardFallbackText = (cards = []) =>
     .filter(Boolean)
     .join("\n\n");
 
+const normalizeProductCardSendChannel = (value = "") => {
+  const channel = envText(value).toLowerCase();
+  if (!channel) return "";
+  if (channel === "facebook" || channel === "facebook_messenger" || channel === "messenger") return AI_AGENT_CHANNELS.FACEBOOK_MESSENGER;
+  if (channel === "instagram" || channel === "instagram_dm") return AI_AGENT_CHANNELS.INSTAGRAM;
+  if (channel === "whatsapp") return AI_AGENT_CHANNELS.WHATSAPP;
+  if (channel === "web" || channel === "web_chat") return AI_AGENT_CHANNELS.WEB_CHAT;
+  return channel;
+};
+
 let aiChannelConversationHasConversationKeyPromise = null;
 const hasAiChannelConversationKeyColumn = async () => {
   if (aiChannelConversationHasConversationKeyPromise) return aiChannelConversationHasConversationKeyPromise;
@@ -2519,7 +2529,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
     }
 
     const channel = envText(conversation.channel || conversation.source || "");
-    const normalizedChannel = String(channel || "").toLowerCase();
+    const normalizedChannel = normalizeProductCardSendChannel(channel);
     const previewText = formatProductCardPreviewText(productCards[0] || {});
     const fallbackText = buildProductCardFallbackText(productCards);
     const externalCustomerId = envText(conversation.external_customer_id || conversation.customer_id || "");
@@ -2558,10 +2568,20 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
       deliveryStatus = sendResult.sent ? "sent" : "not_sent";
       externalMessageId = sendResult.message_id || "";
     } else {
-      throw Object.assign(new Error(`Unsupported channel for product card send: ${normalizedChannel || "unknown"}`), {
-        status: 409,
-        code: "CHANNEL_SEND_UNAVAILABLE",
+      console.warn("[ai-inbox][product-card-send] unsupported channel, storing fallback transcript message only", {
+        tenantId,
+        conversationId,
+        channel,
+        normalizedChannel,
+        acceptedChannels: [
+          AI_AGENT_CHANNELS.WEB_CHAT,
+          AI_AGENT_CHANNELS.WHATSAPP,
+          AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+          AI_AGENT_CHANNELS.INSTAGRAM,
+        ],
       });
+      sendResult = { sent: true, delivery_status: "stored", fallback_only: true };
+      deliveryStatus = "stored";
     }
 
     const message = await appendManualAiSupportReply({
