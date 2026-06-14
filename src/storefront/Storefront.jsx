@@ -4268,6 +4268,8 @@ function PremiumSearch({
         activeIndex={activeIndex}
         onPickTerm={onPickTerm}
         onPickProduct={onPickProduct}
+        trendingSearches={trendingSearches}
+        searchFallbackSections={searchFallbackSections}
       />
     </div>
   );
@@ -4302,7 +4304,7 @@ function PremiumSearch({
   );
 }
 
-function SearchQuickSections({ value, loading, suggestions, chips, activeIndex, onPickTerm, onPickProduct }) {
+function SearchQuickSections({ value, loading, suggestions, chips, activeIndex, onPickTerm, onPickProduct, trendingSearches = [], searchFallbackSections = {} }) {
   const query = value.trim();
   return (
     <div className="grid gap-3">
