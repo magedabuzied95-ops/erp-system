@@ -900,6 +900,15 @@ const getActiveColorGroup = (product = {}, selectedColorId = "") => {
   }
   return groups[0] || null;
 };
+const getSizesForColorGroup = (activeColorGroup = {}) => {
+  const sizes = new Map();
+  (Array.isArray(activeColorGroup?.variants) ? activeColorGroup.variants : []).forEach((variant) => {
+    const size = String(variant?.size || "").trim();
+    if (!size || !variantHasStock(variant) || sizes.has(size)) return;
+    sizes.set(size, { size, variant });
+  });
+  return Array.from(sizes.values());
+};
 
 const repairedDefaultEgyptShippingLocations = repairArabicMojibakeDeep(defaultEgyptShippingLocations);
 
