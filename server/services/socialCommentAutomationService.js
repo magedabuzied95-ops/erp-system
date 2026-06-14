@@ -6,6 +6,204 @@ const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
 const asArray = (value) => (Array.isArray(value) ? value : []);
 
+const COMBINING_MARKS_RE = /[\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06ed]/g;
+const ZERO_WIDTH_RE = /[\u200c\u200d\ufeff]/g;
+const NON_TEXT_RE = /[^\p{L}\p{N}\s]+/gu;
+const EMOJI_ONLY_RE = /^[\p{Extended_Pictographic}\p{Emoji_Presentation}\p{Emoji}\s]+$/u;
+
+const normalizeCommentText = (value = "") =>
+  text(value)
+    .toLowerCase()
+    .replace(COMBINING_MARKS_RE, "")
+    .replace(ZERO_WIDTH_RE, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/ـ/g, "")
+    .replace(NON_TEXT_RE, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const COMMENT_INTENT_RULES = [
+  {
+    label: "lead_inbox",
+    score: 0.98,
+    patterns: [
+      /\binbox\b/i,
+      /\bdm\b/i,
+      /\bmsg\b/i,
+      /\bmessage\b/i,
+      /\bprivate\b/i,
+      "خاص",
+      "برايفت",
+      "رساله خاصه",
+      "رسالة خاصة",
+    ],
+  },
+  {
+    label: "lead_price",
+    score: 0.97,
+    patterns: [
+      /\bprice\b/i,
+      "السعر",
+      "السعر كام",
+      "بكام",
+      "بكم",
+      "bkam",
+      "bkam",
+      "sa3r",
+      "s3er",
+      "s3r",
+      "es3r",
+      "kam",
+    ],
+  },
+  {
+    label: "lead_availability",
+    score: 0.96,
+    patterns: [
+      /\bavailable\b/i,
+      /\bavailability\b/i,
+      /\bin\s*stock\b/i,
+      /\bstock\b/i,
+      "متاح",
+      "موجود",
+      "موجوده",
+      "موجودة",
+      "mawjood",
+      "mwjod",
+      "mawgood",
+      "mwgood",
+    ],
+  },
+  {
+    label: "lead_size",
+    score: 0.95,
+    patterns: [
+      /\bsize\b/i,
+      /\bsizes\b/i,
+      "مقاس",
+      "مقاسات",
+      "سايز",
+      "السايز",
+      /\bfit\b/i,
+    ],
+  },
+  {
+    label: "lead_shipping",
+    score: 0.95,
+    patterns: [
+      /\bshipping\b/i,
+      /\bship\b/i,
+      /\bshipment\b/i,
+      /\bdelivery\b/i,
+      /\bdeliver(y|ies)\b/i,
+      "شحن",
+      "شحنه",
+      "شحنة",
+      "توصيل",
+      "دليفري",
+    ],
+  },
+  {
+    label: "lead_details",
+    score: 0.94,
+    patterns: [
+      /\bdetails\b/i,
+      /\bdetail\b/i,
+      /\binfo\b/i,
+      /\binformation\b/i,
+      "تفاصيل",
+      "معلومات",
+      "ابعت",
+      "ابعتلي",
+      "ابعتي",
+      /\bsend\b/i,
+      /\bmore\b/i,
+      /\bshow\b/i,
+      /\btell\s*me\b/i,
+    ],
+  },
+];
+
+const LOW_VALUE_PATTERNS = [
+  /^(?:حلو|حلوه|حلوة|جامد|nice|wow|great|awesome|perfect|amazing|super|cool|love\s*it)$/i,
+  /^(?:👍|👎|👌|👏|🔥|❤️|❤|😍|🥰|😘|💯|✨)+$/u,
+];
+
+const patternMatches = (pattern, { original = "", normalized = "", compact = "" } = {}) => {
+  if (!pattern) return false;
+  if (typeof pattern === "string") {
+    const needle = normalizeCommentText(pattern);
+    return Boolean(
+      needle &&
+      (normalized.includes(needle) || compact.includes(needle.replace(/\s+/g, "")) || original.toLowerCase().includes(pattern.toLowerCase()))
+    );
+  }
+  if (pattern instanceof RegExp) {
+    return pattern.test(original) || pattern.test(normalized) || pattern.test(compact);
+  }
+  return false;
+};
+
+export const classifySocialCommentIntent = (commentText = "") => {
+  const original = text(commentText);
+  const normalized = normalizeCommentText(original);
+  const normalizedCompact = normalized.replace(/\s+/g, "");
+
+  if (!original || !normalized) {
+    return { label: "ignore", score: 0.99, reason: "empty_comment" };
+  }
+
+  if (EMOJI_ONLY_RE.test(original)) {
+    return { label: "ignore", score: 0.99, reason: "emoji_only" };
+  }
+
+  if (LOW_VALUE_PATTERNS.some((pattern) => pattern.test(normalized) || pattern.test(normalizedCompact))) {
+    return { label: "engagement_only", score: 0.93, reason: "low_value_engagement" };
+  }
+
+  const matchedLabels = [];
+  for (const rule of COMMENT_INTENT_RULES) {
+    if (rule.patterns.some((pattern) => patternMatches(pattern, { original, normalized, compact: normalizedCompact }))) {
+      matchedLabels.push(rule.label);
+    }
+  }
+
+  if (!matchedLabels.length) {
+    return { label: "human_review", score: 0.6, reason: "ambiguous_comment" };
+  }
+
+  if (matchedLabels.includes("lead_inbox")) {
+    return { label: "lead_inbox", score: 0.98, reason: "explicit_inbox_request" };
+  }
+
+  if (matchedLabels.length === 2 && matchedLabels.includes("lead_availability")) {
+    const primary = matchedLabels.find((label) => label !== "lead_availability");
+    const primaryRule = COMMENT_INTENT_RULES.find((rule) => rule.label === primary);
+    if (primaryRule) {
+      return {
+        label: primaryRule.label,
+        score: primaryRule.score,
+        reason: "availability_modifier",
+      };
+    }
+  }
+
+  if (matchedLabels.length > 1) {
+    return { label: "human_review", score: 0.66, reason: "multiple_lead_intents" };
+  }
+
+  const matchedRule = COMMENT_INTENT_RULES.find((rule) => rule.label === matchedLabels[0]);
+  return {
+    label: matchedRule?.label || "human_review",
+    score: matchedRule?.score || 0.6,
+    reason: matchedRule?.label || "ambiguous_comment",
+  };
+};
+
 let socialCommentSchemaReadyPromise = null;
 
 export const ensureSocialCommentAutomationSchema = async (clientOrPool = db) => {
@@ -128,6 +326,7 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
   });
   const parentCommentId = firstText(value.parent_id, value.parent_comment_id, value.parent?.id);
   const rootCommentId = firstText(value.root_comment_id, value.root_id, value.thread_root_id, value.thread_id, value.parent_id, value.parent_comment_id) || commentId;
+  const classification = classifySocialCommentIntent(originalCommentText);
 
   return {
     tenant_id: tenantId,
@@ -142,9 +341,9 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
     commenter_name: commenterName,
     commenter_profile_picture_url: commenterProfilePictureUrl,
     original_comment_text: originalCommentText,
-    classification_label: null,
-    classification_score: null,
-    action_taken: "ingested",
+    classification_label: classification.label,
+    classification_score: classification.score,
+    action_taken: "classified_only",
     public_reply_status: null,
     dm_status: null,
     like_status: null,
@@ -234,7 +433,11 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         original_comment_text = COALESCE(NULLIF(EXCLUDED.original_comment_text, ''), social_comment_automation_runs.original_comment_text),
         classification_label = COALESCE(social_comment_automation_runs.classification_label, EXCLUDED.classification_label),
         classification_score = COALESCE(social_comment_automation_runs.classification_score, EXCLUDED.classification_score),
-        action_taken = COALESCE(social_comment_automation_runs.action_taken, EXCLUDED.action_taken),
+        action_taken = CASE
+          WHEN social_comment_automation_runs.action_taken IS NULL OR social_comment_automation_runs.action_taken = 'ingested'
+            THEN EXCLUDED.action_taken
+          ELSE social_comment_automation_runs.action_taken
+        END,
         public_reply_status = COALESCE(social_comment_automation_runs.public_reply_status, EXCLUDED.public_reply_status),
         dm_status = COALESCE(social_comment_automation_runs.dm_status, EXCLUDED.dm_status),
         like_status = COALESCE(social_comment_automation_runs.like_status, EXCLUDED.like_status),
@@ -290,4 +493,3 @@ export const listRecentSocialCommentAutomationRuns = async ({ tenantId = null, l
   );
   return result.rows;
 };
-
