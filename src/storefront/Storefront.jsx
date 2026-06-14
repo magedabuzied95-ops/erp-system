@@ -1626,6 +1626,12 @@ const displayCartItemComparePrice = (item = {}) => {
   return original > activePrice ? original : 0;
 };
 
+const displayDiscountPercent = (product = {}, variant = {}) => {
+  const sellingPrice = displaySellingPrice(product, variant);
+  const comparePrice = displayComparePrice(product, variant);
+  return comparePrice > sellingPrice ? Math.max(1, Math.round(((comparePrice - sellingPrice) / comparePrice) * 100)) : 0;
+};
+
 const firstArrayItem = (value) => (Array.isArray(value) && value.length ? value[0] : null);
 const storefrontPathFromLink = (value = "") => {
   const raw = String(value || "").trim();
