@@ -2024,7 +2024,7 @@ function PayrollFinancialSummary({
             <div className={isRtl ? "text-[11px] font-bold text-[var(--muted)]" : "text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]"}>{t("sales.payroll.summary", "ملخص الراتب")}</div>
             <h3 className="mt-1 text-2xl font-black leading-8">{periodLabel}</h3>
             <div className="mt-2 text-sm font-bold text-[var(--muted)]">
-              {t("sales.payroll.employee", "الموظف")}: <span className="text-[var(--text)]" dir="auto">{payroll.employee_name || payrollEmployee?.name || "-"}</span>
+              {t("sales.payroll.employee", "الموظف")}: <span className="text-[var(--text)]" dir="auto">{payroll.employee_name || "-"}</span>
             </div>
           </div>
           <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-black ${statusToneClass}`}>
