@@ -2554,13 +2554,36 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
         deliveryStatus = "stored_only";
         storedOnlyReason = "whatsapp_recipient_missing";
       } else {
-        sendResult = await sendWhatsAppCloudReply({
-          to: externalCustomerId,
-          reply: { text: fallbackText, product_cards: [] },
-          messageText: fallbackText,
-        });
-        deliveryStatus = sendResult.sent ? "sent" : "not_sent";
-        externalMessageId = sendResult.message_id || "";
+        try {
+          sendResult = await sendWhatsAppCloudReply({
+            to: externalCustomerId,
+            reply: { text: fallbackText, product_cards: [] },
+            messageText: fallbackText,
+          });
+          deliveryStatus = sendResult.sent ? "sent" : "not_sent";
+          externalMessageId = sendResult.message_id || "";
+        } catch (error) {
+          const whatsappConfigIssue = [
+            "WHATSAPP_CONFIG_MISSING",
+            "WHATSAPP_DISABLED",
+            "WHATSAPP_TRANSPORT_UNAVAILABLE",
+          ].includes(error?.code) ||
+          /whatsapp.*(credential|config|token|phone number id|disabled|unavailable)/i.test(error?.message || "");
+
+          if (!whatsappConfigIssue) throw error;
+
+          console.warn("[ai-inbox][product-card-send] WhatsApp transport unavailable, storing transcript message only", {
+            tenantId,
+            conversationId,
+            channel,
+            normalizedChannel,
+            code: error?.code || "",
+            message: error?.message || "",
+          });
+          sendResult = { sent: true, delivery_status: "stored_only", fallback_only: true };
+          deliveryStatus = "stored_only";
+          storedOnlyReason = "whatsapp_config_missing";
+        }
       }
     } else if (normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER || normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM) {
       if (!externalCustomerId) {
