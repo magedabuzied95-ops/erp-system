@@ -1612,13 +1612,13 @@ export default function EmployeePayrollPortal() {
   const wallet = portal?.wallet_summary || {};
   const payrollExists = Boolean(
     wallet?.payroll_id ||
-    wallet?.payroll_status === "generated" ||
+    wallet?.payroll_status === "approved" ||
     wallet?.payroll_status === "paid" ||
     portal?.payroll_id ||
-    portal?.payroll_status === "generated" ||
+    portal?.payroll_status === "approved" ||
     portal?.payroll_status === "paid"
   );
-  const payrollStatusValue = payrollExists ? (wallet.payroll_status || portal?.payment_status) : "not_generated";
+  const payrollStatusValue = payrollExists ? (wallet.payroll_status || portal?.payment_status) : "draft";
   const profile = portal?.employee_profile || portal?.employee || {};
   const rawProfilePhotoUrl = [
     profile.photo_url,

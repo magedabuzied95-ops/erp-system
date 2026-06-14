@@ -604,10 +604,32 @@ const getLatestPayrollRun = async ({ tenantId, employeeId }) => {
       attendance_deduction_total NUMERIC(12,2) NOT NULL DEFAULT 0,
       total_deductions NUMERIC(12,2) NOT NULL DEFAULT 0,
       net_pay NUMERIC(12,2) NOT NULL DEFAULT 0,
+      status VARCHAR(20) NOT NULL DEFAULT 'approved',
+      payment_status VARCHAR(20) NOT NULL DEFAULT 'pending_payment',
+      approved_at TIMESTAMP NULL,
+      approved_by BIGINT NULL,
+      paid_at TIMESTAMP NULL,
+      paid_by BIGINT NULL,
+      payment_method VARCHAR(40) NULL,
+      payment_account_id BIGINT NULL,
+      approval_journal_entry_id BIGINT NULL,
+      payment_journal_entry_id BIGINT NULL,
       snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
-      finalized_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      finalized_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'approved'`);
+  await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) NOT NULL DEFAULT 'pending_payment'`);
+  await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP NULL`);
+  await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS approved_by BIGINT NULL`);
+  await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP NULL`);
+  await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS paid_by BIGINT NULL`);
+  await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS payment_method VARCHAR(40) NULL`);
+  await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS payment_account_id BIGINT NULL`);
+  await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS approval_journal_entry_id BIGINT NULL`);
+  await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS payment_journal_entry_id BIGINT NULL`);
+  await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS penalties_total NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS attendance_deduction_total NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_employee_payroll_runs_employee_period ON employee_payroll_runs (tenant_id, employee_id, payroll_period DESC, finalized_at DESC, id DESC)`);
@@ -1609,12 +1631,18 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
   const absenceDeduction = toNumber(payrollRun?.attendance_deduction_total, toNumber(attendanceSnapshot.attendance_deduction_total));
   const otherDeductions = toNumber(payrollRun?.manual_deductions);
   const totalDeductions = toNumber(payrollRun?.total_deductions, advanceDeductions + penalties + absenceDeduction + otherDeductions);
+  const payrollStatus = payrollRun
+    ? String(payrollRun.status || (payrollRun.paid_at ? "paid" : payrollRun.approved_at ? "approved" : "calculated")).toLowerCase()
+    : "draft";
+  const paymentStatus = payrollRun
+    ? String(payrollRun.payment_status || (payrollStatus === "paid" ? "paid" : payrollStatus === "approved" ? "pending_payment" : "not_generated")).toLowerCase()
+    : "not_generated";
   const walletSummary = {
     current_net_salary: payrollRun ? toNumber(payrollRun.net_pay) : null,
     total_advances: recentAdvances.reduce((sum, row) => sum + toNumber(row.remaining_amount || row.amount), 0),
     pending_commissions: pendingCommissions,
     total_deductions: totalDeductions,
-    payroll_status: payrollRun ? "generated" : "not_generated",
+    payroll_status: payrollStatus,
   };
   const recentWalletTransactions = await getWalletTransactions({
     tenantId: employee.tenant_id,
@@ -1641,7 +1669,7 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     other_deductions: otherDeductions,
     total_deductions: totalDeductions,
     net_salary: payrollRun ? toNumber(payrollRun.net_pay) : null,
-    payroll_status: payrollRun ? "generated" : "not_generated",
+    payroll_status: payrollStatus,
     finalized_at: payrollRun?.finalized_at || null,
     payroll_reference: payrollRun?.payroll_reference || "",
   };
@@ -1751,8 +1779,8 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     warnings,
     current_payroll_period: period,
     payroll_generated: Boolean(payrollRun),
-    payroll_status: payrollRun ? "generated" : "not_generated",
-    payment_status: payrollRun ? "pending_payment" : "not_generated",
+    payroll_status: payrollStatus,
+    payment_status: paymentStatus,
     base_salary: baseSalary,
     sales_commission: commissions,
     commissions,

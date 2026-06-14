@@ -11,6 +11,7 @@ export const getSalesCommissionReport = (params = {}) => api.get("/sales-commiss
 export const getSalesCommissionPayroll = (employeeId, params = {}) => api.get(`/sales-commissions/payroll/${employeeId}`, { params });
 export const getSalesEmployeePayrollPreview = (employeeId, params = {}) => api.get(`/sales-employees/${employeeId}/payroll-preview`, { params });
 export const finalizeSalesEmployeePayroll = (employeeId, payload = {}) => api.post(`/sales-employees/${employeeId}/payroll-finalize`, payload);
+export const markSalesEmployeePayrollAsPaid = (employeeId, payload = {}) => api.post(`/sales-employees/${employeeId}/payroll-paid`, payload);
 export const getEmployeePenalties = (employeeId, params = {}) => api.get(`/employees/${employeeId}/penalties`, { params });
 export const createEmployeePenalty = (employeeId, payload = {}) => api.post(`/employees/${employeeId}/penalties`, payload);
 export const updateEmployeePenalty = (id, payload = {}) => api.patch(`/employee-penalties/${id}`, payload);

@@ -14,6 +14,7 @@ import {
   getSalesEmployeePayrollPreview,
   getSalesCommissionReport,
   getSalesEmployeeProfiles,
+  markSalesEmployeePayrollAsPaid,
   updateEmployeePenalty,
   updateEmployeePayrollSettings,
   upsertSalesEmployeeProfile,
@@ -330,6 +331,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
   const [payrollHistoryLoading, setPayrollHistoryLoading] = useState(false);
   const [payrollCalculating, setPayrollCalculating] = useState(false);
   const [payrollFinalizing, setPayrollFinalizing] = useState(false);
+  const [payrollPaying, setPayrollPaying] = useState(false);
   const [payrollCalculateStatus, setPayrollCalculateStatus] = useState("");
   const [penalties, setPenalties] = useState([]);
   const [penaltyForm, setPenaltyForm] = useState(emptyPenaltyForm);
@@ -1026,6 +1028,27 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
     }
   };
 
+  const markPayrollPaid = async () => {
+    if (!payroll.employee_id) {
+      toast.error(t("sales.payroll.selectError", "Select an employee for payroll preview"));
+      return;
+    }
+    setPayrollPaying(true);
+    try {
+      const data = await markSalesEmployeePayrollAsPaid(payroll.employee_id, {
+        branch_id: selectedBranchId,
+        payroll_period: safePayrollPreview?.payroll_run?.payroll_period || String(filters.end_date || today).slice(0, 7),
+        payment_method: "cash",
+      });
+      setPayrollPreview((current) => ({ ...(current || {}), payroll_run: data.payroll_run || data, finalized: true }));
+      toast.success(t("sales.payroll.paidSuccess", "Payroll marked as paid"));
+    } catch (error) {
+      toast.error(error?.message || t("sales.payroll.paidError", "Unable to mark payroll as paid"));
+    } finally {
+      setPayrollPaying(false);
+    }
+  };
+
   const applyRangeMode = (mode) => {
     setRangeMode(mode);
     if (mode === "current") setFilters((prev) => ({ ...prev, start_date: monthStart, end_date: today }));
@@ -1388,7 +1411,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               payrollPreview={safePayrollPreview}
               historyRows={payrollHistoryRows}
               historyLoading={payrollHistoryLoading}
-              currentPayrollFinalized={Boolean(safePayrollPreview?.payroll_run || safePayrollPreview?.finalized)}
+              payrollRun={safePayrollPreview?.payroll_run || null}
               status={payrollStatus}
               issues={payrollStatusIssues}
               employeeId={payroll.employee_id}
@@ -1406,8 +1429,10 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               t={t}
               onCalculate={handleCalculatePayroll}
               onFinalize={finalizePayroll}
+              onMarkPaid={markPayrollPaid}
               calculating={payrollCalculating}
               finalizing={payrollFinalizing}
+              paying={payrollPaying}
             />
           </div>
 
@@ -1744,7 +1769,7 @@ function PayrollFinancialSummary({
   payrollPreview = null,
   historyRows = [],
   historyLoading = false,
-  currentPayrollFinalized = false,
+  payrollRun = null,
   status,
   issues = [],
   employeeId = "",
@@ -1757,10 +1782,15 @@ function PayrollFinancialSummary({
   t,
   onCalculate,
   onFinalize,
+  onMarkPaid,
   calculating,
   finalizing,
+  paying,
 }) {
   const safePayrollPreview = payrollPreview ?? null;
+  const activePayrollRun = payrollRun || safePayrollPreview?.payroll_run || null;
+  const payrollStatus = String(activePayrollRun?.status || safePayrollPreview?.payroll_status || (safePayrollPreview ? "calculated" : "")).toLowerCase();
+  const paymentStatus = String(activePayrollRun?.payment_status || safePayrollPreview?.payment_status || "").toLowerCase();
   const baseSalary = numberValue(payroll.base_salary);
   const commissions = numberValue(payroll.sales_earnings ?? payroll.commissions ?? 0);
   const bonuses = numberValue(payroll.bonuses);
@@ -1782,32 +1812,50 @@ function PayrollFinancialSummary({
   ];
   const advanceRows = Array.isArray(safePayrollPreview?.employee_advances) ? safePayrollPreview.employee_advances : [];
   const isReadyForApproval = status?.key === "READY_FOR_APPROVAL";
-  const isBlocked = status?.key === "BLOCKED" || status?.key === "REQUIRES_REVIEW";
-  const isPaid = Boolean(currentPayrollFinalized);
+  const isHardBlocked = status?.key === "BLOCKED";
+  const isPaid = payrollStatus === "paid" || paymentStatus === "paid";
+  const isApproved = payrollStatus === "approved" || (Boolean(activePayrollRun) && !isPaid);
+  const isDraft = !safePayrollPreview && !activePayrollRun;
+  const canFinalizePayroll = Boolean(safePayrollPreview) && !isHardBlocked && !isApproved && !isPaid;
+  const canMarkPaid = Boolean(activePayrollRun) && isApproved && !isPaid;
   const statusLabel = isPaid
     ? t("sales.payroll.paid", "مدفوع")
-    : isBlocked
-      ? t("sales.payroll.cannotApproveNow", "لا يمكن اعتماد الراتب الآن")
-      : isReadyForApproval
-        ? t("sales.payroll.readyToApprove", "الراتب جاهز للاعتماد")
-        : t("sales.payroll.needsReview", "يحتاج مراجعة");
+    : isDraft
+      ? t("sales.payroll.draft", "مسودة")
+    : isApproved
+      ? t("sales.payroll.approved", "معتمد")
+      : payrollStatus === "calculated"
+        ? t("sales.payroll.calculated", "محسوب")
+        : isHardBlocked
+          ? t("sales.payroll.cannotApproveNow", "لا يمكن اعتماد الراتب الآن")
+          : isReadyForApproval
+            ? t("sales.payroll.readyToApprove", "الراتب جاهز للاعتماد")
+            : t("sales.payroll.needsReview", "يحتاج مراجعة");
   const statusToneClass = isPaid
     ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100"
-    : isBlocked
-      ? "border-amber-300/25 bg-amber-400/10 text-amber-100"
-      : "border-emerald-300/25 bg-emerald-400/10 text-emerald-100";
+    : isDraft
+      ? "border-white/10 bg-white/5 text-white"
+    : isApproved
+      ? "border-sky-300/25 bg-sky-400/10 text-sky-100"
+      : isHardBlocked
+        ? "border-amber-300/25 bg-amber-400/10 text-amber-100"
+        : "border-emerald-300/25 bg-emerald-400/10 text-emerald-100";
   const actionLabel = isPaid
-    ? t("sales.payroll.markPaid", "تسجيل كمدفوع")
-    : isReadyForApproval
-      ? t("sales.payroll.approvePayroll", "اعتماد الراتب")
-      : t("sales.payroll.calculate", "حساب الراتب");
+    ? t("sales.payroll.paid", "مدفوع")
+    : canMarkPaid
+      ? t("sales.payroll.markPaid", "تسجيل كمدفوع")
+      : canFinalizePayroll
+        ? t("sales.payroll.approvePayroll", "اعتماد الراتب")
+        : t("sales.payroll.calculate", "حساب الراتب");
   const actionHandler = isPaid
     ? null
-    : isReadyForApproval
-      ? onFinalize
-      : onCalculate;
-  const actionDisabled = isPaid ? true : calculating || finalizing;
-  const hasPayrollDetails = Boolean(safePayrollPreview || payroll.employee_name || currentPayrollFinalized);
+    : canMarkPaid
+      ? onMarkPaid
+      : canFinalizePayroll
+        ? onFinalize
+        : onCalculate;
+  const actionDisabled = isPaid ? true : calculating || finalizing || paying;
+  const hasPayrollDetails = Boolean(safePayrollPreview || payroll.employee_name || activePayrollRun);
   const payrollMonthLabel = payroll.current_payroll_period || payroll.payroll_period || safePayrollPreview?.current_payroll_period || safePayrollPreview?.payroll_period || "";
   const employeeMatches = Boolean(
     selectedEmployeeName &&
@@ -1944,8 +1992,8 @@ function PayrollFinancialSummary({
                       <div className="text-sm font-black text-[var(--text)]">{row.label}</div>
                       <div className="text-xs text-[var(--muted)]" dir="ltr">{row.period}</div>
                     </div>
-                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-black ${row.finalized || (row.isCurrent && currentPayrollFinalized) ? "bg-emerald-500/15 text-emerald-200" : row.isCurrent && isBlocked ? "bg-amber-500/15 text-amber-100" : "bg-white/5 text-white"}`}>
-                      {row.finalized || (row.isCurrent && currentPayrollFinalized) ? t("sales.payroll.paid", "مدفوع") : row.isCurrent ? statusLabel : t("sales.payroll.calculated", "محسوب")}
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-black ${row.finalized || (row.isCurrent && isPaid) ? "bg-emerald-500/15 text-emerald-200" : row.isCurrent && isApproved ? "bg-sky-500/15 text-sky-100" : row.isCurrent && isBlocked ? "bg-amber-500/15 text-amber-100" : "bg-white/5 text-white"}`}>
+                      {row.finalized || (row.isCurrent && isPaid) ? t("sales.payroll.paid", "مدفوع") : row.isCurrent ? statusLabel : t("sales.payroll.calculated", "محسوب")}
                     </span>
                   </div>
                   <div className="mt-2 grid grid-cols-3 gap-2 text-xs font-bold">

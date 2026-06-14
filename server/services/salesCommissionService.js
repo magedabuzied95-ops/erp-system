@@ -1,5 +1,6 @@
 import db from "../database/db.js";
 import { createEmployeePortalNotification } from "./employeePayrollPortalService.js";
+import { postPayrollApprovalEntry, postPayrollPaymentEntry, recordFinancialAccountActivity, resolveFinancialAccountForPayment } from "./accountingService.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { ensureForeignKeyConstraint } from "../utils/schemaConstraints.js";
@@ -12,7 +13,7 @@ const DEFAULT_SETTINGS = {
 
 const ACTIVE_ADVANCE_STATUSES = ["pending", "partial", "partially_deducted", "included_in_payroll"];
 const PENALTY_STATUSES = ["pending", "approved", "cancelled"];
-const QR_ATTENDANCE_SOURCES = ["qr", "qr_branch", "branch_qr"];
+const QR_ATTENDANCE_SOURCES = ["qr", "qr_branch", "branch_qr", "employee_portal"];
 
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -101,11 +102,23 @@ const monthBounds = (month = "") => {
   return { start, end };
 };
 
+const payrollDateTimeZone = String(process.env.ATTENDANCE_TIMEZONE || process.env.APP_TIMEZONE || process.env.TZ || "Africa/Cairo").trim() || "Africa/Cairo";
+
 const dateKey = (value) => {
   if (!value) return "";
+  if (typeof value === "string") return value.slice(0, 10);
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
-  return date.toISOString().slice(0, 10);
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: payrollDateTimeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(date);
+  } catch {
+    return date.toISOString().slice(0, 10);
+  }
 };
 
 const eachDateKey = (start, end) => {
@@ -2072,6 +2085,7 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
   }
   const attendanceDeductionTotal = toNumber(attendanceDeductions.attendance_deduction_total);
   const deductions = manualDeductions + advanceDeductions + penaltyDeductions + attendanceDeductionTotal;
+  const createdBy = filters.createdBy || filters.created_by || filters.userId || filters.user_id || null;
   console.log("[payroll] deduction scope", {
     selected_employee_id: employeeId,
     tenant_id: tenantId,
@@ -2135,40 +2149,114 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
           attendance_deduction_total NUMERIC(12,2) NOT NULL DEFAULT 0,
           total_deductions NUMERIC(12,2) NOT NULL DEFAULT 0,
           net_pay NUMERIC(12,2) NOT NULL DEFAULT 0,
+          status VARCHAR(20) NOT NULL DEFAULT 'approved',
+          payment_status VARCHAR(20) NOT NULL DEFAULT 'pending_payment',
+          approved_at TIMESTAMP NULL,
+          approved_by BIGINT NULL,
+          paid_at TIMESTAMP NULL,
+          paid_by BIGINT NULL,
+          payment_method VARCHAR(40) NULL,
+          payment_account_id BIGINT NULL,
+          approval_journal_entry_id BIGINT NULL,
+          payment_journal_entry_id BIGINT NULL,
           snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
-          finalized_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          finalized_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
-      await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS penalties_total NUMERIC(12,2) NOT NULL DEFAULT 0`);
-      await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS attendance_deduction_total NUMERIC(12,2) NOT NULL DEFAULT 0`);
-      const payrollRunResult = await db.query(
+      await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'approved'`);
+      await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) NOT NULL DEFAULT 'pending_payment'`);
+      await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP NULL`);
+      await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS approved_by BIGINT NULL`);
+      await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP NULL`);
+      await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS paid_by BIGINT NULL`);
+      await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS payment_method VARCHAR(40) NULL`);
+      await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS payment_account_id BIGINT NULL`);
+      await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS approval_journal_entry_id BIGINT NULL`);
+      await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS payment_journal_entry_id BIGINT NULL`);
+      await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+
+      const existingPayrollRun = await db.query(
         `
-        INSERT INTO employee_payroll_runs (
-          tenant_id, employee_id, payroll_period, payroll_reference, base_salary, commissions, bonuses,
-          manual_deductions, advance_deductions, penalties_total, attendance_deduction_total, total_deductions, net_pay, snapshot, finalized_at
-        )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,NOW())
-        RETURNING id, employee_id, payroll_period, payroll_reference, net_pay, snapshot, finalized_at
+        SELECT *
+        FROM employee_payroll_runs
+        WHERE employee_id::text = $1::text
+          AND payroll_period = $2
+          AND ($3::bigint IS NULL OR tenant_id = $3::bigint)
+        ORDER BY finalized_at DESC, id DESC
+        LIMIT 1
         `,
-        [
-          tenantId,
-          employee.id,
-          deductionMonth,
-          payrollReference,
-          baseSalary,
-          salesEarnings,
-          bonuses,
-          manualDeductions,
-          advanceDeductions,
-          penaltyDeductions,
-          attendanceDeductionTotal,
-          deductions,
-          netPay,
-          JSON.stringify(payrollSnapshot),
-        ]
+        [employee.id, deductionMonth, tenantId]
       );
-      payrollRun = payrollRunResult.rows[0] || null;
-      if (payrollRun) {
+
+      const createdPayrollRun = !existingPayrollRun.rowCount;
+      if (existingPayrollRun.rowCount) {
+        payrollRun = existingPayrollRun.rows[0];
+      } else {
+        const payrollRunResult = await db.query(
+          `
+          INSERT INTO employee_payroll_runs (
+            tenant_id, employee_id, payroll_period, payroll_reference, base_salary, commissions, bonuses,
+            manual_deductions, advance_deductions, penalties_total, attendance_deduction_total, total_deductions, net_pay,
+            status, payment_status, approved_at, approved_by, snapshot, finalized_at, updated_at
+          )
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'approved','pending_payment',NOW(),$14::bigint,$15::jsonb,NOW(),NOW())
+          RETURNING *
+          `,
+          [
+            tenantId,
+            employee.id,
+            deductionMonth,
+            payrollReference,
+            baseSalary,
+            salesEarnings,
+            bonuses,
+            manualDeductions,
+            advanceDeductions,
+            penaltyDeductions,
+            attendanceDeductionTotal,
+            deductions,
+            netPay,
+            createdBy || null,
+            JSON.stringify(payrollSnapshot),
+          ]
+        );
+        payrollRun = payrollRunResult.rows[0] || null;
+      }
+
+      if (payrollRun?.id && !payrollRun?.approval_journal_entry_id && netPay > 0) {
+        const approvalJournal = await postPayrollApprovalEntry(db, {
+          tenantId,
+          referenceId: payrollRun.id,
+          amount: netPay,
+          createdBy: createdBy || null,
+          branchId: employee.branch_id || branchId || null,
+          description: `Payroll approval ${payrollReference}`,
+          notes: `Payroll approval for ${employee.full_name} (${payrollReference})`,
+          sourceKey: `payroll-approval-${payrollRun.id}`,
+        }).catch((error) => {
+          console.warn("[payroll] approval journal skipped", error.message);
+          return null;
+        });
+        if (approvalJournal?.id) {
+          const updatedRun = await db.query(
+            `
+            UPDATE employee_payroll_runs
+            SET approval_journal_entry_id = $2,
+                status = COALESCE(status, 'approved'),
+                payment_status = COALESCE(payment_status, 'pending_payment'),
+                approved_at = COALESCE(approved_at, NOW()),
+                approved_by = COALESCE(approved_by, $3::bigint),
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            `,
+            [payrollRun.id, approvalJournal.id, createdBy || null]
+          );
+          payrollRun = updatedRun.rows[0] || payrollRun;
+        }
+      }
+      if (createdPayrollRun && payrollRun) {
         sendEmployeePortalPush({
           tenantId,
           employeeId: employee.id,
@@ -2243,4 +2331,122 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
     breakdown: report.rows,
     commission_report: report,
   };
+};
+
+export const markPayrollAsPaid = async ({ tenantId = null, employeeId, filters = {} } = {}) => {
+  const paymentMethod = String(filters.payment_method || filters.paymentMethod || "cash").trim() || "cash";
+  const createdBy = filters.createdBy || filters.created_by || filters.userId || filters.user_id || null;
+  const paymentPeriod = String(filters.payroll_period || filters.payrollPeriod || filters.deduction_month || filters.deductionMonth || filters.month || "").trim().slice(0, 7);
+  const dbClient = db;
+  const employeeResult = await dbClient.query(
+    `
+    SELECT id, tenant_id, branch_id, full_name
+    FROM employees
+    WHERE id::text = $1::text
+      AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+    LIMIT 1
+    `,
+    [employeeId, tenantId]
+  );
+  const employee = employeeResult.rows[0] || null;
+  if (!employee) {
+    const error = new Error("Employee not found");
+    error.status = 404;
+    throw error;
+  }
+
+  const payrollParams = [employeeId, tenantId];
+  const payrollClauses = ["employee_id::text = $1::text", "($2::bigint IS NULL OR tenant_id = $2::bigint)"];
+  if (paymentPeriod) {
+    payrollParams.push(paymentPeriod);
+    payrollClauses.push(`payroll_period = $${payrollParams.length}`);
+  }
+  const payrollRunResult = await dbClient.query(
+    `
+    SELECT *
+    FROM employee_payroll_runs
+    WHERE ${payrollClauses.join(" AND ")}
+    ORDER BY finalized_at DESC, id DESC
+    LIMIT 1
+    `,
+    payrollParams
+  );
+  const payrollRun = payrollRunResult.rows[0] || null;
+  if (!payrollRun) {
+    const error = new Error("Approved payroll not found");
+    error.status = 404;
+    throw error;
+  }
+  const currentStatus = String(payrollRun.status || "").toLowerCase() || (payrollRun.paid_at ? "paid" : payrollRun.approved_at ? "approved" : "approved");
+  if (currentStatus === "paid") return payrollRun;
+  if (!["approved", "calculated"].includes(currentStatus)) {
+    const error = new Error("Payroll must be approved before it can be marked paid");
+    error.status = 409;
+    throw error;
+  }
+
+  const amount = toNumber(payrollRun.net_pay);
+  const branchId = employee.branch_id || null;
+  const client = await dbClient.connect();
+  try {
+    await client.query("BEGIN");
+    const mappedAccount = await resolveFinancialAccountForPayment(client, {
+      tenantId: employee.tenant_id || tenantId,
+      branchId,
+      paymentMethod,
+    });
+
+    let paymentJournal = null;
+    if (amount > 0) {
+      paymentJournal = await postPayrollPaymentEntry(client, {
+        tenantId: employee.tenant_id || tenantId,
+        referenceId: payrollRun.id,
+        amount,
+        createdBy,
+        branchId,
+        paymentMethod,
+        description: `Payroll payment ${payrollRun.payroll_reference}`,
+        notes: `Payroll payment for ${employee.full_name} (${payrollRun.payroll_reference})`,
+        sourceKey: `payroll-payment-${payrollRun.id}`,
+      });
+      await recordFinancialAccountActivity(client, {
+        tenantId: employee.tenant_id || tenantId,
+        branchId,
+        paymentMethod,
+        direction: -1,
+        amount,
+        sourceType: "employee_payroll_payment",
+        sourceId: payrollRun.id,
+        createdBy,
+        idempotent: true,
+      });
+    }
+
+    const updated = await client.query(
+      `
+      UPDATE employee_payroll_runs
+      SET status = 'paid',
+          payment_status = 'paid',
+          paid_at = NOW(),
+          paid_by = COALESCE($2::bigint, paid_by),
+          payment_method = COALESCE(NULLIF($3::text, ''), payment_method),
+          payment_account_id = COALESCE($4::bigint, payment_account_id),
+          payment_journal_entry_id = COALESCE($5::bigint, payment_journal_entry_id),
+          updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+      `,
+      [payrollRun.id, createdBy || null, paymentMethod, mappedAccount?.financialAccountId || null, paymentJournal?.id || null]
+    );
+
+    await client.query("COMMIT");
+    return updated.rows[0] || payrollRun;
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {}
+    throw error;
+  } finally {
+    client.release();
+  }
 };

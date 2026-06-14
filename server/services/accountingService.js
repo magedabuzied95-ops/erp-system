@@ -3,10 +3,14 @@ import db from "../database/db.js";
 const DEFAULT_ACCOUNTS = [
   { code: "1200", name: "Inventory Asset", type: "asset" },
   { code: "1000", name: "Cash", type: "asset" },
+  { code: "1010", name: "Bank", type: "asset" },
+  { code: "1011", name: "Instapay", type: "asset" },
   { code: "1100", name: "Accounts Receivable", type: "asset" },
   { code: "4000", name: "Sales Revenue", type: "revenue" },
   { code: "5000", name: "Cost Of Goods Sold", type: "expense" },
+  { code: "6200", name: "Salaries Expense", type: "expense" },
   { code: "2000", name: "Accounts Payable", type: "liability" },
+  { code: "2102", name: "Payroll Payable", type: "liability" },
   { code: "2101", name: "Personal Advance Clearing", type: "liability" },
   { code: "3300", name: "Owner Drawings", type: "equity" },
   { code: "5200", name: "Operating Expenses", type: "expense" },
@@ -956,6 +960,13 @@ const resolveAccount = async (clientOrPool, tenantId, accountRef) => {
     return { id: Number(key) };
   }
   return null;
+};
+
+const resolvePayrollCashAccountCode = (paymentMethod = "") => {
+  const method = normalizePaymentMethodKey(paymentMethod);
+  if (method === "bank_transfer") return "1010";
+  if (method === "instapay" || method === "vodafone_cash" || method === "wallet") return "1011";
+  return "1000";
 };
 
 const cashDrawerEventDirection = (eventType) => {
@@ -3366,6 +3377,64 @@ export const postWalletLiabilityEntry = async (clientOrPool, data = {}) => {
   });
 };
 
+export const postPayrollApprovalEntry = async (clientOrPool, data = {}) => {
+  const tenantId = getTenantScope(data.tenantId ?? data.tenant_id);
+  const dbClient = queryable(clientOrPool);
+  const amount = roundMoney(data.amount || 0);
+  if (tenantId === null) throw new Error("tenantId is required");
+  if (amount <= 0) return null;
+
+  const salariesExpense = await resolveAccount(dbClient, tenantId, "6200");
+  const payrollPayable = await resolveAccount(dbClient, tenantId, "2102");
+
+  return createJournalEntry(dbClient, {
+    tenantId,
+    entryNumber: data.entryNumber || data.entry_number,
+    description: data.description || "Payroll approval",
+    referenceType: data.referenceType || data.reference_type || "employee_payroll",
+    referenceId: data.referenceId || data.reference_id || null,
+    createdBy: data.createdBy ?? data.created_by ?? null,
+    branchId: data.branchId ?? data.branch_id ?? null,
+    notes: data.notes || "",
+    isGenerated: true,
+    entryType: "payroll_approval",
+    sourceKey: data.sourceKey || data.source_key || safeEntryNumber("payroll", "approval", data.referenceId || data.reference_id || "0"),
+    lines: [
+      accountLine(salariesExpense, amount, "debit", data.notes || "Payroll expense", data.branchId ?? data.branch_id ?? null),
+      accountLine(payrollPayable, amount, "credit", data.notes || "Payroll payable", data.branchId ?? data.branch_id ?? null),
+    ],
+  });
+};
+
+export const postPayrollPaymentEntry = async (clientOrPool, data = {}) => {
+  const tenantId = getTenantScope(data.tenantId ?? data.tenant_id);
+  const dbClient = queryable(clientOrPool);
+  const amount = roundMoney(data.amount || 0);
+  if (tenantId === null) throw new Error("tenantId is required");
+  if (amount <= 0) return null;
+
+  const payrollPayable = await resolveAccount(dbClient, tenantId, "2102");
+  const cashAccount = await resolveAccount(dbClient, tenantId, resolvePayrollCashAccountCode(data.paymentMethod || data.payment_method));
+
+  return createJournalEntry(dbClient, {
+    tenantId,
+    entryNumber: data.entryNumber || data.entry_number,
+    description: data.description || "Payroll payment",
+    referenceType: data.referenceType || data.reference_type || "employee_payroll_payment",
+    referenceId: data.referenceId || data.reference_id || null,
+    createdBy: data.createdBy ?? data.created_by ?? null,
+    branchId: data.branchId ?? data.branch_id ?? null,
+    notes: data.notes || "",
+    isGenerated: true,
+    entryType: "payroll_payment",
+    sourceKey: data.sourceKey || data.source_key || safeEntryNumber("payroll", "payment", data.referenceId || data.reference_id || "0"),
+    lines: [
+      accountLine(payrollPayable, amount, "debit", data.notes || "Settle payroll payable", data.branchId ?? data.branch_id ?? null),
+      accountLine(cashAccount, amount, "credit", data.notes || "Payroll payment from treasury", data.branchId ?? data.branch_id ?? null),
+    ],
+  });
+};
+
 const safeEntryNumber = (...parts) =>
   parts
     .filter((part) => part !== undefined && part !== null && String(part).trim() !== "")
@@ -4839,7 +4908,7 @@ export const getProfitLossReport = async (clientOrPool, data = {}) => {
   const toDate = parseDateFilter(data.toDate || data.to_date || data.to);
   const branchId = numericFilter(data.branchId || data.branch_id);
 
-  const [orderColumns, itemColumns, expenseColumns, productColumns, variantColumns, returnColumns, returnItemColumns, purchaseColumns, purchaseItemColumns, overrideColumns] = await Promise.all([
+  const [orderColumns, itemColumns, expenseColumns, productColumns, variantColumns, returnColumns, returnItemColumns, purchaseColumns, purchaseItemColumns, overrideColumns, journalEntryColumns, journalEntryLineColumns, accountColumns] = await Promise.all([
     getTableColumns(dbClient, "orders"),
     getTableColumns(dbClient, "order_items"),
     getTableColumns(dbClient, "expenses"),
@@ -4850,6 +4919,9 @@ export const getProfitLossReport = async (clientOrPool, data = {}) => {
     getTableColumns(dbClient, "purchases"),
     getTableColumns(dbClient, "purchase_items"),
     getTableColumns(dbClient, "accounting_order_item_cost_overrides"),
+    getTableColumns(dbClient, "journal_entries"),
+    getTableColumns(dbClient, "journal_entry_lines"),
+    getTableColumns(dbClient, "accounts"),
   ]);
 
   const orderTableExists = orderColumns.size > 0;
@@ -5039,6 +5111,43 @@ export const getProfitLossReport = async (clientOrPool, data = {}) => {
       amount: roundMoney(row.amount || 0),
     }));
     totalExpenses = roundMoney(expenses.reduce((sum, row) => sum + row.amount, 0));
+  }
+
+  if (journalEntryColumns.size && journalEntryLineColumns.size && accountColumns.size && await hasGeneratedJournalEntries(dbClient, { tenantId, fromDate, toDate, branchId })) {
+    const clauses = [];
+    const params = [];
+    addScopedWhere({ clauses, params, alias: "je", columns: journalEntryColumns, tenantId, fromDate, toDate, branchId: null, dateColumns: ["entry_date", "created_at"] });
+    if (journalEntryLineColumns.has("tenant_id") && tenantId !== null) {
+      params.push(tenantId);
+      clauses.push(`jel.tenant_id = $${params.length}`);
+    }
+    if (branchId && journalEntryLineColumns.has("branch_id")) {
+      params.push(branchId);
+      clauses.push(`jel.branch_id = $${params.length}`);
+    }
+    clauses.push(`LOWER(COALESCE(a.type, '')) = 'expense'`);
+    const journalExpenseRows = await dbClient.query(
+      `
+      SELECT
+        COALESCE(NULLIF(a.name, ''), 'Uncategorized') AS category,
+        COALESCE(SUM(COALESCE(jel.debit, 0) - COALESCE(jel.credit, 0)), 0)::numeric AS amount
+      FROM journal_entry_lines jel
+      JOIN journal_entries je ON je.id = jel.journal_entry_id
+      LEFT JOIN accounts a ON a.id = jel.account_id
+      WHERE ${clauses.join(" AND ")}
+      GROUP BY COALESCE(NULLIF(a.name, ''), 'Uncategorized')
+      ORDER BY amount DESC, category ASC
+      `,
+      params
+    );
+    if (journalExpenseRows.rowCount) {
+      const mappedJournalExpenses = journalExpenseRows.rows.map((row) => ({
+        category: row.category || "Uncategorized",
+        amount: roundMoney(row.amount || 0),
+      }));
+      expenses = [...expenses, ...mappedJournalExpenses];
+      totalExpenses = roundMoney(expenses.reduce((sum, row) => sum + row.amount, 0));
+    }
   }
 
   const returns = roundMoney(returnedItemAmount || returnedOrderAmount);

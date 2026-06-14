@@ -1,5 +1,6 @@
 import {
   getPayrollPreview,
+  markPayrollAsPaid,
   getSalesSettings,
   listSalesEmployees,
   resolveTenantId,
@@ -105,12 +106,31 @@ export const finalizeSalesEmployeePayroll = async (req, res) => {
       filters: {
         ...readPayrollFilters(req.body || {}),
         markAdvancesDeducted: "true",
+        createdBy: req.user?.id || null,
       },
     });
     return res.json({ success: true, finalized: true, ...preview });
   } catch (error) {
     console.error("[sales-employees] payroll finalize error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to finalize payroll" });
+  }
+};
+
+export const markSalesEmployeePayrollAsPaid = async (req, res) => {
+  try {
+    const payroll = await markPayrollAsPaid({
+      tenantId: resolveTenantId(req),
+      employeeId: req.params.id,
+      filters: {
+        ...readPayrollFilters(req.body || {}),
+        paymentMethod: req.body?.payment_method || req.body?.paymentMethod || req.body?.payment_method_key || "cash",
+        createdBy: req.user?.id || null,
+      },
+    });
+    return res.json({ success: true, paid: true, payroll_run: payroll });
+  } catch (error) {
+    console.error("[sales-employees] payroll payment error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to mark payroll as paid" });
   }
 };
 
