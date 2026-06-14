@@ -3,8 +3,8 @@
     "continueShopping": "متابعة التسوق",
     "shopNow": "تسوق الآن",
     "soon": "قريبًا",
-    "loading": "جاري التحميل...",
-    "choose": "اختار",
+    "loading": "جارٍ التحميل...",
+    "choose": "اختيار",
     "close": "إغلاق",
     "noResults": "لا توجد نتائج",
     "search": "بحث",
@@ -70,7 +70,7 @@
     "kids": "أطفال",
     "sizeGuide": "دليل المقاسات",
     "returns": "سياسة الاستبدال",
-    "mobileNavigation": "تنقل المتجر على الموبايل"
+    "mobileNavigation": "تصفح المتجر على الموبايل"
   },
   "search": {
     "aria": "البحث في المتجر",
@@ -155,21 +155,22 @@
   "home": {
     "trustPoints": [
       "دفع آمن",
-      "تبديل سهل",
+      "استبدال سهل",
       "صور حقيقية",
       "شحن سريع"
     ],
     "heroFallbackSubtitle": "تصميم مختار من أحدث المنتجات المتاحة الآن.",
     "newArrival": "وصل حديثًا",
     "shopByCategory": "تسوق حسب القسم",
-    "shopByCategorySubtitle": "اختار بسرعة حسب الفئة أو النوع",
+    "shopByCategorySubtitle": "اختيار سريع حسب الفئة أو النوع",
     "bestsellers": "الأكثر مبيعًا",
     "bestsellersSubtitle": "الأكثر مبيعًا هذا الأسبوع",
     "saleSubtitle": "خصومات مختارة لفترة محدودة",
     "newSubtitle": "وصل حديثًا للمخزون",
     "productOfWeek": "منتج الأسبوع",
-    "productOfWeekEmpty": "المنتج المميز هيظهر هنا أول ما المخزون يتحدث.",
-    "featuredDescription": "اختيار الأسبوع المميز يأتي بصور أوضح، مقاسات ظاهرة، وتجربة شراء أسرع."
+    "productOfWeekEmpty": "المنتج المميز سيظهر هنا أول ما المخزون يتحدث.",
+    "featuredDescription": "اختيار الأسبوع المميز يأتي بصور أوضح، مقاسات ظاهرة، وتجربة شراء أسرع.",
+    "brandsEyebrow": "البراندات"
   },
   "visualSearch": {
     "similarProducts": "المنتجات المشابهة",

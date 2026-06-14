@@ -49,6 +49,8 @@ import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStora
 import { subscribeRealtime } from "../../../shared/realtime/socketStore";
 import AIStatusBadge from "../../../components/ai/AIStatusBadge";
 import AILiveLogs from "../../../components/ai/AILiveLogs";
+import ProductCardMessage from "../components/ProductCardMessage";
+import ProductCardPicker from "../components/ProductCardPicker";
 import { useTenant } from "../../saas/context/TenantContext";
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -68,6 +70,14 @@ const aiInboxConversationEndpoint = (sessionId = "", suffix = "") =>
   `/ai-inbox/conversations/${encodeConversationId(sessionId)}${suffix}`;
 const aiAgentInboxEndpoint = (sessionId = "", suffix = "") =>
   `/ai-agent/inbox/${encodeConversationId(sessionId)}${suffix}`;
+const productCardPreviewText = (cards = []) => {
+  const first = asArray(cards)[0] || {};
+  const name = clean(first.product_name || first.name || first.title || "");
+  const color = clean(first.color || "");
+  const size = clean(first.size || "");
+  const price = Number(first.price ?? first.final_price ?? 0);
+  return [name, color, size, price > 0 ? money(price) : ""].filter(Boolean).join(" • ");
+};
 
 const tenantIdFrom = (tenantApi) => {
   const currentTenant = tenantApi?.currentTenant || getCurrentTenant?.() || {};
@@ -841,6 +851,18 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
       ) : null}
       {messages.map((message) => (
         <div key={messageKey(message)} className="space-y-2">
+          {(() => {
+            const productCards = asArray(message.product_cards || message.productCards);
+            const isProductCardMessage = message.message_type === "product_card" || productCards.length > 0;
+            if (!isProductCardMessage) return null;
+            return (
+              <div className="flex justify-end">
+                <div className="max-w-[88%]">
+                  <ProductCardMessage message={message} cards={productCards} />
+                </div>
+              </div>
+            );
+          })()}
           {message.customer_message ? (
             <div className="flex justify-start">
               <div className="max-w-[88%] rounded-3xl rounded-tl-sm border border-white/10 bg-white/[0.06] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
@@ -872,7 +894,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
               </div>
             </div>
           ) : null}
-          {message.staff_message ? (
+          {message.staff_message && message.message_type !== "product_card" && !asArray(message.product_cards || message.productCards).length ? (
             <div className="flex justify-end">
               <div className="max-w-[88%] rounded-3xl rounded-tr-sm border border-emerald-300/15 bg-emerald-400/10 p-5 shadow-[0_10px_30px_rgba(16,185,129,0.12)]">
                 <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-emerald-100">
@@ -981,7 +1003,7 @@ const quickReplies = [
   "متاح دفع عند الاستلام؟",
 ];
 
-function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraft, loading }) {
+function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraft, onOpenProductPicker, loading }) {
   if (!conversation) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
   const canSendLive = conversation.live_sending_available === true;
@@ -1034,6 +1056,15 @@ function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraf
           <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title="Send now through Meta" className="inline-flex h-8 items-center justify-center gap-2 rounded-xl bg-emerald-300 px-3 text-[11px] font-black text-slate-950 disabled:opacity-50">{loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}Send now</button>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenProductPicker?.()}
+            disabled={loading}
+            className="inline-flex h-7 items-center justify-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[10px] font-black text-cyan-100 disabled:opacity-50"
+          >
+            <ShoppingCart className="h-3.5 w-3.5" />
+            إرسال منتج
+          </button>
           <button type="button" onClick={onSaveDraft} disabled={loading || !clean(value)} className="inline-flex h-7 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-2.5 text-[10px] font-black text-slate-100 disabled:opacity-50">Save draft</button>
           <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} className="inline-flex h-7 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[10px] font-black text-cyan-100 disabled:opacity-50">Approve AI reply</button>
         </div>
@@ -2185,6 +2216,8 @@ export default function AiInbox() {
   const [profileOpen, setProfileOpen] = useState(true);
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
+  const [productCardPickerOpen, setProductCardPickerOpen] = useState(false);
+  const [productCardSending, setProductCardSending] = useState(false);
   const [assignNameDraft, setAssignNameDraft] = useState({ sessionId: "", value: "" });
   const [suggestedReplies, setSuggestedReplies] = useState({ sessionId: "", items: [], intent: "", confidence: 0, error: "" });
   const [aiDebug, setAiDebug] = useState({ sessionId: "", open: false, loading: false, data: null, error: "" });
@@ -2291,6 +2324,13 @@ export default function AiInbox() {
       }
       if (incoming?.id || incoming?.dedupe_key || incoming?.external_message_id) {
         let skipped = false;
+        const incomingProductCards = asArray(incoming.product_cards || incoming.productCards);
+        const incomingPreview =
+          incoming.customer_message ||
+          incoming.message_text ||
+          incoming.ai_answer ||
+          incoming.staff_message ||
+          (incoming.message_type === "product_card" ? productCardPreviewText(incomingProductCards) : "");
         setInbox((current) => ({
           ...current,
           conversations: asArray(current.conversations).map((conversation) => {
@@ -2308,7 +2348,7 @@ export default function AiInbox() {
               ...conversation,
               messages: uniqueMessages([...asArray(conversation.messages), incoming]),
               message_count: Number(conversation.message_count || asArray(conversation.messages).length) + 1,
-              latest_message_preview: incoming.customer_message || incoming.message_text || incoming.ai_answer || incoming.staff_message || conversation.latest_message_preview,
+              latest_message_preview: incomingPreview || conversation.latest_message_preview,
               last_activity_at: incoming.created_at || new Date().toISOString(),
             };
           }),
@@ -2859,6 +2899,74 @@ export default function AiInbox() {
     }
   };
 
+  const sendProductCards = useCallback(async (productCards = []) => {
+    const cards = asArray(productCards)
+      .map((card) => ({
+        product_id: card.product_id ?? card.id ?? null,
+        variant_id: card.variant_id ?? card.variantId ?? null,
+        product_name: clean(card.product_name || card.name || card.title || ""),
+        image_url: clean(card.image_url || card.product_image_url || card.variant_image_url || card.image || ""),
+        price: Number(card.price ?? card.final_price ?? card.sale_price ?? 0) || 0,
+        color: clean(card.color || card.variant_color || ""),
+        size: clean(card.size || card.variant_size || ""),
+        storefront_url: clean(card.storefront_url || card.product_url || card.url || ""),
+      }))
+      .filter((card) => card.product_name || card.product_id || card.storefront_url);
+    if (!selectedConversation?.session_id || !cards.length) return;
+
+    const sessionId = selectedConversation.session_id;
+    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+    const now = new Date().toISOString();
+    const previewText = productCardPreviewText(cards) || "إرسال منتج";
+
+    setProductCardSending(true);
+    setError("");
+    try {
+      const payload = await api.post(
+        aiInboxConversationEndpoint(sessionId, "/product-card/send"),
+        {
+          tenant_id: tenantId,
+          product_cards: cards,
+        },
+        { headers, perfComponent: "AiInbox.sendProductCards" }
+      );
+
+      const returnedMessage = payload?.message || null;
+      if (returnedMessage) {
+        const returnedCards = asArray(returnedMessage.product_cards || returnedMessage.productCards || cards);
+        patchConversation(conversationIdentifier, (conversation) => ({
+          ...conversation,
+          messages: uniqueMessages([...asArray(conversation.messages), { ...returnedMessage, product_cards: returnedCards }]),
+          latest_message_preview:
+            returnedMessage.message_text ||
+            returnedMessage.staff_message ||
+            returnedMessage.customer_message ||
+            productCardPreviewText(returnedCards) ||
+            previewText,
+          last_activity_at: returnedMessage.created_at || now,
+          updated_at: returnedMessage.created_at || now,
+        }));
+      } else {
+        patchConversation(conversationIdentifier, (conversation) => ({
+          ...conversation,
+          latest_message_preview: previewText,
+          last_activity_at: now,
+          updated_at: now,
+        }));
+        await loadAll({ silent: true });
+      }
+
+      setToast({ tone: "emerald", text: "تم إرسال المنتج" });
+      setProductCardPickerOpen(false);
+    } catch (err) {
+      setToast({ tone: "rose", text: err?.message || "تعذر إرسال المنتج" });
+      setError(err?.message || "تعذر إرسال المنتج");
+      throw err;
+    } finally {
+      setProductCardSending(false);
+    }
+  }, [headers, loadAll, patchConversation, selectedConversation?.conversation_key, selectedConversation?.session_id, tenantId]);
+
   const generateSuggestedReplies = async () => {
     if (!selectedConversation?.session_id) return;
     const sessionId = selectedConversation?.session_id;
@@ -3096,6 +3204,11 @@ export default function AiInbox() {
         onRefresh={loadAiTrace}
         onClose={() => setAiTrace((current) => ({ ...current, open: false }))}
       />
+      <ProductCardPicker
+        open={productCardPickerOpen}
+        onClose={() => setProductCardPickerOpen(false)}
+        onSubmit={sendProductCards}
+      />
       <div className="mx-auto flex h-[100dvh] max-w-[96rem] flex-col gap-2 overflow-hidden p-2 md:p-3">
         <section className="shrink-0 rounded-3xl border border-white/10 bg-white/[0.055] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.2)] backdrop-blur">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -3267,7 +3380,8 @@ export default function AiInbox() {
                         onChange={setReplyText}
                         onSend={() => sendManualReply()}
                         onSaveDraft={saveDraftReply}
-                        loading={loading}
+                        onOpenProductPicker={() => setProductCardPickerOpen(true)}
+                        loading={loading || productCardSending}
                       />
                     </div>
                   </div>

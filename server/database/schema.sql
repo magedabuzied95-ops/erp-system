@@ -688,7 +688,9 @@ ALTER TABLE IF EXISTS ai_support_messages
   ADD COLUMN IF NOT EXISTS detected_language TEXT,
   ADD COLUMN IF NOT EXISTS handoff_to_human BOOLEAN DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS resolution_status TEXT DEFAULT 'open',
-  ADD COLUMN IF NOT EXISTS ai_response_time_ms INTEGER;
+  ADD COLUMN IF NOT EXISTS ai_response_time_ms INTEGER,
+  ADD COLUMN IF NOT EXISTS message_type TEXT NOT NULL DEFAULT 'text',
+  ADD COLUMN IF NOT EXISTS product_cards JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 ALTER TABLE IF EXISTS ai_customer_interactions
   ADD COLUMN IF NOT EXISTS detected_intent TEXT NOT NULL DEFAULT '',

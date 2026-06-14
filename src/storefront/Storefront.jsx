@@ -3637,6 +3637,103 @@ const swatchColorStyle = (label = "") => {
   return { background: color };
 };
 
+function HeaderAction({ to, icon, count, label, className = "" }) {
+  return (
+    <Link to={to} className={`sf-header-action ${className}`} aria-label={label} title={label}>
+      {icon}
+      {count ? <span className="sf-action-badge">{count}</span> : null}
+    </Link>
+  );
+}
+
+function Header({ cartCount, wishlistCount, onCart, effectiveTheme, onToggleTheme }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isCompact = location.pathname !== "/shop" && location.pathname !== "/shop/";
+  const themeIsDark = effectiveTheme === "dark";
+  const themeToggleLabel = themeIsDark
+    ? t("storefront.header.lightMode", "Switch to light mode")
+    : t("storefront.header.darkMode", "Switch to dark mode");
+
+  const navItems = [
+    [t("storefront.nav.home", "الرئيسية"), "/shop"],
+    [t("storefront.nav.categories", "Categories"), "/shop/products"],
+    [t("storefront.nav.sale", "Sale"), "/shop/sale"],
+    [t("storefront.nav.new", "الجديد"), "/shop/products?sort=new"],
+  ];
+
+  return (
+    <header className="sf-luxury-header sticky top-0 z-40 border-b border-stone-200/70 bg-[#fcfaf6]/88 shadow-[0_16px_48px_rgba(39,20,75,0.07)] backdrop-blur-2xl transition-all duration-300 dark:border-white/10 dark:bg-[#090d18]/92 dark:shadow-[0_16px_48px_rgba(0,0,0,0.28)]">
+      <div className="sf-utility-row hidden border-b border-stone-200/70 bg-white/45 px-4 text-xs font-semibold text-stone-500 transition-all duration-300 dark:border-white/10 dark:bg-white/[0.035] dark:text-stone-400 sm:block">
+        <div className="mx-auto flex h-9 max-w-7xl items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span className="rounded-full px-2.5 py-1">{sfText("storefront.header.tagline", "Premium Shoes")}</span>
+            <span className="h-3 w-px bg-stone-300/80 dark:bg-white/12" />
+            <button type="button" onClick={() => navigate("/shop/track")} className="rounded-full px-2.5 py-1 transition hover:bg-white hover:text-stone-950 dark:hover:bg-white/8 dark:hover:text-white">
+              {sfText("storefront.header.trackOrder", "تتبع الطلب")}
+            </button>
+          </div>
+          <div className="hidden items-center gap-2 lg:flex">
+            <button type="button" onClick={onToggleTheme} className="rounded-full px-2.5 py-1 transition hover:bg-white hover:text-stone-950 dark:hover:bg-white/8 dark:hover:text-white" aria-label={themeToggleLabel}>
+              {themeIsDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+            <span className="h-3 w-px bg-stone-300/80 dark:bg-white/12" />
+            <button type="button" className="rounded-full px-2.5 py-1 transition hover:bg-white hover:text-stone-950 dark:hover:bg-white/8 dark:hover:text-white">{getCurrency().code}</button>
+          </div>
+        </div>
+      </div>
+      <div className="sf-main-row sf-header-main mx-auto grid max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2.5 transition-all duration-300 md:grid-cols-[auto_auto_minmax(320px,520px)_auto] md:gap-5 md:py-3">
+        <Link to="/shop" className="sf-header-logo group inline-flex items-center gap-2 text-stone-950 transition hover:text-[#6d28d9] dark:text-white">
+          <span className="sf-header-logo-chip grid h-10 w-10 place-items-center rounded-2xl bg-stone-950 text-sm font-black tracking-[0.18em] text-white shadow-[0_12px_30px_rgba(28,25,23,0.16)] transition group-hover:scale-105 group-hover:bg-[#6d28d9] dark:bg-white dark:text-stone-950 dark:group-hover:text-white">MS</span>
+          <span className="hidden leading-none sm:block">
+            <span className="sf-header-logo-title block text-xl font-black tracking-[0.18em]">MONE</span>
+            <span className="sf-header-logo-subtitle mt-1 block text-[10px] font-semibold uppercase tracking-[0.32em] text-stone-500 dark:text-stone-400">{sfText("storefront.header.tagline", "Premium Shoes")}</span>
+          </span>
+        </Link>
+        <nav className="sf-collapsible-nav hidden items-center gap-1 text-sm font-bold text-stone-700 dark:text-stone-300 md:flex">
+          {navItems.map(([label, to]) => (
+            <NavLink
+              key={label}
+              to={to}
+              className={({ isActive }) => `sf-nav-link sf-header-nav-link relative rounded-full px-3 py-2 transition ${isActive ? "text-stone-950 dark:text-white" : "hover:text-stone-950 dark:hover:text-white"}`}
+            >
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="flex items-center justify-end gap-2">
+          <HeaderAction to="/shop/wishlist" label={sfText("storefront.header.wishlist", "المفضلة")} count={wishlistCount} icon={<Heart className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
+          <HeaderAction to="/shop/account" label={sfText("storefront.header.account", "الحساب")} icon={<User className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
+          <button onClick={onCart} className="sf-header-action sf-cart-action" aria-label={sfText("storefront.cart.title", "Cart")}>
+            <ShoppingCart className="h-5 w-5" />
+            {cartCount ? <span className="sf-action-badge">{cartCount}</span> : null}
+          </button>
+        </div>
+      </div>
+      <div className="sf-mobile-search bg-[#fcfaf6]/94 px-4 pb-3 pt-1 backdrop-blur transition-all duration-300 dark:bg-[#090d18]/96 md:hidden">
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => navigate("/shop/products")} className="flex h-12 items-center justify-center rounded-2xl border border-stone-200/90 bg-white/70 text-sm font-black text-stone-700 shadow-[0_12px_32px_rgba(39,20,75,0.055)] backdrop-blur dark:border-white/10 dark:bg-white/6 dark:text-stone-300">
+            {sfText("storefront.nav.categories", "الأقسام")}
+          </button>
+          <button type="button" onClick={onToggleTheme} className="flex h-12 items-center justify-center rounded-2xl border border-stone-200/90 bg-white/70 text-sm font-black text-stone-700 shadow-[0_12px_32px_rgba(39,20,75,0.055)] backdrop-blur dark:border-white/10 dark:bg-white/6 dark:text-stone-300">
+            {themeIsDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+        </div>
+      </div>
+      <div className={isCompact ? "hidden" : "block md:hidden"}>
+        <div className="grid gap-2 border-t border-stone-200 bg-white/96 px-4 py-4 text-sm font-bold backdrop-blur dark:border-white/10 dark:bg-[#0b1020]/96">
+          {navItems.map(([label, to]) => (
+            <Link key={label} to={to} className="rounded-2xl px-3 py-3 transition hover:bg-stone-100 dark:hover:bg-white/5 active:scale-[0.98]">
+              {label}
+            </Link>
+          ))}
+        </div>
+      </div>
+    </header>
+  );
+}
+
 const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProduct = null, colorOptions: providedColorOptions = null, selectedColor: providedSelectedColor = "", selectedVariant: providedSelectedVariant = null, availableSizes: providedAvailableSizes = null, wishlist, toggleWishlist, onAddToCart, railType = "default", rank = null, featured = false, density = "standard", sizeLimit = 4, eagerImage = false, imagePreset = "grid" }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -7057,12 +7154,18 @@ const OrderNumberBadge = ({ value, className = "" }) => {
 
 function Storefront() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [cart, setCart] = useState(() => readStorefrontStorage(CART_KEY, []));
   const [wishlist, setWishlist] = useState(() => readStorefrontStorage(WISHLIST_KEY, []));
   const [recent, setRecent] = useState(() => readStorefrontStorage(RECENT_KEY, []));
   const [profile, setProfile] = useState(() => readStorefrontStorage(PROFILE_KEY, { full_name: "", primary_phone: "", phone: "" }));
   const [themeMode, setThemeMode] = useState(() => readStorefrontStorage(THEME_KEY, "light"));
   const [routeReady, setRouteReady] = useState(false);
+  const cartCount = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const wishlistCount = wishlist.length;
+  const toggleThemeMode = useCallback(() => {
+    setThemeMode((current) => (current === "dark" ? "light" : "dark"));
+  }, []);
 
   useEffect(() => {
     setRouteReady(true);
@@ -7179,7 +7282,15 @@ function Storefront() {
   if (!routeReady) return <StorefrontPageFallback />;
 
   return (
-    <Routes>
+    <>
+      <Header
+        cartCount={cartCount}
+        wishlistCount={wishlistCount}
+        onCart={() => navigate("/shop/cart")}
+        effectiveTheme={themeMode}
+        onToggleTheme={toggleThemeMode}
+      />
+      <Routes>
       <Route
         index
         element={<HomePage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} themeMode={themeMode} />}
@@ -7240,7 +7351,8 @@ function Storefront() {
         path="*"
         element={<HomePage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} themeMode={themeMode} />}
       />
-    </Routes>
+      </Routes>
+    </>
   );
 }
 
@@ -7362,7 +7474,5 @@ function StorefrontWithBoundary() {
 }
 
 export default StorefrontWithBoundary;
-
-
 
 

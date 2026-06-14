@@ -49,6 +49,7 @@ import {
   searchAiOrderProducts,
   updateAiOrderStatus,
 } from "../services/aiAgentOrderService.js";
+import { productCardReplyText } from "../services/aiProductCards.js";
 import {
   buildAiSalesCloserPlan,
   buildAiSalesCloserLookupKeys,
@@ -2017,6 +2018,53 @@ const buildDraftOrderPaymentActions = ({ conversation = {}, order = {}, product 
   ];
 };
 
+const normalizeSelectedProductCard = (card = {}) => {
+  const safeSize = envText(card.size || card.selected_size || card.variant_size || (Array.isArray(card.sizes) ? card.sizes[0] : "") || "");
+  const safePrice = Number(card.price ?? card.final_price ?? card.sale_price ?? card.selling_price ?? 0);
+  const productName = envText(card.product_name || card.name || card.title || "");
+  const imageUrl = envText(card.image_url || card.image || card.main_image || card.selected_card_image_url || "");
+  const storefrontUrl = envText(card.storefront_url || card.product_url || card.url || "");
+  const productId = envText(card.product_id || card.productId || card.id || "");
+  const variantId = envText(card.variant_id || card.variantId || card.selected_variant_id || card.matched_variant_id || "");
+  const color = envText(card.color || card.display_color || card.variant_color || card.matched_variant_color || "");
+  return {
+    ...card,
+    product_id: productId,
+    variant_id: variantId,
+    product_name: productName,
+    name: productName,
+    title: productName,
+    image_url: imageUrl,
+    price: Number.isFinite(safePrice) && safePrice > 0 ? safePrice : null,
+    color,
+    size: safeSize,
+    storefront_url: storefrontUrl,
+    product_url: storefrontUrl,
+    url: storefrontUrl,
+  };
+};
+
+const formatProductCardPreviewText = (card = {}) => {
+  const name = envText(card.product_name || card.name || card.title || "");
+  const price = Number(card.price || 0) > 0 ? `EGP ${Number(card.price).toFixed(2)}` : "";
+  return [name, price].filter(Boolean).join(" / ");
+};
+
+const buildProductCardFallbackText = (cards = []) =>
+  cards
+    .map((card, index) =>
+      productCardReplyText({
+        name: card.product_name || card.name || card.title || `Product ${index + 1}`,
+        color: card.color || "",
+        available_sizes: card.size ? [card.size] : [],
+        sizes: card.size ? [card.size] : [],
+        price: card.price || 0,
+        product_url: card.storefront_url || card.product_url || card.url || "",
+      })
+    )
+    .filter(Boolean)
+    .join("\n\n");
+
 router.post("/conversations/:conversationId/create-draft-order", protect, permit("settings", "edit"), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
@@ -2338,6 +2386,172 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       meta_error: error?.metaResponse?.error || null,
     });
     return sendError(res, error, "Failed to send Meta message");
+  }
+});
+
+router.post("/conversations/:conversationId/product-card/send", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const conversationId = envText(req.params.conversationId);
+  const rawCards = Array.isArray(req.body?.product_cards)
+    ? req.body.product_cards
+    : Array.isArray(req.body?.productCards)
+      ? req.body.productCards
+      : Array.isArray(req.body?.selected_product_cards)
+        ? req.body.selected_product_cards
+        : [];
+  const productCards = rawCards.map(normalizeSelectedProductCard).filter((card) =>
+    Boolean(card.product_id || card.variant_id || card.product_name || card.image_url || card.storefront_url)
+  );
+  if (!productCards.length) {
+    return sendError(res, Object.assign(new Error("product_cards are required"), { status: 400 }), "product_cards are required");
+  }
+
+  let conversation = null;
+  try {
+    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 1000 });
+    conversation = inbox.conversations.find((item) =>
+      item.session_id === conversationId ||
+      item.external_conversation_id === conversationId ||
+      item.external_customer_id === conversationId
+    ) || null;
+    if (!conversation) {
+      throw Object.assign(new Error(`Conversation not found for tenant ${tenantId}: ${conversationId}`), {
+        status: 404,
+        code: "AI_INBOX_CONVERSATION_NOT_FOUND",
+      });
+    }
+
+    const channel = envText(conversation.channel || conversation.source || "");
+    const normalizedChannel = String(channel || "").toLowerCase();
+    const previewText = formatProductCardPreviewText(productCards[0] || {});
+    const fallbackText = buildProductCardFallbackText(productCards);
+    const externalCustomerId = envText(conversation.external_customer_id || conversation.customer_id || "");
+    const channelMetadata = conversation.channel_metadata || {};
+    let sendResult = { sent: true, delivery_status: "stored" };
+    let deliveryStatus = "stored";
+    let deliveryError = "";
+    let externalMessageId = "";
+
+    if (normalizedChannel === AI_AGENT_CHANNELS.WEB_CHAT || !normalizedChannel) {
+      sendResult = { sent: true, delivery_status: "stored" };
+    } else if (normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP) {
+      if (!externalCustomerId) {
+        throw Object.assign(new Error("Conversation has no WhatsApp recipient id."), { status: 409, code: "WHATSAPP_RECIPIENT_MISSING" });
+      }
+      sendResult = await sendWhatsAppCloudReply({
+        to: externalCustomerId,
+        reply: { text: fallbackText, product_cards: [] },
+        messageText: fallbackText,
+      });
+      deliveryStatus = sendResult.sent ? "sent" : "not_sent";
+      externalMessageId = sendResult.message_id || "";
+    } else if (normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER || normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM) {
+      if (!externalCustomerId) {
+        throw Object.assign(new Error("Conversation has no Meta recipient id."), { status: 409, code: "META_RECIPIENT_MISSING" });
+      }
+      sendResult = await sendMetaInboxOutboundMessage({
+        tenantId,
+        channel: normalizedChannel,
+        messageText: fallbackText,
+        recipientId: externalCustomerId,
+        conversationId,
+        pageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
+        instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
+      });
+      deliveryStatus = sendResult.sent ? "sent" : "not_sent";
+      externalMessageId = sendResult.message_id || "";
+    } else {
+      throw Object.assign(new Error(`Unsupported channel for product card send: ${normalizedChannel || "unknown"}`), {
+        status: 409,
+        code: "CHANNEL_SEND_UNAVAILABLE",
+      });
+    }
+
+    const message = await appendManualAiSupportReply({
+      tenantId,
+      sessionId: conversationId,
+      message: fallbackText,
+      previewMessage: previewText || fallbackText,
+      messageType: "product_card",
+      productCards,
+      staffUserId: req.user?.id || null,
+      staffUserName: userDisplayName(req.user),
+      source: "ai_inbox_product_card",
+      channel: normalizedChannel || conversation.channel || conversation.source || "web_chat",
+      deliveryStatus,
+      deliveryError,
+      externalMessageId,
+    });
+    await logChannelEvent({
+      tenantId,
+      channel: normalizedChannel || conversation.channel || conversation.source || AI_AGENT_CHANNELS.WEB_CHAT,
+      direction: "outbound",
+      externalCustomerId,
+      conversationId,
+      messagePreview: previewText || fallbackText,
+      status: deliveryStatus === "sent" || deliveryStatus === "stored" ? "sent" : deliveryStatus === "not_sent" ? "not_sent" : "failed",
+      metadata: {
+        source: "ai_inbox_product_card",
+        product_card_count: productCards.length,
+        message_type: "product_card",
+      },
+    }).catch(() => {});
+    await upsertChannelConversationMapping({
+      tenantId,
+      channel: normalizedChannel || conversation.channel || conversation.source || AI_AGENT_CHANNELS.WEB_CHAT,
+      externalConversationId: conversationId,
+      externalCustomerId,
+      customerName: conversation.customer_name || "",
+      metadata: {
+        ...channelMetadata,
+        source: "ai_inbox_product_card",
+        last_message: previewText || fallbackText,
+      },
+      lastMessage: previewText || fallbackText,
+      lastMessageAt: new Date().toISOString(),
+    }).catch(() => {});
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: conversationId, message, at: new Date().toISOString() });
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: new Date().toISOString() });
+
+    return res.status(201).json({
+      success: true,
+      sent: sendResult.sent === true,
+      delivery_status: deliveryStatus,
+      message,
+      product_cards: productCards,
+      meta: sendResult.meta || null,
+    });
+  } catch (error) {
+    console.error("ai_inbox_product_card_send_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      channel: conversation?.channel || conversation?.source || "",
+      code: error?.code || "",
+      message: error?.message || "Meta send failed",
+    });
+    if (tenantId && conversationId && productCards.length) {
+      const fallbackText = buildProductCardFallbackText(productCards);
+      const previewText = formatProductCardPreviewText(productCards[0] || {});
+      const failedMessage = await appendManualAiSupportReply({
+        tenantId,
+        sessionId: conversationId,
+        message: fallbackText,
+        previewMessage: previewText || fallbackText,
+        messageType: "product_card",
+        productCards,
+        staffUserId: req.user?.id || null,
+        staffUserName: userDisplayName(req.user),
+        source: "ai_inbox_product_card",
+        channel: conversation?.channel || conversation?.source || "web_chat",
+        deliveryStatus: "failed",
+        deliveryError: error?.message || "Product card send failed",
+      }).catch(() => null);
+      if (failedMessage) {
+        emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: conversationId, message: failedMessage, at: new Date().toISOString() });
+        emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: new Date().toISOString() });
+      }
+    }
+    return sendError(res, error, "Failed to send product cards");
   }
 });
 
