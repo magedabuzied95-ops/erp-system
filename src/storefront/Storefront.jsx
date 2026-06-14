@@ -3696,6 +3696,9 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [visualSearch, setVisualSearch] = useState({ active: false, keywords: [], message: "", error: "", previewUrl: "", fileName: "" });
+  const [imageSearchOpen, setImageSearchOpen] = useState(false);
+  const imageSearchResults = visualSearch;
+  const setImageSearchResults = setVisualSearch;
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [recentSearches, setRecentSearches] = useState(() => readJson(SEARCH_RECENT_KEY, []));
   const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
@@ -3782,6 +3785,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     }
     selectedVisualImageRef.current = null;
     setVisualSearch({ active: false, keywords: [], message: "", error: "", previewUrl: "", fileName: "" });
+    setImageSearchOpen(false);
   }, []);
 
   useEffect(() => {
@@ -3929,6 +3933,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
       visualPreviewUrlRef.current = previewUrl;
       setSearch(`بحث بالصورة: ${label}`);
       setSuggestions([]);
+      setImageSearchOpen(true);
       setVisualSearch({ active: true, keywords: [], message: "", error: "", previewUrl, fileName: file.name });
       setSearchLoading(true);
       setSearchOpen(true);
@@ -3950,6 +3955,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
           previewUrl,
           fileName: file.name,
         });
+        setImageSearchOpen(true);
       } catch (error) {
         const message =
           error?.responseBody?.message ||
@@ -3958,6 +3964,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
           "تعذر البحث بالصورة الآن";
         setSuggestions([]);
         setVisualSearch({ active: true, keywords: [], message: "", error: message, previewUrl, fileName: file.name });
+        setImageSearchOpen(true);
         toast.error(message);
       } finally {
         setSearchLoading(false);
@@ -4068,6 +4075,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
           onQuickAdd={handleQuickSearchAdd}
           onVoice={handleVoiceSearch}
           onImage={handleImageSearch}
+          imageSearchOpen={imageSearchOpen}
           className="hidden md:block"
         />
         <div className="flex items-center justify-end gap-2">
@@ -4138,6 +4146,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
         onQuickAdd={handleQuickSearchAdd}
         onVoice={handleVoiceSearch}
         onImage={handleImageSearch}
+        imageSearchOpen={imageSearchOpen}
         mobileOnly
       />
       {menuOpen ? (
