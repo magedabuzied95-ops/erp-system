@@ -4672,13 +4672,34 @@ export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageA
 
   const verification = await getPageSubscribedApps({ pageId: resolvedPageId, token });
   const verifiedFields = normalizeWebhookFields(verification.subscribed_fields);
-  result.subscribed_fields = verifiedFields.length ? verifiedFields : postedFields;
+  const subscribedFieldsBeforePersist = normalizeWebhookFields([
+    ...postedFields,
+    ...successfulCommentFields,
+    ...verifiedFields,
+  ]);
+  const subscribedFieldsVerifiedFromGraph = verifiedFields.length ? verifiedFields : [];
+  result.subscribed_fields = subscribedFieldsBeforePersist;
   result.verification_fields_source = verifiedFields.length ? "meta_get_subscribed_apps" : "post_subscribed_apps";
   result.app_installed = Boolean(verification.app_installed || verification.ok || result.post_subscription_success);
   result.page_subscription_present = Boolean(verification.page_subscription_present || verification.ok || result.post_subscription_success);
   result.missing_required_fields = META_WEBHOOK_REQUIRED_FIELDS.filter((field) => !hasRequiredWebhookFields(result.subscribed_fields, [field]));
   result.missing_optional_fields = META_WEBHOOK_COMMENT_FIELDS.filter((field) => !hasRequiredWebhookFields(result.subscribed_fields, [field]));
-  result.comments_available = META_WEBHOOK_COMMENT_FIELDS.some((field) => result.subscribed_fields.includes(field));
+  result.comments_available = result.subscribed_fields.includes("feed") || result.subscribed_fields.includes("comments") || result.subscribed_fields.includes("mentions");
+  console.log("[meta-webhook] subscribed_fields_before_persist", {
+    tenant_id: numberOrNull(tenantId),
+    facebook_page_id: maskIdForLog(resolvedPageId),
+    subscribed_fields: subscribedFieldsBeforePersist,
+  });
+  console.log("[meta-webhook] subscribed_fields_verified_from_graph", {
+    tenant_id: numberOrNull(tenantId),
+    facebook_page_id: maskIdForLog(resolvedPageId),
+    subscribed_fields: subscribedFieldsVerifiedFromGraph,
+  });
+  console.log("[meta-webhook] comments_available", {
+    tenant_id: numberOrNull(tenantId),
+    facebook_page_id: maskIdForLog(resolvedPageId),
+    comments_available: result.comments_available,
+  });
   result.subscribed_apps_verified = Boolean(result.app_installed && result.page_subscription_present && !result.missing_required_fields.length);
   result.subscribed_apps_status = result.subscribed_apps_verified ? "subscribed" : "not_subscribed";
   result.webhook_subscription_status = result.subscribed_apps_verified ? "subscribed" : "partial";
