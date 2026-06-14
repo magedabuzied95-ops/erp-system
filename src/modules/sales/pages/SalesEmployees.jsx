@@ -1,7 +1,7 @@
 ﻿import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { AlertTriangle, Banknote, BriefcaseBusiness, CalendarDays, Calculator, CheckCircle2, Coins, CreditCard, ExternalLink, Gavel, Gift, Loader2, Plus, ReceiptText, RefreshCw, Save, Search, ShieldCheck, TrendingUp, WalletCards, X } from "lucide-react";
+import { AlertTriangle, Banknote, BriefcaseBusiness, CalendarDays, Calculator, CheckCircle2, ChevronDown, Coins, CreditCard, ExternalLink, Gavel, Gift, Loader2, Plus, ReceiptText, RefreshCw, Save, Search, ShieldCheck, TrendingUp, WalletCards, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { featureFlags } from "../../../config/featureFlags";
@@ -1711,13 +1711,21 @@ function PayrollField({ label, value, onChange, type = "text", isRtl = false }) 
 
 function PayrollSelect({ label, value, onChange, options = [], isRtl = false }) {
   return (
-    <label className="h-[64px] rounded-2xl border border-[var(--border)] bg-black/10 px-4 pt-3 pb-2.5">
-      <span className={`block ${labelClass(isRtl, "text-[11px]")}`}>{label}</span>
-      <select dir={isRtl ? "rtl" : "ltr"} value={value} onChange={(e) => onChange(e.target.value)} className="mt-2.5 w-full bg-transparent text-start text-base font-semibold outline-none md:text-lg">
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>{option.label}</option>
-        ))}
-      </select>
+    <label data-payroll-selector="active" className="flex h-[72px] flex-col justify-center rounded-2xl border border-[var(--border)] bg-black/10 px-4 py-3">
+      <div className={`mb-2 text-xs font-bold leading-4 text-[var(--muted)] ${isRtl ? "text-right" : "text-left"}`}>{label}</div>
+      <div className="flex items-center justify-between gap-3">
+        <select
+          dir={isRtl ? "rtl" : "ltr"}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="min-w-0 flex-1 appearance-none bg-transparent text-base font-black leading-5 outline-none md:text-lg"
+        >
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+        <ChevronDown className="h-4 w-4 shrink-0 text-[var(--muted)]" />
+      </div>
     </label>
   );
 }
