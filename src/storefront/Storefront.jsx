@@ -751,6 +751,7 @@ const productTotalStock = (product = {}) => {
 const productStock = (product = {}) => productTotalStock(product);
 const isAvailableProduct = (product = {}) => productStock(product) > 0;
 const stockScore = (product = {}) => productTotalStock(product);
+const newestScore = (product = {}) => new Date(product.created_at || 0).getTime() || Number(product.id || 0);
 const hasSale = (product = {}) => {
   const sale = Number(product?.sale_price ?? product?.offer_price ?? 0);
   const regular = storefrontSellingPrice(product);
