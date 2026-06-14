@@ -4112,6 +4112,235 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
   );
 }
 
+function PremiumSearch({
+  value,
+  onChange,
+  onSubmit,
+  onOpen,
+  onClose,
+  open,
+  mobileOpen,
+  setMobileOpen,
+  placeholder,
+  suggestions = [],
+  loading = false,
+  recentSearches = [],
+  activeIndex,
+  setActiveIndex,
+  onPickTerm,
+  onPickProduct,
+  onVoice,
+  onImage,
+  className = "",
+  mobileOnly = false,
+}) {
+  const inputRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const chips = value.trim() ? [] : [...recentSearches, ...TRENDING_SEARCHES].filter(Boolean);
+  const keyboardItems = [...suggestions.map((item) => ({ type: "product", item })), ...chips.map((term) => ({ type: "term", term }))];
+
+  useEffect(() => {
+    if (mobileOpen) {
+      const timer = window.setTimeout(() => inputRef.current?.focus(), 80);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [mobileOpen]);
+
+  const handleKeyDown = (event) => {
+    if (event.key === "Escape") {
+      onClose();
+      return;
+    }
+    if (!keyboardItems.length) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveIndex((current) => (current + 1) % keyboardItems.length);
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveIndex((current) => (current <= 0 ? keyboardItems.length - 1 : current - 1));
+    }
+    if (event.key === "Enter" && activeIndex >= 0) {
+      const selected = keyboardItems[activeIndex];
+      if (selected?.type === "product") {
+        event.preventDefault();
+        onPickProduct(selected.item);
+      } else if (selected?.term) {
+        event.preventDefault();
+        onPickTerm(selected.term);
+      }
+    }
+  };
+
+  const searchInput = (
+    <form onSubmit={onSubmit} className="relative">
+      <div className="group relative overflow-hidden rounded-[1.35rem] border border-white/50 bg-white/72 shadow-[0_18px_50px_rgba(39,20,75,0.10)] backdrop-blur-2xl transition duration-300 focus-within:border-[#a78bfa]/70 focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(124,58,237,0.10),0_24px_70px_rgba(109,40,217,0.18)] dark:border-white/10 dark:bg-white/[0.075] dark:focus-within:bg-white/[0.10]">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_20%,rgba(216,180,254,0.22),transparent_28%)] opacity-0 transition group-focus-within:opacity-100" />
+        <Search className="pointer-events-none absolute right-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-[#7c3aed] dark:text-[#d8b4fe]" />
+        <input
+          ref={inputRef}
+          value={value}
+          onFocus={onOpen}
+          onChange={(event) => {
+            onChange(event.target.value);
+            setActiveIndex(-1);
+          }}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          className="relative z-10 h-13 w-full bg-transparent pr-12 pl-24 text-sm font-bold text-stone-950 outline-none placeholder:text-stone-400 dark:text-white dark:placeholder:text-stone-500 md:h-12"
+          aria-label="Search storefront"
+          role="combobox"
+          aria-expanded={Boolean(open || mobileOpen)}
+        />
+        <div className="absolute left-2 top-1/2 z-20 flex -translate-y-1/2 items-center gap-1.5">
+          <button type="button" onClick={onVoice} className="grid h-8 w-8 place-items-center rounded-full bg-stone-950/5 text-stone-600 transition hover:bg-[#7c3aed] hover:text-white dark:bg-white/8 dark:text-stone-200" aria-label="Voice search">
+            <Mic className="h-4 w-4" />
+          </button>
+          <button type="button" onClick={() => fileInputRef.current?.click()} className="grid h-8 w-8 place-items-center rounded-full bg-stone-950/5 text-stone-600 transition hover:bg-[#7c3aed] hover:text-white dark:bg-white/8 dark:text-stone-200" aria-label="Image search">
+            <ImagePlus className="h-4 w-4" />
+          </button>
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onImage} />
+        </div>
+      </div>
+    </form>
+  );
+
+  const resultsPanel = (
+    <div className="rounded-[1.6rem] border border-white/60 bg-white/92 p-3 text-stone-950 shadow-[0_28px_90px_rgba(15,23,42,0.22)] backdrop-blur-2xl dark:border-white/10 dark:bg-[#090d18]/96 dark:text-white">
+      <SearchQuickSections
+        value={value}
+        loading={loading}
+        suggestions={suggestions}
+        chips={chips}
+        activeIndex={activeIndex}
+        onPickTerm={onPickTerm}
+        onPickProduct={onPickProduct}
+      />
+    </div>
+  );
+
+  if (mobileOnly) {
+    if (!mobileOpen) return null;
+    return (
+      <div className="fixed inset-0 z-[100] bg-[#070b16]/88 p-4 pt-[calc(1rem+env(safe-area-inset-top))] text-white backdrop-blur-2xl md:hidden" dir="rtl">
+        <div className="mx-auto flex h-full max-w-xl flex-col">
+          <div className="sticky top-0 z-10 flex items-center gap-2 pb-4">
+            <div className="min-w-0 flex-1">{searchInput}</div>
+            <button type="button" onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/8 text-white">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            {resultsPanel}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`relative w-full max-w-[520px] justify-self-center transition-all duration-300 ${open ? "max-w-[640px]" : ""} ${className}`}>
+      {open ? <button type="button" onClick={onClose} className="fixed inset-0 z-40 hidden bg-stone-950/24 backdrop-blur-[2px] md:block" aria-label="Close search" /> : null}
+      <div className="relative z-50">
+        {searchInput}
+        {open ? <div className="absolute left-0 right-0 top-full mt-3 animate-[sfFadeUp_180ms_ease-out_both]">{resultsPanel}</div> : null}
+      </div>
+    </div>
+  );
+}
+
+function SearchQuickSections({ value, loading, suggestions, chips, activeIndex, onPickTerm, onPickProduct }) {
+  const query = value.trim();
+  return (
+    <div className="grid gap-3">
+      {query ? (
+        <div>
+          <div className="mb-2 flex items-center justify-between px-1">
+            <span className="text-xs font-black text-stone-500 dark:text-stone-400">نتائج ذكية</span>
+            {loading ? <span className="text-[11px] font-bold text-[#7c3aed]">جاري البحث...</span> : null}
+          </div>
+          <div className="grid gap-1.5">
+            {suggestions.length ? suggestions.map((product, index) => (
+              <SearchResultRow
+                key={product.id}
+                product={product}
+                active={activeIndex === index}
+                onPickProduct={onPickProduct}
+              />
+            )) : (
+              <button type="button" onClick={() => onPickTerm(query)} className="rounded-2xl border border-dashed border-stone-200 p-4 text-right text-sm font-black text-stone-600 dark:border-white/10 dark:text-stone-300">
+                ابحث عن “{query}”
+              </button>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {!query ? (
+        <>
+          <SearchChips title="الأكثر بحثًا" items={TRENDING_SEARCHES} onPick={onPickTerm} />
+          {chips.length ? <SearchChips title="بحثت مؤخرًا" items={chips.slice(0, 6)} onPick={onPickTerm} /> : null}
+          <div className="grid gap-2 sm:grid-cols-3">
+            <SearchQuickCard title="الأقسام" items={SEARCH_FALLBACK_SECTIONS.categories} onPick={onPickTerm} />
+            <SearchQuickCard title="البراندات" items={SEARCH_FALLBACK_SECTIONS.brands} onPick={onPickTerm} />
+            <SearchQuickCard title="ستايلات" items={SEARCH_FALLBACK_SECTIONS.styles} onPick={onPickTerm} />
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function SearchChips({ title, items, onPick }) {
+  return (
+    <div>
+      <div className="mb-2 px-1 text-xs font-black text-stone-500 dark:text-stone-400">{title}</div>
+      <div className="flex flex-wrap gap-2">
+        {[...new Set(items)].slice(0, 8).map((item) => (
+          <button key={item} type="button" onClick={() => onPick(item)} className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1.5 text-xs font-black text-stone-700 transition hover:border-[#7c3aed]/40 hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
+            {item}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SearchQuickCard({ title, items, onPick }) {
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-stone-50/80 p-3 dark:border-white/10 dark:bg-white/5">
+      <div className="mb-2 text-xs font-black text-stone-500 dark:text-stone-400">{title}</div>
+      <div className="grid gap-1">
+        {items.map((item) => (
+          <button key={item} type="button" onClick={() => onPick(item)} className="rounded-xl px-2 py-1.5 text-right text-xs font-bold text-stone-700 transition hover:bg-white dark:text-stone-200 dark:hover:bg-white/8">
+            {item}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SearchResultRow({ product, active, onPickProduct }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onPickProduct(product)}
+      className={`flex items-center gap-3 rounded-2xl p-2 text-right transition hover:bg-[#f7f4ee] active:scale-[0.99] dark:hover:bg-white/5 ${active ? "bg-[#f5f3ff] dark:bg-white/8" : ""}`}
+    >
+      <img src={imageFor(product.image_url)} alt="" className="h-14 w-14 rounded-2xl bg-stone-100 object-cover shadow-sm dark:bg-white/5" loading="lazy" />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-black">{product.name}</div>
+        <div className="truncate text-xs font-bold text-stone-500 dark:text-stone-400">
+          {[product.category, product.brand, product.style, product.grade].filter(Boolean).join(" / ") || product.sizes?.slice(0, 4).join(" / ") || "مقاسات متاحة"}
+        </div>
+      </div>
+      <div className="rounded-full bg-stone-950 px-3 py-1 text-xs font-black text-white dark:bg-white dark:text-stone-950">{money(product.sale_price || product.price)}</div>
+    </button>
+  );
+}
+
 const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProduct = null, colorOptions: providedColorOptions = null, selectedColor: providedSelectedColor = "", selectedVariant: providedSelectedVariant = null, availableSizes: providedAvailableSizes = null, wishlist, toggleWishlist, onAddToCart, railType = "default", rank = null, featured = false, density = "standard", sizeLimit = 4, eagerImage = false, imagePreset = "grid" }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
