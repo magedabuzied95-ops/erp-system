@@ -4364,6 +4364,10 @@ const updateWebhookSubscriptionStatus = async ({ tenantId, status = {}, webhookE
 };
 
 export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageAccessToken = "" } = {}) => {
+  console.log("[meta-webhook] subscribeMetaPageToWebhooks_entered", {
+    tenant_id: numberOrNull(tenantId),
+    function: "subscribeMetaPageToWebhooks",
+  });
   console.log("[meta-webhook] subscribeMetaPageToWebhooks_step", {
     tenant_id: numberOrNull(tenantId),
     function: "subscribeMetaPageToWebhooks",

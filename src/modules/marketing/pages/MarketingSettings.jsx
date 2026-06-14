@@ -419,6 +419,10 @@ export default function MarketingSettings() {
         setSetupCheck(setupResult.value);
       }
       return diagnostics;
+      console.log("[meta-ui] verify_webhook_response", {
+        error: false,
+        note: "request completed without thrown exception",
+      });
     } finally {
       setDiagnosticsLoading(false);
     }
@@ -696,12 +700,29 @@ export default function MarketingSettings() {
   };
 
   const runWebhookSelfTest = async () => {
+    console.log("[meta-ui] verify_webhook_clicked", {
+      component: "MarketingSettings",
+      handler: "runWebhookSelfTest",
+    });
     setWebhookSelfTestLoading(true);
     try {
+      console.log("[meta-ui] verify_webhook_request", {
+        endpoint: "/api/meta/webhook-enable",
+        request: "enableMetaWebhookSubscription({}, { suppressErrorStatuses: [400, 403, 404, 409, 500] })",
+      });
       const [result, subscription] = await Promise.all([
         getMetaWebhookSelfTest({ suppressErrorStatuses: [400, 403, 404, 409, 500] }),
         enableMetaWebhookSubscription({}, { suppressErrorStatuses: [400, 403, 404, 409, 500] }),
       ]);
+      console.log("[meta-ui] verify_webhook_response", {
+        self_test_success: Boolean(result?.success),
+        subscription_success: subscription?.success,
+        subscription_status: subscription?.subscription?.webhook_enabled,
+        response_preview: {
+          result,
+          subscription,
+        },
+      });
       setWebhookSelfTest(result);
       if (result?.success && subscription?.success !== false) {
         toast.success("تم التحقق من اشتراك Webhook");

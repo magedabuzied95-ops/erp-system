@@ -205,6 +205,10 @@ webhookRouter.get("/webhook-health", protect, permit("settings", "view"), async 
 });
 
 webhookRouter.post("/webhook-enable", protect, permit("settings", "edit"), async (req, res) => {
+  console.log("[meta-webhook] webhook_enable_route_entered", {
+    tenant_id: toTenantId(req),
+    function: "webhookRouter.post('/webhook-enable')",
+  });
   try {
     const tenantId = toTenantId(req);
     const subscription = await verifyMetaWebhookEnablement({ tenantId });
