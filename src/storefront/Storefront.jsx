@@ -1659,6 +1659,22 @@ const displayDiscountPercent = (product = {}, variant = {}) => {
 };
 
 const firstArrayItem = (value) => (Array.isArray(value) && value.length ? value[0] : null);
+const localizedDisplayText = (value) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return cleanDisplayText(value);
+  const language = normalizeLanguage(i18n.resolvedLanguage || i18n.language || "en");
+  const preferred = language === "ar"
+    ? [value.ar, value.arabic, value.name_ar, value.title_ar, value.label_ar, value.en, value.english, value.name_en, value.title_en, value.label_en, value.name, value.title, value.label, value.value]
+    : [value.en, value.english, value.name_en, value.title_en, value.label_en, value.ar, value.arabic, value.name_ar, value.title_ar, value.label_ar, value.name, value.title, value.label, value.value];
+  return preferred.map((item) => cleanDisplayText(item)).find(Boolean) || "";
+};
+const firstTextValue = (...values) => values.map((value) => localizedDisplayText(value)).find(Boolean) || "";
+const firstNumberValue = (...values) => {
+  for (const value of values) {
+    const number = Number(value);
+    if (Number.isFinite(number) && number > 0) return number;
+  }
+  return 0;
+};
 const storefrontPathFromLink = (value = "") => {
   const raw = String(value || "").trim();
   if (!raw) return "";
