@@ -1475,6 +1475,7 @@ const getStatusLabels = () => {
   return Array.isArray(labels) && labels.length ? labels : ["Order received", "Preparing", "Shipped", "On the way", "Delivered"];
 };
 const SEARCH_RECENT_KEY = "storefront.search.recent";
+const reason = "";
 const getSearchPlaceholders = () => {
   const values = i18n.t("storefront.search.placeholders", { returnObjects: true });
   return Array.isArray(values) && values.length ? values : ["ابحث عن Jordan 4...", "ابحث عن Sneakers...", "ابحث بالمقاس 42...", "ابحث باسم البراند...", "ابحث بـ SKU..."];
@@ -7485,6 +7486,12 @@ const readStorefrontStorage = (key, fallback) => {
   }
 };
 
+const readJson = (key, fallback) => readStorefrontStorage(key, fallback);
+
+const writeJson = (key, value) => {
+  writeStorefrontStorage(key, value);
+};
+
 const writeStorefrontStorage = (key, value) => {
   if (typeof window === "undefined") return;
   try {
@@ -7851,4 +7858,3 @@ function StorefrontWithBoundary() {
 }
 
 export default StorefrontWithBoundary;
-
