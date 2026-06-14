@@ -213,6 +213,12 @@ webhookRouter.post("/webhook-enable", protect, permit("settings", "edit"), async
     const message = subscription.error || (success ? "Webhook subscription verified" : "Unable to enable Meta webhook subscription");
     res.status(success ? 200 : 400).json({ success, message, data: { subscription, status }, subscription, status });
   } catch (error) {
+    console.error("[meta-webhook] webhook_enable_route_failed", {
+      tenant_id: toTenantId(req),
+      function: "webhookRouter.post('/webhook-enable')",
+      message: error?.message || "unknown",
+      stack: error?.stack || "",
+    });
     sendError(res, error, "Unable to enable Meta webhook subscription");
   }
 });

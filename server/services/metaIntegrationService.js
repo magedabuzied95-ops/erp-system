@@ -95,6 +95,11 @@ const META_WEBHOOK_SUBSCRIBED_FIELDS = [
   "message_reads",
   "message_echoes",
 ];
+const META_WEBHOOK_COMMENT_FIELDS = [
+  "feed",
+  "comments",
+  "mentions",
+];
 const META_WEBHOOK_MINIMAL_FIELDS = [
   "messages",
   "messaging_postbacks",
@@ -4359,14 +4364,48 @@ const updateWebhookSubscriptionStatus = async ({ tenantId, status = {}, webhookE
 };
 
 export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageAccessToken = "" } = {}) => {
+  console.log("[meta-webhook] subscribeMetaPageToWebhooks_step", {
+    tenant_id: numberOrNull(tenantId),
+    function: "subscribeMetaPageToWebhooks",
+    step: "ensureMetaIntegrationSchema_start",
+  });
   await ensureMetaIntegrationSchema();
+  console.log("[meta-webhook] subscribeMetaPageToWebhooks_step", {
+    tenant_id: numberOrNull(tenantId),
+    function: "subscribeMetaPageToWebhooks",
+    step: "ensureMetaIntegrationSchema_done",
+  });
   console.log("[meta-webhook] meta_verify_webhook_action_start", {
     tenant_id: numberOrNull(tenantId),
     page_id_requested: maskIdForLog(pageId),
     page_token_provided: Boolean(text(pageAccessToken)),
   });
+  console.log("[meta-webhook] subscribeMetaPageToWebhooks_step", {
+    tenant_id: numberOrNull(tenantId),
+    function: "subscribeMetaPageToWebhooks",
+    step: "getRealMetaIntegrationConfig_start",
+  });
   let row = await getRealMetaIntegrationConfig({ tenantId, facebookPageId: pageId });
-  if (!row) row = await repairMetaConfigFromMarketingSettings({ tenantId });
+  console.log("[meta-webhook] subscribeMetaPageToWebhooks_step", {
+    tenant_id: numberOrNull(tenantId),
+    function: "subscribeMetaPageToWebhooks",
+    step: "getRealMetaIntegrationConfig_done",
+    found_row: Boolean(row),
+  });
+  if (!row) {
+    console.log("[meta-webhook] subscribeMetaPageToWebhooks_step", {
+      tenant_id: numberOrNull(tenantId),
+      function: "subscribeMetaPageToWebhooks",
+      step: "repairMetaConfigFromMarketingSettings_start",
+    });
+    row = await repairMetaConfigFromMarketingSettings({ tenantId });
+    console.log("[meta-webhook] subscribeMetaPageToWebhooks_step", {
+      tenant_id: numberOrNull(tenantId),
+      function: "subscribeMetaPageToWebhooks",
+      step: "repairMetaConfigFromMarketingSettings_done",
+      found_row: Boolean(row),
+    });
+  }
   if (!row) {
     const error = Object.assign(new Error("Meta integration config row is missing. Reconnect Meta so the selected page can be persisted before verifying the webhook."), { status: 409 });
     console.error("[meta-webhook] meta_verify_webhook_action_result", {
@@ -4378,7 +4417,19 @@ export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageA
     throw error;
   }
   const resolvedPageId = text(pageId || row?.facebook_page_id);
+  console.log("[meta-webhook] subscribeMetaPageToWebhooks_step", {
+    tenant_id: numberOrNull(tenantId),
+    function: "subscribeMetaPageToWebhooks",
+    step: "resolve_token_start",
+    config_id: row?.id || null,
+  });
   const token = text(pageAccessToken) || (row ? getTokenForConfig(row) : "");
+  console.log("[meta-webhook] subscribeMetaPageToWebhooks_step", {
+    tenant_id: numberOrNull(tenantId),
+    function: "subscribeMetaPageToWebhooks",
+    step: "resolve_token_done",
+    token_saved: Boolean(token),
+  });
   console.log("[meta-webhook] meta_verify_webhook_config_selected", {
     tenant_id: numberOrNull(tenantId),
     config_id: row?.id || null,
@@ -4391,13 +4442,13 @@ export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageA
   });
   const result = {
     page_id: resolvedPageId,
-    requested_fields: META_WEBHOOK_SUBSCRIBED_FIELDS,
+    requested_fields: [...META_WEBHOOK_SUBSCRIBED_FIELDS, ...META_WEBHOOK_COMMENT_FIELDS],
     fallback_requested_fields: META_WEBHOOK_MINIMAL_FIELDS,
     subscribed_fields: [],
     required_fields: META_WEBHOOK_REQUIRED_FIELDS,
     missing_required_fields: META_WEBHOOK_REQUIRED_FIELDS,
-    missing_optional_fields: META_WEBHOOK_SUBSCRIBED_FIELDS,
-    comment_events_source: "feed",
+    missing_optional_fields: META_WEBHOOK_COMMENT_FIELDS,
+    comment_events_source: "feed|comments|mentions",
     comments_available: false,
     subscribed_apps_status: "not_subscribed",
     webhook_subscription_status: "not_subscribed",
@@ -4486,8 +4537,38 @@ export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageA
       return result;
     }
   }
+
+  const subscribedFieldsSet = new Set(postedFields);
+  const optionalCommentFields = [...META_WEBHOOK_COMMENT_FIELDS];
+  const successfulCommentFields = [];
+  for (const field of optionalCommentFields) {
+    try {
+      const nextFields = normalizeWebhookFields([...subscribedFieldsSet, field]);
+      await postSubscription(nextFields);
+      for (const currentField of nextFields) subscribedFieldsSet.add(currentField);
+      successfulCommentFields.push(field);
+      console.log("[meta-webhook] meta_subscribed_apps_success", {
+        tenant_id: numberOrNull(tenantId),
+        facebook_page_id: maskIdForLog(resolvedPageId),
+        subscribed_fields: nextFields,
+        optional_field: field,
+      });
+    } catch (error) {
+      console.warn("[meta-webhook] meta_subscribed_apps_optional_field_failed", {
+        tenant_id: numberOrNull(tenantId),
+        facebook_page_id: maskIdForLog(resolvedPageId),
+        subscribed_fields: [...subscribedFieldsSet, field],
+        optional_field: field,
+        message: error?.message || "Meta rejected optional webhook field",
+        meta: error?.meta || null,
+      });
+    }
+  }
+
+  postedFields = normalizeWebhookFields([...subscribedFieldsSet]);
   result.post_subscription_success = true;
   result.posted_fields = postedFields;
+  result.optional_comment_fields_success = successfulCommentFields;
 
   const verification = await getPageSubscribedApps({ pageId: resolvedPageId, token });
   const verifiedFields = normalizeWebhookFields(verification.subscribed_fields);
@@ -4496,8 +4577,8 @@ export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageA
   result.app_installed = Boolean(verification.app_installed || verification.ok || result.post_subscription_success);
   result.page_subscription_present = Boolean(verification.page_subscription_present || verification.ok || result.post_subscription_success);
   result.missing_required_fields = META_WEBHOOK_REQUIRED_FIELDS.filter((field) => !hasRequiredWebhookFields(result.subscribed_fields, [field]));
-  result.missing_optional_fields = META_WEBHOOK_SUBSCRIBED_FIELDS.filter((field) => !hasRequiredWebhookFields(result.subscribed_fields, [field]));
-  result.comments_available = result.subscribed_fields.includes("feed");
+  result.missing_optional_fields = META_WEBHOOK_COMMENT_FIELDS.filter((field) => !hasRequiredWebhookFields(result.subscribed_fields, [field]));
+  result.comments_available = META_WEBHOOK_COMMENT_FIELDS.some((field) => result.subscribed_fields.includes(field));
   result.subscribed_apps_verified = Boolean(result.app_installed && result.page_subscription_present && !result.missing_required_fields.length);
   result.subscribed_apps_status = result.subscribed_apps_verified ? "subscribed" : "not_subscribed";
   result.webhook_subscription_status = result.subscribed_apps_verified ? "subscribed" : "partial";
@@ -4515,6 +4596,9 @@ export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageA
     webhook_enabled: result.webhook_enabled,
     webhook_verified: result.webhook_verified,
     subscribed_apps_verified: result.subscribed_apps_verified,
+    subscribed_fields: result.subscribed_fields,
+    optional_comment_fields_success: successfulCommentFields,
+    missing_optional_fields: result.missing_optional_fields,
     error: result.error || "",
   });
   return {
@@ -4526,7 +4610,21 @@ export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageA
 };
 
 export const verifyMetaWebhookEnablement = async ({ tenantId } = {}) => {
-  return subscribeMetaPageToWebhooks({ tenantId });
+  try {
+    console.log("[meta-webhook] verifyMetaWebhookEnablement_start", {
+      tenant_id: numberOrNull(tenantId),
+      function: "verifyMetaWebhookEnablement",
+    });
+    return await subscribeMetaPageToWebhooks({ tenantId });
+  } catch (error) {
+    console.error("[meta-webhook] verifyMetaWebhookEnablement_failed", {
+      tenant_id: numberOrNull(tenantId),
+      function: "verifyMetaWebhookEnablement",
+      message: error?.message || "unknown",
+      stack: error?.stack || "",
+    });
+    throw error;
+  }
 };
 
 const buildMissingItems = (items = []) => items.filter((item) => !item.done).map((item) => item.label);
