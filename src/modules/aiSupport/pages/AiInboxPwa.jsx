@@ -259,11 +259,25 @@ const conversationPreview = (conversation = {}) => {
 };
 
 const productUrl = (card = {}) => {
-  const raw = clean(card.storefront_url || card.product_url || card.url || "");
+  const raw = clean(card.product_url || card.storefront_url || card.url || "");
   if (raw) return raw;
   const productId = card.product_id || card.id || "";
   if (!productId) return "";
   return `/shop/product/${encodeURIComponent(productId)}`;
+};
+
+const buildProductCardUrl = (product = {}, variant = null, selectedColor = "") => {
+  const productId = product.product_id ?? product.id ?? "";
+  if (!productId) return "";
+
+  const baseUrl = `/shop/product/${encodeURIComponent(productId)}`;
+  const color = clean(selectedColor);
+  if (!color) return baseUrl;
+
+  const variantId = clean(variant?.id ?? "");
+  if (!variantId) return `${baseUrl}?color=${encodeURIComponent(color)}`;
+
+  return `${baseUrl}?variant=${encodeURIComponent(variantId)}&color=${encodeURIComponent(color)}`;
 };
 
 const productCardPreviewText = (cards = []) => {
@@ -275,7 +289,7 @@ const productCardPreviewText = (cards = []) => {
   return [name, color, size, price > 0 ? money(price) : ""].filter(Boolean).join(" - ");
 };
 
-const buildProductCardPayload = (product = {}, variant = null) => ({
+const buildProductCardPayload = (product = {}, variant = null, selectedColor = "") => ({
   product_id: product.product_id ?? product.id ?? null,
   variant_id: variant?.variant_id ?? variant?.id ?? null,
   product_name: clean(product.name || product.product_name || product.title || ""),
@@ -296,9 +310,10 @@ const buildProductCardPayload = (product = {}, variant = null) => ({
       product.price ??
       0
   ) || 0,
-  color: clean(variant?.color || variant?.color_name || ""),
+  color: clean(selectedColor || variant?.color || variant?.color_name || ""),
   size: clean(variant?.size || variant?.size_name || ""),
-  storefront_url: clean(product.storefront_url || product.product_url || product.url || productUrl(product)),
+  product_url: buildProductCardUrl(product, variant, selectedColor),
+  storefront_url: buildProductCardUrl(product, variant, selectedColor),
 });
 
 const productColors = (product = {}) =>
@@ -706,7 +721,10 @@ function ProductSheet({
     }
     return findVariant(selectedProduct || {}, "", "");
   }, [requiresVariantSelection, selectedColor, selectedProduct, selectedSize]);
-  const card = useMemo(() => (selectedProduct ? buildProductCardPayload(selectedProduct, variant) : null), [selectedProduct, variant]);
+  const card = useMemo(
+    () => (selectedProduct ? buildProductCardPayload(selectedProduct, variant, selectedColor) : null),
+    [selectedColor, selectedProduct, variant]
+  );
   const canSend = Boolean(
     selectedConversation?.session_id &&
       selectedProduct &&
@@ -1459,16 +1477,45 @@ export default function AiInboxPwa() {
       if (!selectedConversation?.session_id || !cards.length) return;
       setProductSending(true);
       try {
+        const sentCards = cards.map((card) => {
+          const exactUrl = clean(card.product_url || card.storefront_url || productUrl(card));
+          return {
+            ...card,
+            product_url: exactUrl,
+            storefront_url: exactUrl,
+          };
+        });
         const payload = await api.post(
           aiInboxConversationEndpoint(selectedConversation.session_id, "/product-card/send"),
           {
             tenant_id: tenantId,
-            product_cards: cards,
+            product_cards: sentCards,
           },
           { headers, perfComponent: "AiInboxPwa.productCard" }
         );
 
         const returnedMessage = payload?.message || null;
+        const returnedCards = normalizeProductCardsValue(returnedMessage?.product_cards || returnedMessage?.productCards);
+        const normalizedCards = returnedCards.length
+          ? returnedCards.map((card, index) => {
+              const fallbackCard = sentCards[index] || sentCards[0] || {};
+              const exactUrl = clean(
+                card.product_url ||
+                  card.storefront_url ||
+                  card.url ||
+                  fallbackCard.product_url ||
+                  fallbackCard.storefront_url ||
+                  productUrl(card) ||
+                  productUrl(fallbackCard)
+              );
+              return {
+                ...fallbackCard,
+                ...card,
+                product_url: exactUrl,
+                storefront_url: exactUrl,
+              };
+            })
+          : sentCards;
         patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({
           ...conversation,
           messages: returnedMessage
@@ -1476,12 +1523,12 @@ export default function AiInboxPwa() {
                 ...asArray(conversation.messages),
                 {
                   ...returnedMessage,
-                  product_cards: normalizeProductCardsValue(returnedMessage.product_cards || returnedMessage.productCards || cards),
+                  product_cards: normalizedCards,
                 },
               ])
             : conversation.messages,
           latest_message_preview:
-            productCardPreviewText(cards) ||
+            productCardPreviewText(sentCards) ||
             returnedMessage?.staff_message ||
             returnedMessage?.message_text ||
             "Product sent",
