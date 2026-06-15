@@ -735,122 +735,55 @@ function InboxChatHeader({
   onBack,
   onToggleAi,
   onAssign,
-  onTakeover,
-  onReturnToAi,
   onClose,
-  onOpenTools,
   showBack = false,
 }) {
   if (!conversation) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
   const avatarUrl = customerAvatarUrl(conversation);
   const name = isMessengerConversation(conversation) ? messengerDisplayName(conversation) : getConversationDisplayName(conversation);
-  const phone = clean(conversation.phone || conversation.customer_phone || conversation.external_customer_id || conversation.customer_profile?.phone);
   const channel = conversation.channel || conversation.source || "web_chat";
-  const channelMetadata = conversation.channel_metadata || {};
-  const threadKind = clean(conversation.thread_kind || channelMetadata.thread_kind || "");
-  const isCommentThread = channel.includes("_comment") || threadKind === "comment";
-  const postId = clean(channelMetadata.post_id || "");
-  const postPermalink = clean(channelMetadata.post_permalink || "");
-  const commenterName = clean(channelMetadata.commenter_name || conversation.customer_name || "");
-  const commentText = clean(channelMetadata.original_comment_text || "");
   const aiEnabled = isConversationAiEnabled(conversation) && status !== "closed";
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.05] p-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.18)] backdrop-blur">
-      <div className="flex items-start justify-between gap-2.5">
-        <div className="flex min-w-0 items-start gap-2.5">
+    <div className="rounded-3xl border border-white/10 bg-white/[0.05] px-2.5 py-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)] backdrop-blur">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-start gap-2">
           {showBack ? (
-            <button type="button" onClick={onBack} className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] text-slate-100 md:hidden">
+            <button type="button" onClick={onBack} className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] text-slate-100 md:hidden">
               <ChevronLeft className="h-5 w-5" />
             </button>
           ) : null}
           {avatarUrl ? (
-            <img src={avatarUrl} alt="" className="h-12 w-12 shrink-0 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
+            <img src={avatarUrl} alt="" className="h-11 w-11 shrink-0 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
           ) : (
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/[0.07] text-slate-200"><User className="h-5 w-5" /></span>
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/[0.07] text-slate-200"><User className="h-5 w-5" /></span>
           )}
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="truncate text-lg font-black text-white">{name}</div>
+              <div className="truncate text-[17px] font-black leading-5 text-white">{name}</div>
+              <Pill tone={isWhatsappChannel(channel) ? "emerald" : channel.includes("instagram") ? "rose" : channel.includes("messenger") ? "cyan" : "zinc"}>{channelBadgeLabel(channel)}</Pill>
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
-              <Pill tone={isWhatsappChannel(channel) ? "emerald" : "cyan"}>{channelBadgeLabel(channel)}</Pill>
-              <span className="text-slate-700">/</span>
-              <span dir="ltr" className="truncate">{phone || conversation.external_customer_id || conversation.session_id}</span>
-              <span className="text-slate-700">/</span>
-              <span>{channelLabel(channel)}</span>
-            </div>
-            {isCommentThread ? (
-              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-cyan-100">
-                <Pill tone="cyan">تعليق</Pill>
-                {commenterName ? <Pill tone="zinc">{commenterName}</Pill> : null}
-                <Pill tone="zinc">{channelLabel(channel)}</Pill>
-                {postId ? <Pill tone="zinc">post_id: {postId}</Pill> : null}
-                {commentText ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-slate-200">نص التعليق: {commentText}</span> : null}
-                {postPermalink ? (
-                  <a href={postPermalink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 font-black text-cyan-100">
-                    فتح المنشور
-                    <ArrowUpRight className="h-3.5 w-3.5" />
-                  </a>
-                ) : null}
-              </div>
-            ) : null}
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
           <button
             type="button"
             onClick={() => onToggleAi?.()}
             disabled={loading}
-            className={`inline-flex h-9 items-center gap-2 rounded-2xl px-3 text-[11px] font-black transition disabled:opacity-50 ${
+            className={`inline-flex h-8 items-center gap-1.5 rounded-2xl px-2.5 text-[11px] font-black transition disabled:opacity-50 ${
               aiEnabled ? "bg-emerald-300 text-slate-950" : "border border-white/10 bg-white/[0.06] text-slate-100"
             }`}
           >
             <Bot className="h-3.5 w-3.5" />
             AI {aiEnabled ? "ON" : "OFF"}
           </button>
-          <button type="button" onClick={onOpenTools} className="inline-flex h-9 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-3 text-[11px] font-black text-slate-100">
-            <MoreVertical className="h-3.5 w-3.5" />
-            Tools
-          </button>
-        </div>
-      </div>
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        <Pill tone={status === "closed" ? "rose" : status === "human_takeover" ? "amber" : "emerald"}>
-          {status === "closed" ? <LockKeyhole className="h-3 w-3" /> : status === "human_takeover" ? <PauseCircle className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
-          {status === "closed" ? "Closed" : status === "human_takeover" ? "Human takeover" : "AI active"}
-        </Pill>
-        <Pill tone={(channelStatus.live_operational || channelStatus.effective_enabled || channelStatus.messaging_active) ? "emerald" : "amber"}>
-          <Radio className="h-3 w-3" />
-          {(channelStatus.live_operational || channelStatus.effective_enabled || channelStatus.messaging_active) ? "Live channel" : "Channel standby"}
-        </Pill>
-        {conversation.unread_count ? <Pill tone="rose">غير مقروء {conversation.unread_count}</Pill> : null}
-        {conversation.assigned_user_name || conversation.assigned_user?.name ? <Pill tone="zinc"><UserCheck className="h-3.5 w-3.5" />{conversation.assigned_user_name || conversation.assigned_user?.name}</Pill> : null}
-        <div className="ms-auto flex flex-wrap items-center gap-2">
-          {status === "closed" ? (
-            <button type="button" onClick={onReturnToAi} disabled={loading} className="inline-flex h-9 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50">
-              <PlayCircle className="h-4 w-4" />
-              Reopen
-            </button>
-          ) : (
-            <>
-              <button type="button" onClick={onTakeover} disabled={loading || status === "human_takeover"} className="inline-flex h-9 items-center gap-2 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 text-xs font-black text-amber-100 disabled:opacity-50">
-                <Handshake className="h-4 w-4" />
-                Take over
-              </button>
-              <button type="button" onClick={onReturnToAi} disabled={loading || status !== "human_takeover"} className="inline-flex h-9 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50">
-                <PlayCircle className="h-4 w-4" />
-                Return to AI
-              </button>
-              <button type="button" onClick={onClose} disabled={loading} className="inline-flex h-9 items-center gap-2 rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 text-xs font-black text-rose-100 disabled:opacity-50">
-                <LockKeyhole className="h-4 w-4" />
-                Close
-              </button>
-            </>
-          )}
-          <button type="button" onClick={onAssign} disabled={loading} className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-xs font-black text-slate-100">
-            <UserPlus className="h-4 w-4" />
+          <button type="button" onClick={onAssign} disabled={loading} className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.06] px-2.5 text-[11px] font-black text-slate-100">
+            <UserPlus className="h-3.5 w-3.5" />
             Assign
+          </button>
+          <button type="button" onClick={onClose} disabled={loading} className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-rose-300/20 bg-rose-400/10 px-2.5 text-[11px] font-black text-rose-100 disabled:opacity-50">
+            <LockKeyhole className="h-3.5 w-3.5" />
+            Close
           </button>
         </div>
       </div>

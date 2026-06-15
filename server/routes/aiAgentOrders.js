@@ -1865,20 +1865,41 @@ router.post("/comments/:commentId/reply", protect, permit("settings", "edit"), a
     });
   } catch (error) {
     const errorMessage = error?.message || "Meta public reply failed";
-    const failedMessage = await appendManualAiSupportReply({
-      tenantId,
-      sessionId,
-      message: replyText,
-      messageType: "comment_public_reply",
-      staffUserId: req.user?.id || null,
-      staffUserName: userDisplayName(req.user),
-      source: "ai_inbox_comment_reply",
-      channel: replyChannel,
-      deliveryStatus: "failed",
-      deliveryError: errorMessage,
-      externalMessageId: "",
-      externalReplyId: "",
-    }).catch(() => null);
+    const failureCode = !error?.status || /fetch failed|network|timeout|ENOTFOUND|ECONNREFUSED/i.test(errorMessage)
+      ? "transport_failed"
+      : "meta_reply_failed";
+    let failedMessage = null;
+    try {
+      failedMessage = await appendManualAiSupportReply({
+        tenantId,
+        sessionId,
+        message: replyText,
+        messageType: "comment_public_reply",
+        staffUserId: req.user?.id || null,
+        staffUserName: userDisplayName(req.user),
+        source: "ai_inbox_comment_reply",
+        channel: replyChannel,
+        deliveryStatus: "failed",
+        deliveryError: errorMessage,
+        externalMessageId: "",
+        externalReplyId: "",
+      });
+    } catch (persistError) {
+      console.error("[ai-inbox][comment-reply] failed to persist transcript", {
+        tenant_id: tenantId,
+        comment_id: commentRun.comment_id,
+        platform,
+        message: persistError?.message || "",
+      });
+      failedMessage = {
+        message_type: "comment_public_reply",
+        sender_type: "staff",
+        staff_message: replyText,
+        delivery_status: "failed",
+        delivery_error: errorMessage,
+        created_at: nowIso,
+      };
+    }
 
     await db.query(
       `
@@ -1889,13 +1910,11 @@ router.post("/comments/:commentId/reply", protect, permit("settings", "edit"), a
           updated_at = CURRENT_TIMESTAMP
       WHERE tenant_id = $1::bigint AND platform = $2::text AND comment_id = $3::text
       `,
-      [tenantId, commentRun.platform || platform, commentRun.comment_id, error?.code || "META_COMMENT_REPLY_FAILED", sessionId]
+      [tenantId, commentRun.platform || platform, commentRun.comment_id, failureCode, sessionId]
     ).catch(() => {});
 
-    if (failedMessage) {
-      emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: sessionId, message: failedMessage, at: nowIso });
-      emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: sessionId, at: nowIso });
-    }
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: sessionId, message: failedMessage, at: nowIso });
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: sessionId, at: nowIso });
 
     console.error("[ai-inbox][comment-reply] failed", {
       tenant_id: tenantId,
@@ -1904,11 +1923,14 @@ router.post("/comments/:commentId/reply", protect, permit("settings", "edit"), a
       code: error?.code || "",
       message: errorMessage,
     });
-    return sendError(
-      res,
-      Object.assign(new Error(errorMessage), { status: error?.status || 502, code: error?.code || "META_COMMENT_REPLY_FAILED" }),
-      "Failed to send comment reply"
-    );
+    return res.status(error?.status || 502).json({
+      success: false,
+      delivery_status: "failed",
+      message: errorMessage,
+      code: failureCode,
+      comment_id: commentRun.comment_id,
+      reply_text: replyText,
+    });
   }
 });
 
