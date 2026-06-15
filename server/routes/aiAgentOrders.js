@@ -2877,6 +2877,13 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
           reply: { text: messageText },
           messageText,
         });
+        if (!sendResult?.sent) {
+          throw Object.assign(new Error("WhatsApp send was not delivered"), {
+            status: 502,
+            code: "WHATSAPP_SEND_FAILED",
+            sendResult,
+          });
+        }
       } catch (error) {
         if (!isWhatsAppStoredOnlyIssue(error)) throw error;
         const message = await appendManualAiSupportReply({
@@ -3020,6 +3027,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       code: error?.code || "",
       message: error?.message || "Meta send failed",
       meta_error: error?.metaResponse?.error || null,
+      response_body: error?.responseBody || error?.sendResult?.results?.[0] || null,
     });
     return res.status(error?.status || 502).json({
       success: false,
@@ -3073,6 +3081,23 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
     const fallbackText = buildProductCardFallbackText(productCards);
     const externalCustomerId = envText(conversation.external_customer_id || conversation.customer_id || "");
     const channelMetadata = conversation.channel_metadata || {};
+    console.info("[ai-inbox][product-card-send][request]", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      channel,
+      normalized_channel: normalizedChannel,
+      recipient_present: Boolean(externalCustomerId),
+      product_cards: productCards.map((card) => ({
+        product_id: card.product_id || card.id || "",
+        variant_id: card.variant_id || card.selected_variant_id || "",
+        name: card.product_name || card.name || card.title || "",
+        color: card.color || "",
+        size: card.size || "",
+        price: card.price ?? "",
+        product_url: card.product_url || card.storefront_url || card.url || "",
+        image_url: card.image_url || card.image || "",
+      })),
+    });
     let sendResult = { sent: true, delivery_status: "stored" };
     let deliveryStatus = "stored";
     let deliveryError = "";

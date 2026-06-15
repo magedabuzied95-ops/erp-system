@@ -1211,12 +1211,25 @@ const postWhatsAppMessage = async ({ payload, config }) => {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
+    console.error("[whatsapp-cloud-send] failed", {
+      status: response.status,
+      response_body: data,
+      payload_type: payload?.type || payload?.messaging_product || "unknown",
+      source: "aiChannelAdapterService",
+    });
     const error = Object.assign(new Error(data?.error?.message || "WhatsApp Cloud API send failed"), {
       status: response.status,
       responseBody: data,
     });
     throw error;
   }
+  console.info("[whatsapp-cloud-send] success", {
+    status: response.status,
+    message_id: data?.messages?.[0]?.id || data?.message_id || "",
+    response_body: data,
+    payload_type: payload?.type || payload?.messaging_product || "unknown",
+    source: "aiChannelAdapterService",
+  });
   return data;
 };
 
@@ -1254,7 +1267,7 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
   if (productCards.length || imageCards.length) {
     const firstCard = productCards[0] || {};
     console.info("[CHANNEL_CARD_PAYLOAD]", {
-      channel: normalized,
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
       product_cards_count: productCards.length,
       image_cards_count: imageCards.length,
       first_card: {

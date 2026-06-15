@@ -672,11 +672,11 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
             ) : null}
             {!hasProductCards && isStaff ? (
               <div className="flex justify-start">
-                <div className="max-w-[82%] rounded-[20px] rounded-bl-md bg-slate-900 px-3 py-2 text-white shadow-sm">
-                  <div className="mb-1 text-[10px] font-medium text-slate-300">
+                <div className={`max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ${message.delivery_status === "failed" ? "bg-rose-950 text-rose-50 ring-1 ring-rose-200" : "bg-slate-900 text-white"}`}>
+                  <div className={`mb-1 text-[10px] font-medium ${message.delivery_status === "failed" ? "text-rose-200" : "text-slate-300"}`}>
                     {message.message_type === "internal_note" ? "Internal Note" : "Team"} · {absoluteTime(message.created_at)}
                   </div>
-                  <p dir="auto" className="whitespace-pre-wrap break-words text-[14px] leading-5.5 text-white">{message.staff_message}</p>
+                  <p dir="auto" className={`whitespace-pre-wrap break-words text-[14px] leading-5.5 ${message.delivery_status === "failed" ? "text-rose-50" : "text-white"}`}>{message.staff_message}</p>
                 </div>
               </div>
             ) : null}
@@ -1618,6 +1618,18 @@ export default function AiInboxPwa() {
             product_url: exactUrl,
             storefront_url: exactUrl,
           };
+        });
+        console.debug("[AiInboxPwa][product-card-send]", {
+          conversation_id: selectedConversation.session_id || "",
+          product_cards: sentCards.map((card) => ({
+            product_id: card.product_id || card.id || "",
+            name: card.product_name || card.name || card.title || "",
+            color: card.color || "",
+            size: card.size || "",
+            price: card.price ?? "",
+            product_url: card.product_url || "",
+            image_url: card.image_url || card.image || "",
+          })),
         });
         const payload = await api.post(
           aiInboxConversationEndpoint(normalizeConversationSessionId(selectedConversation.session_id, selectedConversation.channel || selectedConversation.source || selectedConversation.provider || selectedConversation.platform || ""), "/product-card/send"),
