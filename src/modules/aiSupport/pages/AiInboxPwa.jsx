@@ -1068,6 +1068,7 @@ export default function AiInboxPwa() {
   const conversationHeaderRef = useRef(null);
   const imageInputRef = useRef(null);
   const pollRef = useRef(null);
+  const restoreScrollStateRef = useRef(null);
   const markReadSignatureRef = useRef("");
   const readAtByConversationRef = useRef({});
 
@@ -1360,12 +1361,23 @@ export default function AiInboxPwa() {
   }, [markConversationAsRead, selectedConversation, tab]);
 
   useLayoutEffect(() => {
-    if (!selectedConversation || tab !== "conversations") return;
+    if (!selectedConversation || tab !== "conversations") return undefined;
     const scroller = mainScrollRef.current;
-    if (scroller) {
-      scroller.scrollTo({ top: 0, behavior: "auto" });
-    }
-  }, [selectedConversation, tab]);
+    if (!scroller) return undefined;
+
+    const restoreState = restoreScrollStateRef.current;
+    const frame = window.requestAnimationFrame(() => {
+      if (!scroller) return;
+      if (restoreState) {
+        scroller.scrollTop = Math.max(0, restoreState.scrollTop + (scroller.scrollHeight - restoreState.scrollHeight));
+        restoreScrollStateRef.current = null;
+        return;
+      }
+      scroller.scrollTop = scroller.scrollHeight;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [selectedConversation, selectedConversation?.last_activity_at, selectedConversation?.messages?.length, selectedConversation?.updated_at, tab]);
 
   useLayoutEffect(() => {
     if (!selectedConversation || tab !== "conversations") {
@@ -1397,6 +1409,13 @@ export default function AiInboxPwa() {
     if (!selectedConversation?.session_id || olderLoading) return;
     const before = selectedConversation.next_messages_before || selectedConversation.messages?.[0]?.created_at || "";
     if (!before) return;
+    const scroller = mainScrollRef.current;
+    if (scroller) {
+      restoreScrollStateRef.current = {
+        scrollHeight: scroller.scrollHeight,
+        scrollTop: scroller.scrollTop,
+      };
+    }
     setOlderLoading(true);
     try {
       const payload = await api.get(aiInboxConversationEndpoint(selectedConversation.session_id, "/messages"), {
