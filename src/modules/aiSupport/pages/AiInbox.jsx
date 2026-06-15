@@ -1051,13 +1051,6 @@ function ConversationActions({ conversation, channelStatus = {}, loading, assign
   );
 }
 
-const quickReplies = [
-  "المقاسات المتاحة؟",
-  "فيه ألوان تانية؟",
-  "ابعت لينك الطلب",
-  "متاح دفع عند الاستلام؟",
-];
-
 function CommentReplyDraftPanel({ draftText = "", onLoadDraft, onCopyDraft, loading }) {
   const value = clean(draftText);
   if (!value) return null;
@@ -1116,21 +1109,6 @@ function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraf
         action={canSendLive ? <Pill tone="emerald"><Radio className="h-3.5 w-3.5" />Live send ready</Pill> : <Pill tone="amber">Live channel unavailable</Pill>}
       />
       {status !== "human_takeover" && canSendLive && !isCommentConversation ? <div className="mb-2 rounded-xl border border-cyan-300/15 bg-cyan-300/8 p-1.5 text-[11px] font-bold text-cyan-100">Sending a staff reply will take over this conversation and pause AI automation.</div> : null}
-      <div className="mb-1.5 flex max-h-14 flex-wrap gap-1.5 overflow-hidden">
-        {quickReplies.slice(0, 3).map((reply) => (
-          <button key={reply} type="button" onClick={() => onChange(reply)} className="rounded-full border border-white/10 bg-white/[0.055] px-2.5 py-0.5 text-[10px] font-bold leading-5 text-slate-200 hover:border-cyan-300/30">{reply}</button>
-        ))}
-        <details className="group">
-          <summary className="list-none cursor-pointer rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-bold leading-5 text-slate-400 hover:border-cyan-300/30">
-            More
-          </summary>
-          <div className="mt-1 flex flex-wrap gap-1.5">
-            {quickReplies.slice(3).map((reply) => (
-              <button key={reply} type="button" onClick={() => onChange(reply)} className="rounded-full border border-white/10 bg-white/[0.055] px-2.5 py-0.5 text-[10px] font-bold leading-5 text-slate-200 hover:border-cyan-300/30">{reply}</button>
-            ))}
-          </div>
-        </details>
-      </div>
       {isCommentConversation ? (
         <div className="mb-2">
           <CommentReplyDraftPanel
