@@ -5,7 +5,7 @@ import {
   upsertChannelConversationMapping,
 } from "./aiChannelAdapterService.js";
 import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
-import { normalizeEgyptPhone, sendTextMessage } from "./whatsappGatewayService.js";
+import { normalizeEgyptPhone, sendOrderConfirmationInteractiveMessage, sendTextMessage } from "./whatsappGatewayService.js";
 import { buildInvoiceReceiptWhatsappMessage, buildPublicInvoiceUrl, buildWhatsappTextDebug } from "../utils/whatsapp.js";
 import { normalizeArabicIntentPayload } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
@@ -252,7 +252,29 @@ export const sendOrderConfirmation = async (order = {}) => {
   if (!shouldSend) return { sent: false, reason };
   const items = Array.isArray(order.items) && order.items.length ? order.items : await loadOrderItems(current.id);
   const message = buildConfirmationMessage(current, items);
-  const result = await sendTextMessage({ phone, message });
+  const title = "✅ تأكيد الطلب";
+  const footer = "اختر الإجراء المناسب";
+  let result = null;
+  let deliveryMode = "interactive";
+  try {
+    result = await sendOrderConfirmationInteractiveMessage({
+      phone,
+      title,
+      text: message,
+      footer,
+    });
+  } catch (error) {
+    deliveryMode = "text";
+    console.warn("[whatsapp:order-confirmation-buttons-fallback]", {
+      orderId: current?.id || null,
+      orderNumber: orderNumber(current),
+      phoneSuffix: phone.slice(-4),
+      message: error?.message || String(error),
+      code: error?.code || "",
+      status: error?.status || "",
+    });
+    result = await sendTextMessage({ phone, message });
+  }
   await db.query(
     `
     UPDATE orders
@@ -266,8 +288,9 @@ export const sendOrderConfirmation = async (order = {}) => {
     orderId: current.id,
     orderNumber: orderNumber(current),
     phoneSuffix: phone.slice(-4),
+    deliveryMode,
   });
-  return { sent: true, order: current, result };
+  return { sent: true, order: current, result, delivery_mode: deliveryMode, used_buttons: deliveryMode === "interactive" };
 };
 
 export const sendPaymentReviewNotification = async (order = {}) => {
@@ -523,7 +546,7 @@ export const markOrderCancelled = async (orderId) => {
 
 const tenantIdForMessage = (message = {}, order = null) => number(message.tenant_id || message.tenantId || order?.tenant_id || process.env.WHATSAPP_TENANT_ID || 1, 1);
 
-const forwardToAiInbox = async ({ message = {}, order = null } = {}) => {
+const forwardToAiInbox = async ({ message = {}, order = null, needsFollowup = false } = {}) => {
   const phone = normalizeEgyptPhone(message.phone || message.from || message.sender || "");
   const body = text(message.normalized_for_intent || message.text || message.message_text || message.body);
   const originalBody = text(message.original_message || message.text || message.message_text || message.body);
@@ -601,14 +624,23 @@ const forwardToAiInbox = async ({ message = {}, order = null } = {}) => {
       sources_used, suggested_products, visual_attachments, suggested_actions, detected_intent, fallback_reason,
       sender_type, channel, customer_name, last_message, insert_source
     )
-    VALUES ($1, $2, $3, $3, '', 0, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'whatsapp_customer_reply', 'whatsapp_order_confirmation_other_reply', 'customer', 'whatsapp', $4, $3, $5)
+    VALUES ($1, $2, $3, $3, '', 0, $6, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'whatsapp_customer_reply', $7, 'customer', 'whatsapp', $4, $3, $5)
     `,
-    [tenantId, conversationId, originalBody, text(order?.customer_name), "whatsapp_order_confirmation"]
+    [
+      tenantId,
+      conversationId,
+      originalBody,
+      text(order?.customer_name),
+      needsFollowup ? "whatsapp_order_confirmation_needs_followup" : "whatsapp_order_confirmation",
+      needsFollowup,
+      needsFollowup ? "whatsapp_order_confirmation_followup" : "whatsapp_order_confirmation_other_reply",
+    ]
   );
   console.info("[ai-support-insert]", {
     source: "whatsapp_order_confirmation",
     session_id: conversationId,
     channel: "whatsapp",
+    needs_followup: needsFollowup,
   });
   await logChannelEvent({
     tenantId,
@@ -617,16 +649,17 @@ const forwardToAiInbox = async ({ message = {}, order = null } = {}) => {
     externalCustomerId: phone,
     conversationId,
     messagePreview: originalBody,
-    status: "forwarded_to_ai",
-    metadata: { source: "evolution_api", order_id: order?.id || null },
+    status: needsFollowup ? "needs_followup" : "forwarded_to_ai",
+    metadata: { source: "evolution_api", order_id: order?.id || null, needs_followup: needsFollowup },
   }).catch(() => {});
   console.info("[whatsapp:order-forwarded-to-ai]", {
     tenantId,
     conversationId,
     phoneSuffix: phone.slice(-4),
     orderId: order?.id || null,
+    needsFollowup,
   });
-  return { forwarded: true, conversation_id: conversationId };
+  return { forwarded: true, conversation_id: conversationId, needs_followup: needsFollowup };
 };
 
 export const processConfirmationReply = async (message = {}) => {
@@ -635,6 +668,8 @@ export const processConfirmationReply = async (message = {}) => {
   const intentPayload = normalizeArabicIntentPayload(originalBody);
   const body = text(message.normalized_for_intent || intentPayload.normalizedForIntent || message.text || message.message_text || message.body);
   const reply = normalizedReply(body);
+  const replySignal = normalizedReply([originalBody, body, message.interactive?.button_reply?.id, message.interactive?.button_reply?.title, message.button?.payload, message.button?.text].filter(Boolean).join(" "));
+  const compactReplySignal = replySignal.replace(/[\uFE0F\u20E3]/g, "").trim();
   const productAlias = resolveProductAlias(originalBody || body);
   console.log("[arabic-intent-signals]", {
     channel: AI_AGENT_CHANNELS.WHATSAPP,
@@ -653,11 +688,93 @@ export const processConfirmationReply = async (message = {}) => {
   });
   const order = await findPendingOrderByPhone(phone);
   const hasSignal = (...names) => names.some((name) => (intentPayload.canonicalSignals || []).includes(name));
-  if (order && (CONFIRM_WORDS.has(reply) || hasSignal("yes", "confirm"))) {
+  const replyMatches = (haystack = "", ...needles) => {
+    const safeHaystack = text(haystack).toLowerCase();
+    return needles.some((needle) => safeHaystack.includes(text(needle).toLowerCase()));
+  };
+  const isConfirmShortcut = order && (
+    /^1(\b|$)/.test(compactReplySignal) ||
+    replyMatches(compactReplySignal, "confirm order", "confirm_order", "button confirm_order", "تأكيد الطلب")
+  );
+  const isPostponeShortcut = order && (
+    /^2(\b|$)/.test(compactReplySignal) ||
+    replyMatches(compactReplySignal, "postpone delivery", "postpone_delivery", "button postpone_delivery", "delay delivery", "تأجيل التسليم")
+  );
+  const isCancelShortcut = order && (
+    /^3(\b|$)/.test(compactReplySignal) ||
+    replyMatches(compactReplySignal, "cancel order", "cancel_order", "button cancel_order", "إلغاء الطلب")
+  );
+  if (isConfirmShortcut) {
     const confirmed = await markOrderConfirmed(order.id);
     return { action: "confirmed", order: confirmed };
   }
-  if (order && (CANCEL_WORDS.has(reply) || hasSignal("no", "reject", "cancel"))) {
+  if (isPostponeShortcut) {
+    const forwarded = await forwardToAiInbox({
+      message: {
+        ...message,
+        phone,
+        text: originalBody,
+        original_message: originalBody,
+        normalized_for_intent: body,
+        canonical_signals: intentPayload.canonicalSignals,
+        intent_tokens: intentPayload.intentTokens,
+      },
+      order,
+      needsFollowup: true,
+    });
+    return { action: "needs_followup", order, ...forwarded };
+  }
+  if (isCancelShortcut) {
+    const cancelled = await markOrderCancelled(order.id);
+    return { action: "cancelled", order: cancelled };
+  }
+  const isConfirmReply = order && (
+    CONFIRM_WORDS.has(reply) ||
+    hasSignal("yes", "confirm") ||
+    /^1(\b|$)/.test(replySignal) ||
+    replySignal.includes("confirm order") ||
+    replySignal.includes("تأكيد الطلب") ||
+    replySignal.includes("confirm_order") ||
+    replySignal.includes("button confirm_order")
+  );
+  const isPostponeReply = order && (
+    /^2(\b|$)/.test(replySignal) ||
+    replySignal.includes("postpone delivery") ||
+    replySignal.includes("delay delivery") ||
+    replySignal.includes("تأجيل التسليم") ||
+    replySignal.includes("postpone_delivery") ||
+    replySignal.includes("button postpone_delivery")
+  );
+  const isCancelReply = order && (
+    CANCEL_WORDS.has(reply) ||
+    hasSignal("no", "reject", "cancel") ||
+    /^3(\b|$)/.test(replySignal) ||
+    replySignal.includes("cancel order") ||
+    replySignal.includes("إلغاء الطلب") ||
+    replySignal.includes("cancel_order") ||
+    replySignal.includes("button cancel_order")
+  );
+  if (isConfirmReply) {
+    const confirmed = await markOrderConfirmed(order.id);
+    return { action: "confirmed", order: confirmed };
+  }
+  if (isPostponeReply) {
+    const forwarded = await forwardToAiInbox({
+      message: {
+        ...message,
+        phone,
+        text: originalBody,
+        original_message: originalBody,
+        normalized_for_intent: body,
+        canonical_signals: intentPayload.canonicalSignals,
+        intent_tokens: intentPayload.intentTokens,
+      },
+      order,
+      needsFollowup: true,
+    });
+    return { action: "needs_followup", order, ...forwarded };
+  }
+  if (isCancelReply) {
     const cancelled = await markOrderCancelled(order.id);
     return { action: "cancelled", order: cancelled };
   }

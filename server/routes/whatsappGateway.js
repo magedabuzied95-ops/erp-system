@@ -7,12 +7,11 @@ import {
   handleIncomingWebhook,
   loadOrderForWhatsapp,
   normalizeEgyptPhone,
-  sendOrderConfirmationMessage,
   sendTextMessage,
   triggerWhatsappAiAutoReply,
   verifyWebhookSecret,
 } from "../services/whatsappGatewayService.js";
-import { processConfirmationReply } from "../services/whatsappOrderConfirmationService.js";
+import { processConfirmationReply, sendOrderConfirmation } from "../services/whatsappOrderConfirmationService.js";
 
 const router = express.Router();
 
@@ -80,7 +79,7 @@ router.post("/order-confirmation/:orderId", protect, permit("orders", "edit"), a
       orderNumber: order.public_order_number || order.display_order_number || order.invoice_number || order.order_number || String(order.id),
       phoneSuffix: normalizeEgyptPhone(order.customer_phone).slice(-4),
     });
-    const result = await sendOrderConfirmationMessage({ order });
+    const result = await sendOrderConfirmation({ ...order, items: order.items || [] });
     return res.json({ success: true, order_id: order.id, result });
   } catch (error) {
     return sendError(res, error, "Failed to send order confirmation");

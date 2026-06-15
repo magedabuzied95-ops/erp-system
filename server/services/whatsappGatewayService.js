@@ -381,25 +381,186 @@ export const sendImageMessage = async ({ phone, imageUrl, caption = "" } = {}) =
   }
 };
 
+const buildOrderConfirmationButtonsPayload = ({ phone = "", title = "", text = "", footer = "" } = {}) => {
+  const safeTitle = String(title || "").trim();
+  const safeText = String(text || "").trim();
+  const safeFooter = String(footer || "").trim();
+  return {
+    number: normalizeEgyptPhone(phone),
+    title: safeTitle,
+    text: safeText,
+    footer: safeFooter,
+    buttons: [
+      { buttonId: "confirm_order", buttonText: "✅ تأكيد الطلب", type: 1 },
+      { buttonId: "postpone_delivery", buttonText: "⏳ تأجيل التسليم", type: 1 },
+      { buttonId: "cancel_order", buttonText: "❌ إلغاء الطلب", type: 1 },
+    ],
+  };
+};
+
+const evolutionButtonsEndpoints = (instanceNameValue = "") => [
+  `/message/sendButtons/${encodeURIComponent(instanceNameValue)}`,
+  `/message/sendButton/${encodeURIComponent(instanceNameValue)}`,
+  `/message/sendInteractive/${encodeURIComponent(instanceNameValue)}`,
+];
+
+const orderSummaryLines = (items = []) =>
+  (Array.isArray(items) ? items : [])
+    .filter(Boolean)
+    .slice(0, 8)
+    .map((item) => {
+      const name = text(item.product_name || item.name || item.title, "منتج");
+      const variant = text(item.variant_name || [item.color, item.size].filter(Boolean).join(" / "));
+      const quantity = Math.max(1, Number(item.quantity || item.qty || 1));
+      return `- ${name}${variant ? ` (${variant})` : ""} x${quantity}`;
+    });
+
+export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "", text = "", footer = "" } = {}) => {
+  if (provider() !== "evolution") {
+    throw gatewayError("Interactive buttons are only supported on the Evolution provider", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
+  }
+  const normalizedPhone = normalizeEgyptPhone(phone);
+  if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
+  const current = requireEvolutionConfig();
+  const payload = buildOrderConfirmationButtonsPayload({ phone: normalizedPhone, title, text, footer });
+  const requestBody = JSON.stringify(payload);
+  const payloadPreview = {
+    number: payload.number,
+    title: payload.title,
+    textLength: payload.text.length,
+    footerLength: payload.footer.length,
+    buttonIds: payload.buttons.map((button) => button.buttonId),
+  };
+  console.info("[whatsapp:evolution-buttons-send-start]", {
+    provider: current.provider,
+    instanceName: current.instanceName,
+    phoneSuffix: normalizedPhone.slice(-4),
+    payload_preview: payloadPreview,
+  });
+
+  let lastError = null;
+  for (const endpoint of evolutionButtonsEndpoints(current.instanceName)) {
+    try {
+      console.info("[evolution:send-buttons-request]", {
+        provider: current.provider,
+        instanceName: current.instanceName,
+        url: `${current.apiUrl}${endpoint}`,
+        endpoint,
+        number: normalizedPhone,
+        payload_shape: {
+          number: "string",
+          title: "string",
+          text: "string",
+          footer: "string",
+          buttons: "array",
+        },
+      });
+      const response = await fetch(`${current.apiUrl}${endpoint}`, {
+        method: "POST",
+        headers: {
+          apikey: apiKey(),
+          "Content-Type": "application/json",
+        },
+        body: requestBody,
+      });
+      const raw = await response.text();
+      let data = null;
+      try {
+        data = raw ? JSON.parse(raw) : null;
+      } catch {
+        data = { raw };
+      }
+      console.info("[whatsapp:evolution-buttons-response]", {
+        provider: current.provider,
+        instanceName: current.instanceName,
+        endpoint,
+        status_code: response.status,
+        ok: response.ok,
+        number: normalizedPhone,
+        response_body: data,
+        response_raw: raw,
+      });
+      if (!response.ok) {
+        throw gatewayError(data?.message || data?.error || `Evolution API returned ${response.status}`, "EVOLUTION_API_ERROR", response.status, {
+          data,
+          responseBody: data,
+          responseRaw: raw,
+        });
+      }
+      return {
+        success: true,
+        provider: current.provider,
+        instanceName: current.instanceName,
+        phone: normalizedPhone,
+        result: data,
+        endpoint,
+        delivery_mode: "interactive",
+        used_buttons: true,
+      };
+    } catch (error) {
+      lastError = error;
+      console.warn("[whatsapp:evolution-buttons-send-failed]", {
+        provider: current.provider,
+        instanceName: current.instanceName,
+        endpoint,
+        number: normalizedPhone,
+        message: error?.message || String(error),
+        code: error?.code || "",
+        status: error?.status || "",
+        response_body: error?.data || error?.responseBody || null,
+        response_raw: error?.responseRaw || "",
+      });
+    }
+  }
+  throw lastError || gatewayError("Evolution buttons send failed", "EVOLUTION_BUTTONS_SEND_FAILED", 500);
+};
+
 export const buildOrderConfirmationMessage = (order = {}) => {
   const customerName = text(order.customer_name || order.customerName || order.name, "عميلنا");
   const orderNumber = text(order.public_order_number || order.display_order_number || order.invoice_number || order.order_number || order.id, "-");
   const totalAmount = money(order.total_amount ?? order.grand_total ?? order.total ?? order.net_total);
+  const summary = orderSummaryLines(order.items);
   return `أهلاً يا ${customerName} 
 طلبك من M1 Store جاهز للتأكيد.
 
 رقم الطلب: ${orderNumber}
+${summary.length ? `${summary.join("\n")}\n` : ""}
 الإجمالي: ${totalAmount} جنيه
 
-للتاكيد رد بـ 1
-للإلغاء رد بـ 2`;
+1 تأكيد الطلب
+2 تأجيل التسليم
+3 إلغاء الطلب`;
 };
 
 export const sendOrderConfirmationMessage = async ({ order } = {}) => {
   if (!order) throw gatewayError("Order is required", "WHATSAPP_ORDER_REQUIRED", 400);
   const phone = order.customer_phone || order.phone || order.whatsapp || order.mobile;
   const message = buildOrderConfirmationMessage(order);
-  return sendTextMessage({ phone, message });
+  const title = "✅ تأكيد الطلب";
+  const footer = "اختر الإجراء المناسب";
+  try {
+    return await sendOrderConfirmationInteractiveMessage({
+      phone,
+      title,
+      text: message,
+      footer,
+    });
+  } catch (error) {
+    console.warn("[whatsapp:order-confirmation-buttons-fallback]", {
+      orderId: order?.id || null,
+      phoneSuffix: normalizeEgyptPhone(phone).slice(-4),
+      message: error?.message || String(error),
+      code: error?.code || "",
+      status: error?.status || "",
+    });
+    const fallbackResult = await sendTextMessage({ phone, message });
+    return {
+      ...fallbackResult,
+      delivery_mode: "text",
+      used_buttons: false,
+      fallback_used: true,
+    };
+  }
 };
 
 export const loadOrderForWhatsapp = async ({ orderId, tenantId = null } = {}) => {

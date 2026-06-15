@@ -1,0 +1,64 @@
+﻿diff --git a/src/storefront/Storefront.jsx b/src/storefront/Storefront.jsx
+index 762b9d2..40760bf 100644
+--- a/src/storefront/Storefront.jsx
++++ b/src/storefront/Storefront.jsx
+@@ -195,6 +195,14 @@ const productUrl = (product = {}) => {
+   ]);
+ };
+ 
++const compactStorefrontReceipt = (payload = {}, meta = {}) => ({
++  order: payload.order || {},
++  items: Array.isArray(payload.items) ? payload.items : [],
++  customer: payload.customer || {},
++  checkout: payload.checkout || {},
++  ...meta,
++});
++
+ const normalizeWishlistProduct = (item = {}) => {
+   const nestedItem = item?.item && typeof item.item === "object" ? item.item : {};
+   const product = nestedProductFor(item);
+@@ -1421,6 +1429,7 @@ const rawOptionValue = (value, fallback = "") => {
+   return String(value ?? fallback ?? "").trim();
+ };
+ const normalizeCheckoutPaymentMethod = (value) => (rawOptionValue(value).toLowerCase() === "cod" ? "cod" : "shipping_confirmation");
++const CHECKOUT_STEP_STORAGE_KEY = "storefront.checkout.step";
+ const normalizeShippingPaymentMethod = (value) => {
+   const raw = rawOptionValue(value).toLowerCase();
+   return raw === "vodafone_cash" ? "vodafone_cash" : "instapay";
+@@ -5016,7 +5025,15 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
+   const [customerTrust, setCustomerTrust] = useState({ loading: false, customer: null });
+   const [summaryOpen, setSummaryOpen] = useState(false);
+   const [submitting, setSubmitting] = useState(false);
+-  const [checkoutStep, setCheckoutStep] = useState(1);
++  const [checkoutStep, setCheckoutStep] = useState(() => {
++    if (typeof window === "undefined") return 1;
++    try {
++      const storedStep = Number(window.sessionStorage.getItem(CHECKOUT_STEP_STORAGE_KEY));
++      return [1, 2, 3].includes(storedStep) ? storedStep : 1;
++    } catch {
++      return 1;
++    }
++  });
+   const [manualCityArea, setManualCityArea] = useState(false);
+   const [shippingTransferMethod, setShippingTransferMethod] = useState("instapay");
+   const [paymentProofDragActive, setPaymentProofDragActive] = useState(false);
+@@ -5791,6 +5808,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
+     return undefined;
+   }, [codAvailable, form.payment_method]);
+ 
++  useEffect(() => {
++    safeSetSessionStorage(CHECKOUT_STEP_STORAGE_KEY, String(checkoutStep), { raw: true });
++  }, [checkoutStep]);
++
+   useEffect(() => {
+     if (!shippingProofRequired) {
+       let cancelled = false;
+@@ -6046,7 +6067,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
+         customer: { full_name: form.full_name, phone: cleanPhone },
+         checkout: { ...checkoutPayload, shipping_payment_method: shippingPaymentMethod, coupon_code: couponCodeToSend, coupon_discount_amount: couponDiscountToSend },
+       };
+-      const publicNumber = displayOrderNumber(data.order);
++      const publicNumber = displayPublicOrderNumber(data.order);
+       const receiptPayload = compactStorefrontReceipt(successPayload, {
+         id: data.order?.id,
+         invoice_number: data.order?.invoice_number,
