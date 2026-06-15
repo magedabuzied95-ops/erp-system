@@ -1,10 +1,6 @@
 {
   "rewrites": [
     {
-      "source": "/shop/product/:path*",
-      "destination": "https://erp-system-0qhp.onrender.com/shop/product/:path*"
-    },
-    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

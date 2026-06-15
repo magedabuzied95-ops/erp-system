@@ -430,14 +430,71 @@ const resolveStorefrontShellCandidates = () => {
   ];
 };
 
+const getRequestHost = (req) => {
+  const forwardedHost = String(req?.headers?.["x-forwarded-host"] || "").trim();
+  const host = String(req?.headers?.host || "").trim();
+  return forwardedHost || host || "";
+};
+
+const isVercelHost = (value = "") => String(value || "").toLowerCase().includes("vercel.app");
+const isRenderHost = (value = "") => String(value || "").toLowerCase().includes("onrender.com");
+
 const resolveStorefrontFallbackUrl = (req) => {
   const baseUrl = getPublicAppUrl() || DEFAULT_PUBLIC_APP_URL;
   const pathname = req?.originalUrl || req?.url || `/shop/product/${req?.params?.identifier || ""}`;
-  try {
-    return new URL(pathname, baseUrl).toString();
-  } catch {
-    return `${String(baseUrl || DEFAULT_PUBLIC_APP_URL).replace(/\/+$/, "")}${pathname.startsWith("/") ? pathname : `/${pathname}`}`;
-  }
+  return new URL(pathname, baseUrl).toString();
+};
+
+const renderStorefrontShellMissingHtml = ({ req, title = "Product", message = "This product page is temporarily unavailable." } = {}) => {
+  const productPath = String(req?.originalUrl || req?.url || `/shop/product/${req?.params?.identifier || ""}` || "");
+  const safeTitle = escapeHtml(title);
+  const safeMessage = escapeHtml(message);
+  const safePath = escapeHtml(productPath);
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>${safeTitle}</title>
+    <meta name="robots" content="noindex,nofollow" />
+    <style>
+      :root { color-scheme: light; }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f8fafc;
+        color: #0f172a;
+      }
+      .wrap {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+      .card {
+        width: min(100%, 560px);
+        border: 1px solid #e2e8f0;
+        border-radius: 20px;
+        background: white;
+        padding: 24px;
+        box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
+      }
+      h1 { margin: 0 0 8px; font-size: 24px; line-height: 1.2; }
+      p { margin: 0 0 12px; color: #475569; line-height: 1.6; }
+      code { display: block; padding: 12px 14px; border-radius: 12px; background: #f1f5f9; color: #0f172a; overflow-wrap: anywhere; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1>${safeTitle}</h1>
+        <p>${safeMessage}</p>
+        <p>Requested path:</p>
+        <code>${safePath}</code>
+      </div>
+    </div>
+  </body>
+</html>`;
 };
 
 const loadStorefrontShell = async () => {
@@ -698,23 +755,59 @@ export const getPublicProductSharePage = async (req, res) => {
       description,
     });
     if (!html) {
+      const requestHost = getRequestHost(req);
+      const forwardedHost = String(req.headers?.["x-forwarded-host"] || "").trim();
+      const shouldRedirect = isRenderHost(requestHost) && !isVercelHost(forwardedHost || requestHost);
+      console.warn("[public-products] storefront shell unavailable", {
+        original_url: req.originalUrl || req.url || "",
+        request_host: requestHost,
+        forwarded_host: forwardedHost,
+        should_redirect: shouldRedirect,
+      });
+      if (shouldRedirect) {
+        const redirectUrl = resolveStorefrontFallbackUrl(req);
+        console.warn("[public-products] storefront shell unavailable, redirecting direct render request", {
+          original_url: req.originalUrl || req.url || "",
+          redirect_url: redirectUrl,
+        });
+        return res.redirect(302, redirectUrl);
+      }
+      return res.status(503).type("html").send(
+        renderStorefrontShellMissingHtml({
+          req,
+          title: "Product page unavailable",
+          message: "The storefront shell could not be loaded on this request. Please try again from the storefront URL or open the product from the app.",
+        })
+      );
+    }
+    return res.status(200).type("html").send(html);
+  } catch (error) {
+    console.error("[public-products] share page error", error);
+    const requestHost = getRequestHost(req);
+    const forwardedHost = String(req.headers?.["x-forwarded-host"] || "").trim();
+    const shouldRedirect = isRenderHost(requestHost) && !isVercelHost(forwardedHost || requestHost);
+    console.warn("[public-products] share page fallback", {
+      original_url: req.originalUrl || req.url || "",
+      request_host: requestHost,
+      forwarded_host: forwardedHost,
+      should_redirect: shouldRedirect,
+      message: error?.message || "",
+    });
+    if (shouldRedirect) {
       const redirectUrl = resolveStorefrontFallbackUrl(req);
-      console.warn("[public-products] storefront shell unavailable, redirecting", {
+      console.warn("[public-products] share page fallback redirect", {
         original_url: req.originalUrl || req.url || "",
         redirect_url: redirectUrl,
       });
       return res.redirect(302, redirectUrl);
     }
-    return res.status(200).type("html").send(html);
-  } catch (error) {
-    console.error("[public-products] share page error", error);
-    const redirectUrl = resolveStorefrontFallbackUrl(req);
-    console.warn("[public-products] share page fallback redirect", {
-      original_url: req.originalUrl || req.url || "",
-      redirect_url: redirectUrl,
-      message: error?.message || "",
-    });
-    return res.redirect(302, redirectUrl);
+    return res.status(503).type("html").send(
+      renderStorefrontShellMissingHtml({
+        req,
+        title: "Product page unavailable",
+        message: "The storefront shell could not be loaded on this request. Please try again later.",
+      })
+    );
   }
 };
 
