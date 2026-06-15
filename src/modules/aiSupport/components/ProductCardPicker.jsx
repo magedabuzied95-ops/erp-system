@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CheckCircle2, Loader2, Search, ShoppingBag, Square, X } from "lucide-react";
 
@@ -170,6 +170,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
   const [selectedProductIds, setSelectedProductIds] = useState([]);
+  const previousOpenRef = useRef(false);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -215,7 +216,9 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
   const categoryOptions = useMemo(() => uniqueTextValues(products.map((product) => product.category || product.category_name)), [products]);
 
   useEffect(() => {
-    if (!open) return;
+    const openedNow = open && !previousOpenRef.current;
+    previousOpenRef.current = open;
+    if (!openedNow) return;
     if (sizeMode) {
       setSelectedProductId("");
       setSelectedProductIds([]);
@@ -231,7 +234,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
     if (!selectedProductId || !selectedExists) {
       setSelectedProductId(String(visibleProducts[0].product_id || visibleProducts[0].id || ""));
     }
-  }, [open, selectedProductId, selectedSize, sizeMode, visibleProducts]);
+  }, [open, selectedProductId, sizeMode, visibleProducts]);
 
   const selectedProduct = useMemo(() => {
     if (!visibleProducts.length) return null;
