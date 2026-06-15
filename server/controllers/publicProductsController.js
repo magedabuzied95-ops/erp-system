@@ -1,5 +1,6 @@
 import db from "../database/db.js";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import {
   attachGroupedColorImages,
@@ -16,6 +17,7 @@ import {
 } from "../services/productOgImageService.js";
 import { resolvePublicProductImageUrl } from "../services/aiProductCards.js";
 import { formatCurrency } from "../../src/shared/lib/currency.js";
+import { getPublicAppUrl } from "../utils/publicUrl.js";
 import { normalizeAttributionPlatform } from "../utils/marketingAttribution.js";
 import { isMirrorProduct, mirrorProductTitle, slugifyEdition } from "../utils/mirrorProduct.js";
 
@@ -416,24 +418,56 @@ const deriveColorGroupsFromVariants = (variants = []) => {
 };
 
 let storefrontShellPromise = null;
+const DEFAULT_PUBLIC_APP_URL = "https://erp-system-ten-green.vercel.app";
+const resolveStorefrontShellCandidates = () => {
+  const cwd = process.cwd();
+  return [
+    path.resolve(cwd, "dist", "index.html"),
+    path.resolve(cwd, "index.html"),
+    path.resolve(__dirname, "..", "..", "dist", "index.html"),
+    path.resolve(__dirname, "..", "..", "index.html"),
+    path.resolve(__dirname, "..", "..", "..", "dist", "index.html"),
+  ];
+};
+
+const resolveStorefrontFallbackUrl = (req) => {
+  const baseUrl = getPublicAppUrl() || DEFAULT_PUBLIC_APP_URL;
+  const pathname = req?.originalUrl || req?.url || `/shop/product/${req?.params?.identifier || ""}`;
+  try {
+    return new URL(pathname, baseUrl).toString();
+  } catch {
+    return `${String(baseUrl || DEFAULT_PUBLIC_APP_URL).replace(/\/+$/, "")}${pathname.startsWith("/") ? pathname : `/${pathname}`}`;
+  }
+};
+
 const loadStorefrontShell = async () => {
   if (!storefrontShellPromise) {
     storefrontShellPromise = (async () => {
-      const candidates = [
-        path.join(__dirname, "..", "..", "dist", "index.html"),
-        path.join(__dirname, "..", "..", "index.html"),
-      ];
+      const candidates = resolveStorefrontShellCandidates();
+      console.info("[public-products] storefront shell resolution", {
+        cwd: process.cwd(),
+        dirname: __dirname,
+        candidates,
+      });
       for (const candidate of candidates) {
         try {
+          await access(candidate, fsConstants.R_OK);
+          console.info("[public-products] storefront shell candidate ok", { candidate });
           return await readFile(candidate, "utf8");
-        } catch {
+        } catch (error) {
+          console.warn("[public-products] storefront shell candidate failed", {
+            candidate,
+            code: error?.code || "",
+            message: error?.message || "",
+          });
           // Try the next candidate.
         }
       }
-      console.warn("[public-products] storefront shell fallback used", {
+      console.warn("[public-products] storefront shell missing", {
         candidates,
+        public_app_url: getPublicAppUrl() || DEFAULT_PUBLIC_APP_URL,
       });
-      return `<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><title>M1 Employee Portal</title></head><body><div id="root"></div></body></html>`;
+      return null;
     })();
   }
   return storefrontShellPromise;
@@ -459,6 +493,7 @@ const getSelectedPublicProductImage = ({ product = {}, variants = [], query = {}
 
 const renderProductShareHtml = async ({ req, product, imageUrl, description }) => {
   const shell = await loadStorefrontShell();
+  if (!shell) return null;
   const title = escapeHtml(firstText(product.meta_title, product.seo_title, product.name, "Product"));
   const descriptionText = escapeHtml(description || firstText(product.seo_description, product.description_en, product.description_ar, product.description, product.name));
   const absoluteUrl = escapeHtml(buildAbsolutePublicUrl(req, req.originalUrl || req.url || `/shop/product/${product.slug || product.canonical_slug || product.id || ""}`));
@@ -662,10 +697,24 @@ export const getPublicProductSharePage = async (req, res) => {
       imageUrl: selectedImage,
       description,
     });
+    if (!html) {
+      const redirectUrl = resolveStorefrontFallbackUrl(req);
+      console.warn("[public-products] storefront shell unavailable, redirecting", {
+        original_url: req.originalUrl || req.url || "",
+        redirect_url: redirectUrl,
+      });
+      return res.redirect(302, redirectUrl);
+    }
     return res.status(200).type("html").send(html);
   } catch (error) {
     console.error("[public-products] share page error", error);
-    return res.status(500).send("Failed to load product page");
+    const redirectUrl = resolveStorefrontFallbackUrl(req);
+    console.warn("[public-products] share page fallback redirect", {
+      original_url: req.originalUrl || req.url || "",
+      redirect_url: redirectUrl,
+      message: error?.message || "",
+    });
+    return res.redirect(302, redirectUrl);
   }
 };
 
