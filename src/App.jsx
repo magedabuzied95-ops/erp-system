@@ -211,6 +211,7 @@ const NotificationsCenter = lazy(() => import("./modules/notifications/pages/Not
 const AiSupportConsole = lazy(() => import("./modules/aiSupport/pages/AiSupportConsole"));
 const AiSupportKnowledgeBase = lazy(() => import("./modules/aiSupport/pages/AiSupportKnowledgeBase"));
 const AiInbox = lazy(() => import("./modules/aiSupport/pages/AiInbox"));
+const AiInboxPwa = lazy(() => import("./modules/aiSupport/pages/AiInboxPwa"));
 const AiFollowups = lazy(() => import("./modules/aiSupport/pages/AiFollowups"));
 const AiChannels = lazy(() => import("./modules/aiSupport/pages/AiChannels"));
 const AiAgentSettings = lazy(() => import("./modules/aiSupport/pages/AiAgentSettings"));
@@ -406,6 +407,24 @@ function App() {
           <Suspense fallback={<RouteSkeleton />}>
             <Storefront />
           </Suspense>
+        }
+      />
+
+      <Route
+        path="/inbox"
+        element={
+          <ProtectedRoute adminOnly>
+            <AiInboxPwa />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/inbox/:conversationId"
+        element={
+          <ProtectedRoute adminOnly>
+            <AiInboxPwa />
+          </ProtectedRoute>
         }
       />
 
