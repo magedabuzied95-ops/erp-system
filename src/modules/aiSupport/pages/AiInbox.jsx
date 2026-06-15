@@ -95,6 +95,15 @@ const productCardPreviewText = (cards = []) => {
   return [name, color, size, price > 0 ? money(price) : ""].filter(Boolean).join(" • ");
 };
 
+const commentAutomationMessageLabel = (messageType = "") => {
+  const key = clean(messageType).toLowerCase();
+  if (key === "comment_like") return "Like";
+  if (key === "comment_public_reply") return "Public reply";
+  if (key === "comment_private_reply") return "Private message";
+  if (key === "automation_error") return "Automation error";
+  return "";
+};
+
 const tenantIdFrom = (tenantApi) => {
   const currentTenant = tenantApi?.currentTenant || getCurrentTenant?.() || {};
   const currentUser = getCurrentUser?.() || {};
@@ -478,6 +487,52 @@ function LeadBadge({ type = "Cold Lead", score = 0 }) {
   );
 }
 
+const normalizeCommentAutomationStatus = (value = "") => {
+  const key = clean(value).toLowerCase();
+  if (["sent", "failed", "skipped", "pending", "partial", "completed"].includes(key)) return key;
+  return "skipped";
+};
+
+const commentAutomationBadgeTone = (value = "") => {
+  const status = normalizeCommentAutomationStatus(value);
+  if (status === "sent" || status === "completed") return "emerald";
+  if (status === "failed" || status === "partial") return "rose";
+  if (status === "pending") return "amber";
+  return "zinc";
+};
+
+const commentAutomationStatusLabel = (value = "") => {
+  const status = normalizeCommentAutomationStatus(value);
+  if (status === "sent") return "sent";
+  if (status === "failed") return "failed";
+  if (status === "pending") return "pending";
+  if (status === "partial") return "partial";
+  if (status === "completed") return "completed";
+  return "skipped";
+};
+
+function CommentAutomationBadges({ automationState = {} }) {
+  const state = automationState && typeof automationState === "object" ? automationState : {};
+  const badges = [
+    { key: "like_status", label: "Like" },
+    { key: "public_reply_status", label: "Public reply" },
+    { key: "dm_status", label: "Private message" },
+  ];
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      {badges.map((item) => {
+        const status = commentAutomationStatusLabel(state[item.key]);
+        return (
+          <Pill key={item.key} tone={commentAutomationBadgeTone(status)}>
+            {item.label}
+            <span className="opacity-70">{status}</span>
+          </Pill>
+        );
+      })}
+    </div>
+  );
+}
+
 function SectionTitle({ icon: Icon, title, action }) {
   return (
     <div className="mb-3 flex items-center justify-between gap-3">
@@ -744,6 +799,7 @@ function InboxChatHeader({
   const name = isMessengerConversation(conversation) ? messengerDisplayName(conversation) : getConversationDisplayName(conversation);
   const channel = conversation.channel || conversation.source || "web_chat";
   const aiEnabled = isConversationAiEnabled(conversation) && status !== "closed";
+  const closeToggleLabel = status === "closed" ? "Reopen" : "Close";
   return (
     <div className="rounded-3xl border border-white/10 bg-white/[0.05] px-2.5 py-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)] backdrop-blur">
       <div className="flex items-start justify-between gap-2">
@@ -781,9 +837,13 @@ function InboxChatHeader({
             <UserPlus className="h-3.5 w-3.5" />
             Assign
           </button>
-          <button type="button" onClick={onClose} disabled={loading} className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-rose-300/20 bg-rose-400/10 px-2.5 text-[11px] font-black text-rose-100 disabled:opacity-50">
-            <LockKeyhole className="h-3.5 w-3.5" />
-            Close
+          <button type="button" onClick={onClose} disabled={loading} className={`inline-flex h-8 items-center gap-1.5 rounded-xl px-2.5 text-[11px] font-black disabled:opacity-50 ${
+            status === "closed"
+              ? "border border-cyan-300/20 bg-cyan-300/10 text-cyan-100"
+              : "border border-rose-300/20 bg-rose-400/10 text-rose-100"
+          }`}>
+            {status === "closed" ? <PlayCircle className="h-3.5 w-3.5" /> : <LockKeyhole className="h-3.5 w-3.5" />}
+            {closeToggleLabel}
           </button>
         </div>
       </div>
@@ -877,12 +937,30 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
           ) : null}
           {message.staff_message && message.message_type !== "product_card" && !normalizeProductCardsValue(message.product_cards || message.productCards).length ? (
             <div className="flex justify-end">
-              <div className="max-w-[88%] rounded-3xl rounded-tr-sm border border-emerald-300/15 bg-emerald-400/10 p-5 shadow-[0_10px_30px_rgba(16,185,129,0.12)]">
-                <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-emerald-100">
+              <div className={`max-w-[88%] rounded-3xl rounded-tr-sm p-5 shadow-[0_10px_30px_rgba(16,185,129,0.12)] ${
+                message.message_type === "automation_error"
+                  ? "border border-rose-300/20 bg-rose-400/10"
+                  : "border border-emerald-300/15 bg-emerald-400/10"
+              }`}>
+                <div className={`flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] ${
+                  message.message_type === "automation_error" ? "text-rose-100" : "text-emerald-100"
+                }`}>
                   <UserCheck className="h-3.5 w-3.5" />
                   <span>Staff</span>
                   {message.staff_user_name ? <span className="text-slate-400">{message.staff_user_name}</span> : null}
-                  {message.message_type === "comment_public_reply" ? <span className="rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-100">Public comment reply</span> : null}
+                  {commentAutomationMessageLabel(message.message_type) ? (
+                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${
+                      message.message_type === "automation_error"
+                        ? "border-rose-300/20 bg-rose-400/10 text-rose-100"
+                        : message.message_type === "comment_like"
+                          ? "border-white/10 bg-white/[0.055] text-slate-100"
+                          : message.message_type === "comment_private_reply"
+                            ? "border-cyan-300/20 bg-cyan-300/10 text-cyan-100"
+                            : "border-violet-300/20 bg-violet-400/10 text-violet-100"
+                    }`}>
+                      {commentAutomationMessageLabel(message.message_type)}
+                    </span>
+                  ) : null}
                   <span className="text-slate-500">{absoluteTime(message.created_at)}</span>
                   {message.delivery_status ? <span className={message.delivery_status === "failed" ? "text-rose-200" : message.delivery_status === "sending" ? "text-amber-200" : "text-emerald-200"}>{message.delivery_status}</span> : null}
                 </div>
@@ -2724,7 +2802,9 @@ export default function AiInbox() {
           closed_at: returned.closed_at || new Date().toISOString(),
         }));
       }
-      if (action === "takeover") await loadAll({ silent: true });
+      if (action === "takeover" || action === "close" || action === "reopen" || action === "return" || action === "assign") {
+        await loadAll({ silent: true });
+      }
     } catch (err) {
       setError(err?.message || "تعذر تحديث المحادثة");
     } finally {
@@ -3462,7 +3542,7 @@ export default function AiInbox() {
                     onAssign={() => updateConversationAction("assign")}
                     onTakeover={() => updateConversationAction("takeover")}
                     onReturnToAi={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "return")}
-                    onClose={() => updateConversationAction("close")}
+                    onClose={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "close")}
                     onOpenTools={() => setToolsTab("customer")}
                     showBack
                   />
@@ -3669,6 +3749,9 @@ export default function AiInbox() {
                     onClose={() => updateConversationAction("close")}
                     onOpenTools={() => setProfileOpen(true)}
                   />
+                  {isCommentConversation(selectedConversation || {}) ? (
+                    <CommentAutomationBadges automationState={selectedConversation?.channel_metadata?.automation_state || selectedConversation?.automation_state || {}} />
+                  ) : null}
 
                   <div className="mt-2 grid gap-2 rounded-2xl border border-white/10 bg-slate-950/60 p-2 text-[11px] sm:grid-cols-3">
                     <div><span className="text-slate-500">الويب هوك</span><div className={selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "سليم" : "فشل"}</div></div>
