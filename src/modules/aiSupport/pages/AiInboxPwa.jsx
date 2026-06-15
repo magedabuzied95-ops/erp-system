@@ -1333,11 +1333,11 @@ export default function AiInboxPwa() {
       <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-slate-50">
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-slate-50/95 px-2.5 pb-2 pt-[max(0.65rem,env(safe-area-inset-top))] backdrop-blur">
           {contentScreen && tab === "conversations" ? (
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2" style={{ flexDirection: isRtlLayout ? "row-reverse" : "row" }}>
               <div className="flex min-w-0 items-center gap-2.5">
                 <button
                   type="button"
-                  onClick={backToList}
+                  onClick={handleBackNavigation}
                   className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
                   aria-label="Back to conversations"
                 >
@@ -1370,7 +1370,7 @@ export default function AiInboxPwa() {
                 <button
                   type="button"
                   onClick={() => setMenuOpen((current) => !current)}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
                 >
                   <MoreHorizontal className="h-4.5 w-4.5" />
                 </button>
