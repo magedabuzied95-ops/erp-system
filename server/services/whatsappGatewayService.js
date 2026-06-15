@@ -10,7 +10,7 @@ import {
 } from "./aiChannelAdapterService.js";
 import { generateWhatsappAiAutoReply, logWhatsappAiOutbound, normalizeWhatsappSessionId } from "./aiInboxService.js";
 import { debugAiImagesLog, normalizeProductCards } from "./aiProductCards.js";
-import { appendAiGeneratedSupportReply } from "./aiSupportLogService.js";
+import { appendAiGeneratedSupportReply, updateAiSupportMessageDeliveryStatus } from "./aiSupportLogService.js";
 import { addTraceStep, failTrace, finishTrace, setTraceInboundMessage, startTrace } from "./aiReplyTraceService.js";
 import { emitToRooms } from "../utils/socket.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
@@ -1983,6 +1983,122 @@ const extractIncomingWhatsapp = async (payload = {}) => {
   };
 };
 
+const isEvolutionStatusUpdatePayload = (payload = {}, envelope = null) => {
+  const data = primaryEvolutionData(payload);
+  const combined = [
+    envelope?.rawEvent,
+    payload?.event,
+    payload?.type,
+    payload?.name,
+    data?.event,
+    data?.type,
+    data?.name,
+    data?.status,
+    ...(Array.isArray(data?.statuses) ? data.statuses.map((item) => item?.status) : []),
+    ...(Array.isArray(payload?.statuses) ? payload.statuses.map((item) => item?.status) : []),
+  ]
+    .map((value) => text(value).toLowerCase())
+    .join(" ");
+  return (
+    combined.includes("messages.update") ||
+    combined.includes("message.update") ||
+    combined.includes("delivery_ack") ||
+    combined.includes("delivery.ack") ||
+    combined.includes("status.update") ||
+    combined.includes("messages.status") ||
+    combined.includes("message.status") ||
+    ["sent", "delivered", "read", "failed", "delivery_ack"].includes(text(data?.status).toLowerCase()) ||
+    Array.isArray(data?.statuses) ||
+    Array.isArray(payload?.statuses)
+  );
+};
+
+const normalizeEvolutionDeliveryStatus = (value = "") => {
+  const status = text(value).toLowerCase();
+  if (!status) return "sent";
+  if (status.includes("delivery_ack") || status === "ack" || status === "sent") return "sent";
+  if (status.includes("deliver")) return "delivered";
+  if (status.includes("read")) return "read";
+  if (status.includes("fail") || status.includes("error")) return "failed";
+  return status;
+};
+
+const processEvolutionStatusUpdate = async (payload = {}) => {
+  const data = primaryEvolutionData(payload);
+  const envelope = extractWhatsappWebhookEnvelope(payload);
+  const statusItem = Array.isArray(data?.statuses) ? data.statuses[0] : (data?.statuses || payload?.statuses?.[0] || null);
+  const providerMessageId = text(
+    statusItem?.id ||
+    statusItem?.messageId ||
+    statusItem?.message_id ||
+    statusItem?.key?.id ||
+    data?.key?.id ||
+    envelope.messageId ||
+    data?.messageId ||
+    data?.message_id ||
+    data?.id
+  );
+  const remoteJid = text(
+    statusItem?.key?.remoteJid ||
+    statusItem?.remoteJid ||
+    data?.remoteJid ||
+    data?.remote_jid ||
+    envelope.remoteJid ||
+    ""
+  );
+  const resolvedPhone = remoteJid && !isLidJid(remoteJid) ? normalizeEgyptPhone(jidNumber(remoteJid)) : "";
+  const sessionId = text(
+    payload?.external_conversation_id ||
+    payload?.conversation_id ||
+    data?.conversationId ||
+    data?.conversation_id ||
+    (resolvedPhone ? `whatsapp:${resolvedPhone}` : "")
+  );
+  const deliveryStatus = normalizeEvolutionDeliveryStatus(
+    statusItem?.status ||
+    data?.status ||
+    envelope.rawEvent ||
+    payload?.event ||
+    payload?.type ||
+    ""
+  );
+  const whatsappInstance = text(payload?.instance || payload?.instanceName || data?.instance || data?.instanceName || envelope.instance || instanceName());
+  console.info("[whatsapp:evolution-status-update]", {
+    provider_message_id: providerMessageId,
+    delivery_status: deliveryStatus,
+    remoteJid,
+    resolvedPhone,
+    session_id: sessionId,
+    instance: whatsappInstance,
+    fromMe: envelope.fromMe,
+    event: envelope.event || payload?.event || payload?.type || "",
+    rawEvent: envelope.rawEvent || "",
+  });
+  if (!providerMessageId) {
+    return { updated: false, reason: "missing_provider_message_id" };
+  }
+  const updated = await updateAiSupportMessageDeliveryStatus({
+    tenantId: tenantIdForWhatsapp(payload),
+    sessionId,
+    providerMessageId,
+    externalMessageId: providerMessageId,
+    deliveryStatus,
+    whatsappInstance,
+    remoteJid,
+    resolvedPhone,
+    sourcePath: "whatsapp_webhook_delivery_update",
+    insertSource: "whatsapp_webhook_delivery_update",
+  });
+  console.info("[whatsapp:evolution-status-update-result]", {
+    provider_message_id: providerMessageId,
+    updated: Boolean(updated),
+    ai_support_message_id: updated?.id || null,
+    delivery_status: updated?.delivery_status || "",
+    session_id: updated?.session_id || sessionId,
+  });
+  return { updated: Boolean(updated), row: updated || null, providerMessageId, deliveryStatus, remoteJid, sessionId, resolvedPhone };
+};
+
 const dedupeHash = (value = "") => crypto.createHash("sha256").update(text(value)).digest("hex");
 
 const logAiSupportMessageIndexes = async () => {
@@ -2594,6 +2710,40 @@ export const handleIncomingWebhook = async (payload = {}) => {
     fromMe: envelope.fromMe,
     eventCandidates: envelope.eventCandidates,
   });
+  if (isEvolutionStatusUpdatePayload(payload, envelope)) {
+    const statusUpdate = await processEvolutionStatusUpdate(payload);
+    return {
+      event: envelope.event || "messages.update",
+      rawEvent: envelope.rawEvent || "",
+      eventCandidates: envelope.eventCandidates,
+      phone: statusUpdate.resolvedPhone || "",
+      remoteJid: statusUpdate.remoteJid || envelope.remoteJid,
+      resolvedReplyJid: "",
+      resolvedPhone: statusUpdate.resolvedPhone || "",
+      replyTargetReason: "status_update",
+      participant: envelope.participant,
+      sender: envelope.sender,
+      connectedOwnerJid: envelope.ownerJid,
+      instanceOwnerJid: envelope.ownerJid,
+      ownerJid: envelope.ownerJid,
+      configuredBotNumber: envelope.configuredBotNumber,
+      isGroup: isGroupJid(envelope.remoteJid),
+      isLid: isLidJid(envelope.remoteJid),
+      text: "",
+      senderName: "",
+      messageId: statusUpdate.providerMessageId || envelope.messageId,
+      timestamp: envelope.timestamp,
+      instance: envelope.instance,
+      fromMe: true,
+      raw: payload,
+      received_at: envelope.timestamp,
+      message_id: statusUpdate.providerMessageId || envelope.messageId,
+      instanceName: envelope.instance,
+      trace_id: null,
+      inbox: { saved: false, reason: statusUpdate.updated ? "status_update" : "status_update_no_match" },
+      delivery_status: statusUpdate.deliveryStatus || "",
+    };
+  }
   if (envelope.fromMe) {
     console.info("[whatsapp:skip-from-me-before-ai]", {
       event: envelope.event,
@@ -3378,7 +3528,12 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       productCards: generated.aiPayload?.product_cards || generated.aiPayload?.suggested_products || [],
       channel: AI_AGENT_CHANNELS.WHATSAPP,
       deliveryStatus: "sent",
-      externalMessageId: result?.result?.message_id || result?.result?.messageId || "",
+      externalMessageId: result?.result?.message_id || result?.result?.messageId || result?.result?.key?.id || result?.message_id || "",
+      providerMessageId: result?.result?.message_id || result?.result?.messageId || result?.result?.key?.id || result?.message_id || "",
+      whatsappInstance: result?.instanceName || result?.provider || instanceName(),
+      remoteJid: outboundReplyTarget.remoteJid || "",
+      resolvedReplyJid: outboundReplyTarget.resolvedJid || "",
+      resolvedPhone: sendTargetNumber || generated.phone || message.phone || "",
       sourcePath: "whatsapp_ai_auto_reply_sent",
       insertSource: "whatsapp_ai_send_success",
     }).catch((error) => {

@@ -2939,6 +2939,11 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       deliveryStatus,
       deliveryError,
       externalMessageId: sendResult?.message_id || sendResult?.results?.[0]?.result?.key?.id || "",
+      providerMessageId: sendResult?.message_id || sendResult?.results?.[0]?.result?.key?.id || "",
+      whatsappInstance: sendResult?.instanceName || sendResult?.instance || "",
+      remoteJid: recipientId || "",
+      resolvedReplyJid: recipientId || "",
+      resolvedPhone: recipientId || "",
     });
     await logChannelEvent({
       tenantId,
@@ -3204,6 +3209,11 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
       deliveryStatus,
       deliveryError,
       externalMessageId,
+      providerMessageId: externalMessageId,
+      whatsappInstance: sendResult?.instanceName || sendResult?.instance || "",
+      remoteJid: externalCustomerId || "",
+      resolvedReplyJid: externalCustomerId || "",
+      resolvedPhone: externalCustomerId || "",
     });
     await logChannelEvent({
       tenantId,

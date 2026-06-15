@@ -748,6 +748,11 @@ export const appendManualAiSupportReply = async ({
   deliveryError = "",
   errorCode = "",
   externalMessageId = "",
+  providerMessageId = "",
+  whatsappInstance = "",
+  remoteJid = "",
+  resolvedReplyJid = "",
+  resolvedPhone = "",
   externalReplyId = "",
   preserveExactMessage = false,
   upsertSession = true,
@@ -822,11 +827,16 @@ export const appendManualAiSupportReply = async ({
       delivery_error,
       error_code,
       external_message_id,
+      provider_message_id,
+      whatsapp_instance,
+      remote_jid,
+      resolved_reply_jid,
+      resolved_phone,
       external_reply_id,
       message_type,
       product_cards
     )
-    VALUES ($1, $2, $3, $4, $5, '', '', 1, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'manual_staff_reply', '', $5, 'staff', TRUE, $3, $6, COALESCE(NULLIF($7, ''), 'web_chat'), $11, $8, $9, $10, $12, $13, $14, $15::jsonb)
+    VALUES ($1, $2, $3, $4, $5, '', '', 1, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'manual_staff_reply', '', $5, 'staff', TRUE, $3, $6, COALESCE(NULLIF($7, ''), 'web_chat'), $17, $8, $9, $10, $11, $12, $13, $14, $15, $16, $18, $19, $20::jsonb)
     RETURNING *
     `,
     [
@@ -841,6 +851,11 @@ export const appendManualAiSupportReply = async ({
       toText(deliveryError),
       toText(errorCode),
       toText(externalMessageId),
+      toText(providerMessageId || externalMessageId),
+      toText(whatsappInstance),
+      toText(remoteJid),
+      toText(resolvedReplyJid),
+      toText(resolvedPhone),
       repairText(source, "manual_admin"),
       toText(externalReplyId),
       safeMessageType,
@@ -883,6 +898,11 @@ export const appendAiGeneratedSupportReply = async ({
   deliveryStatus = "",
   deliveryError = "",
   externalMessageId = "",
+  providerMessageId = "",
+  whatsappInstance = "",
+  remoteJid = "",
+  resolvedReplyJid = "",
+  resolvedPhone = "",
   sourcePath = "retry_worker",
   insertSource = "ai_support_route",
 } = {}) => {
@@ -931,10 +951,15 @@ export const appendAiGeneratedSupportReply = async ({
       delivery_status,
       delivery_error,
       external_message_id,
+      provider_message_id,
+      whatsapp_instance,
+      remote_jid,
+      resolved_reply_jid,
+      resolved_phone,
       source_path,
       insert_source
     )
-    VALUES ($1, $2, $3, $4, '', $4, $5, FALSE, '[]'::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9, '', 'ai', FALSE, COALESCE(NULLIF($10, ''), 'web_chat'), $11, $12, $13, $14, $15, $16)
+    VALUES ($1, $2, $3, $4, '', $4, $5, FALSE, '[]'::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9, '', 'ai', FALSE, COALESCE(NULLIF($10, ''), 'web_chat'), $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
     RETURNING *
     `,
     [
@@ -952,6 +977,11 @@ export const appendAiGeneratedSupportReply = async ({
       repairText(deliveryStatus),
       repairText(deliveryError),
       repairText(externalMessageId),
+      toText(providerMessageId || externalMessageId),
+      toText(whatsappInstance),
+      toText(remoteJid),
+      toText(resolvedReplyJid),
+      toText(resolvedPhone),
       repairText(sourcePath, "retry_worker"),
       repairText(insertSource),
     ]
@@ -965,6 +995,80 @@ export const appendAiGeneratedSupportReply = async ({
     `,
     [safeTenantId, safeSessionId, repairText(safeAnswer)]
   ).catch(() => {});
+  return result.rows[0] || null;
+};
+
+export const updateAiSupportMessageDeliveryStatus = async ({
+  tenantId,
+  sessionId = "",
+  providerMessageId = "",
+  externalMessageId = "",
+  deliveryStatus = "",
+  deliveryError = "",
+  errorCode = "",
+  whatsappInstance = "",
+  remoteJid = "",
+  resolvedReplyJid = "",
+  resolvedPhone = "",
+  sourcePath = "whatsapp_webhook",
+  insertSource = "whatsapp_webhook",
+} = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeSessionId = toText(sessionId);
+  const safeProviderMessageId = toText(providerMessageId || externalMessageId);
+  if (!safeTenantId || !safeProviderMessageId) {
+    return null;
+  }
+  await ensureAiSupportLogSchema();
+  const result = await db.query(
+    `
+    UPDATE ai_support_messages
+    SET
+      delivery_status = COALESCE(NULLIF($4, ''), delivery_status),
+      delivery_error = COALESCE(NULLIF($5, ''), delivery_error),
+      error_code = COALESCE(NULLIF($6, ''), error_code),
+      external_message_id = COALESCE(NULLIF($3, ''), external_message_id),
+      provider_message_id = COALESCE(NULLIF($3, ''), provider_message_id),
+      whatsapp_instance = COALESCE(NULLIF($7, ''), whatsapp_instance),
+      remote_jid = COALESCE(NULLIF($8, ''), remote_jid),
+      resolved_reply_jid = COALESCE(NULLIF($9, ''), resolved_reply_jid),
+      resolved_phone = COALESCE(NULLIF($10, ''), resolved_phone),
+      source_path = COALESCE(NULLIF($11, ''), source_path),
+      insert_source = COALESCE(NULLIF($12, ''), insert_source),
+      updated_at = NOW()
+    WHERE id = (
+      SELECT id
+      FROM ai_support_messages
+      WHERE tenant_id = $1
+        AND (
+          provider_message_id = $3
+          OR external_message_id = $3
+          OR ($2 <> '' AND session_id = $2)
+        )
+      ORDER BY CASE
+        WHEN provider_message_id = $3 THEN 0
+        WHEN external_message_id = $3 THEN 1
+        ELSE 2
+      END, created_at DESC, id DESC
+      LIMIT 1
+    )
+    RETURNING *
+    `,
+    [
+      safeTenantId,
+      safeSessionId,
+      safeProviderMessageId,
+      toText(deliveryStatus),
+      toText(deliveryError),
+      toText(errorCode),
+      toText(whatsappInstance),
+      toText(remoteJid),
+      toText(resolvedReplyJid),
+      toText(resolvedPhone),
+      toText(sourcePath),
+      toText(insertSource),
+    ]
+  );
   return result.rows[0] || null;
 };
 
