@@ -4,6 +4,44 @@ import { loadAiInbox } from "./aiSalesAgentService.js";
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
 
+const CONVERSATION_PREFIX_ALIASES = new Map([
+  ["facebook_messenger", "facebook_messenger"],
+  ["facebook", "facebook_messenger"],
+  ["messenger", "facebook_messenger"],
+  ["instagram", "instagram"],
+  ["whatsapp", "whatsapp"],
+  ["web_chat", "web_chat"],
+  ["web", "web_chat"],
+]);
+
+const normalizeConversationPrefix = (value = "") => CONVERSATION_PREFIX_ALIASES.get(lower(value)) || "";
+
+const stripConversationPrefixes = (value = "") => {
+  let current = text(value);
+  let prefix = "";
+
+  while (current) {
+    const match = current.match(/^([a-z0-9_]+):(.*)$/i);
+    if (!match) break;
+    const nextPrefix = normalizeConversationPrefix(match[1]);
+    if (!nextPrefix) break;
+    prefix = prefix || nextPrefix;
+    current = text(match[2]);
+  }
+
+  return { prefix, value: current };
+};
+
+const normalizeConversationLookupId = (value = "") => {
+  const raw = text(value);
+  if (!raw) return "";
+  const stripped = stripConversationPrefixes(raw);
+  const prefix = stripped.prefix;
+  const base = stripped.value || raw;
+  if (!base) return raw;
+  return prefix ? `${prefix}:${base}` : base;
+};
+
 export const LEAD_STATUSES = Object.freeze(["new", "contacted", "interested", "negotiation", "won", "lost"]);
 
 export const normalizeLeadStatus = (value = "") => {
@@ -68,7 +106,7 @@ export const buildLeadOpportunityPayload = ({ conversation = {}, profile = {} } 
     metadata: {
       source_key: sourceKey,
       source_label: sourceLabel,
-      conversation_id: conversation.session_id || conversation.external_conversation_id || "",
+      conversation_id: normalizeConversationLookupId(conversation.session_id || conversation.external_conversation_id || ""),
       external_customer_id: conversation.external_customer_id || conversation.customer_profile?.external_customer_id || "",
       customer_name: customerName,
       customer_phone: conversation.phone || conversation.customer_profile?.phone || "",
@@ -118,11 +156,21 @@ export const ensureAiInboxLeadActionsSchema = async (clientOrPool = db) => {
 
 export const loadLeadConversationForAction = async ({ tenantId, conversationId } = {}) => {
   const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 1000 });
-  return (inbox.conversations || []).find((item) =>
-    item.session_id === conversationId ||
-    item.external_conversation_id === conversationId ||
-    item.external_customer_id === conversationId
-  ) || null;
+  const normalizedConversationId = normalizeConversationLookupId(conversationId);
+  const rawConversationId = stripConversationPrefixes(normalizedConversationId).value || text(conversationId);
+  return (inbox.conversations || []).find((item) => {
+    const itemSessionId = normalizeConversationLookupId(item.session_id || item.external_conversation_id || item.conversation_key || "");
+    const itemRawSessionId = stripConversationPrefixes(itemSessionId).value || text(item.session_id || item.external_conversation_id || item.conversation_key || "");
+    return (
+      itemSessionId === normalizedConversationId ||
+      itemSessionId === rawConversationId ||
+      itemRawSessionId === normalizedConversationId ||
+      itemRawSessionId === rawConversationId ||
+      normalizeConversationLookupId(item.conversation_key || "") === normalizedConversationId ||
+      text(item.external_customer_id) === normalizedConversationId ||
+      text(item.external_customer_id) === rawConversationId
+    );
+  }) || null;
 };
 
 export const resolveLeadConversationStatus = (conversation = {}) => normalizeLeadStatus(
@@ -136,7 +184,7 @@ export const createOrUpdateLeadOpportunity = async ({ tenantId, conversation = {
   await ensureAiInboxLeadActionsSchema(clientOrPool);
   const client = clientOrPool || db;
   const payload = buildLeadOpportunityPayload({ conversation, profile: profile || conversation.customer_profile || {} });
-  const conversationId = text(conversation.session_id || conversation.external_conversation_id || "");
+  const conversationId = normalizeConversationLookupId(conversation.session_id || conversation.external_conversation_id || "");
   const result = await client.query(
     `
     INSERT INTO ai_lead_opportunities (
@@ -175,7 +223,7 @@ export const syncLeadAssignmentMetadata = async ({
   clientOrPool = db,
 } = {}) => {
   const channel = text(conversation.channel || conversation.source || "");
-  const externalConversationId = text(conversation.session_id || conversation.external_conversation_id || "");
+  const externalConversationId = normalizeConversationLookupId(conversation.session_id || conversation.external_conversation_id || "");
   if (!tenantId || !channel || !externalConversationId) return null;
   const customerProfileId = conversation.customer_profile?.id || conversation.profile_id || null;
   const metadata = {

@@ -58,6 +58,68 @@ const encodeConversationId = (value = "") => {
   }
 };
 
+const CONVERSATION_CHANNEL_PREFIXES = new Map([
+  ["facebook_messenger", "facebook_messenger"],
+  ["facebook", "facebook_messenger"],
+  ["messenger", "facebook_messenger"],
+  ["instagram", "instagram"],
+  ["whatsapp", "whatsapp"],
+  ["web_chat", "web_chat"],
+  ["web", "web_chat"],
+]);
+
+const normalizeConversationPrefix = (value = "") => {
+  const raw = clean(value).toLowerCase();
+  return CONVERSATION_CHANNEL_PREFIXES.get(raw) || "";
+};
+
+const stripConversationPrefixes = (value = "") => {
+  let current = clean(value);
+  let prefix = "";
+
+  while (current) {
+    const match = current.match(/^([a-z0-9_]+):(.*)$/i);
+    if (!match) break;
+    const nextPrefix = normalizeConversationPrefix(match[1]);
+    if (!nextPrefix) break;
+    prefix = prefix || nextPrefix;
+    current = clean(match[2]);
+  }
+
+  return { prefix, value: current };
+};
+
+const normalizeConversationSessionId = (value = "", channel = "") => {
+  const raw = clean(value);
+  if (!raw) return "";
+
+  const stripped = stripConversationPrefixes(raw);
+  const detectedPrefix = stripped.prefix || normalizeConversationPrefix(channel);
+  const baseSessionId = stripped.value || raw;
+  if (!baseSessionId) return raw;
+  if (!detectedPrefix) return baseSessionId;
+  return `${detectedPrefix}:${baseSessionId}`;
+};
+
+const conversationIdentifiers = (conversation = {}) => {
+  const channel = conversation.channel || conversation.source || conversation.provider || conversation.platform || "";
+  const sessionId = normalizeConversationSessionId(
+    conversation.session_id || conversation.external_conversation_id || conversation.conversation_id || conversation.id,
+    channel
+  );
+  const fallbackId = clean(conversation.session_id || conversation.external_conversation_id || conversation.conversation_id || conversation.id);
+  const conversationId = normalizeConversationSessionId(conversation.conversation_id || conversation.id || sessionId, channel);
+  const conversationKey = normalizeConversationSessionId(conversation.conversation_key || sessionId || fallbackId, channel);
+  const rawSessionId = stripConversationPrefixes(sessionId).value || fallbackId;
+  return {
+    channel,
+    sessionId,
+    conversationId,
+    conversationKey,
+    rawSessionId,
+  };
+};
+
 const aiInboxConversationEndpoint = (sessionId = "", suffix = "") =>
   `/ai-inbox/conversations/${encodeConversationId(sessionId)}${suffix}`;
 
@@ -78,10 +140,7 @@ const normalizeConversationChannel = (conversation = {}) => {
   return raw || "unknown";
 };
 
-const conversationKey = (conversation = {}) =>
-  `${normalizeConversationChannel(conversation)}:${clean(
-    conversation.session_id || conversation.conversation_id || conversation.id
-  )}`;
+const conversationKey = (conversation = {}) => conversationIdentifiers(conversation).conversationKey;
 
 const normalizeProductCardsValue = (value) => {
   if (Array.isArray(value)) return value;
@@ -1138,12 +1197,19 @@ export default function AiInboxPwa() {
   );
 
   const patchConversation = useCallback((targetId, updater) => {
+    const normalizedTargetId = normalizeConversationSessionId(targetId);
+    const rawTargetId = stripConversationPrefixes(normalizedTargetId).value || clean(targetId);
     setConversations((current) =>
       current.map((conversation) => {
+        const identifiers = conversationIdentifiers(conversation);
         const matches =
-          conversation.conversation_key === targetId ||
-          clean(conversation.session_id) === clean(targetId) ||
-          encodeConversationId(conversation.session_id) === clean(targetId);
+          identifiers.conversationKey === normalizedTargetId ||
+          identifiers.sessionId === normalizedTargetId ||
+          identifiers.sessionId === rawTargetId ||
+          identifiers.rawSessionId === normalizedTargetId ||
+          identifiers.rawSessionId === rawTargetId ||
+          encodeConversationId(identifiers.sessionId) === clean(targetId) ||
+          clean(conversation.conversation_key) === clean(targetId);
         return matches ? updater(conversation) : conversation;
       })
     );
@@ -1181,7 +1247,18 @@ export default function AiInboxPwa() {
         const nextConversations = asArray(payload.conversations)
           .map((conversation) => ({
             ...conversation,
-            conversation_key: conversation.conversation_key || conversationKey(conversation),
+            session_id: normalizeConversationSessionId(
+              conversation.session_id || conversation.external_conversation_id || conversation.conversation_id || conversation.id,
+              conversation.channel || conversation.source || conversation.provider || conversation.platform || ""
+            ),
+            conversation_id: normalizeConversationSessionId(
+              conversation.conversation_id || conversation.id || conversation.session_id,
+              conversation.channel || conversation.source || conversation.provider || conversation.platform || ""
+            ),
+            conversation_key: normalizeConversationSessionId(
+              conversation.conversation_key || conversation.session_id || conversation.external_conversation_id || conversation.conversation_id || conversation.id,
+              conversation.channel || conversation.source || conversation.provider || conversation.platform || ""
+            ),
             messages: uniqueMessages(conversation.messages),
           }))
           .sort((left, right) => {
@@ -1193,11 +1270,14 @@ export default function AiInboxPwa() {
         setConversations(nextConversations);
 
         if (conversationParam) {
+          const normalizedConversationParam = normalizeConversationSessionId(conversationParam);
           const exists = nextConversations.some(
             (conversation) =>
-              clean(conversation.session_id) === conversationParam ||
-              encodeConversationId(conversation.session_id) === conversationParam ||
-              clean(conversation.conversation_key) === conversationParam
+              normalizeConversationSessionId(conversation.session_id, conversation.channel || conversation.source || conversation.provider || conversation.platform || "") === normalizedConversationParam ||
+              normalizeConversationSessionId(conversation.conversation_key, conversation.channel || conversation.source || conversation.provider || conversation.platform || "") === normalizedConversationParam ||
+              stripConversationPrefixes(conversation.session_id).value === stripConversationPrefixes(normalizedConversationParam).value ||
+              stripConversationPrefixes(conversation.conversation_key).value === stripConversationPrefixes(normalizedConversationParam).value ||
+              encodeConversationId(conversation.session_id) === clean(conversationParam)
           );
           if (!exists && nextConversations[0]?.session_id && tab === "conversations") {
             updateUrlState({ nextConversationId: nextConversations[0].session_id, replace: true });
@@ -1288,26 +1368,38 @@ export default function AiInboxPwa() {
 
   const selectedConversation = useMemo(() => {
     if (!conversationParam) return null;
+    const normalizedConversationParam = normalizeConversationSessionId(conversationParam);
+    const rawConversationParam = stripConversationPrefixes(normalizedConversationParam).value || clean(conversationParam);
     return (
       conversations.find(
-        (conversation) =>
-          clean(conversation.session_id) === conversationParam ||
-          encodeConversationId(conversation.session_id) === conversationParam ||
-          clean(conversation.conversation_key) === conversationParam
+        (conversation) => {
+          const identifiers = conversationIdentifiers(conversation);
+          return (
+            identifiers.sessionId === normalizedConversationParam ||
+            identifiers.conversationKey === normalizedConversationParam ||
+            identifiers.conversationId === normalizedConversationParam ||
+            identifiers.rawSessionId === rawConversationParam ||
+            identifiers.rawSessionId === normalizedConversationParam ||
+            identifiers.rawSessionId === stripConversationPrefixes(conversationParam).value ||
+            encodeConversationId(identifiers.sessionId) === clean(conversationParam) ||
+            clean(identifiers.conversationKey) === clean(conversationParam)
+          );
+        }
       ) || null
     );
   }, [conversationParam, conversations]);
 
   const markConversationAsRead = useCallback(
     async (conversation) => {
-      const sessionId = clean(conversation?.session_id);
-      const conversationIdentifier = clean(conversation?.conversation_key || sessionId);
+      const identifiers = conversationIdentifiers(conversation);
+      const sessionId = identifiers.sessionId;
+      const conversationIdentifier = identifiers.conversationKey || sessionId;
       if (!sessionId) return false;
 
       try {
         await api.post(
-          aiInboxConversationEndpoint(conversationIdentifier, "/read"),
-          { tenant_id: tenantId, conversation_id: conversationIdentifier, channel: conversation.channel || conversation.source || "" },
+          aiInboxConversationEndpoint(sessionId, "/read"),
+          { tenant_id: tenantId, conversation_id: sessionId, channel: conversation.channel || conversation.source || "" },
           { headers, perfComponent: "AiInboxPwa.markRead" }
         );
         patchConversation(conversationIdentifier, (currentConversation) => ({
@@ -1338,7 +1430,7 @@ export default function AiInboxPwa() {
     (conversation) => {
       setComposerMode("reply");
       setMenuOpen(false);
-      updateUrlState({ nextConversationId: conversation.session_id, nextTab: "conversations" });
+      updateUrlState({ nextConversationId: conversationIdentifiers(conversation).sessionId, nextTab: "conversations" });
     },
     [updateUrlState]
   );
@@ -1370,7 +1462,7 @@ export default function AiInboxPwa() {
   }, [backToList, selectedConversation]);
 
   useEffect(() => {
-    const sessionId = clean(selectedConversation?.session_id);
+    const sessionId = normalizeConversationSessionId(selectedConversation?.session_id, selectedConversation?.channel || selectedConversation?.source || selectedConversation?.provider || selectedConversation?.platform || "");
     if (!sessionId || tab !== "conversations") return;
 
     const unreadCount = conversationUnreadCount(selectedConversation);
@@ -1441,7 +1533,7 @@ export default function AiInboxPwa() {
     }
     setOlderLoading(true);
     try {
-      const payload = await api.get(aiInboxConversationEndpoint(selectedConversation.session_id, "/messages"), {
+      const payload = await api.get(aiInboxConversationEndpoint(normalizeConversationSessionId(selectedConversation.session_id, selectedConversation.channel || selectedConversation.source || selectedConversation.provider || selectedConversation.platform || ""), "/messages"), {
         params: { tenant_id: tenantId, before, limit: 30 },
         headers,
         perfComponent: "AiInboxPwa.messages",
@@ -1470,12 +1562,12 @@ export default function AiInboxPwa() {
       const payload =
         composerMode === "note"
           ? await api.post(
-              aiInboxConversationEndpoint(selectedConversation.session_id, "/reply"),
+              aiInboxConversationEndpoint(normalizeConversationSessionId(selectedConversation.session_id, selectedConversation.channel || selectedConversation.source || selectedConversation.provider || selectedConversation.platform || ""), "/reply"),
               { tenant_id: tenantId, message },
               { headers, perfComponent: "AiInboxPwa.note" }
             )
           : await api.post(
-              aiInboxConversationEndpoint(selectedConversation.session_id, "/send"),
+              aiInboxConversationEndpoint(normalizeConversationSessionId(selectedConversation.session_id, selectedConversation.channel || selectedConversation.source || selectedConversation.provider || selectedConversation.platform || ""), "/send"),
               { tenant_id: tenantId, message },
               { headers, perfComponent: "AiInboxPwa.send" }
             );
@@ -1528,7 +1620,7 @@ export default function AiInboxPwa() {
           };
         });
         const payload = await api.post(
-          aiInboxConversationEndpoint(selectedConversation.session_id, "/product-card/send"),
+          aiInboxConversationEndpoint(normalizeConversationSessionId(selectedConversation.session_id, selectedConversation.channel || selectedConversation.source || selectedConversation.provider || selectedConversation.platform || ""), "/product-card/send"),
           {
             tenant_id: tenantId,
             product_cards: sentCards,
@@ -1607,18 +1699,21 @@ export default function AiInboxPwa() {
     setAiToggling(true);
     try {
       const nextEnabled = !isConversationAiEnabled(selectedConversation);
+      const identifiers = conversationIdentifiers(selectedConversation);
+      const sessionId = identifiers.sessionId;
+      const conversationIdentifier = identifiers.conversationKey || sessionId;
       await api.patch(
-        aiInboxConversationEndpoint(selectedConversation.session_id, "/ai-enabled"),
+        aiInboxConversationEndpoint(sessionId, "/ai-enabled"),
         {
           tenant_id: tenantId,
-          conversation_id: selectedConversation.session_id,
+          conversation_id: sessionId,
           ai_enabled: nextEnabled,
           channel: selectedConversation.channel || selectedConversation.source || "",
           external_conversation_id: selectedConversation.external_conversation_id || "",
         },
         { headers, perfComponent: "AiInboxPwa.aiToggle" }
       );
-      patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({
+      patchConversation(conversationIdentifier, (conversation) => ({
         ...conversation,
         ai_enabled: nextEnabled,
       }));
@@ -1635,8 +1730,9 @@ export default function AiInboxPwa() {
     async (nextLeadStatus) => {
       if (!selectedConversation?.session_id) return;
       const leadStatus = normalizeLeadStatus(nextLeadStatus);
-      const sessionId = selectedConversation.session_id;
-      const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+      const identifiers = conversationIdentifiers(selectedConversation);
+      const sessionId = identifiers.sessionId;
+      const conversationIdentifier = identifiers.conversationKey || sessionId;
       setLeadActionLoading("lead_status");
       try {
         const payload = await api.patch(
@@ -1670,8 +1766,9 @@ export default function AiInboxPwa() {
 
   const createLeadCustomer = useCallback(async () => {
     if (!selectedConversation?.session_id) return;
-    const sessionId = selectedConversation.session_id;
-    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+    const identifiers = conversationIdentifiers(selectedConversation);
+    const sessionId = identifiers.sessionId;
+    const conversationIdentifier = identifiers.conversationKey || sessionId;
     setLeadActionLoading("create_customer");
     try {
       const payload = await api.post(
@@ -1698,8 +1795,9 @@ export default function AiInboxPwa() {
 
   const createLeadOpportunity = useCallback(async () => {
     if (!selectedConversation?.session_id) return;
-    const sessionId = selectedConversation.session_id;
-    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+    const identifiers = conversationIdentifiers(selectedConversation);
+    const sessionId = identifiers.sessionId;
+    const conversationIdentifier = identifiers.conversationKey || sessionId;
     setLeadActionLoading("create_opportunity");
     try {
       const payload = await api.post(
@@ -1726,8 +1824,9 @@ export default function AiInboxPwa() {
 
   const sendLeadPrivateMessage = useCallback(async () => {
     if (!selectedConversation?.session_id) return;
-    const sessionId = selectedConversation.session_id;
-    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+    const identifiers = conversationIdentifiers(selectedConversation);
+    const sessionId = identifiers.sessionId;
+    const conversationIdentifier = identifiers.conversationKey || sessionId;
     const message = buildLeadPrivateMessageText(selectedConversation);
     setLeadActionLoading("private_message");
     try {
@@ -1765,6 +1864,9 @@ export default function AiInboxPwa() {
 
   const sendLeadCommentReply = useCallback(async () => {
     if (!selectedConversation?.session_id || !isCommentConversation(selectedConversation)) return;
+    const identifiers = conversationIdentifiers(selectedConversation);
+    const sessionId = identifiers.sessionId;
+    const conversationIdentifier = identifiers.conversationKey || sessionId;
     const commentId = clean(
       selectedConversation?.channel_metadata?.comment_id ||
         selectedConversation?.channel_metadata?.lead?.comment_id ||
@@ -1776,8 +1878,6 @@ export default function AiInboxPwa() {
       toast.error("تعذر تحديد الكومنت المرتبط بهذه المحادثة");
       return;
     }
-    const sessionId = selectedConversation.session_id;
-    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
     const message = buildLeadCommentReplyText(selectedConversation);
     setLeadActionLoading("comment_reply");
     try {

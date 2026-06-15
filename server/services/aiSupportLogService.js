@@ -13,6 +13,18 @@ const numberOrNull = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const CONVERSATION_PREFIX_ALIASES = new Map([
+  ["facebook_messenger", "facebook_messenger"],
+  ["facebook", "facebook_messenger"],
+  ["messenger", "facebook_messenger"],
+  ["instagram", "instagram"],
+  ["whatsapp", "whatsapp"],
+  ["web_chat", "web_chat"],
+  ["web", "web_chat"],
+]);
+
+const CONVERSATION_PREFIXES = new Set(["facebook_messenger", "instagram", "whatsapp", "web_chat"]);
+
 const normalizeConversationChannel = (value = "") => {
   const lower = toText(value).toLowerCase();
   if (lower.includes("instagram")) return "instagram";
@@ -23,23 +35,47 @@ const normalizeConversationChannel = (value = "") => {
   return lower;
 };
 
+const normalizeConversationPrefix = (value = "") => CONVERSATION_PREFIX_ALIASES.get(normalizeConversationChannel(value)) || "";
+
+const stripConversationPrefixes = (value = "") => {
+  let current = toText(value);
+  let prefix = "";
+
+  while (current) {
+    const match = current.match(/^([a-z0-9_]+):(.*)$/i);
+    if (!match) break;
+    const nextPrefix = normalizeConversationPrefix(match[1]);
+    if (!nextPrefix || !CONVERSATION_PREFIXES.has(nextPrefix)) break;
+    prefix = prefix || nextPrefix;
+    current = toText(match[2]);
+  }
+
+  return { prefix, value: current };
+};
+
+const normalizeConversationSessionId = (sessionId = "", channel = "") => {
+  const rawSessionId = toText(sessionId);
+  if (!rawSessionId) return "";
+  const stripped = stripConversationPrefixes(rawSessionId);
+  const prefix = stripped.prefix || normalizeConversationPrefix(channel);
+  const baseSessionId = stripped.value || rawSessionId;
+  if (!baseSessionId) return rawSessionId;
+  return prefix ? `${prefix}:${baseSessionId}` : baseSessionId;
+};
+
 const parseConversationReference = ({ sessionId = "", channel = "" } = {}) => {
   const rawSessionId = toText(sessionId);
   const requestedChannel = normalizeConversationChannel(channel);
-  const prefixedMatch = rawSessionId.match(/^([a-z0-9_]+):(.*)$/i);
-  if (prefixedMatch) {
-    const prefixedChannel = normalizeConversationChannel(prefixedMatch[1]);
-    const prefixedSessionId = toText(prefixedMatch[2]);
-    return {
-      channel: prefixedChannel || requestedChannel,
-      sessionId: prefixedSessionId || rawSessionId,
-      conversationKey: `${prefixedChannel || requestedChannel || prefixedMatch[1]}:${prefixedSessionId || rawSessionId}`,
-    };
-  }
+  const stripped = stripConversationPrefixes(rawSessionId);
+  const canonicalChannel = stripped.prefix || normalizeConversationPrefix(requestedChannel);
+  const baseSessionId = stripped.value || rawSessionId;
+  const normalizedSessionId = canonicalChannel ? `${canonicalChannel}:${baseSessionId}` : baseSessionId;
   return {
-    channel: requestedChannel,
-    sessionId: rawSessionId,
-    conversationKey: requestedChannel ? `${requestedChannel}:${rawSessionId}` : rawSessionId,
+    channel: canonicalChannel || requestedChannel,
+    sessionId: normalizedSessionId,
+    baseSessionId,
+    conversationKey: normalizedSessionId,
+    lookupSessionIds: [...new Set([normalizedSessionId, rawSessionId, baseSessionId].filter(Boolean))],
   };
 };
 
@@ -321,31 +357,40 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
 export const getAiSupportConversationState = async ({ tenantId, sessionId, channel = "" } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const conversationReference = parseConversationReference({ sessionId, channel });
-  const safeSessionId = conversationReference.sessionId;
+  const sessionCandidates = conversationReference.lookupSessionIds || [conversationReference.sessionId];
+  const safeSessionId = sessionCandidates[0];
   const safeChannel = conversationReference.channel;
   if (!safeTenantId || !safeSessionId) return null;
   await ensureAiSupportLogSchema();
 
-  const sessionState = await db.query(
-    `
-    SELECT *
-    FROM ai_support_sessions
-    WHERE tenant_id = $1 AND session_id = $2
-    LIMIT 1
-    `,
-    [safeTenantId, safeSessionId]
-  );
-
-  if (safeChannel) {
-    const channelState = await db.query(
+  let sessionState = { rows: [] };
+  for (const candidateSessionId of sessionCandidates) {
+    sessionState = await db.query(
       `
       SELECT *
-      FROM ai_channel_conversations
-      WHERE tenant_id = $1 AND channel = $2 AND external_conversation_id = $3
+      FROM ai_support_sessions
+      WHERE tenant_id = $1 AND session_id = $2
       LIMIT 1
       `,
-      [safeTenantId, safeChannel, safeSessionId]
+      [safeTenantId, candidateSessionId]
     );
+    if (sessionState.rows[0]) break;
+  }
+
+  if (safeChannel) {
+    let channelState = { rows: [] };
+    for (const candidateSessionId of sessionCandidates) {
+      channelState = await db.query(
+        `
+        SELECT *
+        FROM ai_channel_conversations
+        WHERE tenant_id = $1 AND channel = $2 AND external_conversation_id = $3
+        LIMIT 1
+        `,
+        [safeTenantId, safeChannel, candidateSessionId]
+      );
+      if (channelState.rows[0]) break;
+    }
     if (channelState.rows[0]) {
       return {
         ...(sessionState.rows[0] || {}),
@@ -354,8 +399,8 @@ export const getAiSupportConversationState = async ({ tenantId, sessionId, chann
           ? channelState.rows[0].ai_enabled !== false
           : sessionState.rows[0]?.ai_enabled !== false,
         channel: channelState.rows[0].channel || sessionState.rows[0]?.channel || safeChannel,
-        session_id: safeSessionId,
-        external_conversation_id: safeSessionId,
+        session_id: sessionState.rows[0]?.session_id || conversationReference.sessionId,
+        external_conversation_id: channelState.rows[0].external_conversation_id || sessionState.rows[0]?.session_id || conversationReference.sessionId,
       };
     }
   }
@@ -492,6 +537,7 @@ export const markAiSupportConversationRead = async ({
     throw Object.assign(new Error("Conversation not found"), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" });
   }
 
+  const resolvedSessionId = toText(state.session_id || state.external_conversation_id || conversationReference.sessionId);
   const resolvedChannel = normalizeConversationChannel(state.channel || state.session_channel || state.source || conversationReference.channel || safeChannel);
   const readAt = new Date().toISOString();
   const sessionResult = await db.query(
@@ -501,7 +547,7 @@ export const markAiSupportConversationRead = async ({
     WHERE tenant_id = $1::bigint AND session_id = $2::text
     RETURNING *
     `,
-    [safeTenantId, conversationReference.sessionId, readAt]
+    [safeTenantId, resolvedSessionId, readAt]
   );
 
   const channelResult = resolvedChannel
@@ -514,13 +560,13 @@ export const markAiSupportConversationRead = async ({
           AND channel = $3::text
         RETURNING *
         `,
-        [safeTenantId, conversationReference.sessionId, resolvedChannel, readAt]
+        [safeTenantId, resolvedSessionId, resolvedChannel, readAt]
       )
     : { rows: [] };
 
   return {
     read_at: readAt,
-    session_id: conversationReference.sessionId,
+    session_id: resolvedSessionId,
     channel: resolvedChannel || state.channel || state.session_channel || state.source || "",
     conversation_key: conversationReference.conversationKey,
     ...(sessionResult.rows[0] || {}),
