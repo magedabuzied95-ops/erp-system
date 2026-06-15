@@ -4,6 +4,7 @@ import {
   AlertCircle,
   Bot,
   Camera,
+  CheckCheck,
   ChevronLeft,
   Clock3,
   Download,
@@ -18,7 +19,7 @@ import {
   ShieldBan,
   ShoppingBag,
   Sparkles,
-  Store,
+  UserRound,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
@@ -119,6 +120,11 @@ const relativeTime = (value) => {
   return `${diffDays}d`;
 };
 
+const relativeSeenLabel = (value) => {
+  const label = relativeTime(value);
+  return label ? `Last seen ${label}` : "No recent activity";
+};
+
 const absoluteTime = (value) => {
   if (!value) return "";
   const time = new Date(value);
@@ -178,6 +184,47 @@ const productImage = (card = {}) =>
       card.thumbnail_url ||
       ""
   );
+
+const customerAvatarUrl = (conversation = {}) =>
+  clean(
+    conversation.customer_avatar_url ||
+      conversation.profile_pic_url ||
+      conversation.profile_pic ||
+      conversation.avatar_url ||
+      conversation.customer_profile?.customer_avatar_url ||
+      conversation.customer_profile?.avatar_url ||
+      conversation.customer_profile?.profile_pic_url ||
+      conversation.customer_profile?.profile_pic ||
+      conversation.channel_metadata?.profile_pic ||
+      conversation.channel_metadata?.messenger_profile?.profile_pic
+  );
+
+const conversationPreview = (conversation = {}) => {
+  const latestCards = normalizeProductCardsValue(
+    conversation.last_product_cards ||
+      conversation.latest_product_cards ||
+      conversation.channel_metadata?.last_product_cards
+  );
+  const preview = clean(
+    conversation.latest_message_preview ||
+      conversation.last_message_preview ||
+      conversation.latest_message ||
+      conversation.last_message ||
+      conversation.last_customer_message ||
+      conversation.customer_message_preview
+  );
+  if (preview) return preview;
+  if (latestCards.length) return productCardPreviewText(latestCards) || "Product card sent";
+  const latestMessage = [...uniqueMessages(conversation.messages)].reverse().find((message) =>
+    clean(message.customer_message || message.staff_message || message.ai_answer)
+  );
+  return clean(
+    latestMessage?.customer_message ||
+      latestMessage?.staff_message ||
+      latestMessage?.ai_answer ||
+      ""
+  );
+};
 
 const productUrl = (card = {}) => {
   const raw = clean(card.storefront_url || card.product_url || card.url || "");
@@ -294,7 +341,6 @@ const LEAD_STAGES = [
 const NAV_ITEMS = [
   { key: "conversations", label: "Conversations", icon: MessageCircleMore },
   { key: "leads", label: "Leads", icon: Layers3 },
-  { key: "products", label: "Products", icon: Store },
   { key: "more", label: "More", icon: MoreHorizontal },
 ];
 
@@ -317,7 +363,7 @@ function MessageText({ text = "" }) {
   const value = String(text || "");
   const parts = value.split(/(https?:\/\/[^\s]+)/g);
   return (
-    <p className="whitespace-pre-wrap break-words text-[15px] leading-6 text-slate-800">
+    <p dir="auto" className="whitespace-pre-wrap break-words text-[14px] leading-5.5 text-inherit">
       {parts.map((part, index) => {
         if (!/^https?:\/\//i.test(part)) return <span key={`${index}-${part.slice(0, 8)}`}>{part}</span>;
         return (
@@ -339,30 +385,62 @@ function MessageText({ text = "" }) {
 function ConversationListItem({ conversation, active, onSelect }) {
   const meta = channelMeta(conversation.channel || conversation.source);
   const Icon = meta.icon;
+  const unreadCount = conversationUnreadCount(conversation);
+  const avatar = customerAvatarUrl(conversation);
+  const preview = conversationPreview(conversation) || "No messages yet";
   return (
     <button
       type="button"
       onClick={() => onSelect(conversation)}
-      className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${
+      className={`flex w-full items-start gap-3 rounded-2xl px-2 py-2 text-left transition ${
         active
-          ? "border-slate-900 bg-slate-900 text-white"
-          : "border-slate-200 bg-white text-slate-900 hover:border-slate-300"
+          ? "bg-slate-900 text-white"
+          : "bg-transparent text-slate-900 hover:bg-white"
       }`}
     >
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${active ? "bg-white/12 text-white" : "bg-slate-100 text-slate-700"}`}>
-            <Icon className="h-4 w-4" />
-          </span>
-          <span className="truncate text-sm font-semibold">{conversationName(conversation)}</span>
+      {avatar ? (
+        <img
+          src={avatar}
+          alt={conversationName(conversation)}
+          className="h-11 w-11 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
+          loading="lazy"
+        />
+      ) : (
+        <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${active ? "bg-white/12 text-white" : "bg-slate-200 text-slate-600"}`}>
+          <UserRound className="h-5 w-5" />
+        </span>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="truncate text-[14px] font-semibold leading-5">{conversationName(conversation)}</div>
+            <div className="mt-1 flex items-center gap-1.5">
+              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-white/10 text-white" : "bg-slate-100 text-slate-600"}`}>
+                <Icon className={`h-3 w-3 ${active ? "text-white" : meta.tone}`} />
+                {meta.label}
+              </span>
+              {needsHumanAttention(conversation) ? (
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-amber-300/20 text-amber-100" : "bg-amber-50 text-amber-700"}`}>
+                  Needs Human
+                </span>
+              ) : null}
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <div className={`text-[11px] font-medium ${active ? "text-slate-300" : "text-slate-500"}`}>
+              {relativeTime(conversation.last_activity_at || conversation.updated_at)}
+            </div>
+            {unreadCount > 0 ? (
+              <span className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${active ? "bg-white text-slate-900" : "bg-emerald-500 text-white"}`}>
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            ) : null}
+          </div>
         </div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {isConversationAiEnabled(conversation) ? <PwaChip tone={active ? "blue" : "blue"}>AI Enabled</PwaChip> : null}
-          {needsHumanAttention(conversation) ? <PwaChip tone={active ? "amber" : "amber"}>Needs Human</PwaChip> : null}
+        <div className={`mt-1.5 flex items-center gap-1.5 text-[12px] ${active ? "text-slate-300" : "text-slate-500"}`}>
+          <CheckCheck className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{preview}</span>
         </div>
-      </div>
-      <div className={`shrink-0 text-xs font-medium ${active ? "text-slate-300" : "text-slate-500"}`}>
-        {relativeTime(conversation.last_activity_at || conversation.updated_at)}
       </div>
     </button>
   );
@@ -379,7 +457,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
   }
 
   return (
-    <div className="space-y-3 pb-4">
+    <div dir="rtl" className="space-y-2.5 pb-3">
       {conversation?.older_messages_available ? (
         <div className="flex justify-center">
           <button
@@ -401,16 +479,16 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
         if (!isCustomer && !isAi && !isStaff && !cards.length) return null;
 
         return (
-          <div key={messageKey(message)} className="space-y-2">
+          <div key={messageKey(message)} className="space-y-1.5">
             {cards.length ? (
-              <div className="flex justify-end">
-                <div className="w-[84%] max-w-sm space-y-2">
-                  <div className="text-right text-[11px] font-medium text-slate-500">{absoluteTime(message.created_at)}</div>
+              <div className="flex justify-start">
+                <div className="w-[82%] max-w-sm space-y-1.5">
+                  <div className="px-1 text-left text-[10px] font-medium text-slate-500">{absoluteTime(message.created_at)}</div>
                   {cards.map((card, index) => {
                     const image = productImage(card);
                     const href = productUrl(card);
                     return (
-                      <div key={`${card.product_id || card.variant_id || index}`} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                      <div key={`${card.product_id || card.variant_id || index}`} className="overflow-hidden rounded-[20px] rounded-bl-md border border-slate-200 bg-white shadow-sm">
                         {image ? <img src={image} alt={card.product_name || "Product"} className="aspect-[4/3] w-full object-cover" loading="lazy" /> : null}
                         <div className="space-y-2 p-3">
                           <div className="text-sm font-semibold text-slate-900">{card.product_name || card.name || "Product"}</div>
@@ -437,31 +515,35 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
               </div>
             ) : null}
             {isCustomer ? (
-              <div className="flex justify-start">
-                <div className="max-w-[84%] rounded-2xl rounded-bl-md bg-white p-3 shadow-sm ring-1 ring-slate-200">
-                  <div className="mb-1 text-[11px] font-medium text-slate-500">{absoluteTime(message.created_at)}</div>
-                  <MessageText text={message.customer_message} />
+              <div className="flex justify-end">
+                <div className="max-w-[82%] rounded-[20px] rounded-br-md bg-emerald-50 px-3 py-2.5 shadow-sm ring-1 ring-emerald-100">
+                  <div className="mb-1 text-right text-[10px] font-medium text-emerald-700/70">{absoluteTime(message.created_at)}</div>
+                  <div className="text-slate-900">
+                    <MessageText text={message.customer_message} />
+                  </div>
                 </div>
               </div>
             ) : null}
             {isAi ? (
-              <div className="flex justify-end">
-                <div className="max-w-[84%] rounded-2xl rounded-br-md bg-sky-50 p-3 shadow-sm ring-1 ring-sky-100">
-                  <div className="mb-1 flex items-center gap-1 text-[11px] font-medium text-sky-700">
+              <div className="flex justify-start">
+                <div className="max-w-[82%] rounded-[20px] rounded-bl-md bg-sky-50 px-3 py-2.5 shadow-sm ring-1 ring-sky-100">
+                  <div className="mb-1 flex items-center gap-1 text-[10px] font-medium text-sky-700">
                     <Bot className="h-3.5 w-3.5" />
                     AI
                   </div>
-                  <MessageText text={message.ai_answer} />
+                  <div className="text-slate-800">
+                    <MessageText text={message.ai_answer} />
+                  </div>
                 </div>
               </div>
             ) : null}
             {isStaff ? (
-              <div className="flex justify-end">
-                <div className="max-w-[84%] rounded-2xl rounded-br-md bg-slate-900 p-3 text-white shadow-sm">
-                  <div className="mb-1 text-[11px] font-medium text-slate-300">
+              <div className="flex justify-start">
+                <div className="max-w-[82%] rounded-[20px] rounded-bl-md bg-slate-900 px-3 py-2.5 text-white shadow-sm">
+                  <div className="mb-1 text-[10px] font-medium text-slate-300">
                     {message.message_type === "internal_note" ? "Internal Note" : "Team"} · {absoluteTime(message.created_at)}
                   </div>
-                  <p className="whitespace-pre-wrap break-words text-[15px] leading-6 text-white">{message.staff_message}</p>
+                  <p dir="auto" className="whitespace-pre-wrap break-words text-[14px] leading-5.5 text-white">{message.staff_message}</p>
                 </div>
               </div>
             ) : null}
@@ -755,72 +837,6 @@ function LeadsView({ conversations, onOpenConversation }) {
   );
 }
 
-function ProductsView({ products, loading, onSendProduct, selectedConversation, onOpenSheet }) {
-  return (
-    <div className="space-y-3 pb-28">
-      <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold text-slate-900">Product Cards</div>
-            <div className="text-xs text-slate-500">Reuse the existing product-card send flow from a cleaner mobile shell.</div>
-          </div>
-          <button
-            type="button"
-            onClick={onOpenSheet}
-            className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
-          >
-            <PackagePlus className="h-4 w-4" />
-            Open Sender
-          </button>
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="grid min-h-40 place-items-center rounded-3xl border border-slate-200 bg-white">
-          <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
-        </div>
-      ) : (
-        <div className="grid gap-3">
-          {products.slice(0, 12).map((product) => {
-            const image = productImage(product);
-            const card = buildProductCardPayload(product, asArray(product.variants)[0] || null);
-            return (
-              <article key={`${product.product_id || product.id}`} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-                {image ? <img src={image} alt={product.name || "Product"} className="aspect-[4/3] w-full object-cover" loading="lazy" /> : null}
-                <div className="space-y-3 p-4">
-                  <div className="text-sm font-semibold text-slate-900">{product.name || product.product_name}</div>
-                  <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-                    {Number(product.final_price || product.price || 0) > 0 ? <span>{money(product.final_price || product.price)}</span> : null}
-                    {product.brand || product.brand_name ? <span>{product.brand || product.brand_name}</span> : null}
-                  </div>
-                  <div className="flex gap-2">
-                    <a
-                      href={productUrl(card)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex flex-1 items-center justify-center rounded-2xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700"
-                    >
-                      Open Product
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => onSendProduct([card])}
-                      disabled={!selectedConversation}
-                      className="inline-flex flex-1 items-center justify-center rounded-2xl bg-slate-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
-                    >
-                      Send
-                    </button>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function MoreView({ installAvailable, onInstall }) {
   return (
     <div className="space-y-3 pb-28">
@@ -859,8 +875,15 @@ function MoreView({ installAvailable, onInstall }) {
 }
 
 function SmartphoneIcon() {
-  return <Store className="h-5 w-5 text-slate-700" />;
+  return <MessageCircleMore className="h-5 w-5 text-slate-700" />;
 }
+
+const QUICK_REPLIES = [
+  "المقاسات المتاحة",
+  "السعر",
+  "الشحن",
+  "عنوان الفرع",
+];
 
 export default function AiInboxPwa() {
   const navigate = useNavigate();
@@ -1021,9 +1044,9 @@ export default function AiInboxPwa() {
   }, []);
 
   useEffect(() => {
-    if (tab !== "products" && !productSheetOpen) return;
+    if (!productSheetOpen) return;
     void loadProducts();
-  }, [loadProducts, productSheetOpen, tab]);
+  }, [loadProducts, productSheetOpen]);
 
   useEffect(() => {
     if (pollRef.current) {
@@ -1247,26 +1270,45 @@ export default function AiInboxPwa() {
   const showComposer = contentScreen && tab === "conversations";
   const selectedMeta = channelMeta(selectedConversation?.channel || selectedConversation?.source || "");
   const SelectedChannelIcon = selectedMeta.icon;
+  const selectedAvatar = customerAvatarUrl(selectedConversation || {});
+  const selectedLastSeen = relativeSeenLabel(
+    selectedConversation?.last_activity_at || selectedConversation?.updated_at
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-slate-50">
-        <header className="sticky top-0 z-20 border-b border-slate-200 bg-slate-50/95 px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur">
+        <header className="sticky top-0 z-20 border-b border-slate-200 bg-slate-50/95 px-3 pb-2 pt-[max(0.65rem,env(safe-area-inset-top))] backdrop-blur">
           {contentScreen && tab === "conversations" ? (
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2.5">
                 <button
                   type="button"
                   onClick={backToList}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
                 >
-                  <ChevronLeft className="h-5 w-5" />
+                  <ChevronLeft className="h-4.5 w-4.5" />
                 </button>
+                {selectedAvatar ? (
+                  <img
+                    src={selectedAvatar}
+                    alt={conversationName(selectedConversation)}
+                    className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
+                    loading="lazy"
+                  />
+                ) : (
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-600">
+                    <UserRound className="h-4.5 w-4.5" />
+                  </span>
+                )}
                 <div className="min-w-0">
-                  <div className="truncate text-base font-semibold text-slate-900">{conversationName(selectedConversation)}</div>
-                  <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
-                    <SelectedChannelIcon className={`h-3.5 w-3.5 ${selectedMeta.tone}`} />
-                    <span>{selectedMeta.label}</span>
+                  <div className="truncate text-[15px] font-semibold leading-5 text-slate-900">{conversationName(selectedConversation)}</div>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">
+                      <SelectedChannelIcon className={`h-3 w-3 ${selectedMeta.tone}`} />
+                      {selectedMeta.label}
+                    </span>
+                    <span className="truncate">{selectedLastSeen}</span>
                   </div>
                 </div>
               </div>
@@ -1274,9 +1316,9 @@ export default function AiInboxPwa() {
                 <button
                   type="button"
                   onClick={() => setMenuOpen((current) => !current)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
                 >
-                  <MoreHorizontal className="h-5 w-5" />
+                  <MoreHorizontal className="h-4.5 w-4.5" />
                 </button>
                 {menuOpen ? (
                   <div className="absolute right-0 top-12 w-52 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
@@ -1308,10 +1350,9 @@ export default function AiInboxPwa() {
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2.5">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Standalone PWA</div>
-                <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">AI Inbox</h1>
+                <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">AI Inbox</h1>
               </div>
               <label className="relative block">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -1319,21 +1360,21 @@ export default function AiInboxPwa() {
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Search conversations"
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-4 text-sm outline-none transition focus:border-slate-400"
+                  className="h-10 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-4 text-sm outline-none transition focus:border-slate-400"
                 />
               </label>
               {tab === "conversations" ? (
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => setFilter("all")} className={`rounded-full px-4 py-2 text-sm font-medium ${filter === "all" ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}>All</button>
-                  <button type="button" onClick={() => setFilter("unread")} className={`rounded-full px-4 py-2 text-sm font-medium ${filter === "unread" ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}>Unread</button>
-                  <button type="button" onClick={() => setFilter("needs_reply")} className={`rounded-full px-4 py-2 text-sm font-medium ${filter === "needs_reply" ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}>Needs Reply</button>
+                  <button type="button" onClick={() => setFilter("all")} className={`rounded-full px-3 py-1.5 text-[13px] font-medium ${filter === "all" ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}>All</button>
+                  <button type="button" onClick={() => setFilter("unread")} className={`rounded-full px-3 py-1.5 text-[13px] font-medium ${filter === "unread" ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}>Unread</button>
+                  <button type="button" onClick={() => setFilter("needs_reply")} className={`rounded-full px-3 py-1.5 text-[13px] font-medium ${filter === "needs_reply" ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}>Needs Reply</button>
                 </div>
               ) : null}
             </div>
           )}
         </header>
 
-        <main className="flex-1 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4">
+        <main className="flex-1 px-3 pb-[calc(9.25rem+env(safe-area-inset-bottom))] pt-2">
           {error && !loading ? (
             <div className="mb-3 flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -1344,18 +1385,18 @@ export default function AiInboxPwa() {
           {tab === "conversations" ? (
             contentScreen ? (
               <Transcript conversation={selectedConversation} loadingOlder={olderLoading} onLoadOlder={loadOlderMessages} />
-            ) : loading ? (
+          ) : loading ? (
               <div className="grid min-h-60 place-items-center rounded-3xl border border-slate-200 bg-white shadow-sm">
                 <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
               </div>
             ) : filteredConversations.length ? (
               <VirtualList
                 items={filteredConversations}
-                estimateSize={86}
-                className="h-[calc(100vh-15.5rem)]"
+                estimateSize={72}
+                className="h-[calc(100vh-8.5rem)]"
                 itemKey={(conversation) => conversation.conversation_key}
                 renderItem={(conversation) => (
-                  <div className="pb-2">
+                  <div className="border-b border-slate-100 py-0.5">
                     <ConversationListItem
                       conversation={conversation}
                       active={false}
@@ -1372,24 +1413,35 @@ export default function AiInboxPwa() {
           ) : null}
 
           {tab === "leads" ? <LeadsView conversations={conversations} onOpenConversation={openConversation} /> : null}
-          {tab === "products" ? <ProductsView products={products} loading={productLoading} onSendProduct={sendProductCards} selectedConversation={selectedConversation} onOpenSheet={() => setProductSheetOpen(true)} /> : null}
           {tab === "more" ? <MoreView installAvailable={Boolean(installPrompt)} onInstall={installApp} /> : null}
         </main>
 
         {showComposer ? (
-          <div className="fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-20 mx-auto w-full max-w-md px-4">
-            <div className="rounded-[28px] border border-slate-200 bg-white p-3 shadow-[0_18px_40px_rgba(15,23,42,0.14)]">
+          <div className="fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-20 mx-auto w-full max-w-md px-3">
+            <div className="rounded-[24px] border border-slate-200 bg-white p-2.5 shadow-[0_18px_40px_rgba(15,23,42,0.14)]">
               {composerMode === "note" ? (
                 <div className="mb-2 flex items-center gap-2 text-xs font-medium text-amber-700">
                   <Sparkles className="h-3.5 w-3.5" />
                   Internal note mode
                 </div>
               ) : null}
+              <div className="mb-2 -mx-0.5 flex gap-1.5 overflow-x-auto pb-0.5">
+                {QUICK_REPLIES.map((reply) => (
+                  <button
+                    key={reply}
+                    type="button"
+                    onClick={() => setComposerText((current) => (clean(current) ? `${current} ${reply}` : reply))}
+                    className="shrink-0 rounded-full bg-slate-100 px-3 py-1.5 text-[12px] font-medium text-slate-700"
+                  >
+                    {reply}
+                  </button>
+                ))}
+              </div>
               <div className="flex items-end gap-2">
                 <button
                   type="button"
                   onClick={() => setProductSheetOpen(true)}
-                  className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white"
+                  className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-100"
                   aria-label="Send product"
                 >
                   <PackagePlus className="h-5 w-5" />
@@ -1399,6 +1451,7 @@ export default function AiInboxPwa() {
                   onChange={(event) => setComposerText(event.target.value)}
                   rows={1}
                   placeholder={composerMode === "note" ? "Write an internal note" : "Type a reply"}
+                  dir="auto"
                   className="max-h-28 min-h-12 flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-slate-400 focus:bg-white"
                 />
                 <button
@@ -1416,7 +1469,7 @@ export default function AiInboxPwa() {
         ) : null}
 
         <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-md border-t border-slate-200 bg-white/95 px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur">
-          <div className="grid grid-cols-4 gap-1">
+          <div className="grid grid-cols-3 gap-1">
             {NAV_ITEMS.map((item) => {
               const active = tab === item.key;
               const Icon = item.icon;
