@@ -1022,22 +1022,40 @@ function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraf
   const canSendLive = conversation.live_sending_available === true || isCommentConversation;
   const submitLabel = isCommentConversation ? "إرسال الرد" : "Send now";
   const submitTitle = isCommentConversation ? "إرسال رد علني على الكومنت" : "Send now through Meta";
-  if (status === "closed") {
-    return <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">المحادثة مغلقة. تم تعطيل الرد اليدوي.</div>;
-  }
+  const textareaRef = useRef(null);
   const submit = () => {
     if (clean(value)) onSend();
   };
+  const resizeTextarea = () => {
+    const element = textareaRef.current;
+    if (!element) return;
+    element.style.height = "0px";
+    element.style.height = `${Math.min(element.scrollHeight, 160)}px`;
+  };
+  useEffect(() => {
+    resizeTextarea();
+  }, [value]);
+  if (status === "closed") {
+    return <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">المحادثة مغلقة. تم تعطيل الرد اليدوي.</div>;
+  }
   return (
-    <div className="sticky bottom-0 w-full rounded-2xl border border-white/10 bg-slate-950/95 p-2.5 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur md:p-3">
-      <SectionTitle
-        icon={Send}
-        title={canSendLive ? "Reply composer" : "Draft / internal note"}
-        action={canSendLive ? <Pill tone="emerald"><Radio className="h-3.5 w-3.5" />Live send ready</Pill> : <Pill tone="amber">Live channel unavailable</Pill>}
-      />
-      {status !== "human_takeover" && canSendLive && !isCommentConversation ? <div className="mb-2 rounded-xl border border-cyan-300/15 bg-cyan-300/8 p-1.5 text-[11px] font-bold text-cyan-100">Sending a staff reply will take over this conversation and pause AI automation.</div> : null}
+    <div className="sticky bottom-0 w-full rounded-2xl border border-white/10 bg-slate-950/95 p-2 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur md:p-2.5">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <div className="min-w-0 flex-1" />
+        {canSendLive ? (
+          <Pill tone="emerald" className="px-2 py-0.5 text-[10px]">
+            <Radio className="h-3 w-3" />
+            Live send ready
+          </Pill>
+        ) : (
+          <Pill tone="amber" className="px-2 py-0.5 text-[10px]">
+            Live channel unavailable
+          </Pill>
+        )}
+      </div>
+      {status !== "human_takeover" && canSendLive && !isCommentConversation ? <div className="mb-1.5 rounded-xl border border-cyan-300/15 bg-cyan-300/8 px-2 py-1 text-[10px] font-bold leading-4 text-cyan-100">Sending a staff reply will take over this conversation and pause AI automation.</div> : null}
       {isCommentConversation ? (
-        <div className="mb-2">
+        <div className="mb-1.5">
           <CommentReplyDraftPanel
             draftText={commentDraftText}
             onLoadDraft={onLoadDraft}
@@ -1046,13 +1064,18 @@ function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraf
           />
         </div>
       ) : null}
-      <div className="flex flex-col gap-2">
-        <div className="flex min-w-0 flex-col gap-2 rounded-2xl border border-white/10 bg-slate-950/70 p-2 focus-within:border-cyan-300/40 sm:flex-row sm:items-end">
-          <button type="button" title="Emoji picker coming soon" className="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.055] text-sm font-black text-slate-300">⋯</button>
+      <div className="flex flex-col gap-1.5">
+        <div className="flex min-w-0 flex-col gap-1.5 rounded-2xl border border-white/10 bg-slate-950/70 p-1.5 focus-within:border-cyan-300/40 sm:flex-row sm:items-end">
+          <button type="button" title="Emoji picker coming soon" className="grid h-7 w-7 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.055] text-sm font-black text-slate-300">⋯</button>
           <textarea
+            ref={textareaRef}
             dir={isRtlText(value) ? "rtl" : "auto"}
             value={value}
-            onChange={(event) => onChange(event.target.value)}
+            onChange={(event) => {
+              onChange(event.target.value);
+              resizeTextarea();
+            }}
+            onInput={resizeTextarea}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
@@ -1060,34 +1083,51 @@ function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraf
               }
             }}
             rows={1}
-            placeholder={canSendLive ? "اكتب رد للعميل..." : "Write an internal note. It will not be sent to Meta yet."}
-            className="min-h-12 min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-1.25 text-[15px] font-bold leading-6 text-white outline-none placeholder:text-slate-600"
+            placeholder={canSendLive ? "اكتب رد العميل..." : "Write an internal note. It will not be sent to Meta yet."}
+            className="min-h-10 min-w-0 flex-1 resize-none overflow-hidden border-0 bg-transparent px-1 py-1 text-[14px] font-bold leading-6 text-white outline-none placeholder:text-slate-600"
           />
-          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl bg-emerald-300 px-3 text-[11px] font-black text-slate-950 disabled:opacity-50">{loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}{submitLabel}</button>
+          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className="inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-emerald-300 px-2.5 text-[10px] font-black text-slate-950 disabled:opacity-50 sm:hidden">{loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}{submitLabel}</button>
         </div>
-        <div className="flex flex-wrap justify-end gap-2">
-          {isCommentConversation ? (
-            <button
-              type="button"
-              onClick={() => onSend()}
-              disabled={loading || !clean(value) || !canSendLive}
-              className="inline-flex h-7 items-center justify-center gap-1.5 rounded-xl border border-violet-300/20 bg-violet-400/10 px-2.5 text-[10px] font-black text-violet-100 disabled:opacity-50"
-            >
-              <MessageSquareText className="h-3.5 w-3.5" />
-              رد على الكومنت
-            </button>
-          ) : null}
+        <div className="flex items-center justify-end gap-1.5">
+          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className="hidden h-7 items-center justify-center gap-1.5 rounded-xl bg-emerald-300 px-2.5 text-[10px] font-black text-slate-950 disabled:opacity-50 sm:inline-flex">{loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}{submitLabel}</button>
           <button
             type="button"
             onClick={() => onOpenProductPicker?.()}
             disabled={loading}
-            className="inline-flex h-7 items-center justify-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[10px] font-black text-cyan-100 disabled:opacity-50"
+            className="hidden h-7 items-center justify-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[10px] font-black text-cyan-100 disabled:opacity-50 sm:inline-flex"
           >
-            <ShoppingCart className="h-3.5 w-3.5" />
+            <ShoppingCart className="h-3 w-3" />
             إرسال منتج
           </button>
-          <button type="button" onClick={onSaveDraft} disabled={loading || !clean(value)} className="inline-flex h-7 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-2.5 text-[10px] font-black text-slate-100 disabled:opacity-50">Save draft</button>
-          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} className="inline-flex h-7 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[10px] font-black text-cyan-100 disabled:opacity-50">Approve AI reply</button>
+          <button type="button" onClick={onSaveDraft} disabled={loading || !clean(value)} className="hidden h-7 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-2.5 text-[10px] font-black text-slate-100 disabled:opacity-50 sm:inline-flex">Save draft</button>
+          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} className="hidden h-7 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[10px] font-black text-cyan-100 disabled:opacity-50 sm:inline-flex">Approve AI reply</button>
+          <details className="relative sm:hidden">
+            <summary className="list-none cursor-pointer grid h-7 w-7 place-items-center rounded-xl border border-white/10 bg-white/[0.055] text-slate-200">⋮</summary>
+            <div className="absolute right-0 z-20 mt-2 w-44 rounded-2xl border border-white/10 bg-slate-950/98 p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+              {isCommentConversation ? (
+                <button
+                  type="button"
+                  onClick={() => onSend()}
+                  disabled={loading || !clean(value) || !canSendLive}
+                  className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-violet-300/20 bg-violet-400/10 px-2.5 text-[10px] font-black text-violet-100 disabled:opacity-50"
+                >
+                  <MessageSquareText className="h-3.5 w-3.5" />
+                  رد على الكومنت
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => onOpenProductPicker?.()}
+                disabled={loading}
+                className="mt-1 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[10px] font-black text-cyan-100 disabled:opacity-50"
+              >
+                <ShoppingCart className="h-3.5 w-3.5" />
+                إرسال منتج
+              </button>
+              <button type="button" onClick={onSaveDraft} disabled={loading || !clean(value)} className="mt-1 inline-flex h-8 w-full items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-2.5 text-[10px] font-black text-slate-100 disabled:opacity-50">Save draft</button>
+              <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} className="mt-1 inline-flex h-8 w-full items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[10px] font-black text-cyan-100 disabled:opacity-50">Approve AI reply</button>
+            </div>
+          </details>
         </div>
       </div>
     </div>
