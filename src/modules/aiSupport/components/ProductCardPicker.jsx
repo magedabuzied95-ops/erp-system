@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { CheckCircle2, Loader2, Search, ShoppingBag, X } from "lucide-react";
+import { CheckCircle2, Loader2, Search, ShoppingBag, Square, X } from "lucide-react";
 
 import { getPosSellableProducts } from "../../pos/services/posProductsApi";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -12,6 +12,14 @@ const money = (value) => formatCurrency(value);
 
 const uniqueTextValues = (values = []) =>
   [...new Set(values.map((item) => clean(item)).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ar"));
+
+const uniqueSizeValues = (values = []) =>
+  [...new Set(values.map((item) => clean(item)).filter(Boolean))].sort((a, b) => {
+    const left = Number(a);
+    const right = Number(b);
+    if (Number.isFinite(left) && Number.isFinite(right)) return left - right;
+    return a.localeCompare(b, "ar");
+  });
 
 const resolveStorefrontUrl = (product = {}) => {
   const rawUrl = clean(product.storefront_url || product.product_url || product.url || "");
@@ -51,10 +59,11 @@ const productColors = (product = {}) =>
 const productSizes = (product = {}, color = "") => {
   const normalizedColor = lower(color);
   const variants = asArray(product.variants).filter((variant) => {
+    if (Number(variant.stock ?? variant.stock_quantity ?? variant.available_quantity ?? variant.quantity ?? 0) <= 0) return false;
     if (!normalizedColor) return true;
     return lower(variant.color || variant.color_name || variant.variant_color) === normalizedColor;
   });
-  return uniqueTextValues(variants.map((variant) => variant.size || variant.size_name || variant.variant_size));
+  return uniqueSizeValues(variants.map((variant) => variant.size || variant.size_name || variant.variant_size));
 };
 
 const findMatchingVariant = (product = {}, color = "", size = "") => {
@@ -62,7 +71,9 @@ const findMatchingVariant = (product = {}, color = "", size = "") => {
   if (!variants.length) return null;
   const normalizedColor = lower(color);
   const normalizedSize = lower(size);
-  const exactMatch = variants.find((variant) => {
+  const availableVariants = variants.filter((variant) => Number(variant.stock ?? variant.stock_quantity ?? variant.available_quantity ?? variant.quantity ?? 0) > 0);
+  const searchVariants = availableVariants.length ? availableVariants : variants;
+  const exactMatch = searchVariants.find((variant) => {
     const variantColor = lower(variant.color || variant.color_name || variant.variant_color);
     const variantSize = lower(variant.size || variant.size_name || variant.variant_size);
     const colorMatches = !normalizedColor || variantColor === normalizedColor;
@@ -70,11 +81,11 @@ const findMatchingVariant = (product = {}, color = "", size = "") => {
     return colorMatches && sizeMatches;
   });
   if (exactMatch) return exactMatch;
-  const colorMatch = normalizedColor ? variants.find((variant) => lower(variant.color || variant.color_name || variant.variant_color) === normalizedColor) : null;
+  const colorMatch = normalizedColor ? searchVariants.find((variant) => lower(variant.color || variant.color_name || variant.variant_color) === normalizedColor) : null;
   if (colorMatch) return colorMatch;
-  const sizeMatch = normalizedSize ? variants.find((variant) => lower(variant.size || variant.size_name || variant.variant_size) === normalizedSize) : null;
+  const sizeMatch = normalizedSize ? searchVariants.find((variant) => lower(variant.size || variant.size_name || variant.variant_size) === normalizedSize) : null;
   if (sizeMatch) return sizeMatch;
-  return variants[0] || null;
+  return searchVariants[0] || variants[0] || null;
 };
 
 const buildProductCardPayload = (product = {}, variant = null) => {
@@ -95,6 +106,26 @@ const buildProductCardPayload = (product = {}, variant = null) => {
     storefront_url: resolveStorefrontUrl(product),
   };
 };
+
+const productHasAvailableSize = (product = {}, size = "") => {
+  const normalizedSize = lower(size);
+  if (!normalizedSize) return false;
+  return asArray(product.variants).some((variant) => {
+    const variantSize = lower(variant.size || variant.size_name || variant.variant_size);
+    const stock = Number(variant.stock ?? variant.stock_quantity ?? variant.available_quantity ?? variant.quantity ?? 0);
+    return stock > 0 && variantSize === normalizedSize;
+  });
+};
+
+const availableSizesForProducts = (products = []) =>
+  uniqueSizeValues(
+    asArray(products).flatMap((product) =>
+      asArray(product.variants)
+        .filter((variant) => Number(variant.stock ?? variant.stock_quantity ?? variant.available_quantity ?? variant.quantity ?? 0) > 0)
+        .map((variant) => variant.size || variant.size_name || variant.variant_size)
+        .filter(Boolean)
+    )
+  );
 
 const matchesQuery = (product = {}, query = "") => {
   const normalized = lower(query);
@@ -127,7 +158,7 @@ const matchesQuery = (product = {}, query = "") => {
   return searchable.some((item) => lower(item).includes(normalized));
 };
 
-export default function ProductCardPicker({ open, onClose, onSubmit }) {
+export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = false, allowMultiple = false }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -138,6 +169,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit }) {
   const [selectedProductId, setSelectedProductId] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
+  const [selectedProductIds, setSelectedProductIds] = useState([]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -172,12 +204,23 @@ export default function ProductCardPicker({ open, onClose, onSubmit }) {
     });
   }, [brand, category, products, search]);
 
+  const availableSizes = useMemo(() => availableSizesForProducts(filteredProducts), [filteredProducts]);
+  const isSizeSelectionStep = Boolean(sizeMode && !selectedSize);
+  const visibleProducts = useMemo(() => {
+    if (!sizeMode || !selectedSize) return filteredProducts;
+    return filteredProducts.filter((product) => productHasAvailableSize(product, selectedSize));
+  }, [filteredProducts, selectedSize, sizeMode]);
+
   const brandOptions = useMemo(() => uniqueTextValues(products.map((product) => product.brand || product.brand_name)), [products]);
   const categoryOptions = useMemo(() => uniqueTextValues(products.map((product) => product.category || product.category_name)), [products]);
 
   useEffect(() => {
     if (!open) return;
-    const visibleProducts = filteredProducts;
+    if (sizeMode && !selectedSize) {
+      setSelectedProductId("");
+      setSelectedProductIds([]);
+      return;
+    }
     if (!visibleProducts.length) {
       setSelectedProductId("");
       return;
@@ -186,13 +229,13 @@ export default function ProductCardPicker({ open, onClose, onSubmit }) {
     if (!selectedProductId || !selectedExists) {
       setSelectedProductId(String(visibleProducts[0].product_id || visibleProducts[0].id || ""));
     }
-  }, [filteredProducts, open, selectedProductId]);
+  }, [open, selectedProductId, selectedSize, sizeMode, visibleProducts]);
 
   const selectedProduct = useMemo(() => {
-    if (!filteredProducts.length) return null;
-    const selected = filteredProducts.find((product) => String(product.product_id || product.id || "") === String(selectedProductId || ""));
-    return selected || filteredProducts[0] || null;
-  }, [filteredProducts, selectedProductId]);
+    if (!visibleProducts.length) return null;
+    const selected = visibleProducts.find((product) => String(product.product_id || product.id || "") === String(selectedProductId || ""));
+    return selected || visibleProducts[0] || null;
+  }, [selectedProductId, visibleProducts]);
 
   useEffect(() => {
     if (!selectedProduct) return;
@@ -212,6 +255,40 @@ export default function ProductCardPicker({ open, onClose, onSubmit }) {
   const activeColors = useMemo(() => productColors(selectedProduct || {}), [selectedProduct]);
   const activeSizes = useMemo(() => productSizes(selectedProduct || {}, selectedColor), [selectedColor, selectedProduct]);
   const activePrice = Number(activeCard?.price || 0);
+  const selectedProducts = useMemo(() => {
+    if (allowMultiple && selectedProductIds.length) {
+      return selectedProductIds
+        .map((id) => visibleProducts.find((product) => String(product.product_id || product.id || "") === String(id)))
+        .filter(Boolean);
+    }
+    return selectedProduct ? [selectedProduct] : [];
+  }, [allowMultiple, selectedProduct, selectedProductIds, visibleProducts]);
+
+  useEffect(() => {
+    if (!open || !sizeMode) return;
+    if (availableSizes.length === 1 && !selectedSize) {
+      setSelectedSize(availableSizes[0]);
+    }
+  }, [availableSizes, open, selectedSize, sizeMode]);
+
+  useEffect(() => {
+    if (!open) return;
+    setSelectedProductIds((current) => current.filter((id) => visibleProducts.some((product) => String(product.product_id || product.id || "") === String(id))));
+  }, [open, visibleProducts]);
+
+  const toggleProductSelection = useCallback((product) => {
+    const productId = String(product.product_id || product.id || "");
+    setSelectedProductId(productId);
+    if (!allowMultiple) {
+      setSelectedProductIds([]);
+      return;
+    }
+    setSelectedProductIds((current) => (
+      current.includes(productId)
+        ? current.filter((id) => id !== productId)
+        : [...current, productId]
+    ));
+  }, [allowMultiple]);
 
   const submitSelection = useCallback(async () => {
     if (!activeCard || submitting) return;
@@ -226,6 +303,26 @@ export default function ProductCardPicker({ open, onClose, onSubmit }) {
     }
   }, [activeCard, onSubmit, submitting]);
 
+  const submitSelectionWithSizeMode = useCallback(async () => {
+    const cards = selectedProducts
+      .map((product) => {
+        const variant = findMatchingVariant(product || {}, sizeMode ? "" : selectedColor, selectedSize);
+        return buildProductCardPayload(product, variant);
+      })
+      .filter((card) => card.product_name || card.product_id || card.storefront_url);
+    const payloadCards = cards.length ? cards : (activeCard ? [activeCard] : []);
+    if (!payloadCards.length || submitting) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await onSubmit?.(payloadCards);
+    } catch (err) {
+      setError(err?.message || "طھط¹ط°ط± ط¥ط±ط³ط§ظ„ ط§ظ„ظ…ظ†طھط¬");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [activeCard, onSubmit, selectedColor, selectedProducts, selectedSize, sizeMode, submitting]);
+
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
@@ -236,7 +333,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit }) {
       }}
     >
       <section
-        className="flex max-h-[94vh] w-full max-w-6xl min-w-0 flex-col overflow-hidden rounded-[1.35rem] border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)]"
+        className="relative flex max-h-[94vh] w-full max-w-6xl min-w-0 flex-col overflow-hidden rounded-[1.35rem] border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)]"
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -257,6 +354,32 @@ export default function ProductCardPicker({ open, onClose, onSubmit }) {
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {isSizeSelectionStep ? (
+          <div className="absolute inset-x-0 bottom-0 top-[57px] z-20 flex min-h-0 flex-col gap-3 overflow-y-auto bg-slate-950 p-4">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">Size filter</div>
+              <div className="mt-2 text-lg font-black text-white">اختر المقاس المتاح</div>
+              <div className="mt-1 text-xs font-semibold text-slate-400">سيتم إظهار المنتجات التي لديها stock فعلي لهذا المقاس فقط.</div>
+              <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+                {availableSizes.length ? availableSizes.map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => setSelectedSize(size)}
+                    className="min-h-12 rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm font-black text-white transition hover:border-cyan-300/30 hover:bg-cyan-300/10"
+                  >
+                    {size}
+                  </button>
+                )) : (
+                  <div className="col-span-full rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm font-semibold text-slate-500">
+                    لا توجد مقاسات متاحة حالياً
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="grid min-h-0 flex-1 gap-3 overflow-hidden p-3 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
@@ -299,10 +422,11 @@ export default function ProductCardPicker({ open, onClose, onSubmit }) {
                 </div>
               ) : error ? (
                 <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">{error}</div>
-              ) : filteredProducts.length ? (
+              ) : visibleProducts.length ? (
                 <div className="grid gap-2">
-                  {filteredProducts.slice(0, 80).map((product) => {
+                  {visibleProducts.slice(0, 80).map((product) => {
                     const isActive = String(product.product_id || product.id || "") === String(selectedProduct?.product_id || selectedProduct?.id || "");
+                    const isSelected = selectedProductIds.includes(String(product.product_id || product.id || ""));
                     const previewVariant = findMatchingVariant(product, isActive ? selectedColor : "", isActive ? selectedSize : "") || asArray(product.variants)[0] || null;
                     const previewImage = productImage(product, previewVariant);
                     const previewPrice = Number(previewVariant?.price ?? product.final_price ?? product.price ?? 0);
@@ -312,11 +436,16 @@ export default function ProductCardPicker({ open, onClose, onSubmit }) {
                       <button
                         key={`${product.product_id || product.id}`}
                         type="button"
-                        onClick={() => setSelectedProductId(String(product.product_id || product.id || ""))}
-                        className={`flex items-start gap-3 rounded-2xl border p-2.5 text-right transition ${
+                        onClick={() => toggleProductSelection(product)}
+                        className={`relative flex items-start gap-3 rounded-2xl border p-2.5 text-right transition ${
                           isActive ? "border-cyan-300/40 bg-cyan-300/10" : "border-white/10 bg-slate-950/60 hover:border-white/20 hover:bg-white/[0.04]"
                         }`}
                       >
+                        {allowMultiple ? (
+                          <span className={`absolute left-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded-full border ${isSelected ? "border-cyan-300 bg-cyan-300 text-slate-950" : "border-white/20 bg-black/40 text-white/60"}`}>
+                            {isSelected ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
+                          </span>
+                        ) : null}
                         {previewImage ? (
                           <img src={previewImage} alt={product.name || "منتج"} className="h-16 w-16 shrink-0 rounded-xl object-cover" loading="lazy" />
                         ) : (
@@ -446,8 +575,8 @@ export default function ProductCardPicker({ open, onClose, onSubmit }) {
 
                 <button
                   type="button"
-                  onClick={submitSelection}
-                  disabled={!activeCard || submitting}
+                  onClick={submitSelectionWithSizeMode}
+                  disabled={submitting || (!allowMultiple ? !activeCard : !(selectedProducts.length || activeCard))}
                   className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

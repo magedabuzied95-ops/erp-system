@@ -31,6 +31,7 @@ import {
   PlayCircle,
   RefreshCw,
   Radio,
+  Ruler,
   Search,
   Send,
   ShoppingBag,
@@ -1479,6 +1480,7 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
     { key: "escalate_human", label: "Escalate to human", enabled: true, action: onTakeover },
     { key: "draft_order", label: "Draft order", enabled: Boolean(primary), action: () => primary && onCreateDraft?.(primary, { reserve: false }) },
     { key: "reserve_stock", label: "Reserve stock", enabled: Boolean(primary), action: () => primary && onCreateDraft?.(primary, { reserve: true }) },
+    { key: "available_by_size", label: "المتاح بالمقاس", enabled: true, action: () => openProductCardPicker({ sizeMode: true, allowMultiple: true }) },
     { key: "payment_link", label: "Send payment link", enabled: true, action: () => onPaymentAction?.("payment_link") },
     { key: "follow_up", label: "Follow up", enabled: Boolean(followup.low_stock_message || followup.ten_minute_message), action: () => onUseText(followup.low_stock_message || followup.ten_minute_message || "ظ‡طھط§ط¨ط¹ ظ…ط¹ط§ظƒ ط£ظˆظ„ ظ…ط§ ظٹطھظˆظپط± ط§ظ„ظ…ظ‚ط§ط³ ط§ظ„ظ…ظ†ط§ط³ط¨.") },
   ];
@@ -1532,7 +1534,7 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
             {practicalActions.map((action) => {
-              const Icon = action.key === "follow_up" ? Flame : action.key === "escalate_human" ? Handshake : action.key === "payment_link" ? CreditCard : action.key === "reserve_stock" ? PackageCheck : action.key === "draft_order" ? ShoppingCart : MessageSquareText;
+              const Icon = action.key === "follow_up" ? Flame : action.key === "escalate_human" ? Handshake : action.key === "payment_link" ? CreditCard : action.key === "reserve_stock" ? PackageCheck : action.key === "draft_order" ? ShoppingCart : action.key === "available_by_size" ? Ruler : MessageSquareText;
               return (
                 <button key={action.key} type="button" onClick={action.action || (() => {})} disabled={loading || action.enabled === false} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-xs font-black text-slate-100 disabled:text-slate-500 disabled:opacity-60">
                   <Icon className="h-4 w-4" />
@@ -2441,7 +2443,7 @@ export default function AiInbox() {
   const [profileOpen, setProfileOpen] = useState(true);
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
-  const [productCardPickerOpen, setProductCardPickerOpen] = useState(false);
+  const [productCardPickerConfig, setProductCardPickerConfig] = useState({ open: false, sizeMode: false, allowMultiple: false });
   const [productCardSending, setProductCardSending] = useState(false);
   const [assignNameDraft, setAssignNameDraft] = useState({ sessionId: "", value: "" });
   const [leadAssignEmployeeId, setLeadAssignEmployeeId] = useState("");
@@ -2804,6 +2806,16 @@ export default function AiInbox() {
   );
   const selectedMessagingActive = Boolean(selectedChannelStatus.live_operational || selectedChannelStatus.effective_enabled || selectedChannelStatus.messaging_active);
   const canViewAiDebug = useMemo(() => canViewAiDebugPanel(getCurrentUser?.() || {}), []);
+  const openProductCardPicker = useCallback((options = {}) => {
+    setProductCardPickerConfig({
+      open: true,
+      sizeMode: Boolean(options.sizeMode),
+      allowMultiple: Boolean(options.allowMultiple),
+    });
+  }, []);
+  const closeProductCardPicker = useCallback(() => {
+    setProductCardPickerConfig({ open: false, sizeMode: false, allowMultiple: false });
+  }, []);
 
   useEffect(() => {
     const channelKey = clean(selectedConversation?.channel || selectedConversation?.source);
@@ -3513,7 +3525,7 @@ export default function AiInbox() {
       }
 
       setToast({ tone: "emerald", text: "تم إرسال المنتج" });
-      setProductCardPickerOpen(false);
+      closeProductCardPicker();
     } catch (err) {
       setToast({ tone: "rose", text: err?.message || "تعذر إرسال المنتج" });
       setError(err?.message || "تعذر إرسال المنتج");
@@ -3734,9 +3746,11 @@ export default function AiInbox() {
         onClose={() => setAiTrace((current) => ({ ...current, open: false }))}
       />
       <ProductCardPicker
-        open={productCardPickerOpen}
-        onClose={() => setProductCardPickerOpen(false)}
+        open={productCardPickerConfig.open}
+        onClose={closeProductCardPicker}
         onSubmit={sendProductCards}
+        sizeMode={productCardPickerConfig.sizeMode}
+        allowMultiple={productCardPickerConfig.allowMultiple}
       />
       <div className="mx-auto flex h-[100dvh] max-w-[96rem] flex-col gap-2 overflow-hidden p-2 md:p-3">
         <section className="shrink-0 rounded-3xl border border-white/10 bg-white/[0.055] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.2)] backdrop-blur">
@@ -3994,7 +4008,7 @@ export default function AiInbox() {
                     onCreateOpportunity={createLeadOpportunity}
                     onSendPrivateMessage={sendLeadPrivateMessage}
                     onSendCommentReply={sendLeadCommentReplyQuick}
-                    onOpenProductPicker={() => setProductCardPickerOpen(true)}
+                    onOpenProductPicker={() => openProductCardPicker()}
                     onAssignEmployee={assignLeadEmployee}
                     busy={Boolean(leadActionLoading || loading || productCardSending)}
                   />
@@ -4009,7 +4023,7 @@ export default function AiInbox() {
                         onChange={setReplyText}
                         onSend={() => sendCurrentReply()}
                         onSaveDraft={saveDraftReply}
-                        onOpenProductPicker={() => setProductCardPickerOpen(true)}
+                        onOpenProductPicker={() => openProductCardPicker()}
                         onLoadDraft={(text) => setReplyText(text)}
                         onCopyDraft={copySuggestedReply}
                         commentDraftText={latestCommentReplyDraft}
@@ -4213,7 +4227,7 @@ export default function AiInbox() {
                     onCreateOpportunity={createLeadOpportunity}
                     onSendPrivateMessage={sendLeadPrivateMessage}
                     onSendCommentReply={sendLeadCommentReplyQuick}
-                    onOpenProductPicker={() => setProductCardPickerOpen(true)}
+                    onOpenProductPicker={() => openProductCardPicker()}
                     onAssignEmployee={assignLeadEmployee}
                     busy={Boolean(leadActionLoading || loading || productCardSending)}
                   />
@@ -4399,7 +4413,7 @@ export default function AiInbox() {
                         onChange={setReplyText}
                         onSend={() => sendCurrentReply()}
                         onSaveDraft={saveDraftReply}
-                        onOpenProductPicker={() => setProductCardPickerOpen(true)}
+                        onOpenProductPicker={() => openProductCardPicker()}
                         onLoadDraft={(text) => setReplyText(text)}
                         onCopyDraft={copySuggestedReply}
                         commentDraftText={latestCommentReplyDraft}
