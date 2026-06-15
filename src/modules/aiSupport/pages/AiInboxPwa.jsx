@@ -1729,6 +1729,14 @@ export default function AiInboxPwa() {
     [headers, patchConversation, selectedConversation, tenantId]
   );
 
+  const openAvailableBySizePicker = useCallback(() => {
+    setAvailableBySizePickerConfig({ open: true, sizeMode: true, allowMultiple: true });
+  }, []);
+
+  const closeAvailableBySizePicker = useCallback(() => {
+    setAvailableBySizePickerConfig({ open: false, sizeMode: false, allowMultiple: false });
+  }, []);
+
   const sendAvailableBySizeCards = useCallback(
     async (cards = []) => {
       setAvailableBySizeSending(true);
@@ -1986,12 +1994,6 @@ export default function AiInboxPwa() {
     selectedConversation?.last_activity_at || selectedConversation?.updated_at
   );
   const quickActionBusy = Boolean(leadActionLoading || aiToggling || productSending || availableBySizeSending || sending);
-  const openAvailableBySizePicker = useCallback(() => {
-    setAvailableBySizePickerConfig({ open: true, sizeMode: true, allowMultiple: true });
-  }, []);
-  const closeAvailableBySizePicker = useCallback(() => {
-    setAvailableBySizePickerConfig({ open: false, sizeMode: false, allowMultiple: false });
-  }, []);
   const isRtlLayout =
     typeof document !== "undefined" &&
     ((document.documentElement.dir || document.body?.dir || "").toLowerCase() === "rtl");
