@@ -1189,62 +1189,6 @@ function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraf
   );
 }
 
-function AiSuggestedRepliesPanel({ conversation, suggestions, intent, confidence, loading, error, onGenerate, onUse, onSendSuggestion, onCopySuggestion, channelStatus = {} }) {
-  if (!conversation) return null;
-  const status = conversation.conversation_status || conversation.status || "ai_active";
-  const disabled = loading || status === "closed";
-  const hasChannelSetup = Object.keys(channelStatus || {}).length > 0;
-  const autoReplyEnabled = resolveChannelAutoReplyMode(channelStatus) !== "off";
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-      <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <SectionTitle
-            icon={Sparkles}
-            title="AI Suggested Replies"
-            action={intent ? <Pill tone="violet">{intent} / {Number(confidence || 0).toFixed(2)}</Pill> : null}
-          />
-          <p className="max-w-2xl text-sm leading-6 text-slate-400">2-3 short Egyptian Arabic options that you can copy, edit, or send live.</p>
-        </div>
-        <button type="button" onClick={onGenerate} disabled={disabled} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50">
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          Regenerate
-        </button>
-      </div>
-      <div className="mb-3 flex flex-wrap gap-2">
-        <Pill tone={autoReplyEnabled ? "emerald" : "amber"}>Auto reply {autoReplyEnabled ? "enabled" : "disabled"}</Pill>
-        {!hasChannelSetup ? <Pill tone="amber">Channel setup needed</Pill> : null}
-        {intent ? <Pill tone="zinc">Confidence {Number(confidence || 0).toFixed(2)}</Pill> : null}
-      </div>
-      {status === "closed" ? <div className="rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">Closed conversations cannot generate suggestions.</div> : null}
-      {!hasChannelSetup ? <div className="mb-3 rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm font-bold text-amber-100">No channel settings row was found for this channel. Open AI Channels to finish setup before enabling live sends.</div> : null}
-      {error ? <div className="rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
-      {!suggestions.length && status !== "closed" && !error ? <div className="rounded-xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-slate-500">Generate a staff-only suggested reply. It stays separate from sent replies until you approve or edit it.</div> : null}
-      {suggestions.length ? (
-        <div className="grid gap-3 xl:grid-cols-3">
-          {suggestions.map((suggestion, index) => (
-            <div key={`${suggestion}-${index}`} className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-sm leading-6 text-slate-100 transition hover:border-violet-300/30 hover:bg-violet-400/10">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-200">Suggestion {index + 1}</span>
-                <Pill tone="zinc">Short reply</Pill>
-              </div>
-              <p dir={isRtlText(suggestion) ? "rtl" : "auto"} className="mt-3 text-[14px] leading-7 text-slate-50">{suggestion}</p>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => onCopySuggestion?.(suggestion)} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] text-[11px] font-black text-slate-100">
-                  <Copy className="h-3.5 w-3.5" />Copy
-                </button>
-                <button type="button" onClick={() => onUse(suggestion)} className="h-9 rounded-xl border border-white/10 bg-white/[0.055] text-[11px] font-black text-slate-100">Edit before send</button>
-                <button type="button" onClick={() => onSendSuggestion(suggestion)} disabled={disabled} className="h-9 rounded-xl border border-emerald-300/20 bg-emerald-400/10 text-[11px] font-black text-emerald-100 disabled:opacity-50">Send now</button>
-                <button type="button" onClick={onGenerate} disabled={disabled} className="h-9 rounded-xl border border-violet-300/20 bg-violet-400/10 text-[11px] font-black text-violet-100 disabled:opacity-50">Regenerate</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 const autoReplyModes = [
   { key: "off", label: "Off" },
   { key: "suggest_only", label: "Suggest only" },
@@ -2335,14 +2279,12 @@ export default function AiInbox() {
   const [productCardPickerOpen, setProductCardPickerOpen] = useState(false);
   const [productCardSending, setProductCardSending] = useState(false);
   const [assignNameDraft, setAssignNameDraft] = useState({ sessionId: "", value: "" });
-  const [suggestedReplies, setSuggestedReplies] = useState({ sessionId: "", items: [], intent: "", confidence: 0, error: "" });
   const [socialComments, setSocialComments] = useState({ items: [], loading: false, error: "" });
   const [socialCommentsFilter, setSocialCommentsFilter] = useState("all");
   const [socialCommentsDebug, setSocialCommentsDebug] = useState({ request_url: "", tenant_id: "", status: "", count: "", error: "" });
   const [inboxSection, setInboxSection] = useState("conversations");
   const [aiDebug, setAiDebug] = useState({ sessionId: "", open: false, loading: false, data: null, error: "" });
   const [aiTrace, setAiTrace] = useState({ sessionId: "", open: false, loading: false, data: null, error: "" });
-  const [suggesting, setSuggesting] = useState(false);
   const [profileSyncing, setProfileSyncing] = useState(false);
   const [profileDebugging, setProfileDebugging] = useState(false);
   const [resettingAiState, setResettingAiState] = useState(false);
@@ -2771,10 +2713,6 @@ export default function AiInbox() {
     setAssignNameDraft({ sessionId: selectedConversation?.session_id || "", value });
   };
 
-  const currentSuggestions = suggestedReplies.sessionId === selectedConversation?.session_id
-    ? suggestedReplies
-    : { sessionId: selectedConversation?.session_id || "", items: [], intent: "", confidence: 0, error: "" };
-
   const updateDraft = async (draft, action) => {
     setLoading(true);
     setError("");
@@ -3202,33 +3140,6 @@ export default function AiInbox() {
       setProductCardSending(false);
     }
   }, [headers, loadAll, patchConversation, selectedConversation?.conversation_key, selectedConversation?.session_id, tenantId]);
-
-  const generateSuggestedReplies = async () => {
-    if (!selectedConversation?.session_id) return;
-    const sessionId = selectedConversation?.session_id;
-    setSuggesting(true);
-    setSuggestedReplies({ sessionId, items: [], intent: "", confidence: 0, error: "" });
-    try {
-      const payload = await api.post(aiAgentInboxEndpoint(sessionId, "/suggest-reply"), { tenant_id: tenantId }, { headers, perfComponent: "AiInbox.suggestReply" });
-      setSuggestedReplies({
-        sessionId,
-        items: asArray(payload.suggestions).filter(Boolean),
-        intent: payload.suggested_intent || "",
-        confidence: Number(payload.confidence || 0),
-        error: "",
-      });
-    } catch (err) {
-      setSuggestedReplies({
-        sessionId,
-        items: [],
-        intent: "",
-        confidence: 0,
-        error: err?.message || "تعذر إنشاء الاقتراحات",
-      });
-    } finally {
-      setSuggesting(false);
-    }
-  };
 
   const loadRecommendations = async () => {
     if (!selectedConversation?.session_id) return;
@@ -4012,21 +3923,6 @@ export default function AiInbox() {
                         <div className="max-h-[44rem] overflow-y-auto pr-1">
                           <Transcript conversation={selectedConversation} loadingOlder={olderMessagesLoading} onLoadOlder={loadOlderMessages} />
                         </div>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-2.5">
-                        <AiSuggestedRepliesPanel
-                          conversation={selectedConversation}
-                          suggestions={currentSuggestions.items}
-                          intent={currentSuggestions.intent}
-                          confidence={currentSuggestions.confidence}
-                          loading={suggesting}
-                          error={currentSuggestions.error}
-                          onGenerate={generateSuggestedReplies}
-                          onUse={setReplyText}
-                          onCopySuggestion={copySuggestedReply}
-                          onSendSuggestion={sendManualReply}
-                          channelStatus={selectedChannelStatus}
-                        />
                       </div>
                       <ManualReplyComposer
                         conversation={{ ...safeConversation, live_sending_available: Boolean(selectedChannelStatus.effective_enabled) || isMetaChannel(safeConversation.channel || safeConversation.source) }}

@@ -1933,7 +1933,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false })
 
   const { product, image } = activeSlide;
   const ActiveIcon = activeCategory.icon;
-  const cta = isRtl ? "���� �����" : t("storefront.common.shopCategory", "Shop category");
+  const cta = isRtl ? "تسوق الفئة" : t("storefront.common.shopCategory", "Shop category");
   const headline = isRtl ? activeCategory.headlineAr : activeCategory.headlineEn;
   const subtitle = isRtl ? activeCategory.subtitleAr : activeCategory.subtitleEn;
   const categoryHref = activeCategory.href || `/shop/products?q=${encodeURIComponent(activeCategory.query || activeCategory.label)}`;
@@ -2020,9 +2020,9 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false })
 
           <aside className="hidden border-s border-white/10 bg-white/[0.045] p-5 shadow-[inset_1px_0_0_rgba(255,255,255,0.06)] lg:block lg:[direction:rtl]">
             <div className="mb-4 border-b border-white/10 pb-3 text-sm font-black text-white">
-              ������ ���� ��������
+              الفئات الرئيسية
             </div>
-            <nav className="grid gap-1" aria-label="���� ��� �����">
+            <nav className="grid gap-1" aria-label="الفئات الرئيسية">
               {categories.map((category) => {
                 const active = category.id === activeCategory.id;
                 return (
@@ -2051,9 +2051,9 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false })
 const mainHomeCategoryCards = [
   {
     id: "men",
-    titleAr: "�����",
+    titleAr: "رجالي",
     titleEn: "Men",
-    subtitleAr: "���� Nike �Adidas �Jordan",
+    subtitleAr: "أحدث Nike و Adidas و Jordan",
     subtitleEn: "Latest Nike, Adidas & Jordan",
     href: "/shop/products?gender=men",
     test: (product, text) => productAudienceValues(product).includes("men") || /men|mens|male|\?{3,5}/i.test(text),
@@ -2061,9 +2061,9 @@ const mainHomeCategoryCards = [
   },
   {
     id: "women",
-    titleAr: "�����",
+    titleAr: "حريمي",
     titleEn: "Women",
-    subtitleAr: "���� ������ ��� ���",
+    subtitleAr: "راحة وأناقة لكل يوم",
     subtitleEn: "Comfort and style for every day",
     href: "/shop/products?gender=women",
     test: (product, text) => productAudienceValues(product).includes("women") || /women|womens|female|ladies|\?{3,5}/i.test(text),
@@ -2071,9 +2071,9 @@ const mainHomeCategoryCards = [
   },
   {
     id: "kids",
-    titleAr: "�����",
+    titleAr: "أطفال",
     titleEn: "Kids",
-    subtitleAr: "����� ������� ������ �������",
+    subtitleAr: "مناسب للمدرسة واللعب والحركة",
     subtitleEn: "Built for school, play and movement",
     href: "/shop/products?gender=kids",
     test: (product, text) => productAudienceValues(product).includes("kids") || /kids?|children|child|\?{3,5}/i.test(text),
@@ -2081,9 +2081,9 @@ const mainHomeCategoryCards = [
   },
   {
     id: "offers",
-    titleAr: "����",
+    titleAr: "عروض",
     titleEn: "Offers",
-    subtitleAr: "���� ������",
+    subtitleAr: "عروض الموسم",
     subtitleEn: "Season offers",
     href: "/shop/products?sale=true",
     test: (product, text) => hasSale(product) || /offer|offers|sale|discount|\?{3,5}/i.test(text),
@@ -2091,9 +2091,9 @@ const mainHomeCategoryCards = [
   },
   {
     id: "crocs",
-    titleAr: "�����",
+    titleAr: "كروكس",
     titleEn: "Crocs",
-    subtitleAr: "���� ���� ��� ���",
+    subtitleAr: "راحة سهلة لكل يوم",
     subtitleEn: "Easy comfort for every day",
     href: "/shop/products?category=crocs",
     test: (_product, text) => /crocs?|crocband|classics*clog|slides|\?{3,5}/i.test(text),
@@ -2101,9 +2101,9 @@ const mainHomeCategoryCards = [
   },
   {
     id: "last-sizes",
-    titleAr: "��� ��������",
+    titleAr: "آخر المقاسات",
     titleEn: "Last Sizes",
-    subtitleAr: "����� ������ ��� ������",
+    subtitleAr: "قطع محدودة قبل ما تختفي",
     subtitleEn: "Limited pairs before they disappear",
     href: "/shop/products?stock=last",
     test: (_product, text) => /lasts*sizes|finals*size|\?{3,5} \?{3,5}|\?{3,5} \?{3,5} \?{3,5}/i.test(text),
@@ -2169,12 +2169,12 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
               <div className="absolute inset-0 bg-gradient-to-l from-black/80 via-black/35 to-black/12" />
               <div className={`relative z-10 flex min-h-[300px] flex-col justify-end p-7 md:min-h-0 md:p-10 lg:p-12 ${isRtl ? "text-right" : "text-left"} ${reverse ? "md:order-2" : ""}`}>
                 <div className="mb-4 w-fit rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-[#f8e7b3] backdrop-blur">
-                  {isRtl ? "������ ����" : "Curated edit"}
+                  {isRtl ? "اختيار منسق" : "Curated edit"}
                 </div>
                 <h3 className="text-[3.3rem] font-black leading-none tracking-normal md:text-7xl lg:text-8xl">{title}</h3>
                 <p className="mt-4 max-w-[28rem] text-base font-bold leading-7 text-white/84 md:text-xl md:leading-8">{subtitle}</p>
                 <span className="mt-7 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-black text-stone-950 shadow-[0_16px_34px_rgba(0,0,0,0.26)] transition group-hover:bg-[#f8e7b3] group-hover:shadow-[0_18px_42px_rgba(248,231,179,0.26)] md:min-h-14 md:px-8">
-                  {isRtl ? "���� ����" : sfText("storefront.common.shopNow")}
+                  {isRtl ? "تسوق الآن" : sfText("storefront.common.shopNow")}
                   <ChevronLeft className={`h-4 w-4 transition group-hover:-translate-x-1 ${isRtl ? "" : "rotate-180 group-hover:translate-x-1 group-hover:-translate-y-0"}`} />
                 </span>
               </div>
@@ -2642,7 +2642,7 @@ function HomeBrandsSection() {
       <div className="rounded-[2.15rem] border border-stone-200 bg-white px-4 py-5 shadow-[0_18px_54px_rgba(39,20,75,0.07)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(7,11,22,0.98),rgba(7,11,22,0.92))] dark:shadow-[0_24px_80px_rgba(0,0,0,0.28)] md:px-5 md:py-6">
         <div className="mb-4 text-center">
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7c3aed] dark:text-[#d8b4fe]">{sfText("storefront.home.brandsEyebrow")}</p>
-          <h2 className="mt-1 text-2xl font-black tracking-normal text-stone-950 dark:text-white md:text-3xl">���������</h2>
+          <h2 className="mt-1 text-2xl font-black tracking-normal text-stone-950 dark:text-white md:text-3xl">البراندات</h2>
         </div>
         {isSingleBrand ? (
           <div className="mx-auto flex w-fit justify-center">
@@ -2669,7 +2669,7 @@ function HomeBrandsSection() {
                       />
                     </span>
                     <div className="mt-4 text-lg font-black text-white">{brandName}</div>
-                    <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-black text-white/80">��������� ��������</div>
+                    <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-black text-white/80">البراندات المختارة</div>
                   </span>
                 </Link>
               );
@@ -2815,7 +2815,7 @@ function HomePage(props) {
       <HomeProductSection title={sfText("storefront.nav.new")} subtitle={sfText("storefront.home.newSubtitle")} viewAllTo="/shop/products?sort=newest" loading={loading || storefrontHome.loading} products={homeSections.newArrivals} railType="new" tone="new" {...props} />
       <HomeProductSection title={sfText("storefront.nav.sale")} subtitle={sfText("storefront.home.saleSubtitle")} viewAllTo="/shop/products?sale=true" loading={saleLoading && !homeSections.sale.length} products={homeSections.sale} railType="sale" tone="sale" {...props} />
       <HomeProductSection title={sfText("storefront.home.lastSizes")} subtitle={sfText("storefront.home.productOfWeekEmpty")} viewAllTo="/shop/products?lastSizes=true" loading={loading || storefrontHome.loading} products={homeSections.lastSizes} railType="last-size" tone="last" {...props} />
-      <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "������ ������" : "Trending"} subtitle={normalizeLanguage(lang) === "ar" ? "�������� ����� �� ���� �������� �����." : "Popular picks, with newest products as fallback."} viewAllTo="/shop/products?sort=trending" loading={loading || storefrontHome.loading} products={homeSections.trending} railType="trending" tone="trending" {...props} />
+      <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "الأكثر طلبًا" : "Trending"} subtitle={normalizeLanguage(lang) === "ar" ? "اختيارات رائجة مع أحدث المنتجات كخيار بديل." : "Popular picks, with newest products as fallback."} viewAllTo="/shop/products?sort=trending" loading={loading || storefrontHome.loading} products={homeSections.trending} railType="trending" tone="trending" {...props} />
       <Reviews />
       <HomeBrandsSection />
       <LastPieceFinder open={lastPieceOpen} onClose={() => setLastPieceOpen(false)} />
