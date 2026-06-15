@@ -1410,7 +1410,7 @@ const normalizeStorefrontPaymentSettings = (settings = {}) => {
     shippingConfirmation: {
       enabled: bool(settings["storefront.payment_methods.shipping_confirmation_enabled"], true),
       amount: number(settings["storefront.payment_methods.shipping_confirmation_amount"], 75),
-      label: repairArabicMojibakeText(text(settings["storefront.payment_methods.shipping_confirmation_label"], sfText("storefront.checkout.transfer.amountDueNow"))),
+      label: sfText("storefront.checkout.transfer.amountDueNow"),
     },
   };
 };
