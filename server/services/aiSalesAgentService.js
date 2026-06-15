@@ -505,6 +505,7 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS external_customer_id TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS profile_pic_url TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS last_profile_sync_at TIMESTAMP NULL`);
+      await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_customer_profiles_external_customer_id ON ai_customer_profiles (tenant_id, external_customer_id)`);
       await clientOrPool.query(`UPDATE ai_customer_interactions SET detected_intent = intent_type WHERE COALESCE(detected_intent, '') = '' AND COALESCE(intent_type, '') <> ''`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_customer_profiles_tenant_seen ON ai_customer_profiles (tenant_id, last_seen_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_interactions_tenant_created ON ai_customer_interactions (tenant_id, created_at DESC)`);
@@ -784,8 +785,20 @@ export const upsertAiCustomerProfile = async ({ tenantId, sessionId = "", metada
     return null;
   }
   await ensureAiSalesAgentSchema();
-  const phone = text(metadata.customer_phone || metadata.phone || "").replace(/[^\d+]/g, "");
-  if (!tenantId || !phone) return null;
+  const phone = text(metadata.customer_phone || metadata.phone || "").replace(/\D/g, "");
+  const externalCustomerId = text(
+    metadata.external_customer_id ||
+      metadata.externalCustomerId ||
+      metadata.customer_external_id ||
+      metadata.customerExternalId ||
+      metadata.messenger_profile?.id ||
+      metadata.sender_psid ||
+      metadata.customer_psid ||
+      metadata.resolved_customer_id ||
+      metadata.resolvedCustomerId ||
+      ""
+  );
+  if (!tenantId || (!phone && !externalCustomerId)) return null;
   const channel = text(metadata.channel || "").toLowerCase();
   const isMessengerChannel = ["facebook_messenger", "facebook", "messenger", "instagram"].includes(channel);
   const firstNameSource = isMessengerChannel
@@ -805,39 +818,113 @@ export const upsertAiCustomerProfile = async ({ tenantId, sessionId = "", metada
   const products = summarizeProducts(response.suggested_products);
   const sentiment = sentimentFromMessage(message);
   const memoryScore = Math.min(100, 20 + products.length * 5 + (response.ai_order ? 30 : 0) + (sentiment === "positive" ? 10 : 0));
-  const result = await db.query(
-    `
-    INSERT INTO ai_customer_profiles (
-      tenant_id, first_name, phone, viewed_products, city_area, conversation_summary,
-      customer_sentiment, memory_score, last_seen_at, updated_at
-    )
-    VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,NOW(),NOW())
-    ON CONFLICT (tenant_id, phone) DO UPDATE SET
-      first_name = COALESCE(NULLIF(EXCLUDED.first_name, ''), ai_customer_profiles.first_name),
-      viewed_products = (
-        SELECT COALESCE(jsonb_agg(DISTINCT item), '[]'::jsonb)
-        FROM jsonb_array_elements(ai_customer_profiles.viewed_products || EXCLUDED.viewed_products) AS item
-      ),
-      city_area = COALESCE(NULLIF(EXCLUDED.city_area, ''), ai_customer_profiles.city_area),
-      conversation_summary = COALESCE(NULLIF(EXCLUDED.conversation_summary, ''), ai_customer_profiles.conversation_summary),
-      customer_sentiment = EXCLUDED.customer_sentiment,
-      memory_score = GREATEST(ai_customer_profiles.memory_score, EXCLUDED.memory_score),
-      last_seen_at = NOW(),
-      updated_at = NOW()
-    RETURNING *
-    `,
-    [
-      tenantId,
-      firstName,
-      phone,
-      json(products),
-      text(metadata.city_area || metadata.area),
-      text(response.answer || message).slice(0, 500),
-      sentiment,
-      memoryScore,
-    ]
-  );
-  const profile = result.rows[0];
+  const customerSummary = text(response.answer || message).slice(0, 500);
+  let profile = null;
+  if (externalCustomerId) {
+    const result = await db.query(
+      `
+      SELECT *
+      FROM ai_customer_profiles
+      WHERE tenant_id = $1
+        AND COALESCE(external_customer_id, '') = $2
+      LIMIT 1
+      `,
+      [tenantId, externalCustomerId]
+    );
+    profile = result.rows[0] || null;
+  }
+  if (!profile && phone) {
+    const result = await db.query(
+      `
+      SELECT *
+      FROM ai_customer_profiles
+      WHERE tenant_id = $1
+        AND regexp_replace(COALESCE(phone, ''), '\\D', '', 'g') = $2
+      LIMIT 1
+      `,
+      [tenantId, phone]
+    );
+    profile = result.rows[0] || null;
+  }
+
+  const profileValues = {
+    first_name: firstName,
+    last_name: text(metadata.last_name || metadata.family_name || ""),
+    phone,
+    external_customer_id: externalCustomerId,
+    source_channel: text(metadata.channel || ""),
+    viewed_products: products,
+    city_area: text(metadata.city_area || metadata.area),
+    conversation_summary: customerSummary,
+    customer_sentiment: sentiment,
+    memory_score: memoryScore,
+  };
+
+  if (profile) {
+    const updated = await db.query(
+      `
+      UPDATE ai_customer_profiles
+      SET
+        first_name = COALESCE(NULLIF($1::text, ''), first_name),
+        last_name = COALESCE(NULLIF($2::text, ''), last_name),
+        phone = COALESCE(NULLIF($3::text, ''), phone),
+        external_customer_id = COALESCE(NULLIF($4::text, ''), external_customer_id),
+        source_channel = COALESCE(NULLIF($5::text, ''), source_channel),
+        viewed_products = (
+          SELECT COALESCE(jsonb_agg(DISTINCT item), '[]'::jsonb)
+          FROM jsonb_array_elements(ai_customer_profiles.viewed_products || $6::jsonb) AS item
+        ),
+        city_area = COALESCE(NULLIF($7::text, ''), city_area),
+        conversation_summary = COALESCE(NULLIF($8::text, ''), conversation_summary),
+        customer_sentiment = $9::text,
+        memory_score = GREATEST(ai_customer_profiles.memory_score, $10::int),
+        last_seen_at = NOW(),
+        updated_at = NOW()
+      WHERE id = $11::bigint
+      RETURNING *
+      `,
+      [
+        profileValues.first_name,
+        profileValues.last_name,
+        profileValues.phone,
+        profileValues.external_customer_id,
+        profileValues.source_channel,
+        json(profileValues.viewed_products),
+        profileValues.city_area,
+        profileValues.conversation_summary,
+        profileValues.customer_sentiment,
+        profileValues.memory_score,
+        profile.id,
+      ]
+    );
+    profile = updated.rows[0] || profile;
+  } else {
+    const inserted = await db.query(
+      `
+      INSERT INTO ai_customer_profiles (
+        tenant_id, first_name, last_name, phone, source_channel, external_customer_id, viewed_products, city_area,
+        conversation_summary, customer_sentiment, memory_score, last_seen_at, updated_at
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11,NOW(),NOW())
+      RETURNING *
+      `,
+      [
+        tenantId,
+        profileValues.first_name,
+        profileValues.last_name,
+        profileValues.phone,
+        profileValues.source_channel,
+        profileValues.external_customer_id,
+        json(profileValues.viewed_products),
+        profileValues.city_area,
+        profileValues.conversation_summary,
+        profileValues.customer_sentiment,
+        profileValues.memory_score,
+      ]
+    );
+    profile = inserted.rows[0] || null;
+  }
+  if (!profile) return null;
   await db.query(
     `
     INSERT INTO ai_customer_interactions (

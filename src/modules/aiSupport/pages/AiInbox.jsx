@@ -364,6 +364,31 @@ const isCommentConversation = (conversation = {}) => {
   const threadKind = clean(conversation?.thread_kind || conversation?.channel_metadata?.thread_kind || "").toLowerCase();
   return channel === "facebook_comment" || channel === "instagram_comment" || threadKind === "comment" || source.includes("_comment");
 };
+
+const isLeadThreadConversation = (conversation = {}) => isCommentConversation(conversation) || isMessengerConversation(conversation);
+
+const leadConversationDisplayName = (conversation = {}) => {
+  const profile = conversation?.customer_profile || {};
+  return firstNonEmpty(
+    profile.name,
+    [profile.first_name, profile.last_name].map(clean).filter(Boolean).join(" "),
+    conversation.customer_name,
+    conversation.sender_name,
+    conversation.external_customer_id,
+    conversation.phone,
+    "Lead"
+  );
+};
+
+const buildLeadPrivateMessageText = (conversation = {}) => {
+  const name = leadConversationDisplayName(conversation);
+  return `مرحباً${name ? ` ${name}` : ""}، أرسلت لك التفاصيل في الخاص.`;
+};
+
+const buildLeadCommentReplyText = (conversation = {}) => {
+  const name = leadConversationDisplayName(conversation);
+  return `شكراً${name ? ` ${name}` : ""}، أرسلنا لك التفاصيل في الخاص.`;
+};
 const getConversationDisplayName = (conversation = {}) => {
   const source = conversation || {};
   if (isMessengerConversation(source)) {
@@ -1051,6 +1076,77 @@ function ConversationActions({ conversation, channelStatus = {}, loading, assign
             </div>
           </div>
         </details>
+      </div>
+    </div>
+  );
+}
+
+function LeadQuickActionsBar({
+  conversation,
+  employees = [],
+  selectedEmployeeId = "",
+  onSelectedEmployeeIdChange,
+  onCreateCustomer,
+  onCreateOpportunity,
+  onSendPrivateMessage,
+  onSendCommentReply,
+  onOpenProductPicker,
+  onAssignEmployee,
+  busy = false,
+}) {
+  if (!conversation || !isLeadThreadConversation(conversation)) return null;
+  const status = conversation.conversation_status || conversation.status || "ai_active";
+  const isClosed = status === "closed";
+  const isComment = isCommentConversation(conversation);
+  const employeeOptions = asArray(employees).map((employee) => ({
+    value: String(employee.id),
+    label: employee.full_name || employee.name || `Employee ${employee.id}`,
+  }));
+
+  return (
+    <div className="mb-2 rounded-2xl border border-white/10 bg-slate-950/60 p-2.5">
+      <div className="flex flex-col gap-2">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <button type="button" onClick={onSendPrivateMessage} disabled={busy || isClosed} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100 disabled:opacity-50">
+            <MessageSquareText className="h-3.5 w-3.5" />
+            إرسال رسالة خاصة
+          </button>
+          {isComment ? (
+            <button type="button" onClick={onSendCommentReply} disabled={busy || isClosed} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-[11px] font-black text-violet-100 disabled:opacity-50">
+              <MessageSquareText className="h-3.5 w-3.5" />
+              رد على الكومنت
+            </button>
+          ) : null}
+          <button type="button" onClick={onOpenProductPicker} disabled={busy || isClosed} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-[11px] font-black text-slate-100 disabled:opacity-50">
+            <ShoppingCart className="h-3.5 w-3.5" />
+            إرسال منتج
+          </button>
+          <button type="button" onClick={onCreateCustomer} disabled={busy || isClosed} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-[11px] font-black text-emerald-100 disabled:opacity-50">
+            <UserPlus className="h-3.5 w-3.5" />
+            إنشاء عميل
+          </button>
+          <button type="button" onClick={onCreateOpportunity} disabled={busy || isClosed} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 text-[11px] font-black text-amber-100 disabled:opacity-50">
+            <ArrowUpRight className="h-3.5 w-3.5" />
+            إنشاء فرصة بيع
+          </button>
+        </div>
+        <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.035] p-2 sm:flex-row sm:items-center">
+          <select
+            value={selectedEmployeeId}
+            onChange={(event) => onSelectedEmployeeIdChange?.(event.target.value)}
+            disabled={busy || isClosed}
+            className="h-9 min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-950/80 px-3 text-xs font-black text-white outline-none focus:border-cyan-300/40 disabled:opacity-50"
+          >
+            <option value="">{employeeOptions.length ? "اختر موظف" : "لا يوجد موظفون متاحون"}</option>
+            {employeeOptions.map((employee) => (
+              <option key={employee.value} value={employee.value}>{employee.label}</option>
+            ))}
+          </select>
+          <button type="button" onClick={onAssignEmployee} disabled={busy || isClosed || !selectedEmployeeId} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-[11px] font-black text-white disabled:opacity-50">
+            <UserCheck className="h-3.5 w-3.5" />
+            تعيين لموظف
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -2263,6 +2359,7 @@ export default function AiInbox() {
   const [drafts, setDrafts] = useState([]);
   const [analytics, setAnalytics] = useState({});
   const [channelStatus, setChannelStatus] = useState({});
+  const [employees, setEmployees] = useState([]);
   const [recommendations, setRecommendations] = useState({ sessionId: "", products: [], intelligence: null, loading: false });
   const [salesCloser, setSalesCloser] = useState({ sessionId: "", plan: {}, loading: false });
   const [aiReply, setAiReply] = useState({ sessionId: "", text: "", loading: false, error: "" });
@@ -2275,6 +2372,8 @@ export default function AiInbox() {
   const [productCardPickerOpen, setProductCardPickerOpen] = useState(false);
   const [productCardSending, setProductCardSending] = useState(false);
   const [assignNameDraft, setAssignNameDraft] = useState({ sessionId: "", value: "" });
+  const [leadAssignEmployeeId, setLeadAssignEmployeeId] = useState("");
+  const [leadActionLoading, setLeadActionLoading] = useState("");
   const [socialComments, setSocialComments] = useState({ items: [], loading: false, error: "" });
   const [socialCommentsFilter, setSocialCommentsFilter] = useState("all");
   const [socialCommentsDebug, setSocialCommentsDebug] = useState({ request_url: "", tenant_id: "", status: "", count: "", error: "" });
@@ -2310,11 +2409,12 @@ export default function AiInbox() {
     if (!silent) setSocialCommentsDebug((current) => ({ ...current, error: "" }));
     setError("");
     try {
-      const [inboxPayload, draftsPayload, analyticsPayload, channelPayload] = await Promise.all([
+      const [inboxPayload, draftsPayload, analyticsPayload, channelPayload, employeesPayload] = await Promise.all([
         api.get("/ai-inbox/conversations", { params: { tenant_id: tenantId, filter, search: debouncedSearch, limit: 50, message_limit: 30 }, headers, perfComponent: "AiInbox.conversations" }),
         api.get("/ai-agent/orders/drafts", { params: { tenant_id: tenantId, limit: 50 }, headers, perfComponent: "AiInbox.drafts" }),
         api.get("/ai-agent/analytics", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.analytics" }),
         api.get("/ai-agent/channels/status", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.channels" }).catch(() => ({ channels: {} })),
+        api.get("/employees", { params: { active: true, limit: 200 }, headers, perfComponent: "AiInbox.employees" }).catch(() => ({ employees: [] })),
       ]);
       if (seq !== requestSeqRef.current) return;
       const conversations = asArray(inboxPayload.conversations).map((conversation) => ({
@@ -2331,6 +2431,7 @@ export default function AiInbox() {
       setDrafts(asArray(draftsPayload.drafts));
       setAnalytics(analyticsPayload.analytics || {});
       setChannelStatus(channelPayload.channels || {});
+      setEmployees(asArray(employeesPayload?.employees || employeesPayload?.data || employeesPayload || []));
       if (!activeSelectedId && nextConversations[0]?.conversation_key) {
         setSelectedSessionId(nextConversations[0].conversation_key);
       }
@@ -2705,6 +2806,16 @@ export default function AiInbox() {
     ? assignNameDraft.value
     : selectedConversation?.assigned_user?.name || selectedConversation?.assigned_user_name || "";
 
+  useEffect(() => {
+    const nextEmployeeId = clean(
+      selectedConversation?.channel_metadata?.assigned_employee_id ||
+      selectedConversation?.assigned_user?.id ||
+      selectedConversation?.assigned_user_id ||
+      ""
+    );
+    setLeadAssignEmployeeId(nextEmployeeId);
+  }, [selectedConversation?.assigned_user?.id, selectedConversation?.assigned_user_id, selectedConversation?.channel_metadata?.assigned_employee_id, selectedConversation?.session_id]);
+
   const updateAssignName = (value) => {
     setAssignNameDraft({ sessionId: selectedConversation?.session_id || "", value });
   };
@@ -3044,6 +3155,134 @@ export default function AiInbox() {
       return sendCommentReply(overrideText);
     }
     return sendManualReply(overrideText);
+  };
+
+  const createLeadCustomer = async () => {
+    if (!selectedConversation?.session_id) return;
+    setLeadActionLoading("create_customer");
+    setError("");
+    try {
+      const payload = await api.post(aiAgentInboxEndpoint(selectedConversation.session_id, "/create-customer"), {
+        tenant_id: tenantId,
+      }, { headers, perfComponent: "AiInbox.createLeadCustomer" });
+      if (payload?.conversation) {
+        patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({
+          ...conversation,
+          ...payload.conversation,
+          customer_profile: payload.conversation.customer_profile || conversation.customer_profile,
+          channel_metadata: payload.conversation.channel_metadata || conversation.channel_metadata,
+        }));
+      }
+      setToast({ tone: "emerald", text: "تم إنشاء العميل" });
+      await loadAll({ silent: true });
+    } catch (err) {
+      setToast({ tone: "rose", text: err?.message || "تعذر إنشاء العميل" });
+      setError(err?.message || "تعذر إنشاء العميل");
+    } finally {
+      setLeadActionLoading("");
+    }
+  };
+
+  const createLeadOpportunity = async () => {
+    if (!selectedConversation?.session_id) return;
+    setLeadActionLoading("create_opportunity");
+    setError("");
+    try {
+      const payload = await api.post(aiAgentInboxEndpoint(selectedConversation.session_id, "/create-opportunity"), {
+        tenant_id: tenantId,
+      }, { headers, perfComponent: "AiInbox.createLeadOpportunity" });
+      if (payload?.conversation) {
+        patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({
+          ...conversation,
+          ...payload.conversation,
+          customer_profile: payload.conversation.customer_profile || conversation.customer_profile,
+          channel_metadata: payload.conversation.channel_metadata || conversation.channel_metadata,
+        }));
+      }
+      setToast({ tone: "emerald", text: "تم إنشاء فرصة البيع" });
+      await loadAll({ silent: true });
+    } catch (err) {
+      setToast({ tone: "rose", text: err?.message || "تعذر إنشاء فرصة البيع" });
+      setError(err?.message || "تعذر إنشاء فرصة البيع");
+    } finally {
+      setLeadActionLoading("");
+    }
+  };
+
+  const sendLeadPrivateMessage = async () => {
+    if (!selectedConversation?.session_id) return;
+    const defaultMessage = buildLeadPrivateMessageText(selectedConversation);
+    const message = clean(replyText || defaultMessage);
+    if (!message) return;
+    setLeadActionLoading("private_message");
+    try {
+      if (isCommentConversation(selectedConversation || {})) {
+        await api.post(aiAgentInboxEndpoint(selectedConversation.session_id, "/private-message"), {
+          tenant_id: tenantId,
+          message,
+        }, { headers, perfComponent: "AiInbox.privateLeadMessage" });
+      } else {
+        await sendManualReply(message);
+        return;
+      }
+      setReplyText("");
+      setToast({ tone: "emerald", text: "تم إرسال الرسالة الخاصة" });
+      await loadAll({ silent: true });
+    } catch (err) {
+      setToast({ tone: "rose", text: err?.message || "تعذر إرسال الرسالة الخاصة" });
+      setError(err?.message || "تعذر إرسال الرسالة الخاصة");
+    } finally {
+      setLeadActionLoading("");
+    }
+  };
+
+  const sendLeadCommentReplyQuick = async () => {
+    if (!selectedConversation?.session_id || !isCommentConversation(selectedConversation || {})) return;
+    const message = clean(replyText || buildLeadCommentReplyText(selectedConversation));
+    if (!message) return;
+    setLeadActionLoading("comment_reply");
+    try {
+      await sendCommentReply(message);
+      await loadAll({ silent: true });
+    } finally {
+      setLeadActionLoading("");
+    }
+  };
+
+  const assignLeadEmployee = async () => {
+    if (!selectedConversation?.session_id || !leadAssignEmployeeId) return;
+    const selectedEmployee = employees.find((item) => String(item.id) === String(leadAssignEmployeeId));
+    if (!selectedEmployee) return;
+    setLeadActionLoading("assign");
+    setError("");
+    try {
+      const payload = await api.patch(aiAgentInboxEndpoint(selectedConversation.session_id, "/assign"), {
+        tenant_id: tenantId,
+        assigned_user_id: selectedEmployee.id,
+        assigned_user_name: selectedEmployee.full_name || selectedEmployee.name || "",
+        channel: selectedConversation.channel || selectedConversation.source || "",
+      }, { headers, perfComponent: "AiInbox.assignLead" });
+      if (payload?.conversation) {
+        patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({
+          ...conversation,
+          ...payload.conversation,
+          assigned_user: payload.conversation.assigned_user || {
+            id: selectedEmployee.id,
+            name: selectedEmployee.full_name || selectedEmployee.name || "",
+          },
+          assigned_user_id: selectedEmployee.id,
+          assigned_user_name: selectedEmployee.full_name || selectedEmployee.name || "",
+          channel_metadata: payload.conversation.channel_metadata || conversation.channel_metadata,
+        }));
+      }
+      setToast({ tone: "emerald", text: "تم تعيين الموظف" });
+      await loadAll({ silent: true });
+    } catch (err) {
+      setToast({ tone: "rose", text: err?.message || "تعذر تعيين الموظف" });
+      setError(err?.message || "تعذر تعيين الموظف");
+    } finally {
+      setLeadActionLoading("");
+    }
   };
 
   const saveDraftReply = async () => {
@@ -3546,6 +3785,19 @@ export default function AiInbox() {
                     onOpenTools={() => setToolsTab("customer")}
                     showBack
                   />
+                  <LeadQuickActionsBar
+                    conversation={selectedConversation}
+                    employees={employees}
+                    selectedEmployeeId={leadAssignEmployeeId}
+                    onSelectedEmployeeIdChange={setLeadAssignEmployeeId}
+                    onCreateCustomer={createLeadCustomer}
+                    onCreateOpportunity={createLeadOpportunity}
+                    onSendPrivateMessage={sendLeadPrivateMessage}
+                    onSendCommentReply={sendLeadCommentReplyQuick}
+                    onOpenProductPicker={() => setProductCardPickerOpen(true)}
+                    onAssignEmployee={assignLeadEmployee}
+                    busy={Boolean(leadActionLoading || loading || productCardSending)}
+                  />
                   <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40">
                     <div className="min-h-0 flex-1 overflow-y-auto p-4">
                       <Transcript conversation={selectedConversation} loadingOlder={olderMessagesLoading} onLoadOlder={loadOlderMessages} />
@@ -3748,6 +4000,19 @@ export default function AiInbox() {
                     onReturnToAi={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "return")}
                     onClose={() => updateConversationAction("close")}
                     onOpenTools={() => setProfileOpen(true)}
+                  />
+                  <LeadQuickActionsBar
+                    conversation={safeConversation}
+                    employees={employees}
+                    selectedEmployeeId={leadAssignEmployeeId}
+                    onSelectedEmployeeIdChange={setLeadAssignEmployeeId}
+                    onCreateCustomer={createLeadCustomer}
+                    onCreateOpportunity={createLeadOpportunity}
+                    onSendPrivateMessage={sendLeadPrivateMessage}
+                    onSendCommentReply={sendLeadCommentReplyQuick}
+                    onOpenProductPicker={() => setProductCardPickerOpen(true)}
+                    onAssignEmployee={assignLeadEmployee}
+                    busy={Boolean(leadActionLoading || loading || productCardSending)}
                   />
                   {isCommentConversation(selectedConversation || {}) ? (
                     <CommentAutomationBadges automationState={selectedConversation?.channel_metadata?.automation_state || selectedConversation?.automation_state || {}} />

@@ -541,6 +541,7 @@ const { ensureEmployeePayrollPortalSchema } = await import("./services/employeeP
 const { ensureDisplayRefillAlertSchema } = await import("./services/displayRefillAlertService.js");
 const { ensureAiAgentOrderSchema } = await import("./services/aiAgentOrderService.js");
 const { ensureAiSalesAgentSchema } = await import("./services/aiSalesAgentService.js");
+const { ensureAiInboxLeadActionsSchema } = await import("./services/aiInboxLeadActionsService.js");
 const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueTasks, sendUpcomingTaskDueReminders } = await import("./services/staffTasksService.js");
 const { processStaffTaskEmailQueue } = await import("./services/staffTaskEmailNotificationService.js");
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
@@ -1230,6 +1231,8 @@ const bootstrapStartup = async () => {
     console.log("[server] AI support log schema ensured");
     await ensureAiSalesAgentSchema(db);
     console.log("[server] AI sales agent schema ensured");
+    await ensureAiInboxLeadActionsSchema(db);
+    console.log("[server] AI inbox lead actions schema ensured");
     await ensureAiAgentOrderSchema(db);
     console.log("[server] AI agent order schema ensured");
     await ensureMetaIntegrationSchema(db);

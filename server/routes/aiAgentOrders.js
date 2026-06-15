@@ -70,11 +70,18 @@ import {
   parseAiSalesCloserIntent,
   sendAiFollowupManual,
   snoozeAiFollowup,
+  upsertAiCustomerProfile,
 } from "../services/aiSalesAgentService.js";
+import {
+  createOrUpdateLeadOpportunity,
+  loadLeadConversationForAction,
+  resolveLeadSourceLabel,
+  syncLeadAssignmentMetadata,
+} from "../services/aiInboxLeadActionsService.js";
 import {
   listRecentSocialCommentAutomationRuns,
 } from "../services/socialCommentAutomationService.js";
-import { replyToComment } from "../services/marketingCommentAutomationService.js";
+import { replyToComment, sendPrivateReply } from "../services/marketingCommentAutomationService.js";
 import {
   appendManualAiSupportReply,
   assignAiSupportConversation,
@@ -1938,6 +1945,153 @@ router.post("/comments/:commentId/reply", protect, permit("settings", "edit"), a
   }
 });
 
+router.post("/inbox/:conversationId/private-message", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const conversationId = envText(req.params.conversationId);
+  const messageText = envText(req.body?.message || req.body?.reply || req.body?.text || "");
+  if (!tenantId || !conversationId) {
+    return sendError(res, Object.assign(new Error("tenant_id and conversationId are required"), { status: 400 }), "tenant_id and conversationId are required");
+  }
+  if (!messageText) {
+    return sendError(res, Object.assign(new Error("message is required"), { status: 400 }), "message is required");
+  }
+
+  const conversation = await loadLeadConversationForAction({ tenantId, conversationId });
+  if (!conversation) {
+    return sendError(res, Object.assign(new Error(`Conversation not found for tenant ${tenantId}: ${conversationId}`), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" }), "Conversation not found");
+  }
+
+  const channel = envText(conversation.channel || conversation.source || "");
+  const channelMetadata = conversation.channel_metadata || {};
+  const isCommentThread = channel.includes("comment") || Boolean(
+    conversation.external_comment_id ||
+      conversation.comment_id ||
+      channelMetadata.comment_id ||
+      channelMetadata.lead?.comment_id
+  );
+  const nowIso = new Date().toISOString();
+
+  try {
+    if (isCommentThread) {
+      const commentId = envText(
+        channelMetadata.comment_id ||
+          channelMetadata.lead?.comment_id ||
+          conversation.external_comment_id ||
+          conversation.comment_id ||
+          ""
+      );
+      if (!commentId) {
+        throw Object.assign(new Error("Comment thread is missing a comment id"), { status: 409, code: "COMMENT_ID_MISSING" });
+      }
+      const platform = channel.includes("instagram") ? "instagram" : "facebook";
+      const reply = await sendPrivateReply(platform, commentId, messageText, tenantId);
+      const message = await appendManualAiSupportReply({
+        tenantId,
+        sessionId: conversationId,
+        message: messageText,
+        messageType: "comment_private_reply",
+        staffUserId: req.user?.id || null,
+        staffUserName: userDisplayName(req.user),
+        source: "ai_inbox_private_message",
+        channel: `${platform}_comment`,
+        deliveryStatus: "sent",
+        deliveryError: "",
+        externalMessageId: envText(reply?.id || reply?.message_id || reply?.reply_id || ""),
+        externalReplyId: envText(reply?.id || reply?.message_id || reply?.reply_id || ""),
+      });
+
+      await db.query(
+        `
+        UPDATE social_comment_automation_runs
+        SET dm_status = 'sent',
+            inbox_conversation_id = COALESCE(NULLIF(inbox_conversation_id, ''), $3::text),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE tenant_id = $1::bigint
+          AND comment_id = $2::text
+        `,
+        [tenantId, commentId, conversationId]
+      ).catch(() => {});
+
+      emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: conversationId, message, at: nowIso });
+      emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: nowIso });
+      return res.status(201).json({
+        success: true,
+        sent: true,
+        delivery_status: "sent",
+        message,
+        reply,
+      });
+    }
+
+    const recipientId = envText(
+      channelMetadata.customer_psid ||
+        channelMetadata.sender_psid ||
+        channelMetadata.resolved_customer_id ||
+        conversation.external_customer_id ||
+        conversation.customer_id ||
+        ""
+    );
+    if (!recipientId) {
+      throw Object.assign(new Error("Conversation has no recipient id"), { status: 409, code: "META_RECIPIENT_MISSING" });
+    }
+
+    const sendResult = await sendMetaInboxOutboundMessage({
+      tenantId,
+      channel,
+      recipientId,
+      messageText,
+      conversationId,
+      facebookPageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
+      instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
+      replySource: "ai_inbox_private_message",
+      replyOwner: "ai_inbox_private_message",
+    });
+
+    const message = await appendManualAiSupportReply({
+      tenantId,
+      sessionId: conversationId,
+      message: messageText,
+      staffUserId: req.user?.id || null,
+      staffUserName: userDisplayName(req.user),
+      source: "ai_inbox_private_message",
+      channel,
+      deliveryStatus: "sent",
+      deliveryError: "",
+      externalMessageId: sendResult.message_id || "",
+      externalReplyId: sendResult.message_id || "",
+    });
+
+    await upsertChannelConversationMapping({
+      tenantId,
+      channel,
+      externalConversationId: conversationId,
+      externalCustomerId: recipientId,
+      customerName: conversation.customer_name || conversation.customer_profile?.name || "",
+      customerAvatarUrl: conversation.customer_avatar_url || conversation.customer_profile?.avatar_url || "",
+      customerProfileId: conversation.customer_profile?.id || conversation.profile_id || null,
+      metadata: {
+        ...(channelMetadata || {}),
+        source: "ai_inbox_private_message",
+        last_private_message_at: nowIso,
+      },
+      lastMessage: messageText,
+      lastMessageAt: nowIso,
+    }).catch(() => {});
+
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: conversationId, message, at: nowIso });
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: nowIso });
+    return res.status(201).json({
+      success: true,
+      sent: true,
+      delivery_status: "sent",
+      message,
+      meta: sendResult.meta || null,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to send private message");
+  }
+});
+
 router.get("/conversations/:conversationId/ai-debug", protect, permit("settings", "view"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
@@ -3474,16 +3628,235 @@ router.post("/inbox/:conversationId/suggest-reply", protect, permit("settings", 
 router.patch("/inbox/:conversationId/assign", protect, permit("settings", "edit"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
+    const assignedUserId = req.body?.assigned_user_id ?? req.body?.assignedUserId ?? null;
+    const assignedUserName = req.body?.assigned_user_name || req.body?.assignedUserName || "";
     const conversation = await assignAiSupportConversation({
       tenantId,
       sessionId: req.params.conversationId,
-      assignedUserId: req.body?.assigned_user_id ?? req.body?.assignedUserId ?? null,
-      assignedUserName: req.body?.assigned_user_name || req.body?.assignedUserName || "",
+      assignedUserId,
+      assignedUserName,
       actorUserId: req.user?.id || null,
     });
-    return res.json({ success: true, conversation });
+    const leadConversation = await loadLeadConversationForAction({
+      tenantId,
+      conversationId: req.params.conversationId,
+    }).catch(() => null);
+    const syncedConversation = await syncLeadAssignmentMetadata({
+      tenantId,
+      conversation: leadConversation || { session_id: req.params.conversationId },
+      assignedEmployeeId: assignedUserId,
+      assignedEmployeeName: assignedUserName,
+      actorUserId: req.user?.id || null,
+    }).catch(() => null);
+    return res.json({
+      success: true,
+      conversation: {
+        ...conversation,
+        channel_metadata: syncedConversation?.metadata || leadConversation?.channel_metadata || conversation.channel_metadata || {},
+      },
+    });
   } catch (error) {
     return sendError(res, error, "Failed to assign conversation");
+  }
+});
+
+router.post("/inbox/:conversationId/create-customer", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = envText(req.params.conversationId);
+    const conversation = await loadLeadConversationForAction({ tenantId, conversationId });
+    if (!conversation) {
+      return sendError(res, Object.assign(new Error(`Conversation not found for tenant ${tenantId}: ${conversationId}`), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" }), "Conversation not found");
+    }
+
+    const metadata = {
+      channel: conversation.channel || conversation.source || "",
+      customer_phone: conversation.phone || conversation.customer_profile?.phone || conversation.external_customer_id || "",
+      external_customer_id: conversation.external_customer_id || conversation.customer_profile?.external_customer_id || "",
+      customer_name: conversation.customer_name || conversation.customer_profile?.name || "",
+      first_name: conversation.customer_profile?.first_name || conversation.customer_name || "",
+      full_name: conversation.customer_profile?.name || conversation.customer_name || "",
+      sender_name: conversation.sender_name || conversation.customer_name || "",
+      contact_name: conversation.contact_name || conversation.customer_name || "",
+      messenger_profile: conversation.channel_metadata?.messenger_profile || {},
+      profile_name: conversation.channel_metadata?.messenger_profile?.name || conversation.customer_name || "",
+    };
+
+    const profile = await upsertAiCustomerProfile({
+      tenantId,
+      sessionId: conversationId,
+      metadata,
+      message: conversation.latest_message_preview || conversation.last_message || "",
+      response: {
+        answer: conversation.latest_message_preview || conversation.last_message || "",
+        confidence: Number(conversation.lead_score || 0) / 100,
+        detected_intent: conversation.detected_intent || "",
+      },
+    });
+
+    if (!profile) {
+      return sendError(res, Object.assign(new Error("Lead profile data is incomplete"), { status: 400 }), "Lead profile data is incomplete");
+    }
+    const profileName = [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.first_name || profile.external_customer_id || conversation.customer_name || conversation.external_customer_id || "";
+    const profileAvatarUrl = profile.profile_pic_url || conversation.customer_avatar_url || "";
+
+    const syncedConversation = await syncLeadAssignmentMetadata({
+      tenantId,
+      conversation,
+      assignedEmployeeId: conversation.assigned_user_id || null,
+      assignedEmployeeName: conversation.assigned_user_name || "",
+      actorUserId: req.user?.id || null,
+    }).catch(() => null);
+
+    const updatedLeadConversation = await upsertChannelConversationMapping({
+      tenantId,
+      channel: conversation.channel || conversation.source || "",
+      externalConversationId: conversation.session_id || conversation.external_conversation_id || "",
+      externalCustomerId: conversation.external_customer_id || profile.external_customer_id || "",
+      customerName: profileName,
+      customerAvatarUrl: profileAvatarUrl,
+      customerProfileId: profile.id,
+      metadata: {
+        ...(conversation.channel_metadata || {}),
+        created_customer_profile_id: profile.id,
+        created_customer_at: new Date().toISOString(),
+        source: "ai_inbox_create_customer",
+      },
+      lastMessage: conversation.latest_message_preview || conversation.last_message || "",
+      lastMessageAt: conversation.last_message_at || conversation.updated_at || new Date().toISOString(),
+    }).catch(() => {});
+
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: conversationId,
+      reason: "create_customer",
+      at: new Date().toISOString(),
+    });
+
+    return res.status(201).json({
+      success: true,
+      profile,
+      conversation: {
+        ...conversation,
+        channel_metadata: updatedLeadConversation?.metadata || syncedConversation?.metadata || conversation.channel_metadata || {},
+        customer_profile: {
+          ...(conversation.customer_profile || {}),
+          id: profile.id,
+          name: profileName || conversation.customer_profile?.name || "",
+          first_name: profile.first_name || conversation.customer_profile?.first_name || "",
+          last_name: profile.last_name || conversation.customer_profile?.last_name || "",
+          phone: profile.phone || conversation.customer_profile?.phone || "",
+          external_customer_id: profile.external_customer_id || conversation.customer_profile?.external_customer_id || "",
+          source_channel: profile.source_channel || conversation.customer_profile?.source_channel || "",
+          avatar_url: profileAvatarUrl || conversation.customer_profile?.avatar_url || "",
+          profile_pic_url: profileAvatarUrl || conversation.customer_profile?.profile_pic_url || "",
+        },
+      },
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to create customer from lead");
+  }
+});
+
+router.post("/inbox/:conversationId/create-opportunity", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = envText(req.params.conversationId);
+    const conversation = await loadLeadConversationForAction({ tenantId, conversationId });
+    if (!conversation) {
+      return sendError(res, Object.assign(new Error(`Conversation not found for tenant ${tenantId}: ${conversationId}`), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" }), "Conversation not found");
+    }
+
+    const profile = await upsertAiCustomerProfile({
+      tenantId,
+      sessionId: conversationId,
+      metadata: {
+        channel: conversation.channel || conversation.source || "",
+        customer_phone: conversation.phone || conversation.customer_profile?.phone || conversation.external_customer_id || "",
+        external_customer_id: conversation.external_customer_id || conversation.customer_profile?.external_customer_id || "",
+        customer_name: conversation.customer_name || conversation.customer_profile?.name || "",
+        first_name: conversation.customer_profile?.first_name || conversation.customer_name || "",
+        full_name: conversation.customer_profile?.name || conversation.customer_name || "",
+        sender_name: conversation.sender_name || conversation.customer_name || "",
+        contact_name: conversation.contact_name || conversation.customer_name || "",
+        messenger_profile: conversation.channel_metadata?.messenger_profile || {},
+      },
+      message: conversation.latest_message_preview || conversation.last_message || "",
+      response: {
+        answer: conversation.latest_message_preview || conversation.last_message || "",
+        confidence: Number(conversation.lead_score || 0) / 100,
+        detected_intent: conversation.detected_intent || "",
+      },
+    });
+
+    if (!profile) {
+      return sendError(res, Object.assign(new Error("Lead profile data is incomplete"), { status: 400 }), "Lead profile data is incomplete");
+    }
+
+    const opportunity = await createOrUpdateLeadOpportunity({
+      tenantId,
+      conversation,
+      profile,
+    });
+    const profileName = [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.first_name || profile.external_customer_id || conversation.customer_name || conversation.external_customer_id || "";
+    const profileAvatarUrl = profile.profile_pic_url || conversation.customer_avatar_url || "";
+
+    await upsertChannelConversationMapping({
+      tenantId,
+      channel: conversation.channel || conversation.source || "",
+      externalConversationId: conversation.session_id || conversation.external_conversation_id || "",
+      externalCustomerId: conversation.external_customer_id || profile.external_customer_id || "",
+      customerName: [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.first_name || conversation.customer_name || "",
+      customerAvatarUrl: profile.profile_pic_url || conversation.customer_avatar_url || "",
+      customerProfileId: profile.id,
+      metadata: {
+        ...(conversation.channel_metadata || {}),
+        created_customer_profile_id: profile.id,
+        created_customer_at: new Date().toISOString(),
+        lead_opportunity_id: opportunity?.id || null,
+        lead_opportunity_source: opportunity?.source_label || resolveLeadSourceLabel(conversation),
+        source: "ai_inbox_create_opportunity",
+      },
+      lastMessage: conversation.latest_message_preview || conversation.last_message || "",
+      lastMessageAt: conversation.last_message_at || conversation.updated_at || new Date().toISOString(),
+    }).catch(() => {});
+
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: conversationId,
+      reason: "create_opportunity",
+      at: new Date().toISOString(),
+    });
+
+    return res.status(201).json({
+      success: true,
+      profile,
+      opportunity,
+      source_label: resolveLeadSourceLabel(conversation),
+      conversation: {
+        ...conversation,
+        channel_metadata: {
+          ...(conversation.channel_metadata || {}),
+          created_customer_profile_id: profile.id,
+          lead_opportunity_id: opportunity?.id || null,
+          lead_opportunity_source: opportunity?.source_label || resolveLeadSourceLabel(conversation),
+        },
+        customer_profile: {
+          ...(conversation.customer_profile || {}),
+          id: profile.id,
+          name: profileName,
+          first_name: profile.first_name || conversation.customer_profile?.first_name || "",
+          last_name: profile.last_name || conversation.customer_profile?.last_name || "",
+          phone: profile.phone || conversation.customer_profile?.phone || "",
+          external_customer_id: profile.external_customer_id || conversation.customer_profile?.external_customer_id || "",
+          source_channel: profile.source_channel || conversation.customer_profile?.source_channel || "",
+          avatar_url: profileAvatarUrl,
+          profile_pic_url: profileAvatarUrl,
+        },
+      },
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to create opportunity from lead");
   }
 });
 
