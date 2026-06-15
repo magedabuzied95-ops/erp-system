@@ -5019,6 +5019,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const [checkoutStep, setCheckoutStep] = useState(1);
   const [manualCityArea, setManualCityArea] = useState(false);
   const [shippingTransferMethod, setShippingTransferMethod] = useState("instapay");
+  const [paymentMode, setPaymentMode] = useState("electronic");
   const [paymentProofDragActive, setPaymentProofDragActive] = useState(false);
   const [paymentProofUploaded, setPaymentProofUploaded] = useState(false);
   const [couponValidation, setCouponValidation] = useState(null);
@@ -5046,9 +5047,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     Number(trustedCustomer.completed_orders || 0) >= 1 ||
     trustedCustomer.is_trusted === true ||
     trustedCustomer.cod_enabled === true);
-  const normalizedFormPaymentMethod = normalizeCheckoutPaymentMethod(form.payment_method);
-  const isShippingConfirmation = SHIPPING_CONFIRMATION_METHODS.has(normalizedFormPaymentMethod);
-  const shippingProofRequired = isShippingConfirmation && shippingQuote.requires_shipping_proof !== false;
+  const normalizedFormPaymentMethod = paymentMode === "cod" ? "cod" : "shipping_confirmation";
+  const isShippingConfirmation = paymentMode === "electronic";
+  const shippingProofRequired = isShippingConfirmation;
   const hasShippingPaymentProof = Boolean(shippingPaymentFile);
   const isFinalCheckoutStep = checkoutStep === 3;
   const couponCode = String(form.coupon || "").trim().toUpperCase();
@@ -5057,12 +5058,12 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     ? t("storefront.checkout.actions.continueToAddress", "ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½")
     : checkoutStep === 2
       ? t("storefront.checkout.actions.continueToPayment", "ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½")
-      : normalizedFormPaymentMethod === "cod"
+      : paymentMode === "cod"
         ? t("storefront.checkout.actions.confirmOrder", "ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½")
-        : shippingProofRequired
+      : shippingProofRequired
           ? t("storefront.checkout.actions.uploadProofAndConfirm", "ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½")
           : t("storefront.checkout.actions.confirmOrder", "ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½");
-  const codAmount = normalizedFormPaymentMethod === "cod" ? total : Math.max(0, total - deliveryFee);
+  const codAmount = paymentMode === "cod" ? total : Math.max(0, total - deliveryFee);
   const storefrontPaymentSettings = useMemo(() => normalizeStorefrontPaymentSettings(publicStoreSettings), [publicStoreSettings]);
   const paymentMethods = useMemo(() => getPaymentMethods(storefrontPaymentSettings), [storefrontPaymentSettings]);
   const paymentCopy = paymentMethods.find((method) => method.id === normalizedFormPaymentMethod)?.text || "";
@@ -5779,20 +5780,29 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   }, []);
 
   useEffect(() => {
-    if (normalizeCheckoutPaymentMethod(form.payment_method) === "cod" && !codAvailable) {
+    const normalizedPaymentMethod = normalizeCheckoutPaymentMethod(form.payment_method);
+    if (normalizedPaymentMethod === "cod" && !codAvailable) {
       let cancelled = false;
       deferReactState(() => {
-        if (!cancelled) setForm((prev) => ({ ...prev, payment_method: "shipping_confirmation" }));
+        if (!cancelled) {
+          setPaymentMode("electronic");
+          setForm((prev) => ({ ...prev, payment_method: "shipping_confirmation" }));
+        }
       });
       return () => {
         cancelled = true;
       };
     }
+    if (normalizedPaymentMethod === "cod") {
+      if (paymentMode !== "cod") setPaymentMode("cod");
+    } else if (paymentMode !== "electronic") {
+      setPaymentMode("electronic");
+    }
     return undefined;
-  }, [codAvailable, form.payment_method]);
+  }, [codAvailable, form.payment_method, paymentMode]);
 
   useEffect(() => {
-    if (!shippingProofRequired) {
+    if (!isShippingConfirmation) {
       let cancelled = false;
       deferReactState(() => {
         if (cancelled) return;
@@ -5804,7 +5814,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       };
     }
     return undefined;
-  }, [shippingProofRequired]);
+  }, [isShippingConfirmation]);
 
   useEffect(() => {
     if (!shippingPaymentFile) {
@@ -5871,7 +5881,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     if (step === 3) {
       if (!form.payment_method) next.payment_method = sfText("storefront.validation.paymentMethodRequired");
       if (normalizeCheckoutPaymentMethod(form.payment_method) === "cod" && !codAvailable) next.payment_method = sfText("storefront.validation.codUnavailable");
-      if (shippingProofRequired && !shippingPaymentFile) {
+      if (isShippingConfirmation && !shippingPaymentFile) {
         next.shipping_payment_screenshot = sfText("storefront.validation.transferProofRequired");
       }
     }
@@ -5900,7 +5910,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     if (!valid) {
       if (firstInvalidStep) goToCheckoutStep(firstInvalidStep);
       toast.error(sfText("storefront.toasts.completeRequiredData"));
-      if (firstInvalidStep === 3 && shippingProofRequired && !shippingPaymentFile) toast.error(sfText("storefront.toasts.uploadTransferProof"));
+      if (firstInvalidStep === 3 && isShippingConfirmation && !shippingPaymentFile) toast.error(sfText("storefront.toasts.uploadTransferProof"));
     }
     return valid;
   };
@@ -5970,9 +5980,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       const couponCodeToSend = activeCouponValidation?.valid ? String(activeCouponValidation.coupon?.code || activeCouponCode).trim().toUpperCase() : "";
       const couponDiscountToSend = activeCouponValidation?.valid ? Math.max(0, Number(activeCouponValidation.discount_amount || 0)) : 0;
       const cleanPhone = form.primary_phone.replace(/\s/g, "");
-      const paymentMethod = normalizeCheckoutPaymentMethod(form.payment_method);
-      const shippingPaymentMethod = normalizeShippingPaymentMethod(shippingTransferMethod);
-      const paidAmount = paymentMethod === "shipping_confirmation" ? deliveryFee : 0;
+      const paymentMethod = paymentMode === "cod" ? "cod" : "shipping_confirmation";
+      const shippingPaymentMethod = paymentMode === "cod" ? "" : normalizeShippingPaymentMethod(shippingTransferMethod);
+      const paidAmount = paymentMode === "cod" ? 0 : deliveryFee;
       const selectedShippingProvider = bostaMode && form.shipping_city_id ? "bosta" : (shippingQuote.provider_id || shippingQuote.provider || "in_store_delivery");
       const shippingProviderAddress = {
         country: "EG",
@@ -6030,7 +6040,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
             formData.append("items", JSON.stringify(pricedCart));
             formData.append("delivery_fee", String(deliveryFee));
             formData.append("discount", "0");
-            formData.append("shipping_payment_screenshot", shippingPaymentFile);
+            if (paymentMode !== "cod") formData.append("shipping_payment_screenshot", shippingPaymentFile);
             return formData;
           })()
         : {
@@ -6202,6 +6212,32 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
           {checkoutStep === 3 ? (
             <CheckoutSection number="3" title={sfText("storefront.checkout.sections.payment")}>
               <div className="checkout-payment-clean mx-auto w-full max-w-[680px]">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentMode("cod");
+                      setForm((current) => ({ ...current, payment_method: "cod" }));
+                    }}
+                    className={`checkout-payment-choice flex min-h-[4.75rem] flex-col items-start justify-center rounded-[1.35rem] border px-4 py-3 text-right transition ${paymentMode === "cod" ? "border-emerald-300/35 bg-emerald-400/12 shadow-[0_16px_34px_rgba(16,185,129,0.12)]" : "border-white/10 bg-white/[0.045] hover:border-white/18 hover:bg-white/[0.07]"}`}
+                  >
+                    <span className="text-sm font-black text-white">{sfText("storefront.checkout.payment.cod.title")}</span>
+                    <span className="mt-1 text-xs font-semibold leading-5 text-white/56">{sfText("storefront.checkout.payment.cod.text")}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentMode("electronic");
+                      setForm((current) => ({ ...current, payment_method: "shipping_confirmation" }));
+                      setShippingTransferMethod((current) => (visibleTransferMethods.some((method) => method.id === current) ? current : (visibleTransferMethods[0]?.id || "instapay")));
+                    }}
+                    className={`checkout-payment-choice flex min-h-[4.75rem] flex-col items-start justify-center rounded-[1.35rem] border px-4 py-3 text-right transition ${paymentMode === "electronic" ? "border-[#a78bfa]/35 bg-[#7c3aed]/14 shadow-[0_16px_34px_rgba(124,58,237,0.12)]" : "border-white/10 bg-white/[0.045] hover:border-white/18 hover:bg-white/[0.07]"}`}
+                  >
+                    <span className="text-sm font-black text-white">{sfText("storefront.checkout.payment.shippingConfirmation.title")}</span>
+                    <span className="mt-1 text-xs font-semibold leading-5 text-white/56">{sfText("storefront.checkout.payment.shippingConfirmation.text")}</span>
+                  </button>
+                </div>
+
                 {isShippingConfirmation ? (
                   <div className="grid gap-3">
                     {storefrontPaymentSettings.shippingConfirmation.enabled ? (
@@ -6370,6 +6406,54 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
 
                     <SubmitButton submitting={isFinalCheckoutStep && submitting} paymentMethod={normalizedFormPaymentMethod} disabled={submitDisabled} label={checkoutActionLabel} variant="success" />
                   </div>
+                ) : null}
+
+                {!isShippingConfirmation ? (
+                  <>
+                    <div className="checkout-payment-notes mt-3 grid gap-2 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Field label={sfText("storefront.checkout.coupon")} placeholder={sfText("storefront.checkout.couponPlaceholder")} value={form.coupon} onChange={(v) => setField("coupon", v)} />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => applyCoupon()}
+                            disabled={couponLoading || !String(form.coupon || "").trim()}
+                            className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-[#a78bfa]/25 bg-[#7c3aed] px-4 text-sm font-black text-white transition hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {couponLoading ? sfText("common.loading") : sfText("storefront.checkout.applyCoupon")}
+                          </button>
+                          {couponValidation?.valid ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setForm((current) => ({ ...current, coupon: "" }));
+                                setCouponValidation(null);
+                                couponValidationKeyRef.current = "";
+                              }}
+                              className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm font-black text-white/85 transition hover:bg-white/[0.08]"
+                            >
+                              {sfText("storefront.checkout.removeCoupon")}
+                            </button>
+                          ) : null}
+                        </div>
+                        {couponValidation?.valid ? (
+                          <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black text-emerald-100">
+                            {sfText("storefront.checkout.couponAppliedSummary", "أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½: {{code}} - {{discount}}", {
+                              code: couponValidation?.coupon?.code || couponCode,
+                              discount: money(couponDiscount),
+                            })}
+                          </div>
+                        ) : couponCode ? (
+                          <div className="rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100">
+                            {sfText("storefront.checkout.couponNeedsApply")}
+                          </div>
+                        ) : null}
+                      </div>
+                      <TextField label={sfText("storefront.checkout.orderNotes")} placeholder={sfText("storefront.checkout.orderNotesPlaceholder")} value={form.order_notes} onChange={(v) => setField("order_notes", v)} compact />
+                    </div>
+
+                    <SubmitButton submitting={isFinalCheckoutStep && submitting} paymentMethod={normalizedFormPaymentMethod} disabled={submitDisabled} label={checkoutActionLabel} variant="success" />
+                  </>
                 ) : null}
               </div>
             </CheckoutSection>
