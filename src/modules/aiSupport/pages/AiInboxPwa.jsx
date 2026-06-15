@@ -108,6 +108,75 @@ const needsHumanAttention = (conversation = {}) =>
   conversation?.needs_human_support === true ||
   Boolean(clean(conversation?.escalation_reason || conversation?.ai_escalation_reason));
 
+const aiAgentInboxEndpoint = (sessionId = "", suffix = "") =>
+  `/ai-agent/inbox/${encodeConversationId(sessionId)}${suffix}`;
+
+const isMessengerConversation = (conversation = {}) => {
+  const channel = normalizeConversationChannel(conversation);
+  const source = clean(conversation?.channel || conversation?.source || conversation?.provider || conversation?.platform).toLowerCase();
+  if (channel === "facebook_comment" || channel === "instagram_comment" || source.includes("_comment")) return false;
+  return (
+    channel === "messenger" ||
+    channel === "facebook" ||
+    source.includes("facebook_messenger") ||
+    source === "messenger" ||
+    source === "facebook" ||
+    source.includes("messenger")
+  );
+};
+
+const isCommentConversation = (conversation = {}) => {
+  const channel = normalizeConversationChannel(conversation);
+  const source = clean(conversation?.channel || conversation?.source || conversation?.provider || conversation?.platform).toLowerCase();
+  const threadKind = clean(conversation?.thread_kind || conversation?.channel_metadata?.thread_kind || "").toLowerCase();
+  return channel === "facebook_comment" || channel === "instagram_comment" || threadKind === "comment" || source.includes("_comment");
+};
+
+const buildLeadPrivateMessageText = (conversation = {}) => {
+  const name = clean(conversationName(conversation));
+  return `مرحباً${name ? ` ${name}` : ""}، أرسلت لك التفاصيل في الخاص.`;
+};
+
+const buildLeadCommentReplyText = (conversation = {}) => {
+  const name = clean(conversationName(conversation));
+  return `شكراً${name ? ` ${name}` : ""}، أرسلنا لك التفاصيل في الخاص.`;
+};
+
+const LEAD_STATUS_META = {
+  new: { label: "New", tone: "blue" },
+  contacted: { label: "Contacted", tone: "amber" },
+  interested: { label: "Interested", tone: "emerald" },
+  won: { label: "Won", tone: "emerald" },
+};
+
+const LEAD_STATUS_ORDER = ["new", "contacted", "interested", "won"];
+
+const normalizeLeadStatus = (value = "") => {
+  const key = clean(value).toLowerCase();
+  if (key === "negotiation" || key === "follow_up" || key === "followup") return "interested";
+  if (key === "lost" || key === "closed") return "new";
+  return Object.prototype.hasOwnProperty.call(LEAD_STATUS_META, key) ? key : "new";
+};
+
+const leadStatusLabel = (value = "") => LEAD_STATUS_META[normalizeLeadStatus(value)]?.label || "New";
+const leadStatusTone = (value = "") => LEAD_STATUS_META[normalizeLeadStatus(value)]?.tone || "blue";
+
+const conversationLeadStatus = (conversation = {}) =>
+  normalizeLeadStatus(
+    conversation?.lead_status ||
+      conversation?.channel_metadata?.lead_status ||
+      conversation?.metadata?.lead_status ||
+      ""
+  );
+
+const conversationLeadBucket = (conversation = {}) => {
+  const status = conversationLeadStatus(conversation);
+  if (status === "won") return "won";
+  if (status === "contacted") return "contacted";
+  if (status === "interested") return "interested";
+  return "new";
+};
+
 const conversationUnreadCount = (conversation = {}) =>
   Number(
     conversation.unread_count ??
@@ -338,39 +407,6 @@ const findVariant = (product = {}, color = "", size = "") => {
     }) || null
   );
 };
-
-const resolveLeadStage = (conversation = {}) => {
-  const temperature = clean(
-    conversation.lead_temperature ||
-      conversation.lead_metadata?.lead_temperature ||
-      conversation.lead?.lead_temperature
-  ).toLowerCase();
-  const action = clean(
-    conversation.recommended_sales_action ||
-      conversation.lead_metadata?.recommended_sales_action ||
-      conversation.lead?.recommended_sales_action
-  ).toLowerCase();
-  const draftCount = asArray(conversation.draft_orders).length;
-  const status = clean(conversation.conversation_status || conversation.status).toLowerCase();
-
-  if (draftCount > 0 || (status === "closed" && (temperature === "ready_to_buy" || action.includes("payment")))) {
-    return "won";
-  }
-  if (temperature === "ready_to_buy" || action.includes("payment") || action.includes("order")) {
-    return "ready_to_buy";
-  }
-  if (temperature === "hot" || temperature === "warm" || needsHumanAttention(conversation)) {
-    return "interested";
-  }
-  return "new_lead";
-};
-
-const LEAD_STAGES = [
-  { key: "new_lead", label: "New Lead" },
-  { key: "interested", label: "Interested" },
-  { key: "ready_to_buy", label: "Ready To Buy" },
-  { key: "won", label: "Won" },
-];
 
 const NAV_ITEMS = [
   { key: "conversations", label: "Conversations", icon: MessageCircleMore },
@@ -929,46 +965,80 @@ function ProductSheet({
   );
 }
 
-function LeadsView({ conversations, onOpenConversation }) {
-  const columns = useMemo(() => {
-    return LEAD_STAGES.map((stage) => ({
-      ...stage,
-      items: conversations.filter((conversation) => resolveLeadStage(conversation) === stage.key),
-    }));
-  }, [conversations]);
+function LeadsView({ conversations, onOpenConversation, search, leadFilter, onLeadFilterChange }) {
+  const filtered = useMemo(() => {
+    const normalized = clean(search).toLowerCase();
+    return conversations.filter((conversation) => {
+      const matchesSearch = !normalized || [
+        conversationName(conversation),
+        conversation.external_customer_id,
+        conversation.phone,
+        conversation.latest_message_preview,
+        leadStatusLabel(conversationLeadStatus(conversation)),
+      ]
+        .map((item) => clean(item).toLowerCase())
+        .some((item) => item.includes(normalized));
+      if (!matchesSearch) return false;
+      return conversationLeadBucket(conversation) === leadFilter;
+    });
+  }, [conversations, leadFilter, search]);
 
   return (
     <div className="space-y-3 pb-28">
-      {columns.map((stage) => (
-        <section key={stage.key} className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="text-sm font-semibold text-slate-900">{stage.label}</div>
-            <PwaChip>{stage.items.length}</PwaChip>
-          </div>
-          {stage.items.length ? (
-            <div className="space-y-2">
-              {stage.items.slice(0, 8).map((conversation) => (
-                <button
-                  key={conversation.conversation_key}
-                  type="button"
-                  onClick={() => onOpenConversation(conversation)}
-                  className="flex w-full items-center justify-between rounded-2xl bg-slate-50 px-3 py-3 text-left"
-                >
-                  <div>
-                    <div className="text-sm font-medium text-slate-900">{conversationName(conversation)}</div>
-                    <div className="mt-1 text-xs text-slate-500">{channelMeta(conversation.channel || conversation.source).label}</div>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {LEAD_STATUS_ORDER.map((status) => {
+          const active = leadFilter === status;
+          const count = conversations.filter((conversation) => conversationLeadBucket(conversation) === status).length;
+          return (
+            <button
+              key={status}
+              type="button"
+              onClick={() => onLeadFilterChange(status)}
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-[12px] font-semibold ${
+                active ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"
+              }`}
+            >
+              {leadStatusLabel(status)}
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${active ? "bg-white/15 text-white" : "bg-slate-100 text-slate-500"}`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {filtered.length ? (
+        <div className="space-y-2">
+          {filtered.map((conversation) => {
+            const status = conversationLeadStatus(conversation);
+            const meta = channelMeta(conversation.channel || conversation.source);
+            return (
+              <button
+                key={conversation.conversation_key}
+                type="button"
+                onClick={() => onOpenConversation(conversation)}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-left shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-slate-900">{conversationName(conversation)}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      <span>{meta.label}</span>
+                      <span className="h-1 w-1 rounded-full bg-slate-300" />
+                      <span>{relativeTime(conversation.last_activity_at || conversation.updated_at)}</span>
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-500">{relativeTime(conversation.last_activity_at || conversation.updated_at)}</div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-              No conversations in this stage.
-            </div>
-          )}
-        </section>
-      ))}
+                  <PwaChip tone={leadStatusTone(status)}>{leadStatusLabel(status)}</PwaChip>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500 shadow-sm">
+          No lead conversations in this filter.
+        </div>
+      )}
     </div>
   );
 }
@@ -1029,11 +1099,13 @@ export default function AiInboxPwa() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filter, setFilter] = useState("all");
+  const [leadFilter, setLeadFilter] = useState("new");
   const [composerText, setComposerText] = useState("");
   const [composerMode, setComposerMode] = useState("reply");
   const [sending, setSending] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [aiToggling, setAiToggling] = useState(false);
+  const [leadActionLoading, setLeadActionLoading] = useState("");
   const [productSheetOpen, setProductSheetOpen] = useState(false);
   const [productSending, setProductSending] = useState(false);
   const [productLoading, setProductLoading] = useState(false);
@@ -1559,6 +1631,183 @@ export default function AiInboxPwa() {
     }
   }, [headers, patchConversation, selectedConversation, tenantId]);
 
+  const updateLeadStatus = useCallback(
+    async (nextLeadStatus) => {
+      if (!selectedConversation?.session_id) return;
+      const leadStatus = normalizeLeadStatus(nextLeadStatus);
+      const sessionId = selectedConversation.session_id;
+      const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+      setLeadActionLoading("lead_status");
+      try {
+        const payload = await api.patch(
+          aiAgentInboxEndpoint(sessionId, "/lead-status"),
+          {
+            tenant_id: tenantId,
+            lead_status: leadStatus,
+          },
+          { headers, perfComponent: "AiInboxPwa.updateLeadStatus" }
+        );
+        const returned = payload.conversation || {};
+        patchConversation(conversationIdentifier, (conversation) => ({
+          ...conversation,
+          ...returned,
+          lead_status: returned.lead_status || leadStatus,
+          channel_metadata: {
+            ...(conversation.channel_metadata || {}),
+            ...(returned.channel_metadata || {}),
+            lead_status: returned.lead_status || leadStatus,
+          },
+        }));
+        await loadConversations({ silent: true });
+      } catch (err) {
+        toast.error(err?.message || "تعذر تحديث حالة العميل المحتمل");
+      } finally {
+        setLeadActionLoading("");
+      }
+    },
+    [headers, loadConversations, patchConversation, selectedConversation, tenantId]
+  );
+
+  const createLeadCustomer = useCallback(async () => {
+    if (!selectedConversation?.session_id) return;
+    const sessionId = selectedConversation.session_id;
+    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+    setLeadActionLoading("create_customer");
+    try {
+      const payload = await api.post(
+        aiAgentInboxEndpoint(sessionId, "/create-customer"),
+        { tenant_id: tenantId },
+        { headers, perfComponent: "AiInboxPwa.createLeadCustomer" }
+      );
+      if (payload?.conversation) {
+        patchConversation(conversationIdentifier, (conversation) => ({
+          ...conversation,
+          ...payload.conversation,
+          customer_profile: payload.conversation.customer_profile || conversation.customer_profile,
+          channel_metadata: payload.conversation.channel_metadata || conversation.channel_metadata,
+        }));
+      }
+      await loadConversations({ silent: true });
+      toast.success("تم إنشاء العميل");
+    } catch (err) {
+      toast.error(err?.message || "تعذر إنشاء العميل");
+    } finally {
+      setLeadActionLoading("");
+    }
+  }, [headers, loadConversations, patchConversation, selectedConversation, tenantId]);
+
+  const createLeadOpportunity = useCallback(async () => {
+    if (!selectedConversation?.session_id) return;
+    const sessionId = selectedConversation.session_id;
+    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+    setLeadActionLoading("create_opportunity");
+    try {
+      const payload = await api.post(
+        aiAgentInboxEndpoint(sessionId, "/create-opportunity"),
+        { tenant_id: tenantId },
+        { headers, perfComponent: "AiInboxPwa.createLeadOpportunity" }
+      );
+      if (payload?.conversation) {
+        patchConversation(conversationIdentifier, (conversation) => ({
+          ...conversation,
+          ...payload.conversation,
+          customer_profile: payload.conversation.customer_profile || conversation.customer_profile,
+          channel_metadata: payload.conversation.channel_metadata || conversation.channel_metadata,
+        }));
+      }
+      await loadConversations({ silent: true });
+      toast.success("تم إنشاء فرصة البيع");
+    } catch (err) {
+      toast.error(err?.message || "تعذر إنشاء فرصة البيع");
+    } finally {
+      setLeadActionLoading("");
+    }
+  }, [headers, loadConversations, patchConversation, selectedConversation, tenantId]);
+
+  const sendLeadPrivateMessage = useCallback(async () => {
+    if (!selectedConversation?.session_id) return;
+    const sessionId = selectedConversation.session_id;
+    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+    const message = buildLeadPrivateMessageText(selectedConversation);
+    setLeadActionLoading("private_message");
+    try {
+      const payload = await api.post(
+        aiAgentInboxEndpoint(sessionId, "/private-message"),
+        {
+          tenant_id: tenantId,
+          message,
+        },
+        { headers, perfComponent: "AiInboxPwa.privateMessage" }
+      );
+      const sentAt = new Date().toISOString();
+      const returnedMessage = payload?.message || {
+        id: `private:${Date.now()}`,
+        staff_message: message,
+        sender_type: "staff",
+        created_at: sentAt,
+        message_type: "private_message",
+      };
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        messages: uniqueMessages([...asArray(conversation.messages), returnedMessage]),
+        latest_message_preview: message,
+        last_activity_at: returnedMessage.created_at || sentAt,
+        updated_at: returnedMessage.created_at || sentAt,
+      }));
+      await loadConversations({ silent: true });
+      toast.success("تم إرسال الرسالة الخاصة");
+    } catch (err) {
+      toast.error(err?.message || "تعذر إرسال الرسالة الخاصة");
+    } finally {
+      setLeadActionLoading("");
+    }
+  }, [headers, loadConversations, patchConversation, selectedConversation, tenantId]);
+
+  const sendLeadCommentReply = useCallback(async () => {
+    if (!selectedConversation?.session_id || !isCommentConversation(selectedConversation)) return;
+    const commentId = clean(
+      selectedConversation?.channel_metadata?.comment_id ||
+        selectedConversation?.channel_metadata?.lead?.comment_id ||
+        selectedConversation?.external_comment_id ||
+        selectedConversation?.comment_id ||
+        ""
+    );
+    if (!commentId) {
+      toast.error("تعذر تحديد الكومنت المرتبط بهذه المحادثة");
+      return;
+    }
+    const sessionId = selectedConversation.session_id;
+    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+    const message = buildLeadCommentReplyText(selectedConversation);
+    setLeadActionLoading("comment_reply");
+    try {
+      const payload = await api.post(
+        `/ai-inbox/comments/${encodeURIComponent(commentId)}/reply`,
+        {
+          tenant_id: tenantId,
+          reply_text: message,
+        },
+        { headers, perfComponent: "AiInboxPwa.commentReply" }
+      );
+      const sentAt = new Date().toISOString();
+      if (payload?.message) {
+        patchConversation(conversationIdentifier, (conversation) => ({
+          ...conversation,
+          messages: uniqueMessages([...asArray(conversation.messages), payload.message]),
+          latest_message_preview: message,
+          last_activity_at: payload.message.created_at || sentAt,
+          updated_at: payload.message.created_at || sentAt,
+        }));
+      }
+      await loadConversations({ silent: true });
+      toast.success("تم رد الكومنت");
+    } catch (err) {
+      toast.error(err?.message || "تعذر إرسال رد الكومنت");
+    } finally {
+      setLeadActionLoading("");
+    }
+  }, [headers, loadConversations, patchConversation, selectedConversation, tenantId]);
+
   const installApp = useCallback(async () => {
     if (!installPrompt) return;
     await installPrompt.prompt();
@@ -1570,10 +1819,12 @@ export default function AiInboxPwa() {
   const showComposer = contentScreen && tab === "conversations";
   const selectedMeta = channelMeta(selectedConversation?.channel || selectedConversation?.source || "");
   const SelectedChannelIcon = selectedMeta.icon;
+  const currentLeadStatus = conversationLeadStatus(selectedConversation || {});
   const selectedAvatar = customerAvatarUrl(selectedConversation || {});
   const selectedLastSeen = relativeSeenLabel(
     selectedConversation?.last_activity_at || selectedConversation?.updated_at
   );
+  const quickActionBusy = Boolean(leadActionLoading || aiToggling || productSending || sending);
   const isRtlLayout =
     typeof document !== "undefined" &&
     ((document.documentElement.dir || document.body?.dir || "").toLowerCase() === "rtl");
@@ -1656,6 +1907,85 @@ export default function AiInboxPwa() {
                 ) : null}
               </div>
             </div>
+            <div className="mt-2 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Lead status</div>
+                  <div className="mt-1 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-1">
+                    <span className={`h-2 w-2 rounded-full ${
+                      leadStatusTone(currentLeadStatus) === "amber"
+                        ? "bg-amber-400"
+                        : leadStatusTone(currentLeadStatus) === "emerald"
+                          ? "bg-emerald-400"
+                          : "bg-blue-400"
+                    }`} />
+                    <span className="text-[11px] font-semibold text-slate-700">{leadStatusLabel(currentLeadStatus)}</span>
+                  </div>
+                </div>
+                <label className="min-w-[9rem]">
+                  <span className="sr-only">Change lead status</span>
+                  <select
+                    value={currentLeadStatus}
+                    onChange={(event) => void updateLeadStatus(event.target.value)}
+                    disabled={leadActionLoading === "lead_status"}
+                    className="h-9 w-full rounded-full border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-700 outline-none disabled:opacity-50"
+                  >
+                    {LEAD_STATUS_ORDER.map((status) => (
+                      <option key={status} value={status}>
+                        {leadStatusLabel(status)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setProductSheetOpen(true)}
+                  disabled={quickActionBusy}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-semibold text-emerald-700 disabled:opacity-50"
+                >
+                  <PackagePlus className="h-3.5 w-3.5" />
+                  إرسال منتج
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void sendLeadPrivateMessage()}
+                  disabled={quickActionBusy}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 disabled:opacity-50"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  إرسال رسالة خاصة
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void sendLeadCommentReply()}
+                  disabled={quickActionBusy || !isCommentConversation(selectedConversation || {})}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 disabled:opacity-50"
+                >
+                  <MessageCircleMore className="h-3.5 w-3.5" />
+                  رد على الكومنت
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void createLeadCustomer()}
+                  disabled={quickActionBusy}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 disabled:opacity-50"
+                >
+                  <UserRound className="h-3.5 w-3.5" />
+                  إنشاء عميل
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void createLeadOpportunity()}
+                  disabled={quickActionBusy}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 disabled:opacity-50"
+                >
+                  <PackagePlus className="h-3.5 w-3.5" />
+                  إنشاء فرصة بيع
+                </button>
+              </div>
+            </div>
           </header>
         ) : (
           <header className="border-b border-slate-200 bg-slate-50/95 px-2.5 pb-2 pt-[max(0.65rem,env(safe-area-inset-top))] backdrop-blur">
@@ -1724,7 +2054,15 @@ export default function AiInboxPwa() {
             )
           ) : null}
 
-          {tab === "leads" ? <LeadsView conversations={conversations} onOpenConversation={openConversation} /> : null}
+          {tab === "leads" ? (
+            <LeadsView
+              conversations={conversations}
+              search={debouncedSearch}
+              leadFilter={leadFilter}
+              onLeadFilterChange={setLeadFilter}
+              onOpenConversation={openConversation}
+            />
+          ) : null}
           {tab === "more" ? <MoreView installAvailable={Boolean(installPrompt)} onInstall={installApp} /> : null}
         </main>
 
