@@ -1029,13 +1029,6 @@ function SmartphoneIcon() {
   return <MessageCircleMore className="h-5 w-5 text-slate-700" />;
 }
 
-const QUICK_REPLIES = [
-  "المقاسات",
-  "السعر",
-  "الشحن",
-  "الفرع",
-];
-
 export default function AiInboxPwa() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1786,18 +1779,6 @@ export default function AiInboxPwa() {
                   Internal note mode
                 </div>
               ) : null}
-              <div className="mb-2 -mx-0.5 flex gap-1.5 overflow-x-auto pb-0.5">
-                {QUICK_REPLIES.map((reply) => (
-                  <button
-                    key={reply}
-                    type="button"
-                    onClick={() => setComposerText((current) => (clean(current) ? `${current} ${reply}` : reply))}
-                    className="shrink-0 rounded-full bg-slate-100 px-3 py-1.5 text-[12px] font-medium text-slate-700"
-                  >
-                    {reply}
-                  </button>
-                ))}
-              </div>
               <div className="flex items-end gap-2">
                 <button
                   type="button"
