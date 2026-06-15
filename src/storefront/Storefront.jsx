@@ -6113,7 +6113,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
               <Field label={sfText("storefront.form.secondaryPhone")} placeholder={sfText("storefront.form.secondaryPhonePlaceholder")} value={form.secondary_phone} onChange={(v) => setField("secondary_phone", v)} inputMode="tel" />
             </div>
           </CheckoutSection> : null}
-          {checkoutStep === 2 ? <CheckoutSection number="2" title={sfText("storefront.checkout.sections.address")} note={sfText("storefront.checkout.addressNote")}>
+          {checkoutStep === 2 ? <CheckoutSection number="2" title={sfText("storefront.checkout.sections.address")} note={sfText("storefront.checkout.addressNote")} className="checkout-address-section" dir="rtl">
             {latestAddressApplied ? (
               <div className="sf-checkout-address-success mb-3 flex items-center justify-between gap-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black leading-5 text-emerald-100">
                 <span className="sf-checkout-address-success-text">{sfText("storefront.checkout.latestAddressApplied")}</span>
@@ -6182,21 +6182,21 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                   {!locationGovernorates.length ? <CityAreaField themeMode={themeMode} governorate={form.governorate} options={cityAreaOptions} value={form.city_area} onChange={setCityArea} manual={manualCityArea} onManualChange={(value) => setField("city_area", value)} required error={errors.city_area} /> : null}
                 </>
               )}
-              <TextField label={sfText("storefront.checkout.fullAddress")} placeholder={sfText("storefront.checkout.fullAddressPlaceholder")} value={form.detailed_address} onChange={(v) => setField("detailed_address", v)} required error={errors.detailed_address} />
+              <TextField label={sfText("storefront.checkout.fullAddress")} placeholder={sfText("storefront.checkout.fullAddressPlaceholder")} value={form.detailed_address} onChange={(v) => setField("detailed_address", v)} required error={errors.detailed_address} inputClassName="text-right" />
               <div className="sf-checkout-bosta-card md:col-span-2 rounded-[1.25rem] border border-white/10 bg-white/[0.035] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs font-black uppercase tracking-[0.14em] text-white/54">{sfText("storefront.checkout.bostaAddressDetails")}</p>
                   {bostaMode ? <span className="rounded-full border border-cyan-300/30 bg-cyan-50 px-2.5 py-1 text-[10px] font-black text-cyan-800 shadow-[0_8px_18px_rgba(15,118,110,0.08)] dark:border-cyan-300/25 dark:bg-cyan-300/15 dark:text-cyan-100">{sfText("storefront.checkout.requiredForBosta")}</span> : null}
                 </div>
                 <div className="grid gap-2.5 md:grid-cols-4">
-                  <Field label={sfText("storefront.checkout.streetAddress")} placeholder={sfText("storefront.checkout.streetAddressPlaceholder")} value={form.street_address} onChange={(v) => setField("street_address", v)} required={bostaMode} error={errors.street_address} />
-                  <Field label={sfText("storefront.checkout.buildingNumber")} placeholder={sfText("storefront.checkout.buildingNumberPlaceholder")} value={form.building_number} onChange={(v) => setField("building_number", v)} required={bostaMode} error={errors.building_number} />
-                  <Field label={sfText("storefront.checkout.floorNumber")} placeholder={sfText("storefront.checkout.floorNumberPlaceholder")} value={form.floor_number} onChange={(v) => setField("floor_number", v)} />
-                  <Field label={sfText("storefront.checkout.apartmentNumber")} placeholder={sfText("storefront.checkout.apartmentNumberPlaceholder")} value={form.apartment_number} onChange={(v) => setField("apartment_number", v)} />
+                  <Field label={sfText("storefront.checkout.streetAddress")} placeholder={sfText("storefront.checkout.streetAddressPlaceholder")} value={form.street_address} onChange={(v) => setField("street_address", v)} required={bostaMode} error={errors.street_address} inputClassName="text-right" />
+                  <Field label={sfText("storefront.checkout.buildingNumber")} placeholder={sfText("storefront.checkout.buildingNumberPlaceholder")} value={form.building_number} onChange={(v) => setField("building_number", v)} required={bostaMode} error={errors.building_number} inputClassName="text-right" />
+                  <Field label={sfText("storefront.checkout.floorNumber")} placeholder={sfText("storefront.checkout.floorNumberPlaceholder")} value={form.floor_number} onChange={(v) => setField("floor_number", v)} inputClassName="text-right" />
+                  <Field label={sfText("storefront.checkout.apartmentNumber")} placeholder={sfText("storefront.checkout.apartmentNumberPlaceholder")} value={form.apartment_number} onChange={(v) => setField("apartment_number", v)} inputClassName="text-right" />
                 </div>
               </div>
-              <Field label={sfText("storefront.checkout.landmark")} placeholder={sfText("storefront.checkout.landmarkPlaceholder")} value={form.landmark} onChange={(v) => setField("landmark", v)} />
-              <TextField label={sfText("storefront.checkout.deliveryNotes")} placeholder={sfText("storefront.checkout.deliveryNotesPlaceholder")} value={form.delivery_notes} onChange={(v) => setField("delivery_notes", v)} />
+              <Field label={sfText("storefront.checkout.landmark")} placeholder={sfText("storefront.checkout.landmarkPlaceholder")} value={form.landmark} onChange={(v) => setField("landmark", v)} inputClassName="text-right" />
+              <TextField label={sfText("storefront.checkout.deliveryNotes")} placeholder={sfText("storefront.checkout.deliveryNotesPlaceholder")} value={form.delivery_notes} onChange={(v) => setField("delivery_notes", v)} inputClassName="text-right" />
             </div>
           </CheckoutSection> : null}
           {checkoutStep === 3 ? (
@@ -6846,9 +6846,9 @@ function SubmitButton({ submitting, compact = false, paymentMethod = "cod", disa
   );
 }
 
-function CheckoutSection({ number, title, note, children }) {
+function CheckoutSection({ number, title, note, children, className = "", dir }) {
   return (
-    <section className="sf-reveal sf-checkout-section rounded-[1.6rem] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.075),rgba(255,255,255,0.035)_42%,rgba(7,10,20,0.86))] p-4 text-white shadow-[0_22px_60px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl md:p-5">
+    <section dir={dir} className={`sf-reveal sf-checkout-section ${className} rounded-[1.6rem] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.075),rgba(255,255,255,0.035)_42%,rgba(7,10,20,0.86))] p-4 text-white shadow-[0_22px_60px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl md:p-5`}>
       <div className="mb-3 flex items-start gap-3">
         <span className="sf-checkout-step-badge grid h-9 w-9 shrink-0 place-items-center rounded-full border border-[#a78bfa]/25 bg-[#7c3aed]/24 text-sm font-black text-white shadow-[0_12px_28px_rgba(124,58,237,0.20)]">{number}</span>
         <div>
@@ -6877,21 +6877,21 @@ function SuccessTimeline() {
   );
 }
 
-function Field({ label, value, onChange, required, error, inputMode, placeholder }) {
+function Field({ label, value, onChange, required, error, inputMode, placeholder, inputClassName = "" }) {
   return (
     <label className="sf-field sf-checkout-field block">
       <span className="sf-field-label sf-checkout-field-label mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
-      <input required={required} inputMode={inputMode} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-2xl border bg-white/[0.055] px-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
+      <input required={required} inputMode={inputMode} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input ${inputClassName} min-h-14 w-full rounded-2xl border bg-white/[0.055] px-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
       {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
     </label>
   );
 }
 
-function TextField({ label, value, onChange, required, error, compact, placeholder }) {
+function TextField({ label, value, onChange, required, error, compact, placeholder, inputClassName = "" }) {
   return (
     <label className="sf-checkout-field block md:col-span-2">
       <span className="sf-checkout-field-label mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
-      <textarea required={required} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} rows={compact ? 2 : 3} className={`sf-field-input sf-checkout-field-input ${compact ? "sf-checkout-notes-textarea max-h-[90px]" : ""} w-full resize-y rounded-2xl border bg-white/[0.055] p-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
+      <textarea required={required} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} rows={compact ? 2 : 3} className={`sf-field-input sf-checkout-field-input ${inputClassName} ${compact ? "sf-checkout-notes-textarea max-h-[90px]" : ""} w-full resize-y rounded-2xl border bg-white/[0.055] p-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#a78bfa] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(167,139,250,0.16),0_18px_38px_rgba(124,58,237,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
       {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
     </label>
   );
