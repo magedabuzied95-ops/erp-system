@@ -1058,17 +1058,6 @@ export default function AiInboxPwa() {
   }, [location.pathname, location.search]);
 
   useEffect(() => {
-    if (!selectedConversation) return undefined;
-    const onPopState = () => {
-      const historyState = window.history.state;
-      if (historyState && typeof historyState.idx === "number" && historyState.idx > 0) return;
-      backToList();
-    };
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, [backToList, selectedConversation]);
-
-  useEffect(() => {
     if (!("serviceWorker" in navigator)) return undefined;
     navigator.serviceWorker.register("/inbox-sw.js?v=1", { scope: "/inbox" }).catch(() => null);
     return undefined;
@@ -1154,6 +1143,17 @@ export default function AiInboxPwa() {
     }
     backToList();
   }, [backToList, navigate]);
+
+  useEffect(() => {
+    if (!selectedConversation) return undefined;
+    const onPopState = () => {
+      const historyState = window.history.state;
+      if (historyState && typeof historyState.idx === "number" && historyState.idx > 0) return;
+      backToList();
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [backToList, selectedConversation]);
 
   const loadOlderMessages = useCallback(async () => {
     if (!selectedConversation?.session_id || olderLoading) return;
