@@ -943,19 +943,22 @@ const maskSecret = (value = "") => {
 const whatsappMissingCredentials = (config = {}) => {
   const missing = [];
   if (!config.enabled) missing.push("WHATSAPP_ENABLED");
-  if (!config.accessToken) missing.push("WHATSAPP_ACCESS_TOKEN");
-  if (!config.phoneNumberId) missing.push("WHATSAPP_PHONE_NUMBER_ID");
   if (config.provider === "evolution") {
     if (!config.evolutionApiUrl) missing.push("EVOLUTION_API_URL");
     if (!config.evolutionApiKey) missing.push("EVOLUTION_API_KEY");
     if (!config.evolutionInstanceName) missing.push("WHATSAPP_INSTANCE_NAME");
+  } else if (config.provider === "cloud") {
+    if (!config.accessToken) missing.push("WHATSAPP_ACCESS_TOKEN");
+    if (!config.phoneNumberId) missing.push("WHATSAPP_PHONE_NUMBER_ID");
   }
   return missing;
 };
 
 const logWhatsAppConfig = (label, config = {}) => {
+  const selectedTransport = config.provider === "cloud" ? "cloud" : "evolution";
   console.info(label, {
     provider: config.provider || "",
+    selected_transport: selectedTransport,
     enabled: config.enabled === true,
     access_token_configured: Boolean(config.accessToken),
     phone_number_id_configured: Boolean(config.phoneNumberId),
@@ -1253,6 +1256,14 @@ const graphUrl = ({ phoneNumberId, graphVersion }) =>
   `https://graph.facebook.com/${graphVersion}/${encodeURIComponent(phoneNumberId)}/messages`;
 
 const postWhatsAppMessage = async ({ payload, config }) => {
+  console.info("[whatsapp-cloud-send-attempt]", {
+    provider: "cloud",
+    selected_transport: "cloud",
+    recipient: toText(payload?.to || ""),
+    payload_type: payload?.type || payload?.message?.attachment?.type || "unknown",
+    phone_number_id_configured: Boolean(config?.phoneNumberId),
+    access_token_configured: Boolean(config?.accessToken),
+  });
   const response = await fetch(graphUrl(config), {
     method: "POST",
     headers: {
@@ -1288,6 +1299,59 @@ const postWhatsAppMessage = async ({ payload, config }) => {
   return { ...data, message_id: messageId };
 };
 
+const postEvolutionWhatsAppMessage = async ({ recipient, text = "", imageUrl = "", caption = "", kind = "text" } = {}) => {
+  const gateway = await import("./whatsappGatewayService.js");
+  const normalizedRecipient = toText(recipient);
+  if (kind === "image") {
+    console.info("[whatsapp-evolution-send-attempt]", {
+      provider: "evolution",
+      selected_transport: "evolution",
+      recipient: normalizedRecipient,
+      payload_type: "image",
+      image_url_present: Boolean(toText(imageUrl)),
+      caption_length: toText(caption).length,
+    });
+    const response = await gateway.sendImageMessage({
+      phone: normalizedRecipient,
+      imageUrl,
+      caption,
+    });
+    const messageId = response?.result?.key?.id || response?.result?.message_id || response?.result?.id || "";
+    console.info("[whatsapp-evolution-send-response]", {
+      provider: "evolution",
+      selected_transport: "evolution",
+      recipient: normalizedRecipient,
+      payload_type: "image",
+      success: Boolean(response?.success),
+      message_id: messageId,
+      response_body: response?.result || null,
+    });
+    return { ...response, message_id: messageId };
+  }
+  console.info("[whatsapp-evolution-send-attempt]", {
+    provider: "evolution",
+    selected_transport: "evolution",
+    recipient: normalizedRecipient,
+    payload_type: "text",
+    text_length: toText(text).length,
+  });
+  const response = await gateway.sendTextMessage({
+    phone: normalizedRecipient,
+    message: text,
+  });
+  const messageId = response?.result?.key?.id || response?.result?.message_id || response?.result?.id || "";
+  console.info("[whatsapp-evolution-send-response]", {
+    provider: "evolution",
+    selected_transport: "evolution",
+    recipient: normalizedRecipient,
+    payload_type: "text",
+    success: Boolean(response?.success),
+    message_id: messageId,
+    response_body: response?.result || null,
+  });
+  return { ...response, message_id: messageId };
+};
+
 const visualAttachmentImageUrls = (reply = {}) =>
   [
     ...asArray(reply.image_cards).map((card) => card.url || card.image_url || card.image || ""),
@@ -1305,16 +1369,69 @@ const visualAttachmentImageUrls = (reply = {}) =>
 export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" } = {}) => {
   const config = whatsappConfig();
   logWhatsAppConfig("[whatsapp-cloud-send][config]", config);
-  if (!config.enabled) throw Object.assign(new Error("WhatsApp sender is disabled"), { code: "WHATSAPP_DISABLED" });
-  const missing = whatsappMissingCredentials(config).filter((item) => item !== "WHATSAPP_ENABLED");
-  if (!config.accessToken || !config.phoneNumberId) {
-    throw Object.assign(new Error(`WhatsApp credentials are missing: ${missing.join(", ") || "WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID"}`), {
-      code: "WHATSAPP_CONFIG_MISSING",
-      missingCredentials: missing,
-    });
-  }
   const recipient = toText(to);
-  if (!recipient) throw Object.assign(new Error("WhatsApp recipient is required"), { code: "WHATSAPP_RECIPIENT_REQUIRED" });
+  const selectedTransport = config.provider === "cloud" ? "cloud" : "evolution";
+  const missing = whatsappMissingCredentials(config).filter((item) => item !== "WHATSAPP_ENABLED");
+  const buildResult = (overrides = {}) => ({
+    sent: overrides.sent === true,
+    delivery_status: overrides.delivery_status || (overrides.sent === true ? "sent" : "failed"),
+    fallback_used: overrides.fallback_used === true,
+    results: overrides.results || [],
+    message_id: overrides.message_id || "",
+    success_count: overrides.success_count ?? 0,
+    delivery_error: overrides.delivery_error || "",
+    transport: overrides.transport || selectedTransport,
+  });
+  if (!config.enabled) {
+    const result = buildResult({
+      sent: false,
+      delivery_status: "stored_only",
+      delivery_error: "WhatsApp sender is disabled",
+    });
+    console.warn("[whatsapp-send-transport-unavailable]", {
+      provider: config.provider || "",
+      selected_transport: selectedTransport,
+      recipient,
+      missing_credentials: missing,
+      reason: "whatsapp_disabled",
+    });
+    return result;
+  }
+  if (!recipient) {
+    const result = buildResult({
+      sent: false,
+      delivery_status: "stored_only",
+      delivery_error: "WhatsApp recipient is required",
+    });
+    console.warn("[whatsapp-send-transport-unavailable]", {
+      provider: config.provider || "",
+      selected_transport: selectedTransport,
+      recipient,
+      missing_credentials: missing,
+      reason: "recipient_missing",
+    });
+    return result;
+  }
+  const evolutionReady = Boolean(config.evolutionApiUrl && config.evolutionApiKey && config.evolutionInstanceName);
+  const cloudReady = Boolean(config.accessToken && config.phoneNumberId);
+  if ((selectedTransport === "evolution" && !evolutionReady) || (selectedTransport === "cloud" && !cloudReady)) {
+    const result = buildResult({
+      sent: false,
+      delivery_status: "stored_only",
+      delivery_error:
+        selectedTransport === "evolution"
+          ? `WhatsApp transport is unavailable: ${missing.filter((item) => item !== "WHATSAPP_ENABLED").join(", ") || "EVOLUTION_API_URL, EVOLUTION_API_KEY, WHATSAPP_INSTANCE_NAME"}`
+          : `WhatsApp transport is unavailable: ${missing.filter((item) => item !== "WHATSAPP_ENABLED").join(", ") || "WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID"}`,
+    });
+    console.warn("[whatsapp-send-transport-unavailable]", {
+      provider: config.provider || "",
+      selected_transport: selectedTransport,
+      recipient,
+      missing_credentials: missing,
+      reason: "transport_config_missing",
+    });
+    return result;
+  }
   const text = toText(messageText || reply.text);
   const results = [];
   const productCards = normalizeStructuredProductCards(reply.product_cards, { limit: 6 });
@@ -1346,10 +1463,21 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
   let deliveryError = "";
   let firstMessageId = "";
   let successCount = 0;
+  const sendOutcome = (overrides = {}) => buildResult({
+    sent: overrides.sent === true,
+    delivery_status: overrides.delivery_status || (overrides.sent === true ? "sent" : "failed"),
+    fallback_used: overrides.fallback_used === true,
+    results: overrides.results || results,
+    message_id: overrides.message_id || firstMessageId || "",
+    success_count: overrides.success_count ?? successCount,
+    delivery_error: overrides.delivery_error || deliveryError || "",
+    transport: selectedTransport,
+  });
   if (productCards.length || imageCards.length) {
     const firstCard = productCards[0] || {};
     console.info("[CHANNEL_CARD_PAYLOAD]", {
       channel: AI_AGENT_CHANNELS.WHATSAPP,
+      selected_transport: selectedTransport,
       product_cards_count: productCards.length,
       image_cards_count: imageCards.length,
       first_card: {
@@ -1365,34 +1493,46 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
     });
   }
   if (!productCards.length && (text || productCardTexts.length)) {
-    const textResponse = await postWhatsAppMessage({
-      config,
-      payload: {
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to: recipient,
-        type: "text",
-        text: { preview_url: false, body: (text || productCardTexts.join("\n\n")).slice(0, 4096) },
-      },
-    });
-    firstMessageId = firstMessageId || trackSuccess("text", textResponse);
-    successCount += 1;
+    try {
+      const body = (text || productCardTexts.join("\n\n")).slice(0, 4096);
+      const textResponse =
+        selectedTransport === "evolution"
+          ? await postEvolutionWhatsAppMessage({ recipient, text: body, kind: "text" })
+          : await postWhatsAppMessage({
+              config,
+              payload: {
+                messaging_product: "whatsapp",
+                recipient_type: "individual",
+                to: recipient,
+                type: "text",
+                text: { preview_url: false, body },
+              },
+            });
+      firstMessageId = firstMessageId || trackSuccess("text", textResponse);
+      successCount += 1;
+    } catch (error) {
+      trackFailure("text", error);
+      deliveryError = deliveryError || error?.message || "WhatsApp text send failed";
+    }
   }
   for (const product of productCards) {
     const productText = toText(productCardReplyText(product)).slice(0, 1024);
     const productImage = toText(product.image_url || product.image || product.main_image || "");
     if (productImage) {
       try {
-        const imageResponse = await postWhatsAppMessage({
-          config,
-          payload: {
-            messaging_product: "whatsapp",
-            recipient_type: "individual",
-            to: recipient,
-            type: "image",
-            image: { link: productImage, caption: productText || undefined },
-          },
-        });
+        const imageResponse =
+          selectedTransport === "evolution"
+            ? await postEvolutionWhatsAppMessage({ recipient, imageUrl: productImage, caption: productText || "", kind: "image" })
+            : await postWhatsAppMessage({
+                config,
+                payload: {
+                  messaging_product: "whatsapp",
+                  recipient_type: "individual",
+                  to: recipient,
+                  type: "image",
+                  image: { link: productImage, caption: productText || undefined },
+                },
+              });
         firstMessageId = firstMessageId || trackSuccess("product_image", imageResponse);
         successCount += 1;
       } catch (imageError) {
@@ -1403,19 +1543,23 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
           image_url: productImage,
           message: imageError?.message,
           status: imageError?.status,
+          selected_transport: selectedTransport,
         });
         if (productText) {
           try {
-            const fallbackResponse = await postWhatsAppMessage({
-              config,
-              payload: {
-                messaging_product: "whatsapp",
-                recipient_type: "individual",
-                to: recipient,
-                type: "text",
-                text: { preview_url: false, body: productText.slice(0, 4096) },
-              },
-            });
+            const fallbackResponse =
+              selectedTransport === "evolution"
+                ? await postEvolutionWhatsAppMessage({ recipient, text: productText.slice(0, 4096), kind: "text" })
+                : await postWhatsAppMessage({
+                    config,
+                    payload: {
+                      messaging_product: "whatsapp",
+                      recipient_type: "individual",
+                      to: recipient,
+                      type: "text",
+                      text: { preview_url: false, body: productText.slice(0, 4096) },
+                    },
+                  });
             firstMessageId = firstMessageId || trackSuccess("product_text_fallback", fallbackResponse);
             successCount += 1;
           } catch (fallbackError) {
@@ -1427,16 +1571,19 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
     } else if (productText) {
       fallbackUsed = true;
       try {
-        const textResponse = await postWhatsAppMessage({
-          config,
-          payload: {
-            messaging_product: "whatsapp",
-            recipient_type: "individual",
-            to: recipient,
-            type: "text",
-            text: { preview_url: false, body: productText.slice(0, 4096) },
-          },
-        });
+        const textResponse =
+          selectedTransport === "evolution"
+            ? await postEvolutionWhatsAppMessage({ recipient, text: productText.slice(0, 4096), kind: "text" })
+            : await postWhatsAppMessage({
+                config,
+                payload: {
+                  messaging_product: "whatsapp",
+                  recipient_type: "individual",
+                  to: recipient,
+                  type: "text",
+                  text: { preview_url: false, body: productText.slice(0, 4096) },
+                },
+              });
         firstMessageId = firstMessageId || trackSuccess("product_text", textResponse);
         successCount += 1;
       } catch (textError) {
@@ -1449,16 +1596,19 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
   }
   for (const imageUrl of imageCards) {
     try {
-      const imageResponse = await postWhatsAppMessage({
-        config,
-        payload: {
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to: recipient,
-          type: "image",
-          image: { link: imageUrl },
-        },
-      });
+      const imageResponse =
+        selectedTransport === "evolution"
+          ? await postEvolutionWhatsAppMessage({ recipient, imageUrl, kind: "image" })
+          : await postWhatsAppMessage({
+              config,
+              payload: {
+                messaging_product: "whatsapp",
+                recipient_type: "individual",
+                to: recipient,
+                type: "image",
+                image: { link: imageUrl },
+              },
+            });
       firstMessageId = firstMessageId || trackSuccess("visual_image", imageResponse);
       successCount += 1;
     } catch (error) {
@@ -1468,20 +1618,22 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
         image_url: imageUrl,
         message: error?.message,
         status: error?.status,
+        selected_transport: selectedTransport,
       });
     }
   }
-  if (productCards.length && successCount === 0 && !deliveryError) {
-    deliveryError = "WhatsApp product card delivery failed";
+  if ((productCards.length || imageCards.length || text) && successCount === 0 && !deliveryError) {
+    deliveryError = selectedTransport === "evolution" ? "Evolution WhatsApp delivery failed" : "WhatsApp Cloud delivery failed";
   }
-  return {
+  return sendOutcome({
     sent: successCount > 0,
+    delivery_status: successCount > 0 ? "sent" : "failed",
     fallback_used: fallbackUsed,
     results,
     message_id: firstMessageId || "",
     success_count: successCount,
     delivery_error: deliveryError,
-  };
+  });
 };
 
 const metaMessagesUrl = (graphVersion = "v20.0") => `https://graph.facebook.com/${graphVersion}/me/messages`;

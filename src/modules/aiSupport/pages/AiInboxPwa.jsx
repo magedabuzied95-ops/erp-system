@@ -1588,9 +1588,11 @@ export default function AiInboxPwa() {
           : null);
 
       if (returnedMessage) {
-        if (composerMode !== "note" && payload?.delivery_status === "failed") {
-          returnedMessage.delivery_status = "failed";
-          returnedMessage.delivery_error = payload?.delivery_error || payload?.message || "Failed to send";
+        if (composerMode !== "note" && payload?.delivery_status) {
+          returnedMessage.delivery_status = payload.delivery_status;
+          if (payload.delivery_status === "failed" || payload.delivery_status === "stored_only") {
+            returnedMessage.delivery_error = payload?.delivery_error || payload?.message || (payload.delivery_status === "stored_only" ? "Saved only, not delivered" : "Failed to send");
+          }
         }
         patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({
           ...conversation,
@@ -1608,6 +1610,8 @@ export default function AiInboxPwa() {
         toast.success("Internal note saved");
       } else if (payload?.delivery_status === "failed") {
         toast.error(payload?.delivery_error || payload?.message || "Failed to send");
+      } else if (payload?.delivery_status === "stored_only") {
+        toast.info("Saved only, not delivered");
       } else {
         toast.success("Message sent");
       }

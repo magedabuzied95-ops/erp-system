@@ -892,6 +892,7 @@ const sendUnifiedReplyThroughChannelAdapter = async ({ channel = AI_AGENT_CHANNE
     throw error;
   }
   if (normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP) {
+    const deliveryStatus = result?.delivery_status || (result?.sent ? "sent" : "failed");
     await persistWhatsappTranscriptRow({
       tenantId,
       channel: normalizedChannel,
@@ -900,8 +901,8 @@ const sendUnifiedReplyThroughChannelAdapter = async ({ channel = AI_AGENT_CHANNE
       reply: unifiedReply.channel_reply,
       replyText: messageText || unifiedReply.text || unifiedReply.channel_reply?.text || "",
       productCards: asArray(replySource?.product_cards || unifiedReply.channel_reply?.product_cards || replySource?.suggested_products),
-      deliveryStatus: result?.sent ? "sent" : "failed",
-      deliveryError: result?.sent ? "" : result?.error || "",
+      deliveryStatus,
+      deliveryError: deliveryStatus === "sent" ? "" : result?.delivery_error || result?.error || "",
       externalMessageId: result?.results?.[0]?.messages?.[0]?.id || result?.results?.[0]?.message_id || result?.results?.[0]?.messageId || "",
       sourcePath: "ai_conversation_orchestrator_whatsapp_send",
       insertSource: "ai_conversation_orchestrator",

@@ -1654,7 +1654,13 @@ router.post("/channels/whatsapp/test-send", protect, permit("settings", "edit"),
       status: result.sent ? "test_sent" : "test_not_sent",
       metadata: { test: true, result_count: result.results?.length || 0 },
     }).catch(() => {});
-    return res.json({ success: true, sent: result.sent, result });
+    return res.json({
+      success: result?.delivery_status === "sent",
+      sent: result?.sent === true,
+      delivery_status: result?.delivery_status || (result?.sent ? "sent" : "failed"),
+      delivery_error: result?.delivery_error || "",
+      result,
+    });
   } catch (error) {
     await logChannelEvent({
       tenantId,
@@ -1679,7 +1685,13 @@ router.post("/channels/:channel/test-send", protect, permit("settings", "edit"),
   try {
     if (channel === AI_AGENT_CHANNELS.WHATSAPP) {
       const result = await sendWhatsAppCloudReply({ to, reply: { text: message }, messageText: message });
-      return res.json({ success: true, sent: result.sent, result });
+      return res.json({
+        success: result?.delivery_status === "sent",
+        sent: result?.sent === true,
+        delivery_status: result?.delivery_status || (result?.sent ? "sent" : "failed"),
+        delivery_error: result?.delivery_error || "",
+        result,
+      });
     }
     if (![AI_AGENT_CHANNELS.INSTAGRAM, AI_AGENT_CHANNELS.FACEBOOK_MESSENGER].includes(channel)) {
       throw Object.assign(new Error("Unsupported channel"), { status: 400 });
@@ -2871,21 +2883,14 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
     let deliveryStatus = "sent";
     let deliveryError = "";
     if (isWhatsAppConversation) {
-      try {
-        sendResult = await sendWhatsAppCloudReply({
-          to: recipientId,
-          reply: { text: messageText },
-          messageText,
-        });
-        if (!sendResult?.sent) {
-          throw Object.assign(new Error("WhatsApp send was not delivered"), {
-            status: 502,
-            code: "WHATSAPP_SEND_FAILED",
-            sendResult,
-          });
-        }
-      } catch (error) {
-        if (!isWhatsAppStoredOnlyIssue(error)) throw error;
+      sendResult = await sendWhatsAppCloudReply({
+        to: recipientId,
+        reply: { text: messageText },
+        messageText,
+      });
+      deliveryStatus = sendResult?.delivery_status || (sendResult?.sent ? "sent" : "failed");
+      if (deliveryStatus === "stored_only") {
+        deliveryError = sendResult?.delivery_error || "WhatsApp configuration is missing";
         const message = await appendManualAiSupportReply({
           tenantId,
           sessionId: conversationId,
@@ -2895,7 +2900,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
           source: conversation?.channel || conversation?.source || "admin_console",
           channel: conversation?.channel || conversation?.source || "whatsapp",
           deliveryStatus: "stored_only",
-          deliveryError: error?.message || "WhatsApp configuration is missing",
+          deliveryError,
         });
         emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: conversationId, message, at: new Date().toISOString() });
         emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: new Date().toISOString() });
@@ -2903,9 +2908,9 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
           success: true,
           sent: false,
           delivery_status: "stored_only",
-          delivery_error: error?.message || "WhatsApp configuration is missing",
+          delivery_error: deliveryError,
           message,
-          reason: error?.code || "whatsapp_config_missing",
+          reason: sendResult?.transport ? `whatsapp_${sendResult.transport}_stored_only` : "whatsapp_stored_only",
         });
       }
     } else {
@@ -2919,9 +2924,9 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
         instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
       });
     }
-    deliveryStatus = sendResult.sent ? "sent" : "failed";
+    deliveryStatus = sendResult?.delivery_status || (sendResult?.sent ? "sent" : "failed");
     if (deliveryStatus === "failed" && !deliveryError) {
-      deliveryError = sendResult?.message || "Message was not delivered";
+      deliveryError = sendResult?.delivery_error || sendResult?.message || "Message was not delivered";
     }
     const message = await appendManualAiSupportReply({
       tenantId,
@@ -2942,7 +2947,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       externalCustomerId: recipientId,
       conversationId,
       messagePreview: messageText,
-      status: deliveryStatus === "sent" ? "sent" : "failed",
+      status: deliveryStatus === "sent" ? "sent" : deliveryStatus === "stored_only" ? "stored" : "failed",
       metadata: {
         meta_message_id: sendResult?.message_id || sendResult?.results?.[0]?.result?.key?.id || "",
         config_id: sendResult?.config_id || null,
@@ -2980,6 +2985,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       sent: deliveryStatus === "sent",
       delivery_status: deliveryStatus,
       message,
+      delivery_error: deliveryError,
       meta: sendResult.meta || null,
     });
   } catch (error) {
@@ -3118,32 +3124,26 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
         deliveryStatus = "stored_only";
         storedOnlyReason = "whatsapp_recipient_missing";
       } else {
-        try {
-          sendResult = await sendWhatsAppCloudReply({
-            to: externalCustomerId,
-            reply: { text: fallbackText, product_cards: productCards },
-            messageText: fallbackText,
-          });
-          deliveryStatus = sendResult.sent === true ? "sent" : "failed";
-          if (deliveryStatus === "failed" && !deliveryError) {
-            deliveryError = sendResult?.delivery_error || sendResult?.message || "Product card message was not delivered";
-          }
-          externalMessageId = sendResult.message_id || "";
-        } catch (error) {
-          if (!isWhatsAppStoredOnlyIssue(error)) throw error;
-
+        sendResult = await sendWhatsAppCloudReply({
+          to: externalCustomerId,
+          reply: { text: fallbackText, product_cards: productCards },
+          messageText: fallbackText,
+        });
+        deliveryStatus = sendResult?.delivery_status || (sendResult?.sent === true ? "sent" : "failed");
+        if (deliveryStatus === "stored_only") {
           console.warn("[ai-inbox][product-card-send] WhatsApp transport unavailable, storing transcript message only", {
             tenantId,
             conversationId,
             channel,
             normalizedChannel,
-            code: error?.code || "",
-            message: error?.message || "",
+            transport: sendResult?.transport || "",
+            message: sendResult?.delivery_error || "",
           });
-          sendResult = { sent: true, delivery_status: "stored_only", fallback_only: true };
-          deliveryStatus = "stored_only";
-          storedOnlyReason = "whatsapp_config_missing";
+          storedOnlyReason = sendResult?.transport ? `whatsapp_${sendResult.transport}_stored_only` : "whatsapp_config_missing";
+        } else if (deliveryStatus === "failed" && !deliveryError) {
+          deliveryError = sendResult?.delivery_error || sendResult?.message || "Product card message was not delivered";
         }
+        externalMessageId = sendResult?.message_id || "";
       }
     } else if (normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER || normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM) {
       if (!externalCustomerId) {
@@ -3212,7 +3212,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
       externalCustomerId,
       conversationId,
       messagePreview: previewText || fallbackText,
-      status: deliveryStatus === "sent" || deliveryStatus === "stored" ? "sent" : "failed",
+      status: deliveryStatus === "sent" || deliveryStatus === "stored" ? "sent" : deliveryStatus === "stored_only" ? "stored" : "failed",
       metadata: {
         source: "ai_inbox_product_card",
         product_card_count: productCards.length,
