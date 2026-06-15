@@ -1,6 +1,9 @@
 import crypto from "node:crypto";
 
 import db from "../database/db.js";
+import { emitToRooms } from "../utils/socket.js";
+import { ensureAiSupportLogSchema } from "./aiSupportLogService.js";
+import { ensureAiChannelAdapterSchema } from "./aiChannelAdapterService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -201,6 +204,281 @@ export const classifySocialCommentIntent = (commentText = "") => {
     label: matchedRule?.label || "human_review",
     score: matchedRule?.score || 0.6,
     reason: matchedRule?.label || "ambiguous_comment",
+  };
+};
+
+const COMMENT_LEAD_SCORE = {
+  lead_price: 70,
+  lead_size: 80,
+  lead_shipping: 60,
+  lead_details: 70,
+  lead_inbox: 90,
+};
+
+const COMMENT_LEAD_TEMPERATURE = {
+  lead_price: "hot",
+  lead_size: "warm",
+  lead_shipping: "warm",
+  lead_details: "hot",
+  lead_inbox: "ready_to_buy",
+};
+
+const COMMENT_THREAD_LABELS = new Set(Object.keys(COMMENT_LEAD_SCORE));
+
+const buildSocialCommentSuggestedReply = ({ classificationLabel = "", commenterName = "", originalCommentText = "", postPermalink = "" } = {}) => {
+  const name = text(commenterName) || "العميل";
+  const linkHint = postPermalink ? ` لو تحب تراجع المنشور: ${postPermalink}` : "";
+  if (classificationLabel === "lead_price") return `تم تجهيز السعر والتفاصيل يا ${name}.${linkHint}`;
+  if (classificationLabel === "lead_size") return `تم تجهيز المقاسات المتاحة يا ${name}.${linkHint}`;
+  if (classificationLabel === "lead_shipping") return `تم تجهيز تفاصيل الشحن والتوصيل يا ${name}.${linkHint}`;
+  if (classificationLabel === "lead_details") return `تم تجهيز التفاصيل الكاملة يا ${name}.${linkHint}`;
+  if (classificationLabel === "lead_inbox") return `تم تجهيز رسالة خاصة تحتوي على التفاصيل المطلوبة يا ${name}.${linkHint}`;
+  return `رد مقترح: ${text(originalCommentText) || "تم استلام تعليقك."}${linkHint}`;
+};
+
+const socialCommentConversationId = ({ platform = "", rootCommentId = "", commentId = "" } = {}) => {
+  const root = text(rootCommentId || commentId);
+  const normalizedPlatform = text(platform) === "instagram" ? "instagram" : "facebook";
+  return `social_comment:${normalizedPlatform}:${root}`;
+};
+
+const socialCommentLeadTemperature = (classificationLabel = "") => COMMENT_LEAD_TEMPERATURE[classificationLabel] || "cold";
+
+const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}, suggestedReply = "" } = {}) => {
+  const safeTenantId = Number(tenantId);
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0) return null;
+  await ensureAiSupportLogSchema();
+  await ensureAiChannelAdapterSchema();
+
+  const platform = text(event.platform || "facebook") === "instagram" ? "instagram" : "facebook";
+  const channel = platform === "instagram" ? "instagram_comment" : "facebook_comment";
+  const sessionId = socialCommentConversationId({ platform, rootCommentId: event.root_comment_id, commentId: event.comment_id });
+  const threadKind = "comment";
+  const commentText = text(event.original_comment_text);
+  const commenterName = text(event.commenter_name) || "Customer";
+  const commenterId = text(event.commenter_id || "");
+  const postPermalink = text(event.post_permalink || "");
+  const postId = text(event.post_id || "");
+  const metadata = {
+    thread_kind: threadKind,
+    platform,
+    post_id: postId,
+    post_permalink: postPermalink,
+    comment_id: text(event.comment_id || ""),
+    root_comment_id: text(event.root_comment_id || event.comment_id || ""),
+    parent_comment_id: text(event.parent_comment_id || ""),
+    commenter_id: commenterId,
+    commenter_name: commenterName,
+    commenter_profile_picture_url: text(event.commenter_profile_picture_url || ""),
+    original_comment_text: commentText,
+    classification_label: text(event.classification_label || ""),
+    classification_score: Number(event.classification_score || 0),
+    lead: {
+      lead_score: Number(COMMENT_LEAD_SCORE[event.classification_label] || 0),
+      lead_temperature: socialCommentLeadTemperature(event.classification_label),
+      lead_reasons: [text(event.classification_label || "")].filter(Boolean),
+      recommended_sales_action: "continue_conversation",
+      suggested_reply: text(suggestedReply || ""),
+    },
+  };
+
+  const sessionResult = await db.query(
+    `
+    INSERT INTO ai_support_sessions (
+      tenant_id,
+      session_id,
+      source,
+      channel,
+      thread_kind,
+      customer_name,
+      last_message,
+      updated_at
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+    ON CONFLICT (tenant_id, session_id) DO UPDATE SET
+      source = EXCLUDED.source,
+      channel = EXCLUDED.channel,
+      thread_kind = COALESCE(NULLIF(EXCLUDED.thread_kind, ''), ai_support_sessions.thread_kind),
+      customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_support_sessions.customer_name),
+      last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_support_sessions.last_message),
+      updated_at = NOW()
+    RETURNING id
+    `,
+    [safeTenantId, sessionId, channel, channel, threadKind, commenterName, commentText]
+  );
+
+  await db.query(
+    `
+    INSERT INTO ai_channel_conversations (
+      tenant_id,
+      channel,
+      external_conversation_id,
+      external_customer_id,
+      thread_kind,
+      customer_name,
+      last_message,
+      metadata,
+      last_message_at,
+      updated_at
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, NOW(), NOW())
+    ON CONFLICT (tenant_id, channel, external_conversation_id) DO UPDATE SET
+      external_customer_id = COALESCE(NULLIF(EXCLUDED.external_customer_id, ''), ai_channel_conversations.external_customer_id),
+      thread_kind = COALESCE(NULLIF(EXCLUDED.thread_kind, ''), ai_channel_conversations.thread_kind),
+      customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_channel_conversations.customer_name),
+      last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_channel_conversations.last_message),
+      metadata = ai_channel_conversations.metadata || EXCLUDED.metadata,
+      last_message_at = NOW(),
+      updated_at = NOW()
+    `,
+    [safeTenantId, channel, sessionId, commenterId, threadKind, commenterName, commentText, JSON.stringify(metadata)]
+  );
+
+  const inboundMessage = await db.query(
+    `
+    INSERT INTO ai_support_messages (
+      session_ref_id,
+      tenant_id,
+      session_id,
+      channel,
+      customer_name,
+      last_message,
+      message_text,
+      customer_message,
+      ai_answer,
+      confidence,
+      needs_human_support,
+      sources_used,
+      suggested_products,
+      visual_attachments,
+      suggested_actions,
+      detected_intent,
+      fallback_reason,
+      message_type,
+      staff_message,
+      sender_type,
+      manual_message,
+      external_message_id,
+      dedupe_key,
+      source_path,
+      insert_source
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $6, $6, '', 0.98, TRUE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, $7, '', 'comment_inbound', '', 'customer', FALSE, $8, $9, $10, $11)
+    ON CONFLICT (tenant_id, session_id, dedupe_key) WHERE dedupe_key <> '' DO UPDATE SET
+      customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_support_messages.customer_name),
+      last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_support_messages.last_message),
+      message_text = COALESCE(NULLIF(EXCLUDED.message_text, ''), ai_support_messages.message_text),
+      customer_message = COALESCE(NULLIF(EXCLUDED.customer_message, ''), ai_support_messages.customer_message)
+    RETURNING *
+    `,
+    [
+      sessionResult.rows[0]?.id || null,
+      safeTenantId,
+      sessionId,
+      channel,
+      commenterName,
+      commentText,
+      text(event.classification_label || ""),
+      text(event.comment_id || ""),
+      text(event.comment_id || ""),
+      "social_comment_automation",
+      "social_comment_lead",
+    ]
+  );
+
+  const suggestedMessage = text(suggestedReply || buildSocialCommentSuggestedReply({
+    classificationLabel: event.classification_label,
+    commenterName,
+    originalCommentText: commentText,
+    postPermalink,
+  }));
+
+  const suggestionResult = await db.query(
+    `
+    INSERT INTO ai_support_messages (
+      session_ref_id,
+      tenant_id,
+      session_id,
+      channel,
+      customer_name,
+      last_message,
+      message_text,
+      customer_message,
+      ai_answer,
+      confidence,
+      needs_human_support,
+      sources_used,
+      suggested_products,
+      visual_attachments,
+      suggested_actions,
+      detected_intent,
+      fallback_reason,
+      message_type,
+      staff_message,
+      sender_type,
+      manual_message,
+      external_message_id,
+      dedupe_key,
+      source_path,
+      insert_source,
+      delivery_status
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $6, '', $7, 0.88, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'comment_suggestion', '', 'comment_suggestion', '', 'ai', FALSE, $8, $9, $10, $11, 'draft')
+    ON CONFLICT (tenant_id, session_id, dedupe_key) WHERE dedupe_key <> '' DO UPDATE SET
+      ai_answer = COALESCE(NULLIF(EXCLUDED.ai_answer, ''), ai_support_messages.ai_answer),
+      last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_support_messages.last_message),
+      message_text = COALESCE(NULLIF(EXCLUDED.message_text, ''), ai_support_messages.message_text)
+    RETURNING *
+    `,
+    [
+      sessionResult.rows[0]?.id || null,
+      safeTenantId,
+      sessionId,
+      channel,
+      commenterName,
+      commentText,
+      suggestedMessage,
+      `${text(event.comment_id || "")}:suggested`,
+      `${text(event.comment_id || "")}:suggested`,
+      "social_comment_automation",
+      "social_comment_suggestion",
+    ]
+  );
+
+  await db.query(
+    `
+    UPDATE ai_support_sessions
+    SET
+      last_message = $3,
+      channel = $4,
+      thread_kind = $5,
+      updated_at = NOW()
+    WHERE tenant_id = $1 AND session_id = $2
+    `,
+    [safeTenantId, sessionId, commentText, channel, threadKind]
+  );
+
+  emitToRooms([`tenant:${safeTenantId}`], "ai_inbox:message", {
+    tenant_id: safeTenantId,
+    session_id: sessionId,
+    message: inboundMessage.rows[0] || suggestionResult.rows[0] || null,
+    at: new Date().toISOString(),
+  });
+  emitToRooms([`tenant:${safeTenantId}`], "ai_inbox:refresh", {
+    tenant_id: safeTenantId,
+    session_id: sessionId,
+    at: new Date().toISOString(),
+  });
+
+  return {
+    session_id: sessionId,
+    thread_kind: threadKind,
+    channel,
+    lead_score: Number(COMMENT_LEAD_SCORE[event.classification_label] || 0),
+    suggested_reply: suggestedMessage,
+    message: inboundMessage.rows[0] || null,
+    suggested_message: suggestionResult.rows[0] || null,
+    metadata,
   };
 };
 
@@ -470,10 +748,56 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         normalized.inbox_conversation_id,
         normalized.error_code,
         JSON.stringify(normalized.raw_payload || {}),
-        normalized.processed_at,
+      normalized.processed_at,
       ]
     );
-    stored.push(result.rows[0] || normalized);
+    const storedRow = result.rows[0] || normalized;
+    if (COMMENT_THREAD_LABELS.has(storedRow.classification_label)) {
+      try {
+        const materialized = await upsertSocialCommentLeadConversation({
+          tenantId: storedRow.tenant_id,
+          event: storedRow,
+          suggestedReply: buildSocialCommentSuggestedReply({
+            classificationLabel: storedRow.classification_label,
+            commenterName: storedRow.commenter_name,
+            originalCommentText: storedRow.original_comment_text,
+            postPermalink: storedRow.post_permalink,
+          }),
+        });
+        if (materialized?.session_id) {
+          storedRow.inbox_conversation_id = materialized.session_id;
+          storedRow.action_taken = storedRow.action_taken || "classified_only";
+          await db.query(
+            `
+            UPDATE social_comment_automation_runs
+            SET inbox_conversation_id = $3::text,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE tenant_id = $1::bigint AND platform = $2::text AND comment_id = $4::text
+            `,
+            [storedRow.tenant_id, storedRow.platform, materialized.session_id, storedRow.comment_id]
+          );
+        }
+      } catch (error) {
+        console.error("[social-comments] lead conversation materialize failed", {
+          tenant_id: storedRow.tenant_id,
+          platform: storedRow.platform,
+          comment_id: storedRow.comment_id,
+          classification_label: storedRow.classification_label,
+          message: error?.message || "",
+        });
+        storedRow.error_code = storedRow.error_code || "comment_lead_materialization_failed";
+        await db.query(
+          `
+          UPDATE social_comment_automation_runs
+          SET error_code = COALESCE(NULLIF($3::text, ''), error_code),
+              updated_at = CURRENT_TIMESTAMP
+          WHERE tenant_id = $1::bigint AND platform = $2::text AND comment_id = $4::text
+          `,
+          [storedRow.tenant_id, storedRow.platform, storedRow.error_code, storedRow.comment_id]
+        ).catch(() => {});
+      }
+    }
+    stored.push(storedRow);
   }
   return stored;
 };

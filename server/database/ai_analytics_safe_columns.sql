@@ -23,6 +23,7 @@ ALTER TABLE IF EXISTS ai_support_sessions
   ADD COLUMN IF NOT EXISTS resolution_status TEXT DEFAULT 'open',
   ADD COLUMN IF NOT EXISTS ai_response_time_ms INTEGER,
   ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS thread_kind TEXT NOT NULL DEFAULT 'dm',
   ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'web_chat',
   ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT '',
   ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT '';
@@ -55,7 +56,8 @@ ALTER TABLE IF EXISTS ai_customer_interactions
 ALTER TABLE IF EXISTS ai_channel_conversations
   ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'web_chat',
   ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT '',
-  ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT '';
+  ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS thread_kind TEXT NOT NULL DEFAULT 'dm';
 
 UPDATE ai_customer_interactions
 SET detected_intent = intent_type

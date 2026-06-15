@@ -145,6 +145,8 @@ const normalizeSalesAction = (value = "") => clean(value) || "continue_conversat
 const conversationLeadSnapshot = (conversation = {}) =>
   conversation?.lead_metadata ||
   conversation?.lead ||
+  conversation?.channel_metadata?.lead ||
+  conversation?.channel_metadata?.lead_metadata ||
   conversation?.unified_reply ||
   conversation?.latest_ai_reply ||
   conversation?.ai_reply ||
@@ -245,6 +247,8 @@ const canSyncMessengerProfile = (conversation) => {
 const channelLabel = (value = "") => {
   const key = clean(value).toLowerCase();
   if (key === "facebook_messenger") return "ماسنجر فيسبوك";
+  if (key === "facebook_comment") return "تعليق فيسبوك";
+  if (key === "instagram_comment") return "تعليق إنستجرام";
   if (key === "instagram") return "رسائل إنستجرام";
   if (key === "whatsapp") return "واتساب";
   if (key === "web_chat") return "دردشة الويب";
@@ -253,6 +257,8 @@ const channelLabel = (value = "") => {
 const channelBadgeLabel = (value = "") => {
   const key = clean(value).toLowerCase();
   if (key.includes("whatsapp")) return "واتساب";
+  if (key.includes("facebook_comment")) return "تعليق فيسبوك";
+  if (key.includes("instagram_comment")) return "تعليق إنستجرام";
   if (key.includes("instagram")) return "إنستجرام";
   if (key.includes("facebook") && key.includes("messenger")) return "ماسنجر";
   if (key.includes("facebook")) return "فيسبوك";
@@ -261,11 +267,13 @@ const channelBadgeLabel = (value = "") => {
   return "الكل";
 };
 const isConversationAiEnabled = (conversation = {}) => conversation?.ai_enabled !== false;
-const fixedChannelOrder = ["whatsapp", "messenger", "instagram", "web"];
+const fixedChannelOrder = ["whatsapp", "messenger", "facebook_comment", "instagram_comment", "instagram", "web"];
 const normalizeConversationChannel = (conversation = {}) => {
   const raw = clean(conversation?.channel || conversation?.source || conversation?.provider || conversation?.platform || "");
   const key = raw.toLowerCase();
   if (key.includes("whatsapp")) return "whatsapp";
+  if (key.includes("facebook_comment")) return "facebook_comment";
+  if (key.includes("instagram_comment")) return "instagram_comment";
   if (key.includes("instagram")) return "instagram";
   if (key.includes("facebook") && key.includes("messenger")) return "messenger";
   if (key.includes("messenger")) return "messenger";
@@ -331,6 +339,7 @@ const messengerDisplayName = (conversation = {}) => {
 const isMessengerConversation = (conversation = {}) => {
   const channel = normalizeConversationChannel(conversation);
   const source = clean(conversation?.channel || conversation?.source || conversation?.provider || conversation?.platform).toLowerCase();
+  if (channel === "facebook_comment" || channel === "instagram_comment" || source.includes("_comment")) return false;
   return (
     channel === "messenger" ||
     channel === "facebook" ||
@@ -738,6 +747,13 @@ function InboxChatHeader({
   const name = isMessengerConversation(conversation) ? messengerDisplayName(conversation) : getConversationDisplayName(conversation);
   const phone = clean(conversation.phone || conversation.customer_phone || conversation.external_customer_id || conversation.customer_profile?.phone);
   const channel = conversation.channel || conversation.source || "web_chat";
+  const channelMetadata = conversation.channel_metadata || {};
+  const threadKind = clean(conversation.thread_kind || channelMetadata.thread_kind || "");
+  const isCommentThread = channel.includes("_comment") || threadKind === "comment";
+  const postId = clean(channelMetadata.post_id || "");
+  const postPermalink = clean(channelMetadata.post_permalink || "");
+  const commenterName = clean(channelMetadata.commenter_name || conversation.customer_name || "");
+  const commentText = clean(channelMetadata.original_comment_text || "");
   const aiEnabled = isConversationAiEnabled(conversation) && status !== "closed";
   return (
     <div className="rounded-3xl border border-white/10 bg-white/[0.05] p-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.18)] backdrop-blur">
@@ -764,6 +780,21 @@ function InboxChatHeader({
               <span className="text-slate-700">/</span>
               <span>{channelLabel(channel)}</span>
             </div>
+            {isCommentThread ? (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-cyan-100">
+                <Pill tone="cyan">تعليق</Pill>
+                {commenterName ? <Pill tone="zinc">{commenterName}</Pill> : null}
+                <Pill tone="zinc">{channelLabel(channel)}</Pill>
+                {postId ? <Pill tone="zinc">post_id: {postId}</Pill> : null}
+                {commentText ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-slate-200">نص التعليق: {commentText}</span> : null}
+                {postPermalink ? (
+                  <a href={postPermalink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 font-black text-cyan-100">
+                    فتح المنشور
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
