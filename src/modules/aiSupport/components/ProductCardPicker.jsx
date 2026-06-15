@@ -216,9 +216,11 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
 
   useEffect(() => {
     if (!open) return;
-    if (sizeMode && !selectedSize) {
+    if (sizeMode) {
       setSelectedProductId("");
       setSelectedProductIds([]);
+      setSelectedColor("");
+      setSelectedSize("");
       return;
     }
     if (!visibleProducts.length) {
