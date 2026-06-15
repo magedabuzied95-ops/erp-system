@@ -189,12 +189,14 @@ export const ensureAiChannelAdapterSchema = async (clientOrPool = db) => {
         is_group BOOLEAN NOT NULL DEFAULT FALSE,
         ai_enabled BOOLEAN NOT NULL DEFAULT TRUE,
         thread_kind TEXT NOT NULL DEFAULT 'dm',
+        lead_status TEXT NOT NULL DEFAULT 'new',
         customer_name TEXT NOT NULL DEFAULT '',
         customer_avatar_url TEXT NOT NULL DEFAULT '',
         last_message TEXT NOT NULL DEFAULT '',
         customer_profile_id BIGINT NULL,
         metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
           last_message_at TIMESTAMP NULL,
+          read_at TIMESTAMP NULL,
           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, channel, external_conversation_id)
@@ -206,7 +208,10 @@ export const ensureAiChannelAdapterSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS is_group BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT TRUE`);
       await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS thread_kind TEXT NOT NULL DEFAULT 'dm'`);
+      await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS lead_status TEXT NOT NULL DEFAULT 'new'`);
+      await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_channel_conversations_customer ON ai_channel_conversations (tenant_id, channel, external_customer_id)`);
+      await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_channel_conversations_tenant_lead_status ON ai_channel_conversations (tenant_id, lead_status, updated_at DESC)`);
       await clientOrPool.query(`
         CREATE TABLE IF NOT EXISTS ai_channel_settings (
           tenant_id BIGINT NOT NULL,
@@ -754,6 +759,7 @@ export const upsertChannelConversationMapping = async ({
   customerName = "",
   customerAvatarUrl = "",
   customerProfileId = null,
+  leadStatus = "",
   metadata = {},
   lastMessageAt = null,
 } = {}) => {
@@ -778,14 +784,15 @@ export const upsertChannelConversationMapping = async ({
   const result = await db.query(
     `
     INSERT INTO ai_channel_conversations (
-      tenant_id, channel, external_conversation_id, external_customer_id, is_group, ai_enabled, thread_kind, customer_name, customer_avatar_url, last_message, customer_profile_id, metadata, last_message_at, updated_at
+      tenant_id, channel, external_conversation_id, external_customer_id, is_group, ai_enabled, thread_kind, lead_status, customer_name, customer_avatar_url, last_message, customer_profile_id, metadata, last_message_at, updated_at
     )
-    VALUES ($1, $2, $3, $4, $5, TRUE, $6, $7, $8, $9, $10, $11::jsonb, $12::timestamp, NOW())
+    VALUES ($1, $2, $3, $4, $5, TRUE, $6, $7, $8, $9, $10, $11, $12::jsonb, $13::timestamp, NOW())
     ON CONFLICT (tenant_id, channel, external_conversation_id) DO UPDATE SET
       external_customer_id = COALESCE(NULLIF(EXCLUDED.external_customer_id, ''), ai_channel_conversations.external_customer_id),
       is_group = COALESCE(EXCLUDED.is_group, ai_channel_conversations.is_group),
       ai_enabled = COALESCE(EXCLUDED.ai_enabled, ai_channel_conversations.ai_enabled),
       thread_kind = COALESCE(NULLIF(EXCLUDED.thread_kind, ''), ai_channel_conversations.thread_kind),
+      lead_status = COALESCE(NULLIF(EXCLUDED.lead_status, ''), ai_channel_conversations.lead_status),
       customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_channel_conversations.customer_name),
       customer_avatar_url = COALESCE(NULLIF(EXCLUDED.customer_avatar_url, ''), ai_channel_conversations.customer_avatar_url),
       last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_channel_conversations.last_message),
@@ -802,6 +809,7 @@ export const upsertChannelConversationMapping = async ({
       toText(externalCustomerId),
       isGroup,
       toText(metadata?.thread_kind || "dm"),
+      toText(leadStatus || metadata?.lead_status || "new"),
       resolvedCustomerName,
       toText(customerAvatarUrl),
       toText(metadata?.last_message || metadata?.message_text || metadata?.messagePreview),

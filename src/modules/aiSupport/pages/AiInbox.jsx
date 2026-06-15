@@ -389,6 +389,50 @@ const buildLeadCommentReplyText = (conversation = {}) => {
   const name = leadConversationDisplayName(conversation);
   return `شكراً${name ? ` ${name}` : ""}، أرسلنا لك التفاصيل في الخاص.`;
 };
+
+const LEAD_STATUS_META = {
+  new: { label: "New", tone: "cyan" },
+  contacted: { label: "Contacted", tone: "amber" },
+  interested: { label: "Interested", tone: "emerald" },
+  negotiation: { label: "Negotiation", tone: "violet" },
+  won: { label: "Won", tone: "emerald" },
+  lost: { label: "❌ Lost", tone: "rose" },
+};
+
+const normalizeLeadStatus = (value = "") => {
+  const key = clean(value).toLowerCase();
+  return Object.prototype.hasOwnProperty.call(LEAD_STATUS_META, key) ? key : "new";
+};
+
+const leadStatusLabel = (value = "") => LEAD_STATUS_META[normalizeLeadStatus(value)]?.label || "New";
+const leadStatusTone = (value = "") => LEAD_STATUS_META[normalizeLeadStatus(value)]?.tone || "cyan";
+const conversationLeadStatus = (conversation = {}) =>
+  normalizeLeadStatus(
+    conversation?.lead_status ||
+      conversation?.channel_metadata?.lead_status ||
+      conversation?.metadata?.lead_status ||
+      ""
+  );
+
+const leadSourceKey = (conversation = {}) => {
+  const channel = clean(conversation?.channel || conversation?.source || conversation?.provider || conversation?.platform).toLowerCase();
+  const threadKind = clean(conversation?.thread_kind || conversation?.channel_metadata?.thread_kind || "").toLowerCase();
+  const hasCommentId = Boolean(
+    clean(conversation?.external_comment_id || conversation?.comment_id || conversation?.channel_metadata?.comment_id || conversation?.channel_metadata?.lead?.comment_id)
+  );
+  if (channel.includes("instagram") && (channel.includes("comment") || threadKind === "comment" || hasCommentId)) return "instagram_comment";
+  if ((channel.includes("facebook") || channel.includes("messenger")) && (channel.includes("comment") || threadKind === "comment" || hasCommentId)) return "facebook_comment";
+  if (channel.includes("instagram")) return "messenger";
+  if (channel.includes("facebook") || channel.includes("messenger")) return "messenger";
+  return threadKind === "comment" || hasCommentId ? "facebook_comment" : "messenger";
+};
+
+const leadSourceLabel = (conversation = {}) => {
+  const key = leadSourceKey(conversation);
+  if (key === "facebook_comment") return "Facebook Comment";
+  if (key === "instagram_comment") return "Instagram Comment";
+  return "Messenger";
+};
 const getConversationDisplayName = (conversation = {}) => {
   const source = conversation || {};
   if (isMessengerConversation(source)) {
@@ -812,6 +856,9 @@ function InboxChatHeader({
   conversation,
   channelStatus = {},
   loading = false,
+  leadStatus = "new",
+  onLeadStatusChange,
+  leadStatusLoading = false,
   onBack,
   onToggleAi,
   onAssign,
@@ -825,6 +872,15 @@ function InboxChatHeader({
   const channel = conversation.channel || conversation.source || "web_chat";
   const aiEnabled = isConversationAiEnabled(conversation) && status !== "closed";
   const closeToggleLabel = status === "closed" ? "Reopen" : "Close";
+  const currentLeadStatus = normalizeLeadStatus(leadStatus || conversation.lead_status || conversation.channel_metadata?.lead_status || "new");
+  const leadStatusClass = {
+    new: "border-cyan-300/20 bg-cyan-300/10 text-cyan-100",
+    contacted: "border-amber-300/20 bg-amber-300/10 text-amber-100",
+    interested: "border-emerald-300/20 bg-emerald-300/10 text-emerald-100",
+    negotiation: "border-violet-300/20 bg-violet-300/10 text-violet-100",
+    won: "border-emerald-300/20 bg-emerald-300/10 text-emerald-100",
+    lost: "border-rose-300/20 bg-rose-300/10 text-rose-100",
+  }[currentLeadStatus] || "border-cyan-300/20 bg-cyan-300/10 text-cyan-100";
   return (
     <div className="rounded-3xl border border-white/10 bg-white/[0.05] px-2.5 py-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)] backdrop-blur">
       <div className="flex items-start justify-between gap-2">
@@ -843,6 +899,22 @@ function InboxChatHeader({
             <div className="flex flex-wrap items-center gap-2">
               <div className="truncate text-[17px] font-black leading-5 text-white">{name}</div>
               <Pill tone={isWhatsappChannel(channel) ? "emerald" : channel.includes("instagram") ? "rose" : channel.includes("messenger") ? "cyan" : "zinc"}>{channelBadgeLabel(channel)}</Pill>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <label className={`inline-flex items-center gap-2 rounded-2xl border px-3 py-1.5 ${leadStatusClass}`}>
+                <span className="text-[10px] font-black uppercase tracking-[0.14em] opacity-80">Lead Status</span>
+                <span className={`h-2.5 w-2.5 rounded-full ${leadStatusClass.includes("rose") ? "bg-rose-300" : leadStatusClass.includes("amber") ? "bg-amber-300" : leadStatusClass.includes("violet") ? "bg-violet-300" : leadStatusClass.includes("emerald") ? "bg-emerald-300" : "bg-cyan-300"}`} />
+                <select
+                  value={currentLeadStatus}
+                  onChange={(event) => onLeadStatusChange?.(event.target.value)}
+                  disabled={loading || leadStatusLoading}
+                  className="min-w-[9rem] bg-transparent text-xs font-black outline-none disabled:opacity-50"
+                >
+                  {Object.entries(LEAD_STATUS_META).map(([key, meta]) => (
+                    <option key={key} value={key}>{meta.label}</option>
+                  ))}
+                </select>
+              </label>
             </div>
           </div>
         </div>
@@ -2632,6 +2704,45 @@ export default function AiInbox() {
       channels: [...buckets.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
     };
   }, [conversations]);
+  const leadPipelineSummary = useMemo(() => {
+    const counts = {
+      new: 0,
+      contacted: 0,
+      interested: 0,
+      negotiation: 0,
+      won: 0,
+      lost: 0,
+    };
+    const sourceCounts = {
+      facebook_comment: 0,
+      instagram_comment: 0,
+      messenger: 0,
+    };
+    for (const conversation of conversations) {
+      const status = conversationLeadStatus(conversation);
+      counts[status] = (counts[status] || 0) + 1;
+      const sourceKey = leadSourceKey(conversation);
+      if (Object.prototype.hasOwnProperty.call(sourceCounts, sourceKey)) {
+        sourceCounts[sourceKey] += 1;
+      }
+    }
+    return {
+      counts,
+      sourceCounts,
+      total: conversations.length,
+      funnel: [
+        { key: "new", label: "New" },
+        { key: "contacted", label: "Contacted" },
+        { key: "interested", label: "Interested" },
+        { key: "won", label: "Won" },
+      ],
+      sourceOrder: [
+        { key: "facebook_comment", label: "Facebook Comment" },
+        { key: "instagram_comment", label: "Instagram Comment" },
+        { key: "messenger", label: "Messenger" },
+      ],
+    };
+  }, [conversations]);
   const fixedChannelSummaries = useMemo(() => {
     const byKey = new Map(channelSummaries.channels.map((item) => [item.key, item]));
 
@@ -2922,6 +3033,39 @@ export default function AiInbox() {
       setLoading(false);
     }
   };
+
+  const updateLeadStatus = useCallback(async (nextLeadStatus) => {
+    if (!selectedConversation?.session_id) return;
+    const leadStatus = normalizeLeadStatus(nextLeadStatus);
+    if (!Object.prototype.hasOwnProperty.call(LEAD_STATUS_META, leadStatus)) return;
+    const sessionId = selectedConversation.session_id;
+    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+    setLeadActionLoading("lead_status");
+    setError("");
+    try {
+      const payload = await api.patch(aiAgentInboxEndpoint(sessionId, "/lead-status"), {
+        tenant_id: tenantId,
+        lead_status: leadStatus,
+      }, { headers, perfComponent: "AiInbox.updateLeadStatus" });
+      const returned = payload.conversation || {};
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        ...returned,
+        lead_status: returned.lead_status || leadStatus,
+        channel_metadata: {
+          ...(conversation.channel_metadata || {}),
+          ...(returned.channel_metadata || {}),
+          lead_status: returned.lead_status || leadStatus,
+        },
+      }));
+      setToast({ tone: "emerald", text: `Lead status updated to ${leadStatusLabel(leadStatus)}` });
+    } catch (err) {
+      setError(err?.message || "تعذر تحديث حالة العميل المحتمل");
+      setToast({ tone: "rose", text: err?.message || "تعذر تحديث حالة العميل المحتمل" });
+    } finally {
+      setLeadActionLoading("");
+    }
+  }, [headers, patchConversation, selectedConversation?.conversation_key, selectedConversation?.session_id, tenantId]);
 
   const syncMessengerProfile = async () => {
     if (!selectedConversation?.session_id || !canSyncMessengerProfile(selectedConversation)) return;
@@ -3636,6 +3780,34 @@ export default function AiInbox() {
           </div>
         </details>
 
+        <section className="shrink-0 rounded-3xl border border-white/10 bg-white/[0.045] p-3 shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
+          <SectionTitle icon={ArrowUpRight} title="مسار العملاء المحتملين" action={<Pill tone="zinc">{leadPipelineSummary.total}</Pill>} />
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {leadPipelineSummary.funnel.map((item) => (
+              <div key={item.key} className="rounded-2xl border border-white/10 bg-slate-950/55 p-3">
+                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{item.label}</div>
+                <div className={`mt-1 text-2xl font-black ${leadStatusTone(item.key) === "rose" ? "text-rose-100" : leadStatusTone(item.key) === "amber" ? "text-amber-100" : leadStatusTone(item.key) === "violet" ? "text-violet-100" : "text-emerald-100"}`}>{leadPipelineSummary.counts[item.key] || 0}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-3">
+            {leadPipelineSummary.sourceOrder.map((item) => (
+              <div key={item.key} className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{item.label}</div>
+                <div className="mt-1 text-xl font-black text-white">{leadPipelineSummary.sourceCounts[item.key] || 0}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            {Object.entries(LEAD_STATUS_META).map(([key, meta]) => (
+              <div key={key} className={`rounded-2xl border px-3 py-2 ${leadStatusTone(key) === "rose" ? "border-rose-300/20 bg-rose-400/10 text-rose-100" : leadStatusTone(key) === "amber" ? "border-amber-300/20 bg-amber-400/10 text-amber-100" : leadStatusTone(key) === "violet" ? "border-violet-300/20 bg-violet-400/10 text-violet-100" : "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"}`}>
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] opacity-80">{meta.label}</div>
+                <div className="mt-1 text-lg font-black">{leadPipelineSummary.counts[key] || 0}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
         <section className="flex min-h-0 flex-1 gap-2 overflow-hidden">
           <div className="hidden xl:block w-[72px] shrink-0">
             <InboxChannelSidebar
@@ -3776,6 +3948,9 @@ export default function AiInbox() {
                     conversation={selectedConversation}
                     channelStatus={selectedChannelStatus}
                     loading={loading || modeSaving}
+                    leadStatus={conversationLeadStatus(selectedConversation)}
+                    onLeadStatusChange={updateLeadStatus}
+                    leadStatusLoading={leadActionLoading === "lead_status"}
                     onBack={() => setMobileView("list")}
                     onToggleAi={toggleAiEnabled}
                     onAssign={() => updateConversationAction("assign")}
@@ -3994,6 +4169,9 @@ export default function AiInbox() {
                     conversation={safeConversation}
                     channelStatus={selectedChannelStatus}
                     loading={loading}
+                    leadStatus={conversationLeadStatus(safeConversation)}
+                    onLeadStatusChange={updateLeadStatus}
+                    leadStatusLoading={leadActionLoading === "lead_status"}
                     onToggleAi={toggleAiEnabled}
                     onAssign={() => updateConversationAction("assign")}
                     onTakeover={() => updateConversationAction("takeover")}

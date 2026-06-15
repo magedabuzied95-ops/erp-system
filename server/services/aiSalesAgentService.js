@@ -359,6 +359,7 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS takeover_started_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS returned_to_ai_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS staff_message TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS sender_type VARCHAR(40) NOT NULL DEFAULT 'customer'`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS manual_message BOOLEAN NOT NULL DEFAULT FALSE`);
@@ -535,11 +536,13 @@ export const ensureAiInboxSchema = async (clientOrPool = db) => {
         customer_name TEXT NOT NULL DEFAULT '',
         customer_avatar_url TEXT NOT NULL DEFAULT '',
         last_message TEXT NOT NULL DEFAULT '',
+        lead_status TEXT NOT NULL DEFAULT 'new',
         customer_profile_id BIGINT NULL,
         metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-        last_message_at TIMESTAMP NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          last_message_at TIMESTAMP NULL,
+          read_at TIMESTAMP NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE (tenant_id, channel, external_conversation_id)
       )
     `);
@@ -549,8 +552,11 @@ export const ensureAiInboxSchema = async (clientOrPool = db) => {
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS customer_avatar_url TEXT NOT NULL DEFAULT ''`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT ''`);
+    await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS lead_status TEXT NOT NULL DEFAULT 'new'`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMP NULL`);
+    await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
+    await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_channel_conversations_tenant_lead_status ON ai_channel_conversations (tenant_id, lead_status, updated_at DESC)`);
     await clientOrPool.query(`
       CREATE TABLE IF NOT EXISTS ai_channel_event_logs (
         id BIGSERIAL PRIMARY KEY,
@@ -714,6 +720,7 @@ export const normalizeInboxMessage = (row = {}) => ({
   staff_user_name: row.staff_user_name || "",
   delivery_status: row.delivery_status || "",
   delivery_error: row.delivery_error || "",
+  error_code: row.error_code || "",
   message_type: row.message_type || "",
   confidence: Number(row.confidence || 0),
   needs_human_support: row.needs_human_support === true,
@@ -1251,6 +1258,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       c.external_customer_id,
       c.external_conversation_id,
       c.thread_kind AS channel_thread_kind,
+      COALESCE(c.lead_status, 'new') AS lead_status,
       c.customer_avatar_url,
       c.metadata AS channel_metadata,
       acm.preferences AS conversation_memory_preferences,
@@ -1261,6 +1269,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       acm.intent_score AS conversation_memory_intent_score,
       acm.updated_at AS conversation_memory_updated_at,
       COALESCE(c.last_message_at, s.updated_at) AS last_message_at,
+      COALESCE(c.read_at, s.read_at) AS read_at,
       e.last_webhook_event_at,
       e.last_webhook_status,
       m.customer_message,
@@ -1662,7 +1671,12 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       lead_type: leadType,
       lead_badge: leadBadgeKey(leadType),
       lead_score: Math.max(numeric(conversation.memory_score, 0), numeric(conversation.conversation_memory_lead_quality_score, 0), numeric(conversation.conversation_memory_intent_score, 0)),
-      unread: conversation.latest_sender_type === "customer" || conversation.needs_human_support === true || conversation.conversation_status === "human_takeover",
+      unread: (() => {
+        const lastActivityAt = new Date(conversation.last_message_at || conversation.updated_at || 0).getTime() || 0;
+        const readAt = new Date(conversation.read_at || 0).getTime() || 0;
+        const requiresAttention = conversation.latest_sender_type === "customer" || conversation.needs_human_support === true || conversation.conversation_status === "human_takeover";
+        return requiresAttention && (!readAt || lastActivityAt > readAt);
+      })(),
       waiting: conversation.due_followup_count > 0 || (conversation.updated_at && Date.now() - new Date(conversation.updated_at).getTime() > 15 * 60 * 1000),
       last_activity_at: conversation.last_message_at || conversation.updated_at,
     };

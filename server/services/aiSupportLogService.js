@@ -100,6 +100,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
           takeover_started_at TIMESTAMP NULL,
           returned_to_ai_at TIMESTAMP NULL,
           closed_at TIMESTAMP NULL,
+          read_at TIMESTAMP NULL,
           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, session_id)
@@ -146,6 +147,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
           source_path TEXT NOT NULL DEFAULT '',
           delivery_status TEXT NOT NULL DEFAULT '',
           delivery_error TEXT NOT NULL DEFAULT '',
+          error_code TEXT NOT NULL DEFAULT '',
           requested_product_terms JSONB NOT NULL DEFAULT '[]'::jsonb,
           requested_sizes JSONB NOT NULL DEFAULT '[]'::jsonb,
           requested_colors JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -166,6 +168,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS takeover_started_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS returned_to_ai_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS detected_intent TEXT`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS intent_confidence NUMERIC(5,2)`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS sentiment TEXT`);
@@ -210,6 +213,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS insert_source TEXT NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS delivery_status TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS delivery_error TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS error_code TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS clicked_product_id BIGINT NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS added_to_cart_after_chat BOOLEAN NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS detected_intent TEXT`);
@@ -225,6 +229,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_channel_conversations ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT TRUE`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_channel_conversations ADD COLUMN IF NOT EXISTS thread_kind TEXT NOT NULL DEFAULT 'dm'`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_channel_conversations ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
       await clientOrPool.query(`UPDATE ai_support_messages SET message_text = customer_message WHERE COALESCE(message_text, '') = ''`);
 
       await clientOrPool.query(`
@@ -447,6 +452,59 @@ export const updateAiSupportConversationAiEnabled = async ({
   };
 };
 
+export const markAiSupportConversationRead = async ({
+  tenantId,
+  sessionId,
+  channel = "",
+} = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeSessionId = toText(sessionId);
+  const safeChannel = normalizeConversationChannel(channel);
+  if (!safeTenantId || !safeSessionId) {
+    throw Object.assign(new Error("tenant_id and conversation id are required"), { status: 400 });
+  }
+  await ensureAiSupportLogSchema();
+
+  const state = await getAiSupportConversationState({ tenantId: safeTenantId, sessionId: safeSessionId, channel: safeChannel });
+  if (!state) {
+    throw Object.assign(new Error("Conversation not found"), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" });
+  }
+
+  const resolvedChannel = normalizeConversationChannel(state.channel || state.session_channel || state.source || safeChannel);
+  const readAt = new Date().toISOString();
+  const sessionResult = await db.query(
+    `
+    UPDATE ai_support_sessions
+    SET read_at = $3::timestamp
+    WHERE tenant_id = $1::bigint AND session_id = $2::text
+    RETURNING *
+    `,
+    [safeTenantId, safeSessionId, readAt]
+  );
+
+  const channelResult = resolvedChannel
+    ? await db.query(
+        `
+        UPDATE ai_channel_conversations
+        SET read_at = $4::timestamp
+        WHERE tenant_id = $1::bigint
+          AND external_conversation_id = $2::text
+          AND channel = $3::text
+        RETURNING *
+        `,
+        [safeTenantId, safeSessionId, resolvedChannel, readAt]
+      )
+    : { rows: [] };
+
+  return {
+    read_at: readAt,
+    session_id: safeSessionId,
+    channel: resolvedChannel || state.channel || state.session_channel || state.source || "",
+    ...(sessionResult.rows[0] || {}),
+    ...(channelResult.rows[0] || {}),
+  };
+};
+
 export const updateAiSupportConversationState = async ({
   tenantId,
   sessionId,
@@ -619,13 +677,16 @@ export const appendManualAiSupportReply = async ({
   channel = "",
   deliveryStatus = "",
   deliveryError = "",
+  errorCode = "",
   externalMessageId = "",
   externalReplyId = "",
+  preserveExactMessage = false,
+  upsertSession = true,
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
-  const safeMessage = repairText(message);
-  const safePreviewMessage = repairText(previewMessage || message);
+  const safeMessage = preserveExactMessage ? String(message ?? "") : repairText(message);
+  const safePreviewMessage = preserveExactMessage ? String(previewMessage || message || "") : repairText(previewMessage || message);
   const safeMessageType = toText(messageType || "text") || "text";
   const safeProductCards = Array.isArray(productCards) ? productCards : [];
   if (!safeTenantId || !safeSessionId || !safeMessage) {
@@ -633,31 +694,34 @@ export const appendManualAiSupportReply = async ({
   }
   await ensureAiSupportLogSchema();
 
-  const sessionResult = await db.query(
-    `
-    INSERT INTO ai_support_sessions (
-      tenant_id, user_id, session_id, source, status, assigned_user_id, assigned_user_name, takeover_started_at, updated_at
-    )
-    VALUES ($1, $2, $3, $4, 'human_takeover', $2, $5, NOW(), NOW())
-    ON CONFLICT (tenant_id, session_id) DO UPDATE SET
-      user_id = COALESCE(EXCLUDED.user_id, ai_support_sessions.user_id),
-      source = CASE
-        WHEN EXCLUDED.source IN ('admin_console', 'ai_followup_center')
-          AND ai_support_sessions.source IN ('facebook_messenger', 'instagram', 'whatsapp', 'web_chat')
-          THEN ai_support_sessions.source
-        ELSE EXCLUDED.source
-      END,
-      status = CASE WHEN ai_support_sessions.status = 'closed' THEN ai_support_sessions.status ELSE 'human_takeover' END,
-      assigned_user_id = COALESCE(ai_support_sessions.assigned_user_id, EXCLUDED.assigned_user_id),
-      assigned_user_name = COALESCE(NULLIF(ai_support_sessions.assigned_user_name, ''), EXCLUDED.assigned_user_name, ''),
-      takeover_started_at = COALESCE(ai_support_sessions.takeover_started_at, NOW()),
-      updated_at = NOW()
-    RETURNING id, status
-    `,
-    [safeTenantId, numberOrNull(staffUserId), safeSessionId, toText(source, "admin_console"), toText(staffUserName)]
-  );
-  if (sessionResult.rows[0]?.status === "closed") {
-    throw Object.assign(new Error("Conversation is closed"), { status: 409 });
+  let sessionResult = { rows: [{ id: null, status: "" }] };
+  if (upsertSession) {
+    sessionResult = await db.query(
+      `
+      INSERT INTO ai_support_sessions (
+        tenant_id, user_id, session_id, source, status, assigned_user_id, assigned_user_name, takeover_started_at, updated_at
+      )
+      VALUES ($1, $2, $3, $4, 'human_takeover', $2, $5, NOW(), NOW())
+      ON CONFLICT (tenant_id, session_id) DO UPDATE SET
+        user_id = COALESCE(EXCLUDED.user_id, ai_support_sessions.user_id),
+        source = CASE
+          WHEN EXCLUDED.source IN ('admin_console', 'ai_followup_center')
+            AND ai_support_sessions.source IN ('facebook_messenger', 'instagram', 'whatsapp', 'web_chat')
+            THEN ai_support_sessions.source
+          ELSE EXCLUDED.source
+        END,
+        status = CASE WHEN ai_support_sessions.status = 'closed' THEN ai_support_sessions.status ELSE 'human_takeover' END,
+        assigned_user_id = COALESCE(ai_support_sessions.assigned_user_id, EXCLUDED.assigned_user_id),
+        assigned_user_name = COALESCE(NULLIF(ai_support_sessions.assigned_user_name, ''), EXCLUDED.assigned_user_name, ''),
+        takeover_started_at = COALESCE(ai_support_sessions.takeover_started_at, NOW()),
+        updated_at = NOW()
+      RETURNING id, status
+      `,
+      [safeTenantId, numberOrNull(staffUserId), safeSessionId, toText(source, "admin_console"), toText(staffUserName)]
+    );
+    if (sessionResult.rows[0]?.status === "closed") {
+      throw Object.assign(new Error("Conversation is closed"), { status: 409 });
+    }
   }
 
   const result = await db.query(
@@ -687,12 +751,13 @@ export const appendManualAiSupportReply = async ({
       source_path,
       delivery_status,
       delivery_error,
+      error_code,
       external_message_id,
       external_reply_id,
       message_type,
       product_cards
     )
-    VALUES ($1, $2, $3, $4, $5, '', '', 1, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'manual_staff_reply', '', $5, 'staff', TRUE, $3, $6, COALESCE(NULLIF($7, ''), 'web_chat'), $11, $8, $9, $10, $12, $13, $14::jsonb)
+    VALUES ($1, $2, $3, $4, $5, '', '', 1, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'manual_staff_reply', '', $5, 'staff', TRUE, $3, $6, COALESCE(NULLIF($7, ''), 'web_chat'), $11, $8, $9, $10, $12, $13, $14, $15::jsonb)
     RETURNING *
     `,
     [
@@ -700,11 +765,12 @@ export const appendManualAiSupportReply = async ({
       safeTenantId,
       numberOrNull(staffUserId),
       safeSessionId,
-      repairText(safeMessage),
+      safeMessage,
       repairText(staffUserName),
       toText(channel),
       toText(deliveryStatus),
       toText(deliveryError),
+      toText(errorCode),
       toText(externalMessageId),
       repairText(source, "manual_admin"),
       toText(externalReplyId),
@@ -718,16 +784,18 @@ export const appendManualAiSupportReply = async ({
     channel: toText(channel, "web_chat"),
     message_id: result.rows[0]?.id || null,
   });
-  await db.query(
-    `
-    UPDATE ai_support_sessions
-    SET last_message = $3,
-        channel = COALESCE(NULLIF($4, ''), channel),
-        updated_at = NOW()
-    WHERE tenant_id = $1 AND session_id = $2
-    `,
-    [safeTenantId, safeSessionId, safePreviewMessage || repairText(safeMessage), repairText(channel)]
-  ).catch(() => {});
+  if (upsertSession) {
+    await db.query(
+      `
+      UPDATE ai_support_sessions
+      SET last_message = $3,
+          channel = COALESCE(NULLIF($4, ''), channel),
+          updated_at = NOW()
+      WHERE tenant_id = $1 AND session_id = $2
+      `,
+      [safeTenantId, safeSessionId, safePreviewMessage || repairText(safeMessage), repairText(channel)]
+    ).catch(() => {});
+  }
 
   return result.rows[0] || null;
 };
@@ -836,6 +904,7 @@ export const appendAutomationSupportTranscript = async ({
   channel = "",
   deliveryStatus = "",
   deliveryError = "",
+  errorCode = "",
   externalMessageId = "",
   externalReplyId = "",
   staffUserName = "Social Comment Automation",
@@ -926,13 +995,14 @@ export const appendAutomationSupportTranscript = async ({
       source_path,
       delivery_status,
       delivery_error,
+      error_code,
       external_message_id,
       external_reply_id,
       message_type,
       product_cards,
       insert_source
     )
-    VALUES ($1, $2, $3, $4, $5, '', '', 1, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '', '', $5, $6, FALSE, $3, $7, COALESCE(NULLIF($8, ''), 'web_chat'), $9, $10, $11, $12, $13, $14, $15::jsonb, $16)
+    VALUES ($1, $2, $3, $4, $5, '', '', 1, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '', '', $5, $6, FALSE, $3, $7, COALESCE(NULLIF($8, ''), 'web_chat'), $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17)
     RETURNING *
     `,
     [
@@ -947,6 +1017,7 @@ export const appendAutomationSupportTranscript = async ({
       repairText(sourcePath, "social_comment_automation"),
       repairText(deliveryStatus),
       repairText(deliveryError),
+      repairText(errorCode),
       repairText(externalMessageId),
       repairText(externalReplyId),
       safeMessageType,

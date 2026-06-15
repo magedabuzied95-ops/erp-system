@@ -74,7 +74,9 @@ import {
 } from "../services/aiSalesAgentService.js";
 import {
   createOrUpdateLeadOpportunity,
+  isAllowedLeadStatus,
   loadLeadConversationForAction,
+  normalizeLeadStatus,
   resolveLeadSourceLabel,
   syncLeadAssignmentMetadata,
 } from "../services/aiInboxLeadActionsService.js";
@@ -87,6 +89,7 @@ import {
   assignAiSupportConversation,
   getAiSupportConversationState,
   markAiSupportConversationEscalated,
+  markAiSupportConversationRead,
   updateAiSupportConversationAiEnabled,
   updateAiSupportConversationState,
 } from "../services/aiSupportLogService.js";
@@ -1948,7 +1951,8 @@ router.post("/comments/:commentId/reply", protect, permit("settings", "edit"), a
 router.post("/inbox/:conversationId/private-message", protect, permit("settings", "edit"), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
-  const messageText = envText(req.body?.message || req.body?.reply || req.body?.text || "");
+  const rawMessageText = String(req.body?.message ?? req.body?.reply ?? req.body?.text ?? "");
+  const messageText = envText(rawMessageText);
   if (!tenantId || !conversationId) {
     return sendError(res, Object.assign(new Error("tenant_id and conversationId are required"), { status: 400 }), "tenant_id and conversationId are required");
   }
@@ -2088,7 +2092,61 @@ router.post("/inbox/:conversationId/private-message", protect, permit("settings"
       meta: sendResult.meta || null,
     });
   } catch (error) {
-    return sendError(res, error, "Failed to send private message");
+    const errorMessage = error?.message || "Failed to send private message";
+    const failureCode = error?.code || error?.publicCode || error?.response?.data?.code || error?.response?.data?.error_code || (!error?.status || /fetch failed|network|timeout|ENOTFOUND|ECONNREFUSED/i.test(errorMessage)
+      ? "transport_failed"
+      : "private_message_failed");
+    let failedMessage = null;
+
+    try {
+      failedMessage = await appendManualAiSupportReply({
+        tenantId,
+        sessionId: conversationId,
+        message: rawMessageText,
+        messageType: "private_message",
+        staffUserId: req.user?.id || null,
+        staffUserName: userDisplayName(req.user),
+        source: "ai_inbox_private_message",
+        channel,
+        deliveryStatus: "failed",
+        deliveryError: errorMessage,
+        errorCode: failureCode,
+        externalMessageId: "",
+        externalReplyId: "",
+        preserveExactMessage: true,
+        upsertSession: false,
+      });
+    } catch (persistError) {
+      console.error("[ai-inbox][private-message] failed to persist transcript", {
+        tenant_id: tenantId,
+        conversation_id: conversationId,
+        channel,
+        message: persistError?.message || "",
+      });
+    }
+
+    if (failedMessage) {
+      emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: conversationId, message: failedMessage, at: nowIso });
+      emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: nowIso });
+    }
+
+    console.error("[ai-inbox][private-message] failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      channel,
+      code: error?.code || "",
+      message: errorMessage,
+    });
+    return res.status(error?.status || 502).json({
+      success: false,
+      delivery_status: "failed",
+      delivery_error: errorMessage,
+      message: errorMessage,
+      code: failureCode,
+      error_code: failureCode,
+      conversation_id: conversationId,
+      attempted_message: rawMessageText,
+    });
   }
 });
 
@@ -2282,6 +2340,25 @@ router.get("/conversations/:conversationId/recommendations", protect, permit("se
     return sendError(res, error, "Failed to load AI recommendations");
   }
 });
+
+const handleMarkConversationRead = async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = decodeRouteId(req.params.conversationId);
+    const channel = req.body?.channel || req.query?.channel || "";
+    const conversation = await markAiSupportConversationRead({
+      tenantId,
+      sessionId: conversationId,
+      channel,
+    });
+    return res.json({ success: true, conversation });
+  } catch (error) {
+    return sendError(res, error, "Failed to mark AI inbox conversation as read");
+  }
+};
+
+router.post("/conversations/:conversationId/read", protect, permit("settings", "edit"), handleMarkConversationRead);
+router.post("/inbox/:conversationId/read", protect, permit("settings", "edit"), handleMarkConversationRead);
 
 router.get("/conversations/:conversationId/sales-closer", protect, permit("settings", "view"), async (req, res) => {
   const tenantId = toTenantId(req);
@@ -3857,6 +3934,68 @@ router.post("/inbox/:conversationId/create-opportunity", protect, permit("settin
     });
   } catch (error) {
     return sendError(res, error, "Failed to create opportunity from lead");
+  }
+});
+
+router.patch("/inbox/:conversationId/lead-status", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = envText(req.params.conversationId);
+    const nextLeadStatus = normalizeLeadStatus(req.body?.lead_status ?? req.body?.leadStatus ?? "");
+    if (!isAllowedLeadStatus(req.body?.lead_status ?? req.body?.leadStatus ?? "")) {
+      return sendError(
+        res,
+        Object.assign(new Error("Invalid lead_status"), {
+          status: 400,
+          code: "INVALID_LEAD_STATUS",
+        }),
+        "Invalid lead_status"
+      );
+    }
+    const conversation = await loadLeadConversationForAction({ tenantId, conversationId });
+    if (!conversation) {
+      return sendError(res, Object.assign(new Error(`Conversation not found for tenant ${tenantId}: ${conversationId}`), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" }), "Conversation not found");
+    }
+
+    const syncedConversation = await upsertChannelConversationMapping({
+      tenantId,
+      channel: conversation.channel || conversation.source || "",
+      externalConversationId: conversation.session_id || conversation.external_conversation_id || "",
+      externalCustomerId: conversation.external_customer_id || conversation.customer_profile?.external_customer_id || "",
+      customerName: conversation.customer_name || conversation.customer_profile?.name || "",
+      customerAvatarUrl: conversation.customer_avatar_url || conversation.customer_profile?.avatar_url || "",
+      customerProfileId: conversation.customer_profile?.id || conversation.profile_id || null,
+      leadStatus: nextLeadStatus,
+      metadata: {
+        ...(conversation.channel_metadata || {}),
+        lead_status: nextLeadStatus,
+        source: "ai_inbox_lead_status",
+      },
+      lastMessageAt: conversation.last_message_at || conversation.updated_at || new Date().toISOString(),
+    });
+
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: conversationId,
+      reason: "lead_status_updated",
+      at: new Date().toISOString(),
+    });
+
+    return res.json({
+      success: true,
+      lead_status: nextLeadStatus,
+      conversation: {
+        ...conversation,
+        lead_status: nextLeadStatus,
+        channel_metadata: {
+          ...(conversation.channel_metadata || {}),
+          lead_status: nextLeadStatus,
+        },
+        ...(syncedConversation ? { channel: syncedConversation.channel || conversation.channel } : {}),
+      },
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to update lead status");
   }
 });
 

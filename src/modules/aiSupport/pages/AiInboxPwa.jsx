@@ -60,8 +60,6 @@ const encodeConversationId = (value = "") => {
 
 const aiInboxConversationEndpoint = (sessionId = "", suffix = "") =>
   `/ai-inbox/conversations/${encodeConversationId(sessionId)}${suffix}`;
-const aiAgentInboxEndpoint = (sessionId = "", suffix = "") =>
-  `/ai-agent/inbox/${encodeConversationId(sessionId)}${suffix}`;
 
 const normalizeConversationChannel = (conversation = {}) => {
   const raw = clean(
@@ -118,26 +116,6 @@ const conversationUnreadCount = (conversation = {}) =>
       conversation.unread ??
       0
   ) || 0;
-
-const conversationLastActivityTime = (conversation = {}) =>
-  new Date(conversation.last_activity_at || conversation.updated_at || 0).getTime() || 0;
-
-const applyLocalReadState = (conversation = {}, readAtByConversation = {}) => {
-  const key = conversation.conversation_key || conversationKey(conversation);
-  const readAt = readAtByConversation[key];
-  if (!readAt) return conversation;
-
-  const readTime = new Date(readAt).getTime() || 0;
-  if (conversationLastActivityTime(conversation) > readTime) return conversation;
-
-  return {
-    ...conversation,
-    unread_count: 0,
-    unseen_count: 0,
-    pending_count: 0,
-    unread: false,
-  };
-};
 
 const relativeTime = (value) => {
   if (!value) return "";
@@ -272,12 +250,12 @@ const buildProductCardUrl = (product = {}, variant = null, selectedColor = "") =
 
   const baseUrl = `/shop/product/${encodeURIComponent(productId)}`;
   const color = clean(selectedColor).toLowerCase();
-  if (!color) return baseUrl;
-
   const variantId = clean(variant?.id ?? "");
-  if (!variantId) return `${baseUrl}?color=${encodeURIComponent(color)}`;
-
-  return `${baseUrl}?variant=${encodeURIComponent(variantId)}&color=${encodeURIComponent(color)}`;
+  if (variantId) {
+    return color ? `${baseUrl}?variant=${encodeURIComponent(variantId)}&color=${encodeURIComponent(color)}` : `${baseUrl}?variant=${encodeURIComponent(variantId)}`;
+  }
+  if (color) return `${baseUrl}?color=${encodeURIComponent(color)}`;
+  return baseUrl;
 };
 
 const productCardPreviewText = (cards = []) => {
@@ -357,11 +335,7 @@ const findVariant = (product = {}, color = "", size = "") => {
       const colorMatch = !normalizedColor || variantColor === normalizedColor;
       const sizeMatch = !normalizedSize || variantSize === normalizedSize;
       return colorMatch && sizeMatch;
-    }) ||
-    variants.find((variant) => normalizeKey(variant.color || variant.color_name || variant.variant_color || variant.selected_color) === normalizedColor) ||
-    variants.find((variant) => normalizeKey(variant.size || variant.size_name || variant.variant_size || variant.selected_size) === normalizedSize) ||
-    variants[0] ||
-    null
+    }) || null
   );
 };
 
@@ -685,7 +659,8 @@ function ProductSheet({
 
   const colors = useMemo(() => productColors(selectedProduct || {}), [selectedProduct]);
   const sizes = useMemo(() => productSizes(selectedProduct || {}, selectedColor), [selectedColor, selectedProduct]);
-  const requiresVariantSelection = colors.length > 0 || sizes.length > 0;
+  const needsColorSelection = colors.length > 0;
+  const needsSizeSelection = sizes.length > 0;
 
   useEffect(() => {
     if (!selectedProduct) return;
@@ -693,34 +668,22 @@ function ProductSheet({
     setSelectedSize("");
   }, [selectedProductId, selectedProduct]);
 
-  useEffect(() => {
-    if (!selectedProduct || view !== "detail") return;
-    if (colors.length === 1 && normalizeKey(selectedColor) !== normalizeKey(colors[0])) {
-      setSelectedColor(colors[0]);
-    }
-    if (colors.length > 1 && selectedColor && !colors.some((color) => normalizeKey(color) === normalizeKey(selectedColor))) {
-      setSelectedColor("");
-    }
-  }, [colors, selectedColor, selectedProduct, view]);
-
-  useEffect(() => {
-    if (!selectedProduct || view !== "detail") return;
-    if (sizes.length === 1 && normalizeKey(selectedSize) !== normalizeKey(sizes[0])) {
-      setSelectedSize(sizes[0]);
-    }
-    if (sizes.length > 1 && selectedSize && !sizes.some((size) => normalizeKey(size) === normalizeKey(selectedSize))) {
-      setSelectedSize("");
-    }
-  }, [selectedProduct, selectedSize, sizes, view]);
-
   const variant = useMemo(() => {
     if (!selectedProduct) return null;
-    if (requiresVariantSelection) {
+    if (needsColorSelection && needsSizeSelection) {
       if (!clean(selectedColor) || !clean(selectedSize)) return null;
       return findVariant(selectedProduct || {}, selectedColor, selectedSize);
     }
-    return findVariant(selectedProduct || {}, "", "");
-  }, [requiresVariantSelection, selectedColor, selectedProduct, selectedSize]);
+    if (needsColorSelection) {
+      if (!clean(selectedColor)) return null;
+      return findVariant(selectedProduct || {}, selectedColor, "");
+    }
+    if (needsSizeSelection) {
+      if (!clean(selectedSize)) return null;
+      return findVariant(selectedProduct || {}, "", selectedSize);
+    }
+    return null;
+  }, [needsColorSelection, needsSizeSelection, selectedColor, selectedProduct, selectedSize]);
   const card = useMemo(
     () => (selectedProduct ? buildProductCardPayload(selectedProduct, variant, selectedColor) : null),
     [selectedColor, selectedProduct, variant]
@@ -728,8 +691,8 @@ function ProductSheet({
   const canSend = Boolean(
     selectedConversation?.session_id &&
       selectedProduct &&
-      (!requiresVariantSelection || (clean(selectedColor) && clean(selectedSize))) &&
-      (requiresVariantSelection ? Boolean(variant) : true)
+      (!needsColorSelection || clean(selectedColor)) &&
+      (!needsSizeSelection || clean(selectedSize))
   );
   const previewImage = useMemo(
     () => productImage(selectedProduct || {}, variant || null) || productImage(selectedProduct || {}),
@@ -739,6 +702,22 @@ function ProductSheet({
   const previewStock = Number(variant?.stock_quantity ?? variant?.stock ?? selectedProduct?.total_stock ?? selectedProduct?.stock ?? 0) || 0;
 
   if (!open) return null;
+
+  const selectedProductDebugId = clean(selectedProduct?.product_id || selectedProduct?.id || "");
+  const selectedVariantDebug = variant || null;
+
+  const handleSendProduct = () => {
+    if (!card) return;
+    console.debug("[ai-inbox-product-card]", {
+      selected_product_id: selectedProductDebugId,
+      selected_color: clean(selectedColor),
+      selected_size: clean(selectedSize),
+      selected_variant_id: clean(selectedVariantDebug?.id || ""),
+      selected_variant_color: clean(selectedVariantDebug?.color || selectedVariantDebug?.color_name || selectedVariantDebug?.variant_color || selectedVariantDebug?.selected_color || ""),
+      selected_variant_size: clean(selectedVariantDebug?.size || selectedVariantDebug?.size_name || selectedVariantDebug?.variant_size || selectedVariantDebug?.selected_size || ""),
+    });
+    onSend([card]);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-2 pb-2 pt-14 sm:px-4 sm:pb-4 sm:pt-16" onClick={onClose}>
@@ -925,7 +904,7 @@ function ProductSheet({
           <div className="sticky bottom-0 z-10 shrink-0 border-t border-slate-200 bg-white/95 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
             <button
               type="button"
-              onClick={() => card && onSend([card])}
+              onClick={handleSendProduct}
               disabled={!canSend}
               className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 text-sm font-semibold text-white disabled:opacity-50"
             >
@@ -934,8 +913,14 @@ function ProductSheet({
             </button>
             {!selectedConversation ? (
               <div className="mt-2 text-xs text-slate-500">Open a conversation first to send a product card.</div>
-            ) : requiresVariantSelection && (!clean(selectedColor) || !clean(selectedSize)) ? (
-              <div className="mt-2 text-xs text-slate-500">Select color and size to enable Send Product.</div>
+            ) : (needsColorSelection && !clean(selectedColor)) || (needsSizeSelection && !clean(selectedSize)) ? (
+              <div className="mt-2 text-xs text-slate-500">
+                {needsColorSelection && needsSizeSelection
+                  ? "Select color and size to enable Send Product."
+                  : needsColorSelection
+                    ? "Select a color to enable Send Product."
+                    : "Select a size to enable Send Product."}
+              </div>
             ) : null}
           </div>
         </div>
@@ -1054,7 +1039,6 @@ export default function AiInboxPwa() {
   const [productLoading, setProductLoading] = useState(false);
   const [products, setProducts] = useState([]);
   const [productQuery, setProductQuery] = useState("");
-  const [readAtByConversation, setReadAtByConversation] = useState({});
   const [installPrompt, setInstallPrompt] = useState(null);
   const [conversationHeaderHeight, setConversationHeaderHeight] = useState(0);
   const mainScrollRef = useRef(null);
@@ -1063,11 +1047,6 @@ export default function AiInboxPwa() {
   const pollRef = useRef(null);
   const restoreScrollStateRef = useRef(null);
   const markReadSignatureRef = useRef("");
-  const readAtByConversationRef = useRef({});
-
-  useEffect(() => {
-    readAtByConversationRef.current = readAtByConversation;
-  }, [readAtByConversation]);
 
   const tab = useMemo(() => {
     const value = new URLSearchParams(location.search).get("tab");
@@ -1129,7 +1108,7 @@ export default function AiInboxPwa() {
 
         const nextConversations = asArray(payload.conversations)
           .map((conversation) => ({
-            ...applyLocalReadState(conversation, readAtByConversationRef.current),
+            ...conversation,
             conversation_key: conversation.conversation_key || conversationKey(conversation),
             messages: uniqueMessages(conversation.messages),
           }))
@@ -1253,46 +1232,32 @@ export default function AiInboxPwa() {
       if (!sessionId) return false;
 
       const conversationIdentifier = conversation.conversation_key || sessionId;
-      const readAt = new Date().toISOString();
-      readAtByConversationRef.current = {
-        ...readAtByConversationRef.current,
-        [conversationIdentifier]: readAt,
-      };
-
-      setReadAtByConversation((current) => ({
-        ...current,
-        [conversationIdentifier]: readAt,
-      }));
-
-      patchConversation(conversationIdentifier, (currentConversation) => ({
-        ...currentConversation,
-        unread_count: 0,
-        unseen_count: 0,
-        pending_count: 0,
-        unread: false,
-      }));
-
-      const endpoints = [
-        aiInboxConversationEndpoint(sessionId, "/read"),
-        aiAgentInboxEndpoint(sessionId, "/read"),
-      ];
-
-      for (const endpoint of endpoints) {
-        try {
-          await api.post(
-            endpoint,
-            { tenant_id: tenantId, conversation_id: sessionId, channel: conversation.channel || conversation.source || "" },
-            { headers, perfComponent: "AiInboxPwa.markRead", suppressErrorStatuses: [404, 405] }
-          );
-          await loadConversations({ silent: true });
-          return true;
-        } catch (markError) {
-          if (markError?.status === 404 || markError?.status === 405) continue;
-          return false;
+      try {
+        await api.post(
+          aiInboxConversationEndpoint(sessionId, "/read"),
+          { tenant_id: tenantId, conversation_id: sessionId, channel: conversation.channel || conversation.source || "" },
+          { headers, perfComponent: "AiInboxPwa.markRead" }
+        );
+        patchConversation(conversationIdentifier, (currentConversation) => ({
+          ...currentConversation,
+          unread_count: 0,
+          unseen_count: 0,
+          pending_count: 0,
+          unread: false,
+        }));
+        await loadConversations({ silent: true });
+        return true;
+      } catch (markError) {
+        if (import.meta?.env?.DEV) {
+          console.warn("[AiInboxPwa] mark-read failed", {
+            conversation_id: sessionId,
+            status: markError?.status || 0,
+            message: markError?.message || "",
+          });
+          toast.error(markError?.message || "Failed to mark conversation as read");
         }
+        return false;
       }
-
-      return false;
     },
     [headers, loadConversations, patchConversation, tenantId]
   );
@@ -1308,7 +1273,6 @@ export default function AiInboxPwa() {
 
   const backToList = useCallback(() => {
     setMenuOpen(false);
-    markReadSignatureRef.current = "";
     updateUrlState({ nextConversationId: "", nextTab: "conversations" });
   }, [updateUrlState]);
 
@@ -1332,12 +1296,6 @@ export default function AiInboxPwa() {
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, [backToList, selectedConversation]);
-
-  useEffect(() => {
-    if (!selectedConversation?.session_id) {
-      markReadSignatureRef.current = "";
-    }
-  }, [selectedConversation?.session_id]);
 
   useEffect(() => {
     const sessionId = clean(selectedConversation?.session_id);

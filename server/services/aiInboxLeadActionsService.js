@@ -4,6 +4,15 @@ import { loadAiInbox } from "./aiSalesAgentService.js";
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
 
+export const LEAD_STATUSES = Object.freeze(["new", "contacted", "interested", "negotiation", "won", "lost"]);
+
+export const normalizeLeadStatus = (value = "") => {
+  const key = lower(value);
+  return LEAD_STATUSES.includes(key) ? key : "new";
+};
+
+export const isAllowedLeadStatus = (value = "") => LEAD_STATUSES.includes(lower(value));
+
 export const LEAD_SOURCE_LABELS = {
   facebook_comment: "Facebook Comment",
   instagram_comment: "Instagram Comment",
@@ -115,6 +124,13 @@ export const loadLeadConversationForAction = async ({ tenantId, conversationId }
     item.external_customer_id === conversationId
   ) || null;
 };
+
+export const resolveLeadConversationStatus = (conversation = {}) => normalizeLeadStatus(
+  conversation.lead_status ||
+    conversation.channel_metadata?.lead_status ||
+    conversation.metadata?.lead_status ||
+    ""
+);
 
 export const createOrUpdateLeadOpportunity = async ({ tenantId, conversation = {}, profile = null, clientOrPool = db } = {}) => {
   await ensureAiInboxLeadActionsSchema(clientOrPool);
