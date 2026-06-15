@@ -124,8 +124,8 @@ export const buildWhatsappProviderPayload = ({
   message,
   invoiceNumber,
   orderId,
-  accessToken: process.env.WHATSAPP_ACCESS_TOKEN || "",
-  phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || "",
+  accessToken: process.env.WHATSAPP_ACCESS_TOKEN || process.env.WHATSAPP_CLOUD_ACCESS_TOKEN || process.env.META_WHATSAPP_ACCESS_TOKEN || "",
+  phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID || process.env.META_WHATSAPP_PHONE_NUMBER_ID || "",
   deepLink: buildWhatsappDeepLink({ phone, message }),
 });
 
@@ -141,14 +141,14 @@ export const sendWhatsappNotification = async (payload) => {
     };
   }
 
-  return {
-    ok: false,
-    provider,
-    message: "WhatsApp provider integration placeholder",
-    payload: {
-      ...payload,
-      accessToken: process.env.WHATSAPP_ACCESS_TOKEN || "",
-      phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || "",
-    },
+    return {
+      ok: false,
+      provider,
+      message: "WhatsApp provider integration placeholder",
+      payload: {
+        ...payload,
+        accessToken: process.env.WHATSAPP_ACCESS_TOKEN || process.env.WHATSAPP_CLOUD_ACCESS_TOKEN || process.env.META_WHATSAPP_ACCESS_TOKEN || "",
+        phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID || process.env.META_WHATSAPP_PHONE_NUMBER_ID || "",
+      },
+    };
   };
-};

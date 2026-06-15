@@ -890,15 +890,35 @@ const whatsappConfig = () => {
   );
   const explicitProvider = toText(process.env.WHATSAPP_GATEWAY_PROVIDER || process.env.WHATSAPP_PROVIDER).toLowerCase();
   const provider = explicitProvider || (evolutionApiUrl || evolutionApiKey || evolutionInstanceName ? "evolution" : "cloud");
+  const accessToken = toText(
+    process.env.WHATSAPP_ACCESS_TOKEN ||
+      process.env.WHATSAPP_CLOUD_ACCESS_TOKEN ||
+      process.env.META_WHATSAPP_ACCESS_TOKEN
+  );
+  const phoneNumberId = toText(
+    process.env.WHATSAPP_PHONE_NUMBER_ID ||
+      process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID ||
+      process.env.META_WHATSAPP_PHONE_NUMBER_ID
+  );
+  const businessAccountId = toText(
+    process.env.WHATSAPP_BUSINESS_ACCOUNT_ID ||
+      process.env.WHATSAPP_CLOUD_BUSINESS_ACCOUNT_ID ||
+      process.env.META_WHATSAPP_BUSINESS_ACCOUNT_ID
+  );
+  const verifyToken = toText(process.env.META_VERIFY_TOKEN || process.env.META_WEBHOOK_VERIFY_TOKEN);
+  const appSecret = toText(process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET);
   return {
     enabled: String(process.env.WHATSAPP_ENABLED || "false").toLowerCase() === "true",
     provider,
-    accessToken: toText(process.env.WHATSAPP_ACCESS_TOKEN),
-    phoneNumberId: toText(process.env.WHATSAPP_PHONE_NUMBER_ID),
+    accessToken,
+    phoneNumberId,
+    businessAccountId,
     graphVersion: toText(process.env.META_GRAPH_VERSION || "v20.0"),
     evolutionApiUrl,
     evolutionApiKey,
     evolutionInstanceName,
+    verifyToken,
+    appSecret,
   };
 };
 
@@ -920,9 +940,39 @@ const maskSecret = (value = "") => {
   return `${safe.slice(0, 4)}...${safe.slice(-4)}`;
 };
 
+const whatsappMissingCredentials = (config = {}) => {
+  const missing = [];
+  if (!config.enabled) missing.push("WHATSAPP_ENABLED");
+  if (!config.accessToken) missing.push("WHATSAPP_ACCESS_TOKEN");
+  if (!config.phoneNumberId) missing.push("WHATSAPP_PHONE_NUMBER_ID");
+  if (config.provider === "evolution") {
+    if (!config.evolutionApiUrl) missing.push("EVOLUTION_API_URL");
+    if (!config.evolutionApiKey) missing.push("EVOLUTION_API_KEY");
+    if (!config.evolutionInstanceName) missing.push("WHATSAPP_INSTANCE_NAME");
+  }
+  return missing;
+};
+
+const logWhatsAppConfig = (label, config = {}) => {
+  console.info(label, {
+    provider: config.provider || "",
+    enabled: config.enabled === true,
+    access_token_configured: Boolean(config.accessToken),
+    phone_number_id_configured: Boolean(config.phoneNumberId),
+    business_account_id_configured: Boolean(config.businessAccountId),
+    verify_token_configured: Boolean(config.verifyToken),
+    app_secret_configured: Boolean(config.appSecret),
+    evolution_api_url_configured: Boolean(config.evolutionApiUrl),
+    evolution_api_key_configured: Boolean(config.evolutionApiKey),
+    evolution_instance_name_configured: Boolean(config.evolutionInstanceName),
+    missing_credentials: whatsappMissingCredentials(config),
+  });
+};
+
 export const getWhatsAppChannelStatus = async ({ tenantId } = {}) => {
   await ensureAiChannelAdapterSchema();
   const config = whatsappConfig();
+  logWhatsAppConfig("[ai-channel-status:whatsapp][config]", config);
   const settings = await getChannelSettings({ tenantId, channel: AI_AGENT_CHANNELS.WHATSAPP });
   const events = await listChannelEvents({ tenantId, channel: AI_AGENT_CHANNELS.WHATSAPP, limit: 20 });
   const lastInbound = events.find((event) => event.direction === "inbound") || null;
@@ -1112,6 +1162,8 @@ const channelEnvStatus = async ({ channel, settings, events }) => {
       phone_number_id: config.phoneNumberId ? maskSecret(config.phoneNumberId) : "",
       access_token_configured: Boolean(config.accessToken),
       access_token_masked: maskSecret(config.accessToken),
+      business_account_id_configured: Boolean(config.businessAccountId),
+      business_account_id: config.businessAccountId ? maskSecret(config.businessAccountId) : "",
       evolution_api_url_configured: Boolean(config.evolutionApiUrl),
       evolution_api_key_configured: Boolean(config.evolutionApiKey),
       evolution_instance_name_configured: Boolean(whatsappHealth.instanceName),
@@ -1252,8 +1304,15 @@ const visualAttachmentImageUrls = (reply = {}) =>
 
 export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" } = {}) => {
   const config = whatsappConfig();
+  logWhatsAppConfig("[whatsapp-cloud-send][config]", config);
   if (!config.enabled) throw Object.assign(new Error("WhatsApp sender is disabled"), { code: "WHATSAPP_DISABLED" });
-  if (!config.accessToken || !config.phoneNumberId) throw Object.assign(new Error("WhatsApp credentials are missing"), { code: "WHATSAPP_CONFIG_MISSING" });
+  const missing = whatsappMissingCredentials(config).filter((item) => item !== "WHATSAPP_ENABLED");
+  if (!config.accessToken || !config.phoneNumberId) {
+    throw Object.assign(new Error(`WhatsApp credentials are missing: ${missing.join(", ") || "WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID"}`), {
+      code: "WHATSAPP_CONFIG_MISSING",
+      missingCredentials: missing,
+    });
+  }
   const recipient = toText(to);
   if (!recipient) throw Object.assign(new Error("WhatsApp recipient is required"), { code: "WHATSAPP_RECIPIENT_REQUIRED" });
   const text = toText(messageText || reply.text);
