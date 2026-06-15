@@ -15,6 +15,7 @@ import {
   MessageCircleMore,
   MoreHorizontal,
   PackagePlus,
+  Ruler,
   Search,
   Send,
   ShieldBan,
@@ -29,6 +30,7 @@ import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStora
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { getPosSellableProducts } from "../../pos/services/posProductsApi";
+import ProductCardPicker from "../components/ProductCardPicker";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
@@ -1171,6 +1173,8 @@ export default function AiInboxPwa() {
   const [leadActionLoading, setLeadActionLoading] = useState("");
   const [productSheetOpen, setProductSheetOpen] = useState(false);
   const [productSending, setProductSending] = useState(false);
+  const [availableBySizePickerConfig, setAvailableBySizePickerConfig] = useState({ open: false, sizeMode: false, allowMultiple: false });
+  const [availableBySizeSending, setAvailableBySizeSending] = useState(false);
   const [productLoading, setProductLoading] = useState(false);
   const [products, setProducts] = useState([]);
   const [productQuery, setProductQuery] = useState("");
@@ -1725,6 +1729,19 @@ export default function AiInboxPwa() {
     [headers, patchConversation, selectedConversation, tenantId]
   );
 
+  const sendAvailableBySizeCards = useCallback(
+    async (cards = []) => {
+      setAvailableBySizeSending(true);
+      try {
+        await sendProductCards(cards);
+      } finally {
+        setAvailableBySizeSending(false);
+        closeAvailableBySizePicker();
+      }
+    },
+    [closeAvailableBySizePicker, sendProductCards]
+  );
+
   const openImagePicker = useCallback(() => {
     if (!imageInputRef.current) return;
     imageInputRef.current.value = "";
@@ -1968,7 +1985,13 @@ export default function AiInboxPwa() {
   const selectedLastSeen = relativeSeenLabel(
     selectedConversation?.last_activity_at || selectedConversation?.updated_at
   );
-  const quickActionBusy = Boolean(leadActionLoading || aiToggling || productSending || sending);
+  const quickActionBusy = Boolean(leadActionLoading || aiToggling || productSending || availableBySizeSending || sending);
+  const openAvailableBySizePicker = useCallback(() => {
+    setAvailableBySizePickerConfig({ open: true, sizeMode: true, allowMultiple: true });
+  }, []);
+  const closeAvailableBySizePicker = useCallback(() => {
+    setAvailableBySizePickerConfig({ open: false, sizeMode: false, allowMultiple: false });
+  }, []);
   const isRtlLayout =
     typeof document !== "undefined" &&
     ((document.documentElement.dir || document.body?.dir || "").toLowerCase() === "rtl");
@@ -2100,6 +2123,15 @@ export default function AiInboxPwa() {
                 >
                   <Send className="h-3.5 w-3.5" />
                   إرسال رسالة خاصة
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openAvailableBySizePicker()}
+                  disabled={quickActionBusy}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-2 text-[11px] font-semibold text-cyan-700 disabled:opacity-50"
+                >
+                  <Ruler className="h-3.5 w-3.5" />
+                  المتاح بالمقاس
                 </button>
                 <button
                   type="button"
@@ -2301,6 +2333,13 @@ export default function AiInboxPwa() {
           onSend={sendProductCards}
           sending={productSending}
           selectedConversation={selectedConversation}
+        />
+        <ProductCardPicker
+          open={availableBySizePickerConfig.open}
+          onClose={closeAvailableBySizePicker}
+          onSubmit={sendAvailableBySizeCards}
+          sizeMode={availableBySizePickerConfig.sizeMode}
+          allowMultiple={availableBySizePickerConfig.allowMultiple}
         />
       </div>
     </div>
