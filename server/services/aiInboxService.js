@@ -48,7 +48,7 @@ const number = (value, fallback = 0) => {
 };
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
-const normalizeWhatsappSessionId = (sessionId = "", phone = "") => {
+export const normalizeWhatsappSessionId = (sessionId = "", phone = "") => {
   const raw = text(sessionId);
   const phoneText = text(phone);
   if (raw.toLowerCase().startsWith("whatsapp:")) {

@@ -1243,7 +1243,14 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
   const text = toText(messageText || reply.text);
   const results = [];
   const productCards = normalizeStructuredProductCards(reply.product_cards, { limit: 6 });
-  const imageCards = visualAttachmentImageUrls(reply);
+  const productCardTexts = productCards.map((product) => toText(productCardReplyText(product))).filter(Boolean);
+  const normalizeImageKey = (value = "") => toText(value).toLowerCase().replace(/^https?:\/\/[^/]+/i, "").replace(/[?#].*$/, "");
+  const productImageKeys = new Set(
+    productCards
+      .map((product) => normalizeImageKey(product.image_url || product.image || product.main_image || ""))
+      .filter(Boolean)
+  );
+  const imageCards = visualAttachmentImageUrls(reply).filter((imageUrl) => !productImageKeys.has(normalizeImageKey(imageUrl)));
   if (productCards.length || imageCards.length) {
     const firstCard = productCards[0] || {};
     console.info("[CHANNEL_CARD_PAYLOAD]", {
@@ -1262,7 +1269,7 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
       },
     });
   }
-  if (text) {
+  if (text || (!text && productCardTexts.length)) {
     results.push(await postWhatsAppMessage({
       config,
       payload: {
@@ -1270,9 +1277,57 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
         recipient_type: "individual",
         to: recipient,
         type: "text",
-        text: { preview_url: false, body: text.slice(0, 4096) },
+        text: { preview_url: false, body: (text || productCardTexts.join("\n\n")).slice(0, 4096) },
       },
     }));
+  }
+  for (const product of productCards) {
+    const productText = toText(productCardReplyText(product)).slice(0, 1024);
+    const productImage = toText(product.image_url || product.image || product.main_image || "");
+    if (productImage) {
+      try {
+        results.push(await postWhatsAppMessage({
+          config,
+          payload: {
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: recipient,
+            type: "image",
+            image: { link: productImage, caption: productText || undefined },
+          },
+        }));
+      } catch (error) {
+        console.warn("[ai-agent:whatsapp] product image send failed; text reply already attempted", {
+          to: recipient,
+          image_url: productImage,
+          message: error?.message,
+          status: error?.status,
+        });
+        if (!text && productText) {
+          results.push(await postWhatsAppMessage({
+            config,
+            payload: {
+              messaging_product: "whatsapp",
+              recipient_type: "individual",
+              to: recipient,
+              type: "text",
+              text: { preview_url: false, body: productText.slice(0, 4096) },
+            },
+          }));
+        }
+      }
+    } else if (productText) {
+      results.push(await postWhatsAppMessage({
+        config,
+        payload: {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: recipient,
+          type: "text",
+          text: { preview_url: false, body: productText.slice(0, 4096) },
+        },
+      }));
+    }
   }
   for (const imageUrl of imageCards) {
     try {

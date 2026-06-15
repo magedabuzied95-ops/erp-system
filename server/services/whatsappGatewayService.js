@@ -8,7 +8,7 @@ import {
   logChannelEvent,
   upsertChannelConversationMapping,
 } from "./aiChannelAdapterService.js";
-import { generateWhatsappAiAutoReply, logWhatsappAiOutbound } from "./aiInboxService.js";
+import { generateWhatsappAiAutoReply, logWhatsappAiOutbound, normalizeWhatsappSessionId } from "./aiInboxService.js";
 import { debugAiImagesLog, normalizeProductCards } from "./aiProductCards.js";
 import { appendAiGeneratedSupportReply } from "./aiSupportLogService.js";
 import { addTraceStep, failTrace, finishTrace, setTraceInboundMessage, startTrace } from "./aiReplyTraceService.js";
@@ -2873,13 +2873,14 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     });
     await appendAiGeneratedSupportReply({
       tenantId: generated.tenantId,
-      sessionId: generated.sessionId,
+      sessionId: normalizeWhatsappSessionId(generated.sessionId, message.phone),
       answer: generated.replyText,
       confidence: generated.aiPayload?.confidence || 0,
       detectedIntent: generated.aiPayload?.detected_intent || "whatsapp_ai_reply",
       suggestedProducts: generated.aiPayload?.suggested_products || [],
       visualAttachments: generated.aiPayload?.visual_attachments || [],
       suggestedActions: generated.aiPayload?.suggested_actions || [],
+      productCards: generated.aiPayload?.product_cards || generated.aiPayload?.suggested_products || [],
       channel: AI_AGENT_CHANNELS.WHATSAPP,
       deliveryStatus: "suggested",
       deliveryError: skipReason === "owner_target" ? "owner_target_connected_instance" : "lid_unresolved_no_real_phone_jid",
@@ -2940,13 +2941,14 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     });
     await appendAiGeneratedSupportReply({
       tenantId: generated.tenantId,
-      sessionId: generated.sessionId,
+      sessionId: normalizeWhatsappSessionId(generated.sessionId, message.phone),
       answer: generated.replyText,
       confidence: generated.aiPayload?.confidence || 0,
       detectedIntent: generated.aiPayload?.detected_intent || "whatsapp_ai_reply",
       suggestedProducts: generated.aiPayload?.suggested_products || [],
       visualAttachments: generated.aiPayload?.visual_attachments || [],
       suggestedActions: generated.aiPayload?.suggested_actions || [],
+      productCards: generated.aiPayload?.product_cards || generated.aiPayload?.suggested_products || [],
       channel: AI_AGENT_CHANNELS.WHATSAPP,
       deliveryStatus: "suggested",
       deliveryError: "owner_target_connected_instance",
@@ -3366,13 +3368,14 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     });
     await appendAiGeneratedSupportReply({
       tenantId: generated.tenantId,
-      sessionId: generated.sessionId,
+      sessionId: normalizeWhatsappSessionId(generated.sessionId, sendTargetNumber || generated.phone || message.phone),
       answer: finalReplyText || generated.replyText,
       confidence: generated.aiPayload?.confidence || 0,
       detectedIntent: generated.aiPayload?.detected_intent || "whatsapp_ai_reply",
       suggestedProducts: generated.aiPayload?.suggested_products || [],
       visualAttachments: generated.aiPayload?.visual_attachments || [],
       suggestedActions: generated.aiPayload?.suggested_actions || [],
+      productCards: generated.aiPayload?.product_cards || generated.aiPayload?.suggested_products || [],
       channel: AI_AGENT_CHANNELS.WHATSAPP,
       deliveryStatus: "sent",
       externalMessageId: result?.result?.message_id || result?.result?.messageId || "",
@@ -3456,13 +3459,14 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     });
     await appendAiGeneratedSupportReply({
       tenantId: generated.tenantId,
-      sessionId: generated.sessionId,
+      sessionId: normalizeWhatsappSessionId(generated.sessionId, sendTargetNumber || generated.phone || message.phone),
       answer: generated.replyText,
       confidence: generated.aiPayload?.confidence || 0,
       detectedIntent: generated.aiPayload?.detected_intent || "whatsapp_ai_reply",
       suggestedProducts: generated.aiPayload?.suggested_products || [],
       visualAttachments: generated.aiPayload?.visual_attachments || [],
       suggestedActions: generated.aiPayload?.suggested_actions || [],
+      productCards: generated.aiPayload?.product_cards || generated.aiPayload?.suggested_products || [],
       channel: AI_AGENT_CHANNELS.WHATSAPP,
       deliveryStatus: "failed",
       deliveryError: summary.causeMessage ? `${summary.message} / cause: ${summary.causeMessage}` : summary.message,

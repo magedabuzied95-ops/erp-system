@@ -1,4 +1,6 @@
 import { AI_AGENT_CHANNELS, normalizeChannel, normalizeOutgoingChannelReply, sendMetaPageReply, sendWhatsAppCloudReply } from "./aiChannelAdapterService.js";
+import { appendAiGeneratedSupportReply } from "./aiSupportLogService.js";
+import { normalizeWhatsappSessionId } from "./aiInboxService.js";
 import { normalizeProductCards } from "./aiProductCards.js";
 import { buildSalesConversationIntelligence } from "./aiSalesAgentService.js";
 
@@ -34,6 +36,57 @@ const normalizeLeadText = (value = "") =>
     .trim();
 
 const uniqueTextList = (values = []) => [...new Set(asArray(values).map((item) => text(item)).filter(Boolean))];
+const normalizeTranscriptSessionId = (channel = "", sessionId = "", to = "") => {
+  if (normalizeChannel(channel) !== AI_AGENT_CHANNELS.WHATSAPP) return text(sessionId || to);
+  return normalizeWhatsappSessionId(sessionId || to, to);
+};
+
+const persistWhatsappTranscriptRow = async ({
+  tenantId = null,
+  channel = AI_AGENT_CHANNELS.WHATSAPP,
+  sessionId = "",
+  to = "",
+  reply = {},
+  replyText = "",
+  productCards = [],
+  deliveryStatus = "sent",
+  deliveryError = "",
+  externalMessageId = "",
+  sourcePath = "ai_conversation_orchestrator_whatsapp_send",
+  insertSource = "ai_conversation_orchestrator",
+} = {}) => {
+  if (normalizeChannel(channel) !== AI_AGENT_CHANNELS.WHATSAPP) return null;
+  const safeSessionId = normalizeTranscriptSessionId(channel, sessionId, to);
+  if (!tenantId || !safeSessionId) return null;
+  const cards = asArray(productCards).length ? productCards : asArray(reply?.product_cards || reply?.suggested_products);
+  try {
+    return await appendAiGeneratedSupportReply({
+      tenantId,
+      sessionId: safeSessionId,
+      answer: text(replyText || reply?.text || ""),
+      confidence: Number(reply?.confidence || reply?.channel_reply?.confidence || 0) || 0,
+      detectedIntent: text(reply?.detected_intent || reply?.intent || reply?.channel_reply?.response_type || "whatsapp_ai_reply"),
+      suggestedProducts: cards,
+      visualAttachments: asArray(reply?.visual_attachments || reply?.image_cards),
+      suggestedActions: asArray(reply?.suggested_actions || reply?.actions),
+      productCards: cards,
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      deliveryStatus,
+      deliveryError,
+      externalMessageId,
+      sourcePath,
+      insertSource,
+    });
+  } catch (error) {
+    console.warn("[ai-orchestrator][whatsapp-transcript-save-failed]", {
+      tenant_id: tenantId,
+      session_id: safeSessionId,
+      status: deliveryStatus,
+      error: error?.message || String(error),
+    });
+    return null;
+  }
+};
 
 const collectProducts = (response = {}) =>
   uniqueBy([
@@ -804,6 +857,22 @@ const sendUnifiedReplyThroughChannelAdapter = async ({ channel = AI_AGENT_CHANNE
       code: error?.code || "",
       status: error?.status || "",
     };
+    if (normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP) {
+      await persistWhatsappTranscriptRow({
+        tenantId,
+        channel: normalizedChannel,
+        sessionId: replySource?.conversation_id || replySource?.session_id || "",
+        to,
+        reply: unifiedReply.channel_reply,
+        replyText: messageText || unifiedReply.text || unifiedReply.channel_reply?.text || "",
+        productCards: asArray(replySource?.product_cards || unifiedReply.channel_reply?.product_cards || replySource?.suggested_products),
+        deliveryStatus: "failed",
+        deliveryError: error?.message || String(error),
+        externalMessageId: "",
+        sourcePath: "ai_conversation_orchestrator_whatsapp_send_failed",
+        insertSource: "ai_conversation_orchestrator",
+      });
+    }
     logOrchestrator("AI_CHANNEL_ADAPTER_RESULT", {
       tenant_id: tenantId,
       channel: normalizedChannel,
@@ -821,6 +890,22 @@ const sendUnifiedReplyThroughChannelAdapter = async ({ channel = AI_AGENT_CHANNE
       send_result: result,
     });
     throw error;
+  }
+  if (normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP) {
+    await persistWhatsappTranscriptRow({
+      tenantId,
+      channel: normalizedChannel,
+      sessionId: replySource?.conversation_id || replySource?.session_id || "",
+      to,
+      reply: unifiedReply.channel_reply,
+      replyText: messageText || unifiedReply.text || unifiedReply.channel_reply?.text || "",
+      productCards: asArray(replySource?.product_cards || unifiedReply.channel_reply?.product_cards || replySource?.suggested_products),
+      deliveryStatus: result?.sent ? "sent" : "failed",
+      deliveryError: result?.sent ? "" : result?.error || "",
+      externalMessageId: result?.results?.[0]?.messages?.[0]?.id || result?.results?.[0]?.message_id || result?.results?.[0]?.messageId || "",
+      sourcePath: "ai_conversation_orchestrator_whatsapp_send",
+      insertSource: "ai_conversation_orchestrator",
+    });
   }
   logOrchestrator("AI_CHANNEL_ADAPTER_RESULT", {
     tenant_id: tenantId,

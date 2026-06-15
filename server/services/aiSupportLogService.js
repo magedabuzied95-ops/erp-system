@@ -878,6 +878,7 @@ export const appendAiGeneratedSupportReply = async ({
   suggestedProducts = [],
   visualAttachments = [],
   suggestedActions = [],
+  productCards = [],
   channel = "",
   deliveryStatus = "",
   deliveryError = "",
@@ -920,6 +921,7 @@ export const appendAiGeneratedSupportReply = async ({
       sources_used,
       suggested_products,
       visual_attachments,
+      product_cards,
       suggested_actions,
       detected_intent,
       fallback_reason,
@@ -932,7 +934,7 @@ export const appendAiGeneratedSupportReply = async ({
       source_path,
       insert_source
     )
-    VALUES ($1, $2, $3, $4, '', $4, $5, FALSE, '[]'::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9, '', 'ai', FALSE, COALESCE(NULLIF($10, ''), 'web_chat'), $11, $12, $13, $14, $15)
+    VALUES ($1, $2, $3, $4, '', $4, $5, FALSE, '[]'::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9, '', 'ai', FALSE, COALESCE(NULLIF($10, ''), 'web_chat'), $11, $12, $13, $14, $15, $16)
     RETURNING *
     `,
     [
@@ -943,6 +945,7 @@ export const appendAiGeneratedSupportReply = async ({
       Number(confidence) || 0,
       jsonValue(Array.isArray(suggestedProducts) ? suggestedProducts : []),
       jsonValue(Array.isArray(visualAttachments) ? visualAttachments : []),
+      jsonValue(Array.isArray(productCards) ? productCards : []),
       jsonValue(Array.isArray(suggestedActions) ? suggestedActions : []),
       repairText(detectedIntent),
       repairText(channel),
