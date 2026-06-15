@@ -48,6 +48,18 @@ const number = (value, fallback = 0) => {
 };
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
+const normalizeWhatsappSessionId = (sessionId = "", phone = "") => {
+  const raw = text(sessionId);
+  const phoneText = text(phone);
+  if (raw.toLowerCase().startsWith("whatsapp:")) {
+    return `whatsapp:${text(raw.slice("whatsapp:".length))}`;
+  }
+  if (raw) {
+    const base = raw.includes(":") ? text(raw.split(":").pop()) : raw;
+    return base ? `whatsapp:${base}` : raw;
+  }
+  return phoneText ? `whatsapp:${phoneText}` : "";
+};
 
 const clarificationGroupLabel = (groupKey = "") => {
   const key = text(groupKey);
@@ -1034,7 +1046,8 @@ const routeWhatsappMessageThroughAi = async ({ tenantId, message = {} } = {}) =>
 };
 
 const syncWhatsappLiveMemoryToChannel = async ({ tenantId, sessionId, phone = "", memory = null } = {}) => {
-  if (!tenantId || !sessionId || !memory) return null;
+  const safeSessionId = normalizeWhatsappSessionId(sessionId, phone);
+  if (!tenantId || !safeSessionId || !memory) return null;
   const payload = {
     ...(memory || {}),
     ai_memory_source: "ai_conversation_memories",
@@ -1048,11 +1061,11 @@ const syncWhatsappLiveMemoryToChannel = async ({ tenantId, sessionId, phone = ""
       AND channel = $2
       AND external_conversation_id = $3
     `,
-    [tenantId, AI_AGENT_CHANNELS.WHATSAPP, sessionId, JSON.stringify(payload)]
+    [tenantId, AI_AGENT_CHANNELS.WHATSAPP, safeSessionId, JSON.stringify(payload)]
   ).catch((error) => {
     console.warn("[ai-followup:memory-sync-skipped]", {
-      conversation_id: sessionId,
-      session_id: sessionId,
+      conversation_id: safeSessionId,
+      session_id: safeSessionId,
       message: error?.message || "memory sync failed",
     });
   });
@@ -1062,7 +1075,7 @@ const syncWhatsappLiveMemoryToChannel = async ({ tenantId, sessionId, phone = ""
 export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, customerName = "", messageText = "", timestamp = "", traceId = null, dryRun = false } = {}) => {
   const safeTenantId = number(tenantId, number(process.env.WHATSAPP_TENANT_ID, 1));
   const safePhone = text(phone);
-  const safeSessionId = text(sessionId || (safePhone ? `whatsapp:${safePhone}` : ""));
+  const safeSessionId = normalizeWhatsappSessionId(sessionId, safePhone);
   const originalBody = text(messageText);
   const intentPayload = normalizeArabicIntentPayload(originalBody);
   const normalizedBody = intentPayload.normalizedText || normalizeArabicMessage(originalBody);

@@ -2989,7 +2989,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
         try {
           sendResult = await sendWhatsAppCloudReply({
             to: externalCustomerId,
-            reply: { text: fallbackText, product_cards: [] },
+            reply: { text: fallbackText, product_cards: productCards },
             messageText: fallbackText,
           });
           deliveryStatus = sendResult.sent ? "sent" : "not_sent";
@@ -3107,7 +3107,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
 
     return res.status(201).json({
       success: true,
-      sent: sendResult.sent === true,
+      sent: deliveryStatus === "sent",
       delivery_status: deliveryStatus,
       reason: storedOnlyReason || undefined,
       message,

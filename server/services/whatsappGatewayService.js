@@ -3364,6 +3364,27 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
         outbound_plan: outboundPlan,
       },
     });
+    await appendAiGeneratedSupportReply({
+      tenantId: generated.tenantId,
+      sessionId: generated.sessionId,
+      answer: finalReplyText || generated.replyText,
+      confidence: generated.aiPayload?.confidence || 0,
+      detectedIntent: generated.aiPayload?.detected_intent || "whatsapp_ai_reply",
+      suggestedProducts: generated.aiPayload?.suggested_products || [],
+      visualAttachments: generated.aiPayload?.visual_attachments || [],
+      suggestedActions: generated.aiPayload?.suggested_actions || [],
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      deliveryStatus: "sent",
+      externalMessageId: result?.result?.message_id || result?.result?.messageId || "",
+      sourcePath: "whatsapp_ai_auto_reply_sent",
+      insertSource: "whatsapp_ai_send_success",
+    }).catch((error) => {
+      console.warn("[whatsapp:ai-send-success:transcript-save-failed]", {
+        tenantId: generated.tenantId,
+        sessionId: generated.sessionId,
+        message: error?.message || String(error),
+      });
+    });
     console.info("[whatsapp:ai-sent]", {
       tenantId: generated.tenantId,
       sessionId: generated.sessionId,
