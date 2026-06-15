@@ -2507,6 +2507,25 @@ const normalizeProductCardSendChannel = (value = "") => {
   return channel;
 };
 
+const isWhatsAppStoredOnlyIssue = (error = {}) => {
+  const code = envText(error?.code || "");
+  if ([
+    "WHATSAPP_CONFIG_MISSING",
+    "WHATSAPP_DISABLED",
+    "WHATSAPP_RECIPIENT_REQUIRED",
+    "WHATSAPP_PHONE_REQUIRED",
+    "WHATSAPP_LID_UNRESOLVED",
+    "EVOLUTION_API_URL_MISSING",
+    "EVOLUTION_API_KEY_MISSING",
+    "EVOLUTION_INSTANCE_MISSING",
+    "WHATSAPP_PROVIDER_UNSUPPORTED",
+  ].includes(code)) {
+    return true;
+  }
+  const message = envText(error?.message || "");
+  return /whatsapp.*(credential|config|token|phone number id|disabled|missing)/i.test(message);
+};
+
 let aiChannelConversationHasConversationKeyPromise = null;
 const hasAiChannelConversationKeyColumn = async () => {
   if (aiChannelConversationHasConversationKeyPromise) return aiChannelConversationHasConversationKeyPromise;
@@ -2804,12 +2823,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       });
     }
     const channel = conversation.channel || conversation.source || "";
-    if (![AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM].includes(channel)) {
-      throw Object.assign(new Error("Live sending is only available for Messenger and Instagram DM conversations."), {
-        status: 409,
-        code: "CHANNEL_SEND_UNAVAILABLE",
-      });
-    }
+    const normalizedChannel = normalizeProductCardSendChannel(channel);
     const channelMetadata = conversation.channel_metadata || {};
     const recipientId = envText(
       channelMetadata.customer_psid ||
@@ -2818,17 +2832,90 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
         conversation.external_customer_id ||
         conversation.customer_id
     );
-    if (!recipientId) throw Object.assign(new Error("Conversation has no Meta recipient id."), { status: 409, code: "META_RECIPIENT_MISSING" });
+    const isWhatsAppConversation = normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP;
+    const isMetaConversation = normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER || normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM;
+    if (!isWhatsAppConversation && !isMetaConversation) {
+      throw Object.assign(new Error("Live sending is only available for WhatsApp, Messenger, and Instagram DM conversations."), {
+        status: 409,
+        code: "CHANNEL_SEND_UNAVAILABLE",
+      });
+    }
+    if (!recipientId) {
+      if (isWhatsAppConversation) {
+        const message = await appendManualAiSupportReply({
+          tenantId,
+          sessionId: conversationId,
+          message: messageText,
+          staffUserId: req.user?.id || null,
+          staffUserName: userDisplayName(req.user),
+          source: conversation?.channel || conversation?.source || "admin_console",
+          channel: conversation?.channel || conversation?.source || "whatsapp",
+          deliveryStatus: "stored_only",
+          deliveryError: "WhatsApp recipient is missing",
+        });
+        emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: conversationId, message, at: new Date().toISOString() });
+        emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: new Date().toISOString() });
+        return res.status(200).json({
+          success: true,
+          sent: false,
+          delivery_status: "stored_only",
+          delivery_error: "WhatsApp recipient is missing",
+          message,
+          reason: "whatsapp_recipient_missing",
+        });
+      }
+      throw Object.assign(new Error("Conversation has no Meta recipient id."), { status: 409, code: "META_RECIPIENT_MISSING" });
+    }
 
-    const sendResult = await sendMetaInboxOutboundMessage({
-      tenantId,
-      channel,
-      recipientId,
-      messageText,
-      conversationId,
-      facebookPageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
-      instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
-    });
+    let sendResult = null;
+    let deliveryStatus = "sent";
+    let deliveryError = "";
+    if (isWhatsAppConversation) {
+      try {
+        sendResult = await sendWhatsAppCloudReply({
+          to: recipientId,
+          reply: { text: messageText },
+          messageText,
+        });
+      } catch (error) {
+        if (!isWhatsAppStoredOnlyIssue(error)) throw error;
+        const message = await appendManualAiSupportReply({
+          tenantId,
+          sessionId: conversationId,
+          message: messageText,
+          staffUserId: req.user?.id || null,
+          staffUserName: userDisplayName(req.user),
+          source: conversation?.channel || conversation?.source || "admin_console",
+          channel: conversation?.channel || conversation?.source || "whatsapp",
+          deliveryStatus: "stored_only",
+          deliveryError: error?.message || "WhatsApp configuration is missing",
+        });
+        emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: conversationId, message, at: new Date().toISOString() });
+        emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: new Date().toISOString() });
+        return res.status(200).json({
+          success: true,
+          sent: false,
+          delivery_status: "stored_only",
+          delivery_error: error?.message || "WhatsApp configuration is missing",
+          message,
+          reason: error?.code || "whatsapp_config_missing",
+        });
+      }
+    } else {
+      sendResult = await sendMetaInboxOutboundMessage({
+        tenantId,
+        channel,
+        recipientId,
+        messageText,
+        conversationId,
+        facebookPageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
+        instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
+      });
+    }
+    deliveryStatus = sendResult.sent ? "sent" : "failed";
+    if (deliveryStatus === "failed" && !deliveryError) {
+      deliveryError = sendResult?.message || "Message was not delivered";
+    }
     const message = await appendManualAiSupportReply({
       tenantId,
       sessionId: conversationId,
@@ -2837,8 +2924,9 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       staffUserName: userDisplayName(req.user),
       source: channel,
       channel,
-      deliveryStatus: "sent",
-      externalMessageId: sendResult.message_id || "",
+      deliveryStatus,
+      deliveryError,
+      externalMessageId: sendResult?.message_id || sendResult?.results?.[0]?.result?.key?.id || "",
     });
     await logChannelEvent({
       tenantId,
@@ -2847,8 +2935,13 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       externalCustomerId: recipientId,
       conversationId,
       messagePreview: messageText,
-      status: "sent",
-      metadata: { meta_message_id: sendResult.message_id || "", config_id: sendResult.config_id || null, source: "ai_inbox_send" },
+      status: deliveryStatus === "sent" ? "sent" : "failed",
+      metadata: {
+        meta_message_id: sendResult?.message_id || sendResult?.results?.[0]?.result?.key?.id || "",
+        config_id: sendResult?.config_id || null,
+        source: "ai_inbox_send",
+        channel_type: isWhatsAppConversation ? "whatsapp" : "meta",
+      },
     }).catch(() => {});
     await upsertChannelConversationMapping({
       tenantId,
@@ -2875,7 +2968,13 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       conversationId,
       platform: channel,
     });
-    return res.status(200).json({ success: true, sent: true, delivery_status: "sent", message, meta: sendResult.meta || null });
+    return res.status(200).json({
+      success: true,
+      sent: deliveryStatus === "sent",
+      delivery_status: deliveryStatus,
+      message,
+      meta: sendResult.meta || null,
+    });
   } catch (error) {
     pushAIEvent({
       type: "MESSAGE_SEND_FAILED",
@@ -2922,7 +3021,15 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       message: error?.message || "Meta send failed",
       meta_error: error?.metaResponse?.error || null,
     });
-    return sendError(res, error, "Failed to send Meta message");
+    return res.status(error?.status || 502).json({
+      success: false,
+      delivery_status: "failed",
+      delivery_error: error?.message || "Failed to send message",
+      message: error?.message || "Failed to send message",
+      code: error?.code || "",
+      error_code: error?.code || "",
+      conversation_id: conversationId,
+    });
   }
 });
 
@@ -2992,17 +3099,13 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
             reply: { text: fallbackText, product_cards: productCards },
             messageText: fallbackText,
           });
-          deliveryStatus = sendResult.sent ? "sent" : "not_sent";
+          deliveryStatus = sendResult.sent ? "sent" : "failed";
+          if (deliveryStatus === "failed" && !deliveryError) {
+            deliveryError = sendResult?.message || "Product card message was not delivered";
+          }
           externalMessageId = sendResult.message_id || "";
         } catch (error) {
-          const whatsappConfigIssue = [
-            "WHATSAPP_CONFIG_MISSING",
-            "WHATSAPP_DISABLED",
-            "WHATSAPP_TRANSPORT_UNAVAILABLE",
-          ].includes(error?.code) ||
-          /whatsapp.*(credential|config|token|phone number id|disabled|unavailable)/i.test(error?.message || "");
-
-          if (!whatsappConfigIssue) throw error;
+          if (!isWhatsAppStoredOnlyIssue(error)) throw error;
 
           console.warn("[ai-inbox][product-card-send] WhatsApp transport unavailable, storing transcript message only", {
             tenantId,
@@ -3038,7 +3141,10 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
           pageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
           instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
         });
-        deliveryStatus = sendResult.sent ? "sent" : "not_sent";
+        deliveryStatus = sendResult.sent ? "sent" : "failed";
+        if (deliveryStatus === "failed" && !deliveryError) {
+          deliveryError = sendResult?.message || "Product card message was not delivered";
+        }
         externalMessageId = sendResult.message_id || "";
       }
     } else {
@@ -3081,7 +3187,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
       externalCustomerId,
       conversationId,
       messagePreview: previewText || fallbackText,
-      status: deliveryStatus === "sent" || deliveryStatus === "stored" ? "sent" : deliveryStatus === "not_sent" ? "not_sent" : "failed",
+      status: deliveryStatus === "sent" || deliveryStatus === "stored" ? "sent" : "failed",
       metadata: {
         source: "ai_inbox_product_card",
         product_card_count: productCards.length,
@@ -3144,7 +3250,16 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
         emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: new Date().toISOString() });
       }
     }
-    return sendError(res, error, "Failed to send product cards");
+    return res.status(error?.status || 502).json({
+      success: false,
+      delivery_status: "failed",
+      delivery_error: error?.message || "Failed to send product cards",
+      message: error?.message || "Failed to send product cards",
+      code: error?.code || "",
+      error_code: error?.code || "",
+      conversation_id: conversationId,
+      product_cards: productCards,
+    });
   }
 });
 
