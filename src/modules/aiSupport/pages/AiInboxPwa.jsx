@@ -653,6 +653,10 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
                   <div className="mb-1 text-right text-[10px] font-medium text-emerald-700/70">{absoluteTime(message.created_at)}</div>
                   <div className="text-slate-900">
                     <MessageText text={message.customer_message} />
+                    {message.delivery_status === "failed" ? " · Failed" : ""}
+                    {message.delivery_status === "failed" && message.delivery_error ? (
+                      <p className="mt-1 text-[11px] leading-4 text-rose-200">{message.delivery_error}</p>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -1584,6 +1588,10 @@ export default function AiInboxPwa() {
           : null);
 
       if (returnedMessage) {
+        if (composerMode !== "note" && payload?.delivery_status === "failed") {
+          returnedMessage.delivery_status = "failed";
+          returnedMessage.delivery_error = payload?.delivery_error || payload?.message || "Failed to send";
+        }
         patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({
           ...conversation,
           messages: uniqueMessages([...asArray(conversation.messages), returnedMessage]),
@@ -1596,7 +1604,13 @@ export default function AiInboxPwa() {
         }));
       }
 
-      toast.success(composerMode === "note" ? "Internal note saved" : "Message sent");
+      if (composerMode === "note") {
+        toast.success("Internal note saved");
+      } else if (payload?.delivery_status === "failed") {
+        toast.error(payload?.delivery_error || payload?.message || "Failed to send");
+      } else {
+        toast.success("Message sent");
+      }
       setComposerText("");
       if (composerMode === "note") setComposerMode("reply");
     } catch (sendError) {

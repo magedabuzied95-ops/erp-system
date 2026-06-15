@@ -1210,27 +1210,30 @@ const postWhatsAppMessage = async ({ payload, config }) => {
     body: json(payload),
   });
   const data = await response.json().catch(() => ({}));
+  const messageId = data?.messages?.[0]?.id || data?.message_id || data?.id || "";
+  console.info("[whatsapp-cloud-api-response]", {
+    status: response.status,
+    ok: response.ok,
+    message_id: messageId,
+    payload_type: payload?.type || payload?.message?.attachment?.type || "unknown",
+    response_body: data,
+    source: "aiChannelAdapterService",
+  });
   if (!response.ok) {
-    console.error("[whatsapp-cloud-send] failed", {
-      status: response.status,
-      response_body: data,
-      payload_type: payload?.type || payload?.messaging_product || "unknown",
-      source: "aiChannelAdapterService",
-    });
     const error = Object.assign(new Error(data?.error?.message || "WhatsApp Cloud API send failed"), {
       status: response.status,
       responseBody: data,
     });
     throw error;
   }
-  console.info("[whatsapp-cloud-send] success", {
-    status: response.status,
-    message_id: data?.messages?.[0]?.id || data?.message_id || "",
-    response_body: data,
-    payload_type: payload?.type || payload?.messaging_product || "unknown",
-    source: "aiChannelAdapterService",
-  });
-  return data;
+  if (!messageId) {
+    throw Object.assign(new Error("WhatsApp Cloud API returned no message id"), {
+      status: response.status,
+      code: "WHATSAPP_RESPONSE_INVALID",
+      responseBody: data,
+    });
+  }
+  return { ...data, message_id: messageId };
 };
 
 const visualAttachmentImageUrls = (reply = {}) =>
