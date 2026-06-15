@@ -1429,11 +1429,11 @@ const rawOptionValue = (value, fallback = "") => {
   return String(value ?? fallback ?? "").trim();
 };
 const normalizeCheckoutPaymentMethod = (value) => (rawOptionValue(value).toLowerCase() === "cod" ? "cod" : "shipping_confirmation");
-const CHECKOUT_STEP_STORAGE_KEY = "storefront.checkout.step";
 const normalizeShippingPaymentMethod = (value) => {
   const raw = rawOptionValue(value).toLowerCase();
   return raw === "vodafone_cash" ? "vodafone_cash" : "instapay";
 };
+const CHECKOUT_STEP_STORAGE_KEY = "storefront.checkout.step";
 const normalizeShippingQuote = (quote = {}) => ({
   loading: false,
   price: Number.isFinite(Number(quote.price ?? quote.shipping_price)) ? Number(quote.price ?? quote.shipping_price) : 0,
@@ -5247,6 +5247,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   }, [checkoutStep]);
 
   useEffect(() => {
+    safeSetSessionStorage(CHECKOUT_STEP_STORAGE_KEY, String(checkoutStep), { raw: true });
+  }, [checkoutStep]);
+
+  useEffect(() => {
     if (!form.governorate) {
       setShippingQuote(normalizeShippingQuote());
       return undefined;
@@ -5807,10 +5811,6 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     }
     return undefined;
   }, [codAvailable, form.payment_method]);
-
-  useEffect(() => {
-    safeSetSessionStorage(CHECKOUT_STEP_STORAGE_KEY, String(checkoutStep), { raw: true });
-  }, [checkoutStep]);
 
   useEffect(() => {
     if (!shippingProofRequired) {
