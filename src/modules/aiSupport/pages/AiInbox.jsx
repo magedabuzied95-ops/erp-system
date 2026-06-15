@@ -2456,6 +2456,7 @@ export default function AiInbox() {
   const [profileDebugging, setProfileDebugging] = useState(false);
   const [resettingAiState, setResettingAiState] = useState(false);
   const [olderMessagesLoading, setOlderMessagesLoading] = useState(false);
+  const [leadFunnelExpanded, setLeadFunnelExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState({ tone: "", text: "" });
@@ -3780,32 +3781,56 @@ export default function AiInbox() {
           </div>
         </details>
 
-        <section className="shrink-0 rounded-3xl border border-white/10 bg-white/[0.045] p-3 shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
-          <SectionTitle icon={ArrowUpRight} title="مسار العملاء المحتملين" action={<Pill tone="zinc">{leadPipelineSummary.total}</Pill>} />
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="shrink-0 rounded-3xl border border-white/10 bg-white/[0.045] p-2.5 shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <SectionTitle icon={ArrowUpRight} title="مسار العملاء المحتملين" />
+                <Pill tone="zinc">{leadPipelineSummary.total}</Pill>
+              </div>
+              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                {leadFunnelExpanded ? "Expanded view" : "Compact KPI view"}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLeadFunnelExpanded((current) => !current)}
+              className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black text-slate-100"
+            >
+              <ChevronDown className={`h-4 w-4 transition ${leadFunnelExpanded ? "rotate-180" : ""}`} />
+              {leadFunnelExpanded ? "Collapse" : "Expand"}
+            </button>
+          </div>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             {leadPipelineSummary.funnel.map((item) => (
-              <div key={item.key} className="rounded-2xl border border-white/10 bg-slate-950/55 p-3">
-                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{item.label}</div>
-                <div className={`mt-1 text-2xl font-black ${leadStatusTone(item.key) === "rose" ? "text-rose-100" : leadStatusTone(item.key) === "amber" ? "text-amber-100" : leadStatusTone(item.key) === "violet" ? "text-violet-100" : "text-emerald-100"}`}>{leadPipelineSummary.counts[item.key] || 0}</div>
+              <div key={item.key} className={`rounded-2xl border px-3 py-1.5 ${leadStatusTone(item.key) === "rose" ? "border-rose-300/20 bg-rose-400/10 text-rose-100" : leadStatusTone(item.key) === "amber" ? "border-amber-300/20 bg-amber-400/10 text-amber-100" : leadStatusTone(item.key) === "violet" ? "border-violet-300/20 bg-violet-400/10 text-violet-100" : "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"}`}>
+                <div className="flex items-baseline justify-between gap-3">
+                  <div className="truncate text-[10px] font-black uppercase tracking-[0.14em] opacity-80">{item.label}</div>
+                  <div className="text-base font-black leading-none">{leadPipelineSummary.counts[item.key] || 0}</div>
+                </div>
               </div>
             ))}
           </div>
-          <div className="mt-3 grid gap-2 md:grid-cols-3">
-            {leadPipelineSummary.sourceOrder.map((item) => (
-              <div key={item.key} className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
-                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{item.label}</div>
-                <div className="mt-1 text-xl font-black text-white">{leadPipelineSummary.sourceCounts[item.key] || 0}</div>
+          {leadFunnelExpanded ? (
+            <>
+              <div className="mt-2 grid gap-2 md:grid-cols-3">
+                {leadPipelineSummary.sourceOrder.map((item) => (
+                  <div key={item.key} className="rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2">
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{item.label}</div>
+                    <div className="mt-1 text-base font-black text-white">{leadPipelineSummary.sourceCounts[item.key] || 0}</div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
-            {Object.entries(LEAD_STATUS_META).map(([key, meta]) => (
-              <div key={key} className={`rounded-2xl border px-3 py-2 ${leadStatusTone(key) === "rose" ? "border-rose-300/20 bg-rose-400/10 text-rose-100" : leadStatusTone(key) === "amber" ? "border-amber-300/20 bg-amber-400/10 text-amber-100" : leadStatusTone(key) === "violet" ? "border-violet-300/20 bg-violet-400/10 text-violet-100" : "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"}`}>
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] opacity-80">{meta.label}</div>
-                <div className="mt-1 text-lg font-black">{leadPipelineSummary.counts[key] || 0}</div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {Object.entries(LEAD_STATUS_META).map(([key, meta]) => (
+                  <Pill key={key} tone={leadStatusTone(key)}>
+                    {meta.label}
+                    <span className="opacity-80">{leadPipelineSummary.counts[key] || 0}</span>
+                  </Pill>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          ) : null}
         </section>
 
         <section className="flex min-h-0 flex-1 gap-2 overflow-hidden">
