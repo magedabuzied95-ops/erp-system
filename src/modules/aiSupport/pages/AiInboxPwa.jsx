@@ -388,6 +388,7 @@ function ConversationListItem({ conversation, active, onSelect }) {
   const unreadCount = conversationUnreadCount(conversation);
   const avatar = customerAvatarUrl(conversation);
   const preview = conversationPreview(conversation) || "No messages yet";
+  const unread = unreadCount > 0;
   return (
     <button
       type="button"
@@ -395,25 +396,27 @@ function ConversationListItem({ conversation, active, onSelect }) {
       className={`flex w-full items-start gap-3 rounded-2xl px-2 py-2 text-left transition ${
         active
           ? "bg-slate-900 text-white"
-          : "bg-transparent text-slate-900 hover:bg-white"
+          : unread
+            ? "bg-white text-slate-900 ring-1 ring-slate-200 hover:bg-slate-50"
+            : "bg-transparent text-slate-900 hover:bg-white"
       }`}
     >
       {avatar ? (
         <img
           src={avatar}
           alt={conversationName(conversation)}
-          className="h-11 w-11 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
+          className={`h-11 w-11 shrink-0 rounded-full object-cover ${unread && !active ? "ring-2 ring-emerald-200" : "ring-1 ring-slate-200"}`}
           loading="lazy"
         />
       ) : (
-        <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${active ? "bg-white/12 text-white" : "bg-slate-200 text-slate-600"}`}>
+        <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${active ? "bg-white/12 text-white" : unread ? "bg-emerald-50 text-emerald-700 ring-2 ring-emerald-200" : "bg-slate-200 text-slate-600"}`}>
           <UserRound className="h-5 w-5" />
         </span>
       )}
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="truncate text-[14px] font-semibold leading-5">{conversationName(conversation)}</div>
+            <div className={`truncate text-[14px] leading-5 ${unread && !active ? "font-bold" : "font-semibold"}`}>{conversationName(conversation)}</div>
             <div className="mt-1 flex items-center gap-1.5">
               <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-white/10 text-white" : "bg-slate-100 text-slate-600"}`}>
                 <Icon className={`h-3 w-3 ${active ? "text-white" : meta.tone}`} />
@@ -437,9 +440,9 @@ function ConversationListItem({ conversation, active, onSelect }) {
             ) : null}
           </div>
         </div>
-        <div className={`mt-1.5 flex items-center gap-1.5 text-[12px] ${active ? "text-slate-300" : "text-slate-500"}`}>
-          <CheckCheck className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">{preview}</span>
+        <div className={`mt-1.5 flex items-start gap-1.5 text-[12.5px] leading-4.5 ${active ? "text-slate-300" : unread ? "text-slate-700" : "text-slate-500"}`}>
+          <CheckCheck className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${unread && !active ? "text-emerald-600" : ""}`} />
+          <span className={`line-clamp-2 text-left ${unread && !active ? "font-medium" : ""}`}>{preview}</span>
         </div>
       </div>
     </button>
@@ -1277,8 +1280,8 @@ export default function AiInboxPwa() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-slate-50">
-        <header className="sticky top-0 z-20 border-b border-slate-200 bg-slate-50/95 px-3 pb-2 pt-[max(0.65rem,env(safe-area-inset-top))] backdrop-blur">
+      <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-slate-50">
+        <header className="sticky top-0 z-20 border-b border-slate-200 bg-slate-50/95 px-2.5 pb-2 pt-[max(0.65rem,env(safe-area-inset-top))] backdrop-blur">
           {contentScreen && tab === "conversations" ? (
             <div className="flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2.5">
@@ -1374,7 +1377,7 @@ export default function AiInboxPwa() {
           )}
         </header>
 
-        <main className="flex-1 px-3 pb-[calc(9.25rem+env(safe-area-inset-bottom))] pt-2">
+        <main className="flex-1 px-2 pb-[calc(8.5rem+env(safe-area-inset-bottom))] pt-1.5">
           {error && !loading ? (
             <div className="mb-3 flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -1393,7 +1396,7 @@ export default function AiInboxPwa() {
               <VirtualList
                 items={filteredConversations}
                 estimateSize={72}
-                className="h-[calc(100vh-8.5rem)]"
+                className="h-[calc(100vh-7.85rem-env(safe-area-inset-bottom))]"
                 itemKey={(conversation) => conversation.conversation_key}
                 renderItem={(conversation) => (
                   <div className="border-b border-slate-100 py-0.5">
@@ -1417,7 +1420,7 @@ export default function AiInboxPwa() {
         </main>
 
         {showComposer ? (
-          <div className="fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-20 mx-auto w-full max-w-md px-3">
+          <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 mx-auto w-full max-w-[430px] px-2">
             <div className="rounded-[24px] border border-slate-200 bg-white p-2.5 shadow-[0_18px_40px_rgba(15,23,42,0.14)]">
               {composerMode === "note" ? (
                 <div className="mb-2 flex items-center gap-2 text-xs font-medium text-amber-700">
@@ -1468,7 +1471,7 @@ export default function AiInboxPwa() {
           </div>
         ) : null}
 
-        <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-md border-t border-slate-200 bg-white/95 px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur">
+        <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-[430px] border-t border-slate-200 bg-white/95 px-2 pb-[max(0.45rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur">
           <div className="grid grid-cols-3 gap-1">
             {NAV_ITEMS.map((item) => {
               const active = tab === item.key;
@@ -1478,11 +1481,11 @@ export default function AiInboxPwa() {
                   key={item.key}
                   type="button"
                   onClick={() => updateUrlState({ nextConversationId: item.key === "conversations" ? conversationParam : "", nextTab: item.key })}
-                  className={`flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-medium ${
+                  className={`flex flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-[10px] font-medium ${
                     active ? "bg-slate-900 text-white" : "text-slate-500"
                   }`}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-3.5 w-3.5" />
                   <span>{item.label}</span>
                 </button>
               );
