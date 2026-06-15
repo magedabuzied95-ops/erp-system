@@ -23,6 +23,26 @@ const normalizeConversationChannel = (value = "") => {
   return lower;
 };
 
+const parseConversationReference = ({ sessionId = "", channel = "" } = {}) => {
+  const rawSessionId = toText(sessionId);
+  const requestedChannel = normalizeConversationChannel(channel);
+  const prefixedMatch = rawSessionId.match(/^([a-z0-9_]+):(.*)$/i);
+  if (prefixedMatch) {
+    const prefixedChannel = normalizeConversationChannel(prefixedMatch[1]);
+    const prefixedSessionId = toText(prefixedMatch[2]);
+    return {
+      channel: prefixedChannel || requestedChannel,
+      sessionId: prefixedSessionId || rawSessionId,
+      conversationKey: `${prefixedChannel || requestedChannel || prefixedMatch[1]}:${prefixedSessionId || rawSessionId}`,
+    };
+  }
+  return {
+    channel: requestedChannel,
+    sessionId: rawSessionId,
+    conversationKey: requestedChannel ? `${requestedChannel}:${rawSessionId}` : rawSessionId,
+  };
+};
+
 const isMetaConversationChannel = (value = "") => ["instagram", "facebook_messenger"].includes(normalizeConversationChannel(value));
 
 const compactList = (items = [], limit = 20) =>
@@ -300,8 +320,9 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
 
 export const getAiSupportConversationState = async ({ tenantId, sessionId, channel = "" } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
-  const safeSessionId = toText(sessionId);
-  const safeChannel = normalizeConversationChannel(channel);
+  const conversationReference = parseConversationReference({ sessionId, channel });
+  const safeSessionId = conversationReference.sessionId;
+  const safeChannel = conversationReference.channel;
   if (!safeTenantId || !safeSessionId) return null;
   await ensureAiSupportLogSchema();
 
@@ -465,12 +486,13 @@ export const markAiSupportConversationRead = async ({
   }
   await ensureAiSupportLogSchema();
 
-  const state = await getAiSupportConversationState({ tenantId: safeTenantId, sessionId: safeSessionId, channel: safeChannel });
+  const conversationReference = parseConversationReference({ sessionId: safeSessionId, channel: safeChannel });
+  const state = await getAiSupportConversationState({ tenantId: safeTenantId, sessionId: conversationReference.sessionId, channel: conversationReference.channel });
   if (!state) {
     throw Object.assign(new Error("Conversation not found"), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" });
   }
 
-  const resolvedChannel = normalizeConversationChannel(state.channel || state.session_channel || state.source || safeChannel);
+  const resolvedChannel = normalizeConversationChannel(state.channel || state.session_channel || state.source || conversationReference.channel || safeChannel);
   const readAt = new Date().toISOString();
   const sessionResult = await db.query(
     `
@@ -479,7 +501,7 @@ export const markAiSupportConversationRead = async ({
     WHERE tenant_id = $1::bigint AND session_id = $2::text
     RETURNING *
     `,
-    [safeTenantId, safeSessionId, readAt]
+    [safeTenantId, conversationReference.sessionId, readAt]
   );
 
   const channelResult = resolvedChannel
@@ -492,14 +514,15 @@ export const markAiSupportConversationRead = async ({
           AND channel = $3::text
         RETURNING *
         `,
-        [safeTenantId, safeSessionId, resolvedChannel, readAt]
+        [safeTenantId, conversationReference.sessionId, resolvedChannel, readAt]
       )
     : { rows: [] };
 
   return {
     read_at: readAt,
-    session_id: safeSessionId,
+    session_id: conversationReference.sessionId,
     channel: resolvedChannel || state.channel || state.session_channel || state.source || "",
+    conversation_key: conversationReference.conversationKey,
     ...(sessionResult.rows[0] || {}),
     ...(channelResult.rows[0] || {}),
   };

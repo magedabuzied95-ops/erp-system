@@ -1229,13 +1229,13 @@ export default function AiInboxPwa() {
   const markConversationAsRead = useCallback(
     async (conversation) => {
       const sessionId = clean(conversation?.session_id);
+      const conversationIdentifier = clean(conversation?.conversation_key || sessionId);
       if (!sessionId) return false;
 
-      const conversationIdentifier = conversation.conversation_key || sessionId;
       try {
         await api.post(
-          aiInboxConversationEndpoint(sessionId, "/read"),
-          { tenant_id: tenantId, conversation_id: sessionId, channel: conversation.channel || conversation.source || "" },
+          aiInboxConversationEndpoint(conversationIdentifier, "/read"),
+          { tenant_id: tenantId, conversation_id: conversationIdentifier, channel: conversation.channel || conversation.source || "" },
           { headers, perfComponent: "AiInboxPwa.markRead" }
         );
         patchConversation(conversationIdentifier, (currentConversation) => ({
