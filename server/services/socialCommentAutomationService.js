@@ -4,6 +4,9 @@ import db from "../database/db.js";
 import { emitToRooms } from "../utils/socket.js";
 import { ensureAiSupportLogSchema } from "./aiSupportLogService.js";
 import { ensureAiChannelAdapterSchema } from "./aiChannelAdapterService.js";
+import { getChannelSettings } from "./aiChannelAdapterService.js";
+import { appendAutomationSupportTranscript } from "./aiSupportLogService.js";
+import { likeComment, replyToComment, sendPrivateReply } from "./marketingCommentAutomationService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -224,6 +227,38 @@ const COMMENT_LEAD_TEMPERATURE = {
 };
 
 const COMMENT_THREAD_LABELS = new Set(Object.keys(COMMENT_LEAD_SCORE));
+const COMMENT_AUTOMATION_ELIGIBLE_LABELS = new Set(Object.keys(COMMENT_LEAD_SCORE));
+const COMMENT_AUTOMATION_MIN_SCORE = 0.9;
+const COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT = "تم إرسال التفاصيل في رسالة خاصة ";
+
+const featureFlagEnabled = (value = "") => ["1", "true", "yes", "on"].includes(text(value).toLowerCase());
+
+const getSocialCommentAutomationFlags = () => ({
+  like: featureFlagEnabled(process.env.SOCIAL_COMMENTS_AUTO_LIKE || "false"),
+  publicReply: featureFlagEnabled(process.env.SOCIAL_COMMENTS_AUTO_PUBLIC_REPLY || "false"),
+  privateMessage: featureFlagEnabled(process.env.SOCIAL_COMMENTS_AUTO_PRIVATE_MESSAGE || "false"),
+});
+
+const socialCommentAutomationChannelForPlatform = (platform = "") => (text(platform) === "instagram" ? "instagram" : "facebook_messenger");
+
+const socialCommentAutomationStepFinal = (value = "") => ["sent", "failed", "skipped"].includes(text(value).toLowerCase());
+
+const socialCommentAutomationTone = (status = "") => {
+  const normalized = text(status).toLowerCase();
+  if (normalized === "sent") return "emerald";
+  if (normalized === "failed") return "rose";
+  if (normalized === "skipped") return "zinc";
+  return "amber";
+};
+
+const socialCommentAutomationLabel = (messageType = "") => {
+  const key = text(messageType);
+  if (key === "comment_like") return "Like";
+  if (key === "comment_public_reply") return "Public reply";
+  if (key === "comment_private_reply") return "Private message";
+  if (key === "automation_error") return "Automation error";
+  return key || "";
+};
 
 const buildSocialCommentSuggestedReply = ({ classificationLabel = "", commenterName = "", originalCommentText = "", postPermalink = "" } = {}) => {
   const name = text(commenterName) || "العميل";
@@ -279,6 +314,13 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       lead_reasons: [text(event.classification_label || "")].filter(Boolean),
       recommended_sales_action: "continue_conversation",
       suggested_reply: text(suggestedReply || ""),
+    },
+    automation_state: {
+      like_status: text(event.like_status || "skipped") || "skipped",
+      public_reply_status: text(event.public_reply_status || "skipped") || "skipped",
+      dm_status: text(event.dm_status || "skipped") || "skipped",
+      overall_status: text(event.action_taken || "classified_only") || "classified_only",
+      updated_at: new Date().toISOString(),
     },
   };
 
@@ -482,6 +524,493 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
   };
 };
 
+const resolveSocialCommentTenantAutomationGate = async ({ tenantId = null, platform = "" } = {}) => {
+  const safeTenantId = Number(tenantId);
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0) {
+    return {
+      enabled: false,
+      auto_reply_mode: "off",
+      ai_replies_enabled: false,
+      source: "invalid_tenant",
+      channel: socialCommentAutomationChannelForPlatform(platform),
+    };
+  }
+
+  const channel = socialCommentAutomationChannelForPlatform(platform);
+  const settings = await getChannelSettings({ tenantId: safeTenantId, channel }).catch(() => ({}));
+  const autoReplyMode = text(settings.auto_reply_mode || (settings.ai_replies_enabled === true ? "fully_automatic" : "off")).toLowerCase();
+  return {
+    enabled: settings.ai_replies_enabled === true && autoReplyMode === "fully_automatic",
+    ai_replies_enabled: settings.ai_replies_enabled === true,
+    auto_reply_mode: autoReplyMode || "off",
+    settings_found: settings.settings_found === true,
+    channel,
+    source: "ai_channel_settings",
+  };
+};
+
+const buildSocialCommentAutomationState = ({
+  row = {},
+  featureFlags = {},
+  tenantGate = {},
+  overallStatus = "skipped",
+  reason = "",
+  likeStatus = row.like_status || "skipped",
+  publicReplyStatus = row.public_reply_status || "skipped",
+  dmStatus = row.dm_status || "skipped",
+  errorCode = row.error_code || "",
+  commentId = "",
+  sessionId = "",
+} = {}) => ({
+  eligible: COMMENT_AUTOMATION_ELIGIBLE_LABELS.has(text(row.classification_label || "")) && Number(row.classification_score || 0) >= COMMENT_AUTOMATION_MIN_SCORE,
+  overall_status: overallStatus,
+  reason: text(reason),
+  feature_flags: {
+    like: Boolean(featureFlags.like),
+    public_reply: Boolean(featureFlags.publicReply),
+    private_message: Boolean(featureFlags.privateMessage),
+  },
+  tenant_enabled: Boolean(tenantGate.enabled),
+  auto_reply_mode: text(tenantGate.auto_reply_mode || "off"),
+  like_status: text(likeStatus || "skipped") || "skipped",
+  public_reply_status: text(publicReplyStatus || "skipped") || "skipped",
+  dm_status: text(dmStatus || "skipped") || "skipped",
+  error_code: text(errorCode || ""),
+  comment_id: text(commentId || row.comment_id || ""),
+  session_id: text(sessionId || row.inbox_conversation_id || ""),
+  updated_at: new Date().toISOString(),
+});
+
+const persistSocialCommentAutomationState = async ({
+  tenantId = null,
+  platform = "",
+  commentId = "",
+  sessionId = "",
+  channel = "",
+  actionTaken = "",
+  publicReplyStatus = "",
+  dmStatus = "",
+  likeStatus = "",
+  errorCode = "",
+  automationState = null,
+} = {}) => {
+  const safeTenantId = Number(tenantId);
+  const safeCommentId = text(commentId);
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safeCommentId) return null;
+  const safeSessionId = text(sessionId);
+  const safeChannel = text(channel);
+  const safeActionTaken = text(actionTaken);
+  const safeAutomationState = automationState && typeof automationState === "object" ? automationState : null;
+  const result = await db.query(
+    `
+    UPDATE social_comment_automation_runs
+    SET action_taken = COALESCE(NULLIF($4::text, ''), action_taken),
+        public_reply_status = COALESCE(NULLIF($5::text, ''), public_reply_status),
+        dm_status = COALESCE(NULLIF($6::text, ''), dm_status),
+        like_status = COALESCE(NULLIF($7::text, ''), like_status),
+        error_code = COALESCE(NULLIF($8::text, ''), error_code),
+        automation_state = CASE
+          WHEN $9::jsonb IS NULL THEN automation_state
+          ELSE COALESCE(automation_state, '{}'::jsonb) || $9::jsonb
+        END,
+        inbox_conversation_id = COALESCE(NULLIF($10::text, ''), inbox_conversation_id),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE tenant_id = $1::bigint
+      AND platform = $2::text
+      AND comment_id = $3::text
+    RETURNING *
+    `,
+    [
+      safeTenantId,
+      text(platform || "facebook"),
+      safeCommentId,
+      safeActionTaken,
+      text(publicReplyStatus || ""),
+      text(dmStatus || ""),
+      text(likeStatus || ""),
+      text(errorCode || ""),
+      safeAutomationState ? JSON.stringify(safeAutomationState) : null,
+      safeSessionId,
+    ]
+  );
+
+  if (safeSessionId && safeChannel && safeAutomationState) {
+    await db.query(
+      `
+      UPDATE ai_channel_conversations
+      SET metadata = jsonb_set(
+            COALESCE(metadata, '{}'::jsonb),
+            '{automation_state}',
+            $4::jsonb,
+            true
+          ),
+          updated_at = NOW()
+      WHERE tenant_id = $1::bigint
+        AND channel = $2::text
+        AND external_conversation_id = $3::text
+      `,
+      [safeTenantId, safeChannel, safeSessionId, JSON.stringify(safeAutomationState)]
+    ).catch(() => {});
+  }
+
+  return result.rows[0] || null;
+};
+
+const appendSocialCommentAutomationTranscript = async ({
+  tenantId = null,
+  sessionId = "",
+  channel = "",
+  messageType = "automation_error",
+  message = "",
+  deliveryStatus = "",
+  deliveryError = "",
+  externalMessageId = "",
+  externalReplyId = "",
+} = {}) => {
+  const safeTenantId = Number(tenantId);
+  const safeSessionId = text(sessionId);
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safeSessionId || !text(message)) return null;
+  return appendAutomationSupportTranscript({
+    tenantId: safeTenantId,
+    sessionId: safeSessionId,
+    message: text(message),
+    messageType,
+    channel,
+    deliveryStatus: text(deliveryStatus),
+    deliveryError: text(deliveryError),
+    externalMessageId: text(externalMessageId),
+    externalReplyId: text(externalReplyId),
+    staffUserName: "Social Comment Automation",
+    senderType: "staff",
+    sourcePath: "social_comment_automation",
+    insertSource: "social_comment_automation",
+  }).catch((error) => {
+    console.error("[social-comments][automation] transcript insert failed", {
+      tenant_id: safeTenantId,
+      session_id: safeSessionId,
+      channel,
+      message_type: messageType,
+      message: error?.message || "",
+    });
+    return null;
+  });
+};
+
+export const buildSocialCommentAutomationDecision = ({
+  row = {},
+  featureFlags = getSocialCommentAutomationFlags(),
+  tenantGate = { enabled: false, auto_reply_mode: "off" },
+} = {}) => {
+  const label = text(row.classification_label || "");
+  const score = Number(row.classification_score || 0);
+  const eligible = COMMENT_AUTOMATION_ELIGIBLE_LABELS.has(label) && score >= COMMENT_AUTOMATION_MIN_SCORE;
+  const requested = {
+    like: Boolean(featureFlags.like),
+    publicReply: Boolean(featureFlags.publicReply),
+    privateMessage: Boolean(featureFlags.privateMessage),
+  };
+  const requestedCount = Object.values(requested).filter(Boolean).length;
+  const enabled = eligible && Boolean(tenantGate.enabled) && requestedCount > 0;
+  const reason = !eligible
+    ? "ineligible_comment"
+    : !tenantGate.enabled
+      ? "tenant_automation_disabled"
+      : requestedCount <= 0
+        ? "feature_flags_disabled"
+        : "";
+  return {
+    eligible,
+    enabled,
+    reason,
+    requested,
+    featureFlags,
+    tenantGate,
+  };
+};
+
+export const executeSocialCommentAutomation = async ({
+  tenantId = null,
+  row = {},
+  conversation = null,
+  featureFlags = getSocialCommentAutomationFlags(),
+  tenantGate = null,
+  deps = {},
+} = {}) => {
+  const safeTenantId = Number(tenantId || row.tenant_id || 0);
+  const safeRow = row || {};
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safeRow.comment_id) return { skipped: true, reason: "invalid_input" };
+  const effectiveTenantGate = tenantGate || await resolveSocialCommentTenantAutomationGate({ tenantId: safeTenantId, platform: safeRow.platform });
+  const decision = buildSocialCommentAutomationDecision({ row: safeRow, featureFlags, tenantGate: effectiveTenantGate });
+  const sessionId = text(safeRow.inbox_conversation_id || conversation?.session_id || `social_comment:${text(safeRow.platform || "facebook")}:${text(safeRow.root_comment_id || safeRow.comment_id)}`);
+  const channel = text(safeRow.channel || (text(safeRow.platform) === "instagram" ? "instagram_comment" : "facebook_comment"));
+  const appendTranscript = deps.appendTranscriptFn || appendSocialCommentAutomationTranscript;
+  const persistState = deps.persistStateFn || persistSocialCommentAutomationState;
+  const stageSummary = buildSocialCommentAutomationState({
+    row: safeRow,
+    featureFlags: decision.featureFlags,
+    tenantGate: decision.tenantGate,
+    overallStatus: decision.enabled ? "pending" : "skipped",
+    reason: decision.reason,
+    commentId: safeRow.comment_id,
+    sessionId,
+  });
+  const hasPriorFinalState = [safeRow.like_status, safeRow.public_reply_status, safeRow.dm_status]
+    .map((status) => text(status).toLowerCase())
+    .some((status) => socialCommentAutomationStepFinal(status))
+    || ["completed", "partial", "failed"].includes(text(safeRow.automation_state?.overall_status || safeRow.automation_state?.status || "").toLowerCase());
+
+  if (!decision.enabled) {
+    if (hasPriorFinalState) {
+      return { skipped: true, reason: decision.reason || "automation_disabled", decision, row: safeRow, preserved: true };
+    }
+    const skippedRow = await persistState({
+      tenantId: safeTenantId,
+      platform: safeRow.platform,
+      commentId: safeRow.comment_id,
+      sessionId,
+      channel,
+      actionTaken: decision.eligible ? `automation_skipped_${decision.reason || "disabled"}` : "automation_skipped_ineligible",
+      likeStatus: "skipped",
+      publicReplyStatus: "skipped",
+      dmStatus: "skipped",
+      errorCode: decision.reason || "",
+      automationState: stageSummary,
+    });
+    return { skipped: true, reason: decision.reason || "automation_disabled", decision, row: skippedRow || safeRow };
+  }
+
+  const likeFn = deps.likeCommentFn || likeComment;
+  const publicReplyFn = deps.replyToCommentFn || replyToComment;
+  const privateReplyFn = deps.sendPrivateReplyFn || sendPrivateReply;
+  const replyText = text(conversation?.suggested_reply || conversation?.metadata?.lead?.suggested_reply || safeRow.suggested_reply || buildSocialCommentSuggestedReply({
+    classificationLabel: safeRow.classification_label,
+    commenterName: safeRow.commenter_name,
+    originalCommentText: safeRow.original_comment_text,
+    postPermalink: safeRow.post_permalink,
+  }));
+  const automationState = {
+    ...stageSummary,
+    overall_status: "running",
+    requested_steps: decision.requested,
+  };
+  let likeStatus = text(safeRow.like_status || "");
+  let publicReplyStatus = text(safeRow.public_reply_status || "");
+  let dmStatus = text(safeRow.dm_status || "");
+  let errorCode = text(safeRow.error_code || "");
+  const requestedAny = Object.values(decision.requested).some(Boolean);
+  const currentStatuses = {
+    like: likeStatus || "skipped",
+    public_reply: publicReplyStatus || "skipped",
+    private_message: dmStatus || "skipped",
+  };
+
+  const reportState = async ({ actionTaken = "", reason = "" } = {}) => {
+    automationState.overall_status = reason ? "partial" : "completed";
+    automationState.reason = reason || automationState.reason || "";
+    automationState.like_status = likeStatus || automationState.like_status || "skipped";
+    automationState.public_reply_status = publicReplyStatus || automationState.public_reply_status || "skipped";
+    automationState.dm_status = dmStatus || automationState.dm_status || "skipped";
+    automationState.error_code = errorCode || automationState.error_code || "";
+    automationState.updated_at = new Date().toISOString();
+    return persistState({
+      tenantId: safeTenantId,
+      platform: safeRow.platform,
+      commentId: safeRow.comment_id,
+      sessionId,
+      channel,
+      actionTaken,
+      likeStatus,
+      publicReplyStatus,
+      dmStatus,
+      errorCode,
+      automationState,
+    });
+  };
+
+  if (!requestedAny) {
+    if (hasPriorFinalState) {
+      return { skipped: true, reason: "feature_flags_disabled", decision, row: safeRow, preserved: true };
+    }
+    automationState.overall_status = "skipped";
+    automationState.reason = "feature_flags_disabled";
+    const skippedRow = await reportState({ actionTaken: "automation_skipped_feature_flags", reason: "feature_flags_disabled" });
+    return { skipped: true, reason: "feature_flags_disabled", decision, row: skippedRow || safeRow };
+  }
+
+  const publicReplyNeeded = decision.requested.publicReply && !socialCommentAutomationStepFinal(publicReplyStatus);
+  const likeNeeded = decision.requested.like && !socialCommentAutomationStepFinal(likeStatus);
+  const privateMessageNeeded = decision.requested.privateMessage && !socialCommentAutomationStepFinal(dmStatus);
+  const stepErrors = [];
+
+  const runStep = async ({
+    key,
+    messageType,
+    deliveryStatusValue,
+    send,
+    message,
+    successLabel,
+    failureLabel,
+    buildExternalId,
+  }) => {
+    try {
+      const response = await send();
+      const externalReplyId = text(buildExternalId?.(response) || response?.id || response?.comment_id || response?.reply_id || "");
+      await appendTranscript({
+        tenantId: safeTenantId,
+        sessionId,
+        channel,
+        messageType,
+        message,
+        deliveryStatus: deliveryStatusValue,
+        deliveryError: "",
+        externalMessageId: externalReplyId,
+        externalReplyId,
+      });
+      if (key === "like") likeStatus = "sent";
+      if (key === "public_reply") publicReplyStatus = "sent";
+      if (key === "private_message") dmStatus = "sent";
+      automationState[key === "public_reply" ? "public_reply_status" : key === "private_message" ? "dm_status" : "like_status"] = "sent";
+      automationState.last_success = key;
+      automationState.last_error = "";
+      console.log(`[social-comments][automation] ${successLabel}`, {
+        tenant_id: safeTenantId,
+        comment_id: safeRow.comment_id,
+        session_id: sessionId,
+        channel,
+      });
+      return null;
+    } catch (error) {
+      const errorMessage = error?.message || `${key} failed`;
+      const failureCode = !error?.status || /fetch failed|network|timeout|ENOTFOUND|ECONNREFUSED/i.test(errorMessage)
+        ? "transport_failed"
+        : "meta_reply_failed";
+      if (key === "like") likeStatus = "failed";
+      if (key === "public_reply") publicReplyStatus = "failed";
+      if (key === "private_message") dmStatus = "failed";
+      errorCode = failureCode;
+      automationState[key === "public_reply" ? "public_reply_status" : key === "private_message" ? "dm_status" : "like_status"] = "failed";
+      automationState.last_error = errorMessage;
+      automationState.error_code = failureCode;
+      await appendTranscript({
+        tenantId: safeTenantId,
+        sessionId,
+        channel,
+        messageType: "automation_error",
+        message: errorMessage,
+        deliveryStatus: "failed",
+        deliveryError: errorMessage,
+        externalMessageId: "",
+        externalReplyId: "",
+      });
+      await appendTranscript({
+        tenantId: safeTenantId,
+        sessionId,
+        channel,
+        messageType,
+        message,
+        deliveryStatus: "failed",
+        deliveryError: errorMessage,
+        externalMessageId: "",
+        externalReplyId: "",
+      });
+      stepErrors.push({ key, message: errorMessage, code: failureCode });
+      console.warn(`[social-comments][automation] ${failureLabel}`, {
+        tenant_id: safeTenantId,
+        comment_id: safeRow.comment_id,
+        session_id: sessionId,
+        channel,
+        code: failureCode,
+        message: errorMessage,
+      });
+      return errorMessage;
+    }
+  };
+
+  if (likeNeeded) {
+    await runStep({
+      key: "like",
+      messageType: "comment_like",
+      deliveryStatusValue: "sent",
+      send: () => likeFn(safeRow.platform, safeRow.comment_id, safeTenantId),
+      message: "تم عمل لايك على الكومنت",
+      successLabel: "like success",
+      failureLabel: "like failed",
+    });
+  } else if (decision.requested.like) {
+    likeStatus = socialCommentAutomationStepFinal(likeStatus) ? likeStatus : "skipped";
+  }
+
+  if (publicReplyNeeded) {
+    await runStep({
+      key: "public_reply",
+      messageType: "comment_public_reply",
+      deliveryStatusValue: "sent",
+      send: () => publicReplyFn(safeRow.platform, safeRow.comment_id, COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT, safeTenantId),
+      message: COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT,
+      successLabel: "public reply success",
+      failureLabel: "public reply failed",
+      buildExternalId: (response) => response?.id || response?.comment_id || response?.reply_id || "",
+    });
+  } else if (decision.requested.publicReply) {
+    publicReplyStatus = socialCommentAutomationStepFinal(publicReplyStatus) ? publicReplyStatus : "skipped";
+  }
+
+  if (privateMessageNeeded) {
+    await runStep({
+      key: "private_message",
+      messageType: "comment_private_reply",
+      deliveryStatusValue: "sent",
+      send: () => privateReplyFn(safeRow.platform, safeRow.comment_id, replyText || COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT, safeTenantId),
+      message: replyText || COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT,
+      successLabel: "private message success",
+      failureLabel: "private message failed",
+      buildExternalId: (response) => response?.id || response?.message_id || response?.reply_id || "",
+    });
+  } else if (decision.requested.privateMessage) {
+    dmStatus = socialCommentAutomationStepFinal(dmStatus) ? dmStatus : "skipped";
+  }
+
+  const hasAnySent = [likeStatus, publicReplyStatus, dmStatus].some((status) => text(status).toLowerCase() === "sent");
+  const hasAnyFailed = [likeStatus, publicReplyStatus, dmStatus].some((status) => text(status).toLowerCase() === "failed");
+  const overallStatus = stepErrors.length
+    ? (hasAnySent ? "partial" : "failed")
+    : (hasAnyFailed ? (hasAnySent ? "partial" : "failed") : "completed");
+  automationState.overall_status = overallStatus;
+  automationState.reason = stepErrors.length ? "automation_step_failed" : (hasAnyFailed ? "previous_step_failed" : "");
+  automationState.error_code = errorCode || "";
+  automationState.like_status = likeStatus || "skipped";
+  automationState.public_reply_status = publicReplyStatus || "skipped";
+  automationState.dm_status = dmStatus || "skipped";
+  automationState.updated_at = new Date().toISOString();
+
+  const finalAction = overallStatus === "completed"
+    ? "automation_completed"
+    : overallStatus === "partial"
+      ? "automation_partial"
+      : "automation_failed";
+  const updatedRow = await reportState({ actionTaken: finalAction, reason: automationState.reason || "" });
+  emitToRooms([`tenant:${safeTenantId}`], "ai_inbox:refresh", {
+    tenant_id: safeTenantId,
+    session_id: sessionId,
+    at: new Date().toISOString(),
+  });
+
+  return {
+    skipped: false,
+    decision,
+    row: updatedRow || safeRow,
+    session_id: sessionId,
+    channel,
+    status: overallStatus,
+    like_status: likeStatus || "skipped",
+    public_reply_status: publicReplyStatus || "skipped",
+    dm_status: dmStatus || "skipped",
+    error_code: errorCode || "",
+    automation_state: automationState,
+    errors: stepErrors,
+  };
+};
+
 let socialCommentSchemaReadyPromise = null;
 
 export const ensureSocialCommentAutomationSchema = async (clientOrPool = db) => {
@@ -510,6 +1039,7 @@ export const ensureSocialCommentAutomationSchema = async (clientOrPool = db) => 
           like_status TEXT NULL,
           inbox_conversation_id TEXT NULL,
           error_code TEXT NULL,
+          automation_state JSONB NOT NULL DEFAULT '{}'::jsonb,
           raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
           processed_at TIMESTAMP NULL,
           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -521,6 +1051,7 @@ export const ensureSocialCommentAutomationSchema = async (clientOrPool = db) => 
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_tenant_created ON social_comment_automation_runs (tenant_id, created_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_tenant_platform ON social_comment_automation_runs (tenant_id, platform, created_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_tenant_comment ON social_comment_automation_runs (tenant_id, comment_id)`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS automation_state JSONB NOT NULL DEFAULT '{}'::jsonb`);
     })();
   }
 
@@ -627,6 +1158,7 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
     like_status: null,
     inbox_conversation_id: null,
     error_code: null,
+    automation_state: {},
     raw_payload: {
       source: "meta_webhook",
       body_object: body.object || "",
@@ -681,6 +1213,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       like_status: event.like_status ?? null,
       inbox_conversation_id: event.inbox_conversation_id ?? null,
       error_code: event.error_code ?? null,
+      automation_state: event.automation_state && typeof event.automation_state === "object" ? event.automation_state : {},
       raw_payload: event.raw_payload && typeof event.raw_payload === "object" ? event.raw_payload : { raw_payload: event.raw_payload ?? null },
       processed_at: event.processed_at ? new Date(event.processed_at).toISOString() : new Date().toISOString(),
     };
@@ -691,13 +1224,13 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         tenant_id, platform, channel, post_id, post_permalink, comment_id, parent_comment_id, root_comment_id,
         commenter_id, commenter_name, commenter_profile_picture_url, original_comment_text, classification_label,
         classification_score, action_taken, public_reply_status, dm_status, like_status, inbox_conversation_id,
-        error_code, raw_payload, processed_at, created_at, updated_at
+        error_code, automation_state, raw_payload, processed_at, created_at, updated_at
       )
       VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8,
         $9, $10, $11, $12, $13,
         $14, $15, $16, $17, $18, $19,
-        $20, $21::jsonb, $22::timestamp, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        $20, $21::jsonb, $22::jsonb, $23::timestamp, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
       ON CONFLICT (tenant_id, platform, comment_id) DO UPDATE SET
         channel = EXCLUDED.channel,
@@ -721,6 +1254,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         like_status = COALESCE(social_comment_automation_runs.like_status, EXCLUDED.like_status),
         inbox_conversation_id = COALESCE(social_comment_automation_runs.inbox_conversation_id, EXCLUDED.inbox_conversation_id),
         error_code = COALESCE(social_comment_automation_runs.error_code, EXCLUDED.error_code),
+        automation_state = COALESCE(social_comment_automation_runs.automation_state, EXCLUDED.automation_state),
         raw_payload = EXCLUDED.raw_payload,
         processed_at = COALESCE(social_comment_automation_runs.processed_at, EXCLUDED.processed_at),
         updated_at = CURRENT_TIMESTAMP
@@ -747,6 +1281,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         normalized.like_status,
         normalized.inbox_conversation_id,
         normalized.error_code,
+        JSON.stringify(normalized.automation_state || {}),
         JSON.stringify(normalized.raw_payload || {}),
       normalized.processed_at,
       ]
@@ -776,6 +1311,23 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
             `,
             [storedRow.tenant_id, storedRow.platform, materialized.session_id, storedRow.comment_id]
           );
+        }
+        const automationResult = await executeSocialCommentAutomation({
+          tenantId: storedRow.tenant_id,
+          row: {
+            ...storedRow,
+            inbox_conversation_id: materialized?.session_id || storedRow.inbox_conversation_id || "",
+          },
+          conversation: materialized,
+        });
+        if (automationResult?.row) {
+          storedRow.action_taken = automationResult.row.action_taken || storedRow.action_taken;
+          storedRow.public_reply_status = automationResult.row.public_reply_status || storedRow.public_reply_status;
+          storedRow.dm_status = automationResult.row.dm_status || storedRow.dm_status;
+          storedRow.like_status = automationResult.row.like_status || storedRow.like_status;
+          storedRow.error_code = automationResult.row.error_code || storedRow.error_code;
+          storedRow.automation_state = automationResult.row.automation_state || storedRow.automation_state;
+          storedRow.inbox_conversation_id = automationResult.row.inbox_conversation_id || storedRow.inbox_conversation_id;
         }
       } catch (error) {
         console.error("[social-comments] lead conversation materialize failed", {

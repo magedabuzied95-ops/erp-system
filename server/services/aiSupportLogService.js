@@ -828,6 +828,147 @@ export const appendAiGeneratedSupportReply = async ({
   return result.rows[0] || null;
 };
 
+export const appendAutomationSupportTranscript = async ({
+  tenantId,
+  sessionId,
+  message = "",
+  messageType = "automation_error",
+  channel = "",
+  deliveryStatus = "",
+  deliveryError = "",
+  externalMessageId = "",
+  externalReplyId = "",
+  staffUserName = "Social Comment Automation",
+  senderType = "staff",
+  sourcePath = "social_comment_automation",
+  insertSource = "social_comment_automation",
+  staffUserId = null,
+  productCards = [],
+} = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeSessionId = toText(sessionId);
+  const safeMessage = repairText(message);
+  const safeMessageType = toText(messageType || "automation_error") || "automation_error";
+  if (!safeTenantId || !safeSessionId || !safeMessage) {
+    return null;
+  }
+  await ensureAiSupportLogSchema();
+
+  const sessionResult = await db.query(
+    `
+    SELECT id
+    FROM ai_support_sessions
+    WHERE tenant_id = $1 AND session_id = $2
+    LIMIT 1
+    `,
+    [safeTenantId, safeSessionId]
+  );
+
+  let sessionRefId = sessionResult.rows[0]?.id || null;
+  if (!sessionRefId) {
+    const createdSession = await db.query(
+      `
+      INSERT INTO ai_support_sessions (
+        tenant_id,
+        user_id,
+        session_id,
+        source,
+        status,
+        channel,
+        thread_kind,
+        customer_name,
+        last_message,
+        updated_at
+      )
+      VALUES ($1, $2, $3, $4, 'ai_active', COALESCE(NULLIF($5, ''), 'web_chat'), 'comment', '', $6, NOW())
+      ON CONFLICT (tenant_id, session_id) DO UPDATE SET
+        channel = COALESCE(NULLIF(EXCLUDED.channel, ''), ai_support_sessions.channel),
+        last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_support_sessions.last_message),
+        updated_at = NOW()
+      RETURNING id
+      `,
+      [
+        safeTenantId,
+        numberOrNull(staffUserId),
+        safeSessionId,
+        repairText(sourcePath, "social_comment_automation"),
+        repairText(channel),
+        safeMessage,
+      ]
+    );
+    sessionRefId = createdSession.rows[0]?.id || null;
+  }
+
+  const result = await db.query(
+    `
+    INSERT INTO ai_support_messages (
+      session_ref_id,
+      tenant_id,
+      user_id,
+      session_id,
+      message_text,
+      customer_message,
+      ai_answer,
+      confidence,
+      needs_human_support,
+      sources_used,
+      suggested_products,
+      visual_attachments,
+      suggested_actions,
+      detected_intent,
+      fallback_reason,
+      staff_message,
+      sender_type,
+      manual_message,
+      staff_user_id,
+      staff_user_name,
+      channel,
+      source_path,
+      delivery_status,
+      delivery_error,
+      external_message_id,
+      external_reply_id,
+      message_type,
+      product_cards,
+      insert_source
+    )
+    VALUES ($1, $2, $3, $4, $5, '', '', 1, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '', '', $5, $6, FALSE, $3, $7, COALESCE(NULLIF($8, ''), 'web_chat'), $9, $10, $11, $12, $13, $14, $15::jsonb, $16)
+    RETURNING *
+    `,
+    [
+      sessionRefId,
+      safeTenantId,
+      numberOrNull(staffUserId),
+      safeSessionId,
+      safeMessage,
+      repairText(staffUserName),
+      repairText(senderType || "staff"),
+      repairText(channel),
+      repairText(sourcePath, "social_comment_automation"),
+      repairText(deliveryStatus),
+      repairText(deliveryError),
+      repairText(externalMessageId),
+      repairText(externalReplyId),
+      safeMessageType,
+      jsonValue(Array.isArray(productCards) ? productCards : []),
+      repairText(insertSource),
+    ]
+  );
+
+  await db.query(
+    `
+    UPDATE ai_support_sessions
+    SET last_message = $3,
+        channel = COALESCE(NULLIF($4, ''), channel),
+        updated_at = NOW()
+    WHERE tenant_id = $1 AND session_id = $2
+    `,
+    [safeTenantId, safeSessionId, safeMessage, repairText(channel)]
+  ).catch(() => {});
+
+  return result.rows[0] || null;
+};
+
 export const logAiSupportMessage = async ({
   tenantId,
   userId = null,

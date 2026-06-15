@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS social_comment_automation_runs (
   like_status TEXT NULL,
   inbox_conversation_id TEXT NULL,
   error_code TEXT NULL,
+  automation_state JSONB NOT NULL DEFAULT '{}'::jsonb,
   raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
   processed_at TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
