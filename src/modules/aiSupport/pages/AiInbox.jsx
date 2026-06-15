@@ -560,9 +560,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
   const customerName = isMessengerConversation(item) ? messengerDisplayName(item) : getConversationDisplayName(item);
   const avatarUrl = customerAvatarUrl(item);
-  const lastMessage = item.latest_message_preview || item.last_message || item.customer_message || item.ai_answer || "لا توجد رسائل بعد.";
   const unreadCount = Number(item.unread_count || item.unread || 0);
-  const aiState = item.conversation_status === "closed" || item.conversation_status === "human_takeover" || item.needs_human_support ? "Paused" : "Active";
   const containerTone =
     active
       ? "border-cyan-300/50 bg-cyan-300/12 shadow-[0_10px_30px_rgba(34,211,238,0.12)]"
@@ -573,7 +571,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
     <button
       type="button"
       onClick={() => onSelect(item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
-      className={`w-full rounded-2xl border p-3 text-left transition ${containerTone}`}
+      className={`w-full rounded-2xl border px-3 py-2.5 text-left transition ${containerTone}`}
     >
       <div className="flex items-start gap-3">
         <div className="relative shrink-0">
@@ -590,12 +588,10 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
               <div className="truncate text-[15px] font-black leading-5 text-white">{customerName}</div>
               <div className="mt-1 flex flex-wrap items-center gap-1.5">
                 <Pill tone={isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>{channelBadgeLabel(channel)}</Pill>
-                <span className={`inline-flex h-5 items-center rounded-full px-2 text-[10px] font-black uppercase tracking-[0.14em] ${aiState === "Active" ? "bg-emerald-300/12 text-emerald-100" : "bg-amber-300/12 text-amber-100"}`}>AI {aiState}</span>
               </div>
             </div>
             <span className="shrink-0 text-[11px] font-bold text-slate-500">{relativeTime(item.last_message_at || item.last_activity_at || item.updated_at)}</span>
           </div>
-          <p dir={isRtlText(lastMessage) ? "rtl" : "auto"} className="mt-2 line-clamp-2 text-[13px] leading-6 text-slate-300">{lastMessage}</p>
           {unreadCount ? <div className="mt-2 flex justify-end"><span className="inline-flex h-5 items-center rounded-full bg-rose-400/12 px-2 text-[10px] font-black text-rose-100">غير مقروء {unreadCount}</span></div> : null}
         </div>
       </div>
@@ -692,7 +688,6 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
   const customerName = getConversationDisplayName(item) || "Customer";
   const avatarUrl = customerAvatarUrl(item);
-  const lastMessage = item.latest_message_preview || item.last_message || item.customer_message || item.ai_answer || "لا توجد رسائل بعد.";
   const unreadCount = Number(item.unread_count || item.unread || 0);
   const containerTone = active
     ? "border-cyan-300/50 bg-cyan-300/12 shadow-[0_0_0_1px_rgba(34,211,238,0.2),0_18px_45px_rgba(8,145,178,0.16)]"
@@ -703,7 +698,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
     <button
       type="button"
       onClick={() => onSelect(item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
-      className={`w-full rounded-2xl border p-3 text-left transition duration-200 ${containerTone}`}
+      className={`w-full rounded-2xl border px-3 py-2.5 text-left transition duration-200 ${containerTone}`}
     >
       <div className="flex items-start gap-3">
         <div className="relative shrink-0">
@@ -726,7 +721,6 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
             </div>
             <span className="shrink-0 text-[11px] font-bold text-slate-500">{relativeTime(item.last_message_at || item.last_activity_at || item.updated_at)}</span>
           </div>
-          <p dir={isRtlText(lastMessage) ? "rtl" : "auto"} className="mt-2 line-clamp-1 text-[13px] leading-5 text-slate-300">{lastMessage}</p>
           {unreadCount ? <div className="mt-2 flex justify-end"><span className="inline-flex h-5 items-center rounded-full bg-rose-400/12 px-2 text-[10px] font-black text-rose-100">Unread {unreadCount}</span></div> : null}
         </div>
       </div>
@@ -3491,11 +3485,11 @@ export default function AiInbox() {
               {filteredConversations.length ? (
                 <VirtualList
                   items={filteredConversations}
-                  estimateSize={98}
+                  estimateSize={84}
                   className="h-full pr-1"
                   itemKey={(item) => item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`}
                   renderItem={(item) => (
-                    <div className="pb-2">
+                      <div className="pb-1.5">
                       <InboxConversationCard
                         item={item}
                         unseen={unseenSessions.includes(item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
