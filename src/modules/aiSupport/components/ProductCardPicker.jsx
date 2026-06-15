@@ -496,7 +496,37 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
           </div>
 
           <div className="min-h-0 overflow-y-auto rounded-3xl border border-white/10 bg-white/[0.035] p-3">
-            {selectedProduct ? (
+            {sizeMode && selectedSize ? (
+              <div className="space-y-3">
+                <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">Size mode</div>
+                  <div className="mt-1 text-lg font-black text-white">المقاس المختار: {selectedSize}</div>
+                  <div className="mt-2 text-sm font-semibold text-slate-400">اختر المنتجات التي تريد إرسالها من القائمة.</div>
+                  <div className="mt-3 inline-flex rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-black text-cyan-100">
+                    عدد المنتجات المحددة: {selectedProducts.length}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3">
+                  <div className="text-sm font-black text-white">إرسال محددات المقاس</div>
+                  <div className="mt-2 text-xs font-semibold leading-6 text-slate-400">
+                    المنتجات الظاهرة في القائمة هي فقط التي لديها stock فعلي لهذا المقاس. لا حاجة لاختيار لون أو مقاس لكل منتج.
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={submitSelectionWithSizeMode}
+                  disabled={submitting || !selectedProducts.length}
+                  className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  إرسال المنتجات المحددة
+                </button>
+
+                {error ? <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
+              </div>
+            ) : selectedProduct ? (
               <div className="space-y-3">
                 <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70">
                   {activeImage ? (
