@@ -195,6 +195,14 @@ const productUrl = (product = {}) => {
   ]);
 };
 
+const compactStorefrontReceipt = (payload = {}, meta = {}) => ({
+  order: payload.order || {},
+  items: Array.isArray(payload.items) ? payload.items : [],
+  customer: payload.customer || {},
+  checkout: payload.checkout || {},
+  ...meta,
+});
+
 const normalizeWishlistProduct = (item = {}) => {
   const nestedItem = item?.item && typeof item.item === "object" ? item.item : {};
   const product = nestedProductFor(item);
@@ -6056,7 +6064,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
         customer: { full_name: form.full_name, phone: cleanPhone },
         checkout: { ...checkoutPayload, shipping_payment_method: shippingPaymentMethod, coupon_code: couponCodeToSend, coupon_discount_amount: couponDiscountToSend },
       };
-      const publicNumber = displayOrderNumber(data.order);
+      const publicNumber = displayPublicOrderNumber(data.order);
       const receiptPayload = compactStorefrontReceipt(successPayload, {
         id: data.order?.id,
         invoice_number: data.order?.invoice_number,
