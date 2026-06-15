@@ -3124,9 +3124,9 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
             reply: { text: fallbackText, product_cards: productCards },
             messageText: fallbackText,
           });
-          deliveryStatus = sendResult.sent ? "sent" : "failed";
+          deliveryStatus = sendResult.sent === true ? "sent" : "failed";
           if (deliveryStatus === "failed" && !deliveryError) {
-            deliveryError = sendResult?.message || "Product card message was not delivered";
+            deliveryError = sendResult?.delivery_error || sendResult?.message || "Product card message was not delivered";
           }
           externalMessageId = sendResult.message_id || "";
         } catch (error) {
@@ -3237,9 +3237,11 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
     emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: new Date().toISOString() });
 
     return res.status(201).json({
-      success: true,
+      success: deliveryStatus !== "failed",
       sent: deliveryStatus === "sent",
       delivery_status: deliveryStatus,
+      delivery_error: deliveryStatus === "failed" ? (deliveryError || sendResult?.delivery_error || "") : "",
+      fallback_used: sendResult?.fallback_used === true,
       reason: storedOnlyReason || undefined,
       message,
       product_cards: productCards,

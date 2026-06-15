@@ -1654,7 +1654,15 @@ export default function AiInboxPwa() {
           { headers, perfComponent: "AiInboxPwa.productCard" }
         );
 
-        const returnedMessage = payload?.message || null;
+        const deliveryStatus = payload?.delivery_status || "sent";
+        const returnedMessage = payload?.message
+          ? {
+              ...payload.message,
+              delivery_status: payload?.delivery_status || payload?.message?.delivery_status,
+              delivery_error: payload?.delivery_error || payload?.message?.delivery_error || "",
+              fallback_used: payload?.fallback_used === true,
+            }
+          : null;
         const returnedCards = normalizeProductCardsValue(returnedMessage?.product_cards || returnedMessage?.productCards);
         const normalizedCards = returnedCards.length
           ? returnedCards.map((card, index) => {
@@ -1691,13 +1699,19 @@ export default function AiInboxPwa() {
             productCardPreviewText(sentCards) ||
             returnedMessage?.staff_message ||
             returnedMessage?.message_text ||
-            "Product sent",
+            (deliveryStatus === "stored_only" ? "Saved only" : deliveryStatus === "failed" ? "Failed to send product" : "Product sent"),
           last_activity_at: returnedMessage?.created_at || new Date().toISOString(),
           updated_at: returnedMessage?.created_at || new Date().toISOString(),
         }));
 
         setProductSheetOpen(false);
-        toast.success("Product sent");
+        if (deliveryStatus === "stored_only") {
+          toast.info("Saved only, not delivered");
+        } else if (deliveryStatus === "failed") {
+          toast.error(`Failed to send${payload?.delivery_error ? `: ${payload.delivery_error}` : ""}`);
+        } else {
+          toast.success("Product sent");
+        }
       } catch (sendError) {
         toast.error(sendError?.message || "Failed to send product");
       } finally {

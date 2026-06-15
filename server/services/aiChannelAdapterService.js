@@ -1260,6 +1260,22 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
   const results = [];
   const productCards = normalizeStructuredProductCards(reply.product_cards, { limit: 6 });
   const productCardTexts = productCards.map((product) => toText(productCardReplyText(product))).filter(Boolean);
+  const trackSuccess = (kind, response) => {
+    const messageId = response?.message_id || response?.messages?.[0]?.id || response?.id || "";
+    results.push({ kind, ok: true, message_id: messageId, response });
+    return messageId;
+  };
+  const trackFailure = (kind, error) => {
+    results.push({
+      kind,
+      ok: false,
+      error: {
+        message: error?.message || "WhatsApp send failed",
+        code: error?.code || "",
+        status: error?.status || "",
+      },
+    });
+  };
   const normalizeImageKey = (value = "") => toText(value).toLowerCase().replace(/^https?:\/\/[^/]+/i, "").replace(/[?#].*$/, "");
   const productImageKeys = new Set(
     productCards
@@ -1267,6 +1283,10 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
       .filter(Boolean)
   );
   const imageCards = visualAttachmentImageUrls(reply).filter((imageUrl) => !productImageKeys.has(normalizeImageKey(imageUrl)));
+  let fallbackUsed = false;
+  let deliveryError = "";
+  let firstMessageId = "";
+  let successCount = 0;
   if (productCards.length || imageCards.length) {
     const firstCard = productCards[0] || {};
     console.info("[CHANNEL_CARD_PAYLOAD]", {
@@ -1285,8 +1305,8 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
       },
     });
   }
-  if (text || (!text && productCardTexts.length)) {
-    results.push(await postWhatsAppMessage({
+  if (!productCards.length && (text || productCardTexts.length)) {
+    const textResponse = await postWhatsAppMessage({
       config,
       payload: {
         messaging_product: "whatsapp",
@@ -1295,14 +1315,16 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
         type: "text",
         text: { preview_url: false, body: (text || productCardTexts.join("\n\n")).slice(0, 4096) },
       },
-    }));
+    });
+    firstMessageId = firstMessageId || trackSuccess("text", textResponse);
+    successCount += 1;
   }
   for (const product of productCards) {
     const productText = toText(productCardReplyText(product)).slice(0, 1024);
     const productImage = toText(product.image_url || product.image || product.main_image || "");
     if (productImage) {
       try {
-        results.push(await postWhatsAppMessage({
+        const imageResponse = await postWhatsAppMessage({
           config,
           payload: {
             messaging_product: "whatsapp",
@@ -1311,43 +1333,64 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
             type: "image",
             image: { link: productImage, caption: productText || undefined },
           },
-        }));
-      } catch (error) {
-        console.warn("[ai-agent:whatsapp] product image send failed; text reply already attempted", {
+        });
+        firstMessageId = firstMessageId || trackSuccess("product_image", imageResponse);
+        successCount += 1;
+      } catch (imageError) {
+        fallbackUsed = true;
+        trackFailure("product_image", imageError);
+        console.warn("[ai-agent:whatsapp] product image send failed; attempting text fallback", {
           to: recipient,
           image_url: productImage,
-          message: error?.message,
-          status: error?.status,
+          message: imageError?.message,
+          status: imageError?.status,
         });
-        if (!text && productText) {
-          results.push(await postWhatsAppMessage({
-            config,
-            payload: {
-              messaging_product: "whatsapp",
-              recipient_type: "individual",
-              to: recipient,
-              type: "text",
-              text: { preview_url: false, body: productText.slice(0, 4096) },
-            },
-          }));
+        if (productText) {
+          try {
+            const fallbackResponse = await postWhatsAppMessage({
+              config,
+              payload: {
+                messaging_product: "whatsapp",
+                recipient_type: "individual",
+                to: recipient,
+                type: "text",
+                text: { preview_url: false, body: productText.slice(0, 4096) },
+              },
+            });
+            firstMessageId = firstMessageId || trackSuccess("product_text_fallback", fallbackResponse);
+            successCount += 1;
+          } catch (fallbackError) {
+            trackFailure("product_text_fallback", fallbackError);
+            if (!deliveryError) deliveryError = fallbackError?.message || "Product card text fallback failed";
+          }
         }
       }
     } else if (productText) {
-      results.push(await postWhatsAppMessage({
-        config,
-        payload: {
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to: recipient,
-          type: "text",
-          text: { preview_url: false, body: productText.slice(0, 4096) },
-        },
-      }));
+      fallbackUsed = true;
+      try {
+        const textResponse = await postWhatsAppMessage({
+          config,
+          payload: {
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: recipient,
+            type: "text",
+            text: { preview_url: false, body: productText.slice(0, 4096) },
+          },
+        });
+        firstMessageId = firstMessageId || trackSuccess("product_text", textResponse);
+        successCount += 1;
+      } catch (textError) {
+        trackFailure("product_text", textError);
+        if (!deliveryError) deliveryError = textError?.message || "Product card text send failed";
+      }
+    } else {
+      fallbackUsed = true;
     }
   }
   for (const imageUrl of imageCards) {
     try {
-      results.push(await postWhatsAppMessage({
+      const imageResponse = await postWhatsAppMessage({
         config,
         payload: {
           messaging_product: "whatsapp",
@@ -1356,9 +1399,12 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
           type: "image",
           image: { link: imageUrl },
         },
-      }));
+      });
+      firstMessageId = firstMessageId || trackSuccess("visual_image", imageResponse);
+      successCount += 1;
     } catch (error) {
-      console.warn("[ai-agent:whatsapp] image send failed; text reply already attempted", {
+      trackFailure("visual_image", error);
+      console.warn("[ai-agent:whatsapp] image send failed", {
         to: recipient,
         image_url: imageUrl,
         message: error?.message,
@@ -1366,7 +1412,17 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
       });
     }
   }
-  return { sent: results.length > 0, results };
+  if (productCards.length && successCount === 0 && !deliveryError) {
+    deliveryError = "WhatsApp product card delivery failed";
+  }
+  return {
+    sent: successCount > 0,
+    fallback_used: fallbackUsed,
+    results,
+    message_id: firstMessageId || "",
+    success_count: successCount,
+    delivery_error: deliveryError,
+  };
 };
 
 const metaMessagesUrl = (graphVersion = "v20.0") => `https://graph.facebook.com/${graphVersion}/me/messages`;
