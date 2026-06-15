@@ -1367,6 +1367,7 @@ const getPaymentMethods = (paymentSettings = DEFAULT_STOREFRONT_PAYMENT_SETTINGS
   },
 ];
 const SHIPPING_CONFIRMATION_METHODS = new Set(["shipping_confirmation", "instapay", "vodafone_cash"]);
+const CHECKOUT_STEP_STORAGE_KEY = "storefront.checkout.step";
 const INSTA_PAY_QR_URL = import.meta.env.VITE_INSTAPAY_QR_URL || "";
 const VODAFONE_CASH_QR_URL = import.meta.env.VITE_VODAFONE_CASH_QR_URL || "";
 const storefrontDebugEnabled = () => ["1", "true", "yes", "on"].includes(String(import.meta.env?.VITE_ERP_PERF_DEBUG || import.meta.env?.VITE_STOREFRONT_DEBUG || "").toLowerCase());
@@ -5016,7 +5017,15 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const [customerTrust, setCustomerTrust] = useState({ loading: false, customer: null });
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [checkoutStep, setCheckoutStep] = useState(1);
+  const [checkoutStep, setCheckoutStep] = useState(() => {
+    if (typeof window === "undefined") return 1;
+    try {
+      const storedStep = Number(window.sessionStorage.getItem(CHECKOUT_STEP_STORAGE_KEY));
+      return [1, 2, 3].includes(storedStep) ? storedStep : 1;
+    } catch {
+      return 1;
+    }
+  });
   const [manualCityArea, setManualCityArea] = useState(false);
   const [shippingTransferMethod, setShippingTransferMethod] = useState("instapay");
   const [paymentMode, setPaymentMode] = useState("electronic");
@@ -5122,6 +5131,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       document.documentElement.style.setProperty("--checkout-sticky-actions-height", "0px");
     };
   }, []);
+
+  useEffect(() => {
+    safeSetSessionStorage(CHECKOUT_STEP_STORAGE_KEY, String(checkoutStep), { raw: true });
+  }, [checkoutStep]);
 
   useEffect(() => {
     let cancelled = false;
@@ -5781,25 +5794,13 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
 
   useEffect(() => {
     const normalizedPaymentMethod = normalizeCheckoutPaymentMethod(form.payment_method);
-    if (normalizedPaymentMethod === "cod" && !codAvailable) {
-      let cancelled = false;
-      deferReactState(() => {
-        if (!cancelled) {
-          setPaymentMode("electronic");
-          setForm((prev) => ({ ...prev, payment_method: "shipping_confirmation" }));
-        }
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
     if (normalizedPaymentMethod === "cod") {
       if (paymentMode !== "cod") setPaymentMode("cod");
     } else if (paymentMode !== "electronic") {
       setPaymentMode("electronic");
     }
     return undefined;
-  }, [codAvailable, form.payment_method, paymentMode]);
+  }, [form.payment_method, paymentMode]);
 
   useEffect(() => {
     if (!isShippingConfirmation) {
@@ -5880,7 +5881,6 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
 
     if (step === 3) {
       if (!form.payment_method) next.payment_method = sfText("storefront.validation.paymentMethodRequired");
-      if (normalizeCheckoutPaymentMethod(form.payment_method) === "cod" && !codAvailable) next.payment_method = sfText("storefront.validation.codUnavailable");
       if (isShippingConfirmation && !shippingPaymentFile) {
         next.shipping_payment_screenshot = sfText("storefront.validation.transferProofRequired");
       }
