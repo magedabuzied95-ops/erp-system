@@ -406,6 +406,29 @@ export const api = {
       options
     ),
 
+  getSocialAutomationSettings: (
+    options
+  ) =>
+
+    request(
+      "/ai-inbox/social-automation/settings",
+      "GET",
+      null,
+      options
+    ),
+
+  updateSocialAutomationSettings: (
+    patch,
+    options
+  ) =>
+
+    request(
+      "/ai-inbox/social-automation/settings",
+      "PATCH",
+      patch,
+      options
+    ),
+
   testAIReply: (
     payload,
     options

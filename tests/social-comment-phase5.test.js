@@ -1,10 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import db from "../server/database/db.js";
 import {
   buildSocialCommentAutomationDecision,
   executeSocialCommentAutomation,
 } from "../server/services/socialCommentAutomationService.js";
+
+test.after(async () => {
+  await db.end().catch(() => {});
+});
 
 const baseRow = {
   tenant_id: 1,
@@ -25,7 +30,14 @@ const baseRow = {
   automation_state: {},
 };
 
-const enabledGate = { enabled: true, auto_reply_mode: "fully_automatic" };
+const enabledSettings = {
+  auto_like_enabled: true,
+  auto_public_reply_enabled: true,
+  auto_private_message_enabled: true,
+  min_confidence: 0.9,
+  public_reply_template: "تم إرسال التفاصيل في رسالة خاصة ",
+  private_message_template: "تم إرسال التفاصيل في رسالة خاصة ",
+};
 const allFlags = { like: true, publicReply: true, privateMessage: true };
 
 test("high-confidence lead_price triggers automation when flags ON", async () => {
@@ -40,7 +52,7 @@ test("high-confidence lead_price triggers automation when flags ON", async () =>
     row: baseRow,
     conversation: { session_id: baseRow.inbox_conversation_id, metadata: { lead: { suggested_reply: "اقتراح" } } },
     featureFlags: allFlags,
-    tenantGate: enabledGate,
+    automationSettings: enabledSettings,
     deps: {
       likeCommentFn: async () => {
         likeCalls += 1;
@@ -95,7 +107,7 @@ test("engagement_only does not trigger automation", async () => {
       classification_score: 0.93,
     },
     featureFlags: allFlags,
-    tenantGate: enabledGate,
+    automationSettings: enabledSettings,
   });
 
   assert.equal(decision.enabled, false);
@@ -111,7 +123,7 @@ test("engagement_only does not trigger automation", async () => {
     },
     conversation: { session_id: baseRow.inbox_conversation_id, metadata: { lead: { suggested_reply: "اقتراح" } } },
     featureFlags: allFlags,
-    tenantGate: enabledGate,
+    automationSettings: enabledSettings,
     deps: {
       likeCommentFn: async () => {
         invoked += 1;
@@ -176,7 +188,7 @@ test("duplicate webhook does not duplicate reply or DM", async () => {
     row: baseRow,
     conversation: { session_id: baseRow.inbox_conversation_id, metadata: { lead: { suggested_reply: "اقتراح" } } },
     featureFlags: allFlags,
-    tenantGate: enabledGate,
+    automationSettings: enabledSettings,
     deps,
   });
 
@@ -192,7 +204,7 @@ test("duplicate webhook does not duplicate reply or DM", async () => {
     },
     conversation: { session_id: baseRow.inbox_conversation_id, metadata: { lead: { suggested_reply: "اقتراح" } } },
     featureFlags: allFlags,
-    tenantGate: enabledGate,
+    automationSettings: enabledSettings,
     deps,
   });
 
@@ -210,7 +222,7 @@ test("Meta send failure persists failed transcript rows", async () => {
     row: baseRow,
     conversation: { session_id: baseRow.inbox_conversation_id, metadata: { lead: { suggested_reply: "اقتراح" } } },
     featureFlags: { like: false, publicReply: true, privateMessage: false },
-    tenantGate: enabledGate,
+    automationSettings: enabledSettings,
     deps: {
       replyToCommentFn: async () => {
         throw Object.assign(new Error("fetch failed"), { code: "", status: null });
@@ -240,4 +252,31 @@ test("Meta send failure persists failed transcript rows", async () => {
   assert.equal(persistedRows.at(-1)?.errorCode, "transport_failed");
   assert.ok(transcriptRows.some((row) => row.messageType === "comment_public_reply" && row.deliveryStatus === "failed"));
   assert.ok(transcriptRows.some((row) => row.messageType === "automation_error" && row.deliveryStatus === "failed"));
+});
+
+test("default settings stay off and low confidence blocks automation", () => {
+  const defaultDecision = buildSocialCommentAutomationDecision({
+    row: { ...baseRow, classification_score: 0.97 },
+    featureFlags: allFlags,
+    automationSettings: {
+      auto_like_enabled: false,
+      auto_public_reply_enabled: false,
+      auto_private_message_enabled: false,
+      min_confidence: 0.9,
+      public_reply_template: "تم إرسال التفاصيل في رسالة خاصة ",
+      private_message_template: "",
+    },
+  });
+
+  assert.equal(defaultDecision.enabled, false);
+  assert.equal(defaultDecision.reason, "tenant_automation_disabled");
+
+  const lowConfidenceDecision = buildSocialCommentAutomationDecision({
+    row: { ...baseRow, classification_score: 0.75 },
+    featureFlags: allFlags,
+    automationSettings: enabledSettings,
+  });
+
+  assert.equal(lowConfidenceDecision.enabled, false);
+  assert.equal(lowConfidenceDecision.reason, "low_confidence_comment");
 });

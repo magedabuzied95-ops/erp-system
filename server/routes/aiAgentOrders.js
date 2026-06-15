@@ -25,6 +25,10 @@ import {
   getAIChannelSettings,
   updateAIChannelSettings,
 } from "../services/aiChannelSettingsService.js";
+import {
+  getSocialAutomationSettings,
+  updateSocialAutomationSettings,
+} from "../services/socialAutomationSettingsService.js";
 import { resolveAIStatus } from "../services/aiStatusResolver.js";
 import {
   AI_AGENT_CHANNELS,
@@ -3589,6 +3593,26 @@ router.put("/settings", protect, permit("settings", "edit"), async (req, res) =>
     return res.json({ success: true, settings, persisted: wasAISettingsPersisted() });
   } catch (error) {
     return sendError(res, error, "Failed to update AI agent settings");
+  }
+});
+
+router.get("/social-automation/settings", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const settings = await getSocialAutomationSettings(tenantId);
+    return res.json({ success: true, settings, persisted: settings.persisted !== false });
+  } catch (error) {
+    return sendError(res, error, "Failed to load social automation settings");
+  }
+});
+
+router.patch("/social-automation/settings", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const settings = await updateSocialAutomationSettings(tenantId, req.body?.settings || req.body || {});
+    return res.json({ success: true, settings, persisted: settings.persisted !== false });
+  } catch (error) {
+    return sendError(res, error, "Failed to update social automation settings");
   }
 });
 

@@ -4,13 +4,21 @@ import db from "../database/db.js";
 import { emitToRooms } from "../utils/socket.js";
 import { ensureAiSupportLogSchema } from "./aiSupportLogService.js";
 import { ensureAiChannelAdapterSchema } from "./aiChannelAdapterService.js";
-import { getChannelSettings } from "./aiChannelAdapterService.js";
 import { appendAutomationSupportTranscript } from "./aiSupportLogService.js";
 import { likeComment, replyToComment, sendPrivateReply } from "./marketingCommentAutomationService.js";
+import {
+  DEFAULT_SOCIAL_AUTOMATION_SETTINGS,
+  getSocialAutomationSettings,
+} from "./socialAutomationSettingsService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
 const asArray = (value) => (Array.isArray(value) ? value : []);
+const confidenceFrom = (value, fallback = 0.9) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(1, Math.max(0, parsed));
+};
 
 const COMBINING_MARKS_RE = /[\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06ed]/g;
 const ZERO_WIDTH_RE = /[\u200c\u200d\ufeff]/g;
@@ -238,6 +246,34 @@ const getSocialCommentAutomationFlags = () => ({
   publicReply: featureFlagEnabled(process.env.SOCIAL_COMMENTS_AUTO_PUBLIC_REPLY || "false"),
   privateMessage: featureFlagEnabled(process.env.SOCIAL_COMMENTS_AUTO_PRIVATE_MESSAGE || "false"),
 });
+
+const parseSocialAutomationEnvSwitch = (value = "") => {
+  const normalized = text(value).toLowerCase();
+  if (!normalized) {
+    return { enabled: null, explicitlyDisabled: false, raw: "" };
+  }
+  if (["0", "false", "no", "off"].includes(normalized)) {
+    return { enabled: false, explicitlyDisabled: true, raw: normalized };
+  }
+  if (["1", "true", "yes", "on"].includes(normalized)) {
+    return { enabled: true, explicitlyDisabled: false, raw: normalized };
+  }
+  return { enabled: null, explicitlyDisabled: false, raw: normalized };
+};
+
+const getSocialCommentAutomationEnvFlags = () => ({
+  like: parseSocialAutomationEnvSwitch(process.env.SOCIAL_COMMENTS_AUTO_LIKE || ""),
+  publicReply: parseSocialAutomationEnvSwitch(process.env.SOCIAL_COMMENTS_AUTO_PUBLIC_REPLY || ""),
+  privateMessage: parseSocialAutomationEnvSwitch(process.env.SOCIAL_COMMENTS_AUTO_PRIVATE_MESSAGE || ""),
+});
+
+const normalizeSocialAutomationSettings = (settings = {}) => ({
+  ...DEFAULT_SOCIAL_AUTOMATION_SETTINGS,
+  ...(settings && typeof settings === "object" ? settings : {}),
+});
+
+const isSocialAutomationEnvDisabled = (flag) =>
+  flag === false || flag?.enabled === false || flag?.explicitlyDisabled === true;
 
 const socialCommentAutomationChannelForPlatform = (platform = "") => (text(platform) === "instagram" ? "instagram" : "facebook_messenger");
 
@@ -524,35 +560,29 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
   };
 };
 
-const resolveSocialCommentTenantAutomationGate = async ({ tenantId = null, platform = "" } = {}) => {
+const resolveSocialCommentTenantAutomationSettings = async ({ tenantId = null } = {}) => {
   const safeTenantId = Number(tenantId);
   if (!Number.isFinite(safeTenantId) || safeTenantId <= 0) {
     return {
-      enabled: false,
-      auto_reply_mode: "off",
-      ai_replies_enabled: false,
+      tenant_id: null,
       source: "invalid_tenant",
-      channel: socialCommentAutomationChannelForPlatform(platform),
+      persisted: false,
+      ...DEFAULT_SOCIAL_AUTOMATION_SETTINGS,
     };
   }
 
-  const channel = socialCommentAutomationChannelForPlatform(platform);
-  const settings = await getChannelSettings({ tenantId: safeTenantId, channel }).catch(() => ({}));
-  const autoReplyMode = text(settings.auto_reply_mode || (settings.ai_replies_enabled === true ? "fully_automatic" : "off")).toLowerCase();
+  const settings = await getSocialAutomationSettings(safeTenantId).catch(() => ({ ...DEFAULT_SOCIAL_AUTOMATION_SETTINGS, persisted: false }));
   return {
-    enabled: settings.ai_replies_enabled === true && autoReplyMode === "fully_automatic",
-    ai_replies_enabled: settings.ai_replies_enabled === true,
-    auto_reply_mode: autoReplyMode || "off",
-    settings_found: settings.settings_found === true,
-    channel,
-    source: "ai_channel_settings",
+    tenant_id: safeTenantId,
+    ...normalizeSocialAutomationSettings(settings),
+    source: settings.persisted === false ? "social_automation_fallback" : "social_automation_settings",
   };
 };
 
 const buildSocialCommentAutomationState = ({
   row = {},
   featureFlags = {},
-  tenantGate = {},
+  automationSettings = {},
   overallStatus = "skipped",
   reason = "",
   likeStatus = row.like_status || "skipped",
@@ -562,16 +592,20 @@ const buildSocialCommentAutomationState = ({
   commentId = "",
   sessionId = "",
 } = {}) => ({
-  eligible: COMMENT_AUTOMATION_ELIGIBLE_LABELS.has(text(row.classification_label || "")) && Number(row.classification_score || 0) >= COMMENT_AUTOMATION_MIN_SCORE,
+  eligible: COMMENT_AUTOMATION_ELIGIBLE_LABELS.has(text(row.classification_label || "")) && Number(row.classification_score || 0) >= confidenceFrom(automationSettings.min_confidence, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.min_confidence),
   overall_status: overallStatus,
   reason: text(reason),
   feature_flags: {
-    like: Boolean(featureFlags.like),
-    public_reply: Boolean(featureFlags.publicReply),
-    private_message: Boolean(featureFlags.privateMessage),
+    like: Boolean(featureFlags.like?.enabled ?? featureFlags.like),
+    public_reply: Boolean(featureFlags.publicReply?.enabled ?? featureFlags.publicReply),
+    private_message: Boolean(featureFlags.privateMessage?.enabled ?? featureFlags.privateMessage),
   },
-  tenant_enabled: Boolean(tenantGate.enabled),
-  auto_reply_mode: text(tenantGate.auto_reply_mode || "off"),
+  tenant_settings: {
+    auto_like_enabled: Boolean(automationSettings.auto_like_enabled),
+    auto_public_reply_enabled: Boolean(automationSettings.auto_public_reply_enabled),
+    auto_private_message_enabled: Boolean(automationSettings.auto_private_message_enabled),
+    min_confidence: confidenceFrom(automationSettings.min_confidence, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.min_confidence),
+  },
   like_status: text(likeStatus || "skipped") || "skipped",
   public_reply_status: text(publicReplyStatus || "skipped") || "skipped",
   dm_status: text(dmStatus || "skipped") || "skipped",
@@ -698,33 +732,48 @@ const appendSocialCommentAutomationTranscript = async ({
 
 export const buildSocialCommentAutomationDecision = ({
   row = {},
-  featureFlags = getSocialCommentAutomationFlags(),
-  tenantGate = { enabled: false, auto_reply_mode: "off" },
+  featureFlags = getSocialCommentAutomationEnvFlags(),
+  automationSettings = DEFAULT_SOCIAL_AUTOMATION_SETTINGS,
 } = {}) => {
   const label = text(row.classification_label || "");
   const score = Number(row.classification_score || 0);
-  const eligible = COMMENT_AUTOMATION_ELIGIBLE_LABELS.has(label) && score >= COMMENT_AUTOMATION_MIN_SCORE;
+  const settings = normalizeSocialAutomationSettings(automationSettings);
+  const minConfidence = confidenceFrom(settings.min_confidence, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.min_confidence);
+  const eligible = COMMENT_AUTOMATION_ELIGIBLE_LABELS.has(label) && score >= minConfidence;
+  const tenantRequested = {
+    like: Boolean(settings.auto_like_enabled),
+    publicReply: Boolean(settings.auto_public_reply_enabled),
+    privateMessage: Boolean(settings.auto_private_message_enabled),
+  };
   const requested = {
-    like: Boolean(featureFlags.like),
-    publicReply: Boolean(featureFlags.publicReply),
-    privateMessage: Boolean(featureFlags.privateMessage),
+    like: tenantRequested.like && !isSocialAutomationEnvDisabled(featureFlags.like),
+    publicReply: tenantRequested.publicReply && !isSocialAutomationEnvDisabled(featureFlags.publicReply),
+    privateMessage: tenantRequested.privateMessage && !isSocialAutomationEnvDisabled(featureFlags.privateMessage),
   };
   const requestedCount = Object.values(requested).filter(Boolean).length;
-  const enabled = eligible && Boolean(tenantGate.enabled) && requestedCount > 0;
+  const requestedAnyByTenant = Object.values(tenantRequested).some(Boolean);
+  const requestedAnyByEnv = Object.values(featureFlags).some((flag) => !isSocialAutomationEnvDisabled(flag));
+  const envDisabledAllRequested = requestedAnyByTenant && !requestedCount && Object.entries(tenantRequested).some(([key, enabled]) => enabled && isSocialAutomationEnvDisabled(featureFlags[key]));
+  const enabled = eligible && requestedCount > 0;
   const reason = !eligible
-    ? "ineligible_comment"
-    : !tenantGate.enabled
+    ? (score < minConfidence ? "low_confidence_comment" : "ineligible_comment")
+    : !requestedAnyByTenant
       ? "tenant_automation_disabled"
       : requestedCount <= 0
-        ? "feature_flags_disabled"
+        ? (envDisabledAllRequested ? "feature_flags_disabled" : "tenant_automation_disabled")
         : "";
   return {
     eligible,
     enabled,
     reason,
     requested,
+    tenantRequested,
+    minConfidence,
+    confidenceOk: score >= minConfidence,
     featureFlags,
-    tenantGate,
+    automationSettings: settings,
+    requestedAnyByTenant,
+    requestedAnyByEnv,
   };
 };
 
@@ -732,15 +781,15 @@ export const executeSocialCommentAutomation = async ({
   tenantId = null,
   row = {},
   conversation = null,
-  featureFlags = getSocialCommentAutomationFlags(),
-  tenantGate = null,
+  featureFlags = getSocialCommentAutomationEnvFlags(),
+  automationSettings = null,
   deps = {},
 } = {}) => {
   const safeTenantId = Number(tenantId || row.tenant_id || 0);
   const safeRow = row || {};
   if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safeRow.comment_id) return { skipped: true, reason: "invalid_input" };
-  const effectiveTenantGate = tenantGate || await resolveSocialCommentTenantAutomationGate({ tenantId: safeTenantId, platform: safeRow.platform });
-  const decision = buildSocialCommentAutomationDecision({ row: safeRow, featureFlags, tenantGate: effectiveTenantGate });
+  const effectiveSettings = automationSettings || await resolveSocialCommentTenantAutomationSettings({ tenantId: safeTenantId });
+  const decision = buildSocialCommentAutomationDecision({ row: safeRow, featureFlags, automationSettings: effectiveSettings });
   const sessionId = text(safeRow.inbox_conversation_id || conversation?.session_id || `social_comment:${text(safeRow.platform || "facebook")}:${text(safeRow.root_comment_id || safeRow.comment_id)}`);
   const channel = text(safeRow.channel || (text(safeRow.platform) === "instagram" ? "instagram_comment" : "facebook_comment"));
   const appendTranscript = deps.appendTranscriptFn || appendSocialCommentAutomationTranscript;
@@ -748,7 +797,7 @@ export const executeSocialCommentAutomation = async ({
   const stageSummary = buildSocialCommentAutomationState({
     row: safeRow,
     featureFlags: decision.featureFlags,
-    tenantGate: decision.tenantGate,
+    automationSettings: decision.automationSettings,
     overallStatus: decision.enabled ? "pending" : "skipped",
     reason: decision.reason,
     commentId: safeRow.comment_id,
@@ -782,7 +831,9 @@ export const executeSocialCommentAutomation = async ({
   const likeFn = deps.likeCommentFn || likeComment;
   const publicReplyFn = deps.replyToCommentFn || replyToComment;
   const privateReplyFn = deps.sendPrivateReplyFn || sendPrivateReply;
-  const replyText = text(conversation?.suggested_reply || conversation?.metadata?.lead?.suggested_reply || safeRow.suggested_reply || buildSocialCommentSuggestedReply({
+  const publicReplyText = text(decision.automationSettings?.public_reply_template || COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT);
+  const privateReplyTemplate = text(decision.automationSettings?.private_message_template || "");
+  const replyText = text(privateReplyTemplate || conversation?.suggested_reply || conversation?.metadata?.lead?.suggested_reply || safeRow.suggested_reply || buildSocialCommentSuggestedReply({
     classificationLabel: safeRow.classification_label,
     commenterName: safeRow.commenter_name,
     originalCommentText: safeRow.original_comment_text,
@@ -945,8 +996,8 @@ export const executeSocialCommentAutomation = async ({
       key: "public_reply",
       messageType: "comment_public_reply",
       deliveryStatusValue: "sent",
-      send: () => publicReplyFn(safeRow.platform, safeRow.comment_id, COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT, safeTenantId),
-      message: COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT,
+      send: () => publicReplyFn(safeRow.platform, safeRow.comment_id, publicReplyText, safeTenantId),
+      message: publicReplyText,
       successLabel: "public reply success",
       failureLabel: "public reply failed",
       buildExternalId: (response) => response?.id || response?.comment_id || response?.reply_id || "",
@@ -960,8 +1011,8 @@ export const executeSocialCommentAutomation = async ({
       key: "private_message",
       messageType: "comment_private_reply",
       deliveryStatusValue: "sent",
-      send: () => privateReplyFn(safeRow.platform, safeRow.comment_id, replyText || COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT, safeTenantId),
-      message: replyText || COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT,
+      send: () => privateReplyFn(safeRow.platform, safeRow.comment_id, replyText || publicReplyText, safeTenantId),
+      message: replyText || publicReplyText,
       successLabel: "private message success",
       failureLabel: "private message failed",
       buildExternalId: (response) => response?.id || response?.message_id || response?.reply_id || "",

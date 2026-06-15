@@ -546,6 +546,7 @@ const { processStaffTaskEmailQueue } = await import("./services/staffTaskEmailNo
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
 const { ensureMetaIntegrationSchema, repairCorruptedArabicText } = await import("./services/metaIntegrationService.js");
 const { ensureSystemSettingsSchema } = await import("./services/settingsService.js");
+const { ensureSocialAutomationSettingsSchema } = await import("./services/socialAutomationSettingsService.js");
 
 const collectRouterEndpoints = (router, prefix = "") => {
   const endpoints = [];
@@ -1233,6 +1234,8 @@ const bootstrapStartup = async () => {
     console.log("[server] AI agent order schema ensured");
     await ensureMetaIntegrationSchema(db);
     console.log("[server] meta integration schema ensured");
+    await ensureSocialAutomationSettingsSchema(db);
+    console.log("[server] social automation settings schema ensured");
     await repairCorruptedArabicText(db);
     await warmDashboardMetadataCache();
     console.log("[server] dashboard metadata cache warmed");

@@ -89,6 +89,12 @@ const copy = {
     shippingRules: "View Shipping Rules",
     testAi: "Test AI",
     openInbox: "Open AI Inbox",
+    socialAutomation: "Social comment automation",
+    socialAutomationWarning: "Automation may be restricted by Meta policies. Test it before enabling fully.",
+    socialAutomationSave: "Save social automation settings",
+    socialAutomationSaved: "Social automation settings saved",
+    socialAutomationLoadFailed: "Unable to load social automation settings",
+    socialAutomationSaveFailed: "Unable to save social automation settings",
     modified: "Modified",
     searchResult: "Jump to",
     collectionHint: "Type a collection slug and press Enter.",
@@ -130,6 +136,12 @@ const copy = {
     shippingRules: "عرض قواعد الشحن",
     testAi: "اختبار الذكاء الاصطناعي",
     openInbox: "فتح صندوق الذكاء الاصطناعي",
+    socialAutomation: "إعدادات أتمتة تعليقات السوشيال",
+    socialAutomationWarning: "الأتمتة قد تكون مقيدة بسياسات Meta. يفضل اختبارها قبل التفعيل الكامل.",
+    socialAutomationSave: "حفظ إعدادات الأتمتة",
+    socialAutomationSaved: "تم حفظ إعدادات أتمتة السوشيال",
+    socialAutomationLoadFailed: "تعذر تحميل إعدادات الأتمتة",
+    socialAutomationSaveFailed: "تعذر حفظ إعدادات الأتمتة",
     modified: "معدل",
     searchResult: "انتقال إلى",
     collectionHint: "اكتب معرف المجموعة ثم اضغط Enter.",
@@ -282,6 +294,25 @@ const sameValue = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? nu
 
 const isHttpOrHttpsUrl = (value = "") => /^https?:\/\/\S+/i.test(String(value || "").trim());
 
+const defaultSocialAutomationSettings = {
+  auto_like_enabled: false,
+  auto_public_reply_enabled: false,
+  auto_private_message_enabled: false,
+  min_confidence: 0.9,
+  public_reply_template: "تم إرسال التفاصيل في رسالة خاصة ",
+  private_message_template: "",
+};
+
+const normalizeSocialAutomationSettings = (value = {}) => ({
+  ...defaultSocialAutomationSettings,
+  auto_like_enabled: Boolean(value.auto_like_enabled),
+  auto_public_reply_enabled: Boolean(value.auto_public_reply_enabled),
+  auto_private_message_enabled: Boolean(value.auto_private_message_enabled),
+  min_confidence: Math.min(1, Math.max(0, Number(value.min_confidence ?? defaultSocialAutomationSettings.min_confidence) || defaultSocialAutomationSettings.min_confidence)),
+  public_reply_template: String(value.public_reply_template ?? defaultSocialAutomationSettings.public_reply_template),
+  private_message_template: String(value.private_message_template ?? ""),
+});
+
 const safeParseJson = (value, fallback) => {
   if (value && typeof value === "object") return value;
   try {
@@ -403,6 +434,12 @@ function SettingsCenterContent({ debugMode = false }) {
   const [lastSaved, setLastSaved] = useState(null);
   const [collectionDraft, setCollectionDraft] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [socialAutomationSettings, setSocialAutomationSettings] = useState(defaultSocialAutomationSettings);
+  const [originalSocialAutomationSettings, setOriginalSocialAutomationSettings] = useState(defaultSocialAutomationSettings);
+  const [socialAutomationLoading, setSocialAutomationLoading] = useState(false);
+  const [socialAutomationSaving, setSocialAutomationSaving] = useState(false);
+  const [socialAutomationError, setSocialAutomationError] = useState("");
+  const [socialAutomationToast, setSocialAutomationToast] = useState("");
   const canViewDebugSettings = useMemo(() => debugSettingsEnabled() || isDeveloperUser(getCurrentUser()), []);
   const activeSection = activeCategory === "storefront"
     ? String(params.get("section") || "storefront").trim().toLowerCase().replace(/[\s-]+/g, "_")
@@ -423,6 +460,11 @@ function SettingsCenterContent({ debugMode = false }) {
     })
     .map((setting) => setting.key), [definitions, originalValues, values]);
   const isDirty = dirtyKeys.length > 0;
+  const socialAutomationDirty = useMemo(
+    () => !sameValue(normalizeSocialAutomationSettings(socialAutomationSettings), normalizeSocialAutomationSettings(originalSocialAutomationSettings)),
+    [originalSocialAutomationSettings, socialAutomationSettings]
+  );
+  const dirtyCount = dirtyKeys.length + (socialAutomationDirty ? 1 : 0);
 
   const applyPayload = useCallback((payload, category = activeCategory, extraValues = {}) => {
     const incoming = Array.isArray(payload?.settings) ? payload.settings : [];
@@ -481,25 +523,46 @@ function SettingsCenterContent({ debugMode = false }) {
     void loadSettings();
   }, [loadSettings]);
 
+  const loadSocialAutomationSettings = useCallback(async () => {
+    if (activeCategory !== "ai_channels") return;
+    setSocialAutomationLoading(true);
+    setSocialAutomationError("");
+    try {
+      const payload = await api.getSocialAutomationSettings({ perfComponent: "SettingsCenterV2.loadSocialAutomation" });
+      const next = normalizeSocialAutomationSettings(payload.settings || {});
+      setSocialAutomationSettings(next);
+      setOriginalSocialAutomationSettings(next);
+    } catch (loadError) {
+      const message = loadError?.responseBody?.message || loadError?.message || ui.socialAutomationLoadFailed;
+      setSocialAutomationError(message === "Request Failed" ? ui.socialAutomationLoadFailed : message);
+    } finally {
+      setSocialAutomationLoading(false);
+    }
+  }, [activeCategory, ui.socialAutomationLoadFailed]);
+
+  useEffect(() => {
+    void loadSocialAutomationSettings();
+  }, [loadSocialAutomationSettings]);
+
   useEffect(() => {
     if (!shouldShowPreviewPanel) setPreviewOpen(false);
   }, [shouldShowPreviewPanel]);
 
   useEffect(() => {
     const handler = (event) => {
-      if (!isDirty) return;
+      if (!isDirty && !socialAutomationDirty) return;
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [isDirty]);
+  }, [isDirty, socialAutomationDirty]);
 
   const switchCategory = (category) => {
     const next = normalizeSettingsCategory(category);
     if (!next) return;
-    if (isDirty) {
-      toast.error(`${dirtyKeys.length} ${ui.unsaved}`);
+    if (isDirty || socialAutomationDirty) {
+      toast.error(`${dirtyCount} ${ui.unsaved}`);
       return;
     }
     setActiveCategory(next);
@@ -508,6 +571,11 @@ function SettingsCenterContent({ debugMode = false }) {
   };
 
   const updateValue = (key, value) => setValues((current) => ({ ...current, [key]: value }));
+  const updateSocialAutomationValue = (key, value) => {
+    setSocialAutomationSettings((current) => ({ ...current, [key]: value }));
+    setSocialAutomationError("");
+    setSocialAutomationToast("");
+  };
   const resetBarcodePrintDefaults = () => {
     const nextDefaults = {
       ...barcodePrintSettingsToValues(BARCODE_PRINT_DEFAULTS),
@@ -568,6 +636,31 @@ function SettingsCenterContent({ debugMode = false }) {
       toast.error(saveError?.responseBody?.message || saveError?.message || ui.saveFailed);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveSocialAutomationSettings = async () => {
+    if (activeCategory !== "ai_channels" || !socialAutomationDirty) return;
+    setSocialAutomationSaving(true);
+    setSocialAutomationError("");
+    setSocialAutomationToast("");
+    try {
+      const payload = await api.updateSocialAutomationSettings({
+        auto_like_enabled: Boolean(socialAutomationSettings.auto_like_enabled),
+        auto_public_reply_enabled: Boolean(socialAutomationSettings.auto_public_reply_enabled),
+        auto_private_message_enabled: Boolean(socialAutomationSettings.auto_private_message_enabled),
+        min_confidence: Number(socialAutomationSettings.min_confidence),
+        public_reply_template: String(socialAutomationSettings.public_reply_template || ""),
+        private_message_template: String(socialAutomationSettings.private_message_template || ""),
+      }, { perfComponent: "SettingsCenterV2.saveSocialAutomation" });
+      const next = normalizeSocialAutomationSettings(payload.settings || {});
+      setSocialAutomationSettings(next);
+      setOriginalSocialAutomationSettings(next);
+      setSocialAutomationToast(ui.socialAutomationSaved);
+    } catch (saveError) {
+      setSocialAutomationError(saveError?.responseBody?.message || saveError?.message || ui.socialAutomationSaveFailed);
+    } finally {
+      setSocialAutomationSaving(false);
     }
   };
 
@@ -757,7 +850,7 @@ function SettingsCenterContent({ debugMode = false }) {
                   {ui.title}
                 </span>
                 <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">{ui.lastSaved} {lastSaved ? timeAgo(lastSaved) : ui.neverSaved}</span>
-                {isDirty ? <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800 dark:bg-amber-400/15 dark:text-amber-200">{dirtyKeys.length} {ui.unsaved}</span> : null}
+                {isDirty || socialAutomationDirty ? <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800 dark:bg-amber-400/15 dark:text-amber-200">{dirtyCount} {ui.unsaved}</span> : null}
               </div>
               <h1 className={`mt-3 max-w-full break-words text-2xl font-black tracking-tight sm:text-3xl ${headingText}`}>{ui.subtitle}</h1>
               <p className={`mt-1 text-sm font-medium ${bodyText}`}>{ui.description}</p>
@@ -869,6 +962,97 @@ function SettingsCenterContent({ debugMode = false }) {
                     <div className="mt-4 grid gap-4 2xl:grid-cols-2">{section.settings.map((item) => renderField(item))}</div>
                   </section>
                 ))}
+                {activeCategory === "ai_channels" ? (
+                  <section id="social-automation-settings" className={`rounded-[1.75rem] p-5 ${shellCard}`}>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h2 className={`text-lg font-black ${headingText}`}>{ui.socialAutomation}</h2>
+                        <p className={`mt-1 text-sm leading-6 ${bodyText}`}>تنطبق هذه الإعدادات فقط على أتمتة تعليقات السوشيال داخل صندوق الوارد.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={saveSocialAutomationSettings}
+                        disabled={socialAutomationLoading || socialAutomationSaving || !socialAutomationDirty}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-50 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500"
+                      >
+                        {socialAutomationSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                        {ui.socialAutomationSave}
+                      </button>
+                    </div>
+                    <div className="mt-3 rounded-2xl border border-amber-200/70 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-400/20 dark:bg-amber-500/10 dark:text-amber-100">
+                      {ui.socialAutomationWarning}
+                    </div>
+                    {socialAutomationError ? (
+                      <div className="mt-3 rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{socialAutomationError}</div>
+                    ) : null}
+                    {socialAutomationToast ? (
+                      <div className="mt-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-3 text-sm font-bold text-emerald-100">{socialAutomationToast}</div>
+                    ) : null}
+                    <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => updateSocialAutomationValue("auto_like_enabled", !socialAutomationSettings.auto_like_enabled)}
+                        className={`flex min-h-14 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${socialAutomationSettings.auto_like_enabled ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}
+                      >
+                        <span className="text-sm font-black text-white">تفعيل لايك تلقائي</span>
+                        <span className={`h-6 w-11 rounded-full p-1 transition ${socialAutomationSettings.auto_like_enabled ? "bg-emerald-300" : "bg-white/10"}`}>
+                          <span className={`block h-4 w-4 rounded-full bg-slate-950 transition ${socialAutomationSettings.auto_like_enabled ? "translate-x-5" : ""}`} />
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateSocialAutomationValue("auto_public_reply_enabled", !socialAutomationSettings.auto_public_reply_enabled)}
+                        className={`flex min-h-14 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${socialAutomationSettings.auto_public_reply_enabled ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}
+                      >
+                        <span className="text-sm font-black text-white">تفعيل رد عام تلقائي</span>
+                        <span className={`h-6 w-11 rounded-full p-1 transition ${socialAutomationSettings.auto_public_reply_enabled ? "bg-emerald-300" : "bg-white/10"}`}>
+                          <span className={`block h-4 w-4 rounded-full bg-slate-950 transition ${socialAutomationSettings.auto_public_reply_enabled ? "translate-x-5" : ""}`} />
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateSocialAutomationValue("auto_private_message_enabled", !socialAutomationSettings.auto_private_message_enabled)}
+                        className={`flex min-h-14 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${socialAutomationSettings.auto_private_message_enabled ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}
+                      >
+                        <span className="text-sm font-black text-white">تفعيل رسالة خاصة تلقائية</span>
+                        <span className={`h-6 w-11 rounded-full p-1 transition ${socialAutomationSettings.auto_private_message_enabled ? "bg-emerald-300" : "bg-white/10"}`}>
+                          <span className={`block h-4 w-4 rounded-full bg-slate-950 transition ${socialAutomationSettings.auto_private_message_enabled ? "translate-x-5" : ""}`} />
+                        </span>
+                      </button>
+                      <label className="block">
+                        <span className={`mb-2 block text-sm font-black ${headingText}`}>أقل نسبة ثقة للتشغيل</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="1"
+                          step="0.01"
+                          value={socialAutomationSettings.min_confidence}
+                          onChange={(event) => updateSocialAutomationValue("min_confidence", event.target.value)}
+                          className={inputClass}
+                        />
+                      </label>
+                      <label className="block xl:col-span-2">
+                        <span className={`mb-2 block text-sm font-black ${headingText}`}>قالب الرد العام</span>
+                        <textarea
+                          rows={4}
+                          value={socialAutomationSettings.public_reply_template}
+                          onChange={(event) => updateSocialAutomationValue("public_reply_template", event.target.value)}
+                          className={inputClass}
+                        />
+                      </label>
+                      <label className="block xl:col-span-2">
+                        <span className={`mb-2 block text-sm font-black ${headingText}`}>قالب الرسالة الخاصة</span>
+                        <textarea
+                          rows={4}
+                          value={socialAutomationSettings.private_message_template}
+                          onChange={(event) => updateSocialAutomationValue("private_message_template", event.target.value)}
+                          className={inputClass}
+                          placeholder="اختياري"
+                        />
+                      </label>
+                    </div>
+                  </section>
+                ) : null}
               </div>
             ) : (
               <div className={`rounded-[1.75rem] p-10 text-center text-sm font-black ${shellCard} ${bodyText}`}>{ui.empty}</div>
@@ -893,7 +1077,7 @@ function SettingsCenterContent({ debugMode = false }) {
       {isDirty ? (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-3 py-3 shadow-[0_-18px_48px_rgba(15,23,42,0.16)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/95 dark:shadow-[0_-18px_48px_rgba(0,0,0,0.45)]">
           <div className="mx-auto flex max-w-[96rem] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-white"><AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-300" />{dirtyKeys.length} {ui.unsaved}</div>
+            <div className="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-white"><AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-300" />{dirtyCount} {ui.unsaved}</div>
             <div className="grid grid-cols-2 gap-2 sm:flex">
               <button type="button" onClick={discard} disabled={saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"><Undo2 className="h-4 w-4" />{ui.discard}</button>
               <button type="button" onClick={save} disabled={saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : (language === "ar" && activeCategory === "storefront" ? "حفظ إعدادات الدفع" : ui.save)}</button>
