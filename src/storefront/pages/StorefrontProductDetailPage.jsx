@@ -81,6 +81,33 @@ function StorefrontProductDetailSkeleton() {
   );
 }
 
+function StorefrontProductDetailErrorState({ title, text, onRetry, retryLabel, backToProductsLabel }) {
+  return (
+    <div className="mx-auto mt-6 mb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] max-w-xl rounded-[1.75rem] border border-rose-400/18 bg-[linear-gradient(180deg,rgba(26,10,18,0.98),rgba(11,8,16,0.96))] p-6 text-center text-stone-50 shadow-[0_18px_45px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-xl md:mb-6 md:p-7">
+      <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-rose-300/20 bg-rose-500/12 text-rose-200 shadow-[0_14px_34px_rgba(244,63,94,0.16)]">
+        <ShoppingCart className="h-7 w-7" />
+      </div>
+      <h2 className="mt-4 text-2xl font-black text-stone-50">{title}</h2>
+      <p className="mx-auto mt-2 max-w-md font-bold leading-7 text-stone-400">{text}</p>
+      <div className="mt-5 flex flex-col items-stretch justify-center gap-3 sm:flex-row">
+        <button
+          type="button"
+          onClick={onRetry}
+          className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#a78bfa]/24 bg-[linear-gradient(135deg,rgba(124,58,237,0.95),rgba(17,24,39,0.92))] px-5 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(124,58,237,0.25)] transition hover:-translate-y-0.5 hover:border-[#c4b5fd]/45 hover:shadow-[0_18px_42px_rgba(124,58,237,0.34)] active:scale-[0.98]"
+        >
+          {retryLabel}
+        </button>
+        <Link
+          to="/shop/products"
+          className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] px-5 py-3 text-sm font-black text-white/80 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white active:scale-[0.98]"
+        >
+          {backToProductsLabel}
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishlist, rememberProduct, recent, profile }) {
   const { identifier } = useParams();
   const navigate = useNavigate();
@@ -88,6 +115,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const productQueryKey = searchParams.toString();
   const profilePhone = profile?.primary_phone || profile?.phone || "";
   const [state, setState] = useState({ loading: true, product: null, error: "" });
+  const [reloadToken, setReloadToken] = useState(0);
   const [selected, setSelected] = useState({ variantId: "", size: "", colorKey: "", colorName: "", image: "" });
   const [qty, setQty] = useState(1);
   const [showMobileBuyBar, setShowMobileBuyBar] = useState(false);
@@ -101,14 +129,6 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     let cancelled = false;
     const controller = new AbortController();
     const routeValue = String(identifier || "");
-    const decodedRouteValue = (() => {
-      try {
-        return decodeURIComponent(routeValue);
-      } catch {
-        return routeValue;
-      }
-    })();
-    const unresolvedSearchUrl = `/shop/products?q=${encodeURIComponent(decodedRouteValue.replace(/-/g, " "))}`;
     if (import.meta.env.DEV) console.log("[storefront-product] useParams identifier", { identifier: routeValue });
     try {
       sessionStorage.removeItem(`storefront.product.${routeValue}`);
@@ -116,93 +136,101 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     } catch {
       // Storage can be unavailable in restricted browser contexts.
     }
-    storefrontApi.getProductDetails(routeValue, { signal: controller.signal }).then((data) => {
-      const product = productFromDetailsResponse(data);
-      if (import.meta.env.DEV) console.log("[storefront-product] resolver response", {
-        routeIdentifier: routeValue,
-        resolverStatus: data?.success === true ? "resolved" : "unresolved",
-        resolvable: data?.resolvable,
-        productIdLoaded: product?.id || null,
-        notFoundReason: product ? "" : data?.message || "empty_product_payload",
-      });
-      if (import.meta.env.DEV) console.log("[storefront-product] final product object", product);
-      if (!product) {
-        if (!cancelled) {
-          console.warn("[storefront-product] redirecting unresolved product", {
-            routeIdentifier: routeValue,
-            resolverStatus: data?.success === true ? "resolved_without_product" : "not_found",
-            notFoundReason: data?.message || "empty_product_payload",
-            redirectTo: unresolvedSearchUrl,
-          });
-          navigate(unresolvedSearchUrl, { replace: true });
-        }
-        return;
-      }
-      const productVariants = Array.isArray(product?.variants) ? product.variants : [];
-      const routeSearchParams = new URLSearchParams(productQueryKey);
-      const requestedVariantId = normalizeQueryValue(routeSearchParams.get("variant") || routeSearchParams.get("variantId"));
-      const requestedSize = normalizeQueryValue(routeSearchParams.get("size"));
-      const requestedColor = normalizeQueryValue(routeSearchParams.get("color")).toLowerCase();
-      const requestedColorId = normalizeQueryValue(routeSearchParams.get("colorId"));
-      const requestedColorKey = requestedColor;
-      const requested =
-        productVariants.find((variant) => requestedVariantId && String(variant?.id || "") === String(requestedVariantId) && variantHasStock(variant)) ||
-        productVariants.find((variant) => requestedVariantId && String(variant?.edition_slug || "") === String(requestedVariantId) && variantHasStock(variant)) ||
-        productVariants.find((variant) => requestedColorId && String(variant?.color_id || "") === String(requestedColorId) && variantHasStock(variant)) ||
-        productVariants.find(
-          (variant) =>
-            requestedSize &&
-            String(variant?.size || "") === requestedSize &&
-            (!requestedColor || variantColorKey(variant) === requestedColorKey || variantColorName(variant).toLowerCase() === requestedColorKey) &&
-            variantHasStock(variant)
-        ) ||
-        productVariants.find((variant) => requestedColorId && String(variant?.color_id || "") === String(requestedColorId)) ||
-        productVariants.find((variant) => requestedSize && String(variant?.size || "") === requestedSize && variantHasStock(variant));
-      const first = requested || firstDisplayVariant(productVariants) || null;
-      if (!cancelled) {
-        setState({ loading: false, product, error: "" });
-        setSelected({
-          variantId: first?.id || "",
-          size: first?.size || "",
-          colorKey: first ? variantColorKey(first) : "",
-          colorName: first ? variantColorName(first) : "",
-          image: variantImage(first) || displayImageForProduct(product, first) || product?.image_url || product?.gallery_images?.[0] || "",
-        });
-        setTouchedOptions({ color: false, size: false });
+    const loadProduct = async () => {
+      const attempts = [
+        {
+          label: "resolve",
+          loader: () => storefrontApi.getProductDetails(routeValue, { signal: controller.signal }),
+        },
+        {
+          label: "direct",
+          loader: () => api.get(`/storefront/products/${encodeURIComponent(routeValue)}`, { signal: controller.signal, debugLabel: "storefront-product-direct" }),
+        },
+      ];
+      let lastError = null;
+      for (const attempt of attempts) {
         try {
-          rememberProduct(product);
-          const phone = profilePhone;
-          const recentlyViewedKey = `${product.id}:${phone || getSessionId()}`;
-          if (recentlyViewedSentRef.current !== recentlyViewedKey) {
-            recentlyViewedSentRef.current = recentlyViewedKey;
-            api.post("/storefront/recently-viewed", { product_id: product.id, session_id: getSessionId(), phone }).catch(() => undefined);
+          const data = await attempt.loader();
+          const product = productFromDetailsResponse(data);
+          if (import.meta.env.DEV) console.log("[storefront-product] load attempt", {
+            routeIdentifier: routeValue,
+            attempt: attempt.label,
+            responseStatus: data?.__status || data?.status || "",
+            productIdLoaded: product?.id || null,
+            success: Boolean(product),
+          });
+          if (!product) {
+            lastError = new Error(data?.message || "empty_product_payload");
+            lastError.responseBody = data;
+            continue;
           }
-        } catch (sideEffectError) {
-          console.warn("[storefront-product] post-load side effect skipped", sideEffectError);
-        }
-      }
-    }).catch((error) => {
-      if (!cancelled && error?.cause?.name !== "AbortError") {
-        console.warn("[storefront-product] resolver failed", {
-          routeIdentifier: routeValue,
-          resolverUrl: error?.url || "",
-          resolverStatus: error?.status || "network_error",
-          productIdLoaded: null,
-          notFoundReason: error?.responseBody?.message || error.message || "resolver_failed",
-          redirectTo: unresolvedSearchUrl,
-        });
-        if (error?.status === 404) {
-          navigate(unresolvedSearchUrl, { replace: true });
+          const productVariants = Array.isArray(product?.variants) ? product.variants : [];
+          const routeSearchParams = new URLSearchParams(productQueryKey);
+          const requestedVariantId = normalizeQueryValue(routeSearchParams.get("variant") || routeSearchParams.get("variantId"));
+          const requestedSize = normalizeQueryValue(routeSearchParams.get("size"));
+          const requestedColor = normalizeQueryValue(routeSearchParams.get("color")).toLowerCase();
+          const requestedColorId = normalizeQueryValue(routeSearchParams.get("colorId"));
+          const requestedColorKey = requestedColor;
+          const requested =
+            productVariants.find((variant) => requestedVariantId && String(variant?.id || "") === String(requestedVariantId) && variantHasStock(variant)) ||
+            productVariants.find((variant) => requestedVariantId && String(variant?.edition_slug || "") === String(requestedVariantId) && variantHasStock(variant)) ||
+            productVariants.find((variant) => requestedColorId && String(variant?.color_id || "") === String(requestedColorId) && variantHasStock(variant)) ||
+            productVariants.find(
+              (variant) =>
+                requestedSize &&
+                String(variant?.size || "") === requestedSize &&
+                (!requestedColor || variantColorKey(variant) === requestedColorKey || variantColorName(variant).toLowerCase() === requestedColorKey) &&
+                variantHasStock(variant)
+            ) ||
+            productVariants.find((variant) => requestedColorId && String(variant?.color_id || "") === String(requestedColorId)) ||
+            productVariants.find((variant) => requestedSize && String(variant?.size || "") === requestedSize && variantHasStock(variant));
+          const first = requested || firstDisplayVariant(productVariants) || null;
+          if (!cancelled) {
+            setState({ loading: false, product, error: "" });
+            setSelected({
+              variantId: first?.id || "",
+              size: first?.size || "",
+              colorKey: first ? variantColorKey(first) : "",
+              colorName: first ? variantColorName(first) : "",
+              image: variantImage(first) || displayImageForProduct(product, first) || product?.image_url || product?.gallery_images?.[0] || "",
+            });
+            setTouchedOptions({ color: false, size: false });
+            try {
+              rememberProduct(product);
+              const phone = profilePhone;
+              const recentlyViewedKey = `${product.id}:${phone || getSessionId()}`;
+              if (recentlyViewedSentRef.current !== recentlyViewedKey) {
+                recentlyViewedSentRef.current = recentlyViewedKey;
+                api.post("/storefront/recently-viewed", { product_id: product.id, session_id: getSessionId(), phone }).catch(() => undefined);
+              }
+            } catch (sideEffectError) {
+              console.warn("[storefront-product] post-load side effect skipped", sideEffectError);
+            }
+          }
           return;
+        } catch (error) {
+          lastError = error;
+          if (error?.cause?.name === "AbortError" || error?.name === "AbortError") return;
+          console.warn("[storefront-product] load attempt failed", {
+            routeIdentifier: routeValue,
+            attempt: attempt.label,
+            status: error?.status || "network_error",
+            message: error?.responseBody?.message || error.message || "product_load_failed",
+          });
         }
-        setState({ loading: false, product: null, error: error.message });
       }
-    });
+
+      if (!cancelled) {
+        const message = lastError?.responseBody?.message || lastError?.message || "product_load_failed";
+        setState({ loading: false, product: null, error: message });
+      }
+    };
+    void loadProduct();
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, [identifier, navigate, productQueryKey, profilePhone, rememberProduct]);
+  }, [identifier, productQueryKey, profilePhone, rememberProduct, reloadToken]);
 
   const product = state.product;
   const variants = useMemo(() => product?.variants || [], [product]);
@@ -402,8 +430,29 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     }
   };
 
+  const retryLoad = () => {
+    setState((current) => ({ ...current, loading: true }));
+    setReloadToken((current) => current + 1);
+  };
+
   if (state.loading) return <StorefrontProductDetailSkeleton />;
-  if (!product) return <EmptyState title={sfText("storefront.products.notFoundTitle", "Product not found")} text={sfText("storefront.products.notFoundText", "Go back to products and try another choice")} />;
+  if (!product) {
+    const hasError = Boolean(state.error);
+    return hasError ? (
+      <StorefrontProductDetailErrorState
+        title={sfText("storefront.products.loadFailedTitle", "We could not load this product")}
+        text={sfText("storefront.products.loadFailedText", "Please try again. If the issue continues, return to the product list and open the item again.")}
+        onRetry={retryLoad}
+        retryLabel={sfText("storefront.common.retry", "Try again")}
+        backToProductsLabel={sfText("storefront.products.backToProducts", "Back to products")}
+      />
+    ) : (
+      <EmptyState
+        title={sfText("storefront.products.notFoundTitle", "Product not found")}
+        text={sfText("storefront.products.notFoundText", "Go back to products and try another choice")}
+      />
+    );
+  }
 
   return (
     <section dir="rtl" className="sf-product-details-page mx-auto grid max-w-7xl gap-2 px-3 pb-28 pt-1 md:gap-5 md:px-4 md:pb-36 md:pt-5 lg:grid-cols-[minmax(0,55fr)_minmax(360px,45fr)] lg:items-start lg:pb-8">
