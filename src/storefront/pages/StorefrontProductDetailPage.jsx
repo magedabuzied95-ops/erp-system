@@ -95,6 +95,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const [touchedOptions, setTouchedOptions] = useState({ color: false, size: false });
   const mainCtaRef = useRef(null);
   const recentlyViewedSentRef = useRef("");
+  const normalizeQueryValue = (value = "") => String(value || "").trim();
 
   useEffect(() => {
     let cancelled = false;
@@ -139,18 +140,25 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
       }
       const productVariants = Array.isArray(product?.variants) ? product.variants : [];
       const routeSearchParams = new URLSearchParams(productQueryKey);
-      const requestedVariantId = routeSearchParams.get("variant") || routeSearchParams.get("variantId") || "";
-      const requestedSize = routeSearchParams.get("size") || "";
-      const requestedColor = routeSearchParams.get("color") || "";
-      const requestedColorId = routeSearchParams.get("colorId") || "";
-      const requestedColorKey = String(requestedColor || "").trim().toLowerCase();
-      const requested = productVariants.find((variant) => requestedVariantId && String(variant.id) === String(requestedVariantId) && variantHasStock(variant))
-        || productVariants.find((variant) => requestedVariantId && String(variant.edition_slug || "") === String(requestedVariantId) && variantHasStock(variant))
-        || productVariants.find((variant) => requestedColorId && String(variant.color_id || "") === String(requestedColorId) && variantHasStock(variant))
-        || productVariants.find((variant) => requestedSize && String(variant.size) === requestedSize && (!requestedColor || variantColorKey(variant) === requestedColorKey || variantColorName(variant).toLowerCase() === requestedColorKey) && variantHasStock(variant))
-        || productVariants.find((variant) => requestedColorId && String(variant.color_id || "") === String(requestedColorId))
-        || productVariants.find((variant) => requestedSize && String(variant.size) === requestedSize && variantHasStock(variant));
-      const first = requested || firstDisplayVariant(productVariants);
+      const requestedVariantId = normalizeQueryValue(routeSearchParams.get("variant") || routeSearchParams.get("variantId"));
+      const requestedSize = normalizeQueryValue(routeSearchParams.get("size"));
+      const requestedColor = normalizeQueryValue(routeSearchParams.get("color")).toLowerCase();
+      const requestedColorId = normalizeQueryValue(routeSearchParams.get("colorId"));
+      const requestedColorKey = requestedColor;
+      const requested =
+        productVariants.find((variant) => requestedVariantId && String(variant?.id || "") === String(requestedVariantId) && variantHasStock(variant)) ||
+        productVariants.find((variant) => requestedVariantId && String(variant?.edition_slug || "") === String(requestedVariantId) && variantHasStock(variant)) ||
+        productVariants.find((variant) => requestedColorId && String(variant?.color_id || "") === String(requestedColorId) && variantHasStock(variant)) ||
+        productVariants.find(
+          (variant) =>
+            requestedSize &&
+            String(variant?.size || "") === requestedSize &&
+            (!requestedColor || variantColorKey(variant) === requestedColorKey || variantColorName(variant).toLowerCase() === requestedColorKey) &&
+            variantHasStock(variant)
+        ) ||
+        productVariants.find((variant) => requestedColorId && String(variant?.color_id || "") === String(requestedColorId)) ||
+        productVariants.find((variant) => requestedSize && String(variant?.size || "") === requestedSize && variantHasStock(variant));
+      const first = requested || firstDisplayVariant(productVariants) || null;
       if (!cancelled) {
         setState({ loading: false, product, error: "" });
         setSelected({
@@ -158,7 +166,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
           size: first?.size || "",
           colorKey: first ? variantColorKey(first) : "",
           colorName: first ? variantColorName(first) : "",
-          image: variantImage(first) || displayImageForProduct(product, first) || "",
+          image: variantImage(first) || displayImageForProduct(product, first) || product?.image_url || product?.gallery_images?.[0] || "",
         });
         setTouchedOptions({ color: false, size: false });
         try {
@@ -229,15 +237,16 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
       primaryImage: group.images.find((image) => image?.is_primary) || group.images[0] || null,
     }));
   }, [variants]);
-  const selectedVariant = variants.find((item) => String(item.id) === String(selected.variantId));
+  const selectedVariant = variants.find((item) => String(item.id) === String(selected.variantId)) || null;
   const selectedColorKey = selected.colorKey || (selectedVariant ? variantColorKey(selectedVariant) : "");
   const selectedColorGroup = colorGroups.find((group) => String(group.key || "") === String(selectedColorKey)) || colorGroups[0] || null;
-  const variantGroup = selectedColorKey ? variants.filter((item) => variantColorKey(item) === selectedColorKey) : variants;
+  const variantGroup = selectedColorGroup ? variants.filter((item) => variantColorKey(item) === selectedColorGroup.key) : variants;
   const sizes = [...new Set(variantGroup.map((variant) => variant.size).filter(Boolean))];
   const colors = colorGroups;
   const activeVariant = variants.find((item) => String(item.id) === String(selected.variantId))
     || variants.find((item) => item.size === selected.size && (!selectedColorKey || variantColorKey(item) === selectedColorKey) && variantHasStock(item))
     || firstDisplayVariant(variants);
+  const safeActiveVariant = activeVariant || {};
   const colorGalleryImages = (selectedColorGroup?.images || []).filter(Boolean);
   const thumbnailVariants = [...new Map(
     variants
@@ -246,7 +255,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
       .map((item) => [`${variantImage(item)}:${item.color || ""}`, item])
   ).values()];
   const fallbackGalleryImages = !thumbnailVariants.length && product?.image_url ? [product.image_url] : [];
-  const mainImage = selected.image || variantImage(activeVariant) || selectedColorGroup?.primaryImage?.image_url || selectedColorGroup?.primaryImage?.preview || firstVariantImage(variants) || product?.image_url || "";
+  const mainImage = selected.image || variantImage(safeActiveVariant) || selectedColorGroup?.primaryImage?.image_url || selectedColorGroup?.primaryImage?.preview || firstVariantImage(variants) || product?.image_url || "";
   const galleryItems = [
     ...colorGalleryImages.map((image) => ({
       image: imageFor(image?.image_url || image?.preview || ""),
@@ -256,10 +265,10 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     ...fallbackGalleryImages.map((image) => ({ image, variant: null })),
   ].filter((item) => item.image).reduce((acc, item) => (acc.some((entry) => entry.image === item.image) ? acc : [...acc, item]), []);
   const mirrorProduct = product ? isMirrorProduct(product) : false;
-  const displayTitle = cleanDisplayText(product ? mirrorProductTitle(product, activeVariant) || product.name : "");
-  const selectedPrice = resolveStorefrontPrice(product, activeVariant);
-  const selectedSellingPrice = selectedPrice.activePrice || displaySellingPrice(product, activeVariant);
-  const selectedComparePrice = selectedPrice.comparePrice || displayComparePrice(product, activeVariant);
+  const displayTitle = cleanDisplayText(product ? mirrorProductTitle(product, safeActiveVariant) || product.name : "");
+  const selectedPrice = resolveStorefrontPrice(product, safeActiveVariant);
+  const selectedSellingPrice = selectedPrice.activePrice || displaySellingPrice(product, safeActiveVariant);
+  const selectedComparePrice = selectedPrice.comparePrice || displayComparePrice(product, safeActiveVariant);
   const selectedDiscountPercent = selectedComparePrice > selectedSellingPrice ? Math.max(1, Math.round(((selectedComparePrice - selectedSellingPrice) / selectedComparePrice) * 100)) : 0;
   const descriptionText = cleanDisplayText(product?.seo_description || product?.description_ar || product?.description_en || product?.description)
     || "تصميم عملي بخامة Premium مناسب للخروج اليومي وسهل التنسيق مع ستايلات مختلفة.";
@@ -316,7 +325,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
       if (sameSize) nextVariant = sameSize;
     }
     const nextColorGroup = colorGroups.find((group) => group.key === candidateColorKey) || null;
-    const nextImage = options.image || variantImage(nextVariant) || nextColorGroup?.primaryImage?.image_url || nextColorGroup?.primaryImage?.preview || displayImageForProduct(product, nextVariant) || "";
+    const nextImage = options.image || variantImage(nextVariant) || nextColorGroup?.primaryImage?.image_url || nextColorGroup?.primaryImage?.preview || displayImageForProduct(product, nextVariant) || product?.image_url || "";
     setQty(1);
     setSelected({
       variantId: nextVariant.id || "",
@@ -349,7 +358,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     }
     setSelected((prev) => ({ ...prev, image: item?.image || "" }));
   };
-  const submitVariant = (candidate = activeVariant, quantity = qty, action = "cart") => {
+  const submitVariant = (candidate = safeActiveVariant, quantity = qty, action = "cart") => {
     if (!product || !candidate || Number(candidate.stock || 0) <= 0) return;
     const result = onAddToCart(product, candidate, quantity, action === "buy" ? { intent: "buy" } : undefined);
     if (result === "capture_required") return;
@@ -357,19 +366,19 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     if (action === "buy") navigate("/shop/checkout");
   };
   const buyNow = () => {
-    submitVariant(activeVariant, qty, "buy");
+    submitVariant(safeActiveVariant, qty, "buy");
   };
   const hasMultipleVariantOptions = colors.length > 1 || sizes.length > 1 || variants.length > 1;
   const colorSelectionReady = colors.length <= 1 || touchedOptions.color;
   const sizeSelectionReady = sizes.length <= 1 || touchedOptions.size;
   const canSubmitDirectly = !hasMultipleVariantOptions || (colorSelectionReady && sizeSelectionReady);
   const requestMobilePurchase = (action) => {
-    if (!product || !activeVariant || Number(activeVariant.stock || 0) <= 0) return;
+    if (!product || !safeActiveVariant || Number(safeActiveVariant.stock || 0) <= 0) return;
     if (hasMultipleVariantOptions && !canSubmitDirectly) {
       setVariantSheetAction(action);
       return;
     }
-    submitVariant(activeVariant, qty, action);
+    submitVariant(safeActiveVariant, qty, action);
   };
   const addFromStickyBar = () => {
     requestMobilePurchase("cart");
@@ -430,9 +439,9 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             <div className="text-2xl font-black text-white md:text-4xl">{money(selectedSellingPrice)}</div>
             {selectedComparePrice > selectedSellingPrice ? <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-sm font-black text-white/65 line-through">{money(selectedComparePrice)}</span> : null}
             {selectedDiscountPercent ? <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-sm font-black text-emerald-200">{sfText("storefront.products.discountPercent", "-{{percent}}%", { percent: selectedDiscountPercent })}</span> : null}
-            {activeVariant && Number(activeVariant.stock || 0) > 0 && Number(activeVariant.stock || 0) <= 3 ? (
+            {safeActiveVariant && Number(safeActiveVariant.stock || 0) > 0 && Number(safeActiveVariant.stock || 0) <= 3 ? (
               <span className="rounded-full bg-amber-400/15 px-3 py-1 text-sm font-black text-amber-100">
-                {sfText("storefront.products.onlyLeft", "Only {{count}} left", { count: activeVariant.stock })}
+                {sfText("storefront.products.onlyLeft", "Only {{count}} left", { count: safeActiveVariant.stock })}
               </span>
             ) : null}
           </div>
@@ -493,9 +502,9 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
           </div>
         </div>
 
-        {activeVariant && Number(activeVariant.stock || 0) > 0 && Number(activeVariant.stock || 0) <= 3 ? (
+        {safeActiveVariant && Number(safeActiveVariant.stock || 0) > 0 && Number(safeActiveVariant.stock || 0) <= 3 ? (
           <div className="mt-3 inline-flex rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1.5 text-xs font-black text-amber-100">
-            {sfText("storefront.products.onlyLeft", "Only {{count}} left", { count: activeVariant.stock })}
+            {sfText("storefront.products.onlyLeft", "Only {{count}} left", { count: safeActiveVariant.stock })}
           </div>
         ) : null}
 
@@ -505,14 +514,14 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">{sfText("storefront.cart.quantity", "Quantity")}</div>
             <div className="text-lg font-black">{qty}</div>
           </div>
-          <button type="button" onClick={() => setQty((current) => Math.min(Number(activeVariant?.stock || 1), current + 1))} className="grid h-10 w-10 place-items-center rounded-full bg-white/8 text-lg font-black">+</button>
+          <button type="button" onClick={() => setQty((current) => Math.min(Number(safeActiveVariant?.stock || 1), current + 1))} className="grid h-10 w-10 place-items-center rounded-full bg-white/8 text-lg font-black">+</button>
         </div>
 
         <button
           ref={mainCtaRef}
           type="button"
-          onClick={() => activeVariant && onAddToCart(product, activeVariant, qty)}
-          disabled={!activeVariant || !variantHasStock(activeVariant)}
+          onClick={() => safeActiveVariant && onAddToCart(product, safeActiveVariant, qty)}
+          disabled={!safeActiveVariant || !variantHasStock(safeActiveVariant)}
         className="sf-product-cta mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white text-sm font-black text-stone-950 shadow-[0_14px_34px_rgba(255,255,255,0.16)] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35"
         >
           <ShoppingCart className="h-4 w-4" />
@@ -522,7 +531,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
       <Suspense fallback={<div className="h-40 animate-pulse rounded-[1.5rem] bg-white/50" />}>
         <LazyProductDetailsVariantSheet
           product={product}
-          variant={activeVariant}
+          variant={safeActiveVariant}
           colors={colors}
           sizes={sizes}
           selectedColorKey={selectedColorKey}
@@ -548,7 +557,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
         <RecentProductsSection currentId={product.id} recent={recent} />
       </div>
 
-      <MobileBuyBar product={product} variant={activeVariant} visible={showMobileBuyBar} onAddToCart={addFromStickyBar} buyNow={buyFromStickyBar} />
+      <MobileBuyBar product={product} variant={safeActiveVariant} visible={showMobileBuyBar} onAddToCart={addFromStickyBar} buyNow={buyFromStickyBar} />
     </section>
   );
 }
