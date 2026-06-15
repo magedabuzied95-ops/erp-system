@@ -238,9 +238,10 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
 
   const selectedProduct = useMemo(() => {
     if (!visibleProducts.length) return null;
+    if (sizeMode && !selectedProductId) return null;
     const selected = visibleProducts.find((product) => String(product.product_id || product.id || "") === String(selectedProductId || ""));
-    return selected || visibleProducts[0] || null;
-  }, [selectedProductId, visibleProducts]);
+    return selected || (sizeMode ? null : visibleProducts[0] || null);
+  }, [selectedProductId, sizeMode, visibleProducts]);
 
   useEffect(() => {
     if (!selectedProduct) return;
