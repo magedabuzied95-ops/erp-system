@@ -615,19 +615,31 @@ function ProductSheet({
   );
 
   const colors = useMemo(() => productColors(selectedProduct || {}), [selectedProduct]);
-  const sizes = useMemo(() => productSizes(selectedProduct || {}, selectedColor), [selectedColor, selectedProduct]);
+  const sizes = useMemo(() => (clean(selectedColor) ? productSizes(selectedProduct || {}, selectedColor) : []), [selectedColor, selectedProduct]);
+  const hasVariantOptions = colors.length > 0 || sizes.length > 0;
 
   useEffect(() => {
     if (!selectedProduct) return;
-    const nextColor = colors.includes(selectedColor) ? selectedColor : colors[0] || "";
-    if (nextColor !== selectedColor) setSelectedColor(nextColor);
-    const nextSizes = productSizes(selectedProduct, nextColor);
-    const nextSize = nextSizes.includes(selectedSize) ? selectedSize : nextSizes[0] || "";
-    if (nextSize !== selectedSize) setSelectedSize(nextSize);
-  }, [colors, selectedColor, selectedProduct, selectedSize]);
+    setSelectedColor("");
+    setSelectedSize("");
+  }, [selectedProductId, selectedProduct]);
 
-  const variant = useMemo(() => findVariant(selectedProduct || {}, selectedColor, selectedSize), [selectedColor, selectedProduct, selectedSize]);
-  const card = useMemo(() => (selectedProduct ? buildProductCardPayload(selectedProduct, variant) : null), [selectedProduct, variant]);
+  const variant = useMemo(() => {
+    if (!selectedProduct) return null;
+    if (hasVariantOptions) {
+      if (!clean(selectedColor) || !clean(selectedSize)) return null;
+      return findVariant(selectedProduct || {}, selectedColor, selectedSize);
+    }
+    return findVariant(selectedProduct || {}, "", "");
+  }, [hasVariantOptions, selectedColor, selectedProduct, selectedSize]);
+  const card = useMemo(() => (selectedProduct && variant ? buildProductCardPayload(selectedProduct, variant) : null), [selectedProduct, variant]);
+  const canSend = Boolean(selectedConversation?.session_id && selectedProduct && variant && (!hasVariantOptions || (clean(selectedColor) && clean(selectedSize))));
+  const previewImage = useMemo(
+    () => productImage(selectedProduct || {}, variant || null) || productImage(selectedProduct || {}),
+    [selectedProduct, variant]
+  );
+  const previewPrice = Number(variant?.price ?? selectedProduct?.final_price ?? selectedProduct?.price ?? 0) || 0;
+  const previewStock = Number(variant?.stock_quantity ?? variant?.stock ?? selectedProduct?.stock ?? 0) || 0;
 
   if (!open) return null;
 
@@ -657,7 +669,7 @@ function ProductSheet({
               value={query}
               onChange={(event) => onQueryChange(event.target.value)}
               placeholder="Search product"
-              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm outline-none transition focus:border-slate-400 focus:bg-white"
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-[16px] leading-normal outline-none transition focus:border-slate-400 focus:bg-white"
             />
           </label>
 
@@ -705,23 +717,26 @@ function ProductSheet({
 
             <div className="space-y-3">
               <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
-                {card?.image_url ? (
-                  <img src={card.image_url} alt={card.product_name || "Product"} className="aspect-[4/3] w-full object-cover" loading="lazy" />
+                {previewImage ? (
+                  <img src={previewImage} alt={selectedProduct?.name || selectedProduct?.product_name || "Product"} className="aspect-[4/3] w-full object-cover" loading="lazy" />
                 ) : (
                   <div className="grid aspect-[4/3] w-full place-items-center bg-slate-50">
                     <ShoppingBag className="h-6 w-6 text-slate-400" />
                   </div>
                 )}
                 <div className="space-y-2 p-4">
-                  <div className="text-lg font-semibold text-slate-900">{card?.product_name || "Select a product"}</div>
-                  {card?.price > 0 ? <div className="text-sm font-medium text-emerald-700">{money(card.price)}</div> : null}
+                  <div className="text-lg font-semibold text-slate-900">{selectedProduct?.name || selectedProduct?.product_name || "Select a product"}</div>
+                  {previewPrice > 0 ? <div className="text-sm font-medium text-emerald-700">{money(previewPrice)}</div> : null}
                   <div className="flex flex-wrap gap-2">
-                    {card?.color ? <PwaChip>{card.color}</PwaChip> : null}
-                    {card?.size ? <PwaChip>{card.size}</PwaChip> : null}
+                    {variant?.color ? <PwaChip>{variant.color}</PwaChip> : null}
+                    {variant?.size ? <PwaChip>{variant.size}</PwaChip> : null}
+                    {variant?.available !== undefined ? (
+                      <PwaChip tone={variant.available ? "emerald" : "rose"}>{variant.available ? `In stock ${previewStock}` : "Out of stock"}</PwaChip>
+                    ) : null}
                   </div>
-                  {card?.storefront_url ? (
+                  {selectedProduct ? (
                     <a
-                      href={card.storefront_url}
+                      href={selectedProduct.storefront_url || selectedProduct.product_url || selectedProduct.url || productUrl(selectedProduct)}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700"
@@ -740,7 +755,10 @@ function ProductSheet({
                       <button
                         key={color}
                         type="button"
-                        onClick={() => setSelectedColor(color)}
+                        onClick={() => {
+                          setSelectedColor(color);
+                          setSelectedSize("");
+                        }}
                         className={`rounded-full px-3 py-2 text-sm ${
                           clean(selectedColor).toLowerCase() === clean(color).toLowerCase()
                             ? "bg-slate-900 text-white"
@@ -754,32 +772,38 @@ function ProductSheet({
                 </div>
               ) : null}
 
-              {sizes.length ? (
+              {selectedColor ? (
                 <div className="space-y-2">
                   <div className="text-sm font-medium text-slate-700">Size</div>
                   <div className="flex flex-wrap gap-2">
-                    {sizes.map((size) => (
-                      <button
-                        key={size}
-                        type="button"
-                        onClick={() => setSelectedSize(size)}
-                        className={`rounded-full px-3 py-2 text-sm ${
-                          clean(selectedSize).toLowerCase() === clean(size).toLowerCase()
-                            ? "bg-slate-900 text-white"
-                            : "bg-slate-100 text-slate-700"
-                        }`}
-                      >
-                        {size}
-                      </button>
-                    ))}
+                    {sizes.length ? (
+                      sizes.map((size) => (
+                        <button
+                          key={size}
+                          type="button"
+                          onClick={() => setSelectedSize(size)}
+                          className={`rounded-full px-3 py-2 text-sm ${
+                            clean(selectedSize).toLowerCase() === clean(size).toLowerCase()
+                              ? "bg-slate-900 text-white"
+                              : "bg-slate-100 text-slate-700"
+                          }`}
+                        >
+                          {size}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="text-xs text-slate-500">No sizes for this color.</div>
+                    )}
                   </div>
                 </div>
+              ) : hasVariantOptions ? (
+                <div className="text-xs text-slate-500">Choose a color to see sizes.</div>
               ) : null}
 
               <button
                 type="button"
                 onClick={() => card && onSend([card])}
-                disabled={!selectedConversation || !card || sending}
+                disabled={!canSend}
                 className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -787,6 +811,8 @@ function ProductSheet({
               </button>
               {!selectedConversation ? (
                 <div className="text-xs text-slate-500">Open a conversation first to send a product card.</div>
+              ) : hasVariantOptions && (!clean(selectedColor) || !clean(selectedSize)) ? (
+                <div className="text-xs text-slate-500">Select color and size to enable Send.</div>
               ) : null}
             </div>
           </div>
@@ -1032,6 +1058,17 @@ export default function AiInboxPwa() {
   }, [location.pathname, location.search]);
 
   useEffect(() => {
+    if (!selectedConversation) return undefined;
+    const onPopState = () => {
+      const historyState = window.history.state;
+      if (historyState && typeof historyState.idx === "number" && historyState.idx > 0) return;
+      backToList();
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [backToList, selectedConversation]);
+
+  useEffect(() => {
     if (!("serviceWorker" in navigator)) return undefined;
     navigator.serviceWorker.register("/inbox-sw.js?v=1", { scope: "/inbox" }).catch(() => null);
     return undefined;
@@ -1107,6 +1144,16 @@ export default function AiInboxPwa() {
     setMenuOpen(false);
     updateUrlState({ nextConversationId: "", nextTab: "conversations" });
   }, [updateUrlState]);
+
+  const handleBackNavigation = useCallback(() => {
+    setMenuOpen(false);
+    const historyState = window.history.state;
+    if (historyState && typeof historyState.idx === "number" && historyState.idx > 0) {
+      navigate(-1);
+      return;
+    }
+    backToList();
+  }, [backToList, navigate]);
 
   const loadOlderMessages = useCallback(async () => {
     if (!selectedConversation?.session_id || olderLoading) return;
@@ -1277,6 +1324,9 @@ export default function AiInboxPwa() {
   const selectedLastSeen = relativeSeenLabel(
     selectedConversation?.last_activity_at || selectedConversation?.updated_at
   );
+  const isRtlLayout =
+    typeof document !== "undefined" &&
+    ((document.documentElement.dir || document.body?.dir || "").toLowerCase() === "rtl");
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -1288,9 +1338,10 @@ export default function AiInboxPwa() {
                 <button
                   type="button"
                   onClick={backToList}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
+                  aria-label="Back to conversations"
                 >
-                  <ChevronLeft className="h-4.5 w-4.5" />
+                  <ChevronLeft className="h-5 w-5" />
                 </button>
                 {selectedAvatar ? (
                   <img
@@ -1363,7 +1414,7 @@ export default function AiInboxPwa() {
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Search conversations"
-                  className="h-10 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-4 text-sm outline-none transition focus:border-slate-400"
+                  className="h-10 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-4 text-[16px] leading-normal outline-none transition focus:border-slate-400"
                 />
               </label>
               {tab === "conversations" ? (
@@ -1455,7 +1506,7 @@ export default function AiInboxPwa() {
                   rows={1}
                   placeholder={composerMode === "note" ? "Write an internal note" : "Type a reply"}
                   dir="auto"
-                  className="max-h-28 min-h-12 flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-slate-400 focus:bg-white"
+                  className="max-h-28 min-h-12 flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[16px] leading-normal outline-none transition focus:border-slate-400 focus:bg-white"
                 />
                 <button
                   type="button"
