@@ -493,7 +493,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
                     return (
                       <div key={`${card.product_id || card.variant_id || index}`} className="overflow-hidden rounded-[20px] rounded-bl-md border border-slate-200 bg-white shadow-sm">
                         {image ? <img src={image} alt={card.product_name || "Product"} className="aspect-[4/3] w-full object-cover" loading="lazy" /> : null}
-                        <div className="space-y-2 p-3">
+                        <div className="space-y-2 p-2.5">
                           <div className="text-sm font-semibold text-slate-900">{card.product_name || card.name || "Product"}</div>
                           <div className="flex flex-wrap gap-2 text-xs text-slate-600">
                             {Number(card.price || card.final_price || 0) > 0 ? <span>{money(card.price || card.final_price)}</span> : null}
@@ -519,7 +519,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
             ) : null}
             {isCustomer ? (
               <div className="flex justify-end">
-                <div className="max-w-[82%] rounded-[20px] rounded-br-md bg-emerald-50 px-3 py-2.5 shadow-sm ring-1 ring-emerald-100">
+                <div className="max-w-[82%] rounded-[20px] rounded-br-md bg-emerald-50 px-3 py-2 shadow-sm ring-1 ring-emerald-100">
                   <div className="mb-1 text-right text-[10px] font-medium text-emerald-700/70">{absoluteTime(message.created_at)}</div>
                   <div className="text-slate-900">
                     <MessageText text={message.customer_message} />
@@ -529,7 +529,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
             ) : null}
             {isAi ? (
               <div className="flex justify-start">
-                <div className="max-w-[82%] rounded-[20px] rounded-bl-md bg-sky-50 px-3 py-2.5 shadow-sm ring-1 ring-sky-100">
+                <div className="max-w-[82%] rounded-[20px] rounded-bl-md bg-sky-50 px-3 py-2 shadow-sm ring-1 ring-sky-100">
                   <div className="mb-1 flex items-center gap-1 text-[10px] font-medium text-sky-700">
                     <Bot className="h-3.5 w-3.5" />
                     AI
@@ -542,7 +542,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
             ) : null}
             {isStaff ? (
               <div className="flex justify-start">
-                <div className="max-w-[82%] rounded-[20px] rounded-bl-md bg-slate-900 px-3 py-2.5 text-white shadow-sm">
+                <div className="max-w-[82%] rounded-[20px] rounded-bl-md bg-slate-900 px-3 py-2 text-white shadow-sm">
                   <div className="mb-1 text-[10px] font-medium text-slate-300">
                     {message.message_type === "internal_note" ? "Internal Note" : "Team"} · {absoluteTime(message.created_at)}
                   </div>
@@ -882,10 +882,10 @@ function SmartphoneIcon() {
 }
 
 const QUICK_REPLIES = [
-  "المقاسات المتاحة",
+  "المقاسات",
   "السعر",
   "الشحن",
-  "عنوان الفرع",
+  "الفرع",
 ];
 
 export default function AiInboxPwa() {
@@ -1377,7 +1377,7 @@ export default function AiInboxPwa() {
           )}
         </header>
 
-        <main className="flex-1 px-2 pb-[calc(8.5rem+env(safe-area-inset-bottom))] pt-1.5">
+        <main className={`flex-1 px-2 pt-1.5 ${showComposer ? "pb-[calc(5.9rem+env(safe-area-inset-bottom))]" : "pb-[calc(4.1rem+env(safe-area-inset-bottom))]"}`}>
           {error && !loading ? (
             <div className="mb-3 flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -1420,7 +1420,7 @@ export default function AiInboxPwa() {
         </main>
 
         {showComposer ? (
-          <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 mx-auto w-full max-w-[430px] px-2">
+          <div className={`fixed inset-x-0 z-20 mx-auto w-full max-w-[430px] px-2 ${contentScreen ? "bottom-[max(0.4rem,env(safe-area-inset-bottom))]" : "bottom-[calc(4rem+env(safe-area-inset-bottom))]"}`}>
             <div className="rounded-[24px] border border-slate-200 bg-white p-2.5 shadow-[0_18px_40px_rgba(15,23,42,0.14)]">
               {composerMode === "note" ? (
                 <div className="mb-2 flex items-center gap-2 text-xs font-medium text-amber-700">
@@ -1471,6 +1471,7 @@ export default function AiInboxPwa() {
           </div>
         ) : null}
 
+        {!contentScreen ? (
         <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-[430px] border-t border-slate-200 bg-white/95 px-2 pb-[max(0.45rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur">
           <div className="grid grid-cols-3 gap-1">
             {NAV_ITEMS.map((item) => {
@@ -1492,6 +1493,7 @@ export default function AiInboxPwa() {
             })}
           </div>
         </nav>
+        ) : null}
 
         <ProductSheet
           open={productSheetOpen}
