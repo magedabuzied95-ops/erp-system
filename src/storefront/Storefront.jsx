@@ -1093,19 +1093,19 @@ const cleanupStorefrontStorage = () => {
 };
 const getSuccessMessages = () => {
   const messages = i18n.t("storefront.toasts.successMessages", { returnObjects: true });
-  return Array.isArray(messages) && messages.length ? messages : ["������ �����", "���� ��� ������ ����", "������ ���", "������ �� ����� ���"];
+  return Array.isArray(messages) && messages.length ? messages : ["اختيار ممتاز", "طلبك يتم تجهيزه الآن", "اختيار قوي", "سنجهزه لك بأسرع وقت"];
 };
 
 const getConversionTrustPoints = () => {
   const points = i18n.t("storefront.home.trustPoints", { returnObjects: true });
-  return Array.isArray(points) && points.length ? points : ["��� ���", "����� ���", "��� ������", "��� ����"];
+  return Array.isArray(points) && points.length ? points : ["دفع آمن", "تبديل سهل", "صور حقيقية", "شحن سريع"];
 };
 
 const homeSellingBadges = [
-  { labelAr: "��� ����", labelEn: "Fast shipping", icon: Truck },
-  { labelAr: "������� ���� 14 �����", labelEn: "14-day exchange", icon: RefreshCcw },
-  { labelAr: "��� ���", labelEn: "Secure payment", icon: ShieldCheck },
-  { labelAr: "��� ������", labelEn: "Real photos", icon: Camera },
+  { labelAr: "شحن سريع", labelEn: "Fast shipping", icon: Truck },
+  { labelAr: "استبدال خلال 14 يومًا", labelEn: "14-day exchange", icon: RefreshCcw },
+  { labelAr: "دفع آمن", labelEn: "Secure payment", icon: ShieldCheck },
+  { labelAr: "صور حقيقية", labelEn: "Real photos", icon: Camera },
 ];
 
 const storefrontApi = {
@@ -1166,7 +1166,7 @@ const prefetchStorefrontProductDetails = (identifier) => {
   });
 };
 const productFromDetailsResponse = (data = {}) => data?.product || data?.data?.product || (data?.id ? data : null);
-const MANUAL_CITY_AREA = "�������� ������";
+const MANUAL_CITY_AREA = "الاختيار اليدوي";
 const governorateCityAreas = repairArabicMojibakeDeep({
   "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ·ط¥â€™ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ©": ["ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¯ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ© ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آµط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±", "ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آµط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ± ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¯ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¯ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ©", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¯ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¹ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ®ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ³", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ´ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ«ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ«ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ´ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ«ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ ", "ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ«ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ³ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ· ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¯", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ²ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¦ط£آ¢أ¢â€ڑآ¬أ¢â€‍آ¢", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¬", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ  ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ´ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ³", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ³ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¯ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ± ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ³ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦"],
   "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ²ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ©": ["ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¯ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ·ط¥â€™ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¯ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ³ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ ", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ«ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ²ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ©", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ·ط¥â€™ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦", "ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آµط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ", "6 ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¦ط£آ¢أ¢â€ڑآ¬أ¢â€‍آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¹ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ«ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ´ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ® ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ²ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¯", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¯ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع© ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ·ط¥â€™ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¥ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ©", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ«ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¯ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ´ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ ", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ«ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ³ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦", "ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¦ط£آ¢أ¢â€ڑآ¬أ¢â€‍آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¯ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ³ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ©"],
@@ -1353,7 +1353,7 @@ const DEFAULT_STOREFRONT_PAYMENT_SETTINGS = repairArabicMojibakeDeep({
     label: "المبلغ المطلوب تحويله الآن",
   },
 });
-const MANUAL_CITY_AREA_LABEL = "�������� ������";
+const MANUAL_CITY_AREA_LABEL = "الاختيار اليدوي";
 const getPaymentMethods = (paymentSettings = DEFAULT_STOREFRONT_PAYMENT_SETTINGS) => [
   {
     id: "cod",
@@ -1519,12 +1519,12 @@ const SEARCH_RECENT_KEY = "storefront.search.recent";
 const reason = "";
 const getSearchPlaceholders = () => {
   const values = i18n.t("storefront.search.placeholders", { returnObjects: true });
-  return Array.isArray(values) && values.length ? values : ["���� �� Jordan 4...", "���� �� Sneakers...", "���� ������� 42...", "���� ���� �������...", "���� �� SKU..."];
+  return Array.isArray(values) && values.length ? values : ["ابحث عن Jordan 4...", "ابحث عن Sneakers...", "ابحث بالمقاس 42...", "ابحث باسم البراند...", "ابحث بـ SKU..."];
 };
 
 const getTrendingSearches = () => {
   const values = i18n.t("storefront.search.trending", { returnObjects: true });
-  return Array.isArray(values) && values.length ? values : ["Jordan 4", "Sneakers", "���� 42", "Mirror Original", "Adidas", "����� ����"];
+  return Array.isArray(values) && values.length ? values : ["Jordan 4", "Sneakers", "مقاس 42", "Mirror Original", "Adidas", "رجالي أسود"];
 };
 
 const getSearchFallbackSections = () => {
@@ -1532,7 +1532,7 @@ const getSearchFallbackSections = () => {
   return sections && typeof sections === "object" && !Array.isArray(sections)
     ? sections
     : {
-      categories: ["�����", "�����", "�����", "����", "��� ����"],
+      categories: ["رجالي", "حريمي", "أطفال", "عروض", "آخر قطعة"],
       brands: ["Nike", "Adidas", "New Balance", "Air Jordan"],
     };
 };
@@ -1563,12 +1563,12 @@ const featuredCategoryDefinitions = [
   {
     id: "men",
     labelEn: "Men",
-    labelAr: "�����",
+    labelAr: "رجالي",
     headlineEn: "Latest Men's Shoes",
-    headlineAr: "���� ����� ������",
+    headlineAr: "أحدث أحذية الرجال",
     subtitleEn: "Fresh sneakers, daily picks, and standout sizes for every look.",
-    subtitleAr: "������ ����ɡ �������� ����ɡ ������� ����� ��� ������.",
-    query: "Jordan 4 Nike Shox Air Force Adidas Campus �����",
+    subtitleAr: "سنيكرز جديدة، اختيارات يومية، ومقاسات مميزة لكل إطلالة.",
+    query: "Jordan 4 Nike Shox Air Force Adidas Campus رجالي",
     href: "/shop/products?gender=men",
     examples: ["Jordan 4", "Nike Shox", "Air Force", "Adidas Campus"],
     test: (product, text) => productAudienceValues(product).includes("men") || /men|mens|male|\?{3,5}/i.test(text),
@@ -1577,12 +1577,12 @@ const featuredCategoryDefinitions = [
   {
     id: "women",
     labelEn: "Women",
-    labelAr: "�����",
+    labelAr: "حريمي",
     headlineEn: "New Women's Collection",
-    headlineAr: "������ ������� �������",
+    headlineAr: "مجموعة الحريمي الجديدة",
     subtitleEn: "Soft colors, bold silhouettes, and everyday favorites in one edit.",
-    subtitleAr: "����� ����ɡ ���� ����ɡ ������� ����� �� ������ ����.",
-    query: "Nike Adidas Jordan �����",
+    subtitleAr: "ألوان ناعمة، قصات جريئة، ومفضلات يومية في اختيار واحد.",
+    query: "Nike Adidas Jordan حريمي",
     href: "/shop/products?gender=women",
     examples: ["Nike", "Adidas", "Jordan"],
     test: (product, text) => productAudienceValues(product).includes("women") || /women|womens|female|ladies|\?{3,5}/i.test(text),
@@ -1591,12 +1591,12 @@ const featuredCategoryDefinitions = [
   {
     id: "kids",
     labelEn: "Kids",
-    labelAr: "�����",
+    labelAr: "أطفال",
     headlineEn: "Kids Essentials",
-    headlineAr: "������� �������",
+    headlineAr: "أساسيات الأطفال",
     subtitleEn: "Built for school, play and movement.",
-    subtitleAr: "����� ������� ������ �������.",
-    query: "kids children school play �����",
+    subtitleAr: "مصممة للمدرسة واللعب والحركة.",
+    query: "kids children school play أطفال",
     href: "/shop/products?gender=kids",
     examples: ["kids", "children", "school", "play"],
     test: (product, text) => productAudienceValues(product).includes("kids") || /kids?|children|child|\?{3,5}/i.test(text),
@@ -1605,12 +1605,12 @@ const featuredCategoryDefinitions = [
   {
     id: "offers",
     labelEn: "Offers",
-    labelAr: "����",
+    labelAr: "عروض",
     headlineEn: "Season Offers",
-    headlineAr: "���� ������",
+    headlineAr: "عروض الموسم",
     subtitleEn: "Selected discounts and high-value picks for a limited time.",
-    subtitleAr: "������ ������ ���� ����� ������ ����� ������.",
-    query: "offers sale discount ����",
+    subtitleAr: "خصومات مختارة وقطع عالية القيمة لفترة محدودة.",
+    query: "offers sale discount عروض",
     href: "/shop/products?sale=true",
     examples: ["Sale", "Discount", "Offers", "Best Price"],
     test: (product, text) => hasSale(product) || /offer|offers|sale|discount|\?{3,5}/i.test(text),
@@ -1619,12 +1619,12 @@ const featuredCategoryDefinitions = [
   {
     id: "crocs",
     labelEn: "Crocs",
-    labelAr: "�����",
+    labelAr: "كروكس",
     headlineEn: "Crocs Picks",
-    headlineAr: "�������� �����",
+    headlineAr: "اختيارات كروكس",
     subtitleEn: "Easy comfort, summer colors, and quick everyday pairs.",
-    subtitleAr: "���� ���ɡ ����� ����ɡ ���� ����� �����.",
-    query: "crocs crocband classic clog slides �����",
+    subtitleAr: "راحة سهلة، ألوان صيفية، وقطع يومية خفيفة.",
+    query: "crocs crocband classic clog slides كروكس",
     href: "/shop/products?category=crocs",
     examples: ["Crocs", "Crocband", "Classic Clog", "Slides"],
     test: (_product, text) => /crocs?|crocband|classics*clog|slides|\?{3,5}/i.test(text),
@@ -1633,12 +1633,12 @@ const featuredCategoryDefinitions = [
   {
     id: "last-sizes",
     labelEn: "Last Sizes",
-    labelAr: "��� ��������",
+    labelAr: "آخر المقاسات",
     headlineEn: "Last Sizes",
-    headlineAr: "��� ��������",
+    headlineAr: "آخر المقاسات",
     subtitleEn: "Limited pairs with final sizes before they disappear.",
-    subtitleAr: "����� ������ ��������� ������� ��� ������.",
-    query: "last sizes final size ��� ��������",
+    subtitleAr: "أزواج محدودة بالمقاسات الأخيرة قبل نفادها.",
+    query: "last sizes final size آخر المقاسات",
     href: "/shop/products?stock=last",
     examples: ["Last Sizes", "Final Size", "Limited Stock"],
     test: (_product, text) => /lasts*sizes|finals*size|\?{3,5} \?{3,5}|\?{3,5} \?{3,5} \?{3,5}/i.test(text),
@@ -1965,7 +1965,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false })
               {activeCategory.label}
             </div>
             <div className="absolute start-4 top-4 z-20 flex gap-2">
-              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? 1 : -1); }} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-transparent bg-white/10 text-white shadow-sm backdrop-blur transition-[background-color,color,opacity,transform] duration-200 hover:bg-white/16 hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35" aria-label="������">
+              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? 1 : -1); }} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-transparent bg-white/10 text-white shadow-sm backdrop-blur transition-[background-color,color,opacity,transform] duration-200 hover:bg-white/16 hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35" aria-label="واتساب">
                 <ChevronLeft className={`h-4 w-4 ${isRtl ? "rotate-180" : ""}`} />
               </button>
               <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? -1 : 1); }} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-transparent bg-white/10 text-white shadow-sm backdrop-blur transition-[background-color,color,opacity,transform] duration-200 hover:bg-white/16 hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35" aria-label="Next slide">
@@ -2146,7 +2146,7 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
             {sfText("storefront.home.shopByCategory")}
           </div>
           <h2 className={`text-3xl font-black tracking-normal md:text-6xl ${darkMode ? "text-stone-100" : "text-[#0f172a]"}`}>
-            ������ ��������
+            الفئات الرئيسية
           </h2>
         </div>
         <Link to="/shop/products" className={`hidden min-h-11 items-center justify-center rounded-full border px-6 text-xs font-black shadow-[0_14px_34px_rgba(39,20,75,0.08)] transition hover:-translate-y-0.5 active:scale-[0.98] sm:inline-flex ${darkMode ? "border-white/10 bg-white/5 text-stone-200 hover:bg-white hover:text-stone-950 dark:hover:bg-white dark:hover:text-stone-950" : "border-slate-300 bg-white text-[#0f172a] hover:border-[#7c3aed]/50 hover:bg-white hover:text-[#0f172a]"}`}>
@@ -2969,7 +2969,7 @@ function LastPieceFinder({ open, onClose }) {
     });
   }, [categories, criticalProducts]);
   const step = selectedSize ? "products" : selectedCategory ? "sizes" : "categories";
-  const title = step === "categories" ? "��� ����" : step === "sizes" ? "���� ������" : `${selectedCategory} / ${selectedSize}`;
+  const title = step === "categories" ? "آخر قطعة" : step === "sizes" ? "اختر المقاس" : `${selectedCategory} / ${selectedSize}`;
 
   useEffect(() => {
     if (!open) {
@@ -3031,7 +3031,7 @@ function LastPieceFinder({ open, onClose }) {
             {selectedCategory ? <ChevronLeft className="h-5 w-5 rotate-180" /> : <X className="h-5 w-5" />}
           </button>
           <div className="min-w-0 text-center">
-            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f8e7b3]">��� ����</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f8e7b3]">منتجات محدودة</p>
             <h2 className="mt-1 truncate text-2xl font-black">{title}</h2>
           </div>
           <button onClick={onClose} className="grid h-11 w-11 place-items-center rounded-full border border-white/12 bg-white/10 text-white backdrop-blur transition active:scale-95" aria-label={sfText("storefront.common.close")}>
@@ -3054,7 +3054,7 @@ function LastPieceFinder({ open, onClose }) {
           {!loading && !error && step === "categories" ? (
             <div className="grid grid-cols-2 gap-2 pt-3 sm:gap-3 sm:pt-5">
               {displayedCategories.map((category) => {
-                const visual = { icon: <ShoppingBag className="h-4 w-4 sm:h-6 sm:w-6" />, text: "������ ������" };
+                const visual = { icon: <ShoppingBag className="h-4 w-4 sm:h-6 sm:w-6" />, text: "منتجات محدودة" };
                 return (
                   <button
                     key={category.label}
@@ -3066,14 +3066,14 @@ function LastPieceFinder({ open, onClose }) {
                       <span>
                         <span className="grid h-9 w-9 place-items-center rounded-full bg-[#f8e7b3] text-stone-950 shadow-[0_10px_26px_rgba(248,231,179,0.18)] sm:h-12 sm:w-12">{visual.icon}</span>
                         <span className="mt-2 block text-lg font-black leading-5 sm:mt-4 sm:text-3xl">{category.label}</span>
-                        <span className="mt-0.5 block text-[10.5px] font-bold leading-4 text-white/58 sm:mt-1 sm:text-sm sm:leading-5">������ ������</span>
+                        <span className="mt-0.5 block text-[10.5px] font-bold leading-4 text-white/58 sm:mt-1 sm:text-sm sm:leading-5">منتجات محدودة</span>
                       </span>
-                      <span className="w-fit rounded-full border border-white/12 bg-white/10 px-2 py-1 text-[10px] font-black text-[#f8e7b3] sm:px-3 sm:text-xs">{category.count} ����</span>
+                      <span className="w-fit rounded-full border border-white/12 bg-white/10 px-2 py-1 text-[10px] font-black text-[#f8e7b3] sm:px-3 sm:text-xs">{category.count} منتج</span>
                     </span>
                   </button>
                 );
               })}
-              {!displayedCategories.length ? <LastPieceEmpty text="�� ���� ������ ������ ������� ������" /> : null}
+              {!displayedCategories.length ? <LastPieceEmpty text="لا توجد منتجات منخفضة المخزون حاليًا" /> : null}
             </div>
           ) : null}
 
@@ -3090,7 +3090,7 @@ function LastPieceFinder({ open, onClose }) {
                   </button>
                 ))}
               </div>
-              {!sizeOptions.length ? <LastPieceEmpty text="�� ���� ������ ������ ������� ������" /> : null}
+              {!sizeOptions.length ? <LastPieceEmpty text="لا توجد منتجات منخفضة المخزون حاليًا" /> : null}
             </div>
           ) : null}
 
@@ -3172,13 +3172,13 @@ const ProductRail = memo(function ProductRail({ title, subtitle, products, loadi
     <section className="sf-reveal mx-auto max-w-[1200px] px-4 py-2 md:py-4">
       <div className="mb-2 flex items-end justify-between gap-3 text-right md:mb-4 md:gap-4">
         <div className="min-w-0">
-          <div className="mb-0.5 text-[9.5px] font-black uppercase tracking-[0.15em] text-[#7c3aed] dark:text-[#d8b4fe] md:mb-1 md:text-[11px] md:tracking-[0.18em]">{t("storefront.common.shopNow", "���� ����")}</div>
+          <div className="mb-0.5 text-[9.5px] font-black uppercase tracking-[0.15em] text-[#7c3aed] dark:text-[#d8b4fe] md:mb-1 md:text-[11px] md:tracking-[0.18em]">{t("storefront.common.shopNow", "تسوق الآن")}</div>
           <h2 className="text-[1.25rem] font-black tracking-normal md:text-3xl">{title}</h2>
           {subtitle ? <p className="mt-0.5 text-[11px] font-bold text-stone-500 dark:text-stone-400 md:mt-1 md:text-sm">{subtitle}</p> : null}
           <div className="mt-1 h-0.5 w-10 rounded-full bg-gradient-to-l from-[#7c3aed] to-[#d8b4fe] md:mt-1.5 md:h-1 md:w-14" />
         </div>
         <Link to="/shop/products" className="mb-0.5 inline-flex min-h-8 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-black text-stone-700 shadow-[0_10px_26px_rgba(39,20,75,0.07)] transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 hover:text-[#6d28d9] active:scale-[0.98] md:mb-1 md:min-h-10 md:px-5 md:py-2 md:text-xs dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
-          {t("common.viewAll", "��� ����")}
+          {t("common.viewAll", "عرض الكل")}
         </Link>
       </div>
       <div className="sf-product-rail sf-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-1.5 md:flex-nowrap md:gap-4 md:overflow-hidden md:pb-1">
@@ -3203,8 +3203,8 @@ function MiniRailEmpty() {
       <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-[#8b5cf6]/20 bg-[#7c3aed]/14 text-[#c4b5fd]">
         <Sparkles className="h-6 w-6" />
       </span>
-      <h3 className="mt-3 text-lg font-black text-stone-50">{t("storefront.products.emptyRailTitle", "��� ����� ������ ����� ���")}</h3>
-      <p className="mt-1 text-sm font-bold text-stone-400">{t("storefront.products.comingSoon", "��� ������")}</p>
+      <h3 className="mt-3 text-lg font-black text-stone-50">{t("storefront.products.emptyRailTitle", "لا توجد منتجات بعد")}</h3>
+      <p className="mt-1 text-sm font-bold text-stone-400">{t("storefront.products.comingSoon", "قريبًا")}</p>
     </div>
   );
 }
@@ -3720,25 +3720,25 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
       : t("storefront.header.languageEnglish", "English");
   const searchPlaceholders = getSearchPlaceholders();
   const announcementItems = [
-    { label: t("storefront.header.announcements.fastShipping", "��� ���� ���� ���"), icon: <Truck className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.announcements.fastShipping", "شحن سريع داخل مصر"), icon: <Truck className="h-3.5 w-3.5" /> },
     { label: t("storefront.header.announcements.exchange", "14-day exchange"), icon: <RefreshCcw className="h-3.5 w-3.5" /> },
-    { label: t("storefront.header.announcements.cod", "����� ��� ��������"), icon: <PackageCheck className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.announcements.cod", "الدفع عند الاستلام"), icon: <PackageCheck className="h-3.5 w-3.5" /> },
     { label: t("storefront.header.announcements.premium", "Mirror Premium products"), icon: <Sparkles className="h-3.5 w-3.5" /> },
-    { label: t("storefront.header.announcements.todayDeals", "���� �����"), icon: <BadgePercent className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.announcements.todayDeals", "خصومات اليوم"), icon: <BadgePercent className="h-3.5 w-3.5" /> },
   ];
   const utilityItems = [
-    { label: "������", to: "https://wa.me/", icon: <MessageCircle className="h-3.5 w-3.5" />, external: true },
-    { label: t("storefront.header.trackOrder", "���� �����"), to: "/shop/track", icon: <PackageSearch className="h-3.5 w-3.5" /> },
-    { label: t("storefront.header.wishlist", "�������"), to: "/shop/wishlist", icon: <Heart className="h-3.5 w-3.5" /> },
-    { label: t("storefront.header.account", "������"), to: "/shop/account", icon: <User className="h-3.5 w-3.5" /> },
+    { label: "واتساب", to: "https://wa.me/", icon: <MessageCircle className="h-3.5 w-3.5" />, external: true },
+    { label: t("storefront.header.trackOrder", "تتبع الطلب"), to: "/shop/track", icon: <PackageSearch className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.wishlist", "المفضلة"), to: "/shop/wishlist", icon: <Heart className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.account", "الحساب"), to: "/shop/account", icon: <User className="h-3.5 w-3.5" /> },
   ];
   const navItems = [
     [t("storefront.nav.categories", "Categories"), "/shop/products"],
     [t("storefront.nav.sale", "Sale"), "/shop/sale"],
-    [t("storefront.nav.new", "������"), "/shop/products?sort=new"],
-    [t("storefront.nav.men", "Men"), "/shop/products?q=�����"],
-    [t("storefront.nav.women", "Women"), "/shop/products?q=�����"],
-    [t("storefront.nav.kids", "Kids"), "/shop/products?q=�����"],
+    [t("storefront.nav.new", "الجديد"), "/shop/products?sort=new"],
+    [t("storefront.nav.men", "رجالي"), "/shop/products?q=رجالي"],
+    [t("storefront.nav.women", "حريمي"), "/shop/products?q=حريمي"],
+    [t("storefront.nav.kids", "أطفال"), "/shop/products?q=أطفال"],
   ];
   const themeIsDark = effectiveTheme === "dark";
   const themeToggleLabel = themeIsDark
