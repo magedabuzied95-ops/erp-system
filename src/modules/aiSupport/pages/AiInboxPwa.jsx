@@ -722,9 +722,9 @@ function ProductSheet({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/35" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-2 pb-2 pt-14 sm:px-4 sm:pb-4 sm:pt-16" onClick={onClose}>
       <div
-        className="absolute inset-x-0 bottom-0 flex h-[calc(100dvh-0.5rem)] max-h-[100dvh] flex-col rounded-t-[28px] bg-white shadow-[0_-16px_40px_rgba(15,23,42,0.18)] sm:h-[min(88vh,52rem)]"
+        className="flex h-[82dvh] w-full max-w-[720px] flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_-16px_40px_rgba(15,23,42,0.18)] sm:h-[min(88dvh,52rem)]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mx-auto mt-2 h-1.5 w-12 shrink-0 rounded-full bg-slate-200" />
@@ -825,9 +825,9 @@ function ProductSheet({
 
                   <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
                     {previewImage ? (
-                      <img src={previewImage} alt={selectedProduct?.name || selectedProduct?.product_name || "Product"} className="aspect-[4/3] max-h-[180px] w-full object-cover" loading="lazy" />
+                      <img src={previewImage} alt={selectedProduct?.name || selectedProduct?.product_name || "Product"} className="h-[170px] w-full object-contain bg-slate-50 p-2" loading="lazy" />
                     ) : (
-                      <div className="grid aspect-[4/3] max-h-[180px] w-full place-items-center bg-slate-50">
+                      <div className="grid h-[170px] w-full place-items-center bg-slate-50">
                         <ShoppingBag className="h-6 w-6 text-slate-400" />
                       </div>
                     )}
