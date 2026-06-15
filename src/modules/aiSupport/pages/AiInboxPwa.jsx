@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   AlertCircle,
@@ -9,6 +9,7 @@ import {
   Clock3,
   Download,
   Globe,
+  Image,
   Layers3,
   Loader2,
   MessageCircleMore,
@@ -32,6 +33,15 @@ import { getPosSellableProducts } from "../../pos/services/posProductsApi";
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
 const money = (value) => formatCurrency(Number(value || 0));
+const normalizeKey = (value = "") => clean(value).toLowerCase();
+
+const getVariantRows = (product = {}) => [
+  ...(Array.isArray(product.variants) ? product.variants : []),
+  ...(Array.isArray(product.product_variants) ? product.product_variants : []),
+  ...(Array.isArray(product.productVariants) ? product.productVariants : []),
+  ...(Array.isArray(product.variantRows) ? product.variantRows : []),
+  ...(Array.isArray(product.variant_options) ? product.variant_options : []),
+].filter(Boolean);
 
 const tenantIdFromAuth = () => {
   const tenant = getCurrentTenant?.() || {};
@@ -50,6 +60,8 @@ const encodeConversationId = (value = "") => {
 
 const aiInboxConversationEndpoint = (sessionId = "", suffix = "") =>
   `/ai-inbox/conversations/${encodeConversationId(sessionId)}${suffix}`;
+const aiAgentInboxEndpoint = (sessionId = "", suffix = "") =>
+  `/ai-agent/inbox/${encodeConversationId(sessionId)}${suffix}`;
 
 const normalizeConversationChannel = (conversation = {}) => {
   const raw = clean(
@@ -106,6 +118,26 @@ const conversationUnreadCount = (conversation = {}) =>
       conversation.unread ??
       0
   ) || 0;
+
+const conversationLastActivityTime = (conversation = {}) =>
+  new Date(conversation.last_activity_at || conversation.updated_at || 0).getTime() || 0;
+
+const applyLocalReadState = (conversation = {}, readAtByConversation = {}) => {
+  const key = conversation.conversation_key || conversationKey(conversation);
+  const readAt = readAtByConversation[key];
+  if (!readAt) return conversation;
+
+  const readTime = new Date(readAt).getTime() || 0;
+  if (conversationLastActivityTime(conversation) > readTime) return conversation;
+
+  return {
+    ...conversation,
+    unread_count: 0,
+    unseen_count: 0,
+    pending_count: 0,
+    unread: false,
+  };
+};
 
 const relativeTime = (value) => {
   if (!value) return "";
@@ -250,6 +282,7 @@ const buildProductCardPayload = (product = {}, variant = null) => ({
   image_url: clean(
     variant?.image_url ||
       variant?.variant_image_url ||
+      variant?.image ||
       product.product_image_url ||
       product.image_url ||
       product.image ||
@@ -269,37 +302,49 @@ const buildProductCardPayload = (product = {}, variant = null) => ({
 });
 
 const productColors = (product = {}) =>
-  [...new Set(asArray(product.variants).map((variant) => clean(variant.color || variant.color_name)).filter(Boolean))];
+  [...new Set(
+    getVariantRows(product)
+      .flatMap((variant) => [
+        clean(variant.color || variant.color_name || variant.variant_color || variant.selected_color),
+        clean(variant.variant?.color || variant.variant?.color_name || ""),
+        clean(product.color || product.color_name || product.variant_color || ""),
+      ])
+      .filter(Boolean)
+  )];
 
 const productSizes = (product = {}, color = "") => {
-  const normalizedColor = clean(color).toLowerCase();
+  const normalizedColor = normalizeKey(color);
   return [
     ...new Set(
-      asArray(product.variants)
+      getVariantRows(product)
         .filter((variant) => {
           if (!normalizedColor) return true;
-          return clean(variant.color || variant.color_name).toLowerCase() === normalizedColor;
+          return normalizeKey(variant.color || variant.color_name || variant.variant_color || variant.selected_color) === normalizedColor;
         })
-        .map((variant) => clean(variant.size || variant.size_name))
+        .flatMap((variant) => [
+          clean(variant.size || variant.size_name || variant.variant_size || variant.selected_size),
+          clean(variant.variant?.size || variant.variant?.size_name || ""),
+          clean(product.size || product.size_name || product.variant_size || ""),
+        ])
         .filter(Boolean)
     ),
   ];
 };
 
 const findVariant = (product = {}, color = "", size = "") => {
-  const normalizedColor = clean(color).toLowerCase();
-  const normalizedSize = clean(size).toLowerCase();
-  const variants = asArray(product.variants);
+  const normalizedColor = normalizeKey(color);
+  const normalizedSize = normalizeKey(size);
+  const variants = getVariantRows(product);
   return (
     variants.find((variant) => {
-      const variantColor = clean(variant.color || variant.color_name).toLowerCase();
-      const variantSize = clean(variant.size || variant.size_name).toLowerCase();
+      const variantColor = normalizeKey(variant.color || variant.color_name || variant.variant_color || variant.selected_color);
+      const variantSize = normalizeKey(variant.size || variant.size_name || variant.variant_size || variant.selected_size);
       const colorMatch = !normalizedColor || variantColor === normalizedColor;
       const sizeMatch = !normalizedSize || variantSize === normalizedSize;
       return colorMatch && sizeMatch;
     }) ||
-    variants.find((variant) => clean(variant.color || variant.color_name).toLowerCase() === normalizedColor) ||
-    variants.find((variant) => clean(variant.size || variant.size_name).toLowerCase() === normalizedSize) ||
+    variants.find((variant) => normalizeKey(variant.color || variant.color_name || variant.variant_color || variant.selected_color) === normalizedColor) ||
+    variants.find((variant) => normalizeKey(variant.size || variant.size_name || variant.variant_size || variant.selected_size) === normalizedSize) ||
     variants[0] ||
     null
   );
@@ -571,6 +616,7 @@ function ProductSheet({
   const [selectedProductId, setSelectedProductId] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
+  const [view, setView] = useState("list");
 
   const filteredProducts = useMemo(() => {
     const normalized = clean(query).toLowerCase();
@@ -579,17 +625,23 @@ function ProductSheet({
       const searchable = [
         product.name,
         product.product_name,
+        product.title,
         product.brand,
         product.brand_name,
         product.category,
         product.category_name,
         product.sku,
         product.barcode,
-        ...asArray(product.variants).flatMap((variant) => [
+        ...getVariantRows(product).flatMap((variant) => [
           variant.color,
+          variant.color_name,
+          variant.variant_color,
           variant.size,
+          variant.size_name,
+          variant.variant_size,
           variant.sku,
           variant.barcode,
+          variant.article_code,
         ]),
       ]
         .map((item) => clean(item).toLowerCase())
@@ -600,6 +652,7 @@ function ProductSheet({
 
   useEffect(() => {
     if (!open) return;
+    setView("list");
     const firstId = String(filteredProducts[0]?.product_id || filteredProducts[0]?.id || "");
     if (!selectedProductId || !filteredProducts.some((product) => String(product.product_id || product.id || "") === selectedProductId)) {
       setSelectedProductId(firstId);
@@ -615,8 +668,8 @@ function ProductSheet({
   );
 
   const colors = useMemo(() => productColors(selectedProduct || {}), [selectedProduct]);
-  const sizes = useMemo(() => (clean(selectedColor) ? productSizes(selectedProduct || {}, selectedColor) : []), [selectedColor, selectedProduct]);
-  const hasVariantOptions = colors.length > 0 || sizes.length > 0;
+  const sizes = useMemo(() => productSizes(selectedProduct || {}, selectedColor), [selectedColor, selectedProduct]);
+  const requiresVariantSelection = colors.length > 0 || sizes.length > 0;
 
   useEffect(() => {
     if (!selectedProduct) return;
@@ -624,22 +677,47 @@ function ProductSheet({
     setSelectedSize("");
   }, [selectedProductId, selectedProduct]);
 
+  useEffect(() => {
+    if (!selectedProduct || view !== "detail") return;
+    if (colors.length === 1 && normalizeKey(selectedColor) !== normalizeKey(colors[0])) {
+      setSelectedColor(colors[0]);
+    }
+    if (colors.length > 1 && selectedColor && !colors.some((color) => normalizeKey(color) === normalizeKey(selectedColor))) {
+      setSelectedColor("");
+    }
+  }, [colors, selectedColor, selectedProduct, view]);
+
+  useEffect(() => {
+    if (!selectedProduct || view !== "detail") return;
+    if (sizes.length === 1 && normalizeKey(selectedSize) !== normalizeKey(sizes[0])) {
+      setSelectedSize(sizes[0]);
+    }
+    if (sizes.length > 1 && selectedSize && !sizes.some((size) => normalizeKey(size) === normalizeKey(selectedSize))) {
+      setSelectedSize("");
+    }
+  }, [selectedProduct, selectedSize, sizes, view]);
+
   const variant = useMemo(() => {
     if (!selectedProduct) return null;
-    if (hasVariantOptions) {
+    if (requiresVariantSelection) {
       if (!clean(selectedColor) || !clean(selectedSize)) return null;
       return findVariant(selectedProduct || {}, selectedColor, selectedSize);
     }
     return findVariant(selectedProduct || {}, "", "");
-  }, [hasVariantOptions, selectedColor, selectedProduct, selectedSize]);
-  const card = useMemo(() => (selectedProduct && variant ? buildProductCardPayload(selectedProduct, variant) : null), [selectedProduct, variant]);
-  const canSend = Boolean(selectedConversation?.session_id && selectedProduct && variant && (!hasVariantOptions || (clean(selectedColor) && clean(selectedSize))));
+  }, [requiresVariantSelection, selectedColor, selectedProduct, selectedSize]);
+  const card = useMemo(() => (selectedProduct ? buildProductCardPayload(selectedProduct, variant) : null), [selectedProduct, variant]);
+  const canSend = Boolean(
+    selectedConversation?.session_id &&
+      selectedProduct &&
+      (!requiresVariantSelection || (clean(selectedColor) && clean(selectedSize))) &&
+      (requiresVariantSelection ? Boolean(variant) : true)
+  );
   const previewImage = useMemo(
     () => productImage(selectedProduct || {}, variant || null) || productImage(selectedProduct || {}),
     [selectedProduct, variant]
   );
   const previewPrice = Number(variant?.price ?? selectedProduct?.final_price ?? selectedProduct?.price ?? 0) || 0;
-  const previewStock = Number(variant?.stock_quantity ?? variant?.stock ?? selectedProduct?.stock ?? 0) || 0;
+  const previewStock = Number(variant?.stock_quantity ?? variant?.stock ?? selectedProduct?.total_stock ?? selectedProduct?.stock ?? 0) || 0;
 
   if (!open) return null;
 
@@ -663,59 +741,84 @@ function ProductSheet({
             </button>
           </div>
 
-          <label className="relative block">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              value={query}
-              onChange={(event) => onQueryChange(event.target.value)}
-              placeholder="Search product"
-              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-[16px] leading-normal outline-none transition focus:border-slate-400 focus:bg-white"
-            />
-          </label>
+          {view === "list" ? (
+            <>
+              <label className="relative block">
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={query}
+                  onChange={(event) => onQueryChange(event.target.value)}
+                  placeholder="Search product"
+                  className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-[16px] leading-normal outline-none transition focus:border-slate-400 focus:bg-white"
+                />
+              </label>
 
-          <div className="grid gap-4 md:grid-cols-[1fr_1fr]">
-            <div className="max-h-[44vh] space-y-2 overflow-y-auto pr-1">
-              {loading ? (
-                <div className="grid min-h-40 place-items-center rounded-2xl border border-slate-200 bg-slate-50 text-sm text-slate-500">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                </div>
-              ) : filteredProducts.length ? (
-                filteredProducts.slice(0, 80).map((product) => {
-                  const active = String(product.product_id || product.id || "") === String(selectedProduct?.product_id || selectedProduct?.id || "");
-                  const previewImage = productImage(product);
-                  return (
-                    <button
-                      key={`${product.product_id || product.id}`}
-                      type="button"
-                      onClick={() => setSelectedProductId(String(product.product_id || product.id || ""))}
-                      className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left ${
-                        active ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-900"
-                      }`}
-                    >
-                      {previewImage ? (
-                        <img src={previewImage} alt={product.name || "Product"} className="h-14 w-14 rounded-xl object-cover" loading="lazy" />
-                      ) : (
-                        <div className={`grid h-14 w-14 place-items-center rounded-xl ${active ? "bg-white/10" : "bg-slate-100"}`}>
-                          <ShoppingBag className="h-4 w-4" />
+              <div className="max-h-[58vh] space-y-2 overflow-y-auto pr-1">
+                {loading ? (
+                  <div className="grid min-h-40 place-items-center rounded-2xl border border-slate-200 bg-slate-50 text-sm text-slate-500">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  </div>
+                ) : filteredProducts.length ? (
+                  filteredProducts.slice(0, 80).map((product) => {
+                    const active = String(product.product_id || product.id || "") === String(selectedProduct?.product_id || selectedProduct?.id || "");
+                    const previewImage = productImage(product);
+                    return (
+                      <button
+                        key={`${product.product_id || product.id}`}
+                        type="button"
+                        onClick={() => {
+                          setSelectedProductId(String(product.product_id || product.id || ""));
+                          setSelectedColor("");
+                          setSelectedSize("");
+                          setView("detail");
+                        }}
+                        className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${
+                          active ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-900"
+                        }`}
+                      >
+                        {previewImage ? (
+                          <img src={previewImage} alt={product.name || "Product"} className="h-14 w-14 rounded-xl object-cover" loading="lazy" />
+                        ) : (
+                          <div className={`grid h-14 w-14 place-items-center rounded-xl ${active ? "bg-white/10" : "bg-slate-100"}`}>
+                            <ShoppingBag className="h-4 w-4" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-semibold">{product.name || product.product_name}</div>
+                          <div className={`mt-1 text-xs ${active ? "text-slate-300" : "text-slate-500"}`}>
+                            {Number(product.final_price || product.price || 0) > 0 ? money(product.final_price || product.price) : ""}
+                          </div>
                         </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-semibold">{product.name || product.product_name}</div>
-                        <div className={`mt-1 text-xs ${active ? "text-slate-300" : "text-slate-500"}`}>
-                          {Number(product.final_price || product.price || 0) > 0 ? money(product.final_price || product.price) : ""}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })
-              ) : (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-                  No products match this search.
-                </div>
-              )}
-            </div>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+                    No products match this search.
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setView("list")}
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700"
+                >
+                  Back to products
+                </button>
+                <a
+                  href={selectedProduct?.storefront_url || selectedProduct?.product_url || selectedProduct?.url || productUrl(selectedProduct)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center rounded-full border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700"
+                >
+                  Open Product
+                </a>
+              </div>
 
-            <div className="space-y-3">
               <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
                 {previewImage ? (
                   <img src={previewImage} alt={selectedProduct?.name || selectedProduct?.product_name || "Product"} className="aspect-[4/3] w-full object-cover" loading="lazy" />
@@ -728,77 +831,69 @@ function ProductSheet({
                   <div className="text-lg font-semibold text-slate-900">{selectedProduct?.name || selectedProduct?.product_name || "Select a product"}</div>
                   {previewPrice > 0 ? <div className="text-sm font-medium text-emerald-700">{money(previewPrice)}</div> : null}
                   <div className="flex flex-wrap gap-2">
-                    {variant?.color ? <PwaChip>{variant.color}</PwaChip> : null}
-                    {variant?.size ? <PwaChip>{variant.size}</PwaChip> : null}
+                    {selectedColor ? <PwaChip>{selectedColor}</PwaChip> : null}
+                    {selectedSize ? <PwaChip>{selectedSize}</PwaChip> : null}
                     {variant?.available !== undefined ? (
                       <PwaChip tone={variant.available ? "emerald" : "rose"}>{variant.available ? `In stock ${previewStock}` : "Out of stock"}</PwaChip>
+                    ) : previewStock > 0 ? (
+                      <PwaChip tone="emerald">{`In stock ${previewStock}`}</PwaChip>
                     ) : null}
                   </div>
-                  {selectedProduct ? (
-                    <a
-                      href={selectedProduct.storefront_url || selectedProduct.product_url || selectedProduct.url || productUrl(selectedProduct)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700"
-                    >
-                      Open Product
-                    </a>
-                  ) : null}
                 </div>
               </div>
 
-              {colors.length ? (
-                <div className="space-y-2">
-                  <div className="text-sm font-medium text-slate-700">Color</div>
-                  <div className="flex flex-wrap gap-2">
-                    {colors.map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => {
-                          setSelectedColor(color);
-                          setSelectedSize("");
-                        }}
-                        className={`rounded-full px-3 py-2 text-sm ${
-                          clean(selectedColor).toLowerCase() === clean(color).toLowerCase()
-                            ? "bg-slate-900 text-white"
-                            : "bg-slate-100 text-slate-700"
-                        }`}
-                      >
-                        {color}
-                      </button>
-                    ))}
-                  </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="text-sm font-medium text-slate-700">Color</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {colors.length ? (
+                    colors.map((color) => {
+                      const active = normalizeKey(selectedColor) === normalizeKey(color);
+                      return (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => {
+                            setSelectedColor(color);
+                            setSelectedSize("");
+                          }}
+                          className={`rounded-full px-3 py-2 text-sm ${
+                            active ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"
+                          }`}
+                        >
+                          {color}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="text-xs text-slate-500">No color data available.</div>
+                  )}
                 </div>
-              ) : null}
+              </div>
 
-              {selectedColor ? (
-                <div className="space-y-2">
-                  <div className="text-sm font-medium text-slate-700">Size</div>
-                  <div className="flex flex-wrap gap-2">
-                    {sizes.length ? (
-                      sizes.map((size) => (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="text-sm font-medium text-slate-700">Size</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {sizes.length ? (
+                    sizes.map((size) => {
+                      const active = normalizeKey(selectedSize) === normalizeKey(size);
+                      return (
                         <button
                           key={size}
                           type="button"
                           onClick={() => setSelectedSize(size)}
                           className={`rounded-full px-3 py-2 text-sm ${
-                            clean(selectedSize).toLowerCase() === clean(size).toLowerCase()
-                              ? "bg-slate-900 text-white"
-                              : "bg-slate-100 text-slate-700"
+                            active ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"
                           }`}
                         >
                           {size}
                         </button>
-                      ))
-                    ) : (
-                      <div className="text-xs text-slate-500">No sizes for this color.</div>
-                    )}
-                  </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-xs text-slate-500">No size data available.</div>
+                  )}
                 </div>
-              ) : hasVariantOptions ? (
-                <div className="text-xs text-slate-500">Choose a color to see sizes.</div>
-              ) : null}
+              </div>
 
               <button
                 type="button"
@@ -807,15 +902,15 @@ function ProductSheet({
                 className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                Send
+                Send Product
               </button>
               {!selectedConversation ? (
                 <div className="text-xs text-slate-500">Open a conversation first to send a product card.</div>
-              ) : hasVariantOptions && (!clean(selectedColor) || !clean(selectedSize)) ? (
-                <div className="text-xs text-slate-500">Select color and size to enable Send.</div>
+              ) : requiresVariantSelection && (!clean(selectedColor) || !clean(selectedSize)) ? (
+                <div className="text-xs text-slate-500">Select color and size to enable Send Product.</div>
               ) : null}
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
@@ -939,8 +1034,19 @@ export default function AiInboxPwa() {
   const [productLoading, setProductLoading] = useState(false);
   const [products, setProducts] = useState([]);
   const [productQuery, setProductQuery] = useState("");
+  const [readAtByConversation, setReadAtByConversation] = useState({});
   const [installPrompt, setInstallPrompt] = useState(null);
+  const [conversationHeaderHeight, setConversationHeaderHeight] = useState(0);
+  const mainScrollRef = useRef(null);
+  const conversationHeaderRef = useRef(null);
+  const imageInputRef = useRef(null);
   const pollRef = useRef(null);
+  const markReadSignatureRef = useRef("");
+  const readAtByConversationRef = useRef({});
+
+  useEffect(() => {
+    readAtByConversationRef.current = readAtByConversation;
+  }, [readAtByConversation]);
 
   const tab = useMemo(() => {
     const value = new URLSearchParams(location.search).get("tab");
@@ -1002,7 +1108,7 @@ export default function AiInboxPwa() {
 
         const nextConversations = asArray(payload.conversations)
           .map((conversation) => ({
-            ...conversation,
+            ...applyLocalReadState(conversation, readAtByConversationRef.current),
             conversation_key: conversation.conversation_key || conversationKey(conversation),
             messages: uniqueMessages(conversation.messages),
           }))
@@ -1120,6 +1226,56 @@ export default function AiInboxPwa() {
     );
   }, [conversationParam, conversations]);
 
+  const markConversationAsRead = useCallback(
+    async (conversation) => {
+      const sessionId = clean(conversation?.session_id);
+      if (!sessionId) return false;
+
+      const conversationIdentifier = conversation.conversation_key || sessionId;
+      const readAt = new Date().toISOString();
+      readAtByConversationRef.current = {
+        ...readAtByConversationRef.current,
+        [conversationIdentifier]: readAt,
+      };
+
+      setReadAtByConversation((current) => ({
+        ...current,
+        [conversationIdentifier]: readAt,
+      }));
+
+      patchConversation(conversationIdentifier, (currentConversation) => ({
+        ...currentConversation,
+        unread_count: 0,
+        unseen_count: 0,
+        pending_count: 0,
+        unread: false,
+      }));
+
+      const endpoints = [
+        aiInboxConversationEndpoint(sessionId, "/read"),
+        aiAgentInboxEndpoint(sessionId, "/read"),
+      ];
+
+      for (const endpoint of endpoints) {
+        try {
+          await api.post(
+            endpoint,
+            { tenant_id: tenantId, conversation_id: sessionId, channel: conversation.channel || conversation.source || "" },
+            { headers, perfComponent: "AiInboxPwa.markRead", suppressErrorStatuses: [404, 405] }
+          );
+          await loadConversations({ silent: true });
+          return true;
+        } catch (markError) {
+          if (markError?.status === 404 || markError?.status === 405) continue;
+          return false;
+        }
+      }
+
+      return false;
+    },
+    [headers, loadConversations, patchConversation, tenantId]
+  );
+
   const openConversation = useCallback(
     (conversation) => {
       setComposerMode("reply");
@@ -1131,6 +1287,7 @@ export default function AiInboxPwa() {
 
   const backToList = useCallback(() => {
     setMenuOpen(false);
+    markReadSignatureRef.current = "";
     updateUrlState({ nextConversationId: "", nextTab: "conversations" });
   }, [updateUrlState]);
 
@@ -1154,6 +1311,60 @@ export default function AiInboxPwa() {
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, [backToList, selectedConversation]);
+
+  useEffect(() => {
+    if (!selectedConversation?.session_id) {
+      markReadSignatureRef.current = "";
+    }
+  }, [selectedConversation?.session_id]);
+
+  useEffect(() => {
+    const sessionId = clean(selectedConversation?.session_id);
+    if (!sessionId || tab !== "conversations") return;
+
+    const unreadCount = conversationUnreadCount(selectedConversation);
+    if (unreadCount <= 0) return;
+
+    const signature = `${sessionId}:${selectedConversation.last_activity_at || selectedConversation.updated_at || ""}`;
+    if (markReadSignatureRef.current === signature) return;
+    markReadSignatureRef.current = signature;
+
+    void markConversationAsRead(selectedConversation);
+  }, [markConversationAsRead, selectedConversation, tab]);
+
+  useLayoutEffect(() => {
+    if (!selectedConversation || tab !== "conversations") return;
+    const scroller = mainScrollRef.current;
+    if (scroller) {
+      scroller.scrollTo({ top: 0, behavior: "auto" });
+    }
+  }, [selectedConversation, tab]);
+
+  useLayoutEffect(() => {
+    if (!selectedConversation || tab !== "conversations") {
+      setConversationHeaderHeight(0);
+      return undefined;
+    }
+
+    const updateHeaderHeight = () => {
+      const header = conversationHeaderRef.current;
+      if (!header) return;
+      setConversationHeaderHeight(Math.ceil(header.getBoundingClientRect().height));
+    };
+
+    updateHeaderHeight();
+
+    if (typeof ResizeObserver === "undefined") {
+      return undefined;
+    }
+
+    const observer = new ResizeObserver(updateHeaderHeight);
+    if (conversationHeaderRef.current) {
+      observer.observe(conversationHeaderRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [selectedConversation, tab]);
 
   const loadOlderMessages = useCallback(async () => {
     if (!selectedConversation?.session_id || olderLoading) return;
@@ -1280,6 +1491,19 @@ export default function AiInboxPwa() {
     [headers, patchConversation, selectedConversation, tenantId]
   );
 
+  const openImagePicker = useCallback(() => {
+    if (!imageInputRef.current) return;
+    imageInputRef.current.value = "";
+    imageInputRef.current.click();
+  }, []);
+
+  const handleImageAttachmentChange = useCallback((event) => {
+    const file = event.target.files?.[0] || null;
+    event.target.value = "";
+    if (!file) return;
+    toast.error("إرسال الصور غير مدعوم حالياً");
+  }, []);
+
   const toggleConversationAi = useCallback(async () => {
     if (!selectedConversation?.session_id) return;
     setAiToggling(true);
@@ -1329,10 +1553,13 @@ export default function AiInboxPwa() {
     ((document.documentElement.dir || document.body?.dir || "").toLowerCase() === "rtl");
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-slate-50">
-        <header className="sticky top-0 z-20 border-b border-slate-200 bg-slate-50/95 px-2.5 pb-2 pt-[max(0.65rem,env(safe-area-inset-top))] backdrop-blur">
-          {contentScreen && tab === "conversations" ? (
+    <div className="h-dvh overflow-hidden bg-slate-50 text-slate-900">
+      <div className="mx-auto flex h-full w-full max-w-[430px] flex-col bg-slate-50">
+        {contentScreen && tab === "conversations" ? (
+          <header
+            ref={conversationHeaderRef}
+            className="fixed inset-x-0 top-0 z-[60] mx-auto w-full max-w-[430px] border-b border-slate-200 bg-slate-50/95 px-2.5 pb-2 pt-[max(0.65rem,env(safe-area-inset-top))] backdrop-blur"
+          >
             <div className="flex items-center justify-between gap-2" style={{ flexDirection: isRtlLayout ? "row-reverse" : "row" }}>
               <div className="flex min-w-0 items-center gap-2.5">
                 <button
@@ -1403,7 +1630,9 @@ export default function AiInboxPwa() {
                 ) : null}
               </div>
             </div>
-          ) : (
+          </header>
+        ) : (
+          <header className="border-b border-slate-200 bg-slate-50/95 px-2.5 pb-2 pt-[max(0.65rem,env(safe-area-inset-top))] backdrop-blur">
             <div className="space-y-2.5">
               <div>
                 <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">AI Inbox</h1>
@@ -1425,10 +1654,13 @@ export default function AiInboxPwa() {
                 </div>
               ) : null}
             </div>
-          )}
-        </header>
-
-        <main className={`flex-1 px-2 pt-1.5 ${showComposer ? "pb-[calc(5.9rem+env(safe-area-inset-bottom))]" : "pb-[calc(4.1rem+env(safe-area-inset-bottom))]"}`}>
+          </header>
+        )}
+        <main
+          ref={mainScrollRef}
+          className={`flex-1 min-h-0 overflow-y-auto px-2 ${contentScreen && tab === "conversations" ? "" : "pt-1.5"} ${showComposer ? "pb-[calc(5.9rem+env(safe-area-inset-bottom))]" : "pb-[calc(4.1rem+env(safe-area-inset-bottom))]"}`}
+          style={contentScreen && tab === "conversations" ? { paddingTop: `${conversationHeaderHeight || 88}px` } : undefined}
+        >
           {error && !loading ? (
             <div className="mb-3 flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -1500,6 +1732,23 @@ export default function AiInboxPwa() {
                 >
                   <PackagePlus className="h-5 w-5" />
                 </button>
+                <button
+                  type="button"
+                  onClick={openImagePicker}
+                  className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 ring-1 ring-slate-200"
+                  aria-label="Attach image"
+                  title="Attach image"
+                >
+                  <Image className="h-5 w-5" />
+                </button>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageAttachmentChange}
+                  className="hidden"
+                  aria-hidden="true"
+                />
                 <textarea
                   value={composerText}
                   onChange={(event) => setComposerText(event.target.value)}
