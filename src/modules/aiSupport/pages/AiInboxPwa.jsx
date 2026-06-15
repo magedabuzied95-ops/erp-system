@@ -521,14 +521,15 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
       ) : null}
       {messages.map((message) => {
         const cards = normalizeProductCardsValue(message.product_cards || message.productCards);
+        const hasProductCards = cards.length > 0;
         const isCustomer = Boolean(clean(message.customer_message));
         const isAi = Boolean(clean(message.ai_answer));
-        const isStaff = Boolean(clean(message.staff_message)) && !cards.length;
-        if (!isCustomer && !isAi && !isStaff && !cards.length) return null;
+        const isStaff = Boolean(clean(message.staff_message)) && !hasProductCards;
+        if (!isCustomer && !isAi && !isStaff && !hasProductCards) return null;
 
         return (
           <div key={messageKey(message)} className="space-y-1.5">
-            {cards.length ? (
+            {hasProductCards ? (
               <div className="flex justify-start">
                 <div className="w-[82%] max-w-sm space-y-1.5">
                   <div className="px-1 text-left text-[10px] font-medium text-slate-500">{absoluteTime(message.created_at)}</div>
@@ -562,7 +563,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
                 </div>
               </div>
             ) : null}
-            {isCustomer ? (
+            {!hasProductCards && isCustomer ? (
               <div className="flex justify-end">
                 <div className="max-w-[82%] rounded-[20px] rounded-br-md bg-emerald-50 px-3 py-2 shadow-sm ring-1 ring-emerald-100">
                   <div className="mb-1 text-right text-[10px] font-medium text-emerald-700/70">{absoluteTime(message.created_at)}</div>
@@ -572,7 +573,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
                 </div>
               </div>
             ) : null}
-            {isAi ? (
+            {!hasProductCards && isAi ? (
               <div className="flex justify-start">
                 <div className="max-w-[82%] rounded-[20px] rounded-bl-md bg-sky-50 px-3 py-2 shadow-sm ring-1 ring-sky-100">
                   <div className="mb-1 flex items-center gap-1 text-[10px] font-medium text-sky-700">
@@ -585,7 +586,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
                 </div>
               </div>
             ) : null}
-            {isStaff ? (
+            {!hasProductCards && isStaff ? (
               <div className="flex justify-start">
                 <div className="max-w-[82%] rounded-[20px] rounded-bl-md bg-slate-900 px-3 py-2 text-white shadow-sm">
                   <div className="mb-1 text-[10px] font-medium text-slate-300">
