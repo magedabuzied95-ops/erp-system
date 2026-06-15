@@ -271,7 +271,7 @@ const buildProductCardUrl = (product = {}, variant = null, selectedColor = "") =
   if (!productId) return "";
 
   const baseUrl = `/shop/product/${encodeURIComponent(productId)}`;
-  const color = clean(selectedColor);
+  const color = clean(selectedColor).toLowerCase();
   if (!color) return baseUrl;
 
   const variantId = clean(variant?.id ?? "");
