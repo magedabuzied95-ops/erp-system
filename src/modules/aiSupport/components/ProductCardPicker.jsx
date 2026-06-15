@@ -21,19 +21,33 @@ const uniqueSizeValues = (values = []) =>
     return a.localeCompare(b, "ar");
   });
 
-const resolveStorefrontUrl = (product = {}) => {
+const resolveStorefrontUrl = (product = {}, variant = null, color = "", size = "") => {
   const rawUrl = clean(product.storefront_url || product.product_url || product.url || "");
-  if (rawUrl) return rawUrl;
   const productId = product.product_id || product.id || "";
-  if (!productId) return "";
-  if (typeof window !== "undefined" && window.location?.origin) {
-    try {
-      return new URL(`/shop/product/${encodeURIComponent(productId)}`, window.location.origin).toString();
-    } catch {
-      return `/shop/product/${encodeURIComponent(productId)}`;
-    }
+  const baseUrl = rawUrl || (productId
+    ? (typeof window !== "undefined" && window.location?.origin
+      ? (() => {
+          try {
+            return new URL(`/shop/product/${encodeURIComponent(productId)}`, window.location.origin).toString();
+          } catch {
+            return `/shop/product/${encodeURIComponent(productId)}`;
+          }
+        })()
+      : `/shop/product/${encodeURIComponent(productId)}`)
+    : "");
+  if (!baseUrl) return "";
+  try {
+    const url = new URL(baseUrl, typeof window !== "undefined" && window.location?.origin ? window.location.origin : "http://localhost");
+    const variantId = clean(variant?.variant_id || variant?.id || "");
+    const normalizedColor = clean(color || variant?.color || variant?.color_name || variant?.variant_color || "");
+    const normalizedSize = clean(size || variant?.size || variant?.size_name || variant?.variant_size || "");
+    if (variantId) url.searchParams.set("variant", variantId);
+    if (normalizedColor) url.searchParams.set("color", normalizedColor);
+    if (normalizedSize) url.searchParams.set("size", normalizedSize);
+    return url.toString();
+  } catch {
+    return baseUrl;
   }
-  return `/shop/product/${encodeURIComponent(productId)}`;
 };
 
 const productImage = (product = {}, variant = null) =>
@@ -103,9 +117,20 @@ const buildProductCardPayload = (product = {}, variant = null) => {
     price: Number.isFinite(priceValue) ? priceValue : 0,
     color,
     size,
-    storefront_url: resolveStorefrontUrl(product),
+    storefront_url: resolveStorefrontUrl(product, variant, color, size),
   };
 };
+
+const sizeModeCardKey = (product = {}, variant = {}) =>
+  [
+    product.product_id ?? product.id ?? "",
+    variant.variant_id ?? variant.id ?? "",
+    variant.color || variant.color_name || variant.variant_color || "",
+    variant.size || variant.size_name || variant.variant_size || "",
+  ]
+    .map((value) => clean(value))
+    .filter(Boolean)
+    .join(":");
 
 const productHasAvailableSize = (product = {}, size = "") => {
   const normalizedSize = lower(size);
@@ -170,6 +195,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
   const [selectedProductIds, setSelectedProductIds] = useState([]);
+  const [selectedSizeCards, setSelectedSizeCards] = useState([]);
   const previousOpenRef = useRef(false);
 
   useEffect(() => {
@@ -211,6 +237,37 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
     if (!sizeMode || !selectedSize) return filteredProducts;
     return filteredProducts.filter((product) => productHasAvailableSize(product, selectedSize));
   }, [filteredProducts, selectedSize, sizeMode]);
+  const visibleSizeCards = useMemo(() => {
+    if (!sizeMode || !selectedSize) return [];
+    const normalizedSize = lower(selectedSize);
+    return filteredProducts.flatMap((product) =>
+      asArray(product.variants)
+        .filter((variant) => {
+          const stock = Number(variant.stock ?? variant.stock_quantity ?? variant.available_quantity ?? variant.quantity ?? 0);
+          const variantSize = lower(variant.size || variant.size_name || variant.variant_size);
+          return stock > 0 && variantSize === normalizedSize;
+        })
+        .map((variant) => {
+          const payload = buildProductCardPayload(product, variant);
+          return {
+            key: sizeModeCardKey(product, variant),
+            product,
+            variant,
+            payload,
+            productId: payload.product_id,
+            variantId: payload.variant_id,
+            productName: payload.product_name,
+            color: payload.color,
+            size: payload.size,
+            image: payload.image_url,
+            price: payload.price,
+            storefrontUrl: payload.storefront_url,
+          };
+        })
+    );
+  }, [filteredProducts, selectedSize, sizeMode]);
+  const visibleSizeCardKeySet = useMemo(() => new Set(visibleSizeCards.map((card) => card.key)), [visibleSizeCards]);
+  const selectedSizeCardKeySet = useMemo(() => new Set(selectedSizeCards.map((card) => card.key)), [selectedSizeCards]);
 
   const brandOptions = useMemo(() => uniqueTextValues(products.map((product) => product.brand || product.brand_name)), [products]);
   const categoryOptions = useMemo(() => uniqueTextValues(products.map((product) => product.category || product.category_name)), [products]);
@@ -224,6 +281,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
       setSelectedProductIds([]);
       setSelectedColor("");
       setSelectedSize("");
+      setSelectedSizeCards([]);
       return;
     }
     if (!visibleProducts.length) {
@@ -282,6 +340,11 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
     setSelectedProductIds((current) => current.filter((id) => visibleProducts.some((product) => String(product.product_id || product.id || "") === String(id))));
   }, [open, visibleProducts]);
 
+  useEffect(() => {
+    if (!sizeMode || !selectedSize) return;
+    setSelectedSizeCards([]);
+  }, [selectedSize, sizeMode]);
+
   const toggleProductSelection = useCallback((product) => {
     const productId = String(product.product_id || product.id || "");
     setSelectedProductId(productId);
@@ -295,6 +358,31 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
         : [...current, productId]
     ));
   }, [allowMultiple]);
+
+  const toggleSizeCardSelection = useCallback((card) => {
+    setSelectedSizeCards((current) => {
+      const exists = current.some((item) => item.key === card.key);
+      if (exists) return current.filter((item) => item.key !== card.key);
+      if (!allowMultiple) return [card];
+      return [...current, card];
+    });
+  }, [allowMultiple]);
+
+  const selectAllVisibleSizeCards = useCallback(() => {
+    if (!visibleSizeCards.length) return;
+    setSelectedSizeCards((current) => {
+      const next = new Map(current.map((card) => [card.key, card]));
+      visibleSizeCards.forEach((card) => {
+        next.set(card.key, card);
+      });
+      return Array.from(next.values());
+    });
+  }, [visibleSizeCards]);
+
+  const clearAllVisibleSizeCards = useCallback(() => {
+    if (!visibleSizeCards.length) return;
+    setSelectedSizeCards((current) => current.filter((card) => !visibleSizeCardKeySet.has(card.key)));
+  }, [visibleSizeCardKeySet]);
 
   const submitSelection = useCallback(async () => {
     if (!activeCard || submitting) return;
@@ -310,13 +398,10 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
   }, [activeCard, onSubmit, submitting]);
 
   const submitSelectionWithSizeMode = useCallback(async () => {
-    const cards = selectedProducts
-      .map((product) => {
-        const variant = findMatchingVariant(product || {}, sizeMode ? "" : selectedColor, selectedSize);
-        return buildProductCardPayload(product, variant);
-      })
+    const cards = selectedSizeCards
+      .map((card) => card.payload || buildProductCardPayload(card.product, card.variant))
       .filter((card) => card.product_name || card.product_id || card.storefront_url);
-    const payloadCards = cards.length ? cards : (activeCard ? [activeCard] : []);
+    const payloadCards = cards.length ? cards : [];
     if (!payloadCards.length || submitting) return;
     setSubmitting(true);
     setError("");
@@ -327,7 +412,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
     } finally {
       setSubmitting(false);
     }
-  }, [activeCard, onSubmit, selectedColor, selectedProducts, selectedSize, sizeMode, submitting]);
+  }, [onSubmit, selectedSizeCards, submitting]);
 
   if (!open || typeof document === "undefined") return null;
 
@@ -428,6 +513,56 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
                 </div>
               ) : error ? (
                 <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">{error}</div>
+              ) : sizeMode && selectedSize ? (
+                visibleSizeCards.length ? (
+                  <div className="grid gap-2">
+                    {visibleSizeCards.slice(0, 80).map((card) => {
+                      const isSelected = selectedSizeCardKeySet.has(card.key);
+                      return (
+                        <button
+                          key={card.key}
+                          type="button"
+                          onClick={() => toggleSizeCardSelection(card)}
+                          className={`relative flex items-start gap-3 rounded-2xl border p-2.5 text-right transition ${
+                            isSelected ? "border-cyan-300/40 bg-cyan-300/10" : "border-white/10 bg-slate-950/60 hover:border-white/20 hover:bg-white/[0.04]"
+                          }`}
+                        >
+                          <span className={`absolute left-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded-full border ${isSelected ? "border-cyan-300 bg-cyan-300 text-slate-950" : "border-white/20 bg-black/40 text-white/60"}`}>
+                            {isSelected ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
+                          </span>
+                          {card.image ? (
+                            <img src={card.image} alt={card.productName || "منتج"} className="h-16 w-16 shrink-0 rounded-xl object-cover" loading="lazy" />
+                          ) : (
+                            <span className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-slate-500">
+                              <ShoppingBag className="h-5 w-5" />
+                            </span>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="truncate text-sm font-black text-white">{card.productName || "منتج"}</div>
+                                <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-bold text-slate-400">
+                                  {card.color ? <span>{card.color}</span> : null}
+                                  {card.size ? <span>المقاس: {card.size}</span> : null}
+                                </div>
+                              </div>
+                              {isSelected ? <CheckCircle2 className="h-4 w-4 shrink-0 text-cyan-200" /> : null}
+                            </div>
+                            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-400">
+                              {Number.isFinite(card.price) && card.price > 0 ? <span className="font-black text-emerald-100">{money(card.price)}</span> : null}
+                              {card.variantId ? <span>Variant: {card.variantId}</span> : null}
+                            </div>
+                            {card.storefrontUrl ? <div className="mt-2 truncate text-[10px] font-semibold text-slate-500">{card.storefrontUrl}</div> : null}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="grid min-h-48 place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] text-sm font-bold text-slate-500">
+                    لا توجد بطاقات متاحة لهذا المقاس
+                  </div>
+                )
               ) : visibleProducts.length ? (
                 <div className="grid gap-2">
                   {visibleProducts.slice(0, 80).map((product) => {
@@ -503,9 +638,9 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
                   <div className="mt-1 text-lg font-black text-white">المقاس المختار: {selectedSize}</div>
                   <div className="mt-2 text-sm font-semibold text-slate-400">اختر المنتجات التي تريد إرسالها من القائمة.</div>
                   <div className="mt-3 inline-flex rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-black text-cyan-100">
-                    عدد المنتجات المحددة: {selectedProducts.length}
-                  </div>
+                    عدد المنتجات المحددة: {selectedSizeCards.length}
                 </div>
+                  </div>
 
                 <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3">
                   <div className="text-sm font-black text-white">إرسال محددات المقاس</div>
@@ -514,10 +649,29 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={selectAllVisibleSizeCards}
+                    disabled={!visibleSizeCards.length}
+                    className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-cyan-300/25 bg-cyan-300/10 px-3 py-2 text-sm font-black text-cyan-100 transition hover:bg-cyan-300/15 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    تحديد الكل
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearAllVisibleSizeCards}
+                    disabled={!visibleSizeCards.length}
+                    className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm font-black text-white transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    إلغاء تحديد الكل
+                  </button>
+                </div>
+
                 <button
                   type="button"
                   onClick={submitSelectionWithSizeMode}
-                  disabled={submitting || !selectedProducts.length}
+                  disabled={submitting || !selectedSizeCards.length}
                   className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -633,3 +787,5 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
     document.body
   );
 }
+
+
