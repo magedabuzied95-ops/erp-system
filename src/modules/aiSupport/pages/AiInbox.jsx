@@ -349,6 +349,12 @@ const isMessengerConversation = (conversation = {}) => {
     source.includes("messenger")
   );
 };
+const isCommentConversation = (conversation = {}) => {
+  const channel = normalizeConversationChannel(conversation);
+  const source = clean(conversation?.channel || conversation?.source || conversation?.provider || conversation?.platform).toLowerCase();
+  const threadKind = clean(conversation?.thread_kind || conversation?.channel_metadata?.thread_kind || "").toLowerCase();
+  return channel === "facebook_comment" || channel === "instagram_comment" || threadKind === "comment" || source.includes("_comment");
+};
 const getConversationDisplayName = (conversation = {}) => {
   const source = conversation || {};
   if (isMessengerConversation(source)) {
@@ -930,7 +936,8 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
               <div className="max-w-[88%] rounded-3xl rounded-tr-sm border border-cyan-300/15 bg-cyan-300/10 p-5 shadow-[0_10px_30px_rgba(8,145,178,0.14)]">
                 <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
                   <Bot className="h-3.5 w-3.5" />
-                  <span>AI</span>
+                  <span>{message.message_type === "comment_suggestion" ? "مسودة" : "AI"}</span>
+                  {message.message_type === "comment_suggestion" ? <span className="rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-100">Draft reply</span> : null}
                   <span className="text-slate-500">{absoluteTime(message.created_at)}</span>
                   <span className="text-slate-500">conf {Number(message.confidence || 0).toFixed(2)}</span>
                 </div>
@@ -948,6 +955,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
                   <UserCheck className="h-3.5 w-3.5" />
                   <span>Staff</span>
                   {message.staff_user_name ? <span className="text-slate-400">{message.staff_user_name}</span> : null}
+                  {message.message_type === "comment_public_reply" ? <span className="rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-100">Public comment reply</span> : null}
                   <span className="text-slate-500">{absoluteTime(message.created_at)}</span>
                   {message.delivery_status ? <span className={message.delivery_status === "failed" ? "text-rose-200" : message.delivery_status === "sending" ? "text-amber-200" : "text-emerald-200"}>{message.delivery_status}</span> : null}
                 </div>
@@ -1050,10 +1058,50 @@ const quickReplies = [
   "متاح دفع عند الاستلام؟",
 ];
 
-function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraft, onOpenProductPicker, loading }) {
+function CommentReplyDraftPanel({ draftText = "", onLoadDraft, onCopyDraft, loading }) {
+  const value = clean(draftText);
+  if (!value) return null;
+  return (
+    <div className="rounded-2xl border border-violet-300/15 bg-violet-300/8 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-100">مسودة رد على الكومنت</div>
+          <div className="mt-1 text-xs text-slate-400">يمكنك تحميل المسودة إلى المحرر ثم تعديلها قبل الإرسال.</div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onLoadDraft?.(value)}
+            disabled={loading}
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-[11px] font-black text-violet-100 disabled:opacity-50"
+          >
+            <MessageSquareText className="h-3.5 w-3.5" />
+            رد على الكومنت
+          </button>
+          <button
+            type="button"
+            onClick={() => onCopyDraft?.(value)}
+            disabled={loading}
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black text-slate-100 disabled:opacity-50"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            نسخ
+          </button>
+        </div>
+      </div>
+      <div className="mt-3 rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm leading-7 text-slate-100">
+        <LinkifiedText text={value} />
+      </div>
+    </div>
+  );
+}
+
+function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraft, onOpenProductPicker, onLoadDraft, onCopyDraft, commentDraftText = "", isCommentConversation = false, loading }) {
   if (!conversation) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
-  const canSendLive = conversation.live_sending_available === true;
+  const canSendLive = conversation.live_sending_available === true || isCommentConversation;
+  const submitLabel = isCommentConversation ? "إرسال الرد" : "Send now";
+  const submitTitle = isCommentConversation ? "إرسال رد علني على الكومنت" : "Send now through Meta";
   if (status === "closed") {
     return <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">المحادثة مغلقة. تم تعطيل الرد اليدوي.</div>;
   }
@@ -1067,7 +1115,7 @@ function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraf
         title={canSendLive ? "Reply composer" : "Draft / internal note"}
         action={canSendLive ? <Pill tone="emerald"><Radio className="h-3.5 w-3.5" />Live send ready</Pill> : <Pill tone="amber">Live channel unavailable</Pill>}
       />
-      {status !== "human_takeover" && canSendLive ? <div className="mb-2 rounded-xl border border-cyan-300/15 bg-cyan-300/8 p-1.5 text-[11px] font-bold text-cyan-100">Sending a staff reply will take over this conversation and pause AI automation.</div> : null}
+      {status !== "human_takeover" && canSendLive && !isCommentConversation ? <div className="mb-2 rounded-xl border border-cyan-300/15 bg-cyan-300/8 p-1.5 text-[11px] font-bold text-cyan-100">Sending a staff reply will take over this conversation and pause AI automation.</div> : null}
       <div className="mb-1.5 flex max-h-14 flex-wrap gap-1.5 overflow-hidden">
         {quickReplies.slice(0, 3).map((reply) => (
           <button key={reply} type="button" onClick={() => onChange(reply)} className="rounded-full border border-white/10 bg-white/[0.055] px-2.5 py-0.5 text-[10px] font-bold leading-5 text-slate-200 hover:border-cyan-300/30">{reply}</button>
@@ -1083,6 +1131,16 @@ function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraf
           </div>
         </details>
       </div>
+      {isCommentConversation ? (
+        <div className="mb-2">
+          <CommentReplyDraftPanel
+            draftText={commentDraftText}
+            onLoadDraft={onLoadDraft}
+            onCopyDraft={onCopyDraft}
+            loading={loading}
+          />
+        </div>
+      ) : null}
       <div className="flex flex-col gap-2">
         <div className="flex min-w-0 flex-col gap-2 rounded-2xl border border-white/10 bg-slate-950/70 p-2 focus-within:border-cyan-300/40 sm:flex-row sm:items-end">
           <button type="button" title="Emoji picker coming soon" className="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.055] text-sm font-black text-slate-300">⋯</button>
@@ -1100,9 +1158,20 @@ function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraf
             placeholder={canSendLive ? "اكتب رد للعميل..." : "Write an internal note. It will not be sent to Meta yet."}
             className="min-h-12 min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-1.25 text-[15px] font-bold leading-6 text-white outline-none placeholder:text-slate-600"
           />
-          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title="Send now through Meta" className="inline-flex h-8 items-center justify-center gap-2 rounded-xl bg-emerald-300 px-3 text-[11px] font-black text-slate-950 disabled:opacity-50">{loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}Send now</button>
+          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl bg-emerald-300 px-3 text-[11px] font-black text-slate-950 disabled:opacity-50">{loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}{submitLabel}</button>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
+          {isCommentConversation ? (
+            <button
+              type="button"
+              onClick={() => onSend()}
+              disabled={loading || !clean(value) || !canSendLive}
+              className="inline-flex h-7 items-center justify-center gap-1.5 rounded-xl border border-violet-300/20 bg-violet-400/10 px-2.5 text-[10px] font-black text-violet-100 disabled:opacity-50"
+            >
+              <MessageSquareText className="h-3.5 w-3.5" />
+              رد على الكومنت
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => onOpenProductPicker?.()}
@@ -2555,6 +2624,21 @@ export default function AiInbox() {
     }
   }, [selectedConversation]);
   const safeConversation = selectedConversation || {};
+  const latestCommentReplyDraft = useMemo(() => {
+    if (!isCommentConversation(safeConversation)) return "";
+    const messages = uniqueMessages(selectedConversation?.messages).slice().reverse();
+    const latestSuggestion = messages.find((message) => {
+      const type = clean(message?.message_type || "").toLowerCase();
+      return type === "comment_suggestion" && clean(message?.ai_answer || "");
+    });
+    const metadataDraft = clean(
+      safeConversation?.channel_metadata?.lead?.suggested_reply ||
+        safeConversation?.channel_metadata?.lead_metadata?.suggested_reply ||
+        conversationLeadSnapshot(safeConversation)?.suggested_reply ||
+        ""
+    );
+    return clean(latestSuggestion?.ai_answer || metadataDraft || "");
+  }, [safeConversation, selectedConversation?.messages]);
   const lastCustomerMessage = useMemo(
     () => latestCustomerText(selectedConversation?.messages),
     [selectedConversation?.messages]
@@ -2921,6 +3005,49 @@ export default function AiInbox() {
     return api.post(aiInboxConversationEndpoint(sessionId, "/reply"), { tenant_id: tenantId, message }, { headers, perfComponent: "AiInbox.saveDraftReply" });
   };
 
+  const sendCommentReply = async (overrideText = "") => {
+    const message = clean(overrideText || replyText);
+    if (!selectedConversation?.session_id || !message) return;
+    const sessionId = selectedConversation.session_id;
+    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+    const commentId = clean(
+      selectedConversation?.channel_metadata?.comment_id ||
+        selectedConversation?.channel_metadata?.lead?.comment_id ||
+        selectedConversation?.external_comment_id ||
+        selectedConversation?.comment_id ||
+        ""
+    );
+    if (!commentId) {
+      setError("تعذر تحديد الكومنت المرتبط بهذه المحادثة");
+      return;
+    }
+    const now = new Date().toISOString();
+    setLoading(true);
+    setError("");
+    try {
+      const payload = await api.post(`/ai-inbox/comments/${encodeURIComponent(commentId)}/reply`, {
+        tenant_id: tenantId,
+        reply_text: message,
+      }, { headers, perfComponent: "AiInbox.commentReply" });
+      setToast({ tone: "emerald", text: "Comment reply sent" });
+      setReplyText("");
+      if (payload.message) {
+        patchConversation(conversationIdentifier, (conversation) => ({
+          ...conversation,
+          messages: uniqueMessages([...asArray(conversation.messages), payload.message]),
+          latest_message_preview: message,
+          last_activity_at: payload.message.created_at || now,
+          updated_at: payload.message.created_at || now,
+        }));
+      }
+    } catch (err) {
+      setToast({ tone: "rose", text: err?.message || "فشل إرسال رد الكومنت" });
+      setError(err?.message || "تعذر إرسال رد الكومنت");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const sendManualReply = async (overrideText = "") => {
     const message = clean(overrideText || replyText);
     if (!selectedConversation?.session_id || !message) return;
@@ -2974,6 +3101,13 @@ export default function AiInbox() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const sendCurrentReply = async (overrideText = "") => {
+    if (isCommentConversation(selectedConversation || {})) {
+      return sendCommentReply(overrideText);
+    }
+    return sendManualReply(overrideText);
   };
 
   const saveDraftReply = async () => {
@@ -3512,9 +3646,13 @@ export default function AiInbox() {
                         conversation={{ ...safeConversation, live_sending_available: Boolean(selectedChannelStatus.effective_enabled) || isMetaChannel(safeConversation.channel || safeConversation.source) }}
                         value={replyText}
                         onChange={setReplyText}
-                        onSend={() => sendManualReply()}
+                        onSend={() => sendCurrentReply()}
                         onSaveDraft={saveDraftReply}
                         onOpenProductPicker={() => setProductCardPickerOpen(true)}
+                        onLoadDraft={(text) => setReplyText(text)}
+                        onCopyDraft={copySuggestedReply}
+                        commentDraftText={latestCommentReplyDraft}
+                        isCommentConversation={isCommentConversation(selectedConversation || {})}
                         loading={loading || productCardSending}
                       />
                     </div>
@@ -3890,7 +4028,19 @@ export default function AiInbox() {
                           channelStatus={selectedChannelStatus}
                         />
                       </div>
-                      <ManualReplyComposer conversation={{ ...safeConversation, live_sending_available: Boolean(selectedChannelStatus.effective_enabled) || isMetaChannel(safeConversation.channel || safeConversation.source) }} value={replyText} onChange={setReplyText} onSend={() => sendManualReply()} onSaveDraft={saveDraftReply} loading={loading} />
+                      <ManualReplyComposer
+                        conversation={{ ...safeConversation, live_sending_available: Boolean(selectedChannelStatus.effective_enabled) || isMetaChannel(safeConversation.channel || safeConversation.source) }}
+                        value={replyText}
+                        onChange={setReplyText}
+                        onSend={() => sendCurrentReply()}
+                        onSaveDraft={saveDraftReply}
+                        onOpenProductPicker={() => setProductCardPickerOpen(true)}
+                        onLoadDraft={(text) => setReplyText(text)}
+                        onCopyDraft={copySuggestedReply}
+                        commentDraftText={latestCommentReplyDraft}
+                        isCommentConversation={isCommentConversation(selectedConversation || {})}
+                        loading={loading}
+                      />
                     </div>
                     <div className="space-y-3">
                       {selectedConversation?.draft_orders?.length ? <OrderDraftPanel conversation={selectedConversation} drafts={drafts} onAction={updateDraft} busy={loading} /> : null}

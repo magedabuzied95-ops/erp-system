@@ -691,7 +691,8 @@ ALTER TABLE IF EXISTS ai_support_messages
   ADD COLUMN IF NOT EXISTS resolution_status TEXT DEFAULT 'open',
   ADD COLUMN IF NOT EXISTS ai_response_time_ms INTEGER,
   ADD COLUMN IF NOT EXISTS message_type TEXT NOT NULL DEFAULT 'text',
-  ADD COLUMN IF NOT EXISTS product_cards JSONB NOT NULL DEFAULT '[]'::jsonb;
+  ADD COLUMN IF NOT EXISTS product_cards JSONB NOT NULL DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS external_reply_id TEXT NOT NULL DEFAULT '';
 
 ALTER TABLE IF EXISTS ai_channel_conversations
   ADD COLUMN IF NOT EXISTS thread_kind TEXT NOT NULL DEFAULT 'dm';

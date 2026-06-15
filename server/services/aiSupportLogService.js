@@ -135,6 +135,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
           fallback_reason TEXT NOT NULL DEFAULT '',
           message_type TEXT NOT NULL DEFAULT 'text',
           product_cards JSONB NOT NULL DEFAULT '[]'::jsonb,
+          external_reply_id TEXT NOT NULL DEFAULT '',
           staff_message TEXT NOT NULL DEFAULT '',
           sender_type VARCHAR(40) NOT NULL DEFAULT 'customer',
           manual_message BOOLEAN NOT NULL DEFAULT FALSE,
@@ -188,6 +189,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS ai_response_time_ms INTEGER`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS message_type TEXT NOT NULL DEFAULT 'text'`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS product_cards JSONB NOT NULL DEFAULT '[]'::jsonb`);
+      await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS external_reply_id TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS requested_product_terms JSONB NOT NULL DEFAULT '[]'::jsonb`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS requested_sizes JSONB NOT NULL DEFAULT '[]'::jsonb`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS requested_colors JSONB NOT NULL DEFAULT '[]'::jsonb`);
@@ -618,6 +620,7 @@ export const appendManualAiSupportReply = async ({
   deliveryStatus = "",
   deliveryError = "",
   externalMessageId = "",
+  externalReplyId = "",
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
@@ -685,10 +688,11 @@ export const appendManualAiSupportReply = async ({
       delivery_status,
       delivery_error,
       external_message_id,
+      external_reply_id,
       message_type,
       product_cards
     )
-    VALUES ($1, $2, $3, $4, $5, '', '', 1, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'manual_staff_reply', '', $5, 'staff', TRUE, $3, $6, COALESCE(NULLIF($7, ''), 'web_chat'), $11, $8, $9, $10, $12, $13::jsonb)
+    VALUES ($1, $2, $3, $4, $5, '', '', 1, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'manual_staff_reply', '', $5, 'staff', TRUE, $3, $6, COALESCE(NULLIF($7, ''), 'web_chat'), $11, $8, $9, $10, $12, $13, $14::jsonb)
     RETURNING *
     `,
     [
@@ -703,6 +707,7 @@ export const appendManualAiSupportReply = async ({
       toText(deliveryError),
       toText(externalMessageId),
       repairText(source, "manual_admin"),
+      toText(externalReplyId),
       safeMessageType,
       jsonValue(safeProductCards),
     ]

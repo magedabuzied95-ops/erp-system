@@ -70,6 +70,7 @@ import {
 import {
   listRecentSocialCommentAutomationRuns,
 } from "../services/socialCommentAutomationService.js";
+import { replyToComment } from "../services/marketingCommentAutomationService.js";
 import {
   appendManualAiSupportReply,
   assignAiSupportConversation,
@@ -171,6 +172,23 @@ const decodeRouteId = (value = "") => {
   } catch {
     return raw;
   }
+};
+
+const resolveSocialCommentReplyTarget = async ({ tenantId = null, commentId = "" } = {}) => {
+  const safeTenantId = Number(tenantId);
+  const safeCommentId = envText(commentId);
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safeCommentId) return null;
+  const result = await db.query(
+    `
+    SELECT *
+    FROM social_comment_automation_runs
+    WHERE tenant_id = $1::bigint AND comment_id = $2::text
+    ORDER BY created_at DESC
+    LIMIT 1
+    `,
+    [Math.trunc(safeTenantId), safeCommentId]
+  );
+  return result.rows[0] || null;
 };
 
 const whatsappEnabled = () => String(process.env.WHATSAPP_ENABLED || "false").toLowerCase() === "true";
@@ -1778,6 +1796,119 @@ router.get("/social-comments/recent", protect, permit("settings", "view"), async
     });
   } catch (error) {
     return sendError(res, error, "Failed to load recent social comment automation runs");
+  }
+});
+
+router.post("/comments/:commentId/reply", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const commentId = decodeRouteId(req.params.commentId);
+  const replyText = envText(req.body?.reply_text || req.body?.replyText || req.body?.message || "");
+  if (!tenantId || !commentId) {
+    return sendError(res, Object.assign(new Error("tenant_id and commentId are required"), { status: 400 }), "tenant_id and commentId are required");
+  }
+  if (!replyText) {
+    return sendError(res, Object.assign(new Error("reply_text is required"), { status: 400 }), "reply_text is required");
+  }
+
+  const commentRun = await resolveSocialCommentReplyTarget({ tenantId, commentId });
+  if (!commentRun) {
+    return sendError(res, Object.assign(new Error(`Comment not found for tenant ${tenantId}: ${commentId}`), { status: 404, code: "SOCIAL_COMMENT_NOT_FOUND" }), "Comment not found");
+  }
+
+  const platform = envText(commentRun.platform || (commentRun.channel === "instagram_comment" ? "instagram" : "facebook")).toLowerCase().includes("instagram")
+    ? "instagram"
+    : "facebook";
+  const sessionId = envText(commentRun.inbox_conversation_id || `social_comment:${platform}:${commentRun.root_comment_id || commentRun.comment_id}`);
+  const replyChannel = envText(commentRun.channel || `${platform}_comment`) || `${platform}_comment`;
+  const nowIso = new Date().toISOString();
+
+  try {
+    const metaReply = await replyToComment(platform, commentRun.comment_id, replyText, tenantId);
+    const externalReplyId = envText(metaReply?.id || metaReply?.comment_id || metaReply?.reply_id || "");
+    const message = await appendManualAiSupportReply({
+      tenantId,
+      sessionId,
+      message: replyText,
+      messageType: "comment_public_reply",
+      staffUserId: req.user?.id || null,
+      staffUserName: userDisplayName(req.user),
+      source: "ai_inbox_comment_reply",
+      channel: replyChannel,
+      deliveryStatus: "sent",
+      deliveryError: "",
+      externalMessageId: externalReplyId,
+      externalReplyId,
+    });
+
+    await db.query(
+      `
+      UPDATE social_comment_automation_runs
+      SET inbox_conversation_id = COALESCE(NULLIF(inbox_conversation_id, ''), $4::text),
+          public_reply_status = 'sent',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = $1::bigint AND platform = $2::text AND comment_id = $3::text
+      `,
+      [tenantId, commentRun.platform || platform, commentRun.comment_id, sessionId]
+    ).catch(() => {});
+
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: sessionId, message, at: nowIso });
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: sessionId, at: nowIso });
+
+    return res.status(201).json({
+      success: true,
+      sent: true,
+      delivery_status: "sent",
+      external_reply_id: externalReplyId,
+      comment_id: commentRun.comment_id,
+      message,
+      reply: metaReply || null,
+    });
+  } catch (error) {
+    const errorMessage = error?.message || "Meta public reply failed";
+    const failedMessage = await appendManualAiSupportReply({
+      tenantId,
+      sessionId,
+      message: replyText,
+      messageType: "comment_public_reply",
+      staffUserId: req.user?.id || null,
+      staffUserName: userDisplayName(req.user),
+      source: "ai_inbox_comment_reply",
+      channel: replyChannel,
+      deliveryStatus: "failed",
+      deliveryError: errorMessage,
+      externalMessageId: "",
+      externalReplyId: "",
+    }).catch(() => null);
+
+    await db.query(
+      `
+      UPDATE social_comment_automation_runs
+      SET inbox_conversation_id = COALESCE(NULLIF(inbox_conversation_id, ''), $5::text),
+          public_reply_status = 'failed',
+          error_code = COALESCE(NULLIF($4::text, ''), error_code),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = $1::bigint AND platform = $2::text AND comment_id = $3::text
+      `,
+      [tenantId, commentRun.platform || platform, commentRun.comment_id, error?.code || "META_COMMENT_REPLY_FAILED", sessionId]
+    ).catch(() => {});
+
+    if (failedMessage) {
+      emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: sessionId, message: failedMessage, at: nowIso });
+      emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: sessionId, at: nowIso });
+    }
+
+    console.error("[ai-inbox][comment-reply] failed", {
+      tenant_id: tenantId,
+      comment_id: commentRun.comment_id,
+      platform,
+      code: error?.code || "",
+      message: errorMessage,
+    });
+    return sendError(
+      res,
+      Object.assign(new Error(errorMessage), { status: error?.status || 502, code: error?.code || "META_COMMENT_REPLY_FAILED" }),
+      "Failed to send comment reply"
+    );
   }
 });
 
