@@ -420,8 +420,8 @@ const loadStorefrontShell = async () => {
   if (!storefrontShellPromise) {
     storefrontShellPromise = (async () => {
       const candidates = [
-        path.join(process.cwd(), "dist", "index.html"),
-        path.join(process.cwd(), "index.html"),
+        path.join(__dirname, "..", "..", "dist", "index.html"),
+        path.join(__dirname, "..", "..", "index.html"),
       ];
       for (const candidate of candidates) {
         try {
@@ -430,6 +430,9 @@ const loadStorefrontShell = async () => {
           // Try the next candidate.
         }
       }
+      console.warn("[public-products] storefront shell fallback used", {
+        candidates,
+      });
       return `<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><title>M1 Employee Portal</title></head><body><div id="root"></div></body></html>`;
     })();
   }
