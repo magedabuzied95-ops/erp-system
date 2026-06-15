@@ -1685,67 +1685,40 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
   const profile = conversation?.customer_profile || {};
   const identityName = isMessengerConversation(conversation) ? messengerDisplayName(conversation) : getConversationDisplayName(conversation);
   const avatarUrl = customerAvatarUrl(conversation);
-  const hasMessengerProfile = Boolean(identityName || avatarUrl || clean(conversation?.external_customer_id));
-  const crmLabel = profile.id ? `الملف المرتبط #${profile.id}` : hasMessengerProfile ? "ملف ماسنجر فقط" : "لا يوجد عميل CRM مطابق";
+  const crmLabel = profile.id ? `#${profile.id}` : "";
   const channel = conversation?.channel || conversation?.source || "web_chat";
-  const channelName = channelLabel(channel);
-  const phone = clean(profile.phone || conversation?.phone || conversation?.customer_phone || conversation?.external_customer_id);
-  const cityArea = clean(profile.city_area || [profile.city, profile.area].filter(Boolean).join(" / "));
-  const crmStateTone = profile.id ? "emerald" : hasMessengerProfile ? "cyan" : "amber";
+  const channelName = channelBadgeLabel(channel);
+  const cityName = clean(profile.city || profile.city_area || "");
   return (
     <aside className="space-y-3">
-      <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
-        <div className="flex flex-row-reverse items-start gap-3">
+      <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-2.5">
+        <div className="flex flex-row-reverse items-start gap-2.5">
           {avatarUrl ? (
-            <img src={avatarUrl} alt="" className="h-11 w-11 shrink-0 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
+            <img src={avatarUrl} alt="" className="h-10 w-10 shrink-0 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
           ) : (
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/[0.07] text-slate-200">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/[0.07] text-slate-200">
               <User className="h-5 w-5" />
             </span>
           )}
           <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <div className="text-[15px] font-black leading-5 text-white">{identityName || "عميل غير معروف"}</div>
-                <div className="mt-1 text-[12px] font-bold leading-5 text-slate-400">
-                  <span dir="ltr" className="block break-words">{phone || "لا يوجد رقم بعد"}</span>
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  <Pill tone={isWhatsappChannel(channel) ? "emerald" : "cyan"}>{channelName}</Pill>
-                </div>
-              </div>
-              {canSyncMessenger ? (
-                <button
-                  type="button"
-                  onClick={onSyncMessengerProfile}
-                  disabled={syncing}
-                  className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-2 text-[10px] font-black text-cyan-100 disabled:opacity-50"
-                >
-                  {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                  مزامنة
-                </button>
-              ) : null}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <div className="truncate text-[15px] font-black leading-5 text-white">{identityName || "عميل غير معروف"}</div>
+              <Pill tone={isWhatsappChannel(channel) ? "emerald" : "cyan"}>{channelName}</Pill>
             </div>
           </div>
         </div>
 
-        <div className="mt-3 space-y-2.5">
-          <div className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/55 px-3 py-2.5">
+        <div className="mt-2 space-y-1.5">
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/55 px-2.5 py-2">
             <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">CRM</div>
-            <div className={`min-w-0 text-right text-[12px] font-black leading-5 ${crmStateTone === "emerald" ? "text-emerald-100" : crmStateTone === "cyan" ? "text-cyan-100" : "text-amber-100"}`}>{crmLabel}</div>
+            <div className="min-w-0 text-right text-[12px] font-black leading-5 text-white">{crmLabel || "—"}</div>
           </div>
-          <div className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/55 px-3 py-2.5">
-            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Channel</div>
-            <div className="min-w-0 text-right text-[12px] font-black leading-5 text-white">{channelName}</div>
-          </div>
-          <div className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/55 px-3 py-2.5">
-            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Phone</div>
-            <div dir="ltr" className="min-w-0 text-right text-[12px] font-black leading-5 text-white">{phone || "No phone yet"}</div>
-          </div>
-          <div className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/55 px-3 py-2.5">
-            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">المدينة</div>
-            <div className="min-w-0 text-right text-[12px] font-black leading-5 text-white">{cityArea || "عميل غير معروف"}</div>
-          </div>
+          {cityName ? (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/55 px-2.5 py-2">
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Location</div>
+              <div className="min-w-0 text-right text-[12px] font-black leading-5 text-white">{cityName}</div>
+            </div>
+          ) : null}
         </div>
       </div>
       <details className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
