@@ -2926,6 +2926,12 @@ export default function AiInbox() {
     }
   }, [headers, olderMessagesLoading, patchConversation, selectedConversation, tenantId]);
 
+  useEffect(() => {
+    if (!selectedConversation?.session_id) return;
+    if (asArray(selectedConversation.messages).length > 1) return;
+    void loadOlderMessages();
+  }, [loadOlderMessages, selectedConversation?.messages?.length, selectedConversation?.session_id]);
+
   const currentAssignName = assignNameDraft.sessionId === selectedConversation?.session_id
     ? assignNameDraft.value
     : selectedConversation?.assigned_user?.name || selectedConversation?.assigned_user_name || "";

@@ -1562,6 +1562,12 @@ export default function AiInboxPwa() {
     }
   }, [headers, olderLoading, patchConversation, selectedConversation, tenantId]);
 
+  useEffect(() => {
+    if (!selectedConversation?.session_id || tab !== "conversations") return;
+    if (asArray(selectedConversation.messages).length > 1) return;
+    void loadOlderMessages();
+  }, [loadOlderMessages, selectedConversation?.messages?.length, selectedConversation?.session_id, tab]);
+
   const sendManualReply = useCallback(async () => {
     const message = clean(composerText);
     if (!selectedConversation?.session_id || !message) return;

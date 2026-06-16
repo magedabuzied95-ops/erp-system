@@ -737,6 +737,30 @@ export const normalizeInboxMessage = (row = {}) => ({
   ].filter(Boolean),
 });
 
+const summarizeInboxMessage = (row = {}) => ({
+  id: row.id,
+  session_id: row.session_id,
+  channel: row.channel || "",
+  external_message_id: row.external_message_id || "",
+  external_reply_id: row.external_reply_id || "",
+  dedupe_key: row.dedupe_key || "",
+  customer_message: row.customer_message || row.message_text || "",
+  ai_answer: row.ai_answer || "",
+  staff_message: row.staff_message || "",
+  sender_type: row.sender_type || (row.staff_message ? "staff" : "customer"),
+  manual_message: row.manual_message === true,
+  staff_user_id: row.staff_user_id || null,
+  staff_user_name: row.staff_user_name || "",
+  delivery_status: row.delivery_status || "",
+  delivery_error: row.delivery_error || "",
+  error_code: row.error_code || "",
+  message_type: row.message_type || "",
+  confidence: Number(row.confidence || 0),
+  needs_human_support: row.needs_human_support === true,
+  detected_intent: row.detected_intent || "",
+  created_at: row.created_at,
+  system_events: Array.isArray(row.system_events) ? row.system_events.slice(0, 2) : [],
+});
 const buildCustomerProfilePayload = ({ conversation = {}, memories = [] } = {}) => {
   const profile = conversation.customer_profile || {};
   const memoryValues = memories.map((item) => item.memory_value || {});
@@ -1180,13 +1204,13 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
   };
 };
 
-export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search = "", messageLimit = 30 } = {}) => {
+export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search = "", messageLimit = 30, summaryOnly = false } = {}) => {
   await ensureAiSalesAgentSchema();
   await ensureAiConversationMemorySchema();
   await ensureAiSupportLogSchema();
   const clauses = ["s.tenant_id = $1"];
   const params = [tenantId, Math.min(1000, Math.max(1, int(limit, 50)))];
-  const inboxMessageLimit = Math.min(100, Math.max(1, int(messageLimit, 30)));
+  const inboxMessageLimit = summaryOnly ? 1 : Math.min(100, Math.max(1, int(messageLimit, 30)));
   const normalizedFilter = lower(filter || "all");
   const searchTerm = text(search);
   clauses.push(whatsappInboxGroupFilterSql("s", "c"));
@@ -1352,7 +1376,8 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
           [tenantId, sessionIds, inboxMessageLimit]
         ),
         profileIds.length
-          ? db.query(
+          ? (!summaryOnly
+            ? db.query(
               `
               SELECT *
               FROM ai_customer_memories
@@ -1362,6 +1387,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
               `,
               [tenantId, profileIds]
             )
+            : Promise.resolve({ rows: [] }))
           : Promise.resolve({ rows: [] }),
         db.query(
           `
@@ -1482,7 +1508,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
   });
 
   const enriched = await Promise.all(conversations.map(async (conversation) => {
-    const memories = memoriesByProfile.get(conversation.profile_id) || [];
+    const memories = summaryOnly ? [] : (memoriesByProfile.get(conversation.profile_id) || []);
     const messages = messagesBySession.get(conversation.session_id) || [];
     const totalMessages = messageTotalsBySession.get(conversation.session_id) || messages.length;
     const draftOrders = draftsBySession.get(conversation.session_id) || [];
@@ -1534,41 +1560,65 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       conversation.conversation_memory_shopping_intent ||
       ""
     );
-    const salesIntelligence = await buildSalesConversationIntelligence({
-      tenantId,
-      conversation: {
-        ...conversation,
-        customer_profile: customerProfile,
-        current_product: selectedProduct,
-        product: selectedProduct,
-        ai_memory: conversationAiMemory,
-      },
-      messages,
-      draftOrders,
-      conversationFollowups,
-      recommendations: rememberedProducts,
-      selectedProduct,
-      currentStateRow,
-      existingJourneyEvents,
-    }).catch(() => ({
-      state: {
-        current_state: "DISCOVERY",
-        previous_state: "",
-        state_reason: "",
-        confidence: 0.5,
-        updated_at: new Date().toISOString(),
-        channel: conversation.channel || conversation.source || "web_chat",
-        customer_id: conversation.external_customer_id || "",
-        conversation_id: conversation.session_id || "",
-        badge: buildSalesStateBadge({ current_state: "DISCOVERY", state_reason: "", confidence: 0.5 }),
-        discovery_questions: [],
-      },
-      journeyEvents: existingJourneyEvents,
-      conversion: { score: 0, level: "low", reasons: [], risk_flags: [], recommended_action: "CONTINUE_CONVERSATION" },
-      followUp: { follow_up_needed: false, follow_up_reason: "", suggested_follow_up_message: "", suggested_follow_up_at: "" },
-      crossSellSuggestions: [],
-      closer: { last_closer_action: "", last_closer_at: "", recommended_action: "CONTINUE", suggested_message: "", reasons: [], should_offer_closer: false },
-    }));
+    const salesIntelligence = summaryOnly
+      ? {
+          state: {
+            current_state: currentStateRow?.current_state || "DISCOVERY",
+            previous_state: currentStateRow?.previous_state || "",
+            state_reason: currentStateRow?.state_reason || "",
+            confidence: Number(currentStateRow?.confidence ?? 0.5) || 0.5,
+            updated_at: currentStateRow?.updated_at || new Date().toISOString(),
+            channel: conversation.channel || conversation.source || "web_chat",
+            customer_id: conversation.external_customer_id || "",
+            conversation_id: conversation.session_id || "",
+            badge: buildSalesStateBadge({
+              current_state: currentStateRow?.current_state || "DISCOVERY",
+              state_reason: currentStateRow?.state_reason || "",
+              confidence: Number(currentStateRow?.confidence ?? 0.5) || 0.5,
+            }),
+            discovery_questions: [],
+          },
+          journeyEvents: [],
+          conversion: { score: 0, level: "low", reasons: [], risk_flags: [], recommended_action: "CONTINUE_CONVERSATION" },
+          followUp: { follow_up_needed: false, follow_up_reason: "", suggested_follow_up_message: "", suggested_follow_up_at: "" },
+          crossSellSuggestions: [],
+          closer: { last_closer_action: "", last_closer_at: "", recommended_action: "CONTINUE", suggested_message: "", reasons: [], should_offer_closer: false },
+        }
+      : await buildSalesConversationIntelligence({
+          tenantId,
+          conversation: {
+            ...conversation,
+            customer_profile: customerProfile,
+            current_product: selectedProduct,
+            product: selectedProduct,
+            ai_memory: conversationAiMemory,
+          },
+          messages: summaryMessages,
+          draftOrders,
+          conversationFollowups,
+          recommendations: rememberedProducts,
+          selectedProduct,
+          currentStateRow,
+          existingJourneyEvents,
+        }).catch(() => ({
+          state: {
+            current_state: "DISCOVERY",
+            previous_state: "",
+            state_reason: "",
+            confidence: 0.5,
+            updated_at: new Date().toISOString(),
+            channel: conversation.channel || conversation.source || "web_chat",
+            customer_id: conversation.external_customer_id || "",
+            conversation_id: conversation.session_id || "",
+            badge: buildSalesStateBadge({ current_state: "DISCOVERY", state_reason: "", confidence: 0.5 }),
+            discovery_questions: [],
+          },
+          journeyEvents: [],
+          conversion: { score: 0, level: "low", reasons: [], risk_flags: [], recommended_action: "CONTINUE_CONVERSATION" },
+          followUp: { follow_up_needed: false, follow_up_reason: "", suggested_follow_up_message: "", suggested_follow_up_at: "" },
+          crossSellSuggestions: [],
+          closer: { last_closer_action: "", last_closer_at: "", recommended_action: "CONTINUE", suggested_message: "", reasons: [], should_offer_closer: false },
+        }));
     const resolvedChannel = text(conversation.channel || conversation.session_channel || conversation.source);
     const isMessengerConversation = ["facebook_messenger", "facebook", "messenger"].includes(lower(resolvedChannel));
     const messengerDisplayName = isMessengerConversation
@@ -1608,6 +1658,109 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
         created_at: order.updated_at || order.created_at,
       })),
     ].filter(Boolean).sort((left, right) => new Date(left.created_at || 0) - new Date(right.created_at || 0));
+    const summaryMessages = summaryOnly ? messages.slice(0, 1).map(summarizeInboxMessage) : messages;
+    if (summaryOnly) {
+      const normalizeSummaryLeadStatus = (value = "") => {
+        const key = text(value).toLowerCase();
+        if (key === "negotiation" || key === "follow_up" || key === "followup") return "interested";
+        if (key === "lost" || key === "closed") return "new";
+        return ["new", "contacted", "interested", "won"].includes(key) ? key : "new";
+      };
+      const metadata = conversation.channel_metadata || {};
+      const leadMetadata = metadata && typeof metadata === "object" ? (metadata.lead || {}) : {};
+      const assignedTo = conversation.assigned_user_id || conversation.assigned_user_name
+        ? {
+            id: conversation.assigned_user_id || null,
+            name: conversation.assigned_user_name || "",
+          }
+          : null;
+      const leadStatus = normalizeSummaryLeadStatus(
+        conversation.lead_status ||
+        metadata.lead_status ||
+        leadMetadata.status ||
+        leadMetadata.lead_status ||
+        "new"
+      );
+      const lastMessagePreview = conversation.customer_message || conversation.message_text || conversation.ai_answer || conversation.session_last_message || "";
+      const unreadCount = (() => {
+        const lastActivityAt = new Date(conversation.last_message_at || conversation.updated_at || 0).getTime() || 0;
+        const readAt = new Date(conversation.read_at || 0).getTime() || 0;
+        const requiresAttention = conversation.latest_sender_type === "customer" || conversation.needs_human_support === true || conversation.conversation_status === "human_takeover";
+        return requiresAttention && (!readAt || lastActivityAt > readAt) ? 1 : 0;
+      })();
+      return {
+        session_id: conversation.session_id,
+        conversation_id: conversation.session_id,
+        conversation_key: conversation.conversation_key || conversation.session_id,
+        source: conversation.source || conversation.channel || "web_chat",
+        channel: conversation.channel || conversation.session_channel || conversation.source || "web_chat",
+        status: conversation.conversation_status || "ai_active",
+        conversation_status: conversation.conversation_status || "ai_active",
+        thread_kind: conversation.thread_kind || "",
+        assigned_to: assignedTo,
+        assigned_user: assignedTo,
+        ai_enabled: conversation.ai_enabled !== false,
+        ai_paused: ["human_takeover", "closed"].includes(conversation.conversation_status),
+        human_takeover: conversation.conversation_status === "human_takeover",
+        needs_human_support: conversation.needs_human_support === true,
+        hot_lead: conversation.hot_lead === true,
+        escalation_reason: conversation.escalation_reason || "",
+        ai_escalation_reason: conversation.escalation_reason || "",
+        last_escalation_keyword: conversation.last_escalation_keyword || "",
+        escalated_at: conversation.escalated_at || null,
+        takeover_started_at: conversation.takeover_started_at,
+        returned_to_ai_at: conversation.returned_to_ai_at,
+        closed_at: conversation.closed_at,
+        customer_name: messengerDisplayName || customerProfile.name || conversation.session_customer_name || conversation.first_name || conversation.external_customer_id || "",
+        customer_avatar_url: customerProfile.avatar_url || conversation.customer_avatar_url || "",
+        phone: customerProfile.phone || conversation.phone || "",
+        sender_name: isMessengerConversation ? messengerDisplayName : conversation.sender_name || "",
+        profile_name: isMessengerConversation ? messengerDisplayName : conversation.profile_name || "",
+        contact_name: isMessengerConversation ? messengerDisplayName : conversation.contact_name || "",
+        external_customer_id: conversation.external_customer_id || "",
+        external_conversation_id: conversation.external_conversation_id || conversation.session_id,
+        last_message: lastMessagePreview,
+        latest_message_preview: lastMessagePreview,
+        last_message_at: conversation.last_message_at || conversation.updated_at,
+        updated_at: conversation.updated_at,
+        last_activity_at: conversation.last_message_at || conversation.updated_at,
+        unread_count: unreadCount,
+        unread: unreadCount > 0,
+        waiting: conversation.due_followup_count > 0 || (conversation.updated_at && Date.now() - new Date(conversation.updated_at).getTime() > 15 * 60 * 1000),
+        lead_status: leadStatus,
+        lead_type: leadType,
+        lead_badge: leadBadgeKey(leadType),
+        tags: Array.isArray(conversation.tags) ? conversation.tags.slice(0, 10) : [],
+        status_flags: {
+          ai_enabled: conversation.ai_enabled !== false,
+          ai_paused: ["human_takeover", "closed"].includes(conversation.conversation_status),
+          human_takeover: conversation.conversation_status === "human_takeover",
+          needs_human_support: conversation.needs_human_support === true,
+          hot_lead: conversation.hot_lead === true,
+          waiting: conversation.due_followup_count > 0 || (conversation.updated_at && Date.now() - new Date(conversation.updated_at).getTime() > 15 * 60 * 1000),
+        },
+        channel_metadata: {
+          assigned_employee_id: text(metadata.assigned_employee_id || ""),
+          page_id: text(metadata.page_id || ""),
+          instagram_business_account_id: text(metadata.instagram_business_account_id || ""),
+          comment_id: text(metadata.comment_id || leadMetadata.comment_id || conversation.external_comment_id || conversation.comment_id || ""),
+          thread_kind: text(metadata.thread_kind || conversation.thread_kind || ""),
+        },
+        customer_profile: {
+          name: customerProfile.name || conversation.session_customer_name || "",
+          avatar_url: customerProfile.avatar_url || conversation.customer_avatar_url || "",
+          phone: customerProfile.phone || conversation.phone || "",
+          external_customer_id: customerProfile.external_customer_id || conversation.external_customer_id || "",
+        },
+        message_count: totalMessages,
+        preview_message: lastMessagePreview,
+        messages: summaryMessages,
+        message_count: totalMessages,
+        older_messages_available: totalMessages > summaryMessages.length,
+        next_messages_before: summaryMessages[0]?.created_at || "",
+        anyFullMessages: false,
+      };
+    }
     return {
       ...conversation,
       source: conversation.source || conversation.channel || "web_chat",
@@ -1635,22 +1788,22 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       detected_intent: projectedCurrentIntent || conversation.detected_intent || "",
       current_intent: projectedCurrentIntent || conversation.detected_intent || "",
       customer_profile: customerProfile,
-      messages,
+      messages: summaryMessages,
       message_count: totalMessages,
-      older_messages_available: totalMessages > messages.length,
-      next_messages_before: messages[0]?.created_at || "",
+      older_messages_available: totalMessages > summaryMessages.length,
+      next_messages_before: summaryMessages[0]?.created_at || "",
       memories,
       followups: conversationFollowups,
       draft_orders: draftOrders,
       draft_order: draftOrders[0] || null,
       sales_conversation_state: salesIntelligence.state,
-      sales_journey_events: salesIntelligence.journeyEvents,
+      sales_journey_events: summaryOnly ? [] : salesIntelligence.journeyEvents,
       conversion_probability: salesIntelligence.conversion,
       follow_up_recommendation: salesIntelligence.followUp,
       cross_sell_suggestions: salesIntelligence.crossSellSuggestions,
       proactive_closer: salesIntelligence.closer,
       sales_intelligence: salesIntelligence,
-      system_events: systemEvents,
+      system_events: summaryOnly ? systemEvents.slice(0, 3) : systemEvents,
       status: conversation.conversation_status || "ai_active",
       conversation_status: conversation.conversation_status || "ai_active",
       assigned_user: conversation.assigned_user_id || conversation.assigned_user_name
@@ -1681,7 +1834,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       last_activity_at: conversation.last_message_at || conversation.updated_at,
     };
   }));
-  return { conversations: enriched, followups: followups.rows };
+  return { conversations: enriched, followups: followups.rows, anyFullMessages: false };
 };
 
 const followupSuggestedMessage = (task = {}, settings = DEFAULT_SETTINGS) => {
@@ -3516,3 +3669,6 @@ export const generateAiSuggestedReplies = async ({ tenantId, conversationId } = 
   });
   return payload;
 };
+
+
+

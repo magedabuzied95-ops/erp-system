@@ -1757,6 +1757,7 @@ router.get("/conversations", protect, permit("settings", "view"), async (req, re
       search: String(req.query?.search || ""),
       limit: req.query?.limit,
       messageLimit: req.query?.message_limit,
+      summaryOnly: true,
     });
     return res.json({ success: true, ...inbox });
   } catch (error) {
