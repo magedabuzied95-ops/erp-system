@@ -1110,10 +1110,10 @@ const getConversionTrustPoints = () => {
 };
 
 const homeSellingBadges = [
-  { labelAr: "??? ????", labelEn: "Fast shipping", icon: Truck },
-  { labelAr: "??????? ???? 14 ?????", labelEn: "14-day exchange", icon: RefreshCcw },
-  { labelAr: "??? ???", labelEn: "Secure payment", icon: ShieldCheck },
-  { labelAr: "??? ??????", labelEn: "Real photos", icon: Camera },
+  { labelAr: "شحن سريع", labelEn: "Fast shipping", icon: Truck },
+  { labelAr: "استبدال خلال 14 يومًا", labelEn: "14-day exchange", icon: RefreshCcw },
+  { labelAr: "دفع آمن", labelEn: "Secure payment", icon: ShieldCheck },
+  { labelAr: "صور حقيقية", labelEn: "Real photos", icon: Camera },
 ];
 
 const storefrontApi = {
@@ -1551,12 +1551,12 @@ const featuredCategoryDefinitions = [
   {
     id: "men",
     labelEn: "Men",
-    labelAr: "?????",
+    labelAr: "رجالي",
     headlineEn: "Latest Men's Shoes",
-    headlineAr: "???? ????? ??????",
+    headlineAr: "أحدث أحذية الرجال",
     subtitleEn: "Fresh sneakers, daily picks, and standout sizes for every look.",
-    subtitleAr: "?????? ?????? ???????? ?????? ??????? ????? ??? ??????.",
-    query: "Jordan 4 Nike Shox Air Force Adidas Campus ?????",
+    subtitleAr: "سنيكرز جديدة، اختيارات يومية، ومقاسات مميزة لكل إطلالة.",
+    query: "Jordan 4 Nike Shox Air Force Adidas Campus رجالي",
     href: "/shop/products?gender=men",
     examples: ["Jordan 4", "Nike Shox", "Air Force", "Adidas Campus"],
     test: (product, text) => productAudienceValues(product).includes("men") || /men|mens|male|?{3,5}/i.test(text),
@@ -1565,12 +1565,12 @@ const featuredCategoryDefinitions = [
   {
     id: "women",
     labelEn: "Women",
-    labelAr: "?????",
+    labelAr: "حريمي",
     headlineEn: "New Women's Collection",
-    headlineAr: "?????? ??????? ???????",
+    headlineAr: "مجموعة الحريمي الجديدة",
     subtitleEn: "Soft colors, bold silhouettes, and everyday favorites in one edit.",
-    subtitleAr: "????? ?????? ???? ?????? ??????? ????? ?? ?????? ????.",
-    query: "Nike Adidas Jordan ?????",
+    subtitleAr: "ألوان ناعمة، قصات جريئة، ومفضلات يومية في اختيار واحد.",
+    query: "Nike Adidas Jordan حريمي",
     href: "/shop/products?gender=women",
     examples: ["Nike", "Adidas", "Jordan"],
     test: (product, text) => productAudienceValues(product).includes("women") || /women|womens|female|ladies|?{3,5}/i.test(text),
@@ -1579,12 +1579,12 @@ const featuredCategoryDefinitions = [
   {
     id: "kids",
     labelEn: "Kids",
-    labelAr: "?????",
+    labelAr: "أطفال",
     headlineEn: "Kids Essentials",
-    headlineAr: "??????? ???????",
+    headlineAr: "أساسيات الأطفال",
     subtitleEn: "Built for school, play and movement.",
-    subtitleAr: "????? ???????? ????? ???????.",
-    query: "kids children school play ?????",
+    subtitleAr: "مصممة للمدرسة، اللعب والحركة.",
+    query: "kids children school play أطفال",
     href: "/shop/products?gender=kids",
     examples: ["kids", "children", "school", "play"],
     test: (product, text) => productAudienceValues(product).includes("kids") || /kids?|children|child|?{3,5}/i.test(text),
@@ -1593,12 +1593,12 @@ const featuredCategoryDefinitions = [
   {
     id: "offers",
     labelEn: "Offers",
-    labelAr: "????",
+    labelAr: "عروض",
     headlineEn: "Season Offers",
-    headlineAr: "???? ??????",
+    headlineAr: "عروض الموسم",
     subtitleEn: "Selected discounts and high-value picks for a limited time.",
-    subtitleAr: "?????? ?????? ???? ????? ?????? ????? ??????.",
-    query: "offers sale discount ????",
+    subtitleAr: "خصومات مختارة وقطع عالية القيمة لفترة محدودة.",
+    query: "offers sale discount عروض",
     href: "/shop/products?sale=true",
     examples: ["Sale", "Discount", "Offers", "Best Price"],
     test: (product, text) => hasSale(product) || /offer|offers|sale|discount|?{3,5}/i.test(text),
@@ -1607,12 +1607,12 @@ const featuredCategoryDefinitions = [
   {
     id: "crocs",
     labelEn: "Crocs",
-    labelAr: "?????",
+    labelAr: "كروكس",
     headlineEn: "Crocs Picks",
-    headlineAr: "???????? ?????",
+    headlineAr: "اختيارات كروكس",
     subtitleEn: "Easy comfort, summer colors, and quick everyday pairs.",
-    subtitleAr: "???? ????? ????? ?????? ???? ????? ?????.",
-    query: "crocs crocband classic clog slides ?????",
+    subtitleAr: "راحة سهلة، ألوان صيفية، وقطع يومية خفيفة.",
+    query: "crocs crocband classic clog slides كروكس",
     href: "/shop/products?category=crocs",
     examples: ["Crocs", "Crocband", "Classic Clog", "Slides"],
     test: (_product, text) => /crocs?|crocband|classics*clog|slides|?{3,5}/i.test(text),
@@ -1621,12 +1621,12 @@ const featuredCategoryDefinitions = [
   {
     id: "last-sizes",
     labelEn: "Last Sizes",
-    labelAr: "??? ????????",
+    labelAr: "آخر المقاسات",
     headlineEn: "Last Sizes",
-    headlineAr: "??? ????????",
+    headlineAr: "آخر المقاسات",
     subtitleEn: "Limited pairs with final sizes before they disappear.",
-    subtitleAr: "????? ?????? ????????? ??????? ??? ??????.",
-    query: "last sizes final size ??? ????????",
+    subtitleAr: "أزواج محدودة بالمقاسات الأخيرة قبل نفادها.",
+    query: "last sizes final size آخر المقاسات",
     href: "/shop/products?stock=last",
     examples: ["Last Sizes", "Final Size", "Limited Stock"],
     test: (_product, text) => /lasts*sizes|finals*size|?{3,5} ?{3,5}|?{3,5} ?{3,5} ?{3,5}/i.test(text),
@@ -1921,7 +1921,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false })
 
   const { product, image } = activeSlide;
   const ActiveIcon = activeCategory.icon;
-  const cta = isRtl ? "????? ?????" : t("storefront.common.shopCategory", "Shop category");
+  const cta = isRtl ? "تسوّق الفئة" : t("storefront.common.shopCategory", "Shop category");
   const headline = isRtl ? activeCategory.headlineAr : activeCategory.headlineEn;
   const subtitle = isRtl ? activeCategory.subtitleAr : activeCategory.subtitleEn;
   const categoryHref = activeCategory.href || `/shop/products?q=${encodeURIComponent(activeCategory.query || activeCategory.label)}`;
@@ -2039,9 +2039,9 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false })
 const mainHomeCategoryCards = [
   {
     id: "men",
-    titleAr: "?????",
+    titleAr: "رجالي",
     titleEn: "Men",
-    subtitleAr: "???? Nike ? Adidas ? Jordan",
+    subtitleAr: "أحدث Nike و Adidas و Jordan",
     subtitleEn: "Latest Nike, Adidas & Jordan",
     href: "/shop/products?gender=men",
     test: (product, text) => productAudienceValues(product).includes("men") || /men|mens|male|?{3,5}/i.test(text),
@@ -2049,9 +2049,9 @@ const mainHomeCategoryCards = [
   },
   {
     id: "women",
-    titleAr: "?????",
+    titleAr: "حريمي",
     titleEn: "Women",
-    subtitleAr: "???? ?????? ??? ???",
+    subtitleAr: "راحة وأناقة لكل يوم",
     subtitleEn: "Comfort and style for every day",
     href: "/shop/products?gender=women",
     test: (product, text) => productAudienceValues(product).includes("women") || /women|womens|female|ladies|?{3,5}/i.test(text),
@@ -2059,9 +2059,9 @@ const mainHomeCategoryCards = [
   },
   {
     id: "kids",
-    titleAr: "?????",
+    titleAr: "أطفال",
     titleEn: "Kids",
-    subtitleAr: "????? ??????? ?????? ???????",
+    subtitleAr: "مناسب للمدرسة واللعب والحركة",
     subtitleEn: "Built for school, play and movement",
     href: "/shop/products?gender=kids",
     test: (product, text) => productAudienceValues(product).includes("kids") || /kids?|children|child|?{3,5}/i.test(text),
@@ -2069,9 +2069,9 @@ const mainHomeCategoryCards = [
   },
   {
     id: "offers",
-    titleAr: "????",
+    titleAr: "عروض",
     titleEn: "Offers",
-    subtitleAr: "???? ??????",
+    subtitleAr: "عروض الموسم",
     subtitleEn: "Season offers",
     href: "/shop/products?sale=true",
     test: (product, text) => hasSale(product) || /offer|offers|sale|discount|?{3,5}/i.test(text),
@@ -2079,9 +2079,9 @@ const mainHomeCategoryCards = [
   },
   {
     id: "crocs",
-    titleAr: "?????",
+    titleAr: "كروكس",
     titleEn: "Crocs",
-    subtitleAr: "???? ???? ??? ???",
+    subtitleAr: "راحة سهلة لكل يوم",
     subtitleEn: "Easy comfort for every day",
     href: "/shop/products?category=crocs",
     test: (_product, text) => /crocs?|crocband|classics*clog|slides|?{3,5}/i.test(text),
@@ -2089,9 +2089,9 @@ const mainHomeCategoryCards = [
   },
   {
     id: "last-sizes",
-    titleAr: "??? ????????",
+    titleAr: "آخر المقاسات",
     titleEn: "Last Sizes",
-    subtitleAr: "??? ?????? ??? ?? ?????",
+    subtitleAr: "قطع محدودة قبل ما تختفي",
     subtitleEn: "Limited pairs before they disappear",
     href: "/shop/products?stock=last",
     test: (_product, text) => /lasts*sizes|finals*size|?{3,5} ?{3,5}|?{3,5} ?{3,5} ?{3,5}/i.test(text),
@@ -2630,7 +2630,7 @@ function HomeBrandsSection() {
       <div className="rounded-[2.15rem] border border-stone-200 bg-white px-4 py-5 shadow-[0_18px_54px_rgba(39,20,75,0.07)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(7,11,22,0.98),rgba(7,11,22,0.92))] dark:shadow-[0_24px_80px_rgba(0,0,0,0.28)] md:px-5 md:py-6">
         <div className="mb-4 text-center">
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7c3aed] dark:text-[#d8b4fe]">{sfText("storefront.home.brandsEyebrow", "البراندات")}</p>
-          <h2 className="mt-1 text-2xl font-black tracking-normal text-stone-950 dark:text-white md:text-3xl">?????? ????????</h2>
+          <h2 className="mt-1 text-2xl font-black tracking-normal text-stone-950 dark:text-white md:text-3xl">الفئات الرئيسية</h2>
         </div>
         {isSingleBrand ? (
           <div className="mx-auto flex w-fit justify-center">
@@ -2657,7 +2657,7 @@ function HomeBrandsSection() {
                       />
                     </span>
                     <div className="mt-4 text-lg font-black text-white">{brandName}</div>
-                    <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-black text-white/80">????????? ????????</div>
+                    <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-black text-white/80">البراندات المختارة</div>
                   </span>
                 </Link>
               );
