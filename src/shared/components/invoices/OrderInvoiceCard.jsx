@@ -102,7 +102,7 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
               )}
             </div>
             <div>
-              <div className={`${luxury ? "text-2xl font-black tracking-tight text-slate-950 sm:text-[1.7rem]" : "text-2xl font-black"}`}>{data?.store?.name || "Tiger Store"}</div>
+              <div className={`${luxury ? "text-2xl font-black tracking-tight text-slate-950 sm:text-[1.7rem]" : "text-2xl font-black"}`}>{data?.store?.name || "MONE"}</div>
               <div className={`mt-1.5 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black ${luxury ? "border-violet-200 bg-violet-50 text-violet-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
                 <ShoppingBag className="h-3.5 w-3.5" />
                 {t("storefront.invoice.source")}: {sourceLabels[source] || data?.source || "Website"}

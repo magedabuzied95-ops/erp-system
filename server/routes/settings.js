@@ -8,6 +8,11 @@ import {
   getSettingsByCategory,
   setSetting,
 } from "../services/settingsService.js";
+import {
+  getSiteSettings,
+  updateSiteSettings,
+} from "../services/siteSettingsService.js";
+import { getTenantId } from "../utils/requestScope.js";
 import { normalizeSettingsCategory, settingsByCategory } from "../../shared/settingsRegistry.js";
 
 const router = express.Router();
@@ -29,6 +34,36 @@ router.get("/", protect, permit("settings", "view"), async (req, res) => {
   } catch (error) {
     console.error("[settings] list error", error);
     res.status(500).json({ success: false, message: "Failed to load settings" });
+  }
+});
+
+router.get("/site", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = getTenantId(req, req.user?.tenant_id);
+    const site = await getSiteSettings({ tenantId });
+    res.json({ success: true, site, settings: site });
+  } catch (error) {
+    console.error("[settings] site get error", error);
+    res.status(500).json({ success: false, message: "Failed to load site settings" });
+  }
+});
+
+router.patch("/site", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = getTenantId(req, req.user?.tenant_id);
+    const incoming = req.body?.site && typeof req.body.site === "object" ? req.body.site : req.body || {};
+    const site = await updateSiteSettings({
+      tenantId,
+      companyName: incoming.company_name ?? incoming.companyName,
+      companyLogoUrl: incoming.company_logo_url ?? incoming.companyLogoUrl,
+      faviconUrl: incoming.favicon_url ?? incoming.faviconUrl,
+      updatedBy: req.user?.id || null,
+    });
+    clearSettingsCache();
+    res.json({ success: true, site, settings: site });
+  } catch (error) {
+    console.error("[settings] site patch error", error);
+    res.status(400).json({ success: false, message: error.message || "Failed to save site settings" });
   }
 });
 

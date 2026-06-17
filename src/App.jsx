@@ -247,7 +247,17 @@ function App() {
         const settings = response?.settings || {};
         const code = settings["general.default_currency"];
         const symbol = settings["general.currency_symbol"];
+        const faviconUrl = settings["general.favicon_url"];
         if (code || symbol) setCurrency({ code, symbol });
+        if (typeof document !== "undefined") {
+          let link = document.querySelector('link[rel="icon"]');
+          if (!link) {
+            link = document.createElement("link");
+            link.rel = "icon";
+            document.head.appendChild(link);
+          }
+          link.href = faviconUrl || "/favicon.svg";
+        }
       })
       .catch(() => {});
     return () => {

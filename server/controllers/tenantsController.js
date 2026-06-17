@@ -1,5 +1,6 @@
 import db from "../database/db.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
+import { getSiteSettings, updateSiteSettings } from "../services/siteSettingsService.js";
 
 export const getTenants = async (req, res) => {
   try {
@@ -134,8 +135,10 @@ export const upsertCompanySettings = async (req, res) => {
 
     const {
       company_name,
+      company_logo_url,
       legal_name,
       logo_url,
+      favicon_url,
       address,
       phone,
       email,
@@ -148,6 +151,14 @@ export const upsertCompanySettings = async (req, res) => {
       pos_mode,
     } = req.body;
 
+    const branding = await updateSiteSettings({
+      tenantId,
+      companyName: company_name,
+      companyLogoUrl: company_logo_url || logo_url,
+      faviconUrl: favicon_url,
+      updatedBy: req.user?.id || null,
+    }).catch(() => null);
+
     const result = await db.query(
       `
       INSERT INTO company_profiles (
@@ -155,6 +166,7 @@ export const upsertCompanySettings = async (req, res) => {
         company_name,
         legal_name,
         logo_url,
+        favicon_url,
         address,
         phone,
         email,
@@ -172,6 +184,7 @@ export const upsertCompanySettings = async (req, res) => {
         company_name = EXCLUDED.company_name,
         legal_name = EXCLUDED.legal_name,
         logo_url = EXCLUDED.logo_url,
+        favicon_url = EXCLUDED.favicon_url,
         address = EXCLUDED.address,
         phone = EXCLUDED.phone,
         email = EXCLUDED.email,
@@ -189,7 +202,8 @@ export const upsertCompanySettings = async (req, res) => {
         tenantId,
         company_name || "ERP Company",
         legal_name || "",
-        logo_url || "",
+        company_logo_url || logo_url || "",
+        favicon_url || "",
         address || "",
         phone || "",
         email || "",
@@ -205,7 +219,12 @@ export const upsertCompanySettings = async (req, res) => {
 
     return res.json({
       success: true,
-      company: result.rows[0],
+      company: {
+        ...result.rows[0],
+        company_name: branding?.company_name || result.rows[0]?.company_name || "ERP Company",
+        company_logo_url: branding?.company_logo_url || result.rows[0]?.logo_url || "",
+        favicon_url: branding?.favicon_url || result.rows[0]?.favicon_url || "",
+      },
     });
   } catch (error) {
     console.log(error);
@@ -222,9 +241,14 @@ export const getCompanySettings = async (req, res) => {
     const tenantId = getTenantId(req, req.user?.tenant_id);
     const result = await db.query(
       `
-      SELECT *
-      FROM company_profiles
-      WHERE tenant_id = $1
+      SELECT
+        c.*,
+        t.company_name AS tenant_company_name,
+        t.company_logo_url AS tenant_company_logo_url,
+        t.favicon_url AS tenant_favicon_url
+      FROM company_profiles c
+      LEFT JOIN tenants t ON t.id = c.tenant_id
+      WHERE c.tenant_id = $1
       LIMIT 1
       `,
       [tenantId]
@@ -232,7 +256,14 @@ export const getCompanySettings = async (req, res) => {
 
     return res.json({
       success: true,
-      company: result.rows[0] || null,
+      company: result.rows[0]
+        ? {
+            ...result.rows[0],
+            company_name: result.rows[0].tenant_company_name || result.rows[0].company_name || "ERP Company",
+            company_logo_url: result.rows[0].tenant_company_logo_url || result.rows[0].logo_url || "",
+            favicon_url: result.rows[0].tenant_favicon_url || result.rows[0].favicon_url || "",
+          }
+        : null,
     });
   } catch (error) {
     console.log(error);

@@ -72,7 +72,7 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = [], option
   const subtotal = toNumber(order.subtotal ?? order.sub_total ?? order.totals?.subtotal, 0) || items.reduce((sum, item) => sum + item.lineTotal, 0);
 
   return {
-    store: { name: firstText(options.storeName, order.store?.name, order.company_name, "ERP Store") },
+    store: { name: firstText(options.storeName, order.store?.name, order.company_name, order.tenant_name, "MONE") },
     invoiceNumber: firstText(order.invoice_number, order.invoiceNumber, displayPublicOrderNumber(order), order.id, "n/a"),
     source: firstText(order.source, order.channel, options.source, "Website"),
     customer: {
@@ -90,7 +90,7 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = [], option
 };
 
 export const buildOrderInvoiceWhatsappText = (invoice) => [
-  `*${invoice.store?.name || "ERP Store"}*`,
+  `*${invoice.store?.name || "MONE"}*`,
   "Invoice",
   `Order: ${invoice.invoiceNumber || "n/a"}`,
   `Source: ${invoice.source || "Website"}`,

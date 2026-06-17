@@ -396,6 +396,37 @@ function RealtimePill({ label }) {
   );
 }
 
+function WorkspaceBrandMark({ name, logoUrl, className = "" }) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [logoUrl]);
+
+  const initials = String(name || "MONE")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("") || "MONE";
+
+  return (
+    <div className={["flex shrink-0 items-center justify-center overflow-hidden border border-[var(--border)] bg-[var(--card)] text-sm font-black text-[var(--text)]", className].join(" ")}>
+      {logoUrl && !failed ? (
+        <img
+          src={logoUrl}
+          alt={name}
+          className="h-full w-full object-contain p-1.5"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <span>{initials}</span>
+      )}
+    </div>
+  );
+}
+
 function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -409,7 +440,15 @@ function MainLayout() {
   const [openGroups, setOpenGroups] = useState(() => readSidebarJson(SIDEBAR_GROUPS_STORAGE_KEY, {}));
   const [sidebarSearch, setSidebarSearch] = useState("");
   const currentTenant = getCurrentTenant();
-  const workspaceName = currentTenant?.companyName || currentTenant?.name || currentTenant?.slug || "لوحة المؤسسة";
+  const workspaceName = currentTenant?.companyName || currentTenant?.company_name || currentTenant?.name || currentTenant?.slug || "MONE";
+  const workspaceLogoUrl = currentTenant?.companyLogoUrl || currentTenant?.company_logo_url || currentTenant?.logoUrl || "";
+  const workspaceInitials = String(workspaceName || "MONE")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("") || "MONE";
 
   useEffect(() => {
     if (!getToken()) {
@@ -562,9 +601,12 @@ function MainLayout() {
         ].join(" ")}
       >
         <div className="mb-4 flex items-center justify-between lg:hidden">
-          <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted)]">مساحة العمل</div>
-            <div className="truncate text-sm font-bold text-[var(--text)]">{workspaceName}</div>
+          <div className="flex min-w-0 items-center gap-3">
+            <WorkspaceBrandMark name={workspaceName} logoUrl={workspaceLogoUrl} className="h-10 w-10 rounded-2xl text-xs" />
+            <div className="min-w-0">
+              <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--muted)]">MONE</div>
+              <div className="truncate text-sm font-bold text-[var(--text)]">{workspaceName}</div>
+            </div>
           </div>
           <button
             type="button"
@@ -579,9 +621,12 @@ function MainLayout() {
         <div className="flex min-h-0 flex-1 flex-col">
           <div className={["mb-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-sm", sidebarCompact ? "hidden p-2 lg:block" : "p-3"].join(" ")}>
             <div className={["flex items-center gap-2", sidebarCompact ? "justify-center" : "justify-between"].join(" ")}>
-              <div className="min-w-0">
-                <h1 className={["font-black tracking-tight text-[var(--text)]", sidebarCompact ? "text-center text-lg" : "text-2xl"].join(" ")}>ERP</h1>
-                {sidebarCompact ? null : <p className="mt-0.5 truncate text-xs text-[var(--muted)]">لوحة المؤسسة</p>}
+              <div className={["flex min-w-0 items-center gap-3", sidebarCompact ? "justify-center" : ""].join(" ")}>
+                <WorkspaceBrandMark name={workspaceName} logoUrl={workspaceLogoUrl} className="h-11 w-11 rounded-2xl bg-[var(--surface-soft)]" />
+                <div className="min-w-0">
+                  <h1 className={["truncate font-black tracking-tight text-[var(--text)]", sidebarCompact ? "text-center text-lg" : "text-2xl"].join(" ")}>{workspaceName}</h1>
+                  {sidebarCompact ? null : <p className="mt-0.5 truncate text-xs text-[var(--muted)]">Workspace</p>}
+                </div>
               </div>
               <button
                 type="button"
@@ -744,10 +789,15 @@ function MainLayout() {
               </div>
 
               <div className="hidden min-w-0 lg:block">
-                <h2 className="text-2xl font-bold tracking-tight text-[var(--text)]">لوحة المؤسسة</h2>
-                <p className="mt-1 text-sm text-[var(--muted)]">
-                  عودة موفقة، {user?.name}
-                </p>
+                <div className="flex items-center gap-3">
+                  <WorkspaceBrandMark name={workspaceName} logoUrl={workspaceLogoUrl} className="h-12 w-12 rounded-2xl" />
+                  <div className="min-w-0">
+                    <h2 className="truncate text-2xl font-bold tracking-tight text-[var(--text)]">{workspaceName}</h2>
+                    <p className="mt-1 text-sm text-[var(--muted)]">
+                      عودة موفقة، {user?.name}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div className="flex min-w-0 max-w-[calc(100vw-5rem)] items-center justify-end gap-2 overflow-x-auto pointer-events-auto sm:gap-2.5 lg:max-w-none lg:gap-3 lg:overflow-visible">

@@ -1,164 +1,179 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { api }
-from "../shared/api/api";
-
-import { setAuth }
-from "../shared/auth/authStorage";
-import { getCurrentTenant, setCurrentTenant } from "../shared/auth/authStorage";
+import { api } from "../shared/api/api";
+import { setAuth, getCurrentTenant, setCurrentTenant } from "../shared/auth/authStorage";
 import { API_BASE_URL } from "../shared/constants/app";
 
+function BrandBadge({ name, logoUrl }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setFailed(false);
+  }, [logoUrl]);
+
+  const initials =
+    String(name || "MONE")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || "")
+      .join("") || "MONE";
+
+  return (
+    <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] text-lg font-black text-[var(--text)]">
+      {logoUrl && !failed ? (
+        <img
+          src={logoUrl}
+          alt={name}
+          className="h-full w-full object-contain p-2"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <span>{initials}</span>
+      )}
+    </div>
+  );
+}
+
 function Login() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [workspace, setWorkspace] = useState(getCurrentTenant()?.slug || "");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [publicSettings, setPublicSettings] = useState({});
 
-  const [email, setEmail] =
-    useState("");
+  useEffect(() => {
+    let alive = true;
+    api
+      .get("/settings/public", { suppressErrorStatuses: [401, 403, 404, 500] })
+      .then((response) => {
+        if (!alive) return;
+        setPublicSettings(response?.settings || {});
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
-  const [password, setPassword] =
-    useState("");
+  const brandName =
+    publicSettings?.["general.company_name"] ||
+    publicSettings?.["storefront.store_name"] ||
+    "MONE";
+  const brandLogo =
+    publicSettings?.["general.company_logo_url"] ||
+    publicSettings?.["storefront.store_logo_url"] ||
+    "";
+  const brandInitials =
+    String(brandName || "MONE")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || "")
+      .join("") || "MONE";
 
-  const [workspace, setWorkspace] =
-    useState(
-      getCurrentTenant()?.slug ||
-      ""
-    );
+  const handleLogin = async (e) => {
+    e.preventDefault();
 
-  const [loading, setLoading] =
-    useState(false);
+    try {
+      setLoading(true);
+      setError("");
 
-  const [error, setError] =
-    useState("");
+      const loginUrl = `${API_BASE_URL}/auth/login`;
+      console.log("[login] api base:", API_BASE_URL);
+      console.log("[login] request url:", loginUrl);
 
- const handleLogin = async (e) => {
-
-  e.preventDefault();
-
-  try {
-
-    setLoading(true);
-
-    setError("");
-
-    const loginUrl = `${API_BASE_URL}/auth/login`;
-    console.log("[login] api base:", API_BASE_URL);
-    console.log("[login] request url:", loginUrl);
-
-    const data = await api.post(
-      "/auth/login",
-      {
+      const data = await api.post("/auth/login", {
         email,
         password,
         workspace,
         tenant_slug: workspace,
-        tenant: workspace
+        tenant: workspace,
+      });
+
+      console.log(data);
+
+      const tenant =
+        data?.tenant ||
+        data?.user?.tenant ||
+        {
+          id: data?.user?.tenant_id || workspace || "",
+          slug: data?.user?.tenant_slug || workspace || "",
+          name: data?.user?.tenant_name || data?.user?.company_name || workspace || "Workspace",
+          companyName: data?.user?.company_name || data?.user?.tenant_name || workspace || "Workspace",
+          companyLogoUrl: data?.tenant?.companyLogoUrl || data?.tenant?.company_logo_url || data?.user?.company_logo_url || "",
+          faviconUrl: data?.tenant?.faviconUrl || data?.tenant?.favicon_url || data?.user?.favicon_url || "",
+        };
+
+      if (tenant?.id || tenant?.slug || tenant?.name) {
+        setCurrentTenant(tenant);
       }
-    );
 
-    console.log(data);
+      setAuth({
+        token: data.token,
+        user: {
+          ...data.user,
+          tenant_id: data?.user?.tenant_id || tenant?.id || "",
+          tenant_slug: data?.user?.tenant_slug || tenant?.slug || workspace || "",
+          tenant_name: data?.user?.tenant_name || tenant?.name || workspace || "",
+          company_name: data?.user?.company_name || tenant?.companyName || tenant?.name || "",
+          company_logo_url: data?.user?.company_logo_url || tenant?.companyLogoUrl || tenant?.company_logo_url || "",
+          favicon_url: data?.user?.favicon_url || tenant?.faviconUrl || tenant?.favicon_url || "",
+        },
+      });
 
-    const tenant =
-      data?.tenant ||
-      data?.user?.tenant ||
-      {
-        id:
-          data?.user?.tenant_id ||
-          workspace ||
-          "",
-        slug:
-          data?.user?.tenant_slug ||
-          workspace ||
-          "",
-        name:
-          data?.user?.tenant_name ||
-          data?.user?.company_name ||
-          workspace ||
-          "Workspace",
-        companyName:
-          data?.user?.company_name ||
-          data?.user?.tenant_name ||
-          workspace ||
-          "Workspace",
-      };
+      window.location.href = "/dashboard";
+    } catch (loginError) {
+      console.log(loginError);
+      console.error("[login] fetch error details:", {
+        message: loginError.message,
+        stack: loginError.stack,
+      });
 
-    if (tenant?.id || tenant?.slug || tenant?.name) {
-      setCurrentTenant(tenant);
+      setError(loginError.message);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    setAuth({
-      token: data.token,
-      user: {
-        ...data.user,
-        tenant_id:
-          data?.user?.tenant_id ||
-          tenant?.id ||
-          "",
-        tenant_slug:
-          data?.user?.tenant_slug ||
-          tenant?.slug ||
-          workspace ||
-          "",
-        tenant_name:
-          data?.user?.tenant_name ||
-          tenant?.name ||
-          workspace ||
-          "",
-        company_name:
-          data?.user?.company_name ||
-          tenant?.companyName ||
-          tenant?.name ||
-          "",
-      }
-    });
-
-    window.location.href =
-      "/dashboard";
-
-  } catch (error) {
-
-    console.log(error);
-    console.error("[login] fetch error details:", {
-      message: error.message,
-      stack: error.stack,
-    });
-
-    setError(error.message);
-
-  } finally {
-
-    setLoading(false);
-  }
-};
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--bg)] px-4">
-
       <form
         onSubmit={handleLogin}
         className="w-full max-w-md rounded-[30px] border border-[var(--border)] bg-[var(--surface)] p-8 shadow-2xl shadow-black/20"
       >
+        <div className="mb-6 flex flex-col items-center text-center">
+          <BrandBadge name={brandName} logoUrl={brandLogo} />
+          <div className="mt-3 text-[10px] font-black uppercase tracking-[0.24em] text-[var(--muted)]">
+            Workspace
+          </div>
+          <div className="mt-1 text-xl font-black text-[var(--text)]">
+            {brandName || "MONE"}
+          </div>
+        </div>
 
         <h1 className="mb-2 text-3xl font-bold text-center text-[var(--text)]">
-          تسجيل الدخول
+          طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„
         </h1>
         <p className="mb-6 text-center text-sm text-[var(--muted)]">
-          سجّل دخولك إلى مساحة العمل
+          ط³ط¬ظ‘ظ„ ط¯ط®ظˆظ„ظƒ ط¥ظ„ظ‰ ظ…ط³ط§ط­ط© ط§ظ„ط¹ظ…ظ„
         </p>
 
         <input
           type="email"
           placeholder="Email"
           value={email}
-          onChange={(e) =>
-            setEmail(e.target.value)
-          }
+          onChange={(e) => setEmail(e.target.value)}
           className="mb-4 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
         />
 
         <input
           type="password"
-          placeholder="كلمة المرور"
+          placeholder="ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±"
           value={password}
-          onChange={(e) =>
-            setPassword(e.target.value)
-          }
+          onChange={(e) => setPassword(e.target.value)}
           className="mb-4 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
         />
 
@@ -166,9 +181,7 @@ function Login() {
           type="text"
           placeholder="Workspace / company slug"
           value={workspace}
-          onChange={(e) =>
-            setWorkspace(e.target.value)
-          }
+          onChange={(e) => setWorkspace(e.target.value)}
           className="mb-4 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
         />
 
@@ -177,22 +190,13 @@ function Login() {
           disabled={loading}
           className="w-full rounded-2xl bg-[var(--primary)] px-4 py-3 font-semibold text-white"
         >
-
-          {loading
-            ? "جارٍ التحميل..."
-            : "تسجيل الدخول"}
-
+          {loading ? "ط¬ط§ط±ظچ ط§ظ„طھط­ظ…ظٹظ„..." : "طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„"}
         </button>
 
-        {error && (
-
-          <p className="mt-4 text-center text-[var(--danger)]">
-            {error}
-          </p>
-        )}
-
+        {error ? (
+          <p className="mt-4 text-center text-[var(--danger)]">{error}</p>
+        ) : null}
       </form>
-
     </div>
   );
 }

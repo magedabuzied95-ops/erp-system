@@ -111,6 +111,8 @@ export const setAuth = ({ token, user }) => {
       tenant_name: user.tenant_name || userTenant.name || currentTenant?.name || user.company_name || "",
       tenant_slug: user.tenant_slug || userTenant.slug || currentTenant?.slug || "",
       company_name: user.company_name || userTenant.companyName || userTenant.name || currentTenant?.companyName || currentTenant?.name || "",
+      company_logo_url: user.company_logo_url || userTenant.companyLogoUrl || userTenant.company_logo_url || currentTenant?.companyLogoUrl || currentTenant?.company_logo_url || "",
+      favicon_url: user.favicon_url || userTenant.faviconUrl || userTenant.favicon_url || currentTenant?.faviconUrl || currentTenant?.favicon_url || "",
       permissions: Array.isArray(user.permissions)
         ? user.permissions.map(normalizePermissionKey)
         : user.permissions
@@ -146,6 +148,11 @@ export const setCurrentTenant = (tenant) => {
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-"),
       name: tenant.name || tenant.companyName || "Company",
+      companyName: tenant.companyName || tenant.company_name || tenant.name || "Company",
+      company_logo_url: tenant.company_logo_url || tenant.companyLogoUrl || tenant.logoUrl || "",
+      companyLogoUrl: tenant.companyLogoUrl || tenant.company_logo_url || tenant.logoUrl || "",
+      favicon_url: tenant.favicon_url || tenant.faviconUrl || "",
+      faviconUrl: tenant.faviconUrl || tenant.favicon_url || "",
     };
     localStorage.setItem(CURRENT_TENANT_KEY, JSON.stringify(normalized));
     return normalized;

@@ -56,6 +56,7 @@ const defaultStorefrontShippingZones = [
 const definitions = [
   ["general.company_name", "general", "text", "", "Company name", "اسم الشركة", "Shown on invoices, storefront, and receipts.", "يظهر في الفواتير والمتجر والإيصالات.", { isPublic: true, usedBy: ["Invoices", "POS", "Storefront"] }],
   ["general.company_logo_url", "general", "url", "", "Company logo", "شعار الشركة", "Public logo URL used by customer-facing views.", "رابط الشعار المستخدم في الواجهات العامة.", { isPublic: true, usedBy: ["Invoices", "Storefront"] }],
+  ["general.favicon_url", "general", "url", "", "Favicon", "أيقونة الموقع", "Public favicon URL used by browser tabs.", "رابط الأيقونة الظاهرة في المتصفح.", { isPublic: true, usedBy: ["Storefront", "ERP"] }],
   ["general.default_language", "general", "select", "ar", "Default language", "اللغة الافتراضية", "Default ERP language for new sessions.", "لغة النظام الافتراضية للجلسات الجديدة.", { options: [option("ar", "Arabic", "العربية"), option("en", "English", "الإنجليزية")], isPublic: true, usedBy: ["ERP", "Storefront"] }],
   ["general.default_direction", "general", "select", "auto", "Default direction", "اتجاه العرض", "Controls RTL/LTR behavior when language is not explicit.", "يتحكم في RTL/LTR عند عدم تحديد اللغة.", { options: [option("auto", "Auto", "تلقائي"), option("rtl", "RTL", "يمين لليسار"), option("ltr", "LTR", "يسار لليمين")], isPublic: true, usedBy: ["ERP", "Storefront"] }],
   ["general.default_currency", "general", "text", "EGP", "Default currency", "العملة الافتراضية", "Primary currency code.", "كود العملة الأساسي.", { validation: { maxLength: 8 }, isPublic: true, usedBy: ["POS", "Orders", "Accounting"] }],
@@ -283,6 +284,7 @@ export const normalizeSettingsCategory = (category) => {
     currency: "general",
     currencies: "general",
     localization: "general",
+    site: "general",
     website: "storefront",
     store: "storefront",
     shop: "storefront",

@@ -49,7 +49,7 @@ import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 
 import { api } from "../../../shared/api/api";
-import { getCurrentUser } from "../../../shared/auth/authStorage";
+import { getCurrentTenant, getCurrentUser, setCurrentTenant } from "../../../shared/auth/authStorage";
 import { normalizeSettingsCategory, settingsCategories, settingsByCategory, settingsByKey } from "../../../../shared/settingsRegistry.js";
 import { defaultEgyptShippingLocations } from "../../../../shared/egyptShippingLocations.js";
 import {
@@ -59,6 +59,7 @@ import {
   barcodePrintSettingsToValues,
   displayRefillBarcodeSettingsToValues,
 } from "../../../../shared/barcodePrintSettings.js";
+import { uploadProductImageValue } from "../../products/services/productsApi";
 
 const copy = {
   en: {
@@ -191,8 +192,7 @@ const navDescriptions = {
 
 const sectionMap = {
   general: [
-    ["Company Information", ["general.company_name", "general.default_country", "general.default_city"]],
-    ["Logo & Branding", ["general.company_logo_url"]],
+    ["Company Information", ["general.default_country", "general.default_city"]],
     ["Currency", ["general.default_currency", "general.currency_symbol"]],
     ["Language", ["general.default_language", "general.default_direction"]],
     ["Timezone", ["general.timezone"]],
@@ -440,6 +440,19 @@ function SettingsCenterContent({ debugMode = false }) {
   const [socialAutomationSaving, setSocialAutomationSaving] = useState(false);
   const [socialAutomationError, setSocialAutomationError] = useState("");
   const [socialAutomationToast, setSocialAutomationToast] = useState("");
+  const [siteSettings, setSiteSettings] = useState({
+    company_name: "",
+    company_logo_url: "",
+    favicon_url: "",
+  });
+  const [originalSiteSettings, setOriginalSiteSettings] = useState({
+    company_name: "",
+    company_logo_url: "",
+    favicon_url: "",
+  });
+  const [siteSettingsLoading, setSiteSettingsLoading] = useState(false);
+  const [siteSettingsSaving, setSiteSettingsSaving] = useState(false);
+  const [siteSettingsError, setSiteSettingsError] = useState("");
   const canViewDebugSettings = useMemo(() => debugSettingsEnabled() || isDeveloperUser(getCurrentUser()), []);
   const activeSection = activeCategory === "storefront"
     ? String(params.get("section") || "storefront").trim().toLowerCase().replace(/[\s-]+/g, "_")
@@ -450,6 +463,7 @@ function SettingsCenterContent({ debugMode = false }) {
     : "lg:grid-cols-[20rem_minmax(0,1fr)]";
 
   const definitions = useMemo(() => settingsByCategory[activeCategory] || [], [activeCategory]);
+  const siteSettingKeys = useMemo(() => new Set(["general.company_name", "general.company_logo_url", "general.favicon_url"]), []);
   const recordMap = useMemo(() => mapByKey(records), [records]);
   const definitionMap = useMemo(() => mapByKey(definitions), [definitions]);
 
@@ -464,7 +478,22 @@ function SettingsCenterContent({ debugMode = false }) {
     () => !sameValue(normalizeSocialAutomationSettings(socialAutomationSettings), normalizeSocialAutomationSettings(originalSocialAutomationSettings)),
     [originalSocialAutomationSettings, socialAutomationSettings]
   );
-  const dirtyCount = dirtyKeys.length + (socialAutomationDirty ? 1 : 0);
+  const normalizedSiteSettings = useMemo(() => ({
+    company_name: String(siteSettings.company_name || "").trim(),
+    company_logo_url: String(siteSettings.company_logo_url || "").trim(),
+    favicon_url: String(siteSettings.favicon_url || "").trim(),
+  }), [siteSettings.company_name, siteSettings.company_logo_url, siteSettings.favicon_url]);
+  const normalizedOriginalSiteSettings = useMemo(() => ({
+    company_name: String(originalSiteSettings.company_name || "").trim(),
+    company_logo_url: String(originalSiteSettings.company_logo_url || "").trim(),
+    favicon_url: String(originalSiteSettings.favicon_url || "").trim(),
+  }), [originalSiteSettings.company_name, originalSiteSettings.company_logo_url, originalSiteSettings.favicon_url]);
+  const siteSettingsDirty = useMemo(
+    () => !sameValue(normalizedSiteSettings, normalizedOriginalSiteSettings),
+    [normalizedOriginalSiteSettings, normalizedSiteSettings]
+  );
+  const dirtyCount = dirtyKeys.length + (socialAutomationDirty ? 1 : 0) + (siteSettingsDirty ? 1 : 0);
+  const siteBrandName = normalizedSiteSettings.company_name || "MONE";
 
   const applyPayload = useCallback((payload, category = activeCategory, extraValues = {}) => {
     const incoming = Array.isArray(payload?.settings) ? payload.settings : [];
@@ -523,6 +552,45 @@ function SettingsCenterContent({ debugMode = false }) {
     void loadSettings();
   }, [loadSettings]);
 
+  const loadSiteSettings = useCallback(async () => {
+    if (activeCategory !== "general") return;
+    setSiteSettingsLoading(true);
+    setSiteSettingsError("");
+    try {
+      const payload = await api.get("/settings/site", { perfComponent: "SettingsCenterV2.loadSiteSettings" });
+      const site = payload?.site || payload?.settings || payload?.company || {};
+      const next = {
+        company_name: String(site.company_name || site.companyName || "").trim(),
+        company_logo_url: String(site.company_logo_url || site.companyLogoUrl || site.logo_url || site.logoUrl || "").trim(),
+        favicon_url: String(site.favicon_url || site.faviconUrl || "").trim(),
+      };
+      setSiteSettings(next);
+      setOriginalSiteSettings(next);
+      if (next.company_name || next.company_logo_url || next.favicon_url) {
+        const currentTenant = getCurrentTenant() || {};
+        setCurrentTenant({
+          ...currentTenant,
+          id: currentTenant.id || String(site.tenant_id || currentTenant.id || ""),
+          companyName: next.company_name || currentTenant.companyName || currentTenant.name || "MONE",
+          name: next.company_name || currentTenant.name || "MONE",
+          company_logo_url: next.company_logo_url || currentTenant.company_logo_url || "",
+          companyLogoUrl: next.company_logo_url || currentTenant.companyLogoUrl || currentTenant.logoUrl || "",
+          favicon_url: next.favicon_url || currentTenant.favicon_url || "",
+          faviconUrl: next.favicon_url || currentTenant.faviconUrl || "",
+        });
+      }
+    } catch (loadError) {
+      const message = loadError?.responseBody?.message || loadError?.message || ui.loadFailed;
+      setSiteSettingsError(message === "Request Failed" ? ui.loadFailed : message);
+    } finally {
+      setSiteSettingsLoading(false);
+    }
+  }, [activeCategory, ui.loadFailed]);
+
+  useEffect(() => {
+    void loadSiteSettings();
+  }, [loadSiteSettings]);
+
   const loadSocialAutomationSettings = useCallback(async () => {
     if (activeCategory !== "ai_channels") return;
     setSocialAutomationLoading(true);
@@ -550,18 +618,18 @@ function SettingsCenterContent({ debugMode = false }) {
 
   useEffect(() => {
     const handler = (event) => {
-      if (!isDirty && !socialAutomationDirty) return;
+      if (!isDirty && !socialAutomationDirty && !siteSettingsDirty) return;
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [isDirty, socialAutomationDirty]);
+  }, [isDirty, siteSettingsDirty, socialAutomationDirty]);
 
   const switchCategory = (category) => {
     const next = normalizeSettingsCategory(category);
     if (!next) return;
-    if (isDirty || socialAutomationDirty) {
+    if (isDirty || socialAutomationDirty || siteSettingsDirty) {
       toast.error(`${dirtyCount} ${ui.unsaved}`);
       return;
     }
@@ -589,8 +657,53 @@ function SettingsCenterContent({ debugMode = false }) {
     updateValue("storefront.homepage_hero", { ...current, ...patch });
   };
 
+  const updateSiteSetting = (key, value) => {
+    setSiteSettings((current) => ({ ...current, [key]: value }));
+    setSiteSettingsError("");
+  };
+
+  const saveSiteSettings = async () => {
+    if (!siteSettingsDirty) return;
+    setSiteSettingsSaving(true);
+    setSiteSettingsError("");
+    try {
+      const response = await api.patch("/settings/site", {
+        site: {
+          company_name: normalizedSiteSettings.company_name,
+          company_logo_url: normalizedSiteSettings.company_logo_url,
+          favicon_url: normalizedSiteSettings.favicon_url,
+        },
+      }, { perfComponent: "SettingsCenterV2.saveSiteSettings" });
+      const next = {
+        company_name: String(response?.site?.company_name || response?.company?.company_name || normalizedSiteSettings.company_name || "MONE").trim(),
+        company_logo_url: String(response?.site?.company_logo_url || response?.company?.company_logo_url || normalizedSiteSettings.company_logo_url || "").trim(),
+        favicon_url: String(response?.site?.favicon_url || response?.company?.favicon_url || normalizedSiteSettings.favicon_url || "").trim(),
+      };
+      setSiteSettings(next);
+      setOriginalSiteSettings(next);
+      const currentTenant = getCurrentTenant() || {};
+      setCurrentTenant({
+        ...currentTenant,
+        companyName: next.company_name || currentTenant.companyName || currentTenant.name || "MONE",
+        name: next.company_name || currentTenant.name || "MONE",
+        company_logo_url: next.company_logo_url || currentTenant.company_logo_url || "",
+        companyLogoUrl: next.company_logo_url || currentTenant.companyLogoUrl || currentTenant.logoUrl || "",
+        favicon_url: next.favicon_url || currentTenant.favicon_url || "",
+        faviconUrl: next.favicon_url || currentTenant.faviconUrl || "",
+      });
+      toast.success(language === "ar" ? "تم حفظ إعدادات الهوية" : "Site identity saved");
+    } catch (saveError) {
+      const message = saveError?.responseBody?.message || saveError?.message || ui.saveFailed;
+      setSiteSettingsError(message === "Request Failed" ? ui.saveFailed : message);
+      toast.error(message === "Request Failed" ? ui.saveFailed : message);
+    } finally {
+      setSiteSettingsSaving(false);
+    }
+  };
+
   const discard = () => {
     setValues({ ...originalValues });
+    setSiteSettings({ ...originalSiteSettings });
     toast.success(language === "ar" ? "تم تجاهل التغييرات" : "Changes discarded");
   };
 
@@ -669,6 +782,7 @@ function SettingsCenterContent({ debugMode = false }) {
   const normalizedSearch = search.trim().toLowerCase();
 
   const searchMatches = useMemo(() => definitions.filter((setting) => {
+    if (siteSettingKeys.has(setting.key)) return false;
     if (!normalizedSearch) return false;
     return [
       setting.key,
@@ -679,7 +793,7 @@ function SettingsCenterContent({ debugMode = false }) {
       localized(activeCategoryMeta?.label, "en"),
       localized(activeCategoryMeta?.label, "ar"),
     ].join(" ").toLowerCase().includes(normalizedSearch);
-  }), [activeCategoryMeta?.label, definitions, normalizedSearch]);
+  }), [activeCategoryMeta?.label, definitions, normalizedSearch, siteSettingKeys]);
 
   const sections = useMemo(() => {
     if (activeCategory === "storefront" || activeCategory === "shipping") return [];
@@ -689,7 +803,7 @@ function SettingsCenterContent({ debugMode = false }) {
       title,
       settings: keys.map((key) => recordMap.get(key) || definitionMap.get(key)).filter(Boolean),
     })).filter((section) => section.settings.length);
-    const remaining = definitions.filter((setting) => !configuredKeys.has(setting.key));
+    const remaining = definitions.filter((setting) => !configuredKeys.has(setting.key) && !siteSettingKeys.has(setting.key));
     if (remaining.length) built.push({ title: localized(activeCategoryMeta.label, language), settings: remaining });
     return built.map((section) => ({
       ...section,
@@ -850,7 +964,7 @@ function SettingsCenterContent({ debugMode = false }) {
                   {ui.title}
                 </span>
                 <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">{ui.lastSaved} {lastSaved ? timeAgo(lastSaved) : ui.neverSaved}</span>
-                {isDirty || socialAutomationDirty ? <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800 dark:bg-amber-400/15 dark:text-amber-200">{dirtyCount} {ui.unsaved}</span> : null}
+                {isDirty || socialAutomationDirty || siteSettingsDirty ? <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800 dark:bg-amber-400/15 dark:text-amber-200">{dirtyCount} {ui.unsaved}</span> : null}
               </div>
               <h1 className={`mt-3 max-w-full break-words text-2xl font-black tracking-tight sm:text-3xl ${headingText}`}>{ui.subtitle}</h1>
               <p className={`mt-1 text-sm font-medium ${bodyText}`}>{ui.description}</p>
@@ -920,7 +1034,35 @@ function SettingsCenterContent({ debugMode = false }) {
 
             {error ? (
               <RetryCard ui={ui} error={error} onRetry={loadSettings} />
-            ) : loading ? <SkeletonGrid /> : activeCategory === "storefront" ? (
+            ) : loading ? <SkeletonGrid /> : activeCategory === "general" ? (
+              <div className="grid gap-5">
+                <SiteSettingsCard
+                  ui={ui}
+                  companyName={normalizedSiteSettings.company_name}
+                  companyLogoUrl={normalizedSiteSettings.company_logo_url}
+                  faviconUrl={normalizedSiteSettings.favicon_url}
+                  companyNameFallback={siteBrandName}
+                  loading={siteSettingsLoading}
+                  saving={siteSettingsSaving}
+                  error={siteSettingsError}
+                  dirty={siteSettingsDirty}
+                  onChange={updateSiteSetting}
+                  onSave={saveSiteSettings}
+                />
+                {sections.length ? (
+                  <div className="grid gap-5">
+                    {sections.map((section) => (
+                      <section key={section.title} className={`rounded-[1.75rem] p-5 ${shellCard}`}>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <h2 className={`text-lg font-black ${headingText}`}>{section.title}</h2>
+                        </div>
+                        <div className="mt-4 grid gap-4 2xl:grid-cols-2">{section.settings.map((item) => renderField(item))}</div>
+                      </section>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : activeCategory === "storefront" ? (
               <StorefrontSettings
                 ui={ui}
                 setting={setting}
@@ -1086,6 +1228,172 @@ function SettingsCenterContent({ debugMode = false }) {
         </div>
       ) : null}
     </div>
+  );
+}
+
+const MAX_BRANDING_IMAGE_BYTES = 5 * 1024 * 1024;
+
+function BrandingUploadField({ title, value, onChange, helper, clearLabel, accept = "image/png,image/jpeg,image/webp" }) {
+  const [failed, setFailed] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const safeValue = String(value || "").trim();
+
+  useEffect(() => {
+    setFailed(false);
+  }, [safeValue]);
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!/^image\/(png|jpeg|webp)$/i.test(file.type || "")) {
+      toast.error("PNG, JPG, or WEBP only");
+      return;
+    }
+    if (file.size > MAX_BRANDING_IMAGE_BYTES) {
+      toast.error("Image must be 5MB or smaller");
+      return;
+    }
+    setUploading(true);
+    try {
+      const uploadedUrl = await uploadProductImageValue(file, { filename: file.name || `${title}.png` });
+      onChange(uploadedUrl || "");
+    } catch (error) {
+      toast.error(error?.message || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <span className={`block text-sm font-black ${headingText}`}>{title}</span>
+          <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{helper}</p>
+        </div>
+        {safeValue ? (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-rose-400/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-200"
+          >
+            <X className="h-3.5 w-3.5" />
+            {clearLabel}
+          </button>
+        ) : null}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-[5.5rem_minmax(0,1fr)]">
+        <div className="grid aspect-square place-items-center overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-slate-50 dark:border-white/15 dark:bg-slate-950">
+          {safeValue && !failed ? (
+            <img src={safeValue} alt="" onError={() => setFailed(true)} className="h-full w-full object-cover" />
+          ) : (
+            <div className="grid h-full w-full place-items-center p-3 text-center">
+              <div>
+                <Image className="mx-auto h-6 w-6 text-slate-300 dark:text-slate-600" />
+                <div className={`mt-2 text-[11px] font-black ${mutedText}`}>{safeValue ? clearLabel : "Preview"}</div>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="space-y-2">
+          <input
+            value={safeValue}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder="https://..."
+            className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10">
+              <Upload className="h-3.5 w-3.5" />
+              {uploading ? "Uploading..." : "Upload image"}
+              <input type="file" accept={accept} className="hidden" onChange={handleFileUpload} />
+            </label>
+            <span className={`text-xs ${mutedText}`}>{safeValue || "Paste image URL or upload a file"}</span>
+          </div>
+        </div>
+      </div>
+    </label>
+  );
+}
+
+function SiteSettingsCard({ ui, companyName, companyLogoUrl, faviconUrl, companyNameFallback, loading, saving, error, dirty, onChange, onSave }) {
+  const displayName = String(companyName || "").trim() || companyNameFallback || "MONE";
+  return (
+    <section className={`rounded-[1.75rem] p-5 ${shellCard}`}>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className={`text-xl font-black ${headingText}`}>Site Settings</h2>
+          <p className={`mt-1 text-sm leading-6 ${bodyText}`}>Company identity used by sidebar, login, invoices, and storefront fallbacks.</p>
+        </div>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={!dirty || saving || loading}
+          className="inline-flex h-11 items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500"
+        >
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          {saving ? ui.saving : ui.save}
+        </button>
+      </div>
+      {error ? <div className="mt-4 rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
+      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+        <div className={`rounded-2xl p-4 ${fieldSurface}`}>
+          <div className="flex items-start gap-3">
+            <LogoAvatar src={companyLogoUrl} name={displayName} size="h-16 w-16" />
+            <div className="min-w-0">
+              <div className={`text-[11px] font-black uppercase tracking-[0.16em] ${mutedText}`}>Live preview</div>
+              <h3 className={`mt-1 truncate text-2xl font-black ${headingText}`}>{displayName}</h3>
+              <p className={`mt-1 text-sm ${bodyText}`}>{companyLogoUrl || faviconUrl ? "Branding assets are active." : "Fallback initials will be used until you upload a logo."}</p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-4">
+            <label className={`block rounded-2xl p-4 ${fieldSurface}`}>
+              <span className={`mb-2 block text-sm font-black ${headingText}`}>Company name</span>
+              <input
+                value={companyName}
+                onChange={(event) => onChange("company_name", event.target.value)}
+                placeholder="MONE"
+                className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15"
+              />
+            </label>
+            <div className="grid gap-4 md:grid-cols-2">
+              <BrandingUploadField
+                title="Company logo"
+                value={companyLogoUrl}
+                onChange={(next) => onChange("company_logo_url", next)}
+                helper="PNG, JPG, or WEBP. Uses the existing upload flow."
+                clearLabel="Clear image"
+              />
+              <BrandingUploadField
+                title="Favicon"
+                value={faviconUrl}
+                onChange={(next) => onChange("favicon_url", next)}
+                helper="Optional browser favicon. Keep it square."
+                clearLabel="Clear image"
+              />
+            </div>
+          </div>
+        </div>
+        <div className={`rounded-2xl p-4 ${fieldSurface}`}>
+          <div className={`text-[11px] font-black uppercase tracking-[0.16em] ${mutedText}`}>Fallbacks</div>
+          <div className="mt-3 space-y-3 text-sm leading-6">
+            <div className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
+              <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Name fallback</div>
+              <div className="mt-1 font-bold text-slate-950 dark:text-white">MONE</div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
+              <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Logo fallback</div>
+              <div className="mt-1 font-bold text-slate-950 dark:text-white">Initials placeholder</div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
+              <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Safety</div>
+              <div className="mt-1 text-slate-600 dark:text-slate-300">Only PNG, JPG, and WEBP files are accepted through the existing upload endpoint. Empty values keep the current fallback.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 

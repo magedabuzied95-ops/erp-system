@@ -245,6 +245,36 @@ export const login = async (req, res) => {
       is_super_admin: Boolean(user.is_super_admin),
     });
 
+    const tenantBranding = user.tenant_id
+      ? await db.query(
+          `
+          SELECT
+            t.id,
+            t.slug,
+            COALESCE(NULLIF(TRIM(t.company_name), ''), NULLIF(TRIM(c.company_name), ''), NULLIF(TRIM(t.name), ''), 'MONE') AS company_name,
+            COALESCE(NULLIF(TRIM(t.company_logo_url), ''), NULLIF(TRIM(c.logo_url), ''), '') AS company_logo_url,
+            COALESCE(NULLIF(TRIM(t.favicon_url), ''), NULLIF(TRIM(c.favicon_url), ''), '') AS favicon_url
+          FROM tenants t
+          LEFT JOIN company_profiles c ON c.tenant_id = t.id
+          WHERE t.id = $1
+          LIMIT 1
+          `,
+          [user.tenant_id]
+        ).catch(() => ({ rows: [] }))
+      : { rows: [] };
+    const tenant = tenantBranding.rows[0]
+      ? {
+          id: tenantBranding.rows[0].id,
+          slug: tenantBranding.rows[0].slug,
+          name: tenantBranding.rows[0].company_name,
+          companyName: tenantBranding.rows[0].company_name,
+          company_logo_url: tenantBranding.rows[0].company_logo_url || "",
+          companyLogoUrl: tenantBranding.rows[0].company_logo_url || "",
+          favicon_url: tenantBranding.rows[0].favicon_url || "",
+          faviconUrl: tenantBranding.rows[0].favicon_url || "",
+        }
+      : null;
+
     void (async () => {
       try {
         await ensureStaffTasksSchema();
@@ -261,6 +291,7 @@ export const login = async (req, res) => {
       success: true,
       message: "Login Successful",
       token,
+      tenant,
       user: {
         id: user.id,
         name: user.name,
@@ -268,6 +299,9 @@ export const login = async (req, res) => {
         role: getRoleName(user),
         role_name: user.role_name || getRoleName(user),
         tenant_id: user.tenant_id,
+        company_name: tenant?.companyName || "",
+        company_logo_url: tenant?.companyLogoUrl || "",
+        favicon_url: tenant?.faviconUrl || "",
         is_super_admin: Boolean(user.is_super_admin),
         permissions,
       },
@@ -315,13 +349,46 @@ export const me = async (req, res) => {
     }
 
     const permissions = await getUserPermissions(userId);
+    const tenantBranding = current.rows[0]?.tenant_id
+      ? await db.query(
+          `
+          SELECT
+            t.id,
+            t.slug,
+            COALESCE(NULLIF(TRIM(t.company_name), ''), NULLIF(TRIM(c.company_name), ''), NULLIF(TRIM(t.name), ''), 'MONE') AS company_name,
+            COALESCE(NULLIF(TRIM(t.company_logo_url), ''), NULLIF(TRIM(c.logo_url), ''), '') AS company_logo_url,
+            COALESCE(NULLIF(TRIM(t.favicon_url), ''), NULLIF(TRIM(c.favicon_url), ''), '') AS favicon_url
+          FROM tenants t
+          LEFT JOIN company_profiles c ON c.tenant_id = t.id
+          WHERE t.id = $1
+          LIMIT 1
+          `,
+          [current.rows[0].tenant_id]
+        ).catch(() => ({ rows: [] }))
+      : { rows: [] };
+    const tenant = tenantBranding.rows[0]
+      ? {
+          id: tenantBranding.rows[0].id,
+          slug: tenantBranding.rows[0].slug,
+          name: tenantBranding.rows[0].company_name,
+          companyName: tenantBranding.rows[0].company_name,
+          company_logo_url: tenantBranding.rows[0].company_logo_url || "",
+          companyLogoUrl: tenantBranding.rows[0].company_logo_url || "",
+          favicon_url: tenantBranding.rows[0].favicon_url || "",
+          faviconUrl: tenantBranding.rows[0].favicon_url || "",
+        }
+      : null;
 
     return res.json({
       success: true,
       user: {
         ...current.rows[0],
+        company_name: tenant?.companyName || current.rows[0]?.company_name || "",
+        company_logo_url: tenant?.companyLogoUrl || current.rows[0]?.company_logo_url || "",
+        favicon_url: tenant?.faviconUrl || current.rows[0]?.favicon_url || "",
         permissions,
       },
+      tenant,
     });
   } catch (error) {
     console.log(error);

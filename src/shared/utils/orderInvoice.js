@@ -97,7 +97,7 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = null, opti
 
   return {
     store: {
-      name: firstText(options.storeName, order.store?.name, order.company_name, "Tiger Store"),
+      name: firstText(options.storeName, order.store?.name, order.company_name, order.tenant_name, "MONE"),
       logoUrl: firstText(options.logoUrl, order.store?.logo_url, order.store?.logoUrl, order.logo_url),
       phone: firstText(order.store?.phone, order.store_phone),
       website: firstText(order.store?.website, order.website),
@@ -137,7 +137,7 @@ export const buildOrderInvoiceWhatsappText = (orderOrInvoice = {}, explicitItems
     : normalizeOrderInvoiceData(orderOrInvoice, explicitItems, options);
   const money = (value) => formatCurrency(value, invoice.currency ? { code: invoice.currency } : {});
   const lines = [
-    `*${invoice.store?.name || "Tiger Store"}*`,
+    `*${invoice.store?.name || "MONE"}*`,
     "فاتورة طلب",
     `رقم الطلب: ${invoice.invoiceNumber || "n/a"}`,
     `المصدر: ${invoice.source || "Website"}`,
