@@ -775,6 +775,7 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_verified_by INTEGER NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_trust_counted_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cod_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS remaining_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS public_order_number VARCHAR(40)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS display_order_number VARCHAR(40)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_provider VARCHAR(80) NOT NULL DEFAULT 'manual'`);
@@ -3335,36 +3336,28 @@ export const createWebsiteOrder = async (req, res) => {
     }
     const discount = Math.max(0, manualDiscount + couponDiscountAmount);
     const total = Math.max(0, subtotal - discount + deliveryFee);
+    const requestedShippingPaymentMethod = toText(checkout.shipping_payment_method || req.body?.shipping_payment_method || "").toLowerCase();
     const requestedPaymentMethod = toText(checkout.payment_method || checkout.payment_type || "shipping_confirmation").toLowerCase();
     const requestedPaymentType = toText(checkout.payment_type || checkout.payment_method || "shipping_confirmation").toLowerCase();
-    if (!["cod", "cash", "shipping_confirmation"].includes(requestedPaymentMethod)) {
+    const supportedPaymentMethods = new Set(["cod", "cash", "shipping_confirmation", "instapay", "vodafone_cash", "electronic", "online", "transfer"]);
+    if (![requestedPaymentMethod, requestedPaymentType].some((value) => supportedPaymentMethods.has(value))) {
       await client.query("ROLLBACK");
-      return checkoutValidationResponse(400, "Unsupported payment method", "payment_method", { payment_method: requestedPaymentMethod });
+      return checkoutValidationResponse(400, "Unsupported payment method", "payment_method", { payment_method: requestedPaymentMethod, payment_type: requestedPaymentType });
     }
-    if (!["cod", "cash", "shipping_confirmation"].includes(requestedPaymentType)) {
-      await client.query("ROLLBACK");
-      return checkoutValidationResponse(400, "Unsupported payment type", "payment_type", { payment_type: requestedPaymentType });
-    }
-    const paymentMethod = requestedPaymentMethod === "cod" || requestedPaymentMethod === "cash" ? "cod" : "shipping_confirmation";
-    const paymentType = requestedPaymentType === "cod" || requestedPaymentType === "cash" ? "cod" : "shipping_confirmation";
-    if (paymentType !== paymentMethod) {
-      await client.query("ROLLBACK");
-      return checkoutValidationResponse(400, "Payment type must match payment method", "payment_type", { payment_method: paymentMethod, payment_type: paymentType });
-    }
-    const requestedShippingPaymentMethod = toText(checkout.shipping_payment_method || req.body?.shipping_payment_method || "").toLowerCase();
-    const shippingPaymentMethod = paymentMethod === "shipping_confirmation"
-      ? (requestedShippingPaymentMethod === "vodafone_cash" ? "vodafone_cash" : "instapay")
-      : "";
+    const paymentMethod = requestedPaymentMethod === "cod" || requestedPaymentMethod === "cash"
+      ? "cod"
+      : requestedPaymentMethod === "instapay" || requestedPaymentMethod === "vodafone_cash"
+        ? requestedPaymentMethod
+        : requestedPaymentType === "instapay" || requestedPaymentType === "vodafone_cash"
+          ? requestedPaymentType
+          : requestedShippingPaymentMethod === "vodafone_cash"
+            ? "vodafone_cash"
+            : "instapay";
+    const paymentType = paymentMethod;
+    const shippingPaymentMethod = paymentMethod === "cod" ? "" : paymentMethod;
     const zoneShippingProviderId = normalizeShippingProviderKey(shippingQuote.provider_id || shippingQuote.provider || orderSettings.defaultShippingProvider);
     const requestedShippingMethod = normalizeShippingProviderKey(checkout.shipping_method || checkout.shipping_provider || zoneShippingProviderId);
     const shippingMethod = shippingProviders[requestedShippingMethod] ? requestedShippingMethod : zoneShippingProviderId;
-    if (paymentMethod === "shipping_confirmation" && !["instapay", "vodafone_cash"].includes(requestedShippingPaymentMethod)) {
-      await client.query("ROLLBACK");
-      return checkoutValidationResponse(400, "Choose a valid shipping payment method", "shipping_payment_method", {
-        shipping_payment_method: requestedShippingPaymentMethod,
-        allowed: ["instapay", "vodafone_cash"],
-      });
-    }
     if (!shippingProviders[shippingMethod]) {
       await client.query("ROLLBACK");
       return checkoutValidationResponse(400, "Unsupported shipping method", "shipping_method", { shipping_method: shippingMethod });
@@ -3392,11 +3385,13 @@ export const createWebsiteOrder = async (req, res) => {
       });
     }
     const requestedPaidAmount = toNumber(checkout.paid_amount, 0);
-    if (paymentMethod === "shipping_confirmation" && roundMoney(requestedPaidAmount) !== roundMoney(deliveryFee)) {
+    const expectedPaidAmount = paymentMethod === "cod" ? 0 : total;
+    if (roundMoney(requestedPaidAmount) !== roundMoney(expectedPaidAmount)) {
       await client.query("ROLLBACK");
-      return checkoutValidationResponse(400, "Paid amount must equal shipping fee", "paid_amount", {
+      return checkoutValidationResponse(400, "Paid amount must equal the order total for electronic payments", "paid_amount", {
         paid_amount: requestedPaidAmount,
-        delivery_fee: deliveryFee,
+        expected_paid_amount: expectedPaidAmount,
+        total,
       });
     }
     const shippingPaymentFile = req.file || null;
@@ -3405,7 +3400,7 @@ export const createWebsiteOrder = async (req, res) => {
       return checkoutValidationResponse(403, "Cash on delivery is disabled", "payment_method", { payment_method: paymentMethod });
     }
 
-    if (paymentMethod === "shipping_confirmation" && shippingQuote.requires_shipping_proof !== false && !shippingPaymentFile) {
+    if (paymentMethod !== "cod" && shippingQuote.requires_shipping_proof !== false && !shippingPaymentFile) {
       await client.query("ROLLBACK");
       return checkoutValidationResponse(400, "Upload a valid transfer proof image", "shipping_payment_screenshot", { payment_method: paymentMethod });
     }
@@ -3414,15 +3409,16 @@ export const createWebsiteOrder = async (req, res) => {
       await client.query("ROLLBACK");
       return checkoutValidationResponse(400, "Upload a valid transfer proof image", "shipping_payment_screenshot", { mimetype: shippingPaymentFile.mimetype, size: shippingPaymentFile.size });
     }
-    const paymentStatus = paymentMethod === "cod" ? "cod" : "partially_paid";
+    const paidAmount = paymentMethod === "cod" ? 0 : total;
+    const remainingAmount = Math.max(0, total - paidAmount);
+    const paymentStatus = paymentMethod === "cod" ? "unpaid" : remainingAmount > 0 ? "partially_paid" : "paid";
     const orderStatus = paymentMethod === "cod"
       ? "pending_confirmation"
       : orderSettings.autoConfirmWebsiteOrders
         ? "confirmed"
         : orderSettings.defaultWebsiteStatus;
     const transferProofStatus = paymentMethod === "cod" ? null : "pending";
-    const codAmount = paymentMethod === "cod" ? total : Math.max(0, total - deliveryFee);
-    const paidAmount = paymentMethod === "cod" ? 0 : deliveryFee;
+    const codAmount = paymentMethod === "cod" ? total : 0;
     const token = publicToken();
     const invoiceNumber = buildTemporaryInvoiceNumber();
     const shippingAddressLine = [
@@ -3461,6 +3457,7 @@ export const createWebsiteOrder = async (req, res) => {
       total_price: total,
       total,
       paid_amount: paidAmount,
+      remaining_amount: remainingAmount,
       cod_amount: codAmount,
       shipping_payment_screenshot: shippingPaymentFile ? `/uploads/payment-proofs/${shippingPaymentFile.filename}` : "",
       shipping_payment_reference: toText(checkout.shipping_payment_reference),

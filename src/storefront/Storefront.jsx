@@ -1352,6 +1352,16 @@ const getPaymentMethods = (paymentSettings = DEFAULT_STOREFRONT_PAYMENT_SETTINGS
     title: paymentSettings.shippingConfirmation?.label || sfText("storefront.checkout.payment.shippingConfirmation.title"),
     text: sfText("storefront.checkout.payment.shippingConfirmation.text"),
   },
+  {
+    id: "instapay",
+    title: paymentSettings.instapay?.displayName || "InstaPay",
+    text: sfText("storefront.checkout.transfer.instantBankTransfer"),
+  },
+  {
+    id: "vodafone_cash",
+    title: paymentSettings.vodafoneCash?.displayName || "Vodafone Cash",
+    text: sfText("storefront.checkout.transfer.vodafoneWallet"),
+  },
 ];
 const SHIPPING_CONFIRMATION_METHODS = new Set(["shipping_confirmation", "instapay", "vodafone_cash"]);
 const INSTA_PAY_QR_URL = import.meta.env.VITE_INSTAPAY_QR_URL || "";
@@ -5049,6 +5059,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const isShippingConfirmation = paymentMode === "electronic";
   const shippingProofRequired = isShippingConfirmation;
   const hasShippingPaymentProof = Boolean(shippingPaymentFile);
+  const amountDueNow = normalizedFormPaymentMethod === "cod" ? 0 : total;
   const isFinalCheckoutStep = checkoutStep === 3;
   const couponCode = String(form.coupon || "").trim().toUpperCase();
   const submitDisabled = isFinalCheckoutStep && (submitting || couponLoading || shippingQuote.loading || (shippingProofRequired && !hasShippingPaymentProof));
@@ -5169,6 +5180,14 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     if (visibleTransferMethods.some((method) => method.id === shippingTransferMethod)) return;
     setShippingTransferMethod(visibleTransferMethods[0].id);
   }, [shippingTransferMethod, visibleTransferMethods]);
+
+  useEffect(() => {
+    if (paymentMode !== "electronic") return;
+    const nextPaymentMethod = visibleTransferMethods.some((method) => method.id === shippingTransferMethod)
+      ? shippingTransferMethod
+      : (visibleTransferMethods[0]?.id || "instapay");
+    setForm((current) => (current.payment_method === nextPaymentMethod ? current : { ...current, payment_method: nextPaymentMethod }));
+  }, [paymentMode, shippingTransferMethod, visibleTransferMethods, setForm]);
 
   useEffect(() => {
     let cancelled = false;
@@ -5975,9 +5994,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       const couponCodeToSend = activeCouponValidation?.valid ? String(activeCouponValidation.coupon?.code || activeCouponCode).trim().toUpperCase() : "";
       const couponDiscountToSend = activeCouponValidation?.valid ? Math.max(0, Number(activeCouponValidation.discount_amount || 0)) : 0;
       const cleanPhone = form.primary_phone.replace(/\s/g, "");
-      const paymentMethod = paymentMode === "cod" ? "cod" : "shipping_confirmation";
-      const shippingPaymentMethod = paymentMode === "cod" ? "" : normalizeShippingPaymentMethod(shippingTransferMethod);
-      const paidAmount = paymentMode === "cod" ? 0 : deliveryFee;
+      const paymentMethod = paymentMode === "cod" ? "cod" : (visibleTransferMethods.some((method) => method.id === shippingTransferMethod) ? shippingTransferMethod : (visibleTransferMethods[0]?.id || "instapay"));
+      const shippingPaymentMethod = paymentMode === "cod" ? "" : paymentMethod;
+      const paidAmount = amountDueNow;
       const selectedShippingProvider = bostaMode && form.shipping_city_id ? "bosta" : (shippingQuote.provider_id || shippingQuote.provider || "in_store_delivery");
       const shippingProviderAddress = {
         country: "EG",
@@ -6022,6 +6041,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
         shipping_zone_id: form.shipping_zone_id,
         shipping_district_id: form.shipping_district_id,
         paid_amount: paidAmount,
+        remaining_amount: Math.max(0, total - paidAmount),
         shipping_address: shippingProviderAddress,
         shipping_provider_address: shippingProviderAddress,
         shipping_payment_method: shippingPaymentMethod,
@@ -6227,7 +6247,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     onClick={() => {
                       setPaymentMode("electronic");
                       setShowElectronicPaymentMethods(true);
-                      setForm((current) => ({ ...current, payment_method: "shipping_confirmation" }));
+                      setForm((current) => ({ ...current, payment_method: visibleTransferMethods[0]?.id || shippingTransferMethod || "instapay" }));
                       setShippingTransferMethod((current) => (visibleTransferMethods.some((method) => method.id === current) ? current : (visibleTransferMethods[0]?.id || "instapay")));
                     }}
                     className={`checkout-payment-choice flex min-h-[4.75rem] flex-col items-start justify-center rounded-[1.35rem] border px-4 py-3 text-right transition ${paymentMode === "electronic" ? "border-[#a78bfa]/35 bg-[#7c3aed]/14 shadow-[0_16px_34px_rgba(124,58,237,0.12)]" : "border-white/10 bg-white/[0.045] hover:border-white/18 hover:bg-white/[0.07]"}`}
@@ -6242,7 +6262,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                       <div className="checkout-payment-amount">
                         <div className="text-sm font-black text-white/66">{storefrontPaymentSettings.shippingConfirmation.label || sfText("storefront.checkout.transfer.amountDueNow")}</div>
                         <div className="mt-2 flex items-end justify-between gap-3">
-                          <div className="text-3xl font-black tracking-tight text-white">{money(storefrontPaymentSettings.shippingConfirmation.amount)}</div>
+                          <div className="text-3xl font-black tracking-tight text-white">{money(amountDueNow)}</div>
                           <div className="text-xs font-semibold leading-5 text-white/54">{sfText("storefront.checkout.transfer.amountHelper")}</div>
                         </div>
                       </div>
@@ -6255,7 +6275,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                           <button
                             key={method.id}
                             type="button"
-                            onClick={() => setShippingTransferMethod(method.id)}
+                            onClick={() => {
+                              setShippingTransferMethod(method.id);
+                              setForm((current) => ({ ...current, payment_method: method.id }));
+                            }}
                             className={`checkout-payment-method ${active ? "checkout-payment-method--active" : ""}`}
                           >
                             <span className="flex min-w-0 items-center gap-3">
