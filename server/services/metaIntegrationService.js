@@ -6071,6 +6071,7 @@ const logIncomingToInbox = async ({ message, config }) => {
   const customerAvatarUrl = text(message.customer_avatar_url || message.raw?.messenger_profile?.profile_pic || "");
   const lastMessage = text(message.message_text) || "[attachment]";
   const externalMessageId = text(message.external_message_id || message.raw?.event?.message?.mid || message.raw?.event?.message?.id);
+  const providerMessageId = externalMessageId;
   const dedupeKey = text(message.dedupe_key) || crypto
     .createHash("sha256")
     .update([config.tenant_id, sessionId, channel, externalMessageId || message.external_customer_id, message.timestamp, lastMessage].map(text).join("|"))
@@ -6099,6 +6100,7 @@ const logIncomingToInbox = async ({ message, config }) => {
     resolved_customer_id: message.external_customer_id || "",
     resolved_page_id: message.raw?.page_id || "",
     external_message_id: externalMessageId || null,
+    provider_message_id: providerMessageId || null,
     dedupe_key: dedupeKey,
   });
   const session = await db.query(
@@ -6132,13 +6134,13 @@ const logIncomingToInbox = async ({ message, config }) => {
     INSERT INTO ai_support_messages (
       session_ref_id, tenant_id, session_id, channel, customer_name, customer_avatar_url, last_message, message_text,
       customer_message, ai_answer, confidence, needs_human_support, sources_used, suggested_products,
-      visual_attachments, suggested_actions, detected_intent, fallback_reason, sender_type, external_message_id, dedupe_key, source_path, insert_source
+      visual_attachments, suggested_actions, detected_intent, fallback_reason, sender_type, external_message_id, provider_message_id, dedupe_key, source_path, insert_source
     )
-    VALUES ($1,$2,$3::text,$4::text,$5::text,$6::text,$7::text,$7::text,$7::text,'',0,FALSE,'[]'::jsonb,'[]'::jsonb,$8::jsonb,'[]'::jsonb,'','ai_status:pending','customer',$9,$10,$11,$12)
+    VALUES ($1,$2,$3::text,$4::text,$5::text,$6::text,$7::text,$7::text,$7::text,'',0,FALSE,'[]'::jsonb,'[]'::jsonb,$8::jsonb,'[]'::jsonb,'','ai_status:pending','customer',$9,$10,$11,$12,$13)
     ON CONFLICT (tenant_id, session_id, dedupe_key) WHERE dedupe_key <> '' DO NOTHING
     RETURNING *
     `,
-    [session.rows[0]?.id || null, config.tenant_id, sessionId, channel, messengerCustomerName, customerAvatarUrl, lastMessage, json(message.attachments || []), externalMessageId, dedupeKey, "sync_job", channel === "instagram" ? "instagram_dm" : "meta_messenger"]
+    [session.rows[0]?.id || null, config.tenant_id, sessionId, channel, messengerCustomerName, customerAvatarUrl, lastMessage, json(message.attachments || []), externalMessageId, providerMessageId, dedupeKey, "sync_job", channel === "instagram" ? "instagram_dm" : "meta_messenger"]
   );
   if (!inserted.rows[0]) {
     console.log("[meta-inbox] meta_message_duplicate_skipped", {
@@ -9918,7 +9920,7 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
     answer: finalReplyText,
     detectedIntent,
     channel: message.channel,
-    deliveryStatus: "sent",
+    deliveryStatus: result?.message_id ? "sent" : "failed",
     externalMessageId: result?.message_id || "",
   }).catch((error) => {
     console.error("[meta-inbox] ai_outbound_db_insert_failed", {
@@ -10273,7 +10275,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     suggestedProducts: guardedCards,
     suggestedActions: visualCards && !topConfirmationGuard.confirmed ? [] : META_COMMERCE_ACTIONS,
     channel: message.channel,
-    deliveryStatus: "sent",
+    deliveryStatus: result?.message_id ? "sent" : "failed",
     externalMessageId: result?.message_id || "",
   }).catch(() => {});
   await logChannelEvent({
@@ -12436,7 +12438,7 @@ const handleMoreImagesIfMatched = async ({ config, message } = {}) => {
       suggestedProducts: moreImageCards,
       suggestedActions: META_COMMERCE_ACTIONS,
       channel: message.channel,
-      deliveryStatus: "sent",
+      deliveryStatus: result?.message_id ? "sent" : "failed",
       externalMessageId: result?.message_id || "",
     }).catch(() => {});
     await logChannelEvent({
@@ -16455,6 +16457,23 @@ const resolveMessengerRecipientPsid = ({ recipientId = "", conversationId = "", 
   return resolved;
 };
 
+const extractMetaMessageId = (payload = null) => {
+  const candidates = [
+    payload?.message_id,
+    payload?.messageId,
+    payload?.messages?.[0]?.id,
+    payload?.messages?.[0]?.message_id,
+    payload?.result?.key?.id,
+    payload?.result?.message_id,
+    payload?.id,
+  ];
+  for (const candidate of candidates) {
+    const value = text(candidate);
+    if (value) return value;
+  }
+  return "";
+};
+
 export const sendMetaInboxOutboundMessage = async ({
   tenantId,
   channel = "",
@@ -16884,14 +16903,16 @@ export const sendMetaInboxOutboundMessage = async ({
       recipient_id: maskIdForLog(safeRecipientId),
       message_id: meta?.message_id || "",
     });
+    const messageId = extractMetaMessageId(meta) || [...imageResults, meta].map(extractMetaMessageId).find(Boolean) || "";
+    const outboundSuccess = Boolean(messageId);
     await storeMetaOutboundDiagnostics({
       tenantId: scopedTenantId,
       channel: normalizedChannel,
       conversationId,
       patch: {
-        last_outbound_send_status: "sent",
+        last_outbound_send_status: outboundSuccess ? "sent" : "outbound_failed",
         last_outbound_send_error: "",
-        last_outbound_decision: "sent",
+        last_outbound_decision: outboundSuccess ? "sent" : "failed",
         last_outbound_skip_reason: "",
         last_outbound_meta_mid: meta?.message_id || "",
         last_outbound_meta_code: "",
@@ -16906,7 +16927,7 @@ export const sendMetaInboxOutboundMessage = async ({
       },
     }).catch(() => {});
     return {
-      sent: true,
+      sent: Boolean(messageId),
       channel: normalizedChannel,
       config_id: config.id || null,
       config_source: source,
@@ -16915,9 +16936,10 @@ export const sendMetaInboxOutboundMessage = async ({
       token_present: true,
       signature: sendSignature,
       graph_api_called: true,
-      message_id: meta?.message_id || "",
+      message_id: messageId,
       meta,
       product_card_messages: productCardMessages,
+      delivery_status: messageId ? "sent" : "failed",
       results: [...imageResults, meta].filter(Boolean),
     };
     } catch (error) {
@@ -17021,14 +17043,16 @@ export const sendMetaInboxOutboundMessage = async ({
     recipient_id: maskIdForLog(safeRecipientId),
     message_id: meta?.message_id || "",
   });
-  await storeMetaOutboundDiagnostics({
-    tenantId: scopedTenantId,
-    channel: normalizedChannel,
-    conversationId,
-    patch: {
-      last_outbound_send_status: "sent",
+  const messageId = extractMetaMessageId(meta) || [...imageResults, meta].map(extractMetaMessageId).find(Boolean) || "";
+    const outboundSuccess = Boolean(messageId);
+    await storeMetaOutboundDiagnostics({
+      tenantId: scopedTenantId,
+      channel: normalizedChannel,
+      conversationId,
+      patch: {
+      last_outbound_send_status: outboundSuccess ? "sent" : "outbound_failed",
       last_outbound_send_error: "",
-      last_outbound_decision: "sent",
+      last_outbound_decision: outboundSuccess ? "sent" : "failed",
       last_outbound_skip_reason: "",
       last_outbound_meta_mid: meta?.message_id || "",
       last_outbound_meta_code: "",
@@ -17040,10 +17064,10 @@ export const sendMetaInboxOutboundMessage = async ({
       last_outbound_payload_type: payloadType,
       last_outbound_recipient_preview: maskIdForLog(safeRecipientId),
       last_outbound_page_id: sendContext.resolved_page_id,
-    },
-  }).catch(() => {});
-  return {
-    sent: true,
+      },
+    }).catch(() => {});
+    return {
+    sent: Boolean(messageId),
     channel: normalizedChannel,
     config_id: config.id || null,
     config_source: source,
@@ -17052,8 +17076,9 @@ export const sendMetaInboxOutboundMessage = async ({
     token_present: true,
     signature: sendSignature,
     graph_api_called: true,
-    message_id: meta?.message_id || "",
+    message_id: messageId,
     meta,
+    delivery_status: messageId ? "sent" : "failed",
     results: [meta, ...imageResults],
   };
 };
@@ -18048,7 +18073,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
         suggestedProducts: productCards,
         suggestedActions: productCards.length ? META_COMMERCE_ACTIONS : [],
         channel: message.channel,
-        deliveryStatus: "sent",
+        deliveryStatus: sendResult?.message_id ? "sent" : "failed",
         externalMessageId: sendResult?.message_id || "",
       }).catch((error) => {
         console.error("[meta-inbox] ai_outbound_db_insert_failed", {

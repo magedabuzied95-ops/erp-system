@@ -1739,6 +1739,23 @@ const postMetaPageMessage = async ({ payload, config }) => {
   return data;
 };
 
+const extractMetaMessageId = (payload = null) => {
+  const candidates = [
+    payload?.message_id,
+    payload?.messageId,
+    payload?.messages?.[0]?.id,
+    payload?.messages?.[0]?.message_id,
+    payload?.result?.key?.id,
+    payload?.result?.message_id,
+    payload?.id,
+  ];
+  for (const candidate of candidates) {
+    const value = toText(candidate);
+    if (value) return value;
+  }
+  return "";
+};
+
 export const sendMetaPageReply = async ({ channel, to, reply = {}, messageText = "" } = {}) => {
   const normalized = normalizeChannel(channel);
   const config = metaPageConfig(normalized);
@@ -1865,8 +1882,11 @@ export const sendMetaPageReply = async ({ channel, to, reply = {}, messageText =
         batchSummary.image_message_id = imageMessageId || batchSummary.image_message_id || "";
       }
     }
+    const messageId = results.map(extractMetaMessageId).find(Boolean) || "";
     return {
-      sent: results.length > 0,
+      sent: Boolean(messageId),
+      delivery_status: messageId ? "sent" : "failed",
+      message_id: messageId,
       results,
       product_card_summary: {
         requested_count: rawProductCards.length,
@@ -1916,8 +1936,11 @@ export const sendMetaPageReply = async ({ channel, to, reply = {}, messageText =
       },
     }));
   }
+  const messageId = results.map(extractMetaMessageId).find(Boolean) || "";
   return {
-    sent: results.length > 0,
+    sent: Boolean(messageId),
+    delivery_status: messageId ? "sent" : "failed",
+    message_id: messageId,
     results,
     product_card_summary: {
       requested_count: rawProductCards.length,

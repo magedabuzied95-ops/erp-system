@@ -624,6 +624,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
           staff_user_id BIGINT NULL,
           staff_user_name TEXT NOT NULL DEFAULT '',
           external_message_id TEXT NOT NULL DEFAULT '',
+          provider_message_id TEXT NOT NULL DEFAULT '',
           dedupe_key TEXT NOT NULL DEFAULT '',
           source_path TEXT NOT NULL DEFAULT '',
           delivery_status TEXT NOT NULL DEFAULT '',
@@ -739,6 +740,12 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_support_messages_tenant_clicked ON ai_support_messages (tenant_id, clicked_product_id, created_at DESC)`);
       await clientOrPool.query(`UPDATE ai_support_messages SET insert_source = COALESCE(insert_source, CASE WHEN channel = 'whatsapp' AND NULLIF(provider_message_id, '') IS NOT NULL THEN 'whatsapp_unknown_legacy' WHEN channel = 'facebook_messenger' THEN 'meta_messenger_legacy' WHEN channel = 'instagram' THEN 'instagram_dm_legacy' ELSE 'legacy_unknown' END) WHERE insert_source IS NULL`);
       await clientOrPool.query(`
+        UPDATE ai_support_messages
+        SET provider_message_id = COALESCE(NULLIF(provider_message_id, ''), NULLIF(external_message_id, ''))
+        WHERE channel IN ('facebook_messenger', 'instagram')
+          AND COALESCE(NULLIF(provider_message_id, ''), NULLIF(external_message_id, '')) IS NOT NULL
+      `);
+      await clientOrPool.query(`
         DELETE FROM ai_support_messages newer
         USING ai_support_messages older
         WHERE newer.id > older.id
@@ -747,6 +754,16 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
           AND COALESCE(NULLIF(newer.dedupe_key, ''), NULLIF(newer.external_message_id, '')) <> ''
           AND COALESCE(NULLIF(newer.dedupe_key, ''), NULLIF(newer.external_message_id, '')) =
               COALESCE(NULLIF(older.dedupe_key, ''), NULLIF(older.external_message_id, ''))
+      `);
+      await clientOrPool.query(`
+        DELETE FROM ai_support_messages newer
+        USING ai_support_messages older
+        WHERE newer.id > older.id
+          AND newer.tenant_id = older.tenant_id
+          AND newer.channel = older.channel
+          AND newer.channel IN ('facebook_messenger', 'instagram')
+          AND newer.provider_message_id <> ''
+          AND newer.provider_message_id = older.provider_message_id
       `);
       await clientOrPool.query(`
         DELETE FROM ai_support_messages newer
@@ -772,6 +789,11 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
         CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_support_messages_provider_message_id
         ON ai_support_messages (tenant_id, channel, whatsapp_instance, remote_jid, provider_message_id)
         WHERE provider_message_id <> ''
+      `);
+      await clientOrPool.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_support_messages_meta_provider_message_id
+        ON ai_support_messages (tenant_id, channel, provider_message_id)
+        WHERE provider_message_id <> '' AND channel IN ('facebook_messenger', 'instagram')
       `);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_support_aliases_tenant_usage ON ai_support_product_aliases (tenant_id, mapped_product_id, usage_count DESC)`);
     })().catch((error) => {
