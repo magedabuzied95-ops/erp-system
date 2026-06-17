@@ -418,12 +418,12 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[1200] flex items-end justify-center p-2 sm:items-center sm:p-4"
+      className="fixed inset-0 z-[9999] isolate flex items-end justify-center p-2 sm:items-center sm:p-4"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose?.();
       }}
     >
-      <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
+      <div className="fixed inset-0 z-0 bg-black/75 backdrop-blur-sm" />
       <section
         className="relative z-10 flex h-[calc(100dvh-1rem)] w-full max-w-[40rem] min-w-0 flex-col overflow-hidden rounded-t-[1.35rem] border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)] sm:h-auto sm:max-h-[85vh] sm:rounded-[1.35rem]"
         onMouseDown={(event) => event.stopPropagation()}
