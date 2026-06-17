@@ -2133,7 +2133,7 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
           <div className={`mb-2 text-[10px] font-black uppercase tracking-[0.18em] ${darkMode ? "text-[#f8e7b3]" : "text-[#7c3aed]"}`}>
             {sfText("storefront.home.shopByCategory", "الفئات الرئيسية")}
           </div>
-          <h2 className={`text-3xl font-black tracking-normal md:text-6xl ${darkMode ? "text-stone-100" : "text-[#0f172a]"}`}>
+          <h2 className={`text-3xl font-black tracking-normal md:text-6xl ${darkMode ? "text-white/90" : "text-[#0f172a]"}`}>
             الفئات الرئيسية
           </h2>
         </div>
@@ -7865,6 +7865,7 @@ function Storefront() {
   const [recent, setRecent] = useState(() => readStorefrontStorage(RECENT_KEY, []));
   const [profile, setProfile] = useState(() => readStorefrontStorage(PROFILE_KEY, { full_name: "", primary_phone: "", phone: "" }));
   const [themeMode, setThemeMode] = useState(() => readStorefrontStorage(THEME_KEY, "light"));
+  const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [routeReady, setRouteReady] = useState(false);
   const cartCount = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const wishlistCount = wishlist.length;
@@ -7926,6 +7927,7 @@ function Storefront() {
       }
       return [...prev, nextLine];
     });
+    setCartDrawerOpen(true);
     return "added";
   }, []);
 
@@ -8061,6 +8063,13 @@ function Storefront() {
         element={<HomePage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} themeMode={themeMode} />}
       />
       </Routes>
+      <CartDrawer
+        open={cartDrawerOpen}
+        onClose={() => setCartDrawerOpen(false)}
+        cart={cart}
+        updateCart={updateCart}
+        removeFromCart={removeFromCart}
+      />
     </>
   );
 }
