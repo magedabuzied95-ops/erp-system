@@ -1794,28 +1794,29 @@ const uniqueClassificationOptions = (options = []) => {
   });
 };
 
-function FeaturedCategoriesHeroSkeleton({ lang = "ar" }) {
+function FeaturedCategoriesHeroSkeleton({ lang = "ar", themeMode = "light" }) {
   const isRtl = normalizeLanguage(lang) === "ar";
+  const darkMode = themeMode === "dark";
   return (
     <section className="mx-auto max-w-[1320px] px-4 py-4 md:py-7" dir={isRtl ? "rtl" : "ltr"}>
-      <div className="overflow-hidden rounded-[1.85rem] border border-white/10 bg-[#050711] shadow-[0_34px_100px_rgba(15,23,42,0.30)] md:rounded-[2.35rem]">
+      <div className={`overflow-hidden rounded-[1.85rem] border shadow-[0_34px_100px_rgba(15,23,42,0.30)] md:rounded-[2.35rem] ${darkMode ? "border-white/10 bg-[#050711]" : "border-slate-200 bg-white shadow-[0_34px_100px_rgba(15,23,42,0.10)]"}`}>
         <div className="grid min-h-[510px] lg:grid-cols-[minmax(0,0.72fr)_minmax(18rem,0.28fr)]">
           <div className="relative min-h-[500px] p-5 md:p-8 lg:min-h-[560px] lg:p-10">
-            <div className="sf-skeleton-shimmer h-8 w-36 rounded-full bg-white/10" />
-            <div className="mt-6 sf-skeleton-shimmer h-16 max-w-2xl rounded-[1.5rem] bg-white/10 md:h-28" />
-            <div className="mt-4 sf-skeleton-shimmer h-4 w-2/3 rounded-full bg-white/10" />
-            <div className="mt-7 sf-skeleton-shimmer h-11 w-36 rounded-full bg-white/10" />
+            <div className={`sf-skeleton-shimmer h-8 w-36 rounded-full ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
+            <div className={`mt-6 sf-skeleton-shimmer h-16 max-w-2xl rounded-[1.5rem] md:h-28 ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
+            <div className={`mt-4 sf-skeleton-shimmer h-4 w-2/3 rounded-full ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
+            <div className={`mt-7 sf-skeleton-shimmer h-11 w-36 rounded-full ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
             <div className="mt-10 grid min-h-[220px] grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-2">
               {Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="sf-skeleton-shimmer rounded-[1.5rem] bg-white/10" />
+                <div key={index} className={`sf-skeleton-shimmer rounded-[1.5rem] ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
               ))}
             </div>
           </div>
-          <aside className="hidden border-s border-white/10 bg-white/[0.045] p-5 shadow-[inset_1px_0_0_rgba(255,255,255,0.06)] lg:block">
-            <div className="mb-4 sf-skeleton-shimmer h-5 w-40 rounded-full bg-white/10" />
+          <aside className={`hidden border-s p-5 shadow-[inset_1px_0_0_rgba(255,255,255,0.06)] lg:block ${darkMode ? "border-white/10 bg-white/[0.045]" : "border-slate-200 bg-slate-50 shadow-[inset_1px_0_0_rgba(15,23,42,0.04)]"}`}>
+            <div className={`mb-4 sf-skeleton-shimmer h-5 w-40 rounded-full ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
             <div className="grid gap-2">
               {Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="sf-skeleton-shimmer h-12 rounded-xl bg-white/[0.06]" />
+                <div key={index} className={`sf-skeleton-shimmer h-12 rounded-xl ${darkMode ? "bg-white/[0.06]" : "bg-slate-200/90"}`} />
               ))}
             </div>
           </aside>
@@ -1825,28 +1826,29 @@ function FeaturedCategoriesHeroSkeleton({ lang = "ar" }) {
   );
 }
 
-function ShopByMainCategoriesSkeleton({ lang = "ar" }) {
+function ShopByMainCategoriesSkeleton({ lang = "ar", themeMode = "light" }) {
   const isRtl = normalizeLanguage(lang) === "ar";
+  const darkMode = themeMode === "dark";
   return (
     <section className="mx-auto max-w-[1360px] px-4 py-10 md:py-16" dir={isRtl ? "rtl" : "ltr"}>
       <div className="mb-8 flex items-end justify-between gap-3 md:mb-11">
         <div className="min-w-0">
-          <div className="sf-skeleton-shimmer h-3 w-32 rounded-full bg-white/10" />
-          <div className="mt-3 sf-skeleton-shimmer h-12 w-[min(28rem,74vw)] rounded-[1.5rem] bg-white/10 md:h-20" />
+          <div className={`sf-skeleton-shimmer h-3 w-32 rounded-full ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
+          <div className={`mt-3 sf-skeleton-shimmer h-12 w-[min(28rem,74vw)] rounded-[1.5rem] md:h-20 ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
         </div>
-        <div className="hidden h-11 w-28 rounded-full bg-white/5 sm:block" />
+        <div className={`hidden h-11 w-28 rounded-full sm:block ${darkMode ? "bg-white/5" : "bg-slate-200/90"}`} />
       </div>
       <div className="grid gap-7 md:gap-10">
         {Array.from({ length: 3 }).map((_, index) => (
-          <div key={index} className="overflow-hidden rounded-[2.35rem] border border-white/10 bg-[#050711] shadow-[0_34px_110px_rgba(15,23,42,0.28)]">
+          <div key={index} className={`overflow-hidden rounded-[2.35rem] border shadow-[0_34px_110px_rgba(15,23,42,0.28)] ${darkMode ? "border-white/10 bg-[#050711]" : "border-slate-200 bg-white shadow-[0_34px_110px_rgba(15,23,42,0.10)]"}`}>
             <div className="grid min-h-[300px] gap-4 p-5 md:min-h-[360px] md:grid-cols-[0.45fr_0.55fr] md:p-8 lg:min-h-[400px]">
               <div className="flex flex-col justify-end gap-3">
-                <div className="sf-skeleton-shimmer h-5 w-28 rounded-full bg-white/10" />
-                <div className="sf-skeleton-shimmer h-12 w-[min(22rem,70vw)] rounded-[1.5rem] bg-white/10 md:h-20" />
-                <div className="sf-skeleton-shimmer h-4 w-2/3 rounded-full bg-white/10" />
-                <div className="sf-skeleton-shimmer h-11 w-32 rounded-full bg-white/10" />
+                <div className={`sf-skeleton-shimmer h-5 w-28 rounded-full ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
+                <div className={`sf-skeleton-shimmer h-12 w-[min(22rem,70vw)] rounded-[1.5rem] md:h-20 ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
+                <div className={`sf-skeleton-shimmer h-4 w-2/3 rounded-full ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
+                <div className={`sf-skeleton-shimmer h-11 w-32 rounded-full ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
               </div>
-              <div className="sf-skeleton-shimmer min-h-[210px] rounded-[1.85rem] bg-white/10 md:min-h-[280px]" />
+              <div className={`sf-skeleton-shimmer min-h-[210px] rounded-[1.85rem] md:min-h-[280px] ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
             </div>
           </div>
         ))}
@@ -1855,9 +1857,10 @@ function ShopByMainCategoriesSkeleton({ lang = "ar" }) {
   );
 }
 
-function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false }) {
+function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, themeMode = "light" }) {
   const { t } = useTranslation();
   const isRtl = normalizeLanguage(lang) === "ar";
+  const darkMode = themeMode === "dark";
   const [activeCategoryId, setActiveCategoryId] = useState("");
   const [slideIndex, setSlideIndex] = useState(0);
   const [manualTick, setManualTick] = useState(0);
@@ -1929,12 +1932,12 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false })
 
   return (
     <section className="mx-auto max-w-[1320px] px-4 pb-4 pt-4 md:pb-7 md:pt-7" dir={isRtl ? "rtl" : "ltr"}>
-      <div className="overflow-hidden rounded-[1.85rem] border border-white/10 bg-[#050711] shadow-[0_34px_100px_rgba(15,23,42,0.30)] md:rounded-[2.35rem]">
-        <div className="sf-scroll flex gap-2 overflow-x-auto border-b border-white/10 bg-white/[0.045] p-2 lg:hidden">
+      <div className={`overflow-hidden rounded-[1.85rem] border shadow-[0_34px_100px_rgba(15,23,42,0.30)] md:rounded-[2.35rem] ${darkMode ? "border-white/10 bg-[#050711]" : "border-slate-200 bg-white shadow-[0_34px_100px_rgba(15,23,42,0.10)]"}`}>
+        <div className={`sf-scroll flex gap-2 overflow-x-auto border-b p-2 lg:hidden ${darkMode ? "border-white/10 bg-white/[0.045]" : "border-slate-200 bg-slate-50"}`}>
           {categories.map((category) => {
             const active = category.id === activeCategory.id;
             return (
-              <Link key={category.id} to={category.href} onMouseEnter={() => pickCategory(category.id)} onFocus={() => pickCategory(category.id)} className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-4 text-xs font-black transition active:scale-[0.98] ${active ? "border-white bg-white text-stone-950" : "border-white/10 bg-white/[0.06] text-white/76 hover:border-[#f8e7b3]/45 hover:text-white"}`}>
+              <Link key={category.id} to={category.href} onMouseEnter={() => pickCategory(category.id)} onFocus={() => pickCategory(category.id)} className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-4 text-xs font-black transition active:scale-[0.98] ${darkMode ? (active ? "border-white bg-white text-stone-950" : "border-white/10 bg-white/[0.06] text-white/76 hover:border-[#f8e7b3]/45 hover:text-white") : (active ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-[#7c3aed]/30 hover:text-slate-950")}`}>
                 {category.label}
                 <ChevronLeft className={`h-3.5 w-3.5 shrink-0 ${isRtl ? "" : "rotate-180"}`} />
               </Link>
@@ -1944,40 +1947,40 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false })
         <div className="grid min-h-[510px] lg:grid-cols-[minmax(0,0.72fr)_minmax(18rem,0.28fr)] lg:[direction:ltr]">
           <Link
             to={categoryHref}
-            className="group relative flex min-h-[500px] overflow-hidden bg-[radial-gradient(circle_at_74%_36%,rgba(248,231,179,0.23),transparent_24%),radial-gradient(circle_at_18%_18%,rgba(124,58,237,0.22),transparent_32%),linear-gradient(135deg,#090b16_0%,#111827_54%,#020617_100%)] lg:min-h-[560px] lg:[direction:rtl]"
+            className={`group relative flex min-h-[500px] overflow-hidden lg:min-h-[560px] lg:[direction:rtl] ${darkMode ? "bg-[radial-gradient(circle_at_74%_36%,rgba(248,231,179,0.23),transparent_24%),radial-gradient(circle_at_18%_18%,rgba(124,58,237,0.22),transparent_32%),linear-gradient(135deg,#090b16_0%,#111827_54%,#020617_100%)]" : "bg-[radial-gradient(circle_at_74%_36%,rgba(124,58,237,0.10),transparent_26%),radial-gradient(circle_at_18%_18%,rgba(248,231,179,0.28),transparent_30%),linear-gradient(135deg,#ffffff_0%,#f8fafc_56%,#eef2ff_100%)]"}`}
           >
-            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.08),transparent_34%,rgba(0,0,0,0.42))]" />
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/52 to-transparent" />
-            <div className="absolute end-4 top-4 z-20 inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/10 px-3.5 py-2 text-xs font-black text-white shadow-sm backdrop-blur">
+            <div className={`pointer-events-none absolute inset-0 ${darkMode ? "bg-[linear-gradient(120deg,rgba(255,255,255,0.08),transparent_34%,rgba(0,0,0,0.42))]" : "bg-[linear-gradient(120deg,rgba(255,255,255,0.54),transparent_34%,rgba(255,255,255,0.06))]"}`} />
+            <div className={`pointer-events-none absolute inset-x-0 bottom-0 h-1/2 ${darkMode ? "bg-gradient-to-t from-black/52 to-transparent" : "bg-gradient-to-t from-white/90 to-transparent"}`} />
+            <div className={`absolute end-4 top-4 z-20 inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-black shadow-sm backdrop-blur ${darkMode ? "border-white/12 bg-white/10 text-white" : "border-slate-200 bg-white/85 text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
               <ActiveIcon className="h-4 w-4" />
               {activeCategory.label}
             </div>
             <div className="absolute start-4 top-4 z-20 flex gap-2">
-              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? 1 : -1); }} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-transparent bg-white/10 text-white shadow-sm backdrop-blur transition-[background-color,color,opacity,transform] duration-200 hover:bg-white/16 hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35" aria-label="ظˆط§طھط³ط§ط¨">
+              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? 1 : -1); }} className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border shadow-sm backdrop-blur transition-[background-color,color,opacity,transform] duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 ${darkMode ? "border-transparent bg-white/10 text-white hover:bg-white/16 hover:text-white focus-visible:ring-white/35" : "border-slate-200 bg-white/90 text-slate-700 hover:bg-white hover:text-slate-950 focus-visible:ring-slate-300"}`} aria-label="ظˆط§طھط³ط§ط¨">
                 <ChevronLeft className={`h-4 w-4 ${isRtl ? "rotate-180" : ""}`} />
               </button>
-              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? -1 : 1); }} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-transparent bg-white/10 text-white shadow-sm backdrop-blur transition-[background-color,color,opacity,transform] duration-200 hover:bg-white/16 hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35" aria-label="Next slide">
+              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? -1 : 1); }} className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border shadow-sm backdrop-blur transition-[background-color,color,opacity,transform] duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 ${darkMode ? "border-transparent bg-white/10 text-white hover:bg-white/16 hover:text-white focus-visible:ring-white/35" : "border-slate-200 bg-white/90 text-slate-700 hover:bg-white hover:text-slate-950 focus-visible:ring-slate-300"}`} aria-label="Next slide">
                 <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
               </button>
             </div>
             <div className="relative z-10 grid w-full gap-5 p-5 md:grid-cols-[minmax(0,0.4fr)_minmax(0,0.6fr)] md:p-8 lg:p-10">
               <div key={`category-copy-${activeCategory.id}`} className="relative z-20 flex min-h-[12rem] flex-col justify-end self-end pb-2 animate-[sfFadeUp_420ms_ease-out_both] md:min-h-0 md:justify-center md:pb-0">
-                <div className="mb-4 inline-flex w-fit items-center gap-2 rounded-full border border-white/12 bg-white/10 px-3.5 py-2 text-xs font-black uppercase tracking-[0.14em] text-[#f8e7b3] shadow-sm backdrop-blur">
+                <div className={`mb-4 inline-flex w-fit items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-black uppercase tracking-[0.14em] shadow-sm backdrop-blur ${darkMode ? "border-white/12 bg-white/10 text-[#f8e7b3]" : "border-slate-200 bg-white/85 text-[#7c3aed] shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
                   <ActiveIcon className="h-4 w-4" />
                   {activeCategory.label}
                 </div>
-                <h1 className="line-clamp-2 max-w-lg text-4xl font-black leading-[0.98] text-white md:text-6xl lg:text-7xl">
+                <h1 className={`line-clamp-2 max-w-lg text-4xl font-black leading-[0.98] md:text-6xl lg:text-7xl ${darkMode ? "text-white" : "text-slate-900"}`}>
                   {headline}
                 </h1>
-                <p className="mt-4 line-clamp-2 max-w-md text-sm font-bold leading-6 text-white/68 md:text-lg md:leading-8">
+                <p className={`mt-4 line-clamp-2 max-w-md text-sm font-bold leading-6 md:text-lg md:leading-8 ${darkMode ? "text-white/68" : "text-slate-600"}`}>
                   {subtitle}
                 </p>
-                <span className="mt-7 inline-flex min-h-12 w-fit items-center justify-center rounded-full bg-[#f8e7b3] px-7 text-sm font-black text-stone-950 shadow-[0_18px_40px_rgba(248,231,179,0.26)] ring-1 ring-white/10 transition group-hover:-translate-y-0.5 group-hover:bg-white">
-                    {cta}
+                <span className={`mt-7 inline-flex min-h-12 w-fit items-center justify-center rounded-full px-7 text-sm font-black transition group-hover:-translate-y-0.5 ${darkMode ? "bg-[#f8e7b3] text-stone-950 shadow-[0_18px_40px_rgba(248,231,179,0.26)] ring-1 ring-white/10 group-hover:bg-white" : "bg-slate-900 text-white shadow-[0_18px_40px_rgba(15,23,42,0.16)] ring-1 ring-slate-200 group-hover:bg-[#7c3aed] group-hover:text-white"}`}>
+                  {cta}
                 </span>
               </div>
               <div className="relative flex min-h-[290px] items-center justify-center md:min-h-[430px]">
-                <div className="absolute bottom-10 left-1/2 h-10 w-[72%] -translate-x-1/2 rounded-[100%] bg-black/70 blur-2xl" />
+                <div className={`absolute bottom-10 left-1/2 h-10 w-[72%] -translate-x-1/2 rounded-[100%] blur-2xl ${darkMode ? "bg-black/70" : "bg-slate-300/80"}`} />
                 {supportingSlides.map((slide, index) => {
                   const active = slide.product?.id === product?.id;
                   return (
@@ -2006,8 +2009,8 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false })
             </div>
           </Link>
 
-          <aside className="hidden border-s border-white/10 bg-white/[0.045] p-5 shadow-[inset_1px_0_0_rgba(255,255,255,0.06)] lg:block lg:[direction:rtl]">
-            <div className="mb-4 border-b border-white/10 pb-3 text-sm font-black text-white">
+          <aside className={`hidden border-s p-5 shadow-[inset_1px_0_0_rgba(255,255,255,0.06)] lg:block lg:[direction:rtl] ${darkMode ? "border-white/10 bg-white/[0.045]" : "border-slate-200 bg-slate-50 shadow-[inset_1px_0_0_rgba(15,23,42,0.04)]"}`}>
+            <div className={`mb-4 border-b pb-3 text-sm font-black ${darkMode ? "border-white/10 text-white" : "border-slate-200 text-slate-900"}`}>
               تسوق حسب القسم
             </div>
             <nav className="grid gap-1" aria-label="ط§ظ„ظپط¦ط§طھ ط§ظ„ط±ط¦ظٹط³ظٹط©">
@@ -2019,7 +2022,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false })
                     to={category.href}
                     onMouseEnter={() => pickCategory(category.id)}
                     onFocus={() => pickCategory(category.id)}
-                    className={`group flex min-h-12 items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-start transition ${active ? "bg-white text-stone-950 ring-1 ring-white/25" : "text-white/66 hover:bg-white/[0.07] hover:text-white"}`}
+                    className={`group flex min-h-12 items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-start transition ${darkMode ? (active ? "bg-white text-stone-950 ring-1 ring-white/25" : "text-white/66 hover:bg-white/[0.07] hover:text-white") : (active ? "bg-slate-900 text-white ring-1 ring-slate-200" : "text-slate-700 hover:bg-slate-100 hover:text-slate-950")}`}
                   >
                     <span className="min-w-0 truncate text-base font-black">
                       {category.label}
@@ -2151,27 +2154,27 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
             <Link
               key={card.id}
               to={card.href}
-              className={`group relative grid min-h-[300px] overflow-hidden rounded-[2.35rem] border border-white/10 bg-stone-950 text-white shadow-[0_34px_110px_rgba(15,23,42,0.28)] transition duration-500 hover:-translate-y-2 hover:border-[#f8e7b3]/50 hover:shadow-[0_48px_130px_rgba(15,23,42,0.42)] active:scale-[0.99] md:min-h-[360px] lg:min-h-[400px] ${reverse ? "md:grid-cols-[0.58fr_0.42fr]" : "md:grid-cols-[0.42fr_0.58fr]"}`}
+            className={`group relative grid min-h-[300px] overflow-hidden rounded-[2.35rem] border transition duration-500 hover:-translate-y-2 active:scale-[0.99] md:min-h-[360px] lg:min-h-[400px] ${darkMode ? "border-white/10 bg-stone-950 text-white shadow-[0_34px_110px_rgba(15,23,42,0.28)] hover:border-[#f8e7b3]/50 hover:shadow-[0_48px_130px_rgba(15,23,42,0.42)]" : "border-slate-200 bg-white text-[#0f172a] shadow-[0_34px_110px_rgba(15,23,42,0.10)] hover:border-[#7c3aed]/30 hover:shadow-[0_48px_130px_rgba(15,23,42,0.16)]"} ${reverse ? "md:grid-cols-[0.58fr_0.42fr]" : "md:grid-cols-[0.42fr_0.58fr]"}`}
             >
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_76%_24%,rgba(248,231,179,0.24),transparent_31%),linear-gradient(135deg,#1c1917_0%,#0f172a_52%,#030712_100%)]" />
-              <div className="absolute inset-0 bg-gradient-to-l from-black/80 via-black/35 to-black/12" />
+              <div className={`absolute inset-0 ${darkMode ? "bg-[radial-gradient(circle_at_76%_24%,rgba(248,231,179,0.24),transparent_31%),linear-gradient(135deg,#1c1917_0%,#0f172a_52%,#030712_100%)]" : "bg-[radial-gradient(circle_at_76%_24%,rgba(124,58,237,0.10),transparent_31%),linear-gradient(135deg,#ffffff_0%,#f8fafc_52%,#eef2ff_100%)]"}`} />
+              <div className={`absolute inset-0 ${darkMode ? "bg-gradient-to-l from-black/80 via-black/35 to-black/12" : "bg-gradient-to-l from-white/78 via-white/40 to-white/8"}`} />
               <div className={`relative z-10 flex min-h-[300px] flex-col justify-end p-7 md:min-h-0 md:p-10 lg:p-12 ${isRtl ? "text-right" : "text-left"} ${reverse ? "md:order-2" : ""}`}>
-                <div className="mb-4 w-fit rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-[#f8e7b3] backdrop-blur">
+                <div className={`mb-4 w-fit rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] backdrop-blur ${darkMode ? "border-white/15 bg-white/10 text-[#f8e7b3]" : "border-slate-200 bg-white/85 text-[#7c3aed] shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
                   {isRtl ? "\u0627\u062e\u062a\u064a\u0627\u0631\u0627\u062a \u0645\u0646\u062a\u0642\u0627\u0629" : "Curated edit"}
                 </div>
-                <h3 className="text-[3.3rem] font-black leading-none tracking-normal md:text-7xl lg:text-8xl">{title}</h3>
-                <p className="mt-4 max-w-[28rem] text-base font-bold leading-7 text-white/84 md:text-xl md:leading-8">{subtitle}</p>
-                <span className="mt-7 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-black text-stone-950 shadow-[0_16px_34px_rgba(0,0,0,0.26)] transition group-hover:bg-[#f8e7b3] group-hover:shadow-[0_18px_42px_rgba(248,231,179,0.26)] md:min-h-14 md:px-8">
+                <h3 className={`text-[3.3rem] font-black leading-none tracking-normal md:text-7xl lg:text-8xl ${darkMode ? "text-white" : "text-slate-900"}`}>{title}</h3>
+                <p className={`mt-4 max-w-[28rem] text-base font-bold leading-7 md:text-xl md:leading-8 ${darkMode ? "text-white/84" : "text-slate-600"}`}>{subtitle}</p>
+                <span className={`mt-7 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full px-6 text-sm font-black transition md:min-h-14 md:px-8 ${darkMode ? "bg-white text-stone-950 shadow-[0_16px_34px_rgba(0,0,0,0.26)] group-hover:bg-[#f8e7b3] group-hover:shadow-[0_18px_42px_rgba(248,231,179,0.26)]" : "bg-slate-900 text-white shadow-[0_16px_34px_rgba(15,23,42,0.16)] group-hover:bg-[#7c3aed] group-hover:shadow-[0_18px_42px_rgba(124,58,237,0.16)]"}`}>
                   {isRtl ? "تسوق الآن" : sfText("storefront.common.shopNow")}
                   <ChevronLeft className={`h-4 w-4 transition group-hover:-translate-x-1 ${isRtl ? "" : "rotate-180 group-hover:translate-x-1 group-hover:-translate-y-0"}`} />
                 </span>
               </div>
               <div className="relative z-10 min-h-[260px] overflow-hidden p-4 md:min-h-0 md:p-7 lg:p-9">
-                <div className="absolute bottom-8 left-1/2 h-12 w-[76%] -translate-x-1/2 rounded-full bg-black/45 blur-2xl" />
+                <div className={`absolute bottom-8 left-1/2 h-12 w-[76%] -translate-x-1/2 rounded-full blur-2xl ${darkMode ? "bg-black/45" : "bg-slate-300/70"}`} />
                 {collage.length ? collage.map(({ product, image }, index) => (
                   <div
                     key={`${card.id}-${productIdentityKey(product, index)}`}
-                    className={`absolute overflow-hidden rounded-[1.8rem] bg-white/[0.12] shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_28px_60px_rgba(0,0,0,0.24)] backdrop-blur transition duration-700 group-hover:scale-[1.06] ${
+                    className={`absolute overflow-hidden rounded-[1.8rem] backdrop-blur transition duration-700 group-hover:scale-[1.06] ${darkMode ? "bg-white/[0.12] shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_28px_60px_rgba(0,0,0,0.24)]" : "bg-slate-100/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_20px_50px_rgba(15,23,42,0.10)]"} ${
                       index === 0
                         ? "bottom-8 left-1/2 z-30 h-[60%] w-[68%] -translate-x-1/2 md:h-[74%]"
                         : index === 1
@@ -2797,7 +2800,7 @@ function HomePage(props) {
 
   return (
     <div className="sf-page pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] md:pb-0">
-      <FeaturedCategoriesHero products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} />
+      <FeaturedCategoriesHero products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} themeMode={props.themeMode} />
       <QuickSellingStrips lang={lang} />
       <ShopByMainCategories products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} themeMode={props.themeMode} />
       <HomeProductSection title={sfText("storefront.nav.new", "جديد")} subtitle={sfText("storefront.home.newSubtitle")} viewAllTo="/shop/products?sort=newest" loading={loading || storefrontHome.loading} products={homeSections.newArrivals} railType="new" tone="new" {...props} />
@@ -7896,7 +7899,19 @@ function Storefront() {
   useEffect(() => {
     writeStorefrontStorage(THEME_KEY, themeMode);
     if (typeof document === "undefined") return;
-    document.body.classList.toggle("storefront-dark", themeMode === "dark");
+    const root = document.documentElement;
+    const body = document.body;
+    const previousRootDark = root.classList.contains("dark");
+    const previousBodyDark = body.classList.contains("dark");
+    const previousStorefrontDark = body.classList.contains("storefront-dark");
+    root.classList.toggle("dark", themeMode === "dark");
+    body.classList.toggle("dark", themeMode === "dark");
+    body.classList.toggle("storefront-dark", themeMode === "dark");
+    return () => {
+      root.classList.toggle("dark", previousRootDark);
+      body.classList.toggle("dark", previousBodyDark);
+      body.classList.toggle("storefront-dark", previousStorefrontDark);
+    };
   }, [themeMode]);
 
   const clearCart = useCallback(() => setCart([]), []);
@@ -7989,7 +8004,7 @@ function Storefront() {
   if (!routeReady) return <StorefrontPageFallback />;
 
   return (
-    <>
+    <div className={`storefront-shell ${themeMode === "dark" ? "storefront-dark" : ""}`}>
       <Header
         cartCount={cartCount}
         wishlistCount={wishlistCount}
@@ -8070,7 +8085,7 @@ function Storefront() {
         updateCart={updateCart}
         removeFromCart={removeFromCart}
       />
-    </>
+    </div>
   );
 }
 
