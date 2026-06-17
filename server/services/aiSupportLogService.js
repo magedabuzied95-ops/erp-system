@@ -888,6 +888,7 @@ export const appendAiGeneratedSupportReply = async ({
   tenantId,
   sessionId,
   answer = "",
+  messageType = "",
   confidence = 0.72,
   detectedIntent = "",
   suggestedProducts = [],
@@ -908,7 +909,23 @@ export const appendAiGeneratedSupportReply = async ({
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
-  const safeAnswer = repairText(answer);
+  const safeProductCards = Array.isArray(productCards) ? productCards : [];
+  const cardSummary = safeProductCards
+    .map((card) =>
+      [
+        toText(card?.product_name || card?.name || card?.title || card?.product?.name || card?.product?.title || ""),
+        toText(card?.color || card?.color_name || card?.matched_variant_color || ""),
+        toText(card?.size || card?.size_name || ""),
+        toText(card?.price || card?.final_price || ""),
+      ]
+        .filter(Boolean)
+        .join(" - ")
+    )
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(" | ");
+  const safeAnswer = repairText(answer || cardSummary || (safeProductCards.length ? `Product cards sent (${safeProductCards.length})` : ""));
+  const safeMessageType = toText(messageType || (safeProductCards.length ? "product_card" : "text")) || "text";
   if (!safeTenantId || !safeSessionId || !safeAnswer) {
     throw Object.assign(new Error("AI reply text is required"), { status: 400 });
   }
@@ -946,6 +963,7 @@ export const appendAiGeneratedSupportReply = async ({
       detected_intent,
       fallback_reason,
       sender_type,
+      message_type,
       manual_message,
       channel,
       delivery_status,
@@ -959,7 +977,7 @@ export const appendAiGeneratedSupportReply = async ({
       source_path,
       insert_source
     )
-    VALUES ($1, $2, $3, $4, '', $4, $5, FALSE, '[]'::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9, '', 'ai', FALSE, COALESCE(NULLIF($10, ''), 'web_chat'), $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+    VALUES ($1, $2, $3, $4, '', $4, $5, FALSE, '[]'::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9, '', 'ai', $10, FALSE, COALESCE(NULLIF($11, ''), 'web_chat'), $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
     RETURNING *
     `,
     [
@@ -974,6 +992,7 @@ export const appendAiGeneratedSupportReply = async ({
       jsonValue(Array.isArray(suggestedActions) ? suggestedActions : []),
       repairText(detectedIntent),
       repairText(channel),
+      safeMessageType,
       repairText(deliveryStatus),
       repairText(deliveryError),
       repairText(externalMessageId),

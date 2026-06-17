@@ -1534,6 +1534,26 @@ const productImageCaption = (product = {}) => {
   ].filter(Boolean).join("\n").slice(0, 1024);
 };
 
+const summarizeWhatsappProductCards = (cards = []) => {
+  const items = asArray(cards).filter(Boolean);
+  if (!items.length) return "";
+  return items
+    .slice(0, 3)
+    .map((card) =>
+      [
+        productCardName(card),
+        text(card.color || card.color_name || card.matched_variant_color || ""),
+        text(card.size || card.size_name || ""),
+        productCardPrice(card) ? `${productCardPrice(card)} جنيه` : "",
+      ]
+        .filter(Boolean)
+        .join(" - ")
+    )
+    .filter(Boolean)
+    .join(" | ")
+    .slice(0, 300);
+};
+
 const resolveCaptionVariant = (product = {}) => {
   const variantId = text(product?.selected_variant_id || product?.variant_id || product?.matched_variant_id || product?.selected_variant?.id || product?.selected_variant?.variant_id || "");
   const variants = asArray(product?.variants);
@@ -3930,39 +3950,49 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       evolution_result_ok: Boolean(result?.result || result?.success || result?.message_id || result?.messageId),
       reply_length: finalReplyText.length,
     });
-    await appendAiGeneratedSupportReply({
-      tenantId: generated.tenantId,
-      sessionId: normalizeWhatsappSessionId(generated.sessionId, sendTargetNumber || generated.phone || message.phone),
-      answer: finalReplyText || generated.replyText,
-      confidence: generated.aiPayload?.confidence || 0,
-      detectedIntent: generated.aiPayload?.detected_intent || "whatsapp_ai_reply",
-      suggestedProducts: generated.aiPayload?.suggested_products || [],
-      visualAttachments: generated.aiPayload?.visual_attachments || [],
-      suggestedActions: generated.aiPayload?.suggested_actions || [],
-      productCards: generated.aiPayload?.product_cards || generated.aiPayload?.suggested_products || [],
-      channel: AI_AGENT_CHANNELS.WHATSAPP,
-      deliveryStatus: "sent",
-      externalMessageId: result?.result?.message_id || result?.result?.messageId || result?.result?.key?.id || result?.message_id || "",
-      providerMessageId: result?.result?.message_id || result?.result?.messageId || result?.result?.key?.id || result?.message_id || "",
-      whatsappInstance: result?.instanceName || result?.provider || instanceName(),
-      remoteJid: outboundReplyTarget.remoteJid || "",
-      resolvedReplyJid: outboundReplyTarget.resolvedJid || "",
-      resolvedPhone: sendTargetNumber || generated.phone || message.phone || "",
-      sourcePath: "whatsapp_ai_auto_reply_sent",
-      insertSource: "whatsapp_ai_send_success",
-    }).catch((error) => {
+    let savedOutboundMessage = null;
+    try {
+      savedOutboundMessage = await appendAiGeneratedSupportReply({
+        tenantId: generated.tenantId,
+        sessionId: normalizeWhatsappSessionId(generated.sessionId, sendTargetNumber || generated.phone || message.phone),
+        answer: finalReplyText || generated.replyText || summarizeWhatsappProductCards(sendableImageCards),
+        messageType: sendableImageCards.length ? "product_card" : "text",
+        confidence: generated.aiPayload?.confidence || 0,
+        detectedIntent: generated.aiPayload?.detected_intent || "whatsapp_ai_reply",
+        suggestedProducts: generated.aiPayload?.suggested_products || [],
+        visualAttachments: generated.aiPayload?.visual_attachments || [],
+        suggestedActions: generated.aiPayload?.suggested_actions || [],
+        productCards: sendableImageCards.length ? sendableImageCards : (generated.aiPayload?.product_cards || generated.aiPayload?.suggested_products || []),
+        channel: AI_AGENT_CHANNELS.WHATSAPP,
+        deliveryStatus: "sent",
+        externalMessageId: result?.result?.message_id || result?.result?.messageId || result?.result?.key?.id || result?.message_id || "",
+        providerMessageId: result?.result?.message_id || result?.result?.messageId || result?.result?.key?.id || result?.message_id || "",
+        whatsappInstance: result?.instanceName || result?.provider || instanceName(),
+        remoteJid: outboundReplyTarget.remoteJid || "",
+        resolvedReplyJid: outboundReplyTarget.resolvedJid || "",
+        resolvedPhone: sendTargetNumber || generated.phone || message.phone || "",
+        sourcePath: "whatsapp_ai_auto_reply_sent",
+        insertSource: "whatsapp_ai_send_success",
+      });
+      console.info("[ai-auto-reply] stage=outbound_saved", {
+        conversation_id: outboundPlan.conversation_id,
+        sent: true,
+        transcript_saved: Boolean(savedOutboundMessage?.id),
+        saved_message_id: savedOutboundMessage?.id || null,
+        session_id: savedOutboundMessage?.session_id || normalizeWhatsappSessionId(generated.sessionId, sendTargetNumber || generated.phone || message.phone),
+        message_type: savedOutboundMessage?.message_type || (sendableImageCards.length ? "product_card" : "text"),
+        productCardsCount: asArray(savedOutboundMessage?.product_cards || sendableImageCards).length,
+        provider_message_id: savedOutboundMessage?.provider_message_id || savedOutboundMessage?.external_message_id || result?.result?.message_id || result?.result?.messageId || result?.result?.key?.id || result?.message_id || "",
+        send_target_phone: sendTargetNumber,
+      });
+    } catch (saveError) {
       console.warn("[whatsapp:ai-send-success:transcript-save-failed]", {
         tenantId: generated.tenantId,
         sessionId: generated.sessionId,
-        message: error?.message || String(error),
+        conversation_id: outboundPlan.conversation_id,
+        message: saveError?.message || String(saveError),
       });
-    });
-    console.info("[ai-auto-reply] stage=outbound_saved", {
-      conversation_id: outboundPlan.conversation_id,
-      sent: true,
-      transcript_saved: true,
-      send_target_phone: sendTargetNumber,
-    });
+    }
     console.info("[whatsapp:ai-sent]", {
       tenantId: generated.tenantId,
       sessionId: generated.sessionId,
