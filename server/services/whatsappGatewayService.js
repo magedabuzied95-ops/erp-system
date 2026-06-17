@@ -2164,9 +2164,12 @@ const extractIncomingWhatsapp = async (payload = {}) => {
   };
 };
 
-const isEvolutionStatusUpdatePayload = (payload = {}, envelope = null) => {
+const normalizeEvolutionWebhookEvent = (value = "") => text(value).toLowerCase().replace(/[_\s]+/g, ".");
+
+const getEvolutionStatusUpdateDecision = (payload = {}, envelope = null) => {
   const data = primaryEvolutionData(payload);
-  const combined = [
+  const normalizedEvent = normalizeEvolutionWebhookEvent(envelope?.event || envelope?.rawEvent || payload?.event || payload?.type || payload?.name || data?.event || data?.type || data?.name || "");
+  const eventSources = [
     envelope?.rawEvent,
     payload?.event,
     payload?.type,
@@ -2180,19 +2183,55 @@ const isEvolutionStatusUpdatePayload = (payload = {}, envelope = null) => {
   ]
     .map((value) => text(value).toLowerCase())
     .join(" ");
-  return (
-    combined.includes("messages.update") ||
-    combined.includes("message.update") ||
-    combined.includes("delivery_ack") ||
-    combined.includes("delivery.ack") ||
-    combined.includes("status.update") ||
-    combined.includes("messages.status") ||
-    combined.includes("message.status") ||
-    ["sent", "delivered", "read", "failed", "delivery_ack"].includes(text(data?.status).toLowerCase()) ||
-    Array.isArray(data?.statuses) ||
-    Array.isArray(payload?.statuses)
-  );
+  const hasStatusesPayload = Array.isArray(data?.statuses) || Array.isArray(payload?.statuses);
+  const hasStatusField = ["sent", "delivered", "read", "failed", "delivery_ack", "ack"].includes(text(data?.status).toLowerCase());
+  const hasDeliveryAck = eventSources.includes("delivery_ack") || eventSources.includes("delivery.ack");
+  const hasStatusEvent = eventSources.includes("status.update") || eventSources.includes("messages.status") || eventSources.includes("message.status");
+  const isMessagesUpdate = normalizedEvent === "messages.update" || eventSources.includes("messages.update") || eventSources.includes("message.update");
+  const isFromMe = envelope?.fromMe === true;
+
+  if (normalizedEvent === "messages.upsert" && envelope?.fromMe === false) {
+    return {
+      isStatusUpdate: false,
+      reason: "inbound_messages_upsert",
+      normalizedEvent,
+      indicators: { isMessagesUpdate, hasDeliveryAck, hasStatusEvent, hasStatusesPayload, hasStatusField, isFromMe },
+    };
+  }
+
+  const isStatusUpdate =
+    isMessagesUpdate ||
+    hasDeliveryAck ||
+    hasStatusEvent ||
+    hasStatusesPayload ||
+    (isFromMe && hasStatusField);
+
+  return {
+    isStatusUpdate,
+    reason: isMessagesUpdate
+      ? "messages_update"
+      : hasDeliveryAck
+        ? "delivery_ack"
+        : hasStatusEvent
+          ? "status_event"
+          : hasStatusesPayload
+            ? "status_payload"
+            : isFromMe && hasStatusField
+              ? "from_me_outbound_ack"
+              : "not_status_update",
+    normalizedEvent,
+    indicators: {
+      isMessagesUpdate,
+      hasDeliveryAck,
+      hasStatusEvent,
+      hasStatusesPayload,
+      hasStatusField,
+      isFromMe,
+    },
+  };
 };
+
+const isEvolutionStatusUpdatePayload = (payload = {}, envelope = null) => getEvolutionStatusUpdateDecision(payload, envelope).isStatusUpdate;
 
 const normalizeEvolutionDeliveryStatus = (value = "") => {
   const status = text(value).toLowerCase();
@@ -2864,8 +2903,12 @@ export const handleIncomingWebhook = async (payload = {}) => {
       event: envelope.event || "",
       rawEvent: envelope.rawEvent || "",
       remoteJid: envelope.remoteJid || "",
+      key_remoteJid: envelope.key?.remoteJid || envelope.key?.remote_jid || "",
+      message_key_id: envelope.data?.message?.key?.id || envelope.key?.id || "",
       messageId: envelope.messageId || "",
+      text: fullPayloadText || "",
       textLength: String(fullPayloadText || "").trim().length,
+      fromMe: envelope.fromMe === true,
       instance: envelope.instance || "",
     });
     return {
@@ -2940,7 +2983,36 @@ export const handleIncomingWebhook = async (payload = {}) => {
     fromMe: envelope.fromMe,
     eventCandidates: envelope.eventCandidates,
   });
-  if (isEvolutionStatusUpdatePayload(payload, envelope)) {
+  const statusDecision = getEvolutionStatusUpdateDecision(payload, envelope);
+  const isInboundMessagesUpsert = statusDecision.normalizedEvent === "messages.upsert" && envelope.fromMe === false;
+  console.info("[whatsapp:evolution-status-decision]", {
+    event: envelope.event || "",
+    rawEvent: envelope.rawEvent || "",
+    normalizedEvent: statusDecision.normalizedEvent || "",
+    fromMe: envelope.fromMe === true,
+    isStatusUpdate: statusDecision.isStatusUpdate === true,
+    reason: statusDecision.reason || "",
+    indicators: statusDecision.indicators || {},
+  });
+  if (isInboundMessagesUpsert) {
+    console.info("[ai-auto-reply] stage=inbound_route_selected", {
+      event: envelope.event || "",
+      rawEvent: envelope.rawEvent || "",
+      normalizedEvent: statusDecision.normalizedEvent || "",
+      fromMe: envelope.fromMe === true,
+      remoteJid: envelope.remoteJid || "",
+      reason: "messages.upsert_from_customer",
+    });
+  } else if (statusDecision.isStatusUpdate) {
+    console.info("[ai-auto-reply] stage=status_route_selected", {
+      event: envelope.event || "",
+      rawEvent: envelope.rawEvent || "",
+      normalizedEvent: statusDecision.normalizedEvent || "",
+      fromMe: envelope.fromMe === true,
+      remoteJid: envelope.remoteJid || "",
+      reason: statusDecision.reason || "status_update",
+      indicators: statusDecision.indicators || {},
+    });
     const statusUpdate = await processEvolutionStatusUpdate(payload);
     return {
       event: envelope.event || "messages.update",
@@ -3153,6 +3225,20 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     console.log("[whatsapp:ai-auto-reply-disabled]");
     return { triggered: false, sent: false, reason: "ai_auto_reply_disabled" };
   }
+  const rawText = text(message?.text || message?.message_text || message?.body || "");
+  console.info("[ai-auto-reply] stage=webhook_received", {
+    event: text(message?.event || ""),
+    rawEvent: text(message?.rawEvent || ""),
+    remoteJid: text(message?.remoteJid || message?.remote_jid || ""),
+    key_remoteJid: text(message?.raw?.key?.remoteJid || message?.raw?.key?.remote_jid || ""),
+    message_key_id: text(message?.raw?.message?.key?.id || message?.raw?.key?.id || ""),
+    messageId: text(message?.message_id || message?.messageId || ""),
+    text: rawText,
+    textLength: rawText.length,
+    fromMe: message?.fromMe === true,
+    inbox_saved: message?.inbox?.saved === true,
+    inbox_duplicate: message?.inbox?.duplicate === true,
+  });
   if (message?.isGroup === true) {
     console.info("[whatsapp:ai-skipped]", {
       reason: "group_chat",
@@ -3161,7 +3247,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     });
     return { triggered: false, sent: false, reason: "group_chat" };
   }
-  const inboundText = text(message?.text || message?.message_text || message?.body || "");
+  const inboundText = rawText;
   if (message?.fromMe === true) {
     const ownerJids = outboundOwnerJidsForMessage(message);
     const ownerJid = ownerJids[0] || "";
@@ -3183,6 +3269,13 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     await finishTrace(message?.trace_id, { status: "skipped", reason: "from_me" });
     return { triggered: false, sent: false, reason: "from_me" };
   }
+  console.info("[ai-auto-reply] stage=skip_check_passed", {
+    messageId: text(message?.message_id || message?.messageId || ""),
+    remoteJid: text(message?.remoteJid || message?.remote_jid || ""),
+    fromMe: message?.fromMe === true,
+    inbox_saved: message?.inbox?.saved === true,
+    inbox_duplicate: message?.inbox?.duplicate === true,
+  });
   const blockedByInboxGate = !message?.text || message?.fromMe || message?.inbox?.saved === false || message?.inbox?.duplicate === true || message?.inbox?.saved !== true;
   console.info("[ai-duplicate-gate]", {
     message_id: message?.message_id || message?.messageId || message?.inbox?.message?.external_message_id || "",
@@ -3204,6 +3297,20 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     await finishTrace(message?.trace_id, { status: "skipped", reason: !message?.text ? "missing_text" : message?.fromMe ? "from_me" : message?.inbox?.duplicate === true ? "duplicate_inbox" : "inbox_not_saved" });
     return { triggered: false, sent: false, reason: !message?.text ? "missing_text" : message?.fromMe ? "from_me" : message?.inbox?.duplicate === true ? "duplicate_inbox" : "inbox_not_saved" };
   }
+  console.info("[ai-auto-reply] stage=skip_check_passed", {
+    messageId: text(message?.message_id || message?.messageId || ""),
+    remoteJid: text(message?.remoteJid || message?.remote_jid || ""),
+    fromMe: message?.fromMe === true,
+    inbox_saved: message?.inbox?.saved === true,
+    inbox_duplicate: message?.inbox?.duplicate === true,
+  });
+  console.info("[ai-auto-reply] stage=inbound_saved", {
+    messageId: text(message?.message_id || message?.messageId || ""),
+    conversation_id: text(message?.inbox?.session_id || message?.conversation_id || `whatsapp:${message?.phone || ""}`),
+    inbox_saved: message?.inbox?.saved === true,
+    inbox_duplicate: message?.inbox?.duplicate === true,
+    ai_support_message_id: text(message?.inbox?.message?.id || message?.inbox?.message?.external_message_id || ""),
+  });
   const generated = await generateWhatsappAiAutoReply({
     tenantId: message.raw?.tenant_id || message.raw?.tenantId || process.env.WHATSAPP_TENANT_ID || 1,
     phone: message.phone,
@@ -3212,6 +3319,14 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     messageText: message.text,
     timestamp: message.received_at || message.timestamp,
     traceId: message.trace_id || null,
+  });
+  console.info("[ai-auto-reply] stage=ai_generation_done", {
+    messageId: text(message?.message_id || message?.messageId || ""),
+    conversation_id: text(message?.inbox?.session_id || message?.conversation_id || `whatsapp:${message?.phone || ""}`),
+    triggered: generated?.triggered === true,
+    sent: generated?.sent === true,
+    reason: text(generated?.reason || ""),
+    reply_length: text(generated?.replyText || "").length,
   });
   if (!generated.replyText) return generated;
 
@@ -3293,6 +3408,13 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     await finishTrace(message.trace_id, { status: "skipped", reason: skipReason });
     return { ...generated, sent: false, reason: skipReason, replyTarget: outboundReplyTarget };
   }
+  console.info("[ai-auto-reply] stage=send_whatsapp_start", {
+    conversation_id: outboundReplyTarget.conversation_id || outboundReplyTarget.resolvedJid || outboundReplyTarget.remoteJid || `whatsapp:${message?.phone || ""}`,
+    remoteJid: outboundReplyTarget.remoteJid || "",
+    resolved_jid: outboundReplyTarget.resolvedJid || "",
+    resolved_phone: sendTargetNumber,
+    reply_length: generated.replyText.length,
+  });
   const ownerTarget = { jid: outboundReplyTarget.resolvedJid || jidFromNumber(sendTargetNumber), number: sendTargetNumber };
   const outgoingTargetsOwner = message.fromMe === false && targetEqualsOwner(ownerTarget, outboundOwnerJidsForMessage(message));
   if (outgoingTargetsOwner) {
@@ -3359,6 +3481,11 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       reply_target: outboundReplyTarget,
     });
     await finishTrace(message.trace_id, { status: "skipped", reason: "owner_target" });
+    console.info("[ai-auto-reply] stage=send_whatsapp_done", {
+      conversation_id: outboundReplyTarget.conversation_id || outboundReplyTarget.resolvedJid || outboundReplyTarget.remoteJid || `whatsapp:${message?.phone || ""}`,
+      sent: false,
+      reason: "owner_target",
+    });
     return { ...generated, sent: false, reason: "owner_target", replyTarget: outboundReplyTarget };
   }
 
@@ -3439,6 +3566,11 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
         instance: outboundPlan.instance,
       });
       await finishTrace(message.trace_id, { status: "skipped", reason: "duplicate_reply" });
+      console.info("[ai-auto-reply] stage=send_whatsapp_done", {
+        conversation_id: outboundPlan.conversation_id,
+        sent: false,
+        reason: "duplicate_reply",
+      });
       return { triggered: true, sent: false, reason: "duplicate_reply", aiPayload: generated.aiPayload, replyText: "", outboundPlan };
     }
     console.info("[whatsapp-image-cards-input]", {
@@ -3746,6 +3878,13 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
         outbound_plan: outboundPlan,
       },
     });
+    console.info("[ai-auto-reply] stage=send_whatsapp_done", {
+      conversation_id: outboundPlan.conversation_id,
+      sent: true,
+      send_target_phone: sendTargetNumber,
+      evolution_result_ok: Boolean(result?.result || result?.success || result?.message_id || result?.messageId),
+      reply_length: finalReplyText.length,
+    });
     await appendAiGeneratedSupportReply({
       tenantId: generated.tenantId,
       sessionId: normalizeWhatsappSessionId(generated.sessionId, sendTargetNumber || generated.phone || message.phone),
@@ -3772,6 +3911,12 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
         sessionId: generated.sessionId,
         message: error?.message || String(error),
       });
+    });
+    console.info("[ai-auto-reply] stage=outbound_saved", {
+      conversation_id: outboundPlan.conversation_id,
+      sent: true,
+      transcript_saved: true,
+      send_target_phone: sendTargetNumber,
     });
     console.info("[whatsapp:ai-sent]", {
       tenantId: generated.tenantId,
@@ -3884,6 +4029,12 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       skip_reason: "text_send_failed",
     });
     await failTrace(message.trace_id, error, { phase: "send_to_whatsapp", sessionId: generated.sessionId });
+    console.info("[ai-auto-reply] stage=outbound_saved", {
+      conversation_id: outboundPlan.conversation_id,
+      sent: false,
+      transcript_saved: true,
+      reason: summary.causeMessage ? `${summary.message} / cause: ${summary.causeMessage}` : summary.message,
+    });
     return { ...generated, sent: false, reason: "evolution_send_failed", error: summary };
   }
 };

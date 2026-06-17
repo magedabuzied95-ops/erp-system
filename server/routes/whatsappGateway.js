@@ -94,6 +94,17 @@ router.post("/webhook", async (req, res) => {
     }
     const normalized = await handleIncomingWebhook(req.body || {});
     if (normalized?.skipped) {
+      console.info("[whatsapp:webhook-early-skip]", {
+        reason: normalized.skipReason || normalized.replyTargetReason || "evolution_noise",
+        event: normalized.event || "",
+        remoteJid: normalized.remoteJid || "",
+        key_remoteJid: normalized.raw?.key?.remoteJid || normalized.raw?.key?.remote_jid || "",
+        message_key_id: normalized.raw?.message?.key?.id || normalized.raw?.key?.id || "",
+        messageId: normalized.messageId || "",
+        text: normalized.text || "",
+        textLength: String(normalized.text || "").length,
+        fromMe: normalized.fromMe === true,
+      });
       return res.status(200).json({
         success: true,
         received: true,

@@ -997,6 +997,24 @@ const shouldAutoReplyToWhatsapp = async ({ tenantId, conversationId, payload = {
     shouldAutoSend,
     status,
   };
+  console.info("[ai-auto-reply] stage=conversation_loaded", {
+    conversation_id: conversationId,
+    tenant_id: tenantId,
+    status,
+    ai_enabled: state?.ai_enabled !== false,
+    conversation_status: state?.status || payload?.conversation_status || "",
+  });
+  console.info("[ai-auto-reply] stage=ai_enabled_check", {
+    conversation_id: conversationId,
+    tenant_id: tenantId,
+    ai_enabled: state?.ai_enabled !== false,
+    global_mode: globalMode,
+    channel_mode: channelMode,
+    runtime_mode: runtimeMode,
+    effective_mode: effectiveMode,
+    should_auto_send: shouldAutoSend,
+    status,
+  });
 
   if (status === "human_takeover") return { ok: false, reason: "human_takeover", ...base };
   if (status === "closed" || payload?.auto_response_paused === true) return { ok: false, reason: "paused", ...base };
@@ -1230,6 +1248,12 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
     last_product_cards_count: loadedProductCards.length,
   });
   await syncWhatsappLiveMemoryToChannel({ tenantId: safeTenantId, sessionId: safeSessionId, phone: safePhone, memory: loadedMemoryWithV2 });
+  console.info("[ai-auto-reply] stage=ai_generation_start", {
+    conversation_id: safeSessionId,
+    tenant_id: safeTenantId,
+    phone_suffix: safePhone.slice(-4),
+    trace_id: traceId || "",
+  });
   const unifiedDecision = await generateUnifiedConversationDecision({
     channel: AI_AGENT_CHANNELS.WHATSAPP,
     externalConversationId: safeSessionId,
@@ -1766,6 +1790,14 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
     });
   }
   await addAiPayloadTraceSteps({ traceId, aiPayload, messageText: body, replyText, replyDecision });
+  console.info("[ai-auto-reply] stage=ai_generation_done", {
+    conversation_id: safeSessionId,
+    tenant_id: safeTenantId,
+    phone_suffix: safePhone.slice(-4),
+    reply_length: replyText.length,
+    detected_intent: aiPayload.detected_intent || "",
+    confidence: aiPayload.confidence || 0,
+  });
   console.info("[whatsapp:ai-generated]", {
     tenantId: safeTenantId,
     sessionId: safeSessionId,
