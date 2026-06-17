@@ -6,6 +6,11 @@ const cleanText = (value, fallback = "") => {
   return text || fallback;
 };
 
+const nullableText = (value) => {
+  const text = String(value ?? "").trim();
+  return text ? text : null;
+};
+
 let schemaEnsured = false;
 let schemaEnsurePromise = null;
 
@@ -82,23 +87,58 @@ export const updateSiteSettings = async ({ tenantId, companyName, companyLogoUrl
   const safeTenantId = Number.isFinite(Number(tenantId)) && Number(tenantId) > 0 ? Number(tenantId) : null;
   if (!safeTenantId) throw new Error("tenant_id is required");
 
-  const nextCompanyName = cleanText(companyName, "MONE");
-  const nextCompanyLogoUrl = cleanText(companyLogoUrl, "");
-  const nextFaviconUrl = cleanText(faviconUrl, "");
-
   await ensureSiteSettingsSchema();
+
+  const currentTenantResult = await db.query(
+    `
+    SELECT
+      t.id,
+      t.name,
+      t.company_name,
+      t.company_logo_url,
+      t.favicon_url
+    FROM tenants t
+    WHERE t.id = $1
+    LIMIT 1
+    `,
+    [safeTenantId]
+  );
+  const currentTenant = currentTenantResult.rows[0] || null;
+  const payload = {
+    tenantId: safeTenantId,
+    company_name: nullableText(companyName),
+    company_logo_url: nullableText(companyLogoUrl),
+    favicon_url: nullableText(faviconUrl),
+  };
+  console.log({
+    tenantId: safeTenantId,
+    payload,
+    currentTenant,
+  });
+
+  const nextTenantName = payload.company_name || currentTenant?.name || currentTenant?.company_name || "MONE";
+  const nextCompanyName = payload.company_name;
+  const nextCompanyLogoUrl = payload.company_logo_url;
+  const nextFaviconUrl = payload.favicon_url;
 
   await db.query(
     `
-    INSERT INTO tenants (id, company_name, company_logo_url, favicon_url)
-    VALUES ($1, $2, $3, $4)
+    INSERT INTO tenants (
+      id,
+      name,
+      company_name,
+      company_logo_url,
+      favicon_url
+    )
+    VALUES ($1, $2, $3, $4, $5)
     ON CONFLICT (id) DO UPDATE SET
-      company_name = EXCLUDED.company_name,
-      company_logo_url = EXCLUDED.company_logo_url,
-      favicon_url = EXCLUDED.favicon_url,
+      name = COALESCE(NULLIF(EXCLUDED.name, ''), tenants.name, COALESCE(NULLIF(EXCLUDED.company_name, ''), tenants.company_name, 'MONE')),
+      company_name = COALESCE(NULLIF(EXCLUDED.company_name, ''), tenants.company_name, tenants.name, 'MONE'),
+      company_logo_url = COALESCE(NULLIF(EXCLUDED.company_logo_url, ''), tenants.company_logo_url, ''),
+      favicon_url = COALESCE(NULLIF(EXCLUDED.favicon_url, ''), tenants.favicon_url, ''),
       updated_at = NOW()
     `,
-    [safeTenantId, nextCompanyName, nextCompanyLogoUrl, nextFaviconUrl]
+    [safeTenantId, nextTenantName, nextCompanyName, nextCompanyLogoUrl, nextFaviconUrl]
   );
 
   await db.query(
@@ -111,18 +151,18 @@ export const updateSiteSettings = async ({ tenantId, companyName, companyLogoUrl
     )
     VALUES ($1, $2, $3, $4)
     ON CONFLICT (tenant_id) DO UPDATE SET
-      company_name = EXCLUDED.company_name,
-      logo_url = EXCLUDED.logo_url,
-      favicon_url = EXCLUDED.favicon_url,
+      company_name = COALESCE(NULLIF(EXCLUDED.company_name, ''), company_profiles.company_name, ''),
+      logo_url = COALESCE(NULLIF(EXCLUDED.logo_url, ''), company_profiles.logo_url, ''),
+      favicon_url = COALESCE(NULLIF(EXCLUDED.favicon_url, ''), company_profiles.favicon_url, ''),
       updated_at = NOW()
     `,
     [safeTenantId, nextCompanyName, nextCompanyLogoUrl, nextFaviconUrl]
   );
 
   await Promise.all([
-    setSetting("general.company_name", nextCompanyName, "general", updatedBy).catch(() => null),
-    setSetting("general.company_logo_url", nextCompanyLogoUrl, "general", updatedBy).catch(() => null),
-    setSetting("general.favicon_url", nextFaviconUrl, "general", updatedBy).catch(() => null),
+    nextCompanyName !== null ? setSetting("general.company_name", nextCompanyName, "general", updatedBy).catch(() => null) : Promise.resolve(),
+    nextCompanyLogoUrl !== null ? setSetting("general.company_logo_url", nextCompanyLogoUrl, "general", updatedBy).catch(() => null) : Promise.resolve(),
+    nextFaviconUrl !== null ? setSetting("general.favicon_url", nextFaviconUrl, "general", updatedBy).catch(() => null) : Promise.resolve(),
   ]);
 
   return getSiteSettings({ tenantId: safeTenantId });
