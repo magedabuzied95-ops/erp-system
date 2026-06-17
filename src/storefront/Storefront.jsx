@@ -5897,29 +5897,6 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       }
     });
     if (!valid) {
-      if (import.meta.env.DEV) {
-        console.warn("[checkout:validate-blockers]", {
-          checkoutStep,
-          paymentMode,
-          submitDisabled,
-          missingFields: Object.keys(errors || {}).filter((key) => Boolean(errors[key])),
-          blockers: Object.keys([1, 2, 3].reduce((acc, stepNumber) => {
-            const result = validateStep(stepNumber, { showToast: false });
-            if (!result) acc[`step_${stepNumber}`] = true;
-            return acc;
-          }, {})),
-          requiredFields: {
-            step1: ["full_name", "primary_phone"],
-            step2: ["governorate", "city_area", "detailed_address", "street_address", "building_number"],
-            step3: ["payment_method", ...(shippingProofRequired ? ["shipping_payment_screenshot"] : [])],
-          },
-          shippingQuote: {
-            loading: shippingQuote.loading,
-            provider: shippingQuote.provider,
-            cod_allowed: shippingQuote.cod_allowed,
-          },
-        });
-      }
       if (firstInvalidStep) goToCheckoutStep(firstInvalidStep);
       toast.error(sfText("storefront.toasts.completeRequiredData"));
       if (firstInvalidStep === 3 && shippingProofRequired && !shippingPaymentFile) toast.error(sfText("storefront.toasts.uploadTransferProof"));
