@@ -2929,7 +2929,19 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       conversation_id: conversationId,
       message_length: messageText.length,
     });
+    console.info("[ai-inbox:send-route]", {
+      stage: "load_ai_inbox_start",
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      message_length: messageText.length,
+    });
     const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 1000 });
+    console.info("[ai-inbox:send-route]", {
+      stage: "load_ai_inbox_done",
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      loaded_count: inbox.conversations.length,
+    });
     conversation = inbox.conversations.find((item) =>
       item.session_id === conversationId ||
       item.external_conversation_id === conversationId ||

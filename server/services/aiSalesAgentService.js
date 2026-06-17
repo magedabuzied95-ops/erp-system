@@ -1564,6 +1564,14 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       conversation.conversation_memory_shopping_intent ||
       ""
     );
+    const summaryMessages = summaryOnly ? messages.slice(0, 1).map(summarizeInboxMessage) : messages;
+    console.info("[ai-inbox:load-conversation-summary]", {
+      tenantId,
+      conversation_id: conversation.session_id || "",
+      summary_only: summaryOnly,
+      total_messages: totalMessages,
+      summary_messages: summaryMessages.length,
+    });
     const salesIntelligence = summaryOnly
       ? {
           state: {
@@ -1662,7 +1670,6 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
         created_at: order.updated_at || order.created_at,
       })),
     ].filter(Boolean).sort((left, right) => new Date(left.created_at || 0) - new Date(right.created_at || 0));
-    const summaryMessages = summaryOnly ? messages.slice(0, 1).map(summarizeInboxMessage) : messages;
     if (summaryOnly) {
       const normalizeSummaryLeadStatus = (value = "") => {
         const key = text(value).toLowerCase();
