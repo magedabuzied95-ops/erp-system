@@ -212,7 +212,7 @@ export const resolveStorefrontShippingQuote = async ({ governorate = "", city = 
   return {
     price,
     shipping_price: price,
-    cod_allowed: match ? Boolean(match.cod_allowed) : true,
+    cod_allowed: true,
     requires_shipping_proof: match ? Boolean(match.requires_shipping_proof) : true,
     estimated_delivery_text: match?.estimated_delivery_text || "",
     provider: match?.provider || defaultProvider,

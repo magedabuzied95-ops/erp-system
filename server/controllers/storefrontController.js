@@ -3082,14 +3082,7 @@ const isDamiettaGovernorate = (value = "") => {
   return text.includes("دمياط") || text.includes("damietta") || text.includes("دمياط");
 };
 
-const canUseCod = (customer = {}, checkout = {}, shippingQuote = {}) =>
-  shippingQuote.cod_allowed !== false && (
-    toText(checkout.governorate).includes("دمياط") ||
-    isDamiettaGovernorate(checkout.governorate) ||
-    Number(customer?.completed_orders || 0) >= 1 ||
-    customer?.is_trusted === true ||
-    customer?.cod_enabled === true
-  );
+const canUseCod = () => true;
 
 export const getShippingQuote = async (req, res) => {
   try {
@@ -3411,15 +3404,7 @@ export const createWebsiteOrder = async (req, res) => {
       await client.query("ROLLBACK");
       return checkoutValidationResponse(403, "Cash on delivery is disabled", "payment_method", { payment_method: paymentMethod });
     }
-    const minimumOrderForCod = Number(shippingQuote.minimum_order_for_cod || 0);
-    if (paymentMethod === "cod" && minimumOrderForCod > 0 && subtotal < minimumOrderForCod) {
-      await client.query("ROLLBACK");
-      return checkoutValidationResponse(403, "Cash on delivery minimum order is not met for this address", "payment_method", { payment_method: paymentMethod, governorate: checkout.governorate, subtotal, minimum_order_for_cod: minimumOrderForCod, shipping_quote: shippingQuote });
-    }
-    if (paymentMethod === "cod" && !canUseCod(customer, checkout, shippingQuote)) {
-      await client.query("ROLLBACK");
-      return checkoutValidationResponse(403, "Cash on delivery is not available for this address", "payment_method", { payment_method: paymentMethod, governorate: checkout.governorate, shipping_quote: shippingQuote });
-    }
+
     if (paymentMethod === "shipping_confirmation" && shippingQuote.requires_shipping_proof !== false && !shippingPaymentFile) {
       await client.query("ROLLBACK");
       return checkoutValidationResponse(400, "Upload a valid transfer proof image", "shipping_payment_screenshot", { payment_method: paymentMethod });
