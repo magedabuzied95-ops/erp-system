@@ -79,6 +79,14 @@ const asProductCards = (value) => {
   }
   return [];
 };
+const normalizeInboxProductCards = (row = {}) =>
+  asProductCards(
+    row.product_cards ||
+      row.productCards ||
+      row.suggested_products ||
+      row.suggestedProducts ||
+      []
+  );
 const uniqueArray = (items = []) => [...new Set(asArray(items).map((item) => text(item)).filter(Boolean))];
 const isRegressionTestContext = () => Boolean(getPerfContext()?.is_regression_test || getPerfContext()?.dry_run);
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, numeric(value, 0)));
@@ -730,8 +738,8 @@ export const normalizeInboxMessage = (row = {}) => ({
   needs_human_support: row.needs_human_support === true,
   detected_intent: row.detected_intent || "",
   suggested_products: asArray(row.suggested_products),
-  product_cards: asProductCards(row.product_cards),
-  productCards: asProductCards(row.product_cards),
+  product_cards: normalizeInboxProductCards(row),
+  productCards: normalizeInboxProductCards(row),
   visual_attachments: asArray(row.visual_attachments),
   suggested_actions: asArray(row.suggested_actions),
   created_at: row.created_at,
@@ -762,6 +770,8 @@ const summarizeInboxMessage = (row = {}) => ({
   confidence: Number(row.confidence || 0),
   needs_human_support: row.needs_human_support === true,
   detected_intent: row.detected_intent || "",
+  product_cards: normalizeInboxProductCards(row),
+  productCards: normalizeInboxProductCards(row),
   created_at: row.created_at,
   system_events: Array.isArray(row.system_events) ? row.system_events.slice(0, 2) : [],
 });
@@ -1143,7 +1153,7 @@ export const scheduleAiFollowupIfNeeded = async ({ tenantId, sessionId = "", met
   return result.rows[0] || null;
 };
 
-export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30, before = "" } = {}) => {
+export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30, before = "", beforeId = "" } = {}) => {
   await ensureAiSalesAgentSchema();
   await ensureAiInboxSchema();
   const safeConversationId = text(conversationId);
@@ -1168,7 +1178,11 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
   const params = [tenantId, safeConversationId, messageLimit];
   const beforeClause = before
     ? (() => {
-        params.push(before);
+      params.push(before);
+        if (beforeId) {
+          params.push(beforeId);
+          return `AND (created_at < $${params.length - 1}::timestamp OR (created_at = $${params.length - 1}::timestamp AND id < $${params.length}::bigint))`;
+        }
         return `AND created_at < $${params.length}`;
       })()
     : "";

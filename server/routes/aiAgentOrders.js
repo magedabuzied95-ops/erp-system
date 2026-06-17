@@ -1800,6 +1800,7 @@ router.get("/conversations/:conversationId/messages", protect, permit("settings"
       conversationId,
       limit: req.query?.limit || 30,
       before: req.query?.before || "",
+      beforeId: req.query?.before_id || req.query?.beforeId || "",
     });
     return res.json({ success: true, conversation_id: conversationId, ...payload });
   } catch (error) {

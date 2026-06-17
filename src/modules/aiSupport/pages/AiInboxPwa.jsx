@@ -30,6 +30,7 @@ import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStora
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { getPosSellableProducts } from "../../pos/services/posProductsApi";
+import ProductCardMessage from "../components/ProductCardMessage";
 import ProductCardPicker from "../components/ProductCardPicker";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -160,6 +161,15 @@ const normalizeProductCardsValue = (value) => {
   return [];
 };
 
+const normalizeMessageProductCards = (message = {}) =>
+  normalizeProductCardsValue(
+    message.product_cards ||
+      message.productCards ||
+      message.suggested_products ||
+      message.suggestedProducts ||
+      []
+  );
+
 const messageDisplayText = (message = {}) =>
   clean(
     message.customer_message ||
@@ -181,14 +191,14 @@ const normalizeMessageDirection = (message = {}) => {
   if (["outbound", "sent", "assistant", "ai", "bot", "staff", "agent"].includes(explicitDirection)) return "outbound";
   if (["customer", "user", "client"].includes(senderType)) return "inbound";
   if (["assistant", "ai", "bot", "staff", "agent"].includes(senderType)) return "outbound";
-  if (normalizeProductCardsValue(message.product_cards || message.productCards).length) return "outbound";
+  if (normalizeMessageProductCards(message).length) return "outbound";
   if (messageDisplayText(message)) return "outbound";
   return "";
 };
 
 const normalizeInboxMessage = (message = {}) => {
   if (!message || typeof message !== "object") return {};
-  const productCards = normalizeProductCardsValue(message.product_cards || message.productCards);
+  const productCards = normalizeMessageProductCards(message);
   const providerMessageId = clean(
     message.provider_message_id ||
       message.providerMessageId ||
@@ -356,7 +366,7 @@ const messageKey = (message = {}) =>
       message.externalMessageId ||
       message.dedupe_key ||
       message.id ||
-      `${message.sender_type || message.senderType || ""}:${message.direction || message.message_direction || ""}:${message.created_at || ""}:${message.customer_message || message.ai_answer || message.staff_message || message.message_text || message.text || message.body || message.content || ""}:${normalizeProductCardsValue(message.product_cards || message.productCards).map((card) => [
+      `${message.sender_type || message.senderType || ""}:${message.direction || message.message_direction || ""}:${message.created_at || ""}:${message.customer_message || message.ai_answer || message.staff_message || message.message_text || message.text || message.body || message.content || ""}:${normalizeMessageProductCards(message).map((card) => [
         card.product_id || card.id || "",
         card.variant_id || card.variantId || "",
         card.color || "",
@@ -679,8 +689,8 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
         </div>
       ) : null}
       {messages.map((message) => {
-        const cards = normalizeProductCardsValue(message.product_cards || message.productCards);
-        const hasProductCards = cards.length > 0 || message.message_type === "product_card";
+        const cards = normalizeMessageProductCards(message);
+        const hasProductCards = cards.length > 0;
         const displayText = messageDisplayText(message);
         const isCustomer = Boolean(clean(message.customer_message));
         const isAi = Boolean(clean(message.ai_answer)) || message.sender_type === "assistant" || message.sender_type === "ai" || message.direction === "outbound";
@@ -693,33 +703,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
               <div className="flex justify-start">
                 <div className="w-[82%] max-w-sm space-y-1.5">
                   <div className="px-1 text-left text-[10px] font-medium text-slate-500">{absoluteTime(message.created_at)}</div>
-                  {cards.map((card, index) => {
-                    const image = productImage(card);
-                    const href = productUrl(card);
-                    return (
-                      <div key={`${card.product_id || card.variant_id || index}`} className="overflow-hidden rounded-[20px] rounded-bl-md border border-slate-200 bg-white shadow-sm">
-                        {image ? <img src={image} alt={card.product_name || "Product"} className="aspect-[4/3] w-full object-cover" loading="lazy" /> : null}
-                        <div className="space-y-2 p-2.5">
-                          <div className="text-sm font-semibold text-slate-900">{card.product_name || card.name || "Product"}</div>
-                          <div className="flex flex-wrap gap-2 text-xs text-slate-600">
-                            {Number(card.price || card.final_price || 0) > 0 ? <span>{money(card.price || card.final_price)}</span> : null}
-                            {card.color ? <span>{card.color}</span> : null}
-                            {card.size ? <span>{card.size}</span> : null}
-                          </div>
-                          {href ? (
-                            <a
-                              href={href}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1.5 text-xs font-medium text-white"
-                            >
-                              Open Product
-                            </a>
-                          ) : null}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  <ProductCardMessage message={message} cards={cards} />
                 </div>
               </div>
             ) : null}
@@ -1605,6 +1589,7 @@ export default function AiInboxPwa() {
   const loadOlderMessages = useCallback(async () => {
     if (!selectedConversation?.session_id || olderLoading) return;
     const before = selectedConversation.next_messages_before || selectedConversation.messages?.[0]?.created_at || "";
+    const beforeId = selectedConversation.messages?.[0]?.id || "";
     if (!before) return;
     const scroller = mainScrollRef.current;
     if (scroller) {
@@ -1616,7 +1601,7 @@ export default function AiInboxPwa() {
     setOlderLoading(true);
     try {
       const payload = await api.get(aiInboxConversationEndpoint(normalizeConversationSessionId(selectedConversation.session_id, selectedConversation.channel || selectedConversation.source || selectedConversation.provider || selectedConversation.platform || ""), "/messages"), {
-        params: { tenant_id: tenantId, before, limit: 30 },
+        params: { tenant_id: tenantId, before, before_id: beforeId, limit: 30 },
         headers,
         perfComponent: "AiInboxPwa.messages",
       });
