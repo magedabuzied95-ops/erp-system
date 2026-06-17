@@ -222,6 +222,39 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [selectedSizeCards, setSelectedSizeCards] = useState([]);
   const previousOpenRef = useRef(false);
+  const overlayRef = useRef(null);
+  const isDesktopViewport = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 640px)").matches : false;
+  const overlayStyle = {
+    position: "fixed",
+    inset: 0,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: "100vw",
+    height: "100dvh",
+    zIndex: 2147483647,
+    isolation: "isolate",
+  };
+  const panelStyle = isDesktopViewport
+    ? {
+        position: "relative",
+        inset: "auto",
+        width: "100%",
+        height: "auto",
+        maxHeight: "85dvh",
+        margin: 0,
+        borderRadius: "1.35rem",
+      }
+    : {
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100dvh",
+        maxHeight: "100dvh",
+        margin: 0,
+        borderRadius: 0,
+      };
 
   useEffect(() => {
     if (!open) return undefined;
@@ -393,6 +426,67 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
   }, [open, visibleProducts]);
 
   useEffect(() => {
+    if (!open) return undefined;
+    const frame = requestAnimationFrame(() => {
+      const overlay = overlayRef.current;
+      const portalRoot = overlay?.parentElement || null;
+      const rootRect = portalRoot?.getBoundingClientRect?.() || null;
+      const bodyRect = document.body?.getBoundingClientRect?.() || null;
+      const documentRect = document.documentElement?.getBoundingClientRect?.() || null;
+      const overlayRect = overlay?.getBoundingClientRect?.() || null;
+      const overlayStyles = overlay ? window.getComputedStyle(overlay) : null;
+      console.debug("[product-card-picker][overlay-debug]", {
+        direct_child_of_body: portalRoot === document.body,
+        body_contains_overlay: document.body?.contains(overlay),
+        portal_root_tag: portalRoot?.tagName || null,
+        portal_root_rect: rootRect ? {
+          top: rootRect.top,
+          left: rootRect.left,
+          width: rootRect.width,
+          height: rootRect.height,
+          bottom: rootRect.bottom,
+          right: rootRect.right,
+        } : null,
+        body_rect: bodyRect ? {
+          top: bodyRect.top,
+          left: bodyRect.left,
+          width: bodyRect.width,
+          height: bodyRect.height,
+          bottom: bodyRect.bottom,
+          right: bodyRect.right,
+        } : null,
+        document_rect: documentRect ? {
+          top: documentRect.top,
+          left: documentRect.left,
+          width: documentRect.width,
+          height: documentRect.height,
+          bottom: documentRect.bottom,
+          right: documentRect.right,
+        } : null,
+        overlay_rect: overlayRect ? {
+          top: overlayRect.top,
+          left: overlayRect.left,
+          width: overlayRect.width,
+          height: overlayRect.height,
+          bottom: overlayRect.bottom,
+          right: overlayRect.right,
+        } : null,
+        overlay_computed_style: overlayStyles ? {
+          position: overlayStyles.position,
+          top: overlayStyles.top,
+          left: overlayStyles.left,
+          right: overlayStyles.right,
+          bottom: overlayStyles.bottom,
+          transform: overlayStyles.transform,
+          inset: overlayStyles.inset,
+          zIndex: overlayStyles.zIndex,
+        } : null,
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
+
+  useEffect(() => {
     if (!sizeMode || !selectedSize) return;
     setSelectedSizeCards([]);
   }, [selectedSize, sizeMode]);
@@ -472,14 +566,17 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
 
   return createPortal(
     <div
+      ref={overlayRef}
       className="fixed inset-0 z-[99999] isolate overflow-hidden bg-black/70 backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-4"
+      style={overlayStyle}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose?.();
       }}
     >
       <div className="absolute inset-0 bg-black/70" aria-hidden="true" />
       <section
-        className="relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-[640px] min-w-0 flex-col overflow-hidden rounded-none border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)] sm:h-auto sm:max-h-[85dvh] sm:rounded-[1.35rem]"
+        className="relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-[640px] min-w-0 flex-col overflow-hidden rounded-none border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)] sm:mx-auto sm:h-auto sm:max-h-[85dvh] sm:rounded-[1.35rem]"
+        style={panelStyle}
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
