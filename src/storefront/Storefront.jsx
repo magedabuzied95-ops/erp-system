@@ -2157,7 +2157,7 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
               <div className="absolute inset-0 bg-gradient-to-l from-black/80 via-black/35 to-black/12" />
               <div className={`relative z-10 flex min-h-[300px] flex-col justify-end p-7 md:min-h-0 md:p-10 lg:p-12 ${isRtl ? "text-right" : "text-left"} ${reverse ? "md:order-2" : ""}`}>
                 <div className="mb-4 w-fit rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-[#f8e7b3] backdrop-blur">
-                  {isRtl ? "???????? ??????" : "Curated edit"}
+                  {isRtl ? "\u0627\u062e\u062a\u064a\u0627\u0631\u0627\u062a \u0645\u0646\u062a\u0642\u0627\u0629" : "Curated edit"}
                 </div>
                 <h3 className="text-[3.3rem] font-black leading-none tracking-normal md:text-7xl lg:text-8xl">{title}</h3>
                 <p className="mt-4 max-w-[28rem] text-base font-bold leading-7 text-white/84 md:text-xl md:leading-8">{subtitle}</p>
