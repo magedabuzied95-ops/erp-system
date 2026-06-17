@@ -262,6 +262,7 @@ const getTableColumns = async (tableName = "") => {
   const table = text(tableName);
   if (!table) return new Set();
   if (tableColumnCache.has(table)) return tableColumnCache.get(table);
+  const inboxBaseStartedAt = Date.now();
   const result = await db.query(
     `
     SELECT column_name
@@ -522,6 +523,7 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`UPDATE ai_customer_interactions SET detected_intent = intent_type WHERE COALESCE(detected_intent, '') = '' AND COALESCE(intent_type, '') <> ''`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_customer_profiles_tenant_seen ON ai_customer_profiles (tenant_id, last_seen_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_interactions_tenant_created ON ai_customer_interactions (tenant_id, created_at DESC)`);
+      await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_interactions_tenant_session_created ON ai_customer_interactions (tenant_id, session_id, created_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_followups_tenant_status ON ai_followup_tasks (tenant_id, status, scheduled_at)`);
       await ensureAiInboxSchema(clientOrPool);
     })().catch((error) => {
@@ -587,6 +589,7 @@ export const ensureAiInboxSchema = async (clientOrPool = db) => {
     await clientOrPool.query(`ALTER TABLE ai_channel_event_logs ADD COLUMN IF NOT EXISTS conversation_id TEXT NOT NULL DEFAULT ''`);
     await clientOrPool.query(`ALTER TABLE ai_channel_event_logs ADD COLUMN IF NOT EXISTS message_preview TEXT NOT NULL DEFAULT ''`);
     await clientOrPool.query(`ALTER TABLE ai_channel_event_logs ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT ''`);
+    await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_channel_event_logs_tenant_conversation_created ON ai_channel_event_logs (tenant_id, conversation_id, created_at DESC, id DESC)`);
   };
   if (clientOrPool !== db) return runEnsure();
   aiInboxSchemaReadyPromise = runEnsure()
@@ -1202,6 +1205,18 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
     `,
     params
   );
+  logAiInboxTiming({
+    phase: "inbox_full_base_query",
+    startedAt: inboxBaseStartedAt,
+    rows: result.rowCount,
+    conversations: result.rows.length,
+    extra: {
+      filter: normalizedFilter,
+      search: Boolean(searchTerm),
+      limit: params[1],
+      message_limit: inboxMessageLimit,
+    },
+  });
   const countResult = await db.query(
     `
     SELECT COUNT(*)::int AS total
@@ -1256,6 +1271,228 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       OR LOWER(COALESCE(s.session_id, '')) LIKE $${idx}
       OR LOWER(COALESCE(m.customer_message, m.message_text, s.last_message, c.last_message, '')) LIKE $${idx}
     )`);
+  }
+  if (summaryOnly) {
+    const summaryStartedAt = Date.now();
+    const summaryQuery = `
+    WITH latest_messages AS (
+      SELECT DISTINCT ON (msg.session_id)
+        msg.session_id,
+        msg.customer_message,
+        msg.message_text,
+        msg.ai_answer,
+        msg.needs_human_support,
+        msg.sender_type,
+        msg.message_type,
+        msg.product_cards,
+        msg.created_at AS latest_message_created_at,
+        msg.id AS latest_message_id,
+        msg.external_message_id,
+        msg.external_reply_id,
+        msg.delivery_status,
+        msg.delivery_error,
+        msg.error_code,
+        msg.provider_message_id,
+        msg.confidence
+      FROM ai_support_messages msg
+      WHERE msg.tenant_id = $1
+      ORDER BY msg.session_id, msg.created_at DESC, msg.id DESC
+    )
+    SELECT
+      s.session_id,
+      s.source,
+      s.channel AS session_channel,
+      s.thread_kind AS thread_kind,
+      s.customer_name AS session_customer_name,
+      s.customer_avatar_url AS session_customer_avatar_url,
+      s.last_message AS session_last_message,
+      s.status AS conversation_status,
+      s.assigned_user_id,
+      s.assigned_user_name,
+      s.takeover_started_at,
+      s.returned_to_ai_at,
+      s.closed_at,
+      s.escalation_reason,
+      s.last_escalation_keyword,
+      s.escalated_at,
+      s.updated_at,
+      COALESCE(c.ai_enabled, s.ai_enabled, TRUE) AS ai_enabled,
+      COALESCE(c.channel, s.channel, s.source) AS channel,
+      c.external_customer_id,
+      c.external_conversation_id,
+      c.thread_kind AS channel_thread_kind,
+      COALESCE(c.lead_status, 'new') AS lead_status,
+      c.customer_avatar_url,
+      c.metadata AS channel_metadata,
+      COALESCE(c.last_message_at, s.updated_at) AS last_message_at,
+      COALESCE(c.read_at, s.read_at) AS read_at,
+      m.latest_message_id,
+      m.customer_message,
+      m.message_text,
+      m.ai_answer,
+      m.needs_human_support,
+      m.sender_type AS latest_sender_type,
+      m.message_type,
+      m.product_cards,
+      m.latest_message_created_at,
+      m.external_message_id,
+      m.external_reply_id,
+      m.delivery_status,
+      m.delivery_error,
+      m.error_code,
+      m.provider_message_id,
+      m.confidence
+    FROM ai_support_sessions s
+    LEFT JOIN ai_channel_conversations c ON c.tenant_id = s.tenant_id AND c.channel = s.channel AND c.external_conversation_id = s.session_id
+    LEFT JOIN latest_messages m ON m.session_id = s.session_id
+    WHERE ${clauses.join(" AND ")}
+    ORDER BY
+      CASE WHEN COALESCE(c.channel, s.channel, s.source) IN ('facebook_messenger', 'instagram') THEN 0 ELSE 1 END,
+      COALESCE(c.last_message_at, s.updated_at) DESC,
+      s.updated_at DESC
+    LIMIT $2
+    `;
+    const summaryResult = await db.query(summaryQuery, params);
+    logAiInboxTiming({
+      phase: "inbox_summary_query",
+      startedAt: summaryStartedAt,
+      rows: summaryResult.rowCount,
+      conversations: summaryResult.rows.length,
+      extra: {
+        filter: normalizedFilter,
+        search: Boolean(searchTerm),
+        limit: params[1],
+        message_limit: inboxMessageLimit,
+      },
+    });
+
+    const normalizedSummaryLeadStatus = (value = "") => {
+      const key = lower(value);
+      if (key === "negotiation" || key === "follow_up" || key === "followup") return "interested";
+      if (key === "lost" || key === "closed") return "new";
+      return ["new", "contacted", "interested", "won"].includes(key) ? key : "new";
+    };
+
+    const conversations = summaryResult.rows.map((conversation) => {
+      const summaryMessage = conversation.latest_message_id
+        ? summarizeInboxMessage(normalizeInboxMessage({
+            ...conversation,
+            created_at: conversation.latest_message_created_at || conversation.updated_at,
+            customer_message: conversation.customer_message || conversation.message_text || "",
+            message_text: conversation.message_text || conversation.customer_message || "",
+            ai_answer: conversation.ai_answer || "",
+            sender_type: conversation.latest_sender_type || "",
+            message_type: conversation.message_type || "",
+            product_cards: conversation.product_cards || [],
+            external_message_id: conversation.external_message_id || "",
+            external_reply_id: conversation.external_reply_id || "",
+            delivery_status: conversation.delivery_status || "",
+            delivery_error: conversation.delivery_error || "",
+            error_code: conversation.error_code || "",
+            provider_message_id: conversation.provider_message_id || "",
+            confidence: conversation.confidence || 0,
+            needs_human_support: conversation.needs_human_support === true,
+          }))
+        : null;
+      const summaryMessages = summaryMessage ? [summaryMessage] : [];
+      const unreadCount = (() => {
+        const lastActivityAt = new Date(conversation.last_message_at || conversation.updated_at || 0).getTime() || 0;
+        const readAt = new Date(conversation.read_at || 0).getTime() || 0;
+        const requiresAttention = conversation.latest_sender_type === "customer" || conversation.needs_human_support === true || conversation.conversation_status === "human_takeover";
+        return requiresAttention && (!readAt || lastActivityAt > readAt) ? 1 : 0;
+      })();
+      const leadStatus = normalizedSummaryLeadStatus(conversation.lead_status || conversation.channel_metadata?.lead_status || "new");
+      const leadType = leadTypeFrom({
+        memoryScore: 0,
+        sentiment: "neutral",
+        needsHumanSupport: conversation.needs_human_support === true || conversation.conversation_status === "human_takeover",
+        draftCount: 0,
+        confirmedCount: 0,
+        followupDue: false,
+      });
+      const channel = conversation.channel || conversation.session_channel || conversation.source || "web_chat";
+      const customerName = conversation.session_customer_name || conversation.customer_name || conversation.external_customer_id || "";
+      const customerAvatarUrl = conversation.customer_avatar_url || conversation.session_customer_avatar_url || "";
+      return {
+        session_id: conversation.session_id,
+        conversation_id: conversation.session_id,
+        conversation_key: conversation.conversation_key || conversation.session_id,
+        source: conversation.source || channel || "web_chat",
+        channel,
+        status: conversation.conversation_status || "ai_active",
+        conversation_status: conversation.conversation_status || "ai_active",
+        thread_kind: conversation.thread_kind || "",
+        assigned_to: conversation.assigned_user_id || conversation.assigned_user_name
+          ? { id: conversation.assigned_user_id || null, name: conversation.assigned_user_name || "" }
+          : null,
+        assigned_user: conversation.assigned_user_id || conversation.assigned_user_name
+          ? { id: conversation.assigned_user_id || null, name: conversation.assigned_user_name || "" }
+          : null,
+        ai_enabled: conversation.ai_enabled !== false,
+        ai_paused: ["human_takeover", "closed"].includes(conversation.conversation_status),
+        human_takeover: conversation.conversation_status === "human_takeover",
+        needs_human_support: conversation.needs_human_support === true,
+        hot_lead: false,
+        escalation_reason: conversation.escalation_reason || "",
+        ai_escalation_reason: conversation.escalation_reason || "",
+        last_escalation_keyword: conversation.last_escalation_keyword || "",
+        escalated_at: conversation.escalated_at || null,
+        takeover_started_at: conversation.takeover_started_at,
+        returned_to_ai_at: conversation.returned_to_ai_at,
+        closed_at: conversation.closed_at,
+        customer_name: customerName,
+        customer_avatar_url: customerAvatarUrl,
+        phone: "",
+        sender_name: "",
+        profile_name: "",
+        contact_name: "",
+        external_customer_id: conversation.external_customer_id || "",
+        external_conversation_id: conversation.external_conversation_id || conversation.session_id,
+        last_message: conversation.customer_message || conversation.message_text || conversation.session_last_message || "",
+        latest_message_preview: conversation.customer_message || conversation.message_text || conversation.ai_answer || conversation.session_last_message || "",
+        last_message_at: conversation.last_message_at || conversation.updated_at,
+        updated_at: conversation.updated_at,
+        last_activity_at: conversation.last_message_at || conversation.updated_at,
+        unread_count: unreadCount,
+        unread: unreadCount > 0,
+        waiting: false,
+        lead_status: leadStatus,
+        lead_type: leadType,
+        lead_badge: leadBadgeKey(leadType),
+        tags: [],
+        status_flags: {
+          ai_enabled: conversation.ai_enabled !== false,
+          ai_paused: ["human_takeover", "closed"].includes(conversation.conversation_status),
+          human_takeover: conversation.conversation_status === "human_takeover",
+          needs_human_support: conversation.needs_human_support === true,
+          hot_lead: false,
+          waiting: false,
+        },
+        channel_metadata: conversation.channel_metadata || {},
+        customer_profile: {
+          name: customerName,
+          avatar_url: customerAvatarUrl,
+          phone: "",
+          external_customer_id: conversation.external_customer_id || "",
+        },
+        message_count: summaryMessages.length,
+        preview_message: conversation.customer_message || conversation.message_text || conversation.ai_answer || conversation.session_last_message || "",
+        messages: summaryMessages,
+        older_messages_available: summaryMessages.length > 0,
+        next_messages_before: summaryMessages[0]?.created_at || "",
+        anyFullMessages: false,
+      };
+    });
+    logAiInboxTiming({
+      phase: "inbox_summary_build",
+      startedAt: summaryStartedAt,
+      rows: summaryResult.rowCount,
+      conversations: conversations.length,
+      extra: {
+        unread_count: conversations.reduce((total, item) => total + Number(item.unread_count || 0), 0),
+      },
+    });
+    return { conversations, followups: [], anyFullMessages: false };
   }
   const result = await db.query(
     `
@@ -1403,6 +1640,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
 
   if (sessionIds.length) {
     if (summaryOnly) {
+      const inboxSummaryDetailsStartedAt = Date.now();
       const [latestMessagesResult, totalsResult] = await Promise.all([
         db.query(
           `
@@ -1429,7 +1667,18 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       totalsResult.rows.forEach((row) => {
         messageTotalsBySession.set(row.session_id, Number(row.total_messages || 0));
       });
+      logAiInboxTiming({
+        phase: "inbox_summary_details",
+        startedAt: inboxSummaryDetailsStartedAt,
+        rows: latestMessagesResult.rowCount + totalsResult.rowCount,
+        conversations: sessionIds.length,
+        extra: {
+          latest_messages_rows: latestMessagesResult.rowCount,
+          totals_rows: totalsResult.rowCount,
+        },
+      });
     } else {
+      const inboxHydrationStartedAt = Date.now();
       [messagesResult, memoriesResult, draftsResult, conversationFollowupsResult] = await Promise.all([
         db.query(
           `
@@ -1496,10 +1745,23 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
           [tenantId, sessionIds]
         ),
       ]);
+      logAiInboxTiming({
+        phase: "inbox_full_hydration",
+        startedAt: inboxHydrationStartedAt,
+        rows: messagesResult.rowCount + memoriesResult.rowCount + draftsResult.rowCount + conversationFollowupsResult.rowCount,
+        conversations: sessionIds.length,
+        extra: {
+          messages_rows: messagesResult.rowCount,
+          memories_rows: memoriesResult.rowCount,
+          drafts_rows: draftsResult.rowCount,
+          followup_rows: conversationFollowupsResult.rowCount,
+        },
+      });
     }
   }
 
   if (!summaryOnly && sessionIds.length) {
+    const salesJoinsStartedAt = Date.now();
     [salesStatesResult, salesJourneyEventsResult] = await Promise.all([
       db.query(
         `
@@ -1520,6 +1782,16 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
         [tenantId, sessionIds]
       ).catch(() => ({ rows: [] })),
     ]);
+    logAiInboxTiming({
+      phase: "inbox_sales_joins",
+      startedAt: salesJoinsStartedAt,
+      rows: salesStatesResult.rowCount + salesJourneyEventsResult.rowCount,
+      conversations: sessionIds.length,
+      extra: {
+        sales_states_rows: salesStatesResult.rowCount,
+        sales_journey_rows: salesJourneyEventsResult.rowCount,
+      },
+    });
   }
 
   const messagesBySession = new Map();
@@ -1590,6 +1862,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
     salesJourneyEventsByConversation.set(row.conversation_id, list);
   });
 
+  const enrichedStartedAt = Date.now();
   const enriched = await Promise.all(conversations.map(async (conversation) => {
     const memories = summaryOnly ? [] : (memoriesByProfile.get(conversation.profile_id) || []);
     const messages = messagesBySession.get(conversation.session_id) || [];
@@ -1924,6 +2197,12 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       last_activity_at: conversation.last_message_at || conversation.updated_at,
     };
   }));
+  logAiInboxTiming({
+    phase: "inbox_enriched_build",
+    startedAt: enrichedStartedAt,
+    rows: enriched.length,
+    conversations: enriched.length,
+  });
   return { conversations: enriched, followups: followups.rows, anyFullMessages: false };
 };
 
@@ -2627,6 +2906,16 @@ const productsFromDashboardMemory = (memory = {}) => {
       return items;
     }, [])
     .slice(0, 8);
+};
+
+const logAiInboxTiming = ({ phase, startedAt, rows = null, conversations = null, extra = {} } = {}) => {
+  console.log("[ai-inbox][timing]", {
+    phase,
+    duration_ms: Date.now() - startedAt,
+    rows,
+    conversations,
+    ...extra,
+  });
 };
 
 const realProductPrice = (product = {}) => {
