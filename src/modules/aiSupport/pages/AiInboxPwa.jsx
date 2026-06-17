@@ -389,6 +389,20 @@ const uniqueMessages = (messages = []) => {
   });
 };
 
+const isHiddenAiReplyDraftMessage = (message = {}) => {
+  const status = clean(message.status || message.delivery_status || message.message_status || "").toLowerCase();
+  const messageType = clean(message.message_type || message.messageType || "").toLowerCase();
+  const source = clean(message.source || message.origin || "").toLowerCase();
+  return (
+    status === "not_sent" ||
+    status === "draft" ||
+    messageType === "draft" ||
+    messageType === "ai_reply_draft" ||
+    messageType === "comment_suggestion" ||
+    source === "ai_suggestion"
+  );
+};
+
 const conversationSortValue = (conversation = {}) =>
   new Date(
     conversation.last_message_at ||
@@ -767,7 +781,7 @@ function ConversationListItem({ conversation, active, onSelect }) {
 }
 
 const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoadOlder }) {
-  const messages = uniqueMessages(conversation?.messages || []);
+  const messages = uniqueMessages(conversation?.messages || []).filter((message) => !isHiddenAiReplyDraftMessage(message));
   if (!messages.length) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
@@ -1668,6 +1682,17 @@ export default function AiInboxPwa() {
       ) || null
     );
   }, [conversationParam, conversations]);
+
+  const activeAiReplyDraft = useMemo(
+    () => selectedConversation?.ai_reply_draft || selectedConversation?.last_ai_reply_draft || null,
+    [selectedConversation?.ai_reply_draft, selectedConversation?.last_ai_reply_draft]
+  );
+
+  useEffect(() => {
+    const draftText = clean(activeAiReplyDraft?.text || "");
+    if (!draftText) return;
+    setComposerText((current) => (clean(current) ? current : draftText));
+  }, [activeAiReplyDraft?.text, selectedConversation?.session_id]);
 
   const markConversationAsRead = useCallback(
     async (conversation) => {
