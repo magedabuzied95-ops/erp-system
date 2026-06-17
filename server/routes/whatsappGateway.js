@@ -93,6 +93,14 @@ router.post("/webhook", async (req, res) => {
       return res.status(401).json({ success: false, message: "Invalid webhook secret" });
     }
     const normalized = await handleIncomingWebhook(req.body || {});
+    if (normalized?.skipped) {
+      return res.status(200).json({
+        success: true,
+        received: true,
+        message: "skipped",
+        skipReason: normalized.skipReason || normalized.replyTargetReason || "evolution_noise",
+      });
+    }
     const confirmation = normalized.text
       ? await processConfirmationReply(normalized)
       : { action: "ignored", reason: "no_text" };

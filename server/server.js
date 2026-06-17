@@ -693,6 +693,29 @@ app.use((req, res, next) => {
   next();
 });
 
+const shouldLogTemporaryRequestDuration = (req) => {
+  const method = String(req.method || "").toUpperCase();
+  const url = String(req.originalUrl || req.url || "");
+  if (method === "GET" && (url.startsWith("/api/products") || url.startsWith("/api/ai-inbox/conversations"))) return true;
+  if (method === "POST" && url.startsWith("/api/whatsapp/webhook")) return true;
+  return false;
+};
+
+app.use((req, res, next) => {
+  res.on("finish", () => {
+    if (!shouldLogTemporaryRequestDuration(req)) return;
+    const durationMs = Date.now() - (req._startedAt || Date.now());
+    console.info("[request-duration]", {
+      method: req.method,
+      url: req.originalUrl || req.url || "",
+      route: req.route?.path || req.path || "",
+      status: res.statusCode,
+      duration_ms: durationMs,
+    });
+  });
+  next();
+});
+
 /* =========================
    HEALTH CHECK
 ========================= */

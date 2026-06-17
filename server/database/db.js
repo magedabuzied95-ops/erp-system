@@ -4,10 +4,10 @@ import { getPerfContext } from "../utils/perfDebug.js";
 
 const { Pool } = pkg;
 
-const DB_CONNECTION_TIMEOUT_MS = Number(process.env.PG_CONNECTION_TIMEOUT_MS) || 5000;
+const DB_CONNECTION_TIMEOUT_MS = Number(process.env.PG_CONNECTION_TIMEOUT_MS) || 3000;
 const DB_QUERY_TIMEOUT_MS = Number(process.env.PG_QUERY_TIMEOUT_MS) || 15000;
-const DB_IDLE_TIMEOUT_MS = Number(process.env.PG_IDLE_TIMEOUT_MS) || 30000;
-const DB_POOL_MAX = Number(process.env.PG_POOL_MAX) || 30;
+const DB_IDLE_TIMEOUT_MS = Number(process.env.PG_IDLE_TIMEOUT_MS) || 10000;
+const DB_POOL_MAX = Math.max(1, Number(process.env.PG_POOL_MAX) || 10);
 const DB_SLOW_QUERY_MS = Number(process.env.PG_SLOW_QUERY_MS) || 750;
 let runtimeSchemaWarningLogged = false;
 const dbRequestContext = new AsyncLocalStorage();
@@ -19,6 +19,7 @@ const pool = new Pool({
   database: process.env.PGDATABASE || "erp_db",
   password: process.env.PGPASSWORD || "065342",
   port: Number(process.env.PGPORT) || 5432,
+  // Keep the default pool conservative for Neon and similar low-connection limits.
   max: DB_POOL_MAX,
   connectionTimeoutMillis: DB_CONNECTION_TIMEOUT_MS,
   query_timeout: DB_QUERY_TIMEOUT_MS,

@@ -31,6 +31,26 @@ const evolutionWebhookEventCounts = new Map();
 const text = (value, fallback = "") => String(value ?? fallback).trim();
 const previewText = (value = "", limit = 180) => text(value).replace(/\s+/g, " ").slice(0, limit);
 const normalizedTraceMessage = (value = "") => normalizeArabicMessage(text(value));
+const WHATSAPP_WEBHOOK_SKIP_REASONS = {
+  groupJid: "group_jid",
+  missingMessageId: "missing_message_id",
+  missingText: "missing_text",
+  nonMessageEvent: "non_message_event",
+};
+
+const getEvolutionWebhookSkipReason = ({ event = "", remoteJid = "", messageId = "", textValue = "" } = {}) => {
+  const normalizedEvent = String(event || "").toLowerCase();
+  const hasMessageContent = Boolean(String(textValue || "").trim());
+
+  if (String(remoteJid || "").endsWith("@g.us")) return WHATSAPP_WEBHOOK_SKIP_REASONS.groupJid;
+  if (["contacts.update", "chats.update"].includes(normalizedEvent) && !hasMessageContent) {
+    return WHATSAPP_WEBHOOK_SKIP_REASONS.nonMessageEvent;
+  }
+  if (!String(messageId || "").trim()) return WHATSAPP_WEBHOOK_SKIP_REASONS.missingMessageId;
+  if (!hasMessageContent) return WHATSAPP_WEBHOOK_SKIP_REASONS.missingText;
+  return "";
+};
+
 const applyWhatsappGreetingGuard = ({ customerMessageText = "", replyText = "" } = {}) => {
   const normalizedMessage = normalizedTraceMessage(customerMessageText);
   const normalizedReply = text(replyText);
@@ -2832,6 +2852,55 @@ export const handleIncomingWebhook = async (payload = {}) => {
   const envelope = extractWhatsappWebhookEnvelope(payload);
   const sanitizedPayload = redactSensitive(payload);
   const fullPayloadText = extractMessageText(envelope.data, payload);
+  const skipReason = getEvolutionWebhookSkipReason({
+    event: envelope.event,
+    remoteJid: envelope.remoteJid,
+    messageId: envelope.messageId,
+    textValue: fullPayloadText,
+  });
+  if (skipReason) {
+    console.info("[whatsapp:webhook-early-skip]", {
+      reason: skipReason,
+      event: envelope.event || "",
+      rawEvent: envelope.rawEvent || "",
+      remoteJid: envelope.remoteJid || "",
+      messageId: envelope.messageId || "",
+      textLength: String(fullPayloadText || "").trim().length,
+      instance: envelope.instance || "",
+    });
+    return {
+      event: envelope.event,
+      rawEvent: envelope.rawEvent,
+      eventCandidates: envelope.eventCandidates,
+      phone: "",
+      remoteJid: envelope.remoteJid,
+      resolvedReplyJid: "",
+      resolvedPhone: "",
+      replyTargetReason: skipReason,
+      participant: envelope.participant,
+      sender: envelope.sender,
+      connectedOwnerJid: envelope.ownerJid,
+      instanceOwnerJid: envelope.ownerJid,
+      ownerJid: envelope.ownerJid,
+      configuredBotNumber: envelope.configuredBotNumber,
+      isGroup: isGroupJid(envelope.remoteJid),
+      isLid: isLidJid(envelope.remoteJid),
+      text: "",
+      senderName: "",
+      messageId: envelope.messageId,
+      timestamp: envelope.timestamp,
+      instance: envelope.instance,
+      fromMe: envelope.fromMe,
+      raw: payload,
+      received_at: envelope.timestamp,
+      message_id: envelope.messageId,
+      instanceName: envelope.instance,
+      trace_id: null,
+      skipped: true,
+      skipReason,
+      inbox: { saved: false, reason: skipReason },
+    };
+  }
   const fullPayloadLog = {
     event: envelope.event,
     rawEvent: envelope.rawEvent || "",
