@@ -6430,11 +6430,12 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   );
 }
 
-function OrderSuccess({ profile }) {
+function OrderSuccess({ profile, themeMode }) {
   const { t } = useTranslation();
   const { orderNumber } = useParams();
   const location = useLocation();
   const [params] = useSearchParams();
+  const darkMode = themeMode === "dark";
   const decodedOrderNumber = decodeURIComponent(orderNumber || "");
   const phone = params.get("phone") || profile.primary_phone || location.state?.customer?.phone || "";
   const message = useMemo(() => pickSuccessMessage(decodedOrderNumber || phone), [decodedOrderNumber, phone]);
@@ -6494,7 +6495,7 @@ function OrderSuccess({ profile }) {
       </div>
       <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_360px]">
         <div className="space-y-4">
-          <div className="sf-storefront-card rounded-[2rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] md:p-6">
+          <div className={`sf-storefront-card rounded-[2rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] md:p-6 ${darkMode ? "text-slate-900" : ""}`}>
             <div className="grid gap-3 sm:grid-cols-2">
               <InfoBox label={t("storefront.orders.orderNumber", "ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½")} value={<OrderNumberBadge value={publicNumber} className="border-[#7c3aed]/20 bg-[#7c3aed]/10 text-[#5b21b6]" />} />
               <InfoBox label={t("storefront.customer.customer", "ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½")} value={customerName} />
@@ -6508,7 +6509,7 @@ function OrderSuccess({ profile }) {
               <div className="sf-info-value mt-1 font-black">{address || t("storefront.orders.addressSaved", "ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½")}</div>
             </div>
           </div>
-          <div className="sf-storefront-card rounded-[2rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] md:p-6">
+          <div className={`sf-storefront-card rounded-[2rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] md:p-6 ${darkMode ? "text-slate-900" : ""}`}>
             <h2 className="sf-section-heading text-xl font-black">{t("storefront.orders.tracking", "ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½")}</h2>
             <SuccessTimeline />
           </div>
@@ -6516,7 +6517,7 @@ function OrderSuccess({ profile }) {
             <OrderInvoiceCard className="sf-order-invoice-card" order={{ ...order, source: "Website" }} items={items} />
           </Suspense>
         </div>
-        <aside className="sf-storefront-card h-max rounded-[2rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] lg:sticky lg:top-24">
+        <aside className={`sf-storefront-card h-max rounded-[2rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] lg:sticky lg:top-24 ${darkMode ? "text-slate-900" : ""}`}>
           <div className="grid gap-3">
             <Link to={`/shop/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="rounded-full bg-stone-950 px-5 py-4 text-center font-black text-white transition hover:bg-[#6d28d9]">{t("storefront.orders.trackOrder", "ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½")}</Link>
             <Link to="/shop/products" className="sf-soft-pill rounded-full border border-stone-300 px-5 py-4 text-center font-black transition hover:border-[#7c3aed] hover:text-[#6d28d9]">{t("storefront.common.continueShopping", "ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½")}</Link>
@@ -6885,16 +6886,19 @@ function CheckoutSection({ number, title, note, children, className = "", dir })
   );
 }
 
-function SuccessTimeline() {
+function SuccessTimeline({ darkMode: darkModeProp } = {}) {
+  const darkMode = typeof darkModeProp === "boolean"
+    ? darkModeProp
+    : typeof document !== "undefined" && (document.documentElement.classList.contains("dark") || document.body.classList.contains("storefront-dark"));
   const steps = getStatusLabels();
   return (
     <div className="mt-4 grid gap-2 sm:grid-cols-5">
       {steps.map((step, index) => (
-        <div key={step} className={`sf-order-step sf-reveal rounded-2xl border p-3 ${index === 0 ? "sf-order-step--done border-emerald-200 bg-emerald-50" : index === 1 ? "sf-order-step--active border-amber-200 bg-amber-50" : "sf-order-step--pending border-stone-200 bg-stone-50"}`}>
+        <div key={step} className={`sf-order-step sf-reveal rounded-2xl border p-3 ${index === 0 ? "sf-order-step--done border-emerald-200 bg-emerald-50" : index === 1 ? "sf-order-step--active border-amber-200 bg-amber-50" : "sf-order-step--pending border-stone-200 bg-stone-50"} ${darkMode ? "text-slate-900" : ""}`}>
           <div className={`sf-order-step-icon mb-2 grid h-8 w-8 place-items-center rounded-full ${index === 0 ? "bg-emerald-600 text-white" : index === 1 ? "bg-amber-400 text-white" : "bg-stone-200 text-stone-500"}`}>
             {index === 0 ? <Check className="h-4 w-4" /> : index === 1 ? "..." : index + 1}
           </div>
-          <div className="sf-order-step-label text-xs font-black leading-5">{step}</div>
+          <div className={`sf-order-step-label text-xs font-black leading-5 ${darkMode ? "text-slate-900" : ""}`}>{step}</div>
         </div>
       ))}
     </div>
@@ -7632,8 +7636,11 @@ function PaymentCopyLine({ method, label, value, amount, deepLink }) {
   );
 }
 
-function InfoBox({ label, value }) {
-  return <div className="sf-info-box sf-checkout-info-box mt-3 rounded-2xl bg-stone-50 p-4"><div className="sf-info-label text-xs font-bold text-stone-500">{label}</div><div className="sf-info-value mt-1 font-black">{value}</div></div>;
+function InfoBox({ label, value, darkMode: darkModeProp } = {}) {
+  const darkMode = typeof darkModeProp === "boolean"
+    ? darkModeProp
+    : typeof document !== "undefined" && (document.documentElement.classList.contains("dark") || document.body.classList.contains("storefront-dark"));
+  return <div className="sf-info-box sf-checkout-info-box mt-3 rounded-2xl bg-stone-50 p-4"><div className={`sf-info-label text-xs font-bold ${darkMode ? "text-slate-700" : "text-stone-500"}`}>{label}</div><div className={`sf-info-value mt-1 font-black ${darkMode ? "text-slate-900" : ""}`}>{value}</div></div>;
 }
 
 function Panel({ title, children }) {
@@ -8015,7 +8022,7 @@ function Storefront() {
       />
       <Route
         path="success/:orderNumber"
-        element={<OrderSuccess profile={profile} />}
+        element={<OrderSuccess profile={profile} themeMode={themeMode} />}
       />
       <Route
         path="track"
