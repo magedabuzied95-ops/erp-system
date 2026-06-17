@@ -3679,7 +3679,7 @@ function HeaderAction({ to, icon, count, label, className = "" }) {
   );
 }
 
-function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme, onToggleTheme }) {
+function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme, onToggleTheme, brandName = "MONE", brandTagline = "", brandLogoUrl = "" }) {
   const { i18n: storefrontI18n, t } = useTranslation();
   const [search, setSearch] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -4028,10 +4028,12 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
           {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </button>
         <Link to="/shop" className="sf-header-logo group inline-flex items-center gap-2 text-stone-950 transition hover:text-[#6d28d9] dark:text-white">
-          <span className="sf-header-logo-chip grid h-10 w-10 place-items-center rounded-2xl bg-stone-950 text-sm font-black tracking-[0.18em] text-white shadow-[0_12px_30px_rgba(28,25,23,0.16)] transition group-hover:scale-105 group-hover:bg-[#6d28d9] dark:bg-white dark:text-stone-950 dark:group-hover:text-white">MS</span>
+          <span className="sf-header-logo-chip grid h-10 w-10 place-items-center overflow-hidden rounded-2xl bg-stone-950 text-sm font-black tracking-[0.18em] text-white shadow-[0_12px_30px_rgba(28,25,23,0.16)] transition group-hover:scale-105 group-hover:bg-[#6d28d9] dark:bg-white dark:text-stone-950 dark:group-hover:text-white">
+            {brandLogoUrl ? <img src={resolveProductImageUrl(brandLogoUrl)} alt={brandName} className="h-full w-full object-contain p-1.5" loading="lazy" decoding="async" width="40" height="40" /> : "MS"}
+          </span>
           <span className="hidden leading-none sm:block">
-            <span className="sf-header-logo-title block text-xl font-black tracking-[0.18em]">MONE</span>
-            <span className="sf-header-logo-subtitle mt-1 block text-[10px] font-semibold uppercase tracking-[0.32em] text-stone-500 dark:text-stone-400">{t("storefront.header.tagline", "Premium Shoes")}</span>
+            <span className="sf-header-logo-title block text-xl font-black tracking-[0.18em]">{brandName || "MONE"}</span>
+            <span className="sf-header-logo-subtitle mt-1 block text-[10px] font-semibold uppercase tracking-[0.32em] text-stone-500 dark:text-stone-400">{brandTagline || t("storefront.header.tagline", "Premium Shoes")}</span>
           </span>
         </Link>
         <nav className="sf-collapsible-nav hidden items-center gap-1 text-sm font-bold text-stone-700 dark:text-stone-300 md:flex">
@@ -5061,6 +5063,11 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
         : t("storefront.checkout.actions.confirmOrder", "تأكيد الطلب");
   const codAmount = normalizedFormPaymentMethod === "cod" ? total : Math.max(0, total - deliveryFee);
   const storefrontPaymentSettings = useMemo(() => normalizeStorefrontPaymentSettings(publicStoreSettings), [publicStoreSettings]);
+  const storefrontBrandSettings = useMemo(() => ({
+    brandName: String(publicStoreSettings["storefront.store_name"] || publicStoreSettings["general.company_name"] || "MONE").trim(),
+    brandTagline: String(publicStoreSettings["storefront.store_tagline"] || "").trim(),
+    brandLogoUrl: String(publicStoreSettings["storefront.store_logo_url"] || publicStoreSettings["general.company_logo_url"] || "").trim(),
+  }), [publicStoreSettings]);
   const paymentMethods = useMemo(() => getPaymentMethods(storefrontPaymentSettings), [storefrontPaymentSettings]);
   const paymentCopy = paymentMethods.find((method) => method.id === normalizedFormPaymentMethod)?.text || "";
   const locationGovernorates = useMemo(() => uniqueCheckoutLocations(shippingLocations, "governorate_id"), [shippingLocations]);
@@ -6401,6 +6408,15 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
               </div>
             </CheckoutSection>
           ) : null}
+          <div className="sf-checkout-mobile-actions md:hidden">
+            <SubmitButton
+              submitting={isFinalCheckoutStep && submitting}
+              compact
+              disabled={submitDisabled}
+              label={checkoutActionLabel}
+              variant="success"
+            />
+          </div>
         </div>
         <Suspense fallback={<div className="h-[22rem] rounded-[1.7rem] border border-white/10 bg-white/[0.045] shadow-[0_24px_70px_rgba(0,0,0,0.18)] lg:sticky lg:top-24" />}>
           <LazyStorefrontCheckoutSummary
@@ -6423,12 +6439,6 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
           />
         </Suspense>
       </form>
-      <div className="sf-checkout-sticky-actions fixed left-0 right-0 p-3 md:hidden">
-        <div className="mx-auto flex max-w-lg items-center gap-3">
-          <button type="button" onClick={() => setSummaryOpen((value) => !value)} className="sf-checkout-total-chip min-h-13 flex-1 rounded-full px-4 py-3 text-right text-sm font-black">{isFinalCheckoutStep ? sfText("storefront.checkout.total") : sfText("storefront.checkout.orderSummary")}: {money(total)}</button>
-          <SubmitButton submitting={isFinalCheckoutStep && submitting} compact disabled={submitDisabled} label={checkoutActionLabel} />
-        </div>
-      </div>
     </section>
   );
 }
@@ -7999,6 +8009,9 @@ function Storefront() {
         onCart={() => navigate("/shop/cart")}
         effectiveTheme={themeMode}
         onToggleTheme={toggleThemeMode}
+        brandName={storefrontBrandSettings.brandName}
+        brandTagline={storefrontBrandSettings.brandTagline}
+        brandLogoUrl={storefrontBrandSettings.brandLogoUrl}
       />
       <Routes>
       <Route
