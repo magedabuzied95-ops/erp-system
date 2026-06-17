@@ -160,6 +160,77 @@ const normalizeProductCardsValue = (value) => {
   return [];
 };
 
+const messageDisplayText = (message = {}) =>
+  clean(
+    message.customer_message ||
+      message.ai_answer ||
+      message.staff_message ||
+      message.message_text ||
+      message.text ||
+      message.body ||
+      message.content ||
+      message.reply_text ||
+      message.caption ||
+      ""
+  );
+
+const normalizeMessageDirection = (message = {}) => {
+  const senderType = clean(message.sender_type || message.senderType || "").toLowerCase();
+  const explicitDirection = clean(message.direction || message.message_direction || "").toLowerCase();
+  if (["inbound", "incoming", "customer", "user", "client"].includes(explicitDirection)) return "inbound";
+  if (["outbound", "sent", "assistant", "ai", "bot", "staff", "agent"].includes(explicitDirection)) return "outbound";
+  if (["customer", "user", "client"].includes(senderType)) return "inbound";
+  if (["assistant", "ai", "bot", "staff", "agent"].includes(senderType)) return "outbound";
+  if (normalizeProductCardsValue(message.product_cards || message.productCards).length) return "outbound";
+  if (messageDisplayText(message)) return "outbound";
+  return "";
+};
+
+const normalizeInboxMessage = (message = {}) => {
+  if (!message || typeof message !== "object") return {};
+  const productCards = normalizeProductCardsValue(message.product_cards || message.productCards);
+  const providerMessageId = clean(
+    message.provider_message_id ||
+      message.providerMessageId ||
+      message.external_message_id ||
+      message.externalMessageId ||
+      message.message_id ||
+      message.messageId ||
+      message.meta_mid ||
+      message.id ||
+      ""
+  );
+  const senderType = clean(message.sender_type || message.senderType || "");
+  const direction = normalizeMessageDirection(message);
+  const body = messageDisplayText(message);
+  const normalizedSenderType = senderType || (direction === "outbound" ? "assistant" : "customer");
+  const normalizedMessageType =
+    clean(message.message_type || message.messageType || "") ||
+    (productCards.length ? "product_card" : direction === "outbound" ? "ai_reply" : "customer_message");
+
+  return {
+    ...message,
+    direction: direction || message.direction || message.message_direction || "",
+    sender_type: normalizedSenderType,
+    senderType: normalizedSenderType,
+    message_type: normalizedMessageType,
+    messageType: normalizedMessageType,
+    provider_message_id: providerMessageId,
+    providerMessageId,
+    external_message_id: clean(message.external_message_id || providerMessageId),
+    externalMessageId: clean(message.externalMessageId || providerMessageId),
+    text: clean(message.text || body),
+    body: clean(message.body || body),
+    content: clean(message.content || body),
+    message_text: clean(message.message_text || body),
+    customer_message: clean(message.customer_message || (direction === "inbound" ? body : "")),
+    ai_answer: clean(message.ai_answer || (direction === "outbound" && normalizedMessageType !== "product_card" ? body : "")),
+    staff_message: clean(message.staff_message || (normalizedSenderType === "staff" ? body : "")),
+    product_cards: productCards,
+    productCards,
+  };
+};
+
 const isConversationAiEnabled = (conversation = {}) => conversation?.ai_enabled !== false;
 
 const needsHumanAttention = (conversation = {}) =>
@@ -279,15 +350,24 @@ const absoluteTime = (value) => {
 
 const messageKey = (message = {}) =>
   String(
-    message.dedupe_key ||
+    message.provider_message_id ||
+      message.providerMessageId ||
       message.external_message_id ||
+      message.externalMessageId ||
+      message.dedupe_key ||
       message.id ||
-      `${message.sender_type || ""}:${message.created_at || ""}:${message.customer_message || message.ai_answer || message.staff_message || ""}`
+      `${message.sender_type || message.senderType || ""}:${message.direction || message.message_direction || ""}:${message.created_at || ""}:${message.customer_message || message.ai_answer || message.staff_message || message.message_text || message.text || message.body || message.content || ""}:${normalizeProductCardsValue(message.product_cards || message.productCards).map((card) => [
+        card.product_id || card.id || "",
+        card.variant_id || card.variantId || "",
+        card.color || "",
+        card.size || "",
+        card.image_url || "",
+      ].join("|")).join(";")}`
   );
 
 const uniqueMessages = (messages = []) => {
   const seen = new Set();
-  return asArray(messages).filter((message) => {
+  return asArray(messages).map(normalizeInboxMessage).filter((message) => {
     const key = messageKey(message);
     if (seen.has(key)) return false;
     seen.add(key);
@@ -355,15 +435,8 @@ const conversationPreview = (conversation = {}) => {
   );
   if (preview) return preview;
   if (latestCards.length) return productCardPreviewText(latestCards) || "Product card sent";
-  const latestMessage = [...uniqueMessages(conversation.messages)].reverse().find((message) =>
-    clean(message.customer_message || message.staff_message || message.ai_answer)
-  );
-  return clean(
-    latestMessage?.customer_message ||
-      latestMessage?.staff_message ||
-      latestMessage?.ai_answer ||
-      ""
-  );
+  const latestMessage = [...uniqueMessages(conversation.messages)].reverse().find((message) => messageDisplayText(message));
+  return messageDisplayText(latestMessage || {});
 };
 
 const productUrl = (card = {}) => {
@@ -607,9 +680,10 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
       ) : null}
       {messages.map((message) => {
         const cards = normalizeProductCardsValue(message.product_cards || message.productCards);
-        const hasProductCards = cards.length > 0;
+        const hasProductCards = cards.length > 0 || message.message_type === "product_card";
+        const displayText = messageDisplayText(message);
         const isCustomer = Boolean(clean(message.customer_message));
-        const isAi = Boolean(clean(message.ai_answer));
+        const isAi = Boolean(clean(message.ai_answer)) || message.sender_type === "assistant" || message.sender_type === "ai" || message.direction === "outbound";
         const isStaff = Boolean(clean(message.staff_message)) && !hasProductCards;
         if (!isCustomer && !isAi && !isStaff && !hasProductCards) return null;
 
@@ -654,7 +728,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
                 <div className="max-w-[82%] rounded-[20px] rounded-br-md bg-emerald-50 px-3 py-2 shadow-sm ring-1 ring-emerald-100">
                   <div className="mb-1 text-right text-[10px] font-medium text-emerald-700/70">{absoluteTime(message.created_at)}</div>
                   <div className="text-slate-900">
-                    <MessageText text={message.customer_message} />
+                    <MessageText text={message.customer_message || displayText} />
                     {message.delivery_status === "failed" ? " · Failed" : ""}
                     {message.delivery_status === "failed" && message.delivery_error ? (
                       <p className="mt-1 text-[11px] leading-4 text-rose-200">{message.delivery_error}</p>
@@ -671,7 +745,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
                     AI
                   </div>
                   <div className="text-slate-800">
-                    <MessageText text={message.ai_answer} />
+                    <MessageText text={message.ai_answer || displayText} />
                   </div>
                 </div>
               </div>
@@ -682,7 +756,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
                   <div className={`mb-1 text-[10px] font-medium ${message.delivery_status === "failed" ? "text-rose-200" : "text-slate-300"}`}>
                     {message.message_type === "internal_note" ? "Internal Note" : "Team"} · {absoluteTime(message.created_at)}
                   </div>
-                  <p dir="auto" className={`whitespace-pre-wrap break-words text-[14px] leading-5.5 ${message.delivery_status === "failed" ? "text-rose-50" : "text-white"}`}>{message.staff_message}</p>
+                  <p dir="auto" className={`whitespace-pre-wrap break-words text-[14px] leading-5.5 ${message.delivery_status === "failed" ? "text-rose-50" : "text-white"}`}>{message.staff_message || displayText}</p>
                 </div>
               </div>
             ) : null}
@@ -1607,7 +1681,7 @@ export default function AiInboxPwa() {
         patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({
           ...conversation,
           messages: uniqueMessages([...asArray(conversation.messages), returnedMessage]),
-          latest_message_preview: message,
+          latest_message_preview: messageDisplayText(returnedMessage) || message,
           last_activity_at: returnedMessage.created_at || new Date().toISOString(),
           updated_at: returnedMessage.created_at || new Date().toISOString(),
           ai_paused: composerMode === "note" ? conversation.ai_paused : true,
@@ -1677,7 +1751,8 @@ export default function AiInboxPwa() {
               fallback_used: payload?.fallback_used === true,
             }
           : null;
-        const returnedCards = normalizeProductCardsValue(returnedMessage?.product_cards || returnedMessage?.productCards);
+        const normalizedReturnedMessage = normalizeInboxMessage(returnedMessage || {});
+        const returnedCards = normalizeProductCardsValue(normalizedReturnedMessage?.product_cards || normalizedReturnedMessage?.productCards);
         const normalizedCards = returnedCards.length
           ? returnedCards.map((card, index) => {
               const fallbackCard = sentCards[index] || sentCards[0] || {};
@@ -1700,22 +1775,23 @@ export default function AiInboxPwa() {
           : sentCards;
         patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({
           ...conversation,
-          messages: returnedMessage
+          messages: normalizedReturnedMessage
             ? uniqueMessages([
                 ...asArray(conversation.messages),
                 {
-                  ...returnedMessage,
+                  ...normalizedReturnedMessage,
                   product_cards: normalizedCards,
                 },
               ])
             : conversation.messages,
           latest_message_preview:
             productCardPreviewText(sentCards) ||
-            returnedMessage?.staff_message ||
-            returnedMessage?.message_text ||
+            normalizedReturnedMessage?.staff_message ||
+            normalizedReturnedMessage?.message_text ||
+            normalizedReturnedMessage?.text ||
             (deliveryStatus === "stored_only" ? "Saved only" : deliveryStatus === "failed" ? "Failed to send product" : "Product sent"),
-          last_activity_at: returnedMessage?.created_at || new Date().toISOString(),
-          updated_at: returnedMessage?.created_at || new Date().toISOString(),
+          last_activity_at: normalizedReturnedMessage?.created_at || new Date().toISOString(),
+          updated_at: normalizedReturnedMessage?.created_at || new Date().toISOString(),
         }));
 
         setProductSheetOpen(false);
