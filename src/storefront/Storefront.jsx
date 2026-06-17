@@ -5782,19 +5782,6 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
 
   useEffect(() => {
     const normalizedPaymentMethod = normalizeCheckoutPaymentMethod(form.payment_method);
-    if (normalizedPaymentMethod === "cod" && !codAvailable) {
-      let cancelled = false;
-      deferReactState(() => {
-        if (!cancelled) {
-          setPaymentMode("electronic");
-          setShowElectronicPaymentMethods(false);
-          setForm((prev) => ({ ...prev, payment_method: "shipping_confirmation" }));
-        }
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
     if (normalizedPaymentMethod === "cod") {
       if (paymentMode !== "cod") setPaymentMode("cod");
       if (showElectronicPaymentMethods) setShowElectronicPaymentMethods(false);
@@ -6221,6 +6208,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     onClick={() => {
                       setPaymentMode("cod");
                       setShowElectronicPaymentMethods(false);
+                      setShippingPaymentFile(null);
+                      setPaymentProofUploaded(false);
                       setForm((current) => ({ ...current, payment_method: "cod" }));
                     }}
                     className={`checkout-payment-choice flex min-h-[4.75rem] flex-col items-start justify-center rounded-[1.35rem] border px-4 py-3 text-right transition ${paymentMode === "cod" ? "border-emerald-300/35 bg-emerald-400/12 shadow-[0_16px_34px_rgba(16,185,129,0.12)]" : "border-white/10 bg-white/[0.045] hover:border-white/18 hover:bg-white/[0.07]"}`}
