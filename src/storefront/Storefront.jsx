@@ -8008,6 +8008,10 @@ function Storefront() {
         element={<CheckoutPage cart={cart} clearCart={clearCart} profile={profile} setProfile={setProfile} themeMode={themeMode} />}
       />
       <Route
+        path="success/:orderNumber"
+        element={<OrderSuccess profile={profile} />}
+      />
+      <Route
         path="track"
         element={<LazyStorefrontTrackOrderPage helpers={helpers} components={components} />}
       />
