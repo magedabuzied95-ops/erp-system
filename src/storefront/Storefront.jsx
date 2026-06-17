@@ -6463,7 +6463,7 @@ function OrderSuccess({ profile }) {
   }, [decodedOrderNumber, phone, loaded?.order]);
 
   const order = loaded?.order || {};
-  const publicNumber = displayOrderNumber(order) || displayOrderNumber(decodedOrderNumber);
+  const publicNumber = displayPublicOrderNumber(order) || displayPublicOrderNumber(decodedOrderNumber);
   const items = loaded?.items || [];
   const customerName = order.customer_name || loaded?.customer?.full_name || profile.full_name || t("storefront.customer.dearCustomer", "ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½");
   const total = order.total_amount || order.total || order.total_price || 0;
