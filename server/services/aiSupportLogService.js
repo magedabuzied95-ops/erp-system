@@ -650,6 +650,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS returned_to_ai_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS last_ai_reply_draft JSONB NOT NULL DEFAULT '{}'::jsonb`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS detected_intent TEXT`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS intent_confidence NUMERIC(5,2)`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS sentiment TEXT`);
@@ -660,6 +661,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS escalation_reason TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS last_escalation_keyword TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS escalated_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS last_ai_reply_draft_updated_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS message_text TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'web_chat'`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
@@ -1446,6 +1448,96 @@ export const appendWhatsappOutboundSupportReply = async ({
   suggestedActions,
   staffMessage,
 });
+
+export const upsertAiReplySuggestionDraft = async ({
+  tenantId,
+  sessionId,
+  suggestionText = "",
+  messageType = "text",
+  productCards = [],
+  confidence = 0,
+  detectedIntent = "",
+  customerQuestion = "",
+  originalSuggestionId = "",
+  status = "not_sent",
+  metadata = {},
+} = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeSessionId = toText(sessionId);
+  if (!safeTenantId || !safeSessionId) {
+    return null;
+  }
+  await ensureAiSupportLogSchema();
+  const safeProductCards = Array.isArray(productCards) ? productCards : [];
+  const draft = {
+    id: toText(originalSuggestionId || `ai_suggestion_${Date.now()}`),
+    status: toText(status || "not_sent") || "not_sent",
+    source: "ai_suggestion",
+    message_type: toText(messageType || (safeProductCards.length ? "product_card" : "text")) || "text",
+    text: repairText(suggestionText || ""),
+    product_cards: safeProductCards,
+    confidence: Number.isFinite(Number(confidence)) ? Number(confidence) : 0,
+    detected_intent: toText(detectedIntent),
+    customer_question: repairText(customerQuestion || ""),
+    metadata: metadata && typeof metadata === "object" ? metadata : {},
+    updated_at: new Date().toISOString(),
+  };
+  const result = await db.query(
+    `
+    UPDATE ai_support_sessions
+    SET last_ai_reply_draft = $3::jsonb,
+        last_ai_reply_draft_updated_at = NOW(),
+        updated_at = NOW()
+    WHERE tenant_id = $1::bigint AND session_id = $2::text
+    RETURNING *
+    `,
+    [safeTenantId, safeSessionId, jsonValue(draft)]
+  );
+  if (!result.rows[0]) {
+    await db.query(
+      `
+      INSERT INTO ai_support_sessions (
+        tenant_id,
+        session_id,
+        source,
+        status,
+        channel,
+        ai_enabled,
+        customer_name,
+        last_message,
+        last_ai_reply_draft,
+        last_ai_reply_draft_updated_at,
+        updated_at
+      )
+      VALUES ($1::bigint, $2::text, 'ai_reply_draft', 'ai_active', 'web_chat', TRUE, '', '', $3::jsonb, NOW(), NOW())
+      ON CONFLICT (tenant_id, session_id) DO UPDATE SET
+        last_ai_reply_draft = EXCLUDED.last_ai_reply_draft,
+        last_ai_reply_draft_updated_at = NOW(),
+        updated_at = NOW()
+      `,
+      [safeTenantId, safeSessionId, jsonValue(draft)]
+    );
+  }
+  return draft;
+};
+
+export const clearAiReplySuggestionDraft = async ({ tenantId, sessionId } = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeSessionId = toText(sessionId);
+  if (!safeTenantId || !safeSessionId) return null;
+  await ensureAiSupportLogSchema();
+  await db.query(
+    `
+    UPDATE ai_support_sessions
+    SET last_ai_reply_draft = '{}'::jsonb,
+        last_ai_reply_draft_updated_at = NOW(),
+        updated_at = NOW()
+    WHERE tenant_id = $1::bigint AND session_id = $2::text
+    `,
+    [safeTenantId, safeSessionId]
+  );
+  return true;
+};
 
 export const updateAiSupportMessageDeliveryStatus = async ({
   tenantId,

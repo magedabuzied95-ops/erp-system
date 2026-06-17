@@ -92,6 +92,7 @@ import {
 } from "../services/aiCorrectionMemoryService.js";
 import {
   appendManualAiSupportReply,
+  clearAiReplySuggestionDraft,
   assignAiSupportConversation,
   getAiSupportConversationState,
   markAiSupportConversationEscalated,
@@ -150,6 +151,37 @@ const correctionTypeOptions = new Set(["wrong_price", "wrong_stock", "wrong_poli
 const normalizeCorrectionType = (value = "") => {
   const normalized = normalizeCorrectionTypeValue(value);
   return correctionTypeOptions.has(normalized) ? normalized : "other";
+};
+const normalizeAiReplyDraft = (value = {}) => {
+  const draft = value && typeof value === "object" ? value : {};
+  return {
+    id: envText(draft.id || ""),
+    status: envText(draft.status || "not_sent") || "not_sent",
+    source: envText(draft.source || "ai_suggestion") || "ai_suggestion",
+    message_type: envText(draft.message_type || "text") || "text",
+    text: envText(draft.text || draft.answer || draft.message || ""),
+    product_cards: Array.isArray(draft.product_cards) ? draft.product_cards : Array.isArray(draft.productCards) ? draft.productCards : [],
+    confidence: Number(draft.confidence || 0),
+    detected_intent: envText(draft.detected_intent || ""),
+    customer_question: envText(draft.customer_question || ""),
+    metadata: draft.metadata && typeof draft.metadata === "object" ? draft.metadata : {},
+    updated_at: draft.updated_at || null,
+  };
+};
+const inferCorrectionTypeFromEditedSuggestion = (draftText = "", finalText = "") => {
+  const suggestion = envText(draftText);
+  const answer = envText(finalText);
+  if (!suggestion || !answer || suggestion === answer) return "other";
+  const normalizedSuggestion = suggestion.replace(/\s+/g, " ").trim();
+  const normalizedAnswer = answer.replace(/\s+/g, " ").trim();
+  if (normalizedAnswer.length < Math.max(24, Math.floor(normalizedSuggestion.length * 0.7))) {
+    return "incomplete_answer";
+  }
+  const toneHints = /(sorry|apolog|عذر|متأسف|آسف|اسف)/i;
+  if (toneHints.test(normalizedAnswer) && !toneHints.test(normalizedSuggestion)) {
+    return "bad_tone";
+  }
+  return "other";
 };
 const correctionMessageLookupKey = (message = {}) =>
   envText(message.id || message.message_id || message.external_message_id || message.external_reply_id || message.dedupe_key || "");
@@ -3000,6 +3032,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
     const channel = conversation.channel || conversation.source || "";
     const normalizedChannel = normalizeProductCardSendChannel(channel);
     const channelMetadata = conversation.channel_metadata || {};
+    const aiReplyDraft = normalizeAiReplyDraft(conversation.last_ai_reply_draft || {});
     const recipientId = envText(
       channelMetadata.customer_psid ||
         channelMetadata.sender_psid ||
@@ -3108,6 +3141,48 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       resolvedReplyJid: recipientId || "",
       resolvedPhone: recipientId || "",
     });
+    if (deliveryStatus === "sent") {
+      if (aiReplyDraft.status === "not_sent" && aiReplyDraft.text && envText(aiReplyDraft.text) !== messageText) {
+        const customerQuestion = [...(Array.isArray(conversation.messages) ? conversation.messages : [])]
+          .reverse()
+          .find((item) => envText(item.customer_message || item.message_text || item.last_message || ""));
+        const correctionType = normalizeCorrectionType(
+          aiReplyDraft.metadata?.correction_type ||
+            inferCorrectionTypeFromEditedSuggestion(aiReplyDraft.text, messageText)
+        );
+        await createCorrection({
+          tenantId,
+          conversationId,
+          messageId: message.id || sendResult?.message_id || sendResult?.results?.[0]?.result?.key?.id || `sent_${Date.now()}`,
+          customerQuestion: envText(customerQuestion?.customer_message || customerQuestion?.message_text || customerQuestion?.last_message || conversation.latest_message_preview || conversation.last_message || ""),
+          aiWrongAnswer: aiReplyDraft.text,
+          employeeCorrectAnswer: messageText,
+          correctionType,
+          productId: aiReplyDraft.metadata?.product_id || null,
+          channel,
+          createdBy: req.user?.id || null,
+          metadata: {
+            source: "edited_ai_suggestion",
+            original_suggestion_id: aiReplyDraft.id || "",
+            original_suggestion_status: aiReplyDraft.status || "not_sent",
+            sent_message_id: message.id || sendResult?.message_id || sendResult?.results?.[0]?.result?.key?.id || "",
+            suggested_message_type: aiReplyDraft.message_type || "text",
+            sent_message_type: "text",
+            conversation_id: conversationId,
+            channel,
+          },
+        }).catch((error) => {
+          console.error("[ai-inbox][auto-correction] failed", {
+            tenant_id: tenantId,
+            conversation_id: conversationId,
+            message_id: message.id || "",
+            code: error?.code || "",
+            message: error?.message || "",
+          });
+        });
+      }
+      await clearAiReplySuggestionDraft({ tenantId, sessionId: conversationId }).catch(() => {});
+    }
     await logChannelEvent({
       tenantId,
       channel,

@@ -8,6 +8,7 @@ import {
   appendManualAiSupportReply,
   getAiSupportConversationState,
   ensureAiSupportLogSchema,
+  upsertAiReplySuggestionDraft,
 } from "./aiSupportLogService.js";
 import { pushAIEvent } from "./aiEventLogger.js";
 import { resolveIntent } from "./aiIntentResolver.js";
@@ -752,6 +753,23 @@ export const normalizeInboxMessage = (row = {}) => ({
   ].filter(Boolean),
 });
 
+const normalizeAiReplyDraft = (value = {}) => {
+  const draft = value && typeof value === "object" ? value : {};
+  return {
+    id: text(draft.id || ""),
+    status: text(draft.status || "not_sent") || "not_sent",
+    source: text(draft.source || "ai_suggestion") || "ai_suggestion",
+    message_type: text(draft.message_type || "text") || "text",
+    text: text(draft.text || draft.answer || draft.message || ""),
+    product_cards: normalizeProductCardsValue(draft.product_cards || draft.productCards || []),
+    confidence: Number(draft.confidence || 0),
+    detected_intent: text(draft.detected_intent || ""),
+    customer_question: text(draft.customer_question || ""),
+    metadata: draft.metadata && typeof draft.metadata === "object" ? draft.metadata : {},
+    updated_at: draft.updated_at || null,
+  };
+};
+
 const summarizeInboxMessage = (row = {}) => ({
   id: row.id,
   session_id: row.session_id,
@@ -1307,6 +1325,8 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       s.customer_name AS session_customer_name,
       s.customer_avatar_url AS session_customer_avatar_url,
       s.last_message AS session_last_message,
+      s.last_ai_reply_draft,
+      s.last_ai_reply_draft_updated_at,
       s.status AS conversation_status,
       s.assigned_user_id,
       s.assigned_user_name,
@@ -2146,6 +2166,8 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       last_webhook_event_at: conversation.last_webhook_event_at || null,
       last_webhook_status: conversation.last_webhook_status || "",
       channel_metadata: conversation.channel_metadata || {},
+      ai_reply_draft: normalizeAiReplyDraft(conversation.last_ai_reply_draft || {}),
+      last_ai_reply_draft_updated_at: conversation.last_ai_reply_draft_updated_at || null,
       ai_memory: conversationAiMemory,
       current_product: selectedProduct,
       product: selectedProduct,
@@ -3914,25 +3936,27 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     follow_up: salesIntelligence?.followUp || {},
     closer: salesIntelligence?.closer || {},
   };
-  let message = null;
-  if (persist) {
-    message = await appendAiGeneratedSupportReply({
-      tenantId,
-      sessionId: conversationId,
-      answer: reply.answer,
-      confidence: reply.confidence,
-      detectedIntent: intent,
-      suggestedProducts: reply.suggested_products || [],
-      visualAttachments: reply.visual_attachments || [],
-      suggestedActions: reply.suggested_actions,
-    });
-    emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: conversationId, message, at: new Date().toISOString() });
-    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: new Date().toISOString() });
-  }
+  const draft = await upsertAiReplySuggestionDraft({
+    tenantId,
+    sessionId: conversationId,
+    suggestionText: reply.answer,
+    messageType: reply.suggested_products?.length ? "product_card" : "text",
+    productCards: reply.suggested_products || [],
+    confidence: reply.confidence,
+    detectedIntent: intent,
+    customerQuestion: lastMessage,
+    status: "not_sent",
+    metadata: {
+      source: "ai_suggestion",
+      persist_requested: persist === true,
+    },
+  });
+  emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: new Date().toISOString() });
   return {
     conversation_id: conversationId,
     reply,
-    message,
+    draft,
+    message: null,
     text: reply.answer || "",
     intent: intent,
     sales_state: salesIntelligence?.state || null,

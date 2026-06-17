@@ -2933,6 +2933,10 @@ export default function AiInbox() {
     );
     return clean(latestSuggestion?.ai_answer || metadataDraft || "");
   }, [safeConversation, selectedConversation?.messages]);
+  const activeAiReplyDraft = useMemo(
+    () => selectedConversation?.ai_reply_draft || selectedConversation?.last_ai_reply_draft || null,
+    [selectedConversation?.ai_reply_draft, selectedConversation?.last_ai_reply_draft]
+  );
   const lastCustomerMessage = useMemo(
     () => latestCustomerText(selectedConversation?.messages),
     [selectedConversation?.messages]
@@ -3003,6 +3007,18 @@ export default function AiInbox() {
       setCorrectionSaving(false);
     }
   }, [closeReplyCorrection, correctionModal.draft.aiWrongAnswer, correctionModal.draft.channel, correctionModal.draft.correctionType, correctionModal.draft.customerQuestion, correctionModal.draft.employeeCorrectAnswer, correctionModal.draft.messageId, correctionModal.draft.productId, headers, selectedConversation?.channel, selectedConversation?.session_id, selectedConversation?.source, tenantId]);
+
+  useEffect(() => {
+    if (!selectedConversation?.session_id) return;
+    const draftText = clean(activeAiReplyDraft?.text || "");
+    if (!draftText) return;
+    setAiReply((current) => (
+      current.sessionId === selectedConversation.session_id && current.text === draftText
+        ? current
+        : { sessionId: selectedConversation.session_id, text: draftText, loading: false, error: "" }
+    ));
+    setReplyText((current) => (clean(current) ? current : draftText));
+  }, [activeAiReplyDraft?.text, selectedConversation?.session_id]);
 
   useEffect(() => {
     const channelKey = clean(selectedConversation?.channel || selectedConversation?.source);
@@ -3771,14 +3787,14 @@ export default function AiInbox() {
       const textValue = payload.reply?.answer || "";
       window.setTimeout(() => {
         setAiReply({ sessionId, text: textValue, loading: false, error: "" });
-        if (!persist) setReplyText(textValue);
+        setReplyText(textValue);
       }, 450);
-      if (persist && payload.message) {
+      if (payload.draft) {
         patchConversation(conversationIdentifier, (conversation) => ({
           ...conversation,
-          messages: uniqueMessages([...asArray(conversation.messages), payload.message]),
-          latest_message_preview: textValue || conversation.latest_message_preview,
-          last_activity_at: payload.message.created_at || new Date().toISOString(),
+          ai_reply_draft: payload.draft,
+          last_ai_reply_draft: payload.draft,
+          last_ai_reply_draft_updated_at: payload.draft.updated_at || new Date().toISOString(),
         }));
       }
     } catch (err) {
