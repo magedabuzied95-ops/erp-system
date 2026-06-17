@@ -100,6 +100,7 @@ import {
   updateAiSupportConversationState,
 } from "../services/aiSupportLogService.js";
 import { loadAiReplyTraces } from "../services/aiReplyTraceService.js";
+import { buildReplyHarness, getLastReplyHarnessDebug } from "../services/aiReplyHarnessService.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 
 const router = express.Router();
@@ -2807,6 +2808,39 @@ router.post("/conversations/:conversationId/ai-reply", protect, permit("settings
     return res.status(result.message ? 201 : 200).json({ success: true, ...result });
   } catch (error) {
     return sendError(res, error, "Failed to generate AI reply");
+  }
+});
+
+router.get("/conversations/:conversationId/ai-harness", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = envText(req.params.conversationId);
+    const cached = getLastReplyHarnessDebug({ tenantId, conversationId });
+    if (cached) {
+      return res.json({ success: true, harness: cached, cached: true });
+    }
+
+    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 100, messageLimit: 12, summaryOnly: false });
+    const conversation = (inbox.conversations || []).find((item) =>
+      item.session_id === conversationId ||
+      item.conversation_id === conversationId ||
+      item.external_conversation_id === conversationId ||
+      item.external_customer_id === conversationId ||
+      item.conversation_key === conversationId
+    ) || null;
+    const latestMessage = conversation?.customer_message || conversation?.message_text || conversation?.latest_message_preview || conversation?.last_message || "";
+    const harness = await buildReplyHarness({
+      tenantId,
+      conversationId,
+      conversation,
+      latestCustomerMessage: latestMessage,
+      sendMode: "debug",
+      channel: conversation?.channel || conversation?.source || "web_chat",
+      req,
+    });
+    return res.json({ success: true, harness, cached: false });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI harness");
   }
 });
 

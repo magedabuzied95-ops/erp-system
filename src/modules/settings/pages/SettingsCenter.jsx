@@ -1100,6 +1100,7 @@ function StorefrontSettings(props) {
         <div className="grid gap-4 xl:grid-cols-2">
           {renderField(setting("storefront.enabled"), true)}
           {renderField(setting("storefront.store_name"), true)}
+          {renderField(setting("storefront.store_tagline"), true)}
           {renderField(setting("storefront.public_url"), true)}
           <VisualUpload title="Logo Upload" value={value("storefront.store_logo_url")} onChange={(next) => updateValue("storefront.store_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
           <VisualUpload title="Favicon Upload" value={value("storefront.favicon_url")} onChange={(next) => updateValue("storefront.favicon_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />

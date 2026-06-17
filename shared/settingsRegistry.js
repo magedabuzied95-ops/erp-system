@@ -129,6 +129,7 @@ const definitions = [
   ["storefront.public_url", "storefront", "url", "", "Public store URL", "رابط المتجر", "Base public URL for sharing product and order links.", "الرابط العام لمشاركة المنتجات والطلبات.", { isPublic: true, usedBy: ["Storefront", "AI"] }],
   ["storefront.store_name", "storefront", "text", "", "Store name", "اسم المتجر", "Public store display name.", "اسم المتجر الظاهر للعملاء.", { isPublic: true }],
   ["storefront.store_logo_url", "storefront", "url", "", "Store logo", "شعار المتجر", "Public store logo URL.", "رابط شعار المتجر.", { isPublic: true }],
+  ["storefront.store_tagline", "storefront", "text", "", "Store tagline", "شعار المتجر النصي", "Short tagline shown beneath the store name on the storefront header.", "عبارة قصيرة تظهر أسفل اسم المتجر في رأس المتجر.", { isPublic: true, validation: { maxLength: 120 } }],
   ["storefront.favicon_url", "storefront", "url", "", "Favicon", "أيقونة المتجر", "Public browser favicon URL.", "رابط أيقونة المتجر في المتصفح.", { isPublic: true }],
   ["storefront.homepage_hero", "storefront", "json", { title: "", subtitle: "", imageUrl: "" }, "Homepage hero settings", "واجهة الصفحة الرئيسية", "Hero title, subtitle, and image URL.", "العنوان والوصف وصورة واجهة الصفحة الرئيسية.", { isPublic: true }],
   ["storefront.featured_collections", "storefront", "json", [], "Featured collections", "المجموعات المميزة", "Collection IDs or slugs displayed on home.", "معرفات أو روابط المجموعات الظاهرة في الرئيسية.", { isPublic: true }],

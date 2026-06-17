@@ -3385,6 +3385,24 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     throw Object.assign(new Error("AI is paused for this conversation"), { status: 409 });
   }
   const lastMessage = latestCustomerMessage(conversation.messages) || conversation.latest_message_preview || conversation.last_message || "";
+  let replyHarness = null;
+  try {
+    const { buildReplyHarness } = await import("./aiReplyHarnessService.js");
+    replyHarness = await buildReplyHarness({
+      tenantId,
+      conversationId,
+      conversation,
+      latestCustomerMessage: lastMessage,
+      sendMode: persist ? "persist" : "compose",
+      channel: conversation.channel || conversation.source || "web_chat",
+    });
+  } catch (error) {
+    console.warn("[ai-agent:harness] build skipped", {
+      tenantId,
+      conversationId,
+      message: error?.message || String(error),
+    });
+  }
   const intent = resolveIntent(lastMessage);
   const detectedSize = extractShoeSize(lastMessage);
   const salesIntent = extractSalesIntent(lastMessage);
@@ -3411,11 +3429,11 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     },
   });
   const recommendations = await loadAiInboxRecommendations({ tenantId, conversationId, limit: 8 });
-  const productContext = buildProductContext(currentProductForConversation(conversation, recommendations.products));
-  const conversationMemory = getConversationMemory(conversationId);
+  const productContext = replyHarness?.product_context?.active_product || buildProductContext(currentProductForConversation(conversation, recommendations.products));
+  const conversationMemory = replyHarness?.memory_context?.raw || getConversationMemory(conversationId);
   const replyProductContext = productContext || buildProductContext(conversationMemory?.lastProduct);
   const latestMessageRow = [...asArray(conversation.messages)].reverse().find((message) => text(message.customer_message || message.message_text || message.last_message)) || {};
-  const salesIntelligence = await buildSalesConversationIntelligence({
+  const salesIntelligence = replyHarness?.business_context?.sales_intelligence || await buildSalesConversationIntelligence({
     tenantId,
     conversation: {
       ...conversation,
@@ -3456,21 +3474,25 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
       },
     });
   }
-  const employeeCorrections = await searchRelevantCorrections({
-    tenantId,
-    query: lastMessage,
-    productId: replyProductContext?.id || productContext?.id || null,
-    correctionType: correctionTypeHintForIntent({ intent, salesIntent, message: lastMessage }),
-    limit: 3,
-  }).catch((error) => {
-    console.warn("[ai-agent:corrections] search skipped", {
-      tenantId,
-      conversationId,
-      message: error?.message,
-    });
-    return [];
-  });
-  const employeeCorrectionSources = buildReplyCorrectionContextSource(employeeCorrections, lastMessage);
+  const employeeCorrections = asArray(replyHarness?.correction_context?.corrections).length
+    ? asArray(replyHarness.correction_context.corrections)
+    : await searchRelevantCorrections({
+        tenantId,
+        query: lastMessage,
+        productId: replyProductContext?.id || productContext?.id || null,
+        correctionType: correctionTypeHintForIntent({ intent, salesIntent, message: lastMessage }),
+        limit: 3,
+      }).catch((error) => {
+        console.warn("[ai-agent:corrections] search skipped", {
+          tenantId,
+          conversationId,
+          message: error?.message,
+        });
+        return [];
+      });
+  const employeeCorrectionSources = asArray(replyHarness?.correction_context?.sources).length
+    ? asArray(replyHarness.correction_context.sources)
+    : buildReplyCorrectionContextSource(employeeCorrections, lastMessage);
   const productPrompt = replyProductContext
     ? [
         "Current product context:",
@@ -3572,9 +3594,21 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   };
   const reply = await composeAiSalesReply({
     message: lastMessage,
-    response: baseReply,
+    response: {
+      ...baseReply,
+      reply_harness: replyHarness ? {
+        tenant_id: replyHarness.tenant_id,
+        conversation_id: replyHarness.conversation_id,
+        send_mode: replyHarness.send_mode,
+        trace: replyHarness.trace,
+      } : null,
+    },
     intent: { type: intent },
     memory: conversationMemory,
+    context: {
+      reply_harness: replyHarness,
+      harness_trace: replyHarness?.trace || null,
+    },
     source: "ai_inbox",
   });
   const channelAdapterPayload = {
