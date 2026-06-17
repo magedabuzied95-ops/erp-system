@@ -987,7 +987,7 @@ function InboxChatHeader({
 }
 
 const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoadOlder, onOpenCorrection }) {
-  const messages = uniqueMessages(conversation?.messages);
+  const messages = uniqueMessages(conversation?.messages).filter((message) => !isHiddenAiReplyTranscriptMessage(message));
   const events = asArray(conversation?.system_events);
   if (!messages.length && !events.length) {
     return <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">No transcript yet.</div>;
@@ -1534,6 +1534,22 @@ const resolveChannelAutoReplyMode = (channelStatus = {}) => {
 };
 
 const lastEnabledAutoReplyModeKey = (tenantId, channelKey) => `aiInbox:lastEnabledAutoReplyMode:${tenantId}:${channelKey}`;
+
+const isHiddenAiReplyTranscriptMessage = (message = {}) => {
+  const status = clean(message.status || message.delivery_status || message.message_status || "").toLowerCase();
+  const messageType = clean(message.message_type || message.messageType || "").toLowerCase();
+  const source = clean(message.source || message.origin || message.source_path || message.insert_source || "").toLowerCase();
+  const deliveryStatus = clean(message.delivery_status || "").toLowerCase();
+  return (
+    status === "not_sent" ||
+    status === "draft" ||
+    messageType === "draft" ||
+    messageType === "ai_reply_draft" ||
+    messageType === "comment_suggestion" ||
+    source === "ai_suggestion" ||
+    (Boolean(message.manual_message) && !deliveryStatus && source === "manual_message_insert")
+  );
+};
 
 function AutoReplyModePanel({ channelStatus = {}, mode, onChange, saving }) {
   const channelReady = channelStatus.live_operational === true || channelStatus.effective_enabled === true || channelStatus.last_webhook_received_at || ["sent", "test_sent"].includes(channelStatus.last_send_status);
@@ -3418,6 +3434,35 @@ export default function AiInbox() {
     return api.post(aiInboxConversationEndpoint(sessionId, "/reply"), { tenant_id: tenantId, message }, { headers, perfComponent: "AiInbox.saveDraftReply" });
   };
 
+  const saveEditedAiReplyCorrection = async ({ sentMessageId = "", aiReplyDraft = null, employeeCorrectAnswer = "" } = {}) => {
+    const sessionId = selectedConversation?.session_id;
+    const conversation = selectedConversation || {};
+    const draft = aiReplyDraft || selectedConversation?.ai_reply_draft || selectedConversation?.last_ai_reply_draft || null;
+    const normalizedDraftText = clean(draft?.text || "");
+    const correctedText = clean(employeeCorrectAnswer || "");
+    if (!sessionId || !sentMessageId || !normalizedDraftText || !correctedText || normalizedDraftText === correctedText) return;
+    if (draft?.status && draft.status !== "not_sent" && draft.status !== "draft") return;
+
+    const customerQuestion = [...asArray(conversation.messages)]
+      .slice()
+      .reverse()
+      .find((item) => clean(item.customer_message || item.message_text || item.last_message || ""));
+
+    await api.post(
+      aiReplyCorrectionEndpoint(sessionId, sentMessageId),
+      {
+        tenant_id: tenantId,
+        customer_question: clean(customerQuestion?.customer_message || customerQuestion?.message_text || customerQuestion?.last_message || conversation.latest_message_preview || conversation.last_message || ""),
+        ai_wrong_answer: normalizedDraftText,
+        employee_correct_answer: correctedText,
+        correction_type: draft?.metadata?.correction_type || "other",
+        product_id: draft?.metadata?.product_id || null,
+        channel: conversation.channel || conversation.source || "",
+      },
+      { headers, perfComponent: "AiInbox.aiReplyCorrection" }
+    );
+  };
+
   const sendCommentReply = async (overrideText = "") => {
     const message = clean(overrideText || replyText);
     if (!selectedConversation?.session_id || !message) return;
@@ -3466,6 +3511,7 @@ export default function AiInbox() {
     if (!selectedConversation?.session_id || !message) return;
     const sessionId = selectedConversation?.session_id;
     const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+    const activeDraft = selectedConversation?.ai_reply_draft || selectedConversation?.last_ai_reply_draft || null;
     const now = new Date().toISOString();
     const optimistic = {
       id: `sending-${Date.now()}`,
@@ -3503,6 +3549,17 @@ export default function AiInbox() {
           last_activity_at: payload.message.created_at || now,
           updated_at: payload.message.created_at || now,
         }));
+        void saveEditedAiReplyCorrection({
+          sentMessageId: payload.message.id || "",
+          aiReplyDraft: activeDraft,
+          employeeCorrectAnswer: message,
+        }).catch((error) => {
+          console.warn("[ai-inbox][ai-reply-correction] skipped", {
+            session_id: sessionId,
+            message_id: payload.message?.id || "",
+            error: error?.message || String(error),
+          });
+        });
       }
     } catch (err) {
       setToast({ tone: "rose", text: err?.message || "فشل الإرسال" });
@@ -3784,17 +3841,18 @@ export default function AiInbox() {
     setAiReply({ sessionId, text: "", loading: true, error: "" });
     try {
       const payload = await api.post(aiInboxConversationEndpoint(sessionId, "/ai-reply"), { tenant_id: tenantId, persist }, { headers, perfComponent: "AiInbox.generateAiReply" });
-      const textValue = payload.reply?.answer || "";
+      const aiReplyDraft = payload.ai_reply_draft || payload.draft || payload.suggestion || null;
+      const textValue = clean(aiReplyDraft?.text || payload.reply?.answer || payload.text || "");
+      setReplyText(textValue);
       window.setTimeout(() => {
         setAiReply({ sessionId, text: textValue, loading: false, error: "" });
-        setReplyText(textValue);
       }, 450);
-      if (payload.draft) {
+      if (aiReplyDraft) {
         patchConversation(conversationIdentifier, (conversation) => ({
           ...conversation,
-          ai_reply_draft: payload.draft,
-          last_ai_reply_draft: payload.draft,
-          last_ai_reply_draft_updated_at: payload.draft.updated_at || new Date().toISOString(),
+          ai_reply_draft: aiReplyDraft,
+          last_ai_reply_draft: aiReplyDraft,
+          last_ai_reply_draft_updated_at: aiReplyDraft.updated_at || new Date().toISOString(),
         }));
       }
     } catch (err) {

@@ -256,6 +256,8 @@ const needsHumanAttention = (conversation = {}) =>
 
 const aiAgentInboxEndpoint = (sessionId = "", suffix = "") =>
   `/ai-agent/inbox/${encodeConversationId(sessionId)}${suffix}`;
+const aiReplyCorrectionEndpoint = (sessionId = "", messageId = "") =>
+  aiAgentInboxEndpoint(sessionId, `/messages/${encodeConversationId(messageId)}/correction`);
 
 const isMessengerConversation = (conversation = {}) => {
   const channel = normalizeConversationChannel(conversation);
@@ -392,14 +394,16 @@ const uniqueMessages = (messages = []) => {
 const isHiddenAiReplyDraftMessage = (message = {}) => {
   const status = clean(message.status || message.delivery_status || message.message_status || "").toLowerCase();
   const messageType = clean(message.message_type || message.messageType || "").toLowerCase();
-  const source = clean(message.source || message.origin || "").toLowerCase();
+  const source = clean(message.source || message.origin || message.source_path || message.insert_source || "").toLowerCase();
+  const deliveryStatus = clean(message.delivery_status || "").toLowerCase();
   return (
     status === "not_sent" ||
     status === "draft" ||
     messageType === "draft" ||
     messageType === "ai_reply_draft" ||
     messageType === "comment_suggestion" ||
-    source === "ai_suggestion"
+    source === "ai_suggestion" ||
+    (Boolean(message.manual_message) && !deliveryStatus && source === "manual_message_insert")
   );
 };
 
@@ -1869,6 +1873,7 @@ export default function AiInboxPwa() {
   const sendManualReply = useCallback(async () => {
     const message = clean(composerText);
     if (!selectedConversation?.session_id || !message) return;
+    const activeDraft = selectedConversation?.ai_reply_draft || selectedConversation?.last_ai_reply_draft || null;
     setSending(true);
     try {
       const payload =
@@ -1912,6 +1917,33 @@ export default function AiInboxPwa() {
           human_takeover: composerMode === "note" ? conversation.human_takeover : true,
           conversation_status: composerMode === "note" ? conversation.conversation_status : "human_takeover",
         }));
+        if (composerMode !== "note" && payload?.delivery_status === "sent") {
+          const customerQuestion = [...asArray(selectedConversation?.messages)]
+            .reverse()
+            .find((item) => clean(item.customer_message || item.message_text || item.last_message || ""));
+          const draftText = clean(activeDraft?.text || "");
+          if (draftText && draftText !== message && ["not_sent", "draft"].includes(clean(activeDraft?.status || "not_sent").toLowerCase())) {
+            await api.post(
+              aiReplyCorrectionEndpoint(selectedConversation.session_id, returnedMessage.id || payload?.message?.id || ""),
+              {
+                tenant_id: tenantId,
+                customer_question: clean(customerQuestion?.customer_message || customerQuestion?.message_text || customerQuestion?.last_message || selectedConversation.latest_message_preview || selectedConversation.last_message || ""),
+                ai_wrong_answer: draftText,
+                employee_correct_answer: message,
+                correction_type: activeDraft?.metadata?.correction_type || "other",
+                product_id: activeDraft?.metadata?.product_id || null,
+                channel: selectedConversation.channel || selectedConversation.source || "",
+              },
+              { headers, perfComponent: "AiInboxPwa.aiReplyCorrection" }
+            ).catch((error) => {
+              console.warn("[ai-inbox-pwa][ai-reply-correction] skipped", {
+                session_id: selectedConversation.session_id,
+                message_id: returnedMessage.id || payload?.message?.id || "",
+                error: error?.message || String(error),
+              });
+            });
+          }
+        }
       }
 
       if (composerMode === "note") {

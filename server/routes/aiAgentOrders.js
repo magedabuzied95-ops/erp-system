@@ -2852,7 +2852,14 @@ router.post("/conversations/:conversationId/ai-reply", protect, permit("settings
       conversationId: req.params.conversationId,
       persist: req.body?.persist === true || req.body?.send === true,
     });
-    return res.status(result.message ? 201 : 200).json({ success: true, ...result });
+    const aiReplyDraft = normalizeAiReplyDraft(result.ai_reply_draft || result.draft || result.suggestion || {});
+    return res.status(result.message ? 201 : 200).json({
+      success: true,
+      ...result,
+      draft: aiReplyDraft,
+      ai_reply_draft: aiReplyDraft,
+      suggestion: aiReplyDraft,
+    });
   } catch (error) {
     return sendError(res, error, "Failed to generate AI reply");
   }

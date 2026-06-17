@@ -1544,8 +1544,11 @@ export const upsertAiReplySuggestionDraft = async ({
   }
   await ensureAiSupportLogSchema();
   const safeProductCards = Array.isArray(productCards) ? productCards : [];
+  const safeOriginalSuggestionId = toText(originalSuggestionId || "");
+  const draftId = toText(originalSuggestionId || `ai_suggestion_${Date.now()}`);
   const draft = {
-    id: toText(originalSuggestionId || `ai_suggestion_${Date.now()}`),
+    id: draftId,
+    original_suggestion_id: safeOriginalSuggestionId || draftId,
     status: toText(status || "not_sent") || "not_sent",
     source: "ai_suggestion",
     message_type: toText(messageType || (safeProductCards.length ? "product_card" : "text")) || "text",
