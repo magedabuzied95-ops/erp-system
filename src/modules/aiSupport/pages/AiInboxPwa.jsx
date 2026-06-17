@@ -1518,87 +1518,103 @@ export default function AiInboxPwa() {
 
   useEffect(() => {
     const onMessage = (payload = {}) => {
-      const normalizedPayload = normalizeRealtimeConversationKeys(payload);
-      if (normalizedPayload.tenantId && normalizedPayload.tenantId !== clean(tenantId)) return;
-      if (!normalizedPayload.message || (!normalizedPayload.sessionId && !normalizedPayload.conversationKey && !normalizedPayload.rawSessionId)) return;
+      try {
+        const normalizedPayload = normalizeRealtimeConversationKeys(payload);
+        if (normalizedPayload.tenantId && normalizedPayload.tenantId !== clean(tenantId)) return;
+        if (!normalizedPayload.message || (!normalizedPayload.sessionId && !normalizedPayload.conversationKey && !normalizedPayload.rawSessionId)) return;
 
-      const incomingMessage = normalizedPayload.message;
-      const incomingMessageKey = messageKey(incomingMessage);
-      const incomingCards = normalizeMessageProductCards(incomingMessage);
-      const incomingPreview =
-        messageDisplayText(incomingMessage) ||
-        (incomingCards.length ? productCardPreviewText(incomingCards) : "") ||
-        incomingMessage.latest_message_preview ||
-        incomingMessage.last_message_preview ||
-        "";
-      const activeConversationKeys = normalizeRealtimeConversationKeys({ session_id: conversationParam });
-      const currentConversationIds = {
-        sessionId: normalizedPayload.sessionId,
-        rawSessionId: normalizedPayload.rawSessionId,
-        conversationKey: normalizedPayload.conversationKey,
-        conversationId: normalizedPayload.conversationKey,
-        messageId: incomingMessage.id,
-        providerMessageId: incomingMessage.provider_message_id || incomingMessage.providerMessageId,
-        externalMessageId: incomingMessage.external_message_id || incomingMessage.externalMessageId,
-      };
-      let matchedConversation = false;
-
-      setInbox((current) => {
-        const nextConversations = asArray(current.conversations).map((conversation) => {
-          if (!conversationMatchesRealtimeKeys(conversation, currentConversationIds)) return conversation;
-          matchedConversation = true;
-
-          const existingMessages = asArray(conversation.messages);
-          const existingMessageIndex = existingMessages.findIndex((item) => messageKey(item) === incomingMessageKey);
-          const normalizedMessage = normalizeInboxMessage({
-            ...incomingMessage,
-            product_cards: incomingCards,
-            productCards: incomingCards,
-          });
-          const nextMessages =
-            existingMessageIndex >= 0
-              ? existingMessages.map((item, index) => (index === existingMessageIndex ? { ...item, ...normalizedMessage } : item))
-              : uniqueMessages([...existingMessages, normalizedMessage]);
-          const isInbound = normalizeMessageDirection(normalizedMessage) === "inbound";
-          const unreadCount = conversationUnreadCount(conversation);
-          const nextUnreadCount = isInbound ? (conversationMatchesRealtimeKeys(conversation, activeConversationKeys) ? 0 : Math.max(1, unreadCount + 1)) : unreadCount;
-          const nextTimestamp = normalizedMessage.created_at || normalizedMessage.updated_at || new Date().toISOString();
-
-          return {
-            ...conversation,
-            messages: nextMessages,
-            message_count: Math.max(Number(conversation.message_count || existingMessages.length), nextMessages.length),
-            latest_message_preview: incomingPreview || conversation.latest_message_preview,
-            last_message_preview: incomingPreview || conversation.last_message_preview,
-            last_message: incomingPreview || conversation.last_message || "",
-            last_message_at: nextTimestamp,
-            last_activity_at: nextTimestamp,
-            updated_at: nextTimestamp,
-            last_product_cards: incomingCards.length ? incomingCards : conversation.last_product_cards,
-            latest_product_cards: incomingCards.length ? incomingCards : conversation.latest_product_cards,
-            unread_count: nextUnreadCount,
-            pending_count: nextUnreadCount,
-            unread: nextUnreadCount > 0,
-            channel_metadata: {
-              ...(conversation.channel_metadata || {}),
-              last_message: incomingPreview || conversation.channel_metadata?.last_message || "",
-              last_product_cards: incomingCards.length ? incomingCards : conversation.channel_metadata?.last_product_cards || [],
-            },
-          };
-        });
-
-        if (!matchedConversation) return current;
-        return {
-          ...current,
-          conversations: sortConversationsByActivity(nextConversations),
+        const incomingMessage = normalizedPayload.message;
+        const incomingMessageKey = messageKey(incomingMessage);
+        const incomingCards = normalizeMessageProductCards(incomingMessage);
+        const incomingPreview =
+          messageDisplayText(incomingMessage) ||
+          (incomingCards.length ? productCardPreviewText(incomingCards) : "") ||
+          incomingMessage.latest_message_preview ||
+          incomingMessage.last_message_preview ||
+          "";
+        const currentConversationIds = {
+          sessionId: normalizedPayload.sessionId,
+          rawSessionId: normalizedPayload.rawSessionId,
+          conversationKey: normalizedPayload.conversationKey,
+          conversationId: normalizedPayload.conversationKey,
+          messageId: incomingMessage.id,
+          providerMessageId: incomingMessage.provider_message_id || incomingMessage.providerMessageId,
+          externalMessageId: incomingMessage.external_message_id || incomingMessage.externalMessageId,
         };
-      });
+        const activeConversationKeys = normalizeRealtimeConversationKeys({ session_id: conversationParam });
+        let matchedConversation = false;
+
+        setConversations((current) => {
+          const nextConversations = asArray(current).map((conversation) => {
+            if (!conversationMatchesRealtimeKeys(conversation, currentConversationIds)) return conversation;
+            matchedConversation = true;
+
+            const existingMessages = asArray(conversation.messages);
+            const existingMessageIndex = existingMessages.findIndex((item) => messageKey(item) === incomingMessageKey);
+            const normalizedMessage = normalizeInboxMessage({
+              ...incomingMessage,
+              product_cards: incomingCards,
+              productCards: incomingCards,
+            });
+            const nextMessages =
+              existingMessageIndex >= 0
+                ? existingMessages.map((item, index) => (index === existingMessageIndex ? { ...item, ...normalizedMessage } : item))
+                : uniqueMessages([...existingMessages, normalizedMessage]);
+            const isInbound = normalizeMessageDirection(normalizedMessage) === "inbound";
+            const unreadCount = conversationUnreadCount(conversation);
+            const nextUnreadCount = isInbound ? (conversationMatchesRealtimeKeys(conversation, activeConversationKeys) ? 0 : Math.max(1, unreadCount + 1)) : unreadCount;
+            const nextTimestamp = normalizedMessage.created_at || normalizedMessage.updated_at || new Date().toISOString();
+
+            return {
+              ...conversation,
+              messages: nextMessages,
+              message_count: Math.max(Number(conversation.message_count || existingMessages.length), nextMessages.length),
+              latest_message_preview: incomingPreview || conversation.latest_message_preview,
+              last_message_preview: incomingPreview || conversation.last_message_preview,
+              last_message: incomingPreview || conversation.last_message || "",
+              last_message_at: nextTimestamp,
+              last_activity_at: nextTimestamp,
+              updated_at: nextTimestamp,
+              last_product_cards: incomingCards.length ? incomingCards : conversation.last_product_cards,
+              latest_product_cards: incomingCards.length ? incomingCards : conversation.latest_product_cards,
+              unread_count: nextUnreadCount,
+              pending_count: nextUnreadCount,
+              unread: nextUnreadCount > 0,
+              channel_metadata: {
+                ...(conversation.channel_metadata || {}),
+                last_message: incomingPreview || conversation.channel_metadata?.last_message || "",
+                last_product_cards: incomingCards.length ? incomingCards : conversation.channel_metadata?.last_product_cards || [],
+              },
+            };
+          });
+
+          if (!matchedConversation) return current;
+          return sortConversationsByActivity(nextConversations);
+        });
+      } catch (error) {
+        console.warn("[AiInboxPwa][realtime-message-error]", {
+          event: "ai_inbox:message",
+          tenant_id: clean(tenantId),
+          conversation_id: clean(payload?.session_id || payload?.sessionId || payload?.conversation_id || payload?.conversationId || payload?.conversation_key || payload?.conversationKey || ""),
+          message_id: clean(payload?.message?.id || payload?.message?.provider_message_id || payload?.message?.providerMessageId || payload?.message?.external_message_id || payload?.message?.externalMessageId || ""),
+          error: error?.message || String(error || ""),
+        });
+      }
     };
 
     const onRefresh = (payload = {}) => {
-      const payloadTenantId = clean(payload.tenant_id || payload.tenantId || "");
-      if (payloadTenantId && payloadTenantId !== clean(tenantId)) return;
-      void loadConversations({ silent: true });
+      try {
+        const payloadTenantId = clean(payload.tenant_id || payload.tenantId || "");
+        if (payloadTenantId && payloadTenantId !== clean(tenantId)) return;
+        void loadConversations({ silent: true });
+      } catch (error) {
+        console.warn("[AiInboxPwa][realtime-refresh-error]", {
+          event: "ai_inbox:refresh",
+          tenant_id: clean(tenantId),
+          conversation_id: clean(payload?.session_id || payload?.sessionId || payload?.conversation_id || payload?.conversationId || payload?.conversation_key || payload?.conversationKey || ""),
+          error: error?.message || String(error || ""),
+        });
+      }
     };
 
     const offMessage = subscribeRealtime("ai_inbox:message", onMessage);
