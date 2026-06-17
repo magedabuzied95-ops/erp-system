@@ -54,6 +54,7 @@ router.patch("/site", protect, permit("settings", "edit"), async (req, res) => {
     const incoming = req.body?.site && typeof req.body.site === "object" ? req.body.site : req.body || {};
     const site = await updateSiteSettings({
       tenantId,
+      name: incoming.name ?? incoming.siteName ?? incoming.company_name ?? incoming.companyName,
       companyName: incoming.company_name ?? incoming.companyName,
       companyLogoUrl: incoming.company_logo_url ?? incoming.companyLogoUrl,
       faviconUrl: incoming.favicon_url ?? incoming.faviconUrl,

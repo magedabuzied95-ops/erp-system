@@ -83,7 +83,7 @@ export const getSiteSettings = async ({ tenantId } = {}) => {
   };
 };
 
-export const updateSiteSettings = async ({ tenantId, companyName, companyLogoUrl, faviconUrl, updatedBy = null } = {}) => {
+export const updateSiteSettings = async ({ tenantId, name, companyName, companyLogoUrl, faviconUrl, updatedBy = null } = {}) => {
   const safeTenantId = Number.isFinite(Number(tenantId)) && Number(tenantId) > 0 ? Number(tenantId) : null;
   if (!safeTenantId) throw new Error("tenant_id is required");
 
@@ -106,6 +106,7 @@ export const updateSiteSettings = async ({ tenantId, companyName, companyLogoUrl
   const currentTenant = currentTenantResult.rows[0] || null;
   const payload = {
     tenantId: safeTenantId,
+    name: nullableText(name),
     company_name: nullableText(companyName),
     company_logo_url: nullableText(companyLogoUrl),
     favicon_url: nullableText(faviconUrl),
@@ -116,8 +117,11 @@ export const updateSiteSettings = async ({ tenantId, companyName, companyLogoUrl
     currentTenant,
   });
 
-  const nextTenantName = payload.company_name || currentTenant?.name || currentTenant?.company_name || "MONE";
-  const nextCompanyName = payload.company_name;
+  const nextTenantName = cleanText(
+    payload.name || payload.company_name || currentTenant?.name || currentTenant?.company_name,
+    "MONE"
+  );
+  const nextCompanyName = cleanText(payload.company_name || payload.name || currentTenant?.company_name || currentTenant?.name, nextTenantName);
   const nextCompanyLogoUrl = payload.company_logo_url;
   const nextFaviconUrl = payload.favicon_url;
 
