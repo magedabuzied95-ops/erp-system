@@ -1559,7 +1559,7 @@ const featuredCategoryDefinitions = [
     query: "Jordan 4 Nike Shox Air Force Adidas Campus رجالي",
     href: "/shop/products?gender=men",
     examples: ["Jordan 4", "Nike Shox", "Air Force", "Adidas Campus"],
-    test: (product, text) => productAudienceValues(product).includes("men") || /men|mens|male|?{3,5}/i.test(text),
+    test: (product, text) => productAudienceValues(product).includes("men") || /men|mens|male|.{3,5}/i.test(text),
     icon: Briefcase,
   },
   {
@@ -1573,7 +1573,7 @@ const featuredCategoryDefinitions = [
     query: "Nike Adidas Jordan حريمي",
     href: "/shop/products?gender=women",
     examples: ["Nike", "Adidas", "Jordan"],
-    test: (product, text) => productAudienceValues(product).includes("women") || /women|womens|female|ladies|?{3,5}/i.test(text),
+    test: (product, text) => productAudienceValues(product).includes("women") || /women|womens|female|ladies|.{3,5}/i.test(text),
     icon: Users,
   },
   {
@@ -1587,7 +1587,7 @@ const featuredCategoryDefinitions = [
     query: "kids children school play أطفال",
     href: "/shop/products?gender=kids",
     examples: ["kids", "children", "school", "play"],
-    test: (product, text) => productAudienceValues(product).includes("kids") || /kids?|children|child|?{3,5}/i.test(text),
+    test: (product, text) => productAudienceValues(product).includes("kids") || /kids?|children|child|.{3,5}/i.test(text),
     icon: Baby,
   },
   {
@@ -1601,7 +1601,7 @@ const featuredCategoryDefinitions = [
     query: "offers sale discount عروض",
     href: "/shop/products?sale=true",
     examples: ["Sale", "Discount", "Offers", "Best Price"],
-    test: (product, text) => hasSale(product) || /offer|offers|sale|discount|?{3,5}/i.test(text),
+    test: (product, text) => hasSale(product) || /offer|offers|sale|discount|.{3,5}/i.test(text),
     icon: BadgePercent,
   },
   {
@@ -1615,7 +1615,7 @@ const featuredCategoryDefinitions = [
     query: "crocs crocband classic clog slides كروكس",
     href: "/shop/products?category=crocs",
     examples: ["Crocs", "Crocband", "Classic Clog", "Slides"],
-    test: (_product, text) => /crocs?|crocband|classics*clog|slides|?{3,5}/i.test(text),
+    test: (_product, text) => /crocs?|crocband|classics*clog|slides|.{3,5}/i.test(text),
     icon: Footprints,
   },
   {
@@ -1629,7 +1629,7 @@ const featuredCategoryDefinitions = [
     query: "last sizes final size آخر المقاسات",
     href: "/shop/products?stock=last",
     examples: ["Last Sizes", "Final Size", "Limited Stock"],
-    test: (_product, text) => /lasts*sizes|finals*size|?{3,5} ?{3,5}|?{3,5} ?{3,5} ?{3,5}/i.test(text),
+    test: (_product, text) => /lasts*sizes|finals*size|.{3,5} .{3,5}|.{3,5} .{3,5} .{3,5}/i.test(text),
     icon: PackageSearch,
   },
 ];
@@ -2044,7 +2044,7 @@ const mainHomeCategoryCards = [
     subtitleAr: "أحدث Nike و Adidas و Jordan",
     subtitleEn: "Latest Nike, Adidas & Jordan",
     href: "/shop/products?gender=men",
-    test: (product, text) => productAudienceValues(product).includes("men") || /men|mens|male|?{3,5}/i.test(text),
+    test: (product, text) => productAudienceValues(product).includes("men") || /men|mens|male|.{3,5}/i.test(text),
     icon: Briefcase,
   },
   {
@@ -2054,7 +2054,7 @@ const mainHomeCategoryCards = [
     subtitleAr: "راحة وأناقة لكل يوم",
     subtitleEn: "Comfort and style for every day",
     href: "/shop/products?gender=women",
-    test: (product, text) => productAudienceValues(product).includes("women") || /women|womens|female|ladies|?{3,5}/i.test(text),
+    test: (product, text) => productAudienceValues(product).includes("women") || /women|womens|female|ladies|.{3,5}/i.test(text),
     icon: Users,
   },
   {
@@ -2064,7 +2064,7 @@ const mainHomeCategoryCards = [
     subtitleAr: "مناسب للمدرسة واللعب والحركة",
     subtitleEn: "Built for school, play and movement",
     href: "/shop/products?gender=kids",
-    test: (product, text) => productAudienceValues(product).includes("kids") || /kids?|children|child|?{3,5}/i.test(text),
+    test: (product, text) => productAudienceValues(product).includes("kids") || /kids?|children|child|.{3,5}/i.test(text),
     icon: Baby,
   },
   {
@@ -2074,7 +2074,7 @@ const mainHomeCategoryCards = [
     subtitleAr: "عروض الموسم",
     subtitleEn: "Season offers",
     href: "/shop/products?sale=true",
-    test: (product, text) => hasSale(product) || /offer|offers|sale|discount|?{3,5}/i.test(text),
+    test: (product, text) => hasSale(product) || /offer|offers|sale|discount|.{3,5}/i.test(text),
     icon: BadgePercent,
   },
   {
@@ -2084,7 +2084,7 @@ const mainHomeCategoryCards = [
     subtitleAr: "راحة سهلة لكل يوم",
     subtitleEn: "Easy comfort for every day",
     href: "/shop/products?category=crocs",
-    test: (_product, text) => /crocs?|crocband|classics*clog|slides|?{3,5}/i.test(text),
+    test: (_product, text) => /crocs?|crocband|classics*clog|slides|.{3,5}/i.test(text),
     icon: Footprints,
   },
   {
@@ -2094,7 +2094,7 @@ const mainHomeCategoryCards = [
     subtitleAr: "قطع محدودة قبل ما تختفي",
     subtitleEn: "Limited pairs before they disappear",
     href: "/shop/products?stock=last",
-    test: (_product, text) => /lasts*sizes|finals*size|?{3,5} ?{3,5}|?{3,5} ?{3,5} ?{3,5}/i.test(text),
+    test: (_product, text) => /lasts*sizes|finals*size|.{3,5} .{3,5}|.{3,5} .{3,5} .{3,5}/i.test(text),
     icon: PackageSearch,
   },
 ];
