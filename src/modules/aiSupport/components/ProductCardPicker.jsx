@@ -21,6 +21,14 @@ const uniqueSizeValues = (values = []) =>
     return a.localeCompare(b, "ar");
   });
 
+const firstText = (...values) => {
+  for (const value of values) {
+    const text = clean(value);
+    if (text) return text;
+  }
+  return "";
+};
+
 const resolveStorefrontUrl = (product = {}, variant = null, color = "", size = "") => {
   const rawUrl = clean(product.storefront_url || product.product_url || product.url || "");
   const productId = product.product_id || product.id || "";
@@ -53,7 +61,10 @@ const resolveStorefrontUrl = (product = {}, variant = null, color = "", size = "
 const productImage = (product = {}, variant = null) =>
   clean(
     variant?.image_url ||
+      variant?.color_image_url ||
       variant?.variant_image_url ||
+      variant?.primary_image_url ||
+      variant?.color_image ||
       product.product_image_url ||
       product.image_url ||
       product.image ||
@@ -100,6 +111,20 @@ const findMatchingVariant = (product = {}, color = "", size = "") => {
   const sizeMatch = normalizedSize ? searchVariants.find((variant) => lower(variant.size || variant.size_name || variant.variant_size) === normalizedSize) : null;
   if (sizeMatch) return sizeMatch;
   return searchVariants[0] || variants[0] || null;
+};
+
+const findMatchingColorVariant = (product = {}, color = "") => {
+  const variants = asArray(product.variants);
+  if (!variants.length) return null;
+  const normalizedColor = lower(color);
+  if (!normalizedColor) return null;
+  const availableVariants = variants.filter((variant) => Number(variant.stock ?? variant.stock_quantity ?? variant.available_quantity ?? variant.quantity ?? 0) > 0);
+  const searchVariants = availableVariants.length ? availableVariants : variants;
+  return (
+    searchVariants.find((variant) => lower(variant.color || variant.color_name || variant.variant_color) === normalizedColor) ||
+    variants.find((variant) => lower(variant.color || variant.color_name || variant.variant_color) === normalizedColor) ||
+    null
+  );
 };
 
 const buildProductCardPayload = (product = {}, variant = null) => {
@@ -314,8 +339,35 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
   }, [selectedProduct, selectedColor, selectedSize]);
 
   const activeVariant = useMemo(() => findMatchingVariant(selectedProduct || {}, selectedColor, selectedSize), [selectedColor, selectedProduct, selectedSize]);
+  const activeColorVariant = useMemo(() => findMatchingColorVariant(selectedProduct || {}, selectedColor), [selectedColor, selectedProduct]);
   const activeCard = useMemo(() => (selectedProduct ? buildProductCardPayload(selectedProduct, activeVariant) : null), [activeVariant, selectedProduct]);
-  const activeImage = productImage(selectedProduct || {}, activeVariant);
+  const activeImage = useMemo(() => {
+    const selectedImage = firstText(
+      activeColorVariant?.color_image_url,
+      activeColorVariant?.colorImageUrl,
+      activeColorVariant?.variant_image_url,
+      activeColorVariant?.variantImageUrl,
+      activeColorVariant?.primary_image_url,
+      activeColorVariant?.image_url,
+      activeColorVariant?.image,
+      activeVariant?.color_image_url,
+      activeVariant?.colorImageUrl,
+      activeVariant?.variant_image_url,
+      activeVariant?.variantImageUrl,
+      activeVariant?.primary_image_url,
+      activeVariant?.image_url,
+      activeVariant?.image,
+      selectedProduct?.color_image_url,
+      selectedProduct?.colorImageUrl,
+      selectedProduct?.variant_image_url,
+      selectedProduct?.variantImageUrl,
+      selectedProduct?.product_image_url,
+      selectedProduct?.image_url,
+      selectedProduct?.image,
+      selectedProduct?.thumbnail_url
+    );
+    return selectedImage || productImage(selectedProduct || {}, activeVariant);
+  }, [activeColorVariant, activeVariant, selectedProduct]);
   const activeColors = useMemo(() => productColors(selectedProduct || {}), [selectedProduct]);
   const activeSizes = useMemo(() => productSizes(selectedProduct || {}, selectedColor), [selectedColor, selectedProduct]);
   const activePrice = Number(activeCard?.price || 0);
@@ -418,20 +470,21 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] isolate flex items-end justify-center bg-black/70 p-2 backdrop-blur-sm sm:items-center sm:p-4"
+      className="fixed inset-0 z-[9999] isolate flex min-h-[100dvh] items-stretch justify-center overflow-hidden bg-black/70 backdrop-blur-sm sm:items-center sm:p-4"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose?.();
       }}
     >
+      <div className="absolute inset-0 bg-black/70" aria-hidden="true" />
       <section
-        className="relative flex max-h-[94vh] w-full max-w-6xl min-w-0 flex-col overflow-hidden rounded-[1.35rem] border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)]"
+        className="relative z-10 flex h-[100dvh] w-full max-w-[640px] min-w-0 flex-col overflow-hidden rounded-none border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)] sm:h-auto sm:max-h-[85dvh] sm:rounded-[1.35rem]"
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="ai-product-card-picker-title"
         dir="rtl"
       >
-        <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-3">
+        <div className="sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-white/10 bg-slate-950/95 px-4 py-3 backdrop-blur">
           <div className="min-w-0">
             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">AI INBOX</div>
             <h3 id="ai-product-card-picker-title" className="mt-1 text-lg font-black text-white">إرسال منتج</h3>
@@ -472,7 +525,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
           </div>
         ) : null}
 
-        <div className="grid min-h-0 flex-1 gap-3 overflow-hidden p-3 lg:grid-cols-[1.05fr_0.95fr]">
+        <div className="grid min-h-0 flex-1 gap-3 overflow-hidden p-3 sm:p-4 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
             <label className="relative min-w-0">
               <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
