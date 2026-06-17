@@ -1543,6 +1543,18 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
     list.push(row);
     followupsBySession.set(row.session_id, list);
   });
+  const followups = summaryOnly
+    ? { rows: [] }
+    : await db.query(
+      `
+      SELECT *
+      FROM ai_followup_tasks
+      WHERE tenant_id = $1
+      ORDER BY scheduled_at DESC
+      LIMIT 30
+      `,
+      [tenantId]
+    );
 
   const salesStateByConversation = new Map();
   salesStatesResult.rows.forEach((row) => {
