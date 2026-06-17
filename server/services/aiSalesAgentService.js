@@ -26,6 +26,10 @@ import { detectEscalation } from "./aiEscalationDetector.js";
 import { getAISettings, getAIToneInstruction } from "./aiSettingsService.js";
 import { buildHumanizedReply } from "./aiHumanizedReplies.js";
 import {
+  buildReplyCorrectionContextSource,
+  searchRelevantCorrections,
+} from "./aiCorrectionMemoryService.js";
+import {
   aiProductSqlExclusionClause,
   filterAiEligibleProducts,
 } from "./aiProductEligibilityService.js";
@@ -3277,6 +3281,16 @@ const currentProductForConversation = (conversation = {}, products = []) => {
   return asArray(products).find((product) => product?.id || product?.product_id || product?.name || product?.title) || null;
 };
 
+const correctionTypeHintForIntent = ({ intent = "", salesIntent = "", message = "" } = {}) => {
+  const normalizedIntent = lower(intent);
+  const normalizedSalesIntent = lower(salesIntent);
+  const normalizedMessage = lower(message);
+  if (normalizedIntent.includes("price") || normalizedSalesIntent.includes("price") || /سعر|price|cost/.test(normalizedMessage)) return "wrong_price";
+  if (normalizedIntent.includes("availability") || normalizedSalesIntent.includes("availability") || /موجود|متاح|stock|availability/.test(normalizedMessage)) return "wrong_stock";
+  if (/(policy|return|exchange|shipping|delivery|cod|payment)/.test(normalizedIntent) || /(policy|return|exchange|shipping|delivery|cod|payment|شحن|استبدال|استرجاع|دفع)/.test(normalizedMessage)) return "wrong_policy";
+  return "other";
+};
+
 export const generateAiInboxReply = async ({ tenantId, conversationId, persist = false } = {}) => {
   const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 100 });
   const conversation = asArray(inbox.conversations).find((item) => item.session_id === conversationId);
@@ -3356,6 +3370,21 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
       },
     });
   }
+  const employeeCorrections = await searchRelevantCorrections({
+    tenantId,
+    query: lastMessage,
+    productId: replyProductContext?.id || productContext?.id || null,
+    correctionType: correctionTypeHintForIntent({ intent, salesIntent, message: lastMessage }),
+    limit: 3,
+  }).catch((error) => {
+    console.warn("[ai-agent:corrections] search skipped", {
+      tenantId,
+      conversationId,
+      message: error?.message,
+    });
+    return [];
+  });
+  const employeeCorrectionSources = buildReplyCorrectionContextSource(employeeCorrections, lastMessage);
   const productPrompt = replyProductContext
     ? [
         "Current product context:",
@@ -3451,6 +3480,8 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     tone_instruction: toneInstruction,
     suggested_products: recommendations.products,
     visual_attachments: visualAttachments,
+    employee_corrections: employeeCorrections,
+    employee_correction_sources: employeeCorrectionSources,
     suggested_actions: escalation.shouldEscalate || salesIntent === "human_support" ? ["takeover"] : ["ask_size", "send_product", "create_draft_order"],
   };
   const reply = await composeAiSalesReply({

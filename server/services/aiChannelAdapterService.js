@@ -712,9 +712,10 @@ export const buildAiFlowPayloadFromNormalizedMessage = ({ normalizedMessage = {}
 export const normalizeOutgoingChannelReply = ({ channel = AI_AGENT_CHANNELS.WEB_CHAT, response = {} } = {}) => {
   const normalizedChannel = normalizeChannel(channel);
   const responseSource = response?.channel_reply || response?.unified_reply || response;
+  const outgoingProductCards = responseSource.suggested_products?.length ? responseSource.suggested_products : responseSource.product_cards;
   const productCards = normalizeStructuredProductCards(
-    responseSource.suggested_products?.length ? responseSource.suggested_products : responseSource.product_cards,
-    { limit: 6 }
+    outgoingProductCards,
+    { limit: asArray(outgoingProductCards).length || PRODUCT_CARD_BATCH_SIZE }
   );
   const imageCards = [
     ...asArray(responseSource.image_cards),
@@ -1381,6 +1382,10 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
     success_count: overrides.success_count ?? 0,
     delivery_error: overrides.delivery_error || "",
     transport: overrides.transport || selectedTransport,
+    product_card_requested_count: overrides.product_card_requested_count ?? 0,
+    product_card_sent_count: overrides.product_card_sent_count ?? 0,
+    product_card_batch_count: overrides.product_card_batch_count ?? 0,
+    product_card_batches: overrides.product_card_batches || [],
   });
   if (!config.enabled) {
     const result = buildResult({
@@ -1434,7 +1439,10 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
   }
   const text = toText(messageText || reply.text);
   const results = [];
-  const productCards = normalizeStructuredProductCards(reply.product_cards, { limit: 6 });
+  const rawProductCards = asArray(reply.product_cards);
+  const productCardBatches = chunkItems(rawProductCards, PRODUCT_CARD_BATCH_SIZE);
+  const normalizedProductCardBatches = productCardBatches.map((batch) => normalizeProductCardBatch(batch, PRODUCT_CARD_BATCH_SIZE));
+  const productCards = normalizedProductCardBatches.flat();
   const productCardTexts = productCards.map((product) => toText(productCardReplyText(product))).filter(Boolean);
   const trackSuccess = (kind, response) => {
     const messageId = response?.message_id || response?.messages?.[0]?.id || response?.id || "";
@@ -1463,6 +1471,8 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
   let deliveryError = "";
   let firstMessageId = "";
   let successCount = 0;
+  let productCardSentCount = 0;
+  const productCardBatchSummaries = [];
   const sendOutcome = (overrides = {}) => buildResult({
     sent: overrides.sent === true,
     delivery_status: overrides.delivery_status || (overrides.sent === true ? "sent" : "failed"),
@@ -1472,13 +1482,19 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
     success_count: overrides.success_count ?? successCount,
     delivery_error: overrides.delivery_error || deliveryError || "",
     transport: selectedTransport,
+    product_card_requested_count: overrides.product_card_requested_count ?? rawProductCards.length,
+    product_card_sent_count: overrides.product_card_sent_count ?? productCardSentCount,
+    product_card_batch_count: overrides.product_card_batch_count ?? productCardBatchSummaries.length,
+    product_card_batches: overrides.product_card_batches || productCardBatchSummaries,
   });
   if (productCards.length || imageCards.length) {
     const firstCard = productCards[0] || {};
     console.info("[CHANNEL_CARD_PAYLOAD]", {
       channel: AI_AGENT_CHANNELS.WHATSAPP,
       selected_transport: selectedTransport,
+      requested_product_cards_count: rawProductCards.length,
       product_cards_count: productCards.length,
+      product_card_batch_count: productCardBatches.length,
       image_cards_count: imageCards.length,
       first_card: {
         product_id: toText(firstCard.product_id || firstCard.id || ""),
@@ -1515,83 +1531,99 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
       deliveryError = deliveryError || error?.message || "WhatsApp text send failed";
     }
   }
-  for (const product of productCards) {
-    const productText = toText(productCardReplyText(product)).slice(0, 1024);
-    const productImage = toText(product.image_url || product.image || product.main_image || "");
-    if (productImage) {
-      try {
-        const imageResponse =
-          selectedTransport === "evolution"
-            ? await postEvolutionWhatsAppMessage({ recipient, imageUrl: productImage, caption: productText || "", kind: "image" })
-            : await postWhatsAppMessage({
-                config,
-                payload: {
-                  messaging_product: "whatsapp",
-                  recipient_type: "individual",
-                  to: recipient,
-                  type: "image",
-                  image: { link: productImage, caption: productText || undefined },
-                },
-              });
-        firstMessageId = firstMessageId || trackSuccess("product_image", imageResponse);
-        successCount += 1;
-      } catch (imageError) {
-        fallbackUsed = true;
-        trackFailure("product_image", imageError);
-        console.warn("[ai-agent:whatsapp] product image send failed; attempting text fallback", {
-          to: recipient,
-          image_url: productImage,
-          message: imageError?.message,
-          status: imageError?.status,
-          selected_transport: selectedTransport,
-        });
-        if (productText) {
-          try {
-            const fallbackResponse =
-              selectedTransport === "evolution"
-                ? await postEvolutionWhatsAppMessage({ recipient, text: productText.slice(0, 4096), kind: "text" })
-                : await postWhatsAppMessage({
-                    config,
-                    payload: {
-                      messaging_product: "whatsapp",
-                      recipient_type: "individual",
-                      to: recipient,
-                      type: "text",
-                      text: { preview_url: false, body: productText.slice(0, 4096) },
-                    },
-                  });
-            firstMessageId = firstMessageId || trackSuccess("product_text_fallback", fallbackResponse);
-            successCount += 1;
-          } catch (fallbackError) {
-            trackFailure("product_text_fallback", fallbackError);
-            if (!deliveryError) deliveryError = fallbackError?.message || "Product card text fallback failed";
+  for (let batchIndex = 0; batchIndex < normalizedProductCardBatches.length; batchIndex += 1) {
+    const batch = normalizedProductCardBatches[batchIndex];
+    const requestedBatch = productCardBatches[batchIndex] || [];
+    const batchSummary = {
+      batch_index: batchIndex + 1,
+      requested_count: requestedBatch.length,
+      normalized_count: batch.length,
+      sent_count: 0,
+    };
+    productCardBatchSummaries.push(batchSummary);
+    for (const product of batch) {
+      const productText = toText(productCardReplyText(product)).slice(0, 1024);
+      const productImage = toText(product.image_url || product.image || product.main_image || "");
+      const cardSuccessBaseline = successCount;
+      if (productImage) {
+        try {
+          const imageResponse =
+            selectedTransport === "evolution"
+              ? await postEvolutionWhatsAppMessage({ recipient, imageUrl: productImage, caption: productText || "", kind: "image" })
+              : await postWhatsAppMessage({
+                  config,
+                  payload: {
+                    messaging_product: "whatsapp",
+                    recipient_type: "individual",
+                    to: recipient,
+                    type: "image",
+                    image: { link: productImage, caption: productText || undefined },
+                  },
+                });
+          firstMessageId = firstMessageId || trackSuccess("product_image", imageResponse);
+          successCount += 1;
+        } catch (imageError) {
+          fallbackUsed = true;
+          trackFailure("product_image", imageError);
+          console.warn("[ai-agent:whatsapp] product image send failed; attempting text fallback", {
+            to: recipient,
+            image_url: productImage,
+            message: imageError?.message,
+            status: imageError?.status,
+            selected_transport: selectedTransport,
+          });
+          if (productText) {
+            try {
+              const fallbackResponse =
+                selectedTransport === "evolution"
+                  ? await postEvolutionWhatsAppMessage({ recipient, text: productText.slice(0, 4096), kind: "text" })
+                  : await postWhatsAppMessage({
+                      config,
+                      payload: {
+                        messaging_product: "whatsapp",
+                        recipient_type: "individual",
+                        to: recipient,
+                        type: "text",
+                        text: { preview_url: false, body: productText.slice(0, 4096) },
+                      },
+                    });
+              firstMessageId = firstMessageId || trackSuccess("product_text_fallback", fallbackResponse);
+              successCount += 1;
+            } catch (fallbackError) {
+              trackFailure("product_text_fallback", fallbackError);
+              if (!deliveryError) deliveryError = fallbackError?.message || "Product card text fallback failed";
+            }
           }
         }
+      } else if (productText) {
+        fallbackUsed = true;
+        try {
+          const textResponse =
+            selectedTransport === "evolution"
+              ? await postEvolutionWhatsAppMessage({ recipient, text: productText.slice(0, 4096), kind: "text" })
+              : await postWhatsAppMessage({
+                  config,
+                  payload: {
+                    messaging_product: "whatsapp",
+                    recipient_type: "individual",
+                    to: recipient,
+                    type: "text",
+                    text: { preview_url: false, body: productText.slice(0, 4096) },
+                  },
+                });
+          firstMessageId = firstMessageId || trackSuccess("product_text", textResponse);
+          successCount += 1;
+        } catch (textError) {
+          trackFailure("product_text", textError);
+          if (!deliveryError) deliveryError = textError?.message || "Product card text send failed";
+        }
+      } else {
+        fallbackUsed = true;
       }
-    } else if (productText) {
-      fallbackUsed = true;
-      try {
-        const textResponse =
-          selectedTransport === "evolution"
-            ? await postEvolutionWhatsAppMessage({ recipient, text: productText.slice(0, 4096), kind: "text" })
-            : await postWhatsAppMessage({
-                config,
-                payload: {
-                  messaging_product: "whatsapp",
-                  recipient_type: "individual",
-                  to: recipient,
-                  type: "text",
-                  text: { preview_url: false, body: productText.slice(0, 4096) },
-                },
-              });
-        firstMessageId = firstMessageId || trackSuccess("product_text", textResponse);
-        successCount += 1;
-      } catch (textError) {
-        trackFailure("product_text", textError);
-        if (!deliveryError) deliveryError = textError?.message || "Product card text send failed";
+      if (successCount > cardSuccessBaseline) {
+        batchSummary.sent_count += 1;
+        productCardSentCount += 1;
       }
-    } else {
-      fallbackUsed = true;
     }
   }
   for (const imageUrl of imageCards) {
@@ -1633,10 +1665,28 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "" 
     message_id: firstMessageId || "",
     success_count: successCount,
     delivery_error: deliveryError,
+    product_card_requested_count: rawProductCards.length,
+    product_card_sent_count: productCardSentCount,
+    product_card_batch_count: productCardBatchSummaries.length,
+    product_card_batches: productCardBatchSummaries,
   });
 };
 
 const metaMessagesUrl = (graphVersion = "v20.0") => `https://graph.facebook.com/${graphVersion}/me/messages`;
+const PRODUCT_CARD_BATCH_SIZE = 6;
+
+const chunkItems = (items = [], batchSize = PRODUCT_CARD_BATCH_SIZE) => {
+  const size = Math.max(1, Number(batchSize) || PRODUCT_CARD_BATCH_SIZE);
+  const list = asArray(items);
+  const batches = [];
+  for (let index = 0; index < list.length; index += size) {
+    batches.push(list.slice(index, index + size));
+  }
+  return batches;
+};
+
+const normalizeProductCardBatch = (cards = [], batchSize = PRODUCT_CARD_BATCH_SIZE) =>
+  normalizeStructuredProductCards(cards, { limit: Math.max(1, Number(batchSize) || PRODUCT_CARD_BATCH_SIZE) });
 
 const postMetaPageMessage = async ({ payload, config }) => {
   const payloadType = payload?.message?.attachment?.type || (payload?.message?.text ? "text" : "unknown");
@@ -1715,13 +1765,20 @@ export const sendMetaPageReply = async ({ channel, to, reply = {}, messageText =
   console.log("[meta-send] token present", { tokenPresent: Boolean(config.pageAccessToken), source: "aiChannelAdapterService" });
   const text = toText(messageText || reply.text);
   const results = [];
-  const productCards = normalizeStructuredProductCards(reply.product_cards, { limit: 6 });
+  const rawProductCards = asArray(reply.product_cards);
+  const productCardBatches = chunkItems(rawProductCards, PRODUCT_CARD_BATCH_SIZE);
+  const normalizedProductCardBatches = productCardBatches.map((batch) => normalizeProductCardBatch(batch, PRODUCT_CARD_BATCH_SIZE));
+  const productCards = normalizedProductCardBatches.flat();
   const imageCards = visualAttachmentImageUrls(reply);
+  let productCardSentCount = 0;
+  const productCardBatchSummaries = [];
   if (productCards.length || imageCards.length) {
     const firstCard = productCards[0] || {};
     console.info("[CHANNEL_CARD_PAYLOAD]", {
       channel: normalized,
+      requested_product_cards_count: rawProductCards.length,
       product_cards_count: productCards.length,
+      product_card_batch_count: productCardBatches.length,
       image_cards_count: imageCards.length,
       first_card: {
         product_id: toText(firstCard.product_id || firstCard.id || ""),
@@ -1736,54 +1793,88 @@ export const sendMetaPageReply = async ({ channel, to, reply = {}, messageText =
     });
   }
   if (productCards.length) {
-    for (const product of productCards) {
-      console.log("[ai-agent:meta] selected product card", {
-        channel: normalized,
-        product_id: product.product_id || product.id || null,
-        image_url_exists: Boolean(product.image_url),
-        product_link_generated: product.product_url || product.url || "",
-      });
-      if (product.image_url) {
-        try {
-          const imageResult = await postMetaPageMessage({
+    for (let batchIndex = 0; batchIndex < normalizedProductCardBatches.length; batchIndex += 1) {
+      const batch = normalizedProductCardBatches[batchIndex];
+      const requestedBatch = productCardBatches[batchIndex] || [];
+      const batchSummary = {
+        batch_index: batchIndex + 1,
+        requested_count: requestedBatch.length,
+        normalized_count: batch.length,
+        sent_count: 0,
+      };
+      productCardBatchSummaries.push(batchSummary);
+      for (const product of batch) {
+        console.log("[ai-agent:meta] selected product card", {
+          channel: normalized,
+          product_id: product.product_id || product.id || null,
+          image_url_exists: Boolean(product.image_url),
+          product_link_generated: product.product_url || product.url || "",
+        });
+        let cardDelivered = false;
+        let imageMessageId = "";
+        if (product.image_url) {
+          try {
+            const imageResult = await postMetaPageMessage({
+              config,
+              payload: {
+                recipient: { id: recipient },
+                messaging_type: "RESPONSE",
+                message: {
+                  attachment: {
+                    type: "image",
+                    payload: { url: product.image_url, is_reusable: true },
+                  },
+                },
+              },
+            });
+            imageMessageId = imageResult?.message_id || "";
+            console.log("[ai-agent:meta] messenger send image success", {
+              channel: normalized,
+              product_id: product.product_id || product.id || null,
+              image_url: product.image_url,
+            });
+            results.push(imageResult);
+            cardDelivered = true;
+          } catch (error) {
+            console.warn("[ai-agent:meta] messenger send image failure", {
+              channel: normalized,
+              product_id: product.product_id || product.id || null,
+              image_url: product.image_url,
+              message: error?.message,
+              status: error?.status,
+            });
+          }
+        }
+        const cardReplyText = productCardReplyText(product).slice(0, 2000);
+        if (cardReplyText) {
+          const textResult = await postMetaPageMessage({
             config,
             payload: {
               recipient: { id: recipient },
               messaging_type: "RESPONSE",
-              message: {
-                attachment: {
-                  type: "image",
-                  payload: { url: product.image_url, is_reusable: true },
-                },
-              },
+              message: { text: cardReplyText },
             },
           });
-          console.log("[ai-agent:meta] messenger send image success", {
-            channel: normalized,
-            product_id: product.product_id || product.id || null,
-            image_url: product.image_url,
-          });
-          results.push(imageResult);
-        } catch (error) {
-          console.warn("[ai-agent:meta] messenger send image failure", {
-            channel: normalized,
-            product_id: product.product_id || product.id || null,
-            image_url: product.image_url,
-            message: error?.message,
-            status: error?.status,
-          });
+          results.push(textResult);
+          cardDelivered = true;
         }
+        if (cardDelivered) {
+          batchSummary.sent_count += 1;
+          productCardSentCount += 1;
+        }
+        batchSummary.image_message_id = imageMessageId || batchSummary.image_message_id || "";
       }
-      results.push(await postMetaPageMessage({
-        config,
-        payload: {
-          recipient: { id: recipient },
-          messaging_type: "RESPONSE",
-          message: { text: productCardReplyText(product).slice(0, 2000) },
-        },
-      }));
     }
-    return { sent: results.length > 0, results };
+    return {
+      sent: results.length > 0,
+      results,
+      product_card_summary: {
+        requested_count: rawProductCards.length,
+        sent_count: productCardSentCount,
+        batch_count: productCardBatchSummaries.length,
+        batches: productCardBatchSummaries,
+      },
+    };
   }
   for (const imageUrl of imageCards) {
     try {
@@ -1825,5 +1916,14 @@ export const sendMetaPageReply = async ({ channel, to, reply = {}, messageText =
       },
     }));
   }
-  return { sent: results.length > 0, results };
+  return {
+    sent: results.length > 0,
+    results,
+    product_card_summary: {
+      requested_count: rawProductCards.length,
+      sent_count: productCardSentCount,
+      batch_count: productCardBatchSummaries.length,
+      batches: productCardBatchSummaries,
+    },
+  };
 };

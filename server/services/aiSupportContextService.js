@@ -24,6 +24,10 @@ import {
   loadAiConversationMemory,
   resolveAiConversationIdentity,
 } from "./aiConversationMemoryService.js";
+import {
+  buildReplyCorrectionContextSource,
+  searchRelevantCorrections,
+} from "./aiCorrectionMemoryService.js";
 import { normalizeSaleModeSettings, resolveSaleModePrice } from "./saleModeService.js";
 import { normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
@@ -5226,7 +5230,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
     logEarlyReturnBeforeProductTrace({ channel: traceChannel, message, intent, reason: "greeting_only", tenantId });
     return {
       intent,
-      trustedContext: { tenant_id: tenantId, sources: [] },
+      trustedContext: trustedContextWithCorrections([]),
       suggested_products: [],
       suggested_actions: [],
       unknown_product_terms: [],
@@ -5252,6 +5256,27 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
       })
     : null;
   const memorySource = buildAiMemoryContextSource(conversationMemory);
+  const employeeCorrections = tenantId
+    ? await searchRelevantCorrections({
+        tenantId,
+        query: message,
+        limit: 3,
+      }).catch((error) => {
+        console.warn("[ai-support] correction memory search skipped", {
+          tenantId,
+          message: error?.message,
+        });
+        return [];
+      })
+    : [];
+  const employeeCorrectionSources = buildReplyCorrectionContextSource(employeeCorrections, message);
+  const trustedContextWithCorrections = (sources = []) => ({
+    tenant_id: tenantId,
+    context_version: "phase_2_real_storefront_product_context",
+    sources: [...employeeCorrectionSources, ...sources],
+    employee_corrections: employeeCorrections,
+    employee_correction_sources: employeeCorrectionSources,
+  });
   const rawCurrentTurnModelIntent = detectStrictModelIntent(message);
   const effectiveMemory = clearStaleProductMemoryForExplicitModel({
     memory: mergeCurrentTurnMemory({ memory: conversationMemory, message, req }),
@@ -5374,7 +5399,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
     logEarlyReturnBeforeProductTrace({ channel: traceChannel, message, intent, reason: "clear_buying_intent", tenantId });
     return {
       intent,
-      trustedContext: { tenant_id: tenantId, sources: memorySource ? [memorySource] : [] },
+      trustedContext: trustedContextWithCorrections(memorySource ? [memorySource] : []),
       suggested_products: [],
       suggested_actions: ["contact_support"],
       unknown_product_terms: [],
@@ -5404,7 +5429,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
     logEarlyReturnBeforeProductTrace({ channel: traceChannel, message, intent, reason: "conversational", tenantId });
     return {
       intent,
-      trustedContext: { tenant_id: tenantId, sources: [] },
+      trustedContext: trustedContextWithCorrections([]),
       suggested_products: [],
       suggested_actions: ["contact_support"],
       unknown_product_terms: [],
@@ -5420,7 +5445,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
     logEarlyReturnBeforeProductTrace({ channel: traceChannel, message, intent, reason: "missing_tenant", tenantId });
     return {
       intent,
-      trustedContext: { tenant_id: tenantId, sources: [] },
+      trustedContext: trustedContextWithCorrections([]),
       suggested_products: [],
       suggested_actions: ["contact_support"],
       unknown_product_terms: [],
@@ -5436,7 +5461,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
       : "I cannot share internal ERP, admin, supplier, cost, margin, credential, or private data. I can help with public prices, sizes, availability, and store policies.";
     return {
       intent,
-      trustedContext: { tenant_id: tenantId, sources: [] },
+      trustedContext: trustedContextWithCorrections([]),
       suggested_products: [],
       suggested_actions: ["contact_support"],
       unknown_product_terms: [],
@@ -5457,7 +5482,7 @@ export const buildAiSupportTrustedContext = async ({ tenantId, message, req = nu
     logEarlyReturnBeforeProductTrace({ channel: traceChannel, message, intent, reason: "human_support", tenantId });
     return {
       intent,
-      trustedContext: { tenant_id: tenantId, sources: [] },
+      trustedContext: trustedContextWithCorrections([]),
       suggested_products: [],
       suggested_actions: ["contact_support"],
       unknown_product_terms: [],

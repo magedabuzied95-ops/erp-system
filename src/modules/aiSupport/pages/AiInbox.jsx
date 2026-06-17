@@ -87,6 +87,43 @@ const aiInboxConversationEndpoint = (sessionId = "", suffix = "") =>
   `/ai-inbox/conversations/${encodeConversationId(sessionId)}${suffix}`;
 const aiAgentInboxEndpoint = (sessionId = "", suffix = "") =>
   `/ai-agent/inbox/${encodeConversationId(sessionId)}${suffix}`;
+const aiReplyCorrectionEndpoint = (sessionId = "", messageId = "") =>
+  aiAgentInboxEndpoint(sessionId, `/messages/${encodeConversationId(messageId)}/correction`);
+const replyCorrectionTypes = [
+  { value: "wrong_price", label: "wrong_price" },
+  { value: "wrong_stock", label: "wrong_stock" },
+  { value: "wrong_policy", label: "wrong_policy" },
+  { value: "bad_tone", label: "bad_tone" },
+  { value: "incomplete_answer", label: "incomplete_answer" },
+  { value: "other", label: "other" },
+];
+const buildReplyCorrectionDraft = ({ conversation = {}, message = {} } = {}) => {
+  const messages = asArray(conversation.messages);
+  const index = messages.findIndex((item) => String(item.id || item.external_message_id || item.external_reply_id || "") === String(message.id || message.external_message_id || message.external_reply_id || ""));
+  const previousCustomerMessage = index >= 0
+    ? [...messages.slice(0, index)].reverse().find((item) => clean(item.customer_message || item.message_text || item.last_message || ""))
+    : null;
+  const customerQuestion = clean(
+    previousCustomerMessage?.customer_message ||
+      previousCustomerMessage?.message_text ||
+      previousCustomerMessage?.last_message ||
+      message.customer_message ||
+      message.message_text ||
+      ""
+  );
+  const aiWrongAnswer = clean(message.ai_answer || message.staff_message || "");
+  const productId = clean(message.clicked_product_id || normalizeProductCardsValue(message.suggested_products)[0]?.id || message.product_id || message.current_product_id || "");
+  return {
+    conversationId: clean(conversation.session_id || conversation.conversation_id || ""),
+    messageId: clean(message.id || message.external_message_id || message.external_reply_id || ""),
+    channel: clean(conversation.channel || conversation.source || message.channel || ""),
+    productId,
+    customerQuestion,
+    aiWrongAnswer,
+    employeeCorrectAnswer: "",
+    correctionType: "other",
+  };
+};
 const productCardPreviewText = (cards = []) => {
   const first = asArray(cards)[0] || {};
   const name = clean(first.product_name || first.name || first.title || "");
@@ -949,7 +986,7 @@ function InboxChatHeader({
   );
 }
 
-const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoadOlder }) {
+const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoadOlder, onOpenCorrection }) {
   const messages = uniqueMessages(conversation?.messages);
   const events = asArray(conversation?.system_events);
   if (!messages.length && !events.length) {
@@ -1025,6 +1062,16 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
                   {message.message_type === "comment_suggestion" ? <span className="rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-100">Draft reply</span> : null}
                   <span className="text-slate-500">{absoluteTime(message.created_at)}</span>
                   <span className="text-slate-500">conf {Number(message.confidence || 0).toFixed(2)}</span>
+                  {message.message_type !== "comment_suggestion" ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenCorrection?.(message)}
+                      className="inline-flex h-6 items-center gap-1 rounded-full border border-white/10 bg-white/[0.06] px-2 text-[10px] font-black text-slate-100"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      تصحيح الرد
+                    </button>
+                  ) : null}
                 </div>
                 <LinkifiedText text={message.ai_answer} className="mt-3 text-[16px] leading-8" />
                 <ProductCards products={message.suggested_products} />
@@ -1375,6 +1422,98 @@ function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraf
               <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} className="mt-1 inline-flex h-8 w-full items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[10px] font-black text-cyan-100 disabled:opacity-50">Approve AI reply</button>
             </div>
           </details>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReplyCorrectionModal({ open, draft, saving, onClose, onChange, onSave }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/80 px-3 py-4 backdrop-blur-sm md:items-center">
+      <div className="w-full max-w-3xl rounded-[28px] border border-white/10 bg-slate-950/98 p-4 shadow-[0_28px_90px_rgba(0,0,0,0.55)]">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-200">AI correction memory</div>
+            <h3 className="mt-1 text-lg font-black text-white">تصحيح رد الـAI</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-9 w-9 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] text-slate-100"
+          >
+            <XCircle className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">سؤال العميل</div>
+            <div className="mt-2 max-h-36 overflow-auto rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm leading-7 text-slate-100">
+              {clean(draft.customerQuestion) || "غير متاح"}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">رد الـAI القديم</div>
+            <div className="mt-2 max-h-36 overflow-auto rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm leading-7 text-slate-100">
+              {clean(draft.aiWrongAnswer) || "غير متاح"}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 grid gap-3 md:grid-cols-[1fr_220px]">
+          <label className="block">
+            <div className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">الرد الصحيح</div>
+            <textarea
+              value={draft.employeeCorrectAnswer}
+              onChange={(event) => onChange({ employeeCorrectAnswer: event.target.value })}
+              rows={5}
+              placeholder="اكتب التصحيح هنا..."
+              className="min-h-36 w-full resize-none rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-medium leading-7 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
+            />
+          </label>
+          <div className="space-y-3">
+            <label className="block">
+              <div className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">نوع التصحيح</div>
+              <select
+                value={draft.correctionType}
+                onChange={(event) => onChange({ correctionType: event.target.value })}
+                className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/80 px-3 text-sm font-black text-white outline-none focus:border-cyan-300/40"
+              >
+                {replyCorrectionTypes.map((item) => (
+                  <option key={item.value} value={item.value}>{item.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <div className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Product ID اختياري</div>
+              <input
+                value={draft.productId}
+                onChange={(event) => onChange({ productId: event.target.value })}
+                placeholder="123"
+                className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/80 px-3 text-sm font-black text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
+              />
+            </label>
+            <div className="rounded-2xl border border-cyan-300/15 bg-cyan-300/8 p-3 text-xs leading-6 text-cyan-100">
+              التصحيح يُحفظ كذاكرة داخلية فقط. لن يتم إرسال أي رسالة للعميل، ولن يتم تعديل الرسالة القديمة.
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="inline-flex h-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] px-4 text-sm font-black text-slate-100">
+            إلغاء
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving || !clean(draft.employeeCorrectAnswer)}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 text-sm font-black text-slate-950 disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+            حفظ التصحيح
+          </button>
         </div>
       </div>
     </div>
@@ -2458,6 +2597,8 @@ export default function AiInbox() {
   const [profileDebugging, setProfileDebugging] = useState(false);
   const [resettingAiState, setResettingAiState] = useState(false);
   const [olderMessagesLoading, setOlderMessagesLoading] = useState(false);
+  const [correctionModal, setCorrectionModal] = useState({ open: false, draft: buildReplyCorrectionDraft() });
+  const [correctionSaving, setCorrectionSaving] = useState(false);
   const [leadFunnelExpanded, setLeadFunnelExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -2816,6 +2957,52 @@ export default function AiInbox() {
   const closeProductCardPicker = useCallback(() => {
     setProductCardPickerConfig({ open: false, sizeMode: false, allowMultiple: false });
   }, []);
+  const openReplyCorrection = useCallback((message = {}) => {
+    if (!selectedConversation?.session_id) return;
+    setCorrectionModal({
+      open: true,
+      draft: buildReplyCorrectionDraft({ conversation: selectedConversation, message }),
+    });
+  }, [selectedConversation]);
+  const closeReplyCorrection = useCallback(() => {
+    setCorrectionModal({ open: false, draft: buildReplyCorrectionDraft() });
+  }, []);
+  const patchReplyCorrection = useCallback((patch = {}) => {
+    setCorrectionModal((current) => ({
+      ...current,
+      draft: {
+        ...current.draft,
+        ...patch,
+      },
+    }));
+  }, []);
+  const saveReplyCorrection = useCallback(async () => {
+    if (!selectedConversation?.session_id || !correctionModal.draft.messageId || !clean(correctionModal.draft.employeeCorrectAnswer)) return;
+    setCorrectionSaving(true);
+    setError("");
+    try {
+      await api.post(
+        aiReplyCorrectionEndpoint(selectedConversation.session_id, correctionModal.draft.messageId),
+        {
+          tenant_id: tenantId,
+          customer_question: correctionModal.draft.customerQuestion,
+          ai_wrong_answer: correctionModal.draft.aiWrongAnswer,
+          employee_correct_answer: correctionModal.draft.employeeCorrectAnswer,
+          correction_type: correctionModal.draft.correctionType,
+          product_id: correctionModal.draft.productId || null,
+          channel: correctionModal.draft.channel || selectedConversation.channel || selectedConversation.source || "",
+        },
+        { headers, perfComponent: "AiInbox.saveCorrection" }
+      );
+      setToast({ tone: "emerald", text: "تم حفظ التصحيح" });
+      closeReplyCorrection();
+    } catch (err) {
+      setToast({ tone: "rose", text: err?.message || "تعذر حفظ التصحيح" });
+      setError(err?.message || "تعذر حفظ التصحيح");
+    } finally {
+      setCorrectionSaving(false);
+    }
+  }, [closeReplyCorrection, correctionModal.draft.aiWrongAnswer, correctionModal.draft.channel, correctionModal.draft.correctionType, correctionModal.draft.customerQuestion, correctionModal.draft.employeeCorrectAnswer, correctionModal.draft.messageId, correctionModal.draft.productId, headers, selectedConversation?.channel, selectedConversation?.session_id, selectedConversation?.source, tenantId]);
 
   useEffect(() => {
     const channelKey = clean(selectedConversation?.channel || selectedConversation?.source);
@@ -3758,6 +3945,14 @@ export default function AiInbox() {
         sizeMode={productCardPickerConfig.sizeMode}
         allowMultiple={productCardPickerConfig.allowMultiple}
       />
+      <ReplyCorrectionModal
+        open={correctionModal.open}
+        draft={correctionModal.draft}
+        saving={correctionSaving}
+        onClose={closeReplyCorrection}
+        onChange={patchReplyCorrection}
+        onSave={saveReplyCorrection}
+      />
       <div className="mx-auto flex h-[100dvh] max-w-[96rem] flex-col gap-2 overflow-hidden p-2 md:p-3">
         <section className="shrink-0 rounded-3xl border border-white/10 bg-white/[0.055] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.2)] backdrop-blur">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -4020,7 +4215,7 @@ export default function AiInbox() {
                   />
                   <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40">
                     <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                      <Transcript conversation={selectedConversation} loadingOlder={olderMessagesLoading} onLoadOlder={loadOlderMessages} />
+                      <Transcript conversation={selectedConversation} loadingOlder={olderMessagesLoading} onLoadOlder={loadOlderMessages} onOpenCorrection={openReplyCorrection} />
                     </div>
                     <div className="shrink-0 border-t border-white/10 bg-slate-950/70 p-3">
                       <ManualReplyComposer
@@ -4410,7 +4605,7 @@ export default function AiInbox() {
                           {selectedConversation?.messages?.length ? <Pill tone="zinc">{selectedConversation.messages.length} رسالة</Pill> : null}
                         </div>
                         <div className="max-h-[44rem] overflow-y-auto pr-1">
-                          <Transcript conversation={selectedConversation} loadingOlder={olderMessagesLoading} onLoadOlder={loadOlderMessages} />
+                          <Transcript conversation={selectedConversation} loadingOlder={olderMessagesLoading} onLoadOlder={loadOlderMessages} onOpenCorrection={openReplyCorrection} />
                         </div>
                       </div>
                       <ManualReplyComposer

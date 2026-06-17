@@ -754,10 +754,22 @@ const stripProductPayload = (response = {}) => ({
 const withAnswer = (response = {}, answer = "", extra = {}) => ({
   ...response,
   ...extra,
-  answer,
-  text: answer,
+  answer: correctionFriendlyReply(response, answer),
+  text: correctionFriendlyReply(response, answer),
   composer_applied: true,
 });
+
+const correctionFriendlyReply = (response = {}, answer = "") => {
+  const corrections = asArray(response.employee_corrections);
+  const cleanAnswer = text(answer);
+  if (!corrections.length || !cleanAnswer) return answer;
+  const topCorrection = corrections.find((item) => text(item?.employee_correct_answer)) || corrections[0];
+  if (!topCorrection) return answer;
+  const correctionAnswer = text(topCorrection.employee_correct_answer);
+  if (!correctionAnswer) return answer;
+  const isGeneric = cleanAnswer.length < 24 || /I do not have enough verified information|need.*support|contact support|أحتاج|مش متأكد|ابعتلي تفاصيل/i.test(cleanAnswer);
+  return isGeneric ? correctionAnswer : answer;
+};
 
 const withActionAnswer = (response = {}, answer = "", action = "", extra = {}) => {
   const output = withAnswer(response, answer, extra);

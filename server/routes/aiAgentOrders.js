@@ -85,6 +85,12 @@ import {
 } from "../services/socialCommentAutomationService.js";
 import { replyToComment, sendPrivateReply } from "../services/marketingCommentAutomationService.js";
 import {
+  createCorrection,
+  listConversationCorrections,
+  normalizeCorrectionTypeValue,
+  searchRelevantCorrections,
+} from "../services/aiCorrectionMemoryService.js";
+import {
   appendManualAiSupportReply,
   assignAiSupportConversation,
   getAiSupportConversationState,
@@ -139,6 +145,22 @@ const userDisplayName = (user = {}) =>
   String(user.name || user.full_name || user.username || user.email || user.role_name || user.role || "Staff").trim();
 
 const envText = (value = "") => String(value ?? "").trim();
+const correctionTypeOptions = new Set(["wrong_price", "wrong_stock", "wrong_policy", "bad_tone", "incomplete_answer", "other"]);
+const normalizeCorrectionType = (value = "") => {
+  const normalized = normalizeCorrectionTypeValue(value);
+  return correctionTypeOptions.has(normalized) ? normalized : "other";
+};
+const correctionMessageLookupKey = (message = {}) =>
+  envText(message.id || message.message_id || message.external_message_id || message.external_reply_id || message.dedupe_key || "");
+const messageQuestionText = (messages = [], index = -1, fallback = "") => {
+  if (!Array.isArray(messages) || index < 0) return envText(fallback);
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    const candidate = messages[cursor];
+    const question = envText(candidate?.customer_message || candidate?.message_text || candidate?.last_message || "");
+    if (question) return question;
+  }
+  return envText(fallback);
+};
 const normalizeInboundKeyText = (value = "") => envText(value).toLowerCase().replace(/\s+/g, " ").replace(/[^\p{L}\p{N}\s]+/gu, "").trim();
 const resolveMetaInboundDedupeContext = ({ channel = "", conversationId = "", message = {} } = {}) => {
   const inboundMetaMid = envText(message.external_message_id || message.raw?.event?.message?.mid || message.dedupe_key || "");
@@ -2784,6 +2806,99 @@ router.post("/conversations/:conversationId/ai-reply", protect, permit("settings
     return res.status(result.message ? 201 : 200).json({ success: true, ...result });
   } catch (error) {
     return sendError(res, error, "Failed to generate AI reply");
+  }
+});
+
+router.post("/conversations/:conversationId/messages/:messageId/correction", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = envText(req.params.conversationId);
+    const messageId = envText(req.params.messageId);
+    if (!conversationId || !messageId) {
+      return sendError(res, Object.assign(new Error("conversationId and messageId are required"), { status: 400 }), "conversationId and messageId are required");
+    }
+
+    const messagesPayload = await loadAiInboxMessages({ tenantId, conversationId, limit: 100 });
+    const messages = Array.isArray(messagesPayload.messages) ? messagesPayload.messages : [];
+    const messageIndex = messages.findIndex((item) => correctionMessageLookupKey(item) === messageId);
+    const sourceMessage = messageIndex >= 0 ? messages[messageIndex] : null;
+    if (!sourceMessage) {
+      return sendError(res, Object.assign(new Error(`Message not found for conversation ${conversationId}`), { status: 404, code: "AI_INBOX_MESSAGE_NOT_FOUND" }), "Message not found");
+    }
+
+    const customerQuestion =
+      envText(req.body?.customer_question || req.body?.customerQuestion) ||
+      messageQuestionText(messages, messageIndex, sourceMessage.customer_message || sourceMessage.message_text || "");
+    const aiWrongAnswer =
+      envText(req.body?.ai_wrong_answer || req.body?.aiWrongAnswer) ||
+      envText(sourceMessage.ai_answer || sourceMessage.staff_message || "");
+    const employeeCorrectAnswer = envText(req.body?.employee_correct_answer || req.body?.employeeCorrectAnswer);
+    const correctionType = normalizeCorrectionType(req.body?.correction_type || req.body?.correctionType || "other");
+    const productIdRaw = req.body?.product_id ?? req.body?.productId ?? sourceMessage.clicked_product_id ?? sourceMessage?.suggested_products?.[0]?.id ?? null;
+    const productId = Number.isFinite(Number(productIdRaw)) && Number(productIdRaw) > 0 ? Number(productIdRaw) : null;
+    if (!customerQuestion || !aiWrongAnswer || !employeeCorrectAnswer) {
+      return sendError(
+        res,
+        Object.assign(new Error("customer_question, ai_wrong_answer, and employee_correct_answer are required"), { status: 400, code: "EMPTY_CORRECTION" }),
+        "customer_question, ai_wrong_answer, and employee_correct_answer are required"
+      );
+    }
+
+    const correction = await createCorrection({
+      tenantId,
+      conversationId,
+      messageId,
+      customerQuestion,
+      aiWrongAnswer,
+      employeeCorrectAnswer,
+      correctionType,
+      productId,
+      channel: envText(req.body?.channel || sourceMessage.channel || sourceMessage.source || ""),
+      createdBy: req.user?.id || null,
+      metadata: {
+        ...(req.body?.metadata && typeof req.body.metadata === "object" ? req.body.metadata : {}),
+        source_message_id: sourceMessage.id || messageId,
+        source_sender_type: sourceMessage.sender_type || "",
+        source_message_type: sourceMessage.message_type || "",
+        conversation_status: sourceMessage.resolution_status || "",
+      },
+    });
+
+    return res.status(201).json({ success: true, correction });
+  } catch (error) {
+    return sendError(res, error, "Failed to save correction");
+  }
+});
+
+router.get("/conversations/:conversationId/corrections", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = envText(req.params.conversationId);
+    const corrections = await listConversationCorrections({
+      tenantId,
+      conversationId,
+      limit: req.query?.limit || 50,
+    });
+    return res.json({ success: true, corrections });
+  } catch (error) {
+    return sendError(res, error, "Failed to load corrections");
+  }
+});
+
+router.get("/corrections/search", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const query = envText(req.query?.q || req.query?.query || "");
+    const corrections = await searchRelevantCorrections({
+      tenantId,
+      query,
+      productId: req.query?.product_id ?? req.query?.productId ?? null,
+      correctionType: req.query?.correction_type || req.query?.correctionType || "",
+      limit: req.query?.limit || 3,
+    });
+    return res.json({ success: true, corrections });
+  } catch (error) {
+    return sendError(res, error, "Failed to search corrections");
   }
 });
 
