@@ -1245,13 +1245,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
   }
   const result = await db.query(
     `
-    WITH latest AS (
-      SELECT DISTINCT ON (session_id) *
-      FROM ai_support_messages
-      WHERE tenant_id = $1
-      ORDER BY session_id, created_at DESC
-    ),
-    latest_interaction AS (
+    WITH latest_interaction AS (
       SELECT DISTINCT ON (session_id) session_id, profile_id
       FROM ai_customer_interactions
       WHERE tenant_id = $1
@@ -1301,6 +1295,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       e.last_webhook_event_at,
       e.last_webhook_status,
       m.customer_message,
+      m.id AS latest_message_id,
       m.message_text,
       m.channel AS message_channel,
       m.sender_type AS latest_sender_type,
@@ -1310,6 +1305,22 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       m.detected_intent,
       m.suggested_products,
       m.visual_attachments,
+      m.external_message_id,
+      m.external_reply_id,
+      m.dedupe_key,
+      m.delivery_status,
+      m.delivery_error,
+      m.error_code,
+      m.provider_message_id,
+      m.whatsapp_instance,
+      m.remote_jid,
+      m.resolved_reply_jid,
+      m.resolved_phone,
+      m.source_path,
+      m.insert_source,
+      m.message_type,
+      m.product_cards,
+      m.created_at AS latest_message_created_at,
       p.id AS profile_id,
       p.first_name,
       p.last_name,
@@ -1331,7 +1342,14 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       COALESCE(o.confirmed_count, 0)::int AS confirmed_count,
       COALESCE(f.due_followup_count, 0)::int AS due_followup_count
     FROM ai_support_sessions s
-    LEFT JOIN latest m ON m.session_id = s.session_id AND m.tenant_id = s.tenant_id
+    LEFT JOIN LATERAL (
+      SELECT msg.*
+      FROM ai_support_messages msg
+      WHERE msg.tenant_id = s.tenant_id
+        AND msg.session_id = s.session_id
+      ORDER BY msg.created_at DESC, msg.id DESC
+      LIMIT 1
+    ) m ON TRUE
     LEFT JOIN ai_channel_conversations c ON c.tenant_id = s.tenant_id AND c.channel = s.channel AND c.external_conversation_id = s.session_id
     LEFT JOIN ai_conversation_memories acm ON acm.tenant_id = s.tenant_id AND acm.session_id = s.session_id
     LEFT JOIN latest_event e ON e.conversation_id = s.session_id
@@ -1361,8 +1379,44 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
   const conversations = result.rows;
   const sessionIds = conversations.map((item) => item.session_id).filter(Boolean);
   const profileIds = conversations.map((item) => item.profile_id).filter(Boolean);
-  const [messagesResult, memoriesResult, draftsResult, conversationFollowupsResult] = sessionIds.length
-    ? await Promise.all([
+  const messageTotalsBySession = new Map();
+  let messagesResult = { rows: [] };
+  let memoriesResult = { rows: [] };
+  let draftsResult = { rows: [] };
+  let conversationFollowupsResult = { rows: [] };
+  let salesStatesResult = { rows: [] };
+  let salesJourneyEventsResult = { rows: [] };
+
+  if (sessionIds.length) {
+    if (summaryOnly) {
+      const [latestMessagesResult, totalsResult] = await Promise.all([
+        db.query(
+          `
+          SELECT DISTINCT ON (msg.session_id) msg.*
+          FROM ai_support_messages msg
+          WHERE msg.tenant_id = $1
+            AND msg.session_id = ANY($2::text[])
+          ORDER BY msg.session_id, msg.created_at DESC, msg.id DESC
+          `,
+          [tenantId, sessionIds]
+        ),
+        db.query(
+          `
+          SELECT session_id, COUNT(*)::int AS total_messages
+          FROM ai_support_messages
+          WHERE tenant_id = $1
+            AND session_id = ANY($2::text[])
+          GROUP BY session_id
+          `,
+          [tenantId, sessionIds]
+        ),
+      ]);
+      messagesResult = latestMessagesResult;
+      totalsResult.rows.forEach((row) => {
+        messageTotalsBySession.set(row.session_id, Number(row.total_messages || 0));
+      });
+    } else {
+      [messagesResult, memoriesResult, draftsResult, conversationFollowupsResult] = await Promise.all([
         db.query(
           `
           SELECT *
@@ -1380,18 +1434,16 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
           [tenantId, sessionIds, inboxMessageLimit]
         ),
         profileIds.length
-          ? (!summaryOnly
-            ? db.query(
-              `
-              SELECT *
-              FROM ai_customer_memories
-              WHERE tenant_id = $1 AND profile_id = ANY($2::bigint[])
-              ORDER BY last_seen_at DESC, created_at DESC
-              LIMIT 300
-              `,
-              [tenantId, profileIds]
-            )
-            : Promise.resolve({ rows: [] }))
+          ? db.query(
+            `
+            SELECT *
+            FROM ai_customer_memories
+            WHERE tenant_id = $1 AND profile_id = ANY($2::bigint[])
+            ORDER BY last_seen_at DESC, created_at DESC
+            LIMIT 300
+            `,
+            [tenantId, profileIds]
+          )
           : Promise.resolve({ rows: [] }),
         db.query(
           `
@@ -1429,17 +1481,50 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
           `,
           [tenantId, sessionIds]
         ),
-      ])
-    : [{ rows: [] }, { rows: [] }, { rows: [] }, { rows: [] }];
+      ]);
+    }
+  }
+
+  if (!summaryOnly && sessionIds.length) {
+    [salesStatesResult, salesJourneyEventsResult] = await Promise.all([
+      db.query(
+        `
+        SELECT *
+        FROM ai_sales_conversation_states
+        WHERE tenant_id = $1 AND conversation_id = ANY($2::text[])
+        `,
+        [tenantId, sessionIds]
+      ).catch(() => ({ rows: [] })),
+      db.query(
+        `
+        SELECT *
+        FROM ai_sales_journey_events
+        WHERE tenant_id = $1 AND conversation_id = ANY($2::text[])
+        ORDER BY created_at DESC, id DESC
+        LIMIT 500
+        `,
+        [tenantId, sessionIds]
+      ).catch(() => ({ rows: [] })),
+    ]);
+  }
 
   const messagesBySession = new Map();
-  const messageTotalsBySession = new Map();
   messagesResult.rows.forEach((row) => {
     const list = messagesBySession.get(row.session_id) || [];
     list.push(normalizeInboxMessage(row));
     messagesBySession.set(row.session_id, list);
-    messageTotalsBySession.set(row.session_id, Number(row.total_messages || list.length));
+    messageTotalsBySession.set(row.session_id, Number(row.total_messages || messageTotalsBySession.get(row.session_id) || list.length));
   });
+  if (summaryOnly) {
+    for (const [sessionId, totalMessages] of messageTotalsBySession.entries()) {
+      if (!messagesBySession.has(sessionId)) {
+        messagesBySession.set(sessionId, []);
+      }
+      if (!Number.isFinite(totalMessages)) {
+        messageTotalsBySession.set(sessionId, 0);
+      }
+    }
+  }
   const memoriesByProfile = new Map();
   memoriesResult.rows.forEach((row) => {
     const list = memoriesByProfile.get(row.profile_id) || [];
@@ -1459,38 +1544,6 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
     followupsBySession.set(row.session_id, list);
   });
 
-  const followups = await db.query(
-    `
-    SELECT *
-    FROM ai_followup_tasks
-    WHERE tenant_id = $1
-    ORDER BY scheduled_at DESC
-    LIMIT 30
-    `,
-    [tenantId]
-  );
-  const [salesStatesResult, salesJourneyEventsResult] = sessionIds.length
-    ? await Promise.all([
-        db.query(
-          `
-          SELECT *
-          FROM ai_sales_conversation_states
-          WHERE tenant_id = $1 AND conversation_id = ANY($2::text[])
-          `,
-          [tenantId, sessionIds]
-        ).catch(() => ({ rows: [] })),
-        db.query(
-          `
-          SELECT *
-          FROM ai_sales_journey_events
-          WHERE tenant_id = $1 AND conversation_id = ANY($2::text[])
-          ORDER BY created_at DESC, id DESC
-          LIMIT 500
-          `,
-          [tenantId, sessionIds]
-        ).catch(() => ({ rows: [] })),
-      ])
-    : [{ rows: [] }, { rows: [] }];
   const salesStateByConversation = new Map();
   salesStatesResult.rows.forEach((row) => {
     salesStateByConversation.set(row.conversation_id, row);

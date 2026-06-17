@@ -2493,7 +2493,7 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
       <div className={sectionTone}>
         <div className="mb-4 flex items-end justify-between gap-3 text-right md:mb-6">
           <div className="min-w-0">
-            <div className={`mb-1 text-[10px] font-black uppercase tracking-[0.18em] md:text-[11px] ${eyebrowClass}`}>{sfText("storefront.common.shopNow")}</div>
+            <div className={`mb-1 text-[10px] font-black uppercase tracking-[0.18em] md:text-[11px] ${eyebrowClass}`}>{sfText("storefront.common.shopNow", "تسوق الآن")}</div>
             <h2 className={`text-[1.75rem] font-black tracking-normal md:text-4xl ${darkMode ? "text-stone-100" : "text-[#0f172a]"}`}>{title}</h2>
             {subtitle ? <p className={`mt-1 text-xs font-bold leading-5 md:text-base md:leading-6 ${darkMode ? "text-stone-400" : "text-[#475569]"}`}>{subtitle}</p> : null}
             <div className={`mt-2 h-1 w-16 rounded-full bg-gradient-to-l ${toneConfig.line || "from-[#7c3aed] to-[#f8e7b3]"}`} />
@@ -2800,9 +2800,9 @@ function HomePage(props) {
       <FeaturedCategoriesHero products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} />
       <QuickSellingStrips lang={lang} />
       <ShopByMainCategories products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} themeMode={props.themeMode} />
-      <HomeProductSection title={sfText("storefront.nav.new")} subtitle={sfText("storefront.home.newSubtitle")} viewAllTo="/shop/products?sort=newest" loading={loading || storefrontHome.loading} products={homeSections.newArrivals} railType="new" tone="new" {...props} />
+      <HomeProductSection title={sfText("storefront.nav.new", "جديد")} subtitle={sfText("storefront.home.newSubtitle")} viewAllTo="/shop/products?sort=newest" loading={loading || storefrontHome.loading} products={homeSections.newArrivals} railType="new" tone="new" {...props} />
       <HomeProductSection title={sfText("storefront.nav.sale")} subtitle={sfText("storefront.home.saleSubtitle")} viewAllTo="/shop/products?sale=true" loading={saleLoading && !homeSections.sale.length} products={homeSections.sale} railType="sale" tone="sale" {...props} />
-      <HomeProductSection title={sfText("storefront.home.lastSizes")} subtitle={sfText("storefront.home.productOfWeekEmpty")} viewAllTo="/shop/products?lastSizes=true" loading={loading || storefrontHome.loading} products={homeSections.lastSizes} railType="last-size" tone="last" {...props} />
+      <HomeProductSection title={sfText("storefront.home.lastSizes", "آخر المقاسات")} subtitle={sfText("storefront.home.productOfWeekEmpty")} viewAllTo="/shop/products?lastSizes=true" loading={loading || storefrontHome.loading} products={homeSections.lastSizes} railType="last-size" tone="last" {...props} />
       <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "الأكثر طلبًا" : "Trending"} subtitle={normalizeLanguage(lang) === "ar" ? "اختيارات رائجة مع أحدث المنتجات كخيار بديل." : "Popular picks, with newest products as fallback."} viewAllTo="/shop/products?sort=trending" loading={loading || storefrontHome.loading} products={homeSections.trending} railType="trending" tone="trending" {...props} />
       <Reviews />
       <HomeBrandsSection />
@@ -8183,4 +8183,3 @@ function StorefrontWithBoundary() {
 }
 
 export default StorefrontWithBoundary;
-
