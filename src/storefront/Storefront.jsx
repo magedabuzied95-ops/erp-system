@@ -2008,7 +2008,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false })
 
           <aside className="hidden border-s border-white/10 bg-white/[0.045] p-5 shadow-[inset_1px_0_0_rgba(255,255,255,0.06)] lg:block lg:[direction:rtl]">
             <div className="mb-4 border-b border-white/10 pb-3 text-sm font-black text-white">
-              ط§ظ„ظپط¦ط§طھ ط§ظ„ط±ط¦ظٹط³ظٹط©
+              تسوق حسب القسم
             </div>
             <nav className="grid gap-1" aria-label="ط§ظ„ظپط¦ط§طھ ط§ظ„ط±ط¦ظٹط³ظٹط©">
               {categories.map((category) => {
