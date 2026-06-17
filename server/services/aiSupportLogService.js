@@ -700,6 +700,21 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS error_code TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS clicked_product_id BIGINT NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS added_to_cart_after_chat BOOLEAN NULL`);
+      await clientOrPool.query(`
+        CREATE TABLE IF NOT EXISTS ai_inbound_ai_reply_locks (
+          id BIGSERIAL PRIMARY KEY,
+          tenant_id BIGINT NOT NULL,
+          channel TEXT NOT NULL DEFAULT '',
+          conversation_id TEXT NOT NULL DEFAULT '',
+          provider_message_id TEXT NOT NULL DEFAULT '',
+          trigger_source TEXT NOT NULL DEFAULT '',
+          ai_reply_id BIGINT NULL,
+          outbound_meta_message_id TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'claimed',
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS detected_intent TEXT`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS intent_confidence NUMERIC(5,2)`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS sentiment TEXT`);
@@ -738,6 +753,12 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_support_messages_tenant_human ON ai_support_messages (tenant_id, needs_human_support, created_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_support_messages_tenant_confidence ON ai_support_messages (tenant_id, confidence, created_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_support_messages_tenant_clicked ON ai_support_messages (tenant_id, clicked_product_id, created_at DESC)`);
+      await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_inbound_ai_reply_locks_tenant_conversation ON ai_inbound_ai_reply_locks (tenant_id, conversation_id, created_at DESC)`);
+      await clientOrPool.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_inbound_ai_reply_locks_provider_message_id
+        ON ai_inbound_ai_reply_locks (tenant_id, channel, provider_message_id)
+        WHERE provider_message_id <> ''
+      `);
       await clientOrPool.query(`UPDATE ai_support_messages SET insert_source = COALESCE(insert_source, CASE WHEN channel = 'whatsapp' AND NULLIF(provider_message_id, '') IS NOT NULL THEN 'whatsapp_unknown_legacy' WHEN channel = 'facebook_messenger' THEN 'meta_messenger_legacy' WHEN channel = 'instagram' THEN 'instagram_dm_legacy' ELSE 'legacy_unknown' END) WHERE insert_source IS NULL`);
       await clientOrPool.query(`
         UPDATE ai_support_messages
@@ -1561,6 +1582,120 @@ export const clearAiReplySuggestionDraft = async ({ tenantId, sessionId } = {}) 
     [safeTenantId, safeSessionId]
   );
   return true;
+};
+
+export const claimAiInboxReplyLock = async ({
+  tenantId,
+  channel = "",
+  conversationId = "",
+  providerMessageId = "",
+  triggerSource = "",
+} = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeChannel = toText(channel);
+  const safeConversationId = toText(conversationId);
+  const safeProviderMessageId = toText(providerMessageId);
+  const safeTriggerSource = toText(triggerSource);
+  if (!safeTenantId || !safeConversationId || !safeProviderMessageId) {
+    return { claimed: false, reason: "missing_lock_key" };
+  }
+  await ensureAiSupportLogSchema();
+  const claimed = await db.query(
+    `
+    INSERT INTO ai_inbound_ai_reply_locks (
+      tenant_id, channel, conversation_id, provider_message_id, trigger_source, status, created_at, updated_at
+    )
+    VALUES ($1::bigint, $2::text, $3::text, $4::text, $5::text, 'claimed', NOW(), NOW())
+    ON CONFLICT (tenant_id, channel, provider_message_id) WHERE provider_message_id <> '' DO NOTHING
+    RETURNING *
+    `,
+    [safeTenantId, safeChannel, safeConversationId, safeProviderMessageId, safeTriggerSource]
+  );
+  if (claimed.rows[0]) {
+    console.log("[ai-inbox-ai-reply-lock] claimed", {
+      tenant_id: safeTenantId,
+      channel: safeChannel,
+      conversation_id: safeConversationId,
+      provider_message_id: safeProviderMessageId,
+      trigger_source: safeTriggerSource,
+      ai_reply_id: claimed.rows[0].ai_reply_id || null,
+      outbound_meta_message_id: claimed.rows[0].outbound_meta_message_id || "",
+    });
+    return { claimed: true, lock: claimed.rows[0] };
+  }
+  const existing = await db.query(
+    `
+    SELECT *
+    FROM ai_inbound_ai_reply_locks
+    WHERE tenant_id = $1::bigint
+      AND channel = $2::text
+      AND provider_message_id = $3::text
+    ORDER BY created_at ASC, id ASC
+    LIMIT 1
+    `,
+    [safeTenantId, safeChannel, safeProviderMessageId]
+  );
+  const lock = existing.rows[0] || null;
+  console.log("[ai-inbox-ai-reply-lock] duplicate", {
+    tenant_id: safeTenantId,
+    channel: safeChannel,
+    conversation_id: safeConversationId,
+    provider_message_id: safeProviderMessageId,
+    trigger_source: safeTriggerSource,
+    ai_reply_id: lock?.ai_reply_id || null,
+    outbound_meta_message_id: lock?.outbound_meta_message_id || "",
+    status: lock?.status || "duplicate",
+  });
+  return { claimed: false, duplicate: true, lock };
+};
+
+export const completeAiInboxReplyLock = async ({
+  tenantId,
+  channel = "",
+  conversationId = "",
+  providerMessageId = "",
+  triggerSource = "",
+  aiReplyId = null,
+  outboundMetaMessageId = "",
+  status = "completed",
+} = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeChannel = toText(channel);
+  const safeConversationId = toText(conversationId);
+  const safeProviderMessageId = toText(providerMessageId);
+  const safeTriggerSource = toText(triggerSource);
+  const safeOutboundMetaMessageId = toText(outboundMetaMessageId);
+  if (!safeTenantId || !safeConversationId || !safeProviderMessageId) {
+    return null;
+  }
+  await ensureAiSupportLogSchema();
+  const result = await db.query(
+    `
+    UPDATE ai_inbound_ai_reply_locks
+    SET ai_reply_id = COALESCE($5::bigint, ai_reply_id),
+        outbound_meta_message_id = COALESCE(NULLIF($6::text, ''), outbound_meta_message_id),
+        status = COALESCE(NULLIF($7::text, ''), status),
+        updated_at = NOW()
+    WHERE tenant_id = $1::bigint
+      AND channel = $2::text
+      AND conversation_id = $3::text
+      AND provider_message_id = $4::text
+    RETURNING *
+    `,
+    [safeTenantId, safeChannel, safeConversationId, safeProviderMessageId, aiReplyId, safeOutboundMetaMessageId, status]
+  );
+  const lock = result.rows[0] || null;
+  console.log("[ai-inbox-ai-reply-lock] completed", {
+    tenant_id: safeTenantId,
+    channel: safeChannel,
+    conversation_id: safeConversationId,
+    provider_message_id: safeProviderMessageId,
+    trigger_source: safeTriggerSource,
+    ai_reply_id: lock?.ai_reply_id || aiReplyId || null,
+    outbound_meta_message_id: lock?.outbound_meta_message_id || safeOutboundMetaMessageId || "",
+    status: lock?.status || status,
+  });
+  return lock;
 };
 
 export const updateAiSupportMessageDeliveryStatus = async ({

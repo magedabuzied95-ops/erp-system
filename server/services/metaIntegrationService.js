@@ -16,6 +16,8 @@ import {
   ensureAiSupportLogSchema,
   getAiSupportConversationState,
   markAiSupportConversationEscalated,
+  claimAiInboxReplyLock,
+  completeAiInboxReplyLock,
 } from "./aiSupportLogService.js";
 import { createNotification, ensureNotificationsSchema } from "./notificationsService.js";
 import {
@@ -9940,6 +9942,26 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
     delivery_status: inserted?.delivery_status || "",
     external_message_id: inserted?.external_message_id || result?.message_id || "",
   });
+  if (message?.aiReplyLock?.provider_message_id) {
+    await completeAiInboxReplyLock({
+      tenantId: config.tenant_id,
+      channel: message.channel,
+      conversationId: message.external_conversation_id,
+      providerMessageId: message.aiReplyLock.provider_message_id,
+      triggerSource: message.aiReplyLock.trigger_source || detectedIntent || finalMetadata.replySource || "meta_webhook_auto_reply",
+      aiReplyId: inserted?.id || null,
+      outboundMetaMessageId: result?.message_id || "",
+      status: result?.message_id ? "completed" : "completed_without_meta_id",
+    }).catch((error) => {
+      console.warn("[ai-inbox-ai-reply-lock] complete failed", {
+        tenant_id: config.tenant_id,
+        channel: message.channel,
+        conversation_id: message.external_conversation_id,
+        provider_message_id: message.aiReplyLock.provider_message_id,
+        message: error?.message || "complete failed",
+      });
+    });
+  }
   await logChannelEvent({
     tenantId: config.tenant_id,
     channel: message.channel,
@@ -10278,6 +10300,26 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     deliveryStatus: result?.message_id ? "sent" : "failed",
     externalMessageId: result?.message_id || "",
   }).catch(() => {});
+  if (message?.aiReplyLock?.provider_message_id) {
+    await completeAiInboxReplyLock({
+      tenantId: config.tenant_id,
+      channel: message.channel,
+      conversationId: message.external_conversation_id,
+      providerMessageId: message.aiReplyLock.provider_message_id,
+      triggerSource: message.aiReplyLock.trigger_source || detectedIntent || "meta_webhook_auto_reply",
+      aiReplyId: null,
+      outboundMetaMessageId: result?.message_id || "",
+      status: result?.message_id ? "completed" : "completed_without_meta_id",
+    }).catch((error) => {
+      console.warn("[ai-inbox-ai-reply-lock] complete failed", {
+        tenant_id: config.tenant_id,
+        channel: message.channel,
+        conversation_id: message.external_conversation_id,
+        provider_message_id: message.aiReplyLock.provider_message_id,
+        message: error?.message || "complete failed",
+      });
+    });
+  }
   await logChannelEvent({
     tenantId: config.tenant_id,
     channel: message.channel,
@@ -17413,6 +17455,39 @@ export const processMetaWebhook = async ({ req } = {}) => {
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: status });
       continue;
     }
+    const providerMessageId = text(message.external_message_id || message.raw?.event?.message?.mid || message.raw?.event?.message?.id || message.dedupe_key || "");
+    const aiReplyTriggerSource = "meta_webhook_auto_reply";
+    const aiReplyLock = await claimAiInboxReplyLock({
+      tenantId: config.tenant_id,
+      channel: alias,
+      conversationId: message.external_conversation_id,
+      providerMessageId,
+      triggerSource: aiReplyTriggerSource,
+    }).catch((error) => {
+      console.warn("[ai-inbox-ai-reply-lock] claim failed", {
+        tenant_id: config.tenant_id,
+        channel: alias,
+        conversation_id: message.external_conversation_id,
+        provider_message_id: providerMessageId,
+        trigger_source: aiReplyTriggerSource,
+        message: error?.message || "claim failed",
+      });
+      return { claimed: false, duplicate: false, error: error?.message || "" };
+    });
+    if (!aiReplyLock?.claimed) {
+      results.push({
+        channel: alias,
+        external_user_id: message.external_customer_id,
+        stored: true,
+        sent: false,
+        reason: aiReplyLock?.duplicate ? "duplicate_ai_reply_lock" : "ai_reply_lock_unavailable",
+      });
+      continue;
+    }
+    message.aiReplyLock = {
+      provider_message_id: providerMessageId,
+      trigger_source: aiReplyTriggerSource,
+    };
     console.log("[meta-inbox] meta_inbox_auto_reply_triggered", {
       tenant_id: config.tenant_id,
       session_id: message.external_conversation_id,
@@ -18093,6 +18168,26 @@ export const processMetaWebhook = async ({ req } = {}) => {
         delivery_status: inserted?.delivery_status || "",
         external_message_id: inserted?.external_message_id || sendResult?.message_id || "",
       });
+      if (message?.aiReplyLock?.provider_message_id) {
+        await completeAiInboxReplyLock({
+          tenantId: config.tenant_id,
+          channel: message.channel,
+          conversationId: message.external_conversation_id,
+          providerMessageId: message.aiReplyLock.provider_message_id,
+          triggerSource: message.aiReplyLock.trigger_source || aiPayload?.detected_intent || "meta_webhook_auto_reply",
+          aiReplyId: inserted?.id || null,
+          outboundMetaMessageId: sendResult?.message_id || "",
+          status: sendResult?.message_id ? "completed" : "completed_without_meta_id",
+        }).catch((error) => {
+          console.warn("[ai-inbox-ai-reply-lock] complete failed", {
+            tenant_id: config.tenant_id,
+            channel: message.channel,
+            conversation_id: message.external_conversation_id,
+            provider_message_id: message.aiReplyLock.provider_message_id,
+            message: error?.message || "complete failed",
+          });
+        });
+      }
       await logChannelEvent({
         tenantId: config.tenant_id,
         channel: message.channel,
