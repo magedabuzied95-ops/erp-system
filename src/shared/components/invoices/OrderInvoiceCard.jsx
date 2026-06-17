@@ -1,4 +1,4 @@
-import { CalendarDays, CreditCard, Phone, ShoppingBag, Store, User } from "lucide-react";
+import { CalendarDays, CreditCard, Phone, ShoppingBag, User } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { formatCurrency } from "../../lib/currency";
@@ -16,6 +16,14 @@ const sourceLabels = {
 };
 
 const safeLabel = (value, fallback) => (typeof value === "string" ? value : fallback);
+
+const getStoreInitials = (value = "") => {
+  const text = String(value || "").trim();
+  if (!text) return "MONE";
+  const parts = text.split(/\s+/).filter(Boolean);
+  const initials = parts.length > 1 ? `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}` : text.slice(0, 2);
+  return String(initials || "MONE").toUpperCase();
+};
 
 const getStatusTone = (value = "") => {
   const normalized = String(value || "").toLowerCase().replace(/[_-]+/g, " ").trim();
@@ -95,10 +103,10 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
                   src={data.store?.logoUrl}
                   alt={data.store?.name || "Store"}
                   className="h-full w-full object-contain p-2"
-                  fallback={<Store className="h-7 w-7 text-stone-700" />}
+                  fallback={<span className="text-xs font-black tracking-[0.18em] text-stone-700">{getStoreInitials(data.store?.name)}</span>}
                 />
               ) : (
-                <Store className="h-7 w-7 text-stone-700" />
+                <span className="text-xs font-black tracking-[0.18em] text-stone-700">{getStoreInitials(data.store?.name)}</span>
               )}
             </div>
             <div>

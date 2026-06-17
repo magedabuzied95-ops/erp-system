@@ -203,6 +203,34 @@ const compactStorefrontReceipt = (payload = {}, meta = {}) => ({
   ...meta,
 });
 
+const resolveStorefrontBrandName = (settings = {}) =>
+  String(
+    settings?.company_name ||
+      settings?.companyName ||
+      settings?.["general.company_name"] ||
+      settings?.["storefront.store_name"] ||
+      settings?.store_name ||
+      "MONE"
+  ).trim() || "MONE";
+
+const resolveStorefrontBrandLogoUrl = (settings = {}) =>
+  String(
+    settings?.company_logo_url ||
+      settings?.companyLogoUrl ||
+      settings?.["general.company_logo_url"] ||
+      settings?.["storefront.store_logo_url"] ||
+      settings?.store_logo_url ||
+      ""
+  ).trim();
+
+const resolveBrandInitials = (value = "") => {
+  const text = String(value || "").trim();
+  if (!text) return "MONE";
+  const parts = text.split(/\s+/).filter(Boolean);
+  const initials = parts.length > 1 ? `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}` : text.slice(0, 2);
+  return String(initials || "MONE").toUpperCase();
+};
+
 const normalizeWishlistProduct = (item = {}) => {
   const nestedItem = item?.item && typeof item.item === "object" ? item.item : {};
   const product = nestedProductFor(item);
@@ -3691,6 +3719,7 @@ function HeaderAction({ to, icon, count, label, className = "" }) {
 
 function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme, onToggleTheme, brandName = "MONE", brandTagline = "", brandLogoUrl = "" }) {
   const { i18n: storefrontI18n, t } = useTranslation();
+  const brandInitials = resolveBrandInitials(brandName);
   const [search, setSearch] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -4039,7 +4068,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
         </button>
         <Link to="/shop" className="sf-header-logo group inline-flex items-center gap-2 text-stone-950 transition hover:text-[#6d28d9] dark:text-white">
           <span className="sf-header-logo-chip grid h-10 w-10 place-items-center overflow-hidden rounded-2xl bg-stone-950 text-sm font-black tracking-[0.18em] text-white shadow-[0_12px_30px_rgba(28,25,23,0.16)] transition group-hover:scale-105 group-hover:bg-[#6d28d9] dark:bg-white dark:text-stone-950 dark:group-hover:text-white">
-            {brandLogoUrl ? <img src={resolveProductImageUrl(brandLogoUrl)} alt={brandName} className="h-full w-full object-contain p-1.5" loading="lazy" decoding="async" width="40" height="40" /> : "MS"}
+            {brandLogoUrl ? <img src={resolveProductImageUrl(brandLogoUrl)} alt={brandName} className="h-full w-full object-contain p-1.5" loading="lazy" decoding="async" width="40" height="40" /> : brandInitials}
           </span>
           <span className="hidden leading-none sm:block">
             <span className="sf-header-logo-title block text-xl font-black tracking-[0.18em]">{brandName || "MONE"}</span>
@@ -5075,9 +5104,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const codAmount = normalizedFormPaymentMethod === "cod" ? total : Math.max(0, total - deliveryFee);
   const storefrontPaymentSettings = useMemo(() => normalizeStorefrontPaymentSettings(publicStoreSettings), [publicStoreSettings]);
   const storefrontBrandSettings = useMemo(() => ({
-    brandName: String(publicStoreSettings["storefront.store_name"] || publicStoreSettings["general.company_name"] || "MONE").trim(),
+    brandName: resolveStorefrontBrandName(publicStoreSettings),
     brandTagline: String(publicStoreSettings["storefront.store_tagline"] || "").trim(),
-    brandLogoUrl: String(publicStoreSettings["storefront.store_logo_url"] || publicStoreSettings["general.company_logo_url"] || "").trim(),
+    brandLogoUrl: resolveStorefrontBrandLogoUrl(publicStoreSettings),
   }), [publicStoreSettings]);
   const paymentMethods = useMemo(() => getPaymentMethods(storefrontPaymentSettings), [storefrontPaymentSettings]);
   const paymentCopy = paymentMethods.find((method) => method.id === normalizedFormPaymentMethod)?.text || "";
@@ -6466,7 +6495,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   );
 }
 
-function OrderSuccess({ profile, themeMode }) {
+function OrderSuccess({ profile, themeMode, brandName = "MONE", brandLogoUrl = "" }) {
   const { t } = useTranslation();
   const { orderNumber } = useParams();
   const location = useLocation();
@@ -6500,6 +6529,18 @@ function OrderSuccess({ profile, themeMode }) {
   }, [decodedOrderNumber, phone, loaded?.order]);
 
   const order = loaded?.order || {};
+  const brandedOrder = useMemo(() => ({
+    ...order,
+    company_name: brandName || order.company_name || order.store?.name || "MONE",
+    companyName: brandName || order.companyName || order.store?.name || "MONE",
+    logo_url: brandLogoUrl || order.logo_url || order.store?.logoUrl || order.store?.logo_url || "",
+    store: {
+      ...(order.store || {}),
+      name: brandName || order.store?.name || order.company_name || "MONE",
+      logoUrl: brandLogoUrl || order.store?.logoUrl || order.store?.logo_url || order.logo_url || "",
+      logo_url: brandLogoUrl || order.store?.logo_url || order.store?.logoUrl || order.logo_url || "",
+    },
+  }), [brandLogoUrl, brandName, order]);
   const publicNumber = displayPublicOrderNumber(order) || displayPublicOrderNumber(decodedOrderNumber);
   const items = loaded?.items || [];
   const customerName = order.customer_name || loaded?.customer?.full_name || profile.full_name || t("storefront.customer.dearCustomer", "ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½");
@@ -6550,7 +6591,7 @@ function OrderSuccess({ profile, themeMode }) {
             <SuccessTimeline />
           </div>
           <Suspense fallback={<div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm font-bold text-white/60">{sfText("storefront.orders.itemsLoading")}</div>}>
-            <OrderInvoiceCard className="sf-order-invoice-card" order={{ ...order, source: "Website" }} items={items} />
+            <OrderInvoiceCard className="sf-order-invoice-card" order={{ ...brandedOrder, source: "Website" }} items={items} />
           </Suspense>
         </div>
         <aside className={`sf-storefront-card h-max rounded-[2rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] lg:sticky lg:top-24 ${darkMode ? "text-slate-900" : ""}`}>
@@ -7999,6 +8040,10 @@ function Storefront() {
     });
   }, []);
 
+  const brandName = resolveStorefrontBrandName(publicStoreSettings);
+  const brandLogoUrl = resolveStorefrontBrandLogoUrl(publicStoreSettings);
+  const brandInitials = resolveBrandInitials(brandName);
+
   const helpers = useMemo(() => ({
     sfText,
     money,
@@ -8017,13 +8062,16 @@ function Storefront() {
     productToSocialMeta,
     displayCartItemPrice,
     displayCartItemComparePrice,
-  }), []);
+    brandName,
+    brandLogoUrl,
+    brandInitials,
+  }), [brandInitials, brandLogoUrl, brandName]);
 
   const storefrontBrandSettings = useMemo(() => ({
-    brandName: String(publicStoreSettings?.["storefront.store_name"] || publicStoreSettings?.["general.company_name"] || "MONE").trim(),
+    brandName,
     brandTagline: String(publicStoreSettings?.["storefront.store_tagline"] || "").trim(),
-    brandLogoUrl: String(publicStoreSettings?.["storefront.store_logo_url"] || publicStoreSettings?.["general.company_logo_url"] || "").trim(),
-  }), [publicStoreSettings]);
+    brandLogoUrl,
+  }), [brandLogoUrl, brandName, publicStoreSettings]);
 
   const components = useMemo(() => ({
     EmptyState,
@@ -8083,7 +8131,7 @@ function Storefront() {
       />
       <Route
         path="success/:orderNumber"
-        element={<OrderSuccess profile={profile} themeMode={themeMode} />}
+        element={<OrderSuccess profile={profile} themeMode={themeMode} brandName={storefrontBrandSettings.brandName} brandLogoUrl={storefrontBrandSettings.brandLogoUrl} />}
       />
       <Route
         path="track"

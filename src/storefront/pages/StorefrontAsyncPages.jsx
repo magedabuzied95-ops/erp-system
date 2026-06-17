@@ -14,6 +14,14 @@ const storefrontAsyncDebugLog = (label, payload = {}) => {
   console.log(label, payload);
 };
 
+const getBrandInitials = (value = "") => {
+  const text = String(value || "").trim();
+  if (!text) return "MONE";
+  const parts = text.split(/\s+/).filter(Boolean);
+  const initials = parts.length > 1 ? `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}` : text.slice(0, 2);
+  return String(initials || "MONE").toUpperCase();
+};
+
 function OrderItemsSummaryLocal({ items = [], helpers }) {
   const { sfText, money, imageFor, fallbackProductImage } = helpers;
   if (!items.length) {
@@ -39,6 +47,9 @@ function OrderItemsSummaryLocal({ items = [], helpers }) {
 function TrackingResult({ data, helpers, components }) {
   const { sfText, displayOrderNumber, statusCopy, formatDate, money, paymentCopy, shippingProviderCopy, supportHref, getStatusLabels } = helpers;
   const { InfoBox, OrderTimeline, OrderNumberBadge } = components;
+  const brandName = String(helpers.brandName || "MONE").trim() || "MONE";
+  const brandLogoUrl = String(helpers.brandLogoUrl || "").trim();
+  const brandInitials = String(helpers.brandInitials || getBrandInitials(brandName)).trim() || getBrandInitials(brandName);
   const order = data.order || {};
   const items = data.items || [];
   const timeline = data.timeline || getStatusLabels().map((label, index) => ({ label, done: index === 0 }));
@@ -48,6 +59,19 @@ function TrackingResult({ data, helpers, components }) {
   return (
     <div className="sf-storefront-card sf-tracking-result mt-5 overflow-hidden rounded-[2rem] border border-stone-200 bg-white shadow-[0_18px_50px_rgba(39,20,75,0.07)]">
       <div className="sf-card-section border-b border-stone-100 p-5 md:p-6">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl border border-stone-200 bg-white">
+            {brandLogoUrl ? (
+              <img src={brandLogoUrl} alt={brandName} className="h-full w-full object-contain p-2" loading="lazy" decoding="async" />
+            ) : (
+              <span className="text-xs font-black tracking-[0.18em] text-stone-700">{brandInitials}</span>
+            )}
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-black text-stone-950">{brandName}</div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-stone-500">{sfText("storefront.tracking.brandLabel", "Order tracking")}</div>
+          </div>
+        </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="sf-muted-text text-sm font-bold text-stone-500">{sfText("storefront.orders.orderNumber", "ط±ظ‚ظ… ط§ظ„ط·ظ„ط¨")}</div>
@@ -82,6 +106,9 @@ function TrackingResult({ data, helpers, components }) {
 export function TrackOrderPage({ helpers, components }) {
   const { sfText, displayOrderNumber, supportHref, deferReactState } = helpers;
   const { Field, EmptyState } = components;
+  const brandName = String(helpers.brandName || "MONE").trim() || "MONE";
+  const brandLogoUrl = String(helpers.brandLogoUrl || "").trim();
+  const brandInitials = String(helpers.brandInitials || getBrandInitials(brandName)).trim() || getBrandInitials(brandName);
   const [params] = useSearchParams();
   const [form, setForm] = useState({ order_number: displayOrderNumber(params.get("order_number") || params.get("order") || ""), phone: params.get("phone") || "" });
   const [state, setState] = useState({ loading: false, data: null, error: "" });
@@ -118,6 +145,19 @@ export function TrackOrderPage({ helpers, components }) {
       <div className="rounded-[2rem] bg-stone-950 p-5 text-white shadow-[0_24px_70px_rgba(39,20,75,0.18)] md:p-8">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
+            <div className="mb-3 flex items-center gap-3">
+              <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/10">
+                {brandLogoUrl ? (
+                  <img src={brandLogoUrl} alt={brandName} className="h-full w-full object-contain p-2" loading="lazy" decoding="async" />
+                ) : (
+                  <span className="text-xs font-black tracking-[0.18em] text-white">{brandInitials}</span>
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-black text-white">{brandName}</div>
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-stone-400">{sfText("storefront.tracking.brandLabel", "Order tracking")}</div>
+              </div>
+            </div>
             <p className="text-sm font-black text-emerald-200">{sfText("storefront.tracking.eyebrow", "Your order is on the way")}</p>
             <h1 className="mt-2 text-3xl font-black md:text-5xl">{sfText("storefront.tracking.title", "طھطھط¨ط¹ ط§ظ„ط·ظ„ط¨")}</h1>
             <p className="mt-2 max-w-2xl text-sm font-bold leading-7 text-stone-300">{sfText("storefront.tracking.subtitle", "Enter your order number and mobile number, or open the direct tracking link from your confirmation message.")}</p>
