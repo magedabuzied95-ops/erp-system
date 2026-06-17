@@ -65,6 +65,28 @@ const int = (value, fallback = 0) => {
 };
 const json = (value) => JSON.stringify(value === undefined ? null : value);
 const asArray = (value) => (Array.isArray(value) ? value : []);
+const normalizeProductCardsValue = (value) => {
+  if (value == null) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && typeof parsed === "object") {
+        return asArray(parsed.cards || parsed.products || parsed.items);
+      }
+    } catch {
+      return [];
+    }
+    return [];
+  }
+  if (typeof value === "object") {
+    return asArray(value.cards || value.products || value.items);
+  }
+  return [];
+};
 const asProductCards = (value) => {
   if (Array.isArray(value)) return value;
   if (value && typeof value === "object") return [value];
@@ -81,7 +103,7 @@ const asProductCards = (value) => {
   return [];
 };
 const normalizeInboxProductCards = (row = {}) =>
-  asProductCards(
+  normalizeProductCardsValue(
     row.product_cards ||
       row.productCards ||
       row.suggested_products ||
@@ -757,6 +779,7 @@ const normalizeAiReplyDraft = (value = {}) => {
   const draft = value && typeof value === "object" ? value : {};
   return {
     id: text(draft.id || ""),
+    original_suggestion_id: text(draft.original_suggestion_id || draft.originalSuggestionId || draft.id || ""),
     status: text(draft.status || "not_sent") || "not_sent",
     source: text(draft.source || "ai_suggestion") || "ai_suggestion",
     message_type: text(draft.message_type || "text") || "text",
@@ -4040,11 +4063,14 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
       persist_requested: persist === true,
     },
   });
+  const aiReplyDraft = normalizeAiReplyDraft(draft || {});
   emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: new Date().toISOString() });
   return {
     conversation_id: conversationId,
     reply,
-    draft,
+    draft: aiReplyDraft,
+    ai_reply_draft: aiReplyDraft,
+    suggestion: aiReplyDraft,
     message: null,
     text: reply.answer || "",
     intent: intent,
