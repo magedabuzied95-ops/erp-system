@@ -1366,6 +1366,13 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
       product_cards_count: asArray(followupDecision.product_cards).length,
       top_product_id: followupDecision.active_product_id || "",
       legacy_called: false,
+      product_cards_preview: asArray(followupDecision.product_cards).slice(0, 6).map((card) => ({
+        product_id: text(card?.product_id || card?.id || ""),
+        variant_id: text(card?.variant_id || card?.selected_variant_id || card?.matched_variant_id || ""),
+        color: text(card?.color || card?.matched_variant_color || ""),
+        image_url: text(card?.image_url || card?.image || card?.main_image || ""),
+        title: text(card?.title || card?.name || ""),
+      })),
     });
     return followupDecision;
   }
@@ -1381,6 +1388,13 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
       product_cards_count: asArray(postProductFsmDecision.product_cards).length,
       top_product_id: postProductFsmDecision.active_product_id || "",
       legacy_called: false,
+      product_cards_preview: asArray(postProductFsmDecision.product_cards).slice(0, 6).map((card) => ({
+        product_id: text(card?.product_id || card?.id || ""),
+        variant_id: text(card?.variant_id || card?.selected_variant_id || card?.matched_variant_id || ""),
+        color: text(card?.color || card?.matched_variant_color || ""),
+        image_url: text(card?.image_url || card?.image || card?.main_image || ""),
+        title: text(card?.title || card?.name || ""),
+      })),
     });
     return postProductFsmDecision;
   }
@@ -1471,6 +1485,13 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
     product_cards_count: productCards.length,
     top_product_id: productCards[0]?.product_id || productCards[0]?.id || "",
     legacy_called: false,
+    product_cards_preview: asArray(productCards).slice(0, 6).map((card) => ({
+      product_id: text(card?.product_id || card?.id || ""),
+      variant_id: text(card?.variant_id || card?.selected_variant_id || card?.matched_variant_id || ""),
+      color: text(card?.color || card?.matched_variant_color || ""),
+      image_url: text(card?.image_url || card?.image || card?.main_image || ""),
+      title: text(card?.title || card?.name || ""),
+    })),
   });
   return output;
 };

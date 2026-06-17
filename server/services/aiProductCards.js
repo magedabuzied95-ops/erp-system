@@ -598,8 +598,34 @@ const buildBaseCard = (product = {}, overrides = {}) => {
     product_id: id,
     variant_id: selectedVariantId,
     color,
-    image_url: product?.cloudinary_url || product?.secure_url || cardImageUrl || "",
+    image_url: cardImageUrl || product?.cloudinary_url || product?.secure_url || "",
   });
+  const selectedVariantImageUrl = resolvePublicProductImageUrl(firstImageValue(
+    overrides.image_url,
+    selectedVariant?.image_url,
+    selectedVariant?.image,
+    selectedVariant?.primary_image_url,
+    selectedVariant?.variant_image_url,
+    selectedVariant?.color_image_url,
+    selectedVariant?.cloudinary_url,
+    selectedVariant?.secure_url
+  ));
+  const cardImageUrlResolved = resolvePublicProductImageUrl(firstImageValue(
+    overrides.image_url,
+    selectedVariantImageUrl,
+    selectedVariant?.image_url,
+    selectedVariant?.image,
+    selectedVariant?.primary_image_url,
+    selectedVariant?.variant_image_url,
+    selectedVariant?.color_image_url,
+    product?.color?.image_url,
+    product?.color?.variant_image_url,
+    product?.matched_variant_image,
+    cardImageUrl,
+    product?.cloudinary_url,
+    product?.secure_url,
+    resolveProductMainImage(product)
+  ));
   const allVariants = asArray(product.variants).filter((variant) => variant && typeof variant === "object");
   const allColors = unique([
     ...splitSizes(product.available_colors),
@@ -649,14 +675,24 @@ const buildBaseCard = (product = {}, overrides = {}) => {
     total_stock: Number.isFinite(totalStock) ? totalStock : (variantStocks.length ? variantStocks.reduce((sum, value) => sum + value, 0) : 0),
     availability,
     stock_status: availability,
-    image_url: product?.cloudinary_url || product?.secure_url || cardImageUrl,
-    image: product?.cloudinary_url || product?.secure_url || cardImageUrl,
-    main_image: resolveProductMainImage(product) || cardImageUrl,
+    image_url: cardImageUrlResolved,
+    image: cardImageUrlResolved,
+    main_image: cardImageUrlResolved || resolveProductMainImage(product) || cardImageUrl,
     variant: selectedVariant,
     selected_variant: selectedVariant || undefined,
     variants: allVariants,
-    variant_image: selectedVariant?.cloudinary_url || selectedVariant?.secure_url || overrides.image_url || product?.matched_variant_image || product?.variant_image || product?.variant_image_url || cardImageUrl,
-    color_image: product?.color?.cloudinary_url || product?.color?.secure_url || overrides.image_url || product?.color_image || product?.color_image_url || product?.matched_variant_image || cardImageUrl,
+    variant_image: selectedVariantImageUrl || overrides.image_url || product?.matched_variant_image || product?.variant_image || product?.variant_image_url || cardImageUrlResolved,
+    color_image: resolvePublicProductImageUrl(firstImageValue(
+      overrides.image_url,
+      product?.color?.image_url,
+      product?.color?.variant_image_url,
+      product?.color?.cloudinary_url,
+      product?.color?.secure_url,
+      product?.color_image,
+      product?.color_image_url,
+      product?.matched_variant_image,
+      cardImageUrlResolved
+    )),
     cloudinary_url: product?.cloudinary_url || product?.secure_url || product?.variant?.cloudinary_url || product?.variant?.secure_url || product?.color?.cloudinary_url || product?.color?.secure_url || product?.matched_visual_candidate?.secure_url || "",
     product_url: productUrl,
     url: productUrl,

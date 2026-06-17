@@ -3643,6 +3643,43 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     const explicitProductFollowup = /(بكام|السعر|سعره|price|cost|متاح|موجود|الوانه|الوان|صور|صوره|صور اكتر|لينك|لينكه|مقاس|المقاسات|عايز ده|فيه منه|فيه من|ابعت اللينك|ابعته)/i.test(text(message.text || message.message_text || ""));
     const willSendCards = outboundPlan.will_send_cards;
     const shouldSendTextOnly = outboundPlan.will_send_text && !willSendCards;
+    const imageDuplicateGroups = new Map();
+    for (const [cardIndex, card] of sendableImageCards.entries()) {
+      const imageUrl = text(card?.resolved_image_url || card?.imageUrl || card?.image_url || card?.image || card?.main_image || "");
+      if (!imageUrl) continue;
+      const entry = imageDuplicateGroups.get(imageUrl) || {
+        image_url: imageUrl,
+        cards: [],
+      };
+      entry.cards.push({
+        card_index: Number.isFinite(Number(card?.card_index)) ? Number(card.card_index) : cardIndex,
+        product_id: text(card?.product?.id || card?.product?.product_id || card?.product_id || card?.id || ""),
+        variant_id: text(card?.variant_id || card?.selected_variant_id || card?.matched_variant_id || ""),
+        color: text(card?.color || card?.matched_variant_color || ""),
+        title: text(card?.name || card?.title || card?.product?.name || card?.product?.title || ""),
+      });
+      imageDuplicateGroups.set(imageUrl, entry);
+    }
+    for (const group of imageDuplicateGroups.values()) {
+      if (group.cards.length < 2) continue;
+      const first = group.cards[0] || {};
+      const hasDistinctCardMeta = group.cards.some((card) =>
+        card.color !== first.color ||
+        card.variant_id !== first.variant_id ||
+        card.product_id !== first.product_id ||
+        card.title !== first.title
+      );
+      if (hasDistinctCardMeta) {
+        console.warn("[whatsapp-product-card-image-duplicate-warning]", {
+          duplicated_image_url: group.image_url,
+          card_indexes: group.cards.map((card) => card.card_index),
+          product_id: group.cards.map((card) => card.product_id).filter(Boolean),
+          variant_id: group.cards.map((card) => card.variant_id).filter(Boolean),
+          color: group.cards.map((card) => card.color).filter(Boolean),
+          title: group.cards.map((card) => card.title).filter(Boolean),
+        });
+      }
+    }
     if (willSendCards) {
       console.info("[whatsapp-standalone-text-skipped]", {
         reason: "cards_present",
@@ -3713,7 +3750,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       });
       console.error("[whatsapp-image-send-failed]", payload);
     }
-    for (const { product, imageUrl, resolved_image_url, raw_image_url, card_index, mime_type, normalized_image_url } of sendableImageCards) {
+    for (const [sendIndex, { product, imageUrl, resolved_image_url, raw_image_url, card_index, mime_type, normalized_image_url }] of sendableImageCards.entries()) {
       const imageSourceUrl = resolved_image_url || imageUrl;
       const productUrl = productCardUrl(product);
       const sizes = [...new Set(asArray(product?.available_sizes || product?.sizes).map((value) => text(value)).filter(Boolean))];
@@ -3725,6 +3762,14 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
         variant: captionVariant || product.variant || null,
         variant_id: captionVariant?.id || captionVariant?.variant_id || product.variant_id || null,
       };
+      console.info("[whatsapp-product-card-send-payload]", {
+        card_index: Number.isFinite(Number(card_index)) ? Number(card_index) : sendIndex,
+        product_id: product?.id || product?.product_id || null,
+        variant_id: captionProduct.selected_variant_id || captionProduct.variant_id || product?.variant_id || product?.matched_variant_id || null,
+        color: text(product?.color || product?.matched_variant_color || ""),
+        image_url: imageSourceUrl,
+        title: text(product?.name || product?.title || product?.product_name || ""),
+      });
       console.info("[whatsapp-card-sizes-line]", {
         product_id: product?.id || product?.product_id || null,
         variant_id: captionProduct.selected_variant_id || captionProduct.variant_id || product?.matched_variant_id || null,
