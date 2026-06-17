@@ -1002,25 +1002,29 @@ export const markAiSupportConversationRead = async ({
     throw Object.assign(new Error("tenant_id and conversation id are required"), { status: 400 });
   }
   await ensureAiSupportLogSchema();
-
   const conversationReference = parseConversationReference({ sessionId: safeSessionId, channel: safeChannel });
-  const state = await getAiSupportConversationState({ tenantId: safeTenantId, sessionId: conversationReference.sessionId, channel: conversationReference.channel });
-  if (!state) {
-    throw Object.assign(new Error("Conversation not found"), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" });
-  }
-
-  const resolvedSessionId = toText(state.session_id || state.external_conversation_id || conversationReference.sessionId);
-  const resolvedChannel = normalizeConversationChannel(state.channel || state.session_channel || state.source || conversationReference.channel || safeChannel);
+  const sessionCandidates = [...new Set([conversationReference.sessionId, ...(Array.isArray(conversationReference.lookupSessionIds) ? conversationReference.lookupSessionIds : []), safeSessionId].filter(Boolean))];
+  const resolvedSessionId = conversationReference.sessionId || safeSessionId;
+  const resolvedChannel = conversationReference.channel || safeChannel;
   const readAt = new Date().toISOString();
   const sessionResult = await db.query(
     `
     UPDATE ai_support_sessions
     SET read_at = $3::timestamp
-    WHERE tenant_id = $1::bigint AND session_id = $2::text
+    WHERE tenant_id = $1::bigint
+      AND session_id = ANY($2::text[])
     RETURNING *
     `,
-    [safeTenantId, resolvedSessionId, readAt]
-  );
+    [safeTenantId, sessionCandidates, readAt]
+  ).catch((error) => {
+    logSqlError("markAiSupportConversationRead.session", error, {
+      tenantId: safeTenantId,
+      sessionId: resolvedSessionId,
+      candidates: sessionCandidates,
+      channel: resolvedChannel,
+    });
+    return { rows: [] };
+  });
 
   const channelResult = resolvedChannel
     ? await db.query(
@@ -1028,21 +1032,47 @@ export const markAiSupportConversationRead = async ({
         UPDATE ai_channel_conversations
         SET read_at = $4::timestamp
         WHERE tenant_id = $1::bigint
-          AND external_conversation_id = $2::text
+          AND external_conversation_id = ANY($2::text[])
           AND channel = $3::text
         RETURNING *
         `,
-        [safeTenantId, resolvedSessionId, resolvedChannel, readAt]
-      )
-    : { rows: [] };
+        [safeTenantId, sessionCandidates, resolvedChannel, readAt]
+      ).catch((error) => {
+        logSqlError("markAiSupportConversationRead.channel", error, {
+          tenantId: safeTenantId,
+          sessionId: resolvedSessionId,
+          candidates: sessionCandidates,
+          channel: resolvedChannel,
+        });
+        return { rows: [] };
+      })
+    : await db.query(
+        `
+        UPDATE ai_channel_conversations
+        SET read_at = $3::timestamp
+        WHERE tenant_id = $1::bigint
+          AND external_conversation_id = ANY($2::text[])
+        RETURNING *
+        `,
+        [safeTenantId, sessionCandidates, readAt]
+      ).catch((error) => {
+        logSqlError("markAiSupportConversationRead.channel-all", error, {
+          tenantId: safeTenantId,
+          sessionId: resolvedSessionId,
+          candidates: sessionCandidates,
+          channel: resolvedChannel,
+        });
+        return { rows: [] };
+      });
 
   return {
     read_at: readAt,
     session_id: resolvedSessionId,
-    channel: resolvedChannel || state.channel || state.session_channel || state.source || "",
+    channel: resolvedChannel || "",
     conversation_key: conversationReference.conversationKey,
     ...(sessionResult.rows[0] || {}),
     ...(channelResult.rows[0] || {}),
+    read_updated: Boolean(sessionResult.rows[0] || channelResult.rows[0]),
   };
 };
 

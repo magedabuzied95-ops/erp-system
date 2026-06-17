@@ -2413,16 +2413,31 @@ router.get("/conversations/:conversationId/recommendations", protect, permit("se
 const handleMarkConversationRead = async (req, res) => {
   try {
     const tenantId = toTenantId(req);
-    const conversationId = decodeRouteId(req.params.conversationId);
+    const rawConversationId = envText(req.params.conversationId);
+    const conversationId = decodeRouteId(rawConversationId);
     const channel = req.body?.channel || req.query?.channel || "";
     const conversation = await markAiSupportConversationRead({
       tenantId,
       sessionId: conversationId,
       channel,
     });
-    return res.json({ success: true, conversation });
+    return res.status(200).json({ success: true, conversation });
   } catch (error) {
-    return sendError(res, error, "Failed to mark AI inbox conversation as read");
+    console.error("[ai-inbox][mark-read] failed", {
+      tenant_id: toTenantId(req),
+      raw_conversation_id: envText(req.params.conversationId),
+      decoded_conversation_id: decodeRouteId(req.params.conversationId),
+      channel: req.body?.channel || req.query?.channel || "",
+      code: error?.code || "",
+      message: error?.message || "",
+      stack: error?.stack || "",
+    });
+    return res.status(200).json({
+      success: false,
+      conversation: null,
+      message: error?.message || "Failed to mark AI inbox conversation as read",
+      code: error?.code || "",
+    });
   }
 };
 
