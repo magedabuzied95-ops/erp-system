@@ -7878,6 +7878,7 @@ function Storefront() {
   const [recent, setRecent] = useState(() => readStorefrontStorage(RECENT_KEY, []));
   const [profile, setProfile] = useState(() => readStorefrontStorage(PROFILE_KEY, { full_name: "", primary_phone: "", phone: "" }));
   const [themeMode, setThemeMode] = useState(() => readStorefrontStorage(THEME_KEY, "light"));
+  const [publicStoreSettings, setPublicStoreSettings] = useState({});
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [routeReady, setRouteReady] = useState(false);
   const cartCount = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
@@ -7911,6 +7912,19 @@ function Storefront() {
     if (typeof document === "undefined") return;
     document.body.classList.toggle("storefront-dark", themeMode === "dark");
   }, [themeMode]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get("/settings/public", { suppressErrorStatuses: [404, 500] })
+      .then((data) => {
+        if (cancelled) return;
+        setPublicStoreSettings(data?.settings || {});
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const clearCart = useCallback(() => setCart([]), []);
 
@@ -7981,6 +7995,12 @@ function Storefront() {
     displayCartItemPrice,
     displayCartItemComparePrice,
   }), []);
+
+  const storefrontBrandSettings = useMemo(() => ({
+    brandName: String(publicStoreSettings?.["storefront.store_name"] || publicStoreSettings?.["general.company_name"] || "MONE").trim(),
+    brandTagline: String(publicStoreSettings?.["storefront.store_tagline"] || "").trim(),
+    brandLogoUrl: String(publicStoreSettings?.["storefront.store_logo_url"] || publicStoreSettings?.["general.company_logo_url"] || "").trim(),
+  }), [publicStoreSettings]);
 
   const components = useMemo(() => ({
     EmptyState,
