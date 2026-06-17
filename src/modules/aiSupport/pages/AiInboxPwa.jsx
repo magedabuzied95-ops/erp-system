@@ -2644,6 +2644,7 @@ export default function AiInboxPwa() {
           onSubmit={sendAvailableBySizeCards}
           sizeMode={availableBySizePickerConfig.sizeMode}
           allowMultiple={availableBySizePickerConfig.allowMultiple}
+          mode="inlineFullscreen"
         />
       </div>
     </div>

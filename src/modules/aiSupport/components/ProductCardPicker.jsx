@@ -222,7 +222,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [selectedSizeCards, setSelectedSizeCards] = useState([]);
   const previousOpenRef = useRef(false);
-  const isDesktopViewport = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 640px)").matches : true;
+  const isDesktopViewport = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true;
   const inlineFullscreenMode = mode === "inlineFullscreen" || !isDesktopViewport;
 
   useEffect(() => {
