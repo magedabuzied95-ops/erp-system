@@ -468,16 +468,18 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
 
   if (!open || typeof document === "undefined") return null;
 
+  const portalTarget = document.body;
+
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] isolate flex min-h-[100dvh] items-stretch justify-center overflow-hidden bg-black/70 backdrop-blur-sm sm:items-center sm:p-4"
+      className="fixed inset-0 z-[99999] isolate overflow-hidden bg-black/70 backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-4"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose?.();
       }}
     >
       <div className="absolute inset-0 bg-black/70" aria-hidden="true" />
       <section
-        className="relative z-10 flex h-[100dvh] w-full max-w-[640px] min-w-0 flex-col overflow-hidden rounded-none border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)] sm:h-auto sm:max-h-[85dvh] sm:rounded-[1.35rem]"
+        className="relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-[640px] min-w-0 flex-col overflow-hidden rounded-none border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)] sm:h-auto sm:max-h-[85dvh] sm:rounded-[1.35rem]"
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -837,7 +839,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
         </div>
       </section>
     </div>,
-    document.body
+    portalTarget
   );
 }
 
