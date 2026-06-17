@@ -3954,13 +3954,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     let savedOutboundMessage = null;
     try {
       const outboundSessionId = normalizeWhatsappSessionId(generated.sessionId, sendTargetNumber || generated.phone || message.phone);
-      console.info("[ai-auto-reply] outbound-session-debug", {
-        session_id: outboundSessionId,
-        resolved_phone: sendTargetNumber || generated.phone || message.phone || "",
-        resolved_reply_jid: outboundReplyTarget.resolvedJid || "",
-        remote_jid: outboundReplyTarget.remoteJid || "",
-      });
-      savedOutboundMessage = await appendAiGeneratedSupportReply({
+      const transcriptPayload = {
         tenantId: generated.tenantId,
         sessionId: outboundSessionId,
         answer: finalReplyText || generated.replyText || summarizeWhatsappProductCards(sendableImageCards),
@@ -3981,6 +3975,42 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
         resolvedPhone: sendTargetNumber || generated.phone || message.phone || "",
         sourcePath: "whatsapp_ai_auto_reply_sent",
         insertSource: "whatsapp_ai_send_success",
+      };
+      console.info("[ai-auto-reply] outbound-session-debug", {
+        session_id: outboundSessionId,
+        resolved_phone: sendTargetNumber || generated.phone || message.phone || "",
+        resolved_reply_jid: outboundReplyTarget.resolvedJid || "",
+        remote_jid: outboundReplyTarget.remoteJid || "",
+      });
+      console.info("[ai-auto-reply] stage=append_transcript_start", {
+        session_id: transcriptPayload.sessionId,
+        message_type: transcriptPayload.messageType,
+        textLength: text(transcriptPayload.answer).length,
+        productCardsCount: asArray(transcriptPayload.productCards).length,
+        provider_message_id: transcriptPayload.providerMessageId || "",
+      });
+      console.info("[ai-auto-reply] append_transcript_payload", {
+        session_id: transcriptPayload.sessionId,
+        message_type: transcriptPayload.messageType,
+        textLength: text(transcriptPayload.answer).length,
+        productCardsCount: asArray(transcriptPayload.productCards).length,
+        provider_message_id: transcriptPayload.providerMessageId || "",
+        payload: {
+          ...transcriptPayload,
+          suggestedProducts: undefined,
+          visualAttachments: undefined,
+          suggestedActions: undefined,
+          productCards: undefined,
+        },
+      });
+      savedOutboundMessage = await appendAiGeneratedSupportReply(transcriptPayload);
+      console.info("[ai-auto-reply] stage=append_transcript_done", {
+        session_id: savedOutboundMessage?.session_id || transcriptPayload.sessionId,
+        message_type: savedOutboundMessage?.message_type || transcriptPayload.messageType,
+        textLength: text(savedOutboundMessage?.message_text || savedOutboundMessage?.ai_answer || savedOutboundMessage?.customer_message || transcriptPayload.answer).length,
+        productCardsCount: asArray(savedOutboundMessage?.product_cards || transcriptPayload.productCards).length,
+        provider_message_id: savedOutboundMessage?.provider_message_id || savedOutboundMessage?.external_message_id || transcriptPayload.providerMessageId || "",
+        saved_message_id: savedOutboundMessage?.id || null,
       });
       console.info("[ai-auto-reply] stage=outbound_saved", {
         conversation_id: outboundPlan.conversation_id,
@@ -3994,11 +4024,16 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
         send_target_phone: sendTargetNumber,
       });
     } catch (saveError) {
-      console.warn("[whatsapp:ai-send-success:transcript-save-failed]", {
+      console.error("[ai-auto-reply] stage=append_transcript_error", {
         tenantId: generated.tenantId,
         sessionId: generated.sessionId,
         conversation_id: outboundPlan.conversation_id,
+        message_type: sendableImageCards.length ? "product_card" : "text",
+        textLength: finalReplyText.length,
+        productCardsCount: sendableImageCards.length,
+        provider_message_id: result?.result?.message_id || result?.result?.messageId || result?.result?.key?.id || result?.message_id || "",
         message: saveError?.message || String(saveError),
+        stack: saveError?.stack || "",
       });
     }
     console.info("[whatsapp:ai-sent]", {
@@ -4037,6 +4072,12 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       image_card_count: sendableImageCards.length,
       image_sent_count: imageMessages.length,
       image_failed_count: imageSendErrors.length,
+    });
+    console.info("[ai-auto-reply] stage=send_branch_return", {
+      conversation_id: outboundPlan.conversation_id,
+      outbound_saved: Boolean(savedOutboundMessage?.id),
+      has_reply_text: Boolean(finalReplyText),
+      product_cards_count: sendableImageCards.length,
     });
     console.log("[AI_CHANNEL_ADAPTER_RESULT]", {
       channel: AI_AGENT_CHANNELS.WHATSAPP,
