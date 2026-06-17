@@ -7765,6 +7765,12 @@ function Confetti() {
   return <div className="pointer-events-none absolute inset-0 overflow-hidden">{CONFETTI_PARTICLES.map((particle) => <span key={particle.id} className="absolute h-2 w-2 animate-[confetti_1.8s_ease-out_forwards] rounded-full bg-emerald-500" style={{ right: particle.right, top: "0%", animationDelay: particle.animationDelay }} />)}</div>;
 }
 
+const CONFETTI_PARTICLES = Array.from({ length: 28 }, (_, index) => ({
+  id: index,
+  right: `${(index * 13) % 100}%`,
+  animationDelay: `${(index % 10) * 0.12}s`,
+}));
+
 const getSessionId = () => {
   const key = "storefront.session";
   let existing = "";
