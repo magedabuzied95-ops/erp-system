@@ -345,7 +345,21 @@ const buildBareConfirmationPayload = ({ body = "", memory = null } = {}) => {
   const hasSelectedColor = Boolean(text(preferences.last_selected_color || preferences.selectedColor || memory?.selectedColor));
   const inferredAction = awaitingAction || (product && (!hasSelectedSize || !hasSelectedColor) ? "show_colors_sizes" : "");
   const cards = inferredAction === "show_colors_sizes"
-    ? buildFollowupCards({ memory, message: body, limit: 6 })
+    ? (() => {
+        try {
+          return buildFollowupCards({ memory, message: body, limit: 6 });
+        } catch (error) {
+          const summary = errorSummary(error);
+          console.error("[ai-auto-reply] stage=ai_generation_error", {
+            phase: "build_followup_cards",
+            message: summary.message,
+            code: summary.code,
+            stack: error?.stack || "",
+            detected_intent: "bare_confirmation",
+          });
+          return [];
+        }
+      })()
     : [];
   const colors = product ? colorsFromMemoryProduct(product, memoryCards) : [];
   const sizes = product ? sizesFromMemoryCards(product, memoryCards) : [];
@@ -410,17 +424,46 @@ const buildWhatsappFollowupPayload = async ({ body = "", memory = null, tenantId
     detectedIntent === "more_images" ||
     /صور|كلها|الوان|ألوان|صورهم|كل الصور/i.test(messageText || "");
   const cardLimit = selectedProduct ? 1 : wantsAllImages ? 6 : 3;
-  const finalImageCards = await buildWhatsappImageCardsForRequest({
-    tenantId,
-    conversationId,
-    messageText,
-    detectedIntent,
-    memory,
-    selectedProductId: selectedProduct?.product_id || selectedProduct?.id || product?.product_id || product?.id || null,
-  });
+  let finalImageCards = { cards: [] };
+  try {
+    finalImageCards = await buildWhatsappImageCardsForRequest({
+      tenantId,
+      conversationId,
+      messageText,
+      detectedIntent,
+      memory,
+      selectedProductId: selectedProduct?.product_id || selectedProduct?.id || product?.product_id || product?.id || null,
+    });
+  } catch (error) {
+    const summary = errorSummary(error);
+    console.error("[ai-auto-reply] stage=ai_generation_error", {
+      phase: "build_whatsapp_image_cards",
+      message: summary.message,
+      code: summary.code,
+      stack: error?.stack || "",
+      detected_intent: detectedIntent,
+      conversation_id: conversationId,
+    });
+    finalImageCards = { cards: [] };
+  }
   const cards = wantsAllImages && Array.isArray(finalImageCards.cards) && finalImageCards.cards.length
     ? finalImageCards.cards
-    : buildFollowupCards({ memory, message: body, limit: cardLimit, wantsAllImages });
+    : (() => {
+        try {
+          return buildFollowupCards({ memory, message: body, limit: cardLimit, wantsAllImages });
+        } catch (error) {
+          const summary = errorSummary(error);
+          console.error("[ai-auto-reply] stage=ai_generation_error", {
+            phase: "build_followup_cards",
+            message: summary.message,
+            code: summary.code,
+            stack: error?.stack || "",
+            detected_intent: detectedIntent,
+            conversation_id: conversationId,
+          });
+          return [];
+        }
+      })();
   const hasContext = Boolean(product || cards.length);
   const productId = product?.product_id || product?.id || cards[0]?.product_id || cards[0]?.id || null;
   if (["image_request", "more_images"].includes(detectedIntent)) {

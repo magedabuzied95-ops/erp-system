@@ -12,6 +12,13 @@ export const debugAiImagesEnabled = () => ["1", "true", "yes", "on"].includes(St
 export const debugAiImagesLog = (...args) => {
   if (debugAiImagesEnabled()) console.log(...args);
 };
+const safePriceNumber = (...values) => {
+  for (const value of values) {
+    const parsed = numericPrice(value);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return null;
+};
 const trimSlashes = (value = "") => text(value).replace(/^\/+|\/+$/g, "");
 const slugify = (value = "") =>
   text(value)
@@ -666,7 +673,8 @@ const buildBaseCard = (product = {}, overrides = {}) => {
     name: displayName,
     title: displayName,
     base_name: name,
-    price: selectedDisplayPrice,
+    price: Number.isFinite(selectedDisplayPrice) && selectedDisplayPrice > 0 ? selectedDisplayPrice : null,
+    price_text: text(overrides.price_text || (Number.isFinite(selectedDisplayPrice) && selectedDisplayPrice > 0 ? `${Math.round(selectedDisplayPrice).toLocaleString("en-US")} جنيه` : "السعر متاح عند الطلب")),
     available_sizes: sortSizes(overrides.available_sizes || availableProductSizes(product)),
     sizes: sortSizes(overrides.sizes || overrides.available_sizes || availableProductSizes(product)),
     available_colors: allColors,
@@ -732,12 +740,21 @@ const colorVariantCardsForProduct = (product = {}, { limit = 6, preserveUnavaila
   const sourceGroups = preserveUnavailableCards ? (expansionDebug.color_groups || []) : (expansionDebug.color_groups || []).filter((group) => group.sent);
   const cards = sourceGroups.map((group) => {
     const firstVariant = group.canonical_variant || {};
+    const cardPrice = safePriceNumber(
+      resolveCardPrice(product, firstVariant, firstVariant),
+      resolveCustomerDisplayPrice({ ...product, ...firstVariant, product, variant: firstVariant, selected_variant: firstVariant }).display_price,
+      firstVariant.final_price,
+      firstVariant.price,
+      firstVariant.sale_price,
+      firstVariant.product_price
+    );
     return buildBaseCard(product, {
       color: group.color_name,
       variant_id: firstVariant.id || firstVariant.variant_id || null,
       variant: firstVariant,
       image_url: group.selected_image_url,
-      price: resolveCardPrice(product, firstVariant, firstVariant) || resolveCustomerDisplayPrice({ ...product, ...firstVariant, product, variant: firstVariant, selected_variant: firstVariant }).display_price || numericPrice(firstVariant.final_price) || numericPrice(firstVariant.price) || numericPrice(firstVariant.sale_price) || numericPrice(firstVariant.product_price),
+      price: cardPrice,
+      price_text: cardPrice ? `${Math.round(cardPrice).toLocaleString("en-US")} جنيه` : "السعر متاح عند الطلب",
       available_sizes: group.available_sizes,
       sizes: group.available_sizes,
       availability: group.skipped ? "out_of_stock" : (text(product?.availability || product?.stock_status) || ""),
@@ -769,6 +786,11 @@ const colorVariantCardsForProduct = (product = {}, { limit = 6, preserveUnavaila
       removed_count: beforeImageDedupe - uniqueCards.length,
     });
   }
+  console.info("[ai-auto-reply] stage=product_cards_built", {
+    productCardsCount: uniqueCards.length,
+    cardsWithMissingPrice: uniqueCards.filter((card) => !Number.isFinite(Number(card.price)) || Number(card.price) <= 0).length,
+    cardsWithImage: uniqueCards.filter((card) => Boolean(card.image_url || card.image || card.main_image || card.variant_image || card.color_image)).length,
+  });
 
   debugAiImagesLog("[ai-product-cards] grouped color cards", {
     product_id: product?.id || product?.product_id || null,

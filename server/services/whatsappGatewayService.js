@@ -3348,7 +3348,8 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     reason: text(generated?.reason || ""),
     reply_length: text(generated?.replyText || "").length,
   });
-  if (!generated.replyText) return generated;
+  const generatedCards = asArray(generated?.aiPayload?.product_cards || generated?.aiPayload?.suggested_products || generated?.reply?.product_cards || generated?.whatsapp_image_cards || []);
+  if (!generated.replyText && !generatedCards.length) return generated;
 
   const outboundReplyTarget = resolveOutboundWhatsappReplyTarget(message);
   const sendTargetNumber = outboundReplyTarget.resolvedNumber;
