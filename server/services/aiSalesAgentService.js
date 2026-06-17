@@ -1189,6 +1189,7 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
         return `AND created_at < $${params.length}`;
       })()
     : "";
+  const inboxBaseStartedAt = Date.now();
   const result = await db.query(
     `
     SELECT *
@@ -1211,10 +1212,10 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
     rows: result.rowCount,
     conversations: result.rows.length,
     extra: {
-      filter: normalizedFilter,
-      search: Boolean(searchTerm),
-      limit: params[1],
-      message_limit: inboxMessageLimit,
+      conversation_id: safeConversationId,
+      before: Boolean(before),
+      before_id: Boolean(beforeId),
+      limit: messageLimit,
     },
   });
   const countResult = await db.query(
