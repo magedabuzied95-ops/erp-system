@@ -1,4 +1,6 @@
 import db from "../database/db.js";
+import crypto from "node:crypto";
+
 import { repairCorruptedArabicValue } from "../utils/arabicTextRepair.js";
 
 let schemaReadyPromise = null;
@@ -133,6 +135,400 @@ const incrementAliasUsage = async ({ tenantId, aliases = [], confidence = 0 } = 
       [safeTenantId, alias, Math.max(0, Math.min(1, Number(confidence || 0)))]
     );
   }
+};
+
+const buildOutboundTranscriptDedupeKey = ({
+  tenantId,
+  sessionId,
+  channel,
+  senderType,
+  messageType,
+  message,
+  deliveryStatus,
+  deliveryError,
+  externalMessageId,
+  providerMessageId,
+  whatsappInstance,
+  remoteJid,
+  resolvedReplyJid,
+  resolvedPhone,
+  externalReplyId,
+  sourcePath,
+  insertSource,
+  productCards = [],
+  timestamp = new Date().toISOString(),
+} = {}) => {
+  const providerKey = toText(providerMessageId || externalMessageId);
+  if (providerKey) return providerKey;
+  const minuteBucket = Math.floor(new Date(timestamp || Date.now()).getTime() / 60000);
+  const cardKey = asArray(productCards)
+    .map((card) =>
+      [
+        toText(card?.product_id || card?.id || ""),
+        toText(card?.variant_id || card?.selected_variant_id || card?.matched_variant_id || ""),
+        toText(card?.color || card?.color_name || card?.matched_variant_color || ""),
+        toText(card?.image_url || card?.image || card?.main_image || ""),
+      ].join(":")
+    )
+    .join("|");
+  const payload = [
+    tenantId,
+    sessionId,
+    channel,
+    senderType,
+    messageType,
+    repairText(message),
+    deliveryStatus,
+    deliveryError,
+    whatsappInstance,
+    remoteJid,
+    resolvedReplyJid,
+    resolvedPhone,
+    externalReplyId,
+    sourcePath,
+    insertSource,
+    minuteBucket,
+    cardKey,
+  ]
+    .map((item) => toText(item))
+    .join("|");
+  return `dedupe:${crypto.createHash("sha1").update(payload).digest("hex")}`;
+};
+
+const persistOutboundTranscriptRow = async ({
+  tenantId,
+  sessionId,
+  message,
+  answer = "",
+  messageType = "text",
+  senderType = "ai",
+  manualMessage = false,
+  staffUserId = null,
+  staffUserName = "",
+  source = "admin_console",
+  channel = "",
+  deliveryStatus = "",
+  deliveryError = "",
+  errorCode = "",
+  externalMessageId = "",
+  providerMessageId = "",
+  whatsappInstance = "",
+  remoteJid = "",
+  resolvedReplyJid = "",
+  resolvedPhone = "",
+  externalReplyId = "",
+  productCards = [],
+  preserveExactMessage = false,
+  upsertSession = false,
+  sessionStatus = "ai_active",
+  sessionSource = "",
+  sessionChannel = "",
+  sessionCustomerName = "",
+  sourcePath = "manual_message_insert",
+  insertSource = "manual_message_insert",
+  dedupeKey = "",
+  confidence = 1,
+  detectedIntent = "",
+  suggestedProducts = [],
+  visualAttachments = [],
+  suggestedActions = [],
+  staffMessage = "",
+} = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeSessionId = toText(sessionId);
+  const safeChannel = toText(channel || "web_chat");
+  const safeSenderType = toText(senderType || (manualMessage ? "staff" : "ai") || "ai");
+  const safeMessageType = toText(messageType || "text") || "text";
+  const safeMessage = preserveExactMessage ? String(message ?? answer ?? staffMessage ?? "") : repairText(message || answer || staffMessage);
+  const safeAnswer = preserveExactMessage ? String(answer || message || staffMessage || "") : repairText(answer || message || staffMessage);
+  const safeStaffMessage = preserveExactMessage ? String(staffMessage || message || answer || "") : repairText(staffMessage || message || answer);
+  const safeProductCards = Array.isArray(productCards) ? productCards : [];
+  const safeSuggestedProducts = Array.isArray(suggestedProducts) ? suggestedProducts : [];
+  const safeVisualAttachments = Array.isArray(visualAttachments) ? visualAttachments : [];
+  const safeSuggestedActions = Array.isArray(suggestedActions) ? suggestedActions : [];
+  const safeExternalMessageId = toText(externalMessageId || providerMessageId);
+  const safeProviderMessageId = toText(providerMessageId || externalMessageId);
+  const safeExternalReplyId = toText(externalReplyId);
+  const safeSourcePath = toText(sourcePath, "manual_message_insert");
+  const safeInsertSource = toText(insertSource, "manual_message_insert");
+  const safeSessionSource = toText(sessionSource || source || safeChannel || "web_chat");
+  const safeSessionChannel = toText(sessionChannel || safeChannel || "web_chat");
+  const safeSessionCustomerName = toText(sessionCustomerName);
+  const safeDetectedIntent = toText(detectedIntent);
+  const safeDedupeKey = toText(dedupeKey) || buildOutboundTranscriptDedupeKey({
+    tenantId: safeTenantId,
+    sessionId: safeSessionId,
+    channel: safeChannel,
+    senderType: safeSenderType,
+    messageType: safeMessageType,
+    message: safeMessage || safeStaffMessage || safeAnswer,
+    deliveryStatus,
+    deliveryError,
+    externalMessageId: safeExternalMessageId,
+    providerMessageId: safeProviderMessageId,
+    whatsappInstance,
+    remoteJid,
+    resolvedReplyJid,
+    resolvedPhone,
+    externalReplyId: safeExternalReplyId,
+    sourcePath: safeSourcePath,
+    insertSource: safeInsertSource,
+    productCards: safeProductCards,
+  });
+  if (!safeTenantId || !safeSessionId || !(safeMessage || safeProductCards.length)) {
+    throw Object.assign(new Error("Reply message is required"), { status: 400 });
+  }
+  await ensureAiSupportLogSchema();
+
+  let sessionRefId = null;
+  if (upsertSession) {
+    const sessionResult = await db.query(
+      `
+      INSERT INTO ai_support_sessions (
+        tenant_id, user_id, session_id, source, status, channel, customer_name, last_message, assigned_user_id, assigned_user_name, takeover_started_at, ai_enabled, updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $2, $9, CASE WHEN $5 = 'human_takeover' THEN NOW() ELSE NULL END, TRUE, NOW())
+      ON CONFLICT (tenant_id, session_id) DO UPDATE SET
+        user_id = COALESCE(EXCLUDED.user_id, ai_support_sessions.user_id),
+        source = CASE
+          WHEN EXCLUDED.source IN ('admin_console', 'ai_followup_center') AND ai_support_sessions.source IN ('facebook_messenger', 'instagram', 'whatsapp', 'web_chat')
+            THEN ai_support_sessions.source
+          ELSE COALESCE(NULLIF(EXCLUDED.source, ''), ai_support_sessions.source)
+        END,
+        status = CASE
+          WHEN ai_support_sessions.status = 'closed' THEN ai_support_sessions.status
+          WHEN EXCLUDED.status = 'human_takeover' THEN 'human_takeover'
+          ELSE COALESCE(NULLIF(EXCLUDED.status, ''), ai_support_sessions.status, 'ai_active')
+        END,
+        channel = COALESCE(NULLIF(EXCLUDED.channel, ''), ai_support_sessions.channel),
+        customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_support_sessions.customer_name),
+        last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_support_sessions.last_message),
+        assigned_user_id = COALESCE(ai_support_sessions.assigned_user_id, EXCLUDED.assigned_user_id),
+        assigned_user_name = COALESCE(NULLIF(ai_support_sessions.assigned_user_name, ''), EXCLUDED.assigned_user_name, ''),
+        takeover_started_at = COALESCE(ai_support_sessions.takeover_started_at, EXCLUDED.takeover_started_at),
+        ai_enabled = COALESCE(ai_support_sessions.ai_enabled, EXCLUDED.ai_enabled),
+        updated_at = NOW()
+      RETURNING id
+      `,
+      [
+        safeTenantId,
+        numberOrNull(staffUserId),
+        safeSessionId,
+        safeSessionSource,
+        toText(sessionStatus, manualMessage ? "human_takeover" : "ai_active") || "ai_active",
+        safeSessionChannel,
+        safeSessionCustomerName,
+        safeMessage || safeStaffMessage || safeAnswer,
+        toText(staffUserName),
+      ]
+    );
+    sessionRefId = sessionResult.rows[0]?.id || null;
+  }
+
+  const values = [
+    sessionRefId || null,
+    safeTenantId,
+    numberOrNull(staffUserId),
+    safeSessionId,
+    safeMessage || safeStaffMessage || safeAnswer,
+    "",
+    safeAnswer || safeMessage || safeStaffMessage || "",
+    Number(confidence) || 1,
+    false,
+    jsonValue([]),
+    jsonValue(safeSuggestedProducts),
+    jsonValue(safeVisualAttachments),
+    jsonValue(safeSuggestedActions),
+    safeDetectedIntent,
+    "",
+    safeStaffMessage || (safeSenderType !== "ai" ? safeMessage : ""),
+    safeSenderType,
+    manualMessage,
+    numberOrNull(staffUserId),
+    toText(staffUserName),
+    safeChannel,
+    safeSourcePath,
+    toText(deliveryStatus),
+    toText(deliveryError),
+    toText(errorCode),
+    safeExternalMessageId,
+    safeProviderMessageId,
+    toText(whatsappInstance),
+    toText(remoteJid),
+    toText(resolvedReplyJid),
+    toText(resolvedPhone),
+    safeExternalReplyId,
+    safeMessageType,
+    jsonValue(safeProductCards),
+    safeDedupeKey,
+    safeInsertSource,
+  ];
+
+  const baseColumns = `
+    session_ref_id,
+    tenant_id,
+    user_id,
+    session_id,
+    message_text,
+    customer_message,
+    ai_answer,
+    confidence,
+    needs_human_support,
+    sources_used,
+    suggested_products,
+    visual_attachments,
+    suggested_actions,
+    detected_intent,
+    fallback_reason,
+    staff_message,
+    sender_type,
+    manual_message,
+    staff_user_id,
+    staff_user_name,
+    channel,
+    source_path,
+    delivery_status,
+    delivery_error,
+    error_code,
+    external_message_id,
+    provider_message_id,
+    whatsapp_instance,
+    remote_jid,
+    resolved_reply_jid,
+    resolved_phone,
+    external_reply_id,
+    message_type,
+    product_cards,
+    dedupe_key,
+    insert_source
+  `;
+
+  const updateSql = `
+    UPDATE ai_support_messages
+    SET
+      session_ref_id = $2,
+      tenant_id = $3,
+      user_id = $4,
+      session_id = $5,
+      message_text = $6,
+      customer_message = $7,
+      ai_answer = $8,
+      confidence = $9,
+      needs_human_support = $10,
+      sources_used = $11::jsonb,
+      suggested_products = $12::jsonb,
+      visual_attachments = $13::jsonb,
+      suggested_actions = $14::jsonb,
+      detected_intent = $15,
+      fallback_reason = $16,
+      staff_message = $17,
+      sender_type = $18,
+      manual_message = $19,
+      staff_user_id = $20,
+      staff_user_name = $21,
+      channel = $22,
+      source_path = $23,
+      delivery_status = $24,
+      delivery_error = $25,
+      error_code = $26,
+      external_message_id = $27,
+      provider_message_id = $28,
+      whatsapp_instance = $29,
+      remote_jid = $30,
+      resolved_reply_jid = $31,
+      resolved_phone = $32,
+      external_reply_id = $33,
+      message_type = $34,
+      product_cards = $35::jsonb,
+      dedupe_key = $36,
+      insert_source = $37,
+      updated_at = NOW()
+    WHERE id = $1
+    RETURNING *
+  `;
+
+  const providerKey = safeProviderMessageId;
+  if (providerKey) {
+    const existingProvider = await db.query(
+      `
+      SELECT id
+      FROM ai_support_messages
+      WHERE tenant_id = $1
+        AND channel = $2
+        AND provider_message_id = $3
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+      `,
+      [safeTenantId, safeChannel, providerKey]
+    );
+    if (existingProvider.rows[0]?.id) {
+      const updated = await db.query(updateSql, [existingProvider.rows[0].id, ...values]);
+      return updated.rows[0] || null;
+    }
+  }
+
+  if (safeDedupeKey) {
+    const existingDedupe = await db.query(
+      `
+      SELECT id
+      FROM ai_support_messages
+      WHERE tenant_id = $1
+        AND session_id = $2
+        AND dedupe_key = $3
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+      `,
+      [safeTenantId, safeSessionId, safeDedupeKey]
+    );
+    if (existingDedupe.rows[0]?.id) {
+      const updated = await db.query(updateSql, [existingDedupe.rows[0].id, ...values]);
+      return updated.rows[0] || null;
+    }
+  }
+
+  const inserted = await db.query(
+    `
+    INSERT INTO ai_support_messages (${baseColumns})
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34::jsonb, $35, $36)
+    ON CONFLICT DO NOTHING
+    RETURNING *
+    `,
+    values
+  );
+  if (inserted.rows[0]) return inserted.rows[0];
+
+  if (providerKey) {
+    const fallbackProvider = await db.query(
+      `
+      SELECT *
+      FROM ai_support_messages
+      WHERE tenant_id = $1
+        AND channel = $2
+        AND provider_message_id = $3
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+      `,
+      [safeTenantId, safeChannel, providerKey]
+    );
+    if (fallbackProvider.rows[0]) return fallbackProvider.rows[0];
+  }
+
+  if (safeDedupeKey) {
+    const fallbackDedupe = await db.query(
+      `
+      SELECT *
+      FROM ai_support_messages
+      WHERE tenant_id = $1
+        AND session_id = $2
+        AND dedupe_key = $3
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+      `,
+      [safeTenantId, safeSessionId, safeDedupeKey]
+    );
+    if (fallbackDedupe.rows[0]) return fallbackDedupe.rows[0];
+  }
+  return null;
 };
 
 export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
@@ -761,116 +1157,61 @@ export const appendManualAiSupportReply = async ({
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
-  const safeMessage = preserveExactMessage ? String(message ?? "") : repairText(message);
-  const safePreviewMessage = preserveExactMessage ? String(previewMessage || message || "") : repairText(previewMessage || message);
-  const safeMessageType = toText(messageType || "text") || "text";
-  const safeProductCards = Array.isArray(productCards) ? productCards : [];
-  if (!safeTenantId || !safeSessionId || !safeMessage) {
-    throw Object.assign(new Error("Reply message is required"), { status: 400 });
-  }
-  await ensureAiSupportLogSchema();
-
-  let sessionResult = { rows: [{ id: null, status: "" }] };
-  if (upsertSession) {
-    sessionResult = await db.query(
+  const safeMessage = preserveExactMessage ? String(message ?? "") : repairText(message || previewMessage);
+  if (upsertSession && safeTenantId && safeSessionId) {
+    const sessionResult = await db.query(
       `
-      INSERT INTO ai_support_sessions (
-        tenant_id, user_id, session_id, source, status, assigned_user_id, assigned_user_name, takeover_started_at, updated_at
-      )
-      VALUES ($1, $2, $3, $4, 'human_takeover', $2, $5, NOW(), NOW())
-      ON CONFLICT (tenant_id, session_id) DO UPDATE SET
-        user_id = COALESCE(EXCLUDED.user_id, ai_support_sessions.user_id),
-        source = CASE
-          WHEN EXCLUDED.source IN ('admin_console', 'ai_followup_center')
-            AND ai_support_sessions.source IN ('facebook_messenger', 'instagram', 'whatsapp', 'web_chat')
-            THEN ai_support_sessions.source
-          ELSE EXCLUDED.source
-        END,
-        status = CASE WHEN ai_support_sessions.status = 'closed' THEN ai_support_sessions.status ELSE 'human_takeover' END,
-        assigned_user_id = COALESCE(ai_support_sessions.assigned_user_id, EXCLUDED.assigned_user_id),
-        assigned_user_name = COALESCE(NULLIF(ai_support_sessions.assigned_user_name, ''), EXCLUDED.assigned_user_name, ''),
-        takeover_started_at = COALESCE(ai_support_sessions.takeover_started_at, NOW()),
-        updated_at = NOW()
-      RETURNING id, status
+      SELECT status
+      FROM ai_support_sessions
+      WHERE tenant_id = $1 AND session_id = $2
+      LIMIT 1
       `,
-      [safeTenantId, numberOrNull(staffUserId), safeSessionId, toText(source, "admin_console"), toText(staffUserName)]
+      [safeTenantId, safeSessionId]
     );
     if (sessionResult.rows[0]?.status === "closed") {
       throw Object.assign(new Error("Conversation is closed"), { status: 409 });
     }
   }
 
-  const result = await db.query(
-    `
-    INSERT INTO ai_support_messages (
-      session_ref_id,
-      tenant_id,
-      user_id,
-      session_id,
-      message_text,
-      customer_message,
-      ai_answer,
-      confidence,
-      needs_human_support,
-      sources_used,
-      suggested_products,
-      visual_attachments,
-      suggested_actions,
-      detected_intent,
-      fallback_reason,
-      staff_message,
-      sender_type,
-      manual_message,
-      staff_user_id,
-      staff_user_name,
-      channel,
-      source_path,
-      delivery_status,
-      delivery_error,
-      error_code,
-      external_message_id,
-      provider_message_id,
-      whatsapp_instance,
-      remote_jid,
-      resolved_reply_jid,
-      resolved_phone,
-      external_reply_id,
-      message_type,
-      product_cards
-    )
-    VALUES ($1, $2, $3, $4, $5, '', '', 1, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'manual_staff_reply', '', $5, 'staff', TRUE, $3, $6, COALESCE(NULLIF($7, ''), 'web_chat'), $17, $8, $9, $10, $11, $12, $13, $14, $15, $16, $18, $19, $20::jsonb)
-    RETURNING *
-    `,
-    [
-      sessionResult.rows[0]?.id || null,
-      safeTenantId,
-      numberOrNull(staffUserId),
-      safeSessionId,
-      safeMessage,
-      repairText(staffUserName),
-      toText(channel),
-      toText(deliveryStatus),
-      toText(deliveryError),
-      toText(errorCode),
-      toText(externalMessageId),
-      toText(providerMessageId || externalMessageId),
-      toText(whatsappInstance),
-      toText(remoteJid),
-      toText(resolvedReplyJid),
-      toText(resolvedPhone),
-      repairText(source, "manual_admin"),
-      toText(externalReplyId),
-      safeMessageType,
-      jsonValue(safeProductCards),
-    ]
-  );
+  const result = await persistOutboundTranscriptRow({
+    tenantId: safeTenantId,
+    sessionId: safeSessionId,
+    message: safeMessage,
+    messageType,
+    senderType: "staff",
+    manualMessage: true,
+    staffUserId,
+    staffUserName,
+    source,
+    channel,
+    deliveryStatus,
+    deliveryError,
+    errorCode,
+    externalMessageId,
+    providerMessageId,
+    whatsappInstance,
+    remoteJid,
+    resolvedReplyJid,
+    resolvedPhone,
+    externalReplyId,
+    productCards,
+    preserveExactMessage,
+    upsertSession,
+    sessionStatus: "human_takeover",
+    sessionSource: source,
+    sessionChannel: channel || "web_chat",
+    sessionCustomerName: "",
+    sourcePath: "manual_message_insert",
+    insertSource: "manual_message_insert",
+    staffMessage: safeMessage,
+  });
   console.info("[ai-support-insert]", {
     source: "ai_support_route",
     session_id: safeSessionId,
     channel: toText(channel, "web_chat"),
-    message_id: result.rows[0]?.id || null,
+    message_id: result?.id || null,
   });
-  if (upsertSession) {
+  if (upsertSession && safeTenantId && safeSessionId) {
     await db.query(
       `
       UPDATE ai_support_sessions
@@ -879,11 +1220,11 @@ export const appendManualAiSupportReply = async ({
           updated_at = NOW()
       WHERE tenant_id = $1 AND session_id = $2
       `,
-      [safeTenantId, safeSessionId, safePreviewMessage || repairText(safeMessage), repairText(channel)]
+      [safeTenantId, safeSessionId, safeMessage || repairText(message || previewMessage), repairText(channel)]
     ).catch(() => {});
   }
 
-  return result.rows[0] || null;
+  return result || null;
 };
 
 export const appendAiGeneratedSupportReply = async ({
@@ -912,27 +1253,8 @@ export const appendAiGeneratedSupportReply = async ({
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
   const safeProductCards = Array.isArray(productCards) ? productCards : [];
-  const cardSummary = safeProductCards
-    .map((card) =>
-      [
-        toText(card?.product_name || card?.name || card?.title || card?.product?.name || card?.product?.title || ""),
-        toText(card?.color || card?.color_name || card?.matched_variant_color || ""),
-        toText(card?.size || card?.size_name || ""),
-        toText(card?.price || card?.final_price || ""),
-      ]
-        .filter(Boolean)
-        .join(" - ")
-    )
-    .filter(Boolean)
-    .slice(0, 3)
-    .join(" | ");
-  const safeAnswer = repairText(answer || cardSummary || (safeProductCards.length ? `Product cards sent (${safeProductCards.length})` : ""));
+  const safeAnswer = repairText(answer || (safeProductCards.length ? `Product cards sent (${safeProductCards.length})` : ""));
   const safeMessageType = toText(messageType || (safeProductCards.length ? "product_card" : "text")) || "text";
-  if (!safeTenantId || !safeSessionId || !safeAnswer) {
-    throw Object.assign(new Error("AI reply text is required"), { status: 400 });
-  }
-  await ensureAiSupportLogSchema();
-
   const sessionResult = await db.query(
     `
     SELECT id, status
@@ -945,68 +1267,40 @@ export const appendAiGeneratedSupportReply = async ({
   if (["human_takeover", "closed"].includes(sessionResult.rows[0]?.status)) {
     throw Object.assign(new Error("AI is paused for this conversation"), { status: 409 });
   }
-
-  const result = await db.query(
-    `
-    INSERT INTO ai_support_messages (
-      session_ref_id,
-      tenant_id,
-      session_id,
-      message_text,
-      customer_message,
-      ai_answer,
-      confidence,
-      needs_human_support,
-      sources_used,
-      suggested_products,
-      visual_attachments,
-      product_cards,
-      suggested_actions,
-      detected_intent,
-      fallback_reason,
-      sender_type,
-      message_type,
-      manual_message,
-      channel,
-      delivery_status,
-      delivery_error,
-      external_message_id,
-      provider_message_id,
-      whatsapp_instance,
-      remote_jid,
-      resolved_reply_jid,
-      resolved_phone,
-      source_path,
-      insert_source
-    )
-    VALUES ($1, $2, $3, $4, '', $4, $5, FALSE, '[]'::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9, '', 'ai', $10, FALSE, COALESCE(NULLIF($11, ''), 'web_chat'), $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
-    RETURNING *
-    `,
-    [
-      sessionResult.rows[0]?.id || null,
-      safeTenantId,
-      safeSessionId,
-      safeAnswer,
-      Number(confidence) || 0,
-      jsonValue(Array.isArray(suggestedProducts) ? suggestedProducts : []),
-      jsonValue(Array.isArray(visualAttachments) ? visualAttachments : []),
-      jsonValue(Array.isArray(productCards) ? productCards : []),
-      jsonValue(Array.isArray(suggestedActions) ? suggestedActions : []),
-      repairText(detectedIntent),
-      repairText(channel),
-      safeMessageType,
-      repairText(deliveryStatus),
-      repairText(deliveryError),
-      repairText(externalMessageId),
-      toText(providerMessageId || externalMessageId),
-      toText(whatsappInstance),
-      toText(remoteJid),
-      toText(resolvedReplyJid),
-      toText(resolvedPhone),
-      repairText(sourcePath, "retry_worker"),
-      repairText(insertSource),
-    ]
-  );
+  const result = await persistOutboundTranscriptRow({
+    tenantId: safeTenantId,
+    sessionId: safeSessionId,
+    message: safeAnswer,
+    answer: safeAnswer,
+    messageType: safeMessageType,
+    senderType: "ai",
+    manualMessage: false,
+    source: insertSource,
+    channel,
+    confidence,
+    deliveryStatus,
+    deliveryError,
+    externalMessageId,
+    providerMessageId,
+    whatsappInstance,
+    remoteJid,
+    resolvedReplyJid,
+    resolvedPhone,
+    productCards,
+    preserveExactMessage: false,
+    upsertSession: true,
+    sessionStatus: "ai_active",
+    sessionSource: "whatsapp",
+    sessionChannel: channel || "web_chat",
+    sessionCustomerName: "",
+    sourcePath,
+    insertSource,
+    dedupeKey: "",
+    detectedIntent,
+    suggestedProducts,
+    visualAttachments,
+    suggestedActions,
+  });
   await db.query(
     `
     UPDATE ai_support_sessions
@@ -1016,8 +1310,77 @@ export const appendAiGeneratedSupportReply = async ({
     `,
     [safeTenantId, safeSessionId, repairText(safeAnswer)]
   ).catch(() => {});
-  return result.rows[0] || null;
+  return result || null;
 };
+
+export const appendWhatsappOutboundSupportReply = async ({
+  tenantId,
+  sessionId,
+  message,
+  messageType = "text",
+  productCards = [],
+  senderType = "system",
+  source = "whatsapp_system_send",
+  channel = "whatsapp",
+  deliveryStatus = "",
+  deliveryError = "",
+  errorCode = "",
+  externalMessageId = "",
+  providerMessageId = "",
+  whatsappInstance = "",
+  remoteJid = "",
+  resolvedReplyJid = "",
+  resolvedPhone = "",
+  externalReplyId = "",
+  preserveExactMessage = false,
+  upsertSession = true,
+  sessionStatus = "ai_active",
+  sessionSource = "whatsapp",
+  sessionChannel = "whatsapp",
+  sessionCustomerName = "",
+  sourcePath = "whatsapp_outbound_send",
+  insertSource = "whatsapp_outbound_send",
+  confidence = 1,
+  detectedIntent = "whatsapp_outbound_send",
+  suggestedProducts = [],
+  visualAttachments = [],
+  suggestedActions = [],
+  staffMessage = "",
+} = {}) => persistOutboundTranscriptRow({
+  tenantId,
+  sessionId,
+  message,
+  messageType,
+  senderType,
+  manualMessage: false,
+  source,
+  channel,
+  deliveryStatus,
+  deliveryError,
+  errorCode,
+  externalMessageId,
+  providerMessageId,
+  whatsappInstance,
+  remoteJid,
+  resolvedReplyJid,
+  resolvedPhone,
+  externalReplyId,
+  productCards,
+  preserveExactMessage,
+  upsertSession,
+  sessionStatus,
+  sessionSource,
+  sessionChannel,
+  sessionCustomerName,
+  sourcePath,
+  insertSource,
+  confidence,
+  detectedIntent,
+  suggestedProducts,
+  visualAttachments,
+  suggestedActions,
+  staffMessage,
+});
 
 export const updateAiSupportMessageDeliveryStatus = async ({
   tenantId,

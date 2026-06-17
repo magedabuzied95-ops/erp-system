@@ -1,5 +1,6 @@
 import db from "../database/db.js";
 import { normalizeEgyptPhone, sendTextMessage } from "./whatsappGatewayService.js";
+import { appendWhatsappOutboundSupportReply } from "./aiSupportLogService.js";
 
 const text = (value, fallback = "") => String(value ?? fallback).trim();
 
@@ -13,6 +14,7 @@ const providerName = (order = {}) => {
 
 const invoiceNumber = (order = {}) => text(order.invoice_number || order.public_order_number || order.display_order_number || order.order_number || order.id, "-");
 const phoneForOrder = (order = {}) => normalizeEgyptPhone(order.customer_phone || order.phone || order.whatsapp || order.mobile);
+const extractWhatsAppMessageId = (result = {}) => String(result?.result?.message_id || result?.result?.messageId || result?.result?.key?.id || result?.message_id || result?.id || "").trim();
 
 let schemaReadyPromise = null;
 
@@ -152,6 +154,42 @@ const sendShippingNotification = async (order = {}, type) => {
 
     const message = config.buildMessage(claimed);
     const result = await sendTextMessage({ phone, message });
+    try {
+      await appendWhatsappOutboundSupportReply({
+        tenantId: claimed.tenant_id || order?.tenant_id || null,
+        sessionId: `whatsapp:${phone}`,
+        message,
+        messageType: "text",
+        senderType: "system",
+        source: `whatsapp_${type}`,
+        channel: "whatsapp",
+        deliveryStatus: "sent",
+        deliveryError: "",
+        externalMessageId: extractWhatsAppMessageId(result),
+        providerMessageId: extractWhatsAppMessageId(result),
+        whatsappInstance: result?.instanceName || result?.instance || "",
+        remoteJid: `whatsapp:${phone}`,
+        resolvedReplyJid: `whatsapp:${phone}`,
+        resolvedPhone: phone,
+        preserveExactMessage: true,
+        upsertSession: true,
+        sessionStatus: "ai_active",
+        sessionSource: "whatsapp",
+        sessionChannel: "whatsapp",
+        sessionCustomerName: claimed?.customer_name || "",
+        sourcePath: `whatsapp_${type}`,
+        insertSource: `whatsapp_${type}`,
+        confidence: 1,
+        detectedIntent: `whatsapp_${type}`,
+      });
+    } catch (persistError) {
+      console.warn("[whatsapp:shipment-transcript-save-failed]", {
+        type,
+        order_id: claimed?.id || null,
+        phoneSuffix: phone.slice(-4),
+        message: persistError?.message || String(persistError),
+      });
+    }
     console.info(config.log, {
       orderId: claimed.id,
       invoiceNumber: invoiceNumber(claimed),

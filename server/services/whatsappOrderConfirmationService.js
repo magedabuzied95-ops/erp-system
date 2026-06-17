@@ -10,6 +10,7 @@ import { buildInvoiceReceiptWhatsappMessage, buildPublicInvoiceUrl, buildWhatsap
 import { normalizeArabicIntentPayload } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { getSetting } from "./settingsService.js";
+import { appendWhatsappOutboundSupportReply } from "./aiSupportLogService.js";
 
 const CONFIRM_WORDS = new Set(["1", "تأكيد", "تاكيد", "confirm", "yes", "تمام"]);
 const CANCEL_WORDS = new Set(["2", "إلغاء", "الغاء", "cancel", "no"]);
@@ -24,6 +25,7 @@ const number = (value, fallback = 0) => {
 };
 const money = (value) => number(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const json = (value) => JSON.stringify(value === undefined ? null : value);
+const extractWhatsAppMessageId = (result = {}) => text(result?.result?.message_id || result?.result?.messageId || result?.result?.key?.id || result?.message_id || result?.id || "");
 
 let schemaReadyPromise = null;
 
@@ -284,6 +286,42 @@ export const sendOrderConfirmation = async (order = {}) => {
     `,
     [current.id]
   );
+  try {
+    await appendWhatsappOutboundSupportReply({
+      tenantId: tenantIdForMessage(current, current),
+      sessionId: `whatsapp:${phone}`,
+      message,
+      messageType: "text",
+      senderType: "system",
+      source: "whatsapp_order_confirmation",
+      channel: "whatsapp",
+      deliveryStatus: "sent",
+      deliveryError: "",
+      externalMessageId: extractWhatsAppMessageId(result),
+      providerMessageId: extractWhatsAppMessageId(result),
+      whatsappInstance: result?.instanceName || result?.instance || "",
+      remoteJid: `whatsapp:${phone}`,
+      resolvedReplyJid: `whatsapp:${phone}`,
+      resolvedPhone: phone,
+      preserveExactMessage: true,
+      upsertSession: true,
+      sessionStatus: "ai_active",
+      sessionSource: "whatsapp",
+      sessionChannel: "whatsapp",
+      sessionCustomerName: current?.customer_name || "",
+      sourcePath: "whatsapp_order_confirmation",
+      insertSource: "whatsapp_order_confirmation",
+      confidence: 1,
+      detectedIntent: "whatsapp_order_confirmation",
+    });
+  } catch (persistError) {
+    console.warn("[whatsapp:order-confirmation-transcript-save-failed]", {
+      orderId: current.id,
+      orderNumber: orderNumber(current),
+      phoneSuffix: phone.slice(-4),
+      message: persistError?.message || String(persistError),
+    });
+  }
   console.info("[whatsapp:order-confirmation-sent]", {
     orderId: current.id,
     orderNumber: orderNumber(current),
@@ -341,6 +379,41 @@ export const sendPaymentReviewNotification = async (order = {}) => {
       `,
       [current.id]
     );
+    try {
+      await appendWhatsappOutboundSupportReply({
+        tenantId: tenantIdForMessage(current, current),
+        sessionId: `whatsapp:${phone}`,
+        message,
+        messageType: "text",
+        senderType: "system",
+        source: "whatsapp_payment_review",
+        channel: "whatsapp",
+        deliveryStatus: "sent",
+        deliveryError: "",
+        externalMessageId: extractWhatsAppMessageId(result),
+        providerMessageId: extractWhatsAppMessageId(result),
+        whatsappInstance: result?.instanceName || result?.instance || "",
+        remoteJid: `whatsapp:${phone}`,
+        resolvedReplyJid: `whatsapp:${phone}`,
+        resolvedPhone: phone,
+        preserveExactMessage: true,
+        upsertSession: true,
+        sessionStatus: "ai_active",
+        sessionSource: "whatsapp",
+        sessionChannel: "whatsapp",
+        sessionCustomerName: current?.customer_name || "",
+        sourcePath: "whatsapp_payment_review",
+        insertSource: "whatsapp_payment_review",
+        confidence: 1,
+        detectedIntent: "whatsapp_payment_review",
+      });
+    } catch (persistError) {
+      console.warn("[whatsapp:payment-review-transcript-save-failed]", {
+        order_id: current?.id || null,
+        order_number: current ? orderNumber(current) : "",
+        message: persistError?.message || String(persistError),
+      });
+    }
     console.info("[whatsapp:payment-review-sent]", {
       orderId: current.id,
       orderNumber: orderNumber(current),
@@ -459,6 +532,41 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
       `,
       [current.id]
     );
+    try {
+      await appendWhatsappOutboundSupportReply({
+        tenantId: tenantIdForMessage(current, current),
+        sessionId: `whatsapp:${phone}`,
+        message,
+        messageType: "text",
+        senderType: "system",
+        source: isPosInvoice ? "whatsapp_pos_invoice" : "whatsapp_invoice",
+        channel: "whatsapp",
+        deliveryStatus: "sent",
+        deliveryError: "",
+        externalMessageId: extractWhatsAppMessageId(result),
+        providerMessageId: extractWhatsAppMessageId(result),
+        whatsappInstance: result?.instanceName || result?.instance || "",
+        remoteJid: `whatsapp:${phone}`,
+        resolvedReplyJid: `whatsapp:${phone}`,
+        resolvedPhone: phone,
+        preserveExactMessage: true,
+        upsertSession: true,
+        sessionStatus: "ai_active",
+        sessionSource: "whatsapp",
+        sessionChannel: "whatsapp",
+        sessionCustomerName: current?.customer_name || "",
+        sourcePath: isPosInvoice ? "whatsapp_pos_invoice" : "whatsapp_invoice",
+        insertSource: isPosInvoice ? "whatsapp_pos_invoice" : "whatsapp_invoice",
+        confidence: 1,
+        detectedIntent: isPosInvoice ? "whatsapp_pos_invoice" : "whatsapp_invoice",
+      });
+    } catch (persistError) {
+      console.warn("[whatsapp:invoice-transcript-save-failed]", {
+        order_id: current?.id || null,
+        invoice_number: invoiceNumber,
+        message: persistError?.message || String(persistError),
+      });
+    }
     console.info(logTags.sent, {
       orderId: current.id,
       orderNumber: orderNumber(current),

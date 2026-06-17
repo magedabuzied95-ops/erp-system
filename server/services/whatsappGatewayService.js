@@ -10,7 +10,7 @@ import {
 } from "./aiChannelAdapterService.js";
 import { generateWhatsappAiAutoReply, logWhatsappAiOutbound, normalizeWhatsappSessionId } from "./aiInboxService.js";
 import { debugAiImagesLog, normalizeProductCards } from "./aiProductCards.js";
-import { appendAiGeneratedSupportReply, updateAiSupportMessageDeliveryStatus } from "./aiSupportLogService.js";
+import { appendAiGeneratedSupportReply, appendWhatsappOutboundSupportReply, updateAiSupportMessageDeliveryStatus } from "./aiSupportLogService.js";
 import { addTraceStep, failTrace, finishTrace, setTraceInboundMessage, startTrace } from "./aiReplyTraceService.js";
 import { emitToRooms } from "../utils/socket.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
@@ -559,12 +559,40 @@ export const sendOrderConfirmationMessage = async ({ order } = {}) => {
   const title = "✅ تأكيد الطلب";
   const footer = "اختر الإجراء المناسب";
   try {
-    return await sendOrderConfirmationInteractiveMessage({
+    const result = await sendOrderConfirmationInteractiveMessage({
       phone,
       title,
       text: message,
       footer,
     });
+    await appendWhatsappOutboundSupportReply({
+      tenantId: order.tenant_id || order.tenantId || process.env.WHATSAPP_TENANT_ID || 1,
+      sessionId: `whatsapp:${normalizeEgyptPhone(phone)}`,
+      message,
+      messageType: "text",
+      senderType: "system",
+      source: "whatsapp_order_confirmation",
+      channel: "whatsapp",
+      deliveryStatus: "sent",
+      deliveryError: "",
+      externalMessageId: result?.result?.message_id || result?.result?.messageId || result?.result?.key?.id || result?.message_id || "",
+      providerMessageId: result?.result?.message_id || result?.result?.messageId || result?.result?.key?.id || result?.message_id || "",
+      whatsappInstance: result?.instanceName || result?.instance || "",
+      remoteJid: `whatsapp:${normalizeEgyptPhone(phone)}`,
+      resolvedReplyJid: `whatsapp:${normalizeEgyptPhone(phone)}`,
+      resolvedPhone: normalizeEgyptPhone(phone),
+      preserveExactMessage: true,
+      upsertSession: true,
+      sessionStatus: "ai_active",
+      sessionSource: "whatsapp",
+      sessionChannel: "whatsapp",
+      sessionCustomerName: order?.customer_name || "",
+      sourcePath: "whatsapp_order_confirmation",
+      insertSource: "whatsapp_order_confirmation",
+      confidence: 1,
+      detectedIntent: "whatsapp_order_confirmation",
+    });
+    return result;
   } catch (error) {
     console.warn("[whatsapp:order-confirmation-buttons-fallback]", {
       orderId: order?.id || null,
@@ -574,6 +602,33 @@ export const sendOrderConfirmationMessage = async ({ order } = {}) => {
       status: error?.status || "",
     });
     const fallbackResult = await sendTextMessage({ phone, message });
+    await appendWhatsappOutboundSupportReply({
+      tenantId: order.tenant_id || order.tenantId || process.env.WHATSAPP_TENANT_ID || 1,
+      sessionId: `whatsapp:${normalizeEgyptPhone(phone)}`,
+      message,
+      messageType: "text",
+      senderType: "system",
+      source: "whatsapp_order_confirmation",
+      channel: "whatsapp",
+      deliveryStatus: "sent",
+      deliveryError: "",
+      externalMessageId: fallbackResult?.result?.message_id || fallbackResult?.result?.messageId || fallbackResult?.result?.key?.id || fallbackResult?.message_id || "",
+      providerMessageId: fallbackResult?.result?.message_id || fallbackResult?.result?.messageId || fallbackResult?.result?.key?.id || fallbackResult?.message_id || "",
+      whatsappInstance: fallbackResult?.instanceName || fallbackResult?.instance || "",
+      remoteJid: `whatsapp:${normalizeEgyptPhone(phone)}`,
+      resolvedReplyJid: `whatsapp:${normalizeEgyptPhone(phone)}`,
+      resolvedPhone: normalizeEgyptPhone(phone),
+      preserveExactMessage: true,
+      upsertSession: true,
+      sessionStatus: "ai_active",
+      sessionSource: "whatsapp",
+      sessionChannel: "whatsapp",
+      sessionCustomerName: order?.customer_name || "",
+      sourcePath: "whatsapp_order_confirmation",
+      insertSource: "whatsapp_order_confirmation",
+      confidence: 1,
+      detectedIntent: "whatsapp_order_confirmation",
+    }).catch(() => {});
     return {
       ...fallbackResult,
       delivery_mode: "text",
