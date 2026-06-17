@@ -3953,9 +3953,16 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     });
     let savedOutboundMessage = null;
     try {
+      const outboundSessionId = normalizeWhatsappSessionId(generated.sessionId, sendTargetNumber || generated.phone || message.phone);
+      console.info("[ai-auto-reply] outbound-session-debug", {
+        session_id: outboundSessionId,
+        resolved_phone: sendTargetNumber || generated.phone || message.phone || "",
+        resolved_reply_jid: outboundReplyTarget.resolvedJid || "",
+        remote_jid: outboundReplyTarget.remoteJid || "",
+      });
       savedOutboundMessage = await appendAiGeneratedSupportReply({
         tenantId: generated.tenantId,
-        sessionId: normalizeWhatsappSessionId(generated.sessionId, sendTargetNumber || generated.phone || message.phone),
+        sessionId: outboundSessionId,
         answer: finalReplyText || generated.replyText || summarizeWhatsappProductCards(sendableImageCards),
         messageType: sendableImageCards.length ? "product_card" : "text",
         confidence: generated.aiPayload?.confidence || 0,
@@ -4077,6 +4084,12 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       deliveryStatus: "failed",
       deliveryError: summary.causeMessage ? `${summary.message} / cause: ${summary.causeMessage}` : summary.message,
     }).catch(() => {});
+    console.info("[ai-auto-reply] outbound-session-debug", {
+      session_id: normalizeWhatsappSessionId(generated.sessionId, sendTargetNumber || generated.phone || message.phone),
+      resolved_phone: sendTargetNumber || generated.phone || message.phone || "",
+      resolved_reply_jid: outboundReplyTarget.resolvedJid || "",
+      remote_jid: outboundReplyTarget.remoteJid || "",
+    });
     await logWhatsappAiOutbound({
       tenantId: generated.tenantId,
       phone: sendTargetNumber || generated.phone || message.phone,
