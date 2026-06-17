@@ -2134,7 +2134,7 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
             {sfText("storefront.home.shopByCategory", "الفئات الرئيسية")}
           </div>
           <h2 className={`text-3xl font-black tracking-normal md:text-6xl ${darkMode ? "text-stone-100" : "text-[#0f172a]"}`}>
-            ط§ظ„ظپط¦ط§طھ ط§ظ„ط±ط¦ظٹط³ظٹط©
+            الفئات الرئيسية
           </h2>
         </div>
         <Link to="/shop/products" className={`hidden min-h-11 items-center justify-center rounded-full border px-6 text-xs font-black shadow-[0_14px_34px_rgba(39,20,75,0.08)] transition hover:-translate-y-0.5 active:scale-[0.98] sm:inline-flex ${darkMode ? "border-white/10 bg-white/5 text-stone-200 hover:bg-white hover:text-stone-950 dark:hover:bg-white dark:hover:text-stone-950" : "border-slate-300 bg-white text-[#0f172a] hover:border-[#7c3aed]/50 hover:bg-white hover:text-[#0f172a]"}`}>
