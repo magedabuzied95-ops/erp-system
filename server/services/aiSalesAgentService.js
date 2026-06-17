@@ -1257,6 +1257,7 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
 };
 
 export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search = "", messageLimit = 30, summaryOnly = false } = {}) => {
+  const loadAiInboxStartedAt = Date.now();
   await ensureAiSalesAgentSchema();
   await ensureAiConversationMemorySchema();
   await ensureAiSupportLogSchema();
@@ -1294,29 +1295,6 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
   if (summaryOnly) {
     const summaryStartedAt = Date.now();
     const summaryQuery = `
-    WITH latest_messages AS (
-      SELECT DISTINCT ON (msg.session_id)
-        msg.session_id,
-        msg.customer_message,
-        msg.message_text,
-        msg.ai_answer,
-        msg.needs_human_support,
-        msg.sender_type,
-        msg.message_type,
-        msg.product_cards,
-        msg.created_at AS latest_message_created_at,
-        msg.id AS latest_message_id,
-        msg.external_message_id,
-        msg.external_reply_id,
-        msg.delivery_status,
-        msg.delivery_error,
-        msg.error_code,
-        msg.provider_message_id,
-        msg.confidence
-      FROM ai_support_messages msg
-      WHERE msg.tenant_id = $1
-      ORDER BY msg.session_id, msg.created_at DESC, msg.id DESC
-    )
     SELECT
       s.session_id,
       s.source,
@@ -1365,7 +1343,30 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       m.confidence
     FROM ai_support_sessions s
     LEFT JOIN ai_channel_conversations c ON c.tenant_id = s.tenant_id AND c.channel = s.channel AND c.external_conversation_id = s.session_id
-    LEFT JOIN latest_messages m ON m.session_id = s.session_id
+    LEFT JOIN LATERAL (
+      SELECT
+        msg.id AS latest_message_id,
+        msg.customer_message,
+        msg.message_text,
+        msg.ai_answer,
+        msg.needs_human_support,
+        msg.sender_type,
+        msg.message_type,
+        msg.product_cards,
+        msg.created_at AS latest_message_created_at,
+        msg.external_message_id,
+        msg.external_reply_id,
+        msg.delivery_status,
+        msg.delivery_error,
+        msg.error_code,
+        msg.provider_message_id,
+        msg.confidence
+      FROM ai_support_messages msg
+      WHERE msg.tenant_id = s.tenant_id
+        AND msg.session_id = s.session_id
+      ORDER BY msg.created_at DESC, msg.id DESC
+      LIMIT 1
+    ) m ON TRUE
     WHERE ${clauses.join(" AND ")}
     ORDER BY
       CASE WHEN COALESCE(c.channel, s.channel, s.source) IN ('facebook_messenger', 'instagram') THEN 0 ELSE 1 END,
@@ -1384,6 +1385,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
         search: Boolean(searchTerm),
         limit: params[1],
         message_limit: inboxMessageLimit,
+        total_duration_ms: Date.now() - loadAiInboxStartedAt,
       },
     });
 
@@ -1511,6 +1513,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       conversations: conversations.length,
       extra: {
         unread_count: conversations.reduce((total, item) => total + Number(item.unread_count || 0), 0),
+        total_duration_ms: Date.now() - loadAiInboxStartedAt,
       },
     });
     return { conversations, followups: [], anyFullMessages: false };
@@ -1663,7 +1666,9 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
     if (summaryOnly) {
       const inboxSummaryDetailsStartedAt = Date.now();
       const [latestMessagesResult, totalsResult] = await Promise.all([
-        db.query(
+        (async () => {
+          const startedAt = Date.now();
+          const result = await db.query(
           `
           SELECT DISTINCT ON (msg.session_id) msg.*
           FROM ai_support_messages msg
@@ -1672,8 +1677,21 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
           ORDER BY msg.session_id, msg.created_at DESC, msg.id DESC
           `,
           [tenantId, sessionIds]
-        ),
-        db.query(
+        );
+          logAiInboxTiming({
+            phase: "inbox_summary_messages",
+            startedAt,
+            rows: result.rowCount,
+            conversations: sessionIds.length,
+            extra: {
+              latest_only: true,
+            },
+          });
+          return result;
+        })(),
+        (async () => {
+          const startedAt = Date.now();
+          const result = await db.query(
           `
           SELECT session_id, COUNT(*)::int AS total_messages
           FROM ai_support_messages
@@ -1682,7 +1700,15 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
           GROUP BY session_id
           `,
           [tenantId, sessionIds]
-        ),
+        );
+          logAiInboxTiming({
+            phase: "inbox_summary_counts",
+            startedAt,
+            rows: result.rowCount,
+            conversations: sessionIds.length,
+          });
+          return result;
+        })(),
       ]);
       messagesResult = latestMessagesResult;
       totalsResult.rows.forEach((row) => {
@@ -1698,10 +1724,12 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
           totals_rows: totalsResult.rowCount,
         },
       });
-    } else {
-      const inboxHydrationStartedAt = Date.now();
+  } else {
+    const inboxHydrationStartedAt = Date.now();
       [messagesResult, memoriesResult, draftsResult, conversationFollowupsResult] = await Promise.all([
-        db.query(
+        (async () => {
+          const startedAt = Date.now();
+          const result = await db.query(
           `
           SELECT *
           FROM (
@@ -1716,9 +1744,22 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
           ORDER BY session_id ASC, created_at ASC, id ASC
           `,
           [tenantId, sessionIds, inboxMessageLimit]
-        ),
+        );
+          logAiInboxTiming({
+            phase: "inbox_full_messages",
+            startedAt,
+            rows: result.rowCount,
+            conversations: sessionIds.length,
+            extra: {
+              message_limit: inboxMessageLimit,
+            },
+          });
+          return result;
+        })(),
         profileIds.length
-          ? db.query(
+          ? (async () => {
+              const startedAt = Date.now();
+              const result = await db.query(
             `
             SELECT *
             FROM ai_customer_memories
@@ -1727,9 +1768,19 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
             LIMIT 300
             `,
             [tenantId, profileIds]
-          )
+          );
+              logAiInboxTiming({
+                phase: "inbox_full_profiles",
+                startedAt,
+                rows: result.rowCount,
+                conversations: profileIds.length,
+              });
+              return result;
+            })()
           : Promise.resolve({ rows: [] }),
-        db.query(
+        (async () => {
+          const startedAt = Date.now();
+          const result = await db.query(
           `
           SELECT
             o.*,
@@ -1755,8 +1806,18 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
           ORDER BY o.created_at DESC
           `,
           [tenantId, sessionIds]
-        ),
-        db.query(
+        );
+          logAiInboxTiming({
+            phase: "inbox_full_drafts",
+            startedAt,
+            rows: result.rowCount,
+            conversations: sessionIds.length,
+          });
+          return result;
+        })(),
+        (async () => {
+          const startedAt = Date.now();
+          const result = await db.query(
           `
           SELECT *
           FROM ai_followup_tasks
@@ -1764,7 +1825,15 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
           ORDER BY scheduled_at DESC
           `,
           [tenantId, sessionIds]
-        ),
+        );
+          logAiInboxTiming({
+            phase: "inbox_full_followups",
+            startedAt,
+            rows: result.rowCount,
+            conversations: sessionIds.length,
+          });
+          return result;
+        })(),
       ]);
       logAiInboxTiming({
         phase: "inbox_full_hydration",
@@ -1784,15 +1853,27 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
   if (!summaryOnly && sessionIds.length) {
     const salesJoinsStartedAt = Date.now();
     [salesStatesResult, salesJourneyEventsResult] = await Promise.all([
-      db.query(
+      (async () => {
+        const startedAt = Date.now();
+        const result = await db.query(
         `
         SELECT *
         FROM ai_sales_conversation_states
         WHERE tenant_id = $1 AND conversation_id = ANY($2::text[])
         `,
         [tenantId, sessionIds]
-      ).catch(() => ({ rows: [] })),
-      db.query(
+      ).catch(() => ({ rows: [] }));
+        logAiInboxTiming({
+          phase: "inbox_sales_states",
+          startedAt,
+          rows: result.rowCount,
+          conversations: sessionIds.length,
+        });
+        return result;
+      })(),
+      (async () => {
+        const startedAt = Date.now();
+        const result = await db.query(
         `
         SELECT *
         FROM ai_sales_journey_events
@@ -1801,7 +1882,15 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
         LIMIT 500
         `,
         [tenantId, sessionIds]
-      ).catch(() => ({ rows: [] })),
+      ).catch(() => ({ rows: [] }));
+        logAiInboxTiming({
+          phase: "inbox_sales_journey",
+          startedAt,
+          rows: result.rowCount,
+          conversations: sessionIds.length,
+        });
+        return result;
+      })(),
     ]);
     logAiInboxTiming({
       phase: "inbox_sales_joins",
