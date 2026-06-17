@@ -208,7 +208,7 @@ const matchesQuery = (product = {}, query = "") => {
   return searchable.some((item) => lower(item).includes(normalized));
 };
 
-export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = false, allowMultiple = false }) {
+export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = false, allowMultiple = false, mode = "" }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -222,39 +222,8 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [selectedSizeCards, setSelectedSizeCards] = useState([]);
   const previousOpenRef = useRef(false);
-  const overlayRef = useRef(null);
-  const isDesktopViewport = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 640px)").matches : false;
-  const overlayStyle = {
-    position: "fixed",
-    inset: 0,
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    width: "100vw",
-    height: "100dvh",
-    zIndex: 2147483647,
-    isolation: "isolate",
-  };
-  const panelStyle = isDesktopViewport
-    ? {
-        position: "relative",
-        inset: "auto",
-        width: "100%",
-        height: "auto",
-        maxHeight: "85dvh",
-        margin: 0,
-        borderRadius: "1.35rem",
-      }
-    : {
-        position: "absolute",
-        inset: 0,
-        width: "100%",
-        height: "100dvh",
-        maxHeight: "100dvh",
-        margin: 0,
-        borderRadius: 0,
-      };
+  const isDesktopViewport = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 640px)").matches : true;
+  const inlineFullscreenMode = mode === "inlineFullscreen" || !isDesktopViewport;
 
   useEffect(() => {
     if (!open) return undefined;
@@ -426,67 +395,6 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
   }, [open, visibleProducts]);
 
   useEffect(() => {
-    if (!open) return undefined;
-    const frame = requestAnimationFrame(() => {
-      const overlay = overlayRef.current;
-      const portalRoot = overlay?.parentElement || null;
-      const rootRect = portalRoot?.getBoundingClientRect?.() || null;
-      const bodyRect = document.body?.getBoundingClientRect?.() || null;
-      const documentRect = document.documentElement?.getBoundingClientRect?.() || null;
-      const overlayRect = overlay?.getBoundingClientRect?.() || null;
-      const overlayStyles = overlay ? window.getComputedStyle(overlay) : null;
-      console.debug("[product-card-picker][overlay-debug]", {
-        direct_child_of_body: portalRoot === document.body,
-        body_contains_overlay: document.body?.contains(overlay),
-        portal_root_tag: portalRoot?.tagName || null,
-        portal_root_rect: rootRect ? {
-          top: rootRect.top,
-          left: rootRect.left,
-          width: rootRect.width,
-          height: rootRect.height,
-          bottom: rootRect.bottom,
-          right: rootRect.right,
-        } : null,
-        body_rect: bodyRect ? {
-          top: bodyRect.top,
-          left: bodyRect.left,
-          width: bodyRect.width,
-          height: bodyRect.height,
-          bottom: bodyRect.bottom,
-          right: bodyRect.right,
-        } : null,
-        document_rect: documentRect ? {
-          top: documentRect.top,
-          left: documentRect.left,
-          width: documentRect.width,
-          height: documentRect.height,
-          bottom: documentRect.bottom,
-          right: documentRect.right,
-        } : null,
-        overlay_rect: overlayRect ? {
-          top: overlayRect.top,
-          left: overlayRect.left,
-          width: overlayRect.width,
-          height: overlayRect.height,
-          bottom: overlayRect.bottom,
-          right: overlayRect.right,
-        } : null,
-        overlay_computed_style: overlayStyles ? {
-          position: overlayStyles.position,
-          top: overlayStyles.top,
-          left: overlayStyles.left,
-          right: overlayStyles.right,
-          bottom: overlayStyles.bottom,
-          transform: overlayStyles.transform,
-          inset: overlayStyles.inset,
-          zIndex: overlayStyles.zIndex,
-        } : null,
-      });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [open]);
-
-  useEffect(() => {
     if (!sizeMode || !selectedSize) return;
     setSelectedSizeCards([]);
   }, [selectedSize, sizeMode]);
@@ -562,60 +470,57 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
 
   if (!open || typeof document === "undefined") return null;
 
-  const portalTarget = document.body;
-
-  return createPortal(
+  const content = (
     <div
-      ref={overlayRef}
-      className="fixed inset-0 z-[99999] isolate overflow-hidden bg-black/70 backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-4"
-      style={overlayStyle}
+      className={inlineFullscreenMode ? "fixed inset-x-0 bottom-0 top-0 z-[99999] isolate overflow-hidden bg-white" : "fixed inset-0 z-[99999] isolate overflow-hidden bg-black/70 backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-4"}
+      style={{ position: "fixed", inset: 0, top: 0, left: 0, right: 0, bottom: 0, width: "100vw", height: "100dvh", zIndex: 2147483647, isolation: "isolate" }}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose?.();
       }}
     >
       <div className="absolute inset-0 bg-black/70" aria-hidden="true" />
       <section
-        className="relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-[640px] min-w-0 flex-col overflow-hidden rounded-none border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)] sm:mx-auto sm:h-auto sm:max-h-[85dvh] sm:rounded-[1.35rem]"
-        style={panelStyle}
+        className={inlineFullscreenMode ? "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none bg-white text-slate-900" : "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-[640px] min-w-0 flex-col overflow-hidden rounded-none border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)] sm:mx-auto sm:h-auto sm:max-h-[85dvh] sm:rounded-[1.35rem]"}
+        style={{ position: "relative", inset: "auto", width: "100%", height: "auto", maxHeight: "85dvh", margin: 0, borderRadius: "1.35rem" }}
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="ai-product-card-picker-title"
         dir="rtl"
       >
-        <div className="sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-white/10 bg-slate-950/95 px-4 py-3 backdrop-blur">
+        <div className={inlineFullscreenMode ? "flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3" : "sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-white/10 bg-slate-950/95 px-4 py-3 backdrop-blur"}>
           <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">AI INBOX</div>
-            <h3 id="ai-product-card-picker-title" className="mt-1 text-lg font-black text-white">إرسال منتج</h3>
-            <p className="mt-1 text-xs font-semibold text-zinc-500">ابحث بالاسم أو الباركود، ثم اختر اللون والمقاس قبل الإرسال.</p>
+            <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>AI INBOX</div>
+            <h3 id="ai-product-card-picker-title" className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>إرسال منتج</h3>
+            <p className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-zinc-500"}>ابحث بالاسم أو الباركود، ثم اختر اللون والمقاس قبل الإرسال.</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white"
+            className={inlineFullscreenMode ? "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-900" : "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white"}
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {isSizeSelectionStep ? (
-          <div className="absolute inset-x-0 bottom-0 top-[57px] z-20 flex min-h-0 flex-col gap-3 overflow-y-auto bg-slate-950 p-4">
-            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">Size filter</div>
-              <div className="mt-2 text-lg font-black text-white">اختر المقاس المتاح</div>
-              <div className="mt-1 text-xs font-semibold text-slate-400">سيتم إظهار المنتجات التي لديها stock فعلي لهذا المقاس فقط.</div>
+          <div className={inlineFullscreenMode ? "flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-white p-4" : "absolute inset-x-0 bottom-0 top-[57px] z-20 flex min-h-0 flex-col gap-3 overflow-y-auto bg-slate-950 p-4"}>
+            <div className={inlineFullscreenMode ? "rounded-3xl border border-slate-200 bg-slate-50 p-4" : "rounded-3xl border border-white/10 bg-white/[0.04] p-4"}>
+              <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>Size filter</div>
+              <div className={inlineFullscreenMode ? "mt-2 text-lg font-black text-slate-900" : "mt-2 text-lg font-black text-white"}>اختر المقاس المتاح</div>
+              <div className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-slate-400"}>سيتم إظهار المنتجات التي لديها stock فعلي لهذا المقاس فقط.</div>
               <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
                 {availableSizes.length ? availableSizes.map((size) => (
                   <button
                     key={size}
                     type="button"
                     onClick={() => setSelectedSize(size)}
-                    className="min-h-12 rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm font-black text-white transition hover:border-cyan-300/30 hover:bg-cyan-300/10"
+                    className={inlineFullscreenMode ? "min-h-12 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-900 transition hover:border-cyan-300/30 hover:bg-cyan-50" : "min-h-12 rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm font-black text-white transition hover:border-cyan-300/30 hover:bg-cyan-300/10"}
                   >
                     {size}
                   </button>
                 )) : (
-                  <div className="col-span-full rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm font-semibold text-slate-500">
+                  <div className={inlineFullscreenMode ? "col-span-full rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-sm font-semibold text-slate-500" : "col-span-full rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm font-semibold text-slate-500"}>
                     لا توجد مقاسات متاحة حالياً
                   </div>
                 )}
@@ -624,31 +529,31 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
           </div>
         ) : null}
 
-        <div className="grid min-h-0 flex-1 gap-3 overflow-hidden p-3 sm:p-4 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
+        <div className={inlineFullscreenMode ? "flex min-h-0 flex-1 flex-col overflow-hidden bg-white" : "grid min-h-0 flex-1 gap-3 overflow-hidden p-3 sm:p-4 lg:grid-cols-[1.05fr_0.95fr]"}>
+          <div className={inlineFullscreenMode ? "flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4" : "flex min-h-0 flex-col gap-3 overflow-hidden"}>
             <label className="relative min-w-0">
-              <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+              <Search className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 ${inlineFullscreenMode ? "text-slate-400" : "text-slate-500"}`} />
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="ابحث باسم المنتج أو الباركود"
-                className="h-11 w-full rounded-2xl border border-white/10 bg-slate-950/70 pl-3 pr-9 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"
+                className={inlineFullscreenMode ? "h-11 w-full rounded-2xl border border-slate-200 bg-white pl-3 pr-9 text-sm font-bold text-slate-900 outline-none placeholder:text-slate-400 focus:border-cyan-300/40" : "h-11 w-full rounded-2xl border border-white/10 bg-slate-950/70 pl-3 pr-9 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"}
               />
             </label>
 
             <div className="grid gap-2 sm:grid-cols-2">
-              <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3">
+              <label className={inlineFullscreenMode ? "flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3" : "flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3"}>
                 <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Brand</span>
-                <select value={brand} onChange={(event) => setBrand(event.target.value)} className="min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none">
+                <select value={brand} onChange={(event) => setBrand(event.target.value)} className={inlineFullscreenMode ? "min-w-0 flex-1 bg-transparent text-xs font-black text-slate-900 outline-none" : "min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none"}>
                   <option value="all">الكل</option>
                   {brandOptions.map((item) => (
                     <option key={item} value={item}>{item}</option>
                   ))}
                 </select>
               </label>
-              <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3">
+              <label className={inlineFullscreenMode ? "flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3" : "flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3"}>
                 <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Category</span>
-                <select value={category} onChange={(event) => setCategory(event.target.value)} className="min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none">
+                <select value={category} onChange={(event) => setCategory(event.target.value)} className={inlineFullscreenMode ? "min-w-0 flex-1 bg-transparent text-xs font-black text-slate-900 outline-none" : "min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none"}>
                   <option value="all">الكل</option>
                   {categoryOptions.map((item) => (
                     <option key={item} value={item}>{item}</option>
@@ -657,9 +562,9 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
               </label>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className={inlineFullscreenMode ? "min-h-0 flex-1 overflow-y-auto pr-1 pb-24" : "min-h-0 flex-1 overflow-y-auto pr-1"}>
               {loading ? (
-                <div className="grid min-h-48 place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] text-sm font-bold text-slate-500">
+                <div className={inlineFullscreenMode ? "grid min-h-48 place-items-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm font-bold text-slate-500" : "grid min-h-48 place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] text-sm font-bold text-slate-500"}>
                   <Loader2 className="ml-2 h-4 w-4 animate-spin" />
                   جاري تحميل كتالوج المنتجات...
                 </div>
@@ -676,32 +581,32 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
                           type="button"
                           onClick={() => toggleSizeCardSelection(card)}
                           className={`relative flex items-start gap-3 rounded-2xl border p-2.5 text-right transition ${
-                            isSelected ? "border-cyan-300/40 bg-cyan-300/10" : "border-white/10 bg-slate-950/60 hover:border-white/20 hover:bg-white/[0.04]"
+                            isSelected ? "border-cyan-300/40 bg-cyan-300/10" : inlineFullscreenMode ? "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50" : "border-white/10 bg-slate-950/60 hover:border-white/20 hover:bg-white/[0.04]"
                           }`}
                         >
-                          <span className={`absolute left-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded-full border ${isSelected ? "border-cyan-300 bg-cyan-300 text-slate-950" : "border-white/20 bg-black/40 text-white/60"}`}>
+                          <span className={`absolute left-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded-full border ${isSelected ? "border-cyan-300 bg-cyan-300 text-slate-950" : inlineFullscreenMode ? "border-slate-200 bg-white text-slate-400" : "border-white/20 bg-black/40 text-white/60"}`}>
                             {isSelected ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
                           </span>
                           {card.image ? (
                             <img src={card.image} alt={card.productName || "منتج"} className="h-16 w-16 shrink-0 rounded-xl object-cover" loading="lazy" />
                           ) : (
-                            <span className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-slate-500">
+                            <span className={inlineFullscreenMode ? "grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-400" : "grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-slate-500"}>
                               <ShoppingBag className="h-5 w-5" />
                             </span>
                           )}
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
-                                <div className="truncate text-sm font-black text-white">{card.productName || "منتج"}</div>
-                                <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-bold text-slate-400">
+                                <div className={`truncate text-sm font-black ${inlineFullscreenMode ? "text-slate-900" : "text-white"}`}>{card.productName || "منتج"}</div>
+                                <div className={`mt-1 flex flex-wrap gap-1.5 text-[11px] font-bold ${inlineFullscreenMode ? "text-slate-600" : "text-slate-400"}`}>
                                   {card.color ? <span>{card.color}</span> : null}
                                   {card.size ? <span>المقاس: {card.size}</span> : null}
                                 </div>
                               </div>
                               {isSelected ? <CheckCircle2 className="h-4 w-4 shrink-0 text-cyan-200" /> : null}
                             </div>
-                            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-400">
-                              {Number.isFinite(card.price) && card.price > 0 ? <span className="font-black text-emerald-100">{money(card.price)}</span> : null}
+                            <div className={`mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold ${inlineFullscreenMode ? "text-slate-600" : "text-slate-400"}`}>
+                              {Number.isFinite(card.price) && card.price > 0 ? <span className={`font-black ${inlineFullscreenMode ? "text-emerald-700" : "text-emerald-100"}`}>{money(card.price)}</span> : null}
                               {card.variantId ? <span>Variant: {card.variantId}</span> : null}
                             </div>
                             {card.storefrontUrl ? <div className="mt-2 truncate text-[10px] font-semibold text-slate-500">{card.storefrontUrl}</div> : null}
@@ -711,7 +616,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
                     })}
                   </div>
                 ) : (
-                  <div className="grid min-h-48 place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] text-sm font-bold text-slate-500">
+                  <div className={inlineFullscreenMode ? "grid min-h-48 place-items-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm font-bold text-slate-500" : "grid min-h-48 place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] text-sm font-bold text-slate-500"}>
                     لا توجد بطاقات متاحة لهذا المقاس
                   </div>
                 )
@@ -735,38 +640,38 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
                         }`}
                       >
                         {allowMultiple ? (
-                          <span className={`absolute left-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded-full border ${isSelected ? "border-cyan-300 bg-cyan-300 text-slate-950" : "border-white/20 bg-black/40 text-white/60"}`}>
+                          <span className={`absolute left-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded-full border ${isSelected ? "border-cyan-300 bg-cyan-300 text-slate-950" : inlineFullscreenMode ? "border-slate-200 bg-white text-slate-400" : "border-white/20 bg-black/40 text-white/60"}`}>
                             {isSelected ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
                           </span>
                         ) : null}
                         {previewImage ? (
                           <img src={previewImage} alt={product.name || "منتج"} className="h-16 w-16 shrink-0 rounded-xl object-cover" loading="lazy" />
                         ) : (
-                          <span className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-slate-500">
+                          <span className={inlineFullscreenMode ? "grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-400" : "grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-slate-500"}>
                             <ShoppingBag className="h-5 w-5" />
                           </span>
                         )}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <div className="truncate text-sm font-black text-white">{product.name || product.product_name || "منتج"}</div>
-                              <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-bold text-slate-400">
+                              <div className={`truncate text-sm font-black ${inlineFullscreenMode ? "text-slate-900" : "text-white"}`}>{product.name || product.product_name || "منتج"}</div>
+                              <div className={`mt-1 flex flex-wrap gap-1.5 text-[11px] font-bold ${inlineFullscreenMode ? "text-slate-600" : "text-slate-400"}`}>
                                 {product.brand || product.brand_name ? <span>{product.brand || product.brand_name}</span> : null}
                                 {product.category || product.category_name ? <span>{product.category || product.category_name}</span> : null}
                               </div>
                             </div>
                             {isActive ? <CheckCircle2 className="h-4 w-4 shrink-0 text-cyan-200" /> : null}
                           </div>
-                          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-400">
-                            {Number.isFinite(previewPrice) && previewPrice > 0 ? <span className="font-black text-emerald-100">{money(previewPrice)}</span> : null}
+                          <div className={`mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold ${inlineFullscreenMode ? "text-slate-600" : "text-slate-400"}`}>
+                            {Number.isFinite(previewPrice) && previewPrice > 0 ? <span className={`font-black ${inlineFullscreenMode ? "text-emerald-700" : "text-emerald-100"}`}>{money(previewPrice)}</span> : null}
                             {productBarcode(product) ? <span>باركود: {productBarcode(product)}</span> : null}
                           </div>
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             {previewColors.map((item) => (
-                              <span key={item} className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-bold text-slate-300">{item}</span>
+                              <span key={item} className={inlineFullscreenMode ? "rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-700" : "rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-bold text-slate-300"}>{item}</span>
                             ))}
                             {previewSizes.map((item) => (
-                              <span key={item} className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-bold text-slate-300">{item}</span>
+                              <span key={item} className={inlineFullscreenMode ? "rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-700" : "rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-bold text-slate-300"}>{item}</span>
                             ))}
                           </div>
                         </div>
@@ -775,7 +680,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
                   })}
                 </div>
               ) : (
-                <div className="grid min-h-48 place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] text-sm font-bold text-slate-500">
+                <div className={inlineFullscreenMode ? "grid min-h-48 place-items-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm font-bold text-slate-500" : "grid min-h-48 place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] text-sm font-bold text-slate-500"}>
                   لا توجد منتجات مطابقة للبحث الحالي
                 </div>
               )}
@@ -786,8 +691,8 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
             {sizeMode && selectedSize ? (
               <div className="space-y-3">
                 <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
-                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">Size mode</div>
-                  <div className="mt-1 text-lg font-black text-white">المقاس المختار: {selectedSize}</div>
+                  <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>Size mode</div>
+                  <div className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>المقاس المختار: {selectedSize}</div>
                   <div className="mt-2 text-sm font-semibold text-slate-400">اختر المنتجات التي تريد إرسالها من القائمة.</div>
                   <div className="mt-3 inline-flex rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-black text-cyan-100">
                     عدد المنتجات المحددة: {selectedSizeCards.length}
@@ -843,8 +748,8 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
                     </div>
                   )}
                   <div className="p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">Selected product</div>
-                    <div className="mt-1 text-lg font-black text-white">{selectedProduct.name || selectedProduct.product_name || "منتج"}</div>
+                    <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>Selected product</div>
+                    <div className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>{selectedProduct.name || selectedProduct.product_name || "منتج"}</div>
                     <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold text-slate-400">
                       {selectedProduct.brand || selectedProduct.brand_name ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{selectedProduct.brand || selectedProduct.brand_name}</span> : null}
                       {selectedProduct.category || selectedProduct.category_name ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{selectedProduct.category || selectedProduct.category_name}</span> : null}
@@ -935,9 +840,11 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
           </div>
         </div>
       </section>
-    </div>,
-    portalTarget
+    </div>
   );
+  return inlineFullscreenMode ? content : createPortal(content, document.body);
 }
+
+
 
 
