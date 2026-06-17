@@ -10,6 +10,7 @@ import { buildInvoiceReceiptWhatsappMessage, buildPublicInvoiceUrl, buildWhatsap
 import { normalizeArabicIntentPayload } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { getSetting } from "./settingsService.js";
+import { emitToRooms } from "../utils/socket.js";
 import { appendWhatsappOutboundSupportReply } from "./aiSupportLogService.js";
 
 const CONFIRM_WORDS = new Set(["1", "تأكيد", "تاكيد", "confirm", "yes", "تمام"]);
@@ -254,6 +255,7 @@ export const sendOrderConfirmation = async (order = {}) => {
   if (!shouldSend) return { sent: false, reason };
   const items = Array.isArray(order.items) && order.items.length ? order.items : await loadOrderItems(current.id);
   const message = buildConfirmationMessage(current, items);
+  const messageTenantId = tenantIdForMessage(current, current);
   const title = "✅ تأكيد الطلب";
   const footer = "اختر الإجراء المناسب";
   let result = null;
@@ -287,8 +289,8 @@ export const sendOrderConfirmation = async (order = {}) => {
     [current.id]
   );
   try {
-    await appendWhatsappOutboundSupportReply({
-      tenantId: tenantIdForMessage(current, current),
+    const transcriptMessage = await appendWhatsappOutboundSupportReply({
+      tenantId: messageTenantId,
       sessionId: `whatsapp:${phone}`,
       message,
       messageType: "text",
@@ -314,6 +316,20 @@ export const sendOrderConfirmation = async (order = {}) => {
       confidence: 1,
       detectedIntent: "whatsapp_order_confirmation",
     });
+    if (transcriptMessage && messageTenantId) {
+      const tenantRoom = `tenant:${messageTenantId}`;
+      emitToRooms([tenantRoom], "ai_inbox:message", {
+        tenant_id: messageTenantId,
+        session_id: `whatsapp:${phone}`,
+        message: transcriptMessage,
+        at: new Date().toISOString(),
+      });
+      emitToRooms([tenantRoom], "ai_inbox:refresh", {
+        tenant_id: messageTenantId,
+        session_id: `whatsapp:${phone}`,
+        at: new Date().toISOString(),
+      });
+    }
   } catch (persistError) {
     console.warn("[whatsapp:order-confirmation-transcript-save-failed]", {
       orderId: current.id,
@@ -370,6 +386,7 @@ export const sendPaymentReviewNotification = async (order = {}) => {
     const items = Array.isArray(order.items) && order.items.length ? order.items : await loadOrderItems(current.id);
     const message = buildPaymentReviewMessage(current, items);
     const result = await sendTextMessage({ phone, message });
+    const messageTenantId = tenantIdForMessage(current, current);
     await db.query(
       `
       UPDATE orders
@@ -380,8 +397,8 @@ export const sendPaymentReviewNotification = async (order = {}) => {
       [current.id]
     );
     try {
-      await appendWhatsappOutboundSupportReply({
-        tenantId: tenantIdForMessage(current, current),
+      const transcriptMessage = await appendWhatsappOutboundSupportReply({
+        tenantId: messageTenantId,
         sessionId: `whatsapp:${phone}`,
         message,
         messageType: "text",
@@ -407,6 +424,20 @@ export const sendPaymentReviewNotification = async (order = {}) => {
         confidence: 1,
         detectedIntent: "whatsapp_payment_review",
       });
+      if (transcriptMessage && messageTenantId) {
+        const tenantRoom = `tenant:${messageTenantId}`;
+        emitToRooms([tenantRoom], "ai_inbox:message", {
+          tenant_id: messageTenantId,
+          session_id: `whatsapp:${phone}`,
+          message: transcriptMessage,
+          at: new Date().toISOString(),
+        });
+        emitToRooms([tenantRoom], "ai_inbox:refresh", {
+          tenant_id: messageTenantId,
+          session_id: `whatsapp:${phone}`,
+          at: new Date().toISOString(),
+        });
+      }
     } catch (persistError) {
       console.warn("[whatsapp:payment-review-transcript-save-failed]", {
         order_id: current?.id || null,
@@ -533,8 +564,8 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
       [current.id]
     );
     try {
-      await appendWhatsappOutboundSupportReply({
-        tenantId: tenantIdForMessage(current, current),
+      const transcriptMessage = await appendWhatsappOutboundSupportReply({
+        tenantId: messageTenantId,
         sessionId: `whatsapp:${phone}`,
         message,
         messageType: "text",
@@ -560,6 +591,20 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
         confidence: 1,
         detectedIntent: isPosInvoice ? "whatsapp_pos_invoice" : "whatsapp_invoice",
       });
+      if (transcriptMessage && messageTenantId) {
+        const tenantRoom = `tenant:${messageTenantId}`;
+        emitToRooms([tenantRoom], "ai_inbox:message", {
+          tenant_id: messageTenantId,
+          session_id: `whatsapp:${phone}`,
+          message: transcriptMessage,
+          at: new Date().toISOString(),
+        });
+        emitToRooms([tenantRoom], "ai_inbox:refresh", {
+          tenant_id: messageTenantId,
+          session_id: `whatsapp:${phone}`,
+          at: new Date().toISOString(),
+        });
+      }
     } catch (persistError) {
       console.warn("[whatsapp:invoice-transcript-save-failed]", {
         order_id: current?.id || null,

@@ -1,5 +1,6 @@
 import db from "../database/db.js";
 import { normalizeEgyptPhone, sendTextMessage } from "./whatsappGatewayService.js";
+import { emitToRooms } from "../utils/socket.js";
 import { appendWhatsappOutboundSupportReply } from "./aiSupportLogService.js";
 
 const text = (value, fallback = "") => String(value ?? fallback).trim();
@@ -155,7 +156,7 @@ const sendShippingNotification = async (order = {}, type) => {
     const message = config.buildMessage(claimed);
     const result = await sendTextMessage({ phone, message });
     try {
-      await appendWhatsappOutboundSupportReply({
+      const transcriptMessage = await appendWhatsappOutboundSupportReply({
         tenantId: claimed.tenant_id || order?.tenant_id || null,
         sessionId: `whatsapp:${phone}`,
         message,
@@ -182,6 +183,20 @@ const sendShippingNotification = async (order = {}, type) => {
         confidence: 1,
         detectedIntent: `whatsapp_${type}`,
       });
+      if (transcriptMessage && (claimed.tenant_id || order?.tenant_id)) {
+        const tenantRoomId = claimed.tenant_id || order?.tenant_id;
+        emitToRooms([`tenant:${tenantRoomId}`], "ai_inbox:message", {
+          tenant_id: tenantRoomId,
+          session_id: `whatsapp:${phone}`,
+          message: transcriptMessage,
+          at: new Date().toISOString(),
+        });
+        emitToRooms([`tenant:${tenantRoomId}`], "ai_inbox:refresh", {
+          tenant_id: tenantRoomId,
+          session_id: `whatsapp:${phone}`,
+          at: new Date().toISOString(),
+        });
+      }
     } catch (persistError) {
       console.warn("[whatsapp:shipment-transcript-save-failed]", {
         type,
