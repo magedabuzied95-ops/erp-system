@@ -1007,6 +1007,7 @@ export const updateAiSupportConversationState = async ({
   tenantId,
   sessionId,
   status,
+  channel = "",
   assignedUserId = undefined,
   assignedUserName = undefined,
   actorUserId = null,
@@ -1016,6 +1017,7 @@ export const updateAiSupportConversationState = async ({
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
   const safeStatus = toText(status || "ai_active");
+  const safeChannel = normalizeConversationChannel(channel);
   if (!safeTenantId || !safeSessionId) {
     throw Object.assign(new Error("tenant_id and conversation id are required"), { status: 400 });
   }
