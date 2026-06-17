@@ -9,6 +9,17 @@ const toText = (value, fallback = "") => String(value ?? fallback).trim();
 const repairText = (value, fallback = "") => repairCorruptedArabicValue(toText(value, fallback));
 
 const jsonValue = (value) => JSON.stringify(value === undefined ? null : value);
+const logSqlError = (stage, error, extra = {}) => {
+  console.error("[ai-support-transcript-sql-error]", {
+    stage,
+    code: error?.code || "",
+    message: error?.message || "",
+    detail: error?.detail || "",
+    hint: error?.hint || "",
+    position: error?.position || "",
+    ...extra,
+  });
+};
 
 const numberOrNull = (value) => {
   const parsed = Number(value);
@@ -282,47 +293,52 @@ const persistOutboundTranscriptRow = async ({
 
   let sessionRefId = null;
   if (upsertSession) {
-    const sessionResult = await db.query(
-      `
-      INSERT INTO ai_support_sessions (
-        tenant_id, user_id, session_id, source, status, channel, customer_name, last_message, assigned_user_id, assigned_user_name, takeover_started_at, ai_enabled, updated_at
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $2, $9, CASE WHEN $5 = 'human_takeover' THEN NOW() ELSE NULL END, TRUE, NOW())
-      ON CONFLICT (tenant_id, session_id) DO UPDATE SET
-        user_id = COALESCE(EXCLUDED.user_id, ai_support_sessions.user_id),
-        source = CASE
-          WHEN EXCLUDED.source IN ('admin_console', 'ai_followup_center') AND ai_support_sessions.source IN ('facebook_messenger', 'instagram', 'whatsapp', 'web_chat')
-            THEN ai_support_sessions.source
-          ELSE COALESCE(NULLIF(EXCLUDED.source, ''), ai_support_sessions.source)
-        END,
-        status = CASE
-          WHEN ai_support_sessions.status = 'closed' THEN ai_support_sessions.status
-          WHEN EXCLUDED.status = 'human_takeover' THEN 'human_takeover'
-          ELSE COALESCE(NULLIF(EXCLUDED.status, ''), ai_support_sessions.status, 'ai_active')
-        END,
-        channel = COALESCE(NULLIF(EXCLUDED.channel, ''), ai_support_sessions.channel),
-        customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_support_sessions.customer_name),
-        last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_support_sessions.last_message),
-        assigned_user_id = COALESCE(ai_support_sessions.assigned_user_id, EXCLUDED.assigned_user_id),
-        assigned_user_name = COALESCE(NULLIF(ai_support_sessions.assigned_user_name, ''), EXCLUDED.assigned_user_name, ''),
-        takeover_started_at = COALESCE(ai_support_sessions.takeover_started_at, EXCLUDED.takeover_started_at),
-        ai_enabled = COALESCE(ai_support_sessions.ai_enabled, EXCLUDED.ai_enabled),
-        updated_at = NOW()
-      RETURNING id
-      `,
-      [
-        safeTenantId,
-        numberOrNull(staffUserId),
-        safeSessionId,
-        safeSessionSource,
-        toText(sessionStatus, manualMessage ? "human_takeover" : "ai_active") || "ai_active",
-        safeSessionChannel,
-        safeSessionCustomerName,
-        safeMessage || safeStaffMessage || safeAnswer,
-        toText(staffUserName),
-      ]
-    );
-    sessionRefId = sessionResult.rows[0]?.id || null;
+    try {
+      const sessionResult = await db.query(
+        `
+        INSERT INTO ai_support_sessions (
+          tenant_id, user_id, session_id, source, status, channel, customer_name, last_message, assigned_user_id, assigned_user_name, takeover_started_at, ai_enabled, updated_at
+        )
+        VALUES ($1::bigint, $2::bigint, $3::text, $4::text, $5::text, $6::text, $7::text, $8::text, $2::bigint, $9::text, CASE WHEN $5::text = 'human_takeover' THEN NOW() ELSE NULL END, TRUE, NOW())
+        ON CONFLICT (tenant_id, session_id) DO UPDATE SET
+          user_id = COALESCE(EXCLUDED.user_id, ai_support_sessions.user_id),
+          source = CASE
+            WHEN EXCLUDED.source IN ('admin_console', 'ai_followup_center') AND ai_support_sessions.source IN ('facebook_messenger', 'instagram', 'whatsapp', 'web_chat')
+              THEN ai_support_sessions.source
+            ELSE COALESCE(NULLIF(EXCLUDED.source, ''), ai_support_sessions.source)
+          END,
+          status = CASE
+            WHEN ai_support_sessions.status = 'closed' THEN ai_support_sessions.status
+            WHEN EXCLUDED.status = 'human_takeover' THEN 'human_takeover'
+            ELSE COALESCE(NULLIF(EXCLUDED.status, ''), ai_support_sessions.status, 'ai_active')
+          END,
+          channel = COALESCE(NULLIF(EXCLUDED.channel, ''), ai_support_sessions.channel),
+          customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_support_sessions.customer_name),
+          last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_support_sessions.last_message),
+          assigned_user_id = COALESCE(ai_support_sessions.assigned_user_id, EXCLUDED.assigned_user_id),
+          assigned_user_name = COALESCE(NULLIF(ai_support_sessions.assigned_user_name, ''), EXCLUDED.assigned_user_name, ''),
+          takeover_started_at = COALESCE(ai_support_sessions.takeover_started_at, EXCLUDED.takeover_started_at),
+          ai_enabled = COALESCE(ai_support_sessions.ai_enabled, EXCLUDED.ai_enabled),
+          updated_at = NOW()
+        RETURNING id
+        `,
+        [
+          safeTenantId,
+          numberOrNull(staffUserId),
+          safeSessionId,
+          safeSessionSource,
+          toText(sessionStatus, manualMessage ? "human_takeover" : "ai_active") || "ai_active",
+          safeSessionChannel,
+          safeSessionCustomerName,
+          safeMessage || safeStaffMessage || safeAnswer,
+          toText(staffUserName),
+        ]
+      );
+      sessionRefId = sessionResult.rows[0]?.id || null;
+    } catch (error) {
+      logSqlError("session_upsert", error, { tenantId: safeTenantId, sessionId: safeSessionId, source: safeSessionSource, channel: safeSessionChannel });
+      throw error;
+    }
   }
 
   const values = [
@@ -443,7 +459,7 @@ const persistOutboundTranscriptRow = async ({
       dedupe_key = $36,
       insert_source = $37,
       updated_at = NOW()
-    WHERE id = $1
+    WHERE id = $1::bigint
     RETURNING *
   `;
 
@@ -486,15 +502,28 @@ const persistOutboundTranscriptRow = async ({
     }
   }
 
-  const inserted = await db.query(
-    `
-    INSERT INTO ai_support_messages (${baseColumns})
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34::jsonb, $35, $36)
-    ON CONFLICT DO NOTHING
-    RETURNING *
-    `,
-    values
-  );
+  let inserted;
+  try {
+    inserted = await db.query(
+      `
+      INSERT INTO ai_support_messages (${baseColumns})
+      VALUES ($1::bigint, $2::bigint, $3::bigint, $4::text, $5::text, $6::text, $7::text, $8::numeric, $9::boolean, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, $14::text, $15::text, $16::text, $17::text, $18::boolean, $19::bigint, $20::text, $21::text, $22::text, $23::text, $24::text, $25::text, $26::text, $27::text, $28::text, $29::text, $30::text, $31::text, $32::text, $33::text, $34::jsonb, $35::text, $36::text)
+      ON CONFLICT DO NOTHING
+      RETURNING *
+      `,
+      values
+    );
+  } catch (error) {
+    logSqlError("insert_message", error, {
+      tenantId: safeTenantId,
+      sessionId: safeSessionId,
+      messageType: safeMessageType,
+      channel: safeChannel,
+      providerMessageId: safeProviderMessageId,
+      dedupeKey: safeDedupeKey,
+    });
+    throw error;
+  }
   if (inserted.rows[0]) return inserted.rows[0];
 
   if (providerKey) {
