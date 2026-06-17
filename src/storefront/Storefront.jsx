@@ -1796,7 +1796,7 @@ const uniqueClassificationOptions = (options = []) => {
 
 function FeaturedCategoriesHeroSkeleton({ lang = "ar", themeMode = "light" }) {
   const isRtl = normalizeLanguage(lang) === "ar";
-  const darkMode = themeMode === "dark";
+  const darkMode = themeMode === "dark" || (typeof document !== "undefined" && document.body.classList.contains("storefront-dark"));
   return (
     <section className="mx-auto max-w-[1320px] px-4 py-4 md:py-7" dir={isRtl ? "rtl" : "ltr"}>
       <div className={`overflow-hidden rounded-[1.85rem] border shadow-[0_34px_100px_rgba(15,23,42,0.30)] md:rounded-[2.35rem] ${darkMode ? "border-white/10 bg-[#050711]" : "border-slate-200 bg-white shadow-[0_34px_100px_rgba(15,23,42,0.10)]"}`}>
@@ -1828,7 +1828,7 @@ function FeaturedCategoriesHeroSkeleton({ lang = "ar", themeMode = "light" }) {
 
 function ShopByMainCategoriesSkeleton({ lang = "ar", themeMode = "light" }) {
   const isRtl = normalizeLanguage(lang) === "ar";
-  const darkMode = themeMode === "dark";
+  const darkMode = themeMode === "dark" || (typeof document !== "undefined" && document.body.classList.contains("storefront-dark"));
   return (
     <section className="mx-auto max-w-[1360px] px-4 py-10 md:py-16" dir={isRtl ? "rtl" : "ltr"}>
       <div className="mb-8 flex items-end justify-between gap-3 md:mb-11">
@@ -1860,7 +1860,7 @@ function ShopByMainCategoriesSkeleton({ lang = "ar", themeMode = "light" }) {
 function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, themeMode = "light" }) {
   const { t } = useTranslation();
   const isRtl = normalizeLanguage(lang) === "ar";
-  const darkMode = themeMode === "dark";
+  const darkMode = themeMode === "dark" || (typeof document !== "undefined" && document.body.classList.contains("storefront-dark"));
   const [activeCategoryId, setActiveCategoryId] = useState("");
   const [slideIndex, setSlideIndex] = useState(0);
   const [manualTick, setManualTick] = useState(0);
@@ -2109,7 +2109,7 @@ const homeProductWithImage = (product = {}) => {
 
 function ShopByMainCategories({ products = [], lang = "ar", loading = false, themeMode = "light" }) {
   const isRtl = normalizeLanguage(lang) === "ar";
-  const darkMode = themeMode === "dark";
+  const darkMode = themeMode === "dark" || (typeof document !== "undefined" && document.body.classList.contains("storefront-dark"));
   const sourceProducts = useMemo(
     () => uniqueProductsByIdentity(products)
       .filter((product) => product?.id && product?.name && isAvailableProduct(product))
@@ -2800,9 +2800,9 @@ function HomePage(props) {
 
   return (
     <div className="sf-page pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] md:pb-0">
-      <FeaturedCategoriesHero products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} themeMode={props.themeMode} />
+      <FeaturedCategoriesHero products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} />
       <QuickSellingStrips lang={lang} />
-      <ShopByMainCategories products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} themeMode={props.themeMode} />
+      <ShopByMainCategories products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} />
       <HomeProductSection title={sfText("storefront.nav.new", "جديد")} subtitle={sfText("storefront.home.newSubtitle")} viewAllTo="/shop/products?sort=newest" loading={loading || storefrontHome.loading} products={homeSections.newArrivals} railType="new" tone="new" {...props} />
       <HomeProductSection title={sfText("storefront.nav.sale")} subtitle={sfText("storefront.home.saleSubtitle")} viewAllTo="/shop/products?sale=true" loading={saleLoading && !homeSections.sale.length} products={homeSections.sale} railType="sale" tone="sale" {...props} />
       <HomeProductSection title={sfText("storefront.home.lastSizes", "آخر المقاسات")} subtitle={sfText("storefront.home.productOfWeekEmpty")} viewAllTo="/shop/products?lastSizes=true" loading={loading || storefrontHome.loading} products={homeSections.lastSizes} railType="last-size" tone="last" {...props} />
@@ -7899,19 +7899,7 @@ function Storefront() {
   useEffect(() => {
     writeStorefrontStorage(THEME_KEY, themeMode);
     if (typeof document === "undefined") return;
-    const root = document.documentElement;
-    const body = document.body;
-    const previousRootDark = root.classList.contains("dark");
-    const previousBodyDark = body.classList.contains("dark");
-    const previousStorefrontDark = body.classList.contains("storefront-dark");
-    root.classList.toggle("dark", themeMode === "dark");
-    body.classList.toggle("dark", themeMode === "dark");
-    body.classList.toggle("storefront-dark", themeMode === "dark");
-    return () => {
-      root.classList.toggle("dark", previousRootDark);
-      body.classList.toggle("dark", previousBodyDark);
-      body.classList.toggle("storefront-dark", previousStorefrontDark);
-    };
+    document.body.classList.toggle("storefront-dark", themeMode === "dark");
   }, [themeMode]);
 
   const clearCart = useCallback(() => setCart([]), []);
@@ -8004,7 +7992,7 @@ function Storefront() {
   if (!routeReady) return <StorefrontPageFallback />;
 
   return (
-    <div className={`storefront-shell ${themeMode === "dark" ? "storefront-dark" : ""}`}>
+    <>
       <Header
         cartCount={cartCount}
         wishlistCount={wishlistCount}
@@ -8085,7 +8073,7 @@ function Storefront() {
         updateCart={updateCart}
         removeFromCart={removeFromCart}
       />
-    </div>
+    </>
   );
 }
 
