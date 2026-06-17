@@ -1022,12 +1022,13 @@ export const updateAiSupportConversationState = async ({
   }
   await ensureAiSupportLogSchema();
   const current = await db.query(
-    `SELECT status FROM ai_support_sessions WHERE tenant_id = $1 AND session_id = $2 LIMIT 1`,
+    `SELECT status, channel FROM ai_support_sessions WHERE tenant_id = $1 AND session_id = $2 LIMIT 1`,
     [safeTenantId, safeSessionId]
   );
   if (current.rows[0]?.status === "closed" && safeStatus !== "closed" && allowClosedReopen !== true) {
     throw Object.assign(new Error("Conversation is closed"), { status: 409 });
   }
+  const safeEnabled = safeStatus === "ai_active";
   console.log("ai_return_to_ai_session_lookup", {
     tenant_id: safeTenantId,
     session_id: safeSessionId,
@@ -1056,6 +1057,7 @@ export const updateAiSupportConversationState = async ({
       takeover_started_at,
       returned_to_ai_at,
       closed_at,
+      ai_enabled,
       updated_at
     )
     VALUES (
@@ -1063,6 +1065,7 @@ export const updateAiSupportConversationState = async ({
       CASE WHEN $8::text = 'human_takeover' THEN NOW() ELSE NULL END,
       CASE WHEN $9::text = 'ai_active' THEN NOW() ELSE NULL END,
       CASE WHEN $10::text = 'closed' THEN NOW() ELSE NULL END,
+      CASE WHEN $11::text = 'ai_active' THEN TRUE ELSE FALSE END,
       NOW()
     )
     ON CONFLICT (tenant_id, session_id) DO UPDATE SET
@@ -1088,6 +1091,7 @@ export const updateAiSupportConversationState = async ({
       escalation_reason = CASE WHEN EXCLUDED.status = 'ai_active' THEN '' ELSE ai_support_sessions.escalation_reason END,
       last_escalation_keyword = CASE WHEN EXCLUDED.status = 'ai_active' THEN '' ELSE ai_support_sessions.last_escalation_keyword END,
       escalated_at = CASE WHEN EXCLUDED.status = 'ai_active' THEN NULL ELSE ai_support_sessions.escalated_at END,
+      ai_enabled = EXCLUDED.ai_enabled,
       updated_at = NOW()
     RETURNING *
     `,
@@ -1102,8 +1106,40 @@ export const updateAiSupportConversationState = async ({
       safeStatus,
       safeStatus,
       safeStatus,
+      safeStatus,
     ]
   );
+  const existingChannelRows = await db.query(
+    `
+    SELECT DISTINCT channel
+    FROM ai_channel_conversations
+    WHERE tenant_id = $1 AND external_conversation_id = $2
+    `,
+    [safeTenantId, safeSessionId]
+  );
+  const resolvedChannels = [...new Set([
+    safeChannel,
+    normalizeConversationChannel(current.rows[0]?.channel || ""),
+    ...existingChannelRows.rows.map((row) => normalizeConversationChannel(row.channel || "")),
+  ].map((value) => normalizeConversationChannel(value)).filter(Boolean))];
+  for (const resolvedChannel of resolvedChannels) {
+    await db.query(
+      `
+      INSERT INTO ai_channel_conversations (
+        tenant_id,
+        channel,
+        external_conversation_id,
+        ai_enabled,
+        updated_at
+      )
+      VALUES ($1::bigint, $2::text, $3::text, $4::boolean, NOW())
+      ON CONFLICT (tenant_id, channel, external_conversation_id) DO UPDATE SET
+        ai_enabled = EXCLUDED.ai_enabled,
+        updated_at = NOW()
+      `,
+      [safeTenantId, resolvedChannel, safeSessionId, safeEnabled]
+    );
+  }
   return result.rows[0] || null;
 };
 

@@ -908,7 +908,7 @@ function InboxChatHeader({
   const avatarUrl = customerAvatarUrl(conversation);
   const name = isMessengerConversation(conversation) ? messengerDisplayName(conversation) : getConversationDisplayName(conversation);
   const channel = conversation.channel || conversation.source || "web_chat";
-  const aiEnabled = isConversationAiEnabled(conversation) && status !== "closed";
+  const aiEnabled = isConversationAiEnabled(conversation) && status !== "closed" && status !== "human_takeover";
   const closeToggleLabel = status === "closed" ? "Reopen" : "Close";
   const currentLeadStatus = normalizeLeadStatus(leadStatus || conversation.lead_status || conversation.channel_metadata?.lead_status || "new");
   const leadStatusClass = {
@@ -966,7 +966,7 @@ function InboxChatHeader({
             }`}
           >
             <Bot className="h-3.5 w-3.5" />
-            AI {aiEnabled ? "ON" : "OFF"}
+            {status === "human_takeover" ? "Return to AI" : `AI ${aiEnabled ? "ON" : "OFF"}`}
           </button>
           <button type="button" onClick={onAssign} disabled={loading} className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.06] px-2.5 text-[11px] font-black text-slate-100">
             <UserPlus className="h-3.5 w-3.5" />
@@ -3808,33 +3808,44 @@ export default function AiInbox() {
   const toggleAiEnabled = useCallback(() => {
     if (!selectedConversation?.session_id) return;
     const channel = selectedConversation?.channel || selectedConversation?.source || "";
+    const status = selectedConversation?.conversation_status || selectedConversation?.status || "ai_active";
     const nextEnabled = !isConversationAiEnabled(selectedConversation);
     void (async () => {
       setLoading(true);
       setError("");
       try {
-        const payload = await api.patch(aiInboxConversationEndpoint(selectedConversation.session_id, "/ai-enabled"), {
-          tenant_id: tenantId,
-          conversation_id: selectedConversation.session_id,
-          external_id: selectedConversation.external_conversation_id || "",
-          channel,
-          ai_enabled: nextEnabled,
-          enabled: nextEnabled,
-        }, { headers, perfComponent: "AiInbox.toggleConversationAi" });
+        const payload = status === "human_takeover"
+          ? await api.post(aiInboxConversationEndpoint(selectedConversation.session_id, "/return-to-ai"), {
+              tenant_id: tenantId,
+              channel,
+            }, { headers, perfComponent: "AiInbox.returnToAi" })
+          : await api.patch(aiInboxConversationEndpoint(selectedConversation.session_id, "/ai-enabled"), {
+              tenant_id: tenantId,
+              conversation_id: selectedConversation.session_id,
+              external_id: selectedConversation.external_conversation_id || "",
+              channel,
+              ai_enabled: nextEnabled,
+              enabled: nextEnabled,
+            }, { headers, perfComponent: "AiInbox.toggleConversationAi" });
         const returnedConversation = payload.conversation || {};
         patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({
           ...conversation,
           ...returnedConversation,
-          ai_enabled: returnedConversation.ai_enabled !== undefined ? returnedConversation.ai_enabled : nextEnabled,
+          conversation_status: returnedConversation.conversation_status || returnedConversation.status || (status === "human_takeover" ? "ai_active" : conversation.conversation_status),
+          status: returnedConversation.status || returnedConversation.conversation_status || (status === "human_takeover" ? "ai_active" : conversation.status),
+          human_takeover: returnedConversation.human_takeover !== undefined ? returnedConversation.human_takeover : (status === "human_takeover" ? false : conversation.human_takeover),
+          ai_paused: returnedConversation.ai_paused !== undefined ? returnedConversation.ai_paused : (status === "human_takeover" ? false : conversation.ai_paused),
+          ai_enabled: returnedConversation.ai_enabled !== undefined ? returnedConversation.ai_enabled : (status === "human_takeover" ? true : nextEnabled),
         }));
-        setToast({ tone: "emerald", text: nextEnabled ? "تم تشغيل AI لهذه المحادثة" : "تم إيقاف AI لهذه المحادثة" });
+        setToast({ tone: "emerald", text: status === "human_takeover" ? "أعيدت المحادثة إلى الذكاء الاصطناعي." : (nextEnabled ? "تم تشغيل AI لهذه المحادثة" : "تم إيقاف AI لهذه المحادثة") });
+        await loadAll({ silent: true });
       } catch (err) {
         setError(err?.message || "تعذر تحديث حالة الذكاء الاصطناعي للمحادثة");
       } finally {
         setLoading(false);
       }
     })();
-  }, [headers, patchConversation, selectedConversation?.ai_enabled, selectedConversation?.channel, selectedConversation?.external_conversation_id, selectedConversation?.session_id, selectedConversation?.source, tenantId]);
+  }, [headers, loadAll, patchConversation, selectedConversation, tenantId]);
 
   const quickSendProduct = (product) => {
     const textValue = `${product.name || product.title}\n${money(product.final_price || product.price)}\n${product.product_url || ""}`.trim();

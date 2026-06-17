@@ -244,6 +244,9 @@ const normalizeInboxMessage = (message = {}) => {
 
 const isConversationAiEnabled = (conversation = {}) => conversation?.ai_enabled !== false;
 
+const conversationWorkflowStatus = (conversation = {}) =>
+  clean(conversation?.conversation_status || conversation?.status || "").toLowerCase();
+
 const needsHumanAttention = (conversation = {}) =>
   conversation?.human_takeover === true ||
   conversation?.ai_paused === true ||
@@ -2045,33 +2048,47 @@ export default function AiInboxPwa() {
     if (!selectedConversation?.session_id) return;
     setAiToggling(true);
     try {
-      const nextEnabled = !isConversationAiEnabled(selectedConversation);
       const identifiers = conversationIdentifiers(selectedConversation);
       const sessionId = identifiers.sessionId;
       const conversationIdentifier = identifiers.conversationKey || sessionId;
-      await api.patch(
-        aiInboxConversationEndpoint(sessionId, "/ai-enabled"),
-        {
-          tenant_id: tenantId,
-          conversation_id: sessionId,
-          ai_enabled: nextEnabled,
-          channel: selectedConversation.channel || selectedConversation.source || "",
-          external_conversation_id: selectedConversation.external_conversation_id || "",
-        },
-        { headers, perfComponent: "AiInboxPwa.aiToggle" }
-      );
+      const workflowStatus = conversationWorkflowStatus(selectedConversation);
+      const nextEnabled = !isConversationAiEnabled(selectedConversation);
+      const payload = workflowStatus === "human_takeover"
+        ? await api.post(
+            aiInboxConversationEndpoint(sessionId, "/return-to-ai"),
+            { tenant_id: tenantId, channel: selectedConversation.channel || selectedConversation.source || "" },
+            { headers, perfComponent: "AiInboxPwa.returnToAi" }
+          )
+        : await api.patch(
+            aiInboxConversationEndpoint(sessionId, "/ai-enabled"),
+            {
+              tenant_id: tenantId,
+              conversation_id: sessionId,
+              ai_enabled: nextEnabled,
+              channel: selectedConversation.channel || selectedConversation.source || "",
+              external_conversation_id: selectedConversation.external_conversation_id || "",
+            },
+            { headers, perfComponent: "AiInboxPwa.aiToggle" }
+          );
+      const returnedConversation = payload.conversation || {};
       patchConversation(conversationIdentifier, (conversation) => ({
         ...conversation,
-        ai_enabled: nextEnabled,
+        ...returnedConversation,
+        conversation_status: returnedConversation.conversation_status || returnedConversation.status || conversation.conversation_status || "ai_active",
+        status: returnedConversation.status || returnedConversation.conversation_status || conversation.status || "ai_active",
+        human_takeover: returnedConversation.human_takeover !== undefined ? returnedConversation.human_takeover : conversation.human_takeover,
+        ai_paused: returnedConversation.ai_paused !== undefined ? returnedConversation.ai_paused : conversation.ai_paused,
+        ai_enabled: returnedConversation.ai_enabled !== undefined ? returnedConversation.ai_enabled : (workflowStatus === "human_takeover" ? true : nextEnabled),
       }));
-      toast.success(nextEnabled ? "AI enabled" : "AI paused");
+      toast.success(workflowStatus === "human_takeover" ? "أعيدت المحادثة إلى الذكاء الاصطناعي." : (nextEnabled ? "AI enabled" : "AI paused"));
+      await loadConversations({ silent: true });
       setMenuOpen(false);
     } catch (toggleError) {
       toast.error(toggleError?.message || "Failed to update AI state");
     } finally {
       setAiToggling(false);
     }
-  }, [headers, patchConversation, selectedConversation, tenantId]);
+  }, [headers, loadConversations, patchConversation, selectedConversation, tenantId]);
 
   const updateLeadStatus = useCallback(
     async (nextLeadStatus) => {
@@ -2267,6 +2284,7 @@ export default function AiInboxPwa() {
   const selectedMeta = channelMeta(selectedConversation?.channel || selectedConversation?.source || "");
   const SelectedChannelIcon = selectedMeta.icon;
   const currentLeadStatus = conversationLeadStatus(selectedConversation || {});
+  const selectedWorkflowStatus = conversationWorkflowStatus(selectedConversation || {});
   const selectedAvatar = customerAvatarUrl(selectedConversation || {});
   const selectedLastSeen = relativeSeenLabel(
     selectedConversation?.last_activity_at || selectedConversation?.updated_at
@@ -2313,6 +2331,12 @@ export default function AiInboxPwa() {
                       <SelectedChannelIcon className={`h-3 w-3 ${selectedMeta.tone}`} />
                       {selectedMeta.label}
                     </span>
+                    {selectedWorkflowStatus === "human_takeover" ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 font-medium text-amber-700">
+                        <AlertCircle className="h-3 w-3" />
+                        Needs Human
+                      </span>
+                    ) : null}
                     <span className="truncate">{selectedLastSeen}</span>
                   </div>
                 </div>
@@ -2329,7 +2353,7 @@ export default function AiInboxPwa() {
                   <div className="absolute right-0 top-12 w-52 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
                     <button type="button" onClick={toggleConversationAi} disabled={aiToggling} className="flex w-full items-center gap-3 px-4 py-3 text-sm hover:bg-slate-50 disabled:opacity-50">
                       {aiToggling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
-                      {isConversationAiEnabled(selectedConversation) ? "Pause AI" : "Enable AI"}
+                      {selectedWorkflowStatus === "human_takeover" ? "Return to AI" : isConversationAiEnabled(selectedConversation) ? "Pause AI" : "Enable AI"}
                     </button>
                     <button type="button" onClick={() => { setProductSheetOpen(true); setMenuOpen(false); }} className="flex w-full items-center gap-3 px-4 py-3 text-sm hover:bg-slate-50">
                       <PackagePlus className="h-4 w-4" />
