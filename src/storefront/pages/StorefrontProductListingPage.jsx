@@ -566,8 +566,8 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     const selectedProductTypeOption = productTypeOptions.find((option) => normalizeStorefrontProductTypeValue(option.value) === normalizeStorefrontProductTypeValue(selectedProductType));
     if (isTypeOnlyGuidedFlow) {
       return (
-        <section className="mx-auto max-w-7xl px-3 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.75rem)] pt-3 md:px-4 md:py-5">
-          <div className="mb-3 flex flex-col gap-2 md:mb-4 md:gap-3 md:flex-row md:items-end md:justify-between">
+        <section className="mx-auto max-w-7xl px-3 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] pt-2.5 md:px-4 md:py-4">
+          <div className="mb-2.5 flex flex-col gap-2 md:mb-3 md:gap-3 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-xs font-bold text-stone-500 md:text-sm">{t("storefront.products.guidedIntro", "اختر طريقتك")}</p>
               <h1 className="mt-0.5 text-2xl font-black md:mt-1 md:text-3xl">{selectedProductTypeOption ? `اختر من ${classificationLabel(selectedProductTypeOption, lang)}` : t("storefront.nav.categories", "الأقسام")}</h1>
@@ -579,7 +579,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
             </div>
           </div>
 
-          <section className="mt-3 scroll-mt-28 transition md:mt-5">
+          <section className="mt-2.5 scroll-mt-20 transition md:mt-3">
             <GuidedGenderStep
               options={guidedGenderOptions}
               selectedGender={selectedGender}
@@ -591,8 +591,8 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
       );
     }
     return (
-      <section className="mx-auto max-w-7xl px-3 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.75rem)] pt-3 md:px-4 md:py-5">
-        <div className="mb-3 flex flex-col gap-2 md:mb-4 md:gap-3 md:flex-row md:items-end md:justify-between">
+      <section className="mx-auto max-w-7xl px-3 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] pt-2.5 md:px-4 md:py-4">
+        <div className="mb-2.5 flex flex-col gap-2 md:mb-3 md:gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-xs font-bold text-stone-500 md:text-sm">{t("storefront.products.guidedIntro", "اختر طريقتك")}</p>
             <h1 className="mt-0.5 text-2xl font-black md:mt-1 md:text-3xl">{selectedGenderOption ? `اختر من ${classificationLabel(selectedGenderOption, lang)}` : t("storefront.nav.categories", "الأقسام")}</h1>
@@ -611,8 +611,8 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
           onSelect={selectGender}
         />
 
-        <section ref={productTypeStepRef} className={`mt-3 scroll-mt-28 transition md:mt-5 ${currentStep === "gender" && !selectedGender ? "opacity-60" : ""}`}>
-          <div className="mb-2.5 flex flex-wrap items-end justify-between gap-2 md:mb-3 md:gap-3">
+        <section ref={productTypeStepRef} className={`mt-2.5 scroll-mt-20 transition md:mt-3 ${currentStep === "gender" && !selectedGender ? "opacity-60" : ""}`}>
+          <div className="mb-2 flex flex-wrap items-end justify-between gap-2 md:mb-2.5 md:gap-3">
             <SectionIntro eyebrow={t("storefront.filters.productType", "نوع المنتج")} title={t("storefront.products.chooseProductType", "اختر النوع")} subtitle={selectedGenderOption ? t("storefront.products.suitableFor", "خيارات مناسبة لـ {{label}}", { label: classificationLabel(selectedGenderOption, lang) }) : t("storefront.products.chooseGenderFirst", "اختر النوع أولاً")} compact />
             {selectedGender ? (
               <button type="button" onClick={changeGender} className="rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
@@ -631,8 +631,8 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
           />
         </section>
 
-        <section ref={gridStepRef} className="mt-3 scroll-mt-28 md:mt-6">
-          <div className="mb-2.5 flex flex-wrap items-end justify-between gap-2 md:mb-3 md:gap-3">
+        <section ref={gridStepRef} className="mt-2.5 scroll-mt-20 md:mt-4">
+          <div className="mb-2 flex flex-wrap items-end justify-between gap-2 md:mb-2.5 md:gap-3">
             <SectionIntro
               eyebrow={t("storefront.products.products", "المنتجات")}
               title={selectedProductTypeOption ? classificationLabel(selectedProductTypeOption, lang) : t("storefront.products.products", "المنتجات")}

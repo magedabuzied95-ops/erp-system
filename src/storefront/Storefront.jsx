@@ -3345,11 +3345,11 @@ function StepPill({ active, done, label }) {
 function GuidedGenderStep({ options = [], selectedGender, lang, onSelect }) {
   const { t } = useTranslation();
   return (
-    <section className="scroll-mt-28">
-      <div className="mb-2.5 flex items-end justify-between gap-2 md:mb-3 md:gap-3">
+    <section className="scroll-mt-20">
+      <div className="mb-2 flex items-end justify-between gap-2 md:mb-2.5 md:gap-3">
         <SectionIntro eyebrow={t("storefront.filters.gender", "الجنس")} title={t("storefront.products.chooseWearer", "اختر الجنس")} subtitle={t("storefront.products.chooseWearerSubtitle", "اختر الجنس لرؤية الأنماط المناسبة.")} compact />
       </div>
-      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 md:gap-2.5">
+      <div className="flex flex-wrap gap-2">
         {options.map((option) => {
           const active = String(selectedGender || "") === String(option.value || "");
           const Icon = filterOptionIcon("gender", option, lang);
@@ -3358,17 +3358,16 @@ function GuidedGenderStep({ options = [], selectedGender, lang, onSelect }) {
               key={option.id || option.value}
               type="button"
               onClick={() => onSelect(option.value)}
-              className={`group min-h-[88px] rounded-[0.8rem] border p-2 text-right shadow-[0_10px_24px_rgba(39,20,75,0.055)] transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-[150px] md:rounded-[1.35rem] md:p-4 ${
+              className={`group flex min-h-[52px] min-w-[108px] items-center gap-2 rounded-full border px-3 py-2 text-right shadow-[0_10px_24px_rgba(39,20,75,0.045)] transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-[60px] md:min-w-[132px] md:px-4 ${
                 active
                   ? "border-[#7c3aed] bg-[#f5f3ff] text-[#5b21b6] ring-2 ring-[#7c3aed]/15"
                   : "border-stone-200 bg-white text-stone-900 hover:border-[#7c3aed]/45 dark:border-white/10 dark:bg-[#0b1020] dark:text-white"
               }`}
             >
-              <span className={`grid h-8 w-8 place-items-center rounded-lg md:rounded-2xl ${active ? "bg-[#7c3aed] text-white" : "bg-stone-100 text-[#6d28d9] dark:bg-white/8"} md:h-11 md:w-11`}>
-                <Icon className="h-3.5 w-3.5 md:h-5 md:w-5" />
+              <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${active ? "bg-[#7c3aed] text-white" : "bg-stone-100 text-[#6d28d9] dark:bg-white/8"}`}>
+                <Icon className="h-3.5 w-3.5" />
               </span>
-              <span className="mt-1.5 block text-[13px] font-black leading-4 md:mt-3 md:text-lg md:leading-6">{classificationLabel(option, lang)}</span>
-              <span className="mt-0.5 block text-[9.5px] font-bold leading-3 text-stone-500 dark:text-stone-400 md:mt-1 md:text-xs md:leading-5">{t("storefront.products.chooseAndViewTypes", "اختر واعرض الأنواع")}</span>
+              <span className="block text-[12px] font-black leading-4 md:text-sm md:leading-5">{classificationLabel(option, lang)}</span>
             </button>
           );
         })}
@@ -3389,8 +3388,8 @@ function GuidedProductTypeStep({ options = [], selectedProductType, lang, disabl
     return counts;
   }, [products]);
   return (
-    <div className={`rounded-[0.9rem] border border-stone-200 bg-white p-1 shadow-[0_10px_24px_rgba(39,20,75,0.05)] dark:border-white/10 dark:bg-[#0b1020] md:rounded-[1.5rem] md:p-3 ${disabled ? "pointer-events-none opacity-55" : ""}`}>
-      <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 md:gap-2 lg:grid-cols-5">
+    <div className={`rounded-[0.9rem] border border-stone-200 bg-white p-2 shadow-[0_10px_24px_rgba(39,20,75,0.05)] dark:border-white/10 dark:bg-[#0b1020] md:rounded-[1.25rem] md:p-2.5 ${disabled ? "pointer-events-none opacity-55" : ""}`}>
+      <div className="flex flex-wrap gap-2">
         {loading ? <ProductTypeSkeleton /> : options.map((option) => {
           const active = String(selectedProductType || "") === String(option.value || "");
           const Icon = filterOptionIcon("product_type", option, lang);
@@ -3400,17 +3399,17 @@ function GuidedProductTypeStep({ options = [], selectedProductType, lang, disabl
               key={option.id || option.value}
               type="button"
               onClick={() => onSelect(option.value)}
-              className={`group min-h-[82px] rounded-[0.75rem] border p-1.5 text-right transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-[128px] md:rounded-[1.25rem] md:p-3 ${
+              className={`group flex min-h-[52px] min-w-[120px] items-center gap-2 rounded-full border px-3 py-2 text-right transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-[58px] md:min-w-[138px] md:px-4 ${
                 active
                   ? "border-[#7c3aed] bg-[#f5f3ff] text-[#5b21b6] ring-2 ring-[#7c3aed]/15"
                   : "border-stone-200 bg-[#fbfaf7] text-stone-900 hover:border-[#7c3aed]/45 dark:border-white/10 dark:bg-white/5 dark:text-white"
               }`}
             >
-              <span className={`grid h-7 w-7 place-items-center rounded-lg md:rounded-2xl ${active ? "bg-[#7c3aed] text-white" : "bg-white text-[#6d28d9] shadow-sm dark:bg-white/8"} md:h-10 md:w-10`}>
-                <Icon className="h-3.5 w-3.5 md:h-5 md:w-5" />
+              <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${active ? "bg-[#7c3aed] text-white" : "bg-white text-[#6d28d9] shadow-sm dark:bg-white/8"}`}>
+                <Icon className="h-3.5 w-3.5" />
               </span>
-              <span className="mt-1.5 block truncate text-[12px] font-black leading-4 md:mt-3 md:text-sm md:leading-5">{classificationLabel(option, lang)}</span>
-              {Number.isFinite(Number(count)) ? <span className="mt-0.5 block text-[9.5px] font-bold leading-3 text-stone-500 dark:text-stone-400 md:mt-1 md:text-[11px] md:leading-4">{t("storefront.products.productCount", "{{count}} items", { count })}</span> : null}
+              <span className="block truncate text-[12px] font-black leading-4 md:text-sm md:leading-5">{classificationLabel(option, lang)}</span>
+              {Number.isFinite(Number(count)) ? <span className="mr-auto text-[9.5px] font-bold leading-3 text-stone-500 dark:text-stone-400 md:text-[11px] md:leading-4">{t("storefront.products.productCount", "{{count}} items", { count })}</span> : null}
             </button>
           );
         })}
@@ -3422,31 +3421,31 @@ function GuidedProductTypeStep({ options = [], selectedProductType, lang, disabl
 
 function ProductTypeSkeleton() {
   return Array.from({ length: 5 }).map((_, index) => (
-    <div key={index} className="h-[82px] animate-pulse rounded-[0.75rem] bg-stone-100 dark:bg-white/5 md:h-28 md:rounded-[1.25rem]" />
+    <div key={index} className="h-[52px] min-w-[120px] animate-pulse rounded-full bg-stone-100 dark:bg-white/5 md:h-[58px] md:min-w-[138px]" />
   ));
 }
 
 function GuidedSizeFilter({ sizes = [], selectedSize, onSelect, disabled }) {
   const { t } = useTranslation();
   return (
-    <div className={`mb-2.5 rounded-[0.9rem] border border-stone-200 bg-white p-2 shadow-[0_10px_24px_rgba(39,20,75,0.05)] dark:border-white/10 dark:bg-[#0b1020] md:mb-4 md:rounded-[1.35rem] md:p-3 ${disabled ? "opacity-55" : ""}`}>
+    <div className={`mb-2 rounded-[0.9rem] border border-stone-200 bg-white p-2 shadow-[0_10px_24px_rgba(39,20,75,0.05)] dark:border-white/10 dark:bg-[#0b1020] md:mb-3 md:rounded-[1.15rem] md:p-2.5 ${disabled ? "opacity-55" : ""}`}>
       <div className="mb-1.5 flex items-center justify-between gap-2 md:mb-2 md:gap-3">
         <div>
-          <p className="text-[8.5px] font-black uppercase tracking-[0.14em] text-[#7c3aed] md:text-[10px] md:tracking-[0.18em]">{t("storefront.filters.sizeFilter", "Size filter")}</p>
-          <h3 className="text-xs font-black md:text-sm">{t("storefront.filters.availableSize", "Available sizes")}</h3>
+          <p className="text-[8px] font-black uppercase tracking-[0.14em] text-[#7c3aed] md:text-[9px] md:tracking-[0.18em]">{t("storefront.filters.sizeFilter", "Size filter")}</p>
+          <h3 className="text-[11px] font-black md:text-xs">{t("storefront.filters.availableSize", "Available sizes")}</h3>
         </div>
         {selectedSize ? (
-          <button type="button" onClick={() => onSelect("")} className="rounded-full bg-stone-100 px-2 py-1 text-[10.5px] font-black text-stone-600 transition hover:bg-stone-950 hover:text-white dark:bg-white/8 dark:text-stone-200 md:px-3 md:py-1.5 md:text-xs">
+          <button type="button" onClick={() => onSelect("")} className="rounded-full bg-stone-100 px-2 py-1 text-[9.5px] font-black text-stone-600 transition hover:bg-stone-950 hover:text-white dark:bg-white/8 dark:text-stone-200 md:px-3 md:py-1 md:text-[11px]">
             {t("storefront.filters.showAllSizes", "Show all sizes")}
           </button>
         ) : null}
       </div>
-      <div className="sf-scroll flex gap-1.5 overflow-x-auto pb-0.5 md:gap-2 md:pb-1">
+      <div className="sf-scroll flex flex-wrap gap-1.5 overflow-x-auto pb-0.5 md:gap-2 md:pb-1">
         <button
           type="button"
           disabled={disabled}
           onClick={() => onSelect("")}
-          className={`shrink-0 rounded-full border px-2.5 py-1.5 text-[10.5px] font-black transition md:px-4 md:py-2 md:text-xs ${!selectedSize ? "border-[#7c3aed] bg-[#f5f3ff] text-[#6d28d9]" : "border-stone-200 bg-stone-50 text-stone-700 hover:border-[#7c3aed]/50 dark:border-white/10 dark:bg-white/5 dark:text-stone-200"}`}
+          className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-black transition md:px-3 md:py-1.5 md:text-xs ${!selectedSize ? "border-[#7c3aed] bg-[#f5f3ff] text-[#6d28d9]" : "border-stone-200 bg-stone-50 text-stone-700 hover:border-[#7c3aed]/50 dark:border-white/10 dark:bg-white/5 dark:text-stone-200"}`}
         >
           {t("common.all", "All")}
         </button>
@@ -3458,7 +3457,7 @@ function GuidedSizeFilter({ sizes = [], selectedSize, onSelect, disabled }) {
               type="button"
               disabled={disabled || !item.available}
               onClick={() => onSelect(item.size)}
-              className={`shrink-0 rounded-full border px-2.5 py-1.5 text-[10.5px] font-black transition md:px-4 md:py-2 md:text-xs ${
+              className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-black transition md:px-3 md:py-1.5 md:text-xs ${
                 active
                   ? "border-[#7c3aed] bg-[#7c3aed] text-white shadow-[0_10px_24px_rgba(124,58,237,0.24)]"
                   : "border-stone-200 bg-stone-50 text-stone-700 hover:border-[#7c3aed]/50 dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
@@ -3469,7 +3468,7 @@ function GuidedSizeFilter({ sizes = [], selectedSize, onSelect, disabled }) {
             </button>
           );
         })}
-        {!sizes.length ? <span className="rounded-full border border-dashed border-stone-200 px-2.5 py-1.5 text-[10.5px] font-bold text-stone-400 dark:border-white/10 md:px-4 md:py-2 md:text-xs">{t("storefront.filters.sizesAppearAfterType", "Sizes appear after selecting a type")}</span> : null}
+        {!sizes.length ? <span className="rounded-full border border-dashed border-stone-200 px-2.5 py-1 text-[10px] font-bold text-stone-400 dark:border-white/10 md:px-3 md:py-1.5 md:text-xs">{t("storefront.filters.sizesAppearAfterType", "Sizes appear after selecting a type")}</span> : null}
       </div>
     </div>
   );
