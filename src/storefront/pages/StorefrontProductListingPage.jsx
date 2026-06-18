@@ -229,6 +229,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   const normalizedSearchTerm = normalizeStorefrontSearchTerm(q);
   const searchGender = normalizeStorefrontAudienceValue(q);
   const gender = normalizeStorefrontAudienceValue(genderParam) || genderParam || searchGender;
+  const backendSearchTerm = searchGender ? "" : q;
   const size = params.get("size") || "";
   const selectedSizes = useMemo(() => readMultiQueryValues(params, ["size", "sizes"]), [params]);
   const inStock = params.get("inStock") || "";
@@ -257,7 +258,11 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     [classificationGroups]
   );
   const isGuidedCategoryFlow = !q && !category && !brand && !saleView && !lastSizes && !gender && !size && !inStock && !quality && !productType && !grade && !sort;
-  const { products, loading, error } = useProducts({ q, gender: gender || "", sale: saleView ? 1 : "", sort, limit: 500 });
+  const productsApiParams = useMemo(
+    () => ({ q: backendSearchTerm, gender: gender || "", sale: saleView ? 1 : "", sort, limit: 500 }),
+    [backendSearchTerm, gender, saleView, sort]
+  );
+  const { products, loading, error } = useProducts(productsApiParams);
   const filterBasePath = sale ? "/shop/sale" : "/shop/products";
   const activeFilterCount = [
     brand,
@@ -341,7 +346,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   };
   const clearClassificationFiltersUrl = () => {
     const next = new URLSearchParams(params);
-    ["brand", "gender", "category", "product_type", "style", "grade", "quality", "size", "sizes", "min_price", "max_price", "inStock"].forEach((field) => next.delete(field));
+    ["q", "brand", "gender", "category", "product_type", "style", "grade", "quality", "size", "sizes", "min_price", "max_price", "inStock"].forEach((field) => next.delete(field));
     return `${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`;
   };
   const toggleSizeValue = (value) => {
@@ -409,7 +414,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   };
   const resetDraftFilters = () => {
     const next = new URLSearchParams(params);
-    ["brand", "gender", "product_type", "style", "grade", "quality"].forEach((field) => next.delete(field));
+    ["q", "brand", "gender", "product_type", "style", "grade", "quality"].forEach((field) => next.delete(field));
     setDraftFilters({ gender: "", product_type: "", grade: "" });
     setFiltersOpen(false);
     navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`);
@@ -512,11 +517,12 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
       normalizedSearchTerm,
       selectedAudience: genderParam || "",
       normalizedSelectedAudience: gender || "",
+      productsApiParams,
       productsBeforeFilters: Array.isArray(catalogProducts) ? catalogProducts.length : 0,
       productsAfterFilters: Array.isArray(filteredProducts) ? filteredProducts.length : 0,
       sampleProducts,
     });
-  }, [catalogProducts, filteredProducts, gender, genderParam, normalizedSearchTerm, q]);
+  }, [catalogProducts, filteredProducts, gender, genderParam, normalizedSearchTerm, productsApiParams, q]);
 
   if (isGuidedCategoryFlow) {
     const selectedGenderOption = genderOptions.find((option) => normalizeStorefrontAudienceValue(option.value) === normalizeStorefrontAudienceValue(selectedGender));
