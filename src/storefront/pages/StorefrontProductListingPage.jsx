@@ -257,7 +257,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     () => classificationGroupsToFieldOptions(classificationGroups, {}, { includeInactive: false }),
     [classificationGroups]
   );
-  const isGuidedCategoryFlow = !q && !category && !brand && !saleView && !lastSizes && !gender && !size && !inStock && !quality && !productType && !grade && !sort;
+  const isGuidedCategoryFlow = Boolean(genderParam) && !category && !brand && !saleView && !lastSizes && !size && !inStock && !quality && !productType && !grade && !sort;
   const productsApiParams = useMemo(
     () => ({ q: backendSearchTerm, gender: gender || "", sale: saleView ? 1 : "", sort, limit: 500 }),
     [backendSearchTerm, gender, saleView, sort]
@@ -531,13 +531,13 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
       <section className="mx-auto max-w-7xl px-3 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.75rem)] pt-3 md:px-4 md:py-5">
         <div className="mb-3 flex flex-col gap-2 md:mb-4 md:gap-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-xs font-bold text-stone-500 md:text-sm">{t("storefront.products.guidedIntro", "Choose your way")}</p>
-            <h1 className="mt-0.5 text-2xl font-black md:mt-1 md:text-3xl">{t("storefront.nav.categories", "Categories")}</h1>
+            <p className="text-xs font-bold text-stone-500 md:text-sm">{t("storefront.products.guidedIntro", "اختر طريقتك")}</p>
+            <h1 className="mt-0.5 text-2xl font-black md:mt-1 md:text-3xl">{selectedGenderOption ? `اختر من ${classificationLabel(selectedGenderOption, lang)}` : t("storefront.nav.categories", "الأقسام")}</h1>
           </div>
           <div className="flex flex-wrap gap-2 text-xs font-black">
-            <StepPill active={currentStep === "gender"} done={Boolean(selectedGender)} label={t("storefront.products.steps.gender", "1. Type")} />
-            <StepPill active={currentStep === "productType"} done={Boolean(selectedProductType)} label={t("storefront.products.steps.product", "2. Product")} />
-            <StepPill active={currentStep === "grid"} done={Boolean(selectedProductType)} label={t("storefront.products.steps.sizes", "3. Sizes")} />
+            <StepPill active={currentStep === "gender"} done={Boolean(selectedGender)} label={t("storefront.products.steps.gender", "1. النوع")} />
+            <StepPill active={currentStep === "productType"} done={Boolean(selectedProductType)} label={t("storefront.products.steps.product", "2. المنتج")} />
+            <StepPill active={currentStep === "grid"} done={Boolean(selectedProductType)} label={t("storefront.products.steps.sizes", "3. المقاسات")} />
           </div>
         </div>
 
@@ -550,10 +550,10 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
 
         <section ref={productTypeStepRef} className={`mt-3 scroll-mt-28 transition md:mt-5 ${currentStep === "gender" && !selectedGender ? "opacity-60" : ""}`}>
           <div className="mb-2.5 flex flex-wrap items-end justify-between gap-2 md:mb-3 md:gap-3">
-            <SectionIntro eyebrow={t("storefront.filters.productType", "Product Type")} title={t("storefront.products.chooseProductType", "Choose product type")} subtitle={selectedGenderOption ? t("storefront.products.suitableFor", "Suitable choices for {{label}}", { label: classificationLabel(selectedGenderOption, lang) }) : t("storefront.products.chooseGenderFirst", "Choose type first")} compact />
+            <SectionIntro eyebrow={t("storefront.filters.productType", "نوع المنتج")} title={t("storefront.products.chooseProductType", "اختر النوع")} subtitle={selectedGenderOption ? t("storefront.products.suitableFor", "خيارات مناسبة لـ {{label}}", { label: classificationLabel(selectedGenderOption, lang) }) : t("storefront.products.chooseGenderFirst", "اختر النوع أولاً")} compact />
             {selectedGender ? (
               <button type="button" onClick={changeGender} className="rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
-                {t("storefront.products.changeType", "Change type")}
+                {t("storefront.products.changeType", "تغيير النوع")}
               </button>
             ) : null}
           </div>
@@ -571,14 +571,14 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
         <section ref={gridStepRef} className="mt-3 scroll-mt-28 md:mt-6">
           <div className="mb-2.5 flex flex-wrap items-end justify-between gap-2 md:mb-3 md:gap-3">
             <SectionIntro
-              eyebrow={t("storefront.products.products", "Products")}
-              title={selectedProductTypeOption ? classificationLabel(selectedProductTypeOption, lang) : t("storefront.products.products", "Products")}
-              subtitle={selectedGenderOption ? `${classificationLabel(selectedGenderOption, lang)}${selectedSize ? ` / ${t("storefront.products.sizeWithValue", "Size {{size}}", { size: selectedSize })}` : ""}` : t("storefront.products.chooseTypeAndProductFirst", "Choose type and product type first")}
+              eyebrow={t("storefront.products.products", "المنتجات")}
+              title={selectedProductTypeOption ? classificationLabel(selectedProductTypeOption, lang) : t("storefront.products.products", "المنتجات")}
+              subtitle={selectedGenderOption ? `${classificationLabel(selectedGenderOption, lang)}${selectedSize ? ` / ${t("storefront.products.sizeWithValue", "المقاس {{size}}", { size: selectedSize })}` : ""}` : t("storefront.products.chooseTypeAndProductFirst", "اختر النوع ثم المنتج")}
               compact
             />
             {selectedProductType ? (
               <button type="button" onClick={changeProductType} className="rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
-                {t("storefront.products.changeProductType", "Change product type")}
+                {t("storefront.products.changeProductType", "تغيير النوع")}
               </button>
             ) : null}
           </div>
@@ -592,7 +592,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
             onAddToCart={onAddToCart}
           />
           {!loading && selectedProductType && !orderedGuidedProducts.length ? (
-            <EmptyState title={t("storefront.products.noProductsForSize", "No products for this size right now. Try another size.")} text={selectedSize ? t("storefront.products.pickDifferentSize", "Pick a different size above") : t("storefront.products.tryDifferentProductType", "Try another product type")} />
+            <EmptyState title={t("storefront.products.noProductsForSize", "لا توجد منتجات لهذا المقاس حالياً. جرّب مقاساً آخر.")} text={selectedSize ? t("storefront.products.pickDifferentSize", "اختر مقاساً آخر من الأعلى") : t("storefront.products.tryDifferentProductType", "جرّب نوع منتج آخر")} />
           ) : null}
         </section>
       </section>
