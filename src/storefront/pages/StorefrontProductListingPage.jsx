@@ -23,7 +23,6 @@ import {
   displaySellingPrice,
   firstDisplayVariant,
   normalizeAudienceValue,
-  productAudienceValues,
   money,
   sortStorefrontColorCardsByModel,
   useBodyScrollLock,
@@ -36,6 +35,37 @@ import { ChevronLeft, DollarSign, Gem, Footprints, SlidersHorizontal, Tag, Users
 
 const normalizeFilterText = (value = "") => String(value ?? "").trim();
 const normalizeFilterKey = (value = "") => normalizeFilterText(value).toLowerCase();
+const normalizeAudienceFilterKey = (value = "") => normalizeFilterKey(value).replace(/['\u2019]/g, "'");
+const normalizeStorefrontAudienceValue = (value = "") => {
+  const normalized = normalizeAudienceFilterKey(value);
+  if (["men", "man", "male", "mens", "men's", "رجالي", "رجال"].includes(normalized)) return "men";
+  if (["women", "woman", "female", "ladies", "lady", "نسائي", "نساء", "حريمي"].includes(normalized)) return "women";
+  if (["kids", "kid", "children", "child", "boys", "girls", "أطفال", "اطفال", "طفل", "ولادي", "بناتي"].includes(normalized)) return "kids";
+  return normalizeAudienceValue(value) || "";
+};
+const productListingAudienceValues = (product = {}) => {
+  const seen = new Set();
+  const visit = (value) => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (value === null || value === undefined) return;
+    String(value)
+      .split(/[,\n|]+/)
+      .map((entry) => normalizeStorefrontAudienceValue(entry))
+      .filter(Boolean)
+      .forEach((entry) => seen.add(entry));
+  };
+  visit(product.audience);
+  visit(product.audiences);
+  visit(product.gender);
+  visit(product.genders);
+  visit(product.product_audience);
+  visit(product.product_audiences);
+  visit(product.target_audience);
+  return Array.from(seen);
+};
 const splitFacetValues = (value = "") =>
   String(value ?? "")
     .split(/[,\|/]+/)
@@ -120,13 +150,13 @@ const buildFacetOptions = (products = [], valueGetter = () => [], selectedValue 
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "ar", { numeric: true }));
 };
 const countAudienceMatches = (products = [], optionValue = "") => {
-  const target = normalizeAudienceValue(optionValue);
+  const target = normalizeStorefrontAudienceValue(optionValue);
   if (!target) return 0;
-  return (Array.isArray(products) ? products : []).reduce((count, product) => count + (productAudienceValues(product).includes(target) ? 1 : 0), 0);
+  return (Array.isArray(products) ? products : []).reduce((count, product) => count + (productListingAudienceValues(product).includes(target) ? 1 : 0), 0);
 };
 const applyCatalogFilters = (products = [], filters = {}, ignore = []) => {
   const ignoreSet = new Set(Array.isArray(ignore) ? ignore : [ignore].filter(Boolean));
-  const selectedGender = normalizeAudienceValue(filters.gender);
+  const selectedGender = normalizeStorefrontAudienceValue(filters.gender);
   const selectedCategory = normalizeFilterKey(filters.category);
   const selectedBrand = normalizeFilterKey(filters.brand);
   const selectedProductType = normalizeFilterKey(filters.productType);
@@ -149,7 +179,7 @@ const applyCatalogFilters = (products = [], filters = {}, ignore = []) => {
     if (lastSizesOnly && !isLastPieceProduct(product)) return false;
     if (inStockOnly && productFacetStock(product) <= 0) return false;
 
-    if (!ignoreSet.has("gender") && selectedGender && !productAudienceValues(product).includes(selectedGender)) return false;
+    if (!ignoreSet.has("gender") && selectedGender && !productListingAudienceValues(product).includes(selectedGender)) return false;
     if (!ignoreSet.has("category") && selectedCategory) {
       const categoryValues = productFacetCategoryValues(product).map(normalizeFilterKey);
       if (!categoryValues.includes(selectedCategory)) return false;
@@ -193,7 +223,8 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   const q = params.get("q") || "";
   const category = params.get("category") || "";
   const brand = params.get("brand") || "";
-  const gender = params.get("gender") || "";
+  const genderParam = params.get("gender") || "";
+  const gender = normalizeStorefrontAudienceValue(genderParam) || genderParam;
   const size = params.get("size") || "";
   const selectedSizes = useMemo(() => readMultiQueryValues(params, ["size", "sizes"]), [params]);
   const inStock = params.get("inStock") || "";
@@ -388,12 +419,13 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   };
 
   const selectGender = (value) => {
-    setSelectedGender(value);
+    const normalizedGender = normalizeStorefrontAudienceValue(value) || normalizeFilterText(value);
+    setSelectedGender(normalizedGender);
     setSelectedProductType("");
     setSelectedSize("");
     setCurrentStep("productType");
     const next = new URLSearchParams();
-    if (value) next.set("gender", value);
+    if (normalizedGender) next.set("gender", normalizedGender);
     navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`);
     scrollToStep("productType");
   };
@@ -426,7 +458,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     scrollToStep("productType");
   };
   const guidedGenderProducts = useMemo(
-    () => catalogProducts.filter((product) => !selectedGender || productAudienceValues(product).includes(normalizeAudienceValue(selectedGender))),
+    () => catalogProducts.filter((product) => !selectedGender || productListingAudienceValues(product).includes(normalizeStorefrontAudienceValue(selectedGender))),
     [catalogProducts, selectedGender]
   );
   const productTypeOptions = useMemo(() => {
@@ -441,11 +473,11 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     return filtered.length ? filtered : options;
   }, [classificationOptions.productType, guidedGenderProducts, selectedGender]);
   const guidedGridProducts = useMemo(() => {
-    const genderValue = normalizeAudienceValue(selectedGender);
+    const genderValue = normalizeStorefrontAudienceValue(selectedGender);
     const typeValue = String(selectedProductType || "").trim().toLowerCase();
     return catalogProducts.filter((product) => {
       const productTypeValue = String(product.product_type || product.productType || product.category || "").trim().toLowerCase();
-      const genderOk = !genderValue || productAudienceValues(product).includes(genderValue);
+      const genderOk = !genderValue || productListingAudienceValues(product).includes(genderValue);
       const typeOk = !typeValue || productTypeValue === typeValue;
       return genderOk && typeOk;
     });
@@ -461,7 +493,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   );
 
   if (isGuidedCategoryFlow) {
-    const selectedGenderOption = genderOptions.find((option) => String(option.value) === String(selectedGender));
+    const selectedGenderOption = genderOptions.find((option) => normalizeStorefrontAudienceValue(option.value) === normalizeStorefrontAudienceValue(selectedGender));
     const selectedProductTypeOption = productTypeOptions.find((option) => String(option.value) === String(selectedProductType));
     return (
       <section className="mx-auto max-w-7xl px-3 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.75rem)] pt-3 md:px-4 md:py-5">
