@@ -4042,7 +4042,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
   return (
     <header
       data-compact={!compactDisabled && isCompact ? "true" : "false"}
-      className="sf-luxury-header sticky top-0 z-40 border-b border-stone-200/70 bg-[#fcfaf6]/88 shadow-[0_16px_48px_rgba(39,20,75,0.07)] backdrop-blur-2xl transition-all duration-300 dark:border-white/10 dark:bg-[#090d18]/92 dark:shadow-[0_16px_48px_rgba(0,0,0,0.28)]"
+      className="sf-luxury-header sticky top-0 z-40 bg-transparent shadow-none backdrop-blur-2xl transition-all duration-300 dark:bg-transparent"
     >
       <div className="sf-announcement-row sf-header-announcement overflow-hidden bg-[linear-gradient(105deg,#09090b,#1c1917_42%,#312e81)] text-white/90 backdrop-blur transition-all duration-300">
         <div className="mx-auto flex h-10 w-full max-w-7xl items-center justify-center px-4">
