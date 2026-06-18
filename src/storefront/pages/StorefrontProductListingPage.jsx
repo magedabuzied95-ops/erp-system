@@ -534,7 +534,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   );
   const showEmptyResults = !loading && !filteredProducts.length;
   const isTypeOnlyGuidedFlow = Boolean(selectedProductType) && !selectedGender && !category && !brand && !saleView && !lastSizes && !size && !inStock && !quality && !grade && !sort;
-  const showGuidedProducts = Boolean(selectedGender && selectedProductType && selectedSize);
+  const showGuidedProducts = Boolean(selectedGender && selectedProductType);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -647,7 +647,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
           </div>
           <GuidedSizeFilter sizes={guidedAvailableSizes} selectedSize={selectedSize} onSelect={setSelectedSize} disabled={!selectedProductType} />
           {error ? <EmptyState title={t("storefront.errors.simpleProblem", "Something went wrong")} text={t("storefront.errors.tryAgainOrWhatsapp", "Try again or contact us on WhatsApp")} /> : null}
-          {selectedGender && selectedProductType && selectedSize ? (
+          {showGuidedProducts ? (
             <ProductGrid
               products={orderedGuidedProducts}
               loading={loading}
@@ -656,7 +656,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
               onAddToCart={onAddToCart}
             />
           ) : null}
-          {!loading && selectedProductType && selectedSize && !orderedGuidedProducts.length ? (
+          {showGuidedProducts && !loading && !orderedGuidedProducts.length ? (
             <EmptyState title={t("storefront.products.noProductsForSize", "لا توجد منتجات لهذا المقاس حالياً. جرّب مقاساً آخر.")} text={selectedSize ? t("storefront.products.pickDifferentSize", "اختر مقاساً آخر من الأعلى") : t("storefront.products.tryDifferentProductType", "جرّب نوع منتج آخر")} />
           ) : null}
         </section>
