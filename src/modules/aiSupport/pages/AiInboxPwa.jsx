@@ -38,6 +38,32 @@ const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
 const money = (value) => formatCurrency(Number(value || 0));
 const normalizeKey = (value = "") => clean(value).toLowerCase();
+const normalizeValidationSummary = (value = {}) => {
+  const validation = value && typeof value === "object" ? value : {};
+  const violations = asArray(validation.violations || validation.issues || []);
+  const warnings = asArray(validation.warnings || []);
+  const violationsCount = Number(validation.violations_count ?? validation.violationsCount ?? violations.length ?? 0) || 0;
+  const warningsCount = Number(validation.warnings_count ?? validation.warningsCount ?? warnings.length ?? 0) || 0;
+  const confidence = Number(validation.confidence ?? validation.confidence_pct ?? 0);
+  const confidencePercent = Number.isFinite(confidence) ? Math.max(0, Math.min(100, confidence <= 1 ? confidence * 100 : confidence)) : 0;
+  const hasErrors = violations.some((item) => clean(item?.severity || "").toLowerCase() === "error");
+  const status =
+    clean(validation.status || validation.state || "") ||
+    (violationsCount > 0 ? (hasErrors ? "خطر / تحقق قبل الإرسال" : "يحتاج مراجعة") : warningsCount > 0 ? "يحتاج مراجعة" : "آمن");
+  const details = [
+    ...violations.slice(0, 3).map((item) => clean(item?.message || item?.type || item)),
+    ...warnings.slice(0, 3).map((item) => clean(item?.message || item?.type || item)),
+  ].filter(Boolean).slice(0, 3);
+  return {
+    confidencePercent,
+    violationsCount,
+    warningsCount,
+    status,
+    details,
+    violations,
+    warnings,
+  };
+};
 
 const getVariantRows = (product = {}) => [
   ...(Array.isArray(product.variants) ? product.variants : []),
@@ -1696,6 +1722,15 @@ export default function AiInboxPwa() {
     () => selectedConversation?.ai_reply_draft || selectedConversation?.last_ai_reply_draft || null,
     [selectedConversation?.ai_reply_draft, selectedConversation?.last_ai_reply_draft]
   );
+  const activeAiReplyValidation = useMemo(
+    () => normalizeValidationSummary(
+      selectedConversation?.last_ai_reply_validation ||
+      activeAiReplyDraft?.validation ||
+      activeAiReplyDraft?.metadata?.validation ||
+      {}
+    ),
+    [activeAiReplyDraft?.metadata?.validation, activeAiReplyDraft?.validation, selectedConversation?.last_ai_reply_validation]
+  );
 
   useEffect(() => {
     const draftText = clean(activeAiReplyDraft?.text || "");
@@ -1879,6 +1914,16 @@ export default function AiInboxPwa() {
     const message = clean(composerText);
     if (!selectedConversation?.session_id || !message) return;
     const activeDraft = selectedConversation?.ai_reply_draft || selectedConversation?.last_ai_reply_draft || null;
+    const validationState = normalizeValidationSummary(
+      selectedConversation?.last_ai_reply_validation ||
+      activeDraft?.validation ||
+      activeDraft?.metadata?.validation ||
+      {}
+    );
+    if (composerMode !== "note" && validationState.violationsCount > 0) {
+      const confirmed = window.confirm("الرد عليه تحذيرات، هل تريد الإرسال؟");
+      if (!confirmed) return;
+    }
     setSending(true);
     try {
       const payload =
@@ -2617,6 +2662,18 @@ export default function AiInboxPwa() {
                   Internal note mode
                 </div>
               ) : null}
+              {Boolean(activeAiReplyValidation.violationsCount || activeAiReplyValidation.warningsCount || activeAiReplyValidation.details.length) ? (
+                <div className={`mb-2 rounded-2xl border px-3 py-2 text-[11px] leading-5 ${activeAiReplyValidation.violationsCount > 0 ? "border-amber-300/40 bg-amber-50 text-amber-900" : activeAiReplyValidation.warningsCount > 0 ? "border-slate-200 bg-slate-50 text-slate-700" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-[0.14em]">AI draft validation</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${activeAiReplyValidation.violationsCount > 0 ? "bg-amber-200 text-amber-950" : activeAiReplyValidation.warningsCount > 0 ? "bg-slate-200 text-slate-800" : "bg-emerald-200 text-emerald-950"}`}>{activeAiReplyValidation.status}</span>
+                    <span className="font-black">{activeAiReplyValidation.confidencePercent.toFixed(0)}%</span>
+                    <span className="font-bold">violations {activeAiReplyValidation.violationsCount}</span>
+                    <span className="font-bold">warnings {activeAiReplyValidation.warningsCount}</span>
+                  </div>
+                  {activeAiReplyValidation.details.length ? <div className="mt-1.5 space-y-1">{activeAiReplyValidation.details.slice(0, 3).map((item) => <div key={item} className="flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-current/80" /><span>{item}</span></div>)}</div> : null}
+                </div>
+              ) : null}
               <div className="flex items-end gap-2">
                 <button
                   type="button"
@@ -2655,7 +2712,7 @@ export default function AiInboxPwa() {
                   type="button"
                   onClick={sendManualReply}
                   disabled={!clean(composerText) || sending}
-                  className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-600 text-white disabled:opacity-50"
+                  className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white disabled:opacity-50 ${composerMode !== "note" && activeAiReplyValidation.violationsCount > 0 ? "bg-amber-500" : "bg-sky-600"}`}
                   aria-label={composerMode === "note" ? "Save note" : "Send reply"}
                 >
                   {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}

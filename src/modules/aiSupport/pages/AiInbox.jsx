@@ -60,6 +60,32 @@ import { formatCurrency } from "../../../shared/lib/currency";
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const money = (value) => formatCurrency(value);
 const clean = (value = "") => String(value || "").trim();
+const normalizeValidationSummary = (value = {}) => {
+  const validation = value && typeof value === "object" ? value : {};
+  const violations = asArray(validation.violations || validation.issues || []);
+  const warnings = asArray(validation.warnings || []);
+  const violationsCount = Number(validation.violations_count ?? validation.violationsCount ?? violations.length ?? 0) || 0;
+  const warningsCount = Number(validation.warnings_count ?? validation.warningsCount ?? warnings.length ?? 0) || 0;
+  const confidence = Number(validation.confidence ?? validation.confidence_pct ?? 0);
+  const confidencePercent = Number.isFinite(confidence) ? Math.max(0, Math.min(100, confidence <= 1 ? confidence * 100 : confidence)) : 0;
+  const hasErrors = violations.some((item) => clean(item?.severity || "").toLowerCase() === "error");
+  const status =
+    clean(validation.status || validation.state || "") ||
+    (violationsCount > 0 ? (hasErrors ? "خطر / تحقق قبل الإرسال" : "يحتاج مراجعة") : warningsCount > 0 ? "يحتاج مراجعة" : "آمن");
+  const details = [
+    ...violations.slice(0, 3).map((item) => clean(item?.message || item?.type || item)),
+    ...warnings.slice(0, 3).map((item) => clean(item?.message || item?.type || item)),
+  ].filter(Boolean).slice(0, 3);
+  return {
+    confidencePercent,
+    violationsCount,
+    warningsCount,
+    status,
+    details,
+    violations,
+    warnings,
+  };
+};
 const normalizeProductCardsValue = (value) => {
   if (Array.isArray(value)) return value;
   if (typeof value === "string") {
@@ -1310,13 +1336,29 @@ function CommentReplyDraftPanel({ draftText = "", onLoadDraft, onCopyDraft, load
   );
 }
 
-function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraft, onOpenProductPicker, onLoadDraft, onCopyDraft, commentDraftText = "", isCommentConversation = false, loading }) {
+function ManualReplyComposer({
+  conversation,
+  value,
+  onChange,
+  onSend,
+  onSaveDraft,
+  onOpenProductPicker,
+  onLoadDraft,
+  onCopyDraft,
+  commentDraftText = "",
+  isCommentConversation = false,
+  loading,
+  validationSummary = null,
+}) {
   if (!conversation) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
   const canSendLive = conversation.live_sending_available === true || isCommentConversation;
   const submitLabel = isCommentConversation ? "إرسال الرد" : "Send now";
   const submitTitle = isCommentConversation ? "إرسال رد علني على الكومنت" : "Send now through Meta";
   const textareaRef = useRef(null);
+  const normalizedValidation = normalizeValidationSummary(validationSummary || {});
+  const hasValidation = Boolean(normalizedValidation.violationsCount || normalizedValidation.warningsCount || normalizedValidation.details.length);
+  const validationTone = normalizedValidation.violationsCount > 0 ? "amber" : normalizedValidation.warningsCount > 0 ? "zinc" : "emerald";
   const submit = () => {
     if (clean(value)) onSend();
   };
@@ -1348,6 +1390,20 @@ function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraf
         )}
       </div>
       {status !== "human_takeover" && canSendLive && !isCommentConversation ? <div className="mb-1.5 rounded-xl border border-cyan-300/15 bg-cyan-300/8 px-2 py-1 text-[10px] font-bold leading-4 text-cyan-100">Sending a staff reply will take over this conversation and pause AI automation.</div> : null}
+      {hasValidation ? (
+        <div className={`mb-1.5 rounded-2xl border px-3 py-2 text-[11px] leading-5 ${validationTone === "amber" ? "border-amber-300/25 bg-amber-400/10 text-amber-50" : validationTone === "zinc" ? "border-white/10 bg-white/[0.045] text-slate-200" : "border-emerald-300/20 bg-emerald-400/10 text-emerald-50"}`}>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-black uppercase tracking-[0.14em] text-inherit">AI draft validation</span>
+            <Pill tone={validationTone === "amber" ? "amber" : validationTone === "zinc" ? "zinc" : "emerald"} className="px-2 py-0.5 text-[10px]">
+              {normalizedValidation.status}
+            </Pill>
+            <span className="font-black">{normalizedValidation.confidencePercent.toFixed(0)}%</span>
+            <span className="font-bold">violations {normalizedValidation.violationsCount}</span>
+            <span className="font-bold">warnings {normalizedValidation.warningsCount}</span>
+          </div>
+          {normalizedValidation.details.length ? <div className="mt-1.5 space-y-1">{normalizedValidation.details.slice(0, 3).map((item) => <div key={item} className="flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-current/80" /><span>{item}</span></div>)}</div> : null}
+        </div>
+      ) : null}
       {isCommentConversation ? (
         <div className="mb-1.5">
           <CommentReplyDraftPanel
@@ -1380,10 +1436,10 @@ function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraf
             placeholder={canSendLive ? "اكتب رد العميل..." : "Write an internal note. It will not be sent to Meta yet."}
             className="min-h-10 min-w-0 flex-1 resize-none overflow-hidden border-0 bg-transparent px-1 py-1 text-[14px] font-bold leading-6 text-white outline-none placeholder:text-slate-600"
           />
-          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className="inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-emerald-300 px-2.5 text-[10px] font-black text-slate-950 disabled:opacity-50 sm:hidden">{loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}{submitLabel}</button>
+          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className={`inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-xl px-2.5 text-[10px] font-black text-slate-950 disabled:opacity-50 sm:hidden ${normalizedValidation.violationsCount > 0 ? "bg-amber-300" : "bg-emerald-300"}`}>{loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}{submitLabel}</button>
         </div>
         <div className="flex items-center justify-end gap-1.5">
-          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className="hidden h-7 items-center justify-center gap-1.5 rounded-xl bg-emerald-300 px-2.5 text-[10px] font-black text-slate-950 disabled:opacity-50 sm:inline-flex">{loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}{submitLabel}</button>
+          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className={`hidden h-7 items-center justify-center gap-1.5 rounded-xl px-2.5 text-[10px] font-black text-slate-950 disabled:opacity-50 sm:inline-flex ${normalizedValidation.violationsCount > 0 ? "bg-amber-300" : "bg-emerald-300"}`}>{loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}{submitLabel}</button>
           <button
             type="button"
             onClick={() => onOpenProductPicker?.()}
@@ -1419,7 +1475,7 @@ function ManualReplyComposer({ conversation, value, onChange, onSend, onSaveDraf
                 إرسال منتج
               </button>
               <button type="button" onClick={onSaveDraft} disabled={loading || !clean(value)} className="mt-1 inline-flex h-8 w-full items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-2.5 text-[10px] font-black text-slate-100 disabled:opacity-50">Save draft</button>
-              <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} className="mt-1 inline-flex h-8 w-full items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[10px] font-black text-cyan-100 disabled:opacity-50">Approve AI reply</button>
+              <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} className={`mt-1 inline-flex h-8 w-full items-center justify-center rounded-xl px-2.5 text-[10px] font-black disabled:opacity-50 ${normalizedValidation.violationsCount > 0 ? "border border-amber-300/30 bg-amber-300 text-slate-950" : "border border-cyan-300/20 bg-cyan-300/10 text-cyan-100"}`}>Approve AI reply</button>
             </div>
           </details>
         </div>
@@ -2591,7 +2647,7 @@ export default function AiInbox() {
   const [employees, setEmployees] = useState([]);
   const [recommendations, setRecommendations] = useState({ sessionId: "", products: [], intelligence: null, loading: false });
   const [salesCloser, setSalesCloser] = useState({ sessionId: "", plan: {}, loading: false });
-  const [aiReply, setAiReply] = useState({ sessionId: "", text: "", loading: false, error: "" });
+  const [aiReply, setAiReply] = useState({ sessionId: "", text: "", loading: false, error: "", validation: null });
   const [modeSaving, setModeSaving] = useState(false);
   const [unseenSessions, setUnseenSessions] = useState([]);
   const [toolsTab, setToolsTab] = useState("customer");
@@ -2953,6 +3009,16 @@ export default function AiInbox() {
     () => selectedConversation?.ai_reply_draft || selectedConversation?.last_ai_reply_draft || null,
     [selectedConversation?.ai_reply_draft, selectedConversation?.last_ai_reply_draft]
   );
+  const activeAiReplyValidation = useMemo(
+    () => normalizeValidationSummary(
+      aiReply.validation ||
+      selectedConversation?.last_ai_reply_validation ||
+      activeAiReplyDraft?.validation ||
+      activeAiReplyDraft?.metadata?.validation ||
+      {}
+    ),
+    [activeAiReplyDraft?.metadata?.validation, activeAiReplyDraft?.validation, aiReply.validation, selectedConversation?.last_ai_reply_validation]
+  );
   const lastCustomerMessage = useMemo(
     () => latestCustomerText(selectedConversation?.messages),
     [selectedConversation?.messages]
@@ -3030,8 +3096,17 @@ export default function AiInbox() {
     if (!draftText) return;
     setAiReply((current) => (
       current.sessionId === selectedConversation.session_id && current.text === draftText
-        ? current
-        : { sessionId: selectedConversation.session_id, text: draftText, loading: false, error: "" }
+        ? {
+            ...current,
+            validation: current.validation || activeAiReplyDraft?.validation || activeAiReplyDraft?.metadata?.validation || null,
+          }
+        : {
+            sessionId: selectedConversation.session_id,
+            text: draftText,
+            loading: false,
+            error: "",
+            validation: activeAiReplyDraft?.validation || activeAiReplyDraft?.metadata?.validation || null,
+          }
     ));
     setReplyText((current) => (clean(current) ? current : draftText));
   }, [activeAiReplyDraft?.text, selectedConversation?.session_id]);
@@ -3512,6 +3587,17 @@ export default function AiInbox() {
     const sessionId = selectedConversation?.session_id;
     const conversationIdentifier = selectedConversation.conversation_key || sessionId;
     const activeDraft = selectedConversation?.ai_reply_draft || selectedConversation?.last_ai_reply_draft || null;
+    const validationState = normalizeValidationSummary(
+      aiReply.validation ||
+      selectedConversation?.last_ai_reply_validation ||
+      activeDraft?.validation ||
+      activeDraft?.metadata?.validation ||
+      {}
+    );
+    if (validationState.violationsCount > 0) {
+      const confirmed = window.confirm("الرد عليه تحذيرات، هل تريد الإرسال؟");
+      if (!confirmed) return;
+    }
     const now = new Date().toISOString();
     const optimistic = {
       id: `sending-${Date.now()}`,
@@ -3838,25 +3924,27 @@ export default function AiInbox() {
     if (!selectedConversation?.session_id) return;
     const sessionId = selectedConversation?.session_id;
     const conversationIdentifier = selectedConversation.conversation_key || sessionId;
-    setAiReply({ sessionId, text: "", loading: true, error: "" });
+    setAiReply({ sessionId, text: "", loading: true, error: "", validation: null });
     try {
       const payload = await api.post(aiInboxConversationEndpoint(sessionId, "/ai-reply"), { tenant_id: tenantId, persist }, { headers, perfComponent: "AiInbox.generateAiReply" });
       const aiReplyDraft = payload.ai_reply_draft || payload.draft || payload.suggestion || null;
       const textValue = clean(aiReplyDraft?.text || payload.reply?.answer || payload.text || "");
+      const validation = normalizeValidationSummary(payload.validation || aiReplyDraft?.validation || payload.reply?.validation || {});
       setReplyText(textValue);
       window.setTimeout(() => {
-        setAiReply({ sessionId, text: textValue, loading: false, error: "" });
+        setAiReply({ sessionId, text: textValue, loading: false, error: "", validation });
       }, 450);
       if (aiReplyDraft) {
         patchConversation(conversationIdentifier, (conversation) => ({
           ...conversation,
           ai_reply_draft: aiReplyDraft,
           last_ai_reply_draft: aiReplyDraft,
+          last_ai_reply_validation: payload.validation || aiReplyDraft.validation || aiReplyDraft.metadata?.validation || null,
           last_ai_reply_draft_updated_at: aiReplyDraft.updated_at || new Date().toISOString(),
         }));
       }
     } catch (err) {
-      setAiReply({ sessionId, text: "", loading: false, error: err?.message || "تعذر إنشاء رد الذكاء الاصطناعي" });
+      setAiReply({ sessionId, text: "", loading: false, error: err?.message || "تعذر إنشاء رد الذكاء الاصطناعي", validation: null });
     }
   };
 
@@ -4315,6 +4403,7 @@ export default function AiInbox() {
                         commentDraftText={latestCommentReplyDraft}
                         isCommentConversation={isCommentConversation(selectedConversation || {})}
                         loading={loading || productCardSending}
+                        validationSummary={activeAiReplyValidation}
                       />
                     </div>
                   </div>
@@ -4705,6 +4794,7 @@ export default function AiInbox() {
                         commentDraftText={latestCommentReplyDraft}
                         isCommentConversation={isCommentConversation(selectedConversation || {})}
                         loading={loading}
+                        validationSummary={activeAiReplyValidation}
                       />
                     </div>
                     <div className="space-y-3">
