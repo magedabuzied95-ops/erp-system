@@ -27,7 +27,6 @@ import {
   sortStorefrontColorCardsByModel,
   useBodyScrollLock,
   useProducts,
-  useStorefrontGenderClassifications,
 } from "../Storefront";
 import { useProductClassifications } from "../../modules/products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../../modules/products/lib/productClassifications";
@@ -58,6 +57,11 @@ const storefrontProductTypeQueryValue = (value = "") => {
   if (normalized === "sneaker") return "sneakers";
   return normalized;
 };
+const storefrontGenderSwitchOptions = [
+  { value: "men", label: "رجالي" },
+  { value: "women", label: "حريمي" },
+  { value: "kids", label: "أطفال" },
+];
 const normalizeStorefrontSearchTerm = (value = "") =>
   normalizeStorefrontAudienceValue(value) || normalizeFilterKey(String(value ?? "").normalize("NFKD").replace(/[\u0640\u200c\u200d\u200e\u200f]/g, "").replace(/\p{M}+/gu, ""));
 const productListingAudienceValues = (product = {}) => {
@@ -268,7 +272,6 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   const [draftFilters, setDraftFilters] = useState({ gender, product_type: productType, grade });
   useBodyScrollLock(filtersOpen);
   const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
-  const { options: storefrontGenderOptions } = useStorefrontGenderClassifications();
   const classificationOptions = useMemo(
     () => classificationGroupsToFieldOptions(classificationGroups, {}, { includeInactive: false }),
     [classificationGroups]
@@ -335,15 +338,14 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     return { min: Math.min(...prices), max: Math.max(...prices) };
   }, [filteredProductsForPrice]);
 
-  const genderOptions = useMemo(() => {
-    const baseGenderOptions = uniqueClassificationOptions((storefrontGenderOptions.length ? storefrontGenderOptions : classificationOptions.gender) || []);
-    return baseGenderOptions
-      .map((option) => {
+  const genderOptions = useMemo(
+    () =>
+      storefrontGenderSwitchOptions.map((option) => {
         const count = countAudienceMatches(filteredProductsForGender, option.value);
         return { ...option, count, product_count: count };
-      })
-      .filter((option) => option.count > 0 || normalizeFilterKey(option.value) === normalizeFilterKey(gender));
-  }, [classificationOptions.gender, filteredProductsForGender, gender, storefrontGenderOptions]);
+      }),
+    [filteredProductsForGender]
+  );
   const categoryOptions = useMemo(() => buildFacetOptions(filteredProductsForCategory, productFacetCategoryValues, category), [category, filteredProductsForCategory]);
   const brandOptions = useMemo(() => buildFacetOptions(filteredProductsForBrand, productFacetBrandValues, brand), [brand, filteredProductsForBrand]);
   const gradeOptions = useMemo(() => buildFacetOptions(filteredProductsForGrade, productFacetQualityValues, grade), [filteredProductsForGrade, grade]);
@@ -507,12 +509,11 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     return filtered.length ? filtered : options;
   }, [classificationOptions.productType, guidedGenderProducts, selectedGender]);
   const guidedGenderOptions = useMemo(() => {
-    const baseGenderOptions = uniqueClassificationOptions((storefrontGenderOptions.length ? storefrontGenderOptions : classificationOptions.gender) || []);
-    return baseGenderOptions.map((option) => {
+    return storefrontGenderSwitchOptions.map((option) => {
       const count = countAudienceMatches(guidedTypeProducts, option.value);
       return { ...option, count, product_count: count };
     });
-  }, [classificationOptions.gender, guidedTypeProducts, storefrontGenderOptions]);
+  }, [guidedTypeProducts]);
   const guidedGridProducts = useMemo(() => {
     const genderValue = normalizeStorefrontAudienceValue(selectedGender);
     const typeValue = normalizeStorefrontProductTypeValue(selectedProductType);
