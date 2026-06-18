@@ -1,7 +1,7 @@
 import db from "../database/db.js";
-import crypto from "node:crypto";
 
 import { repairCorruptedArabicValue } from "../utils/arabicTextRepair.js";
+import { normalizeWhatsappPhone, normalizeWhatsappSessionId as normalizeCanonicalWhatsappSessionId } from "../utils/whatsappIdentity.js";
 
 let schemaReadyPromise = null;
 
@@ -148,9 +148,10 @@ const incrementAliasUsage = async ({ tenantId, aliases = [], confidence = 0 } = 
   }
 };
 
-const buildOutboundTranscriptDedupeKey = ({
+const buildOutboundTranscriptIdentityKey = ({
   tenantId,
   sessionId,
+  direction = "outbound",
   channel,
   senderType,
   messageType,
@@ -164,47 +165,25 @@ const buildOutboundTranscriptDedupeKey = ({
   resolvedReplyJid,
   resolvedPhone,
   externalReplyId,
+  clientRequestId,
+  idempotencyKey,
   sourcePath,
   insertSource,
   productCards = [],
-  timestamp = new Date().toISOString(),
 } = {}) => {
-  const providerKey = toText(providerMessageId || externalMessageId);
-  if (providerKey) return providerKey;
-  const minuteBucket = Math.floor(new Date(timestamp || Date.now()).getTime() / 60000);
-  const cardKey = asArray(productCards)
-    .map((card) =>
-      [
-        toText(card?.product_id || card?.id || ""),
-        toText(card?.variant_id || card?.selected_variant_id || card?.matched_variant_id || ""),
-        toText(card?.color || card?.color_name || card?.matched_variant_color || ""),
-        toText(card?.image_url || card?.image || card?.main_image || ""),
-      ].join(":")
-    )
-    .join("|");
-  const payload = [
+  const canonicalSessionId = normalizeCanonicalWhatsappSessionId(sessionId, resolvedPhone || remoteJid || externalMessageId || providerMessageId || "");
+  const stableRequestKey = toText(clientRequestId || idempotencyKey || providerMessageId || externalMessageId || externalReplyId);
+  if (!tenantId || !canonicalSessionId || !stableRequestKey) return "";
+  return [
+    "msg",
     tenantId,
-    sessionId,
-    channel,
-    senderType,
-    messageType,
-    repairText(message),
-    deliveryStatus,
-    deliveryError,
-    whatsappInstance,
-    remoteJid,
-    resolvedReplyJid,
-    resolvedPhone,
-    externalReplyId,
-    sourcePath,
-    insertSource,
-    minuteBucket,
-    cardKey,
-  ]
-    .map((item) => toText(item))
-    .join("|");
-  return `dedupe:${crypto.createHash("sha1").update(payload).digest("hex")}`;
+    canonicalSessionId,
+    toText(direction || "outbound"),
+    stableRequestKey,
+  ].join("|");
 };
+
+const buildOutboundTranscriptDedupeKey = (args = {}) => buildOutboundTranscriptIdentityKey(args);
 
 const persistOutboundTranscriptRow = async ({
   tenantId,
@@ -223,6 +202,8 @@ const persistOutboundTranscriptRow = async ({
   errorCode = "",
   externalMessageId = "",
   providerMessageId = "",
+  clientRequestId = "",
+  idempotencyKey = "",
   whatsappInstance = "",
   remoteJid = "",
   resolvedReplyJid = "",
@@ -246,8 +227,10 @@ const persistOutboundTranscriptRow = async ({
   staffMessage = "",
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
-  const safeSessionId = toText(sessionId);
   const safeChannel = toText(channel || "web_chat");
+  const safeSessionId = safeChannel === "whatsapp"
+    ? normalizeCanonicalWhatsappSessionId(sessionId, resolvedPhone || remoteJid || externalMessageId || providerMessageId)
+    : toText(sessionId);
   const safeSenderType = toText(senderType || (manualMessage ? "staff" : "ai") || "ai");
   const safeMessageType = toText(messageType || "text") || "text";
   const safeMessage = preserveExactMessage ? String(message ?? answer ?? staffMessage ?? "") : repairText(message || answer || staffMessage);
@@ -259,6 +242,8 @@ const persistOutboundTranscriptRow = async ({
   const safeSuggestedActions = Array.isArray(suggestedActions) ? suggestedActions : [];
   const safeExternalMessageId = toText(externalMessageId || providerMessageId);
   const safeProviderMessageId = toText(providerMessageId || externalMessageId);
+  const safeClientRequestId = toText(clientRequestId || idempotencyKey || externalReplyId);
+  const safeIdempotencyKey = toText(idempotencyKey || clientRequestId);
   const safeExternalReplyId = toText(externalReplyId);
   const safeSourcePath = toText(sourcePath, "manual_message_insert");
   const safeInsertSource = toText(insertSource, "manual_message_insert");
@@ -266,9 +251,19 @@ const persistOutboundTranscriptRow = async ({
   const safeSessionChannel = toText(sessionChannel || safeChannel || "web_chat");
   const safeSessionCustomerName = toText(sessionCustomerName);
   const safeDetectedIntent = toText(detectedIntent);
-  const safeDedupeKey = toText(dedupeKey) || buildOutboundTranscriptDedupeKey({
+  const safeRemoteJid = safeChannel === "whatsapp"
+    ? normalizeCanonicalWhatsappSessionId(remoteJid || resolvedReplyJid || sessionId, resolvedPhone || remoteJid || sessionId)
+    : toText(remoteJid);
+  const safeResolvedReplyJid = safeChannel === "whatsapp"
+    ? normalizeCanonicalWhatsappSessionId(resolvedReplyJid || remoteJid || sessionId, resolvedPhone || resolvedReplyJid || sessionId) || safeRemoteJid
+    : toText(resolvedReplyJid);
+  const safeResolvedPhone = safeChannel === "whatsapp"
+    ? normalizeWhatsappPhone(resolvedPhone || remoteJid || sessionId)
+    : toText(resolvedPhone);
+  const safeMessageIdentityKey = buildOutboundTranscriptIdentityKey({
     tenantId: safeTenantId,
     sessionId: safeSessionId,
+    direction: "outbound",
     channel: safeChannel,
     senderType: safeSenderType,
     messageType: safeMessageType,
@@ -278,10 +273,35 @@ const persistOutboundTranscriptRow = async ({
     externalMessageId: safeExternalMessageId,
     providerMessageId: safeProviderMessageId,
     whatsappInstance,
-    remoteJid,
-    resolvedReplyJid,
-    resolvedPhone,
+    remoteJid: safeRemoteJid,
+    resolvedReplyJid: safeResolvedReplyJid,
+    resolvedPhone: safeResolvedPhone,
     externalReplyId: safeExternalReplyId,
+    clientRequestId: safeClientRequestId,
+    idempotencyKey: safeIdempotencyKey,
+    sourcePath: safeSourcePath,
+    insertSource: safeInsertSource,
+    productCards: safeProductCards,
+  });
+  const safeDedupeKey = toText(dedupeKey) || buildOutboundTranscriptDedupeKey({
+    tenantId: safeTenantId,
+    sessionId: safeSessionId,
+    direction: "outbound",
+    channel: safeChannel,
+    senderType: safeSenderType,
+    messageType: safeMessageType,
+    message: safeMessage || safeStaffMessage || safeAnswer,
+    deliveryStatus,
+    deliveryError,
+    externalMessageId: safeExternalMessageId,
+    providerMessageId: safeProviderMessageId,
+    whatsappInstance,
+    remoteJid: safeRemoteJid,
+    resolvedReplyJid: safeResolvedReplyJid,
+    resolvedPhone: safeResolvedPhone,
+    externalReplyId: safeExternalReplyId,
+    clientRequestId: safeClientRequestId,
+    idempotencyKey: safeIdempotencyKey,
     sourcePath: safeSourcePath,
     insertSource: safeInsertSource,
     productCards: safeProductCards,
@@ -369,6 +389,9 @@ const persistOutboundTranscriptRow = async ({
     toText(errorCode),
     safeExternalMessageId,
     safeProviderMessageId,
+    safeClientRequestId,
+    safeMessageIdentityKey,
+    safeIdempotencyKey,
     toText(whatsappInstance),
     toText(remoteJid),
     toText(resolvedReplyJid),
@@ -408,6 +431,9 @@ const persistOutboundTranscriptRow = async ({
     error_code,
     external_message_id,
     provider_message_id,
+    client_request_id,
+    message_identity_key,
+    idempotency_key,
     whatsapp_instance,
     remote_jid,
     resolved_reply_jid,
@@ -449,15 +475,18 @@ const persistOutboundTranscriptRow = async ({
       error_code = $26,
       external_message_id = $27,
       provider_message_id = $28,
-      whatsapp_instance = $29,
-      remote_jid = $30,
-      resolved_reply_jid = $31,
-      resolved_phone = $32,
-      external_reply_id = $33,
-      message_type = $34,
-      product_cards = $35::jsonb,
-      dedupe_key = $36,
-      insert_source = $37,
+      client_request_id = $29,
+      message_identity_key = $30,
+      idempotency_key = $31,
+      whatsapp_instance = $32,
+      remote_jid = $33,
+      resolved_reply_jid = $34,
+      resolved_phone = $35,
+      external_reply_id = $36,
+      message_type = $37,
+      product_cards = $38::jsonb,
+      dedupe_key = $39,
+      insert_source = $40,
       updated_at = NOW()
     WHERE id = $1::bigint
     RETURNING *
@@ -479,6 +508,25 @@ const persistOutboundTranscriptRow = async ({
     );
     if (existingProvider.rows[0]?.id) {
       const updated = await db.query(updateSql, [existingProvider.rows[0].id, ...values]);
+      return updated.rows[0] || null;
+    }
+  }
+
+  if (safeMessageIdentityKey) {
+    const existingIdentity = await db.query(
+      `
+      SELECT id
+      FROM ai_support_messages
+      WHERE tenant_id = $1
+        AND session_id = $2
+        AND message_identity_key = $3
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+      `,
+      [safeTenantId, safeSessionId, safeMessageIdentityKey]
+    );
+    if (existingIdentity.rows[0]?.id) {
+      const updated = await db.query(updateSql, [existingIdentity.rows[0].id, ...values]);
       return updated.rows[0] || null;
     }
   }
@@ -507,7 +555,7 @@ const persistOutboundTranscriptRow = async ({
     inserted = await db.query(
       `
       INSERT INTO ai_support_messages (${baseColumns})
-      VALUES ($1::bigint, $2::bigint, $3::bigint, $4::text, $5::text, $6::text, $7::text, $8::numeric, $9::boolean, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, $14::text, $15::text, $16::text, $17::text, $18::boolean, $19::bigint, $20::text, $21::text, $22::text, $23::text, $24::text, $25::text, $26::text, $27::text, $28::text, $29::text, $30::text, $31::text, $32::text, $33::text, $34::jsonb, $35::text, $36::text)
+      VALUES ($1::bigint, $2::bigint, $3::bigint, $4::text, $5::text, $6::text, $7::text, $8::numeric, $9::boolean, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, $14::text, $15::text, $16::text, $17::text, $18::boolean, $19::bigint, $20::text, $21::text, $22::text, $23::text, $24::text, $25::text, $26::text, $27::text, $28::text, $29::text, $30::text, $31::text, $32::text, $33::text, $34::text, $35::text, $36::text, $37::jsonb, $38::text, $39::text)
       ON CONFLICT DO NOTHING
       RETURNING *
       `,
@@ -688,6 +736,9 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS staff_user_name TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS external_message_id TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS dedupe_key TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS client_request_id TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS message_identity_key TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS idempotency_key TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS source_path TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS provider_message_id TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS whatsapp_instance TEXT NOT NULL DEFAULT ''`);
@@ -700,6 +751,46 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS error_code TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS clicked_product_id BIGINT NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS added_to_cart_after_chat BOOLEAN NULL`);
+      await clientOrPool.query(`
+        UPDATE ai_support_sessions
+        SET session_id = CASE
+          WHEN NULLIF(regexp_replace(regexp_replace(lower(session_id), '^whatsapp:', ''), '\D', '', 'g'), '') IS NOT NULL
+            THEN 'whatsapp:' || NULLIF(regexp_replace(regexp_replace(lower(session_id), '^whatsapp:', ''), '\D', '', 'g'), '')
+          ELSE session_id
+        END
+        WHERE lower(channel) = 'whatsapp'
+          AND COALESCE(session_id, '') <> ''
+          AND session_id !~ '^whatsapp:[0-9]+$'
+      `);
+      await clientOrPool.query(`
+        UPDATE ai_channel_conversations
+        SET external_conversation_id = CASE
+          WHEN NULLIF(regexp_replace(regexp_replace(lower(external_conversation_id), '^whatsapp:', ''), '\D', '', 'g'), '') IS NOT NULL
+            THEN 'whatsapp:' || NULLIF(regexp_replace(regexp_replace(lower(external_conversation_id), '^whatsapp:', ''), '\D', '', 'g'), '')
+          ELSE external_conversation_id
+        END
+        WHERE lower(channel) = 'whatsapp'
+          AND COALESCE(external_conversation_id, '') <> ''
+          AND external_conversation_id !~ '^whatsapp:[0-9]+$'
+      `);
+      await clientOrPool.query(`UPDATE ai_support_messages SET client_request_id = COALESCE(NULLIF(client_request_id, ''), NULLIF(external_reply_id, '')) WHERE COALESCE(NULLIF(client_request_id, ''), '') = '' AND COALESCE(NULLIF(external_reply_id, ''), '') <> ''`);
+      await clientOrPool.query(`
+        UPDATE ai_support_messages
+        SET message_identity_key = CASE
+          WHEN COALESCE(NULLIF(message_identity_key, ''), '') <> '' THEN message_identity_key
+          WHEN COALESCE(NULLIF(client_request_id, ''), '') <> '' THEN 'msg:' || tenant_id::text || '|' || session_id || '|' || COALESCE(NULLIF(sender_type, ''), 'outbound') || '|' || client_request_id
+          WHEN COALESCE(NULLIF(provider_message_id, ''), '') <> '' THEN 'msg:' || tenant_id::text || '|' || session_id || '|' || COALESCE(NULLIF(sender_type, ''), 'outbound') || '|' || provider_message_id
+          WHEN COALESCE(NULLIF(external_message_id, ''), '') <> '' THEN 'msg:' || tenant_id::text || '|' || session_id || '|' || COALESCE(NULLIF(sender_type, ''), 'outbound') || '|' || external_message_id
+          ELSE ''
+        END,
+        idempotency_key = CASE
+          WHEN COALESCE(NULLIF(idempotency_key, ''), '') <> '' THEN idempotency_key
+          WHEN COALESCE(NULLIF(client_request_id, ''), '') <> '' THEN client_request_id
+          WHEN COALESCE(NULLIF(provider_message_id, ''), '') <> '' THEN provider_message_id
+          WHEN COALESCE(NULLIF(external_message_id, ''), '') <> '' THEN external_message_id
+          ELSE ''
+        END
+      `);
       await clientOrPool.query(`
         CREATE TABLE IF NOT EXISTS ai_inbound_ai_reply_locks (
           id BIGSERIAL PRIMARY KEY,
@@ -753,6 +844,9 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_support_messages_tenant_human ON ai_support_messages (tenant_id, needs_human_support, created_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_support_messages_tenant_confidence ON ai_support_messages (tenant_id, confidence, created_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_support_messages_tenant_clicked ON ai_support_messages (tenant_id, clicked_product_id, created_at DESC)`);
+      await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_support_messages_provider_message_id_session ON ai_support_messages (tenant_id, session_id, provider_message_id) WHERE provider_message_id <> ''`);
+      await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_support_messages_external_message_id_session ON ai_support_messages (tenant_id, session_id, external_message_id) WHERE external_message_id <> ''`);
+      await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_support_messages_identity_key ON ai_support_messages (tenant_id, session_id, message_identity_key) WHERE message_identity_key <> ''`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_inbound_ai_reply_locks_tenant_conversation ON ai_inbound_ai_reply_locks (tenant_id, conversation_id, created_at DESC)`);
       await clientOrPool.query(`
         CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_inbound_ai_reply_locks_provider_message_id
@@ -765,6 +859,24 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
         SET provider_message_id = COALESCE(NULLIF(provider_message_id, ''), NULLIF(external_message_id, ''))
         WHERE channel IN ('facebook_messenger', 'instagram')
           AND COALESCE(NULLIF(provider_message_id, ''), NULLIF(external_message_id, '')) IS NOT NULL
+      `);
+      await clientOrPool.query(`UPDATE ai_support_messages SET client_request_id = COALESCE(NULLIF(client_request_id, ''), NULLIF(external_reply_id, '')) WHERE COALESCE(NULLIF(client_request_id, ''), '') = '' AND COALESCE(NULLIF(external_reply_id, ''), '') <> ''`);
+      await clientOrPool.query(`
+        UPDATE ai_support_messages
+        SET message_identity_key = CASE
+          WHEN COALESCE(NULLIF(message_identity_key, ''), '') <> '' THEN message_identity_key
+          WHEN COALESCE(NULLIF(client_request_id, ''), '') <> '' THEN 'msg:' || tenant_id::text || '|' || session_id || '|' || COALESCE(NULLIF(sender_type, ''), 'outbound') || '|' || client_request_id
+          WHEN COALESCE(NULLIF(provider_message_id, ''), '') <> '' THEN 'msg:' || tenant_id::text || '|' || session_id || '|' || COALESCE(NULLIF(sender_type, ''), 'outbound') || '|' || provider_message_id
+          WHEN COALESCE(NULLIF(external_message_id, ''), '') <> '' THEN 'msg:' || tenant_id::text || '|' || session_id || '|' || COALESCE(NULLIF(sender_type, ''), 'outbound') || '|' || external_message_id
+          ELSE ''
+        END,
+        idempotency_key = CASE
+          WHEN COALESCE(NULLIF(idempotency_key, ''), '') <> '' THEN idempotency_key
+          WHEN COALESCE(NULLIF(client_request_id, ''), '') <> '' THEN client_request_id
+          WHEN COALESCE(NULLIF(provider_message_id, ''), '') <> '' THEN provider_message_id
+          WHEN COALESCE(NULLIF(external_message_id, ''), '') <> '' THEN external_message_id
+          ELSE ''
+        END
       `);
       await clientOrPool.query(`
         DELETE FROM ai_support_messages newer
@@ -1289,6 +1401,8 @@ export const appendManualAiSupportReply = async ({
   errorCode = "",
   externalMessageId = "",
   providerMessageId = "",
+  clientRequestId = "",
+  idempotencyKey = "",
   whatsappInstance = "",
   remoteJid = "",
   resolvedReplyJid = "",
@@ -1331,6 +1445,8 @@ export const appendManualAiSupportReply = async ({
     errorCode,
     externalMessageId,
     providerMessageId,
+    clientRequestId,
+    idempotencyKey,
     whatsappInstance,
     remoteJid,
     resolvedReplyJid,
@@ -1385,6 +1501,8 @@ export const appendAiGeneratedSupportReply = async ({
   deliveryError = "",
   externalMessageId = "",
   providerMessageId = "",
+  clientRequestId = "",
+  idempotencyKey = "",
   whatsappInstance = "",
   remoteJid = "",
   resolvedReplyJid = "",
@@ -1424,6 +1542,8 @@ export const appendAiGeneratedSupportReply = async ({
     deliveryError,
     externalMessageId,
     providerMessageId,
+    clientRequestId,
+    idempotencyKey,
     whatsappInstance,
     remoteJid,
     resolvedReplyJid,
@@ -1469,6 +1589,8 @@ export const appendWhatsappOutboundSupportReply = async ({
   errorCode = "",
   externalMessageId = "",
   providerMessageId = "",
+  clientRequestId = "",
+  idempotencyKey = "",
   whatsappInstance = "",
   remoteJid = "",
   resolvedReplyJid = "",
@@ -1502,6 +1624,8 @@ export const appendWhatsappOutboundSupportReply = async ({
   errorCode,
   externalMessageId,
   providerMessageId,
+  clientRequestId,
+  idempotencyKey,
   whatsappInstance,
   remoteJid,
   resolvedReplyJid,
@@ -1747,7 +1871,7 @@ export const updateAiSupportMessageDeliveryStatus = async ({
   insertSource = "whatsapp_webhook",
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
-  const safeSessionId = toText(sessionId);
+  const safeSessionId = normalizeCanonicalWhatsappSessionId(sessionId, resolvedPhone || remoteJid || externalMessageId || providerMessageId) || toText(sessionId);
   const safeProviderMessageId = toText(providerMessageId || externalMessageId);
   if (!safeTenantId || !safeProviderMessageId) {
     return null;
@@ -1776,7 +1900,7 @@ export const updateAiSupportMessageDeliveryStatus = async ({
         AND (
           provider_message_id = $3
           OR external_message_id = $3
-          OR ($2 <> '' AND session_id = $2)
+          OR ($2 <> '' AND session_id = $2 AND COALESCE(sender_type, '') <> 'customer')
         )
       ORDER BY CASE
         WHEN provider_message_id = $3 THEN 0

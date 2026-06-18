@@ -24,6 +24,7 @@ import {
   resolveClassificationOptionsForMessage,
 } from "./aiClassificationResolverService.js";
 import { buildWhatsappImageCardsForRequest, normalizeProductCards } from "./aiProductCards.js";
+import { normalizeWhatsappSessionId as normalizeCanonicalWhatsappSessionId } from "../utils/whatsappIdentity.js";
 import {
   appendAiGeneratedSupportReply,
   getAiSupportConversationState,
@@ -49,16 +50,7 @@ const number = (value, fallback = 0) => {
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 export const normalizeWhatsappSessionId = (sessionId = "", phone = "") => {
-  const raw = text(sessionId);
-  const phoneText = text(phone);
-  if (raw.toLowerCase().startsWith("whatsapp:")) {
-    return `whatsapp:${text(raw.slice("whatsapp:".length))}`;
-  }
-  if (raw) {
-    const base = raw.includes(":") ? text(raw.split(":").pop()) : raw;
-    return base ? `whatsapp:${base}` : raw;
-  }
-  return phoneText ? `whatsapp:${phoneText}` : "";
+  return normalizeCanonicalWhatsappSessionId(sessionId, phone);
 };
 
 const clarificationGroupLabel = (groupKey = "") => {
@@ -1693,6 +1685,7 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
     await appendAiGeneratedSupportReply({
       tenantId: safeTenantId,
       sessionId: safeSessionId,
+      clientRequestId: traceId || safeSessionId,
       answer: `WhatsApp AI generation failed: ${summary.message}`,
       confidence: 0,
       detectedIntent: "whatsapp_ai_generation_error",

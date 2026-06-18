@@ -354,7 +354,29 @@ const normalizeConversationChannel = (conversation = {}) => {
   if (key.includes("web")) return "web";
   return key || "unknown";
 };
-const conversationKey = (conversation = {}) => `${normalizeConversationChannel(conversation)}:${clean(conversation?.session_id || conversation?.conversation_id || conversation?.id)}`;
+const normalizeWhatsappSessionIdentity = (value = "", phone = "") => {
+  const candidates = [value, phone];
+  for (const candidate of candidates) {
+    const raw = clean(candidate);
+    if (!raw) continue;
+    const digits = raw
+      .replace(/^whatsapp:/i, "")
+      .replace(/@(?:s\.whatsapp\.net|lid)$/i, "")
+      .replace(/\D/g, "");
+    if (digits) {
+      if (digits.startsWith("20") && digits.length === 12) return `whatsapp:${digits}`;
+      if (digits.startsWith("0") && digits.length === 11) return `whatsapp:20${digits.slice(1)}`;
+      return `whatsapp:${digits}`;
+    }
+  }
+  return "";
+};
+const conversationKey = (conversation = {}) => {
+  const channel = normalizeConversationChannel(conversation);
+  const sessionId = clean(conversation?.session_id || conversation?.conversation_id || conversation?.id);
+  const whatsappSessionId = channel === "whatsapp" ? normalizeWhatsappSessionIdentity(sessionId, conversation?.external_customer_id || conversation?.phone || "") : "";
+  return whatsappSessionId || `${channel}:${sessionId}`;
+};
 const customerAvatarUrl = (item = {}) => {
   const source = item || {};
   return clean(
@@ -523,17 +545,46 @@ const needsHumanAttention = (conversation = {}) =>
   conversation?.conversation_status === "human_takeover" ||
   Boolean(clean(conversation?.escalation_reason || conversation?.ai_escalation_reason)) ||
   conversation?.needs_human_support === true;
+const messageIdentityKeys = (message = {}) =>
+  [
+    clean(message.message_identity_key || message.messageIdentityKey || ""),
+    clean(message.provider_message_id || message.providerMessageId || ""),
+    clean(message.external_message_id || message.externalMessageId || ""),
+    clean(message.id || ""),
+  ].filter(Boolean);
+
 const messageKey = (message = {}) =>
-  String(message.dedupe_key || message.external_message_id || message.id || `${message.sender_type || ""}:${message.created_at || ""}:${message.customer_message || message.ai_answer || message.staff_message || ""}`);
-const uniqueMessages = (messages = []) => {
-  const seen = new Set();
-  return asArray(messages).filter((message) => {
-    const key = messageKey(message);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  String(
+    message.message_identity_key ||
+      message.messageIdentityKey ||
+      message.provider_message_id ||
+      message.providerMessageId ||
+      message.external_message_id ||
+      message.externalMessageId ||
+      message.id ||
+      `${message.sender_type || ""}:${message.created_at || ""}:${message.customer_message || message.ai_answer || message.staff_message || ""}`
+  );
+
+const messagesShareIdentity = (left = {}, right = {}) => {
+  const leftKeys = new Set(messageIdentityKeys(left));
+  return messageIdentityKeys(right).some((key) => leftKeys.has(key));
 };
+
+const mergeMessagesByIdentity = (messages = []) => {
+  const merged = [];
+  for (const raw of asArray(messages)) {
+    const message = raw && typeof raw === "object" ? raw : {};
+    const existingIndex = merged.findIndex((item) => messagesShareIdentity(item, message));
+    if (existingIndex >= 0) {
+      merged[existingIndex] = { ...merged[existingIndex], ...message };
+    } else {
+      merged.push(message);
+    }
+  }
+  return merged;
+};
+
+const uniqueMessages = (messages = []) => mergeMessagesByIdentity(messages);
 const latestCustomerText = (messages = []) =>
   [...uniqueMessages(messages)].reverse().find((message) => clean(message.customer_message))?.customer_message || "";
 const displayFallback = (value, fallback = "Not set yet") => (clean(value) || fallback);
@@ -2815,7 +2866,11 @@ export default function AiInbox() {
       const sessionId = payload.session_id || payload.message?.session_id || "";
       const channel = payload.channel || payload.message?.channel || payload.message?.source || "";
       const channelKey = normalizeConversationChannel({ channel });
-      const conversationKey = channelKey && channelKey !== "unknown" ? `${channelKey}:${sessionId}` : sessionId;
+      const conversationKey = channelKey === "whatsapp"
+        ? normalizeWhatsappSessionIdentity(sessionId, payload.message?.resolved_phone || payload.message?.phone || "")
+        : channelKey && channelKey !== "unknown"
+          ? `${channelKey}:${sessionId}`
+          : sessionId;
       const incoming = payload.message || null;
       if (incoming?.sender_type === "customer" || incoming?.customer_message) {
         setToast({ tone: "cyan", text: "ردّ العميل" });
@@ -2842,10 +2897,14 @@ export default function AiInbox() {
               skipped = true;
               return conversation;
             }
+            const mergedMessages = mergeMessagesByIdentity([...asArray(conversation.messages), incoming]);
             return {
               ...conversation,
-              messages: uniqueMessages([...asArray(conversation.messages), incoming]),
-              message_count: Number(conversation.message_count || asArray(conversation.messages).length) + 1,
+              messages: mergedMessages,
+              message_count: Math.max(
+                Number(conversation.message_count || asArray(conversation.messages).length),
+                mergedMessages.length
+              ),
               latest_message_preview: incomingPreview || conversation.latest_message_preview,
               last_activity_at: incoming.created_at || new Date().toISOString(),
             };
@@ -3185,7 +3244,7 @@ export default function AiInbox() {
       conversations: asArray(current.conversations).map((conversation) => {
         if (conversation.conversation_key !== target && conversation.session_id !== target) return conversation;
         const next = updater(conversation);
-        return { ...next, messages: uniqueMessages(next.messages) };
+        return { ...next, messages: mergeMessagesByIdentity(next.messages) };
       }),
     }));
   }, []);
@@ -3204,7 +3263,7 @@ export default function AiInbox() {
         perfComponent: "AiInbox.messages.loadOlder",
       });
       patchConversation(conversationIdentifier, (conversation) => {
-        const mergedMessages = uniqueMessages([...asArray(payload.messages), ...asArray(conversation.messages)]);
+        const mergedMessages = mergeMessagesByIdentity([...asArray(payload.messages), ...asArray(conversation.messages)]);
         return {
           ...conversation,
           messages: mergedMessages,
@@ -3567,7 +3626,7 @@ export default function AiInbox() {
       if (payload.message) {
         patchConversation(conversationIdentifier, (conversation) => ({
           ...conversation,
-          messages: uniqueMessages([...asArray(conversation.messages), payload.message]),
+          messages: mergeMessagesByIdentity([...asArray(conversation.messages), payload.message]),
           latest_message_preview: message,
           last_activity_at: payload.message.created_at || now,
           updated_at: payload.message.created_at || now,
@@ -3586,6 +3645,13 @@ export default function AiInbox() {
     if (!selectedConversation?.session_id || !message) return;
     const sessionId = selectedConversation?.session_id;
     const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+    const clientRequestId = buildClientRequestId();
+    const messageIdentityKey = buildMessageIdentityKey({
+      tenantId,
+      sessionId,
+      direction: "outbound",
+      clientRequestId,
+    });
     const activeDraft = selectedConversation?.ai_reply_draft || selectedConversation?.last_ai_reply_draft || null;
     const validationState = normalizeValidationSummary(
       aiReply.validation ||
@@ -3602,6 +3668,8 @@ export default function AiInbox() {
     const optimistic = {
       id: `sending-${Date.now()}`,
       session_id: sessionId,
+      client_request_id: clientRequestId,
+      message_identity_key: messageIdentityKey,
       customer_message: "",
       ai_answer: "",
       staff_message: message,
@@ -3625,12 +3693,12 @@ export default function AiInbox() {
     setLoading(true);
     setError("");
     try {
-      const payload = await api.post(aiInboxConversationEndpoint(sessionId, "/send"), { tenant_id: tenantId, message }, { headers, perfComponent: "AiInbox.sendManualReply" });
+      const payload = await api.post(aiInboxConversationEndpoint(sessionId, "/send"), { tenant_id: tenantId, message, client_request_id: clientRequestId, message_identity_key: messageIdentityKey }, { headers, perfComponent: "AiInbox.sendManualReply" });
       setToast({ tone: "emerald", text: "Message sent" });
       if (payload.message) {
         patchConversation(conversationIdentifier, (conversation) => ({
           ...conversation,
-          messages: uniqueMessages([...asArray(conversation.messages).filter((item) => item.id !== optimistic.id), payload.message]),
+          messages: mergeMessagesByIdentity([...asArray(conversation.messages).filter((item) => item.id !== optimistic.id), payload.message]),
           latest_message_preview: message,
           last_activity_at: payload.message.created_at || now,
           updated_at: payload.message.created_at || now,
@@ -3806,7 +3874,7 @@ export default function AiInbox() {
       if (payload?.message) {
         patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({
           ...conversation,
-          messages: uniqueMessages([...asArray(conversation.messages), payload.message]),
+          messages: mergeMessagesByIdentity([...asArray(conversation.messages), payload.message]),
           latest_message_preview: message,
           last_activity_at: payload.message.created_at || new Date().toISOString(),
         }));
@@ -3838,6 +3906,13 @@ export default function AiInbox() {
     const conversationIdentifier = selectedConversation.conversation_key || sessionId;
     const now = new Date().toISOString();
     const previewText = productCardPreviewText(cards) || "إرسال منتج";
+    const clientRequestId = buildClientRequestId();
+    const messageIdentityKey = buildMessageIdentityKey({
+      tenantId,
+      sessionId,
+      direction: "outbound",
+      clientRequestId,
+    });
 
     setProductCardSending(true);
     setError("");
@@ -3847,6 +3922,8 @@ export default function AiInbox() {
         {
           tenant_id: tenantId,
           product_cards: cards,
+          client_request_id: clientRequestId,
+          message_identity_key: messageIdentityKey,
         },
         { headers, perfComponent: "AiInbox.sendProductCards" }
       );
@@ -3856,7 +3933,7 @@ export default function AiInbox() {
         const returnedCards = normalizeProductCardsValue(returnedMessage.product_cards || returnedMessage.productCards || cards);
         patchConversation(conversationIdentifier, (conversation) => ({
           ...conversation,
-          messages: uniqueMessages([...asArray(conversation.messages), { ...returnedMessage, product_cards: returnedCards }]),
+          messages: mergeMessagesByIdentity([...asArray(conversation.messages), { ...returnedMessage, client_request_id: returnedMessage.client_request_id || clientRequestId, message_identity_key: returnedMessage.message_identity_key || messageIdentityKey, product_cards: returnedCards }]),
           latest_message_preview:
             returnedMessage.message_text ||
             returnedMessage.staff_message ||

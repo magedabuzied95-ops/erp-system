@@ -30,6 +30,7 @@ import {
   buildReplyCorrectionContextSource,
   searchRelevantCorrections,
 } from "./aiCorrectionMemoryService.js";
+import { normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
 import {
   aiProductSqlExclusionClause,
   filterAiEligibleProducts,
@@ -789,6 +790,7 @@ const normalizeAiReplyDraft = (value = {}) => {
     detected_intent: text(draft.detected_intent || ""),
     customer_question: text(draft.customer_question || ""),
     metadata: draft.metadata && typeof draft.metadata === "object" ? draft.metadata : {},
+    validation: draft.validation && typeof draft.validation === "object" ? draft.validation : (draft.metadata && typeof draft.metadata === "object" && draft.metadata.validation && typeof draft.metadata.validation === "object" ? draft.metadata.validation : null),
     updated_at: draft.updated_at || null,
   };
 };
@@ -1200,7 +1202,7 @@ export const scheduleAiFollowupIfNeeded = async ({ tenantId, sessionId = "", met
 export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30, before = "", beforeId = "" } = {}) => {
   await ensureAiSalesAgentSchema();
   await ensureAiInboxSchema();
-  const safeConversationId = text(conversationId);
+  const safeConversationId = normalizeWhatsappSessionId(conversationId) || text(conversationId);
   if (isGroupJid(safeConversationId)) {
     return { messages: [], total: 0, has_more: false, next_before: "" };
   }
@@ -1235,12 +1237,13 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
     `
     SELECT *
     FROM (
-      SELECT *
+      SELECT DISTINCT ON (COALESCE(NULLIF(message_identity_key, ''), NULLIF(provider_message_id, ''), NULLIF(external_message_id, ''), id::text))
+        *
       FROM ai_support_messages
       WHERE tenant_id = $1
         AND session_id = $2
         ${beforeClause}
-      ORDER BY created_at DESC, id DESC
+      ORDER BY COALESCE(NULLIF(message_identity_key, ''), NULLIF(provider_message_id, ''), NULLIF(external_message_id, ''), id::text), created_at DESC, id DESC
       LIMIT $3
     ) recent_messages
     ORDER BY created_at ASC, id ASC
@@ -1261,14 +1264,24 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
   });
   const countResult = await db.query(
     `
-    SELECT COUNT(*)::int AS total
+    SELECT COUNT(DISTINCT COALESCE(NULLIF(message_identity_key, ''), NULLIF(provider_message_id, ''), NULLIF(external_message_id, ''), id::text))::int AS total
     FROM ai_support_messages
     WHERE tenant_id = $1
       AND session_id = $2
     `,
     [tenantId, safeConversationId]
   );
-  const messages = result.rows.map(normalizeInboxMessage);
+  const messages = result.rows.map((row) => {
+    const canonicalSessionId = normalizeWhatsappSessionId(row.session_id, row.resolved_phone || row.remote_jid || "");
+    return normalizeInboxMessage({
+      ...row,
+      session_id: canonicalSessionId || row.session_id,
+      conversation_id: canonicalSessionId || row.session_id,
+      conversation_key: canonicalSessionId || row.session_id,
+      remote_jid: canonicalSessionId || row.remote_jid || "",
+      resolved_reply_jid: canonicalSessionId || row.resolved_reply_jid || "",
+    });
+  });
   const oldest = messages[0] || null;
   const total = Number(countResult.rows[0]?.total || 0);
   return {
@@ -1457,12 +1470,13 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
         followupDue: false,
       });
       const channel = conversation.channel || conversation.session_channel || conversation.source || "web_chat";
+      const canonicalSessionId = normalizeWhatsappSessionId(conversation.session_id, conversation.external_customer_id || conversation.external_conversation_id || "");
       const customerName = conversation.session_customer_name || conversation.customer_name || conversation.external_customer_id || "";
       const customerAvatarUrl = conversation.customer_avatar_url || conversation.session_customer_avatar_url || "";
       return {
-        session_id: conversation.session_id,
-        conversation_id: conversation.session_id,
-        conversation_key: conversation.conversation_key || conversation.session_id,
+        session_id: canonicalSessionId || conversation.session_id,
+        conversation_id: canonicalSessionId || conversation.session_id,
+        conversation_key: normalizeWhatsappSessionId(conversation.conversation_key, conversation.external_customer_id || conversation.external_conversation_id || "") || canonicalSessionId || conversation.session_id,
         source: conversation.source || channel || "web_chat",
         channel,
         status: conversation.conversation_status || "ai_active",
@@ -4025,6 +4039,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
         conversation_id: replyHarness.conversation_id,
         send_mode: replyHarness.send_mode,
         trace: replyHarness.trace,
+        tool_context: replyHarness.tool_context || null,
       } : null,
     },
     intent: { type: intent },
@@ -4032,9 +4047,33 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     context: {
       reply_harness: replyHarness,
       harness_trace: replyHarness?.trace || null,
+      tool_context: replyHarness?.tool_context || null,
     },
     source: "ai_inbox",
   });
+  let validation = {
+    is_valid: true,
+    confidence: 1,
+    violations: [],
+    warnings: [],
+    suggested_action: "keep_draft",
+  };
+  try {
+    const { validateAiReply } = await import("./aiReplyValidatorService.js");
+    validation = await validateAiReply({
+      replyText: reply.answer || "",
+      harness: replyHarness,
+    });
+  } catch (error) {
+    validation = {
+      is_valid: true,
+      confidence: 0.5,
+      violations: [],
+      warnings: [`validateAiReply failed: ${error?.message || String(error)}`],
+      suggested_action: "keep_draft",
+    };
+  }
+  reply.validation = validation;
   const channelAdapterPayload = {
     channel: conversation.channel || conversation.source || "web_chat",
     text: reply.answer || "",
@@ -4061,9 +4100,15 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     metadata: {
       source: "ai_suggestion",
       persist_requested: persist === true,
+      validation,
     },
   });
   const aiReplyDraft = normalizeAiReplyDraft(draft || {});
+  aiReplyDraft.validation = {
+    confidence: Number(validation?.confidence ?? 0),
+    violations_count: Array.isArray(validation?.violations) ? validation.violations.length : 0,
+    warnings_count: Array.isArray(validation?.warnings) ? validation.warnings.length : 0,
+  };
   emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: new Date().toISOString() });
   return {
     conversation_id: conversationId,
@@ -4085,6 +4130,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     channel_adapter_payload: channelAdapterPayload,
     sales_intelligence: salesIntelligence,
     reasoning: reply.reasoning || null,
+    validation,
   };
 };
 

@@ -147,6 +147,14 @@ const userDisplayName = (user = {}) =>
   String(user.name || user.full_name || user.username || user.email || user.role_name || user.role || "Staff").trim();
 
 const envText = (value = "") => String(value ?? "").trim();
+const requestClientRequestId = (req) =>
+  envText(
+    req.body?.client_request_id ||
+      req.body?.clientRequestId ||
+      req.headers?.["x-client-request-id"] ||
+      req.headers?.["x-idempotency-key"] ||
+      ""
+  );
 const correctionTypeOptions = new Set(["wrong_price", "wrong_stock", "wrong_policy", "bad_tone", "incomplete_answer", "other"]);
 const normalizeCorrectionType = (value = "") => {
   const normalized = normalizeCorrectionTypeValue(value);
@@ -165,6 +173,7 @@ const normalizeAiReplyDraft = (value = {}) => {
     detected_intent: envText(draft.detected_intent || ""),
     customer_question: envText(draft.customer_question || ""),
     metadata: draft.metadata && typeof draft.metadata === "object" ? draft.metadata : {},
+    validation: draft.validation && typeof draft.validation === "object" ? draft.validation : (draft.metadata && typeof draft.metadata === "object" && draft.metadata.validation && typeof draft.metadata.validation === "object" ? draft.metadata.validation : null),
     updated_at: draft.updated_at || null,
   };
 };
@@ -2898,6 +2907,77 @@ router.get("/conversations/:conversationId/ai-harness", protect, permit("setting
   }
 });
 
+router.get("/conversations/:conversationId/ai-validation", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    if (!isSuperAdminUser(req.user)) {
+      return sendError(res, Object.assign(new Error("Admin access required"), { status: 403, code: "FORBIDDEN" }), "Admin access required");
+    }
+
+    const tenantId = toTenantId(req);
+    const conversationId = envText(req.params.conversationId);
+    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 100, messageLimit: 12, summaryOnly: false });
+    const conversation = (inbox.conversations || []).find((item) =>
+      item.session_id === conversationId ||
+      item.conversation_id === conversationId ||
+      item.external_conversation_id === conversationId ||
+      item.external_customer_id === conversationId ||
+      item.conversation_key === conversationId
+    ) || null;
+    if (!conversation) {
+      return sendError(res, Object.assign(new Error("Conversation not found"), { status: 404, code: "AI_CONVERSATION_NOT_FOUND" }), "Conversation not found");
+    }
+
+    let harness = getLastReplyHarnessDebug({ tenantId, conversationId });
+    if (!harness) {
+      harness = await buildReplyHarness({
+        tenantId,
+        conversationId,
+        conversation,
+        latestCustomerMessage: conversation?.customer_message || conversation?.message_text || conversation?.latest_message_preview || conversation?.last_message || "",
+        sendMode: "debug",
+        channel: conversation?.channel || conversation?.source || "web_chat",
+        req,
+      });
+    }
+
+    const lastDraft = normalizeAiReplyDraft(conversation.last_ai_reply_draft || {});
+    const draftText = envText(lastDraft.text || conversation.last_ai_reply_draft?.answer || conversation.last_ai_reply_draft?.message || "");
+    const { validateAiReply } = await import("../services/aiReplyValidatorService.js");
+    const validation = await validateAiReply({
+      replyText: draftText,
+      harness,
+    }).catch((error) => ({
+      is_valid: true,
+      confidence: 0,
+      violations: [],
+      warnings: [`validateAiReply failed: ${error?.message || String(error)}`],
+      suggested_action: "keep_draft",
+    }));
+
+    return res.json({
+      success: true,
+      conversation_id: conversationId,
+      harness_summary: {
+        tenant_id: harness?.tenant_id || tenantId,
+        conversation_id: harness?.conversation_id || conversationId,
+        channel: harness?.channel || conversation?.channel || conversation?.source || "",
+        send_mode: harness?.send_mode || "",
+        latest_customer_message: harness?.latest_customer_message || "",
+        trace: harness?.trace || null,
+        safety_context: harness?.safety_context || null,
+        business_context: harness?.business_context || null,
+      },
+      tool_context: harness?.tool_context || null,
+      validation,
+      violations: validation?.violations || [],
+      warnings: validation?.warnings || [],
+      draft: lastDraft,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI validation debug data");
+  }
+});
+
 router.post("/conversations/:conversationId/messages/:messageId/correction", protect, permit("settings", "edit"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
@@ -2997,6 +3077,7 @@ router.post("/conversations/:conversationId/reply", protect, permit("settings", 
     const message = await appendManualAiSupportReply({
       tenantId,
       sessionId: req.params.conversationId,
+      clientRequestId: requestClientRequestId(req),
       message: req.body?.message || req.body?.reply || "",
       staffUserId: req.user?.id || null,
       staffUserName: userDisplayName(req.user),
@@ -3075,6 +3156,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
         const message = await appendManualAiSupportReply({
           tenantId,
           sessionId: conversationId,
+          clientRequestId: requestClientRequestId(req),
           message: messageText,
           staffUserId: req.user?.id || null,
           staffUserName: userDisplayName(req.user),
@@ -3112,6 +3194,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
         const message = await appendManualAiSupportReply({
           tenantId,
           sessionId: conversationId,
+          clientRequestId: requestClientRequestId(req),
           message: messageText,
           staffUserId: req.user?.id || null,
           staffUserName: userDisplayName(req.user),
@@ -3149,6 +3232,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
     const message = await appendManualAiSupportReply({
       tenantId,
       sessionId: conversationId,
+      clientRequestId: requestClientRequestId(req),
       message: messageText,
       staffUserId: req.user?.id || null,
       staffUserName: userDisplayName(req.user),
@@ -3266,6 +3350,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       failedMessage = await appendManualAiSupportReply({
         tenantId,
         sessionId: conversationId,
+        clientRequestId: requestClientRequestId(req),
         message: messageText,
         staffUserId: req.user?.id || null,
         staffUserName: userDisplayName(req.user),
@@ -3458,6 +3543,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
     const message = await appendManualAiSupportReply({
       tenantId,
       sessionId: conversationId,
+      clientRequestId: requestClientRequestId(req),
       message: fallbackText,
       previewMessage: previewText || fallbackText,
       messageType: "product_card",
@@ -3531,6 +3617,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
       const failedMessage = await appendManualAiSupportReply({
         tenantId,
         sessionId: conversationId,
+        clientRequestId: requestClientRequestId(req),
         message: fallbackText,
         previewMessage: previewText || fallbackText,
         messageType: "product_card",
@@ -4090,6 +4177,7 @@ router.post("/inbox/:conversationId/reply", protect, permit("settings", "edit"),
     const message = await appendManualAiSupportReply({
       tenantId,
       sessionId: req.params.conversationId,
+      clientRequestId: requestClientRequestId(req),
       message: req.body?.message || req.body?.reply || "",
       staffUserId: req.user?.id || null,
       staffUserName: userDisplayName(req.user),

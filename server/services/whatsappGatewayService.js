@@ -8,10 +8,11 @@ import {
   logChannelEvent,
   upsertChannelConversationMapping,
 } from "./aiChannelAdapterService.js";
-import { generateWhatsappAiAutoReply, logWhatsappAiOutbound, normalizeWhatsappSessionId } from "./aiInboxService.js";
+import { generateWhatsappAiAutoReply, logWhatsappAiOutbound } from "./aiInboxService.js";
 import { debugAiImagesLog, normalizeProductCards } from "./aiProductCards.js";
 import { appendAiGeneratedSupportReply, appendWhatsappOutboundSupportReply, updateAiSupportMessageDeliveryStatus } from "./aiSupportLogService.js";
 import { addTraceStep, failTrace, finishTrace, setTraceInboundMessage, startTrace } from "./aiReplyTraceService.js";
+import { normalizeWhatsappPhone, normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
 import { emitToRooms } from "../utils/socket.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
@@ -568,6 +569,7 @@ export const sendOrderConfirmationMessage = async ({ order } = {}) => {
     await appendWhatsappOutboundSupportReply({
       tenantId: order.tenant_id || order.tenantId || process.env.WHATSAPP_TENANT_ID || 1,
       sessionId: `whatsapp:${normalizeEgyptPhone(phone)}`,
+      clientRequestId: `order_confirmation:${order?.id || normalizeEgyptPhone(phone)}`,
       message,
       messageType: "text",
       senderType: "system",
@@ -605,6 +607,7 @@ export const sendOrderConfirmationMessage = async ({ order } = {}) => {
     await appendWhatsappOutboundSupportReply({
       tenantId: order.tenant_id || order.tenantId || process.env.WHATSAPP_TENANT_ID || 1,
       sessionId: `whatsapp:${normalizeEgyptPhone(phone)}`,
+      clientRequestId: `order_confirmation:${order?.id || normalizeEgyptPhone(phone)}`,
       message,
       messageType: "text",
       senderType: "system",
@@ -2342,12 +2345,13 @@ const processEvolutionStatusUpdate = async (payload = {}) => {
     ""
   );
   const resolvedPhone = remoteJid && !isLidJid(remoteJid) ? normalizeEgyptPhone(jidNumber(remoteJid)) : "";
-  const sessionId = text(
+  const sessionId = normalizeWhatsappSessionId(
     payload?.external_conversation_id ||
     payload?.conversation_id ||
     data?.conversationId ||
     data?.conversation_id ||
-    (resolvedPhone ? `whatsapp:${resolvedPhone}` : "")
+    remoteJid,
+    resolvedPhone || jidNumber(remoteJid)
   );
   const deliveryStatus = normalizeEvolutionDeliveryStatus(
     statusItem?.status ||
@@ -2544,16 +2548,16 @@ const loadWhatsappDuplicateDiagnostics = async ({
 
 const saveWhatsappIncomingToAiInbox = async (message = {}) => {
   const tenantId = tenantIdForWhatsapp(message.raw || {});
-  const sessionId = `whatsapp:${message.phone}`;
+  const sessionId = normalizeWhatsappSessionId(message.raw?.external_conversation_id || message.raw?.conversation_id || message.remoteJid || message.phone, message.phone);
   const customerName = text(message.senderName);
   const body = text(message.text);
   const receivedAt = message.timestamp || new Date().toISOString();
   const externalMessageId = text(message.messageId);
   const instance = text(message.instance || "");
   const channel = AI_AGENT_CHANNELS.WHATSAPP;
-  const remoteJid = text(message.remoteJid);
-  const resolvedReplyJid = text(message.resolvedReplyJid || "");
-  const resolvedPhone = text(message.resolvedPhone || "");
+  const remoteJid = normalizeWhatsappSessionId(message.remoteJid || message.resolvedReplyJid || message.phone, message.phone);
+  const resolvedReplyJid = normalizeWhatsappSessionId(message.resolvedReplyJid || message.remoteJid || message.phone, message.phone);
+  const resolvedPhone = normalizeWhatsappPhone(message.resolvedPhone || message.phone || "");
   const dedupeKey = externalMessageId
     ? dedupeHash([channel, instance, remoteJid, externalMessageId].join("|"))
     : "";
@@ -3445,6 +3449,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     await appendAiGeneratedSupportReply({
       tenantId: generated.tenantId,
       sessionId: normalizeWhatsappSessionId(generated.sessionId, message.phone),
+      clientRequestId: message.trace_id || traceId || generated.sessionId,
       answer: generated.replyText,
       confidence: generated.aiPayload?.confidence || 0,
       detectedIntent: generated.aiPayload?.detected_intent || "whatsapp_ai_reply",
@@ -3520,6 +3525,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     await appendAiGeneratedSupportReply({
       tenantId: generated.tenantId,
       sessionId: normalizeWhatsappSessionId(generated.sessionId, message.phone),
+      clientRequestId: message.trace_id || traceId || generated.sessionId,
       answer: generated.replyText,
       confidence: generated.aiPayload?.confidence || 0,
       detectedIntent: generated.aiPayload?.detected_intent || "whatsapp_ai_reply",
@@ -4012,6 +4018,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       const transcriptPayload = {
         tenantId: generated.tenantId,
         sessionId: outboundSessionId,
+        clientRequestId: message.trace_id || traceId || outboundPlan.inbound_message_id || generated.sessionId,
         answer: finalReplyText || generated.replyText || summarizeWhatsappProductCards(sendableImageCards),
         messageType: sendableImageCards.length ? "product_card" : "text",
         confidence: generated.aiPayload?.confidence || 0,
@@ -4169,6 +4176,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     await appendAiGeneratedSupportReply({
       tenantId: generated.tenantId,
       sessionId: normalizeWhatsappSessionId(generated.sessionId, sendTargetNumber || generated.phone || message.phone),
+      clientRequestId: message.trace_id || traceId || outboundPlan.inbound_message_id || generated.sessionId,
       answer: generated.replyText,
       confidence: generated.aiPayload?.confidence || 0,
       detectedIntent: generated.aiPayload?.detected_intent || "whatsapp_ai_reply",
