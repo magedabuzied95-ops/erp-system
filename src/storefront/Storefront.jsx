@@ -4045,8 +4045,8 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
       className="sf-luxury-header sticky top-0 z-40 border-b border-stone-200/70 bg-[#fcfaf6]/88 shadow-[0_16px_48px_rgba(39,20,75,0.07)] backdrop-blur-2xl transition-all duration-300 dark:border-white/10 dark:bg-[#090d18]/92 dark:shadow-[0_16px_48px_rgba(0,0,0,0.28)]"
     >
       <div className="sf-announcement-row sf-header-announcement overflow-hidden bg-[linear-gradient(105deg,#09090b,#1c1917_42%,#312e81)] text-white/90 backdrop-blur transition-all duration-300">
-        <div className="mx-auto flex h-10 max-w-7xl items-center px-4">
-          <span key={announcementIndex} className="inline-flex items-center text-[12px] font-medium tracking-wide text-stone-100/95 animate-[sfFadeUp_420ms_ease-out_both]">
+        <div className="mx-auto flex h-10 w-full max-w-7xl items-center justify-center px-4">
+          <span key={announcementIndex} className="inline-flex w-full items-center justify-center text-center text-[12px] font-medium tracking-wide text-stone-100/95 animate-[sfFadeUp_420ms_ease-out_both]">
             {announcementItems[announcementIndex] || announcementItems[0]}
           </span>
         </div>
@@ -4076,34 +4076,36 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
           </div>
         </div>
       </div>
-      <div className="sf-main-row sf-header-main relative mx-auto max-w-7xl px-4 py-2.5 transition-all duration-300 md:py-3">
-        <div className="flex items-center gap-2 md:gap-4" dir="rtl">
-          <button
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-stone-200/80 bg-white/70 transition hover:border-stone-300 hover:bg-white active:scale-95 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-            onClick={() => setMenuOpen((value) => !value)}
-            aria-label={t("storefront.header.menu", "Menu")}
-            type="button"
-          >
-            {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-          </button>
-          <span className="hidden h-10 w-px bg-stone-200/90 dark:bg-white/10 md:block" />
-          <Link to="/shop" className="sf-header-logo group inline-flex shrink-0 items-center text-stone-950 transition hover:text-[#6d28d9] dark:text-white" aria-label={brandName || "MONE"}>
-            <span className="sf-header-logo-chip grid h-12 w-12 place-items-center overflow-hidden rounded-2xl bg-stone-950 text-sm font-black tracking-[0.18em] text-white shadow-[0_12px_30px_rgba(28,25,23,0.16)] transition group-hover:scale-105 group-hover:bg-[#6d28d9] dark:bg-white dark:text-stone-950 dark:group-hover:text-white md:h-14 md:w-14">
-              {brandLogoUrl ? <img src={resolveProductImageUrl(brandLogoUrl)} alt={brandName} className="h-full w-full object-contain p-1.5 md:p-2" loading="lazy" decoding="async" width="56" height="56" /> : brandInitials}
-            </span>
-          </Link>
-          <nav className="sf-collapsible-nav hidden min-w-0 flex-1 items-center gap-1 overflow-hidden text-sm font-bold text-stone-700 dark:text-stone-300 lg:flex">
+      <div className="sf-main-row sf-header-main relative mx-auto max-w-7xl px-4 py-3 md:py-5">
+        <div className="flex w-full items-center gap-3 md:gap-6" dir="rtl">
+          <div className="flex shrink-0 items-center gap-2 md:gap-4">
+            <button
+              className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-stone-200/80 bg-white/80 transition hover:border-stone-300 hover:bg-white active:scale-95 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 md:h-14 md:w-14"
+              onClick={() => setMenuOpen((value) => !value)}
+              aria-label={t("storefront.header.menu", "Menu")}
+              type="button"
+            >
+              {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
+            <span className="hidden h-14 w-px bg-stone-200/90 dark:bg-white/10 md:block" />
+            <Link to="/shop" className="sf-header-logo group inline-flex shrink-0 items-center text-stone-950 transition hover:text-[#6d28d9] dark:text-white" aria-label={brandName || "MONE"}>
+              <span className="sf-header-logo-chip grid h-20 w-20 place-items-center overflow-hidden rounded-[1.6rem] bg-stone-950 text-base font-black tracking-[0.18em] text-white shadow-[0_16px_36px_rgba(28,25,23,0.18)] transition group-hover:scale-[1.03] group-hover:bg-[#6d28d9] dark:bg-white dark:text-stone-950 dark:group-hover:text-white md:h-[102px] md:w-[102px] md:rounded-[2rem]">
+                {brandLogoUrl ? <img src={resolveProductImageUrl(brandLogoUrl)} alt={brandName} className="h-full w-full object-contain p-2.5 md:p-4" loading="lazy" decoding="async" width="102" height="102" /> : brandInitials}
+              </span>
+            </Link>
+          </div>
+          <nav className="sf-collapsible-nav hidden min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden text-sm font-bold text-stone-700 dark:text-stone-300 lg:flex">
             {headerCategoryItems.map(([label, to]) => (
               <NavLink
                 key={label}
                 to={to}
-                className={({ isActive }) => `sf-nav-link sf-header-nav-link relative rounded-full px-3 py-2 transition ${isActive ? "text-stone-950 dark:text-white" : "hover:text-stone-950 dark:hover:text-white"}`}
+                className={({ isActive }) => `sf-nav-link sf-header-nav-link relative rounded-full px-3.5 py-2.5 transition ${isActive ? "text-stone-950 dark:text-white" : "hover:text-stone-950 dark:hover:text-white"}`}
               >
                 {label}
               </NavLink>
             ))}
           </nav>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2 md:gap-3">
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
@@ -4170,11 +4172,11 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
           <span>{searchPlaceholders[placeholderIndex] || searchPlaceholders[0]}</span>
         </button>
       </div>
-        <PremiumSearch
-          value={search}
-          onChange={handleSearchChange}
-          onSubmit={submit}
-          onOpen={() => setSearchOpen(true)}
+      <PremiumSearch
+        value={search}
+        onChange={handleSearchChange}
+        onSubmit={submit}
+        onOpen={() => setSearchOpen(true)}
         onClose={closeSearch}
         open={searchOpen}
         mobileOpen={mobileSearchOpen}
