@@ -585,7 +585,7 @@ const buildGreetingReply = (message = "", seed = "") => {
 };
 
 const buildGreetingOnlyOutput = ({ response = {}, message = "", context = {} } = {}) =>
-  withAnswer(stripProductPayload(response), buildGreetingReply(message, text(context?.conversationId || context?.session_id || context?.id || "")), {
+  withAnswer(stripProductPayload(response, { preserveProductCards: false }), buildGreetingReply(message, text(context?.conversationId || context?.session_id || context?.id || "")), {
     detected_intent: "greeting_only",
     greeting_only_mode: true,
     needs_human_support: false,
@@ -743,12 +743,18 @@ const availableForSize = (product = {}, size = "") => {
   return sizes.includes(lower(size)) && stockCount(product) > 0;
 };
 
-const stripProductPayload = (response = {}) => ({
+const stripProductPayload = (response = {}, { preserveProductCards = true } = {}) => ({
   ...response,
-  suggested_products: [],
-  product_cards: [],
+  suggested_products: preserveProductCards ? asArray(response.suggested_products) : [],
+  product_cards: preserveProductCards ? asArray(response.product_cards) : [],
   visual_attachments: [],
-  channel_reply: response.channel_reply ? { ...response.channel_reply, product_cards: [], visual_attachments: [] } : response.channel_reply,
+  channel_reply: response.channel_reply
+    ? {
+        ...response.channel_reply,
+        product_cards: preserveProductCards ? asArray(response.channel_reply.product_cards) : [],
+        visual_attachments: [],
+      }
+    : response.channel_reply,
 });
 
 const withAnswer = (response = {}, answer = "", extra = {}) => ({
@@ -1543,6 +1549,7 @@ export const composeAiSalesReply = async ({
 
   let output = response;
   let decision = "keep_existing";
+  const priceLabel = productPrice(top) || "";
 
   if (isGreetingOnly(message, response, intent)) {
     decision = "greeting_only";
@@ -1622,7 +1629,7 @@ export const composeAiSalesReply = async ({
     }));
   } else if (!isExplicitProductFollowup(message, response, intent) && ["general", "conversational", ""].includes(detectedIntent)) {
     decision = "block_general_product_cards";
-    output = withAnswer(stripProductPayload(response), buildGreetingReply(message, text(context?.conversationId || context?.session_id || context?.id || "")), {
+    output = withAnswer(stripProductPayload(response, { preserveProductCards: false }), buildGreetingReply(message, text(context?.conversationId || context?.session_id || context?.id || "")), {
       needs_human_support: false,
     });
   } else if (

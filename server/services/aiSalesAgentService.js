@@ -1,4 +1,4 @@
-import db from "../database/db.js";
+﻿import db from "../database/db.js";
 import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { getPerfContext } from "../utils/perfDebug.js";
 import { emitToRooms } from "../utils/socket.js";
@@ -26,7 +26,7 @@ import { guardAIReply } from "./aiSafetyGuard.js";
 import { detectEscalation } from "./aiEscalationDetector.js";
 import { getAISettings, getAIToneInstruction } from "./aiSettingsService.js";
 import { buildHumanizedReply } from "./aiHumanizedReplies.js";
-import { buildReplyCorrectionContextSource } from "./aiCorrectionMemoryService.js";
+import { buildReplyCorrectionContextSource, searchRelevantCorrections } from "./aiCorrectionMemoryService.js";
 import { normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
 import {
   aiProductSqlExclusionClause,
@@ -309,24 +309,24 @@ const DEFAULT_SETTINGS = {
   emoji_level: 0.2,
   reply_length: "balanced",
   sales_pressure: "medium",
-  allowed_phrases: ["أيوه يا فندم", "تمام", "اختيار حلو", "أرشحلك"],
-  preferred_phrases: ["أيوه يا فندم", "تمام", "اختيار حلو", "أرشحلك"],
-  forbidden_phrases: ["أنا مساعد ذكي", "كنموذج لغوي", "لا أستطيع"],
+  allowed_phrases: ["ط£ظٹظˆظ‡ ظٹط§ ظپظ†ط¯ظ…", "طھظ…ط§ظ…", "ط§ط®طھظٹط§ط± ط­ظ„ظˆ", "ط£ط±ط´ط­ظ„ظƒ"],
+  preferred_phrases: ["ط£ظٹظˆظ‡ ظٹط§ ظپظ†ط¯ظ…", "طھظ…ط§ظ…", "ط§ط®طھظٹط§ط± ط­ظ„ظˆ", "ط£ط±ط´ط­ظ„ظƒ"],
+  forbidden_phrases: ["ط£ظ†ط§ ظ…ط³ط§ط¹ط¯ ط°ظƒظٹ", "ظƒظ†ظ…ظˆط°ط¬ ظ„ط؛ظˆظٹ", "ظ„ط§ ط£ط³طھط·ظٹط¹"],
   allow_auto_draft_creation: true,
   require_human_approval_before_confirm: false,
   allow_discount_promises: false,
   max_discount_percent: 0,
-  cod_availability_text: "الدفع عند الاستلام متاح حسب المنطقة وسياسة الشحن.",
-  exchange_return_policy_text: "الاستبدال أو الاسترجاع حسب سياسة المتجر وحالة المنتج.",
-  delivery_policy_text: "التوصيل بيتحدد حسب المحافظة والمنطقة ويتأكد قبل الشحن.",
+  cod_availability_text: "ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ… ظ…طھط§ط­ ط­ط³ط¨ ط§ظ„ظ…ظ†ط·ظ‚ط© ظˆط³ظٹط§ط³ط© ط§ظ„ط´ط­ظ†.",
+  exchange_return_policy_text: "ط§ظ„ط§ط³طھط¨ط¯ط§ظ„ ط£ظˆ ط§ظ„ط§ط³طھط±ط¬ط§ط¹ ط­ط³ط¨ ط³ظٹط§ط³ط© ط§ظ„ظ…طھط¬ط± ظˆط­ط§ظ„ط© ط§ظ„ظ…ظ†طھط¬.",
+  delivery_policy_text: "ط§ظ„طھظˆطµظٹظ„ ط¨ظٹطھط­ط¯ط¯ ط­ط³ط¨ ط§ظ„ظ…ط­ط§ظپط¸ط© ظˆط§ظ„ظ…ظ†ط·ظ‚ط© ظˆظٹطھط£ظƒط¯ ظ‚ط¨ظ„ ط§ظ„ط´ط­ظ†.",
   followups_enabled: true,
   followup_cooldown_hours: 24,
   abandoned_followup_minutes: 45,
   max_followups_per_customer: 3,
   stop_followups_after_rejection: true,
   followup_templates: [
-    "لسه مهتم بالموديل؟ أقدر أراجعلك المقاس واللون المتاح.",
-    "لو محتاج بدائل قريبة من نفس الشكل ابعتلي المقاس والميزانية.",
+    "ظ„ط³ظ‡ ظ…ظ‡طھظ… ط¨ط§ظ„ظ…ظˆط¯ظٹظ„طں ط£ظ‚ط¯ط± ط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ„ظˆظ† ط§ظ„ظ…طھط§ط­.",
+    "ظ„ظˆ ظ…ط­طھط§ط¬ ط¨ط¯ط§ط¦ظ„ ظ‚ط±ظٹط¨ط© ظ…ظ† ظ†ظپط³ ط§ظ„ط´ظƒظ„ ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ…ظٹط²ط§ظ†ظٹط©.",
   ],
   confidence_threshold: 0.62,
   auto_order_threshold: 0.84,
@@ -347,24 +347,24 @@ const DEFAULT_SETTINGS = {
 };
 
 const OBJECTION_RULES = [
-  { type: "price_high", terms: ["السعر غالي", "غالي", "expensive"], action: "cheaper_alternatives" },
-  { type: "discount", terms: ["فيه خصم", "خصم", "اخر سعر", "آخر سعر", "discount"], action: "handoff" },
-  { type: "quality", terms: ["خامته", "الخامة", "quality", "material"], action: "quality_value" },
-  { type: "authenticity", terms: ["أصلي", "اصلي", "original", "authentic"], action: "policy_context" },
-  { type: "exchange", terms: ["استبدال", "استرجاع", "ينفع استبدال", "return", "exchange"], action: "policy_context" },
-  { type: "delivery_cost", terms: ["التوصيل بكام", "شحن بكام", "delivery cost"], action: "shipping_context" },
-  { type: "delivery_eta", terms: ["هيوصل امتى", "يوصل امتى", "delivery time"], action: "shipping_context" },
-  { type: "sizes", terms: ["مقاسات تانية", "مقاس تاني", "sizes"], action: "variant_suggestions" },
-  { type: "cheaper", terms: ["فيه أرخص", "فيه ارخص", "ارخص", "cheaper"], action: "cheaper_alternatives" },
-  { type: "cod", terms: ["الدفع عند الاستلام", "cod", "cash on delivery"], action: "payment_context" },
-  { type: "complaint", terms: ["شكوى", "مشكلة", "زعلان", "مش عاجبني"], action: "handoff" },
+  { type: "price_high", terms: ["ط§ظ„ط³ط¹ط± ط؛ط§ظ„ظٹ", "ط؛ط§ظ„ظٹ", "expensive"], action: "cheaper_alternatives" },
+  { type: "discount", terms: ["ظپظٹظ‡ ط®طµظ…", "ط®طµظ…", "ط§ط®ط± ط³ط¹ط±", "ط¢ط®ط± ط³ط¹ط±", "discount"], action: "handoff" },
+  { type: "quality", terms: ["ط®ط§ظ…طھظ‡", "ط§ظ„ط®ط§ظ…ط©", "quality", "material"], action: "quality_value" },
+  { type: "authenticity", terms: ["ط£طµظ„ظٹ", "ط§طµظ„ظٹ", "original", "authentic"], action: "policy_context" },
+  { type: "exchange", terms: ["ط§ط³طھط¨ط¯ط§ظ„", "ط§ط³طھط±ط¬ط§ط¹", "ظٹظ†ظپط¹ ط§ط³طھط¨ط¯ط§ظ„", "return", "exchange"], action: "policy_context" },
+  { type: "delivery_cost", terms: ["ط§ظ„طھظˆطµظٹظ„ ط¨ظƒط§ظ…", "ط´ط­ظ† ط¨ظƒط§ظ…", "delivery cost"], action: "shipping_context" },
+  { type: "delivery_eta", terms: ["ظ‡ظٹظˆطµظ„ ط§ظ…طھظ‰", "ظٹظˆطµظ„ ط§ظ…طھظ‰", "delivery time"], action: "shipping_context" },
+  { type: "sizes", terms: ["ظ…ظ‚ط§ط³ط§طھ طھط§ظ†ظٹط©", "ظ…ظ‚ط§ط³ طھط§ظ†ظٹ", "sizes"], action: "variant_suggestions" },
+  { type: "cheaper", terms: ["ظپظٹظ‡ ط£ط±ط®طµ", "ظپظٹظ‡ ط§ط±ط®طµ", "ط§ط±ط®طµ", "cheaper"], action: "cheaper_alternatives" },
+  { type: "cod", terms: ["ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…", "cod", "cash on delivery"], action: "payment_context" },
+  { type: "complaint", terms: ["ط´ظƒظˆظ‰", "ظ…ط´ظƒظ„ط©", "ط²ط¹ظ„ط§ظ†", "ظ…ط´ ط¹ط§ط¬ط¨ظ†ظٹ"], action: "handoff" },
 ];
 
 const RESPONSE_VARIANTS = {
-  opener: ["تمام", "بص", "حاضر", "جميل"],
-  softAvailability: ["المتاح منه كويس دلوقتي", "فيه منه مقاسات شغالة", "خليني أظبطلك المتاح منه"],
-  value: ["خامته عملية وشكله شيك في اللبس", "متوفر بسعر واضح ومناسب", "اختيار مضمون لو عايز حاجة تعيش معاك"],
-  close: ["تحب أشوفلك مقاسك؟", "مقاسك كام؟", "تحب أشوفك الألوان والمقاسات؟"],
+  opener: ["طھظ…ط§ظ…", "ط¨طµ", "ط­ط§ط¶ط±", "ط¬ظ…ظٹظ„"],
+  softAvailability: ["ط§ظ„ظ…طھط§ط­ ظ…ظ†ظ‡ ظƒظˆظٹط³ ط¯ظ„ظˆظ‚طھظٹ", "ظپظٹظ‡ ظ…ظ†ظ‡ ظ…ظ‚ط§ط³ط§طھ ط´ط؛ط§ظ„ط©", "ط®ظ„ظٹظ†ظٹ ط£ط¸ط¨ط·ظ„ظƒ ط§ظ„ظ…طھط§ط­ ظ…ظ†ظ‡"],
+  value: ["ط®ط§ظ…طھظ‡ ط¹ظ…ظ„ظٹط© ظˆط´ظƒظ„ظ‡ ط´ظٹظƒ ظپظٹ ط§ظ„ظ„ط¨ط³", "ظ…طھظˆظپط± ط¨ط³ط¹ط± ظˆط§ط¶ط­ ظˆظ…ظ†ط§ط³ط¨", "ط§ط®طھظٹط§ط± ظ…ط¶ظ…ظˆظ† ظ„ظˆ ط¹ط§ظٹط² ط­ط§ط¬ط© طھط¹ظٹط´ ظ…ط¹ط§ظƒ"],
+  close: ["طھط­ط¨ ط£ط´ظˆظپظ„ظƒ ظ…ظ‚ط§ط³ظƒطں", "ظ…ظ‚ط§ط³ظƒ ظƒط§ظ…طں", "طھط­ط¨ ط£ط´ظˆظپظƒ ط§ظ„ط£ظ„ظˆط§ظ† ظˆط§ظ„ظ…ظ‚ط§ط³ط§طھطں"],
 };
 
 const pick = (items = [], seed = "") => {
@@ -687,8 +687,8 @@ export const detectSalesObjection = (message = "") => {
 
 const sentimentFromMessage = (message = "") => {
   const normalized = lower(message);
-  if (["شكوى", "زعلان", "وحش", "مشكلة", "غالي جدا", "مش عاجب"].some((term) => normalized.includes(term))) return "negative";
-  if (["تمام", "حلو", "هاخده", "ممتاز", "جامد"].some((term) => normalized.includes(term))) return "positive";
+  if (["ط´ظƒظˆظ‰", "ط²ط¹ظ„ط§ظ†", "ظˆط­ط´", "ظ…ط´ظƒظ„ط©", "ط؛ط§ظ„ظٹ ط¬ط¯ط§", "ظ…ط´ ط¹ط§ط¬ط¨"].some((term) => normalized.includes(term))) return "negative";
+  if (["طھظ…ط§ظ…", "ط­ظ„ظˆ", "ظ‡ط§ط®ط¯ظ‡", "ظ…ظ…طھط§ط²", "ط¬ط§ظ…ط¯"].some((term) => normalized.includes(term))) return "positive";
   return "neutral";
 };
 
@@ -1064,21 +1064,21 @@ export const composeObjectionReply = ({ message = "", product = null, settings =
   const objection = detectSalesObjection(message);
   if (!objection) return null;
   const opener = pick(settings.allowed_phrases?.length ? settings.allowed_phrases : RESPONSE_VARIANTS.opener, `${message}:${objection.type}`);
-  const name = product?.name || "الموديل ده";
+  const name = product?.name || "ط§ظ„ظ…ظˆط¯ظٹظ„ ط¯ظ‡";
   if (objection.action === "handoff") {
     if (objection.type === "discount" && (settings.allow_discount_promises === true || settings.discount_permission === true)) {
       const maxDiscount = numeric(settings.max_discount_percent, 0);
       return {
         answer: maxDiscount > 0
-          ? `${opener}، أقدر أراجعلك خصم لحد ${maxDiscount}% حسب سياسة المتجر قبل تأكيد الأوردر.`
-          : `${opener}، أقدر أراجعلك لو فيه عرض متاح قبل تأكيد الأوردر.`,
+          ? `${opener}طŒ ط£ظ‚ط¯ط± ط£ط±ط§ط¬ط¹ظ„ظƒ ط®طµظ… ظ„ط­ط¯ ${maxDiscount}% ط­ط³ط¨ ط³ظٹط§ط³ط© ط§ظ„ظ…طھط¬ط± ظ‚ط¨ظ„ طھط£ظƒظٹط¯ ط§ظ„ط£ظˆط±ط¯ط±.`
+          : `${opener}طŒ ط£ظ‚ط¯ط± ط£ط±ط§ط¬ط¹ظ„ظƒ ظ„ظˆ ظپظٹظ‡ ط¹ط±ط¶ ظ…طھط§ط­ ظ‚ط¨ظ„ طھط£ظƒظٹط¯ ط§ظ„ط£ظˆط±ط¯ط±.`,
         needs_human_support: false,
         suggested_actions: ["show_similar_products"],
         objection_type: objection.type,
       };
     }
     return {
-      answer: `${opener}، النقطة دي محتاجة تأكيد من الفريق عشان نديك أفضل حل مضبوط. هحوّلك لحد يراجعها معاك.`,
+      answer: `${opener}طŒ ط§ظ„ظ†ظ‚ط·ط© ط¯ظٹ ظ…ط­طھط§ط¬ط© طھط£ظƒظٹط¯ ظ…ظ† ط§ظ„ظپط±ظٹظ‚ ط¹ط´ط§ظ† ظ†ط¯ظٹظƒ ط£ظپط¶ظ„ ط­ظ„ ظ…ط¶ط¨ظˆط·. ظ‡ط­ظˆظ‘ظ„ظƒ ظ„ط­ط¯ ظٹط±ط§ط¬ط¹ظ‡ط§ ظ…ط¹ط§ظƒ.`,
       needs_human_support: true,
       suggested_actions: ["contact_support"],
       objection_type: objection.type,
@@ -1086,7 +1086,7 @@ export const composeObjectionReply = ({ message = "", product = null, settings =
   }
   if (objection.action === "cheaper_alternatives") {
     return {
-      answer: `${opener}، فاهمك. ${name} قيمته حلوة، بس أقدر أرشحلك بدائل أرخص بنفس اللوك تقريبًا. مقاسك كام؟`,
+      answer: `${opener}طŒ ظپط§ظ‡ظ…ظƒ. ${name} ظ‚ظٹظ…طھظ‡ ط­ظ„ظˆط©طŒ ط¨ط³ ط£ظ‚ط¯ط± ط£ط±ط´ط­ظ„ظƒ ط¨ط¯ط§ط¦ظ„ ط£ط±ط®طµ ط¨ظ†ظپط³ ط§ظ„ظ„ظˆظƒ طھظ‚ط±ظٹط¨ظ‹ط§. ظ…ظ‚ط§ط³ظƒ ظƒط§ظ…طں`,
       needs_human_support: false,
       suggested_actions: ["show_similar_products"],
       objection_type: objection.type,
@@ -1094,7 +1094,7 @@ export const composeObjectionReply = ({ message = "", product = null, settings =
   }
   if (objection.action === "variant_suggestions") {
     return {
-      answer: `${opener}، أشيكلك على المقاسات المتاحة. قولّي مقاسك الأساسي ولو ينفع معاك مقاس قريب منه.`,
+      answer: `${opener}طŒ ط£ط´ظٹظƒظ„ظƒ ط¹ظ„ظ‰ ط§ظ„ظ…ظ‚ط§ط³ط§طھ ط§ظ„ظ…طھط§ط­ط©. ظ‚ظˆظ„ظ‘ظٹ ظ…ظ‚ط§ط³ظƒ ط§ظ„ط£ط³ط§ط³ظٹ ظˆظ„ظˆ ظٹظ†ظپط¹ ظ…ط¹ط§ظƒ ظ…ظ‚ط§ط³ ظ‚ط±ظٹط¨ ظ…ظ†ظ‡.`,
       needs_human_support: false,
       suggested_actions: ["choose_size"],
       objection_type: objection.type,
@@ -1102,14 +1102,14 @@ export const composeObjectionReply = ({ message = "", product = null, settings =
   }
   const line =
     objection.action === "quality_value"
-      ? `${name} خامته عملية ومناسب للبس اليومي، والأهم إن المقاس لو مضبوط هيديك شكل حلو في الرجل.`
+      ? `${name} ط®ط§ظ…طھظ‡ ط¹ظ…ظ„ظٹط© ظˆظ…ظ†ط§ط³ط¨ ظ„ظ„ط¨ط³ ط§ظ„ظٹظˆظ…ظٹطŒ ظˆط§ظ„ط£ظ‡ظ… ط¥ظ† ط§ظ„ظ…ظ‚ط§ط³ ظ„ظˆ ظ…ط¶ط¨ظˆط· ظ‡ظٹط¯ظٹظƒ ط´ظƒظ„ ط­ظ„ظˆ ظپظٹ ط§ظ„ط±ط¬ظ„.`
       : objection.action === "shipping_context"
-        ? "التوصيل بيتحسب حسب المحافظة والمنطقة، وابعتلي منطقتك أقولك الأنسب."
+        ? "ط§ظ„طھظˆطµظٹظ„ ط¨ظٹطھط­ط³ط¨ ط­ط³ط¨ ط§ظ„ظ…ط­ط§ظپط¸ط© ظˆط§ظ„ظ…ظ†ط·ظ‚ط©طŒ ظˆط§ط¨ط¹طھظ„ظٹ ظ…ظ†ط·ظ‚طھظƒ ط£ظ‚ظˆظ„ظƒ ط§ظ„ط£ظ†ط³ط¨."
         : objection.action === "payment_context"
-          ? "الدفع عند الاستلام متاح حسب المنطقة وحالة العميل، ابعتلي رقمك ومنطقتك ونأكدها."
-          : "السياسة بتتأكد حسب حالة المنتج والطلب، أقدر أوصلك بفريق الدعم لو محتاج تفاصيل دقيقة.";
+          ? "ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ… ظ…طھط§ط­ ط­ط³ط¨ ط§ظ„ظ…ظ†ط·ظ‚ط© ظˆط­ط§ظ„ط© ط§ظ„ط¹ظ…ظٹظ„طŒ ط§ط¨ط¹طھظ„ظٹ ط±ظ‚ظ…ظƒ ظˆظ…ظ†ط·ظ‚طھظƒ ظˆظ†ط£ظƒط¯ظ‡ط§."
+          : "ط§ظ„ط³ظٹط§ط³ط© ط¨طھطھط£ظƒط¯ ط­ط³ط¨ ط­ط§ظ„ط© ط§ظ„ظ…ظ†طھط¬ ظˆط§ظ„ط·ظ„ط¨طŒ ط£ظ‚ط¯ط± ط£ظˆطµظ„ظƒ ط¨ظپط±ظٹظ‚ ط§ظ„ط¯ط¹ظ… ظ„ظˆ ظ…ط­طھط§ط¬ طھظپط§طµظٹظ„ ط¯ظ‚ظٹظ‚ط©.";
   return {
-    answer: `${opener}، ${line}`,
+    answer: `${opener}طŒ ${line}`,
     needs_human_support: false,
     suggested_actions: ["show_similar_products"],
     objection_type: objection.type,
@@ -1140,13 +1140,13 @@ export const humanizeSalesResponse = async ({ tenantId, message = "", response =
     const price = resolveCustomerDisplayPrice(firstProduct || {}).display_price || numeric(firstProduct?.price ?? firstProduct?.sale_price ?? firstProduct?.product_price, 0);
     const opener = pick(settings.allowed_phrases?.length ? settings.allowed_phrases : RESPONSE_VARIANTS.opener, message);
     const valueLine = pick(RESPONSE_VARIANTS.value, `${message}:${name}`);
-    if (!/أنا مساعد ذكي|كنموذج لغوي/i.test(answer)) {
-      answer = `${opener}، ${name ? `${name} ` : ""}${price ? `سعره ${price} جنيه. ` : ""}${valueLine}. ${pick(RESPONSE_VARIANTS.close, message)}`;
+    if (!/ط£ظ†ط§ ظ…ط³ط§ط¹ط¯ ط°ظƒظٹ|ظƒظ†ظ…ظˆط°ط¬ ظ„ط؛ظˆظٹ/i.test(answer)) {
+      answer = `${opener}طŒ ${name ? `${name} ` : ""}${price ? `ط³ط¹ط±ظ‡ ${price} ط¬ظ†ظٹظ‡. ` : ""}${valueLine}. ${pick(RESPONSE_VARIANTS.close, message)}`;
     }
   }
   const lengthMode = text(settings.reply_length || "balanced");
   if (lengthMode === "short") {
-    answer = answer.split(/\n+/).slice(0, 2).join("\n").split(/(?<=[.!؟])\s+/).slice(0, 2).join(" ").trim();
+    answer = answer.split(/\n+/).slice(0, 2).join("\n").split(/(?<=[.!طں])\s+/).slice(0, 2).join(" ").trim();
   }
   if (numeric(settings.emoji_level, 0) <= 0.05) {
     answer = answer.replace(/[\u{1f300}-\u{1faff}\u{2600}-\u{27bf}]/gu, "").trim();
@@ -1175,7 +1175,7 @@ export const scheduleAiFollowupIfNeeded = async ({ tenantId, sessionId = "", met
   if (response.needs_human_support || response.ai_order?.status === "confirmed") return null;
   const settings = await getAiAgentSettings({ tenantId }).catch(() => DEFAULT_SETTINGS);
   if (settings.followups_enabled === false) return null;
-  const customerRejected = ["مش مهتم", "لا شكرا", "لا شكرًا", "stop", "unsubscribe", "مش عايز"].some((term) => lower(response.answer || metadata.last_customer_message || "").includes(lower(term)));
+  const customerRejected = ["ظ…ط´ ظ…ظ‡طھظ…", "ظ„ط§ ط´ظƒط±ط§", "ظ„ط§ ط´ظƒط±ظ‹ط§", "stop", "unsubscribe", "ظ…ط´ ط¹ط§ظٹط²"].some((term) => lower(response.answer || metadata.last_customer_message || "").includes(lower(term)));
   if (settings.stop_followups_after_rejection !== false && customerRejected) return null;
   const products = summarizeProducts(response.suggested_products);
   if (!products.length && response.detected_intent !== "order_collecting_details") return null;
@@ -2379,9 +2379,9 @@ const followupSuggestedMessage = (task = {}, settings = DEFAULT_SETTINGS) => {
   const template = asArray(settings.followup_templates).find(Boolean) || DEFAULT_SETTINGS.followup_templates[0];
   if (text(task.manual_message)) return text(task.manual_message);
   if (text(payload.suggested_message || payload.followup_message)) return text(payload.suggested_message || payload.followup_message);
-  if (productName) return `لسه مهتم بـ ${productName}؟ أقدر أراجعلك المقاس واللون المتاح وأقولك السعر الحقيقي قبل ما نكمل.`;
+  if (productName) return `ظ„ط³ظ‡ ظ…ظ‡طھظ… ط¨ظ€ ${productName}طں ط£ظ‚ط¯ط± ط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ„ظˆظ† ط§ظ„ظ…طھط§ط­ ظˆط£ظ‚ظˆظ„ظƒ ط§ظ„ط³ط¹ط± ط§ظ„ط­ظ‚ظٹظ‚ظٹ ظ‚ط¨ظ„ ظ…ط§ ظ†ظƒظ…ظ„.`;
   if (text(template)) return text(template);
-  return "لسه مهتم بالمنتج؟ ابعتلي المقاس أو اللون المطلوب وأراجعلك المتاح قبل ما نكمل.";
+  return "ظ„ط³ظ‡ ظ…ظ‡طھظ… ط¨ط§ظ„ظ…ظ†طھط¬طں ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ط£ظˆ ط§ظ„ظ„ظˆظ† ط§ظ„ظ…ط·ظ„ظˆط¨ ظˆط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…طھط§ط­ ظ‚ط¨ظ„ ظ…ط§ ظ†ظƒظ…ظ„.";
 };
 
 const normalizeFollowupTask = (row = {}, settings = DEFAULT_SETTINGS) => {
@@ -3091,7 +3091,7 @@ const realProductPrice = (product = {}) => {
     product_id: resolved.product_id || product.id || null,
     variant_id: resolved.variant_id || product.variant_id || null,
     raw_price_used_in_text: raw || "",
-    text_template: "سعره ${price} جنيه.",
+    text_template: "ط³ط¹ط±ظ‡ ${price} ط¬ظ†ظٹظ‡.",
     function_name: "realProductPrice",
     file_name: "server/services/aiSalesAgentService.js",
   });
@@ -3144,28 +3144,28 @@ const normalizeRecommendationProduct = (row = {}) => {
 const extractSalesIntent = (message = "") => {
   const value = lower(message);
   const has = (terms = []) => terms.some((term) => value.includes(lower(term)));
-  if (has(["hi", "hello", "hey", "السلام", "ازيك", "اهلا", "أهلا"])) return "greeting";
-  if (has(["human", "agent", "admin", "كلم", "موظف", "حد يرد", "شكوى"])) return "human_support";
-  if (has(["order", "invoice", "tracking", "فين الاوردر", "طلب", "اوردر", "فاتورة"])) return "order_follow_up";
-  if (has(["price", "how much", "بكام", "سعر", "كام", "خصم"])) return "pricing_question";
-  if (has(["available", "stock", "متاح", "موجود", "متوفر", "خلص"])) return "availability";
-  if (has(["size", "color", "colour", "مقاس", "لون", "الوان", "ألوان"])) return "size_color_request";
-  if (has(["show", "want", "need", "عايز", "عايزة", "موديل", "كوتشي", "شوز", "شنطة", "جزمة"])) return "product_search";
+  if (has(["hi", "hello", "hey", "ط§ظ„ط³ظ„ط§ظ…", "ط§ط²ظٹظƒ", "ط§ظ‡ظ„ط§", "ط£ظ‡ظ„ط§"])) return "greeting";
+  if (has(["human", "agent", "admin", "ظƒظ„ظ…", "ظ…ظˆط¸ظپ", "ط­ط¯ ظٹط±ط¯", "ط´ظƒظˆظ‰"])) return "human_support";
+  if (has(["order", "invoice", "tracking", "ظپظٹظ† ط§ظ„ط§ظˆط±ط¯ط±", "ط·ظ„ط¨", "ط§ظˆط±ط¯ط±", "ظپط§طھظˆط±ط©"])) return "order_follow_up";
+  if (has(["price", "how much", "ط¨ظƒط§ظ…", "ط³ط¹ط±", "ظƒط§ظ…", "ط®طµظ…"])) return "pricing_question";
+  if (has(["available", "stock", "ظ…طھط§ط­", "ظ…ظˆط¬ظˆط¯", "ظ…طھظˆظپط±", "ط®ظ„طµ"])) return "availability";
+  if (has(["size", "color", "colour", "ظ…ظ‚ط§ط³", "ظ„ظˆظ†", "ط§ظ„ظˆط§ظ†", "ط£ظ„ظˆط§ظ†"])) return "size_color_request";
+  if (has(["show", "want", "need", "ط¹ط§ظٹط²", "ط¹ط§ظٹط²ط©", "ظ…ظˆط¯ظٹظ„", "ظƒظˆطھط´ظٹ", "ط´ظˆط²", "ط´ظ†ط·ط©", "ط¬ط²ظ…ط©"])) return "product_search";
   return "general_sales";
 };
 
 const quantityWords = new Map([
-  ["واحد", 1],
-  ["واحدة", 1],
-  ["قطعة", 1],
-  ["اتنين", 2],
-  ["اثنين", 2],
-  ["قطعتين", 2],
-  ["تلاتة", 3],
-  ["ثلاثة", 3],
-  ["اربعة", 4],
-  ["أربعة", 4],
-  ["خمسة", 5],
+  ["ظˆط§ط­ط¯", 1],
+  ["ظˆط§ط­ط¯ط©", 1],
+  ["ظ‚ط·ط¹ط©", 1],
+  ["ط§طھظ†ظٹظ†", 2],
+  ["ط§ط«ظ†ظٹظ†", 2],
+  ["ظ‚ط·ط¹طھظٹظ†", 2],
+  ["طھظ„ط§طھط©", 3],
+  ["ط«ظ„ط§ط«ط©", 3],
+  ["ط§ط±ط¨ط¹ط©", 4],
+  ["ط£ط±ط¨ط¹ط©", 4],
+  ["ط®ظ…ط³ط©", 5],
 ]);
 
 const firstNumber = (value = "") => {
@@ -3175,7 +3175,7 @@ const firstNumber = (value = "") => {
 
 const parseSalesCloserQuantity = (message = "") => {
   const normalized = lower(message);
-  const explicit = normalized.match(/(?:qty|quantity|عدد|كمية|عايز|عايزة|خد|هاخد|احجز)\s*(\d{1,3})/i);
+  const explicit = normalized.match(/(?:qty|quantity|ط¹ط¯ط¯|ظƒظ…ظٹط©|ط¹ط§ظٹط²|ط¹ط§ظٹط²ط©|ط®ط¯|ظ‡ط§ط®ط¯|ط§ط­ط¬ط²)\s*(\d{1,3})/i);
   if (explicit) return Math.max(1, int(explicit[1], 1));
   for (const [word, count] of quantityWords.entries()) {
     if (normalized.includes(lower(word))) return count;
@@ -3185,7 +3185,7 @@ const parseSalesCloserQuantity = (message = "") => {
 
 const parseSalesCloserSize = (message = "") => {
   const value = text(message);
-  const explicit = value.match(/(?:مقاس|size|رقم)\s*([0-9]{2}|xs|s|m|l|xl|xxl|xxxl)\b/i);
+  const explicit = value.match(/(?:ظ…ظ‚ط§ط³|size|ط±ظ‚ظ…)\s*([0-9]{2}|xs|s|m|l|xl|xxl|xxxl)\b/i);
   if (explicit) return explicit[1].toUpperCase();
   const standalone = value.match(/\b(?:[2-5][0-9]|xs|s|m|l|xl|xxl|xxxl)\b/i);
   return standalone ? standalone[0].toUpperCase() : "";
@@ -3193,24 +3193,24 @@ const parseSalesCloserSize = (message = "") => {
 
 const parseSalesCloserBudget = (message = "") => {
   const value = text(message);
-  const explicit = value.match(/(?:budget|ميزانية|في حدود|لحد|تحت|اقل من|أقل من)\s*(\d{2,7})/i);
+  const explicit = value.match(/(?:budget|ظ…ظٹط²ط§ظ†ظٹط©|ظپظٹ ط­ط¯ظˆط¯|ظ„ط­ط¯|طھط­طھ|ط§ظ‚ظ„ ظ…ظ†|ط£ظ‚ظ„ ظ…ظ†)\s*(\d{2,7})/i);
   if (explicit) return int(explicit[1], 0);
-  return /(?:budget|ميزانية|في حدود|لحد|تحت|اقل من|أقل من)/i.test(value) ? firstNumber(value) : 0;
+  return /(?:budget|ظ…ظٹط²ط§ظ†ظٹط©|ظپظٹ ط­ط¯ظˆط¯|ظ„ط­ط¯|طھط­طھ|ط§ظ‚ظ„ ظ…ظ†|ط£ظ‚ظ„ ظ…ظ†)/i.test(value) ? firstNumber(value) : 0;
 };
 
 const parseSalesCloserColor = (message = "") => {
   const value = lower(message);
   const colors = [
-    ["black", ["black", "اسود", "أسود"]],
-    ["white", ["white", "ابيض", "أبيض"]],
-    ["red", ["red", "احمر", "أحمر"]],
-    ["blue", ["blue", "ازرق", "أزرق"]],
-    ["green", ["green", "اخضر", "أخضر"]],
-    ["beige", ["beige", "بيج"]],
-    ["grey", ["gray", "grey", "رمادي", "رصاصي"]],
-    ["brown", ["brown", "بني"]],
-    ["pink", ["pink", "وردي", "بينك"]],
-    ["navy", ["navy", "كحلي"]],
+    ["black", ["black", "ط§ط³ظˆط¯", "ط£ط³ظˆط¯"]],
+    ["white", ["white", "ط§ط¨ظٹط¶", "ط£ط¨ظٹط¶"]],
+    ["red", ["red", "ط§ط­ظ…ط±", "ط£ط­ظ…ط±"]],
+    ["blue", ["blue", "ط§ط²ط±ظ‚", "ط£ط²ط±ظ‚"]],
+    ["green", ["green", "ط§ط®ط¶ط±", "ط£ط®ط¶ط±"]],
+    ["beige", ["beige", "ط¨ظٹط¬"]],
+    ["grey", ["gray", "grey", "ط±ظ…ط§ط¯ظٹ", "ط±طµط§طµظٹ"]],
+    ["brown", ["brown", "ط¨ظ†ظٹ"]],
+    ["pink", ["pink", "ظˆط±ط¯ظٹ", "ط¨ظٹظ†ظƒ"]],
+    ["navy", ["navy", "ظƒط­ظ„ظٹ"]],
   ];
   return colors.find(([, aliases]) => aliases.some((alias) => value.includes(lower(alias))))?.[0] || "";
 };
@@ -3232,9 +3232,9 @@ export const parseAiSalesCloserIntent = ({ message = "", products = [], conversa
     size: parseSalesCloserSize(message) || text(conversation.customer_profile?.preferred_size),
     quantity: parseSalesCloserQuantity(message),
     budget: parseSalesCloserBudget(message),
-    urgency: has(["دلوقتي", "حالا", "النهاردة", "مستعجل", "now", "urgent", "today"]) ? "urgent" : has(["بعدين", "later"]) ? "low" : "normal",
-    purchase_intent: has(["هاخده", "هاخد", "اطلب", "أطلب", "اوردر", "أوردر", "احجز", "أحجز", "ابعت لينك", "checkout", "order", "reserve", "buy"]) ? "high" : has(["بكام", "سعر", "متاح", "مقاس", "لون", "price", "available"]) ? "medium" : "low",
-    requested_payment: has(["دفع عند الاستلام", "كاش", "cod", "cash on delivery"]) ? "cod" : has(["لينك دفع", "payment link", "visa", "card"]) ? "online" : "",
+    urgency: has(["ط¯ظ„ظˆظ‚طھظٹ", "ط­ط§ظ„ط§", "ط§ظ„ظ†ظ‡ط§ط±ط¯ط©", "ظ…ط³طھط¹ط¬ظ„", "now", "urgent", "today"]) ? "urgent" : has(["ط¨ط¹ط¯ظٹظ†", "later"]) ? "low" : "normal",
+    purchase_intent: has(["ظ‡ط§ط®ط¯ظ‡", "ظ‡ط§ط®ط¯", "ط§ط·ظ„ط¨", "ط£ط·ظ„ط¨", "ط§ظˆط±ط¯ط±", "ط£ظˆط±ط¯ط±", "ط§ط­ط¬ط²", "ط£ط­ط¬ط²", "ط§ط¨ط¹طھ ظ„ظٹظ†ظƒ", "checkout", "order", "reserve", "buy"]) ? "high" : has(["ط¨ظƒط§ظ…", "ط³ط¹ط±", "ظ…طھط§ط­", "ظ…ظ‚ط§ط³", "ظ„ظˆظ†", "price", "available"]) ? "medium" : "low",
+    requested_payment: has(["ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…", "ظƒط§ط´", "cod", "cash on delivery"]) ? "cod" : has(["ظ„ظٹظ†ظƒ ط¯ظپط¹", "payment link", "visa", "card"]) ? "online" : "",
   };
   intent.confidence = clamp(
     (intent.product_model ? 0.25 : 0) +
@@ -3274,7 +3274,7 @@ const extractShoppingTerms = (message = "") =>
       .replace(/[^\p{L}\p{N}\s-]/gu, " ")
       .split(/\s+/)
       .filter((term) => term.length > 1)
-      .filter((term) => !["عايز", "عايزة", "بكام", "كام", "سعر", "متاح", "موجود", "مقاس", "لون", "price", "size", "color", "available"].includes(lower(term)))
+      .filter((term) => !["ط¹ط§ظٹط²", "ط¹ط§ظٹط²ط©", "ط¨ظƒط§ظ…", "ظƒط§ظ…", "ط³ط¹ط±", "ظ…طھط§ط­", "ظ…ظˆط¬ظˆط¯", "ظ…ظ‚ط§ط³", "ظ„ظˆظ†", "price", "size", "color", "available"].includes(lower(term)))
   ).slice(0, 8);
 
 export const searchAiSalesProducts = async ({ tenantId, query = "", limit = 8 } = {}) => {
@@ -3604,25 +3604,25 @@ const buildPaymentActions = ({ conversation = {}, order = {}, product = {} } = {
     {
       key: "send_payment_link",
       label: "Send payment link",
-      message: `تمام، ده لينك الدفع للطلب ${orderNumber}: ${invoicePath}`,
+      message: `طھظ…ط§ظ…طŒ ط¯ظ‡ ظ„ظٹظ†ظƒ ط§ظ„ط¯ظپط¹ ظ„ظ„ط·ظ„ط¨ ${orderNumber}: ${invoicePath}`,
       enabled: Boolean(invoicePath),
     },
     {
       key: "cash_on_delivery",
       label: "Cash on delivery",
-      message: `تمام يا ${customer}، ممكن الدفع عند الاستلام. هجهزلك ${productName}${amount ? ` بإجمالي ${amount} جنيه` : ""}.`,
+      message: `طھظ…ط§ظ… ظٹط§ ${customer}طŒ ظ…ظ…ظƒظ† ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…. ظ‡ط¬ظ‡ط²ظ„ظƒ ${productName}${amount ? ` ط¨ط¥ط¬ظ…ط§ظ„ظٹ ${amount} ط¬ظ†ظٹظ‡` : ""}.`,
       enabled: true,
     },
     {
       key: "whatsapp_checkout",
       label: "WhatsApp checkout",
-      message: `أقدر أكمّل معاك على واتساب لتأكيد الطلب ${orderNumber}. ابعت رقم الموبايل والعنوان لو مناسب.`,
+      message: `ط£ظ‚ط¯ط± ط£ظƒظ…ظ‘ظ„ ظ…ط¹ط§ظƒ ط¹ظ„ظ‰ ظˆط§طھط³ط§ط¨ ظ„طھط£ظƒظٹط¯ ط§ظ„ط·ظ„ط¨ ${orderNumber}. ط§ط¨ط¹طھ ط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ظˆط§ظ„ط¹ظ†ظˆط§ظ† ظ„ظˆ ظ…ظ†ط§ط³ط¨.`,
       enabled: true,
     },
     {
       key: "public_invoice",
       label: "Public invoice",
-      message: `فاتورة الطلب ${orderNumber}: ${invoicePath}`,
+      message: `ظپط§طھظˆط±ط© ط§ظ„ط·ظ„ط¨ ${orderNumber}: ${invoicePath}`,
       enabled: Boolean(invoicePath),
     },
   ];
@@ -3678,11 +3678,11 @@ export const buildAiSalesCloserPlan = async ({ tenantId, conversationId, product
     memory,
     followup: {
       ten_minute_message: primaryProduct
-        ? `لسه مهتم بـ ${primaryProduct.name || primaryProduct.title}؟ أقدر أحجزهولك مؤقتا وأجهز الطلب.`
-        : "لسه محتاج مساعدة في اختيار المنتج؟ ابعتلي المقاس والميزانية وأرشحلك المتاح.",
-      abandoned_cart_message: "لو حابب نكمل الطلب ابعتلي المقاس والعنوان، وأراجعلك المتاح قبل التأكيد.",
+        ? `ظ„ط³ظ‡ ظ…ظ‡طھظ… ط¨ظ€ ${primaryProduct.name || primaryProduct.title}طں ط£ظ‚ط¯ط± ط£ط­ط¬ط²ظ‡ظˆظ„ظƒ ظ…ط¤ظ‚طھط§ ظˆط£ط¬ظ‡ط² ط§ظ„ط·ظ„ط¨.`
+        : "ظ„ط³ظ‡ ظ…ط­طھط§ط¬ ظ…ط³ط§ط¹ط¯ط© ظپظٹ ط§ط®طھظٹط§ط± ط§ظ„ظ…ظ†طھط¬طں ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ…ظٹط²ط§ظ†ظٹط© ظˆط£ط±ط´ط­ظ„ظƒ ط§ظ„ظ…طھط§ط­.",
+      abandoned_cart_message: "ظ„ظˆ ط­ط§ط¨ط¨ ظ†ظƒظ…ظ„ ط§ظ„ط·ظ„ط¨ ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ط¹ظ†ظˆط§ظ†طŒ ظˆط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…طھط§ط­ ظ‚ط¨ظ„ ط§ظ„طھط£ظƒظٹط¯.",
       low_stock_message: primaryProduct && stockCount(primaryProduct) > 0 && stockCount(primaryProduct) <= 3
-        ? `باقي ${stockCount(primaryProduct)} بس من ${primaryProduct.name || primaryProduct.title}. أقدر أحجزهولك مؤقتا.`
+        ? `ط¨ط§ظ‚ظٹ ${stockCount(primaryProduct)} ط¨ط³ ظ…ظ† ${primaryProduct.name || primaryProduct.title}. ط£ظ‚ط¯ط± ط£ط­ط¬ط²ظ‡ظˆظ„ظƒ ظ…ط¤ظ‚طھط§.`
         : "",
     },
   };
@@ -3690,31 +3690,31 @@ export const buildAiSalesCloserPlan = async ({ tenantId, conversationId, product
 
 const buildArabicAiSalesAnswer = ({ intent, products = [], conversation = {} } = {}) => {
   const name = text(conversation.customer_name || conversation.customer_profile?.name || "");
-  const greeting = name && !/unknown|anonymous/i.test(name) ? `${name}، ` : "";
+  const greeting = name && !/unknown|anonymous/i.test(name) ? `${name}طŒ ` : "";
   const available = products.filter((product) => stockCount(product) > 0);
   const primary = available[0] || products[0] || null;
   const productLines = available.slice(0, 3).map((product, index) => {
     const price = realProductPrice(product);
     const stock = stockCount(product);
-    const urgency = stock > 0 && stock <= 3 ? " - الكمية قليلة" : "";
-    return `${index + 1}. ${product.name || product.title}${price ? ` - ${price} جنيه` : ""}${product.size ? ` - المقاسات: ${product.size}` : ""}${product.color ? ` - الألوان: ${product.color}` : ""}${urgency}`;
+    const urgency = stock > 0 && stock <= 3 ? " - ط§ظ„ظƒظ…ظٹط© ظ‚ظ„ظٹظ„ط©" : "";
+    return `${index + 1}. ${product.name || product.title}${price ? ` - ${price} ط¬ظ†ظٹظ‡` : ""}${product.size ? ` - ط§ظ„ظ…ظ‚ط§ط³ط§طھ: ${product.size}` : ""}${product.color ? ` - ط§ظ„ط£ظ„ظˆط§ظ†: ${product.color}` : ""}${urgency}`;
   });
-  if (intent === "greeting") return `أهلا ${greeting}نورتنا. تحب أساعدك في موديل معين، مقاس، لون، أو سعر؟`;
-  if (intent === "human_support") return "تمام، هحوّل المحادثة لحد من الفريق يراجع معاك التفاصيل. ابعتلي بس رقم الطلب أو المشكلة باختصار.";
-  if (intent === "order_follow_up") return "أكيد. ابعتلي رقم الطلب أو رقم الموبايل المسجل على الطلب، وأنا أراجعلك الحالة.";
-  if (!products.length) return "ممكن تبعتلي اسم الموديل أو صورة المنتج أو المقاس واللون المطلوب؟ هطلعلك أقرب المتاح من المخزون.";
+  if (intent === "greeting") return `ط£ظ‡ظ„ط§ ${greeting}ظ†ظˆط±طھظ†ط§. طھط­ط¨ ط£ط³ط§ط¹ط¯ظƒ ظپظٹ ظ…ظˆط¯ظٹظ„ ظ…ط¹ظٹظ†طŒ ظ…ظ‚ط§ط³طŒ ظ„ظˆظ†طŒ ط£ظˆ ط³ط¹ط±طں`;
+  if (intent === "human_support") return "طھظ…ط§ظ…طŒ ظ‡ط­ظˆظ‘ظ„ ط§ظ„ظ…ط­ط§ط¯ط«ط© ظ„ط­ط¯ ظ…ظ† ط§ظ„ظپط±ظٹظ‚ ظٹط±ط§ط¬ط¹ ظ…ط¹ط§ظƒ ط§ظ„طھظپط§طµظٹظ„. ط§ط¨ط¹طھظ„ظٹ ط¨ط³ ط±ظ‚ظ… ط§ظ„ط·ظ„ط¨ ط£ظˆ ط§ظ„ظ…ط´ظƒظ„ط© ط¨ط§ط®طھطµط§ط±.";
+  if (intent === "order_follow_up") return "ط£ظƒظٹط¯. ط§ط¨ط¹طھظ„ظٹ ط±ظ‚ظ… ط§ظ„ط·ظ„ط¨ ط£ظˆ ط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ط§ظ„ظ…ط³ط¬ظ„ ط¹ظ„ظ‰ ط§ظ„ط·ظ„ط¨طŒ ظˆط£ظ†ط§ ط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ط­ط§ظ„ط©.";
+  if (!products.length) return "ظ…ظ…ظƒظ† طھط¨ط¹طھظ„ظٹ ط§ط³ظ… ط§ظ„ظ…ظˆط¯ظٹظ„ ط£ظˆ طµظˆط±ط© ط§ظ„ظ…ظ†طھط¬ ط£ظˆ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ„ظˆظ† ط§ظ„ظ…ط·ظ„ظˆط¨طں ظ‡ط·ظ„ط¹ظ„ظƒ ط£ظ‚ط±ط¨ ط§ظ„ظ…طھط§ط­ ظ…ظ† ط§ظ„ظ…ط®ط²ظˆظ†.";
   if (["pricing_question", "availability", "size_color_request", "product_search"].includes(intent)) {
     return [
-      `${greeting}المتاح عندنا حاليا:`,
+      `${greeting}ط§ظ„ظ…طھط§ط­ ط¹ظ†ط¯ظ†ط§ ط­ط§ظ„ظٹط§:`,
       ...productLines,
-      primary?.product_url ? `تقدر تشوف التفاصيل من هنا: ${primary.product_url}` : "",
-      "تحب أثبتلك مقاس أو أطلعلك بدائل قريبة؟",
+      primary?.product_url ? `طھظ‚ط¯ط± طھط´ظˆظپ ط§ظ„طھظپط§طµظٹظ„ ظ…ظ† ظ‡ظ†ط§: ${primary.product_url}` : "",
+      "طھط­ط¨ ط£ط«ط¨طھظ„ظƒ ظ…ظ‚ط§ط³ ط£ظˆ ط£ط·ظ„ط¹ظ„ظƒ ط¨ط¯ط§ط¦ظ„ ظ‚ط±ظٹط¨ط©طں",
     ].filter(Boolean).join("\n");
   }
   return [
-    `${greeting}راجعتلك أقرب اختيارات من المخزون:`,
+    `${greeting}ط±ط§ط¬ط¹طھظ„ظƒ ط£ظ‚ط±ط¨ ط§ط®طھظٹط§ط±ط§طھ ظ…ظ† ط§ظ„ظ…ط®ط²ظˆظ†:`,
     ...productLines,
-    "قولّي المقاس واللون المفضلين وأنا أضيقلك الاختيارات.",
+    "ظ‚ظˆظ„ظ‘ظٹ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ„ظˆظ† ط§ظ„ظ…ظپط¶ظ„ظٹظ† ظˆط£ظ†ط§ ط£ط¶ظٹظ‚ظ„ظƒ ط§ظ„ط§ط®طھظٹط§ط±ط§طھ.",
   ].filter(Boolean).join("\n");
 };
 
@@ -3781,28 +3781,28 @@ const commerceReplyForIntent = (intent = "", productContext = null, detectedSize
     const sizes = Array.isArray(productContext.sizes) ? productContext.sizes.map((size) => String(size)) : [];
     if (detectedSize && sizes.length) {
       return sizes.includes(String(detectedSize))
-        ? `أيوه  مقاس ${detectedSize} متاح حاليا في ${productContext.name}.`
-        : `للأسف مقاس ${detectedSize} مش ظاهر متاح حاليا في ${productContext.name}.`;
+        ? `ط£ظٹظˆظ‡  ظ…ظ‚ط§ط³ ${detectedSize} ظ…طھط§ط­ ط­ط§ظ„ظٹط§ ظپظٹ ${productContext.name}.`
+        : `ظ„ظ„ط£ط³ظپ ظ…ظ‚ط§ط³ ${detectedSize} ظ…ط´ ط¸ط§ظ‡ط± ظ…طھط§ط­ ط­ط§ظ„ظٹط§ ظپظٹ ${productContext.name}.`;
     }
     if (intent === "PRICE_INQUIRY" && price) {
-      return `سعر ${productContext.name} حاليا ${price} جنيه `;
+      return `ط³ط¹ط± ${productContext.name} ط­ط§ظ„ظٹط§ ${price} ط¬ظ†ظٹظ‡ `;
     }
     if (intent === "AVAILABILITY_INQUIRY") {
       return productContext.inStock
-        ? `أيوه  ${productContext.name} متوفر حاليا.`
-        : `للأسف ${productContext.name} غير متوفر حاليا.`;
+        ? `ط£ظٹظˆظ‡  ${productContext.name} ظ…طھظˆظپط± ط­ط§ظ„ظٹط§.`
+        : `ظ„ظ„ط£ط³ظپ ${productContext.name} ط؛ظٹط± ظ…طھظˆظپط± ط­ط§ظ„ظٹط§.`;
     }
     if (intent === "SIZE_INQUIRY" && productContext.sizes?.length) {
-      return `المقاسات المتاحة حاليا لـ ${productContext.name}: ${productContext.sizes.join(", ")} `;
+      return `ط§ظ„ظ…ظ‚ط§ط³ط§طھ ط§ظ„ظ…طھط§ط­ط© ط­ط§ظ„ظٹط§ ظ„ظ€ ${productContext.name}: ${productContext.sizes.join(", ")} `;
     }
   }
   switch (intent) {
     case "SIZE_INQUIRY":
-      return "أكيد  ابعتلي المقاس اللي بتلبسه عادة أو طول القدم وأنا أساعدك تختار المقاس المناسب.";
+      return "ط£ظƒظٹط¯  ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ط§ظ„ظ„ظٹ ط¨طھظ„ط¨ط³ظ‡ ط¹ط§ط¯ط© ط£ظˆ ط·ظˆظ„ ط§ظ„ظ‚ط¯ظ… ظˆط£ظ†ط§ ط£ط³ط§ط¹ط¯ظƒ طھط®طھط§ط± ط§ظ„ظ…ظ‚ط§ط³ ط§ظ„ظ…ظ†ط§ط³ط¨.";
     case "PRICE_INQUIRY":
-      return "أكيد  هقولك السعر الحالي والمتاح دلوقتي.";
+      return "ط£ظƒظٹط¯  ظ‡ظ‚ظˆظ„ظƒ ط§ظ„ط³ط¹ط± ط§ظ„ط­ط§ظ„ظٹ ظˆط§ظ„ظ…طھط§ط­ ط¯ظ„ظˆظ‚طھظٹ.";
     case "AVAILABILITY_INQUIRY":
-      return "ثانية واحدة أتأكدلك من التوفر الحالي والمقاسات المتاحة ";
+      return "ط«ط§ظ†ظٹط© ظˆط§ط­ط¯ط© ط£طھط£ظƒط¯ظ„ظƒ ظ…ظ† ط§ظ„طھظˆظپط± ط§ظ„ط­ط§ظ„ظٹ ظˆط§ظ„ظ…ظ‚ط§ط³ط§طھ ط§ظ„ظ…طھط§ط­ط© ";
     default:
       return "";
   }
@@ -3826,10 +3826,127 @@ const correctionTypeHintForIntent = ({ intent = "", salesIntent = "", message = 
   const normalizedIntent = lower(intent);
   const normalizedSalesIntent = lower(salesIntent);
   const normalizedMessage = lower(message);
-  if (normalizedIntent.includes("price") || normalizedSalesIntent.includes("price") || /سعر|price|cost/.test(normalizedMessage)) return "wrong_price";
-  if (normalizedIntent.includes("availability") || normalizedSalesIntent.includes("availability") || /موجود|متاح|stock|availability/.test(normalizedMessage)) return "wrong_stock";
-  if (/(policy|return|exchange|shipping|delivery|cod|payment)/.test(normalizedIntent) || /(policy|return|exchange|shipping|delivery|cod|payment|شحن|استبدال|استرجاع|دفع)/.test(normalizedMessage)) return "wrong_policy";
+  if (normalizedIntent.includes("size_color_request")) return "colors_basic";
+  if (normalizedIntent.includes("price") || normalizedSalesIntent.includes("price") || /ط³ط¹ط±|price|cost/.test(normalizedMessage)) return "wrong_price";
+  if (normalizedIntent.includes("availability") || normalizedSalesIntent.includes("availability") || /ظ…ظˆط¬ظˆط¯|ظ…طھط§ط­|stock|availability/.test(normalizedMessage)) return "wrong_stock";
+  if (/(policy|return|exchange|shipping|delivery|cod|payment)/.test(normalizedIntent) || /(policy|return|exchange|shipping|delivery|cod|payment|ط´ط­ظ†|ط§ط³طھط¨ط¯ط§ظ„|ط§ط³طھط±ط¬ط§ط¹|ط¯ظپط¹)/.test(normalizedMessage)) return "wrong_policy";
   return "other";
+};
+
+const SAFE_AUTO_REPLY_INTENTS = new Set(["greeting", "price_question", "size_followup", "availability", "shipping_basic", "return_policy_basic", "colors_basic", "cod_basic", "payment_basic"]);
+
+const INTENT_SHADOW_PROFILES = {
+  greeting: { minConfidence: 70, suppressMissingFacts: new Set(["missing_product_facts", "missing_inventory_facts", "missing_order_facts"]) },
+  shipping_basic: { minConfidence: 70, suppressMissingFacts: new Set(["missing_product_facts", "missing_inventory_facts", "missing_order_facts"]) },
+  return_policy_basic: { minConfidence: 70, suppressMissingFacts: new Set(["missing_product_facts", "missing_inventory_facts", "missing_order_facts"]) },
+  cod_basic: { minConfidence: 70, suppressMissingFacts: new Set(["missing_product_facts", "missing_inventory_facts", "missing_order_facts"]) },
+  payment_basic: { minConfidence: 70, suppressMissingFacts: new Set(["missing_product_facts", "missing_inventory_facts", "missing_order_facts"]) },
+  colors_basic: { minConfidence: 70, suppressMissingFacts: new Set(["missing_product_facts", "missing_inventory_facts", "missing_order_facts"]) },
+  price_question: { minConfidence: 90, suppressMissingFacts: new Set() },
+  size_followup: { minConfidence: 90, suppressMissingFacts: new Set() },
+  availability: { minConfidence: 90, suppressMissingFacts: new Set() },
+};
+
+const shadowIntentProfile = (intent = "", salesIntent = "", message = "") => {
+  const normalizedIntent = lower(`${intent} ${salesIntent}`);
+  const normalizedMessage = lower(message);
+  if (normalizedIntent.includes("size_color_request")) {
+    return INTENT_SHADOW_PROFILES.colors_basic;
+  }
+  if (/(order|tracking|order_status|order_follow_up|ط·آ§ط¸ث†ط·آ±ط·آ¯ط·آ±|ط·ع¾ط·ع¾ط·آ¨ط·آ¹)/.test(normalizedIntent) || /(order|tracking|ط·آ§ط¸ث†ط·آ±ط·آ¯ط·آ±|ط·ع¾ط·ع¾ط·آ¨ط·آ¹)/.test(normalizedMessage)) {
+    return { minConfidence: 80, suppressMissingFacts: new Set() };
+  }
+  if (/(price|cost|ط·آ³ط·آ¹ط·آ±|ط¸ئ’ط¸â€¦|ط·آ¨ط¸ئ’ط·آ§ط¸â€¦|ط·ط›ط·آ§ط¸â€‍ط¸ظ¹|ط·آ§ط·آ±ط·آ®ط·آµ)/.test(normalizedIntent) || /(price|cost|ط·آ³ط·آ¹ط·آ±|ط¸ئ’ط¸â€¦|ط·آ¨ط¸ئ’ط·آ§ط¸â€¦|ط·ط›ط·آ§ط¸â€‍ط¸ظ¹|ط·آ§ط·آ±ط·آ®ط·آµ)/.test(normalizedMessage)) {
+    return INTENT_SHADOW_PROFILES.price_question;
+  }
+  if (/(size|ط¸â€¦ط¸â€ڑط·آ§ط·آ³|measure|fit)/.test(normalizedIntent) || /(size|ط¸â€¦ط¸â€ڑط·آ§ط·آ³)/.test(normalizedMessage)) {
+    return INTENT_SHADOW_PROFILES.size_followup;
+  }
+  if (/(availability|available|stock|ط¸â€¦ط·ع¾ط·آ§ط·آ­|ط¸â€¦ط¸ث†ط·آ¬ط¸ث†ط·آ¯|inventory)/.test(normalizedIntent) || /(availability|available|stock|ط¸â€¦ط·ع¾ط·آ§ط·آ­|ط¸â€¦ط¸ث†ط·آ¬ط¸ث†ط·آ¯)/.test(normalizedMessage)) {
+    return INTENT_SHADOW_PROFILES.availability;
+  }
+  if (/(shipping|delivery|ط·آ´ط·آ­ط¸â€ |ط·ع¾ط¸ث†ط·آµط¸ظ¹ط¸â€‍)/.test(normalizedIntent) || /(shipping|delivery|ط·آ´ط·آ­ط¸â€ |ط·ع¾ط¸ث†ط·آµط¸ظ¹ط¸â€‍)/.test(normalizedMessage)) {
+    return INTENT_SHADOW_PROFILES.shipping_basic;
+  }
+  if (/(return|exchange|policy|ط·آ§ط·آ³ط·ع¾ط·آ¨ط·آ¯ط·آ§ط¸â€‍|ط·آ§ط·آ³ط·ع¾ط·آ±ط·آ¬ط·آ§ط·آ¹)/.test(normalizedIntent) || /(return|exchange|policy|ط·آ§ط·آ³ط·ع¾ط·آ¨ط·آ¯ط·آ§ط¸â€‍|ط·آ§ط·آ³ط·ع¾ط·آ±ط·آ¬ط·آ§ط·آ¹)/.test(normalizedMessage)) {
+    return INTENT_SHADOW_PROFILES.return_policy_basic;
+  }
+  if (/(color|colors|colour|colours|ط¸â€‍ط¸ث†ط¸â€ |ط·آ§ط¸â€‍ط¸ث†ط·آ§ط¸â€ |ط·آ£ط¸â€‍ط¸ث†ط·آ§ط¸â€ )/.test(normalizedIntent) || /(color|colors|colour|colours|ط¸â€‍ط¸ث†ط¸â€ |ط·آ§ط¸â€‍ط¸ث†ط·آ§ط¸â€ |ط·آ£ط¸â€‍ط¸ث†ط·آ§ط¸â€ )/.test(normalizedMessage)) {
+    return INTENT_SHADOW_PROFILES.colors_basic;
+  }
+  if (/(cod|cash on delivery|cash)/.test(normalizedIntent) || /(cod|cash on delivery|cash)/.test(normalizedMessage)) {
+    return INTENT_SHADOW_PROFILES.cod_basic;
+  }
+  if (/(payment|ط¯ظپط¹|ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…|ط·ط±ظ‚ ط§ظ„ط¯ظپط¹)/.test(normalizedIntent) || /(payment|ط¯ظپط¹|ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…|ط·ط±ظ‚ ط§ظ„ط¯ظپط¹)/.test(normalizedMessage)) {
+    return INTENT_SHADOW_PROFILES.payment_basic;
+  }
+  if (/(greeting|hello|hi|ط·آ³ط¸â€‍ط·آ§ط¸â€¦|ط·آ§ط¸â€،ط¸â€‍ط·آ§|ط·آ£ط¸â€،ط¸â€‍ط·آ§)/.test(normalizedIntent) || /^(hi|hello|ط·آ³ط¸â€‍ط·آ§ط¸â€¦|ط·آ§ط¸â€،ط¸â€‍ط·آ§|ط·آ£ط¸â€،ط¸â€‍ط·آ§)$/i.test(normalizedMessage)) {
+    return INTENT_SHADOW_PROFILES.greeting;
+  }
+  return { minConfidence: 80, suppressMissingFacts: new Set() };
+};
+
+const normalizeShadowIntent = ({ intent = "", salesIntent = "", message = "" } = {}) => {
+  const normalizedIntent = lower(`${intent} ${salesIntent}`);
+  const normalizedMessage = lower(message);
+  if (normalizedIntent.includes("size_color_request")) return "colors_basic";
+  if (/greeting|hello|hi|ط³ظ„ط§ظ…|ط§ظ‡ظ„ط§|ط£ظ‡ظ„ط§/.test(normalizedIntent) || /^(hi|hello|ط³ظ„ط§ظ…|ط§ظ‡ظ„ط§|ط£ظ‡ظ„ط§)$/i.test(normalizedMessage)) return "greeting";
+  if (/price|cost|ظƒظ…|ط¨ظƒط§ظ…|ط³ط¹ط±|ط؛ط§ظ„ظٹ|ط§ط±ط®طµ|objection/.test(normalizedIntent) || /price|cost|ظƒظ…|ط¨ظƒط§ظ…|ط³ط¹ط±|ط؛ط§ظ„ظٹ|ط§ط±ط®طµ/.test(normalizedMessage)) return "price_question";
+  if (/size|ظ…ظ‚ط§ط³|measure|fit|size_check|size_followup/.test(normalizedIntent) || /size|ظ…ظ‚ط§ط³/.test(normalizedMessage)) return "size_followup";
+  if (/availability|available|stock|ظ…طھط§ط­|ظ…ظˆط¬ظˆط¯|inventory/.test(normalizedIntent) || /availability|available|stock|ظ…طھط§ط­|ظ…ظˆط¬ظˆط¯/.test(normalizedMessage)) return "availability";
+  if (/shipping|delivery|ط´ط­ظ†|طھظˆطµظٹظ„/.test(normalizedIntent) || /shipping|delivery|ط´ط­ظ†|طھظˆطµظٹظ„/.test(normalizedMessage)) return "shipping_basic";
+  if (/return|exchange|policy|ط§ط³طھط¨ط¯ط§ظ„|ط§ط³طھط±ط¬ط§ط¹/.test(normalizedIntent) || /return|exchange|policy|ط§ط³طھط¨ط¯ط§ظ„|ط§ط³طھط±ط¬ط§ط¹/.test(normalizedMessage)) return "return_policy_basic";
+  if (/color|colors|colour|colours|ظ„ظˆظ†|ط§ظ„ظˆط§ظ†|ط£ظ„ظˆط§ظ†/.test(normalizedIntent) || /color|colors|colour|colours|ظ„ظˆظ†|ط§ظ„ظˆط§ظ†|ط£ظ„ظˆط§ظ†/.test(normalizedMessage)) return "colors_basic";
+  if (/cod|cash on delivery|cash/.test(normalizedIntent) || /cod|cash on delivery|cash/.test(normalizedMessage)) return "cod_basic";
+  if (/payment|ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…|ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…|ط·ط±ظ‚ ط§ظ„ط¯ظپط¹/.test(normalizedIntent) || /payment|ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…|ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…|ط·ط±ظ‚ ط§ظ„ط¯ظپط¹/.test(normalizedMessage)) return "payment_basic";
+  return lower(intent || salesIntent || "");
+};
+
+const buildAutoReplyShadowDecision = ({
+  conversation = {},
+  draft = {},
+  validation = {},
+  confidenceEngine = {},
+  intent = "",
+  salesIntent = "",
+  message = "",
+} = {}) => {
+  const resolvedIntent = normalizeShadowIntent({ intent, salesIntent, message: message || draft?.customer_question || draft?.text || "" });
+  const validationViolationsCount = Number(validation?.violations_count ?? validation?.violationsCount ?? (Array.isArray(validation?.violations) ? validation.violations.length : 0)) || 0;
+  const confidenceScore = Number(confidenceEngine?.confidence_score ?? confidenceEngine?.score ?? 0) || 0;
+  const confidenceDecision = text(confidenceEngine?.decision || confidenceEngine?.status || "");
+  const riskFlags = confidenceEngine?.risk_flags && typeof confidenceEngine.risk_flags === "object" ? confidenceEngine.risk_flags : {};
+  const intentProfile = shadowIntentProfile(resolvedIntent, salesIntent, message || draft?.customer_question || draft?.text || "");
+  const riskyFlagNames = Object.entries(riskFlags)
+    .filter(([key, value]) => {
+      if (!value) return false;
+      if (intentProfile.suppressMissingFacts?.has(key)) return false;
+      return /^(missing_|hallucination_|ambiguous_customer_request|engine_error|unknown_|unsafe_|high_risk)/i.test(key);
+    })
+    .map(([key]) => key);
+  const blockers = [];
+
+  if (confidenceDecision !== "safe") blockers.push(`confidence_decision_${confidenceDecision || "missing"}`);
+  if (confidenceScore < intentProfile.minConfidence) blockers.push(`confidence_score_${confidenceScore || 0}_lt_${intentProfile.minConfidence}`);
+  if (validationViolationsCount > 0) blockers.push(`validation_violations_${validationViolationsCount}`);
+  if (text(draft?.status || "") !== "not_sent") blockers.push(`draft_status_${text(draft?.status || "missing")}`);
+  if (conversation?.conversation_status === "human_takeover") blockers.push("conversation_human_takeover");
+  if (conversation?.conversation_status === "closed") blockers.push("conversation_closed");
+  if (conversation?.ai_enabled === false) blockers.push("channel_ai_disabled");
+  if (!SAFE_AUTO_REPLY_INTENTS.has(resolvedIntent)) blockers.push(`intent_${resolvedIntent || "unknown"}`);
+  if (riskyFlagNames.length) blockers.push(...riskyFlagNames.slice(0, 6));
+
+  const eligible = blockers.length === 0;
+  return {
+    evaluated: true,
+    eligible,
+    reason: eligible ? "eligible" : blockers[0],
+    blockers,
+    confidence_score: confidenceScore,
+    decision: confidenceDecision || "unknown",
+    intent: resolvedIntent,
+    evaluated_at: new Date().toISOString(),
+  };
 };
 
 export const generateAiInboxReply = async ({ tenantId, conversationId, persist = false } = {}) => {
@@ -3978,6 +4095,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
       preloadedProductContext: preloadedProductContext,
       preloadedAiSettings: aiSettings,
       preloadedShippingZones: null,
+      preloadedSalesIntelligence: salesIntelligence,
     });
     stageTimings.harness_ms = Date.now() - harnessStartedAt;
     stageTimings.tools_ms = Number(replyHarness?.trace?.tools_ms || 0);
@@ -4009,7 +4127,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   });
   const guarded = guardAIReply({
     reply: escalation.shouldEscalate
-      ? "واضح إن فيه مشكلة محتاجة متابعة من أحد أفراد الفريق. هحوّل المحادثة لموظف يساعدك فورًا "
+      ? "ظˆط§ط¶ط­ ط¥ظ† ظپظٹظ‡ ظ…ط´ظƒظ„ط© ظ…ط­طھط§ط¬ط© ظ…طھط§ط¨ط¹ط© ظ…ظ† ط£ط­ط¯ ط£ظپط±ط§ط¯ ط§ظ„ظپط±ظٹظ‚. ظ‡ط­ظˆظ‘ظ„ ط§ظ„ظ…ط­ط§ط¯ط«ط© ظ„ظ…ظˆط¸ظپ ظٹط³ط§ط¹ط¯ظƒ ظپظˆط±ظ‹ط§ "
       : humanizedReply || commerceReplyForIntent(intent, replyProductContext, detectedSize) || buildArabicAiSalesAnswer({ intent: salesIntent, products: recommendations.products, conversation }),
     intent,
     productContext,
@@ -4017,15 +4135,6 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     detectedSize,
   });
   const answer = ensureProductLinkInReply(guarded.reply, replyProductContext);
-  await buildSalesConversationIntelligence({
-    tenantId,
-    conversation,
-    messages: conversation.messages,
-    draftOrders: asArray(conversation.draft_orders),
-    conversationFollowups: asArray(conversation.followups),
-    recommendations: recommendations.products,
-    selectedProduct: replyProductContext || productContext || currentProductForConversation(conversation, recommendations.products),
-  }).catch(() => null);
   logProductShareContext({
     conversationId,
     platform: conversation.channel || conversation.source || "",
@@ -4243,6 +4352,19 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     reasons_count: Array.isArray(confidenceEngine?.reasons) ? confidenceEngine.reasons.length : 0,
     risk_flags_count: confidenceEngine?.risk_flags ? Object.values(confidenceEngine.risk_flags).filter(Boolean).length : 0,
   };
+  const autoReplyShadow = buildAutoReplyShadowDecision({
+    conversation,
+    draft: aiReplyDraft,
+    validation,
+    confidenceEngine,
+    intent,
+    salesIntent,
+    message: lastMessage,
+  });
+  aiReplyDraft.metadata = {
+    ...(aiReplyDraft.metadata && typeof aiReplyDraft.metadata === "object" ? aiReplyDraft.metadata : {}),
+    auto_reply_shadow: autoReplyShadow,
+  };
   const harnessQueryCounts = replyHarness?.trace?.query_counts || {};
   const totalCorrectionQueries = Number(pipelineQueryCounts.correction_queries_count || 0) + Number(harnessQueryCounts.correction_queries_count || 0);
   const totalProductQueries = Number(pipelineQueryCounts.product_queries_count || 0) + Number(harnessQueryCounts.product_queries_count || 0);
@@ -4291,7 +4413,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     duplicate_work: {
       repeated_correction_lookup: duplicateCorrectionLookup,
       repeated_product_lookup: duplicateProductLookup,
-      repeated_db_reads: optimizationReport.db_reads_count > 1 || duplicateCorrectionLookup || duplicateProductLookup,
+      repeated_db_reads: duplicateCorrectionLookup || duplicateProductLookup,
     },
     memory: {
       harness_bytes: harnessBytes,
@@ -4301,6 +4423,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
       duplicate_context_blocks: duplicateProductLookup,
     },
     optimization_report: optimizationReport,
+    auto_reply_shadow: autoReplyShadow,
     counts: {
       corrections: asArray(employeeCorrections).length,
       recommendations: asArray(recommendations.products).length,
@@ -4323,7 +4446,25 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     duplicate_work: pipelineDebug.duplicate_work,
     memory: pipelineDebug.memory,
     optimization_report: pipelineDebug.optimization_report,
+    auto_reply_shadow: autoReplyShadow,
   };
+  await db.query(
+    `
+    UPDATE ai_support_sessions
+    SET last_ai_reply_draft = $3::jsonb,
+        last_ai_reply_draft_updated_at = NOW(),
+        updated_at = NOW()
+    WHERE tenant_id = $1::bigint
+      AND session_id = $2::text
+    `,
+    [Number(tenantId) || null, conversationId, JSON.stringify(aiReplyDraft)]
+  ).catch((error) => {
+    console.warn("[ai-agent] failed to persist ai reply pipeline debug", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      message: error?.message || String(error),
+    });
+  });
   emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: new Date().toISOString() });
   return {
     conversation_id: conversationId,
@@ -4347,6 +4488,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     reasoning: reply.reasoning || null,
     validation,
     confidence_engine: confidenceEngine,
+    auto_reply_shadow: autoReplyShadow,
     pipeline_debug: pipelineDebug,
   };
 };
@@ -4356,8 +4498,8 @@ const productLineAr = (product = {}) => {
   const price = realProductPrice(product);
   const stock = stockCount(product);
   if (!name) return "";
-  const pricePart = price > 0 ? `سعره ${price} جنيه` : "السعر محتاج يتأكد من المنتج";
-  const stockPart = stock > 0 ? "ومتاح حاليا" : "ومش ظاهر متاح حاليا";
+  const pricePart = price > 0 ? `ط³ط¹ط±ظ‡ ${price} ط¬ظ†ظٹظ‡` : "ط§ظ„ط³ط¹ط± ظ…ط­طھط§ط¬ ظٹطھط£ظƒط¯ ظ…ظ† ط§ظ„ظ…ظ†طھط¬";
+  const stockPart = stock > 0 ? "ظˆظ…طھط§ط­ ط­ط§ظ„ظٹط§" : "ظˆظ…ط´ ط¸ط§ظ‡ط± ظ…طھط§ط­ ط­ط§ظ„ظٹط§";
   return `${name} ${pricePart} ${stockPart}`;
 };
 
@@ -4367,28 +4509,28 @@ const draftLineAr = (draft = {}) => {
   const price = numeric(item.price || item.sale_price || draft.total_amount || draft.total, 0);
   const stockStatus = text(item.stock_status || draft.ai_agent_metadata?.stock_status);
   return [
-    productName ? `المسودة على ${productName}` : "فيه مسودة أوردر مفتوحة",
-    price > 0 ? `بسعر ${price} جنيه` : "",
-    stockStatus === "stock_conflict" ? "بس المخزون محتاج مراجعة قبل التأكيد" : "",
+    productName ? `ط§ظ„ظ…ط³ظˆط¯ط© ط¹ظ„ظ‰ ${productName}` : "ظپظٹظ‡ ظ…ط³ظˆط¯ط© ط£ظˆط±ط¯ط± ظ…ظپطھظˆط­ط©",
+    price > 0 ? `ط¨ط³ط¹ط± ${price} ط¬ظ†ظٹظ‡` : "",
+    stockStatus === "stock_conflict" ? "ط¨ط³ ط§ظ„ظ…ط®ط²ظˆظ† ظ…ط­طھط§ط¬ ظ…ط±ط§ط¬ط¹ط© ظ‚ط¨ظ„ ط§ظ„طھط£ظƒظٹط¯" : "",
   ].filter(Boolean).join(" ");
 };
 
 const detectSuggestedReplyIntent = ({ message = "", conversation = {}, products = [], drafts = [] } = {}) => {
   const normalized = lower(message);
-  if (conversation.customer_sentiment === "negative" || ["زعلان", "مشكلة", "شكوى", "اتأخر", "غلط"].some((term) => normalized.includes(term))) return "apologize";
-  if (["غالي", "خصم", "اخر سعر", "آخر سعر", "expensive", "discount"].some((term) => normalized.includes(lower(term)))) return "handle_objection";
-  if (drafts.length || ["اشتري", "اطلب", "اوردر", "أوردر", "هاخده", "احجز"].some((term) => normalized.includes(lower(term)))) return "close_sale";
-  if (!products.length || ["مقاس", "لون", "رقم", "عنوان", "منطقة"].some((term) => normalized.includes(lower(term)))) return "ask_missing_info";
+  if (conversation.customer_sentiment === "negative" || ["ط²ط¹ظ„ط§ظ†", "ظ…ط´ظƒظ„ط©", "ط´ظƒظˆظ‰", "ط§طھط£ط®ط±", "ط؛ظ„ط·"].some((term) => normalized.includes(term))) return "apologize";
+  if (["ط؛ط§ظ„ظٹ", "ط®طµظ…", "ط§ط®ط± ط³ط¹ط±", "ط¢ط®ط± ط³ط¹ط±", "expensive", "discount"].some((term) => normalized.includes(lower(term)))) return "handle_objection";
+  if (drafts.length || ["ط§ط´طھط±ظٹ", "ط§ط·ظ„ط¨", "ط§ظˆط±ط¯ط±", "ط£ظˆط±ط¯ط±", "ظ‡ط§ط®ط¯ظ‡", "ط§ط­ط¬ط²"].some((term) => normalized.includes(lower(term)))) return "close_sale";
+  if (!products.length || ["ظ…ظ‚ط§ط³", "ظ„ظˆظ†", "ط±ظ‚ظ…", "ط¹ظ†ظˆط§ظ†", "ظ…ظ†ط·ظ‚ط©"].some((term) => normalized.includes(lower(term)))) return "ask_missing_info";
   if (conversation.conversation_status === "human_takeover") return "handoff_note";
   return "answer_question";
 };
 
 const buildMissingInfoReply = ({ products = [], profile = {} } = {}) => {
   const product = products.find((item) => stockCount(item) > 0) || products[0] || null;
-  if (!product) return "ممكن تبعتلي اسم الموديل أو صورة المنتج اللي تقصده، ومعاه المقاس واللون المطلوب؟";
+  if (!product) return "ظ…ظ…ظƒظ† طھط¨ط¹طھظ„ظٹ ط§ط³ظ… ط§ظ„ظ…ظˆط¯ظٹظ„ ط£ظˆ طµظˆط±ط© ط§ظ„ظ…ظ†طھط¬ ط§ظ„ظ„ظٹ طھظ‚طµط¯ظ‡طŒ ظˆظ…ط¹ط§ظ‡ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ„ظˆظ† ط§ظ„ظ…ط·ظ„ظˆط¨طں";
   const missingSize = !text(profile.preferred_size);
-  if (missingSize) return `تمام، ${productLineAr(product)}. تحب أنهي مقاس عشان أراجع المتاح بالظبؿ`;
-  return `تمام، ${productLineAr(product)}. تحب أنهي لون أو فاريانت عشان نأكد المتاح قبل التسجيل؟`;
+  if (missingSize) return `طھظ…ط§ظ…طŒ ${productLineAr(product)}. طھط­ط¨ ط£ظ†ظ‡ظٹ ظ…ظ‚ط§ط³ ط¹ط´ط§ظ† ط£ط±ط§ط¬ط¹ ط§ظ„ظ…طھط§ط­ ط¨ط§ظ„ط¸ط¨ط؟`;
+  return `طھظ…ط§ظ…طŒ ${productLineAr(product)}. طھط­ط¨ ط£ظ†ظ‡ظٹ ظ„ظˆظ† ط£ظˆ ظپط§ط±ظٹط§ظ†طھ ط¹ط´ط§ظ† ظ†ط£ظƒط¯ ط§ظ„ظ…طھط§ط­ ظ‚ط¨ظ„ ط§ظ„طھط³ط¬ظٹظ„طں`;
 };
 
 const safeSuggestedReplies = ({ conversation = {}, settings = DEFAULT_SETTINGS } = {}) => {
@@ -4410,26 +4552,26 @@ const safeSuggestedReplies = ({ conversation = {}, settings = DEFAULT_SETTINGS }
       intent,
       confidence: 0.82,
       suggestions: [
-        "حقك عليا، خليني أراجعلك الموضوع خطوة بخطوة ونحلها بأسرع شكل. ممكن تبعتلي رقم الأوردر أو رقم الموبايل؟",
-        "متأسفين على اللي حصل. ابعتلي تفاصيل المشكلة ورقم الطلب وأنا هتابعها مع الفريق حالا.",
-        "تمام، أنا معاك لحد ما نحلها. محتاج بس رقم الطلب أو اسم المنتج عشان أراجع الحالة بدقة.",
+        "ط­ظ‚ظƒ ط¹ظ„ظٹط§طŒ ط®ظ„ظٹظ†ظٹ ط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…ظˆط¶ظˆط¹ ط®ط·ظˆط© ط¨ط®ط·ظˆط© ظˆظ†ط­ظ„ظ‡ط§ ط¨ط£ط³ط±ط¹ ط´ظƒظ„. ظ…ظ…ظƒظ† طھط¨ط¹طھظ„ظٹ ط±ظ‚ظ… ط§ظ„ط£ظˆط±ط¯ط± ط£ظˆ ط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„طں",
+        "ظ…طھط£ط³ظپظٹظ† ط¹ظ„ظ‰ ط§ظ„ظ„ظٹ ط­طµظ„. ط§ط¨ط¹طھظ„ظٹ طھظپط§طµظٹظ„ ط§ظ„ظ…ط´ظƒظ„ط© ظˆط±ظ‚ظ… ط§ظ„ط·ظ„ط¨ ظˆط£ظ†ط§ ظ‡طھط§ط¨ط¹ظ‡ط§ ظ…ط¹ ط§ظ„ظپط±ظٹظ‚ ط­ط§ظ„ط§.",
+        "طھظ…ط§ظ…طŒ ط£ظ†ط§ ظ…ط¹ط§ظƒ ظ„ط­ط¯ ظ…ط§ ظ†ط­ظ„ظ‡ط§. ظ…ط­طھط§ط¬ ط¨ط³ ط±ظ‚ظ… ط§ظ„ط·ظ„ط¨ ط£ظˆ ط§ط³ظ… ط§ظ„ظ…ظ†طھط¬ ط¹ط´ط§ظ† ط£ط±ط§ط¬ط¹ ط§ظ„ط­ط§ظ„ط© ط¨ط¯ظ‚ط©.",
       ],
     };
   }
 
   if (intent === "handle_objection") {
     const priceReply = primaryLine
-      ? `فاهمك، ${primaryLine}. السعر ده هو السعر الحقيقي الظاهر عندنا حاليا، ومقدرش أوعد بخصم غير لما يتأكد من الإدارة. تحب أرشحلك بدائل أرخص؟`
-      : "فاهمك، ابعتلي الموديل اللي تقصده وأنا أراجعلك السعر الحقيقي وأقولك لو فيه بدائل أرخص متاحة.";
+      ? `ظپط§ظ‡ظ…ظƒطŒ ${primaryLine}. ط§ظ„ط³ط¹ط± ط¯ظ‡ ظ‡ظˆ ط§ظ„ط³ط¹ط± ط§ظ„ط­ظ‚ظٹظ‚ظٹ ط§ظ„ط¸ط§ظ‡ط± ط¹ظ†ط¯ظ†ط§ ط­ط§ظ„ظٹط§طŒ ظˆظ…ظ‚ط¯ط±ط´ ط£ظˆط¹ط¯ ط¨ط®طµظ… ط؛ظٹط± ظ„ظ…ط§ ظٹطھط£ظƒط¯ ظ…ظ† ط§ظ„ط¥ط¯ط§ط±ط©. طھط­ط¨ ط£ط±ط´ط­ظ„ظƒ ط¨ط¯ط§ط¦ظ„ ط£ط±ط®طµطں`
+      : "ظپط§ظ‡ظ…ظƒطŒ ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظˆط¯ظٹظ„ ط§ظ„ظ„ظٹ طھظ‚طµط¯ظ‡ ظˆط£ظ†ط§ ط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ط³ط¹ط± ط§ظ„ط­ظ‚ظٹظ‚ظٹ ظˆط£ظ‚ظˆظ„ظƒ ظ„ظˆ ظپظٹظ‡ ط¨ط¯ط§ط¦ظ„ ط£ط±ط®طµ ظ…طھط§ط­ط©.";
     return {
       intent,
       confidence: primaryProduct ? 0.8 : 0.6,
       suggestions: [
         canDiscount && primaryLine
-          ? `فاهمك، ${primaryLine}. أقدر أراجعلك لو فيه عرض أو خصم متاح قبل ما نأكد الأوردر.`
+          ? `ظپط§ظ‡ظ…ظƒطŒ ${primaryLine}. ط£ظ‚ط¯ط± ط£ط±ط§ط¬ط¹ظ„ظƒ ظ„ظˆ ظپظٹظ‡ ط¹ط±ط¶ ط£ظˆ ط®طµظ… ظ…طھط§ط­ ظ‚ط¨ظ„ ظ…ط§ ظ†ط£ظƒط¯ ط§ظ„ط£ظˆط±ط¯ط±.`
           : priceReply,
-        "لو السعر أعلى من الميزانية، قولّي الرينج المناسب وأنا أطلعلك أقرب بدائل متاحة بسعر أقل.",
-        primaryLine ? `الموديل ده قيمته في خامته وشكله، بس لو عايز حاجة اقتصادية أكتر أقدر أوريك اختيارات قريبة.` : "حددلي الشكل أو صورة المنتج، وأنا أرشحلك بدائل مناسبة للميزانية.",
+        "ظ„ظˆ ط§ظ„ط³ط¹ط± ط£ط¹ظ„ظ‰ ظ…ظ† ط§ظ„ظ…ظٹط²ط§ظ†ظٹط©طŒ ظ‚ظˆظ„ظ‘ظٹ ط§ظ„ط±ظٹظ†ط¬ ط§ظ„ظ…ظ†ط§ط³ط¨ ظˆط£ظ†ط§ ط£ط·ظ„ط¹ظ„ظƒ ط£ظ‚ط±ط¨ ط¨ط¯ط§ط¦ظ„ ظ…طھط§ط­ط© ط¨ط³ط¹ط± ط£ظ‚ظ„.",
+        primaryLine ? `ط§ظ„ظ…ظˆط¯ظٹظ„ ط¯ظ‡ ظ‚ظٹظ…طھظ‡ ظپظٹ ط®ط§ظ…طھظ‡ ظˆط´ظƒظ„ظ‡طŒ ط¨ط³ ظ„ظˆ ط¹ط§ظٹط² ط­ط§ط¬ط© ط§ظ‚طھطµط§ط¯ظٹط© ط£ظƒطھط± ط£ظ‚ط¯ط± ط£ظˆط±ظٹظƒ ط§ط®طھظٹط§ط±ط§طھ ظ‚ط±ظٹط¨ط©.` : "ط­ط¯ط¯ظ„ظٹ ط§ظ„ط´ظƒظ„ ط£ظˆ طµظˆط±ط© ط§ظ„ظ…ظ†طھط¬طŒ ظˆط£ظ†ط§ ط£ط±ط´ط­ظ„ظƒ ط¨ط¯ط§ط¦ظ„ ظ…ظ†ط§ط³ط¨ط© ظ„ظ„ظ…ظٹط²ط§ظ†ظٹط©.",
       ],
     };
   }
@@ -4439,9 +4581,9 @@ const safeSuggestedReplies = ({ conversation = {}, settings = DEFAULT_SETTINGS }
       intent,
       confidence: drafts.length ? 0.86 : 0.72,
       suggestions: [
-        draftLine ? `${draftLine}. تحب أأكدلك البيانات قبل ما نكمل؟` : "تمام، عشان أسجل الطلب محتاج الاسم ورقم الموبايل والعنوان والمقاس/اللون المطلوب.",
-        "ابعتلي الاسم ورقم الموبايل والمنطقة، وأنا أراجع المتاح والسعر النهائي قبل تأكيد الأوردر.",
-        primaryLine ? `${primaryLine}. لو مناسبك، ابعتلي الاسم ورقم الموبايل والعنوان ونكمل الطلب.` : "تمام، ابعتلي المنتج المطلوب مع المقاس واللون ونكمل بيانات الطلب.",
+        draftLine ? `${draftLine}. طھط­ط¨ ط£ط£ظƒط¯ظ„ظƒ ط§ظ„ط¨ظٹط§ظ†ط§طھ ظ‚ط¨ظ„ ظ…ط§ ظ†ظƒظ…ظ„طں` : "طھظ…ط§ظ…طŒ ط¹ط´ط§ظ† ط£ط³ط¬ظ„ ط§ظ„ط·ظ„ط¨ ظ…ط­طھط§ط¬ ط§ظ„ط§ط³ظ… ظˆط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ظˆط§ظ„ط¹ظ†ظˆط§ظ† ظˆط§ظ„ظ…ظ‚ط§ط³/ط§ظ„ظ„ظˆظ† ط§ظ„ظ…ط·ظ„ظˆط¨.",
+        "ط§ط¨ط¹طھظ„ظٹ ط§ظ„ط§ط³ظ… ظˆط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ظˆط§ظ„ظ…ظ†ط·ظ‚ط©طŒ ظˆط£ظ†ط§ ط£ط±ط§ط¬ط¹ ط§ظ„ظ…طھط§ط­ ظˆط§ظ„ط³ط¹ط± ط§ظ„ظ†ظ‡ط§ط¦ظٹ ظ‚ط¨ظ„ طھط£ظƒظٹط¯ ط§ظ„ط£ظˆط±ط¯ط±.",
+        primaryLine ? `${primaryLine}. ظ„ظˆ ظ…ظ†ط§ط³ط¨ظƒطŒ ط§ط¨ط¹طھظ„ظٹ ط§ظ„ط§ط³ظ… ظˆط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ظˆط§ظ„ط¹ظ†ظˆط§ظ† ظˆظ†ظƒظ…ظ„ ط§ظ„ط·ظ„ط¨.` : "طھظ…ط§ظ…طŒ ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظ†طھط¬ ط§ظ„ظ…ط·ظ„ظˆط¨ ظ…ط¹ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ„ظˆظ† ظˆظ†ظƒظ…ظ„ ط¨ظٹط§ظ†ط§طھ ط§ظ„ط·ظ„ط¨.",
       ],
     };
   }
@@ -4452,8 +4594,8 @@ const safeSuggestedReplies = ({ conversation = {}, settings = DEFAULT_SETTINGS }
       confidence: primaryProduct ? 0.7 : 0.55,
       suggestions: [
         buildMissingInfoReply({ products, profile }),
-        "ممكن تحددلي المقاس واللون اللي محتاجه؟ هراجعلك المتاح والسعر الحقيقي قبل أي تأكيد.",
-        lastAi ? "خلينا نأكد التفاصيل الأول: المقاس، اللون، والمنطقة عشان أقدر أرد عليك بدقة." : "ابعتلي تفاصيل أكتر عن المنتج المطلوب أو صورة له، وأنا أطلعلك الأقرب من المتاح.",
+        "ظ…ظ…ظƒظ† طھط­ط¯ط¯ظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ„ظˆظ† ط§ظ„ظ„ظٹ ظ…ط­طھط§ط¬ظ‡طں ظ‡ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…طھط§ط­ ظˆط§ظ„ط³ط¹ط± ط§ظ„ط­ظ‚ظٹظ‚ظٹ ظ‚ط¨ظ„ ط£ظٹ طھط£ظƒظٹط¯.",
+        lastAi ? "ط®ظ„ظٹظ†ط§ ظ†ط£ظƒط¯ ط§ظ„طھظپط§طµظٹظ„ ط§ظ„ط£ظˆظ„: ط§ظ„ظ…ظ‚ط§ط³طŒ ط§ظ„ظ„ظˆظ†طŒ ظˆط§ظ„ظ…ظ†ط·ظ‚ط© ط¹ط´ط§ظ† ط£ظ‚ط¯ط± ط£ط±ط¯ ط¹ظ„ظٹظƒ ط¨ط¯ظ‚ط©." : "ط§ط¨ط¹طھظ„ظٹ طھظپط§طµظٹظ„ ط£ظƒطھط± ط¹ظ† ط§ظ„ظ…ظ†طھط¬ ط§ظ„ظ…ط·ظ„ظˆط¨ ط£ظˆ طµظˆط±ط© ظ„ظ‡طŒ ظˆط£ظ†ط§ ط£ط·ظ„ط¹ظ„ظƒ ط§ظ„ط£ظ‚ط±ط¨ ظ…ظ† ط§ظ„ظ…طھط§ط­.",
       ],
     };
   }
@@ -4463,9 +4605,9 @@ const safeSuggestedReplies = ({ conversation = {}, settings = DEFAULT_SETTINGS }
       intent,
       confidence: 0.72,
       suggestions: [
-        "أنا معاك دلوقتي بدل الرد الآلي. قولّي محتاج نراجع إيه بالظبط وأنا أتابعها معاك.",
-        primaryLine ? `راجعت المحادثة، ${primaryLine}. تحب أكملك على نفس المنتج ولا تشوف بدائل؟` : "راجعت المحادثة، محتاج منك بس توضح المنتج أو الطلب اللي نكمل عليه.",
-        "تمام، هكمل معاك يدوي. لو فيه مقاس أو لون معين ابعتهولي عشان أراجع المتاح.",
+        "ط£ظ†ط§ ظ…ط¹ط§ظƒ ط¯ظ„ظˆظ‚طھظٹ ط¨ط¯ظ„ ط§ظ„ط±ط¯ ط§ظ„ط¢ظ„ظٹ. ظ‚ظˆظ„ظ‘ظٹ ظ…ط­طھط§ط¬ ظ†ط±ط§ط¬ط¹ ط¥ظٹظ‡ ط¨ط§ظ„ط¸ط¨ط· ظˆط£ظ†ط§ ط£طھط§ط¨ط¹ظ‡ط§ ظ…ط¹ط§ظƒ.",
+        primaryLine ? `ط±ط§ط¬ط¹طھ ط§ظ„ظ…ط­ط§ط¯ط«ط©طŒ ${primaryLine}. طھط­ط¨ ط£ظƒظ…ظ„ظƒ ط¹ظ„ظ‰ ظ†ظپط³ ط§ظ„ظ…ظ†طھط¬ ظˆظ„ط§ طھط´ظˆظپ ط¨ط¯ط§ط¦ظ„طں` : "ط±ط§ط¬ط¹طھ ط§ظ„ظ…ط­ط§ط¯ط«ط©طŒ ظ…ط­طھط§ط¬ ظ…ظ†ظƒ ط¨ط³ طھظˆط¶ط­ ط§ظ„ظ…ظ†طھط¬ ط£ظˆ ط§ظ„ط·ظ„ط¨ ط§ظ„ظ„ظٹ ظ†ظƒظ…ظ„ ط¹ظ„ظٹظ‡.",
+        "طھظ…ط§ظ…طŒ ظ‡ظƒظ…ظ„ ظ…ط¹ط§ظƒ ظٹط¯ظˆظٹ. ظ„ظˆ ظپظٹظ‡ ظ…ظ‚ط§ط³ ط£ظˆ ظ„ظˆظ† ظ…ط¹ظٹظ† ط§ط¨ط¹طھظ‡ظˆظ„ظٹ ط¹ط´ط§ظ† ط£ط±ط§ط¬ط¹ ط§ظ„ظ…طھط§ط­.",
       ],
     };
   }
@@ -4474,9 +4616,9 @@ const safeSuggestedReplies = ({ conversation = {}, settings = DEFAULT_SETTINGS }
     intent,
     confidence: primaryProduct ? 0.76 : 0.58,
     suggestions: [
-      primaryLine ? `${primaryLine}. تحب أراجعلك المقاسات والألوان المتاحة منه؟` : "ممكن توضحلي المنتج أو تبعت صورته عشان أرد عليك بدقة؟",
-      "تمام، أقدر أساعدك. محتاج أعرف المقاس واللون أو الميزانية اللي بتدور عليها.",
-      stockedProducts[1] ? `كمان فيه بديل متاح: ${productLineAr(stockedProducts[1])}. تحب أقارنهم لك؟` : "لو تحب، ابعتلي الميزانية والمقاس وأنا أرشحلك أفضل المتاح.",
+      primaryLine ? `${primaryLine}. طھط­ط¨ ط£ط±ط§ط¬ط¹ظ„ظƒ ط§ظ„ظ…ظ‚ط§ط³ط§طھ ظˆط§ظ„ط£ظ„ظˆط§ظ† ط§ظ„ظ…طھط§ط­ط© ظ…ظ†ظ‡طں` : "ظ…ظ…ظƒظ† طھظˆط¶ط­ظ„ظٹ ط§ظ„ظ…ظ†طھط¬ ط£ظˆ طھط¨ط¹طھ طµظˆط±طھظ‡ ط¹ط´ط§ظ† ط£ط±ط¯ ط¹ظ„ظٹظƒ ط¨ط¯ظ‚ط©طں",
+      "طھظ…ط§ظ…طŒ ط£ظ‚ط¯ط± ط£ط³ط§ط¹ط¯ظƒ. ظ…ط­طھط§ط¬ ط£ط¹ط±ظپ ط§ظ„ظ…ظ‚ط§ط³ ظˆط§ظ„ظ„ظˆظ† ط£ظˆ ط§ظ„ظ…ظٹط²ط§ظ†ظٹط© ط§ظ„ظ„ظٹ ط¨طھط¯ظˆط± ط¹ظ„ظٹظ‡ط§.",
+      stockedProducts[1] ? `ظƒظ…ط§ظ† ظپظٹظ‡ ط¨ط¯ظٹظ„ ظ…طھط§ط­: ${productLineAr(stockedProducts[1])}. طھط­ط¨ ط£ظ‚ط§ط±ظ†ظ‡ظ… ظ„ظƒطں` : "ظ„ظˆ طھط­ط¨طŒ ط§ط¨ط¹طھظ„ظٹ ط§ظ„ظ…ظٹط²ط§ظ†ظٹط© ظˆط§ظ„ظ…ظ‚ط§ط³ ظˆط£ظ†ط§ ط£ط±ط´ط­ظ„ظƒ ط£ظپط¶ظ„ ط§ظ„ظ…طھط§ط­.",
     ],
   };
 };
@@ -4512,6 +4654,3 @@ export const generateAiSuggestedReplies = async ({ tenantId, conversationId } = 
   });
   return payload;
 };
-
-
-

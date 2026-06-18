@@ -177,6 +177,7 @@ export const buildReplyHarness = async ({
   preloadedToolContext = null,
   preloadedAiSettings = null,
   preloadedShippingZones = null,
+  preloadedSalesIntelligence = null,
 } = {}) => {
   const startedAt = Date.now();
   const safeTenantId = Number(tenantId) || null;
@@ -392,9 +393,12 @@ export const buildReplyHarness = async ({
     draft_count: Number(resolvedConversation?.draft_count || 0),
     followups: asArray(resolvedConversation?.followups).slice(0, 10),
     sales_state: resolvedConversation?.sales_conversation_state || null,
-    sales_intelligence: resolvedConversation?.sales_intelligence || null,
+    sales_intelligence: preloadedSalesIntelligence || resolvedConversation?.sales_intelligence || null,
     journey_events: asArray(resolvedConversation?.sales_journey_events).slice(0, 10),
   };
+  if (preloadedSalesIntelligence) {
+    sourcesUsed.push("preloaded.sales_intelligence");
+  }
 
   const shippingContext = {
     shipping_zones: asArray(shippingZones?.zones).slice(0, 20),
@@ -456,7 +460,7 @@ export const buildReplyHarness = async ({
     unread_count: Number(resolvedConversation?.unread_count || 0),
     current_product: sanitizeObject(resolvedConversation?.current_product || null),
     sales_state: sanitizeObject(resolvedConversation?.sales_conversation_state || null),
-    sales_intelligence: sanitizeObject(resolvedConversation?.sales_intelligence || null),
+    sales_intelligence: sanitizeObject(preloadedSalesIntelligence || resolvedConversation?.sales_intelligence || null),
     followups: asArray(resolvedConversation?.followups).slice(0, 10).map(sanitizeObject),
     draft_orders: asArray(resolvedConversation?.draft_orders).slice(0, 10).map(sanitizeObject),
     system_events: asArray(resolvedConversation?.system_events).slice(0, 10).map(sanitizeObject),

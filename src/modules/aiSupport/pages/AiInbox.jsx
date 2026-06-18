@@ -86,6 +86,32 @@ const normalizeValidationSummary = (value = {}) => {
     warnings,
   };
 };
+const normalizeConfidenceEngineSummary = (value = {}) => {
+  const engine = value && typeof value === "object" ? value : {};
+  const score = Number(engine.score ?? engine.confidence_score ?? 0);
+  const confidenceScore = Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0;
+  const level = clean(engine.level || engine.confidence_level || "").toLowerCase() || (confidenceScore >= 80 ? "high" : confidenceScore >= 60 ? "medium" : confidenceScore >= 35 ? "low" : "critical");
+  const decision = clean(engine.decision || "").toLowerCase() || (confidenceScore >= 70 ? "safe" : confidenceScore >= 35 ? "review" : "high_risk");
+  const reasons = asArray(engine.reasons || []).map((item) => clean(item)).filter(Boolean);
+  const riskFlags = engine.risk_flags && typeof engine.risk_flags === "object" ? engine.risk_flags : {};
+  const reasonsPreview = reasons.slice(0, 3);
+  const label = level === "high" ? "High" : level === "medium" ? "Medium" : level === "low" ? "Low" : "Critical";
+  const decisionLabel = decision === "safe" ? "Safe" : decision === "review" ? "Review" : "High Risk";
+  const tone = decision === "high_risk" ? "rose" : decision === "review" ? "amber" : "emerald";
+  return {
+    score: confidenceScore,
+    level,
+    levelLabel: label,
+    decision,
+    decisionLabel,
+    tone,
+    reasons,
+    reasonsPreview,
+    reasonsCount: reasons.length,
+    riskFlags,
+    riskFlagsCount: Object.values(riskFlags).filter(Boolean).length,
+  };
+};
 const normalizeProductCardsValue = (value) => {
   if (Array.isArray(value)) return value;
   if (typeof value === "string") {
@@ -1400,6 +1426,7 @@ function ManualReplyComposer({
   isCommentConversation = false,
   loading,
   validationSummary = null,
+  confidenceEngineSummary = null,
 }) {
   if (!conversation) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
@@ -1408,8 +1435,10 @@ function ManualReplyComposer({
   const submitTitle = isCommentConversation ? "إرسال رد علني على الكومنت" : "Send now through Meta";
   const textareaRef = useRef(null);
   const normalizedValidation = normalizeValidationSummary(validationSummary || {});
+  const normalizedConfidence = normalizeConfidenceEngineSummary(confidenceEngineSummary || {});
   const hasValidation = Boolean(normalizedValidation.violationsCount || normalizedValidation.warningsCount || normalizedValidation.details.length);
   const validationTone = normalizedValidation.violationsCount > 0 ? "amber" : normalizedValidation.warningsCount > 0 ? "zinc" : "emerald";
+  const hasConfidence = Boolean(normalizedConfidence.reasonsCount || normalizedConfidence.riskFlagsCount || normalizedConfidence.score);
   const submit = () => {
     if (clean(value)) onSend();
   };
@@ -1455,6 +1484,23 @@ function ManualReplyComposer({
           {normalizedValidation.details.length ? <div className="mt-1.5 space-y-1">{normalizedValidation.details.slice(0, 3).map((item) => <div key={item} className="flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-current/80" /><span>{item}</span></div>)}</div> : null}
         </div>
       ) : null}
+      {hasConfidence ? (
+        <div className={`mb-1.5 rounded-2xl border px-3 py-2 text-[11px] leading-5 ${normalizedConfidence.tone === "rose" ? "border-rose-300/25 bg-rose-400/10 text-rose-50" : normalizedConfidence.tone === "amber" ? "border-amber-300/25 bg-amber-400/10 text-amber-50" : "border-emerald-300/20 bg-emerald-400/10 text-emerald-50"}`}>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-black uppercase tracking-[0.14em] text-inherit">Confidence engine</span>
+            <Pill tone={normalizedConfidence.tone === "rose" ? "rose" : normalizedConfidence.tone === "amber" ? "amber" : "emerald"} className="px-2 py-0.5 text-[10px]">
+              {normalizedConfidence.levelLabel}
+            </Pill>
+            <Pill tone={normalizedConfidence.tone === "rose" ? "rose" : normalizedConfidence.tone === "amber" ? "amber" : "emerald"} className="px-2 py-0.5 text-[10px]">
+              {normalizedConfidence.decisionLabel}
+            </Pill>
+            <span className="font-black">{normalizedConfidence.score.toFixed(0)}%</span>
+            <span className="font-bold">reasons {normalizedConfidence.reasonsCount}</span>
+          </div>
+          {normalizedConfidence.reasonsPreview.length ? <div className="mt-1.5 space-y-1">{normalizedConfidence.reasonsPreview.map((item) => <div key={item} className="flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-current/80" /><span>{item}</span></div>)}</div> : null}
+          {normalizedConfidence.decision === "high_risk" ? <div className="mt-1.5 font-black uppercase tracking-[0.12em]">High risk: manual review recommended before sending.</div> : null}
+        </div>
+      ) : null}
       {isCommentConversation ? (
         <div className="mb-1.5">
           <CommentReplyDraftPanel
@@ -1487,10 +1533,10 @@ function ManualReplyComposer({
             placeholder={canSendLive ? "اكتب رد العميل..." : "Write an internal note. It will not be sent to Meta yet."}
             className="min-h-10 min-w-0 flex-1 resize-none overflow-hidden border-0 bg-transparent px-1 py-1 text-[14px] font-bold leading-6 text-white outline-none placeholder:text-slate-600"
           />
-          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className={`inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-xl px-2.5 text-[10px] font-black text-slate-950 disabled:opacity-50 sm:hidden ${normalizedValidation.violationsCount > 0 ? "bg-amber-300" : "bg-emerald-300"}`}>{loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}{submitLabel}</button>
+          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className={`inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-xl px-2.5 text-[10px] font-black text-slate-950 disabled:opacity-50 sm:hidden ${normalizedConfidence.decision === "high_risk" || normalizedValidation.violationsCount > 0 ? "bg-amber-300" : "bg-emerald-300"}`}>{loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}{submitLabel}</button>
         </div>
         <div className="flex items-center justify-end gap-1.5">
-          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className={`hidden h-7 items-center justify-center gap-1.5 rounded-xl px-2.5 text-[10px] font-black text-slate-950 disabled:opacity-50 sm:inline-flex ${normalizedValidation.violationsCount > 0 ? "bg-amber-300" : "bg-emerald-300"}`}>{loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}{submitLabel}</button>
+          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className={`hidden h-7 items-center justify-center gap-1.5 rounded-xl px-2.5 text-[10px] font-black text-slate-950 disabled:opacity-50 sm:inline-flex ${normalizedConfidence.decision === "high_risk" || normalizedValidation.violationsCount > 0 ? "bg-amber-300" : "bg-emerald-300"}`}>{loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}{submitLabel}</button>
           <button
             type="button"
             onClick={() => onOpenProductPicker?.()}
@@ -1526,7 +1572,7 @@ function ManualReplyComposer({
                 إرسال منتج
               </button>
               <button type="button" onClick={onSaveDraft} disabled={loading || !clean(value)} className="mt-1 inline-flex h-8 w-full items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-2.5 text-[10px] font-black text-slate-100 disabled:opacity-50">Save draft</button>
-              <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} className={`mt-1 inline-flex h-8 w-full items-center justify-center rounded-xl px-2.5 text-[10px] font-black disabled:opacity-50 ${normalizedValidation.violationsCount > 0 ? "border border-amber-300/30 bg-amber-300 text-slate-950" : "border border-cyan-300/20 bg-cyan-300/10 text-cyan-100"}`}>Approve AI reply</button>
+              <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} className={`mt-1 inline-flex h-8 w-full items-center justify-center rounded-xl px-2.5 text-[10px] font-black disabled:opacity-50 ${normalizedConfidence.decision === "high_risk" || normalizedValidation.violationsCount > 0 ? "border border-amber-300/30 bg-amber-300 text-slate-950" : "border border-cyan-300/20 bg-cyan-300/10 text-cyan-100"}`}>Approve AI reply</button>
             </div>
           </details>
         </div>
@@ -2698,7 +2744,7 @@ export default function AiInbox() {
   const [employees, setEmployees] = useState([]);
   const [recommendations, setRecommendations] = useState({ sessionId: "", products: [], intelligence: null, loading: false });
   const [salesCloser, setSalesCloser] = useState({ sessionId: "", plan: {}, loading: false });
-  const [aiReply, setAiReply] = useState({ sessionId: "", text: "", loading: false, error: "", validation: null });
+  const [aiReply, setAiReply] = useState({ sessionId: "", text: "", loading: false, error: "", validation: null, confidence_engine: null });
   const [modeSaving, setModeSaving] = useState(false);
   const [unseenSessions, setUnseenSessions] = useState([]);
   const [toolsTab, setToolsTab] = useState("customer");
@@ -3078,6 +3124,26 @@ export default function AiInbox() {
     ),
     [activeAiReplyDraft?.metadata?.validation, activeAiReplyDraft?.validation, aiReply.validation, selectedConversation?.last_ai_reply_validation]
   );
+  const activeAiReplyConfidence = useMemo(
+    () => normalizeConfidenceEngineSummary(
+      aiReply.confidence_engine ||
+      selectedConversation?.last_ai_reply_confidence_engine ||
+      activeAiReplyDraft?.confidence_engine ||
+      activeAiReplyDraft?.metadata?.confidence_engine ||
+      {}
+    ),
+    [activeAiReplyDraft?.confidence_engine, activeAiReplyDraft?.metadata?.confidence_engine, aiReply.confidence_engine, selectedConversation?.last_ai_reply_confidence_engine]
+  );
+  const activeAiReplyShadow = useMemo(
+    () => activeAiReplyDraft?.metadata?.auto_reply_shadow || selectedConversation?.last_ai_reply_draft?.metadata?.auto_reply_shadow || null,
+    [activeAiReplyDraft?.metadata?.auto_reply_shadow, selectedConversation?.last_ai_reply_draft?.metadata?.auto_reply_shadow]
+  );
+  const autoReplyShadowLabel = activeAiReplyShadow?.evaluated
+    ? `Auto eligible: ${activeAiReplyShadow.eligible ? "yes" : "no"}`
+    : "Auto eligible: n/a";
+  const autoReplyShadowTone = activeAiReplyShadow?.evaluated
+    ? (activeAiReplyShadow.eligible ? "emerald" : "amber")
+    : "zinc";
   const lastCustomerMessage = useMemo(
     () => latestCustomerText(selectedConversation?.messages),
     [selectedConversation?.messages]
@@ -3158,6 +3224,7 @@ export default function AiInbox() {
         ? {
             ...current,
             validation: current.validation || activeAiReplyDraft?.validation || activeAiReplyDraft?.metadata?.validation || null,
+            confidence_engine: current.confidence_engine || activeAiReplyDraft?.confidence_engine || activeAiReplyDraft?.metadata?.confidence_engine || null,
           }
         : {
             sessionId: selectedConversation.session_id,
@@ -3165,6 +3232,7 @@ export default function AiInbox() {
             loading: false,
             error: "",
             validation: activeAiReplyDraft?.validation || activeAiReplyDraft?.metadata?.validation || null,
+            confidence_engine: activeAiReplyDraft?.confidence_engine || activeAiReplyDraft?.metadata?.confidence_engine || null,
           }
     ));
     setReplyText((current) => (clean(current) ? current : draftText));
@@ -3660,7 +3728,14 @@ export default function AiInbox() {
       activeDraft?.metadata?.validation ||
       {}
     );
-    if (validationState.violationsCount > 0) {
+    const confidenceState = normalizeConfidenceEngineSummary(
+      aiReply.confidence_engine ||
+      selectedConversation?.last_ai_reply_confidence_engine ||
+      activeDraft?.confidence_engine ||
+      activeDraft?.metadata?.confidence_engine ||
+      {}
+    );
+    if (confidenceState.decision === "high_risk" || validationState.violationsCount > 0) {
       const confirmed = window.confirm("الرد عليه تحذيرات، هل تريد الإرسال؟");
       if (!confirmed) return;
     }
@@ -4001,15 +4076,16 @@ export default function AiInbox() {
     if (!selectedConversation?.session_id) return;
     const sessionId = selectedConversation?.session_id;
     const conversationIdentifier = selectedConversation.conversation_key || sessionId;
-    setAiReply({ sessionId, text: "", loading: true, error: "", validation: null });
+    setAiReply({ sessionId, text: "", loading: true, error: "", validation: null, confidence_engine: null });
     try {
       const payload = await api.post(aiInboxConversationEndpoint(sessionId, "/ai-reply"), { tenant_id: tenantId, persist }, { headers, perfComponent: "AiInbox.generateAiReply" });
       const aiReplyDraft = payload.ai_reply_draft || payload.draft || payload.suggestion || null;
       const textValue = clean(aiReplyDraft?.text || payload.reply?.answer || payload.text || "");
       const validation = normalizeValidationSummary(payload.validation || aiReplyDraft?.validation || payload.reply?.validation || {});
+      const confidenceEngine = normalizeConfidenceEngineSummary(payload.confidence_engine || aiReplyDraft?.confidence_engine || payload.reply?.confidence_engine || {});
       setReplyText(textValue);
       window.setTimeout(() => {
-        setAiReply({ sessionId, text: textValue, loading: false, error: "", validation });
+        setAiReply({ sessionId, text: textValue, loading: false, error: "", validation, confidence_engine: confidenceEngine });
       }, 450);
       if (aiReplyDraft) {
         patchConversation(conversationIdentifier, (conversation) => ({
@@ -4017,11 +4093,12 @@ export default function AiInbox() {
           ai_reply_draft: aiReplyDraft,
           last_ai_reply_draft: aiReplyDraft,
           last_ai_reply_validation: payload.validation || aiReplyDraft.validation || aiReplyDraft.metadata?.validation || null,
+          last_ai_reply_confidence_engine: payload.confidence_engine || aiReplyDraft.confidence_engine || aiReplyDraft.metadata?.confidence_engine || null,
           last_ai_reply_draft_updated_at: aiReplyDraft.updated_at || new Date().toISOString(),
         }));
       }
     } catch (err) {
-      setAiReply({ sessionId, text: "", loading: false, error: err?.message || "تعذر إنشاء رد الذكاء الاصطناعي", validation: null });
+      setAiReply({ sessionId, text: "", loading: false, error: err?.message || "تعذر إنشاء رد الذكاء الاصطناعي", validation: null, confidence_engine: null });
     }
   };
 
@@ -4481,6 +4558,7 @@ export default function AiInbox() {
                         isCommentConversation={isCommentConversation(selectedConversation || {})}
                         loading={loading || productCardSending}
                         validationSummary={activeAiReplyValidation}
+                        confidenceEngineSummary={activeAiReplyConfidence}
                       />
                     </div>
                   </div>
@@ -4814,7 +4892,12 @@ export default function AiInbox() {
                       saving={modeSaving}
                     />
                     <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-                      <SectionTitle icon={Sparkles} title="محرك رد الذكاء الاصطناعي" action={aiReply.loading ? <Pill tone="cyan">جاري الكتابة...</Pill> : null} />
+                      <SectionTitle icon={Sparkles} title="محرك رد الذكاء الاصطناعي" action={(
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Pill tone={autoReplyShadowTone} className="px-2 py-0.5 text-[10px] font-black">{autoReplyShadowLabel}</Pill>
+                          {aiReply.loading ? <Pill tone="cyan">جاري الكتابة...</Pill> : null}
+                        </div>
+                      )} />
                       {aiReply.error ? <div className="mb-3 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{aiReply.error}</div> : null}
                       <div className="grid gap-2 sm:grid-cols-2">
                         <button type="button" onClick={() => generateAiReply({ persist: false })} disabled={aiReply.loading || safeConversation.conversation_status === "closed"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50">{aiReply.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}مسودة رد الذكاء الاصطناعي</button>
@@ -4872,6 +4955,7 @@ export default function AiInbox() {
                         isCommentConversation={isCommentConversation(selectedConversation || {})}
                         loading={loading}
                         validationSummary={activeAiReplyValidation}
+                        confidenceEngineSummary={activeAiReplyConfidence}
                       />
                     </div>
                     <div className="space-y-3">

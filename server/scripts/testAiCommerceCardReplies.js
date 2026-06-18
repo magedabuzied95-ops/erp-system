@@ -27,13 +27,14 @@ const legacyPhrases = [
 
 const runCase = async ({
   name,
+  message = "اختبار",
   response,
   expectedLegacy,
   expectReplaced,
   expectedSignals = [],
 }) => {
   const result = await composeAiSalesReply({
-    message: "اختبار",
+    message,
     response,
     source: "test_ai_commerce_card_replies",
   });
@@ -101,7 +102,23 @@ const main = async () => {
   });
   assert.ok(/صورة مرفقة|بص على الكروت تحت|اختيار مناسب|اختيارات مناسبة|قولّي/i.test(case3.answer), "case3: image-card reply should stay commerce-aware");
 
-  const case4 = await composeAiSalesReply({
+  const case4 = await runCase({
+    name: "return_policy_basic_objection",
+    message: "ينفع استبدال؟",
+    response: {
+      answer: "المقاس موجود",
+      detected_intent: "return_policy_basic",
+      suggested_products: [productCard],
+      product_cards: [productCard],
+      image_cards: [],
+    },
+    expectedLegacy: "المقاس موجود",
+    expectReplaced: true,
+    expectedSignals: ["لقيتلك اختيار مناسب", "بص على الكروت تحت", "اختيار مناسب"],
+  });
+  assert.ok(/اختيار مناسب|بص على الكروت تحت|استبدال|استرجاع/i.test(case4.answer), "case4: return-policy objection reply should stay stable");
+
+  const case5 = await composeAiSalesReply({
     message: "اختبار",
     response: {
       answer: legacyPhrases[0],
@@ -112,9 +129,9 @@ const main = async () => {
     },
     source: "test_ai_commerce_card_replies",
   });
-  assert.deepEqual(case4.product_cards || [], [], "case4: no-card fallback should not invent product cards");
-  assert.deepEqual(case4.image_cards || [], [], "case4: no-card fallback should not invent image cards");
-  assert.ok(/تقصد|موديل|مقاس|أقدر/i.test(case4.answer), "case4: no-card generic fallback should still be allowed");
+  assert.deepEqual(case5.product_cards || [], [], "case5: no-card fallback should not invent product cards");
+  assert.deepEqual(case5.image_cards || [], [], "case5: no-card fallback should not invent image cards");
+  assert.ok(/تقصد|موديل|مقاس|أقدر/i.test(case5.answer), "case5: no-card generic fallback should still be allowed");
 
   console.log("AI commerce-card regression passed.");
 };

@@ -180,6 +180,39 @@ const normalizeAiReplyDraft = (value = {}) => {
     updated_at: draft.updated_at || null,
   };
 };
+
+const normalizePipelineDebugSnapshot = (value = {}) => (value && typeof value === "object" ? value : null);
+
+const resolveDraftText = (draft = {}, conversation = {}) =>
+  envText(
+    draft.text ||
+      draft.answer ||
+      draft.message ||
+      conversation?.last_ai_reply_draft?.text ||
+      conversation?.last_ai_reply_draft?.answer ||
+      conversation?.last_ai_reply_draft?.message ||
+      conversation?.last_message ||
+      ""
+  );
+
+const loadAiReplyDebugSnapshot = async ({ tenantId, conversationId, req = null, includeHarness = false } = {}) => {
+  const conversation = await getAiSupportConversationState({ tenantId, sessionId: conversationId });
+  if (!conversation) return null;
+  const draft = normalizeAiReplyDraft(conversation.last_ai_reply_draft || {});
+  let harness = getLastReplyHarnessDebug({ tenantId, conversationId }) || null;
+  if (!harness && includeHarness) {
+    harness = await buildReplyHarness({
+      tenantId,
+      conversationId,
+      conversation,
+      latestCustomerMessage: resolveDraftText(draft, conversation),
+      sendMode: "debug",
+      channel: conversation?.channel || conversation?.source || "web_chat",
+      req,
+    }).catch(() => null);
+  }
+  return { conversation, draft, harness };
+};
 const inferCorrectionTypeFromEditedSuggestion = (draftText = "", finalText = "") => {
   const suggestion = envText(draftText);
   const answer = envText(finalText);
@@ -2918,33 +2951,12 @@ router.get("/conversations/:conversationId/ai-validation", protect, permit("sett
 
     const tenantId = toTenantId(req);
     const conversationId = envText(req.params.conversationId);
-    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 100, messageLimit: 12, summaryOnly: false });
-    const conversation = (inbox.conversations || []).find((item) =>
-      item.session_id === conversationId ||
-      item.conversation_id === conversationId ||
-      item.external_conversation_id === conversationId ||
-      item.external_customer_id === conversationId ||
-      item.conversation_key === conversationId
-    ) || null;
-    if (!conversation) {
+    const snapshot = await loadAiReplyDebugSnapshot({ tenantId, conversationId, req, includeHarness: true });
+    if (!snapshot) {
       return sendError(res, Object.assign(new Error("Conversation not found"), { status: 404, code: "AI_CONVERSATION_NOT_FOUND" }), "Conversation not found");
     }
-
-    let harness = getLastReplyHarnessDebug({ tenantId, conversationId });
-    if (!harness) {
-      harness = await buildReplyHarness({
-        tenantId,
-        conversationId,
-        conversation,
-        latestCustomerMessage: conversation?.customer_message || conversation?.message_text || conversation?.latest_message_preview || conversation?.last_message || "",
-        sendMode: "debug",
-        channel: conversation?.channel || conversation?.source || "web_chat",
-        req,
-      });
-    }
-
-    const lastDraft = normalizeAiReplyDraft(conversation.last_ai_reply_draft || {});
-    const draftText = envText(lastDraft.text || conversation.last_ai_reply_draft?.answer || conversation.last_ai_reply_draft?.message || "");
+    const { conversation, draft: lastDraft, harness } = snapshot;
+    const draftText = resolveDraftText(lastDraft, conversation);
     const { validateAiReply } = await import("../services/aiReplyValidatorService.js");
     const validation = await validateAiReply({
       replyText: draftText,
@@ -2989,33 +3001,12 @@ router.get("/conversations/:conversationId/ai-confidence", protect, permit("sett
 
     const tenantId = toTenantId(req);
     const conversationId = envText(req.params.conversationId);
-    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 100, messageLimit: 12, summaryOnly: false });
-    const conversation = (inbox.conversations || []).find((item) =>
-      item.session_id === conversationId ||
-      item.conversation_id === conversationId ||
-      item.external_conversation_id === conversationId ||
-      item.external_customer_id === conversationId ||
-      item.conversation_key === conversationId
-    ) || null;
-    if (!conversation) {
+    const snapshot = await loadAiReplyDebugSnapshot({ tenantId, conversationId, req, includeHarness: true });
+    if (!snapshot) {
       return sendError(res, Object.assign(new Error("Conversation not found"), { status: 404, code: "AI_CONVERSATION_NOT_FOUND" }), "Conversation not found");
     }
-
-    let harness = getLastReplyHarnessDebug({ tenantId, conversationId });
-    if (!harness) {
-      harness = await buildReplyHarness({
-        tenantId,
-        conversationId,
-        conversation,
-        latestCustomerMessage: conversation?.customer_message || conversation?.message_text || conversation?.latest_message_preview || conversation?.last_message || "",
-        sendMode: "debug",
-        channel: conversation?.channel || conversation?.source || "web_chat",
-        req,
-      });
-    }
-
-    const lastDraft = normalizeAiReplyDraft(conversation.last_ai_reply_draft || {});
-    const draftText = envText(lastDraft.text || conversation.last_ai_reply_draft?.answer || conversation.last_ai_reply_draft?.message || "");
+    const { conversation, draft: lastDraft, harness } = snapshot;
+    const draftText = resolveDraftText(lastDraft, conversation);
     const { validateAiReply } = await import("../services/aiReplyValidatorService.js");
     const { buildAiConfidenceEngine } = await import("../services/aiConfidenceEngineService.js");
     const validation = await validateAiReply({
@@ -3084,6 +3075,7 @@ router.get("/conversations/:conversationId/ai-pipeline-debug", protect, permit("
         conversation_id: conversationId,
         pipeline_debug: cached,
         harness_summary: cached.harness_summary || null,
+        auto_reply_shadow: cached.auto_reply_shadow || null,
         audit_report: {
           repeated_db_reads: Boolean(cached.duplicate_work?.repeated_db_reads),
           repeated_correction_lookup: Boolean(cached.duplicate_work?.repeated_correction_lookup),
@@ -3096,40 +3088,61 @@ router.get("/conversations/:conversationId/ai-pipeline-debug", protect, permit("
       });
     }
 
-    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 100, messageLimit: 12, summaryOnly: false });
-    const conversation = (inbox.conversations || []).find((item) =>
-      item.session_id === conversationId ||
-      item.conversation_id === conversationId ||
-      item.external_conversation_id === conversationId ||
-      item.external_customer_id === conversationId ||
-      item.conversation_key === conversationId
-    ) || null;
-    const harness = getLastReplyHarnessDebug({ tenantId, conversationId }) || null;
-    const draft = normalizeAiReplyDraft(conversation?.last_ai_reply_draft || {});
+    const snapshot = await loadAiReplyDebugSnapshot({ tenantId, conversationId, req, includeHarness: false });
+    if (!snapshot) {
+      return sendError(res, Object.assign(new Error("Conversation not found"), { status: 404, code: "AI_CONVERSATION_NOT_FOUND" }), "Conversation not found");
+    }
+    const { conversation, draft, harness } = snapshot;
+    const persistedPipelineDebug = normalizePipelineDebugSnapshot(draft.pipeline_debug || draft.metadata?.pipeline_debug || null);
+    const draftText = resolveDraftText(draft, conversation);
     return res.json({
       success: true,
       cached: false,
       conversation_id: conversationId,
-      pipeline_debug: null,
+      pipeline_debug: persistedPipelineDebug || {
+        auto_reply_shadow: draft.metadata?.auto_reply_shadow || null,
+      },
+      reason: "no_generation_cache",
       harness_summary: harness ? {
         tenant_id: harness.tenant_id || tenantId,
         conversation_id: harness.conversation_id || conversationId,
         channel: harness.channel || conversation?.channel || conversation?.source || "",
         send_mode: harness.send_mode || "",
-        latest_customer_message: harness.latest_customer_message || "",
+        latest_customer_message: harness.latest_customer_message || draft.customer_question || draftText || "",
         trace: harness.trace || null,
-      } : null,
-      current_draft: draft,
-      audit_report: {
-        message: "No cached pipeline debug found. Generate an AI reply to populate timings and audit signals.",
-        repeated_db_reads: null,
-        repeated_correction_lookup: null,
-        repeated_product_lookup: null,
-        oversized_harness: null,
-        oversized_prompt: null,
-        duplicate_context_blocks: null,
+      } : {
+        tenant_id: Number(tenantId) || null,
+        conversation_id: conversationId,
+        channel: conversation?.channel || conversation?.source || "",
+        send_mode: "debug",
+        latest_customer_message: draft.customer_question || draftText || conversation?.last_message || "",
+        trace: {
+          harness_version: "fallback_no_cache",
+          sources_used: [],
+          corrections_count: 0,
+          products_loaded: Array.isArray(draft.product_cards) ? draft.product_cards.length : 0,
+          tool_warnings_count: 0,
+          tools_ms: 0,
+          harness_ms: 0,
+        },
       },
-      optimization_report: null,
+      current_draft: draft,
+      last_ai_reply_draft: draft,
+      auto_reply_shadow: draft.metadata?.auto_reply_shadow || persistedPipelineDebug?.auto_reply_shadow || null,
+      latest_validation: draft.validation || conversation?.last_ai_reply_draft?.validation || null,
+      latest_confidence: draft.confidence_engine || conversation?.last_ai_reply_draft?.confidence_engine || null,
+      audit_report: {
+        message: persistedPipelineDebug
+          ? "No cached pipeline debug found; using persisted draft snapshot."
+          : "No cached pipeline debug found. Generate an AI reply to populate timings and audit signals.",
+        repeated_db_reads: persistedPipelineDebug?.duplicate_work?.repeated_db_reads ?? null,
+        repeated_correction_lookup: persistedPipelineDebug?.duplicate_work?.repeated_correction_lookup ?? null,
+        repeated_product_lookup: persistedPipelineDebug?.duplicate_work?.repeated_product_lookup ?? null,
+        oversized_harness: persistedPipelineDebug?.memory?.oversized_harness ?? null,
+        oversized_prompt: persistedPipelineDebug?.memory?.oversized_prompt ?? null,
+        duplicate_context_blocks: persistedPipelineDebug?.memory?.duplicate_context_blocks ?? null,
+      },
+      optimization_report: persistedPipelineDebug?.optimization_report || null,
     });
   } catch (error) {
     return sendError(res, error, "Failed to load AI pipeline debug data");
@@ -3145,23 +3158,27 @@ router.post("/conversations/:conversationId/messages/:messageId/correction", pro
       return sendError(res, Object.assign(new Error("conversationId and messageId are required"), { status: 400 }), "conversationId and messageId are required");
     }
 
-    const messagesPayload = await loadAiInboxMessages({ tenantId, conversationId, limit: 100 });
+    const explicitCustomerQuestion = envText(req.body?.customer_question || req.body?.customerQuestion);
+    const explicitAiWrongAnswer = envText(req.body?.ai_wrong_answer || req.body?.aiWrongAnswer);
+    const explicitEmployeeCorrectAnswer = envText(req.body?.employee_correct_answer || req.body?.employeeCorrectAnswer);
+    const explicitProductIdRaw = req.body?.product_id ?? req.body?.productId ?? null;
+    const explicitChannel = envText(req.body?.channel || req.body?.source || "");
+    const explicitMetadata = req.body?.metadata && typeof req.body.metadata === "object" ? req.body.metadata : {};
+
+    const messagesPayload = await loadAiInboxMessages({ tenantId, conversationId, limit: 100 }).catch(() => ({ messages: [] }));
     const messages = Array.isArray(messagesPayload.messages) ? messagesPayload.messages : [];
-    const messageIndex = messages.findIndex((item) => correctionMessageLookupKey(item) === messageId);
+    const messageIndex = messages.findIndex((item) => correctionMessageLookupKey(item) === messageId || text(item?.id) === messageId);
     const sourceMessage = messageIndex >= 0 ? messages[messageIndex] : null;
-    if (!sourceMessage) {
-      return sendError(res, Object.assign(new Error(`Message not found for conversation ${conversationId}`), { status: 404, code: "AI_INBOX_MESSAGE_NOT_FOUND" }), "Message not found");
-    }
 
     const customerQuestion =
-      envText(req.body?.customer_question || req.body?.customerQuestion) ||
-      messageQuestionText(messages, messageIndex, sourceMessage.customer_message || sourceMessage.message_text || "");
+      explicitCustomerQuestion ||
+      messageQuestionText(messages, messageIndex, sourceMessage?.customer_message || sourceMessage?.message_text || "");
     const aiWrongAnswer =
-      envText(req.body?.ai_wrong_answer || req.body?.aiWrongAnswer) ||
-      envText(sourceMessage.ai_answer || sourceMessage.staff_message || "");
-    const employeeCorrectAnswer = envText(req.body?.employee_correct_answer || req.body?.employeeCorrectAnswer);
+      explicitAiWrongAnswer ||
+      envText(sourceMessage?.ai_answer || sourceMessage?.staff_message || "");
+    const employeeCorrectAnswer = explicitEmployeeCorrectAnswer;
     const correctionType = normalizeCorrectionType(req.body?.correction_type || req.body?.correctionType || "other");
-    const productIdRaw = req.body?.product_id ?? req.body?.productId ?? sourceMessage.clicked_product_id ?? sourceMessage?.suggested_products?.[0]?.id ?? null;
+    const productIdRaw = explicitProductIdRaw ?? sourceMessage?.clicked_product_id ?? sourceMessage?.suggested_products?.[0]?.id ?? null;
     const productId = Number.isFinite(Number(productIdRaw)) && Number(productIdRaw) > 0 ? Number(productIdRaw) : null;
     if (!customerQuestion || !aiWrongAnswer || !employeeCorrectAnswer) {
       return sendError(
@@ -3180,14 +3197,15 @@ router.post("/conversations/:conversationId/messages/:messageId/correction", pro
       employeeCorrectAnswer,
       correctionType,
       productId,
-      channel: envText(req.body?.channel || sourceMessage.channel || sourceMessage.source || ""),
+      channel: explicitChannel || envText(sourceMessage?.channel || sourceMessage?.source || ""),
       createdBy: req.user?.id || null,
       metadata: {
-        ...(req.body?.metadata && typeof req.body.metadata === "object" ? req.body.metadata : {}),
-        source_message_id: sourceMessage.id || messageId,
-        source_sender_type: sourceMessage.sender_type || "",
-        source_message_type: sourceMessage.message_type || "",
-        conversation_status: sourceMessage.resolution_status || "",
+        ...explicitMetadata,
+        source_message_id: sourceMessage?.id || messageId,
+        source_sender_type: sourceMessage?.sender_type || "",
+        source_message_type: sourceMessage?.message_type || "",
+        conversation_status: sourceMessage?.resolution_status || "",
+        lookup_fallback_used: !sourceMessage,
       },
     });
 

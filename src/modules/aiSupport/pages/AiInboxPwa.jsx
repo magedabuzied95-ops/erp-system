@@ -64,6 +64,31 @@ const normalizeValidationSummary = (value = {}) => {
     warnings,
   };
 };
+const normalizeConfidenceEngineSummary = (value = {}) => {
+  const engine = value && typeof value === "object" ? value : {};
+  const scoreValue = Number(engine.score ?? engine.confidence_score ?? 0);
+  const score = Number.isFinite(scoreValue) ? Math.max(0, Math.min(100, scoreValue)) : 0;
+  const level = clean(engine.level || engine.confidence_level || "").toLowerCase() || (score >= 80 ? "high" : score >= 60 ? "medium" : score >= 35 ? "low" : "critical");
+  const decision = clean(engine.decision || "").toLowerCase() || (score >= 70 ? "safe" : score >= 35 ? "review" : "high_risk");
+  const reasons = asArray(engine.reasons || []).map((item) => clean(item)).filter(Boolean);
+  const riskFlags = engine.risk_flags && typeof engine.risk_flags === "object" ? engine.risk_flags : {};
+  const levelLabel = level === "high" ? "High" : level === "medium" ? "Medium" : level === "low" ? "Low" : "Critical";
+  const decisionLabel = decision === "safe" ? "Safe" : decision === "review" ? "Review" : "High Risk";
+  const tone = decision === "high_risk" ? "rose" : decision === "review" ? "amber" : "emerald";
+  return {
+    score,
+    level,
+    levelLabel,
+    decision,
+    decisionLabel,
+    tone,
+    reasons,
+    reasonsPreview: reasons.slice(0, 3),
+    reasonsCount: reasons.length,
+    riskFlags,
+    riskFlagsCount: Object.values(riskFlags).filter(Boolean).length,
+  };
+};
 
 const getVariantRows = (product = {}) => [
   ...(Array.isArray(product.variants) ? product.variants : []),
@@ -1787,6 +1812,25 @@ export default function AiInboxPwa() {
     ),
     [activeAiReplyDraft?.metadata?.validation, activeAiReplyDraft?.validation, selectedConversation?.last_ai_reply_validation]
   );
+  const activeAiReplyConfidence = useMemo(
+    () => normalizeConfidenceEngineSummary(
+      selectedConversation?.last_ai_reply_confidence_engine ||
+      activeAiReplyDraft?.confidence_engine ||
+      activeAiReplyDraft?.metadata?.confidence_engine ||
+      {}
+    ),
+    [activeAiReplyDraft?.confidence_engine, activeAiReplyDraft?.metadata?.confidence_engine, selectedConversation?.last_ai_reply_confidence_engine]
+  );
+  const activeAiReplyShadow = useMemo(
+    () => activeAiReplyDraft?.metadata?.auto_reply_shadow || selectedConversation?.last_ai_reply_draft?.metadata?.auto_reply_shadow || null,
+    [activeAiReplyDraft?.metadata?.auto_reply_shadow, selectedConversation?.last_ai_reply_draft?.metadata?.auto_reply_shadow]
+  );
+  const autoReplyShadowLabel = activeAiReplyShadow?.evaluated
+    ? `Auto eligible: ${activeAiReplyShadow.eligible ? "yes" : "no"}`
+    : "Auto eligible: n/a";
+  const autoReplyShadowTone = activeAiReplyShadow?.evaluated
+    ? (activeAiReplyShadow.eligible ? "emerald" : "amber")
+    : "zinc";
 
   useEffect(() => {
     const draftText = clean(activeAiReplyDraft?.text || "");
@@ -1984,7 +2028,13 @@ export default function AiInboxPwa() {
       activeDraft?.metadata?.validation ||
       {}
     );
-    if (composerMode !== "note" && validationState.violationsCount > 0) {
+    const confidenceState = normalizeConfidenceEngineSummary(
+      selectedConversation?.last_ai_reply_confidence_engine ||
+      activeDraft?.confidence_engine ||
+      activeDraft?.metadata?.confidence_engine ||
+      {}
+    );
+    if (composerMode !== "note" && (confidenceState.decision === "high_risk" || validationState.violationsCount > 0)) {
       const confirmed = window.confirm("الرد عليه تحذيرات، هل تريد الإرسال؟");
       if (!confirmed) return;
     }
@@ -2752,6 +2802,23 @@ export default function AiInboxPwa() {
                   {activeAiReplyValidation.details.length ? <div className="mt-1.5 space-y-1">{activeAiReplyValidation.details.slice(0, 3).map((item) => <div key={item} className="flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-current/80" /><span>{item}</span></div>)}</div> : null}
                 </div>
               ) : null}
+              <div className="mb-2 flex items-center gap-2">
+                <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black ${autoReplyShadowTone === "emerald" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : autoReplyShadowTone === "amber" ? "border-amber-300/40 bg-amber-50 text-amber-900" : "border-slate-200 bg-slate-50 text-slate-700"}`}>{autoReplyShadowLabel}</span>
+                {activeAiReplyShadow?.reason ? <span className="text-[10px] font-bold text-slate-500">{activeAiReplyShadow.reason}</span> : null}
+              </div>
+              {Boolean(activeAiReplyConfidence.reasonsCount || activeAiReplyConfidence.riskFlagsCount || activeAiReplyConfidence.score) ? (
+                <div className={`mb-2 rounded-2xl border px-3 py-2 text-[11px] leading-5 ${activeAiReplyConfidence.tone === "rose" ? "border-rose-300/40 bg-rose-50 text-rose-900" : activeAiReplyConfidence.tone === "amber" ? "border-amber-300/40 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-[0.14em]">Confidence engine</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${activeAiReplyConfidence.tone === "rose" ? "bg-rose-200 text-rose-950" : activeAiReplyConfidence.tone === "amber" ? "bg-amber-200 text-amber-950" : "bg-emerald-200 text-emerald-950"}`}>{activeAiReplyConfidence.levelLabel}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${activeAiReplyConfidence.tone === "rose" ? "bg-rose-200 text-rose-950" : activeAiReplyConfidence.tone === "amber" ? "bg-amber-200 text-amber-950" : "bg-emerald-200 text-emerald-950"}`}>{activeAiReplyConfidence.decisionLabel}</span>
+                    <span className="font-black">{activeAiReplyConfidence.score.toFixed(0)}%</span>
+                    <span className="font-bold">reasons {activeAiReplyConfidence.reasonsCount}</span>
+                  </div>
+                  {activeAiReplyConfidence.reasonsPreview.length ? <div className="mt-1.5 space-y-1">{activeAiReplyConfidence.reasonsPreview.slice(0, 3).map((item) => <div key={item} className="flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-current/80" /><span>{item}</span></div>)}</div> : null}
+                  {activeAiReplyConfidence.decision === "high_risk" ? <div className="mt-1.5 font-black uppercase tracking-[0.12em]">High risk: manual review recommended before sending.</div> : null}
+                </div>
+              ) : null}
               <div className="flex items-end gap-2">
                 <button
                   type="button"
@@ -2790,7 +2857,7 @@ export default function AiInboxPwa() {
                   type="button"
                   onClick={sendManualReply}
                   disabled={!clean(composerText) || sending}
-                  className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white disabled:opacity-50 ${composerMode !== "note" && activeAiReplyValidation.violationsCount > 0 ? "bg-amber-500" : "bg-sky-600"}`}
+                  className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white disabled:opacity-50 ${composerMode !== "note" && (activeAiReplyConfidence.decision === "high_risk" || activeAiReplyValidation.violationsCount > 0) ? "bg-amber-500" : "bg-sky-600"}`}
                   aria-label={composerMode === "note" ? "Save note" : "Send reply"}
                 >
                   {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
