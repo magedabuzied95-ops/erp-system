@@ -4090,8 +4090,8 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
             <span className="hidden h-14 w-px bg-stone-200/90 dark:bg-white/10 md:block" />
             <Link to="/shop" className="sf-header-logo group inline-flex shrink-0 items-center text-stone-950 transition hover:text-[#6d28d9] dark:text-white" aria-label={brandName || "MONE"}>
               <span
-                className="sf-header-logo-chip grid h-[82px] w-[82px] place-items-center overflow-hidden rounded-full border border-transparent bg-transparent text-base font-black tracking-[0.18em] text-white transition group-hover:scale-[1.01] md:h-[104px] md:w-[104px]"
-                style={{ clipPath: "circle(50% at 50% 50%)", transform: "translateZ(0)", backfaceVisibility: "hidden", border: "1px solid rgba(255,255,255,0.55)" }}
+                className="sf-header-logo-chip grid h-[78px] w-[78px] place-items-center overflow-hidden rounded-full border border-transparent bg-transparent text-base font-black tracking-[0.18em] text-white transition group-hover:scale-[1.01] md:h-[98px] md:w-[98px]"
+                style={{ clipPath: "circle(50% at 50% 50%)", transform: "translateZ(0)", backfaceVisibility: "hidden", border: "1px solid rgba(255,255,255,0.40)" }}
               >
                 {brandLogoUrl ? <img src={resolveProductImageUrl(brandLogoUrl)} alt={brandName} className="h-[130%] w-[130%] object-cover object-center" style={{ imageRendering: "auto", transform: "translateZ(0)", backfaceVisibility: "hidden" }} loading="lazy" decoding="async" width="104" height="104" /> : brandInitials}
               </span>
