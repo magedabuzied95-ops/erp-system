@@ -4089,8 +4089,8 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
             </button>
             <span className="hidden h-14 w-px bg-stone-200/90 dark:bg-white/10 md:block" />
             <Link to="/shop" className="sf-header-logo group inline-flex shrink-0 items-center text-stone-950 transition hover:text-[#6d28d9] dark:text-white" aria-label={brandName || "MONE"}>
-              <span className="sf-header-logo-chip grid h-20 w-20 place-items-center overflow-hidden rounded-[1.6rem] bg-stone-950 text-base font-black tracking-[0.18em] text-white shadow-[0_16px_36px_rgba(28,25,23,0.18)] transition group-hover:scale-[1.03] group-hover:bg-[#6d28d9] dark:bg-white dark:text-stone-950 dark:group-hover:text-white md:h-[102px] md:w-[102px] md:rounded-[2rem]">
-                {brandLogoUrl ? <img src={resolveProductImageUrl(brandLogoUrl)} alt={brandName} className="h-full w-full object-contain p-2.5 md:p-4" loading="lazy" decoding="async" width="102" height="102" /> : brandInitials}
+              <span className="sf-header-logo-chip grid h-[82px] w-[82px] place-items-center overflow-hidden rounded-full border border-white/85 bg-transparent text-base font-black tracking-[0.18em] text-white transition group-hover:scale-[1.01] md:h-[104px] md:w-[104px]">
+                {brandLogoUrl ? <img src={resolveProductImageUrl(brandLogoUrl)} alt={brandName} className="h-[150%] w-[150%] object-cover object-center" loading="lazy" decoding="async" width="104" height="104" /> : brandInitials}
               </span>
             </Link>
           </div>
