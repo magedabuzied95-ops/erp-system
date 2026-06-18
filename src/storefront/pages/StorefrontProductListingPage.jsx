@@ -487,6 +487,14 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     () => catalogProducts.filter((product) => !selectedGender || productListingAudienceValues(product).includes(normalizeStorefrontAudienceValue(selectedGender))),
     [catalogProducts, selectedGender]
   );
+  const guidedTypeProducts = useMemo(
+    () => {
+      const typeValue = normalizeStorefrontProductTypeValue(selectedProductType);
+      if (!typeValue) return catalogProducts;
+      return catalogProducts.filter((product) => normalizeStorefrontProductTypeValue(product.product_type || product.productType || product.category || "") === typeValue);
+    },
+    [catalogProducts, selectedProductType]
+  );
   const productTypeOptions = useMemo(() => {
     const options = uniqueClassificationOptions(classificationOptions.productType || []);
     if (!selectedGender || !guidedGenderProducts.length) return options;
@@ -498,6 +506,13 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     const filtered = options.filter((option) => availableTypeValues.has(normalizeStorefrontProductTypeValue(option.value)));
     return filtered.length ? filtered : options;
   }, [classificationOptions.productType, guidedGenderProducts, selectedGender]);
+  const guidedGenderOptions = useMemo(() => {
+    const baseGenderOptions = uniqueClassificationOptions((storefrontGenderOptions.length ? storefrontGenderOptions : classificationOptions.gender) || []);
+    return baseGenderOptions.map((option) => {
+      const count = countAudienceMatches(guidedTypeProducts, option.value);
+      return { ...option, count, product_count: count };
+    });
+  }, [classificationOptions.gender, guidedTypeProducts, storefrontGenderOptions]);
   const guidedGridProducts = useMemo(() => {
     const genderValue = normalizeStorefrontAudienceValue(selectedGender);
     const typeValue = normalizeStorefrontProductTypeValue(selectedProductType);
@@ -519,6 +534,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   );
   const showEmptyResults = !loading && !filteredProducts.length;
   const isTypeOnlyGuidedFlow = Boolean(selectedProductType) && !selectedGender && !category && !brand && !saleView && !lastSizes && !size && !inStock && !quality && !grade && !sort;
+  const showGuidedProducts = Boolean(selectedGender && selectedProductType && selectedSize);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -565,7 +581,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
 
           <section className="mt-3 scroll-mt-28 transition md:mt-5">
             <GuidedGenderStep
-              options={genderOptions}
+              options={guidedGenderOptions}
               selectedGender={selectedGender}
               lang={lang}
               onSelect={selectGender}
@@ -631,14 +647,16 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
           </div>
           <GuidedSizeFilter sizes={guidedAvailableSizes} selectedSize={selectedSize} onSelect={setSelectedSize} disabled={!selectedProductType} />
           {error ? <EmptyState title={t("storefront.errors.simpleProblem", "Something went wrong")} text={t("storefront.errors.tryAgainOrWhatsapp", "Try again or contact us on WhatsApp")} /> : null}
-          <ProductGrid
-            products={orderedGuidedProducts}
-            loading={loading}
-            wishlist={wishlist}
-            toggleWishlist={toggleWishlist}
-            onAddToCart={onAddToCart}
-          />
-          {!loading && selectedProductType && !orderedGuidedProducts.length ? (
+          {selectedGender && selectedProductType && selectedSize ? (
+            <ProductGrid
+              products={orderedGuidedProducts}
+              loading={loading}
+              wishlist={wishlist}
+              toggleWishlist={toggleWishlist}
+              onAddToCart={onAddToCart}
+            />
+          ) : null}
+          {!loading && selectedProductType && selectedSize && !orderedGuidedProducts.length ? (
             <EmptyState title={t("storefront.products.noProductsForSize", "لا توجد منتجات لهذا المقاس حالياً. جرّب مقاساً آخر.")} text={selectedSize ? t("storefront.products.pickDifferentSize", "اختر مقاساً آخر من الأعلى") : t("storefront.products.tryDifferentProductType", "جرّب نوع منتج آخر")} />
           ) : null}
         </section>
