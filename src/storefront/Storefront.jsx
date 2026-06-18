@@ -3759,12 +3759,12 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     t("storefront.header.announcements.todayDeals", "Today's deals"),
   ];
   const headerCategoryItems = [
-    [t("storefront.nav.men", "رجالي"), "/shop/products?q=men"],
-    [t("storefront.nav.women", "حريمي"), "/shop/products?q=women"],
-    [t("storefront.nav.kids", "أطفال"), "/shop/products?q=kids"],
-    ["شنط", "/shop/products?q=bag"],
-    ["كروكس", "/shop/products?category=crocs"],
-    ["سليبر", "/shop/products?q=slipper"],
+    { label: t("storefront.nav.men", "رجالي"), to: "/shop/products?gender=men" },
+    { label: t("storefront.nav.women", "حريمي"), to: "/shop/products?gender=women" },
+    { label: t("storefront.nav.kids", "أطفال"), to: "/shop/products?gender=kids" },
+    { label: "شنط", to: "/shop/products?category=bag" },
+    { label: "كروكس", to: "/shop/products?category=crocs" },
+    { label: "سليبر", to: "/shop/products?category=slipper" },
   ];
   const utilityItems = [
     { label: "WhatsApp", to: "https://wa.me/", icon: <MessageCircle className="h-3.5 w-3.5" />, external: true },
@@ -3773,12 +3773,12 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     { label: t("storefront.header.account", "Account"), to: "/shop/account", icon: <User className="h-3.5 w-3.5" /> },
   ];
   const navItems = [
-    [t("storefront.nav.categories", "Categories"), "/shop/products"],
-    [t("storefront.nav.sale", "Sale"), "/shop/sale"],
-    [t("storefront.nav.new", "New"), "/shop/products?sort=new"],
-    [t("storefront.nav.men", "Men"), "/shop/products?q=men"],
-    [t("storefront.nav.women", "Women"), "/shop/products?q=women"],
-    [t("storefront.nav.kids", "Kids"), "/shop/products?q=kids"],
+    { label: t("storefront.nav.categories", "Categories"), to: "/shop/products" },
+    { label: t("storefront.nav.sale", "Sale"), to: "/shop/sale" },
+    { label: t("storefront.nav.new", "New"), to: "/shop/products?sort=new" },
+    { label: t("storefront.nav.men", "Men"), to: "/shop/products?gender=men" },
+    { label: t("storefront.nav.women", "Women"), to: "/shop/products?gender=women" },
+    { label: t("storefront.nav.kids", "Kids"), to: "/shop/products?gender=kids" },
   ];
   const themeIsDark = effectiveTheme === "dark";
   const themeToggleLabel = themeIsDark
@@ -4099,9 +4099,9 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
             </Link>
           </div>
           <nav className="sf-collapsible-nav hidden min-w-0 flex-1 items-center justify-center gap-2 overflow-hidden text-sm font-bold text-stone-700 dark:text-stone-300 lg:flex">
-            {headerCategoryItems.map(([label, to]) => (
+            {headerCategoryItems.map(({ label, to }) => (
               <NavLink
-                key={label}
+                key={`${label}-${to}`}
                 to={to}
                 className={({ isActive }) => `sf-nav-link sf-header-nav-link relative overflow-hidden rounded-full px-4 py-2.5 transition duration-200 ease-out after:absolute after:inset-x-4 after:bottom-1 after:h-px after:origin-center after:bg-current after:transition-transform after:duration-200 ${isActive ? "text-stone-950 dark:text-white after:scale-x-100" : "text-stone-700/90 hover:bg-white/55 hover:text-stone-950 dark:text-stone-300/90 dark:hover:bg-white/8 dark:hover:text-white after:scale-x-0 hover:after:scale-x-100"}`}
               >
@@ -4202,8 +4202,17 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
       />
       {menuOpen ? (
         <div className="grid gap-2 border-t border-stone-200 bg-white/96 px-4 py-4 text-sm font-bold backdrop-blur dark:border-white/10 dark:bg-[#0b1020]/96 md:hidden">
-          {[t("storefront.nav.home", "Home"), t("storefront.nav.categories", "Categories"), t("storefront.nav.sale", "Sale"), t("storefront.nav.new", "New"), t("storefront.nav.men", "Men"), t("storefront.nav.women", "Women"), t("storefront.nav.sizeGuide", "Size Guide"), t("storefront.nav.returns", "Returns")].map((label, index) => (
-            <Link key={label} to={["/shop", "/shop/products", "/shop/sale", "/shop/products?sort=new", "/shop/products?q=men", "/shop/products?q=women", "/shop/size-guide", "/shop/returns"][index]} onClick={() => setMenuOpen(false)} className="rounded-2xl px-3 py-3 transition hover:bg-stone-100 dark:hover:bg-white/5 active:scale-[0.98]">
+          {[
+            { label: t("storefront.nav.home", "Home"), to: "/shop" },
+            { label: t("storefront.nav.categories", "Categories"), to: "/shop/products" },
+            { label: t("storefront.nav.sale", "Sale"), to: "/shop/sale" },
+            { label: t("storefront.nav.new", "New"), to: "/shop/products?sort=new" },
+            { label: t("storefront.nav.men", "Men"), to: "/shop/products?gender=men" },
+            { label: t("storefront.nav.women", "Women"), to: "/shop/products?gender=women" },
+            { label: t("storefront.nav.sizeGuide", "Size Guide"), to: "/shop/size-guide" },
+            { label: t("storefront.nav.returns", "Returns"), to: "/shop/returns" },
+          ].map(({ label, to }) => (
+            <Link key={`${label}-${to}`} to={to} onClick={() => setMenuOpen(false)} className="rounded-2xl px-3 py-3 transition hover:bg-stone-100 dark:hover:bg-white/5 active:scale-[0.98]">
               {label}
             </Link>
           ))}
