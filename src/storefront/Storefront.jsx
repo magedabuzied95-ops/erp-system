@@ -1652,7 +1652,7 @@ const featuredCategoryDefinitions = [
     subtitleEn: "Easy comfort, summer colors, and quick everyday pairs.",
     subtitleAr: "راحة سهلة، ألوان صيفية، وقطع يومية خفيفة.",
     query: "crocs crocband classic clog slides كروكس",
-    href: "/shop/products?category=crocs",
+    href: "/shop/products?type=crocs",
     examples: ["Crocs", "Crocband", "Classic Clog", "Slides"],
     test: (_product, text) => /crocs?|crocband|classics*clog|slides|.{3,5}/i.test(text),
     icon: Footprints,
@@ -2125,7 +2125,7 @@ const mainHomeCategoryCards = [
     titleEn: "Crocs",
     subtitleAr: "راحة سهلة لكل يوم",
     subtitleEn: "Easy comfort for every day",
-    href: "/shop/products?category=crocs",
+    href: "/shop/products?type=crocs",
     test: (_product, text) => /crocs?|crocband|classics*clog|slides|.{3,5}/i.test(text),
     icon: Footprints,
   },
@@ -3333,7 +3333,7 @@ function GuidedGenderStep({ options = [], selectedGender, lang, onSelect }) {
   return (
     <section className="scroll-mt-28">
       <div className="mb-2.5 flex items-end justify-between gap-2 md:mb-3 md:gap-3">
-        <SectionIntro eyebrow={t("storefront.filters.gender", "Gender")} title={t("storefront.products.chooseWearer", "Choose wearer")} subtitle={t("storefront.products.chooseWearerSubtitle", "Pick a wearer to see the right styles.")} compact />
+        <SectionIntro eyebrow={t("storefront.filters.gender", "الجنس")} title={t("storefront.products.chooseWearer", "اختر الجنس")} subtitle={t("storefront.products.chooseWearerSubtitle", "اختر الجنس لرؤية الأنماط المناسبة.")} compact />
       </div>
       <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 md:gap-2.5">
         {options.map((option) => {
@@ -3354,7 +3354,7 @@ function GuidedGenderStep({ options = [], selectedGender, lang, onSelect }) {
                 <Icon className="h-3.5 w-3.5 md:h-5 md:w-5" />
               </span>
               <span className="mt-1.5 block text-[13px] font-black leading-4 md:mt-3 md:text-lg md:leading-6">{classificationLabel(option, lang)}</span>
-              <span className="mt-0.5 block text-[9.5px] font-bold leading-3 text-stone-500 dark:text-stone-400 md:mt-1 md:text-xs md:leading-5">{t("storefront.products.chooseAndViewTypes", "Choose and view types")}</span>
+              <span className="mt-0.5 block text-[9.5px] font-bold leading-3 text-stone-500 dark:text-stone-400 md:mt-1 md:text-xs md:leading-5">{t("storefront.products.chooseAndViewTypes", "اختر واعرض الأنواع")}</span>
             </button>
           );
         })}
@@ -3762,9 +3762,9 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     { label: t("storefront.nav.men", "رجالي"), to: "/shop/products?gender=men" },
     { label: t("storefront.nav.women", "حريمي"), to: "/shop/products?gender=women" },
     { label: t("storefront.nav.kids", "أطفال"), to: "/shop/products?gender=kids" },
-    { label: "شنط", to: "/shop/products?category=bag" },
-    { label: "كروكس", to: "/shop/products?category=crocs" },
-    { label: "سليبر", to: "/shop/products?category=slipper" },
+    { label: "شنط", to: "/shop/products?type=bags" },
+    { label: "كروكس", to: "/shop/products?type=crocs" },
+    { label: "سليبر", to: "/shop/products?type=slippers" },
   ];
   const utilityItems = [
     { label: "WhatsApp", to: "https://wa.me/", icon: <MessageCircle className="h-3.5 w-3.5" />, external: true },

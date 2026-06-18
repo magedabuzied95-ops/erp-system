@@ -43,6 +43,14 @@ const normalizeStorefrontAudienceValue = (value = "") => {
   if (["kids", "kid", "children", "child", "boys", "girls", "أطفال", "اطفال", "طفل", "ولادي", "بناتي"].includes(normalized)) return "kids";
   return normalizeAudienceValue(value) || "";
 };
+const normalizeStorefrontProductTypeValue = (value = "") => {
+  const normalized = normalizeAudienceFilterKey(value);
+  if (["bag", "bags", "handbag", "handbags", "ط´ظ†ط·", "ط´ظ†ط©", "ط´ظ†طھظ‡", "ط´ظ†طھظٹ"].includes(normalized)) return "bag";
+  if (["croc", "crocs", "ظƒط±ظˆظƒط³"].includes(normalized)) return "crocs";
+  if (["slipper", "slippers", "slide", "slides", "ط³ظ„ظٹط¨ط±", "ط´ط¨ط´ط¨"].includes(normalized)) return "slipper";
+  if (["sneaker", "sneakers"].includes(normalized)) return "sneaker";
+  return normalizeFilterKey(value);
+};
 const normalizeStorefrontSearchTerm = (value = "") =>
   normalizeStorefrontAudienceValue(value) || normalizeFilterKey(String(value ?? "").normalize("NFKD").replace(/[\u0640\u200c\u200d\u200e\u200f]/g, "").replace(/\p{M}+/gu, ""));
 const productListingAudienceValues = (product = {}) => {
@@ -226,6 +234,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   const category = params.get("category") || "";
   const brand = params.get("brand") || "";
   const genderParam = params.get("gender") || "";
+  const typeParam = params.get("type") || "";
   const normalizedSearchTerm = normalizeStorefrontSearchTerm(q);
   const searchGender = normalizeStorefrontAudienceValue(q);
   const gender = normalizeStorefrontAudienceValue(genderParam) || genderParam || searchGender;
@@ -234,7 +243,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   const selectedSizes = useMemo(() => readMultiQueryValues(params, ["size", "sizes"]), [params]);
   const inStock = params.get("inStock") || "";
   const quality = params.get("quality") || "";
-  const productType = params.get("product_type") || "";
+  const productType = normalizeStorefrontProductTypeValue(params.get("product_type") || typeParam || "");
   const grade = params.get("grade") || "";
   const minPrice = params.get("min_price") || "";
   const maxPrice = params.get("max_price") || "";
@@ -257,7 +266,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     () => classificationGroupsToFieldOptions(classificationGroups, {}, { includeInactive: false }),
     [classificationGroups]
   );
-  const isGuidedCategoryFlow = Boolean(genderParam) && !category && !brand && !saleView && !lastSizes && !size && !inStock && !quality && !productType && !grade && !sort;
+  const isGuidedCategoryFlow = Boolean(genderParam || typeParam) && !category && !brand && !saleView && !lastSizes && !size && !inStock && !quality && !grade && !sort;
   const productsApiParams = useMemo(
     () => ({ q: backendSearchTerm, gender: gender || "", sale: saleView ? 1 : "", sort, limit: 500 }),
     [backendSearchTerm, gender, saleView, sort]
@@ -346,7 +355,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   };
   const clearClassificationFiltersUrl = () => {
     const next = new URLSearchParams(params);
-    ["q", "brand", "gender", "category", "product_type", "style", "grade", "quality", "size", "sizes", "min_price", "max_price", "inStock"].forEach((field) => next.delete(field));
+    ["q", "brand", "gender", "category", "product_type", "type", "style", "grade", "quality", "size", "sizes", "min_price", "max_price", "inStock"].forEach((field) => next.delete(field));
     return `${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`;
   };
   const toggleSizeValue = (value) => {
@@ -414,7 +423,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   };
   const resetDraftFilters = () => {
     const next = new URLSearchParams(params);
-    ["q", "brand", "gender", "product_type", "style", "grade", "quality"].forEach((field) => next.delete(field));
+    ["q", "brand", "gender", "product_type", "type", "style", "grade", "quality"].forEach((field) => next.delete(field));
     setDraftFilters({ gender: "", product_type: "", grade: "" });
     setFiltersOpen(false);
     navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`);
@@ -429,31 +438,33 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   const selectGender = (value) => {
     const normalizedGender = normalizeStorefrontAudienceValue(value) || normalizeFilterText(value);
     setSelectedGender(normalizedGender);
-    setSelectedProductType("");
     setSelectedSize("");
     setCurrentStep("productType");
     const next = new URLSearchParams();
     if (normalizedGender) next.set("gender", normalizedGender);
+    if (selectedProductType) next.set("type", selectedProductType);
     navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`);
     scrollToStep("productType");
   };
 
   const selectProductType = (value) => {
-    setSelectedProductType(value);
+    const normalizedProductType = normalizeStorefrontProductTypeValue(value);
+    setSelectedProductType(normalizedProductType);
     setSelectedSize("");
     setCurrentStep("grid");
     const next = new URLSearchParams();
     if (selectedGender) next.set("gender", selectedGender);
-    if (value) next.set("product_type", value);
+    if (normalizedProductType) next.set("type", normalizedProductType);
     navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`);
     scrollToStep("grid");
   };
 
   const changeGender = () => {
-    setSelectedProductType("");
     setSelectedSize("");
     setCurrentStep("gender");
-    navigate(filterBasePath);
+    const next = new URLSearchParams();
+    if (selectedProductType) next.set("type", selectedProductType);
+    navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`);
   };
 
   const changeProductType = () => {
@@ -474,17 +485,17 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     if (!selectedGender || !guidedGenderProducts.length) return options;
     const availableTypeValues = new Set(
       guidedGenderProducts
-        .map((product) => String(product.product_type || product.productType || product.category || "").trim().toLowerCase())
+        .map((product) => normalizeStorefrontProductTypeValue(product.product_type || product.productType || product.category || ""))
         .filter(Boolean)
     );
-    const filtered = options.filter((option) => availableTypeValues.has(String(option.value || "").trim().toLowerCase()));
+    const filtered = options.filter((option) => availableTypeValues.has(normalizeStorefrontProductTypeValue(option.value)));
     return filtered.length ? filtered : options;
   }, [classificationOptions.productType, guidedGenderProducts, selectedGender]);
   const guidedGridProducts = useMemo(() => {
     const genderValue = normalizeStorefrontAudienceValue(selectedGender);
-    const typeValue = String(selectedProductType || "").trim().toLowerCase();
+    const typeValue = normalizeStorefrontProductTypeValue(selectedProductType);
     return catalogProducts.filter((product) => {
-      const productTypeValue = String(product.product_type || product.productType || product.category || "").trim().toLowerCase();
+      const productTypeValue = normalizeStorefrontProductTypeValue(product.product_type || product.productType || product.category || "");
       const genderOk = !genderValue || productListingAudienceValues(product).includes(genderValue);
       const typeOk = !typeValue || productTypeValue === typeValue;
       return genderOk && typeOk;
@@ -500,6 +511,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     [filteredGuidedProducts]
   );
   const showEmptyResults = !loading && !filteredProducts.length;
+  const isTypeOnlyGuidedFlow = Boolean(selectedProductType) && !selectedGender && !category && !brand && !saleView && !lastSizes && !size && !inStock && !quality && !grade && !sort;
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -516,17 +528,53 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
       searchTerm: q,
       normalizedSearchTerm,
       selectedAudience: genderParam || "",
+      selectedType: typeParam || "",
       normalizedSelectedAudience: gender || "",
+      normalizedSelectedType: productType || "",
       productsApiParams,
       productsBeforeFilters: Array.isArray(catalogProducts) ? catalogProducts.length : 0,
       productsAfterFilters: Array.isArray(filteredProducts) ? filteredProducts.length : 0,
       sampleProducts,
     });
-  }, [catalogProducts, filteredProducts, gender, genderParam, normalizedSearchTerm, productsApiParams, q]);
+  }, [catalogProducts, filteredProducts, gender, genderParam, normalizedSearchTerm, productsApiParams, productType, q, typeParam]);
 
   if (isGuidedCategoryFlow) {
     const selectedGenderOption = genderOptions.find((option) => normalizeStorefrontAudienceValue(option.value) === normalizeStorefrontAudienceValue(selectedGender));
     const selectedProductTypeOption = productTypeOptions.find((option) => String(option.value) === String(selectedProductType));
+    if (isTypeOnlyGuidedFlow) {
+      return (
+        <section className="mx-auto max-w-7xl px-3 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.75rem)] pt-3 md:px-4 md:py-5">
+          <div className="mb-3 flex flex-col gap-2 md:mb-4 md:gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs font-bold text-stone-500 md:text-sm">{t("storefront.products.guidedIntro", "اختر طريقتك")}</p>
+              <h1 className="mt-0.5 text-2xl font-black md:mt-1 md:text-3xl">{selectedProductTypeOption ? `اختر من ${classificationLabel(selectedProductTypeOption, lang)}` : t("storefront.nav.categories", "الأقسام")}</h1>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs font-black">
+              <StepPill active={currentStep === "gender"} done={Boolean(selectedGender)} label={t("storefront.products.steps.gender", "1. النوع")} />
+              <StepPill active={currentStep === "grid"} done={Boolean(selectedGender)} label={t("storefront.products.steps.product", "2. المنتج")} />
+              <StepPill active={currentStep === "grid"} done={Boolean(selectedGender)} label={t("storefront.products.steps.sizes", "3. المقاسات")} />
+            </div>
+          </div>
+
+          <section className="mt-3 scroll-mt-28 transition md:mt-5">
+            <div className="mb-2.5 flex flex-wrap items-end justify-between gap-2 md:mb-3 md:gap-3">
+              <SectionIntro eyebrow={t("storefront.filters.gender", "الجنس")} title={t("storefront.products.chooseWearer", "اختر الجنس")} subtitle={selectedProductTypeOption ? t("storefront.products.suitableFor", "خيارات مناسبة لـ {{label}}", { label: classificationLabel(selectedProductTypeOption, lang) }) : t("storefront.products.chooseWearerSubtitle", "اختر نوع المنتج أولاً")} compact />
+              {selectedProductType ? (
+                <button type="button" onClick={changeProductType} className="rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
+                  {t("storefront.products.changeProductType", "تغيير النوع")}
+                </button>
+              ) : null}
+            </div>
+            <GuidedGenderStep
+              options={genderOptions}
+              selectedGender={selectedGender}
+              lang={lang}
+              onSelect={selectGender}
+            />
+          </section>
+        </section>
+      );
+    }
     return (
       <section className="mx-auto max-w-7xl px-3 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.75rem)] pt-3 md:px-4 md:py-5">
         <div className="mb-3 flex flex-col gap-2 md:mb-4 md:gap-3 md:flex-row md:items-end md:justify-between">
