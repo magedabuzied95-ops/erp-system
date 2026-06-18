@@ -26,10 +26,7 @@ import { guardAIReply } from "./aiSafetyGuard.js";
 import { detectEscalation } from "./aiEscalationDetector.js";
 import { getAISettings, getAIToneInstruction } from "./aiSettingsService.js";
 import { buildHumanizedReply } from "./aiHumanizedReplies.js";
-import {
-  buildReplyCorrectionContextSource,
-  searchRelevantCorrections,
-} from "./aiCorrectionMemoryService.js";
+import { buildReplyCorrectionContextSource } from "./aiCorrectionMemoryService.js";
 import { normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
 import {
   aiProductSqlExclusionClause,
@@ -48,11 +45,13 @@ import {
 import { loadRecentSalesJourneyEvents, recordSalesJourneyEvents } from "./salesJourneyEventService.js";
 import { buildProactiveCloserPlan } from "./proactiveCloserService.js";
 import { composeAiSalesReply } from "./aiSalesReplyComposerService.js";
+import { compressAiReplyPromptPayload } from "./aiPromptCompressionService.js";
 import { isLikelyMessageLikeName, resolveMessengerConversationDisplayName } from "./aiChannelAdapterService.js";
 
 let schemaReadyPromise = null;
 let aiInboxSchemaReadyPromise = null;
 let aiInboxSchemaEnsured = false;
+const aiPipelineDebugCache = new Map();
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -66,6 +65,7 @@ const int = (value, fallback = 0) => {
 };
 const json = (value) => JSON.stringify(value === undefined ? null : value);
 const asArray = (value) => (Array.isArray(value) ? value : []);
+const clonePipelineDebug = (value) => (value && typeof value === "object" ? JSON.parse(JSON.stringify(value)) : null);
 const normalizeProductCardsValue = (value) => {
   if (value == null) return [];
   if (Array.isArray(value)) return value;
@@ -791,8 +791,25 @@ const normalizeAiReplyDraft = (value = {}) => {
     customer_question: text(draft.customer_question || ""),
     metadata: draft.metadata && typeof draft.metadata === "object" ? draft.metadata : {},
     validation: draft.validation && typeof draft.validation === "object" ? draft.validation : (draft.metadata && typeof draft.metadata === "object" && draft.metadata.validation && typeof draft.metadata.validation === "object" ? draft.metadata.validation : null),
+    confidence_engine: draft.confidence_engine && typeof draft.confidence_engine === "object" ? draft.confidence_engine : (draft.metadata && typeof draft.metadata === "object" && draft.metadata.confidence_engine && typeof draft.metadata.confidence_engine === "object" ? draft.metadata.confidence_engine : null),
+    pipeline_debug: draft.pipeline_debug && typeof draft.pipeline_debug === "object" ? draft.pipeline_debug : (draft.metadata && typeof draft.metadata === "object" && draft.metadata.pipeline_debug && typeof draft.metadata.pipeline_debug === "object" ? draft.metadata.pipeline_debug : null),
     updated_at: draft.updated_at || null,
   };
+};
+
+export const getLastAiPipelineDebug = ({ tenantId = null, conversationId = "" } = {}) => {
+  const cacheKey = `${Number(tenantId) || 0}:${text(conversationId)}`;
+  const cached = aiPipelineDebugCache.get(cacheKey) || null;
+  return cached ? clonePipelineDebug(cached) : null;
+};
+
+const setAiPipelineDebug = ({ tenantId = null, conversationId = "", value = null } = {}) => {
+  const cacheKey = `${Number(tenantId) || 0}:${text(conversationId)}`;
+  if (!value) {
+    aiPipelineDebugCache.delete(cacheKey);
+    return;
+  }
+  aiPipelineDebugCache.set(cacheKey, clonePipelineDebug(value));
 };
 
 const summarizeInboxMessage = (row = {}) => ({
@@ -3391,10 +3408,10 @@ export const searchAiSalesProducts = async ({ tenantId, query = "", limit = 8 } 
   }
 };
 
-export const loadAiInboxRecommendations = async ({ tenantId, conversationId, limit = 8 } = {}) => {
-  const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 100 });
-  const conversation = asArray(inbox.conversations).find((item) => item.session_id === conversationId);
-  if (!conversation) {
+export const loadAiInboxRecommendations = async ({ tenantId, conversationId, limit = 8, inbox = null, conversation = null } = {}) => {
+  const resolvedInbox = inbox || await loadAiInbox({ tenantId, filter: "all", limit: 100 });
+  const resolvedConversation = conversation || asArray(resolvedInbox.conversations).find((item) => item.session_id === conversationId);
+  if (!resolvedConversation) {
     console.warn("ai_inbox_recommendations_failed", {
       tenant_id: tenantId,
       conversation_id: maskIdForLog(conversationId),
@@ -3407,9 +3424,9 @@ export const loadAiInboxRecommendations = async ({ tenantId, conversationId, lim
       products: [],
     };
   }
-  const lastMessage = latestCustomerMessage(conversation.messages) || conversation.latest_message_preview || conversation.last_message || "";
-  const discussed = latestProducts(conversation.messages);
-  const memory = buildDashboardAiMemory(conversation);
+  const lastMessage = latestCustomerMessage(resolvedConversation.messages) || resolvedConversation.latest_message_preview || resolvedConversation.last_message || "";
+  const discussed = latestProducts(resolvedConversation.messages);
+  const memory = buildDashboardAiMemory(resolvedConversation);
   const remembered = productsFromDashboardMemory(memory);
   const searchQuery = remembered.length
     ? text(remembered[0]?.name || remembered[0]?.title || remembered[0]?.product_name || lastMessage)
@@ -3428,13 +3445,13 @@ export const loadAiInboxRecommendations = async ({ tenantId, conversationId, lim
     .slice(0, Math.min(20, Math.max(1, Number(limit) || 8)));
   const intelligence = await buildSalesConversationIntelligence({
     tenantId,
-    conversation,
-    messages: conversation.messages,
-    draftOrders: asArray(conversation.draft_orders),
-    conversationFollowups: asArray(conversation.followups),
+    conversation: resolvedConversation,
+    messages: resolvedConversation.messages,
+    draftOrders: asArray(resolvedConversation.draft_orders),
+    conversationFollowups: asArray(resolvedConversation.followups),
     recommendations: products,
-    selectedProduct: conversation.current_product || conversation.product || products[0] || null,
-    existingJourneyEvents: asArray(conversation.sales_journey_events),
+    selectedProduct: resolvedConversation.current_product || resolvedConversation.product || products[0] || null,
+    existingJourneyEvents: asArray(resolvedConversation.sales_journey_events),
   }).catch(() => null);
   return {
     conversation_id: conversationId,
@@ -3444,11 +3461,11 @@ export const loadAiInboxRecommendations = async ({ tenantId, conversationId, lim
     active_product_id: memory.active_product_id || memory.activeProductId || "",
     projection_source: remembered.length ? "conversation_memory" : "latest_message_search",
     sales_intelligence: intelligence,
-    sales_conversation_state: intelligence?.state || conversation.sales_conversation_state || null,
-    conversion_probability: intelligence?.conversion || conversation.conversion_probability || {},
-    follow_up_recommendation: intelligence?.followUp || conversation.follow_up_recommendation || {},
-    cross_sell_suggestions: intelligence?.crossSellSuggestions || conversation.cross_sell_suggestions || [],
-    proactive_closer: intelligence?.closer || conversation.proactive_closer || {},
+    sales_conversation_state: intelligence?.state || resolvedConversation.sales_conversation_state || null,
+    conversion_probability: intelligence?.conversion || resolvedConversation.conversion_probability || {},
+    follow_up_recommendation: intelligence?.followUp || resolvedConversation.follow_up_recommendation || {},
+    cross_sell_suggestions: intelligence?.crossSellSuggestions || resolvedConversation.cross_sell_suggestions || [],
+    proactive_closer: intelligence?.closer || resolvedConversation.proactive_closer || {},
   };
 };
 
@@ -3816,7 +3833,23 @@ const correctionTypeHintForIntent = ({ intent = "", salesIntent = "", message = 
 };
 
 export const generateAiInboxReply = async ({ tenantId, conversationId, persist = false } = {}) => {
+  const pipelineStartedAt = Date.now();
+  const pipelineWarnings = [];
+  const stageTimings = {
+    harness_ms: 0,
+    tools_ms: 0,
+    generation_ms: 0,
+    validation_ms: 0,
+    confidence_ms: 0,
+    draft_storage_ms: 0,
+    total_reply_ms: 0,
+  };
   const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 100 });
+  const pipelineQueryCounts = {
+    db_reads_count: 1,
+    correction_queries_count: 0,
+    product_queries_count: 0,
+  };
   const conversation = asArray(inbox.conversations).find((item) => item.session_id === conversationId);
   if (!conversation) throw Object.assign(new Error("Conversation not found"), { status: 404 });
   if (["human_takeover", "closed"].includes(conversation.conversation_status)) {
@@ -3824,23 +3857,6 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   }
   const lastMessage = latestCustomerMessage(conversation.messages) || conversation.latest_message_preview || conversation.last_message || "";
   let replyHarness = null;
-  try {
-    const { buildReplyHarness } = await import("./aiReplyHarnessService.js");
-    replyHarness = await buildReplyHarness({
-      tenantId,
-      conversationId,
-      conversation,
-      latestCustomerMessage: lastMessage,
-      sendMode: persist ? "persist" : "compose",
-      channel: conversation.channel || conversation.source || "web_chat",
-    });
-  } catch (error) {
-    console.warn("[ai-agent:harness] build skipped", {
-      tenantId,
-      conversationId,
-      message: error?.message || String(error),
-    });
-  }
   const intent = resolveIntent(lastMessage);
   const detectedSize = extractShoeSize(lastMessage);
   const salesIntent = extractSalesIntent(lastMessage);
@@ -3866,10 +3882,39 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
       lastSize: detectedSize || undefined,
     },
   });
-  const recommendations = await loadAiInboxRecommendations({ tenantId, conversationId, limit: 8 });
-  const productContext = replyHarness?.product_context?.active_product || buildProductContext(currentProductForConversation(conversation, recommendations.products));
-  const conversationMemory = replyHarness?.memory_context?.raw || getConversationMemory(conversationId);
-  const replyProductContext = productContext || buildProductContext(conversationMemory?.lastProduct);
+  const recommendationsResult = await loadAiInboxRecommendations({
+    tenantId,
+    conversationId,
+    limit: 8,
+    inbox,
+    conversation,
+  });
+  pipelineQueryCounts.db_reads_count += 1;
+  pipelineQueryCounts.product_queries_count += 1;
+  const recommendations = recommendationsResult || { products: [] };
+  const preloadedProductContext = buildProductContext(currentProductForConversation(conversation, recommendations.products));
+  const productContext = replyHarness?.product_context?.active_product || preloadedProductContext;
+  const replyProductContext = productContext || buildProductContext(getConversationMemory(conversationId)?.lastProduct);
+  const employeeCorrections = await searchRelevantCorrections({
+    tenantId,
+    query: lastMessage,
+    productId: replyProductContext?.id || productContext?.id || null,
+    correctionType: correctionTypeHintForIntent({ intent, salesIntent, message: lastMessage }),
+    limit: 3,
+  }).catch((error) => {
+    console.warn("[ai-agent:corrections] search skipped", {
+      tenantId,
+      conversationId,
+      message: error?.message,
+    });
+    return [];
+  });
+  pipelineQueryCounts.db_reads_count += 1;
+  pipelineQueryCounts.correction_queries_count += 1;
+  const preloadedCorrectionSources = buildReplyCorrectionContextSource(employeeCorrections, lastMessage);
+  const aiSettings = await getAISettings();
+  pipelineQueryCounts.db_reads_count += 1;
+  let conversationMemory = getConversationMemory(conversationId);
   const latestMessageRow = [...asArray(conversation.messages)].reverse().find((message) => text(message.customer_message || message.message_text || message.last_message)) || {};
   const salesIntelligence = replyHarness?.business_context?.sales_intelligence || await buildSalesConversationIntelligence({
     tenantId,
@@ -3912,25 +3957,39 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
       },
     });
   }
-  const employeeCorrections = asArray(replyHarness?.correction_context?.corrections).length
-    ? asArray(replyHarness.correction_context.corrections)
-    : await searchRelevantCorrections({
-        tenantId,
-        query: lastMessage,
-        productId: replyProductContext?.id || productContext?.id || null,
-        correctionType: correctionTypeHintForIntent({ intent, salesIntent, message: lastMessage }),
-        limit: 3,
-      }).catch((error) => {
-        console.warn("[ai-agent:corrections] search skipped", {
-          tenantId,
-          conversationId,
-          message: error?.message,
-        });
-        return [];
-      });
   const employeeCorrectionSources = asArray(replyHarness?.correction_context?.sources).length
     ? asArray(replyHarness.correction_context.sources)
-    : buildReplyCorrectionContextSource(employeeCorrections, lastMessage);
+    : preloadedCorrectionSources;
+  try {
+    const harnessStartedAt = Date.now();
+    const { buildReplyHarness } = await import("./aiReplyHarnessService.js");
+    replyHarness = await buildReplyHarness({
+      tenantId,
+      conversationId,
+      conversation,
+      latestCustomerMessage: lastMessage,
+      sendMode: persist ? "persist" : "compose",
+      channel: conversation.channel || conversation.source || "web_chat",
+      preloadedInbox: inbox,
+      preloadedMessages: conversation.messages,
+      preloadedMemory: getConversationMemory(conversationId),
+      preloadedRecommendations: recommendations.products,
+      preloadedCorrections: employeeCorrections,
+      preloadedProductContext: preloadedProductContext,
+      preloadedAiSettings: aiSettings,
+      preloadedShippingZones: null,
+    });
+    stageTimings.harness_ms = Date.now() - harnessStartedAt;
+    stageTimings.tools_ms = Number(replyHarness?.trace?.tools_ms || 0);
+    conversationMemory = replyHarness?.memory_context?.raw || conversationMemory;
+  } catch (error) {
+    pipelineWarnings.push(`buildReplyHarness failed: ${error?.message || String(error)}`);
+    console.warn("[ai-agent:harness] build skipped", {
+      tenantId,
+      conversationId,
+      message: error?.message || String(error),
+    });
+  }
   const productPrompt = replyProductContext
     ? [
         "Current product context:",
@@ -3940,7 +3999,6 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
         `- Sizes: ${(replyProductContext.sizes || []).join(", ")}`,
       ].join("\n")
     : "";
-  const aiSettings = await getAISettings();
   const toneInstruction = getAIToneInstruction(aiSettings.tone);
   const humanizedReply = buildHumanizedReply({
     intent,
@@ -4030,6 +4088,34 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     employee_correction_sources: employeeCorrectionSources,
     suggested_actions: escalation.shouldEscalate || salesIntent === "human_support" ? ["takeover"] : ["ask_size", "send_product", "create_draft_order"],
   };
+  const promptOptimization = compressAiReplyPromptPayload({
+    message: lastMessage,
+    response: {
+      ...baseReply,
+      reply_harness: replyHarness ? {
+        tenant_id: replyHarness.tenant_id,
+        conversation_id: replyHarness.conversation_id,
+        send_mode: replyHarness.send_mode,
+        trace: replyHarness.trace,
+        tool_context: replyHarness.tool_context || null,
+      } : null,
+    },
+    intent: { type: intent },
+    memory: conversationMemory,
+    context: {
+      reply_harness: replyHarness,
+      harness_trace: replyHarness?.trace || null,
+      tool_context: replyHarness?.tool_context || null,
+    },
+    harness: replyHarness,
+    recent_messages: asArray(conversation.messages),
+    product_context: replyProductContext,
+    correction_context: {
+      query: lastMessage,
+      corrections: employeeCorrections,
+    },
+  });
+  const generationStartedAt = Date.now();
   const reply = await composeAiSalesReply({
     message: lastMessage,
     response: {
@@ -4051,12 +4137,21 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     },
     source: "ai_inbox",
   });
+  stageTimings.generation_ms = Date.now() - generationStartedAt;
+  const validationStartedAt = Date.now();
   let validation = {
     is_valid: true,
     confidence: 1,
     violations: [],
     warnings: [],
     suggested_action: "keep_draft",
+  };
+  let confidenceEngine = {
+    confidence_score: 50,
+    confidence_level: "medium",
+    decision: "review",
+    reasons: [],
+    risk_flags: {},
   };
   try {
     const { validateAiReply } = await import("./aiReplyValidatorService.js");
@@ -4073,7 +4168,36 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
       suggested_action: "keep_draft",
     };
   }
+  stageTimings.validation_ms = Date.now() - validationStartedAt;
+  const confidenceStartedAt = Date.now();
+  try {
+    const { buildAiConfidenceEngine } = await import("./aiConfidenceEngineService.js");
+    confidenceEngine = await buildAiConfidenceEngine({
+      harness: replyHarness,
+      tool_context: replyHarness?.tool_context || null,
+      validation,
+      draft: {
+        text: reply.answer || "",
+        detected_intent: intent,
+        customer_question: lastMessage,
+        validation,
+      },
+      correction_context: replyHarness?.correction_context || null,
+    });
+  } catch (error) {
+    confidenceEngine = {
+      confidence_score: 50,
+      confidence_level: "medium",
+      decision: "review",
+      reasons: [`buildAiConfidenceEngine failed: ${error?.message || String(error)}`],
+      risk_flags: {
+        engine_error: true,
+      },
+    };
+  }
+  stageTimings.confidence_ms = Date.now() - confidenceStartedAt;
   reply.validation = validation;
+  reply.confidence_engine = confidenceEngine;
   const channelAdapterPayload = {
     channel: conversation.channel || conversation.source || "web_chat",
     text: reply.answer || "",
@@ -4087,6 +4211,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     follow_up: salesIntelligence?.followUp || {},
     closer: salesIntelligence?.closer || {},
   };
+  const draftStorageStartedAt = Date.now();
   const draft = await upsertAiReplySuggestionDraft({
     tenantId,
     sessionId: conversationId,
@@ -4101,13 +4226,103 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
       source: "ai_suggestion",
       persist_requested: persist === true,
       validation,
+      confidence_engine: confidenceEngine,
     },
   });
+  stageTimings.draft_storage_ms = Date.now() - draftStorageStartedAt;
   const aiReplyDraft = normalizeAiReplyDraft(draft || {});
   aiReplyDraft.validation = {
     confidence: Number(validation?.confidence ?? 0),
     violations_count: Array.isArray(validation?.violations) ? validation.violations.length : 0,
     warnings_count: Array.isArray(validation?.warnings) ? validation.warnings.length : 0,
+  };
+  aiReplyDraft.confidence_engine = {
+    score: Number(confidenceEngine?.confidence_score ?? 0),
+    level: confidenceEngine?.confidence_level || "medium",
+    decision: confidenceEngine?.decision || "review",
+    reasons_count: Array.isArray(confidenceEngine?.reasons) ? confidenceEngine.reasons.length : 0,
+    risk_flags_count: confidenceEngine?.risk_flags ? Object.values(confidenceEngine.risk_flags).filter(Boolean).length : 0,
+  };
+  const harnessQueryCounts = replyHarness?.trace?.query_counts || {};
+  const totalCorrectionQueries = Number(pipelineQueryCounts.correction_queries_count || 0) + Number(harnessQueryCounts.correction_queries_count || 0);
+  const totalProductQueries = Number(pipelineQueryCounts.product_queries_count || 0) + Number(harnessQueryCounts.product_queries_count || 0);
+  const totalProductFactQueries = Number(harnessQueryCounts.product_fact_queries_count || 0);
+  const totalDbReads = Number(pipelineQueryCounts.db_reads_count || 0) + Number(harnessQueryCounts.db_reads_count || 0);
+  const duplicateCorrectionLookup = totalCorrectionQueries > 1;
+  const duplicateProductLookup = totalProductQueries > 1;
+  const harnessBytes = (() => {
+    try {
+      return JSON.stringify(replyHarness || {}).length;
+    } catch {
+      return 0;
+    }
+  })();
+  const promptBytes = text(productPrompt).length + text(answer).length + text(toneInstruction).length + text(lastMessage).length;
+  const optimizationReport = {
+    ...(promptOptimization?.optimization_report || {}),
+    prompt_bytes_before: Number(promptOptimization?.prompt_bytes_before || 0),
+    prompt_bytes_after: Number(promptOptimization?.prompt_bytes_after || 0),
+    reduction_percent: Number(promptOptimization?.reduction_percent || 0),
+    db_reads_count: totalDbReads,
+    correction_queries_count: totalCorrectionQueries,
+    product_queries_count: totalProductQueries,
+    product_fact_queries_count: totalProductFactQueries,
+  };
+  const pipelineDebug = {
+    tenant_id: tenantId,
+    conversation_id: conversationId,
+    channel: conversation.channel || conversation.source || "web_chat",
+    harness_summary: {
+      latest_customer_message: replyHarness?.latest_customer_message || lastMessage || "",
+      send_mode: replyHarness?.send_mode || "",
+      trace: replyHarness?.trace || null,
+    },
+    timings: {
+      ...stageTimings,
+      total_reply_ms: Date.now() - pipelineStartedAt,
+    },
+    deterministic: {
+      harness_deterministic: Boolean(replyHarness),
+      tools_deterministic: Boolean(replyHarness?.tool_context),
+      validation_deterministic: Boolean(validation),
+      confidence_deterministic: Boolean(confidenceEngine),
+      draft_storage_deterministic: Boolean(draft),
+    },
+    duplicate_work: {
+      repeated_correction_lookup: duplicateCorrectionLookup,
+      repeated_product_lookup: duplicateProductLookup,
+      repeated_db_reads: optimizationReport.db_reads_count > 1 || duplicateCorrectionLookup || duplicateProductLookup,
+    },
+    memory: {
+      harness_bytes: harnessBytes,
+      prompt_bytes: promptBytes,
+      oversized_harness: harnessBytes > 35000,
+      oversized_prompt: promptBytes > 9000,
+      duplicate_context_blocks: duplicateProductLookup,
+    },
+    optimization_report: optimizationReport,
+    counts: {
+      corrections: asArray(employeeCorrections).length,
+      recommendations: asArray(recommendations.products).length,
+      product_facts_loaded: Boolean(replyHarness?.tool_context?.product_facts),
+      inventory_facts_loaded: Boolean(replyHarness?.tool_context?.inventory_facts),
+      shipping_facts_loaded: Boolean(replyHarness?.tool_context?.shipping_facts),
+      policy_facts_loaded: Boolean(replyHarness?.tool_context?.policy_facts),
+      order_facts_loaded: Boolean(replyHarness?.tool_context?.order_facts),
+      db_reads_count: optimizationReport.db_reads_count,
+      correction_queries_count: optimizationReport.correction_queries_count,
+      product_queries_count: optimizationReport.product_queries_count,
+      product_fact_queries_count: optimizationReport.product_fact_queries_count,
+    },
+    warnings: pipelineWarnings,
+  };
+  setAiPipelineDebug({ tenantId, conversationId, value: pipelineDebug });
+  reply.pipeline_debug = pipelineDebug;
+  aiReplyDraft.pipeline_debug = {
+    timings: pipelineDebug.timings,
+    duplicate_work: pipelineDebug.duplicate_work,
+    memory: pipelineDebug.memory,
+    optimization_report: pipelineDebug.optimization_report,
   };
   emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: new Date().toISOString() });
   return {
@@ -4131,6 +4346,8 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     sales_intelligence: salesIntelligence,
     reasoning: reply.reasoning || null,
     validation,
+    confidence_engine: confidenceEngine,
+    pipeline_debug: pipelineDebug,
   };
 };
 

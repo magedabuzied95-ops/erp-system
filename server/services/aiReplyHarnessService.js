@@ -1,5 +1,6 @@
 import { buildAiMemoryContextSource, loadAiConversationMemory, resolveActiveProductContext } from "./aiConversationMemoryService.js";
 import { buildReplyCorrectionContextSource, searchRelevantCorrections } from "./aiCorrectionMemoryService.js";
+import { loadBusinessToolContext } from "./aiBusinessToolsService.js";
 import { buildProductContext } from "./aiProductContext.js";
 import { getAISettings, getAIToneInstruction } from "./aiSettingsService.js";
 import { loadAiInbox, loadAiInboxMessages, loadAiInboxRecommendations } from "./aiSalesAgentService.js";
@@ -167,21 +168,41 @@ export const buildReplyHarness = async ({
   sendMode = "",
   channel = "",
   req = null,
+  preloadedInbox = null,
+  preloadedMessages = null,
+  preloadedMemory = null,
+  preloadedRecommendations = null,
+  preloadedCorrections = null,
+  preloadedProductContext = null,
+  preloadedToolContext = null,
+  preloadedAiSettings = null,
+  preloadedShippingZones = null,
 } = {}) => {
   const startedAt = Date.now();
   const safeTenantId = Number(tenantId) || null;
   const safeConversationId = text(conversationId || conversation?.session_id || conversation?.conversation_id || conversation?.external_conversation_id);
   const warnings = [];
   const sourcesUsed = [];
+  const queryCounts = {
+    db_reads_count: 0,
+    correction_queries_count: 0,
+    product_queries_count: 0,
+    product_fact_queries_count: 0,
+  };
 
   let inboxConversation = conversation || null;
-  let inbox = null;
-  let messages = asArray(recentMessages);
+  let inbox = preloadedInbox || null;
+  let messages = asArray(preloadedMessages || recentMessages);
 
-  if (!inboxConversation && safeTenantId && safeConversationId) {
+  if (!inboxConversation && inbox) {
+    inboxConversation = findConversation({ inbox, conversationId: safeConversationId });
+  }
+
+  if (!inboxConversation && safeTenantId && safeConversationId && !preloadedInbox) {
     try {
       inbox = await loadAiInbox({ tenantId: safeTenantId, filter: "all", limit: 100, messageLimit: 12, summaryOnly: false });
       sourcesUsed.push("aiSalesAgentService.loadAiInbox");
+      queryCounts.db_reads_count += 1;
       inboxConversation = findConversation({ inbox, conversationId: safeConversationId });
     } catch (error) {
       warnings.push(`loadAiInbox failed: ${error?.message || String(error)}`);
@@ -190,10 +211,11 @@ export const buildReplyHarness = async ({
     inbox = { conversations: [inboxConversation] };
   }
 
-  if (!messages.length && safeTenantId && safeConversationId) {
+  if (!messages.length && safeTenantId && safeConversationId && !preloadedMessages) {
     try {
       const payload = await loadAiInboxMessages({ tenantId: safeTenantId, conversationId: safeConversationId, limit: 12 });
       sourcesUsed.push("aiSalesAgentService.loadAiInboxMessages");
+      queryCounts.db_reads_count += 1;
       messages = asArray(payload.messages);
     } catch (error) {
       warnings.push(`loadAiInboxMessages failed: ${error?.message || String(error)}`);
@@ -205,43 +227,58 @@ export const buildReplyHarness = async ({
   const latestMessage = text(latestCustomerMessageInput || latestCustomerMessage(resolvedConversation || {}, messages));
   const conversationSummary = buildConversationSummary(resolvedConversation || {}, latestMessage);
 
-  let aiSettings = null;
-  let shippingZones = null;
-  let memory = null;
+  let aiSettings = preloadedAiSettings || null;
+  let shippingZones = preloadedShippingZones || null;
+  let memory = preloadedMemory || null;
   let recommendations = [];
   let inboxRecommendationResult = null;
   let corrections = [];
   let correctionSources = [];
   let productContext = null;
+  let toolContext = null;
 
   try {
-    if (safeTenantId && safeConversationId) {
+    if (!memory && safeTenantId && safeConversationId) {
       memory = await loadAiConversationMemory({
         tenantId: safeTenantId,
         sessionId: safeConversationId,
         customerPhone: resolvedConversation?.phone || resolvedConversation?.customer_profile?.phone || "",
       });
       sourcesUsed.push("aiConversationMemoryService.loadAiConversationMemory");
+      queryCounts.db_reads_count += 1;
     }
   } catch (error) {
     warnings.push(`loadAiConversationMemory failed: ${error?.message || String(error)}`);
   }
 
   try {
-    aiSettings = await getAISettings();
-    sourcesUsed.push("aiSettingsService.getAISettings");
+    if (!aiSettings) {
+      aiSettings = await getAISettings();
+      sourcesUsed.push("aiSettingsService.getAISettings");
+      queryCounts.db_reads_count += 1;
+    }
   } catch (error) {
     warnings.push(`getAISettings failed: ${error?.message || String(error)}`);
   }
 
   try {
-    shippingZones = await loadShippingZones();
-    sourcesUsed.push("storefrontShippingService.loadShippingZones");
+    if (!shippingZones) {
+      shippingZones = await loadShippingZones();
+      sourcesUsed.push("storefrontShippingService.loadShippingZones");
+      queryCounts.db_reads_count += 1;
+    }
   } catch (error) {
     warnings.push(`loadShippingZones failed: ${error?.message || String(error)}`);
   }
 
-  if (!corrections.length && safeTenantId && latestMessage) {
+  if (!corrections.length && Array.isArray(preloadedCorrections)) {
+    corrections = preloadedCorrections;
+    if (corrections.length) {
+      sourcesUsed.push("preloaded.aiCorrectionMemoryService.searchRelevantCorrections");
+    }
+  }
+
+  if (!corrections.length && safeTenantId && latestMessage && !preloadedCorrections) {
     try {
       corrections = await searchRelevantCorrections({
         tenantId: safeTenantId,
@@ -249,6 +286,8 @@ export const buildReplyHarness = async ({
         limit: 3,
       });
       sourcesUsed.push("aiCorrectionMemoryService.searchRelevantCorrections");
+      queryCounts.db_reads_count += 1;
+      queryCounts.correction_queries_count += 1;
     } catch (error) {
       warnings.push(`searchRelevantCorrections failed: ${error?.message || String(error)}`);
     }
@@ -258,30 +297,69 @@ export const buildReplyHarness = async ({
     correctionSources = buildReplyCorrectionContextSource(corrections, latestMessage);
   }
 
-  const currentProduct = resolvedConversation?.current_product || resolvedConversation?.product || recommendations[0] || memory?.selected_product_context || null;
-  if (!currentProduct) {
-    try {
-      if (safeTenantId) {
-        inboxRecommendationResult = await loadAiInboxRecommendations({
-          tenantId: safeTenantId,
-          conversationId: safeConversationId,
-          limit: 8,
-        });
-        sourcesUsed.push("aiSalesAgentService.loadAiInboxRecommendations");
-        recommendations = asArray(inboxRecommendationResult?.products);
+  try {
+    if (Array.isArray(preloadedRecommendations)) {
+      recommendations = preloadedRecommendations;
+      if (recommendations.length) {
+        sourcesUsed.push("preloaded.aiSalesAgentService.loadAiInboxRecommendations");
       }
-    } catch (error) {
-      warnings.push(`loadAiInboxRecommendations failed: ${error?.message || String(error)}`);
+    } else if (safeTenantId) {
+      inboxRecommendationResult = await loadAiInboxRecommendations({
+        tenantId: safeTenantId,
+        conversationId: safeConversationId,
+        limit: 8,
+        inbox,
+        conversation: resolvedConversation || conversation || null,
+      });
+      sourcesUsed.push("aiSalesAgentService.loadAiInboxRecommendations");
+      queryCounts.db_reads_count += 1;
+      queryCounts.product_queries_count += 1;
+      recommendations = asArray(inboxRecommendationResult?.products);
     }
+  } catch (error) {
+    warnings.push(`loadAiInboxRecommendations failed: ${error?.message || String(error)}`);
   }
 
-  const productSource = resolvedConversation?.current_product || resolvedConversation?.product || recommendations[0] || memory?.selected_product_context || null;
+  const currentProduct = resolvedConversation?.current_product || resolvedConversation?.product || recommendations[0] || memory?.selected_product_context || null;
+
+  const productSource = preloadedProductContext || resolvedConversation?.current_product || resolvedConversation?.product || recommendations[0] || memory?.selected_product_context || null;
   try {
-    productContext = productSource ? buildProductContext(productSource) : null;
+    productContext = preloadedProductContext || (productSource ? buildProductContext(productSource) : null);
     if (productContext) sourcesUsed.push("aiProductContext.buildProductContext");
   } catch (error) {
     warnings.push(`buildProductContext failed: ${error?.message || String(error)}`);
   }
+
+  const toolsStartedAt = Date.now();
+  try {
+    toolContext = preloadedToolContext || await loadBusinessToolContext({
+      tenantId: safeTenantId,
+      conversation: resolvedConversation || null,
+      conversationId: safeConversationId,
+      latestMessage,
+      productContext,
+      orderId: resolvedConversation?.order_id || resolvedConversation?.draft_order?.order_id || resolvedConversation?.draft_order?.id || null,
+    });
+    if (toolContext) sourcesUsed.push("aiBusinessToolsService.loadBusinessToolContext");
+    if (toolContext?.query_counts) {
+      queryCounts.db_reads_count += Number(toolContext.query_counts.db_reads_count || 0);
+      queryCounts.product_fact_queries_count += Number(toolContext.query_counts.product_fact_queries_count || 0);
+    }
+    if (asArray(toolContext?.warnings).length) {
+      warnings.push(...asArray(toolContext.warnings).map((item) => `tool_context: ${text(item)}`));
+    }
+  } catch (error) {
+    warnings.push(`loadBusinessToolContext failed: ${error?.message || String(error)}`);
+    toolContext = {
+      product_facts: null,
+      inventory_facts: null,
+      shipping_facts: null,
+      policy_facts: null,
+      order_facts: null,
+      warnings: [`loadBusinessToolContext failed: ${error?.message || String(error)}`],
+    };
+  }
+  const toolsMs = Date.now() - toolsStartedAt;
 
   const recentMessagesNormalized = asArray(messages).slice(0, 12).map(normalizeRecentMessage);
   const memoryContext = {
@@ -392,7 +470,12 @@ export const buildReplyHarness = async ({
     recent_messages_count: recentMessagesNormalized.length,
     memory_loaded: Boolean(memory),
     products_loaded: recommendations.length || (productContext ? 1 : 0),
+    tool_context_loaded: Boolean(toolContext),
+    tool_warnings_count: asArray(toolContext?.warnings).length,
+    tools_ms: toolsMs,
+    harness_ms: Date.now() - startedAt,
     policies_loaded: Boolean(aiSettings || shippingZones),
+    query_counts: queryCounts,
     warnings,
     elapsed_ms: Date.now() - startedAt,
   };
@@ -409,6 +492,7 @@ export const buildReplyHarness = async ({
     product_context: sanitizeObject({
       active_product: productContext,
       recommendations: recommendations.map(summarizeProduct),
+      recommendation_rows: recommendations.slice(0, 8).map((item) => sanitizeObject(item)),
       source: inboxRecommendationResult?.intent || "",
       available_count: recommendations.length,
     }),
@@ -423,6 +507,7 @@ export const buildReplyHarness = async ({
       sources: correctionSources.slice(0, 3),
     }),
     memory_context: sanitizeObject(memoryContext),
+    tool_context: sanitizeObject(toolContext),
     safety_context: safetyContext,
     send_mode: buildSendMode({ sendMode, conversation: resolvedConversation || {} }),
     trace,

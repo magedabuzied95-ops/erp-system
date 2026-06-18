@@ -67,6 +67,7 @@ import {
   loadAiInboxRecommendations,
   loadAiInbox,
   loadAiSalesAnalytics,
+  getLastAiPipelineDebug,
   parseAiSalesCloserIntent,
   sendAiFollowupManual,
   snoozeAiFollowup,
@@ -174,6 +175,8 @@ const normalizeAiReplyDraft = (value = {}) => {
     customer_question: envText(draft.customer_question || ""),
     metadata: draft.metadata && typeof draft.metadata === "object" ? draft.metadata : {},
     validation: draft.validation && typeof draft.validation === "object" ? draft.validation : (draft.metadata && typeof draft.metadata === "object" && draft.metadata.validation && typeof draft.metadata.validation === "object" ? draft.metadata.validation : null),
+    confidence_engine: draft.confidence_engine && typeof draft.confidence_engine === "object" ? draft.confidence_engine : (draft.metadata && typeof draft.metadata === "object" && draft.metadata.confidence_engine && typeof draft.metadata.confidence_engine === "object" ? draft.metadata.confidence_engine : null),
+    pipeline_debug: draft.pipeline_debug && typeof draft.pipeline_debug === "object" ? draft.pipeline_debug : (draft.metadata && typeof draft.metadata === "object" && draft.metadata.pipeline_debug && typeof draft.metadata.pipeline_debug === "object" ? draft.metadata.pipeline_debug : null),
     updated_at: draft.updated_at || null,
   };
 };
@@ -2975,6 +2978,161 @@ router.get("/conversations/:conversationId/ai-validation", protect, permit("sett
     });
   } catch (error) {
     return sendError(res, error, "Failed to load AI validation debug data");
+  }
+});
+
+router.get("/conversations/:conversationId/ai-confidence", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    if (!isSuperAdminUser(req.user)) {
+      return sendError(res, Object.assign(new Error("Admin access required"), { status: 403, code: "FORBIDDEN" }), "Admin access required");
+    }
+
+    const tenantId = toTenantId(req);
+    const conversationId = envText(req.params.conversationId);
+    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 100, messageLimit: 12, summaryOnly: false });
+    const conversation = (inbox.conversations || []).find((item) =>
+      item.session_id === conversationId ||
+      item.conversation_id === conversationId ||
+      item.external_conversation_id === conversationId ||
+      item.external_customer_id === conversationId ||
+      item.conversation_key === conversationId
+    ) || null;
+    if (!conversation) {
+      return sendError(res, Object.assign(new Error("Conversation not found"), { status: 404, code: "AI_CONVERSATION_NOT_FOUND" }), "Conversation not found");
+    }
+
+    let harness = getLastReplyHarnessDebug({ tenantId, conversationId });
+    if (!harness) {
+      harness = await buildReplyHarness({
+        tenantId,
+        conversationId,
+        conversation,
+        latestCustomerMessage: conversation?.customer_message || conversation?.message_text || conversation?.latest_message_preview || conversation?.last_message || "",
+        sendMode: "debug",
+        channel: conversation?.channel || conversation?.source || "web_chat",
+        req,
+      });
+    }
+
+    const lastDraft = normalizeAiReplyDraft(conversation.last_ai_reply_draft || {});
+    const draftText = envText(lastDraft.text || conversation.last_ai_reply_draft?.answer || conversation.last_ai_reply_draft?.message || "");
+    const { validateAiReply } = await import("../services/aiReplyValidatorService.js");
+    const { buildAiConfidenceEngine } = await import("../services/aiConfidenceEngineService.js");
+    const validation = await validateAiReply({
+      replyText: draftText,
+      harness,
+    }).catch((error) => ({
+      is_valid: true,
+      confidence: 0,
+      violations: [],
+      warnings: [`validateAiReply failed: ${error?.message || String(error)}`],
+      suggested_action: "keep_draft",
+    }));
+    const confidenceEngine = await buildAiConfidenceEngine({
+      harness,
+      tool_context: harness?.tool_context || null,
+      validation,
+      draft: {
+        text: draftText,
+        detected_intent: lastDraft.detected_intent || "",
+        customer_question: lastDraft.customer_question || conversation?.customer_message || "",
+        validation,
+      },
+      correction_context: harness?.correction_context || null,
+    }).catch((error) => ({
+      confidence_score: 50,
+      confidence_level: "medium",
+      decision: "review",
+      reasons: [`buildAiConfidenceEngine failed: ${error?.message || String(error)}`],
+      risk_flags: { engine_error: true },
+    }));
+
+    return res.json({
+      success: true,
+      conversation_id: conversationId,
+      harness_summary: {
+        tenant_id: harness?.tenant_id || tenantId,
+        conversation_id: harness?.conversation_id || conversationId,
+        channel: harness?.channel || conversation?.channel || conversation?.source || "",
+        send_mode: harness?.send_mode || "",
+        latest_customer_message: harness?.latest_customer_message || "",
+        trace: harness?.trace || null,
+      },
+      validation,
+      confidence_engine: confidenceEngine,
+      tool_context: harness?.tool_context || null,
+      draft: lastDraft,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI confidence data");
+  }
+});
+
+router.get("/conversations/:conversationId/ai-pipeline-debug", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    if (!isSuperAdminUser(req.user)) {
+      return sendError(res, Object.assign(new Error("Admin access required"), { status: 403, code: "FORBIDDEN" }), "Admin access required");
+    }
+
+    const tenantId = toTenantId(req);
+    const conversationId = envText(req.params.conversationId);
+    const cached = getLastAiPipelineDebug({ tenantId, conversationId });
+    if (cached) {
+      return res.json({
+        success: true,
+        cached: true,
+        conversation_id: conversationId,
+        pipeline_debug: cached,
+        harness_summary: cached.harness_summary || null,
+        audit_report: {
+          repeated_db_reads: Boolean(cached.duplicate_work?.repeated_db_reads),
+          repeated_correction_lookup: Boolean(cached.duplicate_work?.repeated_correction_lookup),
+          repeated_product_lookup: Boolean(cached.duplicate_work?.repeated_product_lookup),
+          oversized_harness: Boolean(cached.memory?.oversized_harness),
+          oversized_prompt: Boolean(cached.memory?.oversized_prompt),
+          duplicate_context_blocks: Boolean(cached.memory?.duplicate_context_blocks),
+        },
+        optimization_report: cached.optimization_report || null,
+      });
+    }
+
+    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 100, messageLimit: 12, summaryOnly: false });
+    const conversation = (inbox.conversations || []).find((item) =>
+      item.session_id === conversationId ||
+      item.conversation_id === conversationId ||
+      item.external_conversation_id === conversationId ||
+      item.external_customer_id === conversationId ||
+      item.conversation_key === conversationId
+    ) || null;
+    const harness = getLastReplyHarnessDebug({ tenantId, conversationId }) || null;
+    const draft = normalizeAiReplyDraft(conversation?.last_ai_reply_draft || {});
+    return res.json({
+      success: true,
+      cached: false,
+      conversation_id: conversationId,
+      pipeline_debug: null,
+      harness_summary: harness ? {
+        tenant_id: harness.tenant_id || tenantId,
+        conversation_id: harness.conversation_id || conversationId,
+        channel: harness.channel || conversation?.channel || conversation?.source || "",
+        send_mode: harness.send_mode || "",
+        latest_customer_message: harness.latest_customer_message || "",
+        trace: harness.trace || null,
+      } : null,
+      current_draft: draft,
+      audit_report: {
+        message: "No cached pipeline debug found. Generate an AI reply to populate timings and audit signals.",
+        repeated_db_reads: null,
+        repeated_correction_lookup: null,
+        repeated_product_lookup: null,
+        oversized_harness: null,
+        oversized_prompt: null,
+        duplicate_context_blocks: null,
+      },
+      optimization_report: null,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI pipeline debug data");
   }
 });
 
