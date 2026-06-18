@@ -35,7 +35,7 @@ import { ChevronLeft, DollarSign, Gem, Footprints, SlidersHorizontal, Tag, Users
 
 const normalizeFilterText = (value = "") => String(value ?? "").trim();
 const normalizeFilterKey = (value = "") => normalizeFilterText(value).toLowerCase();
-const normalizeAudienceFilterKey = (value = "") => normalizeFilterKey(value).replace(/['\u2019]/g, "'");
+const normalizeAudienceFilterKey = (value = "") => normalizeFilterKey(String(value ?? "").normalize("NFKD").replace(/[\u0640\u200c\u200d\u200e\u200f]/g, "").replace(/\p{M}+/gu, "")).replace(/['\u2019]/g, "'");
 const normalizeStorefrontAudienceValue = (value = "") => {
   const normalized = normalizeAudienceFilterKey(value);
   if (["men", "man", "male", "mens", "men's", "رجالي", "رجال"].includes(normalized)) return "men";
@@ -43,6 +43,8 @@ const normalizeStorefrontAudienceValue = (value = "") => {
   if (["kids", "kid", "children", "child", "boys", "girls", "أطفال", "اطفال", "طفل", "ولادي", "بناتي"].includes(normalized)) return "kids";
   return normalizeAudienceValue(value) || "";
 };
+const normalizeStorefrontSearchTerm = (value = "") =>
+  normalizeStorefrontAudienceValue(value) || normalizeFilterKey(String(value ?? "").normalize("NFKD").replace(/[\u0640\u200c\u200d\u200e\u200f]/g, "").replace(/\p{M}+/gu, ""));
 const productListingAudienceValues = (product = {}) => {
   const seen = new Set();
   const visit = (value) => {
@@ -224,7 +226,9 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   const category = params.get("category") || "";
   const brand = params.get("brand") || "";
   const genderParam = params.get("gender") || "";
-  const gender = normalizeStorefrontAudienceValue(genderParam) || genderParam;
+  const normalizedSearchTerm = normalizeStorefrontSearchTerm(q);
+  const searchGender = normalizeStorefrontAudienceValue(q);
+  const gender = normalizeStorefrontAudienceValue(genderParam) || genderParam || searchGender;
   const size = params.get("size") || "";
   const selectedSizes = useMemo(() => readMultiQueryValues(params, ["size", "sizes"]), [params]);
   const inStock = params.get("inStock") || "";
@@ -253,7 +257,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     [classificationGroups]
   );
   const isGuidedCategoryFlow = !q && !category && !brand && !saleView && !lastSizes && !gender && !size && !inStock && !quality && !productType && !grade && !sort;
-  const { products, loading, error } = useProducts({ q, sale: saleView ? 1 : "", sort, limit: 500 });
+  const { products, loading, error } = useProducts({ q, gender: gender || "", sale: saleView ? 1 : "", sort, limit: 500 });
   const filterBasePath = sale ? "/shop/sale" : "/shop/products";
   const activeFilterCount = [
     brand,
@@ -296,20 +300,19 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     }),
     [brand, category, grade, inStock, lastSizes, maxPrice, minPrice, productType, quality, saleView, selectedSizes, gender]
   );
-  const catalogProductsWithoutSize = useMemo(() => applyCatalogFilters(catalogProducts, catalogFilters, ["sizes"]), [catalogFilters, catalogProducts]);
   const filteredProducts = useMemo(() => applyCatalogFilters(catalogProducts, catalogFilters), [catalogFilters, catalogProducts]);
   const orderedFilteredProducts = useMemo(() => sortStorefrontColorCardsByModel(filteredProducts), [filteredProducts]);
-  const priceBounds = useMemo(() => {
-    const prices = catalogProductsWithoutSize.map((product) => productFacetPrice(product)).filter((price) => Number.isFinite(price) && price >= 0);
-    if (!prices.length) return { min: "", max: "" };
-    return { min: Math.min(...prices), max: Math.max(...prices) };
-  }, [catalogProductsWithoutSize]);
   const filteredProductsForGender = useMemo(() => applyCatalogFilters(catalogProducts, catalogFilters, ["gender"]), [catalogFilters, catalogProducts]);
   const filteredProductsForCategory = useMemo(() => applyCatalogFilters(catalogProducts, catalogFilters, ["category"]), [catalogFilters, catalogProducts]);
   const filteredProductsForBrand = useMemo(() => applyCatalogFilters(catalogProducts, catalogFilters, ["brand"]), [catalogFilters, catalogProducts]);
   const filteredProductsForGrade = useMemo(() => applyCatalogFilters(catalogProducts, catalogFilters, ["grade"]), [catalogFilters, catalogProducts]);
   const filteredProductsForSizes = useMemo(() => applyCatalogFilters(catalogProducts, catalogFilters, ["sizes"]), [catalogFilters, catalogProducts]);
   const filteredProductsForPrice = useMemo(() => applyCatalogFilters(catalogProducts, catalogFilters, ["minPrice", "maxPrice"]), [catalogFilters, catalogProducts]);
+  const priceBounds = useMemo(() => {
+    const prices = filteredProductsForPrice.map((product) => productFacetPrice(product)).filter((price) => Number.isFinite(price) && price >= 0);
+    if (!prices.length) return { min: "", max: "" };
+    return { min: Math.min(...prices), max: Math.max(...prices) };
+  }, [filteredProductsForPrice]);
 
   const genderOptions = useMemo(() => {
     const baseGenderOptions = uniqueClassificationOptions((storefrontGenderOptions.length ? storefrontGenderOptions : classificationOptions.gender) || []);
@@ -491,6 +494,29 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     () => sortStorefrontColorCardsByModel(filteredGuidedProducts),
     [filteredGuidedProducts]
   );
+  const showEmptyResults = !loading && !filteredProducts.length;
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const sampleProducts = (Array.isArray(catalogProducts) ? catalogProducts : []).slice(0, 3).map((product) => {
+      const rawAudience = product.audience || product.audiences || product.gender || product.genders || product.product_audience || product.product_audiences || product.target_audience || "";
+      return {
+        id: product.id,
+        name: product.name,
+        rawAudience,
+        normalizedAudience: productListingAudienceValues(product),
+      };
+    });
+    console.debug("[storefront-product-listing-debug]", {
+      searchTerm: q,
+      normalizedSearchTerm,
+      selectedAudience: genderParam || "",
+      normalizedSelectedAudience: gender || "",
+      productsBeforeFilters: Array.isArray(catalogProducts) ? catalogProducts.length : 0,
+      productsAfterFilters: Array.isArray(filteredProducts) ? filteredProducts.length : 0,
+      sampleProducts,
+    });
+  }, [catalogProducts, filteredProducts, gender, genderParam, normalizedSearchTerm, q]);
 
   if (isGuidedCategoryFlow) {
     const selectedGenderOption = genderOptions.find((option) => normalizeStorefrontAudienceValue(option.value) === normalizeStorefrontAudienceValue(selectedGender));
@@ -576,15 +602,19 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
         </div>
         <div className="text-sm font-bold text-stone-500">{t("storefront.products.productCount", "{{count}} product", { count: filteredProducts.length })}</div>
       </div>
-      <PremiumFilterPanel
-        sections={filterSections}
-        lang={lang}
-        buildFilterUrl={buildFilterUrl}
-        clearUrl={clearClassificationFiltersUrl()}
-        activeFilterCount={activeFilterCount}
-      />
-      <MobileFilterTrigger activeFilterCount={activeFilterCount} onOpen={() => setFiltersOpen(true)} />
-      {filtersOpen ? (
+      {!showEmptyResults ? (
+        <>
+          <PremiumFilterPanel
+            sections={filterSections}
+            lang={lang}
+            buildFilterUrl={buildFilterUrl}
+            clearUrl={clearClassificationFiltersUrl()}
+            activeFilterCount={activeFilterCount}
+          />
+          <MobileFilterTrigger activeFilterCount={activeFilterCount} onOpen={() => setFiltersOpen(true)} />
+        </>
+      ) : null}
+      {filtersOpen && !showEmptyResults ? (
         <LazyFiltersDrawer
           open={filtersOpen}
           sections={filterSections}
@@ -596,32 +626,36 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
           onReset={resetDraftFilters}
         />
       ) : null}
-      <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,20rem)]">
-        <CatalogSizeFilter
-          sizes={availableSizes}
-          selectedSizes={selectedSizes}
-          onToggle={toggleSizeValue}
-          onClear={() => setSearchParam((next) => {
-            next.delete("size");
-            next.delete("sizes");
-          })}
-        />
-        <CatalogPriceFilter
-          minPrice={minPrice}
-          maxPrice={maxPrice}
-          onChange={setPriceRange}
-          priceBounds={priceBounds}
-        />
-      </div>
+      {!showEmptyResults ? (
+        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,20rem)]">
+          <CatalogSizeFilter
+            sizes={availableSizes}
+            selectedSizes={selectedSizes}
+            onToggle={toggleSizeValue}
+            onClear={() => setSearchParam((next) => {
+              next.delete("size");
+              next.delete("sizes");
+            })}
+          />
+          <CatalogPriceFilter
+            minPrice={minPrice}
+            maxPrice={maxPrice}
+            onChange={setPriceRange}
+            priceBounds={priceBounds}
+          />
+        </div>
+      ) : null}
       {error ? <EmptyState title={t("storefront.errors.simpleProblem", "Something went wrong")} text={t("storefront.errors.tryAgainOrWhatsapp", "Try again or contact us on WhatsApp")} /> : null}
-      <ProductGrid
-        products={orderedFilteredProducts}
-        loading={loading}
-        wishlist={wishlist}
-        toggleWishlist={toggleWishlist}
-        onAddToCart={onAddToCart}
-      />
-      {!loading && !filteredProducts.length ? (
+      {!showEmptyResults ? (
+        <ProductGrid
+          products={orderedFilteredProducts}
+          loading={loading}
+          wishlist={wishlist}
+          toggleWishlist={toggleWishlist}
+          onAddToCart={onAddToCart}
+        />
+      ) : null}
+      {showEmptyResults ? (
         <EmptyState
           title={t("storefront.products.emptyTitle", "No products found")}
           text={t("storefront.products.emptyText", "Try another search or category")}
