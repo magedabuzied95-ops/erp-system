@@ -3736,6 +3736,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [isCompact, setIsCompact] = useState(false);
+  const [announcementIndex, setAnnouncementIndex] = useState(0);
   const visualPreviewUrlRef = useRef("");
   const selectedVisualImageRef = useRef(null);
   const navigate = useNavigate();
@@ -3750,11 +3751,19 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
       : t("storefront.header.languageEnglish", "English");
   const searchPlaceholders = getSearchPlaceholders();
   const announcementItems = [
-    { label: t("storefront.header.announcements.fastShipping", "Fast shipping in Egypt"), icon: <Truck className="h-3.5 w-3.5" /> },
-    { label: t("storefront.header.announcements.exchange", "14-day exchange"), icon: <RefreshCcw className="h-3.5 w-3.5" /> },
-    { label: t("storefront.header.announcements.cod", "Cash on delivery"), icon: <PackageCheck className="h-3.5 w-3.5" /> },
-    { label: t("storefront.header.announcements.premium", "Mirror Premium products"), icon: <Sparkles className="h-3.5 w-3.5" /> },
-    { label: t("storefront.header.announcements.todayDeals", "Today's deals"), icon: <BadgePercent className="h-3.5 w-3.5" /> },
+    t("storefront.header.announcements.fastShipping", "Fast shipping in Egypt"),
+    t("storefront.header.announcements.exchange", "14-day exchange"),
+    t("storefront.header.announcements.cod", "Cash on delivery"),
+    t("storefront.header.announcements.premium", "Mirror Premium products"),
+    t("storefront.header.announcements.todayDeals", "Today's deals"),
+  ];
+  const headerCategoryItems = [
+    [t("storefront.nav.men", "رجالي"), "/shop/products?q=men"],
+    [t("storefront.nav.women", "حريمي"), "/shop/products?q=women"],
+    [t("storefront.nav.kids", "أطفال"), "/shop/products?q=kids"],
+    ["شنط", "/shop/products?q=bag"],
+    ["كروكس", "/shop/products?category=crocs"],
+    ["سليبر", "/shop/products?q=slipper"],
   ];
   const utilityItems = [
     { label: "WhatsApp", to: "https://wa.me/", icon: <MessageCircle className="h-3.5 w-3.5" />, external: true },
@@ -3803,6 +3812,14 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     }, 2600);
     return () => window.clearInterval(timer);
   }, [searchPlaceholders.length]);
+
+  useEffect(() => {
+    if (!announcementItems.length) return undefined;
+    const timer = window.setInterval(() => {
+      setAnnouncementIndex((current) => (current + 1) % announcementItems.length);
+    }, 4200);
+    return () => window.clearInterval(timer);
+  }, [announcementItems.length]);
 
   useEffect(() => () => {
     if (visualPreviewUrlRef.current) URL.revokeObjectURL(visualPreviewUrlRef.current);
@@ -4027,14 +4044,11 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
       data-compact={!compactDisabled && isCompact ? "true" : "false"}
       className="sf-luxury-header sticky top-0 z-40 border-b border-stone-200/70 bg-[#fcfaf6]/88 shadow-[0_16px_48px_rgba(39,20,75,0.07)] backdrop-blur-2xl transition-all duration-300 dark:border-white/10 dark:bg-[#090d18]/92 dark:shadow-[0_16px_48px_rgba(0,0,0,0.28)]"
     >
-      <div className="sf-announcement-row sf-header-announcement h-10 overflow-hidden bg-[linear-gradient(105deg,#09090b,#1c1917_42%,#312e81)] text-white/90 backdrop-blur transition-all duration-300">
-        <div className="sf-announcement-track h-full">
-          {[...announcementItems, ...announcementItems].map((item, index) => (
-            <span key={`${item.label}-${index}`} className="inline-flex h-full items-center gap-2 px-7 text-[12px] font-medium tracking-wide text-stone-100/95">
-              <span className="sf-header-announcement-icon text-white/72">{item.icon}</span>
-              {item.label}
-            </span>
-          ))}
+      <div className="sf-announcement-row sf-header-announcement overflow-hidden bg-[linear-gradient(105deg,#09090b,#1c1917_42%,#312e81)] text-white/90 backdrop-blur transition-all duration-300">
+        <div className="mx-auto flex h-10 max-w-7xl items-center px-4">
+          <span key={announcementIndex} className="inline-flex items-center text-[12px] font-medium tracking-wide text-stone-100/95 animate-[sfFadeUp_420ms_ease-out_both]">
+            {announcementItems[announcementIndex] || announcementItems[0]}
+          </span>
         </div>
       </div>
       <div className="sf-utility-row hidden border-b border-stone-200/70 bg-white/45 px-4 text-xs font-semibold text-stone-500 transition-all duration-300 dark:border-white/10 dark:bg-white/[0.035] dark:text-stone-400 sm:block">
@@ -4062,87 +4076,86 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
           </div>
         </div>
       </div>
-      <div className="sf-main-row sf-header-main mx-auto grid max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2.5 transition-all duration-300 md:grid-cols-[auto_auto_minmax(320px,520px)_auto] md:gap-5 md:py-3">
-        <button className="grid h-11 w-11 place-items-center rounded-2xl border border-stone-200/80 bg-white/70 transition hover:border-stone-300 hover:bg-white active:scale-95 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 md:hidden" onClick={() => setMenuOpen((value) => !value)} aria-label={t("storefront.header.menu", "Menu")}>
-          {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-        </button>
-        <Link to="/shop" className="sf-header-logo group inline-flex items-center gap-2 text-stone-950 transition hover:text-[#6d28d9] dark:text-white">
-          <span className="sf-header-logo-chip grid h-10 w-10 place-items-center overflow-hidden rounded-2xl bg-stone-950 text-sm font-black tracking-[0.18em] text-white shadow-[0_12px_30px_rgba(28,25,23,0.16)] transition group-hover:scale-105 group-hover:bg-[#6d28d9] dark:bg-white dark:text-stone-950 dark:group-hover:text-white">
-            {brandLogoUrl ? <img src={resolveProductImageUrl(brandLogoUrl)} alt={brandName} className="h-full w-full object-contain p-1.5" loading="lazy" decoding="async" width="40" height="40" /> : brandInitials}
-          </span>
-          <span className="hidden leading-none sm:block">
-            <span className="sf-header-logo-title block text-xl font-black tracking-[0.18em]">{brandName || "MONE"}</span>
-            <span className="sf-header-logo-subtitle mt-1 block text-[10px] font-semibold uppercase tracking-[0.32em] text-stone-500 dark:text-stone-400">{brandTagline || t("storefront.header.tagline", "Premium Shoes")}</span>
-          </span>
-        </Link>
-        <nav className="sf-collapsible-nav hidden items-center gap-1 text-sm font-bold text-stone-700 dark:text-stone-300 md:flex">
-          {navItems.map(([label, to]) => (
-            <NavLink
-              key={label}
-              to={to}
-              className={({ isActive }) => `sf-nav-link sf-header-nav-link relative rounded-full px-3 py-2 transition ${isActive ? "text-stone-950 dark:text-white" : "hover:text-stone-950 dark:hover:text-white"}`}
-            >
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-        <PremiumSearch
-          value={search}
-          onChange={handleSearchChange}
-          onSubmit={submit}
-          onOpen={() => setSearchOpen(true)}
-          onClose={closeSearch}
-          open={searchOpen}
-          mobileOpen={mobileSearchOpen}
-          setMobileOpen={setMobileSearchOpen}
-          placeholder={searchPlaceholders[placeholderIndex] || searchPlaceholders[0]}
-          suggestions={suggestions}
-          loading={searchLoading}
-          visualSearch={visualSearch}
-          recentSearches={recentSearches}
-          activeIndex={activeSearchIndex}
-          setActiveIndex={setActiveSearchIndex}
-          onPickTerm={pickSearchTerm}
-          onPickProduct={pickProduct}
-          onQuickAdd={handleQuickSearchAdd}
-          onVoice={handleVoiceSearch}
-          onImage={handleImageSearch}
-          imageSearchOpen={imageSearchOpen}
-          className="hidden md:block"
-        />
-        <div className="flex items-center justify-end gap-2">
+      <div className="sf-main-row sf-header-main relative mx-auto max-w-7xl px-4 py-2.5 transition-all duration-300 md:py-3">
+        <div className="flex items-center gap-2 md:gap-4" dir="rtl">
           <button
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-stone-200/80 bg-white/70 transition hover:border-stone-300 hover:bg-white active:scale-95 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+            onClick={() => setMenuOpen((value) => !value)}
+            aria-label={t("storefront.header.menu", "Menu")}
             type="button"
-            onClick={onToggleTheme}
-            className="sf-header-action"
-            aria-label={themeToggleLabel}
-            title={themeToggleLabel}
           >
-            {themeIsDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
-          <HeaderAction to="/shop/wishlist" label={t("storefront.header.wishlist", "Wishlist")} count={wishlistCount} icon={<Heart className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
-          <HeaderAction to="/shop/account" label={t("storefront.header.account", "Account")} icon={<User className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
-          <div className="sf-secondary-action relative hidden md:block">
-            <button onClick={toggleNotifications} className="sf-header-action" aria-label={t("storefront.header.notifications", "Notifications")}> 
-              <Bell className="h-5 w-5" />
+          <span className="hidden h-10 w-px bg-stone-200/90 dark:bg-white/10 md:block" />
+          <Link to="/shop" className="sf-header-logo group inline-flex shrink-0 items-center text-stone-950 transition hover:text-[#6d28d9] dark:text-white" aria-label={brandName || "MONE"}>
+            <span className="sf-header-logo-chip grid h-12 w-12 place-items-center overflow-hidden rounded-2xl bg-stone-950 text-sm font-black tracking-[0.18em] text-white shadow-[0_12px_30px_rgba(28,25,23,0.16)] transition group-hover:scale-105 group-hover:bg-[#6d28d9] dark:bg-white dark:text-stone-950 dark:group-hover:text-white md:h-14 md:w-14">
+              {brandLogoUrl ? <img src={resolveProductImageUrl(brandLogoUrl)} alt={brandName} className="h-full w-full object-contain p-1.5 md:p-2" loading="lazy" decoding="async" width="56" height="56" /> : brandInitials}
+            </span>
+          </Link>
+          <nav className="sf-collapsible-nav hidden min-w-0 flex-1 items-center gap-1 overflow-hidden text-sm font-bold text-stone-700 dark:text-stone-300 lg:flex">
+            {headerCategoryItems.map(([label, to]) => (
+              <NavLink
+                key={label}
+                to={to}
+                className={({ isActive }) => `sf-nav-link sf-header-nav-link relative rounded-full px-3 py-2 transition ${isActive ? "text-stone-950 dark:text-white" : "hover:text-stone-950 dark:hover:text-white"}`}
+              >
+                {label}
+              </NavLink>
+            ))}
+          </nav>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              className="sf-header-action hidden md:grid"
+              aria-label={t("storefront.header.search", "Search")}
+              title={t("storefront.header.search", "Search")}
+            >
+              <Search className="h-5 w-5" />
             </button>
-          {notificationsOpen ? (
-            <div className="absolute left-0 top-12 z-50 w-80 rounded-3xl border border-stone-200 bg-white p-3 shadow-2xl dark:border-white/10 dark:bg-[#0b1020]">
-              <div className="mb-2 px-2 text-sm font-black">{t("storefront.header.notifications", "Notifications")}</div>
-              {notifications.length ? notifications.slice(0, 6).map((item) => (
-                <div key={item.id} className="rounded-2xl bg-stone-50 p-3 dark:bg-white/5">
-                  <div className="text-sm font-black">{item.title}</div>
-                  <div className="mt-1 text-xs font-bold text-stone-500">{item.body}</div>
-                </div>
-              )) : <div className="rounded-2xl bg-stone-50 p-3 text-sm font-bold text-stone-500 dark:bg-white/5">{t("storefront.header.noNotifications", "No notifications right now")}</div>}
-            </div>
-          ) : null}
+            <button
+              type="button"
+              onClick={onToggleTheme}
+              className="sf-header-action"
+              aria-label={themeToggleLabel}
+              title={themeToggleLabel}
+            >
+              {themeIsDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </button>
+            <HeaderAction to="/shop/account" label={t("storefront.header.account", "Account")} icon={<User className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
+            <button onClick={onCart} className="sf-header-action sf-cart-action" aria-label={t("storefront.cart.title", "Cart")} type="button">
+              <ShoppingCart className="h-5 w-5" />
+              {cartCount ? <span className="sf-action-badge">{cartCount}</span> : null}
+            </button>
           </div>
-          <button onClick={onCart} className="sf-header-action sf-cart-action" aria-label={t("storefront.cart.title", "Cart")}>
-            <ShoppingCart className="h-5 w-5" />
-            {cartCount ? <span className="sf-action-badge">{cartCount}</span> : null}
-          </button>
         </div>
+        {searchOpen ? (
+          <div className="absolute left-4 right-4 top-full z-50 hidden md:block">
+            <PremiumSearch
+              value={search}
+              onChange={handleSearchChange}
+              onSubmit={submit}
+              onOpen={() => setSearchOpen(true)}
+              onClose={closeSearch}
+              open={searchOpen}
+              mobileOpen={mobileSearchOpen}
+              setMobileOpen={setMobileSearchOpen}
+              placeholder={searchPlaceholders[placeholderIndex] || searchPlaceholders[0]}
+              suggestions={suggestions}
+              loading={searchLoading}
+              visualSearch={visualSearch}
+              recentSearches={recentSearches}
+              activeIndex={activeSearchIndex}
+              setActiveIndex={setActiveSearchIndex}
+              onPickTerm={pickSearchTerm}
+              onPickProduct={pickProduct}
+              onQuickAdd={handleQuickSearchAdd}
+              onVoice={handleVoiceSearch}
+              onImage={handleImageSearch}
+              imageSearchOpen={imageSearchOpen}
+            />
+          </div>
+        ) : null}
       </div>
       <div className="sf-mobile-search bg-[#fcfaf6]/94 px-4 pb-3 pt-1 backdrop-blur transition-all duration-300 dark:bg-[#090d18]/96 md:hidden">
         <button
@@ -4157,11 +4170,11 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
           <span>{searchPlaceholders[placeholderIndex] || searchPlaceholders[0]}</span>
         </button>
       </div>
-      <PremiumSearch
-        value={search}
-        onChange={handleSearchChange}
-        onSubmit={submit}
-        onOpen={() => setSearchOpen(true)}
+        <PremiumSearch
+          value={search}
+          onChange={handleSearchChange}
+          onSubmit={submit}
+          onOpen={() => setSearchOpen(true)}
         onClose={closeSearch}
         open={searchOpen}
         mobileOpen={mobileSearchOpen}
