@@ -2103,23 +2103,29 @@ const expandProductsToColorCards = (products = []) => {
   return cards;
 };
 
-const normalizeStorefrontProductsQuery = (query = {}) => ({
-  q: queryText(query.q).toLowerCase(),
-  category: queryText(query.category).toLowerCase(),
-  brand: queryText(query.brand || query.brandId || query.brand_id),
-  gender: queryText(query.gender),
-  productType: queryText(query.product_type || query.productType),
-  grade: queryText(query.grade),
-  quality: queryText(query.quality),
-  size: queryText(query.size),
-  inStock: queryFlagOn(query.inStock || query.in_stock || query.stock),
-  saleOnly: queryFlagOn(query.sale),
-  sort: normalizeStorefrontSort(query.sort || query.order),
-  scope: normalizeStorefrontScope(query.scope || query._last_piece_scope),
-  groupingMode: normalizeStorefrontGroupingMode(query.grouping || query.grouping_mode || query.groupingMode || query._color_cards),
-  limit: queryPositiveInt(query.limit, 24, { min: 1, max: 80 }),
-  offset: queryPositiveInt(query.offset, 0, { min: 0, max: 100000 }),
-});
+const normalizeStorefrontProductsQuery = (query = {}) => {
+  const rawSearch = queryText(query.q).toLowerCase();
+  const audienceSearch = normalizeAudienceValue(rawSearch);
+  const rawGender = queryText(query.gender || query.audience || query.target_audience);
+  return {
+    q: audienceSearch ? "" : rawSearch,
+    category: queryText(query.category).toLowerCase(),
+    brand: queryText(query.brand || query.brandId || query.brand_id),
+    gender: rawGender,
+    productType: queryText(query.product_type || query.productType),
+    grade: queryText(query.grade),
+    quality: queryText(query.quality),
+    size: queryText(query.size),
+    inStock: queryFlagOn(query.inStock || query.in_stock || query.stock),
+    saleOnly: queryFlagOn(query.sale),
+    sort: normalizeStorefrontSort(query.sort || query.order),
+    scope: normalizeStorefrontScope(query.scope || query._last_piece_scope),
+    groupingMode: normalizeStorefrontGroupingMode(query.grouping || query.grouping_mode || query.groupingMode || query._color_cards),
+    limit: queryPositiveInt(query.limit, 24, { min: 1, max: 80 }),
+    offset: queryPositiveInt(query.offset, 0, { min: 0, max: 100000 }),
+    audienceSearch,
+  };
+};
 
 const storefrontQualityAliases = (quality = "") => {
   const normalized = queryText(quality).toLowerCase().replace(/[-\s]+/g, "_");
@@ -2157,14 +2163,34 @@ export const listProducts = async (req, res) => {
     const pricingSettings = await loadStorefrontPricingSettings(tenantId);
     const payload = await (async () => {
       const normalizedQuery = normalizeStorefrontProductsQuery(req.query || {});
-      const { q, category, brand, saleOnly, sort, limit, offset, scope, groupingMode, size, inStock } = normalizedQuery;
+      const { q, category, brand, saleOnly, sort, limit, offset, scope, groupingMode, size, inStock, audienceSearch } = normalizedQuery;
       const genderAliases = await getClassificationFilterAliases("gender", normalizedQuery.gender);
       const productType = await getActiveClassificationFilterAliases("product_type", normalizedQuery.productType);
       const grade = await getActiveClassificationFilterAliases("grade", normalizedQuery.grade);
       const quality = storefrontQualityAliases(normalizedQuery.quality);
-      const gender = normalizeProductAudiences(genderAliases, normalizedQuery.gender);
+      const genderSource = normalizedQuery.gender || audienceSearch;
+      const gender = normalizeProductAudiences(genderAliases, genderSource);
       const effectiveSaleOnly = saleOnly && saleModeEnabled(pricingSettings) && !pricingSettings.enable_fake_compare_price;
       const randomSeed = sort ? "" : storefrontRandomSeed(req);
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[storefront/products-debug]", {
+          receivedQuery: req.query || {},
+          normalizedQuery: {
+            q,
+            category,
+            brand,
+            gender: normalizedQuery.gender || "",
+            audienceSearch: audienceSearch || "",
+            productType: normalizedQuery.productType || "",
+            grade: normalizedQuery.grade || "",
+            quality: normalizedQuery.quality || "",
+            size: normalizedQuery.size || "",
+          },
+          computedSearchTerm: q,
+          computedGenderFilter: gender,
+          finalWhereFilters: { q, category, brand, gender, productType, grade, quality, size, inStock, saleOnly: effectiveSaleOnly },
+        });
+      }
       if (ERP_PERF_DEBUG) console.log("[storefront-random-seed]", {
         tenantId,
         seed: randomSeed || "",
