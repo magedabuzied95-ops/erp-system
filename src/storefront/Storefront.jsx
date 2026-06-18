@@ -366,7 +366,7 @@ const useBodyScrollLock = (locked) => {
     return lockBodyScroll();
   }, [locked]);
 };
-const useProducts = (params = {}) => {
+const useProducts = (params = {}, { ttlMs = STOREFRONT_PRODUCTS_CACHE_TTL_MS } = {}) => {
   const randomSeedRef = useRef(`${Date.now()}-${Math.random()}`);
   const queryKey = JSON.stringify(params);
   const queryString = useMemo(() => {
@@ -388,7 +388,7 @@ const useProducts = (params = {}) => {
     return query.toString();
   }, [queryKey]);
   const requestUrl = `/storefront/products${queryString ? `?${queryString}` : ""}`;
-  const cachedProductsData = getCachedStorefrontGetData(requestUrl, { ttlMs: STOREFRONT_PRODUCTS_CACHE_TTL_MS });
+  const cachedProductsData = getCachedStorefrontGetData(requestUrl, { ttlMs });
   const [state, setState] = useState(() => {
     const initialProducts = Array.isArray(cachedProductsData?.products) ? cachedProductsData.products : [];
     return cachedProductsData ? { loading: false, error: "", products: initialProducts } : { loading: true, error: "", products: [] };
@@ -408,9 +408,10 @@ const useProducts = (params = {}) => {
         seed: requestParams.get("random_seed") || "",
         sort: requestParams.get("sort") || "",
         url: requestUrl,
+        ttlMs,
       });
     }
-    cachedStorefrontGet(requestUrl, { ttlMs: STOREFRONT_PRODUCTS_CACHE_TTL_MS })
+    cachedStorefrontGet(requestUrl, { ttlMs })
       .then((data) => {
         const products = Array.isArray(data.products) ? data.products : [];
         if (import.meta.env.DEV) {
@@ -433,7 +434,7 @@ const useProducts = (params = {}) => {
     return () => {
       cancelled = true;
     };
-  }, [queryString, requestUrl]);
+  }, [queryString, requestUrl, ttlMs]);
 
   return state;
 };

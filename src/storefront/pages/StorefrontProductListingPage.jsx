@@ -262,7 +262,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     () => ({ q: backendSearchTerm, gender: gender || "", sale: saleView ? 1 : "", sort, limit: 500 }),
     [backendSearchTerm, gender, saleView, sort]
   );
-  const { products, loading, error } = useProducts(productsApiParams);
+  const { products, loading, error } = useProducts(productsApiParams, { ttlMs: 0 });
   const filterBasePath = sale ? "/shop/sale" : "/shop/products";
   const activeFilterCount = [
     brand,
