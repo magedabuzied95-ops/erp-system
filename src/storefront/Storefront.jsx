@@ -1969,9 +1969,9 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
   const supportingSlides = [activeSlide, ...slides.filter((slide) => slide.product?.id !== activeSlide.product?.id)].slice(0, 5);
 
   return (
-    <section className="mx-auto max-w-[1320px] px-4 pb-4 pt-4 md:pb-7 md:pt-7" dir={isRtl ? "rtl" : "ltr"}>
+    <section className="mx-auto max-w-[1320px] px-4 pb-5 pt-5 md:pb-8 md:pt-8" dir={isRtl ? "rtl" : "ltr"}>
       <div className={`overflow-hidden rounded-[1.85rem] border shadow-[0_34px_100px_rgba(15,23,42,0.30)] md:rounded-[2.35rem] ${darkMode ? "border-white/10 bg-[#050711]" : "border-slate-200 bg-white shadow-[0_34px_100px_rgba(15,23,42,0.10)]"}`}>
-        <div className={`sf-scroll flex gap-2 overflow-x-auto border-b p-2 lg:hidden ${darkMode ? "border-white/10 bg-white/[0.045]" : "border-slate-200 bg-slate-50"}`}>
+        <div className={`sf-scroll flex gap-2.5 overflow-x-auto border-b p-2 lg:hidden ${darkMode ? "border-white/10 bg-white/[0.045]" : "border-slate-200 bg-slate-50"}`}>
           {categories.map((category) => {
             const active = category.id === activeCategory.id;
             return (
@@ -1982,10 +1982,10 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
             );
           })}
         </div>
-        <div className="grid min-h-[510px] lg:grid-cols-[minmax(0,0.72fr)_minmax(18rem,0.28fr)] lg:[direction:ltr]">
+        <div className="grid min-h-[520px] lg:grid-cols-[minmax(0,0.72fr)_minmax(18rem,0.28fr)] lg:[direction:ltr]">
           <Link
             to={categoryHref}
-            className={`group relative flex min-h-[500px] overflow-hidden lg:min-h-[560px] lg:[direction:rtl] ${darkMode ? "bg-[radial-gradient(circle_at_74%_36%,rgba(248,231,179,0.23),transparent_24%),radial-gradient(circle_at_18%_18%,rgba(124,58,237,0.22),transparent_32%),linear-gradient(135deg,#090b16_0%,#111827_54%,#020617_100%)]" : "bg-[radial-gradient(circle_at_74%_36%,rgba(124,58,237,0.10),transparent_26%),radial-gradient(circle_at_18%_18%,rgba(248,231,179,0.28),transparent_30%),linear-gradient(135deg,#ffffff_0%,#f8fafc_56%,#eef2ff_100%)]"}`}
+            className={`group relative flex min-h-[500px] overflow-hidden lg:min-h-[580px] lg:[direction:rtl] ${darkMode ? "bg-[radial-gradient(circle_at_74%_36%,rgba(248,231,179,0.23),transparent_24%),radial-gradient(circle_at_18%_18%,rgba(124,58,237,0.22),transparent_32%),linear-gradient(135deg,#090b16_0%,#111827_54%,#020617_100%)]" : "bg-[radial-gradient(circle_at_74%_36%,rgba(124,58,237,0.10),transparent_26%),radial-gradient(circle_at_18%_18%,rgba(248,231,179,0.28),transparent_30%),linear-gradient(135deg,#ffffff_0%,#f8fafc_56%,#eef2ff_100%)]"}`}
           >
             <div className={`pointer-events-none absolute inset-0 ${darkMode ? "bg-[linear-gradient(120deg,rgba(255,255,255,0.08),transparent_34%,rgba(0,0,0,0.42))]" : "bg-[linear-gradient(120deg,rgba(255,255,255,0.54),transparent_34%,rgba(255,255,255,0.06))]"}`} />
             <div className={`pointer-events-none absolute inset-x-0 bottom-0 h-1/2 ${darkMode ? "bg-gradient-to-t from-black/52 to-transparent" : "bg-gradient-to-t from-white/90 to-transparent"}`} />
@@ -2001,19 +2001,19 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
                 <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
               </button>
             </div>
-            <div className="relative z-10 grid w-full gap-5 p-5 md:grid-cols-[minmax(0,0.4fr)_minmax(0,0.6fr)] md:p-8 lg:p-10">
-              <div key={`category-copy-${activeCategory.id}`} className="relative z-20 flex min-h-[12rem] flex-col justify-end self-end pb-2 animate-[sfFadeUp_420ms_ease-out_both] md:min-h-0 md:justify-center md:pb-0">
-                <div className={`mb-4 inline-flex w-fit items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-black uppercase tracking-[0.14em] shadow-sm backdrop-blur ${darkMode ? "border-white/12 bg-white/10 text-[#f8e7b3]" : "border-slate-200 bg-white/85 text-[#7c3aed] shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
+            <div className="relative z-10 grid w-full gap-6 p-6 md:grid-cols-[minmax(0,0.4fr)_minmax(0,0.6fr)] md:p-9 lg:p-12">
+              <div key={`category-copy-${activeCategory.id}`} className="relative z-20 flex min-h-[12.5rem] flex-col justify-end self-end pb-2 animate-[sfFadeUp_420ms_ease-out_both] md:min-h-0 md:justify-center md:pb-0">
+                <div className={`mb-5 inline-flex w-fit items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-black uppercase tracking-[0.14em] shadow-sm backdrop-blur ${darkMode ? "border-white/12 bg-white/10 text-[#f8e7b3]" : "border-slate-200 bg-white/85 text-[#7c3aed] shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
                   <ActiveIcon className="h-4 w-4" />
                   {activeCategory.label}
                 </div>
                 <h1 className={`line-clamp-2 max-w-lg text-4xl font-black leading-[0.98] md:text-6xl lg:text-7xl ${darkMode ? "text-white" : "text-slate-900"}`}>
                   {headline}
                 </h1>
-                <p className={`mt-4 line-clamp-2 max-w-md text-sm font-bold leading-6 md:text-lg md:leading-8 ${darkMode ? "text-white/68" : "text-slate-600"}`}>
+                <p className={`mt-5 line-clamp-2 max-w-md text-sm font-bold leading-6 md:text-lg md:leading-8 ${darkMode ? "text-white/68" : "text-slate-600"}`}>
                   {subtitle}
                 </p>
-                <span className={`mt-7 inline-flex min-h-12 w-fit items-center justify-center rounded-full px-7 text-sm font-black transition group-hover:-translate-y-0.5 ${darkMode ? "bg-[#f8e7b3] text-stone-950 shadow-[0_18px_40px_rgba(248,231,179,0.26)] ring-1 ring-white/10 group-hover:bg-white" : "bg-slate-900 text-white shadow-[0_18px_40px_rgba(15,23,42,0.16)] ring-1 ring-slate-200 group-hover:bg-[#7c3aed] group-hover:text-white"}`}>
+                <span className={`mt-8 inline-flex min-h-12 w-fit items-center justify-center rounded-full px-7 text-sm font-black transition duration-200 ease-out group-hover:-translate-y-0.5 ${darkMode ? "bg-[#f8e7b3] text-stone-950 shadow-[0_18px_40px_rgba(248,231,179,0.26)] ring-1 ring-white/10 group-hover:bg-white" : "bg-slate-900 text-white shadow-[0_18px_40px_rgba(15,23,42,0.16)] ring-1 ring-slate-200 group-hover:bg-[#7c3aed] group-hover:text-white"}`}>
                   {cta}
                 </span>
               </div>
@@ -3710,7 +3710,7 @@ const swatchColorStyle = (label = "") => {
 
 function HeaderAction({ to, icon, count, label, className = "" }) {
   return (
-    <Link to={to} className={`sf-header-action ${className}`} aria-label={label} title={label}>
+    <Link to={to} className={`sf-header-action transition duration-200 ease-out hover:-translate-y-px hover:border-stone-300 hover:bg-white hover:text-stone-950 active:scale-[0.98] dark:hover:bg-white/10 ${className}`} aria-label={label} title={label}>
       {icon}
       {count ? <span className="sf-action-badge">{count}</span> : null}
     </Link>
@@ -4080,7 +4080,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
         <div className="flex w-full items-center gap-3 md:gap-6" dir="rtl">
           <div className="flex shrink-0 items-center gap-2 md:gap-4">
             <button
-              className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-stone-200/80 bg-white/80 transition hover:border-stone-300 hover:bg-white active:scale-95 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 md:h-14 md:w-14"
+              className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-stone-200/80 bg-white/80 transition duration-200 ease-out hover:-translate-y-px hover:border-stone-300 hover:bg-white hover:text-stone-950 active:scale-[0.98] dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 md:h-14 md:w-14"
               onClick={() => setMenuOpen((value) => !value)}
               aria-label={t("storefront.header.menu", "Menu")}
               type="button"
@@ -4097,12 +4097,12 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
               </span>
             </Link>
           </div>
-          <nav className="sf-collapsible-nav hidden min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden text-sm font-bold text-stone-700 dark:text-stone-300 lg:flex">
+          <nav className="sf-collapsible-nav hidden min-w-0 flex-1 items-center justify-center gap-2 overflow-hidden text-sm font-bold text-stone-700 dark:text-stone-300 lg:flex">
             {headerCategoryItems.map(([label, to]) => (
               <NavLink
                 key={label}
                 to={to}
-                className={({ isActive }) => `sf-nav-link sf-header-nav-link relative rounded-full px-3.5 py-2.5 transition ${isActive ? "text-stone-950 dark:text-white" : "hover:text-stone-950 dark:hover:text-white"}`}
+                className={({ isActive }) => `sf-nav-link sf-header-nav-link relative overflow-hidden rounded-full px-4 py-2.5 transition duration-200 ease-out after:absolute after:inset-x-4 after:bottom-1 after:h-px after:origin-center after:bg-current after:transition-transform after:duration-200 ${isActive ? "text-stone-950 dark:text-white after:scale-x-100" : "text-stone-700/90 hover:bg-white/55 hover:text-stone-950 dark:text-stone-300/90 dark:hover:bg-white/8 dark:hover:text-white after:scale-x-0 hover:after:scale-x-100"}`}
               >
                 {label}
               </NavLink>
@@ -4112,7 +4112,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
-              className="sf-header-action hidden md:grid"
+              className="sf-header-action hidden md:grid transition duration-200 ease-out hover:-translate-y-px hover:border-stone-300 hover:bg-white hover:text-stone-950 active:scale-[0.98] dark:hover:bg-white/10"
               aria-label={t("storefront.header.search", "Search")}
               title={t("storefront.header.search", "Search")}
             >
@@ -4121,14 +4121,14 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
             <button
               type="button"
               onClick={onToggleTheme}
-              className="sf-header-action"
+              className="sf-header-action transition duration-200 ease-out hover:-translate-y-px hover:border-stone-300 hover:bg-white hover:text-stone-950 active:scale-[0.98] dark:hover:bg-white/10"
               aria-label={themeToggleLabel}
               title={themeToggleLabel}
             >
               {themeIsDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
             <HeaderAction to="/shop/account" label={t("storefront.header.account", "Account")} icon={<User className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
-            <button onClick={onCart} className="sf-header-action sf-cart-action" aria-label={t("storefront.cart.title", "Cart")} type="button">
+            <button onClick={onCart} className="sf-header-action sf-cart-action transition duration-200 ease-out hover:-translate-y-px hover:border-stone-300 hover:bg-white hover:text-stone-950 active:scale-[0.98] dark:hover:bg-white/10" aria-label={t("storefront.cart.title", "Cart")} type="button">
               <ShoppingCart className="h-5 w-5" />
               {cartCount ? <span className="sf-action-badge">{cartCount}</span> : null}
             </button>
