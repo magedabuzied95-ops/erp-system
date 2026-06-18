@@ -171,6 +171,11 @@ const normalizeMessageProductCards = (message = {}) =>
       []
   );
 
+const isProductCardMessage = (message = {}) => {
+  const messageType = clean(message.message_type || message.messageType || "").toLowerCase();
+  return messageType === "product_card" || messageType === "product_cards" || normalizeMessageProductCards(message).length > 0;
+};
+
 const messageDisplayText = (message = {}) =>
   clean(
     message.customer_message ||
@@ -820,7 +825,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
 
         return (
           <div key={messageKey(message)} className="space-y-1.5">
-            {hasProductCards ? (
+            {isProductCardMessage(message) ? (
               <div className="flex justify-start">
                 <div className="w-[82%] max-w-sm space-y-1.5">
                   <div className="px-1 text-left text-[10px] font-medium text-slate-500">{absoluteTime(message.created_at)}</div>
