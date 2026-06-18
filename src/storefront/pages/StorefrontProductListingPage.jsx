@@ -51,6 +51,13 @@ const normalizeStorefrontProductTypeValue = (value = "") => {
   if (["sneaker", "sneakers"].includes(normalized)) return "sneaker";
   return normalizeFilterKey(value);
 };
+const storefrontProductTypeQueryValue = (value = "") => {
+  const normalized = normalizeStorefrontProductTypeValue(value);
+  if (normalized === "bag") return "bags";
+  if (normalized === "slipper") return "slippers";
+  if (normalized === "sneaker") return "sneakers";
+  return normalized;
+};
 const normalizeStorefrontSearchTerm = (value = "") =>
   normalizeStorefrontAudienceValue(value) || normalizeFilterKey(String(value ?? "").normalize("NFKD").replace(/[\u0640\u200c\u200d\u200e\u200f]/g, "").replace(/\p{M}+/gu, ""));
 const productListingAudienceValues = (product = {}) => {
@@ -442,7 +449,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     setCurrentStep("productType");
     const next = new URLSearchParams();
     if (normalizedGender) next.set("gender", normalizedGender);
-    if (selectedProductType) next.set("type", selectedProductType);
+    if (selectedProductType) next.set("type", storefrontProductTypeQueryValue(selectedProductType));
     navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`);
     scrollToStep("productType");
   };
@@ -454,7 +461,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     setCurrentStep("grid");
     const next = new URLSearchParams();
     if (selectedGender) next.set("gender", selectedGender);
-    if (normalizedProductType) next.set("type", normalizedProductType);
+    if (normalizedProductType) next.set("type", storefrontProductTypeQueryValue(normalizedProductType));
     navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`);
     scrollToStep("grid");
   };
@@ -463,7 +470,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     setSelectedSize("");
     setCurrentStep("gender");
     const next = new URLSearchParams();
-    if (selectedProductType) next.set("type", selectedProductType);
+    if (selectedProductType) next.set("type", storefrontProductTypeQueryValue(selectedProductType));
     navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`);
   };
 
@@ -540,7 +547,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
 
   if (isGuidedCategoryFlow) {
     const selectedGenderOption = genderOptions.find((option) => normalizeStorefrontAudienceValue(option.value) === normalizeStorefrontAudienceValue(selectedGender));
-    const selectedProductTypeOption = productTypeOptions.find((option) => String(option.value) === String(selectedProductType));
+    const selectedProductTypeOption = productTypeOptions.find((option) => normalizeStorefrontProductTypeValue(option.value) === normalizeStorefrontProductTypeValue(selectedProductType));
     if (isTypeOnlyGuidedFlow) {
       return (
         <section className="mx-auto max-w-7xl px-3 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.75rem)] pt-3 md:px-4 md:py-5">
@@ -557,14 +564,6 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
           </div>
 
           <section className="mt-3 scroll-mt-28 transition md:mt-5">
-            <div className="mb-2.5 flex flex-wrap items-end justify-between gap-2 md:mb-3 md:gap-3">
-              <SectionIntro eyebrow={t("storefront.filters.gender", "الجنس")} title={t("storefront.products.chooseWearer", "اختر الجنس")} subtitle={selectedProductTypeOption ? t("storefront.products.suitableFor", "خيارات مناسبة لـ {{label}}", { label: classificationLabel(selectedProductTypeOption, lang) }) : t("storefront.products.chooseWearerSubtitle", "اختر نوع المنتج أولاً")} compact />
-              {selectedProductType ? (
-                <button type="button" onClick={changeProductType} className="rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
-                  {t("storefront.products.changeProductType", "تغيير النوع")}
-                </button>
-              ) : null}
-            </div>
             <GuidedGenderStep
               options={genderOptions}
               selectedGender={selectedGender}

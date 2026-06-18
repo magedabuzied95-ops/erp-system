@@ -1809,9 +1809,23 @@ const cleanDisplayText = (value = "") =>
     .replace(/\s+/g, " ")
     .trim();
 const classificationColor = (option = {}) => option.color || "#6d28d9";
+const storefrontLabelKey = (value = "") =>
+  String(value || "")
+    .normalize("NFKD")
+    .replace(/[\u0640\u200c\u200d\u200e\u200f]/g, "")
+    .replace(/\p{M}+/gu, "")
+    .replace(/['\u2019]/g, "'")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+const storefrontLocalizedLabels = {
+  ar: { men: "رجالي", women: "حريمي", kids: "أطفال", bag: "شنط", crocs: "كروكس", slipper: "سليبر", sneaker: "سنيكرز" },
+  en: { men: "Men", women: "Women", kids: "Kids", bag: "Bags", crocs: "Crocs", slipper: "Slippers", sneaker: "Sneakers" },
+};
 const classificationLabel = (option = {}, lang = "ar") =>
   cleanDisplayText(
-    option?.label ||
+    storefrontLocalizedLabels[lang]?.[storefrontLabelKey(option?.value || option?.slug || option?.id || option?.key || option?.label || option?.name || option?.title || option?.display_name || option?.displayName || "")] ||
+      option?.label ||
       option?.name ||
       option?.title ||
       option?.display_name ||
