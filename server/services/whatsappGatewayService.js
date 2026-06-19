@@ -461,6 +461,174 @@ const orderAddressLine = (order = {}) =>
 
 const orderStoreName = (order = {}) => text(order.store_name || order.storefront_name || order.company_name || order.brand_name || "M1 Store");
 
+const sendEvolutionButtonsMessage = async ({
+  current = {},
+  endpoint = "",
+  requestBody = "",
+  requestTimeoutMs = 9000,
+  logBase = {},
+  phone = "",
+} = {}) => {
+  const functionName = "sendEvolutionButtonsMessage";
+  console.info("[buttons-step-2-before-fetch]", {
+    file: "server/services/whatsappGatewayService.js",
+    function: functionName,
+    endpoint,
+    ...logBase,
+  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+  let response = null;
+  let raw = "";
+  try {
+    response = await fetch(`${current.apiUrl}${endpoint}`, {
+      method: "POST",
+      headers: {
+        apikey: apiKey(),
+        "Content-Type": "application/json",
+      },
+      body: requestBody,
+      signal: controller.signal,
+    });
+    console.info("[buttons-step-3-after-fetch]", {
+      file: "server/services/whatsappGatewayService.js",
+      function: functionName,
+      endpoint,
+      status: response?.status ?? null,
+      ...logBase,
+    });
+
+    raw = await response.text();
+    let data = null;
+    try {
+      data = raw ? JSON.parse(raw) : null;
+    } catch (parseError) {
+      console.error("[evolution:send-buttons-error]", {
+        file: "server/services/whatsappGatewayService.js",
+        function: functionName,
+        endpoint,
+        status: response?.status ?? null,
+        stage: "json_parse",
+        ...logBase,
+        message: parseError?.message || String(parseError),
+        code: parseError?.code || "",
+      });
+      console.error("[buttons-step-6-catch]", {
+        file: "server/services/whatsappGatewayService.js",
+        function: functionName,
+        endpoint,
+        status: response?.status ?? null,
+        stage: "json_parse",
+        ...logBase,
+        message: parseError?.message || String(parseError),
+        code: parseError?.code || "",
+      });
+      throw parseError;
+    }
+    console.info("[buttons-step-4-after-json]", {
+      file: "server/services/whatsappGatewayService.js",
+      function: functionName,
+      endpoint,
+      status: response.status,
+      ...logBase,
+    });
+
+    if (!response.ok) {
+      const error = gatewayError(data?.message || data?.error || `Evolution API returned ${response.status}`, "EVOLUTION_API_ERROR", response.status, {
+        data,
+        responseBody: data,
+        responseRaw: raw,
+      });
+      console.error("[evolution:send-buttons-error]", {
+        file: "server/services/whatsappGatewayService.js",
+        function: functionName,
+        endpoint,
+        status: response.status,
+        stage: "response_not_ok",
+        ...logBase,
+        message: error?.message || String(error),
+        code: error?.code || "",
+      });
+      console.error("[buttons-step-6-catch]", {
+        file: "server/services/whatsappGatewayService.js",
+        function: functionName,
+        endpoint,
+        status: response.status,
+        stage: "response_not_ok",
+        ...logBase,
+        message: error?.message || String(error),
+        code: error?.code || "",
+      });
+      throw error;
+    }
+
+    console.info("[buttons-step-5-success]", {
+      file: "server/services/whatsappGatewayService.js",
+      function: functionName,
+      endpoint,
+      status: response.status,
+      ...logBase,
+    });
+    console.info("[evolution:send-buttons-success]", {
+      file: "server/services/whatsappGatewayService.js",
+      function: functionName,
+      endpoint,
+      status: response.status,
+      ...logBase,
+    });
+    return {
+      success: true,
+      provider: current.provider,
+      instanceName: current.instanceName,
+      phone,
+      result: data,
+      endpoint,
+      delivery_mode: "interactive",
+      used_buttons: true,
+    };
+  } catch (error) {
+    if (error?.code === "EVOLUTION_BUTTONS_TIMEOUT" || error?.message === "Evolution sendButtons request timed out") {
+      console.warn("[evolution:send-buttons-timeout]", {
+        file: "server/services/whatsappGatewayService.js",
+        function: functionName,
+        endpoint,
+        status: "timeout",
+        timeoutMs: requestTimeoutMs,
+        ...logBase,
+      });
+    } else {
+      console.error("[evolution:send-buttons-error]", {
+        file: "server/services/whatsappGatewayService.js",
+        function: functionName,
+        endpoint,
+        status: error?.status || "",
+        ...logBase,
+        message: error?.message || String(error),
+        code: error?.code || "",
+      });
+    }
+    console.error("[buttons-step-6-catch]", {
+      file: "server/services/whatsappGatewayService.js",
+      function: functionName,
+      endpoint,
+      status: error?.status || (controller.signal.aborted ? "timeout" : ""),
+      ...logBase,
+      message: error?.message || String(error),
+      code: error?.code || "",
+    });
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    console.info("[buttons-step-7-finally]", {
+      file: "server/services/whatsappGatewayService.js",
+      function: functionName,
+      endpoint,
+      status: controller.signal.aborted ? "timeout" : response?.status ?? null,
+      ...logBase,
+    });
+  }
+};
+
 export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "", text = "", footer = "", orderId = "" } = {}) => {
   if (provider() !== "evolution") {
     throw gatewayError("Interactive buttons are only supported on the Evolution provider", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
@@ -485,96 +653,37 @@ export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "
   };
 
   const endpoint = `/message/sendButtons/${encodeURIComponent(current.instanceName)}`;
+  console.info("[buttons-step-1-enter]", {
+    file: "server/services/whatsappGatewayService.js",
+    function: "sendOrderConfirmationInteractiveMessage",
+    endpoint,
+    ...logBase,
+  });
   try {
     console.info("[evolution:send-buttons-request]", {
+      file: "server/services/whatsappGatewayService.js",
+      function: "sendOrderConfirmationInteractiveMessage",
       endpoint,
       ...logBase,
     });
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
-    let response = null;
-    try {
-      response = await fetch(`${current.apiUrl}${endpoint}`, {
-        method: "POST",
-        headers: {
-          apikey: apiKey(),
-          "Content-Type": "application/json",
-        },
-        body: requestBody,
-        signal: controller.signal,
-      });
-    } catch (fetchError) {
-      if (controller.signal.aborted || fetchError?.name === "AbortError") {
-        throw gatewayError("Evolution sendButtons request timed out", "EVOLUTION_BUTTONS_TIMEOUT", 504);
-      }
-      console.error("[evolution:send-buttons-error]", {
-        endpoint,
-        status: fetchError?.status || "",
-        ...logBase,
-        message: fetchError?.message || String(fetchError),
-        code: fetchError?.code || "",
-      });
-      fetchError.__buttonsLogged = true;
-      throw fetchError;
-    } finally {
-      clearTimeout(timeout);
-    }
-    const raw = await response.text();
-    let data = null;
-    try {
-      data = raw ? JSON.parse(raw) : null;
-    } catch {
-      data = { raw };
-    }
-    if (!response.ok) {
-      const error = gatewayError(data?.message || data?.error || `Evolution API returned ${response.status}`, "EVOLUTION_API_ERROR", response.status, {
-        data,
-        responseBody: data,
-        responseRaw: raw,
-      });
-      console.error("[evolution:send-buttons-error]", {
-        endpoint,
-        status: response.status,
-        ...logBase,
-        message: error?.message || String(error),
-        code: error?.code || "",
-      });
-      error.__buttonsLogged = true;
-      throw error;
-    }
-    console.info("[evolution:send-buttons-success]", {
+    return await sendEvolutionButtonsMessage({
+      current,
       endpoint,
-      status: response.status,
-      ...logBase,
-    });
-    return {
-      success: true,
-      provider: current.provider,
-      instanceName: current.instanceName,
+      requestBody,
+      requestTimeoutMs,
+      logBase,
       phone: normalizedPhone,
-      result: data,
-      endpoint,
-      delivery_mode: "interactive",
-      used_buttons: true,
-    };
+    });
   } catch (error) {
-    if (error?.code === "EVOLUTION_BUTTONS_TIMEOUT" || error?.message === "Evolution sendButtons request timed out") {
-      console.warn("[evolution:send-buttons-timeout]", {
-        endpoint,
-        status: "timeout",
-        timeoutMs: requestTimeoutMs,
-        ...logBase,
-      });
-    } else {
-      if (error.__buttonsLogged) throw error;
-      console.error("[evolution:send-buttons-error]", {
-        endpoint,
-        status: error?.status || "",
-        ...logBase,
-        message: error?.message || String(error),
-        code: error?.code || "",
-      });
-    }
+    console.error("[buttons-step-6-catch]", {
+      file: "server/services/whatsappGatewayService.js",
+      function: "sendOrderConfirmationInteractiveMessage",
+      endpoint,
+      status: error?.status || "",
+      ...logBase,
+      message: error?.message || String(error),
+      code: error?.code || "",
+    });
     throw error;
   }
 };
@@ -606,6 +715,12 @@ export const sendOrderConfirmationMessage = async ({ order } = {}) => {
   const title = "✅ تأكيد الطلب";
   const footer = "اختر الإجراء المناسب";
   try {
+    console.info("[buttons-step-1-enter]", {
+      file: "server/services/whatsappGatewayService.js",
+      function: "sendOrderConfirmationMessage",
+      order_id: order?.id || null,
+      phoneSuffix: normalizeEgyptPhone(phone).slice(-4),
+    });
     const result = await sendOrderConfirmationInteractiveMessage({
       phone,
       title,

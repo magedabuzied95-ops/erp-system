@@ -394,6 +394,12 @@ export const sendOrderConfirmation = async (order = {}) => {
   const footer = "اختر الإجراء المناسب";
   let result = null;
   let deliveryMode = "interactive";
+  console.info("[buttons-step-1-enter]", {
+    file: "server/services/whatsappOrderConfirmationService.js",
+    function: "sendOrderConfirmation",
+    order_id: current.id,
+    phoneSuffix: phone.slice(-4),
+  });
   try {
     result = await sendOrderConfirmationInteractiveMessage({
       phone,
