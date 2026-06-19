@@ -288,9 +288,15 @@ const messageDisplayText = (message = {}) =>
       ""
   );
 
+const isFromMeMessage = (message = {}) =>
+  message?.from_me === true ||
+  message?.fromMe === true ||
+  message?.is_from_me === true;
+
 const normalizeMessageDirection = (message = {}) => {
   const senderType = clean(message.sender_type || message.senderType || "").toLowerCase();
   const explicitDirection = clean(message.direction || message.message_direction || "").toLowerCase();
+  if (isFromMeMessage(message)) return "outbound";
   if (["inbound", "incoming", "customer", "user", "client"].includes(explicitDirection)) return "inbound";
   if (["outbound", "sent", "assistant", "ai", "bot", "staff", "agent"].includes(explicitDirection)) return "outbound";
   if (["customer", "user", "client"].includes(senderType)) return "inbound";
@@ -316,8 +322,9 @@ const normalizeInboxMessage = (message = {}) => {
   );
   const senderType = clean(message.sender_type || message.senderType || "");
   const direction = normalizeMessageDirection(message);
+  const fromMe = isFromMeMessage(message);
   const body = messageDisplayText(message);
-  const normalizedSenderType = senderType || (direction === "outbound" ? "assistant" : "customer");
+  const normalizedSenderType = senderType || (fromMe || direction === "outbound" ? "assistant" : "customer");
   const normalizedMessageType =
     clean(message.message_type || message.messageType || "") ||
     (productCards.length ? "product_card" : direction === "outbound" ? "ai_reply" : "customer_message");
@@ -356,8 +363,10 @@ const normalizeInboxMessage = (message = {}) => {
     body: clean(message.body || body),
     content: clean(message.content || body),
     message_text: clean(message.message_text || body),
-    customer_message: clean(message.customer_message || (direction === "inbound" ? body : "")),
-    ai_answer: clean(message.ai_answer || (direction === "outbound" && normalizedMessageType !== "product_card" ? body : "")),
+    from_me: fromMe,
+    fromMe,
+    customer_message: clean(message.customer_message || (!fromMe && direction === "inbound" ? body : "")),
+    ai_answer: clean(message.ai_answer || ((fromMe || direction === "outbound") && normalizedMessageType !== "product_card" ? body : "")),
     staff_message: clean(message.staff_message || (normalizedSenderType === "staff" ? body : "")),
     product_cards: productCards,
     productCards,
@@ -930,8 +939,9 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
         const cards = normalizeMessageProductCards(message);
         const hasProductCards = cards.length > 0;
         const displayText = messageDisplayText(message);
-        const isCustomer = Boolean(clean(message.customer_message));
-        const isAi = Boolean(clean(message.ai_answer)) || message.sender_type === "assistant" || message.sender_type === "ai" || message.direction === "outbound";
+        const isFromMe = isFromMeMessage(message);
+        const isCustomer = Boolean(clean(message.customer_message)) && !isFromMe;
+        const isAi = Boolean(clean(message.ai_answer)) || message.sender_type === "assistant" || message.sender_type === "ai" || message.direction === "outbound" || isFromMe;
         const isStaff = Boolean(clean(message.staff_message)) && !hasProductCards;
         if (!isCustomer && !isAi && !isStaff && !hasProductCards) return null;
 
