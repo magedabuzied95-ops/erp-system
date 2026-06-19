@@ -144,9 +144,14 @@ const MESSENGER_INFERENCE_TOKENS = [
   "السلام عليكم",
   "هاي",
 ];
+const isLikelyMessengerExternalId = (value = "") => {
+  const candidate = normalizeDisplayName(value).replace(/\s+/g, "");
+  return Boolean(candidate) && /^\d{5,}$/.test(candidate);
+};
 const isSafeMessengerProfileName = (value = "") => {
   const candidate = normalizeDisplayName(value);
   if (!candidate) return false;
+  if (isLikelyMessengerExternalId(candidate)) return false;
   if (isLikelyMessageLikeName(candidate)) return false;
   const lowerCandidate = candidate.toLowerCase();
   return !MESSENGER_INFERENCE_TOKENS.some((token) => lowerCandidate.includes(token.toLowerCase()));
@@ -164,14 +169,19 @@ export const resolveMessengerConversationDisplayName = ({
   const profileLastName = normalizeDisplayName(customerProfile?.last_name || messengerProfile?.last_name || metadata?.last_name || "");
   const profileFullName = normalizeDisplayName([profileFirstName, profileLastName].filter(Boolean).join(" "));
   const profileName = normalizeDisplayName(customerProfile?.name || messengerProfile?.name || "");
+  const profileDisplayName = normalizeDisplayName(customerProfile?.display_name || messengerProfile?.display_name || "");
+  const profileFacebookName = normalizeDisplayName(customerProfile?.facebook_name || messengerProfile?.facebook_name || "");
+  const profileMessengerName = normalizeDisplayName(customerProfile?.messenger_name || messengerProfile?.messenger_name || "");
   const safeCandidates = [
     storedName,
     profileName,
+    profileDisplayName,
+    profileFacebookName,
+    profileMessengerName,
     profileFullName,
   ].filter(Boolean);
   const safeCandidate = safeCandidates.find((candidate) => isSafeMessengerProfileName(candidate)) || "";
-  if (safeCandidate) return safeCandidate;
-  return normalizeDisplayName(externalCustomerId);
+  return safeCandidate;
 };
 
 let channelSchemaReadyPromise = null;

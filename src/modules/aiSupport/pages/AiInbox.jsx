@@ -420,6 +420,10 @@ const customerAvatarUrl = (item = {}) => {
   );
 };
 const firstNonEmpty = (...values) => values.map((value) => clean(value)).find(Boolean) || "";
+const isLikelyMessengerExternalId = (value = "") => {
+  const candidate = clean(value).replace(/\s+/g, "");
+  return Boolean(candidate) && /^\d{5,}$/.test(candidate);
+};
 const messengerIdentityKey = (conversation = {}) => clean(
   conversation.external_customer_id ||
   conversation.sender_psid ||
@@ -444,19 +448,52 @@ const messengerSelectedCustomerMatches = (conversation = {}) => {
 };
 const messengerDisplayName = (conversation = {}) => {
   const source = conversation || {};
-  const identityKey = messengerIdentityKey(source);
-  const profileName = firstNonEmpty(
+  const profile = source.customer_profile || {};
+  const messengerProfile = source.channel_metadata?.messenger_profile || source.channel_metadata?.customer_profile || source.customer_profile?.messenger_profile || {};
+  const candidates = [
+    source.customer_name,
+    source.customer?.name,
+    profile.name,
+    profile.display_name,
+    profile.facebook_name,
+    profile.messenger_name,
+    profile.full_name,
+    profile.sender_name,
+    profile.profile_name,
+    profile.contact_name,
+    profile.first_name && profile.last_name ? `${profile.first_name} ${profile.last_name}` : "",
+    messengerProfile.name,
+    messengerProfile.display_name,
+    messengerProfile.facebook_name,
+    messengerProfile.messenger_name,
+    messengerProfile.full_name,
+    messengerProfile.sender_name,
+    messengerProfile.profile_name,
+    messengerProfile.contact_name,
+    messengerProfile.first_name && messengerProfile.last_name ? `${messengerProfile.first_name} ${messengerProfile.last_name}` : "",
     source.customer_profile?.name,
     source.customer_profile?.full_name,
+    source.customer_profile?.display_name,
+    source.customer_profile?.facebook_name,
+    source.customer_profile?.messenger_name,
     source.customer_profile?.sender_name,
     source.customer_profile?.profile_name,
     source.customer_profile?.contact_name,
     source.customer_profile?.first_name && source.customer_profile?.last_name
       ? `${source.customer_profile.first_name} ${source.customer_profile.last_name}`
       : "",
+    source.display_name,
+    source.facebook_name,
+    source.messenger_name,
     source.first_name && source.last_name ? `${source.first_name} ${source.last_name}` : ""
-  );
-  return firstNonEmpty(profileName, identityKey);
+  ].filter(Boolean);
+  const profileName = candidates.find((candidate) => {
+    const value = clean(candidate);
+    if (!value) return false;
+    return !isLikelyMessengerExternalId(value);
+  });
+  if (profileName) return profileName;
+  return "";
 };
 const isMessengerConversation = (conversation = {}) => {
   const channel = normalizeConversationChannel(conversation);
@@ -549,7 +586,7 @@ const leadSourceLabel = (conversation = {}) => {
 const getConversationDisplayName = (conversation = {}) => {
   const source = conversation || {};
   if (isMessengerConversation(source)) {
-    return messengerDisplayName(source);
+    return messengerDisplayName(source) || "Customer";
   }
 
   const profile = source.customer_profile || {};

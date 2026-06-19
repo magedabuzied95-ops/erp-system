@@ -747,17 +747,55 @@ const channelMeta = (value = "") => {
   return { label: "Web", icon: Globe, tone: "text-slate-500" };
 };
 
+const isLikelyMessengerExternalId = (value = "") => {
+  const candidate = clean(value).replace(/\s+/g, "");
+  return Boolean(candidate) && /^\d{5,}$/.test(candidate);
+};
+
 const conversationName = (conversation = {}) =>
-  clean(
-    conversation.customer_name ||
-      conversation.customer?.name ||
-      conversation.customer_profile?.name ||
-      conversation.customer_profile?.full_name ||
-      [conversation.first_name, conversation.last_name].filter(Boolean).join(" ") ||
-      conversation.external_customer_id ||
-      conversation.phone ||
-      "Customer"
-  );
+  (() => {
+    const profile = conversation.customer_profile || {};
+    const messengerProfile = conversation.channel_metadata?.messenger_profile || conversation.channel_metadata?.customer_profile || conversation.customer_profile?.messenger_profile || {};
+    const candidates = [
+      profile.name,
+      profile.display_name,
+      profile.facebook_name,
+      profile.messenger_name,
+      profile.full_name,
+      profile.sender_name,
+      profile.profile_name,
+      profile.contact_name,
+      [profile.first_name, profile.last_name].filter(Boolean).join(" "),
+      messengerProfile.name,
+      messengerProfile.display_name,
+      messengerProfile.facebook_name,
+      messengerProfile.messenger_name,
+      messengerProfile.full_name,
+      messengerProfile.sender_name,
+      messengerProfile.profile_name,
+      messengerProfile.contact_name,
+      [messengerProfile.first_name, messengerProfile.last_name].filter(Boolean).join(" "),
+      conversation.customer_name,
+      conversation.customer?.name,
+      conversation.display_name,
+      conversation.facebook_name,
+      conversation.messenger_name,
+      conversation.sender_name,
+      conversation.profile_name,
+      conversation.contact_name,
+      [conversation.first_name, conversation.last_name].filter(Boolean).join(" "),
+    ].filter(Boolean);
+    if (!isMessengerConversation(conversation)) {
+      candidates.push(conversation.external_customer_id, conversation.phone);
+    }
+    const resolved = candidates.find((candidate) => {
+      const value = clean(candidate);
+      if (!value) return false;
+      if (isMessengerConversation(conversation) && isLikelyMessengerExternalId(value)) return false;
+      return true;
+    });
+    return clean(resolved || (isMessengerConversation(conversation) ? "Customer" : conversation.external_customer_id || conversation.phone || "Customer"));
+  })();
 
 const productImage = (card = {}) =>
   clean(

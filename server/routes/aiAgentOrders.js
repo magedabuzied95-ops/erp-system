@@ -1277,6 +1277,20 @@ router.post("/channels/meta/webhook", async (req, res) => {
       }).catch((error) => {
         console.warn("[ai-agent:meta] mapping upsert skipped", { tenantId, channel, message: error?.message });
       });
+      if (channel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) {
+        void syncMessengerProfileForConversation({
+          tenantId,
+          conversationId,
+          externalCustomerId: message.external_customer_id,
+        }).catch((error) => {
+          console.warn("[ai-agent:meta] messenger profile sync deferred", {
+            tenantId,
+            channel,
+            conversation_id: conversationId,
+            message: error?.message,
+          });
+        });
+      }
       const escalation = detectEscalation(customerMessage);
       if (escalation.shouldEscalate) {
         const escalated = await escalateToHuman({

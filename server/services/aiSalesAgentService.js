@@ -964,15 +964,74 @@ const isOutboundMessageRow = (row = {}) => {
   if (insertSource.includes("ai_send_success") || insertSource.includes("whatsapp_outbound")) return true;
   return false;
 };
+const isMessengerConversationChannel = (value = "") => ["facebook_messenger", "facebook", "messenger"].includes(lower(value));
+const isLikelyMessengerExternalId = (value = "") => {
+  const candidate = text(value).replace(/\s+/g, "");
+  return Boolean(candidate) && /^\d{5,}$/.test(candidate);
+};
+const resolveConversationDisplayName = ({ conversation = {}, customerProfile = {} } = {}) => {
+  const sourceChannel = lower(conversation.channel || conversation.session_channel || conversation.source || "");
+  const isMessenger = isMessengerConversationChannel(sourceChannel);
+  const profile = customerProfile && typeof customerProfile === "object"
+    ? customerProfile
+    : conversation.customer_profile && typeof conversation.customer_profile === "object"
+      ? conversation.customer_profile
+      : {};
+  const messengerProfile = conversation.channel_metadata?.messenger_profile || conversation.channel_metadata?.customer_profile || profile?.messenger_profile || {};
+  const candidates = [
+    profile.name,
+    profile.display_name,
+    profile.facebook_name,
+    profile.messenger_name,
+    profile.full_name,
+    profile.sender_name,
+    profile.profile_name,
+    profile.contact_name,
+    [profile.first_name, profile.last_name].filter(Boolean).join(" "),
+    messengerProfile.name,
+    messengerProfile.display_name,
+    messengerProfile.facebook_name,
+    messengerProfile.messenger_name,
+    messengerProfile.full_name,
+    messengerProfile.sender_name,
+    messengerProfile.profile_name,
+    messengerProfile.contact_name,
+    [messengerProfile.first_name, messengerProfile.last_name].filter(Boolean).join(" "),
+    conversation.session_customer_name,
+    conversation.customer_name,
+    conversation.customer?.name,
+    conversation.display_name,
+    conversation.facebook_name,
+    conversation.messenger_name,
+    conversation.sender_name,
+    conversation.profile_name,
+    conversation.contact_name,
+    [conversation.first_name, conversation.last_name].filter(Boolean).join(" "),
+  ];
+  if (!isMessenger) {
+    candidates.push(conversation.external_customer_id, conversation.phone);
+  }
+  for (const candidate of candidates) {
+    const name = text(candidate);
+    if (!name) continue;
+    if (isMessenger && (isLikelyMessengerExternalId(name) || isLikelyMessageLikeName(name))) continue;
+    return name;
+  }
+  return isMessenger ? "" : text(conversation.external_customer_id || conversation.phone || "");
+};
 const buildCustomerProfilePayload = ({ conversation = {}, memories = [] } = {}) => {
   const profile = conversation.customer_profile || {};
   const memoryValues = memories.map((item) => item.memory_value || {});
   const firstName = text(profile.first_name || conversation.first_name || "");
   const lastName = text(profile.last_name || conversation.last_name || "");
   const fullName = [firstName, lastName].filter(Boolean).join(" ");
+  const displayName = resolveConversationDisplayName({
+    conversation,
+    customerProfile: profile,
+  });
   return {
     id: profile.id || conversation.profile_id || null,
-    name: fullName || firstName || conversation.customer_name || "",
+    name: displayName || fullName || firstName || (!isMessengerConversationChannel(conversation.channel || conversation.source || "") ? conversation.customer_name : "") || "",
     first_name: firstName,
     last_name: lastName,
     avatar_url: profile.profile_pic_url || conversation.profile_pic_url || conversation.customer_avatar_url || conversation.session_customer_avatar_url || conversation.channel_metadata?.profile_pic || conversation.channel_metadata?.messenger_profile?.profile_pic || "",
@@ -1614,7 +1673,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       });
     const channel = conversation.channel || conversation.session_channel || conversation.source || "web_chat";
     const canonicalSessionId = normalizeWhatsappSessionId(conversation.session_id, conversation.external_customer_id || conversation.external_conversation_id || "");
-    const customerName = conversation.session_customer_name || conversation.customer_name || conversation.external_customer_id || "";
+    const customerName = resolveConversationDisplayName({ conversation });
     const customerAvatarUrl = conversation.customer_avatar_url || conversation.session_customer_avatar_url || "";
     const summaryDirection = isOutboundMessageRow(conversation) ? "outbound" : text(conversation.direction || conversation.message_direction || "");
     const summaryCustomerMessage = summaryDirection === "outbound" ? "" : text(conversation.customer_message || conversation.message_text || "");
@@ -2282,19 +2341,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
         }));
     const resolvedChannel = text(conversation.channel || conversation.session_channel || conversation.source);
     const isMessengerConversation = ["facebook_messenger", "facebook", "messenger"].includes(lower(resolvedChannel));
-    const messengerDisplayName = isMessengerConversation
-      ? resolveMessengerConversationDisplayName({
-          customerName: conversation.session_customer_name || conversation.customer_name || "",
-          customerProfile: {
-            first_name: conversation.first_name,
-            last_name: conversation.last_name,
-            name: conversation.channel_metadata?.messenger_profile?.name || conversation.channel_metadata?.customer_profile?.name || "",
-            external_customer_id: conversation.profile_external_customer_id || conversation.external_customer_id || "",
-          },
-          metadata: conversation.channel_metadata || {},
-          externalCustomerId: conversation.profile_external_customer_id || conversation.external_customer_id || "",
-        })
-      : "";
+    const messengerDisplayName = isMessengerConversation ? resolveConversationDisplayName({ conversation }) : "";
     const systemEvents = [
       conversation.conversation_status === "human_takeover" ? {
         type: "human_takeover",
@@ -2371,7 +2418,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
         takeover_started_at: conversation.takeover_started_at,
         returned_to_ai_at: conversation.returned_to_ai_at,
         closed_at: conversation.closed_at,
-        customer_name: messengerDisplayName || customerProfile.name || conversation.session_customer_name || conversation.first_name || conversation.external_customer_id || "",
+        customer_name: messengerDisplayName || customerProfile.name || "",
         customer_avatar_url: customerProfile.avatar_url || conversation.customer_avatar_url || "",
         phone: customerProfile.phone || conversation.phone || "",
         sender_name: isMessengerConversation ? messengerDisplayName : conversation.sender_name || "",
@@ -2407,7 +2454,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
           thread_kind: text(metadata.thread_kind || conversation.thread_kind || ""),
         },
         customer_profile: {
-          name: customerProfile.name || conversation.session_customer_name || "",
+          name: customerProfile.name || "",
           avatar_url: customerProfile.avatar_url || conversation.customer_avatar_url || "",
           phone: customerProfile.phone || conversation.phone || "",
           external_customer_id: customerProfile.external_customer_id || conversation.external_customer_id || "",
@@ -2425,7 +2472,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       ...conversation,
       source: conversation.source || conversation.channel || "web_chat",
       channel: conversation.channel || conversation.session_channel || conversation.source || "web_chat",
-      customer_name: messengerDisplayName || customerProfile.name || conversation.session_customer_name || conversation.first_name || conversation.external_customer_id || "",
+      customer_name: messengerDisplayName || customerProfile.name || "",
       sender_name: isMessengerConversation ? messengerDisplayName : conversation.sender_name || "",
       profile_name: isMessengerConversation ? messengerDisplayName : conversation.profile_name || "",
       contact_name: isMessengerConversation ? messengerDisplayName : conversation.contact_name || "",
