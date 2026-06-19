@@ -535,7 +535,7 @@ const buildOrderConfirmationButtonsPayload = ({ phone = "", title = "", text = "
   return {
     number: normalizeEgyptPhone(phone),
     title: safeTitle,
-    text: safeText,
+    description: safeText,
     footer: safeFooter,
     buttons,
   };
@@ -571,12 +571,6 @@ const sendEvolutionButtonsMessage = async ({
   phone = "",
 } = {}) => {
   const functionName = "sendEvolutionButtonsMessage";
-  console.info("[buttons-step-2-before-fetch]", {
-    file: "server/services/whatsappGatewayService.js",
-    function: functionName,
-    endpoint,
-    ...logBase,
-  });
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
   let response = null;
@@ -591,14 +585,6 @@ const sendEvolutionButtonsMessage = async ({
       body: requestBody,
       signal: controller.signal,
     });
-    console.info("[buttons-step-3-after-fetch]", {
-      file: "server/services/whatsappGatewayService.js",
-      function: functionName,
-      endpoint,
-      status: response?.status ?? null,
-      ...logBase,
-    });
-
     raw = await response.text();
     let data = null;
     try {
@@ -609,30 +595,12 @@ const sendEvolutionButtonsMessage = async ({
         function: functionName,
         endpoint,
         status: response?.status ?? null,
-        stage: "json_parse",
-        ...logBase,
-        message: parseError?.message || String(parseError),
-        code: parseError?.code || "",
-      });
-      console.error("[buttons-step-6-catch]", {
-        file: "server/services/whatsappGatewayService.js",
-        function: functionName,
-        endpoint,
-        status: response?.status ?? null,
-        stage: "json_parse",
         ...logBase,
         message: parseError?.message || String(parseError),
         code: parseError?.code || "",
       });
       throw parseError;
     }
-    console.info("[buttons-step-4-after-json]", {
-      file: "server/services/whatsappGatewayService.js",
-      function: functionName,
-      endpoint,
-      status: response.status,
-      ...logBase,
-    });
 
     if (!response.ok) {
       const error = gatewayError(data?.message || data?.error || `Evolution API returned ${response.status}`, "EVOLUTION_API_ERROR", response.status, {
@@ -645,17 +613,6 @@ const sendEvolutionButtonsMessage = async ({
         function: functionName,
         endpoint,
         status: response.status,
-        stage: "response_not_ok",
-        ...logBase,
-        message: error?.message || String(error),
-        code: error?.code || "",
-      });
-      console.error("[buttons-step-6-catch]", {
-        file: "server/services/whatsappGatewayService.js",
-        function: functionName,
-        endpoint,
-        status: response.status,
-        stage: "response_not_ok",
         ...logBase,
         message: error?.message || String(error),
         code: error?.code || "",
@@ -663,13 +620,6 @@ const sendEvolutionButtonsMessage = async ({
       throw error;
     }
 
-    console.info("[buttons-step-5-success]", {
-      file: "server/services/whatsappGatewayService.js",
-      function: functionName,
-      endpoint,
-      status: response.status,
-      ...logBase,
-    });
     console.info("[evolution:send-buttons-success]", {
       file: "server/services/whatsappGatewayService.js",
       function: functionName,
@@ -677,7 +627,6 @@ const sendEvolutionButtonsMessage = async ({
       status: response.status,
       ...logBase,
       messageId: extractEvolutionButtonsMessageId(data),
-      responseBody: data,
     });
     trackEvolutionButtonsMessage({
       messageId: extractEvolutionButtonsMessageId(data),
@@ -721,25 +670,9 @@ const sendEvolutionButtonsMessage = async ({
         code: error?.code || "",
       });
     }
-    console.error("[buttons-step-6-catch]", {
-      file: "server/services/whatsappGatewayService.js",
-      function: functionName,
-      endpoint,
-      status: error?.status || (controller.signal.aborted ? "timeout" : ""),
-      ...logBase,
-      message: error?.message || String(error),
-      code: error?.code || "",
-    });
     throw error;
   } finally {
     clearTimeout(timeout);
-    console.info("[buttons-step-7-finally]", {
-      file: "server/services/whatsappGatewayService.js",
-      function: functionName,
-      endpoint,
-      status: controller.signal.aborted ? "timeout" : response?.status ?? null,
-      ...logBase,
-    });
   }
 };
 
@@ -767,12 +700,6 @@ export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "
   };
 
   const endpoint = `/message/sendButtons/${encodeURIComponent(current.instanceName)}`;
-  console.info("[buttons-step-1-enter]", {
-    file: "server/services/whatsappGatewayService.js",
-    function: "sendOrderConfirmationInteractiveMessage",
-    endpoint,
-    ...logBase,
-  });
   try {
     console.info("[evolution:send-buttons-request]", {
       file: "server/services/whatsappGatewayService.js",
@@ -789,15 +716,6 @@ export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "
       phone: normalizedPhone,
     });
   } catch (error) {
-    console.error("[buttons-step-6-catch]", {
-      file: "server/services/whatsappGatewayService.js",
-      function: "sendOrderConfirmationInteractiveMessage",
-      endpoint,
-      status: error?.status || "",
-      ...logBase,
-      message: error?.message || String(error),
-      code: error?.code || "",
-    });
     throw error;
   }
 };
