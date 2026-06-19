@@ -8225,7 +8225,7 @@ function Storefront() {
         element={<LazyStorefrontTrackOrderPage helpers={helpers} components={components} />}
       />
       <Route
-        path="order-confirmation/:token"
+        path="confirm/:code"
         element={<LazyOrderConfirmationActionPage />}
       />
       <Route

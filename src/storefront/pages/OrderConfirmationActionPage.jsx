@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, Loader2, MessageCircleWarning } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, MessageCircleWarning, PencilLine, XCircle } from "lucide-react";
 
 import { api } from "../../shared/api/api";
 
@@ -11,52 +11,68 @@ const getActionLabel = (action = "") => {
   return "تم تحديث الطلب";
 };
 
+const actionButtons = [
+  { action: "confirm", label: "تأكيد الطلب", icon: CheckCircle2, className: "bg-emerald-600 text-white" },
+  { action: "edit", label: "تعديل الطلب", icon: PencilLine, className: "bg-amber-500 text-slate-950" },
+  { action: "cancel", label: "إلغاء الطلب", icon: XCircle, className: "bg-rose-600 text-white" },
+];
+
 export function OrderConfirmationActionPage() {
-  const { token } = useParams();
+  const { code } = useParams();
   const [loading, setLoading] = useState(true);
+  const [submittingAction, setSubmittingAction] = useState("");
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
 
-  const resolvedToken = useMemo(() => {
-    const raw = String(token || "").trim();
+  const resolvedCode = useMemo(() => {
+    const raw = String(code || "").trim();
     if (!raw) return "";
     try {
       return decodeURIComponent(raw).trim();
     } catch {
       return raw;
     }
-  }, [token]);
+  }, [code]);
+
+  const loadCode = async () => {
+    if (!resolvedCode) {
+      setError("كود التأكيد غير صالح");
+      setLoading(false);
+      return;
+    }
+    try {
+      setLoading(true);
+      setError("");
+      const response = await api.get(`/public/order-confirmation/${encodeURIComponent(resolvedCode)}`);
+      setResult(response?.data || response);
+    } catch (err) {
+      setError(err?.responseBody?.message || err?.message || "تعذر التحقق من الكود");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    let active = true;
-    const run = async () => {
-      if (!resolvedToken) {
-        if (!active) return;
-        setError("رابط التأكيد غير صالح");
-        setLoading(false);
-        return;
-      }
-      try {
-        setLoading(true);
-        setError("");
-        const response = await api.post(`/public/order-confirmation/${encodeURIComponent(resolvedToken)}`);
-        if (!active) return;
-        const payload = response?.data || response;
-        setResult(payload);
-      } catch (err) {
-        if (!active) return;
-        setError(err?.responseBody?.message || err?.message || "تعذر تطبيق الإجراء");
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    run();
-    return () => {
-      active = false;
-    };
-  }, [resolvedToken]);
+    loadCode();
+  }, [resolvedCode]);
+
+  const applyAction = async (action) => {
+    if (!resolvedCode || !action) return;
+    try {
+      setSubmittingAction(action);
+      setError("");
+      const response = await api.post(`/public/order-confirmation/${encodeURIComponent(resolvedCode)}`, { action });
+      setResult(response?.data || response);
+    } catch (err) {
+      setError(err?.responseBody?.message || err?.message || "تعذر تنفيذ الإجراء");
+    } finally {
+      setSubmittingAction("");
+    }
+  };
 
   const actionLabel = getActionLabel(result?.action);
+  const codeValid = Boolean(result?.success || result?.order);
+  const bannerText = result?.action ? actionLabel : "الكود صالح - اختر الإجراء المناسب";
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(124,58,237,0.18),_transparent_35%),linear-gradient(180deg,#fff8f1,white)] px-4 py-10 text-slate-900 dark:bg-[radial-gradient(circle_at_top,_rgba(124,58,237,0.22),_transparent_35%),linear-gradient(180deg,#0f172a,#020617)] dark:text-white sm:px-6 lg:px-8">
@@ -67,7 +83,7 @@ export function OrderConfirmationActionPage() {
               <CheckCircle2 className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.24em] text-[#6d28d9]/80 dark:text-[#c4b5fd]/80">Order confirmation</p>
+              <p className="text-xs font-black uppercase tracking-[0.24em] text-[#6d28d9]/80 dark:text-[#c4b5fd]/80">COD confirmation</p>
               <h1 className="text-2xl font-black tracking-tight">تأكيد الطلب</h1>
             </div>
           </div>
@@ -75,7 +91,7 @@ export function OrderConfirmationActionPage() {
           {loading ? (
             <div className="flex items-center gap-3 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm font-bold text-stone-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/80">
               <Loader2 className="h-5 w-5 animate-spin" />
-              جاري تطبيق الإجراء...
+              جاري التحقق من الكود...
             </div>
           ) : error ? (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm font-bold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
@@ -91,14 +107,30 @@ export function OrderConfirmationActionPage() {
           ) : (
             <div className="space-y-4">
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-base font-black text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100">
-                {actionLabel}
+                {bannerText}
               </div>
               <p className="text-sm leading-7 text-stone-600 dark:text-slate-300">
-                يمكنك العودة إلى المتجر أو متابعة الطلب من صفحة الحساب في أي وقت.
+                يمكنك تأكيد الطلب أو طلب تعديل أو إلغائه من هنا.
               </p>
               {result?.order?.public_order_number ? (
                 <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm font-bold text-stone-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/80">
                   رقم الطلب: {result.order.public_order_number}
+                </div>
+              ) : null}
+              {codeValid ? (
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {actionButtons.map(({ action, label, icon: Icon, className }) => (
+                    <button
+                      key={action}
+                      type="button"
+                      onClick={() => applyAction(action)}
+                      disabled={Boolean(submittingAction)}
+                      className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
+                    >
+                      {submittingAction === action ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
+                      {label}
+                    </button>
+                  ))}
                 </div>
               ) : null}
               <div className="flex flex-wrap gap-3">

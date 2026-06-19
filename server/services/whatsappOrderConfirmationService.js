@@ -1,4 +1,4 @@
-﻿import { createHmac, timingSafeEqual } from "node:crypto";
+﻿import { createHmac, randomBytes } from "node:crypto";
 
 import db from "../database/db.js";
 import {
@@ -21,8 +21,7 @@ const CANCEL_WORDS = new Set(["2", "إلغاء", "الغاء", "cancel", "no"]);
 const STOREFRONT_SOURCES = new Set(["storefront", "website", "web"]);
 const PAYMENT_REVIEW_METHODS = new Set(["instapay", "vodafone_cash", "bank_transfer", "shipping_confirmation", "transfer"]);
 const PAYMENT_REVIEW_STATUSES = new Set(["partially_paid", "awaiting_payment_review", "shipping_paid"]);
-const ORDER_CONFIRMATION_ACTIONS = new Set(["confirm", "edit", "cancel"]);
-const ORDER_CONFIRMATION_TOKEN_BYTES = 24;
+const ORDER_CONFIRMATION_CODE_LENGTH = 7;
 const ORDER_CONFIRMATION_TOKEN_TTL_MINUTES = Number(process.env.ORDER_CONFIRMATION_TOKEN_TTL_MINUTES || 72 * 60);
 const ORDER_CONFIRMATION_FALLBACK_TEXT = [
   "",
@@ -87,20 +86,21 @@ export const ensureWhatsappOrderConfirmationSchema = async (clientOrPool = db) =
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_orders_whatsapp_confirmation_phone ON orders (customer_phone, created_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_orders_whatsapp_confirmation_pending ON orders (tenant_id, status, created_at DESC)`);
       await clientOrPool.query(`
-        CREATE TABLE IF NOT EXISTS order_confirmation_tokens (
+        CREATE TABLE IF NOT EXISTS order_confirmation_codes (
           id BIGSERIAL PRIMARY KEY,
           tenant_id BIGINT NOT NULL,
           order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-          action VARCHAR(20) NOT NULL,
-          token_hash TEXT NOT NULL UNIQUE,
+          action VARCHAR(20) NOT NULL DEFAULT 'entry',
+          code VARCHAR(16) NOT NULL UNIQUE,
+          code_hash TEXT NOT NULL UNIQUE,
           expires_at TIMESTAMP NOT NULL,
-          consumed_at TIMESTAMP NULL,
+          used_at TIMESTAMP NULL,
           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, order_id, action)
         )
       `);
-      await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_order_confirmation_tokens_lookup ON order_confirmation_tokens (tenant_id, order_id, action, expires_at DESC)`);
+      await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_order_confirmation_codes_lookup ON order_confirmation_codes (tenant_id, order_id, action, expires_at DESC)`);
     };
     if (clientOrPool !== db) return run();
     schemaReadyPromise = run().catch((error) => {
@@ -400,40 +400,62 @@ const orderConfirmationSecret = () =>
     ""
   ) || "order-confirmation-local-secret";
 
-const signOrderConfirmationToken = ({ orderId = "", action = "", expiresAt = "" } = {}) => {
-  const payload = JSON.stringify({
-    orderId: String(orderId),
-    action: String(action),
-    expiresAt: String(expiresAt),
-  });
-  const payloadBase64 = Buffer.from(payload, "utf8").toString("base64url");
-  const signature = createHmac("sha256", orderConfirmationSecret()).update(payloadBase64).digest("base64url");
-  return `${payloadBase64}.${signature}`;
+const hashOrderConfirmationCode = (code = "") => createHmac("sha256", orderConfirmationSecret()).update(text(code)).digest("hex");
+const generateOrderConfirmationCode = () => randomBytes(8).toString("base64url").replace(/[^a-zA-Z0-9]/g, "").slice(0, ORDER_CONFIRMATION_CODE_LENGTH).padEnd(ORDER_CONFIRMATION_CODE_LENGTH, "A");
+const buildOrderConfirmationPublicUrl = (code = "") => {
+  const safeCode = text(code);
+  if (!safeCode) return "";
+  const baseUrl = text(resolvePublicAppUrl() || process.env.PUBLIC_APP_URL || process.env.FRONTEND_URL || "").replace(/\/+$/, "");
+  return baseUrl ? `${baseUrl}/shop/confirm/${encodeURIComponent(safeCode)}` : `/shop/confirm/${encodeURIComponent(safeCode)}`;
+};
+const buildOrderConfirmationLinksMessage = (publicUrl = "") => [
+  "طلبك جاهز للتأكيد",
+  "اضغط هنا لتأكيد أو تعديل أو إلغاء الطلب:",
+  publicUrl,
+].filter(Boolean).join("\n");
+
+const storeOrderConfirmationCode = async (client, { tenantId, orderId, action, expiresAt, code }) => {
+  const codeHash = hashOrderConfirmationCode(code);
+  await client.query(
+    `
+    INSERT INTO order_confirmation_codes (
+      tenant_id,
+      order_id,
+      action,
+      code,
+      code_hash,
+      expires_at,
+      used_at,
+      created_at,
+      updated_at
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, NULL, NOW(), NOW())
+    ON CONFLICT (tenant_id, order_id, action)
+    DO UPDATE SET
+      code = EXCLUDED.code,
+      code_hash = EXCLUDED.code_hash,
+      expires_at = EXCLUDED.expires_at,
+      used_at = NULL,
+      updated_at = NOW()
+    `,
+    [tenantId, orderId, action, code, codeHash, expiresAt]
+  );
+  return { code, codeHash, expiresAt };
 };
 
-const buildOrderConfirmationToken = ({ orderId = "", action = "", ttlMinutes = ORDER_CONFIRMATION_TOKEN_TTL_MINUTES } = {}) => {
-  const expiresAt = new Date(Date.now() + Math.max(1, Number(ttlMinutes) || ORDER_CONFIRMATION_TOKEN_TTL_MINUTES) * 60_000).toISOString();
-  return { token: signOrderConfirmationToken({ orderId, action, expiresAt }), expiresAt };
-};
-
-const verifyOrderConfirmationToken = (token = "") => {
-  const safeToken = text(token);
-  const [payloadBase64, signature] = safeToken.split(".");
-  if (!payloadBase64 || !signature) return null;
-  const expectedSignature = createHmac("sha256", orderConfirmationSecret()).update(payloadBase64).digest("base64url");
-  const providedBuffer = Buffer.from(signature);
-  const expectedBuffer = Buffer.from(expectedSignature);
-  if (providedBuffer.length !== expectedBuffer.length || !timingSafeEqual(providedBuffer, expectedBuffer)) {
-    return null;
-  }
+const issueOrderConfirmationCode = async ({ tenantId, orderId }) => {
+  const expiresAt = new Date(Date.now() + ORDER_CONFIRMATION_TOKEN_TTL_MINUTES * 60_000);
+  const client = await db.connect();
   try {
-    const payload = JSON.parse(Buffer.from(payloadBase64, "base64url").toString("utf8"));
-    if (!payload?.orderId || !payload?.action || !payload?.expiresAt) return null;
-    if (new Date(payload.expiresAt).getTime() < Date.now()) return null;
-    if (!ORDER_CONFIRMATION_ACTIONS.has(String(payload.action))) return null;
-    return payload;
-  } catch {
-    return null;
+    await client.query("BEGIN");
+    const confirm = await storeOrderConfirmationCode(client, { tenantId, orderId, action: "entry", expiresAt, code: generateOrderConfirmationCode() });
+    await client.query("COMMIT");
+    return confirm;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
   }
 };
 
@@ -443,20 +465,6 @@ const orderConfirmationActionLabel = (action = "") => {
   if (action === "cancel") return "تم إلغاء الطلب";
   return "تم تحديث الطلب";
 };
-
-const buildOrderConfirmationPublicUrl = (token = "") => {
-  const safeToken = text(token);
-  if (!safeToken) return "";
-  const baseUrl = text(resolvePublicAppUrl() || process.env.PUBLIC_APP_URL || process.env.FRONTEND_URL || "").replace(/\/+$/, "");
-  return baseUrl ? `${baseUrl}/shop/order-confirmation/${encodeURIComponent(safeToken)}` : `/shop/order-confirmation/${encodeURIComponent(safeToken)}`;
-};
-
-const buildOrderConfirmationLinksMessage = ({ confirmUrl = "", editUrl = "", cancelUrl = "" } = {}) => [
-  "طلبك جاهز للتأكيد:",
-  `✅ تأكيد الطلب: ${confirmUrl}`,
-  `✏️ تعديل الطلب: ${editUrl}`,
-  `❌ إلغاء الطلب: ${cancelUrl}`,
-].filter(Boolean).join("\n");
 
 export const sendOrderConfirmation = async (order = {}) => {
   await ensureWhatsappOrderConfirmationSchema();
@@ -491,8 +499,6 @@ export const sendOrderConfirmation = async (order = {}) => {
     ...(shouldSend ? {} : { reason }),
   });
   if (!shouldSend) return { sent: false, reason };
-  const items = Array.isArray(order.items) && order.items.length ? order.items : await loadOrderItems(current.id);
-  const storeName = await getSetting("storefront.store_name", "").catch(() => "") || await getSetting("general.company_name", "").catch(() => "");
   let message = "";
   const messageTenantId = tenantIdForMessage(current, current);
   const orderRef = orderNumber(current);
@@ -505,25 +511,18 @@ export const sendOrderConfirmation = async (order = {}) => {
     phoneSuffix: phone.slice(-4),
   });
   try {
-    const confirmToken = buildOrderConfirmationToken({ orderId: current.id, action: "confirm" });
-    const editToken = buildOrderConfirmationToken({ orderId: current.id, action: "edit" });
-    const cancelToken = buildOrderConfirmationToken({ orderId: current.id, action: "cancel" });
-    const confirmUrl = buildOrderConfirmationPublicUrl(confirmToken.token);
-    const editUrl = buildOrderConfirmationPublicUrl(editToken.token);
-    const cancelUrl = buildOrderConfirmationPublicUrl(cancelToken.token);
-    message = buildOrderConfirmationLinksMessage({
-      confirmUrl,
-      editUrl,
-      cancelUrl,
+    const confirmCode = await issueOrderConfirmationCode({
+      tenantId: messageTenantId,
+      orderId: current.id,
     });
-    if (!confirmUrl || !editUrl || !cancelUrl) {
+    const confirmUrl = buildOrderConfirmationPublicUrl(confirmCode.code);
+    message = buildOrderConfirmationLinksMessage(confirmUrl);
+    if (!confirmUrl) {
       console.warn("[whatsapp:order-confirmation-link-build-warning]", {
         order_id: current.id,
         order_number: orderRef,
         phoneSuffix: phone.slice(-4),
         has_confirm_url: Boolean(confirmUrl),
-        has_edit_url: Boolean(editUrl),
-        has_cancel_url: Boolean(cancelUrl),
       });
     }
     result = await sendTextMessage({ phone, message });
@@ -1101,47 +1100,132 @@ async function applyConfirmationAction({
   }
 }
 
-export const consumeOrderConfirmationLink = async ({ token = "", ipAddress = "", userAgent = "", source = "public_order_confirmation_link" } = {}) => {
-  const payload = verifyOrderConfirmationToken(token);
-  if (!payload) {
-    const error = new Error("Invalid or expired confirmation link");
+export const consumeOrderConfirmationLink = async ({ code = "", action = "", ipAddress = "", userAgent = "", source = "public_order_confirmation_link" } = {}) => {
+  const safeCode = text(code);
+  if (!safeCode) {
+    const error = new Error("Missing confirmation code");
     error.status = 400;
-    error.code = "ORDER_CONFIRMATION_TOKEN_INVALID";
+    error.code = "ORDER_CONFIRMATION_CODE_MISSING";
     throw error;
   }
 
-  const orderId = Number(payload.orderId);
-  const current = Number.isFinite(orderId) ? await loadOrderById(orderId) : null;
-  if (!current) {
-    const error = new Error("Order not found");
-    error.status = 404;
-    error.code = "ORDER_CONFIRMATION_ORDER_NOT_FOUND";
+  const codeHash = hashOrderConfirmationCode(safeCode);
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const codeResult = await client.query(
+      `
+      SELECT *
+      FROM order_confirmation_codes
+      WHERE code_hash = $1
+      LIMIT 1
+      FOR UPDATE
+      `,
+      [codeHash]
+    );
+    const codeRow = codeResult.rows[0] || null;
+    if (!codeRow) {
+      const error = new Error("Confirmation code not found");
+      error.status = 404;
+      error.code = "ORDER_CONFIRMATION_CODE_NOT_FOUND";
+      throw error;
+    }
+    if (new Date(codeRow.expires_at).getTime() < Date.now()) {
+      const error = new Error("Confirmation code expired");
+      error.status = 410;
+      error.code = "ORDER_CONFIRMATION_CODE_EXPIRED";
+      throw error;
+    }
+
+    const orderResult = await client.query(
+      `
+      SELECT *
+      FROM orders
+      WHERE id = $1
+      LIMIT 1
+      FOR UPDATE
+      `,
+      [codeRow.order_id]
+    );
+    const current = orderResult.rows[0] || null;
+    if (!current) {
+      const error = new Error("Order not found");
+      error.status = 404;
+      error.code = "ORDER_CONFIRMATION_ORDER_NOT_FOUND";
+      throw error;
+    }
+
+    const requestedAction = text(action);
+    if (!requestedAction) {
+      await client.query("COMMIT");
+      return {
+        success: true,
+        action: "",
+        target_status: text(current.status),
+        already_applied: false,
+        order: current,
+        message: "confirmation_code_valid",
+        code_expires_at: codeRow.expires_at,
+        used_at: codeRow.used_at || null,
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        code: safeCode,
+      };
+    }
+    const actionMap = {
+      confirm: { expectedStatus: "confirmed", payloadAction: "confirm", message: "تم تأكيد الطلب" },
+      edit: { expectedStatus: "edit_requested", payloadAction: "edit", message: "تم طلب تعديل الطلب وسيتواصل معك أحد أفراد الفريق" },
+      cancel: { expectedStatus: "cancelled_by_customer", payloadAction: "cancel", message: "تم إلغاء الطلب" },
+    };
+    if (!actionMap[requestedAction]) {
+      const error = new Error("Unsupported confirmation action");
+      error.status = 400;
+      error.code = "ORDER_CONFIRMATION_ACTION_INVALID";
+      throw error;
+    }
+    const actionConfig = actionMap[requestedAction];
+    const alreadyApplied = text(current.status) === actionConfig.expectedStatus;
+    const updated = alreadyApplied
+      ? current
+      : await applyConfirmationAction({
+          orderId: current.id,
+          action: actionConfig.payloadAction,
+          source,
+          reason: `public_code:${actionConfig.payloadAction}`,
+          actorType: "customer",
+          client,
+          manageTransaction: false,
+        });
+    const markResult = await client.query(
+      `
+      UPDATE order_confirmation_codes
+      SET used_at = COALESCE(used_at, NOW()),
+          updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+      `,
+      [codeRow.id]
+    );
+    await client.query("COMMIT");
+    return {
+      success: true,
+      action: actionConfig.payloadAction,
+      target_status: actionConfig.expectedStatus,
+      already_applied: alreadyApplied,
+      order: updated,
+      message: actionConfig.message,
+      code_expires_at: codeRow.expires_at,
+      used_at: markResult.rows[0]?.used_at || null,
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      code: safeCode,
+    };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
     throw error;
+  } finally {
+    client.release();
   }
-
-  const expectedStatus = payload.action === "confirm" ? "confirmed" : payload.action === "edit" ? "edit_requested" : "cancelled_by_customer";
-  const alreadyApplied = text(current.status) === expectedStatus;
-  const updated = alreadyApplied
-    ? current
-    : await applyConfirmationAction({
-        orderId: current.id,
-        action: payload.action,
-        source,
-        reason: `public_link:${payload.action}`,
-        actorType: "customer",
-      });
-
-  return {
-    success: true,
-    action: payload.action,
-    target_status: expectedStatus,
-    already_applied: alreadyApplied,
-    order: updated,
-    message: orderConfirmationActionLabel(payload.action),
-    token_expires_at: payload.expiresAt,
-    ip_address: ipAddress,
-    user_agent: userAgent,
-  };
 };
 
 const tenantIdForMessage = (message = {}, order = null) => number(message.tenant_id || message.tenantId || order?.tenant_id || process.env.WHATSAPP_TENANT_ID || 1, 1);
@@ -1574,6 +1658,8 @@ export default {
   markOrderConfirmed,
   markOrderCancelled,
 };
+
+
 
 
 
