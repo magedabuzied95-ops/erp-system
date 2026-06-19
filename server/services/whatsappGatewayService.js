@@ -557,34 +557,32 @@ const buildOrderConfirmationButtonsPayload = ({ phone = "", title = "", text = "
 };
 
 const buildOrderConfirmationListPayload = ({ phone = "", title = "", text = "", footer = "", orderId = "" } = {}) => {
-  const safeTitle = String(title || "").trim();
   const safeText = String(text || "").trim();
-  const safeFooter = String(footer || "").trim();
   const safeOrderId = String(orderId || "").trim();
   const suffix = safeOrderId ? `:${safeOrderId}` : "";
   return {
     number: normalizeEgyptPhone(phone),
-    title: safeTitle,
+    title: "تأكيد الطلب",
     description: safeText,
-    footer: safeFooter,
-    buttonText: "اختر الإجراء",
+    buttonText: "اختر إجراء",
+    footerText: "M1Store",
     sections: [
       {
-        title: "خيارات الطلب",
+        title: "إجراءات الطلب",
         rows: [
           {
             title: "✅ تأكيد الطلب",
-            description: "",
+            description: "تأكيد تجهيز الطلب",
             rowId: `confirm_order${suffix}`,
           },
           {
             title: "✏️ تعديل الطلب",
-            description: "",
+            description: "تعديل المقاس أو العنوان",
             rowId: `edit_order${suffix}`,
           },
           {
             title: "❌ إلغاء الطلب",
-            description: "",
+            description: "إلغاء الطلب الحالي",
             rowId: `cancel_order${suffix}`,
           },
         ],
@@ -782,6 +780,7 @@ const sendEvolutionListMessage = async ({
         ...logBase,
         message: parseError?.message || String(parseError),
         code: parseError?.code || "",
+        response_raw: truncateText(raw || "", 500),
       });
       throw parseError;
     }
@@ -800,6 +799,7 @@ const sendEvolutionListMessage = async ({
         ...logBase,
         message: error?.message || String(error),
         code: error?.code || "",
+        response_raw: truncateText(raw || error?.responseRaw || error?.responseBody || "", 500),
       });
       throw error;
     }
@@ -831,6 +831,7 @@ const sendEvolutionListMessage = async ({
       ...logBase,
       message: error?.message || String(error),
       code: error?.code || "",
+      response_raw: truncateText(error?.responseRaw || error?.responseBody || raw || "", 500),
     });
     throw error;
   } finally {
@@ -852,7 +853,8 @@ export const sendOrderConfirmationListMessage = async ({ phone, title = "", text
     number: payload.number,
     title: payload.title,
     descriptionLength: payload.description?.length ?? 0,
-    footerLength: payload.footer?.length ?? 0,
+    footerTextLength: payload.footerText?.length ?? 0,
+    buttonTextLength: payload.buttonText?.length ?? 0,
     rowsCount: Array.isArray(payload.sections) ? payload.sections.reduce((total, section) => total + (Array.isArray(section?.rows) ? section.rows.length : 0), 0) : 0,
     rowIds: Array.isArray(payload.sections)
       ? payload.sections.flatMap((section) => (Array.isArray(section?.rows) ? section.rows : [])).map((row) => row?.rowId).filter(Boolean)
