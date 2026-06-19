@@ -28,6 +28,8 @@ const webhookSecret = () => String(process.env.WHATSAPP_WEBHOOK_SECRET || "").tr
 const sentImageDuplicateCache = new Map();
 const recentEvolutionWebhookEvents = [];
 const evolutionWebhookEventCounts = new Map();
+const trackedEvolutionButtonMessages = new Map();
+const EVOLUTION_BUTTONS_DELIVERY_TIMEOUT_MS = 30000;
 
 const text = (value, fallback = "") => String(value ?? fallback).trim();
 const previewText = (value = "", limit = 180) => text(value).replace(/\s+/g, " ").slice(0, limit);
@@ -116,6 +118,105 @@ export const getRecentEvolutionWebhookEvents = () => ({
   events: recentEvolutionWebhookEvents,
   event_counts: Object.fromEntries(evolutionWebhookEventCounts.entries()),
 });
+
+const extractEvolutionButtonsMessageId = (value = {}) => text(
+  value?.message_id ||
+  value?.messageId ||
+  value?.key?.id ||
+  value?.result?.message_id ||
+  value?.result?.messageId ||
+  value?.result?.key?.id ||
+  value?.id ||
+  value?.mid ||
+  ""
+);
+
+const normalizeEvolutionButtonsLifecycleStatus = (value = "") => {
+  const status = text(value).toLowerCase();
+  if (status.includes("read")) return "READ";
+  if (status.includes("deliver")) return "DELIVERY_ACK";
+  if (status.includes("delivery_ack") || status === "ack" || status === "sent") return "DELIVERY_ACK";
+  if (status.includes("fail") || status.includes("error")) return "FAILED";
+  if (status === "server_ack") return "SERVER_ACK";
+  if (status === "pending") return "PENDING";
+  return status ? status.toUpperCase() : "PENDING";
+};
+
+const trackEvolutionButtonsMessage = ({
+  messageId = "",
+  status = "PENDING",
+  remoteJid = "",
+  messageType = "",
+  endpoint = "",
+  orderId = null,
+  phoneSuffix = "",
+  responseBody = null,
+  responseStatus = null,
+} = {}) => {
+  const trackedMessageId = text(messageId);
+  if (!trackedMessageId) return null;
+  const nextStatus = normalizeEvolutionButtonsLifecycleStatus(status);
+  const previous = trackedEvolutionButtonMessages.get(trackedMessageId) || {
+    messageId: trackedMessageId,
+    status: "PENDING",
+    remoteJid: "",
+    messageType: "",
+    endpoint: "",
+    orderId: null,
+    phoneSuffix: "",
+    responseBody: null,
+    timer: null,
+    createdAt: new Date().toISOString(),
+  };
+  if (previous.timer && ["DELIVERY_ACK", "READ", "FAILED"].includes(previous.status)) {
+    clearTimeout(previous.timer);
+    previous.timer = null;
+  }
+  const updated = {
+    ...previous,
+    messageId: trackedMessageId,
+    status: nextStatus,
+    remoteJid: text(remoteJid || previous.remoteJid || ""),
+    messageType: text(messageType || previous.messageType || ""),
+    endpoint: text(endpoint || previous.endpoint || ""),
+    orderId: orderId ?? previous.orderId ?? null,
+    phoneSuffix: text(phoneSuffix || previous.phoneSuffix || ""),
+    responseBody: responseBody ?? previous.responseBody ?? null,
+    responseStatus: responseStatus ?? previous.responseStatus ?? null,
+    updatedAt: new Date().toISOString(),
+  };
+  trackedEvolutionButtonMessages.set(trackedMessageId, updated);
+  console.info("[evolution:buttons-message-tracking]", {
+    messageId: trackedMessageId,
+    status: updated.status,
+    remoteJid: updated.remoteJid,
+    messageType: updated.messageType,
+  });
+  if (updated.status === "SERVER_ACK") {
+    if (previous.timer) clearTimeout(previous.timer);
+    updated.timer = setTimeout(() => {
+      const current = trackedEvolutionButtonMessages.get(trackedMessageId);
+      if (!current) return;
+      if (!["DELIVERY_ACK", "READ"].includes(current.status)) {
+        console.warn("[evolution:buttons-not-delivered]", {
+          messageId: trackedMessageId,
+          status: current.status,
+          remoteJid: current.remoteJid,
+          messageType: current.messageType,
+          orderId: current.orderId,
+          phoneSuffix: current.phoneSuffix,
+          endpoint: current.endpoint,
+        });
+      }
+    }, EVOLUTION_BUTTONS_DELIVERY_TIMEOUT_MS);
+  }
+  if (["DELIVERY_ACK", "READ", "FAILED"].includes(updated.status) && updated.timer) {
+    clearTimeout(updated.timer);
+    updated.timer = null;
+  }
+  trackedEvolutionButtonMessages.set(trackedMessageId, updated);
+  return updated;
+};
 
 const gatewayError = (message, code = "WHATSAPP_GATEWAY_ERROR", status = 500, extra = {}) =>
   Object.assign(new Error(message), { code, status, ...extra });
@@ -575,6 +676,19 @@ const sendEvolutionButtonsMessage = async ({
       endpoint,
       status: response.status,
       ...logBase,
+      messageId: extractEvolutionButtonsMessageId(data),
+      responseBody: data,
+    });
+    trackEvolutionButtonsMessage({
+      messageId: extractEvolutionButtonsMessageId(data),
+      status: "SERVER_ACK",
+      remoteJid: `whatsapp:${phone}`,
+      messageType: "buttons",
+      endpoint,
+      orderId: logBase.order_id,
+      phoneSuffix: logBase.phoneSuffix,
+      responseBody: data,
+      responseStatus: response.status,
     });
     return {
       success: true,
@@ -2536,6 +2650,22 @@ const processEvolutionStatusUpdate = async (payload = {}) => {
     fromMe: envelope.fromMe,
     event: envelope.event || payload?.event || payload?.type || "",
     rawEvent: envelope.rawEvent || "",
+  });
+  trackEvolutionButtonsMessage({
+    messageId: providerMessageId,
+    status: deliveryStatus === "read"
+      ? "READ"
+      : deliveryStatus === "delivered"
+        ? "DELIVERY_ACK"
+        : deliveryStatus === "failed"
+          ? "FAILED"
+          : deliveryStatus === "sent"
+            ? "DELIVERY_ACK"
+            : "PENDING",
+    remoteJid,
+    messageType: text(statusItem?.messageType || data?.messageType || data?.type || "buttons"),
+    endpoint: "webhook",
+    phoneSuffix: resolvedPhone.slice(-4),
   });
   if (!providerMessageId) {
     return { updated: false, reason: "missing_provider_message_id" };
