@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
@@ -1597,6 +1598,74 @@ function SmartphoneIcon() {
   return <MessageCircleMore className="h-5 w-5 text-slate-700" />;
 }
 
+function HeaderOverflowMenu({ open, anchorRef, onClose, children }) {
+  const [menuStyle, setMenuStyle] = useState(null);
+
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+    const updatePosition = () => {
+      const anchor = anchorRef.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      const width = 208;
+      const gap = 8;
+      const left = Math.min(Math.max(gap, rect.right - width), Math.max(gap, window.innerWidth - width - gap));
+      const top = Math.max(gap, rect.bottom + gap);
+      setMenuStyle({
+        position: "fixed",
+        top: `${top}px`,
+        left: `${left}px`,
+        width: `${width}px`,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [anchorRef, open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onPointerDown = (event) => {
+      const menuElement = document.getElementById("ai-inbox-pwa-header-menu");
+      const anchor = anchorRef.current;
+      if (menuElement?.contains(event.target) || anchor?.contains(event.target)) return;
+      onClose();
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [anchorRef, onClose, open]);
+
+  if (!open || !menuStyle) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9998]" onClick={onClose}>
+      <div
+        id="ai-inbox-pwa-header-menu"
+        role="menu"
+        aria-label="Conversation actions"
+        className="isolate overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-[0_24px_80px_rgba(15,23,42,0.28)] ring-1 ring-black/5"
+        style={menuStyle}
+        onClick={(event) => event.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export default function AiInboxPwa() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1634,6 +1703,7 @@ export default function AiInboxPwa() {
   const [userIsNearBottom, setUserIsNearBottom] = useState(true);
   const mainScrollRef = useRef(null);
   const conversationHeaderRef = useRef(null);
+  const menuButtonRef = useRef(null);
   const imageInputRef = useRef(null);
   const pollRef = useRef(null);
   const restoreScrollStateRef = useRef(null);
@@ -2936,38 +3006,41 @@ export default function AiInboxPwa() {
               <div className="relative">
                 <button
                   type="button"
+                  ref={menuButtonRef}
                   onClick={() => setMenuOpen((current) => !current)}
                   className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
                 >
                   <MoreHorizontal className="h-4.5 w-4.5" />
                 </button>
-                {menuOpen ? (
-                  <div className="absolute right-0 top-12 w-52 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
-                    <button type="button" onClick={toggleConversationAi} disabled={aiToggling} className="flex w-full items-center gap-3 px-4 py-3 text-sm hover:bg-slate-50 disabled:opacity-50">
-                      {aiToggling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
-                      {selectedWorkflowStatus === "human_takeover" ? "Return to AI" : isConversationAiEnabled(selectedConversation) ? "Pause AI" : "Enable AI"}
-                    </button>
-                    <button type="button" onClick={() => { setProductSheetOpen(true); setMenuOpen(false); }} className="flex w-full items-center gap-3 px-4 py-3 text-sm hover:bg-slate-50">
-                      <PackagePlus className="h-4 w-4" />
-                      Send Product
-                    </button>
-                    <button type="button" onClick={() => { setComposerMode("note"); setMenuOpen(false); }} className="flex w-full items-center gap-3 px-4 py-3 text-sm hover:bg-slate-50">
-                      <Sparkles className="h-4 w-4" />
-                      Internal Note
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        toast("No existing block API is wired in this build.");
-                        setMenuOpen(false);
-                      }}
-                      className="flex w-full items-center gap-3 px-4 py-3 text-sm text-rose-600 hover:bg-rose-50"
-                    >
-                      <ShieldBan className="h-4 w-4" />
-                      Block Customer
-                    </button>
-                  </div>
-                ) : null}
+                <HeaderOverflowMenu
+                  open={menuOpen}
+                  anchorRef={menuButtonRef}
+                  onClose={() => setMenuOpen(false)}
+                >
+                  <button type="button" onClick={toggleConversationAi} disabled={aiToggling} className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100 disabled:opacity-50">
+                    {aiToggling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
+                    {selectedWorkflowStatus === "human_takeover" ? "Return to AI" : isConversationAiEnabled(selectedConversation) ? "Pause AI" : "Enable AI"}
+                  </button>
+                  <button type="button" onClick={() => { setProductSheetOpen(true); setMenuOpen(false); }} className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100">
+                    <PackagePlus className="h-4 w-4" />
+                    Send Product
+                  </button>
+                  <button type="button" onClick={() => { setComposerMode("note"); setMenuOpen(false); }} className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100">
+                    <Sparkles className="h-4 w-4" />
+                    Internal Note
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toast("No existing block API is wired in this build.");
+                      setMenuOpen(false);
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-rose-700 hover:bg-rose-50"
+                  >
+                    <ShieldBan className="h-4 w-4" />
+                    Block Customer
+                  </button>
+                </HeaderOverflowMenu>
               </div>
             </div>
             <div className="mt-2 space-y-2">
