@@ -468,6 +468,7 @@ export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "
   const normalizedPhone = normalizeEgyptPhone(phone);
   if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
   const current = requireEvolutionConfig();
+  const requestTimeoutMs = 9000;
   const payload = buildOrderConfirmationButtonsPayload({ phone: normalizedPhone, title, text, footer, orderId });
   const requestBody = JSON.stringify(payload);
   const payloadPreview = {
@@ -489,14 +490,35 @@ export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "
       endpoint,
       ...logBase,
     });
-    const response = await fetch(`${current.apiUrl}${endpoint}`, {
-      method: "POST",
-      headers: {
-        apikey: apiKey(),
-        "Content-Type": "application/json",
-      },
-      body: requestBody,
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+    let response = null;
+    try {
+      response = await fetch(`${current.apiUrl}${endpoint}`, {
+        method: "POST",
+        headers: {
+          apikey: apiKey(),
+          "Content-Type": "application/json",
+        },
+        body: requestBody,
+        signal: controller.signal,
+      });
+    } catch (fetchError) {
+      if (controller.signal.aborted || fetchError?.name === "AbortError") {
+        throw gatewayError("Evolution sendButtons request timed out", "EVOLUTION_BUTTONS_TIMEOUT", 504);
+      }
+      console.error("[evolution:send-buttons-error]", {
+        endpoint,
+        status: fetchError?.status || "",
+        ...logBase,
+        message: fetchError?.message || String(fetchError),
+        code: fetchError?.code || "",
+      });
+      fetchError.__buttonsLogged = true;
+      throw fetchError;
+    } finally {
+      clearTimeout(timeout);
+    }
     const raw = await response.text();
     let data = null;
     try {
@@ -504,18 +526,27 @@ export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "
     } catch {
       data = { raw };
     }
-    console.info("[whatsapp:evolution-buttons-response]", {
-      endpoint,
-      status: response.status,
-      ...logBase,
-    });
     if (!response.ok) {
-      throw gatewayError(data?.message || data?.error || `Evolution API returned ${response.status}`, "EVOLUTION_API_ERROR", response.status, {
+      const error = gatewayError(data?.message || data?.error || `Evolution API returned ${response.status}`, "EVOLUTION_API_ERROR", response.status, {
         data,
         responseBody: data,
         responseRaw: raw,
       });
+      console.error("[evolution:send-buttons-error]", {
+        endpoint,
+        status: response.status,
+        ...logBase,
+        message: error?.message || String(error),
+        code: error?.code || "",
+      });
+      error.__buttonsLogged = true;
+      throw error;
     }
+    console.info("[evolution:send-buttons-success]", {
+      endpoint,
+      status: response.status,
+      ...logBase,
+    });
     return {
       success: true,
       provider: current.provider,
@@ -527,13 +558,23 @@ export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "
       used_buttons: true,
     };
   } catch (error) {
-    console.warn("[whatsapp:evolution-buttons-send-failed]", {
-      endpoint,
-      status: error?.status || "",
-      ...logBase,
-      message: error?.message || String(error),
-      code: error?.code || "",
-    });
+    if (error?.code === "EVOLUTION_BUTTONS_TIMEOUT" || error?.message === "Evolution sendButtons request timed out") {
+      console.warn("[evolution:send-buttons-timeout]", {
+        endpoint,
+        status: "timeout",
+        timeoutMs: requestTimeoutMs,
+        ...logBase,
+      });
+    } else {
+      if (error.__buttonsLogged) throw error;
+      console.error("[evolution:send-buttons-error]", {
+        endpoint,
+        status: error?.status || "",
+        ...logBase,
+        message: error?.message || String(error),
+        code: error?.code || "",
+      });
+    }
     throw error;
   }
 };
