@@ -795,13 +795,12 @@ export const sendOrderConfirmationMessage = async ({ order } = {}) => {
     return result;
   } catch (error) {
     console.warn("[whatsapp:order-confirmation-buttons-fallback]", {
-      orderId: order?.id || null,
-      phoneSuffix: normalizeEgyptPhone(phone).slice(-4),
-      message: error?.message || String(error),
-      code: error?.code || "",
-      status: error?.status || "",
-      fallback: "text_1_2_3",
-      reason: error?.code === "WHATSAPP_BUTTONS_UNSUPPORTED" ? "non_evolution_provider" : error?.code || "interactive_send_failed",
+      order_id: order?.id || null,
+      order_number: orderNumber(order),
+      error_message: error?.message || String(error),
+      error_status: error?.status || "",
+      error_response_raw: truncateText(error?.responseRaw || error?.responseBody || error?.data?.raw || "", 500),
+      deliveryMode: "fallback_text",
     });
     const fallbackResult = await sendTextMessage({ phone, message });
     await appendWhatsappOutboundSupportReply({
