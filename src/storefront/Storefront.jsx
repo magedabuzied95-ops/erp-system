@@ -64,7 +64,6 @@ import { applyProductSocialMeta, productToSocialMeta } from "../shared/lib/socia
 import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
 import { VirtualGrid, VirtualList } from "../shared/components/VirtualList";
-import { MobileBottomSheet } from "../shared/components/mobile/ResponsiveMobile";
 import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
 import instaPayLogo from "../assets/payments/instapay.png";
 import instaPayLogoWebp from "../assets/payments/instapay.webp";
@@ -7238,6 +7237,16 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
   }, [open]);
 
   useEffect(() => {
+    if (!open || !isMobile || typeof document === "undefined") return undefined;
+    const { body } = document;
+    const previousOverflow = body.style.overflow;
+    body.style.overflow = "hidden";
+    return () => {
+      body.style.overflow = previousOverflow;
+    };
+  }, [isMobile, open]);
+
+  useEffect(() => {
     if (!open || !inputRef.current || !isMobile) return;
     window.requestAnimationFrame(() => {
       inputRef.current?.focus({ preventScroll: true });
@@ -7347,9 +7356,40 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
 
       {open ? (
         isMobile ? (
-          <MobileBottomSheet open={open} title={panelTitle} onClose={close} className={darkMode ? "checkout-picker-sheet bg-[#050816] text-white" : "checkout-picker-sheet bg-[#f8fafc] text-slate-900"} titleClassName="text-sm">
-            {panelBody}
-          </MobileBottomSheet>
+          <div
+            className="fixed inset-0 z-[100000] bg-black/65 backdrop-blur-sm"
+            onClick={close}
+            role="presentation"
+          >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-label={typeof panelTitle === "string" ? panelTitle : undefined}
+              onClick={(event) => event.stopPropagation()}
+              className={`fixed inset-auto bottom-0 left-0 right-0 flex max-h-[70vh] flex-col overflow-y-auto rounded-t-[1.5rem] border border-white/10 px-3 pb-[calc(env(safe-area-inset-bottom)+0.9rem)] pt-3 shadow-[0_-28px_80px_rgba(0,0,0,0.48)] ${
+                darkMode
+                  ? "bg-[linear-gradient(180deg,rgba(8,12,26,0.98),rgba(5,8,18,0.99))] text-white"
+                  : "bg-[linear-gradient(180deg,rgba(248,250,252,0.99),rgba(241,245,249,0.99))] text-slate-900"
+              }`}
+            >
+              <div className="mb-3 flex items-center justify-between gap-3 border-b border-white/10 pb-3">
+                <div className={`min-w-0 truncate text-sm font-black ${darkMode ? "text-white" : "text-slate-900"}`}>{panelTitle}</div>
+                <button
+                  type="button"
+                  onClick={close}
+                  className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition ${
+                    darkMode
+                      ? "border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/[0.08] hover:text-white"
+                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-950"
+                  }`}
+                  aria-label={sfText("storefront.common.close")}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              {panelBody}
+            </section>
+          </div>
         ) : (
           <div className={`absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-[16px] border p-2.5 backdrop-blur-2xl ${darkMode ? "border-white/10 bg-[linear-gradient(180deg,rgba(8,12,26,0.98),rgba(5,8,18,0.98))] text-white shadow-[0_18px_46px_rgba(0,0,0,0.28)]" : "border-slate-300 bg-white text-slate-900 shadow-[0_18px_46px_rgba(15,23,42,0.14)]"}`}>
             {panelBody}
