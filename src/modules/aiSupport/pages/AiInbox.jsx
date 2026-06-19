@@ -591,6 +591,56 @@ const messageKey = (message = {}) =>
       `${message.sender_type || ""}:${message.created_at || ""}:${message.customer_message || message.ai_answer || message.staff_message || ""}`
   );
 
+const isFromMeMessage = (message = {}) =>
+  message?.from_me === true ||
+  message?.fromMe === true ||
+  message?.is_from_me === true;
+
+const normalizeTranscriptMessage = (message = {}) => {
+  const fromMe = isFromMeMessage(message);
+  const senderType = clean(message.sender_type || message.senderType || "").toLowerCase();
+  const explicitDirection = clean(message.direction || message.message_direction || "").toLowerCase();
+  const direction = fromMe
+    ? "outbound"
+    : ["inbound", "incoming", "customer", "user", "client"].includes(explicitDirection)
+      ? "inbound"
+      : ["outbound", "sent", "assistant", "ai", "bot", "staff", "agent"].includes(explicitDirection)
+        ? "outbound"
+        : ["customer", "user", "client"].includes(senderType)
+          ? "inbound"
+          : ["assistant", "ai", "bot", "staff", "agent"].includes(senderType)
+            ? "outbound"
+            : "";
+  const body = clean(
+    message.customer_message ||
+      message.ai_answer ||
+      message.staff_message ||
+      message.message_text ||
+      message.text ||
+      message.body ||
+      message.content ||
+      message.reply_text ||
+      message.caption ||
+      ""
+  );
+  const normalizedSenderType = senderType || (fromMe || direction === "outbound" ? "assistant" : "customer");
+  return {
+    ...message,
+    from_me: fromMe,
+    fromMe,
+    direction: direction || message.direction || message.message_direction || "",
+    sender_type: normalizedSenderType,
+    senderType: normalizedSenderType,
+    customer_message: clean(message.customer_message || (!fromMe && direction === "inbound" ? body : "")),
+    ai_answer: clean(message.ai_answer || ((fromMe || direction === "outbound") ? body : "")),
+    staff_message: clean(message.staff_message || (normalizedSenderType === "staff" ? body : "")),
+    message_text: clean(message.message_text || body),
+    text: clean(message.text || body),
+    body: clean(message.body || body),
+    content: clean(message.content || body),
+  };
+};
+
 const messagesShareIdentity = (left = {}, right = {}) => {
   const leftKeys = new Set(messageIdentityKeys(left));
   return messageIdentityKeys(right).some((key) => leftKeys.has(key));
@@ -1127,99 +1177,105 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
           </button>
         </div>
       ) : null}
-      {messages.map((message) => (
-        <div key={messageKey(message)} className="space-y-2">
-          {(() => {
-            const productCards = normalizeProductCardsValue(message.product_cards || message.productCards);
-            const isProductCardMessage = message.message_type === "product_card" || productCards.length > 0;
-            if (!isProductCardMessage) return null;
-            return (
+      {messages.map((message) => {
+        const normalizedMessage = normalizeTranscriptMessage(message);
+        const productCards = normalizeProductCardsValue(normalizedMessage.product_cards || normalizedMessage.productCards);
+        const isProductCardMessage = normalizedMessage.message_type === "product_card" || productCards.length > 0;
+        const isFromMe = isFromMeMessage(normalizedMessage);
+        const isCustomer = Boolean(clean(normalizedMessage.customer_message)) && !isFromMe;
+        const isAi = Boolean(clean(normalizedMessage.ai_answer)) || normalizedMessage.sender_type === "assistant" || normalizedMessage.sender_type === "ai" || normalizedMessage.direction === "outbound" || isFromMe;
+        const isStaff = Boolean(clean(normalizedMessage.staff_message)) && !isProductCardMessage;
+        if (!isCustomer && !isAi && !isStaff && !isProductCardMessage) return null;
+
+        return (
+          <div key={messageKey(normalizedMessage)} className="space-y-2">
+            {isProductCardMessage ? (
               <div className="flex justify-end">
                 <div className="max-w-[88%]">
-                  <ProductCardMessage message={message} cards={productCards} />
+                  <ProductCardMessage message={normalizedMessage} cards={productCards} />
                 </div>
               </div>
-            );
-          })()}
-          {message.customer_message ? (
-            <div className="flex justify-start">
-              <div className="max-w-[88%] rounded-3xl rounded-tl-sm border border-white/10 bg-white/[0.06] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
-                <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
-                  <span>العميل</span>
-                  <span>/</span>
-                  <span>{channelLabel(message.channel || conversation.channel)}</span>
-                  <span>/</span>
-                  <span>{absoluteTime(message.created_at)}</span>
+            ) : null}
+            {isCustomer ? (
+              <div className="flex justify-start">
+                <div className="max-w-[88%] rounded-3xl rounded-tl-sm border border-white/10 bg-white/[0.06] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    <span>العميل</span>
+                    <span>/</span>
+                    <span>{channelLabel(normalizedMessage.channel || conversation.channel)}</span>
+                    <span>/</span>
+                    <span>{absoluteTime(normalizedMessage.created_at)}</span>
+                  </div>
+                  <LinkifiedText text={normalizedMessage.customer_message} className="mt-3 text-[16px] leading-8" />
+                  {renderMedia(normalizedMessage)}
                 </div>
-                <LinkifiedText text={message.customer_message} className="mt-3 text-[16px] leading-8" />
-                {renderMedia(message)}
               </div>
-            </div>
-          ) : null}
-          {message.ai_answer ? (
-            <div className="flex justify-end">
-              <div className="max-w-[88%] rounded-3xl rounded-tr-sm border border-cyan-300/15 bg-cyan-300/10 p-5 shadow-[0_10px_30px_rgba(8,145,178,0.14)]">
-                <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
-                  <Bot className="h-3.5 w-3.5" />
-                  <span>{message.message_type === "comment_suggestion" ? "مسودة" : "AI"}</span>
-                  {message.message_type === "comment_suggestion" ? <span className="rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-100">Draft reply</span> : null}
-                  <span className="text-slate-500">{absoluteTime(message.created_at)}</span>
-                  <span className="text-slate-500">conf {Number(message.confidence || 0).toFixed(2)}</span>
-                  {message.message_type !== "comment_suggestion" ? (
-                    <button
-                      type="button"
-                      onClick={() => onOpenCorrection?.(message)}
-                      className="inline-flex h-6 items-center gap-1 rounded-full border border-white/10 bg-white/[0.06] px-2 text-[10px] font-black text-slate-100"
-                    >
-                      <Sparkles className="h-3 w-3" />
-                      تصحيح الرد
-                    </button>
-                  ) : null}
+            ) : null}
+            {isAi ? (
+              <div className="flex justify-end">
+                <div className="max-w-[88%] rounded-3xl rounded-tr-sm border border-cyan-300/15 bg-cyan-300/10 p-5 shadow-[0_10px_30px_rgba(8,145,178,0.14)]">
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
+                    <Bot className="h-3.5 w-3.5" />
+                    <span>{normalizedMessage.message_type === "comment_suggestion" ? "مسودة" : "AI"}</span>
+                    {normalizedMessage.message_type === "comment_suggestion" ? <span className="rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-100">Draft reply</span> : null}
+                    <span className="text-slate-500">{absoluteTime(normalizedMessage.created_at)}</span>
+                    <span className="text-slate-500">conf {Number(normalizedMessage.confidence || 0).toFixed(2)}</span>
+                    {normalizedMessage.message_type !== "comment_suggestion" ? (
+                      <button
+                        type="button"
+                        onClick={() => onOpenCorrection?.(normalizedMessage)}
+                        className="inline-flex h-6 items-center gap-1 rounded-full border border-white/10 bg-white/[0.06] px-2 text-[10px] font-black text-slate-100"
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        تصحيح الرد
+                      </button>
+                    ) : null}
+                  </div>
+                  <LinkifiedText text={normalizedMessage.ai_answer} className="mt-3 text-[16px] leading-8" />
+                  <ProductCards products={normalizedMessage.suggested_products} />
+                  <VisualAttachmentsPreview attachments={normalizedMessage.visual_attachments} />
+                  {renderMedia(normalizedMessage)}
                 </div>
-                <LinkifiedText text={message.ai_answer} className="mt-3 text-[16px] leading-8" />
-                <ProductCards products={message.suggested_products} />
-                <VisualAttachmentsPreview attachments={message.visual_attachments} />
-                {renderMedia(message)}
               </div>
-            </div>
-          ) : null}
-          {message.staff_message && message.message_type !== "product_card" && !normalizeProductCardsValue(message.product_cards || message.productCards).length ? (
-            <div className="flex justify-end">
-              <div className={`max-w-[88%] rounded-3xl rounded-tr-sm p-5 shadow-[0_10px_30px_rgba(16,185,129,0.12)] ${
-                message.message_type === "automation_error"
-                  ? "border border-rose-300/20 bg-rose-400/10"
-                  : "border border-emerald-300/15 bg-emerald-400/10"
-              }`}>
-                <div className={`flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] ${
-                  message.message_type === "automation_error" ? "text-rose-100" : "text-emerald-100"
+            ) : null}
+            {isStaff && !productCards.length ? (
+              <div className="flex justify-end">
+                <div className={`max-w-[88%] rounded-3xl rounded-tr-sm p-5 shadow-[0_10px_30px_rgba(16,185,129,0.12)] ${
+                  normalizedMessage.message_type === "automation_error"
+                    ? "border border-rose-300/20 bg-rose-400/10"
+                    : "border border-emerald-300/15 bg-emerald-400/10"
                 }`}>
-                  <UserCheck className="h-3.5 w-3.5" />
-                  <span>Staff</span>
-                  {message.staff_user_name ? <span className="text-slate-400">{message.staff_user_name}</span> : null}
-                  {commentAutomationMessageLabel(message.message_type) ? (
-                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${
-                      message.message_type === "automation_error"
-                        ? "border-rose-300/20 bg-rose-400/10 text-rose-100"
-                        : message.message_type === "comment_like"
-                          ? "border-white/10 bg-white/[0.055] text-slate-100"
-                          : message.message_type === "comment_private_reply"
-                            ? "border-cyan-300/20 bg-cyan-300/10 text-cyan-100"
-                            : "border-violet-300/20 bg-violet-400/10 text-violet-100"
-                    }`}>
-                      {commentAutomationMessageLabel(message.message_type)}
-                    </span>
-                  ) : null}
-                  <span className="text-slate-500">{absoluteTime(message.created_at)}</span>
-                  {message.delivery_status ? <span className={message.delivery_status === "failed" ? "text-rose-200" : message.delivery_status === "sending" ? "text-amber-200" : "text-emerald-200"}>{message.delivery_status}</span> : null}
+                  <div className={`flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] ${
+                    normalizedMessage.message_type === "automation_error" ? "text-rose-100" : "text-emerald-100"
+                  }`}>
+                    <UserCheck className="h-3.5 w-3.5" />
+                    <span>Staff</span>
+                    {normalizedMessage.staff_user_name ? <span className="text-slate-400">{normalizedMessage.staff_user_name}</span> : null}
+                    {commentAutomationMessageLabel(normalizedMessage.message_type) ? (
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${
+                        normalizedMessage.message_type === "automation_error"
+                          ? "border-rose-300/20 bg-rose-400/10 text-rose-100"
+                          : normalizedMessage.message_type === "comment_like"
+                            ? "border-white/10 bg-white/[0.055] text-slate-100"
+                            : normalizedMessage.message_type === "comment_private_reply"
+                              ? "border-cyan-300/20 bg-cyan-300/10 text-cyan-100"
+                              : "border-violet-300/20 bg-violet-400/10 text-violet-100"
+                      }`}>
+                        {commentAutomationMessageLabel(normalizedMessage.message_type)}
+                      </span>
+                    ) : null}
+                    <span className="text-slate-500">{absoluteTime(normalizedMessage.created_at)}</span>
+                    {normalizedMessage.delivery_status ? <span className={normalizedMessage.delivery_status === "failed" ? "text-rose-200" : normalizedMessage.delivery_status === "sending" ? "text-amber-200" : "text-emerald-200"}>{normalizedMessage.delivery_status}</span> : null}
+                  </div>
+                  <LinkifiedText text={normalizedMessage.staff_message} className="mt-3 text-[16px] leading-8" />
+                  {renderMedia(normalizedMessage)}
+                  {normalizedMessage.delivery_error ? <p className="mt-2 text-xs font-bold text-rose-200">{normalizedMessage.delivery_error}</p> : null}
                 </div>
-                <LinkifiedText text={message.staff_message} className="mt-3 text-[16px] leading-8" />
-                {renderMedia(message)}
-                {message.delivery_error ? <p className="mt-2 text-xs font-bold text-rose-200">{message.delivery_error}</p> : null}
               </div>
-            </div>
-          ) : null}
-        </div>
-      ))}
+            ) : null}
+          </div>
+        );
+      })}
       {events.length ? (
         <div className="space-y-2">
           {events.map((event, index) => (
