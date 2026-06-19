@@ -2462,14 +2462,52 @@ const handleMarkConversationRead = async (req, res) => {
     const rawConversationId = envText(req.params.conversationId);
     const conversationId = decodeRouteId(rawConversationId);
     const channel = req.body?.channel || req.query?.channel || "";
-    const conversation = await markAiSupportConversationRead({
-      tenantId,
-      sessionId: conversationId,
-      channel,
+    if (!conversationId) {
+      return res.status(200).json({
+        success: true,
+        queued: false,
+        conversation: null,
+        message: "conversation id missing",
+      });
+    }
+
+    void Promise.resolve()
+      .then(() => markAiSupportConversationRead({
+        tenantId,
+        sessionId: conversationId,
+        channel,
+      }))
+      .then((conversation) => {
+        console.log("[ai-inbox][mark-read] background success", {
+          tenant_id: tenantId,
+          conversation_id: conversationId,
+          channel,
+          read_at: conversation?.read_at || "",
+          read_updated: conversation?.read_updated === true,
+        });
+      })
+      .catch((error) => {
+        console.warn("[ai-inbox][mark-read] background failure", {
+          tenant_id: tenantId,
+          raw_conversation_id: rawConversationId,
+          decoded_conversation_id: conversationId,
+          channel,
+          code: error?.code || "",
+          message: error?.message || "",
+        });
+      });
+
+    return res.status(200).json({
+      success: true,
+      queued: true,
+      conversation: {
+        session_id: conversationId,
+        channel,
+        read_at: new Date().toISOString(),
+      },
     });
-    return res.status(200).json({ success: true, conversation });
   } catch (error) {
-    console.error("[ai-inbox][mark-read] failed", {
+    console.warn("[ai-inbox][mark-read] best-effort fallback", {
       tenant_id: toTenantId(req),
       raw_conversation_id: envText(req.params.conversationId),
       decoded_conversation_id: decodeRouteId(req.params.conversationId),
@@ -2479,10 +2517,10 @@ const handleMarkConversationRead = async (req, res) => {
       stack: error?.stack || "",
     });
     return res.status(200).json({
-      success: false,
+      success: true,
+      queued: false,
       conversation: null,
-      message: error?.message || "Failed to mark AI inbox conversation as read",
-      code: error?.code || "",
+      message: "mark-as-read is best-effort",
     });
   }
 };

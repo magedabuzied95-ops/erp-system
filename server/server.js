@@ -165,12 +165,15 @@ const configuredCorsOrigins = [
   ...localDevCorsOrigins,
   process.env.PUBLIC_APP_URL,
   process.env.FRONTEND_URL,
+  process.env.CLIENT_URL,
+  process.env.APP_URL,
   process.env.STORE_FRONT_URL,
   process.env.PUBLIC_FRONTEND_URL,
   process.env.VITE_PUBLIC_APP_URL,
   process.env.VITE_PUBLIC_STOREFRONT_URL,
   process.env.VITE_PUBLIC_FRONTEND_URL,
   process.env.CORS_ALLOWED_ORIGINS,
+  process.env.VERCEL_URL ? `https://${String(process.env.VERCEL_URL).replace(/^https?:\/\//i, "").replace(/\/+$/, "")}` : "",
 ]
   .flatMap((value) => String(value || "").split(","))
   .map(normalizeOrigin)
