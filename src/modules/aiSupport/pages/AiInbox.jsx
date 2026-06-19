@@ -47,10 +47,10 @@ import {
 
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
-import { subscribeRealtime } from "../../../shared/realtime/socketStore";
+import { subscribeRealtime, useRealtimeStatus } from "../../../shared/realtime/socketStore";
 import AIStatusBadge from "../../../components/ai/AIStatusBadge";
 import AILiveLogs from "../../../components/ai/AILiveLogs";
-import ProductCardMessage from "../components/ProductCardMessage";
+import TranscriptMessage from "../components/TranscriptMessage";
 import ProductCardPicker from "../components/ProductCardPicker";
 import SocialCommentsPanel from "../components/SocialCommentsPanel";
 import { useTenant } from "../../saas/context/TenantContext";
@@ -1139,37 +1139,21 @@ function InboxChatHeader({
   );
 }
 
-const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoadOlder, onOpenCorrection }) {
-  const messages = uniqueMessages(conversation?.messages).filter((message) => !isHiddenAiReplyTranscriptMessage(message));
-  const events = asArray(conversation?.system_events);
-  if (!messages.length && !events.length) {
+const Transcript = memo(function Transcript({
+  rows = [],
+  events = [],
+  loadingOlder,
+  onLoadOlder,
+  onOpenCorrection,
+  olderMessagesAvailable = false,
+}) {
+  if (!rows.length && !events.length) {
     return <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">No transcript yet.</div>;
   }
 
-  const renderMedia = (message) => {
-    const imageUrls = [
-      message.image_url,
-      message.media_url,
-      message.attachment_url,
-      message.file_url,
-      message.preview_url,
-      message.thumbnail_url,
-    ].map(clean).filter(Boolean);
-    if (!imageUrls.length) return null;
-    return (
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        {imageUrls.slice(0, 4).map((url) => (
-          <a key={url} href={url} target="_blank" rel="noreferrer" className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80">
-            <img src={url} alt="Attachment" className="aspect-video w-full object-cover" loading="lazy" />
-          </a>
-        ))}
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-3">
-      {conversation?.older_messages_available ? (
+      {olderMessagesAvailable ? (
         <div className="flex justify-center">
           <button type="button" onClick={onLoadOlder} disabled={loadingOlder} className="inline-flex h-7 items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 text-[10px] font-black text-slate-300 disabled:opacity-50">
             {loadingOlder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock3 className="h-3.5 w-3.5" />}
@@ -1177,105 +1161,15 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
           </button>
         </div>
       ) : null}
-      {messages.map((message) => {
-        const normalizedMessage = normalizeTranscriptMessage(message);
-        const productCards = normalizeProductCardsValue(normalizedMessage.product_cards || normalizedMessage.productCards);
-        const isProductCardMessage = normalizedMessage.message_type === "product_card" || productCards.length > 0;
-        const isFromMe = isFromMeMessage(normalizedMessage);
-        const isCustomer = Boolean(clean(normalizedMessage.customer_message)) && !isFromMe;
-        const isAi = Boolean(clean(normalizedMessage.ai_answer)) || normalizedMessage.sender_type === "assistant" || normalizedMessage.sender_type === "ai" || normalizedMessage.direction === "outbound" || isFromMe;
-        const isStaff = Boolean(clean(normalizedMessage.staff_message)) && !isProductCardMessage;
-        if (!isCustomer && !isAi && !isStaff && !isProductCardMessage) return null;
-
-        return (
-          <div key={messageKey(normalizedMessage)} className="space-y-2">
-            {isProductCardMessage ? (
-              <div className="flex justify-end">
-                <div className="max-w-[88%]">
-                  <ProductCardMessage message={normalizedMessage} cards={productCards} />
-                </div>
-              </div>
-            ) : null}
-            {isCustomer ? (
-              <div className="flex justify-start">
-                <div className="max-w-[88%] rounded-3xl rounded-tl-sm border border-white/10 bg-white/[0.06] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
-                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
-                    <span>العميل</span>
-                    <span>/</span>
-                    <span>{channelLabel(normalizedMessage.channel || conversation.channel)}</span>
-                    <span>/</span>
-                    <span>{absoluteTime(normalizedMessage.created_at)}</span>
-                  </div>
-                  <LinkifiedText text={normalizedMessage.customer_message} className="mt-3 text-[16px] leading-8" />
-                  {renderMedia(normalizedMessage)}
-                </div>
-              </div>
-            ) : null}
-            {isAi ? (
-              <div className="flex justify-end">
-                <div className="max-w-[88%] rounded-3xl rounded-tr-sm border border-cyan-300/15 bg-cyan-300/10 p-5 shadow-[0_10px_30px_rgba(8,145,178,0.14)]">
-                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
-                    <Bot className="h-3.5 w-3.5" />
-                    <span>{normalizedMessage.message_type === "comment_suggestion" ? "مسودة" : "AI"}</span>
-                    {normalizedMessage.message_type === "comment_suggestion" ? <span className="rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-100">Draft reply</span> : null}
-                    <span className="text-slate-500">{absoluteTime(normalizedMessage.created_at)}</span>
-                    <span className="text-slate-500">conf {Number(normalizedMessage.confidence || 0).toFixed(2)}</span>
-                    {normalizedMessage.message_type !== "comment_suggestion" ? (
-                      <button
-                        type="button"
-                        onClick={() => onOpenCorrection?.(normalizedMessage)}
-                        className="inline-flex h-6 items-center gap-1 rounded-full border border-white/10 bg-white/[0.06] px-2 text-[10px] font-black text-slate-100"
-                      >
-                        <Sparkles className="h-3 w-3" />
-                        تصحيح الرد
-                      </button>
-                    ) : null}
-                  </div>
-                  <LinkifiedText text={normalizedMessage.ai_answer} className="mt-3 text-[16px] leading-8" />
-                  <ProductCards products={normalizedMessage.suggested_products} />
-                  <VisualAttachmentsPreview attachments={normalizedMessage.visual_attachments} />
-                  {renderMedia(normalizedMessage)}
-                </div>
-              </div>
-            ) : null}
-            {isStaff && !productCards.length ? (
-              <div className="flex justify-end">
-                <div className={`max-w-[88%] rounded-3xl rounded-tr-sm p-5 shadow-[0_10px_30px_rgba(16,185,129,0.12)] ${
-                  normalizedMessage.message_type === "automation_error"
-                    ? "border border-rose-300/20 bg-rose-400/10"
-                    : "border border-emerald-300/15 bg-emerald-400/10"
-                }`}>
-                  <div className={`flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] ${
-                    normalizedMessage.message_type === "automation_error" ? "text-rose-100" : "text-emerald-100"
-                  }`}>
-                    <UserCheck className="h-3.5 w-3.5" />
-                    <span>Staff</span>
-                    {normalizedMessage.staff_user_name ? <span className="text-slate-400">{normalizedMessage.staff_user_name}</span> : null}
-                    {commentAutomationMessageLabel(normalizedMessage.message_type) ? (
-                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${
-                        normalizedMessage.message_type === "automation_error"
-                          ? "border-rose-300/20 bg-rose-400/10 text-rose-100"
-                          : normalizedMessage.message_type === "comment_like"
-                            ? "border-white/10 bg-white/[0.055] text-slate-100"
-                            : normalizedMessage.message_type === "comment_private_reply"
-                              ? "border-cyan-300/20 bg-cyan-300/10 text-cyan-100"
-                              : "border-violet-300/20 bg-violet-400/10 text-violet-100"
-                      }`}>
-                        {commentAutomationMessageLabel(normalizedMessage.message_type)}
-                      </span>
-                    ) : null}
-                    <span className="text-slate-500">{absoluteTime(normalizedMessage.created_at)}</span>
-                    {normalizedMessage.delivery_status ? <span className={normalizedMessage.delivery_status === "failed" ? "text-rose-200" : normalizedMessage.delivery_status === "sending" ? "text-amber-200" : "text-emerald-200"}>{normalizedMessage.delivery_status}</span> : null}
-                  </div>
-                  <LinkifiedText text={normalizedMessage.staff_message} className="mt-3 text-[16px] leading-8" />
-                  {renderMedia(normalizedMessage)}
-                  {normalizedMessage.delivery_error ? <p className="mt-2 text-xs font-bold text-rose-200">{normalizedMessage.delivery_error}</p> : null}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        );
-      })}
+      {rows.map((row) => (
+        <TranscriptMessage
+          key={row.key}
+          row={row}
+          variant="desktop"
+          onOpenCorrection={onOpenCorrection}
+          channelLabel={row.channelLabel}
+        />
+      ))}
       {events.length ? (
         <div className="space-y-2">
           {events.map((event, index) => (
@@ -2785,6 +2679,8 @@ export default function AiInbox() {
   const tenantApi = useTenant();
   const tenantId = useMemo(() => tenantIdFrom(tenantApi), [tenantApi]);
   const pageVisible = usePageVisible();
+  const realtimeStatus = useRealtimeStatus();
+  const socketHealthy = realtimeStatus.connected && !realtimeStatus.connecting;
   const [filter, setFilter] = useState("all");
   const [leadFilter, setLeadFilter] = useState("all");
   const [leadSort, setLeadSort] = useState("recent");
@@ -2828,9 +2724,26 @@ export default function AiInbox() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState({ tone: "", text: "" });
+  const [userIsNearBottom, setUserIsNearBottom] = useState(true);
   const pollIntervalRef = useRef(null);
   const requestSeqRef = useRef(0);
   const isRefreshingRef = useRef(false);
+  const isLoadingOlderRef = useRef(false);
+  const isHydratingConversationRef = useRef(false);
+  const isAppendingNewMessageRef = useRef(false);
+  const previousSocketHealthyRef = useRef(socketHealthy);
+  const previousConversationKeyRef = useRef("");
+  const previousLatestMessageKeyRef = useRef("");
+  const restoreScrollStateRef = useRef(null);
+  const transcriptScrollRef = useRef(null);
+  const refreshTimerRef = useRef(null);
+  const refreshQueuedRef = useRef(false);
+  const refreshMetricsRef = useRef({
+    socket_refresh_count: 0,
+    polling_refresh_count: 0,
+    skipped_duplicate_refresh_count: 0,
+  });
+  const scheduleRefreshRef = useRef(null);
   const selectedSessionIdRef = useRef("");
   const selectedConversationCacheRef = useRef(null);
   const lastEnabledAutoReplyModeRef = useRef({});
@@ -2844,6 +2757,7 @@ export default function AiInbox() {
   const loadAll = useCallback(async ({ silent = false } = {}) => {
     if (isRefreshingRef.current) return;
     isRefreshingRef.current = true;
+    isHydratingConversationRef.current = true;
     const seq = ++requestSeqRef.current;
     if (!silent) setLoading(true);
     if (!silent) setSocialComments((current) => ({ ...current, loading: true, error: "" }));
@@ -2930,9 +2844,76 @@ export default function AiInbox() {
     } finally {
       if (seq === requestSeqRef.current && !silent) setLoading(false);
       if (seq === requestSeqRef.current) setSocialComments((current) => ({ ...current, loading: false }));
-      if (seq === requestSeqRef.current) isRefreshingRef.current = false;
+      if (seq === requestSeqRef.current) {
+        isRefreshingRef.current = false;
+        window.requestAnimationFrame(() => {
+          isHydratingConversationRef.current = false;
+        });
+        if (refreshQueuedRef.current) {
+          refreshQueuedRef.current = false;
+          scheduleRefreshRef.current?.("queued", { silent: true, delay: 650 });
+        }
+      }
     }
   }, [debouncedSearch, filter, headers, tenantId]);
+
+  const scheduleRefresh = useCallback(
+    (source = "unknown", { silent = true, delay = 750 } = {}) => {
+      const counters = refreshMetricsRef.current;
+      if (source === "socket") counters.socket_refresh_count += 1;
+      if (source === "polling") counters.polling_refresh_count += 1;
+      if (refreshTimerRef.current) {
+        window.clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+        counters.skipped_duplicate_refresh_count += 1;
+      }
+      console.debug("[AiInbox][refresh-metrics]", {
+        source,
+        silent,
+        delay,
+        page_visible: pageVisible,
+        socket_healthy: socketHealthy,
+        ...counters,
+      });
+      refreshTimerRef.current = window.setTimeout(() => {
+        refreshTimerRef.current = null;
+        if (isRefreshingRef.current) {
+          counters.skipped_duplicate_refresh_count += 1;
+          refreshQueuedRef.current = true;
+          console.debug("[AiInbox][refresh-metrics]", {
+            source,
+            silent,
+            delay,
+            status: "deferred",
+            reason: "refresh_in_flight",
+            page_visible: pageVisible,
+            socket_healthy: socketHealthy,
+            ...counters,
+          });
+          return;
+        }
+        void loadAll({ silent });
+      }, delay);
+    },
+    [loadAll, pageVisible, socketHealthy]
+  );
+
+  useEffect(() => {
+    scheduleRefreshRef.current = scheduleRefresh;
+    return () => {
+      scheduleRefreshRef.current = null;
+    };
+  }, [scheduleRefresh]);
+
+  useEffect(
+    () => () => {
+      if (refreshTimerRef.current) {
+        window.clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search), 300);
@@ -2948,9 +2929,9 @@ export default function AiInbox() {
       window.clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = null;
     }
-    if (!pageVisible) return undefined;
+    if (pageVisible && socketHealthy) return undefined;
     pollIntervalRef.current = window.setInterval(() => {
-      void loadAll({ silent: true });
+      scheduleRefresh("polling", { silent: true });
     }, 15000);
     return () => {
       if (pollIntervalRef.current) {
@@ -2958,11 +2939,18 @@ export default function AiInbox() {
         pollIntervalRef.current = null;
       }
     };
-  }, [loadAll, pageVisible]);
+  }, [pageVisible, scheduleRefresh, socketHealthy]);
+
+  useEffect(() => {
+    const wasSocketHealthy = previousSocketHealthyRef.current;
+    previousSocketHealthyRef.current = socketHealthy;
+    if (!pageVisible || !socketHealthy || wasSocketHealthy) return;
+    scheduleRefresh("socket", { silent: true, delay: 650 });
+  }, [pageVisible, scheduleRefresh, socketHealthy]);
 
   useEffect(() => {
     const refresh = () => {
-      if (pageVisible) void loadAll({ silent: true });
+      if (pageVisible) scheduleRefresh("socket", { silent: true, delay: 650 });
     };
     const onMessage = (payload = {}) => {
       const sessionId = payload.session_id || payload.message?.session_id || "";
@@ -2986,6 +2974,9 @@ export default function AiInbox() {
           incoming.ai_answer ||
           incoming.staff_message ||
           (incoming.message_type === "product_card" ? productCardPreviewText(incomingProductCards) : "");
+        if (clean(conversationKey) === clean(selectedSessionIdRef.current)) {
+          isAppendingNewMessageRef.current = true;
+        }
         setInbox((current) => ({
           ...current,
           conversations: asArray(current.conversations).map((conversation) => {
@@ -3023,7 +3014,7 @@ export default function AiInbox() {
       offMessage();
       offRefresh();
     };
-  }, [loadAll, pageVisible, selectedSessionId]);
+  }, [pageVisible, scheduleRefresh, selectedSessionId]);
 
   useEffect(() => {
     if (!toast.text) return undefined;
@@ -3139,6 +3130,10 @@ export default function AiInbox() {
       null,
     [conversations, selectedSessionId]
   );
+  const syncTranscriptScrollProximity = useCallback((scroller = transcriptScrollRef.current) => {
+    if (!scroller) return;
+    setUserIsNearBottom(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 140);
+  }, []);
   const handleSelectConversation = useCallback((conversationKey) => {
     setSelectedSessionId(conversationKey);
     setMobileView("chat");
@@ -3150,6 +3145,57 @@ export default function AiInbox() {
       selectedConversationCacheRef.current = selectedConversation;
     }
   }, [selectedConversation]);
+  useEffect(() => {
+    const scroller = transcriptScrollRef.current;
+    if (!selectedConversation?.session_id || !scroller) return undefined;
+
+    const restoreState = restoreScrollStateRef.current;
+    const frame = window.requestAnimationFrame(() => {
+      if (!scroller) return;
+      if (restoreState) {
+        scroller.scrollTop = Math.max(0, restoreState.scrollTop + (scroller.scrollHeight - restoreState.scrollHeight));
+        restoreScrollStateRef.current = null;
+        syncTranscriptScrollProximity(scroller);
+        isLoadingOlderRef.current = false;
+        isAppendingNewMessageRef.current = false;
+        return;
+      }
+
+      const conversationKey = selectedConversation.conversation_key || selectedConversation.session_id || "";
+      const latestVisibleMessage = uniqueMessages(selectedConversation?.messages)
+        .slice()
+        .reverse()
+        .find((message) => !isHiddenAiReplyTranscriptMessage(message));
+      const latestMessageKey = messageKey(latestVisibleMessage || {});
+      const conversationChanged = previousConversationKeyRef.current !== conversationKey;
+      const latestMessageAppended = latestMessageKey && latestMessageKey !== previousLatestMessageKeyRef.current;
+
+      if (conversationChanged || (latestMessageAppended && userIsNearBottom)) {
+        scroller.scrollTop = scroller.scrollHeight;
+        setUserIsNearBottom(true);
+      } else {
+        syncTranscriptScrollProximity(scroller);
+      }
+
+      previousConversationKeyRef.current = conversationKey;
+      previousLatestMessageKeyRef.current = latestMessageKey;
+      isAppendingNewMessageRef.current = false;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [selectedConversation?.conversation_key, selectedConversation?.messages, selectedConversation?.session_id, syncTranscriptScrollProximity, userIsNearBottom]);
+  useEffect(() => {
+    const scroller = transcriptScrollRef.current;
+    if (!scroller) return undefined;
+
+    const handleScroll = () => {
+      syncTranscriptScrollProximity(scroller);
+    };
+
+    handleScroll();
+    scroller.addEventListener("scroll", handleScroll, { passive: true });
+    return () => scroller.removeEventListener("scroll", handleScroll);
+  }, [selectedConversation?.session_id, syncTranscriptScrollProximity]);
   const safeConversation = selectedConversation || {};
   const latestCommentReplyDraft = useMemo(() => {
     if (!isCommentConversation(safeConversation)) return "";
@@ -3200,6 +3246,39 @@ export default function AiInbox() {
   const autoReplyShadowTone = activeAiReplyShadow?.evaluated
     ? (activeAiReplyShadow.eligible ? "emerald" : "amber")
     : "zinc";
+  const selectedTranscriptRows = useMemo(() => {
+    const messages = uniqueMessages(selectedConversation?.messages).filter((message) => !isHiddenAiReplyTranscriptMessage(message));
+    return messages
+      .map((message) => {
+        const normalizedMessage = normalizeTranscriptMessage(message);
+        const productCards = normalizeProductCardsValue(normalizedMessage.product_cards || normalizedMessage.productCards);
+        const isProductCardMessage = normalizedMessage.message_type === "product_card" || productCards.length > 0;
+        const isFromMe = isFromMeMessage(normalizedMessage);
+        const isCustomer = Boolean(clean(normalizedMessage.customer_message)) && !isFromMe;
+        const isAi = Boolean(clean(normalizedMessage.ai_answer)) || normalizedMessage.sender_type === "assistant" || normalizedMessage.sender_type === "ai" || normalizedMessage.direction === "outbound" || isFromMe;
+        const isStaff = Boolean(clean(normalizedMessage.staff_message)) && !isProductCardMessage;
+        if (!isCustomer && !isAi && !isStaff && !isProductCardMessage) return null;
+        return {
+          key: messageKey(normalizedMessage),
+          message: normalizedMessage,
+          cards: productCards,
+          kind: isProductCardMessage ? "product_card" : isCustomer ? "customer" : isAi ? "ai" : "staff",
+          visible: true,
+          createdAt: absoluteTime(normalizedMessage.created_at),
+          channelLabel: channelLabel(normalizedMessage.channel || selectedConversation?.channel),
+          mediaUrls: [
+            normalizedMessage.image_url,
+            normalizedMessage.media_url,
+            normalizedMessage.attachment_url,
+            normalizedMessage.file_url,
+            normalizedMessage.preview_url,
+            normalizedMessage.thumbnail_url,
+          ].map(clean).filter(Boolean),
+        };
+      })
+      .filter(Boolean);
+  }, [selectedConversation?.channel, selectedConversation?.messages]);
+  const selectedTranscriptEvents = useMemo(() => asArray(selectedConversation?.system_events), [selectedConversation?.system_events]);
   const lastCustomerMessage = useMemo(
     () => latestCustomerText(selectedConversation?.messages),
     [selectedConversation?.messages]
@@ -3374,11 +3453,19 @@ export default function AiInbox() {
   }, []);
 
   const loadOlderMessages = useCallback(async () => {
-    if (!selectedConversation?.session_id || olderMessagesLoading) return;
+    if (!selectedConversation?.session_id || olderMessagesLoading || isLoadingOlderRef.current || isRefreshingRef.current) return;
     const sessionId = selectedConversation.session_id;
     const conversationIdentifier = selectedConversation.conversation_key || sessionId;
     const before = selectedConversation.next_messages_before || selectedConversation.messages?.[0]?.created_at || "";
     if (!before) return;
+    const scroller = transcriptScrollRef.current;
+    if (scroller) {
+      restoreScrollStateRef.current = {
+        scrollHeight: scroller.scrollHeight,
+        scrollTop: scroller.scrollTop,
+      };
+    }
+    isLoadingOlderRef.current = true;
     setOlderMessagesLoading(true);
     try {
       const payload = await api.get(aiInboxConversationEndpoint(sessionId, "/messages"), {
@@ -3400,11 +3487,13 @@ export default function AiInbox() {
       setToast({ tone: "rose", text: err?.message || "تعذر تحميل الرسائل الأقدم" });
     } finally {
       setOlderMessagesLoading(false);
+      isLoadingOlderRef.current = false;
     }
   }, [headers, olderMessagesLoading, patchConversation, selectedConversation, tenantId]);
 
   useEffect(() => {
     if (!selectedConversation?.session_id) return;
+    if (isHydratingConversationRef.current || isLoadingOlderRef.current || isAppendingNewMessageRef.current || isRefreshingRef.current) return;
     if (asArray(selectedConversation.messages).length > 1) return;
     void loadOlderMessages();
   }, [loadOlderMessages, selectedConversation?.messages?.length, selectedConversation?.session_id]);
@@ -4597,8 +4686,15 @@ export default function AiInbox() {
                     busy={Boolean(leadActionLoading || loading || productCardSending)}
                   />
                   <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40">
-                    <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                      <Transcript conversation={selectedConversation} loadingOlder={olderMessagesLoading} onLoadOlder={loadOlderMessages} onOpenCorrection={openReplyCorrection} />
+                    <div ref={transcriptScrollRef} className="min-h-0 flex-1 overflow-y-auto p-4">
+                      <Transcript
+                        rows={selectedTranscriptRows}
+                        events={selectedTranscriptEvents}
+                        loadingOlder={olderMessagesLoading}
+                        onLoadOlder={loadOlderMessages}
+                        onOpenCorrection={openReplyCorrection}
+                        olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
+                      />
                     </div>
                     <div className="shrink-0 border-t border-white/10 bg-slate-950/70 p-3">
                       <ManualReplyComposer
@@ -4994,8 +5090,15 @@ export default function AiInbox() {
                           </div>
                           {selectedConversation?.messages?.length ? <Pill tone="zinc">{selectedConversation.messages.length} رسالة</Pill> : null}
                         </div>
-                        <div className="max-h-[44rem] overflow-y-auto pr-1">
-                          <Transcript conversation={selectedConversation} loadingOlder={olderMessagesLoading} onLoadOlder={loadOlderMessages} onOpenCorrection={openReplyCorrection} />
+                        <div ref={transcriptScrollRef} className="max-h-[44rem] overflow-y-auto pr-1">
+                          <Transcript
+                            rows={selectedTranscriptRows}
+                            events={selectedTranscriptEvents}
+                            loadingOlder={olderMessagesLoading}
+                            onLoadOlder={loadOlderMessages}
+                            onOpenCorrection={openReplyCorrection}
+                            olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
+                          />
                         </div>
                       </div>
                       <ManualReplyComposer
