@@ -1837,6 +1837,11 @@ const classificationLabel = (option = {}, lang = "ar") =>
       (lang === "ar" ? option?.label_ar || option?.name_ar || option?.title_ar : option?.label_en || option?.name_en || option?.title_en) ||
       "",
   ) || "";
+const normalizeStorefrontProductTypeKey = (value = "") => {
+  const normalized = storefrontLabelKey(value);
+  if (["sneaker", "sneakers"].includes(normalized)) return "sneaker";
+  return normalized;
+};
 const uniqueClassificationOptions = (options = []) => {
   const seen = new Set();
   return (Array.isArray(options) ? options : []).filter((option) => {
@@ -3381,7 +3386,7 @@ function GuidedProductTypeStep({ options = [], selectedProductType, lang, disabl
   const productCountByType = useMemo(() => {
     const counts = new Map();
     for (const product of Array.isArray(products) ? products : []) {
-      const key = String(product?.product_type || product?.productType || product?.category || "").trim().toLowerCase();
+      const key = normalizeStorefrontProductTypeKey(product?.product_type || product?.productType || product?.category || "");
       if (!key) continue;
       counts.set(key, (counts.get(key) || 0) + 1);
     }
@@ -3391,9 +3396,9 @@ function GuidedProductTypeStep({ options = [], selectedProductType, lang, disabl
     <div className={`rounded-[0.9rem] border border-stone-200 bg-white p-2 shadow-[0_10px_24px_rgba(39,20,75,0.05)] dark:border-white/10 dark:bg-[#0b1020] md:rounded-[1.25rem] md:p-2.5 ${disabled ? "pointer-events-none opacity-55" : ""}`}>
       <div className="flex flex-wrap gap-1.5 md:gap-2">
         {loading ? <ProductTypeSkeleton /> : options.map((option) => {
-          const active = String(selectedProductType || "") === String(option.value || "");
+          const active = normalizeStorefrontProductTypeKey(selectedProductType) === normalizeStorefrontProductTypeKey(option.value);
           const Icon = filterOptionIcon("product_type", option, lang);
-          const count = productCountByType.get(String(option.value || "").trim().toLowerCase()) ?? filterOptionCount(option);
+          const count = productCountByType.get(normalizeStorefrontProductTypeKey(option.value)) ?? filterOptionCount(option);
           return (
             <button
               key={option.id || option.value}
