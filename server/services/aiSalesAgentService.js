@@ -3835,6 +3835,36 @@ const correctionTypeHintForIntent = ({ intent = "", salesIntent = "", message = 
 
 const SAFE_AUTO_REPLY_INTENTS = new Set(["greeting", "price_question", "size_followup", "availability", "shipping_basic", "return_policy_basic", "colors_basic", "cod_basic", "payment_basic"]);
 
+const normalizeSafetyText = (value = "") =>
+  lower(value)
+    .normalize("NFKD")
+    .replace(/[\u064b-\u065f\u0670\u0640\u200c\u200d\u200e\u200f]/g, "")
+    .replace(/\p{M}+/gu, "")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه");
+
+const SAFETY_INTENT_PATTERNS = [
+  ["refund_request", [/refund/, /refund request/, /return money/, /money back/, /استرداد/, /استرجاع فلوس/, /ارجاع فلوسي/, /ارجع فلوسي/, /ارجع الفلوس/, /رد فلوسي/, /فلوسي/, /استرد فلوس/]],
+  ["cancellation_request", [/cancel/, /cancel order/, /cancellation/, /cancel my order/, /الغاء/, /الغي/, /الغى/, /الغاء الطلب/, /إلغاء/, /إلغاء الطلب/, /اوقف الطلب/, /امسح الطلب/]],
+  ["complaint", [/complaint/, /complain/, /شكوى/, /اشتكي/, /بشتكي/, /مشتكي/, /تعامل سيئ/, /سيء/, /مش راضي/, /متضايق/]],
+  ["manager_request", [/manager/, /supervisor/, /admin/, /team lead/, /اكلم المدير/, /عاوز المدير/, /عايز مدير/, /مدير/, /المسؤول/]],
+  ["address_change", [/change address/, /update address/, /address change/, /wrong address/, /غير العنوان/, /تغيير العنوان/, /عدل العنوان/, /العنوان/, /بدل العنوان/]],
+  ["shipping_dispute", [/shipping dispute/, /delivery dispute/, /shipping issue/, /delivery issue/, /الشحن/, /التوصيل/, /تأخر الشحن/, /تأخر التوصيل/, /الشحنة متأخرة/, /الشحن متاخر/, /فين الشحنة/]],
+  ["defect_report", [/defect/, /defective/, /broken/, /damaged/, /عيب/, /مكسور/, /تالف/, /بايظ/, /مقطوع/, /اتكسر/, /مخروم/]],
+  ["compensation_request", [/compensation/, /compensate/, /refund me/, /partial refund/, /credit me/, /تعويض/, /عوضني/, /تعويض مالي/, /كوبون/, /خصم تعويض/]],
+  ["wrong_item", [/wrong item/, /wrong product/, /different item/, /received wrong/, /استلمت غلط/, /منتج غلط/, /صنف غلط/, /جالي غلط/, /وصلني غلط/, /غير اللي طلبته/]],
+  ["wrong_size", [/wrong size/, /size mismatch/, /size issue/, /bad size/, /مقاس غلط/, /المقاس غلط/, /مقاسي غلط/, /جالي مقاس/, /مقاس مختلف/, /مش نفس المقاس/]],
+];
+
+const detectSafetyIntent = (intent = "", salesIntent = "", message = "") => {
+  const haystack = normalizeSafetyText(`${intent} ${salesIntent} ${message}`);
+  for (const [safetyIntent, patterns] of SAFETY_INTENT_PATTERNS) {
+    if (patterns.some((pattern) => pattern.test(haystack))) return safetyIntent;
+  }
+  return "";
+};
+
 const INTENT_SHADOW_PROFILES = {
   greeting: { minConfidence: 70, suppressMissingFacts: new Set(["missing_product_facts", "missing_inventory_facts", "missing_order_facts"]) },
   shipping_basic: { minConfidence: 70, suppressMissingFacts: new Set(["missing_product_facts", "missing_inventory_facts", "missing_order_facts"]) },
@@ -3912,11 +3942,32 @@ const buildAutoReplyShadowDecision = ({
   message = "",
 } = {}) => {
   const resolvedIntent = normalizeShadowIntent({ intent, salesIntent, message: message || draft?.customer_question || draft?.text || "" });
+  const safetyIntent = detectSafetyIntent(intent, salesIntent, message || draft?.customer_question || draft?.text || "");
   const validationViolationsCount = Number(validation?.violations_count ?? validation?.violationsCount ?? (Array.isArray(validation?.violations) ? validation.violations.length : 0)) || 0;
   const confidenceScore = Number(confidenceEngine?.confidence_score ?? confidenceEngine?.score ?? 0) || 0;
   const confidenceDecision = text(confidenceEngine?.decision || confidenceEngine?.status || "");
   const riskFlags = confidenceEngine?.risk_flags && typeof confidenceEngine.risk_flags === "object" ? confidenceEngine.risk_flags : {};
   const intentProfile = shadowIntentProfile(resolvedIntent, salesIntent, message || draft?.customer_question || draft?.text || "");
+  if (safetyIntent) {
+    const blockers = [`safety_intent_${safetyIntent}`];
+    return {
+      evaluated: true,
+      eligible: false,
+      eligibility_result: false,
+      decision: "human_required",
+      reason: blockers[0],
+      blockers,
+      confidence_score: confidenceScore,
+      confidence_decision: confidenceDecision || "unknown",
+      intent: resolvedIntent,
+      intent_detected: resolvedIntent,
+      safety_intent: safetyIntent,
+      safety_intent_detected: true,
+      safety_intent_blocked: true,
+      validator_blocked: false,
+      evaluated_at: new Date().toISOString(),
+    };
+  }
   const riskyFlagNames = Object.entries(riskFlags)
     .filter(([key, value]) => {
       if (!value) return false;
@@ -3940,11 +3991,15 @@ const buildAutoReplyShadowDecision = ({
   return {
     evaluated: true,
     eligible,
+    eligibility_result: eligible,
     reason: eligible ? "eligible" : blockers[0],
     blockers,
     confidence_score: confidenceScore,
     decision: confidenceDecision || "unknown",
     intent: resolvedIntent,
+    intent_detected: resolvedIntent,
+    safety_intent: "",
+    safety_intent_detected: false,
     evaluated_at: new Date().toISOString(),
   };
 };

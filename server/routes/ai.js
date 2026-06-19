@@ -232,6 +232,7 @@ const buildRegressionAnalysis = ({
   memory = {},
   productCards = [],
   composedResponse = {},
+  autoReplyShadow = null,
   source = "ai_regression_test_endpoint",
 } = {}) => {
   const cardList = asArray(productCards);
@@ -276,6 +277,13 @@ const buildRegressionAnalysis = ({
     reply_mentions_image: /(?:صورة|صور|image|photo|photos)/i.test(reply),
     composed_detected_intent: toText(composedResponse?.detected_intent || composedResponse?.intent || ""),
     composed_sales_stage: toText(composedResponse?.sales_stage || ""),
+    auto_reply_shadow: autoReplyShadow,
+    intent_detected: toText(autoReplyShadow?.intent_detected || autoReplyShadow?.intent || intent),
+    safety_intent: toText(autoReplyShadow?.safety_intent || ""),
+    safety_intent_detected: autoReplyShadow?.safety_intent_detected === true,
+    blockers: asArray(autoReplyShadow?.blockers),
+    eligibility_result: autoReplyShadow?.eligibility_result ?? autoReplyShadow?.eligible ?? null,
+    decision: toText(autoReplyShadow?.decision || ""),
   };
 };
 
@@ -293,7 +301,7 @@ const selectRegressionDiagnosticCard = (cards = [], failures = []) => {
   return priceCard || availableCard || imageCard || unavailableCard || cardList[0] || {};
 };
 
-const detectRegressionFailureTypes = ({ message = "", reply = "", analysis = {}, composedResponse = {}, responseForComposer = {}, brainDecision = {}, normalizedProductCards = [] } = {}) => {
+const detectRegressionFailureTypes = ({ message = "", reply = "", analysis = {}, composedResponse = {}, responseForComposer = {}, brainDecision = {}, normalizedProductCards = [], autoReplyShadow = null } = {}) => {
   const failures = [];
   const normalizedMessage = normalizeArabic(message);
   const replyText = toText(reply);
@@ -309,6 +317,10 @@ const detectRegressionFailureTypes = ({ message = "", reply = "", analysis = {},
   const colorSignal = /(لون|الوان|الألوان|colors?|colour|white|ابيض|أبيض|black|اسود|أسود)/i.test(normalizedMessage);
   const asksPriceResult = asksPrice(message, responseForComposer, { type: analysis?.intent || "" });
   const asksAvailabilityResult = asksAvailability(message);
+
+  if (autoReplyShadow?.safety_intent_detected && autoReplyShadow?.eligible !== false) {
+    failures.push("safety-intent-eligible");
+  }
 
   if (availabilitySignal && !(analysis?.reply_mentions_availability || /(?:\bمتاح\b|\bموجود\b|\bin stock\b|\bavailable\b)/i.test(replyText))) failures.push("availability");
   if (sizeSignal && requestedSize && !new RegExp(`\\b${String(requestedSize).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(replyText)) failures.push("size");
@@ -623,6 +635,7 @@ router.post("/regression-test/message", requireRegressionTestKey, async (req, re
           memory: effectiveMemory,
           productCards: composerProductCards,
           composedResponse: composed,
+          autoReplyShadow: brainDecision.auto_reply_shadow || null,
         });
         analysis.current_sizes = [...new Set(asArray(composerProductCards).flatMap((card) => productSizes(card)).filter(Boolean))];
         analysis.current_colors = [...new Set(asArray(composerProductCards).flatMap((card) => productColors(card)).filter(Boolean))];
@@ -636,6 +649,7 @@ router.post("/regression-test/message", requireRegressionTestKey, async (req, re
           responseForComposer,
           brainDecision,
           normalizedProductCards: composerProductCards,
+          autoReplyShadow: brainDecision.auto_reply_shadow || null,
         });
       } catch (analysisError) {
         console.error("[ai-regression-test:analysis-error]", {
@@ -683,6 +697,7 @@ router.post("/regression-test/message", requireRegressionTestKey, async (req, re
           intent,
           product_cards: composerProductCards,
           failed_types: failedTypes,
+          auto_reply_shadow: brainDecision.auto_reply_shadow || null,
         },
       };
     }, {

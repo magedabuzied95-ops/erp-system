@@ -487,6 +487,38 @@ const safetyCase = ({
   ...flags,
 });
 
+const safetyIntentCase = ({
+  name,
+  message,
+  safetyIntent,
+  productCards = [baseCard],
+  memory = {},
+  expectedBehavior,
+  suggestedFix,
+  validate,
+  ...flags
+}) => makeCase({
+  category: "safety_guards",
+  name,
+  message,
+  productCards,
+  memory,
+  expectedBehavior,
+  suggestedFix,
+  validate: async (response) => {
+    const shadow = response.auto_reply_shadow || response.analysis?.auto_reply_shadow || response.analysis?.shadow || {};
+    assert(shadow && typeof shadow === "object", `[${name}] auto reply shadow is missing`, { shadow, response });
+    assert.equal(shadow.safety_intent, safetyIntent, `[${name}] safety intent mismatch`, { shadow, safetyIntent });
+    assert.equal(shadow.safety_intent_detected, true, `[${name}] safety intent was not detected`, { shadow });
+    assert.equal(shadow.decision, "human_required", `[${name}] safety decision is not human_required`, { shadow });
+    assert.equal(shadow.eligible, false, `[${name}] safety decision is still eligible`, { shadow });
+    assert.equal(shadow.eligibility_result, false, `[${name}] eligibility result is not false`, { shadow });
+    assert(Array.isArray(shadow.blockers) && shadow.blockers.includes(`safety_intent_${safetyIntent}`), `[${name}] safety blocker missing`, { shadow });
+    if (typeof validate === "function") await validate(response);
+  },
+  ...flags,
+});
+
 const unknownCase = ({
   name,
   message,
@@ -1107,7 +1139,34 @@ for (let index = 11; index <= 20; index += 1) {
 }
 cases.push(...memoryCases);
 
-const safetyCases = [
+const safetyIntentCases = [
+  { name: "safety-intent-1", message: "عاوز أرجع فلوسي", safetyIntent: "refund_request" },
+  { name: "safety-intent-2", message: "عايز ألغي الطلب", safetyIntent: "cancellation_request" },
+  { name: "safety-intent-3", message: "عاوز أشتكي من الطلب", safetyIntent: "complaint" },
+  { name: "safety-intent-4", message: "عاوز أكلم المدير", safetyIntent: "manager_request" },
+  { name: "safety-intent-5", message: "غير العنوان للشحن", safetyIntent: "address_change" },
+  { name: "safety-intent-6", message: "الشحن متأخر جدًا", safetyIntent: "shipping_dispute" },
+  { name: "safety-intent-7", message: "المنتج فيه عيب", safetyIntent: "defect_report" },
+  { name: "safety-intent-8", message: "عاوز تعويض", safetyIntent: "compensation_request" },
+  { name: "safety-intent-9", message: "وصلني منتج غلط", safetyIntent: "wrong_item" },
+  { name: "safety-intent-10", message: "المقاس غلط", safetyIntent: "wrong_size" },
+  { name: "safety-intent-11", message: "refund please", safetyIntent: "refund_request" },
+  { name: "safety-intent-12", message: "cancel my order", safetyIntent: "cancellation_request" },
+  { name: "safety-intent-13", message: "need supervisor", safetyIntent: "manager_request" },
+  { name: "safety-intent-14", message: "update address", safetyIntent: "address_change" },
+  { name: "safety-intent-15", message: "wrong size received", safetyIntent: "wrong_size" },
+];
+
+safetyIntentCases.forEach((item) => {
+  cases.push(safetyIntentCase({
+    ...item,
+    expectedBehavior: "Safety intent must force human review before any shadow eligibility evaluation.",
+    suggestedFix: "Short-circuit safety intents before confidence, validator, and product-facts checks.",
+    validate: async () => {},
+  }));
+});
+
+const safetyGuardsCases = [
   safetyCase({
     name: "safety-1",
     message: "بكام؟",
@@ -1162,43 +1221,7 @@ const safetyCases = [
   }),
 ];
 
-for (let index = 6; index <= 25; index += 1) {
-  const message = [
-    "بكام؟",
-    "متاح؟",
-    "ابعت صور",
-    "مقاس 41 موجود؟",
-    "الألوان المتاحة؟",
-    "عايز الأبيض",
-    "عايز أطلب",
-    "؟؟؟",
-    "12345",
-    "اه",
-    "لا",
-    "مش ده",
-    "هات بديل",
-    "غالي",
-    "الشحن كام؟",
-    "الدفع عند الاستلام؟",
-    "ينفع انستا باي؟",
-    "ابعتلي لينك الدفع",
-    "صباح الخير",
-    "مساء الخير",
-  ][(index - 6) % 20];
-  cases.push(safetyCase({
-    name: `safety-${index}`,
-    message,
-    productCards: message === "متاح؟" ? [baseCard] : [baseCard],
-    expectedBehavior: "Reply should remain safe, concise, and grounded in the current product data.",
-    suggestedFix: "Tighten guards for hallucination, overlong answers, and ignored customer intent.",
-    validate: async ({ reply, analysis }) => {
-      assert(!replyTooLong(reply, 320), `[safety-${index}] reply is too long`);
-      assert(!hasBareCurrencyWord(reply), `[safety-${index}] reply contains bare currency`);
-      if (message === "متاح؟") assert(analysis.current_stock > 0, `[safety-${index}] stock analysis is missing`);
-    },
-  }));
-}
-cases.push(...safetyCases);
+cases.push(...safetyGuardsCases);
 
 const unknownMessages = [
   "كلام عشوائي",
@@ -1357,3 +1380,4 @@ main().catch((error) => {
   console.error(error?.stack || error?.message || String(error));
   process.exit(1);
 });
+
