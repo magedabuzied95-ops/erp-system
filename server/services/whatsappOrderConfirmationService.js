@@ -70,6 +70,37 @@ const number = (value, fallback = 0) => {
 const money = (value) => number(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const json = (value) => JSON.stringify(value === undefined ? null : value);
 const extractWhatsAppMessageId = (result = {}) => text(result?.result?.message_id || result?.result?.messageId || result?.result?.key?.id || result?.message_id || result?.id || "");
+const isOrderConfirmationTimeoutError = (error = {}) =>
+  String(error?.message || error?.code || "").toLowerCase().includes("timeout") ||
+  String(error?.message || error?.code || "").toLowerCase().includes("timed out");
+const orderConfirmationDbLogMeta = ({ queryName = "", orderId = null, tokenCode = "", action = "", rowCount = null } = {}) => ({
+  query_name: queryName,
+  order_id: orderId ?? null,
+  token_code: tokenCode || "",
+  action: action || "",
+  row_count: rowCount,
+});
+const timedOrderConfirmationQuery = async ({ client, queryName, sql, params = [], orderId = null, tokenCode = "", action = "" }) => {
+  const startedAt = Date.now();
+  console.info("[order-confirmation-db-start]", orderConfirmationDbLogMeta({ queryName, orderId, tokenCode, action }));
+  try {
+    const result = await client.query(sql, params);
+    console.info("[order-confirmation-db-success]", {
+      ...orderConfirmationDbLogMeta({ queryName, orderId, tokenCode, action, rowCount: result?.rowCount ?? null }),
+      duration_ms: Date.now() - startedAt,
+    });
+    return result;
+  } catch (error) {
+    if (isOrderConfirmationTimeoutError(error)) {
+      console.warn("[order-confirmation-db-timeout]", {
+        ...orderConfirmationDbLogMeta({ queryName, orderId, tokenCode, action }),
+        duration_ms: Date.now() - startedAt,
+        error_message: error?.message || String(error),
+      });
+    }
+    throw error;
+  }
+};
 
 let schemaReadyPromise = null;
 
@@ -276,8 +307,16 @@ const loadOrderItems = async (orderId) => {
   return result.rows;
 };
 
-const loadOrderById = async (orderId) => {
-  const result = await db.query(`SELECT * FROM orders WHERE id = $1 LIMIT 1`, [orderId]);
+const loadOrderById = async (orderId, trace = {}) => {
+  const result = await timedOrderConfirmationQuery({
+    client: db,
+    queryName: "orders_lookup_by_id",
+    sql: `SELECT * FROM orders WHERE id = $1 LIMIT 1`,
+    params: [orderId],
+    orderId,
+    tokenCode: trace?.tokenCode || "",
+    action: trace?.action || "",
+  });
   return result.rows[0] || null;
 };
 
@@ -303,23 +342,30 @@ const loadLatestOrderByPhone = async (phone) => {
   return result.rows[0] || null;
 };
 
-const loadOrderItemsForUpdate = async (client, orderId) => {
-  const result = await client.query(
-    `
+const loadOrderItemsForUpdate = async (client, orderId, trace = {}) => {
+  const result = await timedOrderConfirmationQuery({
+    client,
+    queryName: "order_items_for_update",
+    sql: `
     SELECT *
     FROM order_items
     WHERE order_id = $1
     ORDER BY id ASC
     FOR UPDATE
     `,
-    [orderId]
-  );
+    params: [orderId],
+    orderId,
+    tokenCode: trace?.tokenCode || "",
+    action: trace?.action || "",
+  });
   return result.rows || [];
 };
 
-const appendOrderTimelineEvent = async (client, { orderId, action, status = "", note = "", source = "", actor = "" } = {}) => {
-  const result = await client.query(
-    `
+const appendOrderTimelineEvent = async (client, { orderId, action, status = "", note = "", source = "", actor = "" } = {}, trace = {}) => {
+  const result = await timedOrderConfirmationQuery({
+    client,
+    queryName: "orders_timeline_append",
+    sql: `
     UPDATE orders
     SET timeline = COALESCE(timeline, '[]'::jsonb) || jsonb_build_array(
       jsonb_build_object(
@@ -335,12 +381,15 @@ const appendOrderTimelineEvent = async (client, { orderId, action, status = "", 
     WHERE id = $1
     RETURNING *
     `,
-    [orderId, text(action), text(status), text(note), text(source), text(actor)]
-  );
+    params: [orderId, text(action), text(status), text(note), text(source), text(actor)],
+    orderId,
+    tokenCode: trace?.tokenCode || "",
+    action: trace?.action || "",
+  });
   return result.rows[0] || null;
 };
 
-const restoreOrderInventory = async (client, { order, items = [], actorUserId = null, reason = "Customer cancelled order via WhatsApp" } = {}) => {
+const restoreOrderInventory = async (client, { order, items = [], actorUserId = null, reason = "Customer cancelled order via WhatsApp", tokenCode = "" } = {}) => {
   if (!order?.id) return [];
   if (order.inventory_rollback_done || order.stock_reverted_at || order.stock_restored_at) {
     return [];
@@ -363,6 +412,7 @@ const restoreOrderInventory = async (client, { order, items = [], actorUserId = 
       reason,
       notes: `WhatsApp order cancellation for ${order.public_order_number || order.invoice_number || order.id}`,
       createdBy: actorUserId,
+      tokenCode,
     });
     restored.push(result);
   }
@@ -942,19 +992,54 @@ async function applyConfirmationAction({
   actorType = "customer",
   actorUserId = null,
   actorUserName = "",
+  tokenCode = "",
+  client: providedClient = null,
+  manageTransaction = true,
 } = {}) {
   await ensureWhatsappOrderConfirmationSchema();
   const normalizedAction = text(action).toLowerCase();
   const orderIdValue = Number(orderId || providedOrder?.id || 0);
   if (!Number.isFinite(orderIdValue) || orderIdValue <= 0) return null;
 
-  const client = await db.connect();
+  const client = providedClient || await db.connect();
+  const ownsClient = !providedClient;
+  const shouldManageTransaction = ownsClient && manageTransaction !== false;
   try {
-    await client.query("BEGIN");
-    const currentResult = await client.query(`SELECT * FROM orders WHERE id = $1 FOR UPDATE LIMIT 1`, [orderIdValue]);
-    const current = currentResult.rows[0] || providedOrder || null;
+    if (shouldManageTransaction) {
+      await timedOrderConfirmationQuery({
+        client,
+        queryName: "transaction_begin_apply_confirmation_action",
+        sql: "BEGIN",
+        params: [],
+        orderId: orderIdValue,
+        action: normalizedAction,
+      });
+    }
+    let current = providedOrder || null;
     if (!current) {
-      await client.query("ROLLBACK");
+      const currentQuery = await timedOrderConfirmationQuery({
+        client,
+        queryName: shouldManageTransaction ? "orders_current_for_update" : "orders_current_by_id",
+        sql: shouldManageTransaction
+          ? `SELECT * FROM orders WHERE id = $1 FOR UPDATE LIMIT 1`
+          : `SELECT * FROM orders WHERE id = $1 LIMIT 1`,
+        params: [orderIdValue],
+        orderId: orderIdValue,
+        action: normalizedAction,
+      });
+      current = currentQuery.rows[0] || null;
+    }
+    if (!current) {
+      if (shouldManageTransaction) {
+        await timedOrderConfirmationQuery({
+          client,
+          queryName: "transaction_rollback_apply_confirmation_missing_order",
+          sql: "ROLLBACK",
+          params: [],
+          orderId: orderIdValue,
+          action: normalizedAction,
+        });
+      }
       return null;
     }
 
@@ -963,18 +1048,38 @@ async function applyConfirmationAction({
     const isAlreadyEdited = currentStatus === "edit_requested" && normalizedAction === "edit";
     const isAlreadyCancelled = currentStatus === "cancelled_by_customer" && normalizedAction === "cancel";
     if (isAlreadyConfirmed || isAlreadyEdited || isAlreadyCancelled) {
-      await client.query("COMMIT");
+      if (shouldManageTransaction) {
+        await timedOrderConfirmationQuery({
+          client,
+          queryName: "transaction_commit_apply_confirmation_noop",
+          sql: "COMMIT",
+          params: [],
+          orderId: orderIdValue,
+          action: normalizedAction,
+        });
+      }
       return current;
     }
 
     let updated = null;
     if (normalizedAction === "confirm") {
       if (!["pending_confirmation", "confirmed"].includes(currentStatus)) {
-        await client.query("ROLLBACK");
+        if (shouldManageTransaction) {
+          await timedOrderConfirmationQuery({
+            client,
+            queryName: "transaction_rollback_apply_confirmation_invalid_confirm",
+            sql: "ROLLBACK",
+            params: [],
+            orderId: orderIdValue,
+            action: normalizedAction,
+          });
+        }
         return current;
       }
-      const result = await client.query(
-        `
+      const result = await timedOrderConfirmationQuery({
+        client,
+        queryName: "orders_update_confirm",
+        sql: `
         UPDATE orders
         SET status = 'confirmed',
             whatsapp_confirmed_at = COALESCE(whatsapp_confirmed_at, NOW()),
@@ -983,8 +1088,10 @@ async function applyConfirmationAction({
         WHERE id = $1
         RETURNING *
         `,
-        [current.id]
-      );
+        params: [current.id],
+        orderId: current.id,
+        action: normalizedAction,
+      });
       updated = result.rows[0] || current;
       updated = await appendOrderTimelineEvent(client, {
         orderId: updated.id,
@@ -993,14 +1100,25 @@ async function applyConfirmationAction({
         note: buildOrderActionLogMessage({ action: "confirmed", order: updated }),
         source,
         actor: actorType === "staff" ? (actorUserName || `staff:${actorUserId || ""}`) : "customer",
-      }) || updated;
+      }, { action: normalizedAction, tokenCode }) || updated;
     } else if (normalizedAction === "edit") {
       if (!["pending_confirmation", "edit_requested"].includes(currentStatus)) {
-        await client.query("ROLLBACK");
+        if (shouldManageTransaction) {
+          await timedOrderConfirmationQuery({
+            client,
+            queryName: "transaction_rollback_apply_confirmation_invalid_edit",
+            sql: "ROLLBACK",
+            params: [],
+            orderId: orderIdValue,
+            action: normalizedAction,
+          });
+        }
         return current;
       }
-      const result = await client.query(
-        `
+      const result = await timedOrderConfirmationQuery({
+        client,
+        queryName: "orders_update_edit_requested",
+        sql: `
         UPDATE orders
         SET status = 'edit_requested',
             whatsapp_cancelled_at = NULL,
@@ -1008,8 +1126,10 @@ async function applyConfirmationAction({
         WHERE id = $1
         RETURNING *
         `,
-        [current.id]
-      );
+        params: [current.id],
+        orderId: current.id,
+        action: normalizedAction,
+      });
       updated = result.rows[0] || current;
       updated = await appendOrderTimelineEvent(client, {
         orderId: updated.id,
@@ -1018,21 +1138,33 @@ async function applyConfirmationAction({
         note: buildOrderActionLogMessage({ action: "edit_requested", order: updated }),
         source,
         actor: actorType === "staff" ? (actorUserName || `staff:${actorUserId || ""}`) : "customer",
-      }) || updated;
+      }, { action: normalizedAction, tokenCode }) || updated;
     } else if (normalizedAction === "cancel") {
       if (currentStatus === "cancelled_by_customer") {
-        await client.query("COMMIT");
+        if (shouldManageTransaction) {
+          await timedOrderConfirmationQuery({
+            client,
+            queryName: "transaction_commit_apply_confirmation_already_cancelled",
+            sql: "COMMIT",
+            params: [],
+            orderId: orderIdValue,
+            action: normalizedAction,
+          });
+        }
         return current;
       }
-      const items = await loadOrderItemsForUpdate(client, current.id);
+      const items = await loadOrderItemsForUpdate(client, current.id, { action: normalizedAction, tokenCode });
       await restoreOrderInventory(client, {
         order: current,
         items,
         actorUserId,
         reason: reason || "Customer cancelled order via WhatsApp",
+        tokenCode,
       });
-      const result = await client.query(
-        `
+      const result = await timedOrderConfirmationQuery({
+        client,
+        queryName: "orders_update_cancelled_by_customer",
+        sql: `
         UPDATE orders
         SET status = 'cancelled_by_customer',
             payment_status = 'cancelled',
@@ -1050,8 +1182,10 @@ async function applyConfirmationAction({
         WHERE id = $1
         RETURNING *
         `,
-        [current.id, text(reason)]
-      );
+        params: [current.id, text(reason)],
+        orderId: current.id,
+        action: normalizedAction,
+      });
       updated = result.rows[0] || current;
       updated = await appendOrderTimelineEvent(client, {
         orderId: updated.id,
@@ -1060,10 +1194,12 @@ async function applyConfirmationAction({
         note: buildOrderActionLogMessage({ action: "cancelled_by_customer", order: updated }),
         source,
         actor: actorType === "staff" ? (actorUserName || `staff:${actorUserId || ""}`) : "customer",
-      }) || updated;
+      }, { action: normalizedAction, tokenCode }) || updated;
     } else if (normalizedAction === "cancel_reason") {
-      const result = await client.query(
-        `
+      const result = await timedOrderConfirmationQuery({
+        client,
+        queryName: "orders_update_cancel_reason",
+        sql: `
         UPDATE orders
         SET cancel_reason = CASE
               WHEN COALESCE(NULLIF(cancel_reason, ''), '') <> '' THEN cancel_reason
@@ -1074,8 +1210,10 @@ async function applyConfirmationAction({
         WHERE id = $1
         RETURNING *
         `,
-        [current.id, text(reason)]
-      );
+        params: [current.id, text(reason)],
+        orderId: current.id,
+        action: normalizedAction,
+      });
       updated = result.rows[0] || current;
       updated = await appendOrderTimelineEvent(client, {
         orderId: updated.id,
@@ -1084,19 +1222,46 @@ async function applyConfirmationAction({
         note: buildOrderActionLogMessage({ action: "cancel_reason_saved", order: updated }),
         source,
         actor: actorType === "staff" ? (actorUserName || `staff:${actorUserId || ""}`) : "customer",
-      }) || updated;
+      }, { action: normalizedAction, tokenCode }) || updated;
     } else {
-      await client.query("ROLLBACK");
+      if (shouldManageTransaction) {
+        await timedOrderConfirmationQuery({
+          client,
+          queryName: "transaction_rollback_apply_confirmation_unsupported_action",
+          sql: "ROLLBACK",
+          params: [],
+          orderId: orderIdValue,
+          action: normalizedAction,
+        });
+      }
       return current;
     }
 
-    await client.query("COMMIT");
+    if (shouldManageTransaction) {
+      await timedOrderConfirmationQuery({
+        client,
+        queryName: "transaction_commit_apply_confirmation_action",
+        sql: "COMMIT",
+        params: [],
+        orderId: orderIdValue,
+        action: normalizedAction,
+      });
+    }
     return updated;
   } catch (error) {
-    await client.query("ROLLBACK").catch(() => {});
+    if (shouldManageTransaction) {
+      await timedOrderConfirmationQuery({
+        client,
+        queryName: "transaction_rollback_apply_confirmation_error",
+        sql: "ROLLBACK",
+        params: [],
+        orderId: orderIdValue,
+        action: normalizedAction,
+      }).catch(() => {});
+    }
     throw error;
   } finally {
-    client.release();
+    if (ownsClient) client.release();
   }
 }
 
@@ -1112,17 +1277,29 @@ export const consumeOrderConfirmationLink = async ({ code = "", action = "", ipA
   const codeHash = hashOrderConfirmationCode(safeCode);
   const client = await db.connect();
   try {
-    await client.query("BEGIN");
-    const codeResult = await client.query(
-      `
+    await timedOrderConfirmationQuery({
+      client,
+      queryName: "transaction_begin_consume_confirmation_link",
+      sql: "BEGIN",
+      params: [],
+      action: text(action),
+      tokenCode: safeCode,
+    });
+    const codeResult = await timedOrderConfirmationQuery({
+      client,
+      queryName: "confirmation_code_lookup",
+      sql: `
       SELECT *
       FROM order_confirmation_codes
       WHERE code_hash = $1
       LIMIT 1
       FOR UPDATE
       `,
-      [codeHash]
-    );
+      params: [codeHash],
+      orderId: null,
+      tokenCode: safeCode,
+      action: text(action),
+    });
     const codeRow = codeResult.rows[0] || null;
     if (!codeRow) {
       const error = new Error("Confirmation code not found");
@@ -1137,16 +1314,21 @@ export const consumeOrderConfirmationLink = async ({ code = "", action = "", ipA
       throw error;
     }
 
-    const orderResult = await client.query(
-      `
+    const orderResult = await timedOrderConfirmationQuery({
+      client,
+      queryName: "order_lookup_for_confirmation_code",
+      sql: `
       SELECT *
       FROM orders
       WHERE id = $1
       LIMIT 1
       FOR UPDATE
       `,
-      [codeRow.order_id]
-    );
+      params: [codeRow.order_id],
+      orderId: codeRow.order_id,
+      tokenCode: safeCode,
+      action: text(action),
+    });
     const current = orderResult.rows[0] || null;
     if (!current) {
       const error = new Error("Order not found");
@@ -1157,7 +1339,15 @@ export const consumeOrderConfirmationLink = async ({ code = "", action = "", ipA
 
     const requestedAction = text(action);
     if (!requestedAction) {
-      await client.query("COMMIT");
+      await timedOrderConfirmationQuery({
+        client,
+        queryName: "transaction_commit_consume_confirmation_validation",
+        sql: "COMMIT",
+        params: [],
+        orderId: codeRow.order_id,
+        tokenCode: safeCode,
+        action: text(action),
+      });
       return {
         success: true,
         action: "",
@@ -1189,24 +1379,39 @@ export const consumeOrderConfirmationLink = async ({ code = "", action = "", ipA
       ? current
       : await applyConfirmationAction({
           orderId: current.id,
+          order: current,
           action: actionConfig.payloadAction,
           source,
           reason: `public_code:${actionConfig.payloadAction}`,
           actorType: "customer",
           client,
           manageTransaction: false,
+          tokenCode: safeCode,
         });
-    const markResult = await client.query(
-      `
+    const markResult = await timedOrderConfirmationQuery({
+      client,
+      queryName: "confirmation_code_mark_used",
+      sql: `
       UPDATE order_confirmation_codes
       SET used_at = COALESCE(used_at, NOW()),
           updated_at = NOW()
       WHERE id = $1
       RETURNING *
       `,
-      [codeRow.id]
-    );
-    await client.query("COMMIT");
+      params: [codeRow.id],
+      orderId: codeRow.order_id,
+      tokenCode: safeCode,
+      action: text(action),
+    });
+    await timedOrderConfirmationQuery({
+      client,
+      queryName: "transaction_commit_consume_confirmation_link",
+      sql: "COMMIT",
+      params: [],
+      orderId: codeRow.order_id,
+      tokenCode: safeCode,
+      action: text(action),
+    });
     return {
       success: true,
       action: actionConfig.payloadAction,
@@ -1221,7 +1426,14 @@ export const consumeOrderConfirmationLink = async ({ code = "", action = "", ipA
       code: safeCode,
     };
   } catch (error) {
-    await client.query("ROLLBACK").catch(() => {});
+    await timedOrderConfirmationQuery({
+      client,
+      queryName: "transaction_rollback_consume_confirmation_link_error",
+      sql: "ROLLBACK",
+      params: [],
+      tokenCode: safeCode,
+      action: text(action),
+    }).catch(() => {});
     throw error;
   } finally {
     client.release();

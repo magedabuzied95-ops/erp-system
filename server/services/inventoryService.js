@@ -17,17 +17,51 @@ const toNumber = (value, fallback = 0) => {
 
 const queryable = (clientOrPool = db) => clientOrPool || db;
 const shouldLockRows = (clientOrPool) => typeof clientOrPool?.release === "function";
+const isInventoryTimeoutError = (error = {}) =>
+  String(error?.message || error?.code || "").toLowerCase().includes("timeout") ||
+  String(error?.message || error?.code || "").toLowerCase().includes("timed out");
+const inventoryDbLogMeta = ({ queryName = "", orderId = null, variantId = null, tokenCode = "", rowCount = null } = {}) => ({
+  query_name: queryName,
+  order_id: orderId ?? null,
+  variant_id: variantId ?? null,
+  token_code: tokenCode || "",
+  row_count: rowCount,
+});
+const timedInventoryQuery = async ({ client, queryName, sql, params = [], orderId = null, variantId = null, tokenCode = "" }) => {
+  const startedAt = Date.now();
+  console.info("[order-confirmation-db-start]", inventoryDbLogMeta({ queryName, orderId, variantId, tokenCode }));
+  try {
+    const result = await client.query(sql, params);
+    console.info("[order-confirmation-db-success]", {
+      ...inventoryDbLogMeta({ queryName, orderId, variantId, tokenCode, rowCount: result?.rowCount ?? null }),
+      duration_ms: Date.now() - startedAt,
+    });
+    return result;
+  } catch (error) {
+    if (isInventoryTimeoutError(error)) {
+      console.warn("[order-confirmation-db-timeout]", {
+        ...inventoryDbLogMeta({ queryName, orderId, variantId, tokenCode }),
+        duration_ms: Date.now() - startedAt,
+        error_message: error?.message || String(error),
+      });
+    }
+    throw error;
+  }
+};
 
-const tableColumns = async (clientOrPool, tableName) => {
-  const result = await clientOrPool.query(
-    `
+const tableColumns = async (clientOrPool, tableName, tokenCode = "") => {
+  const result = await timedInventoryQuery({
+    client: clientOrPool,
+    queryName: `inventory_table_columns_${tableName}`,
+    sql: `
     SELECT column_name
     FROM information_schema.columns
     WHERE table_schema = current_schema()
       AND table_name = $1
     `,
-    [tableName]
-  );
+    params: [tableName],
+    tokenCode,
+  });
   return new Set(result.rows.map((row) => row.column_name));
 };
 
@@ -45,20 +79,24 @@ export const adjustVariantStock = async (clientOrPool, data = {}) => {
     if ((quantityDelta === undefined || quantityDelta === null) && quantityAfter !== undefined && quantityAfter !== null) {
       const tenantId = data.tenantId ?? data.tenant_id ?? null;
       const variantId = data.variantId ?? data.variant_id;
-      const variantColumns = await tableColumns(dbClient, "product_variants");
+      const variantColumns = await tableColumns(dbClient, "product_variants", data.tokenCode || "");
       const tenantClause = variantColumns.has("tenant_id")
         ? "AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)"
         : "";
-      const variantResult = await dbClient.query(
-        `
+      const variantResult = await timedInventoryQuery({
+        client: dbClient,
+        queryName: "product_variant_lookup_for_adjust_variant_stock",
+        sql: `
         SELECT id, product_id, stock
         FROM product_variants
         WHERE id = $1
           ${tenantClause}
         ${shouldLockRows(clientOrPool) ? "FOR UPDATE" : ""}
         `,
-        tenantClause ? [variantId, tenantId] : [variantId]
-      );
+        params: tenantClause ? [variantId, tenantId] : [variantId],
+        variantId,
+        tokenCode: data.tokenCode || "",
+      });
       const variant = variantResult.rows[0] || null;
       if (!variant) {
         const error = new Error("Variant not found");

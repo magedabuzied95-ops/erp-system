@@ -10,17 +10,51 @@ const toNumber = (value, fallback = 0) => {
 
 const queryable = (clientOrPool = db) => clientOrPool || db;
 const isTransactionClient = (clientOrPool) => typeof clientOrPool?.release === "function";
+const isInventoryTimeoutError = (error = {}) =>
+  String(error?.message || error?.code || "").toLowerCase().includes("timeout") ||
+  String(error?.message || error?.code || "").toLowerCase().includes("timed out");
+const inventoryDbLogMeta = ({ queryName = "", orderId = null, variantId = null, tokenCode = "", rowCount = null } = {}) => ({
+  query_name: queryName,
+  order_id: orderId ?? null,
+  variant_id: variantId ?? null,
+  token_code: tokenCode || "",
+  row_count: rowCount,
+});
+const timedInventoryQuery = async ({ client, queryName, sql, params = [], orderId = null, variantId = null, tokenCode = "" }) => {
+  const startedAt = Date.now();
+  console.info("[order-confirmation-db-start]", inventoryDbLogMeta({ queryName, orderId, variantId, tokenCode }));
+  try {
+    const result = await client.query(sql, params);
+    console.info("[order-confirmation-db-success]", {
+      ...inventoryDbLogMeta({ queryName, orderId, variantId, tokenCode, rowCount: result?.rowCount ?? null }),
+      duration_ms: Date.now() - startedAt,
+    });
+    return result;
+  } catch (error) {
+    if (isInventoryTimeoutError(error)) {
+      console.warn("[order-confirmation-db-timeout]", {
+        ...inventoryDbLogMeta({ queryName, orderId, variantId, tokenCode }),
+        duration_ms: Date.now() - startedAt,
+        error_message: error?.message || String(error),
+      });
+    }
+    throw error;
+  }
+};
 
-const tableColumns = async (clientOrPool, tableName) => {
-  const result = await clientOrPool.query(
-    `
+const tableColumns = async (clientOrPool, tableName, tokenCode = "") => {
+  const result = await timedInventoryQuery({
+    client: clientOrPool,
+    queryName: `inventory_table_columns_${tableName}`,
+    sql: `
     SELECT column_name
     FROM information_schema.columns
     WHERE table_schema = current_schema()
       AND table_name = $1
     `,
-    [tableName]
-  );
+    params: [tableName],
+    tokenCode,
+  });
   return new Set(result.rows.map((row) => row.column_name));
 };
 
@@ -60,11 +94,17 @@ const buildMovementPayload = (data = {}, { quantityBefore, quantityChange, quant
 };
 
 const maybeBackfillOpeningBalances = async (client) => {
-  const movementsCount = await client.query(`SELECT COUNT(*)::int AS count FROM inventory_movements`);
+  const movementsCount = await timedInventoryQuery({
+    client,
+    queryName: "inventory_movements_count",
+    sql: `SELECT COUNT(*)::int AS count FROM inventory_movements`,
+  });
   if (Number(movementsCount.rows[0]?.count || 0) > 0) return;
 
-  await client.query(
-    `
+  await timedInventoryQuery({
+    client,
+    queryName: "inventory_movements_backfill_opening_balances",
+    sql: `
     INSERT INTO inventory_movements (
       tenant_id,
       product_id,
@@ -104,8 +144,8 @@ const maybeBackfillOpeningBalances = async (client) => {
       NOW()
     FROM product_variants v
     WHERE COALESCE(v.stock, 0) > 0
-    `
-  );
+    `,
+  });
 };
 
 const runSchema = async (client) => {
@@ -247,7 +287,7 @@ export const recordInventoryMovement = async (clientOrPool, data = {}) => {
   }
 
   const dbClient = queryable(clientOrPool);
-  const columns = await tableColumns(dbClient, "inventory_movements");
+  const columns = await tableColumns(dbClient, "inventory_movements", data.tokenCode || "");
   const quantityDelta = toNumber(data.quantityDelta ?? data.quantity_delta ?? data.quantityChange ?? data.quantity_change, 0);
   const hasExplicitQuantities =
     data.quantityBefore !== undefined ||
@@ -267,7 +307,7 @@ export const recordInventoryMovement = async (clientOrPool, data = {}) => {
   if (!hasExplicitQuantities && (data.variantId ?? data.variant_id) !== undefined && (data.variantId ?? data.variant_id) !== null && Number.isFinite(quantityDelta)) {
     const tenantId = data.tenantId ?? data.tenant_id ?? null;
     const variantId = data.variantId ?? data.variant_id;
-    const variantColumns = await tableColumns(dbClient, "product_variants");
+    const variantColumns = await tableColumns(dbClient, "product_variants", data.tokenCode || "");
     const tenantClause = variantColumns.has("tenant_id")
       ? "AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)"
       : "";
@@ -276,8 +316,10 @@ export const recordInventoryMovement = async (clientOrPool, data = {}) => {
       : "";
     const updateTimestamp = variantColumns.has("updated_at") ? ", updated_at = NOW()" : "";
 
-    const variantResult = await dbClient.query(
-      `
+    const variantResult = await timedInventoryQuery({
+      client: dbClient,
+      queryName: "product_variant_lookup_for_stock_adjust",
+      sql: `
       SELECT id, product_id, stock, ${variantColumns.has("cost_price") ? "cost_price" : "0 AS cost_price"}
       FROM product_variants
       WHERE id = $1
@@ -285,8 +327,10 @@ export const recordInventoryMovement = async (clientOrPool, data = {}) => {
         ${activeClause}
       FOR UPDATE
       `,
-      [variantId, tenantId]
-    );
+      params: [variantId, tenantId],
+      variantId,
+      tokenCode: data.tokenCode || "",
+    });
 
     const variant = variantResult.rows[0];
     if (!variant) {
@@ -303,18 +347,21 @@ export const recordInventoryMovement = async (clientOrPool, data = {}) => {
       throw error;
     }
 
-    await dbClient.query(
-      `
+    await timedInventoryQuery({
+      client: dbClient,
+      queryName: "product_variant_stock_update_for_adjust",
+      sql: `
       UPDATE product_variants
       SET stock = $1
           ${updateTimestamp}
       WHERE id = $2
         ${tenantClause ? "AND ($3::bigint IS NULL OR tenant_id = $3::bigint OR tenant_id IS NULL)" : ""}
       `,
-      tenantClause
+      params: tenantClause
         ? [quantityAfter, variantId, tenantId]
-        : [quantityAfter, variantId]
-    );
+        : [quantityAfter, variantId],
+      variantId,
+    });
 
     movementVariant = {
       ...variant,
@@ -344,7 +391,14 @@ export const recordInventoryMovement = async (clientOrPool, data = {}) => {
   const query = `INSERT INTO inventory_movements (${columnSql}, created_at) VALUES (${placeholders}, NOW()) RETURNING *`;
   let result;
   try {
-    result = await dbClient.query(query, params);
+    result = await timedInventoryQuery({
+      client: dbClient,
+      queryName: "inventory_movement_insert",
+      sql: query,
+      params,
+      variantId: data.variantId ?? data.variant_id ?? null,
+      tokenCode: data.tokenCode || "",
+    });
   } catch (error) {
     error.checkoutDbContext = {
       ...(error.checkoutDbContext || {}),
