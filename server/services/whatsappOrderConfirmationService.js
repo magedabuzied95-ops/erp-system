@@ -411,6 +411,8 @@ export const sendOrderConfirmation = async (order = {}) => {
       message: error?.message || String(error),
       code: error?.code || "",
       status: error?.status || "",
+      attempted_delivery_mode: "interactive",
+      fallback_delivery_mode: "text_1_2_3",
     });
     result = await sendTextMessage({ phone, message });
   }
@@ -646,6 +648,8 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
                     : ""
           : !STOREFRONT_SOURCES.has(source)
             ? "not_storefront_order"
+            : isCodPayment(current) && status === "pending_confirmation"
+              ? "cod_pending_confirmation"
             : current.whatsapp_invoice_sent_at
               ? "already_sent"
               : !phone

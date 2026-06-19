@@ -408,24 +408,37 @@ const buildOrderConfirmationButtonsPayload = ({ phone = "", title = "", text = "
   const safeFooter = String(footer || "").trim();
   const safeOrderId = String(orderId || "").trim();
   const suffix = safeOrderId ? `:${safeOrderId}` : "";
+  const buttons = [
+    {
+      type: "reply",
+      displayText: "✅ تأكيد الطلب",
+      id: `confirm_order${suffix}`,
+      buttonId: `confirm_order${suffix}`,
+      buttonText: "✅ تأكيد الطلب",
+    },
+    {
+      type: "reply",
+      displayText: "✏️ تعديل الطلب",
+      id: `edit_order${suffix}`,
+      buttonId: `edit_order${suffix}`,
+      buttonText: "✏️ تعديل الطلب",
+    },
+    {
+      type: "reply",
+      displayText: "❌ إلغاء الطلب",
+      id: `cancel_order${suffix}`,
+      buttonId: `cancel_order${suffix}`,
+      buttonText: "❌ إلغاء الطلب",
+    },
+  ];
   return {
     number: normalizeEgyptPhone(phone),
     title: safeTitle,
     text: safeText,
     footer: safeFooter,
-    buttons: [
-      { buttonId: `confirm_order${suffix}`, buttonText: "✅ تأكيد الطلب", type: 1 },
-      { buttonId: `edit_order${suffix}`, buttonText: "✏️ تعديل الطلب", type: 1 },
-      { buttonId: `cancel_order${suffix}`, buttonText: "❌ إلغاء الطلب", type: 1 },
-    ],
+    buttons,
   };
 };
-
-const evolutionButtonsEndpoints = (instanceNameValue = "") => [
-  `/message/sendButtons/${encodeURIComponent(instanceNameValue)}`,
-  `/message/sendButton/${encodeURIComponent(instanceNameValue)}`,
-  `/message/sendInteractive/${encodeURIComponent(instanceNameValue)}`,
-];
 
 const orderSummaryLines = (items = []) =>
   (Array.isArray(items) ? items : [])
@@ -462,90 +475,67 @@ export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "
     title: payload.title,
     textLength: payload.text.length,
     footerLength: payload.footer.length,
-    buttonIds: payload.buttons.map((button) => button.buttonId),
+    buttonIds: payload.buttons.map((button) => button.id || button.buttonId),
   };
-  console.info("[whatsapp:evolution-buttons-send-start]", {
-    provider: current.provider,
-    instanceName: current.instanceName,
+  const logBase = {
+    order_id: orderId || null,
     phoneSuffix: normalizedPhone.slice(-4),
-    payload_preview: payloadPreview,
-  });
+    buttonIds: payloadPreview.buttonIds,
+  };
 
-  let lastError = null;
-  for (const endpoint of evolutionButtonsEndpoints(current.instanceName)) {
+  const endpoint = `/message/sendButtons/${encodeURIComponent(current.instanceName)}`;
+  try {
+    console.info("[evolution:send-buttons-request]", {
+      endpoint,
+      ...logBase,
+    });
+    const response = await fetch(`${current.apiUrl}${endpoint}`, {
+      method: "POST",
+      headers: {
+        apikey: apiKey(),
+        "Content-Type": "application/json",
+      },
+      body: requestBody,
+    });
+    const raw = await response.text();
+    let data = null;
     try {
-      console.info("[evolution:send-buttons-request]", {
-        provider: current.provider,
-        instanceName: current.instanceName,
-        url: `${current.apiUrl}${endpoint}`,
-        endpoint,
-        number: normalizedPhone,
-        payload_shape: {
-          number: "string",
-          title: "string",
-          text: "string",
-          footer: "string",
-          buttons: "array",
-        },
-      });
-      const response = await fetch(`${current.apiUrl}${endpoint}`, {
-        method: "POST",
-        headers: {
-          apikey: apiKey(),
-          "Content-Type": "application/json",
-        },
-        body: requestBody,
-      });
-      const raw = await response.text();
-      let data = null;
-      try {
-        data = raw ? JSON.parse(raw) : null;
-      } catch {
-        data = { raw };
-      }
-      console.info("[whatsapp:evolution-buttons-response]", {
-        provider: current.provider,
-        instanceName: current.instanceName,
-        endpoint,
-        status_code: response.status,
-        ok: response.ok,
-        number: normalizedPhone,
-        response_body: data,
-        response_raw: raw,
-      });
-      if (!response.ok) {
-        throw gatewayError(data?.message || data?.error || `Evolution API returned ${response.status}`, "EVOLUTION_API_ERROR", response.status, {
-          data,
-          responseBody: data,
-          responseRaw: raw,
-        });
-      }
-      return {
-        success: true,
-        provider: current.provider,
-        instanceName: current.instanceName,
-        phone: normalizedPhone,
-        result: data,
-        endpoint,
-        delivery_mode: "interactive",
-        used_buttons: true,
-      };
-    } catch (error) {
-      lastError = error;
-      console.warn("[whatsapp:evolution-buttons-send-failed]", {
-        provider: current.provider,
-        instanceName: current.instanceName,
-        endpoint,
-        number: normalizedPhone,
-        message: error?.message || String(error),
-        code: error?.code || "",
-        status: error?.status || "",
-        response_body: error?.data || error?.responseBody || null,
-        response_raw: error?.responseRaw || "",
+      data = raw ? JSON.parse(raw) : null;
+    } catch {
+      data = { raw };
+    }
+    console.info("[whatsapp:evolution-buttons-response]", {
+      endpoint,
+      status: response.status,
+      ...logBase,
+    });
+    if (!response.ok) {
+      throw gatewayError(data?.message || data?.error || `Evolution API returned ${response.status}`, "EVOLUTION_API_ERROR", response.status, {
+        data,
+        responseBody: data,
+        responseRaw: raw,
       });
     }
+    return {
+      success: true,
+      provider: current.provider,
+      instanceName: current.instanceName,
+      phone: normalizedPhone,
+      result: data,
+      endpoint,
+      delivery_mode: "interactive",
+      used_buttons: true,
+    };
+  } catch (error) {
+    console.warn("[whatsapp:evolution-buttons-send-failed]", {
+      endpoint,
+      status: error?.status || "",
+      ...logBase,
+      message: error?.message || String(error),
+      code: error?.code || "",
+    });
+    throw error;
   }
-  throw lastError || gatewayError("Evolution buttons send failed", "EVOLUTION_BUTTONS_SEND_FAILED", 500);
 };
 
 export const buildOrderConfirmationMessage = (order = {}) => {
@@ -618,6 +608,8 @@ export const sendOrderConfirmationMessage = async ({ order } = {}) => {
       message: error?.message || String(error),
       code: error?.code || "",
       status: error?.status || "",
+      fallback: "text_1_2_3",
+      reason: error?.code === "WHATSAPP_BUTTONS_UNSUPPORTED" ? "non_evolution_provider" : error?.code || "interactive_send_failed",
     });
     const fallbackResult = await sendTextMessage({ phone, message });
     await appendWhatsappOutboundSupportReply({
