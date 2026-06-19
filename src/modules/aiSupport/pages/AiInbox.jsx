@@ -56,6 +56,7 @@ import SocialCommentsPanel from "../components/SocialCommentsPanel";
 import { useTenant } from "../../saas/context/TenantContext";
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { toast } from "react-hot-toast";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const money = (value) => formatCurrency(value);
@@ -1847,6 +1848,15 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
   );
 }
 
+const confirmationStatusMeta = (status = "") => {
+  const key = clean(status).toLowerCase();
+  if (key === "confirmed") return { label: "Confirmed", tone: "emerald" };
+  if (key === "edit_requested") return { label: "Edit requested", tone: "amber" };
+  if (key === "cancelled_by_customer") return { label: "Cancelled by customer", tone: "rose" };
+  if (key === "pending_confirmation") return { label: "Pending confirmation", tone: "cyan" };
+  return { label: key || "Unknown", tone: "zinc" };
+};
+
 function CustomerContextCard({ conversation = {} }) {
   const messages = uniqueMessages(conversation?.messages);
   const latest = [...messages].reverse().find((message) => message.detected_intent || message.customer_message || message.ai_answer) || {};
@@ -1881,6 +1891,16 @@ function CustomerContextCard({ conversation = {} }) {
   const escalation = clean(conversation?.escalation_reason || conversation?.ai_escalation_reason);
   const memoryScore = profile.memory_score ?? conversation?.lead_score ?? latestMemory.memory_score ?? 0;
   const lastOrder = asArray(profile.previous_orders)[0] || conversation?.last_order || conversation?.order || null;
+  const confirmationMeta = confirmationStatusMeta(lastOrder?.status);
+  const handleManualOrderAction = async (action) => {
+    if (!lastOrder?.id || !action) return;
+    try {
+      await api.post(`/whatsapp/order-confirmation/${encodeURIComponent(lastOrder.id)}/action`, { action });
+      toast.success(action === "confirm" ? "تم تأكيد الطلب" : action === "edit" ? "تم تسجيل طلب التعديل" : "تم إلغاء الطلب");
+    } catch (error) {
+      toast.error(error?.message || "Failed to update order confirmation");
+    }
+  };
 
   return (
     <div className="mb-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
@@ -1908,8 +1928,25 @@ function CustomerContextCard({ conversation = {} }) {
       <div className="mb-3 flex flex-wrap gap-2">
         <Pill tone={sentimentTone(profile.customer_sentiment)}>{profile.customer_sentiment || "neutral"}</Pill>
         {lastProduct ? <Pill tone="cyan">آخر منتج {lastProductLabel}</Pill> : null}
-        {lastOrder ? <Pill tone="emerald">Last order {lastOrder.invoice_number || lastOrder.order_number || lastOrder.id}</Pill> : null}
+        {lastOrder ? <Pill tone={confirmationMeta.tone}>{confirmationMeta.label}</Pill> : null}
       </div>
+      {lastOrder ? (
+        <div className="mb-3 rounded-xl border border-white/10 bg-slate-950/60 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Order confirmation</div>
+              <div className="mt-1 truncate text-sm font-black text-white">{lastOrder.invoice_number || lastOrder.order_number || lastOrder.id}</div>
+              <div className="mt-1 text-xs text-slate-400">{confirmationMeta.label}</div>
+            </div>
+            <Pill tone={confirmationMeta.tone}>{confirmationMeta.label}</Pill>
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <button type="button" onClick={() => handleManualOrderAction("confirm")} className="inline-flex items-center justify-center rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/15">تأكيد يدوي</button>
+            <button type="button" onClick={() => handleManualOrderAction("edit")} className="inline-flex items-center justify-center rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100 transition hover:bg-amber-400/15">تعديل يدوي</button>
+            <button type="button" onClick={() => handleManualOrderAction("cancel")} className="inline-flex items-center justify-center rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-xs font-black text-rose-100 transition hover:bg-rose-400/15">إلغاء يدوي</button>
+          </div>
+        </div>
+      ) : null}
       {needsHumanAttention(conversation) ? (
         <div className="mt-3 rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm font-bold text-amber-100">
           Human mode active{escalation ? ` / ${escalation}` : ""}{conversation?.last_escalation_keyword ? ` / ${conversation.last_escalation_keyword}` : ""}
@@ -2235,6 +2272,17 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
   const channel = conversation?.channel || conversation?.source || "web_chat";
   const channelName = channelBadgeLabel(channel);
   const cityName = clean(profile.city || profile.city_area || "");
+  const lastOrder = asArray(profile.previous_orders)[0] || conversation?.last_order || conversation?.order || null;
+  const confirmationMeta = confirmationStatusMeta(lastOrder?.status);
+  const handleManualOrderAction = async (action) => {
+    if (!lastOrder?.id || !action) return;
+    try {
+      await api.post(`/whatsapp/order-confirmation/${encodeURIComponent(lastOrder.id)}/action`, { action });
+      toast.success(action === "confirm" ? "تم تأكيد الطلب" : action === "edit" ? "تم تسجيل طلب التعديل" : "تم إلغاء الطلب");
+    } catch (error) {
+      toast.error(error?.message || "Failed to update order confirmation");
+    }
+  };
   return (
     <aside className="space-y-3">
       <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-2.5">
@@ -2267,6 +2315,23 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
           ) : null}
         </div>
       </div>
+      {lastOrder ? (
+        <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Order confirmation</div>
+              <div className="mt-1 truncate text-sm font-black text-white">{lastOrder.invoice_number || lastOrder.order_number || lastOrder.id}</div>
+              <div className="mt-1 text-xs text-slate-300">{confirmationMeta.label}</div>
+            </div>
+            <Pill tone={confirmationMeta.tone}>{confirmationMeta.label}</Pill>
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <button type="button" onClick={() => void handleManualOrderAction("confirm")} className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-2 text-[11px] font-black text-emerald-100">تأكيد يدوي</button>
+            <button type="button" onClick={() => void handleManualOrderAction("edit")} className="rounded-xl border border-amber-300/20 bg-amber-400/10 px-2.5 py-2 text-[11px] font-black text-amber-100">تعديل يدوي</button>
+            <button type="button" onClick={() => void handleManualOrderAction("cancel")} className="rounded-xl border border-rose-300/20 bg-rose-400/10 px-2.5 py-2 text-[11px] font-black text-rose-100">إلغاء يدوي</button>
+          </div>
+        </div>
+      ) : null}
       <details className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
         <summary className="cursor-pointer list-none text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">مزيد من ذاكرة العميل</summary>
         <div className="mt-3 space-y-2">

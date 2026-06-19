@@ -402,19 +402,21 @@ export const sendImageMessage = async ({ phone, imageUrl, caption = "" } = {}) =
   }
 };
 
-const buildOrderConfirmationButtonsPayload = ({ phone = "", title = "", text = "", footer = "" } = {}) => {
+const buildOrderConfirmationButtonsPayload = ({ phone = "", title = "", text = "", footer = "", orderId = "" } = {}) => {
   const safeTitle = String(title || "").trim();
   const safeText = String(text || "").trim();
   const safeFooter = String(footer || "").trim();
+  const safeOrderId = String(orderId || "").trim();
+  const suffix = safeOrderId ? `:${safeOrderId}` : "";
   return {
     number: normalizeEgyptPhone(phone),
     title: safeTitle,
     text: safeText,
     footer: safeFooter,
     buttons: [
-      { buttonId: "confirm_order", buttonText: "✅ تأكيد الطلب", type: 1 },
-      { buttonId: "postpone_delivery", buttonText: "⏳ تأجيل التسليم", type: 1 },
-      { buttonId: "cancel_order", buttonText: "❌ إلغاء الطلب", type: 1 },
+      { buttonId: `confirm_order${suffix}`, buttonText: "✅ تأكيد الطلب", type: 1 },
+      { buttonId: `edit_order${suffix}`, buttonText: "✏️ تعديل الطلب", type: 1 },
+      { buttonId: `cancel_order${suffix}`, buttonText: "❌ إلغاء الطلب", type: 1 },
     ],
   };
 };
@@ -431,19 +433,29 @@ const orderSummaryLines = (items = []) =>
     .slice(0, 8)
     .map((item) => {
       const name = text(item.product_name || item.name || item.title, "منتج");
-      const variant = text(item.variant_name || [item.color, item.size].filter(Boolean).join(" / "));
+      const variant = text(item.variant_name || [item.size, item.color].filter(Boolean).join(" / ") || [item.color, item.size].filter(Boolean).join(" / "));
       const quantity = Math.max(1, Number(item.quantity || item.qty || 1));
       return `- ${name}${variant ? ` (${variant})` : ""} x${quantity}`;
     });
 
-export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "", text = "", footer = "" } = {}) => {
+const orderAddressLine = (order = {}) =>
+  text(
+    order.customer_address ||
+      order.shipping_address_line ||
+      order.address ||
+      [order.street_address, order.building_number, order.floor_number, order.apartment_number, order.landmark].filter(Boolean).join(", ")
+  );
+
+const orderStoreName = (order = {}) => text(order.store_name || order.storefront_name || order.company_name || order.brand_name || "M1 Store");
+
+export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "", text = "", footer = "", orderId = "" } = {}) => {
   if (provider() !== "evolution") {
     throw gatewayError("Interactive buttons are only supported on the Evolution provider", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
   }
   const normalizedPhone = normalizeEgyptPhone(phone);
   if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
   const current = requireEvolutionConfig();
-  const payload = buildOrderConfirmationButtonsPayload({ phone: normalizedPhone, title, text, footer });
+  const payload = buildOrderConfirmationButtonsPayload({ phone: normalizedPhone, title, text, footer, orderId });
   const requestBody = JSON.stringify(payload);
   const payloadPreview = {
     number: payload.number,
@@ -541,15 +553,18 @@ export const buildOrderConfirmationMessage = (order = {}) => {
   const orderNumber = text(order.public_order_number || order.display_order_number || order.invoice_number || order.order_number || order.id, "-");
   const totalAmount = money(order.total_amount ?? order.grand_total ?? order.total ?? order.net_total);
   const summary = orderSummaryLines(order.items);
-  return `أهلاً يا ${customerName} 
-طلبك من M1 Store جاهز للتأكيد.
+  const address = orderAddressLine(order);
+  const storeName = orderStoreName(order);
+  return `أهلاً يا ${customerName}
+طلبك من ${storeName} جاهز للتأكيد.
 
 رقم الطلب: ${orderNumber}
 ${summary.length ? `${summary.join("\n")}\n` : ""}
+${address ? `العنوان: ${address}\n` : ""}
 الإجمالي: ${totalAmount} جنيه
 
-1 تأكيد الطلب
-2 تأجيل التسليم
+1 - تأكيد الطلب
+2 - تعديل الطلب
 3 إلغاء الطلب`;
 };
 
@@ -565,6 +580,7 @@ export const sendOrderConfirmationMessage = async ({ order } = {}) => {
       title,
       text: message,
       footer,
+      orderId: order?.id || "",
     });
     await appendWhatsappOutboundSupportReply({
       tenantId: order.tenant_id || order.tenantId || process.env.WHATSAPP_TENANT_ID || 1,

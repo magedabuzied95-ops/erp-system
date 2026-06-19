@@ -270,7 +270,7 @@ const isCancelledOrder = (order = {}) => {
   const status = statusOf(order);
   const payment = paymentStatusOf(order);
   return Boolean(order.cancelled_at || order.deleted_at) ||
-    ["cancelled"].includes(status) ||
+    ["cancelled", "cancelled_by_customer"].includes(status) ||
     ["rejected"].includes(payment);
 };
 
@@ -466,6 +466,13 @@ const PAYMENT_FILTER_LABELS = {
   paid: "مدفوع",
   due: "مستحق الدفع",
 };
+const STATUS_FILTER_OPTIONS = ["all", "pending_confirmation", "confirmed", "edit_requested", "cancelled_by_customer"];
+const STATUS_FILTER_LABELS = {
+  pending_confirmation: "بانتظار التأكيد",
+  confirmed: "مؤكد",
+  edit_requested: "تعديل مطلوب",
+  cancelled_by_customer: "ملغي من العميل",
+};
 const matchesPaymentFilter = (order = {}, paymentFilter = "all") => {
   if (paymentFilter === "all") return true;
   const statusKey = normalizePaymentStatusKey(order);
@@ -478,6 +485,10 @@ const matchesPaymentFilter = (order = {}, paymentFilter = "all") => {
   }
   return true;
 };
+const matchesStatusFilter = (order = {}, statusFilter = "all") => {
+  if (statusFilter === "all") return true;
+  return statusOf(order) === statusFilter;
+};
 const isCriticalOrder = (order = {}) => {
   const combined = [order.risk_level, order.risk_status, order.status, order.payment_status, order.transfer_proof_status]
     .map(lower)
@@ -487,6 +498,7 @@ const isCriticalOrder = (order = {}) => {
 
 const priorityFor = (order = {}) => {
   if (isCriticalOrder(order)) return { label: "حرج", className: "border-rose-400/35 bg-rose-400/10 shadow-rose-950/20" };
+  if (statusOf(order) === "edit_requested") return { label: "تعديل مطلوب", className: "border-orange-400/35 bg-orange-400/10 shadow-orange-950/20" };
   if (isClosedOrder(order)) return { label: "مرتجع/ملغى", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
   if (isAwaitingVerification(order)) return { label: "مراجعة", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
   if (isDelayedPending(order)) return { label: "متأخر", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
@@ -509,6 +521,9 @@ const buildTimeline = (order = {}) => {
   if (["confirmed", "ready_to_ship", "shipment_created", "out_for_delivery", "delivered"].includes(statusOf(order))) {
     items.push({ key: "confirmed", label: "تم تأكيد الطلب", at: order.updated_at, done: true, tone: "blue" });
   }
+  if (statusOf(order) === "edit_requested") {
+    items.push({ key: "edit_requested", label: "العميل طلب تعديل الطلب", at: order.updated_at, done: true, tone: "orange" });
+  }
   const shipping = shippingStatusOf(order);
   if (["ready_to_ship"].includes(shipping) || ["ready_to_ship"].includes(statusOf(order))) {
     items.push({ key: "ready_to_ship", label: "جاهز للشحن", at: order.updated_at, done: true, tone: "blue" });
@@ -523,7 +538,7 @@ const buildTimeline = (order = {}) => {
     const returnedOrRefunded = isReturnedOrRefundedOrder(order);
     items.push({
       key: "closed",
-      label: returnedOrRefunded ? "\u0645\u0631\u062a\u062c\u0639/\u0645\u0633\u062a\u0631\u062f" : "\u0645\u0644\u063a\u0649",
+      label: returnedOrRefunded ? "\u0645\u0631\u062a\u062c\u0639/\u0645\u0633\u062a\u0631\u062f" : statusOf(order) === "cancelled_by_customer" ? "ملغي من العميل" : "\u0645\u0644\u063a\u0649",
       at: order.cancelled_at || order.returned_at || order.deleted_at || order.updated_at,
       done: true,
       tone: "rose",
@@ -550,6 +565,7 @@ function OrdersDashboard() {
   const [error, setError] = useState("");
   const [workspace, setWorkspace] = useState("table");
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [channelFilter, setChannelFilter] = useState(() => searchParams.get("channel") || "all");
   const [dateFilter, setDateFilter] = useState("");
@@ -622,13 +638,14 @@ function OrdersDashboard() {
     const query = search.trim().toLowerCase();
     return workspaceSource.filter((order) => {
       const matchesSearch = !query || buildSearchText(order).includes(query);
+      const matchesStatus = matchesStatusFilter(order, statusFilter);
       const matchesPayment = matchesPaymentFilter(order, paymentFilter);
       const orderSource = getOrderSource(order);
       const matchesChannel = channelFilter === "all" || orderSource === channelFilter;
       const matchesDate = !dateFilter || String(order.created_at || "").slice(0, 10) === dateFilter;
-      return matchesSearch && matchesPayment && matchesChannel && matchesDate;
+      return matchesSearch && matchesStatus && matchesPayment && matchesChannel && matchesDate;
     });
-  }, [workspaceSource, search, paymentFilter, channelFilter, dateFilter]);
+  }, [workspaceSource, search, statusFilter, paymentFilter, channelFilter, dateFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -884,10 +901,12 @@ function OrdersDashboard() {
             />
           </div>
 
-          <Filters
+            <Filters
             t={t}
             search={search}
             setSearch={(value) => updateFilter(setSearch, value)}
+            statusFilter={statusFilter}
+            setStatusFilter={(value) => updateFilter(setStatusFilter, value)}
             paymentFilter={paymentFilter}
             setPaymentFilter={(value) => updateFilter(setPaymentFilter, value)}
             channelFilter={channelFilter}
@@ -1018,12 +1037,12 @@ function ActionButton({ disabled, onClick, icon, label, tone = "zinc", title }) 
 
 function Filters(props) {
   const {
-    t, search, setSearch, paymentFilter, setPaymentFilter, channelFilter, setChannelFilter, dateFilter, setDateFilter,
+    t, search, setSearch, statusFilter, setStatusFilter, paymentFilter, setPaymentFilter, channelFilter, setChannelFilter, dateFilter, setDateFilter,
   } = props;
 
   return (
     <>
-      <div className="grid gap-3 xl:grid-cols-[minmax(20rem,2.3fr)_repeat(3,minmax(9rem,1fr))]">
+      <div className="grid gap-3 xl:grid-cols-[minmax(20rem,2.3fr)_repeat(4,minmax(9rem,1fr))]">
         <label className="block">
           <div className="mb-1.5 text-[11px] font-bold text-zinc-300">البحث</div>
           <div className="relative">
@@ -1036,6 +1055,7 @@ function Filters(props) {
             />
           </div>
         </label>
+        <Select value={statusFilter} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} label="حالة الطلب" allLabel="الكل" labels={STATUS_FILTER_LABELS} />
         <Select value={paymentFilter} onChange={setPaymentFilter} options={PAYMENT_FILTER_OPTIONS} label="حالة الدفع" allLabel="الكل" labels={PAYMENT_FILTER_LABELS} />
         <Select value={channelFilter} onChange={setChannelFilter} options={SOURCE_FILTERS} label="المصدر" allLabel="الكل" labels={SOURCE_LABELS} t={t} />
         <label className="block">
@@ -1910,13 +1930,16 @@ function OrderEditModal({ t, order, saving, onClose, onSave }) {
               label={t("orders.table.status")}
               value={form.status}
               onChange={(value) => updateField("status", value)}
-              options={["Pending", "Confirmed", "Paid", "Shipped", "Delivered", "Cancelled", "Returned"]}
+              options={["Pending", "Pending Confirmation", "Confirmed", "Edit Requested", "Paid", "Shipped", "Delivered", "Cancelled by Customer", "Cancelled", "Returned"]}
               labels={{
                 Pending: "قيد الانتظار",
+                "Pending Confirmation": "بانتظار التأكيد",
                 Confirmed: "مؤكد",
+                "Edit Requested": "مطلوب تعديل",
                 Paid: "مدفوع",
                 Shipped: "مشحون",
                 Delivered: "تم التسليم",
+                "Cancelled by Customer": "ملغي من العميل",
                 Cancelled: "ملغي",
                 Returned: "مرتجع",
               }}

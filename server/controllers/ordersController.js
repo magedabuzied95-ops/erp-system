@@ -555,6 +555,7 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tracking_url TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS courier_notes TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_timeline JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS timeline JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS last_shipping_sync_at TIMESTAMP NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS marketing_source TEXT NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS marketing_platform TEXT NULL`);

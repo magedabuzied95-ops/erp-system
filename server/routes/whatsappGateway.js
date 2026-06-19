@@ -1,6 +1,7 @@
 import express from "express";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
+import { emitToRooms } from "../utils/socket.js";
 import {
   getRecentEvolutionWebhookEvents,
   getStatus,
@@ -11,7 +12,7 @@ import {
   triggerWhatsappAiAutoReply,
   verifyWebhookSecret,
 } from "../services/whatsappGatewayService.js";
-import { processConfirmationReply, sendOrderConfirmation } from "../services/whatsappOrderConfirmationService.js";
+import { applyConfirmationAction, processConfirmationReply, sendOrderConfirmation } from "../services/whatsappOrderConfirmationService.js";
 
 const router = express.Router();
 
@@ -86,6 +87,55 @@ router.post("/order-confirmation/:orderId", protect, permit("orders", "edit"), a
   }
 });
 
+router.post("/order-confirmation/:orderId/action", protect, permit("orders", "edit"), async (req, res) => {
+  try {
+    const order = await loadOrderForWhatsapp({ orderId: req.params.orderId, tenantId: tenantScope(req) });
+    const rawAction = String(req.body?.action || "").trim().toLowerCase();
+    const action = rawAction === "confirm" || rawAction === "edit" || rawAction === "cancel" ? rawAction : "";
+    if (!action) {
+      return res.status(400).json({ success: false, message: "Valid action is required" });
+    }
+    const currentStatus = String(order.status || "").toLowerCase();
+    if ((action === "confirm" && currentStatus === "confirmed") ||
+        (action === "edit" && currentStatus === "edit_requested") ||
+        (action === "cancel" && currentStatus === "cancelled_by_customer")) {
+      return res.json({ success: true, order });
+    }
+    const updated = await applyConfirmationAction({
+      orderId: order.id,
+      action,
+      reason: String(req.body?.reason || req.body?.note || "").trim(),
+      source: "admin_console",
+      actorType: "staff",
+      actorUserId: req.user?.id || null,
+      actorUserName: req.user?.name || req.user?.full_name || "",
+    });
+    if (!updated) {
+      return res.status(409).json({ success: false, message: "Order action could not be applied" });
+    }
+    const phone = normalizeEgyptPhone(order.customer_phone || order.phone || order.whatsapp || order.mobile);
+    if (phone) {
+      const notificationMessage = action === "confirm"
+        ? `تم تأكيد طلبك رقم ${order.public_order_number || order.display_order_number || order.invoice_number || order.order_number || order.id}. شكراً لك.`
+        : action === "edit"
+          ? `وصلنا طلب التعديل على طلبك رقم ${order.public_order_number || order.display_order_number || order.invoice_number || order.order_number || order.id}. سيقوم الفريق بمراجعته الآن.`
+          : `تم إلغاء طلبك رقم ${order.public_order_number || order.display_order_number || order.invoice_number || order.order_number || order.id}. نأسف لعدم إكمال الطلب.`;
+      await sendTextMessage({ phone, message: notificationMessage }).catch(() => {});
+    }
+    const tenantId = tenantScope(req);
+    if (tenantId) {
+      emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+        tenant_id: tenantId,
+        order_id: updated.id,
+        at: new Date().toISOString(),
+      });
+    }
+    return res.json({ success: true, order: updated });
+  } catch (error) {
+    return sendError(res, error, "Failed to apply order confirmation action");
+  }
+});
+
 router.post("/webhook", async (req, res) => {
   try {
     if (!verifyWebhookSecret(req)) {
@@ -115,7 +165,7 @@ router.post("/webhook", async (req, res) => {
     const confirmation = normalized.text
       ? await processConfirmationReply(normalized)
       : { action: "ignored", reason: "no_text" };
-    const aiReply = normalized.text && !["confirmed", "cancelled"].includes(confirmation?.action)
+    const aiReply = normalized.text && !["confirmed", "cancelled", "cancelled_by_customer", "edit_requested", "cancel_reason_saved"].includes(confirmation?.action)
       ? await triggerWhatsappAiAutoReply(normalized).catch((error) => ({ triggered: false, sent: false, error: error?.message || "AI auto reply failed" }))
       : { triggered: false, sent: false, reason: confirmation?.action || "no_text" };
     return res.status(200).json({ success: true, received: true, message: normalized.text ? "ok" : "no_text", confirmation, aiReply });

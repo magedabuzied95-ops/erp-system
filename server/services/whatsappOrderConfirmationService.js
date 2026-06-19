@@ -5,13 +5,14 @@ import {
   upsertChannelConversationMapping,
 } from "./aiChannelAdapterService.js";
 import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
-import { normalizeEgyptPhone, sendOrderConfirmationInteractiveMessage, sendTextMessage } from "./whatsappGatewayService.js";
+import { adjustVariantStock } from "./inventoryService.js";
+import { normalizeEgyptPhone, sendOrderConfirmationInteractiveMessage, sendTextMessage, buildOrderConfirmationMessage } from "./whatsappGatewayService.js";
 import { buildInvoiceReceiptWhatsappMessage, buildPublicInvoiceUrl, buildWhatsappTextDebug } from "../utils/whatsapp.js";
 import { normalizeArabicIntentPayload } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { getSetting } from "./settingsService.js";
 import { emitToRooms } from "../utils/socket.js";
-import { appendWhatsappOutboundSupportReply } from "./aiSupportLogService.js";
+import { appendWhatsappOutboundSupportReply, appendManualAiSupportReply, markAiSupportConversationEscalated } from "./aiSupportLogService.js";
 
 const CONFIRM_WORDS = new Set(["1", "تأكيد", "تاكيد", "confirm", "yes", "تمام"]);
 const CANCEL_WORDS = new Set(["2", "إلغاء", "الغاء", "cancel", "no"]);
@@ -20,6 +21,28 @@ const PAYMENT_REVIEW_METHODS = new Set(["instapay", "vodafone_cash", "bank_trans
 const PAYMENT_REVIEW_STATUSES = new Set(["partially_paid", "awaiting_payment_review", "shipping_paid"]);
 
 const text = (value, fallback = "") => String(value ?? fallback).trim();
+const whatsappButtonSignalValues = (message = {}) => {
+  const interactiveResponse = message.interactiveResponse || message.interactive_response || {};
+  const interactiveButtonReply = message.interactive?.button_reply || message.interactive?.buttonReply || {};
+  const button = message.button || {};
+  return [
+    message.buttonId,
+    message.selectedButtonId,
+    message.selected_button_id,
+    interactiveResponse.buttonId,
+    interactiveResponse.selectedButtonId,
+    interactiveResponse.selected_button_id,
+    interactiveResponse.id,
+    interactiveResponse.button_id,
+    interactiveButtonReply.id,
+    interactiveButtonReply.title,
+    button.payload,
+    button.buttonId,
+    button.selectedButtonId,
+    button.id,
+    button.text,
+  ].filter(Boolean);
+};
 const number = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -38,6 +61,8 @@ export const ensureWhatsappOrderConfirmationSchema = async (clientOrPool = db) =
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_cancelled_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_payment_review_sent_at TIMESTAMP NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_invoice_sent_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS timeline JSONB NOT NULL DEFAULT '[]'::jsonb`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cancel_reason TEXT`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_orders_whatsapp_confirmation_phone ON orders (customer_phone, created_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_orders_whatsapp_confirmation_pending ON orders (tenant_id, status, created_at DESC)`);
     };
@@ -220,6 +245,114 @@ const loadOrderById = async (orderId) => {
   return result.rows[0] || null;
 };
 
+const loadLatestOrderByPhone = async (phone) => {
+  const normalizedPhone = normalizeEgyptPhone(phone);
+  if (!normalizedPhone) return null;
+  const result = await db.query(
+    `
+    SELECT *
+    FROM orders
+    WHERE LOWER(COALESCE(source, channel, '')) = ANY($2::text[])
+      AND (
+        regexp_replace(COALESCE(customer_phone, ''), '\\D', '', 'g') = $1
+        OR regexp_replace(COALESCE(customer_phone, ''), '\\D', '', 'g') = regexp_replace($1, '^20', '0')
+      )
+    ORDER BY
+      created_at DESC,
+      id DESC
+    LIMIT 1
+    `,
+    [normalizedPhone, [...STOREFRONT_SOURCES]]
+  ).catch(() => ({ rows: [] }));
+  return result.rows[0] || null;
+};
+
+const loadOrderItemsForUpdate = async (client, orderId) => {
+  const result = await client.query(
+    `
+    SELECT *
+    FROM order_items
+    WHERE order_id = $1
+    ORDER BY id ASC
+    FOR UPDATE
+    `,
+    [orderId]
+  );
+  return result.rows || [];
+};
+
+const appendOrderTimelineEvent = async (client, { orderId, action, status = "", note = "", source = "", actor = "" } = {}) => {
+  const result = await client.query(
+    `
+    UPDATE orders
+    SET timeline = COALESCE(timeline, '[]'::jsonb) || jsonb_build_array(
+      jsonb_build_object(
+        'action', $2::text,
+        'status', $3::text,
+        'note', $4::text,
+        'source', $5::text,
+        'actor', $6::text,
+        'at', NOW()
+      )
+    ),
+        updated_at = NOW()
+    WHERE id = $1
+    RETURNING *
+    `,
+    [orderId, text(action), text(status), text(note), text(source), text(actor)]
+  );
+  return result.rows[0] || null;
+};
+
+const restoreOrderInventory = async (client, { order, items = [], actorUserId = null, reason = "Customer cancelled order via WhatsApp" } = {}) => {
+  if (!order?.id) return [];
+  if (order.inventory_rollback_done || order.stock_reverted_at || order.stock_restored_at) {
+    return [];
+  }
+  const restored = [];
+  for (const item of items) {
+    const quantity = Math.max(0, Number(item.quantity || item.qty || 0));
+    if (!quantity) continue;
+    const variantId = item.variant_id || item.variantId || null;
+    const productId = item.product_id || item.productId || null;
+    if (!variantId) continue;
+    const result = await adjustVariantStock(client, {
+      tenantId: order.tenant_id || order.tenantId || null,
+      variantId,
+      productId,
+      quantityChange: quantity,
+      movementType: "ORDER_CANCEL_RESTORE",
+      referenceType: "order",
+      referenceId: order.id,
+      reason,
+      notes: `WhatsApp order cancellation for ${order.public_order_number || order.invoice_number || order.id}`,
+      createdBy: actorUserId,
+    });
+    restored.push(result);
+  }
+  return restored;
+};
+
+const buildOrderActionLogMessage = ({ action = "", order = {} } = {}) => {
+  const orderRef = order.public_order_number || order.display_order_number || order.invoice_number || order.order_number || order.id;
+  if (action === "confirmed") return `تم تأكيد الطلب ${orderRef}`;
+  if (action === "edit_requested") return `العميل طلب تعديل الطلب ${orderRef}`;
+  if (action === "cancelled_by_customer") return `تم إلغاء الطلب ${orderRef} بواسطة العميل`;
+  if (action === "cancel_reason_saved") return `تم حفظ سبب إلغاء الطلب ${orderRef}`;
+  return `تحديث الطلب ${orderRef}`;
+};
+
+const loadConfirmationOrder = async ({ orderId = "", phone = "" } = {}) => {
+  const normalizedOrderId = Number(orderId);
+  if (Number.isFinite(normalizedOrderId) && normalizedOrderId > 0) {
+    const order = await loadOrderById(normalizedOrderId);
+    if (order) return order;
+  }
+  const pending = await findPendingOrderByPhone(phone);
+  if (pending) return pending;
+  return loadLatestOrderByPhone(phone);
+};
+
 export const sendOrderConfirmation = async (order = {}) => {
   await ensureWhatsappOrderConfirmationSchema();
   const current = order?.id ? await loadOrderById(order.id) : order;
@@ -254,7 +387,8 @@ export const sendOrderConfirmation = async (order = {}) => {
   });
   if (!shouldSend) return { sent: false, reason };
   const items = Array.isArray(order.items) && order.items.length ? order.items : await loadOrderItems(current.id);
-  const message = buildConfirmationMessage(current, items);
+  const storeName = await getSetting("storefront.store_name", "").catch(() => "") || await getSetting("general.company_name", "").catch(() => "");
+  const message = buildOrderConfirmationMessage({ ...current, items, store_name: storeName });
   const messageTenantId = tenantIdForMessage(current, current);
   const title = "✅ تأكيد الطلب";
   const footer = "اختر الإجراء المناسب";
@@ -266,6 +400,7 @@ export const sendOrderConfirmation = async (order = {}) => {
       title,
       text: message,
       footer,
+      orderId: current.id,
     });
   } catch (error) {
     deliveryMode = "text";
@@ -658,44 +793,183 @@ export const findPendingOrderByPhone = async (phone) => {
 };
 
 export const markOrderConfirmed = async (orderId) => {
-  await ensureWhatsappOrderConfirmationSchema();
-  const result = await db.query(
-    `
-    UPDATE orders
-    SET status = 'confirmed',
-        whatsapp_confirmed_at = COALESCE(whatsapp_confirmed_at, NOW()),
-        whatsapp_cancelled_at = NULL,
-        updated_at = NOW()
-    WHERE id = $1
-      AND LOWER(COALESCE(status, '')) = 'pending_confirmation'
-    RETURNING *
-    `,
-    [orderId]
-  );
-  const order = result.rows[0] || null;
+  const order = await applyConfirmationAction({ orderId, action: "confirm", source: "webhook", actorType: "system" });
   if (order) console.info("[whatsapp:order-confirmed]", { orderId: order.id, orderNumber: orderNumber(order) });
   return order;
 };
 
 export const markOrderCancelled = async (orderId) => {
-  await ensureWhatsappOrderConfirmationSchema();
-  const result = await db.query(
-    `
-    UPDATE orders
-    SET status = 'cancelled',
-        whatsapp_cancelled_at = COALESCE(whatsapp_cancelled_at, NOW()),
-        whatsapp_confirmed_at = NULL,
-        updated_at = NOW()
-    WHERE id = $1
-      AND LOWER(COALESCE(status, '')) = 'pending_confirmation'
-    RETURNING *
-    `,
-    [orderId]
-  );
-  const order = result.rows[0] || null;
+  const order = await applyConfirmationAction({ orderId, action: "cancel", source: "webhook", actorType: "system" });
   if (order) console.info("[whatsapp:order-cancelled]", { orderId: order.id, orderNumber: orderNumber(order) });
   return order;
 };
+
+async function applyConfirmationAction({
+  orderId = "",
+  order: providedOrder = null,
+  action = "",
+  reason = "",
+  source = "whatsapp_webhook",
+  actorType = "customer",
+  actorUserId = null,
+  actorUserName = "",
+} = {}) {
+  await ensureWhatsappOrderConfirmationSchema();
+  const normalizedAction = text(action).toLowerCase();
+  const orderIdValue = Number(orderId || providedOrder?.id || 0);
+  if (!Number.isFinite(orderIdValue) || orderIdValue <= 0) return null;
+
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const currentResult = await client.query(`SELECT * FROM orders WHERE id = $1 FOR UPDATE LIMIT 1`, [orderIdValue]);
+    const current = currentResult.rows[0] || providedOrder || null;
+    if (!current) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const currentStatus = text(current.status).toLowerCase();
+    const isAlreadyConfirmed = currentStatus === "confirmed" && normalizedAction === "confirm";
+    const isAlreadyEdited = currentStatus === "edit_requested" && normalizedAction === "edit";
+    const isAlreadyCancelled = currentStatus === "cancelled_by_customer" && normalizedAction === "cancel";
+    if (isAlreadyConfirmed || isAlreadyEdited || isAlreadyCancelled) {
+      await client.query("COMMIT");
+      return current;
+    }
+
+    let updated = null;
+    if (normalizedAction === "confirm") {
+      if (!["pending_confirmation", "confirmed"].includes(currentStatus)) {
+        await client.query("ROLLBACK");
+        return current;
+      }
+      const result = await client.query(
+        `
+        UPDATE orders
+        SET status = 'confirmed',
+            whatsapp_confirmed_at = COALESCE(whatsapp_confirmed_at, NOW()),
+            whatsapp_cancelled_at = NULL,
+            updated_at = NOW()
+        WHERE id = $1
+        RETURNING *
+        `,
+        [current.id]
+      );
+      updated = result.rows[0] || current;
+      updated = await appendOrderTimelineEvent(client, {
+        orderId: updated.id,
+        action: "confirm",
+        status: "confirmed",
+        note: buildOrderActionLogMessage({ action: "confirmed", order: updated }),
+        source,
+        actor: actorType === "staff" ? (actorUserName || `staff:${actorUserId || ""}`) : "customer",
+      }) || updated;
+    } else if (normalizedAction === "edit") {
+      if (!["pending_confirmation", "edit_requested"].includes(currentStatus)) {
+        await client.query("ROLLBACK");
+        return current;
+      }
+      const result = await client.query(
+        `
+        UPDATE orders
+        SET status = 'edit_requested',
+            whatsapp_cancelled_at = NULL,
+            updated_at = NOW()
+        WHERE id = $1
+        RETURNING *
+        `,
+        [current.id]
+      );
+      updated = result.rows[0] || current;
+      updated = await appendOrderTimelineEvent(client, {
+        orderId: updated.id,
+        action: "edit_requested",
+        status: "edit_requested",
+        note: buildOrderActionLogMessage({ action: "edit_requested", order: updated }),
+        source,
+        actor: actorType === "staff" ? (actorUserName || `staff:${actorUserId || ""}`) : "customer",
+      }) || updated;
+    } else if (normalizedAction === "cancel") {
+      if (currentStatus === "cancelled_by_customer") {
+        await client.query("COMMIT");
+        return current;
+      }
+      const items = await loadOrderItemsForUpdate(client, current.id);
+      await restoreOrderInventory(client, {
+        order: current,
+        items,
+        actorUserId,
+        reason: reason || "Customer cancelled order via WhatsApp",
+      });
+      const result = await client.query(
+        `
+        UPDATE orders
+        SET status = 'cancelled_by_customer',
+            payment_status = 'cancelled',
+            cancel_reason = CASE
+              WHEN COALESCE(NULLIF(cancel_reason, ''), '') <> '' THEN cancel_reason
+              WHEN COALESCE(NULLIF($2::text, ''), '') <> '' THEN $2::text
+              ELSE cancel_reason
+            END,
+            whatsapp_cancelled_at = COALESCE(whatsapp_cancelled_at, NOW()),
+            whatsapp_confirmed_at = NULL,
+            stock_restored_at = COALESCE(stock_restored_at, NOW()),
+            stock_reverted_at = COALESCE(stock_reverted_at, NOW()),
+            inventory_rollback_done = TRUE,
+            updated_at = NOW()
+        WHERE id = $1
+        RETURNING *
+        `,
+        [current.id, text(reason)]
+      );
+      updated = result.rows[0] || current;
+      updated = await appendOrderTimelineEvent(client, {
+        orderId: updated.id,
+        action: "cancelled_by_customer",
+        status: "cancelled_by_customer",
+        note: buildOrderActionLogMessage({ action: "cancelled_by_customer", order: updated }),
+        source,
+        actor: actorType === "staff" ? (actorUserName || `staff:${actorUserId || ""}`) : "customer",
+      }) || updated;
+    } else if (normalizedAction === "cancel_reason") {
+      const result = await client.query(
+        `
+        UPDATE orders
+        SET cancel_reason = CASE
+              WHEN COALESCE(NULLIF(cancel_reason, ''), '') <> '' THEN cancel_reason
+              WHEN COALESCE(NULLIF($2::text, ''), '') <> '' THEN $2::text
+              ELSE cancel_reason
+            END,
+            updated_at = NOW()
+        WHERE id = $1
+        RETURNING *
+        `,
+        [current.id, text(reason)]
+      );
+      updated = result.rows[0] || current;
+      updated = await appendOrderTimelineEvent(client, {
+        orderId: updated.id,
+        action: "cancel_reason",
+        status: text(updated.status),
+        note: buildOrderActionLogMessage({ action: "cancel_reason_saved", order: updated }),
+        source,
+        actor: actorType === "staff" ? (actorUserName || `staff:${actorUserId || ""}`) : "customer",
+      }) || updated;
+    } else {
+      await client.query("ROLLBACK");
+      return current;
+    }
+
+    await client.query("COMMIT");
+    return updated;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
 
 const tenantIdForMessage = (message = {}, order = null) => number(message.tenant_id || message.tenantId || order?.tenant_id || process.env.WHATSAPP_TENANT_ID || 1, 1);
 
@@ -815,13 +1089,13 @@ const forwardToAiInbox = async ({ message = {}, order = null, needsFollowup = fa
   return { forwarded: true, conversation_id: conversationId, needs_followup: needsFollowup };
 };
 
-export const processConfirmationReply = async (message = {}) => {
+const processConfirmationReplyLegacy = async (message = {}) => {
   const phone = normalizeEgyptPhone(message.phone || message.from || message.sender || "");
   const originalBody = text(message.original_message || message.text || message.message_text || message.body);
   const intentPayload = normalizeArabicIntentPayload(originalBody);
   const body = text(message.normalized_for_intent || intentPayload.normalizedForIntent || message.text || message.message_text || message.body);
   const reply = normalizedReply(body);
-  const replySignal = normalizedReply([originalBody, body, message.interactive?.button_reply?.id, message.interactive?.button_reply?.title, message.button?.payload, message.button?.text].filter(Boolean).join(" "));
+  const replySignal = normalizedReply([originalBody, body, ...whatsappButtonSignalValues(message)].filter(Boolean).join(" "));
   const compactReplySignal = replySignal.replace(/[\uFE0F\u20E3]/g, "").trim();
   const productAlias = resolveProductAlias(originalBody || body);
   console.log("[arabic-intent-signals]", {
@@ -934,6 +1208,186 @@ export const processConfirmationReply = async (message = {}) => {
   if (message.inbox?.saved || message.inbox_saved) {
     return { action: "already_saved_to_ai_inbox", order, forwarded: true, conversation_id: message.inbox?.session_id || message.conversation_id || message.external_conversation_id || "" };
   }
+  const forwarded = await forwardToAiInbox({ message: { ...message, phone, text: originalBody, original_message: originalBody, normalized_for_intent: body, canonical_signals: intentPayload.canonicalSignals, intent_tokens: intentPayload.intentTokens }, order });
+  return { action: "forwarded_to_ai", order, ...forwarded };
+};
+
+export { applyConfirmationAction };
+
+export const processConfirmationReply = async (message = {}) => {
+  const phone = normalizeEgyptPhone(message.phone || message.from || message.sender || "");
+  const originalBody = text(message.original_message || message.text || message.message_text || message.body);
+  const intentPayload = normalizeArabicIntentPayload(originalBody);
+  const body = text(message.normalized_for_intent || intentPayload.normalizedForIntent || message.text || message.message_text || message.body);
+  const reply = normalizedReply(body);
+  const replySignal = normalizedReply([originalBody, body, ...whatsappButtonSignalValues(message)].filter(Boolean).join(" "));
+  const compactReplySignal = replySignal.replace(/[\uFE0F\u20E3]/g, "").trim();
+  const productAlias = resolveProductAlias(originalBody || body);
+  console.log("[arabic-intent-signals]", {
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    original: originalBody,
+    normalizedText: intentPayload.normalizedText,
+    normalizedForIntent: body,
+    canonicalSignals: intentPayload.canonicalSignals,
+  });
+  console.log("[product-alias]", {
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    original: originalBody,
+    normalizedText: intentPayload.normalizedText,
+    canonicalProduct: productAlias.canonicalProduct,
+    matchedAlias: productAlias.matchedAlias,
+    confidence: productAlias.confidence,
+  });
+
+  const actionFromButton = (() => {
+    const candidates = [
+      ...whatsappButtonSignalValues(message),
+      message.interactive?.button_reply?.id,
+      message.button?.payload,
+      message.button?.text,
+      message.interactive?.button_reply?.title,
+      originalBody,
+      body,
+    ].map((value) => text(value));
+    for (const candidate of candidates) {
+      const match = candidate.match(/(confirm_order|edit_order|cancel_order)(?::(\d+))?/i);
+      if (match) return { action: match[1].toLowerCase().replace("_order", ""), orderId: match[2] || "" };
+    }
+    return null;
+  })();
+
+  const replyIs = (...needles) => needles.some((needle) => replySignal.includes(text(needle).toLowerCase()));
+  const hasSignal = (...names) => names.some((name) => (intentPayload.canonicalSignals || []).includes(name));
+  const order = await loadConfirmationOrder({
+    orderId: actionFromButton?.orderId || "",
+    phone,
+  });
+  const currentStatus = text(order?.status).toLowerCase();
+
+  const isConfirmReply = Boolean(order) && (
+    CONFIRM_WORDS.has(reply) ||
+    hasSignal("yes", "confirm") ||
+    /^1(\b|$)/.test(compactReplySignal) ||
+    replyIs("confirm order", "confirm_order", "button confirm_order", "تأكيد الطلب")
+  );
+  const isEditReply = Boolean(order) && (
+    /^2(\b|$)/.test(compactReplySignal) ||
+    replyIs("edit order", "edit_order", "button edit_order", "modify order", "تعديل الطلب")
+  );
+  const isCancelReply = Boolean(order) && (
+    CANCEL_WORDS.has(reply) ||
+    hasSignal("no", "reject", "cancel") ||
+    /^3(\b|$)/.test(compactReplySignal) ||
+    replyIs("cancel order", "cancel_order", "button cancel_order", "إلغاء الطلب")
+  );
+  const isCancelledReason = Boolean(order) && text(order.status).toLowerCase() === "cancelled_by_customer" && Boolean(originalBody) && !isConfirmReply && !isEditReply && !isCancelReply;
+
+  if (isCancelledReason) {
+    const updated = await applyConfirmationAction({
+      orderId: order.id,
+      action: "cancel_reason",
+      reason: originalBody,
+      source: "whatsapp_webhook",
+      actorType: "customer",
+    });
+    const tenantId = tenantIdForMessage(message, updated || order);
+    if (tenantId && phone) {
+      emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+        tenant_id: tenantId,
+        session_id: `whatsapp:${phone}`,
+        order_id: updated?.id || order.id,
+        at: new Date().toISOString(),
+      });
+    }
+    return { action: "cancel_reason_saved", order: updated };
+  }
+
+  let action = actionFromButton?.action || "";
+  if (!action && isConfirmReply) action = "confirm";
+  if (!action && isEditReply) action = "edit";
+  if (!action && isCancelReply) action = "cancel";
+
+  if (action === "confirm" && currentStatus === "confirmed") {
+    return { action: "confirmed", order };
+  }
+  if (action === "edit" && currentStatus === "edit_requested") {
+    return { action: "edit_requested", order };
+  }
+  if (action === "cancel" && currentStatus === "cancelled_by_customer") {
+    return { action: "cancelled_by_customer", order };
+  }
+
+  if (action) {
+    const updatedOrder = await applyConfirmationAction({
+      orderId: order?.id || actionFromButton?.orderId || "",
+      action,
+      reason: originalBody,
+      source: "whatsapp_webhook",
+      actorType: "customer",
+    });
+    if (!updatedOrder) return { action: "ignored", order };
+
+    const actionMessage = action === "confirm"
+      ? `✅ تأكيد الطلب ${orderNumber(updatedOrder)}`
+      : action === "edit"
+        ? `✏️ تعديل الطلب ${orderNumber(updatedOrder)}`
+        : `❌ إلغاء الطلب ${orderNumber(updatedOrder)}`;
+
+    await forwardToAiInbox({
+      message: {
+        ...message,
+        phone,
+        text: actionMessage,
+        original_message: actionMessage,
+        normalized_for_intent: actionMessage,
+        canonical_signals: intentPayload.canonicalSignals,
+        intent_tokens: intentPayload.intentTokens,
+      },
+      order: updatedOrder,
+      needsFollowup: action === "edit",
+    });
+
+    if (action === "edit") {
+      await markAiSupportConversationEscalated({
+        tenantId: tenantIdForMessage(message, updatedOrder),
+        sessionId: `whatsapp:${phone}`,
+        reason: "customer_requested_edit",
+        keyword: "edit_order",
+        actorUserId: message.user_id || message.actor_user_id || null,
+        source: "whatsapp_order_confirmation",
+      }).catch(() => {});
+    }
+
+    if (phone) {
+      const notificationMessage = action === "confirm"
+        ? `تم تأكيد طلبك رقم ${orderNumber(updatedOrder)}. شكراً لك.`
+        : action === "edit"
+          ? `وصلنا طلب التعديل على طلبك رقم ${orderNumber(updatedOrder)}. سيقوم الفريق بمراجعته الآن.`
+          : `تم إلغاء طلبك رقم ${orderNumber(updatedOrder)}. نأسف لعدم إكمال الطلب.`;
+      await sendTextMessage({ phone, message: notificationMessage }).catch(() => {});
+    }
+
+    const tenantId = tenantIdForMessage(message, updatedOrder);
+    if (tenantId && phone) {
+      emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+        tenant_id: tenantId,
+        session_id: `whatsapp:${phone}`,
+        order_id: updatedOrder.id,
+        action,
+        at: new Date().toISOString(),
+      });
+    }
+
+    return {
+      action: action === "edit" ? "edit_requested" : action === "cancel" ? "cancelled_by_customer" : "confirmed",
+      order: updatedOrder,
+    };
+  }
+
+  if (message.inbox?.saved || message.inbox_saved) {
+    return { action: "already_saved_to_ai_inbox", order, forwarded: true, conversation_id: message.inbox?.session_id || message.conversation_id || message.external_conversation_id || "" };
+  }
+
   const forwarded = await forwardToAiInbox({ message: { ...message, phone, text: originalBody, original_message: originalBody, normalized_for_intent: body, canonical_signals: intentPayload.canonicalSignals, intent_tokens: intentPayload.intentTokens }, order });
   return { action: "forwarded_to_ai", order, ...forwarded };
 };

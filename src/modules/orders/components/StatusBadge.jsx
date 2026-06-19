@@ -4,6 +4,7 @@ const statusClasses = {
   Pending: "border-amber-400/25 bg-amber-400/10 text-amber-200",
   "Pending Confirmation": "border-amber-400/25 bg-amber-400/10 text-amber-200",
   Confirmed: "border-blue-400/25 bg-blue-400/10 text-blue-200",
+  "Edit Requested": "border-orange-400/25 bg-orange-400/10 text-orange-200",
   Completed: "border-blue-400/25 bg-blue-400/10 text-blue-200",
   Paid: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200",
   "Partially Paid": "border-amber-400/25 bg-amber-400/10 text-amber-200",
@@ -15,6 +16,7 @@ const statusClasses = {
   "Out For Delivery": "border-indigo-400/25 bg-indigo-400/10 text-indigo-200",
   Delivered: "border-blue-400/25 bg-blue-400/10 text-blue-200",
   Cancelled: "border-rose-400/25 bg-rose-400/10 text-rose-200",
+  "Cancelled by Customer": "border-rose-400/25 bg-rose-400/10 text-rose-200",
   Returned: "border-purple-400/25 bg-purple-400/10 text-purple-200",
   "Failed Delivery": "border-rose-400/25 bg-rose-400/10 text-rose-200",
   Failed: "border-rose-400/25 bg-rose-400/10 text-rose-200",
@@ -33,6 +35,8 @@ const fallbackLabel = (value) => {
   if (["partially_paid", "partially paid", "partial"].includes(normalized)) return "Partially Paid";
   if (normalized === "awaiting_verification") return "Awaiting Verification";
   if (normalized === "pending_confirmation") return "Pending Confirmation";
+  if (normalized === "edit_requested") return "Edit Requested";
+  if (normalized === "cancelled_by_customer") return "Cancelled by Customer";
   return String(value || "Pending")
     .replace(/_/g, " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());

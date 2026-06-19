@@ -1252,6 +1252,8 @@ function ProductSheet({
   const previewStock = Number(variant?.stock_quantity ?? variant?.stock ?? selectedProduct?.total_stock ?? selectedProduct?.stock ?? 0) || 0;
 
   if (!open) return null;
+  const isDesktopViewport = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true;
+  const mobileFullscreenMode = !isDesktopViewport;
 
   const selectedProductDebugId = clean(selectedProduct?.product_id || selectedProduct?.id || "");
   const selectedVariantDebug = variant || null;
@@ -1269,15 +1271,27 @@ function ProductSheet({
     onSend([card]);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-2 pb-2 pt-14 sm:px-4 sm:pb-4 sm:pt-16" onClick={onClose}>
+  const sheet = (
+    <div
+      className={
+        mobileFullscreenMode
+          ? "fixed inset-0 z-[99999] isolate flex items-stretch justify-center overflow-hidden bg-white text-slate-900 [padding-top:max(0.75rem,env(safe-area-inset-top))] [padding-bottom:max(0.85rem,env(safe-area-inset-bottom))]"
+          : "fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-2 pb-2 pt-14 sm:px-4 sm:pb-4 sm:pt-16"
+      }
+      onClick={onClose}
+    >
       <div
-        className="flex h-[82dvh] w-full max-w-[720px] flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_-16px_40px_rgba(15,23,42,0.18)] sm:h-[min(88dvh,52rem)]"
+        className={
+          mobileFullscreenMode
+            ? "flex h-[100dvh] w-screen min-w-0 max-w-[100vw] flex-col overflow-hidden bg-white"
+            : "flex h-[82dvh] w-full max-w-[720px] flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_-16px_40px_rgba(15,23,42,0.18)] sm:h-[min(88dvh,52rem)]"
+        }
+        style={mobileFullscreenMode ? { width: "100vw", maxWidth: "100vw", height: "100dvh" } : undefined}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="mx-auto mt-2 h-1.5 w-12 shrink-0 rounded-full bg-slate-200" />
+        {mobileFullscreenMode ? null : <div className="mx-auto mt-2 h-1.5 w-12 shrink-0 rounded-full bg-slate-200" />}
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="sticky top-0 z-10 shrink-0 border-b border-slate-200 bg-white/95 px-4 pb-2 pt-3 backdrop-blur">
+          <div className={mobileFullscreenMode ? "sticky top-0 z-20 shrink-0 border-b border-slate-200 bg-white px-4 pb-3 pt-3" : "sticky top-0 z-10 shrink-0 border-b border-slate-200 bg-white/95 px-4 pb-2 pt-3 backdrop-blur"}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="text-[17px] font-semibold text-slate-900">Send Product</h3>
@@ -1291,7 +1305,7 @@ function ProductSheet({
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3">
             <div className="space-y-3">
               {view === "list" ? (
                 <>
@@ -1451,7 +1465,7 @@ function ProductSheet({
             </div>
           </div>
 
-          <div className="sticky bottom-0 z-10 shrink-0 border-t border-slate-200 bg-white/95 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
+          <div className={mobileFullscreenMode ? "sticky bottom-0 z-20 shrink-0 border-t border-slate-200 bg-white px-4 pt-3" : "sticky bottom-0 z-10 shrink-0 border-t border-slate-200 bg-white/95 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur"}>
             <button
               type="button"
               onClick={handleSendProduct}
@@ -1477,6 +1491,7 @@ function ProductSheet({
       </div>
     </div>
   );
+  return mobileFullscreenMode ? createPortal(sheet, document.body) : sheet;
 }
 
 function LeadsView({ conversations, onOpenConversation, search, leadFilter, onLeadFilterChange }) {
@@ -3354,3 +3369,4 @@ export default function AiInboxPwa() {
     </div>
   );
 }
+

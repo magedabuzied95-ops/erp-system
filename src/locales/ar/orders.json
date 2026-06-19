@@ -26,7 +26,9 @@
   },
   "statusLabels": {
     "pending": "قيد الانتظار",
+    "pending_confirmation": "بانتظار التأكيد",
     "confirmed": "مؤكد",
+    "edit_requested": "مطلوب تعديل",
     "completed": "مكتمل",
     "paid": "مدفوع",
     "partially_paid": "مدفوع جزئيا",
@@ -35,6 +37,7 @@
     "delivered": "تم التسليم",
     "cancelled": "ملغي",
     "canceled": "ملغي",
+    "cancelled_by_customer": "ملغي من العميل",
     "returned": "مرتجع",
     "refunded": "مسترد",
     "unpaid": "غير مدفوع",

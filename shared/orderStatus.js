@@ -2,12 +2,14 @@ export const ORDER_LIFECYCLE_STATUSES = [
   "pending",
   "pending_confirmation",
   "confirmed",
+  "edit_requested",
   "ready_to_ship",
   "shipment_created",
   "out_for_delivery",
   "delivered",
   "returned",
   "cancelled",
+  "cancelled_by_customer",
 ];
 
 export const SHIPPING_LIFECYCLE_STATUSES = [
@@ -29,12 +31,14 @@ export const ORDER_STATUS_LABELS = {
   pending: "Pending",
   pending_confirmation: "Pending Confirmation",
   confirmed: "Confirmed",
+  edit_requested: "Edit Requested",
   ready_to_ship: "Ready to Ship",
   shipment_created: "Shipment Created",
   out_for_delivery: "Out for Delivery",
   delivered: "Delivered",
   returned: "Returned",
   cancelled: "Cancelled",
+  cancelled_by_customer: "Cancelled by Customer",
 };
 
 export const SHIPPING_STATUS_LABELS = {
@@ -67,6 +71,9 @@ export const ORDER_STATUS_ALIASES = {
   open: "pending",
   paid: "confirmed",
   approved: "confirmed",
+  edit: "edit_requested",
+  edit_requested: "edit_requested",
+  customer_edit_requested: "edit_requested",
   processing: "ready_to_ship",
   packed: "ready_to_ship",
   ready: "ready_to_ship",
@@ -87,6 +94,8 @@ export const ORDER_STATUS_ALIASES = {
   canceled: "cancelled",
   payment_rejected: "cancelled",
   rejected: "cancelled",
+  cancelled_by_customer: "cancelled_by_customer",
+  customer_cancelled: "cancelled_by_customer",
 };
 
 export const SHIPPING_STATUS_ALIASES = {
