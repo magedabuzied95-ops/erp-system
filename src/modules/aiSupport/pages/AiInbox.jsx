@@ -4110,14 +4110,23 @@ export default function AiInbox() {
   const sendProductCards = useCallback(async (productCards = []) => {
     const cards = asArray(productCards)
       .map((card) => ({
+        id: card.product_id ?? card.id ?? null,
         product_id: card.product_id ?? card.id ?? null,
         variant_id: card.variant_id ?? card.variantId ?? null,
         product_name: clean(card.product_name || card.name || card.title || ""),
-        image_url: clean(card.image_url || card.product_image_url || card.variant_image_url || card.image || ""),
+        name: clean(card.product_name || card.name || card.title || ""),
+        title: clean(card.product_name || card.name || card.title || ""),
+        image_url: clean(card.image_url || card.product_image_url || card.variant_image_url || card.image || card.thumbnail_url || card.media_url || ""),
+        image: clean(card.image_url || card.product_image_url || card.variant_image_url || card.image || card.thumbnail_url || card.media_url || ""),
+        thumbnail_url: clean(card.image_url || card.product_image_url || card.variant_image_url || card.image || card.thumbnail_url || card.media_url || ""),
+        media_url: clean(card.media_url || card.mediaUrl || ""),
         price: Number(card.price ?? card.final_price ?? card.sale_price ?? 0) || 0,
         color: clean(card.color || card.variant_color || ""),
         size: clean(card.size || card.variant_size || ""),
-        storefront_url: clean(card.storefront_url || card.product_url || card.url || ""),
+        storefront_url: clean(card.storefront_url || card.product_url || card.url || card.share_url || card.shareUrl || ""),
+        product_url: clean(card.storefront_url || card.product_url || card.url || card.share_url || card.shareUrl || ""),
+        url: clean(card.storefront_url || card.product_url || card.url || card.share_url || card.shareUrl || ""),
+        share_url: clean(card.share_url || card.shareUrl || ""),
       }))
       .filter((card) => card.product_name || card.product_id || card.storefront_url);
     if (!selectedConversation?.session_id || !cards.length) return;
@@ -4151,14 +4160,79 @@ export default function AiInbox() {
       const returnedMessage = payload?.message || null;
       if (returnedMessage) {
         const returnedCards = normalizeProductCardsValue(returnedMessage.product_cards || returnedMessage.productCards || cards);
+        const normalizedCards = returnedCards.length
+          ? returnedCards.map((card, index) => {
+              const fallbackCard = cards[index] || cards[0] || {};
+              const exactUrl = clean(
+                card.storefront_url ||
+                  card.product_url ||
+                  card.url ||
+                  card.share_url ||
+                  card.shareUrl ||
+                  fallbackCard.storefront_url ||
+                  fallbackCard.product_url ||
+                  fallbackCard.url ||
+                  fallbackCard.share_url ||
+                  ""
+              );
+              const fallbackImage = clean(
+                fallbackCard.image_url ||
+                  fallbackCard.product_image_url ||
+                  fallbackCard.variant_image_url ||
+                  fallbackCard.image ||
+                  fallbackCard.thumbnail_url ||
+                  fallbackCard.media_url ||
+                  ""
+              );
+              const imageUrl = clean(
+                card.image_url ||
+                  card.product_image_url ||
+                  card.variant_image_url ||
+                  card.image ||
+                  card.thumbnail_url ||
+                  card.media_url ||
+                  fallbackImage
+              );
+              const productName = clean(
+                card.product_name ||
+                  card.name ||
+                  card.title ||
+                  card.display_name ||
+                  card.label ||
+                  fallbackCard.product_name ||
+                  fallbackCard.name ||
+                  fallbackCard.title ||
+                  ""
+              );
+              return {
+                ...fallbackCard,
+                ...card,
+                product_name: productName,
+                name: productName,
+                title: productName,
+                display_name: productName,
+                label: productName,
+                image_url: imageUrl,
+                product_image_url: clean(card.product_image_url || fallbackCard.product_image_url || ""),
+                variant_image_url: clean(card.variant_image_url || fallbackCard.variant_image_url || ""),
+                image: imageUrl,
+                thumbnail_url: imageUrl,
+                media_url: clean(card.media_url || card.mediaUrl || fallbackCard.media_url || fallbackCard.mediaUrl || ""),
+                storefront_url: exactUrl,
+                product_url: exactUrl,
+                url: exactUrl,
+                share_url: clean(card.share_url || card.shareUrl || fallbackCard.share_url || fallbackCard.shareUrl || ""),
+              };
+            })
+          : cards;
         patchConversation(conversationIdentifier, (conversation) => ({
           ...conversation,
-          messages: mergeMessagesByIdentity([...asArray(conversation.messages), { ...returnedMessage, client_request_id: returnedMessage.client_request_id || clientRequestId, message_identity_key: returnedMessage.message_identity_key || messageIdentityKey, product_cards: returnedCards }]),
+          messages: mergeMessagesByIdentity([...asArray(conversation.messages), { ...returnedMessage, client_request_id: returnedMessage.client_request_id || clientRequestId, message_identity_key: returnedMessage.message_identity_key || messageIdentityKey, product_cards: normalizedCards }]),
           latest_message_preview:
             returnedMessage.message_text ||
             returnedMessage.staff_message ||
             returnedMessage.customer_message ||
-            productCardPreviewText(returnedCards) ||
+            productCardPreviewText(normalizedCards) ||
             previewText,
           last_activity_at: returnedMessage.created_at || now,
           updated_at: returnedMessage.created_at || now,

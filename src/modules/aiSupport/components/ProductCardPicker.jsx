@@ -131,18 +131,30 @@ const buildProductCardPayload = (product = {}, variant = null) => {
   const activeImage = productImage(product, variant);
   const activeVariantId = variant?.variant_id ?? variant?.id ?? null;
   const activeProductId = product.product_id ?? product.id ?? variant?.product_id ?? null;
+  const productName = clean(product.name || product.product_name || product.title || "");
   const color = clean(variant?.color || variant?.color_name || variant?.variant_color || "");
   const size = clean(variant?.size || variant?.size_name || variant?.variant_size || "");
   const priceValue = Number(variant?.price ?? variant?.final_price ?? variant?.regular_price ?? product.final_price ?? product.price ?? 0);
+  const storefrontUrl = resolveStorefrontUrl(product, variant, color, size);
   return {
+    id: activeProductId,
     product_id: activeProductId,
     variant_id: activeVariantId,
-    product_name: clean(product.name || product.product_name || product.title || ""),
+    product_name: productName,
+    name: productName,
+    title: productName,
+    display_name: productName,
     image_url: activeImage,
+    image: activeImage,
+    thumbnail_url: activeImage,
+    media_url: clean(product.media_url || product.mediaUrl || ""),
     price: Number.isFinite(priceValue) ? priceValue : 0,
     color,
     size,
-    storefront_url: resolveStorefrontUrl(product, variant, color, size),
+    storefront_url: storefrontUrl,
+    product_url: storefrontUrl,
+    url: storefrontUrl,
+    share_url: clean(product.share_url || product.shareUrl || ""),
   };
 };
 

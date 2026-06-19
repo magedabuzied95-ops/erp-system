@@ -2619,14 +2619,59 @@ const buildDraftOrderPaymentActions = ({ conversation = {}, order = {}, product 
 };
 
 const normalizeSelectedProductCard = (card = {}) => {
-  const safeSize = envText(card.size || card.selected_size || card.variant_size || (Array.isArray(card.sizes) ? card.sizes[0] : "") || "");
-  const safePrice = Number(card.price ?? card.final_price ?? card.sale_price ?? card.selling_price ?? 0);
-  const productName = envText(card.product_name || card.name || card.title || "");
-  const imageUrl = envText(card.image_url || card.image || card.main_image || card.selected_card_image_url || "");
-  const storefrontUrl = envText(card.storefront_url || card.product_url || card.url || "");
-  const productId = envText(card.product_id || card.productId || card.id || "");
-  const variantId = envText(card.variant_id || card.variantId || card.selected_variant_id || card.matched_variant_id || "");
-  const color = envText(card.color || card.display_color || card.variant_color || card.matched_variant_color || "");
+  const safeSize = envText(
+    card.size ||
+      card.selected_size ||
+      card.variant_size ||
+      card.variant?.size ||
+      card.variant?.size_name ||
+      card.variant?.variant_size ||
+      (Array.isArray(card.sizes) ? card.sizes[0] : "") ||
+      ""
+  );
+  const safePrice = Number(card.price ?? card.final_price ?? card.sale_price ?? card.selling_price ?? card.variant?.price ?? card.variant?.final_price ?? 0);
+  const productName = envText(
+    card.product_name ||
+      card.name ||
+      card.title ||
+      card.display_name ||
+      card.label ||
+      card.product?.name ||
+      card.product?.title ||
+      card.product?.product_name ||
+      ""
+  );
+  const imageUrl = envText(
+    card.image_url ||
+      card.product_image_url ||
+      card.variant_image_url ||
+      card.image ||
+      card.thumbnail_url ||
+      card.media_url ||
+      card.main_image ||
+      card.color_image ||
+      card.color_image_url ||
+      card.selected_card_image_url ||
+      card.variant?.image_url ||
+      card.variant?.variant_image_url ||
+      ""
+  );
+  const productId = envText(card.product_id || card.productId || card.id || card.product?.id || card.product?.product_id || "");
+  const variantId = envText(card.variant_id || card.variantId || card.selected_variant_id || card.matched_variant_id || card.variant?.id || card.variant?.variant_id || "");
+  const color = envText(card.color || card.display_color || card.variant_color || card.matched_variant_color || card.variant?.color || card.variant?.color_name || card.variant?.variant_color || "");
+  const explicitUrl = envText(
+    card.storefront_url ||
+      card.product_url ||
+      card.url ||
+      card.share_url ||
+      card.shareUrl ||
+      card.product?.storefront_url ||
+      card.product?.product_url ||
+      card.product?.url ||
+      ""
+  );
+  const slug = envText(card.slug || card.canonical_slug || card.product_slug || card.product?.slug || card.product?.canonical_slug || card.product?.product_slug || "");
+  const storefrontUrl = explicitUrl || (productId ? `/shop/product/${encodeURIComponent(productId)}` : slug ? `/shop/product/${encodeURIComponent(slug)}` : "");
   return {
     ...card,
     product_id: productId,
@@ -2634,13 +2679,20 @@ const normalizeSelectedProductCard = (card = {}) => {
     product_name: productName,
     name: productName,
     title: productName,
+    display_name: productName,
+    label: productName,
     image_url: imageUrl,
+    product_image_url: envText(card.product_image_url || card.product?.image_url || imageUrl),
+    variant_image_url: envText(card.variant_image_url || card.variant?.image_url || card.variant?.variant_image_url || ""),
+    thumbnail_url: envText(card.thumbnail_url || imageUrl),
+    media_url: envText(card.media_url || card.mediaUrl || ""),
     price: Number.isFinite(safePrice) && safePrice > 0 ? safePrice : null,
     color,
     size: safeSize,
     storefront_url: storefrontUrl,
     product_url: storefrontUrl,
     url: storefrontUrl,
+    share_url: envText(card.share_url || card.shareUrl || ""),
   };
 };
 

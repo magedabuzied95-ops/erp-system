@@ -88,6 +88,111 @@ const normalizeProductCardsValue = (value) => {
   }
   return [];
 };
+const firstText = (...values) => values.map((value) => text(value)).find(Boolean) || "";
+const firstImageValue = (...values) => {
+  for (const value of values) {
+    if (Array.isArray(value)) {
+      const nested = firstImageValue(...value);
+      if (nested) return nested;
+      continue;
+    }
+    if (value && typeof value === "object") {
+      const nested = firstImageValue(
+        value.secure_url,
+        value.cloudinary_url,
+        value.image_url,
+        value.main_image,
+        value.variant_image,
+        value.variant_image_url,
+        value.color_image,
+        value.color_image_url,
+        value.thumbnail_url,
+        value.media_url,
+        value.url,
+        value.path,
+        value.src,
+        value.preview,
+        value.image
+      );
+      if (nested) return nested;
+      continue;
+    }
+    const safe = text(value);
+    if (safe) return safe;
+  }
+  return "";
+};
+const normalizeInboxProductCard = (card = {}, inherited = {}) => {
+  if (!card || typeof card !== "object") return [];
+  const nestedCards = asArray(card.items || card.cards || card.products || card.product_cards || card.productCards);
+  if (nestedCards.length) {
+    const shared = { ...inherited, ...card };
+    return nestedCards.flatMap((nestedCard) => normalizeInboxProductCard(nestedCard, shared));
+  }
+
+  const merged = { ...inherited, ...card };
+  const productId = firstText(merged.product_id, merged.id, merged.productId, merged.matched_product_id);
+  const productName = firstText(
+    merged.name,
+    merged.product_name,
+    merged.title,
+    merged.display_name,
+    merged.label,
+    inherited.product_name,
+    inherited.name,
+    inherited.title,
+    "منتج"
+  );
+  const storefrontUrl = firstText(
+    merged.storefront_url,
+    merged.product_url,
+    merged.url,
+    merged.share_url,
+    merged.shareUrl,
+    inherited.storefront_url,
+    inherited.product_url,
+    inherited.url,
+    inherited.share_url,
+    productId ? `/shop/product/${encodeURIComponent(productId)}` : ""
+  );
+  const imageUrl = firstImageValue(
+    merged.image_url,
+    merged.image,
+    merged.thumbnail_url,
+    merged.media_url,
+    merged.product_image_url,
+    merged.product_image,
+    merged.variant_image_url,
+    merged.variant_image,
+    merged.main_image,
+    inherited.image_url,
+    inherited.image,
+    inherited.thumbnail_url,
+    inherited.media_url,
+    inherited.product_image_url,
+    inherited.variant_image_url,
+    inherited.main_image
+  );
+
+  return [{
+    ...merged,
+    id: productId || merged.id || merged.product_id || "",
+    product_id: productId || merged.product_id || merged.id || "",
+    product_name: productName,
+    name: productName,
+    title: productName,
+    display_name: productName,
+    label: merged.label || productName,
+    storefront_url: storefrontUrl,
+    product_url: storefrontUrl,
+    url: storefrontUrl,
+    share_url: text(merged.share_url || merged.shareUrl || ""),
+    image_url: imageUrl,
+    image: imageUrl,
+    thumbnail_url: imageUrl || merged.thumbnail_url || "",
+    media_url: text(merged.media_url || merged.mediaUrl || ""),
+  }];
+};
 const asProductCards = (value) => {
   if (Array.isArray(value)) return value;
   if (value && typeof value === "object") return [value];
@@ -110,7 +215,7 @@ const normalizeInboxProductCards = (row = {}) =>
       row.suggested_products ||
       row.suggestedProducts ||
       []
-  );
+  ).flatMap((card) => normalizeInboxProductCard(card));
 const uniqueArray = (items = []) => [...new Set(asArray(items).map((item) => text(item)).filter(Boolean))];
 const isRegressionTestContext = () => Boolean(getPerfContext()?.is_regression_test || getPerfContext()?.dry_run);
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, numeric(value, 0)));

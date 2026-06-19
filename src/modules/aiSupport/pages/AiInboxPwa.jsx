@@ -2475,10 +2475,37 @@ export default function AiInboxPwa() {
       try {
         const sentCards = cards.map((card) => {
           const exactUrl = clean(card.product_url || card.storefront_url || productUrl(card));
+          const productName = clean(card.product_name || card.name || card.title || card.display_name || card.label || "");
+          const imageUrl = clean(
+            card.image_url ||
+              card.product_image_url ||
+              card.variant_image_url ||
+              card.image ||
+              card.thumbnail_url ||
+              card.media_url ||
+              card.main_image ||
+              card.color_image ||
+              card.color_image_url ||
+              ""
+          );
           return {
             ...card,
+            id: card.product_id ?? card.id ?? null,
             product_url: exactUrl,
             storefront_url: exactUrl,
+            url: exactUrl,
+            share_url: clean(card.share_url || card.shareUrl || ""),
+            product_name: productName,
+            name: productName,
+            title: productName,
+            display_name: productName,
+            label: productName,
+            image_url: imageUrl,
+            product_image_url: clean(card.product_image_url || ""),
+            variant_image_url: clean(card.variant_image_url || ""),
+            image: imageUrl,
+            thumbnail_url: imageUrl,
+            media_url: clean(card.media_url || card.mediaUrl || ""),
           };
         });
         console.debug("[AiInboxPwa][product-card-send]", {
