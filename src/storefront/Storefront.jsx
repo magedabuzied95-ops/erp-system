@@ -1022,6 +1022,7 @@ const LazyStorefrontTrackOrderPage = lazy(() => import("./pages/StorefrontAsyncP
 const LazyStorefrontAccountPage = lazy(() => import("./pages/StorefrontAccountPage.jsx").then((module) => ({ default: module.StorefrontAccountPage })));
 const LazyStorefrontWishlistPage = lazy(() => import("./pages/StorefrontAsyncPages").then((module) => ({ default: module.WishlistPageRoute })));
 const LazyStorefrontRecentPage = lazy(() => import("./pages/StorefrontAsyncPages").then((module) => ({ default: module.RecentPageRoute })));
+const LazyOrderConfirmationActionPage = lazy(() => import("./pages/OrderConfirmationActionPage.jsx").then((module) => ({ default: module.OrderConfirmationActionPage })));
 
 const CART_KEY = "storefront.cart";
 const LEGACY_CART_KEYS = [
@@ -8222,6 +8223,10 @@ function Storefront() {
       <Route
         path="track"
         element={<LazyStorefrontTrackOrderPage helpers={helpers} components={components} />}
+      />
+      <Route
+        path="order-confirmation/:token"
+        element={<LazyOrderConfirmationActionPage />}
       />
       <Route
         path="account"

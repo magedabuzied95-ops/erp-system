@@ -1,3 +1,5 @@
+﻿import { createHmac, timingSafeEqual } from "node:crypto";
+
 import db from "../database/db.js";
 import {
   AI_AGENT_CHANNELS,
@@ -6,8 +8,8 @@ import {
 } from "./aiChannelAdapterService.js";
 import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 import { adjustVariantStock } from "./inventoryService.js";
-import { normalizeEgyptPhone, sendOrderConfirmationInteractiveMessage, sendTextMessage, buildOrderConfirmationMessage } from "./whatsappGatewayService.js";
-import { buildInvoiceReceiptWhatsappMessage, buildPublicInvoiceUrl, buildWhatsappTextDebug } from "../utils/whatsapp.js";
+import { normalizeEgyptPhone, sendTextMessage } from "./whatsappGatewayService.js";
+import { buildInvoiceReceiptWhatsappMessage, buildPublicInvoiceUrl, buildWhatsappTextDebug, resolvePublicAppUrl } from "../utils/whatsapp.js";
 import { normalizeArabicIntentPayload } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { getSetting } from "./settingsService.js";
@@ -19,6 +21,16 @@ const CANCEL_WORDS = new Set(["2", "إلغاء", "الغاء", "cancel", "no"]);
 const STOREFRONT_SOURCES = new Set(["storefront", "website", "web"]);
 const PAYMENT_REVIEW_METHODS = new Set(["instapay", "vodafone_cash", "bank_transfer", "shipping_confirmation", "transfer"]);
 const PAYMENT_REVIEW_STATUSES = new Set(["partially_paid", "awaiting_payment_review", "shipping_paid"]);
+const ORDER_CONFIRMATION_ACTIONS = new Set(["confirm", "edit", "cancel"]);
+const ORDER_CONFIRMATION_TOKEN_BYTES = 24;
+const ORDER_CONFIRMATION_TOKEN_TTL_MINUTES = Number(process.env.ORDER_CONFIRMATION_TOKEN_TTL_MINUTES || 72 * 60);
+const ORDER_CONFIRMATION_FALLBACK_TEXT = [
+  "",
+  "?? ?????? ?? ????? ??:",
+  "1 - ????? ?????",
+  "2 - ????? ?????",
+  "3 - ????? ?????",
+].join("\n");
 
 const text = (value, fallback = "") => String(value ?? fallback).trim();
 const whatsappButtonSignalValues = (message = {}) => {
@@ -74,6 +86,21 @@ export const ensureWhatsappOrderConfirmationSchema = async (clientOrPool = db) =
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cancel_reason TEXT`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_orders_whatsapp_confirmation_phone ON orders (customer_phone, created_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_orders_whatsapp_confirmation_pending ON orders (tenant_id, status, created_at DESC)`);
+      await clientOrPool.query(`
+        CREATE TABLE IF NOT EXISTS order_confirmation_tokens (
+          id BIGSERIAL PRIMARY KEY,
+          tenant_id BIGINT NOT NULL,
+          order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+          action VARCHAR(20) NOT NULL,
+          token_hash TEXT NOT NULL UNIQUE,
+          expires_at TIMESTAMP NOT NULL,
+          consumed_at TIMESTAMP NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE (tenant_id, order_id, action)
+        )
+      `);
+      await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_order_confirmation_tokens_lookup ON order_confirmation_tokens (tenant_id, order_id, action, expires_at DESC)`);
     };
     if (clientOrPool !== db) return run();
     schemaReadyPromise = run().catch((error) => {
@@ -362,6 +389,75 @@ const loadConfirmationOrder = async ({ orderId = "", phone = "" } = {}) => {
   return loadLatestOrderByPhone(phone);
 };
 
+const orderConfirmationSecret = () =>
+  text(
+    process.env.ORDER_CONFIRMATION_LINK_SECRET ||
+      process.env.WHATSAPP_ORDER_CONFIRMATION_SECRET ||
+      process.env.JWT_SECRET ||
+      process.env.APP_SECRET ||
+      process.env.SECRET_KEY ||
+      process.env.SESSION_SECRET,
+    ""
+  ) || "order-confirmation-local-secret";
+
+const signOrderConfirmationToken = ({ orderId = "", action = "", expiresAt = "" } = {}) => {
+  const payload = JSON.stringify({
+    orderId: String(orderId),
+    action: String(action),
+    expiresAt: String(expiresAt),
+  });
+  const payloadBase64 = Buffer.from(payload, "utf8").toString("base64url");
+  const signature = createHmac("sha256", orderConfirmationSecret()).update(payloadBase64).digest("base64url");
+  return `${payloadBase64}.${signature}`;
+};
+
+const buildOrderConfirmationToken = ({ orderId = "", action = "", ttlMinutes = ORDER_CONFIRMATION_TOKEN_TTL_MINUTES } = {}) => {
+  const expiresAt = new Date(Date.now() + Math.max(1, Number(ttlMinutes) || ORDER_CONFIRMATION_TOKEN_TTL_MINUTES) * 60_000).toISOString();
+  return { token: signOrderConfirmationToken({ orderId, action, expiresAt }), expiresAt };
+};
+
+const verifyOrderConfirmationToken = (token = "") => {
+  const safeToken = text(token);
+  const [payloadBase64, signature] = safeToken.split(".");
+  if (!payloadBase64 || !signature) return null;
+  const expectedSignature = createHmac("sha256", orderConfirmationSecret()).update(payloadBase64).digest("base64url");
+  const providedBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expectedSignature);
+  if (providedBuffer.length !== expectedBuffer.length || !timingSafeEqual(providedBuffer, expectedBuffer)) {
+    return null;
+  }
+  try {
+    const payload = JSON.parse(Buffer.from(payloadBase64, "base64url").toString("utf8"));
+    if (!payload?.orderId || !payload?.action || !payload?.expiresAt) return null;
+    if (new Date(payload.expiresAt).getTime() < Date.now()) return null;
+    if (!ORDER_CONFIRMATION_ACTIONS.has(String(payload.action))) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+};
+
+const orderConfirmationActionLabel = (action = "") => {
+  if (action === "confirm") return "تم تأكيد الطلب";
+  if (action === "edit") return "تم طلب تعديل الطلب وسيتواصل معك أحد أفراد الفريق";
+  if (action === "cancel") return "تم إلغاء الطلب";
+  return "تم تحديث الطلب";
+};
+
+const buildOrderConfirmationPublicUrl = (token = "") => {
+  const safeToken = text(token);
+  if (!safeToken) return "";
+  const baseUrl = text(resolvePublicAppUrl() || process.env.PUBLIC_APP_URL || process.env.FRONTEND_URL || "").replace(/\/+$/, "");
+  return baseUrl ? `${baseUrl}/shop/order-confirmation/${encodeURIComponent(safeToken)}` : `/shop/order-confirmation/${encodeURIComponent(safeToken)}`;
+};
+
+const buildOrderConfirmationLinksMessage = ({ confirmUrl = "", editUrl = "", cancelUrl = "" } = {}) => [
+  "طلبك جاهز للتأكيد:",
+  `✅ تأكيد الطلب: ${confirmUrl}`,
+  `✏️ تعديل الطلب: ${editUrl}`,
+  `❌ إلغاء الطلب: ${cancelUrl}`,
+].filter(Boolean).join("\n");
+
 export const sendOrderConfirmation = async (order = {}) => {
   await ensureWhatsappOrderConfirmationSchema();
   const current = order?.id ? await loadOrderById(order.id) : order;
@@ -397,12 +493,11 @@ export const sendOrderConfirmation = async (order = {}) => {
   if (!shouldSend) return { sent: false, reason };
   const items = Array.isArray(order.items) && order.items.length ? order.items : await loadOrderItems(current.id);
   const storeName = await getSetting("storefront.store_name", "").catch(() => "") || await getSetting("general.company_name", "").catch(() => "");
-  const message = buildOrderConfirmationMessage({ ...current, items, store_name: storeName });
+  let message = "";
   const messageTenantId = tenantIdForMessage(current, current);
-  const title = "✅ تأكيد الطلب";
-  const footer = "اختر الإجراء المناسب";
+  const orderRef = orderNumber(current);
   let result = null;
-  let deliveryMode = "interactive";
+  let deliveryMode = "link";
   console.info("[buttons-step-1-enter]", {
     file: "server/services/whatsappOrderConfirmationService.js",
     function: "sendOrderConfirmation",
@@ -410,23 +505,39 @@ export const sendOrderConfirmation = async (order = {}) => {
     phoneSuffix: phone.slice(-4),
   });
   try {
-    result = await sendOrderConfirmationInteractiveMessage({
-      phone,
-      title,
-      text: message,
-      footer,
-      orderId: current.id,
+    const confirmToken = buildOrderConfirmationToken({ orderId: current.id, action: "confirm" });
+    const editToken = buildOrderConfirmationToken({ orderId: current.id, action: "edit" });
+    const cancelToken = buildOrderConfirmationToken({ orderId: current.id, action: "cancel" });
+    const confirmUrl = buildOrderConfirmationPublicUrl(confirmToken.token);
+    const editUrl = buildOrderConfirmationPublicUrl(editToken.token);
+    const cancelUrl = buildOrderConfirmationPublicUrl(cancelToken.token);
+    message = buildOrderConfirmationLinksMessage({
+      confirmUrl,
+      editUrl,
+      cancelUrl,
     });
+    if (!confirmUrl || !editUrl || !cancelUrl) {
+      console.warn("[whatsapp:order-confirmation-link-build-warning]", {
+        order_id: current.id,
+        order_number: orderRef,
+        phoneSuffix: phone.slice(-4),
+        has_confirm_url: Boolean(confirmUrl),
+        has_edit_url: Boolean(editUrl),
+        has_cancel_url: Boolean(cancelUrl),
+      });
+    }
+    result = await sendTextMessage({ phone, message });
   } catch (error) {
-    deliveryMode = "text";
+    deliveryMode = "fallback_text";
+    message = ORDER_CONFIRMATION_FALLBACK_TEXT;
     console.warn("[whatsapp:order-confirmation-buttons-fallback]", {
       orderId: current?.id || null,
-      orderNumber: orderNumber(current),
+      orderNumber: orderRef,
       phoneSuffix: phone.slice(-4),
       message: error?.message || String(error),
       code: error?.code || "",
       status: error?.status || "",
-      attempted_delivery_mode: "interactive",
+      attempted_delivery_mode: "secure_links",
       fallback_delivery_mode: "text_1_2_3",
     });
     result = await sendTextMessage({ phone, message });
@@ -492,11 +603,11 @@ export const sendOrderConfirmation = async (order = {}) => {
   }
   console.info("[whatsapp:order-confirmation-sent]", {
     orderId: current.id,
-    orderNumber: orderNumber(current),
+    orderNumber: orderRef,
     phoneSuffix: phone.slice(-4),
     deliveryMode,
   });
-  return { sent: true, order: current, result, delivery_mode: deliveryMode, used_buttons: deliveryMode === "interactive" };
+  return { sent: true, order: current, result, delivery_mode: deliveryMode, used_buttons: false };
 };
 
 export const sendPaymentReviewNotification = async (order = {}) => {
@@ -990,6 +1101,49 @@ async function applyConfirmationAction({
   }
 }
 
+export const consumeOrderConfirmationLink = async ({ token = "", ipAddress = "", userAgent = "", source = "public_order_confirmation_link" } = {}) => {
+  const payload = verifyOrderConfirmationToken(token);
+  if (!payload) {
+    const error = new Error("Invalid or expired confirmation link");
+    error.status = 400;
+    error.code = "ORDER_CONFIRMATION_TOKEN_INVALID";
+    throw error;
+  }
+
+  const orderId = Number(payload.orderId);
+  const current = Number.isFinite(orderId) ? await loadOrderById(orderId) : null;
+  if (!current) {
+    const error = new Error("Order not found");
+    error.status = 404;
+    error.code = "ORDER_CONFIRMATION_ORDER_NOT_FOUND";
+    throw error;
+  }
+
+  const expectedStatus = payload.action === "confirm" ? "confirmed" : payload.action === "edit" ? "edit_requested" : "cancelled_by_customer";
+  const alreadyApplied = text(current.status) === expectedStatus;
+  const updated = alreadyApplied
+    ? current
+    : await applyConfirmationAction({
+        orderId: current.id,
+        action: payload.action,
+        source,
+        reason: `public_link:${payload.action}`,
+        actorType: "customer",
+      });
+
+  return {
+    success: true,
+    action: payload.action,
+    target_status: expectedStatus,
+    already_applied: alreadyApplied,
+    order: updated,
+    message: orderConfirmationActionLabel(payload.action),
+    token_expires_at: payload.expiresAt,
+    ip_address: ipAddress,
+    user_agent: userAgent,
+  };
+};
+
 const tenantIdForMessage = (message = {}, order = null) => number(message.tenant_id || message.tenantId || order?.tenant_id || process.env.WHATSAPP_TENANT_ID || 1, 1);
 
 const forwardToAiInbox = async ({ message = {}, order = null, needsFollowup = false } = {}) => {
@@ -1420,3 +1574,6 @@ export default {
   markOrderConfirmed,
   markOrderCancelled,
 };
+
+
+
