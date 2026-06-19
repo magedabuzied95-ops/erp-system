@@ -152,6 +152,7 @@ const trackEvolutionButtonsMessage = ({
   phoneSuffix = "",
   responseBody = null,
   responseStatus = null,
+  fallbackOnNotDelivered = null,
 } = {}) => {
   const trackedMessageId = text(messageId);
   if (!trackedMessageId) return null;
@@ -166,6 +167,8 @@ const trackEvolutionButtonsMessage = ({
     phoneSuffix: "",
     responseBody: null,
     timer: null,
+    fallbackOnNotDelivered: null,
+    fallbackTriggered: false,
     createdAt: new Date().toISOString(),
   };
   if (previous.timer && ["DELIVERY_ACK", "READ", "FAILED"].includes(previous.status)) {
@@ -183,6 +186,8 @@ const trackEvolutionButtonsMessage = ({
     phoneSuffix: text(phoneSuffix || previous.phoneSuffix || ""),
     responseBody: responseBody ?? previous.responseBody ?? null,
     responseStatus: responseStatus ?? previous.responseStatus ?? null,
+    fallbackOnNotDelivered: fallbackOnNotDelivered ?? previous.fallbackOnNotDelivered ?? null,
+    fallbackTriggered: previous.fallbackTriggered ?? false,
     updatedAt: new Date().toISOString(),
   };
   trackedEvolutionButtonMessages.set(trackedMessageId, updated);
@@ -207,6 +212,22 @@ const trackEvolutionButtonsMessage = ({
           phoneSuffix: current.phoneSuffix,
           endpoint: current.endpoint,
         });
+        if (typeof current.fallbackOnNotDelivered === "function" && !current.fallbackTriggered) {
+          current.fallbackTriggered = true;
+          trackedEvolutionButtonMessages.set(trackedMessageId, current);
+          Promise.resolve()
+            .then(() => current.fallbackOnNotDelivered())
+            .catch((fallbackError) => {
+              console.warn("[evolution:buttons-not-delivered-fallback-error]", {
+                messageId: trackedMessageId,
+                endpoint: current.endpoint,
+                orderId: current.orderId,
+                phoneSuffix: current.phoneSuffix,
+                message: fallbackError?.message || String(fallbackError),
+                code: fallbackError?.code || "",
+              });
+            });
+        }
       }
     }, EVOLUTION_BUTTONS_DELIVERY_TIMEOUT_MS);
   }
@@ -535,6 +556,43 @@ const buildOrderConfirmationButtonsPayload = ({ phone = "", title = "", text = "
   };
 };
 
+const buildOrderConfirmationListPayload = ({ phone = "", title = "", text = "", footer = "", orderId = "" } = {}) => {
+  const safeTitle = String(title || "").trim();
+  const safeText = String(text || "").trim();
+  const safeFooter = String(footer || "").trim();
+  const safeOrderId = String(orderId || "").trim();
+  const suffix = safeOrderId ? `:${safeOrderId}` : "";
+  return {
+    number: normalizeEgyptPhone(phone),
+    title: safeTitle,
+    description: safeText,
+    footer: safeFooter,
+    buttonText: "اختر الإجراء",
+    sections: [
+      {
+        title: "خيارات الطلب",
+        rows: [
+          {
+            title: "✅ تأكيد الطلب",
+            description: "",
+            rowId: `confirm_order${suffix}`,
+          },
+          {
+            title: "✏️ تعديل الطلب",
+            description: "",
+            rowId: `edit_order${suffix}`,
+          },
+          {
+            title: "❌ إلغاء الطلب",
+            description: "",
+            rowId: `cancel_order${suffix}`,
+          },
+        ],
+      },
+    ],
+  };
+};
+
 const orderSummaryLines = (items = []) =>
   (Array.isArray(items) ? items : [])
     .filter(Boolean)
@@ -564,6 +622,7 @@ const sendEvolutionButtonsMessage = async ({
   requestTimeoutMs = 9000,
   logBase = {},
   phone = "",
+  fallbackOnNotDelivered = null,
 } = {}) => {
   const functionName = "sendEvolutionButtonsMessage";
   const controller = new AbortController();
@@ -633,6 +692,7 @@ const sendEvolutionButtonsMessage = async ({
       phoneSuffix: logBase.phoneSuffix,
       responseBody: data,
       responseStatus: response.status,
+      fallbackOnNotDelivered,
     });
     return {
       success: true,
@@ -680,6 +740,140 @@ const sendEvolutionButtonsMessage = async ({
   }
 };
 
+const sendEvolutionListMessage = async ({
+  current = {},
+  endpoint = "",
+  requestBody = "",
+  requestTimeoutMs = 9000,
+  logBase = {},
+  phone = "",
+} = {}) => {
+  const functionName = "sendEvolutionListMessage";
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+  let response = null;
+  let raw = "";
+  try {
+    console.info("[evolution:send-list-request]", {
+      file: "server/services/whatsappGatewayService.js",
+      function: functionName,
+      endpoint,
+      ...logBase,
+    });
+    response = await fetch(`${current.apiUrl}${endpoint}`, {
+      method: "POST",
+      headers: {
+        apikey: apiKey(),
+        "Content-Type": "application/json",
+      },
+      body: requestBody,
+      signal: controller.signal,
+    });
+    raw = await response.text();
+    let data = null;
+    try {
+      data = raw ? JSON.parse(raw) : null;
+    } catch (parseError) {
+      console.error("[evolution:send-list-error]", {
+        file: "server/services/whatsappGatewayService.js",
+        function: functionName,
+        endpoint,
+        status: response?.status ?? null,
+        ...logBase,
+        message: parseError?.message || String(parseError),
+        code: parseError?.code || "",
+      });
+      throw parseError;
+    }
+
+    if (!response.ok) {
+      const error = gatewayError(data?.message || data?.error || `Evolution API returned ${response.status}`, "EVOLUTION_API_ERROR", response.status, {
+        data,
+        responseBody: data,
+        responseRaw: raw,
+      });
+      console.error("[evolution:send-list-error]", {
+        file: "server/services/whatsappGatewayService.js",
+        function: functionName,
+        endpoint,
+        status: response.status,
+        ...logBase,
+        message: error?.message || String(error),
+        code: error?.code || "",
+      });
+      throw error;
+    }
+
+    console.info("[evolution:send-list-success]", {
+      file: "server/services/whatsappGatewayService.js",
+      function: functionName,
+      endpoint,
+      status: response.status,
+      ...logBase,
+      messageId: extractEvolutionButtonsMessageId(data),
+    });
+    return {
+      success: true,
+      provider: current.provider,
+      instanceName: current.instanceName,
+      phone,
+      result: data,
+      endpoint,
+      delivery_mode: "interactive",
+      used_list: true,
+    };
+  } catch (error) {
+    console.error("[evolution:send-list-error]", {
+      file: "server/services/whatsappGatewayService.js",
+      function: functionName,
+      endpoint,
+      status: error?.status || (controller.signal.aborted ? "timeout" : ""),
+      ...logBase,
+      message: error?.message || String(error),
+      code: error?.code || "",
+    });
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+export const sendOrderConfirmationListMessage = async ({ phone, title = "", text = "", footer = "", orderId = "" } = {}) => {
+  if (provider() !== "evolution") {
+    throw gatewayError("Interactive list is only supported on the Evolution provider", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
+  }
+  const normalizedPhone = normalizeEgyptPhone(phone);
+  if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
+  const current = requireEvolutionConfig();
+  const requestTimeoutMs = 9000;
+  const payload = buildOrderConfirmationListPayload({ phone: normalizedPhone, title, text, footer, orderId });
+  const requestBody = JSON.stringify(payload);
+  const payloadPreview = {
+    number: payload.number,
+    title: payload.title,
+    descriptionLength: payload.description?.length ?? 0,
+    footerLength: payload.footer?.length ?? 0,
+    rowsCount: Array.isArray(payload.sections) ? payload.sections.reduce((total, section) => total + (Array.isArray(section?.rows) ? section.rows.length : 0), 0) : 0,
+    rowIds: Array.isArray(payload.sections)
+      ? payload.sections.flatMap((section) => (Array.isArray(section?.rows) ? section.rows : [])).map((row) => row?.rowId).filter(Boolean)
+      : [],
+  };
+  const logBase = {
+    order_id: orderId || null,
+    phoneSuffix: normalizedPhone.slice(-4),
+    rowIds: payloadPreview.rowIds,
+  };
+  const endpoint = `/message/sendList/${encodeURIComponent(current.instanceName)}`;
+  return sendEvolutionListMessage({
+    current,
+    endpoint,
+    requestBody,
+    requestTimeoutMs,
+    logBase,
+    phone: normalizedPhone,
+  });
+};
+
 export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "", text = "", footer = "", orderId = "" } = {}) => {
   if (provider() !== "evolution") {
     throw gatewayError("Interactive buttons are only supported on the Evolution provider", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
@@ -722,14 +916,55 @@ export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "
       endpoint,
       ...logBase,
     });
-    return await sendEvolutionButtonsMessage({
+    const buttonResult = await sendEvolutionButtonsMessage({
       current,
       endpoint,
       requestBody,
       requestTimeoutMs,
       logBase,
       phone: normalizedPhone,
+      fallbackOnNotDelivered: async () => {
+        try {
+          return await sendOrderConfirmationListMessage({
+            phone: normalizedPhone,
+            title,
+            text,
+            footer,
+            orderId,
+          });
+        } catch (listError) {
+          console.warn("[whatsapp:order-confirmation-list-fallback]", {
+            file: "server/services/whatsappGatewayService.js",
+            function: "sendOrderConfirmationInteractiveMessage",
+            endpoint,
+            order_id: orderId || null,
+            phoneSuffix: normalizedPhone.slice(-4),
+            error_message: listError?.message || String(listError),
+            error_status: listError?.status || "",
+          });
+          return sendTextMessage({ phone: normalizedPhone, message: text });
+        }
+      },
     });
+    const buttonMessageId = extractEvolutionButtonsMessageId(buttonResult?.result);
+    if (buttonMessageId) return buttonResult;
+    console.warn("[whatsapp:interactive-buttons-missing-message-id]", {
+      file: "server/services/whatsappGatewayService.js",
+      function: "sendOrderConfirmationInteractiveMessage",
+      endpoint,
+      ...logBase,
+    });
+    const listResult = await sendOrderConfirmationListMessage({
+      phone: normalizedPhone,
+      title,
+      text,
+      footer,
+      orderId,
+    });
+    return {
+      ...listResult,
+      delivery_mode: "interactive_list",
+    };
   } catch (error) {
     throw error;
   }

@@ -23,17 +23,26 @@ const PAYMENT_REVIEW_STATUSES = new Set(["partially_paid", "awaiting_payment_rev
 const text = (value, fallback = "") => String(value ?? fallback).trim();
 const whatsappButtonSignalValues = (message = {}) => {
   const interactiveResponse = message.interactiveResponse || message.interactive_response || {};
+  const listResponseMessage = message.listResponseMessage || message.list_response_message || {};
+  const listSingleSelectReply = listResponseMessage.singleSelectReply || listResponseMessage.single_select_reply || {};
   const interactiveButtonReply = message.interactive?.button_reply || message.interactive?.buttonReply || {};
   const button = message.button || {};
   return [
     message.buttonId,
     message.selectedButtonId,
+    message.selectedRowId,
+    message.selected_row_id,
     message.selected_button_id,
     interactiveResponse.buttonId,
     interactiveResponse.selectedButtonId,
+    interactiveResponse.selectedRowId,
     interactiveResponse.selected_button_id,
     interactiveResponse.id,
     interactiveResponse.button_id,
+    listResponseMessage.selectedRowId,
+    listResponseMessage.selected_row_id,
+    listSingleSelectReply.selectedRowId,
+    listSingleSelectReply.selected_row_id,
     interactiveButtonReply.id,
     interactiveButtonReply.title,
     button.payload,
