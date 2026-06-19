@@ -199,6 +199,9 @@ const PublicInvoice = lazy(() => import("./pages/PublicInvoice"));
 const PublicProduct = lazy(() => import("./pages/PublicProduct"));
 const SmartProductQrRedirect = lazy(() => import("./pages/SmartProductQrRedirect"));
 const Storefront = lazy(() => import("./storefront/Storefront"));
+const PrivacyPage = lazy(() => import("./storefront/pages/LegalPages").then((module) => ({ default: module.PrivacyPage })));
+const TermsPage = lazy(() => import("./storefront/pages/LegalPages").then((module) => ({ default: module.TermsPage })));
+const DataDeletionPage = lazy(() => import("./storefront/pages/LegalPages").then((module) => ({ default: module.DataDeletionPage })));
 
 const Workspace = lazy(() => import("./modules/saas/pages/Workspace"));
 
@@ -327,6 +330,21 @@ function App() {
       <Route
         path="/qr/product/:productId"
         element={<SmartProductQrRedirect />}
+      />
+
+      <Route
+        path="/privacy"
+        element={<PrivacyPage />}
+      />
+
+      <Route
+        path="/terms"
+        element={<TermsPage />}
+      />
+
+      <Route
+        path="/data-deletion"
+        element={<DataDeletionPage />}
       />
 
       <Route
