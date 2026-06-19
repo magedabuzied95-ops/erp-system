@@ -514,22 +514,16 @@ const buildOrderConfirmationButtonsPayload = ({ phone = "", title = "", text = "
       type: "reply",
       displayText: "✅ تأكيد الطلب",
       id: `confirm_order${suffix}`,
-      buttonId: `confirm_order${suffix}`,
-      buttonText: "✅ تأكيد الطلب",
     },
     {
       type: "reply",
       displayText: "✏️ تعديل الطلب",
       id: `edit_order${suffix}`,
-      buttonId: `edit_order${suffix}`,
-      buttonText: "✏️ تعديل الطلب",
     },
     {
       type: "reply",
       displayText: "❌ إلغاء الطلب",
       id: `cancel_order${suffix}`,
-      buttonId: `cancel_order${suffix}`,
-      buttonText: "❌ إلغاء الطلب",
     },
   ];
   return {
@@ -561,6 +555,7 @@ const orderAddressLine = (order = {}) =>
   );
 
 const orderStoreName = (order = {}) => text(order.store_name || order.storefront_name || order.company_name || order.brand_name || "M1 Store");
+const truncateText = (value = "", limit = 500) => text(value).slice(0, limit);
 
 const sendEvolutionButtonsMessage = async ({
   current = {},
@@ -650,6 +645,15 @@ const sendEvolutionButtonsMessage = async ({
       used_buttons: true,
     };
   } catch (error) {
+    console.error("[evolution:send-buttons-failure-brief]", {
+      order_id: logBase.order_id || null,
+      endpoint,
+      status: error?.status || (controller.signal.aborted ? "timeout" : ""),
+      error_message: error?.message || String(error),
+      response_raw: truncateText(error?.responseRaw || error?.responseBody || error?.data?.raw || raw || "", 500),
+      buttonIds: logBase.buttonIds || [],
+      phoneSuffix: logBase.phoneSuffix || "",
+    });
     if (error?.code === "EVOLUTION_BUTTONS_TIMEOUT" || error?.message === "Evolution sendButtons request timed out") {
       console.warn("[evolution:send-buttons-timeout]", {
         file: "server/services/whatsappGatewayService.js",
