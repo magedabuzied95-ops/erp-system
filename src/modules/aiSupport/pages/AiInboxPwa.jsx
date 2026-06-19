@@ -1766,6 +1766,7 @@ export default function AiInboxPwa() {
   const previousConversationKeyRef = useRef("");
   const previousLatestMessageKeyRef = useRef("");
   const markReadSignatureRef = useRef("");
+  const messengerProfileSyncAttemptedRef = useRef(new Set());
   const refreshInFlightRef = useRef(false);
   const previousSocketHealthyRef = useRef(socketHealthy);
   const refreshTimerRef = useRef(null);
@@ -2306,6 +2307,61 @@ export default function AiInboxPwa() {
     [headers, patchConversation, tenantId]
   );
 
+  const syncMessengerProfile = useCallback(
+    async (conversation, { silent = false } = {}) => {
+      if (!conversation?.session_id || !isMessengerConversation(conversation)) return false;
+      const sessionId = normalizeConversationSessionId(conversation.session_id, conversation.channel || conversation.source || conversation.provider || conversation.platform || "");
+      if (!sessionId) return false;
+      const currentName = clean(conversation.customer_name || conversation.customer_profile?.name || conversationName(conversation));
+      if (currentName && currentName.toLowerCase() !== "customer" && !isLikelyMessengerExternalId(currentName)) return false;
+      const externalCustomerId = clean(conversation.external_customer_id || conversation.customer_profile?.external_customer_id || "");
+      if (!externalCustomerId) return false;
+      const attemptKey = `${sessionId}:${externalCustomerId}`;
+      if (messengerProfileSyncAttemptedRef.current.has(attemptKey)) return false;
+      messengerProfileSyncAttemptedRef.current.add(attemptKey);
+      try {
+        const payload = await api.post(aiInboxConversationEndpoint(sessionId, "/sync-messenger-profile"), {
+          tenant_id: tenantId,
+          external_customer_id: externalCustomerId,
+        }, { headers, perfComponent: "AiInboxPwa.syncMessengerProfile" });
+        const conversationIdentifier = conversation.conversation_key || sessionId;
+        if (payload.conversation) {
+          patchConversation(conversationIdentifier, (currentConversation) => ({
+            ...currentConversation,
+            ...payload.conversation,
+            messages: asArray(payload.conversation.messages).length ? payload.conversation.messages : currentConversation.messages,
+          }));
+        } else {
+          patchConversation(conversationIdentifier, (currentConversation) => ({
+            ...currentConversation,
+            customer_name: payload.customer_name || payload.display_name || payload.facebook_name || payload.messenger_name || currentConversation.customer_name,
+            customer_avatar_url: payload.customer_avatar_url || currentConversation.customer_avatar_url,
+            customer_profile: {
+              ...(currentConversation.customer_profile || {}),
+              name: payload.customer_name || payload.display_name || payload.facebook_name || payload.messenger_name || currentConversation.customer_profile?.name || "",
+              display_name: payload.display_name || payload.customer_name || currentConversation.customer_profile?.display_name || "",
+              facebook_name: payload.facebook_name || payload.display_name || payload.customer_name || currentConversation.customer_profile?.facebook_name || "",
+              messenger_name: payload.messenger_name || payload.display_name || payload.customer_name || currentConversation.customer_profile?.messenger_name || "",
+              avatar_url: payload.customer_avatar_url || currentConversation.customer_profile?.avatar_url || "",
+              profile_pic_url: payload.customer_avatar_url || currentConversation.customer_profile?.profile_pic_url || "",
+            },
+          }));
+        }
+        if (!silent) toast.success("Messenger profile synced");
+        return true;
+      } catch (error) {
+        console.warn("[AiInboxPwa][messenger-profile-sync-failed]", {
+          conversation_id: sessionId,
+          external_customer_id: externalCustomerId,
+          message: error?.message || "",
+        });
+        if (!silent) toast.error("تعذر جلب اسم العميل من Messenger");
+        return false;
+      }
+    },
+    [headers, patchConversation, tenantId]
+  );
+
   const openConversation = useCallback(
     (conversation) => {
       setComposerMode("reply");
@@ -2354,6 +2410,14 @@ export default function AiInboxPwa() {
 
     void markConversationAsRead(selectedConversation);
   }, [markConversationAsRead, selectedConversation, tab]);
+
+  useEffect(() => {
+    if (!selectedConversation || tab !== "conversations") return;
+    if (!isMessengerConversation(selectedConversation)) return;
+    const currentName = clean(selectedConversation.customer_name || selectedConversation.customer_profile?.name || conversationName(selectedConversation));
+    if (currentName && currentName.toLowerCase() !== "customer" && !isLikelyMessengerExternalId(currentName)) return;
+    void syncMessengerProfile(selectedConversation, { silent: true });
+  }, [selectedConversation, syncMessengerProfile, tab]);
 
   useLayoutEffect(() => {
     if (!selectedConversation || tab !== "conversations") return undefined;

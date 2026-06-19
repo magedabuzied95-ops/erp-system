@@ -550,6 +550,11 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
           source_channel TEXT NOT NULL DEFAULT '',
           external_customer_id TEXT NOT NULL DEFAULT '',
           profile_pic_url TEXT NOT NULL DEFAULT '',
+          display_name TEXT NOT NULL DEFAULT '',
+          facebook_name TEXT NOT NULL DEFAULT '',
+          messenger_name TEXT NOT NULL DEFAULT '',
+          customer_name TEXT NOT NULL DEFAULT '',
+          customer_profile JSONB NOT NULL DEFAULT '{}'::jsonb,
           preferred_size TEXT NOT NULL DEFAULT '',
           preferred_colors JSONB NOT NULL DEFAULT '[]'::jsonb,
           preferred_models JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -647,6 +652,11 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS source_channel TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS external_customer_id TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS profile_pic_url TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS facebook_name TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS messenger_name TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS customer_profile JSONB NOT NULL DEFAULT '{}'::jsonb`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS last_profile_sync_at TIMESTAMP NULL`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_customer_profiles_external_customer_id ON ai_customer_profiles (tenant_id, external_customer_id)`);
       await clientOrPool.query(`UPDATE ai_customer_interactions SET detected_intent = intent_type WHERE COALESCE(detected_intent, '') = '' AND COALESCE(intent_type, '') <> ''`);

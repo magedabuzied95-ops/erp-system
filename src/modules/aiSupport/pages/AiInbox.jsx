@@ -2838,6 +2838,7 @@ export default function AiInbox() {
   const previousLatestMessageKeyRef = useRef("");
   const restoreScrollStateRef = useRef(null);
   const transcriptScrollRef = useRef(null);
+  const messengerProfileSyncAttemptedRef = useRef(new Set());
   const refreshTimerRef = useRef(null);
   const refreshQueuedRef = useRef(false);
   const refreshMetricsRef = useRef({
@@ -3247,6 +3248,17 @@ export default function AiInbox() {
       selectedConversationCacheRef.current = selectedConversation;
     }
   }, [selectedConversation]);
+  useEffect(() => {
+    if (!selectedConversation || !canSyncMessengerProfile(selectedConversation)) return;
+    const currentName = clean(selectedConversation.customer_name || selectedConversation.customer_profile?.name || "");
+    if (currentName && currentName.toLowerCase() !== "customer" && !isLikelyMessengerExternalId(currentName)) return;
+    const sessionId = clean(selectedConversation.session_id || "");
+    const externalCustomerId = clean(selectedConversation.external_customer_id || "");
+    const attemptKey = `${sessionId}:${externalCustomerId}`;
+    if (messengerProfileSyncAttemptedRef.current.has(attemptKey)) return;
+    messengerProfileSyncAttemptedRef.current.add(attemptKey);
+    void syncMessengerProfile({ silent: true });
+  }, [selectedConversation, syncMessengerProfile]);
   useEffect(() => {
     const scroller = transcriptScrollRef.current;
     if (!selectedConversation?.session_id || !scroller) return undefined;
@@ -3754,16 +3766,21 @@ export default function AiInbox() {
     }
   }, [headers, patchConversation, selectedConversation?.conversation_key, selectedConversation?.session_id, tenantId]);
 
-  const syncMessengerProfile = async () => {
+  const syncMessengerProfile = async (options = {}) => {
+    const silent = Boolean(options?.silent);
     if (!selectedConversation?.session_id || !canSyncMessengerProfile(selectedConversation)) return;
     const sessionId = selectedConversation.session_id;
     const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+    const externalCustomerId = clean(selectedConversation.external_customer_id || "");
+    const attemptKey = `${sessionId}:${externalCustomerId}`;
+    if (!silent && messengerProfileSyncAttemptedRef.current.has(attemptKey)) return;
+    messengerProfileSyncAttemptedRef.current.add(attemptKey);
     setProfileSyncing(true);
     setError("");
     try {
       const payload = await api.post(aiInboxConversationEndpoint(sessionId, "/sync-messenger-profile"), {
         tenant_id: tenantId,
-        external_customer_id: selectedConversation.external_customer_id || "",
+        external_customer_id: externalCustomerId,
       }, { headers, perfComponent: "AiInbox.syncMessengerProfile" });
       if (payload.conversation) {
         patchConversation(conversationIdentifier, (conversation) => ({
@@ -3774,20 +3791,28 @@ export default function AiInbox() {
       } else {
         patchConversation(conversationIdentifier, (conversation) => ({
           ...conversation,
-          customer_name: payload.customer_name || conversation.customer_name,
+          customer_name: payload.customer_name || payload.display_name || payload.facebook_name || payload.messenger_name || conversation.customer_name,
           customer_avatar_url: payload.customer_avatar_url || conversation.customer_avatar_url,
           customer_profile: {
             ...(conversation.customer_profile || {}),
-            name: payload.customer_name || conversation.customer_profile?.name || "",
+            name: payload.customer_name || payload.display_name || payload.facebook_name || payload.messenger_name || conversation.customer_profile?.name || "",
+            display_name: payload.display_name || payload.customer_name || conversation.customer_profile?.display_name || "",
+            facebook_name: payload.facebook_name || payload.display_name || payload.customer_name || conversation.customer_profile?.facebook_name || "",
+            messenger_name: payload.messenger_name || payload.display_name || payload.customer_name || conversation.customer_profile?.messenger_name || "",
             avatar_url: payload.customer_avatar_url || conversation.customer_profile?.avatar_url || "",
             profile_pic_url: payload.customer_avatar_url || conversation.customer_profile?.profile_pic_url || "",
           },
         }));
       }
-      setToast({ tone: "emerald", text: "Profile synced" });
+      if (!silent) setToast({ tone: "emerald", text: "Profile synced" });
       await loadAll({ silent: true });
     } catch (err) {
-      setToast({ tone: "rose", text: "تعذر جلب ملف ماسنجر" });
+      console.warn("[AiInbox][messenger-profile-sync-failed]", {
+        conversation_id: sessionId,
+        external_customer_id: externalCustomerId,
+        message: err?.message || "",
+      });
+      if (!silent) setToast({ tone: "rose", text: "تعذر جلب ملف ماسنجر" });
       setError(err?.message || "تعذر جلب ملف ماسنجر");
     } finally {
       setProfileSyncing(false);

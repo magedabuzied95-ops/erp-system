@@ -2379,12 +2379,40 @@ const ensureMessengerProfileStorage = async () => {
   await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS source_channel TEXT NOT NULL DEFAULT ''`);
   await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS external_customer_id TEXT NOT NULL DEFAULT ''`);
   await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS profile_pic_url TEXT NOT NULL DEFAULT ''`);
+  await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT ''`);
+  await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS facebook_name TEXT NOT NULL DEFAULT ''`);
+  await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS messenger_name TEXT NOT NULL DEFAULT ''`);
+  await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
+  await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS customer_profile JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS last_profile_sync_at TIMESTAMP NULL`);
   await repairMessengerStoredNames();
 };
 
 const messengerDisplayName = ({ firstName = "", lastName = "", fallback = "" } = {}) =>
   [text(firstName), text(lastName)].filter(Boolean).join(" ") || text(fallback);
+const normalizeMessengerProfileRecord = ({ firstName = "", lastName = "", displayName = "", externalCustomerId = "", profilePic = "" } = {}) => {
+  const fullName = messengerDisplayName({ firstName, lastName, fallback: displayName });
+  const safeName = isUnsafeMessengerStoredName(fullName) ? "" : fullName;
+  return {
+    first_name: text(firstName),
+    last_name: text(lastName),
+    display_name: safeName,
+    facebook_name: safeName,
+    messenger_name: safeName,
+    customer_name: safeName,
+    customer_profile: {
+      name: safeName,
+      display_name: safeName,
+      facebook_name: safeName,
+      messenger_name: safeName,
+      first_name: text(firstName),
+      last_name: text(lastName),
+      profile_pic: text(profilePic),
+      external_customer_id: text(externalCustomerId),
+    },
+    profile_pic: text(profilePic),
+  };
+};
 const MESSENGER_INFERENCE_TOKENS = [
   "غالي",
   "غالية",
@@ -2446,7 +2474,7 @@ const safeMessengerDisplayName = ({ firstName = "", lastName = "", fallback = ""
     metadata: {},
     externalCustomerId,
   });
-  return isUnsafeMessengerStoredName(resolved) ? text(externalCustomerId) : resolved;
+  return isUnsafeMessengerStoredName(resolved) ? "" : resolved;
 };
 let messengerProfileStorageRepairPromise = null;
 const repairMessengerStoredNames = async () => {
@@ -2638,7 +2666,12 @@ const getCachedMessengerProfile = async ({ tenantId, channel, conversationId, ps
       s.customer_avatar_url AS session_customer_avatar_url,
       p.first_name,
       p.last_name,
-      p.profile_pic_url
+      p.profile_pic_url,
+      p.display_name,
+      p.facebook_name,
+      p.messenger_name,
+      p.customer_name AS profile_customer_name,
+      p.customer_profile AS profile_customer_profile
     FROM ai_channel_conversations c
     FULL OUTER JOIN ai_support_sessions s
       ON s.tenant_id = c.tenant_id
@@ -2660,20 +2693,28 @@ const getCachedMessengerProfile = async ({ tenantId, channel, conversationId, ps
   ).catch(() => ({ rows: [] }));
   const row = result.rows[0] || {};
   const metadataProfile = row.channel_metadata?.messenger_profile || {};
-  const firstName = text(row.first_name || metadataProfile.first_name);
-  const lastName = text(row.last_name || metadataProfile.last_name);
+  const profilePayload = row.profile_customer_profile && typeof row.profile_customer_profile === "object" ? row.profile_customer_profile : {};
+  const firstName = text(row.first_name || profilePayload.first_name || metadataProfile.first_name);
+  const lastName = text(row.last_name || profilePayload.last_name || metadataProfile.last_name);
   const name = safeMessengerDisplayName({
     firstName,
     lastName,
     fallback: resolveMessengerConversationDisplayName({
       customerName: "",
-      customerProfile: { first_name: row.first_name, last_name: row.last_name, name: "" },
+      customerProfile: {
+        first_name: row.first_name || profilePayload.first_name || "",
+        last_name: row.last_name || profilePayload.last_name || "",
+        name: row.display_name || row.facebook_name || row.messenger_name || row.profile_customer_name || profilePayload.name || "",
+        display_name: row.display_name || profilePayload.display_name || "",
+        facebook_name: row.facebook_name || profilePayload.facebook_name || "",
+        messenger_name: row.messenger_name || profilePayload.messenger_name || "",
+      },
       metadata: row.channel_metadata || {},
       externalCustomerId: row.external_customer_id || psid,
     }),
     externalCustomerId: row.external_customer_id || psid,
   });
-  const avatarUrl = text(row.profile_pic_url || row.channel_customer_avatar_url || row.session_customer_avatar_url || metadataProfile.profile_pic);
+  const avatarUrl = text(row.profile_pic_url || row.channel_customer_avatar_url || row.session_customer_avatar_url || metadataProfile.profile_pic || profilePayload.profile_pic);
   if (!name && !avatarUrl) return null;
   return {
     first_name: firstName,
@@ -2688,7 +2729,12 @@ const getCachedMessengerProfile = async ({ tenantId, channel, conversationId, ps
 const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid, profile = {} } = {}) => {
   const firstName = text(profile.first_name);
   const lastName = text(profile.last_name);
-  const name = messengerDisplayName({ firstName, lastName, fallback: profile.name || psid });
+  const candidateName = messengerDisplayName({
+    firstName,
+    lastName,
+    fallback: text(profile.name || profile.display_name || profile.facebook_name || profile.messenger_name || ""),
+  });
+  const name = isUnsafeMessengerStoredName(candidateName) ? "" : candidateName;
   const profilePic = text(profile.profile_pic);
   if (!tenantId || !psid || (!name && !profilePic)) return null;
   await ensureMessengerProfileStorage();
@@ -2696,20 +2742,29 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
     `
     INSERT INTO ai_customer_profiles (
       tenant_id, first_name, last_name, phone, source_channel, external_customer_id, profile_pic_url,
+      display_name, facebook_name, messenger_name, customer_name, customer_profile,
       conversation_summary, customer_sentiment, memory_score, last_profile_sync_at, last_seen_at, updated_at
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'neutral',20,NOW(),NOW(),NOW())
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,'neutral',20,NOW(),NOW(),NOW())
     ON CONFLICT (tenant_id, phone) DO UPDATE SET
       first_name = COALESCE(NULLIF(EXCLUDED.first_name, ''), ai_customer_profiles.first_name),
       last_name = COALESCE(NULLIF(EXCLUDED.last_name, ''), ai_customer_profiles.last_name),
       source_channel = COALESCE(NULLIF(EXCLUDED.source_channel, ''), ai_customer_profiles.source_channel),
       external_customer_id = COALESCE(NULLIF(EXCLUDED.external_customer_id, ''), ai_customer_profiles.external_customer_id),
       profile_pic_url = COALESCE(NULLIF(EXCLUDED.profile_pic_url, ''), ai_customer_profiles.profile_pic_url),
+      display_name = COALESCE(NULLIF(EXCLUDED.display_name, ''), ai_customer_profiles.display_name),
+      facebook_name = COALESCE(NULLIF(EXCLUDED.facebook_name, ''), ai_customer_profiles.facebook_name),
+      messenger_name = COALESCE(NULLIF(EXCLUDED.messenger_name, ''), ai_customer_profiles.messenger_name),
+      customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_customer_profiles.customer_name),
+      customer_profile = CASE
+        WHEN EXCLUDED.customer_profile IS NULL OR EXCLUDED.customer_profile = '{}'::jsonb THEN ai_customer_profiles.customer_profile
+        ELSE COALESCE(ai_customer_profiles.customer_profile, '{}'::jsonb) || EXCLUDED.customer_profile
+      END,
       conversation_summary = COALESCE(NULLIF(EXCLUDED.conversation_summary, ''), ai_customer_profiles.conversation_summary),
       last_profile_sync_at = NOW(),
       last_seen_at = NOW(),
       updated_at = NOW()
-    RETURNING id, profile_pic_url
+    RETURNING id, profile_pic_url, display_name, facebook_name, messenger_name, customer_name, customer_profile
     `,
     [
       numberOrNull(tenantId),
@@ -2719,6 +2774,17 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
       text(channel),
       psid,
       profilePic,
+      name,
+      name,
+      name,
+      name,
+      jsonValue(normalizeMessengerProfileRecord({
+        firstName,
+        lastName,
+        displayName: name,
+        externalCustomerId: psid,
+        profilePic,
+      }).customer_profile),
       name ? `Meta profile: ${name}` : "",
     ]
   );
@@ -2763,6 +2829,10 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
         END,
         customer_avatar_url = COALESCE(NULLIF($5::text, ''), customer_avatar_url),
         customer_profile_id = COALESCE($6::bigint, customer_profile_id),
+        metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+          'messenger_profile',
+          COALESCE(metadata->'messenger_profile', '{}'::jsonb) || $7::jsonb
+        ),
         updated_at = NOW()
     WHERE tenant_id = $1
       AND (
@@ -2771,7 +2841,21 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
       )
     RETURNING customer_avatar_url
     `,
-    [numberOrNull(tenantId), text(conversationId), name, psid, profilePic, numberOrNull(profileId)]
+    [
+      numberOrNull(tenantId),
+      text(conversationId),
+      name,
+      psid,
+      profilePic,
+      numberOrNull(profileId),
+      jsonValue(normalizeMessengerProfileRecord({
+        firstName,
+        lastName,
+        displayName: name,
+        externalCustomerId: psid,
+        profilePic,
+      }).customer_profile),
+    ]
   ).catch(() => ({ rows: [] }));
   console.log("messenger_profile_avatar_saved", {
     tenant_id: numberOrNull(tenantId),
@@ -2783,7 +2867,24 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
     ai_support_sessions_customer_avatar_url: text(sessionResult.rows[0]?.customer_avatar_url),
     ai_channel_conversations_customer_avatar_url: text(channelConversationResult.rows[0]?.customer_avatar_url),
   });
-  return { id: profileId, name, first_name: firstName, last_name: lastName, profile_pic: storedProfilePicUrl || profilePic };
+  return {
+    id: profileId,
+    name,
+    display_name: name,
+    facebook_name: name,
+    messenger_name: name,
+    customer_name: name,
+    customer_profile: normalizeMessengerProfileRecord({
+      firstName,
+      lastName,
+      displayName: name,
+      externalCustomerId: psid,
+      profilePic,
+    }).customer_profile,
+    first_name: firstName,
+    last_name: lastName,
+    profile_pic: storedProfilePicUrl || profilePic,
+  };
 };
 
 const loadMessengerProfileAvatarStorage = async ({ tenantId, channel, conversationId, psid, profileId } = {}) => {
@@ -2876,7 +2977,7 @@ const enrichMessengerProfile = async ({ message, config, facebookPageId = "", in
     const payload = await callMetaGet({
       endpoint: `/${encodeURIComponent(psid)}`,
       token,
-      params: { fields: "first_name,last_name,profile_pic" },
+      params: { fields: "first_name,last_name,name,profile_pic" },
     });
     console.log("messenger_profile_graph_response", {
       tenant_id: config.tenant_id,
@@ -2885,6 +2986,7 @@ const enrichMessengerProfile = async ({ message, config, facebookPageId = "", in
       conversation_id: message.external_conversation_id,
       first_name: text(payload.first_name),
       last_name: text(payload.last_name),
+      name: text(payload.name),
       profile_pic: text(payload.profile_pic),
     });
     if (!text(payload.profile_pic)) {
@@ -2900,6 +3002,7 @@ const enrichMessengerProfile = async ({ message, config, facebookPageId = "", in
     const profile = {
       first_name: text(payload.first_name),
       last_name: text(payload.last_name),
+      name: text(payload.name),
       profile_pic: text(payload.profile_pic),
     };
     const persisted = await persistMessengerProfile({
@@ -2920,7 +3023,10 @@ const enrichMessengerProfile = async ({ message, config, facebookPageId = "", in
     });
     return {
       ...message,
-      customer_name: persisted?.name || cached?.name || psid,
+      customer_name: persisted?.name || cached?.name || "",
+      display_name: persisted?.display_name || persisted?.name || cached?.display_name || cached?.name || "",
+      facebook_name: persisted?.facebook_name || persisted?.name || cached?.facebook_name || cached?.name || "",
+      messenger_name: persisted?.messenger_name || persisted?.name || cached?.messenger_name || cached?.name || "",
       customer_avatar_url: persisted?.profile_pic || cached?.profile_pic || "",
       customer_profile_id: persisted?.id || cached?.profile_id || null,
       raw: { ...(message.raw || {}), messenger_profile: persisted || profile },
@@ -2931,6 +3037,7 @@ const enrichMessengerProfile = async ({ message, config, facebookPageId = "", in
       config_id: config.id || null,
       psid: maskIdForLog(psid),
       conversation_id: message.external_conversation_id,
+      graph_fields: "first_name,last_name,name,profile_pic",
       message: error?.message || "Messenger profile lookup failed",
       code: error?.code || "",
       status: error?.status || null,
@@ -2941,8 +3048,10 @@ const enrichMessengerProfile = async ({ message, config, facebookPageId = "", in
         firstName: cached?.first_name || "",
         lastName: cached?.last_name || "",
         fallback: cached?.name || message.customer_name || "",
-        externalCustomerId: psid,
       }),
+      display_name: cached?.display_name || cached?.name || "",
+      facebook_name: cached?.facebook_name || cached?.name || "",
+      messenger_name: cached?.messenger_name || cached?.name || "",
       customer_avatar_url: cached?.profile_pic || message.customer_avatar_url || "",
       customer_profile_id: cached?.profile_id || null,
       raw: { ...(message.raw || {}), messenger_profile: cached || null },
@@ -3010,6 +3119,13 @@ export const syncMessengerProfileForConversation = async ({ tenantId, conversati
       facebookPageId,
       forceRefresh: true,
     });
+    const normalizedMessengerProfile = normalizeMessengerProfileRecord({
+      firstName: text(message.raw?.messenger_profile?.first_name || ""),
+      lastName: text(message.raw?.messenger_profile?.last_name || ""),
+      displayName: text(message.raw?.messenger_profile?.name || message.display_name || message.customer_name || ""),
+      externalCustomerId: text(message.external_customer_id || psid),
+      profilePic: text(message.raw?.messenger_profile?.profile_pic || message.customer_avatar_url || ""),
+    });
     const channelConversation = await upsertChannelConversationMapping({
       tenantId: scopedTenantId,
       channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
@@ -3037,7 +3153,10 @@ export const syncMessengerProfileForConversation = async ({ tenantId, conversati
         customer_psid: psid,
         resolved_sender_id: psid,
         resolved_customer_id: psid,
-        messenger_profile: message.raw?.messenger_profile || null,
+        messenger_profile: {
+          ...(message.raw?.messenger_profile || {}),
+          ...normalizedMessengerProfile,
+        },
       },
       lastMessageAt: new Date().toISOString(),
     });
@@ -3079,26 +3198,24 @@ export const syncMessengerProfileForConversation = async ({ tenantId, conversati
       tenant_id: scopedTenantId,
       conversation_id: safeConversationId,
       psid: maskIdForLog(psid),
-      has_name: Boolean(text(message.customer_name)),
+      has_name: Boolean(text(message.customer_name) || text(message.display_name)),
       has_profile_pic: Boolean(text(message.customer_avatar_url)),
       profile_id: message.customer_profile_id || null,
     });
     return {
-      success: Boolean(text(message.customer_name) || text(message.customer_avatar_url)),
+      success: Boolean(text(message.customer_name) || text(message.display_name) || text(message.customer_avatar_url)),
       conversation_id: safeConversationId,
       external_customer_id: psid,
-      customer_name: resolveMessengerConversationDisplayName({
-        customerName: "",
-        customerProfile: {
-          first_name: text(message.raw?.messenger_profile?.first_name || ""),
-          last_name: text(message.raw?.messenger_profile?.last_name || ""),
-          name: text(message.raw?.messenger_profile?.name || ""),
-        },
-        metadata: { messenger_profile: message.raw?.messenger_profile || {} },
-        externalCustomerId: psid,
-      }),
+      customer_name: text(message.customer_name || message.display_name || ""),
+      display_name: text(message.display_name || message.customer_name || ""),
+      facebook_name: text(message.facebook_name || message.customer_name || ""),
+      messenger_name: text(message.messenger_name || message.customer_name || ""),
       customer_avatar_url: message.customer_avatar_url || "",
       customer_profile_id: message.customer_profile_id || null,
+      customer_profile: normalizedMessengerProfile.customer_profile,
+      display_name: normalizedMessengerProfile.display_name,
+      facebook_name: normalizedMessengerProfile.facebook_name,
+      messenger_name: normalizedMessengerProfile.messenger_name,
     };
   } catch (error) {
     console.warn("messenger_profile_manual_sync_failed", {
