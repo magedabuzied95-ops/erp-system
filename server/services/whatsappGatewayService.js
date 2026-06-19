@@ -693,9 +693,10 @@ export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "
   const payloadPreview = {
     number: payload.number,
     title: payload.title,
-    textLength: payload.text.length,
-    footerLength: payload.footer.length,
-    buttonIds: payload.buttons.map((button) => button.id || button.buttonId),
+    descriptionLength: payload.description?.length ?? 0,
+    footerLength: payload.footer?.length ?? 0,
+    buttonsCount: Array.isArray(payload.buttons) ? payload.buttons.length : 0,
+    buttonIds: Array.isArray(payload.buttons) ? payload.buttons.map((button) => button?.id || button?.buttonId).filter(Boolean) : [],
   };
   const logBase = {
     order_id: orderId || null,
@@ -705,6 +706,16 @@ export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "
 
   const endpoint = `/message/sendButtons/${encodeURIComponent(current.instanceName)}`;
   try {
+    console.info("[whatsapp:interactive-payload-built]", {
+      file: "server/services/whatsappGatewayService.js",
+      function: "sendOrderConfirmationInteractiveMessage",
+      endpoint,
+      ...logBase,
+      titleLength: payload.title?.length ?? 0,
+      descriptionLength: payload.description?.length ?? 0,
+      footerLength: payload.footer?.length ?? 0,
+      buttonsCount: payloadPreview.buttonsCount,
+    });
     console.info("[evolution:send-buttons-request]", {
       file: "server/services/whatsappGatewayService.js",
       function: "sendOrderConfirmationInteractiveMessage",
