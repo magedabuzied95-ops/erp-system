@@ -812,32 +812,53 @@ const setAiPipelineDebug = ({ tenantId = null, conversationId = "", value = null
   aiPipelineDebugCache.set(cacheKey, clonePipelineDebug(value));
 };
 
-const summarizeInboxMessage = (row = {}) => ({
-  id: row.id,
-  session_id: row.session_id,
-  channel: row.channel || "",
-  external_message_id: row.external_message_id || "",
-  external_reply_id: row.external_reply_id || "",
-  dedupe_key: row.dedupe_key || "",
-  customer_message: row.customer_message || row.message_text || "",
-  ai_answer: row.ai_answer || "",
-  staff_message: row.staff_message || "",
-  sender_type: row.sender_type || (row.staff_message ? "staff" : "customer"),
-  manual_message: row.manual_message === true,
-  staff_user_id: row.staff_user_id || null,
-  staff_user_name: row.staff_user_name || "",
-  delivery_status: row.delivery_status || "",
-  delivery_error: row.delivery_error || "",
-  error_code: row.error_code || "",
-  message_type: row.message_type || "",
-  confidence: Number(row.confidence || 0),
-  needs_human_support: row.needs_human_support === true,
-  detected_intent: row.detected_intent || "",
-  product_cards: normalizeInboxProductCards(row),
-  productCards: normalizeInboxProductCards(row),
-  created_at: row.created_at,
-  system_events: Array.isArray(row.system_events) ? row.system_events.slice(0, 2) : [],
-});
+const summarizeInboxMessage = (row = {}) => {
+  const outbound = isOutboundMessageRow(row);
+  const messageText = text(row.message_text || row.customer_message || row.ai_answer || row.staff_message || "");
+  const customerMessage = outbound ? "" : text(row.customer_message || row.message_text || "");
+  const aiAnswer = text(row.ai_answer || (outbound ? messageText : ""));
+  const staffMessage = text(row.staff_message || "");
+  return {
+    id: row.id,
+    session_id: row.session_id,
+    channel: row.channel || "",
+    external_message_id: row.external_message_id || "",
+    external_reply_id: row.external_reply_id || "",
+    dedupe_key: row.dedupe_key || "",
+    customer_message: customerMessage,
+    ai_answer: aiAnswer,
+    staff_message: staffMessage,
+    sender_type: row.sender_type || (staffMessage ? "staff" : outbound ? "ai" : "customer"),
+    manual_message: row.manual_message === true,
+    staff_user_id: row.staff_user_id || null,
+    staff_user_name: row.staff_user_name || "",
+    delivery_status: row.delivery_status || "",
+    delivery_error: row.delivery_error || "",
+    error_code: row.error_code || "",
+    message_type: row.message_type || "",
+    confidence: Number(row.confidence || 0),
+    needs_human_support: row.needs_human_support === true,
+    detected_intent: row.detected_intent || "",
+    product_cards: normalizeInboxProductCards(row),
+    productCards: normalizeInboxProductCards(row),
+    created_at: row.created_at,
+    system_events: Array.isArray(row.system_events) ? row.system_events.slice(0, 2) : [],
+  };
+};
+const isOutboundMessageRow = (row = {}) => {
+  const direction = text(row.direction || row.message_direction || row.latest_direction || row.latest_message_direction || "").toLowerCase();
+  const senderType = text(row.sender_type || row.senderType || row.latest_sender_type || row.latestSenderType || "").toLowerCase();
+  const sourcePath = text(row.source_path || row.sourcePath || row.latest_source_path || row.latestSourcePath || "").toLowerCase();
+  const insertSource = text(row.insert_source || row.insertSource || row.latest_insert_source || row.latestInsertSource || "").toLowerCase();
+  const fromMe = row.from_me === true || row.fromMe === true || row.is_from_me === true || row.latest_from_me === true || row.latestFromMe === true;
+
+  if (fromMe) return true;
+  if (direction === "outbound") return true;
+  if (["ai", "assistant", "staff", "team", "agent", "bot", "system"].includes(senderType)) return true;
+  if (sourcePath.includes("ai_auto_reply") || sourcePath.includes("ai_send_success") || sourcePath.includes("whatsapp_outbound")) return true;
+  if (insertSource.includes("ai_send_success") || insertSource.includes("whatsapp_outbound")) return true;
+  return false;
+};
 const buildCustomerProfilePayload = ({ conversation = {}, memories = [] } = {}) => {
   const profile = conversation.customer_profile || {};
   const memoryValues = memories.map((item) => item.memory_value || {});
@@ -1450,19 +1471,19 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
     };
 
     const conversations = summaryResult.rows.map((conversation) => {
-      const summaryMessage = conversation.latest_message_id
-        ? summarizeInboxMessage(normalizeInboxMessage({
-            ...conversation,
-            created_at: conversation.latest_message_created_at || conversation.updated_at,
-            customer_message: conversation.customer_message || conversation.message_text || "",
-            message_text: conversation.message_text || conversation.customer_message || "",
-            ai_answer: conversation.ai_answer || "",
-            sender_type: conversation.latest_sender_type || "",
-            message_type: conversation.message_type || "",
-            product_cards: conversation.product_cards || [],
-            external_message_id: conversation.external_message_id || "",
-            external_reply_id: conversation.external_reply_id || "",
-            delivery_status: conversation.delivery_status || "",
+    const summaryMessage = conversation.latest_message_id
+      ? summarizeInboxMessage(normalizeInboxMessage({
+          ...conversation,
+          created_at: conversation.latest_message_created_at || conversation.updated_at,
+          customer_message: isOutboundMessageRow(conversation) ? "" : conversation.customer_message || conversation.message_text || "",
+          message_text: conversation.message_text || conversation.customer_message || "",
+          ai_answer: conversation.ai_answer || (isOutboundMessageRow(conversation) ? conversation.message_text || "" : ""),
+          sender_type: conversation.latest_sender_type || conversation.sender_type || "",
+          message_type: conversation.message_type || "",
+          product_cards: conversation.product_cards || [],
+          external_message_id: conversation.external_message_id || "",
+          external_reply_id: conversation.external_reply_id || "",
+          delivery_status: conversation.delivery_status || "",
             delivery_error: conversation.delivery_error || "",
             error_code: conversation.error_code || "",
             provider_message_id: conversation.provider_message_id || "",
@@ -1486,18 +1507,25 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
         confirmedCount: 0,
         followupDue: false,
       });
-      const channel = conversation.channel || conversation.session_channel || conversation.source || "web_chat";
-      const canonicalSessionId = normalizeWhatsappSessionId(conversation.session_id, conversation.external_customer_id || conversation.external_conversation_id || "");
-      const customerName = conversation.session_customer_name || conversation.customer_name || conversation.external_customer_id || "";
-      const customerAvatarUrl = conversation.customer_avatar_url || conversation.session_customer_avatar_url || "";
-      return {
-        session_id: canonicalSessionId || conversation.session_id,
-        conversation_id: canonicalSessionId || conversation.session_id,
-        conversation_key: normalizeWhatsappSessionId(conversation.conversation_key, conversation.external_customer_id || conversation.external_conversation_id || "") || canonicalSessionId || conversation.session_id,
-        source: conversation.source || channel || "web_chat",
-        channel,
-        status: conversation.conversation_status || "ai_active",
-        conversation_status: conversation.conversation_status || "ai_active",
+    const channel = conversation.channel || conversation.session_channel || conversation.source || "web_chat";
+    const canonicalSessionId = normalizeWhatsappSessionId(conversation.session_id, conversation.external_customer_id || conversation.external_conversation_id || "");
+    const customerName = conversation.session_customer_name || conversation.customer_name || conversation.external_customer_id || "";
+    const customerAvatarUrl = conversation.customer_avatar_url || conversation.session_customer_avatar_url || "";
+    const summaryDirection = isOutboundMessageRow(conversation) ? "outbound" : text(conversation.direction || conversation.message_direction || "");
+    const summaryCustomerMessage = summaryDirection === "outbound" ? "" : text(conversation.customer_message || conversation.message_text || "");
+    const summaryAiAnswer = summaryDirection === "outbound" ? text(conversation.ai_answer || conversation.message_text || conversation.staff_message || "") : text(conversation.ai_answer || "");
+    const summaryStaffMessage = text(conversation.staff_message || "");
+    const summaryMessageText = text(conversation.message_text || conversation.customer_message || conversation.ai_answer || conversation.staff_message || conversation.session_last_message || "");
+    const summaryPreviewMessage = summaryCustomerMessage || summaryAiAnswer || summaryStaffMessage || summaryMessageText || conversation.session_last_message || "";
+    return {
+      session_id: canonicalSessionId || conversation.session_id,
+      conversation_id: canonicalSessionId || conversation.session_id,
+      conversation_key: normalizeWhatsappSessionId(conversation.conversation_key, conversation.external_customer_id || conversation.external_conversation_id || "") || canonicalSessionId || conversation.session_id,
+      source: conversation.source || channel || "web_chat",
+      channel,
+      direction: summaryDirection || conversation.direction || conversation.message_direction || "",
+      status: conversation.conversation_status || "ai_active",
+      conversation_status: conversation.conversation_status || "ai_active",
         thread_kind: conversation.thread_kind || "",
         assigned_to: conversation.assigned_user_id || conversation.assigned_user_name
           ? { id: conversation.assigned_user_id || null, name: conversation.assigned_user_name || "" }
@@ -1525,8 +1553,8 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
         contact_name: "",
         external_customer_id: conversation.external_customer_id || "",
         external_conversation_id: conversation.external_conversation_id || conversation.session_id,
-        last_message: conversation.customer_message || conversation.message_text || conversation.session_last_message || "",
-        latest_message_preview: conversation.customer_message || conversation.message_text || conversation.ai_answer || conversation.session_last_message || "",
+        last_message: summaryPreviewMessage,
+        latest_message_preview: summaryPreviewMessage,
         last_message_at: conversation.last_message_at || conversation.updated_at,
         updated_at: conversation.updated_at,
         last_activity_at: conversation.last_message_at || conversation.updated_at,
@@ -1553,7 +1581,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
           external_customer_id: conversation.external_customer_id || "",
         },
         message_count: summaryMessages.length,
-        preview_message: conversation.customer_message || conversation.message_text || conversation.ai_answer || conversation.session_last_message || "",
+        preview_message: summaryPreviewMessage,
         messages: summaryMessages,
         older_messages_available: summaryMessages.length > 0,
         next_messages_before: summaryMessages[0]?.created_at || "",
