@@ -67,6 +67,7 @@ import {
   loadAiInboxRecommendations,
   loadAiInbox,
   loadAiSalesAnalytics,
+  loadAiShadowAnalytics,
   getLastAiPipelineDebug,
   parseAiSalesCloserIntent,
   sendAiFollowupManual,
@@ -4816,6 +4817,20 @@ router.get("/analytics", protect, permit("settings", "view"), async (req, res) =
     return res.json({ success: true, analytics });
   } catch (error) {
     return sendError(res, error, "Failed to load AI sales analytics");
+  }
+});
+
+router.get("/shadow-analytics", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const analytics = await loadAiShadowAnalytics({
+      tenantId,
+      fromDate: req.query?.from_date || req.query?.fromDate || "",
+      toDate: req.query?.to_date || req.query?.toDate || "",
+    });
+    return res.json({ success: true, analytics });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI shadow analytics");
   }
 });
 

@@ -26,7 +26,7 @@ import { guardAIReply } from "./aiSafetyGuard.js";
 import { detectEscalation } from "./aiEscalationDetector.js";
 import { getAISettings, getAIToneInstruction } from "./aiSettingsService.js";
 import { buildHumanizedReply } from "./aiHumanizedReplies.js";
-import { buildReplyCorrectionContextSource, searchRelevantCorrections } from "./aiCorrectionMemoryService.js";
+import { buildReplyCorrectionContextSource, searchRelevantCorrections, ensureCorrectionMemorySchema } from "./aiCorrectionMemoryService.js";
 import { normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
 import {
   aiProductSqlExclusionClause,
@@ -2706,6 +2706,14 @@ const analyticsWhere = ({ tenantId, fromDate, toDate, branchId, alias = "", date
 const rowsBy = (rows = [], key, valueKey = "count") =>
   Object.fromEntries(asArray(rows).map((row) => [row[key], numeric(row[valueKey], 0)]));
 
+const shadowConfidenceBucket = (score = 0) => {
+  const value = Math.max(0, Math.min(100, numeric(score, 0)));
+  if (value <= 25) return "0-25";
+  if (value <= 50) return "26-50";
+  if (value <= 75) return "51-75";
+  return "76-100";
+};
+
 const loadTopAiObjections = async ({ tenantId } = {}) => {
   const objectionCase = (column) => `
       CASE
@@ -2969,6 +2977,188 @@ export const loadAiSalesAnalytics = async ({ tenantId, fromDate: rawFromDate = "
     },
     followup_performance: followups.rows[0] || {},
     filters: { from_date: fromDate, to_date: toDate, branch_id: branchId },
+  };
+};
+
+export const loadAiShadowAnalytics = async ({ tenantId, fromDate: rawFromDate = "", toDate: rawToDate = "" } = {}) => {
+  await ensureAiSupportLogSchema();
+  await ensureCorrectionMemorySchema();
+  const fromDate = parseDateFilter(rawFromDate);
+  const toDate = parseDateFilter(rawToDate);
+  const params = [tenantId];
+  const clauses = ["s.tenant_id = $1"];
+  if (fromDate) {
+    params.push(fromDate);
+    clauses.push(`COALESCE(s.last_ai_reply_draft_updated_at, s.updated_at) >= $${params.length}::timestamp`);
+  }
+  if (toDate) {
+    params.push(toDate);
+    clauses.push(`COALESCE(s.last_ai_reply_draft_updated_at, s.updated_at) <= $${params.length}::timestamp`);
+  }
+
+  const result = await db.query(
+    `
+    SELECT
+      s.session_id AS conversation_id,
+      COALESCE(c.channel, s.channel, s.source, 'web_chat') AS channel,
+      s.last_ai_reply_draft,
+      s.last_ai_reply_draft_updated_at,
+      s.updated_at
+    FROM ai_support_sessions s
+    LEFT JOIN ai_channel_conversations c
+      ON c.tenant_id = s.tenant_id
+     AND c.channel = s.channel
+     AND c.external_conversation_id = s.session_id
+    WHERE ${clauses.join(" AND ")}
+      AND COALESCE(s.last_ai_reply_draft, '{}'::jsonb) <> '{}'::jsonb
+      AND jsonb_typeof(COALESCE(s.last_ai_reply_draft, '{}'::jsonb) -> 'metadata' -> 'auto_reply_shadow') = 'object'
+    ORDER BY COALESCE(s.last_ai_reply_draft_updated_at, s.updated_at) DESC, s.session_id DESC
+    `,
+    params
+  );
+
+  const drafts = result.rows
+    .map((row) => {
+      const draft = normalizeAiReplyDraft(row.last_ai_reply_draft || {});
+      const shadow = draft?.metadata?.auto_reply_shadow && typeof draft.metadata.auto_reply_shadow === "object"
+        ? draft.metadata.auto_reply_shadow
+        : {};
+      const blockers = asArray(shadow.blockers).map((item) => text(item)).filter(Boolean);
+      const intent = text(shadow.intent || draft.detected_intent || draft.intent || "");
+      const safetyIntent = text(shadow.safety_intent || "");
+      const confidenceScore = numeric(
+        shadow.confidence_score ?? draft.confidence_engine?.score ?? draft.confidence ?? 0,
+        0
+      );
+      const confidenceLevel = text(
+        shadow.confidence_level || draft.confidence_engine?.level || draft.confidence_level || ""
+      ) || "unknown";
+      const decision = text(shadow.decision || draft.confidence_engine?.decision || "") || "unknown";
+      const eligible = shadow.eligible === true || shadow.eligibility_result === true;
+      const validationViolationsCount = int(draft.validation?.violations_count ?? 0, 0);
+      return {
+        conversation_id: row.conversation_id,
+        channel: text(row.channel || "web_chat"),
+        intent,
+        safety_intent: safetyIntent,
+        confidence_score: confidenceScore,
+        confidence_level: confidenceLevel,
+        decision,
+        eligible,
+        blockers,
+        created_at: row.last_ai_reply_draft_updated_at || draft.updated_at || row.updated_at || null,
+        validator_violations_count: validationViolationsCount,
+      };
+    })
+    .filter((item) => Boolean(item.conversation_id));
+
+  const totalDrafts = drafts.length;
+  const eligibleCount = drafts.filter((draft) => draft.eligible === true).length;
+  const reviewCount = drafts.filter((draft) => draft.decision === "review").length;
+  const humanRequiredCount = drafts.filter((draft) => draft.decision === "human_required").length;
+  const safetyBlockedCount = drafts.filter((draft) => Boolean(draft.safety_intent)).length;
+  const validatorViolationsCount = drafts.reduce((total, draft) => total + Number(draft.validator_violations_count || 0), 0);
+  const validatorViolationDraftRate = totalDrafts ? drafts.filter((draft) => Number(draft.validator_violations_count || 0) > 0).length / totalDrafts : 0;
+
+  const intentCounts = new Map();
+  const safetyIntentCounts = new Map();
+  const blockerCounts = new Map();
+  const channelCounts = new Map();
+  const confidenceBuckets = new Map([
+    ["0-25", 0],
+    ["26-50", 0],
+    ["51-75", 0],
+    ["76-100", 0],
+  ]);
+
+  for (const draft of drafts) {
+    if (draft.intent) intentCounts.set(draft.intent, (intentCounts.get(draft.intent) || 0) + 1);
+    if (draft.safety_intent) safetyIntentCounts.set(draft.safety_intent, (safetyIntentCounts.get(draft.safety_intent) || 0) + 1);
+    if (draft.channel) channelCounts.set(draft.channel, (channelCounts.get(draft.channel) || 0) + 1);
+    const bucket = shadowConfidenceBucket(draft.confidence_score);
+    confidenceBuckets.set(bucket, (confidenceBuckets.get(bucket) || 0) + 1);
+    for (const blocker of draft.blockers) {
+      blockerCounts.set(blocker, (blockerCounts.get(blocker) || 0) + 1);
+    }
+  }
+
+  const toRankedRows = (entries, keyName) =>
+    [...entries]
+      .sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))
+      .slice(0, 10)
+      .map(([name, count]) => ({ [keyName]: name, count }));
+
+  const correctionsCountResult = drafts.length
+    ? await db.query(
+        `
+        SELECT COUNT(*)::int AS count
+        FROM ai_reply_corrections c
+        WHERE c.tenant_id = $1
+          AND c.conversation_id = ANY($2::text[])
+          ${fromDate ? `AND c.created_at >= $3::timestamp` : ""}
+          ${toDate ? `AND c.created_at <= $${fromDate ? 4 : 3}::timestamp` : ""}
+        `,
+        fromDate || toDate
+          ? [
+              tenantId,
+              drafts.map((draft) => draft.conversation_id),
+              ...(fromDate ? [fromDate] : []),
+              ...(toDate ? [toDate] : []),
+            ]
+          : [tenantId, drafts.map((draft) => draft.conversation_id)]
+      )
+    : { rows: [{ count: 0 }] };
+
+  const correctionsCount = numeric(correctionsCountResult.rows[0]?.count, 0);
+  const eligibilityRate = totalDrafts ? eligibleCount / totalDrafts : 0;
+  const correctionRate = totalDrafts ? correctionsCount / totalDrafts : 0;
+  const safetyBlockRate = totalDrafts ? safetyBlockedCount / totalDrafts : 0;
+  const validatorViolationRate = totalDrafts ? validatorViolationDraftRate : 0;
+  const pilotReadinessScore = Math.max(0, Math.min(100, Math.round(
+    (eligibilityRate * 100)
+    - (correctionRate * 80)
+    - (safetyBlockRate * 60)
+    - (validatorViolationRate * 40)
+  )));
+  const pilotReadinessState = (() => {
+    if (!totalDrafts || eligibleCount === 0) return "not_ready";
+    if (
+      eligibilityRate >= 0.7 &&
+      correctionRate <= 0.05 &&
+      safetyBlockRate <= 0.15 &&
+      validatorViolationRate <= 0.15 &&
+      pilotReadinessScore >= 80
+    ) return "pilot_ready";
+    if (
+      eligibilityRate >= 0.45 &&
+      correctionRate <= 0.12 &&
+      safetyBlockRate <= 0.25 &&
+      validatorViolationRate <= 0.25 &&
+      pilotReadinessScore >= 55
+    ) return "monitor";
+    return "not_ready";
+  })();
+
+  return {
+    total_drafts: totalDrafts,
+    eligible_count: eligibleCount,
+    review_count: reviewCount,
+    human_required_count: humanRequiredCount,
+    eligibility_rate: eligibilityRate,
+    top_intents: toRankedRows(intentCounts, "intent"),
+    top_safety_intents: toRankedRows(safetyIntentCounts, "safety_intent"),
+    top_blockers: toRankedRows(blockerCounts, "blocker"),
+    confidence_distribution: [...confidenceBuckets.entries()].map(([bucket, count]) => ({ bucket, count })),
+    corrections_count: correctionsCount,
+    channels_breakdown: toRankedRows(channelCounts, "channel"),
+    safety_blocks_count: safetyBlockedCount,
+    validator_violations_count: validatorViolationsCount,
+    validator_violation_rate: validatorViolationRate,
+    correction_rate: correctionRate,
+    pilot_readiness_score: pilotReadinessScore,
+    pilot_readiness_state: pilotReadinessState,
+    pilot_readiness_formula: "score = clamp(round(eligible_rate*100 - correction_rate*80 - safety_block_rate*60 - validator_violation_rate*40), 0, 100)",
+    drafts,
   };
 };
 

@@ -11,6 +11,7 @@ import {
   PackageSearch,
   RefreshCw,
   ShoppingCart,
+  ShieldAlert,
   TrendingUp,
   Users,
 } from "lucide-react";
@@ -128,6 +129,7 @@ export default function AiAgentAnalytics() {
   const [filters, setFilters] = useState({ from_date: daysAgoInput(30), to_date: todayInput(), branch_id: "" });
   const [branches, setBranches] = useState([]);
   const [analytics, setAnalytics] = useState(null);
+  const [shadowAnalytics, setShadowAnalytics] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -135,16 +137,35 @@ export default function AiAgentAnalytics() {
     setLoading(true);
     setError("");
     try {
-      const payload = await api.get("/ai-agent/analytics", {
-        params: {
-          tenant_id: tenantId,
-          from_date: filters.from_date,
-          to_date: filters.to_date,
-          branch_id: filters.branch_id,
-        },
-        headers,
-      });
-      setAnalytics(payload.analytics || {});
+      const [baseResult, shadowResult] = await Promise.allSettled([
+        api.get("/ai-agent/analytics", {
+          params: {
+            tenant_id: tenantId,
+            from_date: filters.from_date,
+            to_date: filters.to_date,
+            branch_id: filters.branch_id,
+          },
+          headers,
+        }),
+        api.get("/ai-agent/shadow-analytics", {
+          params: {
+            tenant_id: tenantId,
+            from_date: filters.from_date,
+            to_date: filters.to_date,
+          },
+          headers,
+        }),
+      ]);
+      if (baseResult.status === "fulfilled") {
+        setAnalytics(baseResult.value.analytics || {});
+      } else {
+        throw baseResult.reason;
+      }
+      if (shadowResult.status === "fulfilled") {
+        setShadowAnalytics(shadowResult.value.analytics || {});
+      } else {
+        setShadowAnalytics(null);
+      }
     } catch (err) {
       setError(err?.message || "Failed to load AI agent analytics");
     } finally {
@@ -165,6 +186,12 @@ export default function AiAgentAnalytics() {
   const lead = analytics?.lead_quality || {};
   const productIntel = analytics?.product_intelligence || {};
   const followups = analytics?.followup_performance || {};
+  const shadow = shadowAnalytics || {};
+  const shadowReadinessClass = {
+    pilot_ready: "text-emerald-200",
+    monitor: "text-amber-200",
+    not_ready: "text-rose-200",
+  }[shadow.pilot_readiness_state] || "text-slate-200";
 
   return (
     <div dir="ltr" className="min-h-full bg-[linear-gradient(180deg,#020617,#0f172a)] p-3 text-white md:p-6">
@@ -283,6 +310,58 @@ export default function AiAgentAnalytics() {
                   ]}
                 />
               </Panel>
+            </section>
+
+            <section className="space-y-5">
+              <Panel icon={ShieldAlert} title="Shadow Analytics">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                  <KpiCard icon={BarChart3} label="Total Drafts" value={shadow.total_drafts || 0} tone="cyan" />
+                  <KpiCard icon={CheckCircle2} label="Eligible" value={shadow.eligible_count || 0} tone="emerald" />
+                  <KpiCard icon={Clock3} label="Review" value={shadow.review_count || 0} tone="amber" />
+                  <KpiCard icon={AlertTriangle} label="Human Required" value={shadow.human_required_count || 0} tone="rose" />
+                  <KpiCard icon={TrendingUp} label="Eligibility %" value={percent(shadow.eligibility_rate)} tone="violet" />
+                </div>
+
+                <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                    <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Pilot Readiness</div>
+                    <div className="mt-3 flex items-center gap-3">
+                      <div className={`rounded-2xl border border-white/10 px-4 py-3 text-3xl font-black ${shadowReadinessClass}`}>
+                        {shadow.pilot_readiness_score ?? 0}
+                      </div>
+                      <div>
+                        <div className="text-sm font-black text-white">{shadow.pilot_readiness_state || "not_ready"}</div>
+                        <div className="mt-1 text-xs text-slate-500">Weekly readiness score</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-xs leading-5 text-slate-400">
+                      {shadow.pilot_readiness_formula || "score = clamp(round(eligible_rate*100 - correction_rate*80 - safety_block_rate*60 - validator_violation_rate*40), 0, 100)"}
+                    </div>
+                  </div>
+
+                  <KpiCard icon={RefreshCw} label="Corrections" value={shadow.corrections_count || 0} tone="violet" />
+                  <KpiCard icon={ShieldAlert} label="Safety Blocks" value={shadow.safety_blocks_count || 0} tone="rose" />
+                  <KpiCard icon={AlertTriangle} label="Validator Violations" value={shadow.validator_violations_count || 0} tone="amber" />
+                </div>
+              </Panel>
+
+              <div className="grid gap-5 xl:grid-cols-2">
+                <Panel icon={Flame} title="Top Blockers">
+                  <BarList rows={shadow.top_blockers} labelKey="blocker" valueKey="count" />
+                </Panel>
+                <Panel icon={TrendingUp} title="Top Intents">
+                  <BarList rows={shadow.top_intents} labelKey="intent" valueKey="count" />
+                </Panel>
+                <Panel icon={AlertTriangle} title="Safety Intent Distribution">
+                  <BarList rows={shadow.top_safety_intents} labelKey="safety_intent" valueKey="count" />
+                </Panel>
+                <Panel icon={Clock3} title="Confidence Distribution">
+                  <BarList rows={shadow.confidence_distribution} labelKey="bucket" valueKey="count" />
+                </Panel>
+                <Panel icon={Users} title="Channels Breakdown">
+                  <BarList rows={shadow.channels_breakdown} labelKey="channel" valueKey="count" />
+                </Panel>
+              </div>
             </section>
           </>
         ) : null}
