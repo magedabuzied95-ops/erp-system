@@ -2696,6 +2696,276 @@ const normalizeSelectedProductCard = (card = {}) => {
   };
 };
 
+const parsePositiveInt = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
+};
+
+const firstCardImageValue = (...values) => {
+  for (const value of values) {
+    if (Array.isArray(value)) {
+      const nested = firstCardImageValue(...value);
+      if (nested) return nested;
+      continue;
+    }
+    if (value && typeof value === "object") {
+      const nested = firstCardImageValue(
+        value.secure_url,
+        value.cloudinary_url,
+        value.image_url,
+        value.main_image,
+        value.variant_image,
+        value.variant_image_url,
+        value.color_image,
+        value.color_image_url,
+        value.thumbnail_url,
+        value.media_url,
+        value.url,
+        value.path,
+        value.src,
+        value.preview,
+        value.image
+      );
+      if (nested) return nested;
+      continue;
+    }
+    const safe = envText(value);
+    if (safe) return safe;
+  }
+  return "";
+};
+
+const resolveProductCardImageUrl = (product = {}, variant = {}) =>
+  firstCardImageValue(
+    variant.image_url,
+    variant.variant_image_url,
+    variant.color_image_url,
+    variant.primary_image_url,
+    variant.thumbnail_url,
+    variant.media_url,
+    product.image_url,
+    product.image,
+    product.main_image,
+    product.thumbnail,
+    product.product_image_url,
+    product.variant_image_url,
+    product.color_image_url,
+    product.product_images,
+    product.images
+  );
+
+const resolveProductCardUrl = (card = {}, productContext = null, product = {}) => {
+  const explicitUrl = envText(card.storefront_url || card.product_url || card.url || card.share_url || card.shareUrl || "");
+  if (explicitUrl) return explicitUrl;
+  const contextUrl = envText(productContext?.productUrl || productContext?.product_url || "");
+  if (contextUrl) return contextUrl;
+  const productSlug = envText(product.slug || product.canonical_slug || product.product_slug || card.slug || card.canonical_slug || card.product_slug || "");
+  const productId = envText(product.id || product.product_id || card.product_id || card.id || "");
+  if (productSlug) return `/shop/product/${encodeURIComponent(productSlug)}`;
+  if (productId) return `/shop/product/${encodeURIComponent(productId)}`;
+  return "";
+};
+
+const enrichSelectedProductCard = async ({ tenantId = null, card = {} } = {}) => {
+  const normalizedCard = normalizeSelectedProductCard(card);
+  const hasLookupKey = Boolean(normalizedCard.product_id || normalizedCard.variant_id || normalizedCard.slug);
+  if (!hasLookupKey) return normalizedCard;
+
+  const safeTenantId = Number.isFinite(Number(tenantId)) ? Number(tenantId) : null;
+  const productId = parsePositiveInt(normalizedCard.product_id);
+  const variantId = parsePositiveInt(normalizedCard.variant_id);
+  const slug = envText(normalizedCard.slug || normalizedCard.canonical_slug || normalizedCard.product_slug || "");
+
+  try {
+    let productRow = null;
+    let variantRow = null;
+
+    if (variantId) {
+      const variantQuery = `
+        SELECT *
+        FROM product_variants
+        WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+          AND id = $2::bigint
+        LIMIT 1
+      `;
+      const variantResult = await db.query(variantQuery, [safeTenantId, variantId]).catch(() => ({ rows: [] }));
+      variantRow = variantResult.rows?.[0] || null;
+    }
+
+    if (!productRow && productId) {
+      const productQuery = `
+        SELECT *
+        FROM products
+        WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+          AND id = $2::bigint
+        LIMIT 1
+      `;
+      const productResult = await db.query(productQuery, [safeTenantId, productId]).catch(() => ({ rows: [] }));
+      productRow = productResult.rows?.[0] || null;
+    }
+
+    if (!productRow && slug) {
+      const slugQuery = `
+        SELECT *
+        FROM products
+        WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+          AND (
+            LOWER(TRIM(COALESCE(slug, ''))) = LOWER(TRIM($2::text))
+            OR LOWER(TRIM(COALESCE(canonical_slug, ''))) = LOWER(TRIM($2::text))
+            OR LOWER(TRIM(COALESCE(product_slug, ''))) = LOWER(TRIM($2::text))
+          )
+        LIMIT 1
+      `;
+      const slugResult = await db.query(slugQuery, [safeTenantId, slug]).catch(() => ({ rows: [] }));
+      productRow = slugResult.rows?.[0] || null;
+    }
+
+    if (!productRow && variantRow?.product_id) {
+      const variantProductId = parsePositiveInt(variantRow.product_id);
+      if (variantProductId) {
+        const productResult = await db.query(
+          `
+            SELECT *
+            FROM products
+            WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+              AND id = $2::bigint
+            LIMIT 1
+          `,
+          [safeTenantId, variantProductId]
+        ).catch(() => ({ rows: [] }));
+        productRow = productResult.rows?.[0] || null;
+      }
+    }
+
+    if (!variantRow && productRow?.id) {
+      const fallbackVariantResult = await db.query(
+        `
+          SELECT *
+          FROM product_variants
+          WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+            AND product_id = $2::bigint
+          ORDER BY id ASC
+          LIMIT 1
+        `,
+        [safeTenantId, Number(productRow.id)]
+      ).catch(() => ({ rows: [] }));
+      variantRow = fallbackVariantResult.rows?.[0] || null;
+    }
+
+    if (!productRow && !variantRow) {
+      console.warn("[ai-inbox][product-card-send] product card lookup missed", {
+        tenant_id: tenantId,
+        product_id: normalizedCard.product_id || "",
+        variant_id: normalizedCard.variant_id || "",
+        slug,
+      });
+      return normalizedCard;
+    }
+
+    const productContext = productRow ? buildProductContext(productRow) : null;
+    const productName = envText(
+      normalizedCard.product_name ||
+        normalizedCard.name ||
+        normalizedCard.title ||
+        normalizedCard.display_name ||
+        normalizedCard.label ||
+        productContext?.name ||
+        productRow?.name ||
+        productRow?.title ||
+        productRow?.product_name ||
+        variantRow?.product_name ||
+        variantRow?.name ||
+        variantRow?.title ||
+        ""
+    );
+    const productImageUrl = resolveProductCardImageUrl(productRow || {}, variantRow || {});
+    const imageUrl = envText(normalizedCard.image_url || normalizedCard.product_image_url || normalizedCard.variant_image_url || productImageUrl || productContext?.imageUrl || "");
+    const variantPrice = Number(
+      variantRow?.display_price ??
+        variantRow?.final_price ??
+        variantRow?.sale_price ??
+        variantRow?.selling_price ??
+        variantRow?.price ??
+        0
+    );
+    const productPrice = Number(
+      productContext?.price ??
+        productRow?.display_price ??
+        productRow?.final_price ??
+        productRow?.sale_price ??
+        productRow?.selling_price ??
+        productRow?.price ??
+        productRow?.product_price ??
+        0
+    );
+    const resolvedPrice = Number(normalizedCard.price || 0) > 0 ? Number(normalizedCard.price) : (Number.isFinite(variantPrice) && variantPrice > 0 ? variantPrice : productPrice);
+    const color = envText(
+      normalizedCard.color ||
+        variantRow?.color ||
+        variantRow?.color_name ||
+        variantRow?.variant_color ||
+        variantRow?.display_color ||
+        ""
+    );
+    const size = envText(
+      normalizedCard.size ||
+        variantRow?.size ||
+        variantRow?.size_name ||
+        variantRow?.variant_size ||
+        variantRow?.display_size ||
+        ""
+    );
+    const resolvedUrl = resolveProductCardUrl(normalizedCard, productContext, productRow || {});
+    const slugValue = envText(
+      normalizedCard.slug ||
+        normalizedCard.canonical_slug ||
+        normalizedCard.product_slug ||
+        productRow?.slug ||
+        productRow?.canonical_slug ||
+        productRow?.product_slug ||
+        ""
+    );
+
+    return {
+      ...normalizedCard,
+      product_id: normalizedCard.product_id || envText(productRow?.id || variantRow?.product_id || ""),
+      variant_id: normalizedCard.variant_id || envText(variantRow?.id || ""),
+      slug: slugValue,
+      canonical_slug: envText(normalizedCard.canonical_slug || productRow?.canonical_slug || ""),
+      product_slug: envText(normalizedCard.product_slug || productRow?.product_slug || ""),
+      product_name: productName,
+      name: productName,
+      title: productName,
+      display_name: productName,
+      label: normalizedCard.label || productName,
+      image_url: imageUrl,
+      image: imageUrl,
+      product_image_url: envText(normalizedCard.product_image_url || productImageUrl || imageUrl),
+      variant_image_url: envText(normalizedCard.variant_image_url || resolveProductCardImageUrl({}, variantRow || {})),
+      thumbnail_url: envText(normalizedCard.thumbnail_url || imageUrl || productImageUrl || ""),
+      media_url: envText(normalizedCard.media_url || normalizedCard.mediaUrl || variantRow?.media_url || ""),
+      price: Number.isFinite(resolvedPrice) && resolvedPrice > 0 ? resolvedPrice : null,
+      color,
+      size,
+      storefront_url: resolvedUrl,
+      product_url: resolvedUrl,
+      url: resolvedUrl,
+      share_url: envText(normalizedCard.share_url || normalizedCard.shareUrl || resolvedUrl),
+      product: normalizedCard.product || productRow || {},
+      variant: normalizedCard.variant || variantRow || null,
+    };
+  } catch (error) {
+    console.warn("[ai-inbox][product-card-send] product card enrichment warning", {
+      tenant_id: tenantId,
+      product_id: normalizedCard.product_id || "",
+      variant_id: normalizedCard.variant_id || "",
+      slug,
+      message: error?.message || "lookup_failed",
+    });
+    return normalizedCard;
+  }
+};
+
 const formatProductCardPreviewText = (card = {}) => {
   const name = envText(card.product_name || card.name || card.title || "");
   const price = Number(card.price || 0) > 0 ? `EGP ${Number(card.price).toFixed(2)}` : "";
@@ -3674,8 +3944,11 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
       : Array.isArray(req.body?.selected_product_cards)
         ? req.body.selected_product_cards
         : [];
-  const productCards = rawCards.map(normalizeSelectedProductCard).filter((card) =>
+  const normalizedProductCards = rawCards.map(normalizeSelectedProductCard).filter((card) =>
     Boolean(card.product_id || card.variant_id || card.product_name || card.image_url || card.storefront_url)
+  );
+  const productCards = await Promise.all(
+    normalizedProductCards.map((card) => enrichSelectedProductCard({ tenantId, card }))
   );
   if (!productCards.length) {
     return sendError(res, Object.assign(new Error("product_cards are required"), { status: 400 }), "product_cards are required");
