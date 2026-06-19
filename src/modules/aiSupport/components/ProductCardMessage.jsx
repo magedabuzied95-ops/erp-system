@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { ArrowUpRight, ShoppingBag } from "lucide-react";
 
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -34,13 +35,16 @@ const resolveStorefrontUrl = (card = {}) => {
 const cardImage = (card = {}) =>
   clean(card.image_url || card.product_image_url || card.variant_image_url || card.image || card.thumbnail_url || "");
 
-export default function ProductCardMessage({ message = {}, cards = [] }) {
+function ProductCardMessage({ message = {}, cards = [] }) {
   const items = asArray(cards).filter(Boolean);
   if (!items.length) return null;
   const deliveryStatus = clean(message.delivery_status || "");
 
   return (
-    <div className="rounded-3xl rounded-tr-sm border border-cyan-300/15 bg-cyan-300/10 p-4 shadow-[0_10px_30px_rgba(8,145,178,0.14)]">
+    <div
+      className="rounded-3xl rounded-tr-sm border border-cyan-300/15 bg-cyan-300/10 p-4 shadow-[0_10px_30px_rgba(8,145,178,0.14)]"
+      style={{ contentVisibility: "auto", containIntrinsicSize: "360px" }}
+    >
       <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
         <ShoppingBag className="h-3.5 w-3.5" />
         <span>إرسال منتج</span>
@@ -66,7 +70,7 @@ export default function ProductCardMessage({ message = {}, cards = [] }) {
               {storefrontUrl ? (
                 <a href={storefrontUrl} target="_blank" rel="noreferrer" className="block">
                   {image ? (
-                    <img src={image} alt={card.product_name || "منتج"} className="aspect-[16/10] w-full object-cover" loading="lazy" />
+                    <img src={image} alt={card.product_name || "منتج"} className="aspect-[16/10] w-full object-cover" loading="lazy" decoding="async" />
                   ) : (
                     <div className="grid aspect-[16/10] w-full place-items-center bg-white/[0.05]">
                       <ShoppingBag className="h-10 w-10 text-slate-500" />
@@ -88,7 +92,7 @@ export default function ProductCardMessage({ message = {}, cards = [] }) {
               ) : (
                 <div className="p-3">
                   {image ? (
-                    <img src={image} alt={card.product_name || "منتج"} className="aspect-[16/10] w-full rounded-xl object-cover" loading="lazy" />
+                    <img src={image} alt={card.product_name || "منتج"} className="aspect-[16/10] w-full rounded-xl object-cover" loading="lazy" decoding="async" />
                   ) : (
                     <div className="grid aspect-[16/10] w-full place-items-center rounded-xl bg-white/[0.05]">
                       <ShoppingBag className="h-10 w-10 text-slate-500" />
@@ -109,3 +113,5 @@ export default function ProductCardMessage({ message = {}, cards = [] }) {
     </div>
   );
 }
+
+export default memo(ProductCardMessage);
