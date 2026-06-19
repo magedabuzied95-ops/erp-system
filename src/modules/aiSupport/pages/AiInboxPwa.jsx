@@ -28,10 +28,10 @@ import { toast } from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
 import { VirtualList } from "../../../shared/components/VirtualList";
-import { subscribeRealtime } from "../../../shared/realtime/socketStore";
+import { subscribeRealtime, useRealtimeStatus } from "../../../shared/realtime/socketStore";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { getPosSellableProducts } from "../../pos/services/posProductsApi";
-import ProductCardMessage from "../components/ProductCardMessage";
+import TranscriptMessage from "../components/TranscriptMessage";
 import ProductCardPicker from "../components/ProductCardPicker";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -102,6 +102,22 @@ const tenantIdFromAuth = () => {
   const tenant = getCurrentTenant?.() || {};
   const user = getCurrentUser?.() || {};
   return String(user.tenant_id || user.tenantId || tenant.id || tenant.tenant_id || "1");
+};
+
+const usePageVisible = () => {
+  const [visible, setVisible] = useState(() =>
+    typeof document === "undefined" ? true : document.visibilityState !== "hidden"
+  );
+
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    const update = () => setVisible(document.visibilityState !== "hidden");
+    update();
+    document.addEventListener("visibilitychange", update);
+    return () => document.removeEventListener("visibilitychange", update);
+  }, []);
+
+  return visible;
 };
 
 const encodeConversationId = (value = "") => {
@@ -544,6 +560,96 @@ const conversationSortValue = (conversation = {}) =>
 
 const sortConversationsByActivity = (items = []) =>
   [...asArray(items)].sort((left, right) => conversationSortValue(right) - conversationSortValue(left));
+
+const conversationMatchesIdentifiers = (conversation = {}, identifiers = {}) => {
+  const conversationIds = conversationIdentifiers(conversation);
+  const candidates = new Set(
+    [
+      conversationIds.sessionId,
+      conversationIds.conversationKey,
+      conversationIds.conversationId,
+      conversationIds.rawSessionId,
+      encodeConversationId(conversationIds.sessionId),
+      clean(conversationIds.sessionId),
+      clean(conversationIds.conversationKey),
+    ]
+      .map((value) => clean(value))
+      .filter(Boolean)
+  );
+  const targets = [
+    identifiers.sessionId,
+    identifiers.rawSessionId,
+    identifiers.conversationKey,
+    identifiers.conversationId,
+    clean(identifiers.sessionId),
+    clean(identifiers.rawSessionId),
+    clean(identifiers.conversationKey),
+    clean(identifiers.conversationId),
+    encodeConversationId(identifiers.sessionId || ""),
+  ]
+    .map((value) => clean(value))
+    .filter(Boolean);
+  return targets.some((target) => candidates.has(target));
+};
+
+const conversationHydrationState = (conversation = {}) => {
+  if (conversation?.conversationHydrated != null) return Boolean(conversation.conversationHydrated);
+  if (conversation?.hydrated != null) return Boolean(conversation.hydrated);
+  const messages = uniqueMessages(conversation.messages);
+  return messages.length > 1 || conversation.older_messages_available === false;
+};
+
+const mergeConversationSummaryRefresh = (currentConversation = {}, nextConversation = {}) => {
+  if (!currentConversation) return nextConversation;
+
+  const currentMessages = asArray(currentConversation.messages);
+  const nextMessages = asArray(nextConversation.messages);
+  const nextUnreadCount = nextConversation.unread_count ?? nextConversation.unseen_count ?? nextConversation.pending_count ?? currentConversation.unread_count ?? currentConversation.unseen_count ?? currentConversation.pending_count ?? 0;
+  const nextPreview =
+    nextConversation.latest_message_preview ??
+    nextConversation.last_message_preview ??
+    currentConversation.latest_message_preview ??
+    currentConversation.last_message_preview ??
+    "";
+  const nextLastMessageAt = nextConversation.last_message_at ?? currentConversation.last_message_at ?? "";
+  const nextLastActivityAt = nextConversation.last_activity_at ?? currentConversation.last_activity_at ?? "";
+  const nextUpdatedAt = nextConversation.updated_at ?? currentConversation.updated_at ?? "";
+  const nextStatus = nextConversation.conversation_status ?? nextConversation.status ?? currentConversation.conversation_status ?? currentConversation.status ?? "";
+  const nextMessageCount = Math.max(
+    Number(currentConversation.message_count || 0),
+    Number(nextConversation.message_count || 0),
+    currentMessages.length,
+    nextMessages.length
+  );
+
+  return {
+    ...currentConversation,
+    unread_count: nextUnreadCount,
+    unseen_count: nextConversation.unseen_count ?? currentConversation.unseen_count ?? nextUnreadCount,
+    pending_count: nextConversation.pending_count ?? currentConversation.pending_count ?? nextUnreadCount,
+    unread: nextUnreadCount > 0,
+    latest_message_preview: nextPreview,
+    last_message_preview: nextConversation.last_message_preview ?? nextPreview,
+    last_message_at: nextLastMessageAt,
+    last_activity_at: nextLastActivityAt,
+    updated_at: nextUpdatedAt,
+    status: nextStatus,
+    conversation_status: nextStatus,
+    message_count: nextMessageCount,
+    channel_metadata: {
+      ...(currentConversation.channel_metadata || {}),
+      ...(nextConversation.channel_metadata || {}),
+      last_message: nextConversation.channel_metadata?.last_message ?? currentConversation.channel_metadata?.last_message ?? nextPreview,
+      unread_count: nextConversation.channel_metadata?.unread_count ?? currentConversation.channel_metadata?.unread_count ?? nextUnreadCount,
+      pending_count: nextConversation.channel_metadata?.pending_count ?? currentConversation.channel_metadata?.pending_count ?? nextUnreadCount,
+      unseen_count: nextConversation.channel_metadata?.unseen_count ?? currentConversation.channel_metadata?.unseen_count ?? nextUnreadCount,
+    },
+    messages: currentConversation.messages,
+    older_messages_available: currentConversation.older_messages_available,
+    next_messages_before: currentConversation.next_messages_before,
+    conversationHydrated: currentConversation.conversationHydrated,
+  };
+};
 
 const normalizeRealtimeConversationKeys = (payload = {}) => {
   const message = normalizeInboxMessage(payload.message || payload);
@@ -995,6 +1101,42 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
           </div>
         );
       })}
+    </div>
+  );
+});
+
+const OptimizedTranscript = memo(function OptimizedTranscript({
+  rows = [],
+  loadingOlder,
+  onLoadOlder,
+  olderMessagesAvailable = false,
+}) {
+  if (!rows.length) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+        No messages yet.
+      </div>
+    );
+  }
+
+  return (
+    <div dir="rtl" className="space-y-2.5 pb-3">
+      {olderMessagesAvailable ? (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={onLoadOlder}
+            disabled={loadingOlder}
+            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 disabled:opacity-60"
+          >
+            {loadingOlder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock3 className="h-3.5 w-3.5" />}
+            Load older
+          </button>
+        </div>
+      ) : null}
+      {rows.map((row) => (
+        <TranscriptMessage key={row.key} row={row} variant="pwa" />
+      ))}
     </div>
   );
 });
@@ -1461,6 +1603,9 @@ export default function AiInboxPwa() {
   const params = useParams();
   const tenantId = tenantIdFromAuth();
   const conversationParam = clean(params.conversationId);
+  const pageVisible = usePageVisible();
+  const realtimeStatus = useRealtimeStatus();
+  const socketHealthy = realtimeStatus.connected && !realtimeStatus.connecting;
   const headers = useMemo(() => ({ "x-tenant-id": tenantId }), [tenantId]);
 
   const [loading, setLoading] = useState(true);
@@ -1486,12 +1631,29 @@ export default function AiInboxPwa() {
   const [productQuery, setProductQuery] = useState("");
   const [installPrompt, setInstallPrompt] = useState(null);
   const [conversationHeaderHeight, setConversationHeaderHeight] = useState(0);
+  const [userIsNearBottom, setUserIsNearBottom] = useState(true);
   const mainScrollRef = useRef(null);
   const conversationHeaderRef = useRef(null);
   const imageInputRef = useRef(null);
   const pollRef = useRef(null);
   const restoreScrollStateRef = useRef(null);
+  const isLoadingOlderRef = useRef(false);
+  const isHydratingConversationRef = useRef(false);
+  const isAppendingNewMessageRef = useRef(false);
+  const previousConversationKeyRef = useRef("");
+  const previousLatestMessageKeyRef = useRef("");
   const markReadSignatureRef = useRef("");
+  const refreshInFlightRef = useRef(false);
+  const previousSocketHealthyRef = useRef(socketHealthy);
+  const refreshTimerRef = useRef(null);
+  const refreshQueuedRef = useRef(false);
+  const refreshMetricsRef = useRef({
+    socket_refresh_count: 0,
+    polling_refresh_count: 0,
+    skipped_duplicate_refresh_count: 0,
+    mark_read_local_update: 0,
+  });
+  const scheduleRefreshRef = useRef(null);
 
   const tab = useMemo(() => {
     const value = new URLSearchParams(location.search).get("tab");
@@ -1546,6 +1708,12 @@ export default function AiInboxPwa() {
 
   const loadConversations = useCallback(
     async ({ silent = false } = {}) => {
+      if (refreshInFlightRef.current) {
+        refreshQueuedRef.current = true;
+        return;
+      }
+      refreshInFlightRef.current = true;
+      isHydratingConversationRef.current = true;
       if (!silent) setLoading(true);
       setError("");
       try {
@@ -1576,6 +1744,7 @@ export default function AiInboxPwa() {
               conversation.channel || conversation.source || conversation.provider || conversation.platform || ""
             ),
             messages: uniqueMessages(conversation.messages),
+            conversationHydrated: conversationHydrationState(conversation),
           }))
           .sort((left, right) => {
             const leftTime = new Date(left.last_activity_at || left.updated_at || 0).getTime() || 0;
@@ -1583,7 +1752,30 @@ export default function AiInboxPwa() {
             return rightTime - leftTime;
           });
 
-        setConversations(nextConversations);
+        setConversations((current) => {
+          const activeConversationKeys = normalizeRealtimeConversationKeys({ session_id: conversationParam });
+          return sortConversationsByActivity(
+            nextConversations.map((nextConversation) => {
+              const existingConversation = current.find((conversation) =>
+                conversationMatchesIdentifiers(conversation, conversationIdentifiers(nextConversation))
+              );
+              if (
+                existingConversation &&
+                conversationMatchesRealtimeKeys(existingConversation, activeConversationKeys) &&
+                existingConversation.conversationHydrated === true
+              ) {
+                return mergeConversationSummaryRefresh(existingConversation, nextConversation);
+              }
+              return existingConversation
+                ? {
+                    ...existingConversation,
+                    ...nextConversation,
+                    conversationHydrated: conversationHydrationState(nextConversation),
+                  }
+                : nextConversation;
+            })
+          );
+        });
 
         if (conversationParam) {
           const normalizedConversationParam = normalizeConversationSessionId(conversationParam);
@@ -1603,9 +1795,75 @@ export default function AiInboxPwa() {
         setError(loadError?.message || "Failed to load AI Inbox");
       } finally {
         if (!silent) setLoading(false);
+        refreshInFlightRef.current = false;
+        window.requestAnimationFrame(() => {
+          isHydratingConversationRef.current = false;
+        });
+        if (refreshQueuedRef.current) {
+          refreshQueuedRef.current = false;
+          scheduleRefreshRef.current?.("queued", { silent: true, delay: 650 });
+        }
       }
     },
     [conversationParam, debouncedSearch, headers, tab, tenantId, updateUrlState]
+  );
+
+  const scheduleRefresh = useCallback(
+    (source = "unknown", { silent = true, delay = 750 } = {}) => {
+      const counters = refreshMetricsRef.current;
+      if (source === "socket") counters.socket_refresh_count += 1;
+      if (source === "polling") counters.polling_refresh_count += 1;
+      if (refreshTimerRef.current) {
+        window.clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+        counters.skipped_duplicate_refresh_count += 1;
+      }
+      console.debug("[AiInboxPwa][refresh-metrics]", {
+        source,
+        silent,
+        delay,
+        page_visible: pageVisible,
+        socket_healthy: socketHealthy,
+        ...counters,
+      });
+      refreshTimerRef.current = window.setTimeout(() => {
+        refreshTimerRef.current = null;
+        if (refreshInFlightRef.current) {
+          counters.skipped_duplicate_refresh_count += 1;
+          refreshQueuedRef.current = true;
+          console.debug("[AiInboxPwa][refresh-metrics]", {
+            source,
+            silent,
+            delay,
+            status: "deferred",
+            reason: "refresh_in_flight",
+            page_visible: pageVisible,
+            socket_healthy: socketHealthy,
+            ...counters,
+          });
+          return;
+        }
+        void loadConversations({ silent });
+      }, delay);
+    },
+    [loadConversations, pageVisible, socketHealthy]
+  );
+
+  useEffect(() => {
+    scheduleRefreshRef.current = scheduleRefresh;
+    return () => {
+      scheduleRefreshRef.current = null;
+    };
+  }, [scheduleRefresh]);
+
+  useEffect(
+    () => () => {
+      if (refreshTimerRef.current) {
+        window.clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+    },
+    []
   );
 
   useEffect(() => {
@@ -1656,13 +1914,21 @@ export default function AiInboxPwa() {
       window.clearInterval(pollRef.current);
       pollRef.current = null;
     }
+    if (pageVisible && socketHealthy) return undefined;
     pollRef.current = window.setInterval(() => {
-      void loadConversations({ silent: true });
+      scheduleRefresh("polling", { silent: true, delay: 750 });
     }, 15000);
     return () => {
       if (pollRef.current) window.clearInterval(pollRef.current);
     };
-  }, [loadConversations]);
+  }, [pageVisible, scheduleRefresh, socketHealthy]);
+
+  useEffect(() => {
+    const wasSocketHealthy = previousSocketHealthyRef.current;
+    previousSocketHealthyRef.current = socketHealthy;
+    if (!pageVisible || !socketHealthy || wasSocketHealthy) return;
+    scheduleRefresh("socket", { silent: true, delay: 650 });
+  }, [pageVisible, scheduleRefresh, socketHealthy]);
 
   useEffect(() => {
     const onMessage = (payload = {}) => {
@@ -1695,6 +1961,9 @@ export default function AiInboxPwa() {
           const nextConversations = asArray(current).map((conversation) => {
             if (!conversationMatchesRealtimeKeys(conversation, currentConversationIds)) return conversation;
             matchedConversation = true;
+            if (conversationMatchesRealtimeKeys(conversation, activeConversationKeys)) {
+              isAppendingNewMessageRef.current = true;
+            }
 
             const existingMessages = asArray(conversation.messages);
             const normalizedMessage = normalizeInboxMessage({
@@ -1749,7 +2018,7 @@ export default function AiInboxPwa() {
       try {
         const payloadTenantId = clean(payload.tenant_id || payload.tenantId || "");
         if (payloadTenantId && payloadTenantId !== clean(tenantId)) return;
-        void loadConversations({ silent: true });
+        scheduleRefresh("socket", { silent: true, delay: 650 });
       } catch (error) {
         console.warn("[AiInboxPwa][realtime-refresh-error]", {
           event: "ai_inbox:refresh",
@@ -1766,7 +2035,7 @@ export default function AiInboxPwa() {
       offMessage();
       offRefresh();
     };
-  }, [conversationParam, loadConversations, tenantId]);
+  }, [conversationParam, pageVisible, scheduleRefresh, tenantId]);
 
   const filteredConversations = useMemo(() => {
     const normalized = debouncedSearch.toLowerCase();
@@ -1841,6 +2110,29 @@ export default function AiInboxPwa() {
   const autoReplyShadowTone = activeAiReplyShadow?.evaluated
     ? (activeAiReplyShadow.eligible ? "emerald" : "amber")
     : "zinc";
+  const selectedTranscriptRows = useMemo(() => {
+    const messages = uniqueMessages(selectedConversation?.messages || []).filter((message) => !isHiddenAiReplyDraftMessage(message));
+    return messages
+      .map((message) => {
+        const normalizedMessage = normalizeInboxMessage(message);
+        const cards = normalizeMessageProductCards(normalizedMessage);
+        const hasProductCards = cards.length > 0;
+        const isFromMe = isFromMeMessage(normalizedMessage);
+        const isCustomer = Boolean(clean(normalizedMessage.customer_message)) && !isFromMe;
+        const isAi = Boolean(clean(normalizedMessage.ai_answer)) || normalizedMessage.sender_type === "assistant" || normalizedMessage.sender_type === "ai" || normalizedMessage.direction === "outbound" || isFromMe;
+        const isStaff = Boolean(clean(normalizedMessage.staff_message)) && !hasProductCards;
+        if (!isCustomer && !isAi && !isStaff && !hasProductCards) return null;
+        return {
+          key: messageKey(normalizedMessage),
+          message: normalizedMessage,
+          cards,
+          kind: hasProductCards || normalizedMessage.message_type === "product_card" ? "product_card" : isCustomer ? "customer" : isAi ? "ai" : "staff",
+          visible: true,
+          createdAt: absoluteTime(normalizedMessage.created_at),
+        };
+      })
+      .filter(Boolean);
+  }, [selectedConversation?.messages]);
 
   useEffect(() => {
     const draftText = clean(activeAiReplyDraft?.text || "");
@@ -1855,22 +2147,24 @@ export default function AiInboxPwa() {
       const conversationIdentifier = identifiers.conversationKey || sessionId;
       if (!sessionId) return false;
 
-      try {
-        await api.post(
-          aiInboxConversationEndpoint(sessionId, "/read"),
-          { tenant_id: tenantId, conversation_id: sessionId, channel: conversation.channel || conversation.source || "" },
-          { headers, perfComponent: "AiInboxPwa.markRead" }
-        );
-        patchConversation(conversationIdentifier, (currentConversation) => ({
-          ...currentConversation,
-          unread_count: 0,
-          unseen_count: 0,
-          pending_count: 0,
-          unread: false,
-        }));
-        await loadConversations({ silent: true });
-        return true;
-      } catch (markError) {
+      isHydratingConversationRef.current = true;
+      refreshMetricsRef.current.mark_read_local_update += 1;
+      console.debug("[AiInboxPwa][mark-read-local-update]", {
+        mark_read_local_update: refreshMetricsRef.current.mark_read_local_update,
+        conversation_id: sessionId,
+      });
+      patchConversation(conversationIdentifier, (currentConversation) => ({
+        ...currentConversation,
+        unread_count: 0,
+        unseen_count: 0,
+        pending_count: 0,
+        unread: false,
+      }));
+      void api.post(
+        aiInboxConversationEndpoint(sessionId, "/read"),
+        { tenant_id: tenantId, conversation_id: sessionId, channel: conversation.channel || conversation.source || "" },
+        { headers, perfComponent: "AiInboxPwa.markRead" }
+      ).catch((markError) => {
         if (import.meta?.env?.DEV) {
           console.warn("[AiInboxPwa] mark-read failed", {
             conversation_id: sessionId,
@@ -1879,10 +2173,14 @@ export default function AiInboxPwa() {
           });
           toast.error(markError?.message || "Failed to mark conversation as read");
         }
-        return false;
-      }
+      }).finally(() => {
+        window.requestAnimationFrame(() => {
+          isHydratingConversationRef.current = false;
+        });
+      });
+      return true;
     },
-    [headers, loadConversations, patchConversation, tenantId]
+    [headers, patchConversation, tenantId]
   );
 
   const openConversation = useCallback(
@@ -1945,13 +2243,31 @@ export default function AiInboxPwa() {
       if (restoreState) {
         scroller.scrollTop = Math.max(0, restoreState.scrollTop + (scroller.scrollHeight - restoreState.scrollHeight));
         restoreScrollStateRef.current = null;
+        setUserIsNearBottom(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 140);
+        isLoadingOlderRef.current = false;
+        isAppendingNewMessageRef.current = false;
         return;
       }
-      scroller.scrollTop = scroller.scrollHeight;
+      const conversationKey = selectedConversation.conversation_key || selectedConversation.session_id || "";
+      const latestVisibleMessage = [...asArray(selectedConversation.messages)].reverse().find((message) => !isHiddenAiReplyDraftMessage(message));
+      const latestMessageKey = messageKey(latestVisibleMessage || {});
+      const conversationChanged = previousConversationKeyRef.current !== conversationKey;
+      const latestMessageAppended = latestMessageKey && latestMessageKey !== previousLatestMessageKeyRef.current;
+
+      if (conversationChanged || (latestMessageAppended && userIsNearBottom)) {
+        scroller.scrollTop = scroller.scrollHeight;
+        setUserIsNearBottom(true);
+      } else {
+        setUserIsNearBottom(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 140);
+      }
+
+      previousConversationKeyRef.current = conversationKey;
+      previousLatestMessageKeyRef.current = latestMessageKey;
+      isAppendingNewMessageRef.current = false;
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [selectedConversation, selectedConversation?.last_activity_at, selectedConversation?.messages?.length, selectedConversation?.updated_at, tab]);
+  }, [selectedConversation, selectedConversation?.conversation_key, selectedConversation?.messages, selectedConversation?.session_id, tab, userIsNearBottom]);
 
   useLayoutEffect(() => {
     if (!selectedConversation || tab !== "conversations") {
@@ -1980,7 +2296,7 @@ export default function AiInboxPwa() {
   }, [selectedConversation, tab]);
 
   const loadOlderMessages = useCallback(async () => {
-    if (!selectedConversation?.session_id || olderLoading) return;
+    if (!selectedConversation?.session_id || olderLoading || isLoadingOlderRef.current) return;
     const before = selectedConversation.next_messages_before || selectedConversation.messages?.[0]?.created_at || "";
     const beforeId = selectedConversation.messages?.[0]?.id || "";
     if (!before) return;
@@ -1991,6 +2307,7 @@ export default function AiInboxPwa() {
         scrollTop: scroller.scrollTop,
       };
     }
+    isLoadingOlderRef.current = true;
     setOlderLoading(true);
     try {
       const payload = await api.get(aiInboxConversationEndpoint(normalizeConversationSessionId(selectedConversation.session_id, selectedConversation.channel || selectedConversation.source || selectedConversation.provider || selectedConversation.platform || ""), "/messages"), {
@@ -2005,20 +2322,23 @@ export default function AiInboxPwa() {
           messages: mergedMessages,
           older_messages_available: Boolean(payload.has_more),
           next_messages_before: payload.next_before || mergedMessages[0]?.created_at || "",
+          conversationHydrated: true,
         };
       });
     } catch (loadError) {
       toast.error(loadError?.message || "Failed to load older messages");
     } finally {
       setOlderLoading(false);
+      isLoadingOlderRef.current = false;
     }
   }, [headers, olderLoading, patchConversation, selectedConversation, tenantId]);
 
   useEffect(() => {
     if (!selectedConversation?.session_id || tab !== "conversations") return;
-    if (asArray(selectedConversation.messages).length > 1) return;
+    if (isHydratingConversationRef.current || isLoadingOlderRef.current || isAppendingNewMessageRef.current) return;
+    if (selectedConversation.conversationHydrated !== false) return;
     void loadOlderMessages();
-  }, [loadOlderMessages, selectedConversation?.messages?.length, selectedConversation?.session_id, tab]);
+  }, [loadOlderMessages, selectedConversation?.conversationHydrated, selectedConversation?.session_id, tab]);
 
   const sendManualReply = useCallback(async () => {
     const message = clean(composerText);
@@ -2739,6 +3059,11 @@ export default function AiInboxPwa() {
         )}
         <main
           ref={mainScrollRef}
+          onScroll={() => {
+            const scroller = mainScrollRef.current;
+            if (!scroller) return;
+            setUserIsNearBottom(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 140);
+          }}
           className={`flex-1 min-h-0 overflow-y-auto px-2 ${contentScreen && tab === "conversations" ? "" : "pt-1.5"} ${showComposer ? "pb-[calc(5.9rem+env(safe-area-inset-bottom))]" : "pb-[calc(4.1rem+env(safe-area-inset-bottom))]"}`}
           style={contentScreen && tab === "conversations" ? { paddingTop: `${conversationHeaderHeight || 88}px` } : undefined}
         >
@@ -2751,7 +3076,12 @@ export default function AiInboxPwa() {
 
           {tab === "conversations" ? (
             contentScreen ? (
-              <Transcript conversation={selectedConversation} loadingOlder={olderLoading} onLoadOlder={loadOlderMessages} />
+              <OptimizedTranscript
+                rows={selectedTranscriptRows}
+                loadingOlder={olderLoading}
+                onLoadOlder={loadOlderMessages}
+                olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
+              />
           ) : loading ? (
               <div className="grid min-h-60 place-items-center rounded-3xl border border-slate-200 bg-white shadow-sm">
                 <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
