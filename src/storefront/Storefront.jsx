@@ -4070,11 +4070,11 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
           </span>
         </div>
       </div>
-      <div className="sf-utility-row hidden border-b border-stone-200/70 bg-white/45 px-4 text-xs font-semibold text-stone-500 transition-all duration-300 dark:border-white/10 dark:bg-white/[0.035] dark:text-stone-400 sm:block">
+      <div className="sf-utility-row hidden border-b border-white/10 bg-[linear-gradient(105deg,#09090b,#1c1917_42%,#312e81)] px-4 text-xs font-semibold text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-300 sm:block">
         <div className="mx-auto flex h-9 max-w-7xl items-center justify-between gap-4">
           <div className="flex items-center gap-1.5">
             {utilityItems.map((item) => {
-              const className = "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 transition hover:bg-white hover:text-stone-950 dark:hover:bg-white/8 dark:hover:text-white";
+              const className = "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 transition hover:bg-white/10 hover:text-white";
               return item.external ? (
                 <a key={item.label} href={item.to} className={className}>
                   {item.icon}
@@ -4089,9 +4089,9 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
             })}
           </div>
           <div className="hidden items-center gap-2 lg:flex">
-            <button type="button" onClick={switchLanguage} className="rounded-full px-2.5 py-1 transition hover:bg-white hover:text-stone-950 dark:hover:bg-white/8 dark:hover:text-white">{languageLabel}</button>
-            <span className="h-3 w-px bg-stone-300/80 dark:bg-white/12" />
-            <button type="button" className="rounded-full px-2.5 py-1 transition hover:bg-white hover:text-stone-950 dark:hover:bg-white/8 dark:hover:text-white">{getCurrency().code}</button>
+            <button type="button" onClick={switchLanguage} className="rounded-full px-2.5 py-1 text-white/80 transition hover:bg-white/10 hover:text-white">{languageLabel}</button>
+            <span className="h-3 w-px bg-white/15" />
+            <button type="button" className="rounded-full px-2.5 py-1 text-white/80 transition hover:bg-white/10 hover:text-white">{getCurrency().code}</button>
           </div>
         </div>
       </div>
