@@ -358,7 +358,15 @@ const useProducts = (params = {}, { ttlMs = STOREFRONT_PRODUCTS_CACHE_TTL_MS } =
     }
     cachedStorefrontGet(requestUrl, { ttlMs })
       .then((data) => {
+        console.info("[useProducts-raw-response]", {
+          typeofData: typeof data,
+          keys: Object.keys(data || {}),
+          sample: data,
+        });
         const products = Array.isArray(data.products) ? data.products : [];
+        console.info("[useProducts-products-extraction]", {
+          extractedProductsCount: products.length,
+        });
         if (import.meta.env.DEV) {
           console.debug("[storefront-color-card-response]", products.map((product) => ({
             card_id: product?.card_id,
