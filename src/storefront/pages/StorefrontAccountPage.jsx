@@ -9,9 +9,29 @@ import {
   Gem,
 } from "lucide-react";
 
+const STOREFRONT_PROFILE_KEY = "storefront.profile";
+
 const storefrontAsyncDebugLog = (label, payload = {}) => {
   if (!import.meta.env.DEV) return;
   console.log(label, payload);
+};
+
+const normalizePhoneDigits = (value = "") => String(value ?? "").replace(/\D/g, "");
+
+const normalizeAccountIdentity = (value = {}) => ({
+  full_name: String(value?.full_name || "").trim(),
+  primary_phone: normalizePhoneDigits(value?.primary_phone || value?.phone || value?.customer_phone || ""),
+  phone: normalizePhoneDigits(value?.phone || value?.primary_phone || value?.customer_phone || ""),
+  customer_id: String(value?.customer_id || value?.id || "").trim(),
+});
+
+const clearAccountIdentityStorage = () => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(STOREFRONT_PROFILE_KEY);
+  } catch {
+    // Ignore storage errors.
+  }
 };
 
 function OrderItemsSummaryLocal({ items = [], helpers }) {
@@ -169,31 +189,92 @@ function CustomerOrderDetails({ data, phone, onReorder, helpers, components }) {
 export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, onAddToCart, helpers, components }) {
   const { sfText, displayOrderNumber } = helpers;
   const { Field, Panel, InfoBox, SmallProductList } = components;
-  const [phone, setPhone] = useState(profile.primary_phone || "");
+  const savedIdentity = normalizeAccountIdentity(profile);
+  const [phone, setPhone] = useState(savedIdentity.primary_phone || "");
   const [account, setAccount] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const lastAutoLoadedPhoneRef = useRef("");
   const accountRefreshIntervalMs = selectedOrder ? 10 * 1000 : 30 * 1000;
 
-  const load = useCallback(async () => {
-    if (!phone) return;
+  useEffect(() => {
+    if (!savedIdentity.primary_phone) return;
+    if (phone) return;
+    setPhone(savedIdentity.primary_phone);
+  }, [phone, savedIdentity.primary_phone]);
+
+  const clearCustomerIdentity = useCallback(() => {
+    lastAutoLoadedPhoneRef.current = "";
+    clearAccountIdentityStorage();
+    setPhone("");
+    setAccount(null);
+    setSelectedOrder(null);
+    setProfile((prev) => ({
+      ...prev,
+      full_name: "",
+      primary_phone: "",
+      phone: "",
+      customer_id: "",
+    }));
+  }, [setProfile]);
+
+  const load = useCallback(async ({ silent = false, source = "manual" } = {}) => {
+    const normalizedPhone = normalizePhoneDigits(phone);
+    if (!normalizedPhone) {
+      clearCustomerIdentity();
+      return null;
+    }
+    if (source === "auto" && lastAutoLoadedPhoneRef.current === normalizedPhone) {
+      return null;
+    }
     setLoading(true);
     try {
-      const data = await api.get(`/storefront/account?phone=${encodeURIComponent(phone)}`);
+      const data = await api.get(`/storefront/account?phone=${encodeURIComponent(normalizedPhone)}`);
+      lastAutoLoadedPhoneRef.current = normalizedPhone;
       setAccount(data);
-      setProfile((prev) => ({ ...prev, primary_phone: phone, full_name: data.customer?.name || prev.full_name || "" }));
+      setProfile((prev) => ({
+        ...prev,
+        primary_phone: normalizedPhone,
+        phone: normalizedPhone,
+        customer_id: data.customer?.id || prev.customer_id || prev.id || "",
+        full_name: data.customer?.name || prev.full_name || "",
+      }));
     } catch (error) {
-      toast.error(error.message || sfText("storefront.toasts.accountUnavailable", "لا يمكن فتح الحساب الآن."));
+      const status = Number(error?.status || error?.response?.status || 0);
+      const responseCode = String(error?.responseBody?.code || error?.responseBody?.error || error?.code || "").toUpperCase();
+      const shouldClearIdentity =
+        status === 400 ||
+        status === 404 ||
+        status === 410 ||
+        responseCode.includes("INVALID") ||
+        responseCode.includes("NOT_FOUND") ||
+        responseCode.includes("EXPIRED");
+      if (shouldClearIdentity) {
+        clearCustomerIdentity();
+      }
+      if (!silent) {
+        toast.error(error.message || sfText("storefront.toasts.accountUnavailable", "لا يمكن فتح الحساب الآن."));
+      }
     } finally {
       setLoading(false);
     }
-  }, [phone, setProfile, sfText]);
+  }, [clearCustomerIdentity, phone, setProfile, sfText]);
+
+  useEffect(() => {
+    const normalizedPhone = normalizePhoneDigits(savedIdentity.primary_phone || "");
+    if (!normalizedPhone) return;
+    if (normalizePhoneDigits(phone) !== normalizedPhone) return;
+    if (account || loading) return;
+    if (lastAutoLoadedPhoneRef.current === normalizedPhone) return;
+    lastAutoLoadedPhoneRef.current = normalizedPhone;
+    load({ silent: true, source: "auto" });
+  }, [account, load, loading, phone, savedIdentity.primary_phone]);
 
   useEffect(() => {
     if (!account || !phone) return undefined;
     if (typeof document !== "undefined" && document.visibilityState !== "visible") return undefined;
     const id = window.setInterval(() => {
-      api.get(`/storefront/account?phone=${encodeURIComponent(phone)}`)
+      api.get(`/storefront/account?phone=${encodeURIComponent(normalizePhoneDigits(phone))}`)
         .then((data) => setAccount(data))
         .catch(() => undefined);
     }, accountRefreshIntervalMs);
@@ -204,7 +285,7 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
     if (!account || !phone || typeof document === "undefined") return undefined;
     const handleVisibilityChange = () => {
       if (document.visibilityState !== "visible") return;
-      api.get(`/storefront/account?phone=${encodeURIComponent(phone)}`)
+      api.get(`/storefront/account?phone=${encodeURIComponent(normalizePhoneDigits(phone))}`)
         .then((data) => setAccount(data))
         .catch(() => undefined);
     };
@@ -232,9 +313,9 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
   }, []);
 
   const openOrder = useCallback(async (order) => {
-    setSelectedOrder({ loading: true, order, items: [], timeline: [] });
+      setSelectedOrder({ loading: true, order, items: [], timeline: [] });
     try {
-      const data = await api.get(`/storefront/track?order_number=${encodeURIComponent(displayOrderNumber(order))}&phone=${encodeURIComponent(phone)}`);
+      const data = await api.get(`/storefront/track?order_number=${encodeURIComponent(displayOrderNumber(order))}&phone=${encodeURIComponent(normalizePhoneDigits(phone))}`);
       setSelectedOrder(data);
     } catch {
       setSelectedOrder({ order, items: [], timeline: [] });
@@ -245,7 +326,7 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
     const sourceItems = order.items || selectedOrder?.items || [];
     let items = sourceItems;
     if (!items.length) {
-      const data = await api.get(`/storefront/track?order_number=${encodeURIComponent(displayOrderNumber(order))}&phone=${encodeURIComponent(phone)}`);
+      const data = await api.get(`/storefront/track?order_number=${encodeURIComponent(displayOrderNumber(order))}&phone=${encodeURIComponent(normalizePhoneDigits(phone))}`);
       items = data.items || [];
     }
     const productMap = await loadProductsForReorder(items);
@@ -285,7 +366,8 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
       <div className="mt-5 grid gap-5 lg:grid-cols-[340px_1fr]">
         <div className="sf-storefront-card h-max rounded-[1.7rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] lg:sticky lg:top-24">
           <Field label={sfText("storefront.form.mobileNumber", "رقم الهاتف")} value={phone} onChange={setPhone} inputMode="tel" />
-          <button onClick={load} disabled={loading} className="mt-3 min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white disabled:bg-stone-300">{loading ? sfText("storefront.common.loading", "جارٍ التحميل...") : sfText("storefront.account.showMyData", "عرض بياناتي")}</button>
+          <button onClick={() => load({ source: "manual" })} disabled={loading} className="mt-3 min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white disabled:bg-stone-300">{loading ? sfText("storefront.common.loading", "جارٍ التحميل...") : sfText("storefront.account.showMyData", "عرض بياناتي")}</button>
+          <button onClick={clearCustomerIdentity} type="button" className="mt-2 min-h-11 w-full rounded-full border border-stone-200 bg-white px-5 py-3 text-sm font-black text-stone-600 transition hover:bg-stone-50">{sfText("storefront.account.changePhone", "تغيير الرقم")}</button>
           <InfoBox label={sfText("storefront.account.myData", "بياناتي")} value={account?.customer?.name || profile.full_name || sfText("storefront.account.enterPhoneHint", "أدخل رقم هاتفك لعرض الحساب")} />
           <LoyaltyWidget loyalty={account?.loyalty} loading={loading} helpers={helpers} />
         </div>
