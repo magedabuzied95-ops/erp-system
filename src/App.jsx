@@ -355,7 +355,11 @@ function App() {
 
       <Route
         path="/c/:code"
-        element={<OrderConfirmationActionPage />}
+        element={
+          <Suspense fallback={<RouteSkeleton />}>
+            <OrderConfirmationActionPage />
+          </Suspense>
+        }
       />
 
       <Route
