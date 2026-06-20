@@ -1148,7 +1148,57 @@ const prefetchStorefrontProductDetails = (identifier) => {
     storefrontPrefetchedDetails.delete(key);
   });
 };
-const productFromDetailsResponse = (data = {}) => data?.product || data?.data?.product || (data?.id ? data : null);
+const extractProductPayload = (payload = {}) => {
+  const hasIdentity = (candidate) =>
+    Boolean(
+      candidate &&
+        typeof candidate === "object" &&
+        !Array.isArray(candidate) &&
+        (candidate.id ||
+          candidate.product_id ||
+          candidate.productId ||
+          candidate.slug ||
+          candidate.product_slug ||
+          candidate.canonical_slug ||
+          candidate.name ||
+          candidate.title)
+    );
+  const queue = [
+    payload?.product,
+    payload?.data?.product,
+    payload?.item,
+    payload?.data?.item,
+    payload?.payload?.product,
+    payload?.payload?.item,
+    payload?.payload?.data,
+    payload?.data,
+    payload?.responseBody?.product,
+    payload?.responseBody?.item,
+    payload?.responseBody?.data,
+    payload?.result?.product,
+    payload?.result?.item,
+    payload?.result?.data,
+    payload,
+  ].filter((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate));
+  const visited = new Set();
+  while (queue.length) {
+    const candidate = queue.shift();
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate) || visited.has(candidate)) continue;
+    visited.add(candidate);
+    if (hasIdentity(candidate)) return candidate;
+    const nextCandidates = [
+      candidate.product,
+      candidate.data,
+      candidate.item,
+      candidate.payload,
+      candidate.responseBody,
+      candidate.result,
+    ].filter((nextCandidate) => nextCandidate && typeof nextCandidate === "object" && !Array.isArray(nextCandidate));
+    queue.push(...nextCandidates);
+  }
+  return null;
+};
+const productFromDetailsResponse = (data = {}) => extractProductPayload(data);
 const MANUAL_CITY_AREA = "الاختيار اليدوي";
 const MANUAL_CITY_AREA_LABEL = "الاختيار اليدوي";
 const governorateCityAreas = repairedDefaultEgyptShippingLocations.reduce((acc, location) => {

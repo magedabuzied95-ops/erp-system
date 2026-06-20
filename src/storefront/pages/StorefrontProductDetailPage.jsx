@@ -155,6 +155,12 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
         try {
           const data = await attempt.loader();
           const product = productFromDetailsResponse(data);
+          if (import.meta.env.DEV) console.info("[ProductDetail] extracted product", {
+            attempt: attempt.label,
+            keys: Object.keys(data || {}),
+            extractedKeys: Object.keys(product || {}),
+            extracted: product,
+          });
           if (import.meta.env.DEV) console.log("[storefront-product] load attempt", {
             routeIdentifier: routeValue,
             attempt: attempt.label,
