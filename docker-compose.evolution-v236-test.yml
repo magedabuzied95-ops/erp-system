@@ -1,0 +1,86 @@
+version: "3.8"
+
+services:
+  evolution-postgres-v236:
+    container_name: evolution_postgres_v236_test
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: evolution_v236_test
+      POSTGRES_USER: evolution_v236_user
+      POSTGRES_PASSWORD: evolution_v236_pass
+    volumes:
+      - evolution_v236_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evolution_v236_user -d evolution_v236_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - evolution-v236-net
+
+  evolution-redis-v236:
+    container_name: evolution_redis_v236_test
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - evolution_v236_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - evolution-v236-net
+
+  evolution-api-v236:
+    container_name: evolution_api_v236_test
+    image: evoapicloud/evolution-api:v2.3.6
+    restart: unless-stopped
+    depends_on:
+      evolution-postgres-v236:
+        condition: service_healthy
+      evolution-redis-v236:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8081:8080"
+    environment:
+      SERVER_TYPE: http
+      SERVER_PORT: 8080
+      SERVER_URL: http://127.0.0.1:8081
+      SERVER_DISABLE_MANAGER: "false"
+      AUTHENTICATION_API_KEY: TEST_KEY_V236
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution_v236_user:evolution_v236_pass@evolution-postgres-v236:5432/evolution_v236_test
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://evolution-redis-v236:6379
+      LOG_LEVEL: info
+      WEBHOOK_GLOBAL_ENABLED: "false"
+      WEBHOOK_GLOBAL_URL: ""
+      WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS: "false"
+    volumes:
+      - evolution_v236_instances:/evolution/instances
+    networks:
+      - evolution-v236-net
+
+  evolution-manager-v236:
+    container_name: evolution_manager_v236_test
+    image: evoapicloud/evolution-manager:latest
+    restart: unless-stopped
+    depends_on:
+      - evolution-api-v236
+    ports:
+      - "127.0.0.1:3001:80"
+    networks:
+      - evolution-v236-net
+
+volumes:
+  evolution_v236_instances:
+  evolution_v236_postgres_data:
+  evolution_v236_redis_data:
+
+networks:
+  evolution-v236-net:
+    name: evolution-v236-net
+    driver: bridge

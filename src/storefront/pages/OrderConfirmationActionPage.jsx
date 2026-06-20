@@ -127,35 +127,35 @@ const normalizeMaybeMoney = (value) => {
 
 const formatMaybeMoney = (value) => {
   const normalized = normalizeMaybeMoney(value);
-  if (normalized === undefined) return "غير محدد";
+  if (normalized === undefined) return "غير متوفر";
   return formatMoney(normalized);
 };
 
 const joinAddressParts = (...parts) => parts.map((part) => String(part ?? "").trim()).filter(Boolean).join("، ");
 
-const getShippingFee = (order = {}) => {
+const getShippingFee = (order = null) => {
   const shippingValue = firstDefined(
-    order.shipping_fee,
-    order.delivery_fee,
-    order.shipping_cost,
-    order.delivery_cost,
-    order.shipping_amount
+    order?.shipping_fee,
+    order?.delivery_fee,
+    order?.shipping_cost,
+    order?.delivery_cost,
+    order?.shipping_amount
   );
   return normalizeMaybeMoney(shippingValue);
 };
 
-const getItemsSubtotal = (order = {}) => normalizeMaybeMoney(firstDefined(order.items_subtotal, order.subtotal, order.products_subtotal, order.items_total, order.items_total_amount));
+const getItemsSubtotal = (order = null) => normalizeMaybeMoney(firstDefined(order?.items_subtotal, order?.subtotal, order?.products_subtotal, order?.items_total, order?.items_total_amount));
 
-const getDiscountValue = (order = {}) => normalizeMaybeMoney(firstDefined(order.discount, order.discount_amount, order.discount_value, order.coupon_discount));
+const getDiscountValue = (order = null) => normalizeMaybeMoney(firstDefined(order?.discount, order?.discount_amount, order?.discount_value, order?.coupon_discount));
 
-const getTotalValue = (order = {}) => normalizeMaybeMoney(firstDefined(order.total, order.total_amount, order.total_price, order.grand_total));
+const getTotalValue = (order = null) => normalizeMaybeMoney(firstDefined(order?.total, order?.total_amount, order?.total_price, order?.grand_total));
 
-const getAddressSummary = (order = {}) => {
-  const governorate = firstDefined(order.governorate, order.city, order.area);
-  const addressLine = firstDefined(order.address_line, order.street_address, order.notes, order.address, order.shipping_address, order.customer_address, order.delivery_address);
-  const fallbackAddress = firstDefined(order.shipping_address_line, order.shipping_address_details, order.location);
+const getAddressSummary = (order = null) => {
+  const governorate = firstDefined(order?.governorate, order?.city, order?.area);
+  const addressLine = firstDefined(order?.address_line, order?.street_address, order?.notes, order?.address, order?.shipping_address, order?.customer_address, order?.delivery_address);
+  const fallbackAddress = firstDefined(order?.shipping_address_line, order?.shipping_address_details, order?.location);
   return {
-    locationLine: joinAddressParts(governorate, firstDefined(order.city, order.area)),
+    locationLine: joinAddressParts(governorate, firstDefined(order?.city, order?.area)),
     addressLine: joinAddressParts(addressLine, fallbackAddress),
   };
 };
@@ -172,7 +172,45 @@ function InfoCard({ title, icon: Icon, children }) {
   );
 }
 
+class OrderConfirmationActionPageErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error) {
+    console.error("[order-confirmation-action-page]", error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <main className="min-h-screen bg-gradient-to-b from-[#f8fafc] to-[#eef2ff] px-4 py-8 text-slate-950">
+          <div className="mx-auto max-w-3xl rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
+            <h1 className="text-xl font-black">تعذر تحميل تفاصيل الطلب</h1>
+            <p className="mt-2 text-sm leading-7 text-slate-700">حدث خطأ غير متوقع أثناء عرض الصفحة. يمكنك المحاولة مرة أخرى أو التواصل مع الدعم.</p>
+          </div>
+        </main>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 export function OrderConfirmationActionPage() {
+  return (
+    <OrderConfirmationActionPageErrorBoundary>
+      <OrderConfirmationActionPageInner />
+    </OrderConfirmationActionPageErrorBoundary>
+  );
+}
+
+function OrderConfirmationActionPageInner() {
   const { code } = useParams();
   const [loading, setLoading] = useState(true);
   const [pendingAction, setPendingAction] = useState("");
@@ -193,14 +231,30 @@ export function OrderConfirmationActionPage() {
   const order = useMemo(() => result?.order || result?.data?.order || result?.data || null, [result]);
   const items = useMemo(() => normalizeItems(result || {}), [result]);
   const primaryItem = items[0] || null;
+  const pricing = useMemo(() => {
+    const subtotalSource = firstDefined(order?.items_subtotal, order?.subtotal, order?.items_total, order?.items_total_amount, order?.products_subtotal);
+    const shippingSource = firstDefined(order?.shipping_fee, order?.delivery_fee, order?.shipping_cost);
+    const discountSource = firstDefined(order?.discount, order?.discount_amount, order?.discount_value, order?.coupon_discount);
+    const totalSource = firstDefined(order?.total, order?.grand_total, order?.total_amount, order?.total_price);
+    return {
+      subtotal: normalizeMaybeMoney(subtotalSource) ?? 0,
+      shipping: normalizeMaybeMoney(shippingSource) ?? 0,
+      discount: normalizeMaybeMoney(discountSource) ?? 0,
+      total: normalizeMaybeMoney(totalSource) ?? 0,
+      subtotalAvailable: subtotalSource !== undefined && subtotalSource !== null && String(subtotalSource).trim() !== "",
+      shippingAvailable: shippingSource !== undefined && shippingSource !== null && String(shippingSource).trim() !== "",
+      discountAvailable: discountSource !== undefined && discountSource !== null && String(discountSource).trim() !== "",
+      totalAvailable: totalSource !== undefined && totalSource !== null && String(totalSource).trim() !== "",
+    };
+  }, [order]);
 
   const orderNumber = text(order?.public_order_number, order?.display_order_number, order?.invoice_number, order?.order_number, order?.id);
   const customerName = text(order?.customer_name, "العميل");
   const customerPhone = text(order?.customer_phone, order?.phone, order?.whatsapp, order?.mobile);
-  const itemsSubtotal = getItemsSubtotal(order);
-  const shippingFee = getShippingFee(order);
-  const discountValue = getDiscountValue(order);
-  const totalAmount = getTotalValue(order);
+  const itemsSubtotal = pricing.subtotal;
+  const shippingFee = pricing.shipping;
+  const discountValue = pricing.discount;
+  const totalAmount = pricing.total;
   const addressSummary = getAddressSummary(order);
   const waUrl = getWhatsAppUrl(customerPhone);
 
@@ -389,21 +443,19 @@ export function OrderConfirmationActionPage() {
                           <div className="space-y-2 text-sm">
                             <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
                               <span className="font-bold text-slate-600">سعر المنتجات</span>
-                              <span className="font-black text-slate-950">{formatMaybeMoney(itemsSubtotal)}</span>
+                              <span className="font-black text-slate-950">{pricing.subtotalAvailable ? formatMoney(itemsSubtotal) : "غير متوفر"}</span>
                             </div>
                             <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
                               <span className="font-bold text-slate-600">الشحن</span>
-                              <span className="font-black text-slate-950">{formatMaybeMoney(shippingFee)}</span>
+                              <span className="font-black text-slate-950">{pricing.shippingAvailable ? formatMoney(shippingFee) : "غير متوفر"}</span>
                             </div>
-                            {discountValue !== undefined ? (
-                              <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
-                                <span className="font-bold text-slate-600">الخصم</span>
-                                <span className="font-black text-slate-950">{formatMoney(discountValue)}</span>
-                              </div>
-                            ) : null}
+                            <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
+                              <span className="font-bold text-slate-600">الخصم</span>
+                              <span className="font-black text-slate-950">{pricing.discountAvailable ? formatMoney(discountValue) : "غير متوفر"}</span>
+                            </div>
                             <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
                               <span className="font-bold text-slate-600">الإجمالي النهائي</span>
-                              <span className="font-black text-slate-950">{formatMoney(totalAmount)}</span>
+                              <span className="font-black text-slate-950">{pricing.totalAvailable ? formatMoney(totalAmount) : "غير متوفر"}</span>
                             </div>
                           </div>
 
