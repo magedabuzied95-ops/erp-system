@@ -8375,6 +8375,10 @@ function Storefront() {
         element={<LazyOrderConfirmationActionPage />}
       />
       <Route
+        path="c/:code"
+        element={<LazyOrderConfirmationActionPage />}
+      />
+      <Route
         path="account"
         element={<LazyStorefrontAccountPage profile={profile} setProfile={setProfile} wishlist={wishlist} recent={recent} onAddToCart={onAddToCart} helpers={helpers} components={components} />}
       />
