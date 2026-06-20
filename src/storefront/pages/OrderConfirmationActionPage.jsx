@@ -211,22 +211,27 @@ export function OrderConfirmationActionPage() {
 }
 
 function OrderConfirmationActionPageInner() {
-  const { code } = useParams();
+  const { code, token } = useParams();
   const [loading, setLoading] = useState(true);
   const [pendingAction, setPendingAction] = useState("");
   const [error, setError] = useState("");
   const [linkState, setLinkState] = useState("loading");
   const [result, setResult] = useState(null);
 
+  useEffect(() => {
+    const confirmationCode = String(code || token || "").trim();
+    console.info("[OrderConfirmationActionPage] mounted", { confirmationCode });
+  }, [code, token]);
+
   const resolvedCode = useMemo(() => {
-    const raw = String(code || "").trim();
+    const raw = String(code || token || "").trim();
     if (!raw) return "";
     try {
       return decodeURIComponent(raw).trim();
     } catch {
       return raw;
     }
-  }, [code]);
+  }, [code, token]);
 
   const order = useMemo(() => result?.order || result?.data?.order || result?.data || null, [result]);
   const items = useMemo(() => normalizeItems(result || {}), [result]);
