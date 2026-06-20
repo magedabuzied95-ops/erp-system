@@ -115,6 +115,21 @@ const normalizeItems = (payload = {}) => {
 
 const getItemPrice = (item = {}) => normalizeMaybeMoney(firstDefined(item?.price, item?.unit_price, item?.sale_price, item?.final_price, item?.total_price, item?.line_total));
 
+const getItemLineTotal = (item = {}) => {
+  const quantity = Math.max(1, toNumber(item?.quantity || item?.qty || 1));
+  const directLineTotal = normalizeMaybeMoney(firstDefined(
+    item?.total,
+    item?.line_total,
+    item?.total_amount,
+    item?.total_price,
+    item?.amount,
+    item?.final_total,
+  ));
+  if (directLineTotal !== undefined) return directLineTotal;
+  const unitPrice = normalizeMaybeMoney(firstDefined(item?.unit_price, item?.price, item?.sale_price, item?.final_price));
+  return unitPrice !== undefined ? unitPrice * quantity : undefined;
+};
+
 const getWhatsAppUrl = (phone = "") => {
   const digits = String(phone || "").replace(/\D/g, "");
   return digits ? `https://wa.me/${digits}` : "https://wa.me/";
@@ -244,17 +259,20 @@ function OrderConfirmationActionPageInner() {
     const shippingSource = firstDefined(order?.shipping_fee, order?.delivery_fee, order?.shipping_cost);
     const discountSource = firstDefined(order?.discount, order?.discount_amount, order?.discount_value, order?.coupon_discount);
     const totalSource = firstDefined(order?.total, order?.grand_total, order?.total_amount, order?.total_price);
+    const calculatedSubtotal = (Array.isArray(items) ? items : []).reduce((sum, item) => sum + (getItemLineTotal(item) || 0), 0);
+    const subtotalValue = normalizeMaybeMoney(subtotalSource);
+    const discountValue = normalizeMaybeMoney(discountSource);
     return {
-      subtotal: normalizeMaybeMoney(subtotalSource) ?? 0,
+      subtotal: subtotalValue ?? calculatedSubtotal ?? 0,
       shipping: normalizeMaybeMoney(shippingSource) ?? 0,
-      discount: normalizeMaybeMoney(discountSource) ?? 0,
+      discount: discountValue ?? 0,
       total: normalizeMaybeMoney(totalSource) ?? 0,
-      subtotalAvailable: subtotalSource !== undefined && subtotalSource !== null && String(subtotalSource).trim() !== "",
+      subtotalAvailable: subtotalValue !== undefined || calculatedSubtotal > 0,
       shippingAvailable: shippingSource !== undefined && shippingSource !== null && String(shippingSource).trim() !== "",
-      discountAvailable: discountSource !== undefined && discountSource !== null && String(discountSource).trim() !== "",
+      discountAvailable: discountValue !== undefined || discountSource === 0 || discountSource === "0",
       totalAvailable: totalSource !== undefined && totalSource !== null && String(totalSource).trim() !== "",
     };
-  }, [order]);
+  }, [items, order]);
 
   const orderNumber = text(order?.public_order_number, order?.display_order_number, order?.invoice_number, order?.order_number, order?.id);
   const customerName = text(order?.customer_name, "العميل");
@@ -486,7 +504,7 @@ function OrderConfirmationActionPageInner() {
                           <div className="space-y-2 text-sm">
                             <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
                               <span className="font-bold text-slate-600">سعر المنتجات</span>
-                              <span className="font-black text-slate-950">{pricing.subtotalAvailable ? formatMoney(itemsSubtotal) : "غير محدد"}</span>
+                              <span className="font-black text-slate-950">{formatMoney(itemsSubtotal)}</span>
                             </div>
                             <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
                               <span className="font-bold text-slate-600">الشحن</span>
@@ -494,7 +512,7 @@ function OrderConfirmationActionPageInner() {
                             </div>
                             <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
                               <span className="font-bold text-slate-600">الخصم</span>
-                              <span className="font-black text-slate-950">{pricing.discountAvailable ? formatMoney(discountValue) : "غير محدد"}</span>
+                              <span className="font-black text-slate-950">{formatMoney(discountValue || 0)}</span>
                             </div>
                             <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
                               <span className="font-bold text-slate-600">الإجمالي النهائي</span>
