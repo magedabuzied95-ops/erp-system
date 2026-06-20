@@ -469,9 +469,9 @@ const PAYMENT_FILTER_LABELS = {
 const STATUS_FILTER_OPTIONS = ["all", "pending_confirmation", "confirmed", "edit_requested", "cancelled_by_customer"];
 const STATUS_FILTER_LABELS = {
   pending_confirmation: "بانتظار التأكيد",
-  confirmed: "مؤكد",
-  edit_requested: "تعديل مطلوب",
-  cancelled_by_customer: "ملغي من العميل",
+  confirmed: "تم التأكيد من العميل",
+  edit_requested: "العميل طلب تعديل",
+  cancelled_by_customer: "ألغاه العميل",
 };
 const matchesPaymentFilter = (order = {}, paymentFilter = "all") => {
   if (paymentFilter === "all") return true;
@@ -507,7 +507,31 @@ const priorityFor = (order = {}) => {
   return { label: "عادي", className: "border-white/10 bg-zinc-950/90 shadow-black/10" };
 };
 
+const CUSTOMER_CONFIRMATION_TIMELINE_META = {
+  customer_confirmed_order: { label: "تم التأكيد من العميل", tone: "emerald" },
+  customer_requested_edit: { label: "العميل طلب تعديل", tone: "orange" },
+  customer_cancelled_order: { label: "ألغاه العميل", tone: "rose" },
+};
+
+const normalizeOrderTimeline = (order = {}) =>
+  (Array.isArray(order.timeline) ? order.timeline : [])
+    .map((item, index) => {
+      const action = lower(item?.action || item?.event_type || item?.type);
+      const meta = CUSTOMER_CONFIRMATION_TIMELINE_META[action] || {};
+      const label = item?.label || meta.label || item?.note || item?.message || item?.title || action;
+      return {
+        key: `${action || "event"}-${index}`,
+        label,
+        at: item?.at || item?.created_at || item?.timestamp || order.updated_at || order.created_at || null,
+        tone: item?.tone || meta.tone || "zinc",
+        action,
+      };
+    })
+    .filter((item) => Boolean(item.label));
+
 const buildTimeline = (order = {}) => {
+  const customTimeline = normalizeOrderTimeline(order);
+  const customActions = new Set(customTimeline.map((item) => item.action).filter(Boolean));
   const items = [
     { key: "created", label: "تم إنشاء الطلب", at: order.created_at, done: Boolean(order.created_at), tone: "emerald" },
   ];
@@ -518,11 +542,14 @@ const buildTimeline = (order = {}) => {
     const rejected = paymentStatusOf(order) === "rejected" || lower(order.transfer_proof_status) === "rejected";
     items.push({ key: "payment_verified", label: rejected ? "تم رفض الدفع" : "تم تأكيد الدفع", at: order.shipping_payment_verified_at, done: true, tone: rejected ? "rose" : "emerald" });
   }
-  if (["confirmed", "ready_to_ship", "shipment_created", "out_for_delivery", "delivered"].includes(statusOf(order))) {
+  if (customTimeline.length) {
+    items.push(...customTimeline);
+  }
+  if (statusOf(order) === "confirmed" && !customActions.has("customer_confirmed_order")) {
     items.push({ key: "confirmed", label: "تم تأكيد الطلب", at: order.updated_at, done: true, tone: "blue" });
   }
-  if (statusOf(order) === "edit_requested") {
-    items.push({ key: "edit_requested", label: "العميل طلب تعديل الطلب", at: order.updated_at, done: true, tone: "orange" });
+  if (statusOf(order) === "edit_requested" && !customActions.has("customer_requested_edit")) {
+    items.push({ key: "edit_requested", label: "العميل طلب تعديل", at: order.updated_at, done: true, tone: "orange" });
   }
   const shipping = shippingStatusOf(order);
   if (["ready_to_ship"].includes(shipping) || ["ready_to_ship"].includes(statusOf(order))) {
@@ -536,13 +563,17 @@ const buildTimeline = (order = {}) => {
   }
   if (isClosedOrder(order)) {
     const returnedOrRefunded = isReturnedOrRefundedOrder(order);
+    const hasCustomerCancelledEvent = customActions.has("customer_cancelled_order");
     items.push({
       key: "closed",
-      label: returnedOrRefunded ? "\u0645\u0631\u062a\u062c\u0639/\u0645\u0633\u062a\u0631\u062f" : statusOf(order) === "cancelled_by_customer" ? "ملغي من العميل" : "\u0645\u0644\u063a\u0649",
+      label: returnedOrRefunded ? "\u0645\u0631\u062a\u062c\u0639/\u0645\u0633\u062a\u0631\u062f" : statusOf(order) === "cancelled_by_customer" ? (hasCustomerCancelledEvent ? "الطلب مغلق" : "ألغاه العميل") : "\u0645\u0644\u063a\u0649",
       at: order.cancelled_at || order.returned_at || order.deleted_at || order.updated_at,
       done: true,
       tone: "rose",
     });
+    if (statusOf(order) === "cancelled_by_customer" && !customActions.has("customer_cancelled_order")) {
+      items.push({ key: "cancelled_by_customer", label: "ألغاه العميل", at: order.cancelled_at || order.updated_at, done: true, tone: "rose" });
+    }
     if (order.refund_method) {
       items.push({
         key: "refund_method",
@@ -2151,6 +2182,7 @@ function TableSkeleton() {
 
 const timelineDot = (tone) => ({
   amber: "bg-amber-300 shadow-[0_0_0_4px_rgba(251,191,36,0.12)]",
+  orange: "bg-orange-300 shadow-[0_0_0_4px_rgba(251,146,60,0.12)]",
   emerald: "bg-emerald-300 shadow-[0_0_0_4px_rgba(52,211,153,0.12)]",
   rose: "bg-rose-300 shadow-[0_0_0_4px_rgba(251,113,133,0.12)]",
   blue: "bg-blue-300 shadow-[0_0_0_4px_rgba(96,165,250,0.12)]",

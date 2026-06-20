@@ -872,6 +872,15 @@ const productCardPreviewText = (cards = []) => {
   return [name, color, size, price > 0 ? money(price) : ""].filter(Boolean).join(" - ");
 };
 
+const confirmationStatusMeta = (status = "") => {
+  const key = clean(status).toLowerCase();
+  if (key === "confirmed") return { label: "تم التأكيد من العميل", tone: "emerald" };
+  if (key === "edit_requested") return { label: "العميل طلب تعديل", tone: "amber" };
+  if (key === "cancelled_by_customer") return { label: "ألغاه العميل", tone: "rose" };
+  if (key === "pending_confirmation") return { label: "بانتظار التأكيد", tone: "cyan" };
+  return { label: key || "Unknown", tone: "zinc" };
+};
+
 const buildProductCardPayload = (product = {}, variant = null, selectedColor = "") => ({
   product_id: product.product_id ?? product.id ?? null,
   variant_id: variant?.variant_id ?? variant?.id ?? null,
@@ -3068,6 +3077,8 @@ export default function AiInboxPwa() {
   const selectedLastSeen = relativeSeenLabel(
     selectedConversation?.last_activity_at || selectedConversation?.updated_at
   );
+  const lastOrder = asArray(selectedConversation?.customer_profile?.previous_orders)[0] || selectedConversation?.last_order || selectedConversation?.order || null;
+  const confirmationMeta = confirmationStatusMeta(lastOrder?.status);
   const quickActionBusy = Boolean(leadActionLoading || aiToggling || productSending || availableBySizeSending || sending);
   const isRtlLayout =
     typeof document !== "undefined" &&
@@ -3118,6 +3129,14 @@ export default function AiInboxPwa() {
                     ) : null}
                     <span className="truncate">{selectedLastSeen}</span>
                   </div>
+                  {lastOrder ? (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      <PwaChip tone={confirmationMeta.tone}>{confirmationMeta.label}</PwaChip>
+                      <span className="text-[10px] font-semibold text-slate-500">
+                        {lastOrder.invoice_number || lastOrder.order_number || lastOrder.id}
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               </div>
               <div className="relative">

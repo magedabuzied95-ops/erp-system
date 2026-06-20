@@ -273,7 +273,21 @@ export function OrderConfirmationActionPage() {
 
   const resultAction = String(result?.action || "").trim();
   const actionMeta = ACTION_META[resultAction];
-  const resultMessage = actionMeta ? actionMeta.success : "طلبك جاهز للتأكيد";
+  const isReadOnlyResult = Boolean(result?.already_used || result?.link_locked);
+  const resultMessage = String(result?.message || (actionMeta ? actionMeta.success : "طلبك جاهز للتأكيد")).trim();
+  const resultHeadline = isReadOnlyResult
+    ? (result?.link_locked ? "لا يمكن تعديل هذا الطلب من الرابط الآن، برجاء التواصل معنا" : "تم استخدام هذا الرابط بالفعل")
+    : (actionMeta ? actionMeta.success : "طلبك جاهز للتأكيد");
+  const resultSubtext = isReadOnlyResult
+    ? (result?.link_locked && !result?.already_used ? "برجاء التواصل معنا عبر واتساب." : resultMessage)
+    : (actionMeta?.hint || "تم تنفيذ الإجراء بنجاح.");
+  const ResultCardIcon = isReadOnlyResult ? MessageCircleWarning : CheckCircle2;
+  const resultCardClassName = isReadOnlyResult
+    ? "rounded-[1.35rem] border border-amber-200 bg-amber-50 p-4 text-slate-950 shadow-sm"
+    : "rounded-[1.35rem] border border-emerald-200 bg-emerald-50 p-4 text-slate-950 shadow-sm";
+  const resultCardIconClassName = isReadOnlyResult
+    ? "grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-amber-200/80 text-slate-950"
+    : "grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-200/80 text-slate-950";
 
   return (
     <main className="min-h-screen bg-[#070b1a] px-4 py-5 text-slate-950 sm:px-6 lg:px-8">
@@ -407,7 +421,7 @@ export function OrderConfirmationActionPage() {
                       </InfoCard>
                     </div>
 
-                    {!resultAction ? (
+                    {!(resultAction || isReadOnlyResult) ? (
                       <div className="space-y-3 pt-1">
                         <div className="grid gap-3 sm:grid-cols-3">
                           {Object.entries(ACTION_META).map(([action, meta]) => {
@@ -441,18 +455,29 @@ export function OrderConfirmationActionPage() {
                         ) : null}
                       </div>
                     ) : (
-                      <div className="rounded-[1.35rem] border border-emerald-200 bg-emerald-50 p-4 text-slate-950 shadow-sm">
-                        <div className="flex items-start gap-3">
-                          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-200/80 text-slate-950">
-                            <CheckCircle2 className="h-5 w-5" />
-                          </div>
-                          <div>
-                            <h2 className="text-lg font-black">{actionMeta?.success || "تم تحديث الطلب"}</h2>
-                            <p className="mt-1 text-sm leading-7 text-slate-700">{actionMeta?.hint || "تم تنفيذ الإجراء بنجاح."}</p>
-                            {result?.already_applied ? <p className="mt-2 text-xs font-bold text-slate-700">تم تطبيق هذا الإجراء سابقًا بالفعل.</p> : null}
+                      <>
+                        <div className={resultCardClassName}>
+                          <div className="flex items-start gap-3">
+                            <div className={resultCardIconClassName}>
+                              <ResultCardIcon className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <h2 className="text-lg font-black">{resultHeadline}</h2>
+                              <p className="mt-1 text-sm leading-7 text-slate-700">{resultSubtext}</p>
+                              {isReadOnlyResult ? <p className="mt-2 text-xs font-bold text-slate-700">هذا الرابط لم يعد يسمح بتنفيذ أي إجراء جديد.</p> : null}
+                              {!isReadOnlyResult && result?.already_applied ? <p className="mt-2 text-xs font-bold text-slate-700">تم تطبيق هذا الإجراء سابقًا بالفعل.</p> : null}
+                            </div>
                           </div>
                         </div>
-                      </div>
+                        {isReadOnlyResult ? (
+                          <div className="flex flex-col gap-3 sm:flex-row">
+                            <a href={waUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#16a34a] px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5">
+                              <Phone className="h-4 w-4" />
+                              تواصل عبر واتساب
+                            </a>
+                          </div>
+                        ) : null}
+                      </>
                     )}
                   </div>
                 )}

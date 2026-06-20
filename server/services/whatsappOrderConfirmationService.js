@@ -25,6 +25,25 @@ const PAYMENT_REVIEW_STATUSES = new Set(["partially_paid", "awaiting_payment_rev
 const ORDER_CONFIRMATION_CODE_LENGTH = 7;
 const ORDER_CONFIRMATION_TOKEN_TTL_MINUTES = Number(process.env.ORDER_CONFIRMATION_TOKEN_TTL_MINUTES || 72 * 60);
 const ORDER_CONFIRMATION_FALLBACK_TEXT = buildCodOrderConfirmationMessage();
+const ORDER_CONFIRMATION_PROTECTED_STATUSES = new Set(["shipped", "out_for_delivery", "delivered", "completed", "shipment_created", "ready_to_ship"]);
+const ORDER_CONFIRMATION_SINGLE_USE_ACTIONS = new Set(["confirm", "edit", "cancel"]);
+const ORDER_CONFIRMATION_ACTION_META = {
+  confirm: {
+    action: "customer_confirmed_order",
+    label: "تم التأكيد من العميل",
+    success: "تم التأكيد من العميل",
+  },
+  edit: {
+    action: "customer_requested_edit",
+    label: "العميل طلب تعديل",
+    success: "العميل طلب تعديل",
+  },
+  cancel: {
+    action: "customer_cancelled_order",
+    label: "ألغاه العميل",
+    success: "ألغاه العميل",
+  },
+};
 
 const text = (value, fallback = "") => String(value ?? fallback).trim();
 const whatsappButtonSignalValues = (message = {}) => {
@@ -121,6 +140,8 @@ export const ensureWhatsappOrderConfirmationSchema = async (clientOrPool = db) =
           code_hash TEXT NOT NULL UNIQUE,
           expires_at TIMESTAMP NOT NULL,
           used_at TIMESTAMP NULL,
+          used_action VARCHAR(30) NULL,
+          used_order_status VARCHAR(50) NULL,
           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, order_id, action)
@@ -374,7 +395,7 @@ const loadOrderItemsForUpdate = async (client, orderId, trace = {}) => {
   return result.rows || [];
 };
 
-const appendOrderTimelineEvent = async (client, { orderId, action, status = "", note = "", source = "", actor = "" } = {}, trace = {}) => {
+const appendOrderTimelineEvent = async (client, { orderId, action, status = "", note = "", source = "", actor = "", label = "" } = {}, trace = {}) => {
   const result = await timedOrderConfirmationQuery({
     client,
     queryName: "orders_timeline_append",
@@ -387,6 +408,7 @@ const appendOrderTimelineEvent = async (client, { orderId, action, status = "", 
         'note', $4::text,
         'source', $5::text,
         'actor', $6::text,
+        'label', $7::text,
         'at', NOW()
       )
     ),
@@ -394,7 +416,7 @@ const appendOrderTimelineEvent = async (client, { orderId, action, status = "", 
     WHERE id = $1
     RETURNING *
     `,
-    params: [orderId, text(action), text(status), text(note), text(source), text(actor)],
+    params: [orderId, text(action), text(status), text(note), text(source), text(actor), text(label)],
     orderId,
     tokenCode: trace?.tokenCode || "",
     action: trace?.action || "",
@@ -434,11 +456,19 @@ const restoreOrderInventory = async (client, { order, items = [], actorUserId = 
 
 const buildOrderActionLogMessage = ({ action = "", order = {} } = {}) => {
   const orderRef = order.public_order_number || order.display_order_number || order.invoice_number || order.order_number || order.id;
+  if (action === "customer_confirmed_order") return `تم التأكيد من العميل ${orderRef}`;
+  if (action === "customer_requested_edit") return `العميل طلب تعديل ${orderRef}`;
+  if (action === "customer_cancelled_order") return `ألغاه العميل ${orderRef}`;
   if (action === "confirmed") return `تم تأكيد الطلب ${orderRef}`;
   if (action === "edit_requested") return `العميل طلب تعديل الطلب ${orderRef}`;
   if (action === "cancelled_by_customer") return `تم إلغاء الطلب ${orderRef} بواسطة العميل`;
   if (action === "cancel_reason_saved") return `تم حفظ سبب إلغاء الطلب ${orderRef}`;
   return `تحديث الطلب ${orderRef}`;
+};
+
+const isOrderConfirmationProtectedStatus = (status = "") => {
+  const raw = text(status).toLowerCase();
+  return ORDER_CONFIRMATION_PROTECTED_STATUSES.has(raw);
 };
 
 const loadConfirmationOrder = async ({ orderId = "", phone = "" } = {}) => {
@@ -1077,6 +1107,23 @@ async function applyConfirmationAction({
       return current;
     }
 
+    if (isOrderConfirmationProtectedStatus(currentStatus) && normalizedAction !== "cancel_reason") {
+      if (shouldManageTransaction) {
+        await timedOrderConfirmationQuery({
+          client,
+          queryName: "transaction_rollback_apply_confirmation_locked_status",
+          sql: "ROLLBACK",
+          params: [],
+          orderId: orderIdValue,
+          action: normalizedAction,
+        });
+      }
+      const error = new Error("لا يمكن تعديل هذا الطلب من الرابط الآن، برجاء التواصل معنا");
+      error.status = 409;
+      error.code = "ORDER_CONFIRMATION_LINK_LOCKED";
+      throw error;
+    }
+
     let updated = null;
     if (normalizedAction === "confirm") {
       if (!["pending_confirmation", "confirmed"].includes(currentStatus)) {
@@ -1111,11 +1158,12 @@ async function applyConfirmationAction({
       updated = result.rows[0] || current;
       updated = await appendOrderTimelineEvent(client, {
         orderId: updated.id,
-        action: "confirm",
+        action: ORDER_CONFIRMATION_ACTION_META.confirm.action,
         status: "confirmed",
-        note: buildOrderActionLogMessage({ action: "confirmed", order: updated }),
+        note: buildOrderActionLogMessage({ action: ORDER_CONFIRMATION_ACTION_META.confirm.action, order: updated }),
         source,
         actor: actorType === "staff" ? (actorUserName || `staff:${actorUserId || ""}`) : "customer",
+        label: ORDER_CONFIRMATION_ACTION_META.confirm.label,
       }, { action: normalizedAction, tokenCode }) || updated;
     } else if (normalizedAction === "edit") {
       if (!["pending_confirmation", "edit_requested"].includes(currentStatus)) {
@@ -1149,11 +1197,12 @@ async function applyConfirmationAction({
       updated = result.rows[0] || current;
       updated = await appendOrderTimelineEvent(client, {
         orderId: updated.id,
-        action: "edit_requested",
+        action: ORDER_CONFIRMATION_ACTION_META.edit.action,
         status: "edit_requested",
-        note: buildOrderActionLogMessage({ action: "edit_requested", order: updated }),
+        note: buildOrderActionLogMessage({ action: ORDER_CONFIRMATION_ACTION_META.edit.action, order: updated }),
         source,
         actor: actorType === "staff" ? (actorUserName || `staff:${actorUserId || ""}`) : "customer",
+        label: ORDER_CONFIRMATION_ACTION_META.edit.label,
       }, { action: normalizedAction, tokenCode }) || updated;
     } else if (normalizedAction === "cancel") {
       if (currentStatus === "cancelled_by_customer") {
@@ -1205,11 +1254,12 @@ async function applyConfirmationAction({
       updated = result.rows[0] || current;
       updated = await appendOrderTimelineEvent(client, {
         orderId: updated.id,
-        action: "cancelled_by_customer",
+        action: ORDER_CONFIRMATION_ACTION_META.cancel.action,
         status: "cancelled_by_customer",
-        note: buildOrderActionLogMessage({ action: "cancelled_by_customer", order: updated }),
+        note: buildOrderActionLogMessage({ action: ORDER_CONFIRMATION_ACTION_META.cancel.action, order: updated }),
         source,
         actor: actorType === "staff" ? (actorUserName || `staff:${actorUserId || ""}`) : "customer",
+        label: ORDER_CONFIRMATION_ACTION_META.cancel.label,
       }, { action: normalizedAction, tokenCode }) || updated;
     } else if (normalizedAction === "cancel_reason") {
       const result = await timedOrderConfirmationQuery({
@@ -1354,6 +1404,41 @@ export const consumeOrderConfirmationLink = async ({ code = "", action = "", ipA
     }
     const currentWithItems = await attachOrderConfirmationItems(current);
 
+    const currentStatus = text(current.status).toLowerCase();
+    const linkLocked = isOrderConfirmationProtectedStatus(currentStatus);
+    const lockedMessage = "لا يمكن تعديل هذا الطلب من الرابط الآن، برجاء التواصل معنا";
+    const usedAction = text(codeRow.used_action || "");
+    const usedOrderStatus = text(codeRow.used_order_status || currentStatus || "");
+
+    if (codeRow.used_at) {
+      await timedOrderConfirmationQuery({
+        client,
+        queryName: "transaction_commit_consume_confirmation_link_already_used",
+        sql: "COMMIT",
+        params: [],
+        orderId: codeRow.order_id,
+        tokenCode: safeCode,
+        action: text(action),
+      });
+      return {
+        success: true,
+        action: usedAction,
+        target_status: usedOrderStatus || currentStatus,
+        already_applied: true,
+        already_used: true,
+        link_locked: linkLocked,
+        order: currentWithItems,
+        message: usedAction ? (ORDER_CONFIRMATION_ACTION_META[usedAction]?.success || "تم استخدام هذا الرابط بالفعل") : (linkLocked ? lockedMessage : "تم استخدام هذا الرابط بالفعل"),
+        code_expires_at: codeRow.expires_at,
+        used_at: codeRow.used_at || null,
+        used_action: usedAction,
+        used_order_status: usedOrderStatus || currentStatus,
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        code: safeCode,
+      };
+    }
+
     const requestedAction = text(action);
     if (!requestedAction) {
       await timedOrderConfirmationQuery({
@@ -1368,30 +1453,39 @@ export const consumeOrderConfirmationLink = async ({ code = "", action = "", ipA
       return {
         success: true,
         action: "",
-        target_status: text(current.status),
+        target_status: currentStatus,
         already_applied: false,
+        already_used: false,
+        link_locked: linkLocked,
         order: currentWithItems,
-        message: "confirmation_code_valid",
+        message: linkLocked ? lockedMessage : "confirmation_code_valid",
         code_expires_at: codeRow.expires_at,
         used_at: codeRow.used_at || null,
+        used_action: usedAction,
+        used_order_status: usedOrderStatus || currentStatus,
         ip_address: ipAddress,
         user_agent: userAgent,
         code: safeCode,
       };
     }
-    const actionMap = {
-      confirm: { expectedStatus: "confirmed", payloadAction: "confirm", message: "تم تأكيد الطلب" },
-      edit: { expectedStatus: "edit_requested", payloadAction: "edit", message: "تم طلب تعديل الطلب وسيتواصل معك أحد أفراد الفريق" },
-      cancel: { expectedStatus: "cancelled_by_customer", payloadAction: "cancel", message: "تم إلغاء الطلب" },
-    };
-    if (!actionMap[requestedAction]) {
+    if (!ORDER_CONFIRMATION_SINGLE_USE_ACTIONS.has(requestedAction)) {
       const error = new Error("Unsupported confirmation action");
       error.status = 400;
       error.code = "ORDER_CONFIRMATION_ACTION_INVALID";
       throw error;
     }
-    const actionConfig = actionMap[requestedAction];
-    const alreadyApplied = text(current.status) === actionConfig.expectedStatus;
+    if (linkLocked) {
+      const error = new Error(lockedMessage);
+      error.status = 409;
+      error.code = "ORDER_CONFIRMATION_LINK_LOCKED";
+      throw error;
+    }
+    const actionConfig = {
+      confirm: { expectedStatus: "confirmed", payloadAction: "confirm", message: ORDER_CONFIRMATION_ACTION_META.confirm.success },
+      edit: { expectedStatus: "edit_requested", payloadAction: "edit", message: ORDER_CONFIRMATION_ACTION_META.edit.success },
+      cancel: { expectedStatus: "cancelled_by_customer", payloadAction: "cancel", message: ORDER_CONFIRMATION_ACTION_META.cancel.success },
+    }[requestedAction];
+    const alreadyApplied = currentStatus === actionConfig.expectedStatus;
     const updated = alreadyApplied
       ? currentWithItems
       : await applyConfirmationAction({
@@ -1412,11 +1506,13 @@ export const consumeOrderConfirmationLink = async ({ code = "", action = "", ipA
       sql: `
       UPDATE order_confirmation_codes
       SET used_at = COALESCE(used_at, NOW()),
+          used_action = COALESCE(NULLIF(used_action, ''), $2::text),
+          used_order_status = COALESCE(NULLIF(used_order_status, ''), $3::text),
           updated_at = NOW()
       WHERE id = $1
       RETURNING *
       `,
-      params: [codeRow.id],
+      params: [codeRow.id, actionConfig.payloadAction, text(updatedWithItems?.status || updated?.status || current?.status || actionConfig.expectedStatus)],
       orderId: codeRow.order_id,
       tokenCode: safeCode,
       action: text(action),
@@ -1435,10 +1531,14 @@ export const consumeOrderConfirmationLink = async ({ code = "", action = "", ipA
       action: actionConfig.payloadAction,
       target_status: actionConfig.expectedStatus,
       already_applied: alreadyApplied,
+      already_used: false,
+      link_locked: false,
       order: updatedWithItems,
       message: actionConfig.message,
       code_expires_at: codeRow.expires_at,
       used_at: markResult.rows[0]?.used_at || null,
+      used_action: markResult.rows[0]?.used_action || requestedAction,
+      used_order_status: markResult.rows[0]?.used_order_status || actionConfig.expectedStatus,
       ip_address: ipAddress,
       user_agent: userAgent,
       code: safeCode,

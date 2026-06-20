@@ -64,6 +64,7 @@ const serializeOrder = (order = null) => {
     total_price: Number(order.total_price ?? order.total_amount ?? order.total ?? 0) || 0,
     total: Number(order.total ?? order.total_amount ?? order.total_price ?? 0) || 0,
     shipping_cost: Number(order.shipping_cost ?? 0) || 0,
+    timeline: Array.isArray(order.timeline) ? order.timeline : [],
     items,
     primary_image_url: firstText(
       order.primary_image_url,
@@ -93,6 +94,10 @@ const handleRequest = async (req, res) => {
       code_expires_at: result.code_expires_at,
       used_at: result.used_at,
       supported_actions: ["confirm", "edit", "cancel"],
+      already_used: Boolean(result.already_used),
+      used_action: result.used_action || "",
+      used_order_status: result.used_order_status || "",
+      link_locked: Boolean(result.link_locked),
       order: serializeOrder(result.order),
     });
   } catch (error) {

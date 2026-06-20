@@ -1887,10 +1887,10 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
 
 const confirmationStatusMeta = (status = "") => {
   const key = clean(status).toLowerCase();
-  if (key === "confirmed") return { label: "Confirmed", tone: "emerald" };
-  if (key === "edit_requested") return { label: "Edit requested", tone: "amber" };
-  if (key === "cancelled_by_customer") return { label: "Cancelled by customer", tone: "rose" };
-  if (key === "pending_confirmation") return { label: "Pending confirmation", tone: "cyan" };
+  if (key === "confirmed") return { label: "تم التأكيد من العميل", tone: "emerald" };
+  if (key === "edit_requested") return { label: "العميل طلب تعديل", tone: "amber" };
+  if (key === "cancelled_by_customer") return { label: "ألغاه العميل", tone: "rose" };
+  if (key === "pending_confirmation") return { label: "بانتظار التأكيد", tone: "cyan" };
   return { label: key || "Unknown", tone: "zinc" };
 };
 
@@ -1933,7 +1933,7 @@ function CustomerContextCard({ conversation = {} }) {
     if (!lastOrder?.id || !action) return;
     try {
       await api.post(`/whatsapp/order-confirmation/${encodeURIComponent(lastOrder.id)}/action`, { action });
-      toast.success(action === "confirm" ? "تم تأكيد الطلب" : action === "edit" ? "تم تسجيل طلب التعديل" : "تم إلغاء الطلب");
+      toast.success(action === "confirm" ? "تم التأكيد من العميل" : action === "edit" ? "العميل طلب تعديل" : "ألغاه العميل");
     } catch (error) {
       toast.error(error?.message || "Failed to update order confirmation");
     }

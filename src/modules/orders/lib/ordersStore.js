@@ -215,6 +215,7 @@ export const normalizeOrder = (order, details = {}) => {
     tracking_url: order.tracking_url || "",
     courier_notes: order.courier_notes || "",
     shipment_timeline: Array.isArray(order.shipment_timeline) ? order.shipment_timeline : [],
+    timeline: Array.isArray(order.timeline) ? order.timeline : Array.isArray(details.timeline) ? details.timeline : [],
     shipping_fee: Number(meta.shipping_fee ?? order.shipping_fee ?? order.delivery_fee ?? 0),
     shipping_payment_method: order.shipping_payment_method || meta.shipping_payment_method || "",
     shipping_payment_screenshot: order.shipping_payment_screenshot || order.payment_proof_url || order.shipping_proof_url || order.proof_image_url || order.payment_screenshot_url || "",
