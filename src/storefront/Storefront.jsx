@@ -3788,10 +3788,10 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     { label: t("storefront.header.account", "Account"), to: "/shop/account", icon: <User className="h-3.5 w-3.5" /> },
   ];
   const mobileQuickActions = [
-    { key: "wishlist", label: "المفضلة", to: "/shop/wishlist", icon: <Heart className="h-5 w-5" />, external: false },
-    { key: "track", label: "تتبع الطلب", to: "/shop/track", icon: <PackageSearch className="h-5 w-5" />, external: false },
-    { key: "whatsapp", label: "واتساب", to: quickActionLinks.whatsappHref || supportHref(), icon: <MessageCircle className="h-5 w-5" />, external: true },
-    { key: "gallery", label: "المعرض", to: quickActionLinks.galleryHref || "/shop/contact", icon: <MapPin className="h-5 w-5" />, external: Boolean(quickActionLinks.galleryHref && /^https?:\/\//i.test(quickActionLinks.galleryHref)) },
+    { key: "wishlist", label: "المفضلة", to: "/shop/wishlist", icon: <Heart className="h-4 w-4" />, external: false },
+    { key: "track", label: "تتبع الطلب", to: "/shop/track", icon: <PackageSearch className="h-4 w-4" />, external: false },
+    { key: "whatsapp", label: "واتساب", to: quickActionLinks.whatsappHref || supportHref(), icon: <MessageCircle className="h-4 w-4" />, external: true },
+    { key: "gallery", label: "المعرض", to: quickActionLinks.galleryHref || "/shop/contact", icon: <MapPin className="h-4 w-4" />, external: Boolean(quickActionLinks.galleryHref && /^https?:\/\//i.test(quickActionLinks.galleryHref)) },
   ];
   const navItems = [
     { label: t("storefront.nav.categories", "Categories"), to: "/shop/products" },
@@ -4073,35 +4073,6 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
           </span>
         </div>
       </div>
-      <div className="sf-mobile-quick-actions-shell md:hidden px-3 pt-2" dir="rtl">
-        <div className="sf-mobile-quick-actions grid h-[56px] grid-cols-4 divide-x divide-white/10 overflow-hidden rounded-[1.25rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.94),rgba(2,6,23,0.92))] shadow-[0_14px_30px_rgba(2,6,23,0.24)] backdrop-blur-xl rtl:divide-x-reverse">
-          {mobileQuickActions.map((item) => {
-            const commonClassName = "flex h-full min-w-0 flex-col items-center justify-center gap-0.5 px-1 text-center text-[9px] font-bold leading-none text-white/82 transition active:scale-[0.98]";
-            return item.external ? (
-              <a
-                key={item.key}
-                href={item.to}
-                className={commonClassName}
-                aria-label={item.label}
-                target={item.key === "whatsapp" ? "_self" : undefined}
-                rel={item.key === "whatsapp" ? undefined : "noreferrer"}
-              >
-                <span className="grid h-7 w-7 place-items-center rounded-full bg-white/8 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                  {item.icon}
-                </span>
-                <span className="truncate">{item.label}</span>
-              </a>
-            ) : (
-              <Link key={item.key} to={item.to} className={commonClassName} aria-label={item.label}>
-                <span className="grid h-7 w-7 place-items-center rounded-full bg-white/8 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                  {item.icon}
-                </span>
-                <span className="truncate">{item.label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      </div>
       <div className="sf-mobile-header-shell md:hidden" dir="rtl">
         <div className="px-3 pb-3 pt-[calc(0.55rem+env(safe-area-inset-top))]">
           <div className="sf-mobile-header-row grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
@@ -4125,6 +4096,35 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
               <ShoppingCart className="h-5 w-5" />
               {cartCount ? <span className="sf-action-badge sf-mobile-cart-badge">{cartCount}</span> : null}
             </button>
+          </div>
+          {/* EXPERIMENTAL_MOBILE_QUICK_ACTIONS_LAYOUT */}
+          <div className="mt-2 grid grid-cols-4 gap-1.5">
+            {mobileQuickActions.map((item) => {
+              const commonClassName = "flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-white/10 bg-white/[0.04] px-1.5 py-1.5 text-center text-[9px] font-semibold leading-none text-white/80 transition active:scale-[0.98]";
+              const iconNode = (
+                <span className="grid h-6 w-6 place-items-center rounded-full bg-white/7 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                  {item.icon}
+                </span>
+              );
+              return item.external ? (
+                <a
+                  key={item.key}
+                  href={item.to}
+                  className={commonClassName}
+                  aria-label={item.label}
+                  target={item.key === "whatsapp" ? "_self" : undefined}
+                  rel={item.key === "whatsapp" ? undefined : "noreferrer"}
+                >
+                  {iconNode}
+                  <span className="truncate">{item.label}</span>
+                </a>
+              ) : (
+                <Link key={item.key} to={item.to} className={commonClassName} aria-label={item.label}>
+                  {iconNode}
+                  <span className="truncate">{item.label}</span>
+                </Link>
+              );
+            })}
           </div>
           <button
             type="button"
