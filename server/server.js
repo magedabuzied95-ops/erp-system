@@ -507,6 +507,7 @@ const { default: managerPortalRoutes } = await import("./routes/managerPortal.js
 const { default: adminStaffTasksRoutes } = await import("./routes/adminStaffTasks.js");
 const { default: settingsRoutes } = await import("./routes/settings.js");
 const { default: whatsappGatewayRoutes } = await import("./routes/whatsappGateway.js");
+const { default: whatsappDebugRoutes } = await import("./routes/whatsappDebug.js");
 const { ensureProductSchema, ensureProductVariantSchema, warmProductsMetadataCache } = await import("./controllers/productsController.js");
 const { ensureOrdersSchema } = await import("./controllers/ordersController.js");
 const { ensureAccountingSchema } = await import("./services/accountingService.js");
@@ -921,6 +922,7 @@ app.use("/api/roles", rolesRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/whatsapp", whatsappGatewayRoutes);
+app.use("/api/debug/whatsapp", whatsappDebugRoutes);
 app.use("/api/staff-tasks", staffTasksRoutes);
 app.use("/api/employee/portal", employeePortalRoutes);
 app.use("/api/employee-portal", employeePortalRoutes);
