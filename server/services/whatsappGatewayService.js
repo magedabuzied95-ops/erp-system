@@ -556,6 +556,20 @@ const buildOrderConfirmationButtonsPayload = ({ phone = "", title = "", text = "
   };
 };
 
+const buildWhatsAppDebugButtonsPayload = ({
+  phone = "",
+  title = "",
+  description = "",
+  footer = "",
+  buttons = [],
+} = {}) => ({
+  number: normalizeEgyptPhone(phone),
+  title: String(title || "").trim(),
+  description: String(description || "").trim(),
+  footer: String(footer || "").trim(),
+  buttons: Array.isArray(buttons) ? buttons : [],
+});
+
 const buildOrderConfirmationListPayload = ({ phone = "", title = "", text = "", footer = "", orderId = "", useSafeIds = false, buttonCount = 3 } = {}) => {
   const safeText = String(text || "").trim();
   const safeOrderId = String(orderId || "").trim();
@@ -674,6 +688,23 @@ const sendEvolutionButtonsMessage = async ({
     }
 
     const responseKeys = data && typeof data === "object" ? Object.keys(data) : [];
+    const responseMessage = data?.result?.message || data?.message || data?.data?.message || data?.key?.message || {};
+    const responseButtons = responseMessage?.buttonsMessage?.buttons || responseMessage?.interactiveMessage?.buttons || responseMessage?.interactiveMessage?.nativeFlowMessage?.buttons || [];
+    const nativeFlowButtonNames = Array.isArray(responseMessage?.interactiveMessage?.nativeFlowMessage?.buttons)
+      ? responseMessage.interactiveMessage.nativeFlowMessage.buttons
+          .map((button) => button?.name || button?.buttonParamsJson?.name || button?.button_params_json?.name || "")
+          .filter(Boolean)
+      : [];
+    const firstButtonParamsJson = Array.isArray(responseButtons)
+      ? (() => {
+          const firstButton = responseButtons[0] || {};
+          const safe = {
+            displayText: firstButton?.displayText || firstButton?.display_text || firstButton?.title || "",
+            id: firstButton?.id || firstButton?.buttonId || "",
+          };
+          return safe;
+        })()
+      : null;
     console.info("[evolution:send-buttons-success-body]", {
       file: "server/services/whatsappGatewayService.js",
       function: functionName,
@@ -683,7 +714,12 @@ const sendEvolutionButtonsMessage = async ({
       messageId: extractEvolutionButtonsMessageId(data),
       response_keys: responseKeys,
       remoteJid: data?.key?.remoteJid || data?.remoteJid || data?.result?.key?.remoteJid || data?.result?.remoteJid || "",
-      messageType: data?.messageType || data?.type || data?.result?.messageType || data?.result?.type || data?.message?.messageType || data?.message?.type || "",
+      messageType: data?.messageType || data?.type || data?.result?.messageType || data?.result?.type || responseMessage?.type || responseMessage?.messageType || "",
+      hasViewOnceMessage: Boolean(responseMessage?.viewOnceMessage),
+      hasInteractiveMessage: Boolean(responseMessage?.interactiveMessage),
+      hasNativeFlowMessage: Boolean(responseMessage?.interactiveMessage?.nativeFlowMessage),
+      nativeFlowButtonNames,
+      firstButtonParamsJson,
       warning: data?.warning || data?.warnings || "",
       error: data?.error || data?.errors || "",
     });
@@ -1020,21 +1056,69 @@ export const sendWhatsAppButtonsDebugTest = async ({ phone = "", mode = "simple"
   const current = requireEvolutionConfig();
   const normalizedMode = String(mode || "simple").trim().toLowerCase();
   const presets = {
-    simple: { title: "اختبار", text: "اختبار أزرار واتساب", footer: "M1Store", buttonCount: 2, useSafeIds },
-    single: { title: "اختبار", text: "اختبار زر واحد", footer: "M1Store", buttonCount: 1, useSafeIds },
-    plain: { title: "Test", text: "Button test", footer: "M1Store", buttonCount: 2, useSafeIds },
-    cod_safe: { title: "تأكيد الطلب", text: "طلبك جاهز للتأكيد", footer: "M1Store", buttonCount: 3, useSafeIds: true },
+    simple: {
+      payload: buildWhatsAppDebugButtonsPayload({
+        phone: normalizedPhone,
+        title: "اختبار",
+        description: "اختبار أزرار واتساب",
+        footer: "M1Store",
+        buttons: [
+          { type: "reply", displayText: "نعم", id: `yes${useSafeIds ? "_debug" : ""}` },
+          { type: "reply", displayText: "لا", id: `no${useSafeIds ? "_debug" : ""}` },
+        ],
+      }),
+    },
+    plain: {
+      payload: buildWhatsAppDebugButtonsPayload({
+        phone: normalizedPhone,
+        title: "Test",
+        description: "Button test",
+        footer: "M1Store",
+        buttons: [
+          { type: "reply", displayText: "Yes", id: "yes" },
+          { type: "reply", displayText: "No", id: "no" },
+        ],
+      }),
+    },
+    legacy: {
+      payload: buildWhatsAppDebugButtonsPayload({
+        phone: normalizedPhone,
+        title: "Test",
+        description: "Legacy button test",
+        footer: "M1Store",
+        buttons: [
+          { buttonId: "yes", buttonText: "Yes", type: 1 },
+          { buttonId: "no", buttonText: "No", type: 1 },
+        ],
+      }),
+    },
+    url: {
+      payload: buildWhatsAppDebugButtonsPayload({
+        phone: normalizedPhone,
+        title: "Test",
+        description: "URL button test",
+        footer: "M1Store",
+        buttons: [
+          { type: "url", displayText: "Open", url: "https://erp-system-ten-green.vercel.app/shop" },
+        ],
+      }),
+    },
+    cod_safe: {
+      payload: buildWhatsAppDebugButtonsPayload({
+        phone: normalizedPhone,
+        title: "تأكيد الطلب",
+        description: "طلبك جاهز للتأكيد",
+        footer: "M1Store",
+        buttons: [
+          { type: "reply", displayText: "✅ تأكيد الطلب", id: "confirm_order_debug" },
+          { type: "reply", displayText: "✏️ تعديل الطلب", id: "edit_order_debug" },
+          { type: "reply", displayText: "❌ إلغاء الطلب", id: "cancel_order_debug" },
+        ],
+      }),
+    },
   };
   const preset = presets[normalizedMode] || presets.simple;
-  const payload = buildOrderConfirmationButtonsPayload({
-    phone: normalizedPhone,
-    title: preset.title,
-    text: preset.text,
-    footer: preset.footer,
-    orderId: "debug",
-    useSafeIds: preset.useSafeIds,
-    buttonCount: preset.buttonCount,
-  });
+  const payload = preset.payload;
   const requestBody = JSON.stringify(payload);
   const endpoint = `/message/sendButtons/${encodeURIComponent(current.instanceName)}`;
   const buttonIds = Array.isArray(payload.buttons) ? payload.buttons.map((button) => button?.id || button?.buttonId).filter(Boolean) : [];
