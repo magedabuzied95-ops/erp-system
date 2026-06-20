@@ -1717,7 +1717,7 @@ const cleanDisplayText = (value = "") =>
     .replace(/\uFFFD/g, "")
     .replace(/\u00e2\u0153\u00a8/g, "")
     .replace(/\u00e2\u20ac\u00a6/g, "...")
-    .replace(/\u0637\u0152/g, "ط·آ·ط¢آ·ط·آ¥أ¢â‚¬â„¢")
+    .replace(/\u0637\u0152/g, "ط·آ·ط¥â€™")
     .replace(/\s+/g, " ")
     .trim();
 const classificationColor = (option = {}) => option.color || "#6d28d9";
@@ -3627,18 +3627,18 @@ function filterOptionCount(option = {}) {
 function filterOptionIcon(sectionKey, option = {}, lang = "ar") {
   const label = `${classificationLabel(option, lang)} ${option.value || ""}`.toLowerCase();
   if (sectionKey === "gender") {
-    if (label.includes("kid") || label.includes("child") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¸ط·آ¸ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬أ¢â‚¬ع†") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¸ط·آ¸ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬أ¢â‚¬ع†")) return Baby;
-    if (label.includes("women") || label.includes("woman") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ±ط·آ·ط¢آ¸ط·آ¸ط¢آ¹ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¦ط·آ·ط¢آ¸ط·آ¸ط¢آ¹") || label.includes("ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ³ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¦ط·آ·ط¢آ¸ط·آ¸ط¢آ¹")) return Heart;
+    if (label.includes("kid") || label.includes("child") || label.includes("ط·آ·ط¢آ£ط·آ·ط¢آ·ط·آ¸ط¸آ¾ط·آ·ط¢آ§ط·آ¸أ¢â‚¬â€چ") || label.includes("ط·آ·ط¢آ§ط·آ·ط¢آ·ط·آ¸ط¸آ¾ط·آ·ط¢آ§ط·آ¸أ¢â‚¬â€چ")) return Baby;
+    if (label.includes("women") || label.includes("woman") || label.includes("ط·آ·ط¢آ­ط·آ·ط¢آ±ط·آ¸ط¸آ¹ط·آ¸أ¢â‚¬آ¦ط·آ¸ط¸آ¹") || label.includes("ط·آ¸أ¢â‚¬آ ط·آ·ط¢آ³ط·آ·ط¢آ§ط·آ·ط¢آ¦ط·آ¸ط¸آ¹")) return Heart;
     return Users;
   }
   if (sectionKey === "product_type") {
-    if (label.includes("bag") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ´ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ­ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ·ط¢آ¸ط·آ¸ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ©")) return Briefcase;
-    if (label.includes("sneaker") || label.includes("shoe") || label.includes("ط·آ·ط¢آ¸ط·آ¦أ¢â‚¬â„¢ط·آ·ط¢آ¸ط·آ«أ¢â‚¬آ ط·آ·ط¢آ·ط·آ¹ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ´ط·آ·ط¢آ¸ط·آ¸ط¢آ¹") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ°ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ·ط¥â€�➢")) return Footprints;
+    if (label.includes("bag") || label.includes("ط·آ·ط¢آ´ط·آ¸أ¢â‚¬آ ط·آ·ط¢آ·") || label.includes("ط·آ·ط¢آ­ط·آ¸أ¢â‚¬ع‘ط·آ¸ط¸آ¹ط·آ·ط¢آ¨ط·آ·ط¢آ©")) return Briefcase;
+    if (label.includes("sneaker") || label.includes("shoe") || label.includes("ط·آ¸ط¦â€™ط·آ¸ط«â€ ط·آ·ط¹آ¾ط·آ·ط¢آ´ط·آ¸ط¸آ¹") || label.includes("ط·آ·ط¢آ­ط·آ·ط¢آ°ط·آ·ط¢آ§ط·آ·ط·إ�➢�")) return Footprints;
     return ShoppingBag;
   }
   if (sectionKey === "grade") {
-    if (label.includes("mirror") || label.includes("original") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ¸ط·آ«أ¢â‚¬آ ط·آ·ط¢آ·ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ¬ط·آ·ط¢آ¸ط·آ¸ط¢آ¹ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬أ¢â‚¬ع†")) return Crown;
-    if (label.includes("import") || label.includes("vietnam") || label.includes("ط·آ·ط¢آ¸ط·آ¸ط¢آ¾ط·آ·ط¢آ¸ط·آ¸ط¢آ¹ط·آ·ط¢آ·ط·آ¹ط¢آ¾ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¦")) return Gem;
+    if (label.includes("mirror") || label.includes("original") || label.includes("ط·آ·ط¢آ§ط·آ¸ط«â€ ط·آ·ط¢آ±ط·آ·ط¢آ¬ط·آ¸ط¸آ¹ط·آ¸أ¢â‚¬آ ط·آ·ط¢آ§ط·آ¸أ¢â‚¬â€چ")) return Crown;
+    if (label.includes("import") || label.includes("vietnam") || label.includes("ط·آ¸ط¸آ¾ط·آ¸ط¸آ¹ط·آ·ط¹آ¾ط·آ¸أ¢â‚¬آ ط·آ·ط¢آ§ط·آ¸أ¢â‚¬آ¦")) return Gem;
     return ShieldCheck;
   }
   return Sparkles;
@@ -5203,7 +5203,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const discount = couponDiscount;
   const deliveryFee = form.governorate ? shippingQuote.price : 0;
   const total = Math.max(0, subtotal - discount + deliveryFee);
-  const isDamietta = ["ط·آ·ط¢آ·ط·آ¢ط¢آ¯ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¦ط·آ·ط¢آ¸ط·آ¸ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·", "ط·آ·ط¢آ·ط·آ¢ط¢آ¯ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¦ط·آ·ط¢آ¸ط·آ¸ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·"].some((name) => String(form.governorate || "").includes(name));
+  const isDamietta = ["ط·آ·ط¢آ¯ط·آ¸أ¢â‚¬آ¦ط·آ¸ط¸آ¹ط·آ·ط¢آ§ط·آ·ط¢آ·", "ط·آ·ط¢آ¯ط·آ¸أ¢â‚¬آ¦ط·آ¸ط¸آ¹ط·آ·ط¢آ§ط·آ·ط¢آ·"].some((name) => String(form.governorate || "").includes(name));
   const trustedCustomer = customerTrust.customer || {};
   const codAvailable = shippingQuote.cod_allowed !== false;
   const normalizedFormPaymentMethod = paymentMode === "cod" ? "cod" : "shipping_confirmation";
