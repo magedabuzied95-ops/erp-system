@@ -40,16 +40,16 @@ const normalizeFilterText = (value = "") => String(value ?? "").trim();
 const normalizeAudienceFilterKey = (value = "") => normalizeFilterKey(String(value ?? "").normalize("NFKD").replace(/[\u0640\u200c\u200d\u200e\u200f]/g, "").replace(/\p{M}+/gu, "")).replace(/['\u2019]/g, "'");
 const normalizeStorefrontAudienceValue = (value = "") => {
   const normalized = normalizeAudienceFilterKey(value);
-  if (["men", "man", "male", "mens", "men's", "ط±ط¬ط§ظ„ظٹ", "ط±ط¬ط§ظ„"].includes(normalized)) return "men";
-  if (["women", "woman", "female", "ladies", "lady", "ظ†ط³ط§ط¦ظٹ", "ظ†ط³ط§ط،", "ط­ط±ظٹظ…ظٹ"].includes(normalized)) return "women";
-  if (["kids", "kid", "children", "child", "boys", "girls", "ط£ط·ظپط§ظ„", "ط§ط·ظپط§ظ„", "ط·ظپظ„", "ظˆظ„ط§ط¯ظٹ", "ط¨ظ†ط§طھظٹ"].includes(normalized)) return "kids";
+  if (["men", "man", "male", "mens", "men's", "رجالي", "رجال"].includes(normalized)) return "men";
+  if (["women", "woman", "female", "ladies", "lady", "حريمي", "نسائي", "نساء"].includes(normalized)) return "women";
+  if (["kids", "kid", "children", "child", "boys", "girls", "أطفال", "اطفال", "طفل", "ولادي", "بناتي"].includes(normalized)) return "kids";
   return normalizeAudienceValue(value) || "";
 };
 const normalizeStorefrontProductTypeValue = (value = "") => {
   const normalized = normalizeAudienceFilterKey(value);
-  if (["bag", "bags", "handbag", "handbags", "ط·آ´ط¸â€ ط·آ·", "ط·آ´ط¸â€ ط·آ©", "ط·آ´ط¸â€ ط·ع¾ط¸â€،", "ط·آ´ط¸â€ ط·ع¾ط¸ظ¹"].includes(normalized)) return "bag";
-  if (["croc", "crocs", "ط¸ئ’ط·آ±ط¸ث†ط¸ئ’ط·آ³"].includes(normalized)) return "crocs";
-  if (["slipper", "slippers", "slide", "slides", "ط·آ³ط¸â€‍ط¸ظ¹ط·آ¨ط·آ±", "ط·آ´ط·آ¨ط·آ´ط·آ¨"].includes(normalized)) return "slipper";
+  if (["bag", "bags", "handbag", "handbags", "شنط", "شنطة", "شنطتي"].includes(normalized)) return "bag";
+  if (["croc", "crocs", "كروكس"].includes(normalized)) return "crocs";
+  if (["slipper", "slippers", "slide", "slides", "سليبر", "شباشب"].includes(normalized)) return "slipper";
   if (["sneaker", "sneakers"].includes(normalized)) return "sneaker";
   return normalizeFilterKey(value);
 };
@@ -61,9 +61,9 @@ const storefrontProductTypeQueryValue = (value = "") => {
   return normalized;
 };
 const storefrontGenderSwitchOptions = [
-  { value: "men", label: "ط±ط¬ط§ظ„ظٹ" },
-  { value: "women", label: "ط­ط±ظٹظ…ظٹ" },
-  { value: "kids", label: "ط£ط·ظپط§ظ„" },
+  { value: "men", label: "رجالي" },
+  { value: "women", label: "حريمي" },
+  { value: "kids", label: "أطفال" },
 ];
 const normalizeStorefrontSearchTerm = (value = "") =>
   normalizeStorefrontAudienceValue(value) || normalizeFilterKey(String(value ?? "").normalize("NFKD").replace(/[\u0640\u200c\u200d\u200e\u200f]/g, "").replace(/\p{M}+/gu, ""));
@@ -150,6 +150,19 @@ const productFacetCategoryValues = (product = {}) => splitFacetValues([
   product.product_type,
   product.productType,
 ].filter(Boolean).join(" | "));
+const normalizeCatalogListingProduct = (product = {}) => {
+  const id = String(product?.id || product?.product_id || product?.productId || product?.card_id || product?.slug || product?.canonical_slug || "").trim();
+  const name = String(product?.name || product?.title || product?.product_name || product?.productName || product?.label || product?.display_name || product?.displayName || id || "").trim();
+  return {
+    ...product,
+    id,
+    name,
+    product_id: product?.product_id || product?.productId || id,
+    slug: product?.slug || product?.canonical_slug || id,
+    title: product?.title || name,
+    product_name: product?.product_name || name,
+  };
+};
 const productGradeValues = (product = {}) => splitFacetValues([
   product.grade,
   product.quality,
@@ -215,12 +228,12 @@ const sortCatalogProducts = (products = [], sort = "") => {
   return items.sort(sorters[normalizedSort] || sorters.newest);
 };
 const catalogQuickCategoryItems = [
-  { key: "men", label: "ط±ط¬ط§ظ„ظٹ", field: "gender", value: "men", icon: "shirt" },
-  { key: "women", label: "ط­ط±ظٹظ…ظٹ", field: "gender", value: "women", icon: "user" },
-  { key: "kids", label: "ط£ط·ظپط§ظ„", field: "gender", value: "kids", icon: "baby" },
-  { key: "bags", label: "ط´ظ†ط·", field: "type", value: "bags", icon: "bag" },
-  { key: "crocs", label: "ظƒط±ظˆظƒط³", field: "type", value: "crocs", icon: "footprints" },
-  { key: "slippers", label: "ط³ظ„ظٹط¨ط±", field: "type", value: "slippers", icon: "footprints" },
+  { key: "men", label: "رجالي", field: "gender", value: "men", icon: "shirt" },
+  { key: "women", label: "حريمي", field: "gender", value: "women", icon: "user" },
+  { key: "kids", label: "أطفال", field: "gender", value: "kids", icon: "baby" },
+  { key: "bags", label: "شنط", field: "type", value: "bags", icon: "bag" },
+  { key: "crocs", label: "كروكس", field: "type", value: "crocs", icon: "footprints" },
+  { key: "slippers", label: "سليبر", field: "type", value: "slippers", icon: "footprints" },
 ];
 const catalogQuickCategoryIcon = (value = "") => {
   const normalized = String(value || "").toLowerCase();
@@ -394,7 +407,15 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     navigate(`${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`, { replace: true });
   }, [filterBasePath, navigate, params]);
 
-  const catalogProducts = useMemo(() => uniqueByKey((Array.isArray(products) ? products : []).filter((product) => product?.id && product?.name)), [products]);
+  const catalogProducts = useMemo(
+    () =>
+      uniqueByKey(
+        (Array.isArray(products) ? products : [])
+          .map(normalizeCatalogListingProduct)
+          .filter((product) => product?.id && (product?.name || product?.title || product?.product_name))
+      ),
+    [products]
+  );
   const catalogFilters = useMemo(
     () => ({
       gender,
@@ -482,11 +503,11 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   const sortOptions = useMemo(
     () => {
       const options = [
-        { value: "newest", label: t("storefront.products.sortNewest", "ط§ظ„ط£ط­ط¯ط«") },
-        { value: "price_desc", label: t("storefront.products.sortPriceDesc", "ط§ظ„ط³ط¹ط± ظ…ظ† ط§ظ„ط£ط¹ظ„ظ‰ ظ„ظ„ط£ظ‚ظ„") },
-        { value: "price_asc", label: t("storefront.products.sortPriceAsc", "ط§ظ„ط³ط¹ط± ظ…ظ† ط§ظ„ط£ظ‚ظ„ ظ„ظ„ط£ط¹ظ„ظ‰") },
-        hasSalesData ? { value: "best_selling", label: t("storefront.products.sortBestSelling", "ط§ظ„ط£ظƒط«ط± ظ…ط¨ظٹط¹ط§ظ‹") } : null,
-        hasViewsData ? { value: "most_viewed", label: t("storefront.products.sortMostViewed", "ط§ظ„ط£ظƒط«ط± ظ…ط´ط§ظ‡ط¯ط©") } : null,
+        { value: "newest", label: t("storefront.products.sortNewest", "الأحدث") },
+        { value: "price_desc", label: t("storefront.products.sortPriceDesc", "السعر من الأعلى للأقل") },
+        { value: "price_asc", label: t("storefront.products.sortPriceAsc", "السعر من الأقل للأعلى") },
+        hasSalesData ? { value: "best_selling", label: t("storefront.products.sortBestSelling", "الأكثر مبيعاً") } : null,
+        hasViewsData ? { value: "most_viewed", label: t("storefront.products.sortMostViewed", "الأكثر مشاهدة") } : null,
       ].filter(Boolean);
       if (!options.some((option) => normalizeCatalogSortValue(option.value) === selectedSort)) {
         options.push({ value: selectedSort, label: sortLabelForValue(selectedSort, t) });
@@ -608,10 +629,10 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     <section className="mx-auto max-w-7xl px-3 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.75rem)] pt-2.5 md:px-4 md:py-5">
       <div className="flex flex-col gap-2 md:gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-bold text-stone-500 md:text-sm">{saleView ? t("storefront.products.limitedOffers", "Limited-time offers") : t("storefront.products.shopEasily", "Shop easily")}</p>
+          <p className="text-xs font-bold text-stone-500 md:text-sm">{saleView ? t("storefront.products.limitedOffers", "عروض محدودة") : t("storefront.products.shopEasily", "تسوّق بسهولة")}</p>
           <h1 className="mt-1 text-[1.7rem] font-black leading-[1.08] md:text-3xl">
             {q
-              ? t("storefront.search.resultsFor", "Search results for \"{{query}}\"", { query: q })
+              ? t("storefront.search.resultsFor", "نتائج البحث عن \"{{query}}\"", { query: q })
               : selectedBrandOption
                 ? classificationLabel(selectedBrandOption, lang)
                 : selectedTypeOption
@@ -620,11 +641,11 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
                     ? classificationLabel(selectedColorOption, lang)
                     : selectedGenderOption
                       ? classificationLabel(selectedGenderOption, lang)
-                    : category || (lastSizes ? t("storefront.home.lastSizes", "Last Sizes") : saleView ? t("storefront.nav.sale", "Sale") : t("storefront.products.allProducts", "All products"))}
+                    : category || (lastSizes ? t("storefront.home.lastSizes", "آخر المقاسات") : saleView ? t("storefront.nav.sale", "العروض") : t("storefront.products.allProducts", "كل المنتجات"))}
           </h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="text-sm font-bold text-stone-500">{t("storefront.products.productCount", "{{count}} product", { count: orderedFilteredProducts.length })}</div>
+          <div className="text-sm font-bold text-stone-500">{t("storefront.products.productCount", "{{count}} منتج", { count: orderedFilteredProducts.length })}</div>
           <CatalogSortControl value={selectedSort} options={sortOptions} onChange={setSortValue} />
           <button
             type="button"
@@ -632,7 +653,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
             className="inline-flex min-h-10 items-center gap-2 rounded-full border border-stone-200 bg-white px-3.5 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7c3aed]/45 hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200 lg:hidden"
           >
             <SlidersHorizontal className="h-4 w-4" />
-            {t("storefront.filters.filters", "ظپظ„طھط±ط©")}
+            {t("storefront.filters.filters", "الفلاتر")}
             {activeFilterCount ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[#7c3aed] px-1 text-[10px] text-white">{activeFilterCount}</span> : null}
           </button>
         </div>
@@ -700,7 +721,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
           <div className="sticky top-[7.5rem]">
             <CatalogFiltersPanel
               lang={lang}
-              title={t("storefront.filters.filters", "Filters")}
+              title={t("storefront.filters.filters", "الفلاتر")}
               sortOptions={sortOptions}
               selectedSort={selectedSort}
               onSortChange={setSortValue}
@@ -746,10 +767,10 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
           {error ? <EmptyState title={t("storefront.errors.simpleProblem", "Something went wrong")} text={t("storefront.errors.tryAgainOrWhatsapp", "Try again or contact us on WhatsApp")} /> : null}
           {showEmptyResults ? (
             <EmptyState
-              title={t("storefront.products.emptyTitle", "ظ„ط§ طھظˆط¬ط¯ ظ…ظ†طھط¬ط§طھ ظ…ط·ط§ط¨ظ‚ط© ظ„ظ„ظپظ„ط§طھط± ط§ظ„ط­ط§ظ„ظٹط©")}
-              text={t("storefront.products.emptyText", "ط¬ط±ظ‘ط¨ ظ…ط³ط­ ط¨ط¹ط¶ ط§ظ„ظپظ„ط§طھط± ط£ظˆ ط¹ط±ط¶ ظƒظ„ ط§ظ„ظ…ظ†طھط¬ط§طھ")}
+              title={t("storefront.products.emptyTitle", "لا توجد منتجات مطابقة للفلاتر الحالية")}
+              text={t("storefront.products.emptyText", "جرّب مسح بعض الفلاتر أو عرض كل المنتجات")}
               actionTo={clearClassificationFiltersUrl()}
-              actionLabel={t("storefront.filters.resetFilters", "ظ…ط³ط­ ط§ظ„ظپظ„ط§طھط±")}
+              actionLabel={t("storefront.filters.resetFilters", "مسح الفلاتر")}
             />
           ) : (
             <>
@@ -768,7 +789,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
       <CatalogFiltersDrawer
         open={filtersOpen}
         lang={lang}
-        title={t("storefront.filters.filters", "ظپظ„طھط±ط©")}
+        title={t("storefront.filters.filters", "الفلاتر")}
         sortOptions={sortOptions}
         selectedSort={selectedSort}
         onSortChange={setSortValue}
@@ -819,12 +840,12 @@ function CatalogSizeFilter({ sizes = [], selectedSizes = [], onToggle, onClear }
     <section className="rounded-[1.35rem] border border-stone-200 bg-white p-3 shadow-[0_12px_32px_rgba(39,20,75,0.06)] dark:border-white/10 dark:bg-[#0b1020] md:p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#7c3aed] dark:text-[#d8b4fe]">{t("storefront.filters.sizeFilter", "Size filter")}</p>
-          <h3 className="mt-0.5 text-sm font-black text-stone-950 dark:text-white">{t("storefront.filters.availableSize", "Available sizes")}</h3>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#7c3aed] dark:text-[#d8b4fe]">{t("storefront.filters.sizeFilter", "فلتر المقاسات")}</p>
+          <h3 className="mt-0.5 text-sm font-black text-stone-950 dark:text-white">{t("storefront.filters.availableSize", "المقاسات المتاحة")}</h3>
         </div>
         {selectedSet.size ? (
           <button type="button" onClick={onClear} className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1.5 text-[11px] font-black text-stone-600 transition hover:border-[#7c3aed]/35 hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
-            {t("storefront.filters.showAllSizes", "Show all sizes")}
+            {t("storefront.filters.showAllSizes", "عرض كل المقاسات")}
           </button>
         ) : null}
       </div>
@@ -846,7 +867,7 @@ function CatalogSizeFilter({ sizes = [], selectedSizes = [], onToggle, onClear }
         })}
         {!sizes.length ? (
           <span className="rounded-full border border-dashed border-stone-200 px-3 py-2 text-xs font-bold text-stone-400 dark:border-white/10 dark:text-stone-500">
-            {t("storefront.filters.sizesAppearAfterType", "Sizes appear after selecting a type")}
+            {t("storefront.filters.sizesAppearAfterType", "ستظهر المقاسات بعد اختيار نوع المنتج")}
           </span>
         ) : null}
       </div>
@@ -861,18 +882,18 @@ function CatalogPriceFilter({ minPrice = "", maxPrice = "", onChange, priceBound
     <section className="rounded-[1.35rem] border border-stone-200 bg-white p-3 shadow-[0_12px_32px_rgba(39,20,75,0.06)] dark:border-white/10 dark:bg-[#0b1020] md:p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#7c3aed] dark:text-[#d8b4fe]">{t("storefront.filters.priceRange", "Price range")}</p>
-          <h3 className="mt-0.5 text-sm font-black text-stone-950 dark:text-white">{t("storefront.filters.filterByPrice", "Filter by price")}</h3>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#7c3aed] dark:text-[#d8b4fe]">{t("storefront.filters.priceRange", "نطاق السعر")}</p>
+          <h3 className="mt-0.5 text-sm font-black text-stone-950 dark:text-white">{t("storefront.filters.filterByPrice", "فلترة بالسعر")}</h3>
         </div>
         {hasValue ? (
           <button type="button" onClick={() => onChange("", "")} className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1.5 text-[11px] font-black text-stone-600 transition hover:border-[#7c3aed]/35 hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
-            {t("common.reset", "Reset")}
+            {t("common.reset", "مسح")}
           </button>
         ) : null}
       </div>
       <div className="grid grid-cols-2 gap-2">
         <label className="grid gap-1 text-right">
-          <span className="text-[10px] font-bold text-stone-500 dark:text-stone-400">{t("storefront.filters.minPrice", "Min")}</span>
+          <span className="text-[10px] font-bold text-stone-500 dark:text-stone-400">{t("storefront.filters.minPrice", "أقل")}</span>
           <input
             type="number"
             min="0"
@@ -884,7 +905,7 @@ function CatalogPriceFilter({ minPrice = "", maxPrice = "", onChange, priceBound
           />
         </label>
         <label className="grid gap-1 text-right">
-          <span className="text-[10px] font-bold text-stone-500 dark:text-stone-400">{t("storefront.filters.maxPrice", "Max")}</span>
+          <span className="text-[10px] font-bold text-stone-500 dark:text-stone-400">{t("storefront.filters.maxPrice", "أعلى")}</span>
           <input
             type="number"
             min="0"
@@ -897,7 +918,7 @@ function CatalogPriceFilter({ minPrice = "", maxPrice = "", onChange, priceBound
         </label>
       </div>
       <p className="mt-2 text-[11px] font-bold text-stone-500 dark:text-stone-400">
-        {priceBounds.min !== "" && priceBounds.max !== "" ? `${money(priceBounds.min)} - ${money(priceBounds.max)}` : t("storefront.filters.priceHint", "Use the price range to narrow the catalog")}
+        {priceBounds.min !== "" && priceBounds.max !== "" ? `${money(priceBounds.min)} - ${money(priceBounds.max)}` : t("storefront.filters.priceHint", "استخدم نطاق السعر لتضييق النتائج")}
       </p>
     </section>
   );
@@ -928,7 +949,7 @@ function CatalogSortControl({ value = "newest", options = [], onChange, compact 
   return (
     <label className={`inline-flex min-h-10 items-center gap-2 rounded-full border border-stone-200 bg-white px-3.5 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7c3aed]/45 hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200 ${compact ? "w-full justify-between" : ""}`}>
       <SlidersHorizontal className="h-4 w-4 shrink-0" />
-      <span className={compact ? "shrink-0" : "hidden md:inline"}>{t("storefront.filters.sort", "طھط±طھظٹط¨")}</span>
+      <span className={compact ? "shrink-0" : "hidden md:inline"}>{t("storefront.filters.sort", "ترتيب")}</span>
       <select
         value={normalizeCatalogSortValue(value)}
         onChange={(event) => onChange?.(event.target.value)}
@@ -992,19 +1013,19 @@ function CatalogAppliedFilterChips({
   const { t } = useTranslation();
   const chips = [];
   if (q) chips.push({ key: "q", label: q, field: "q" });
-  if (gender) chips.push({ key: "gender", label: gender === "men" ? "ط±ط¬ط§ظ„ظٹ" : gender === "women" ? "ط­ط±ظٹظ…ظٹ" : "ط£ط·ظپط§ظ„", field: "gender" });
+  if (gender) chips.push({ key: "gender", label: gender === "men" ? "رجالي" : gender === "women" ? "حريمي" : "أطفال", field: "gender" });
   if (category) chips.push({ key: "category", label: category, field: "category" });
-  if (productType) chips.push({ key: "type", label: storefrontProductTypeQueryValue(productType) === "bags" ? "ط´ظ†ط·" : storefrontProductTypeQueryValue(productType) === "crocs" ? "ظƒط±ظˆظƒط³" : storefrontProductTypeQueryValue(productType) === "slippers" ? "ط³ظ„ظٹط¨ط±" : classificationLabel({ value: productType }, "ar"), field: "type" });
+  if (productType) chips.push({ key: "type", label: storefrontProductTypeQueryValue(productType) === "bags" ? "شنط" : storefrontProductTypeQueryValue(productType) === "crocs" ? "كروكس" : storefrontProductTypeQueryValue(productType) === "slippers" ? "سليبر" : classificationLabel({ value: productType }, "ar"), field: "type" });
   if (grade) chips.push({ key: "grade", label: grade, field: "grade" });
   if (brand) chips.push({ key: "brand", label: brand, field: "brand" });
   if (color) chips.push({ key: "color", label: color, field: "color" });
   (Array.isArray(selectedSizes) ? selectedSizes : []).forEach((size) => {
     if (size) chips.push({ key: `size:${size}`, label: size, field: "size", value: size });
   });
-  if (minPrice || maxPrice) chips.push({ key: "price", label: `${normalizeFilterText(minPrice) || "0"} - ${normalizeFilterText(maxPrice) || "âˆ‍"} ط¬ظ†ظٹظ‡`, field: "price" });
-  if (saleView) chips.push({ key: "sale", label: t("storefront.nav.sale", "ط¹ط±ظˆط¶"), field: "sale" });
-  if (lastSizes) chips.push({ key: "lastSizes", label: t("storefront.home.lastSizes", "ط¢ط®ط± ظ‚ط·ط¹ط©"), field: "lastSizes" });
-  if (inStock) chips.push({ key: "inStock", label: t("storefront.filters.availableOnly", "ظ…طھط§ط­ ظپظ‚ط·"), field: "inStock" });
+  if (minPrice || maxPrice) chips.push({ key: "price", label: `${normalizeFilterText(minPrice) || "0"} - ${normalizeFilterText(maxPrice) || "∞"} جنيه`, field: "price" });
+  if (saleView) chips.push({ key: "sale", label: t("storefront.nav.sale", "العروض"), field: "sale" });
+  if (lastSizes) chips.push({ key: "lastSizes", label: t("storefront.home.lastSizes", "آخر قطعة"), field: "lastSizes" });
+  if (inStock) chips.push({ key: "inStock", label: t("storefront.filters.availableOnly", "متاح فقط"), field: "inStock" });
   if (normalizeCatalogSortValue(selectedSort) !== "newest") chips.push({ key: "sort", label: sortLabelForValue(selectedSort, t), field: "sort" });
   if (!chips.length) return null;
   return (
@@ -1026,7 +1047,7 @@ function CatalogAppliedFilterChips({
           onClick={onClearAll}
           className="inline-flex min-h-9 items-center rounded-full border border-stone-200 bg-white px-3 py-1.5 text-[12px] font-black text-stone-700 transition hover:-translate-y-0.5 hover:border-[#7c3aed]/35 hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
         >
-          {t("storefront.filters.clearAll", "ظ…ط³ط­ ط§ظ„ظƒظ„")}
+          {t("storefront.filters.clearAll", "مسح الكل")}
         </button>
       ) : null}
     </div>
@@ -1035,11 +1056,11 @@ function CatalogAppliedFilterChips({
 
 function sortLabelForValue(value = "", t = (key, fallback) => fallback) {
   const normalized = normalizeCatalogSortValue(value);
-  if (normalized === "price_desc") return t("storefront.products.sortPriceDesc", "ط§ظ„ط³ط¹ط± ظ…ظ† ط§ظ„ط£ط¹ظ„ظ‰ ظ„ظ„ط£ظ‚ظ„");
-  if (normalized === "price_asc") return t("storefront.products.sortPriceAsc", "ط§ظ„ط³ط¹ط± ظ…ظ† ط§ظ„ط£ظ‚ظ„ ظ„ظ„ط£ط¹ظ„ظ‰");
-  if (normalized === "best_selling") return t("storefront.products.sortBestSelling", "ط§ظ„ط£ظƒط«ط± ظ…ط¨ظٹط¹ط§ظ‹");
-  if (normalized === "most_viewed") return t("storefront.products.sortMostViewed", "ط§ظ„ط£ظƒط«ط± ظ…ط´ط§ظ‡ط¯ط©");
-  return t("storefront.products.sortNewest", "ط§ظ„ط£ط­ط¯ط«");
+  if (normalized === "price_desc") return t("storefront.products.sortPriceDesc", "السعر من الأعلى للأقل");
+  if (normalized === "price_asc") return t("storefront.products.sortPriceAsc", "السعر من الأقل للأعلى");
+  if (normalized === "best_selling") return t("storefront.products.sortBestSelling", "الأكثر مبيعاً");
+  if (normalized === "most_viewed") return t("storefront.products.sortMostViewed", "الأكثر مشاهدة");
+  return t("storefront.products.sortNewest", "الأحدث");
 }
 
 function CatalogSingleSelectFilter({
@@ -1063,7 +1084,7 @@ function CatalogSingleSelectFilter({
       icon={Icon}
       action={hasValue ? (
         <button type="button" onClick={onClear} className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1.5 text-[11px] font-black text-stone-600 transition hover:border-[#7c3aed]/35 hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
-          {t("common.reset", "Reset")}
+          {t("common.reset", "مسح")}
         </button>
       ) : null}
     >
@@ -1077,7 +1098,7 @@ function CatalogSingleSelectFilter({
               : "border-stone-200 bg-stone-50 text-stone-700 hover:border-[#7c3aed]/45 hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
           }`}
         >
-          {emptyLabel || t("common.all", "ط§ظ„ظƒظ„")}
+          {emptyLabel || t("common.all", "الكل")}
         </button>
         {options.map((option) => {
           const optionValue = String(option.value || "").trim();
@@ -1107,12 +1128,12 @@ function CatalogSingleSelectFilter({
 function CatalogAvailabilityFilter({ saleView = false, lastSizes = false, inStock = "", onToggleFlag }) {
   const { t } = useTranslation();
   const items = [
-    { key: "inStock", label: t("storefront.filters.availableOnly", "ظ…طھط§ط­ ظپظ‚ط·"), active: Boolean(inStock) },
-    { key: "lastSizes", label: t("storefront.home.lastSizes", "ط¢ط®ط± ظ‚ط·ط¹ط©"), active: Boolean(lastSizes) },
-    { key: "sale", label: t("storefront.nav.sale", "ط¹ط±ظˆط¶"), active: Boolean(saleView) },
+    { key: "inStock", label: t("storefront.filters.availableOnly", "متاح فقط"), active: Boolean(inStock) },
+    { key: "lastSizes", label: t("storefront.home.lastSizes", "آخر قطعة"), active: Boolean(lastSizes) },
+    { key: "sale", label: t("storefront.nav.sale", "العروض"), active: Boolean(saleView) },
   ];
   return (
-    <CatalogSectionShell eyebrow={t("storefront.filters.availability", "ط§ظ„طھظˆظپط±")} title={t("storefront.filters.availability", "ط§ظ„طھظˆظپط±")} icon={ShieldCheck}>
+    <CatalogSectionShell eyebrow={t("storefront.filters.availability", "التوفر")} title={t("storefront.filters.availability", "التوفر")} icon={ShieldCheck}>
       <div className="sf-scroll flex flex-wrap gap-2">
         {items.map((item) => (
           <button
@@ -1171,20 +1192,20 @@ function CatalogFiltersPanel({
   const { t } = useTranslation();
   return (
     <div className="grid gap-3">
-      <CatalogSectionShell eyebrow={t("storefront.filters.sort", "طھط±طھظٹط¨")} title={t("storefront.filters.sort", "طھط±طھظٹط¨")} icon={SlidersHorizontal}>
+      <CatalogSectionShell eyebrow={t("storefront.filters.sort", "ترتيب")} title={t("storefront.filters.sort", "ترتيب")} icon={SlidersHorizontal}>
         <CatalogSortControl value={selectedSort} options={sortOptions} onChange={onSortChange} compact />
       </CatalogSectionShell>
-      <CatalogSingleSelectFilter eyebrow={t("storefront.filters.gender", "ط§ظ„ط¬ظ†ط³")} title={t("storefront.filters.gender", "ط§ظ„ط¬ظ†ط³")} icon={Users} options={genderOptions} value={selectedGender} onChange={onGenderChange} onClear={() => onGenderChange("")} lang={lang} normalizeValue={normalizeStorefrontAudienceValue} />
-      <CatalogSingleSelectFilter eyebrow={t("storefront.filters.productType", "ظ†ظˆط¹ ط§ظ„ظ…ظ†طھط¬")} title={t("storefront.filters.productType", "ظ†ظˆط¹ ط§ظ„ظ…ظ†طھط¬")} icon={Footprints} options={typeOptions} value={selectedType} onChange={onTypeChange} onClear={() => onTypeChange("")} lang={lang} normalizeValue={normalizeStorefrontProductTypeValue} />
-      <CatalogSingleSelectFilter eyebrow={t("storefront.filters.grade", "ط§ظ„ظپط¦ط© / ط§ظ„ط¬ظˆط¯ط©")} title={t("storefront.filters.grade", "ط§ظ„ظپط¦ط© / ط§ظ„ط¬ظˆط¯ط©")} icon={Gem} options={gradeOptions} value={selectedGrade} onChange={onGradeChange} onClear={() => onGradeChange("")} lang={lang} />
+      <CatalogSingleSelectFilter eyebrow={t("storefront.filters.gender", "الجنس")} title={t("storefront.filters.gender", "الجنس")} icon={Users} options={genderOptions} value={selectedGender} onChange={onGenderChange} onClear={() => onGenderChange("")} lang={lang} normalizeValue={normalizeStorefrontAudienceValue} />
+      <CatalogSingleSelectFilter eyebrow={t("storefront.filters.productType", "نوع المنتج")} title={t("storefront.filters.productType", "نوع المنتج")} icon={Footprints} options={typeOptions} value={selectedType} onChange={onTypeChange} onClear={() => onTypeChange("")} lang={lang} normalizeValue={normalizeStorefrontProductTypeValue} />
+      <CatalogSingleSelectFilter eyebrow={t("storefront.filters.grade", "الفئة / الجودة")} title={t("storefront.filters.grade", "الفئة / الجودة")} icon={Gem} options={gradeOptions} value={selectedGrade} onChange={onGradeChange} onClear={() => onGradeChange("")} lang={lang} />
       <CatalogSizeFilter sizes={sizes} selectedSizes={selectedSizes} onToggle={onToggleSize} onClear={onClearSizes} />
       <CatalogPriceFilter minPrice={minPrice} maxPrice={maxPrice} onChange={onPriceChange} priceBounds={priceBounds} />
-      <CatalogSingleSelectFilter eyebrow={t("storefront.filters.color", "ط§ظ„ظ„ظˆظ†")} title={t("storefront.filters.color", "ط§ظ„ظ„ظˆظ†")} icon={Tag} options={colorOptions} value={selectedColor} onChange={onColorChange} onClear={() => onColorChange("")} lang={lang} />
-      <CatalogSingleSelectFilter eyebrow={t("storefront.filters.brand", "ط§ظ„ظ…ط§ط±ظƒط©")} title={t("storefront.filters.brand", "ط§ظ„ظ…ط§ط±ظƒط©")} icon={Briefcase} options={brandOptions} value={selectedBrand} onChange={onBrandChange} onClear={() => onBrandChange("")} lang={lang} />
+      <CatalogSingleSelectFilter eyebrow={t("storefront.filters.color", "اللون")} title={t("storefront.filters.color", "اللون")} icon={Tag} options={colorOptions} value={selectedColor} onChange={onColorChange} onClear={() => onColorChange("")} lang={lang} />
+      <CatalogSingleSelectFilter eyebrow={t("storefront.filters.brand", "البرند")} title={t("storefront.filters.brand", "البرند")} icon={Briefcase} options={brandOptions} value={selectedBrand} onChange={onBrandChange} onClear={() => onBrandChange("")} lang={lang} />
       <CatalogAvailabilityFilter saleView={saleView} lastSizes={lastSizes} inStock={inStock} onToggleFlag={onToggleFlag} />
       {onClearAll ? (
         <button type="button" onClick={onClearAll} className="rounded-[1.25rem] border border-stone-200 bg-white px-4 py-3 text-sm font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7c3aed]/45 hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
-          {t("storefront.filters.clearAll", "ظ…ط³ط­ ط§ظ„ظƒظ„")}
+          {t("storefront.filters.clearAll", "مسح الكل")}
         </button>
       ) : null}
     </div>
@@ -1233,15 +1254,15 @@ function CatalogFiltersDrawer({
   if (!open || typeof document === "undefined") return null;
   return createPortal(
     <div className="fixed inset-0 z-[170] lg:hidden" dir="rtl" role="dialog" aria-modal="true" aria-label={title}>
-      <button type="button" className="absolute inset-0 bg-stone-950/65 backdrop-blur-sm" onClick={onClose} aria-label={t("common.close", "Close")} />
+      <button type="button" className="absolute inset-0 bg-stone-950/65 backdrop-blur-sm" onClick={onClose} aria-label={t("common.close", "إغلاق")} />
       <div className="absolute inset-x-0 bottom-0 max-h-[92dvh] overflow-hidden rounded-t-[1.5rem] border border-white/10 bg-[linear-gradient(180deg,#0b1020_0%,#050814_100%)] text-white shadow-[0_-28px_80px_rgba(0,0,0,0.48)]">
         <div className="mx-auto mt-2.5 h-1.5 w-10 rounded-full bg-white/20" />
         <div className="flex items-center justify-between gap-3 border-b border-white/10 px-3.5 py-3">
           <div>
-            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#d8b4fe]">{t("storefront.filters.premiumFilters", "Filters")}</p>
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#d8b4fe]">{t("storefront.filters.premiumFilters", "الفلاتر")}</p>
             <h2 className="text-base font-black">{title}</h2>
           </div>
-          <button type="button" onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/5 transition active:scale-95" aria-label={t("common.close", "Close")}>
+          <button type="button" onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/5 transition active:scale-95" aria-label={t("common.close", "إغلاق")}>
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -1283,7 +1304,7 @@ function CatalogFiltersDrawer({
         </div>
         <div className="absolute inset-x-0 bottom-0 flex gap-2 border-t border-white/10 bg-[#050814]/92 px-3 py-2.5 pb-[calc(env(safe-area-inset-bottom)+0.7rem)] backdrop-blur-xl">
           <button type="button" onClick={onClose} className="flex-1 rounded-xl bg-gradient-to-l from-[#7c3aed] to-[#111827] px-4 py-2.5 text-sm font-black text-white shadow-[0_14px_34px_rgba(124,58,237,0.32)] active:scale-[0.98]">
-            {t("storefront.filters.applyFilters", "طھط·ط¨ظٹظ‚")}
+            {t("storefront.filters.applyFilters", "تطبيق")}
           </button>
           <button
             type="button"
@@ -1293,7 +1314,7 @@ function CatalogFiltersDrawer({
             }}
             className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-black text-white/80 active:scale-[0.98]"
           >
-            {t("common.reset", "ظ…ط³ط­")}
+            {t("common.reset", "مسح")}
           </button>
         </div>
       </div>
