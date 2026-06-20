@@ -3371,26 +3371,15 @@ function GuidedGenderStep({ options = [], selectedGender, lang, onSelect }) {
   );
 }
 
-function GuidedGradeStep({ options = [], selectedGrade, lang, disabled, loading, products = [], onSelect }) {
+function GuidedGradeStep({ options = [], selectedGrade, lang, disabled, loading, onSelect }) {
   const { t } = useTranslation();
-  const gradeCountByValue = useMemo(() => {
-    const counts = new Map();
-    for (const product of Array.isArray(products) ? products : []) {
-      for (const value of productFacetQualityValues(product)) {
-        const key = normalizeFilterKey(value);
-        if (!key) continue;
-        counts.set(key, (counts.get(key) || 0) + 1);
-      }
-    }
-    return counts;
-  }, [products]);
   return (
     <div className={`rounded-[0.9rem] border border-stone-200 bg-white p-2 shadow-[0_10px_24px_rgba(39,20,75,0.05)] dark:border-white/10 dark:bg-[#0b1020] md:rounded-[1.25rem] md:p-2.5 ${disabled ? "pointer-events-none opacity-55" : ""}`}>
       <div className="flex flex-wrap gap-1.5 md:gap-2">
         {loading ? <ProductTypeSkeleton /> : options.map((option) => {
           const active = normalizeFilterKey(selectedGrade) === normalizeFilterKey(option.value);
           const Icon = filterOptionIcon("grade", option, lang);
-          const count = gradeCountByValue.get(normalizeFilterKey(option.value)) ?? filterOptionCount(option);
+          const count = Number(option.count ?? option.product_count ?? filterOptionCount(option));
           return (
             <button
               key={option.id || option.value}

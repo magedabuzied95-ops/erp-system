@@ -148,7 +148,7 @@ const productFacetCategoryValues = (product = {}) => splitFacetValues([
   product.product_type,
   product.productType,
 ].filter(Boolean).join(" | "));
-const productFacetQualityValues = (product = {}) => splitFacetValues([
+const productGradeValues = (product = {}) => splitFacetValues([
   product.grade,
   product.quality,
   product.condition,
@@ -215,11 +215,11 @@ const applyCatalogFilters = (products = [], filters = {}, ignore = []) => {
       if (!typeValues.includes(selectedProductType)) return false;
     }
     if (!ignoreSet.has("grade") && selectedGrade) {
-      const gradeValues = productFacetQualityValues(product).map(normalizeFilterKey);
+      const gradeValues = productGradeValues(product).map(normalizeFilterKey);
       if (!gradeValues.includes(selectedGrade)) return false;
     }
     if (!ignoreSet.has("quality") && selectedQuality) {
-      const qualityValues = productFacetQualityValues(product).map(normalizeFilterKey);
+      const qualityValues = productGradeValues(product).map(normalizeFilterKey);
       if (!qualityValues.includes(selectedQuality)) return false;
     }
     if (!ignoreSet.has("sizes") && selectedSizes.size) {
@@ -354,12 +354,12 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   const gradeOptions = useMemo(() => {
     const options = uniqueClassificationOptions(classificationOptions.grade || []);
     return options.map((option) => {
-      const normalizedValue = normalizeFilterKey(option.value);
-      const count = filteredProductsForGrade.reduce(
-        (total, product) => total + (productFacetQualityValues(product).map(normalizeFilterKey).includes(normalizedValue) ? 1 : 0),
-        0
-      );
-      return { ...option, count, product_count: count };
+    const normalizedValue = normalizeFilterKey(option.value);
+    const count = filteredProductsForGrade.reduce(
+      (total, product) => total + (productGradeValues(product).map(normalizeFilterKey).includes(normalizedValue) ? 1 : 0),
+      0
+    );
+    return { ...option, count, product_count: count };
     });
   }, [classificationOptions.grade, filteredProductsForGrade]);
   const availableSizes = useMemo(() => buildAvailableSizeOptions(filteredProductsForSizes), [filteredProductsForSizes]);
@@ -531,7 +531,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     const gradeValue = normalizeFilterKey(selectedGrade);
     const typeValue = normalizeStorefrontProductTypeValue(selectedProductType);
     return catalogProducts.filter((product) => {
-      const gradeOk = !gradeValue || productFacetQualityValues(product).map(normalizeFilterKey).includes(gradeValue);
+      const gradeOk = !gradeValue || productGradeValues(product).map(normalizeFilterKey).includes(gradeValue);
       const typeOk = !typeValue || normalizeStorefrontProductTypeValue(product.product_type || product.productType || product.category || "") === typeValue;
       return gradeOk && typeOk;
     });
@@ -550,7 +550,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     const gradeValue = normalizeFilterKey(selectedGrade);
     return catalogProducts.filter((product) => {
       const genderOk = !genderValue || productListingAudienceValues(product).includes(genderValue);
-      const gradeOk = !gradeValue || productFacetQualityValues(product).map(normalizeFilterKey).includes(gradeValue);
+      const gradeOk = !gradeValue || productGradeValues(product).map(normalizeFilterKey).includes(gradeValue);
       return genderOk && gradeOk;
     });
   }, [catalogProducts, selectedGender, selectedGrade]);
@@ -569,12 +569,12 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     const options = uniqueClassificationOptions(classificationOptions.grade || []);
     if (!options.length) return options;
     const availableGradeValues = new Set(
-      guidedGradeProducts.flatMap((product) => productFacetQualityValues(product).map(normalizeFilterKey)).filter(Boolean)
+      guidedGradeProducts.flatMap((product) => productGradeValues(product).map(normalizeFilterKey)).filter(Boolean)
     );
     const mapped = options.map((option) => {
       const normalizedValue = normalizeFilterKey(option.value);
       const count = guidedGradeProducts.reduce(
-        (total, product) => total + (productFacetQualityValues(product).map(normalizeFilterKey).includes(normalizedValue) ? 1 : 0),
+        (total, product) => total + (productGradeValues(product).map(normalizeFilterKey).includes(normalizedValue) ? 1 : 0),
         0
       );
       return { ...option, count, product_count: count };
@@ -595,7 +595,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     return catalogProducts.filter((product) => {
       const productTypeValue = normalizeStorefrontProductTypeValue(product.product_type || product.productType || product.category || "");
       const genderOk = !genderValue || productListingAudienceValues(product).includes(genderValue);
-      const gradeOk = !gradeValue || productFacetQualityValues(product).map(normalizeFilterKey).includes(gradeValue);
+      const gradeOk = !gradeValue || productGradeValues(product).map(normalizeFilterKey).includes(gradeValue);
       const typeOk = !typeValue || productTypeValue === typeValue;
       return genderOk && gradeOk && typeOk;
     });
@@ -706,7 +706,6 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
             lang={lang}
             disabled={!selectedGender}
             loading={loading}
-            products={guidedGradeProducts}
             onSelect={selectGrade}
           />
         </section>
