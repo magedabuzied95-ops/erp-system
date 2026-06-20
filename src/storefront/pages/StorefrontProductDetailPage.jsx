@@ -112,6 +112,10 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const productQueryKey = searchParams.toString();
+  const variantParam = String(searchParams.get("variant") || searchParams.get("variantId") || "").trim();
+  const colorParam = String(searchParams.get("color") || searchParams.get("colorId") || "").trim();
+  const sizeParam = String(searchParams.get("size") || "").trim();
+  const slugParam = String(searchParams.get("slug") || "").trim();
   const profilePhone = profile?.primary_phone || profile?.phone || "";
   const [state, setState] = useState({ loading: true, product: null, error: "" });
   const [reloadToken, setReloadToken] = useState(0);
@@ -228,6 +232,11 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
       controller.abort();
     };
   }, [identifier, productQueryKey, profilePhone, rememberProduct, reloadToken]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [identifier, variantParam, colorParam, sizeParam, slugParam]);
 
   const product = state.product;
   const variants = useMemo(() => product?.variants || [], [product]);
