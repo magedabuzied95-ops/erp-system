@@ -6268,7 +6268,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     required
                     error={errors.governorate}
                     placeholder={sfText("storefront.checkout.chooseGovernorate")}
-                    searchPlaceholder="ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ« ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ·ط¢آ¢ط·آ¢ط¢آ  ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ·ط¢آ¢ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¢ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ©"
+                    searchPlaceholder="ابحث عن محافظة..."
                     loadingText={sfText("storefront.checkout.loadingGovernorates")}
                     themeMode={themeMode}
                   />
@@ -6283,7 +6283,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     disabled={!form.shipping_city_id}
                     error={!form.shipping_zone_id && errors.city_area ? errors.city_area : ""}
                     placeholder={form.shipping_city_id ? sfText("storefront.checkout.chooseZone") : sfText("storefront.checkout.chooseGovernorateFirst")}
-                    searchPlaceholder={sfText("storefront.checkout.searchZones")}
+                    searchPlaceholder="ابحث عن Zone..."
                     loadingText={sfText("storefront.checkout.loadingZones")}
                     themeMode={themeMode}
                     helperText={form.shipping_city_id ? sfText("storefront.checkout.zoneSearchHint") : ""}
@@ -6300,7 +6300,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     disabled={!form.shipping_zone_id}
                     error={!form.shipping_district_id ? errors.city_area : ""}
                     placeholder={form.shipping_zone_id ? sfText("storefront.checkout.chooseDistrict") : sfText("storefront.checkout.chooseZoneFirst")}
-                    searchPlaceholder={sfText("storefront.checkout.searchDistricts")}
+                    searchPlaceholder="ابحث عن المنطقة..."
                     loadingText={sfText("storefront.checkout.loadingDistricts")}
                     themeMode={themeMode}
                     helperText={form.shipping_zone_id ? sfText("storefront.checkout.districtSearchHint") : ""}
@@ -6658,7 +6658,7 @@ function OrderSuccess({ profile, themeMode, brandName = "MONE", brandLogoUrl = "
               <InfoBox label={t("storefront.checkout.total", "ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½")} value={total ? money(total) : t("storefront.success.orderRecorded", "ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½")} />
               <InfoBox label={t("storefront.checkout.paymentMethod", "ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½")} value={paymentLabel} />
               <InfoBox label={t("storefront.orders.orderStatus", "ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½")} value={successStatus} />
-              <InfoBox label={t("storefront.orders.expectedDelivery", "ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½")} value={t("storefront.orders.expectedDeliveryWindow", "ï؟½ï؟½ 2 ï؟½ï؟½ï؟½ 5 ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½")} />
+              <InfoBox label={t("storefront.orders.expectedDelivery", "التوصيل المتوقع")} value={t("storefront.orders.expectedDeliveryWindow", "التوصيل المتوقع خلال 2-5 أيام عمل")} />
             </div>
             <div className="sf-info-box mt-4 rounded-2xl bg-stone-50 p-4 text-right">
               <div className="sf-info-label text-xs font-black text-stone-500">{t("storefront.checkout.deliveryAddress", "ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½")}</div>
@@ -7423,11 +7423,12 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
                       <Search className={`h-4 w-4 shrink-0 ${darkMode ? "text-white/42" : "text-slate-600"}`} />
                       <input
                         ref={inputRef}
-                        dir="auto"
+                        dir="rtl"
+                        lang="ar"
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}
                         placeholder={searchHint}
-                        className={`min-w-0 flex-1 bg-transparent text-sm font-bold outline-none ${darkMode ? "text-white placeholder:text-white/34" : "text-slate-900 placeholder:text-slate-500"}`}
+                        className={"min-w-0 flex-1 bg-transparent text-right text-sm font-bold outline-none " + (darkMode ? "text-white placeholder:text-white/34" : "text-slate-900 placeholder:text-slate-500")}
                       />
                       {query ? (
                         <button type="button" onClick={() => setQuery("")} className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border transition ${darkMode ? "border-white/10 bg-white/[0.04] text-white/52 hover:bg-white/[0.08] hover:text-white" : "border-slate-300 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`} aria-label={sfText("storefront.common.clear")}>
