@@ -7273,10 +7273,21 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
   useEffect(() => {
     if (!open || !isMobile || typeof document === "undefined") return undefined;
     const { body } = document;
+    const previousPosition = body.style.position;
     const previousOverflow = body.style.overflow;
+    const previousTop = body.style.top;
+    const previousWidth = body.style.width;
+    const scrollY = window.scrollY || window.pageYOffset || 0;
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
     body.style.overflow = "hidden";
     return () => {
+      body.style.position = previousPosition;
+      body.style.top = previousTop;
+      body.style.width = previousWidth;
       body.style.overflow = previousOverflow;
+      window.scrollTo(0, scrollY);
     };
   }, [isMobile, open]);
 
@@ -7303,28 +7314,10 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
   const isBlocked = disabled;
   const panelTitle = mobileTitle || label;
   const searchHint = searchPlaceholder || sfText("storefront.checkout.searchLocations");
+  const mobilePortalTarget = typeof document !== "undefined" ? document.body : null;
 
   const panelBody = (
     <div className="flex min-h-0 flex-1 flex-col gap-2.5">
-      <div className="checkout-picker-search-wrap">
-        <label className={`checkout-picker-search flex items-center gap-2 ${darkMode ? "" : "border border-slate-300 bg-white text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
-          <Search className={`h-4 w-4 shrink-0 ${darkMode ? "text-white/42" : "text-slate-600"}`} />
-          <input
-            ref={inputRef}
-            dir="auto"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={searchHint}
-            className={`min-w-0 flex-1 bg-transparent text-sm font-bold outline-none ${darkMode ? "text-white placeholder:text-white/34" : "text-slate-900 placeholder:text-slate-500"}`}
-          />
-          {query ? (
-            <button type="button" onClick={() => setQuery("")} className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border transition ${darkMode ? "border-white/10 bg-white/[0.04] text-white/52 hover:bg-white/[0.08] hover:text-white" : "border-slate-300 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`} aria-label={sfText("storefront.common.clear")}>
-              <X className="h-4 w-4" />
-            </button>
-          ) : null}
-        </label>
-      </div>
-
       {loading ? (
         <div className={`flex min-h-24 items-center justify-center rounded-[1rem] border px-4 py-4 text-sm font-bold ${darkMode ? "border-white/10 bg-white/[0.03] text-white/62" : "border-slate-300 bg-white text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
           <Loader2 className={`mr-2 h-4 w-4 animate-spin ${darkMode ? "text-[#c4b5fd]" : "text-[#7c3aed]"}`} />
@@ -7390,40 +7383,67 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
 
       {open ? (
         isMobile ? (
-          <div
-            className="fixed inset-0 z-[100000] bg-black/65 backdrop-blur-sm"
-            onClick={close}
-            role="presentation"
-          >
-            <section
-              role="dialog"
-              aria-modal="true"
-              aria-label={typeof panelTitle === "string" ? panelTitle : undefined}
-              onClick={(event) => event.stopPropagation()}
-              className={`fixed inset-auto bottom-0 left-0 right-0 flex max-h-[70vh] flex-col overflow-y-auto rounded-t-[1.5rem] border border-white/10 px-3 pb-[calc(env(safe-area-inset-bottom)+0.9rem)] pt-3 shadow-[0_-28px_80px_rgba(0,0,0,0.48)] ${
-                darkMode
-                  ? "bg-[linear-gradient(180deg,rgba(8,12,26,0.98),rgba(5,8,18,0.99))] text-white"
-                  : "bg-[linear-gradient(180deg,rgba(248,250,252,0.99),rgba(241,245,249,0.99))] text-slate-900"
-              }`}
+          mobilePortalTarget ? createPortal(
+            <div
+              className="fixed inset-0 z-[100000] bg-black/65 backdrop-blur-sm"
+              onClick={close}
+              role="presentation"
             >
-              <div className="mb-3 flex items-center justify-between gap-3 border-b border-white/10 pb-3">
-                <div className={`min-w-0 truncate text-sm font-black ${darkMode ? "text-white" : "text-slate-900"}`}>{panelTitle}</div>
-                <button
-                  type="button"
-                  onClick={close}
-                  className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition ${
-                    darkMode
-                      ? "border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/[0.08] hover:text-white"
-                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-950"
-                  }`}
-                  aria-label={sfText("storefront.common.close")}
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              {panelBody}
-            </section>
-          </div>
+              <section
+                role="dialog"
+                aria-modal="true"
+                aria-label={typeof panelTitle === "string" ? panelTitle : undefined}
+                onClick={(event) => event.stopPropagation()}
+                className={`fixed inset-auto bottom-0 left-0 right-0 flex max-h-[75vh] flex-col overflow-hidden rounded-t-[1.5rem] border border-white/10 px-3 pt-3 shadow-[0_-28px_80px_rgba(0,0,0,0.48)] ${
+                  darkMode
+                    ? "bg-[linear-gradient(180deg,rgba(8,12,26,0.98),rgba(5,8,18,0.99))] text-white"
+                    : "bg-[linear-gradient(180deg,rgba(248,250,252,0.99),rgba(241,245,249,0.99))] text-slate-900"
+                }`}
+              >
+                <div className="sticky top-0 z-20 border-b border-white/10 pb-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className={`min-w-0 truncate text-sm font-black ${darkMode ? "text-white" : "text-slate-900"}`}>{panelTitle}</div>
+                    <button
+                      type="button"
+                      onClick={close}
+                      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition ${
+                        darkMode
+                          ? "border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/[0.08] hover:text-white"
+                          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-950"
+                      }`}
+                      aria-label={sfText("storefront.common.close")}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+                <div className="sticky top-[3.35rem] z-10 pt-3">
+                  <div className="checkout-picker-search-wrap">
+                    <label className={`checkout-picker-search flex items-center gap-2 ${darkMode ? "" : "border border-slate-300 bg-white text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
+                      <Search className={`h-4 w-4 shrink-0 ${darkMode ? "text-white/42" : "text-slate-600"}`} />
+                      <input
+                        ref={inputRef}
+                        dir="auto"
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        placeholder={searchHint}
+                        className={`min-w-0 flex-1 bg-transparent text-sm font-bold outline-none ${darkMode ? "text-white placeholder:text-white/34" : "text-slate-900 placeholder:text-slate-500"}`}
+                      />
+                      {query ? (
+                        <button type="button" onClick={() => setQuery("")} className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border transition ${darkMode ? "border-white/10 bg-white/[0.04] text-white/52 hover:bg-white/[0.08] hover:text-white" : "border-slate-300 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`} aria-label={sfText("storefront.common.clear")}>
+                          <X className="h-4 w-4" />
+                        </button>
+                      ) : null}
+                    </label>
+                  </div>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[calc(env(safe-area-inset-bottom)+0.9rem)] pt-2">
+                  {panelBody}
+                </div>
+              </section>
+            </div>,
+            mobilePortalTarget
+          ) : null
         ) : (
           <div className={`absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-[16px] border p-2.5 backdrop-blur-2xl ${darkMode ? "border-white/10 bg-[linear-gradient(180deg,rgba(8,12,26,0.98),rgba(5,8,18,0.98))] text-white shadow-[0_18px_46px_rgba(0,0,0,0.28)]" : "border-slate-300 bg-white text-slate-900 shadow-[0_18px_46px_rgba(15,23,42,0.14)]"}`}>
             {panelBody}
