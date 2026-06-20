@@ -3796,6 +3796,16 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     nextLanguage === "ar"
       ? t("storefront.header.languageArabic", "Arabic")
       : t("storefront.header.languageEnglish", "English");
+  const getMobileCategoryChipIcon = (keyOrLabel = "") => {
+    const normalized = String(keyOrLabel || "").toLowerCase();
+    if (normalized.includes("men") || normalized.includes("رجالي")) return Shirt;
+    if (normalized.includes("women") || normalized.includes("حريمي")) return UserRound;
+    if (normalized.includes("kids") || normalized.includes("أطفال") || normalized.includes("اطفال")) return Baby;
+    if (normalized.includes("bag") || normalized.includes("شنط")) return ShoppingBag;
+    if (normalized.includes("crocs") || normalized.includes("كروكس")) return Footprints;
+    if (normalized.includes("slipper") || normalized.includes("سليبر") || normalized.includes("sandal")) return Footprints;
+    return Tag;
+  };
   const mobileCategoryChips = [
     { key: "men", label: "رجالي", to: "/shop/products?gender=men", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "men" },
     { key: "women", label: "حريمي", to: "/shop/products?gender=women", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "women" },
@@ -4151,7 +4161,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
                 className={`sf-mobile-category-chip inline-flex h-[40px] shrink-0 items-center gap-1.5 rounded-full px-[14px] text-[12px] font-semibold transition duration-200 ease-out active:scale-[0.98] ${item.active ? "sf-mobile-category-chip--active" : "sf-mobile-category-chip--inactive"}`}
               >
                 {(() => {
-                  const Icon = mobileCategoryChipIcon(item.key);
+                  const Icon = getMobileCategoryChipIcon(item.key || item.label);
                   return <Icon className="h-[15px] w-[15px] shrink-0" aria-hidden="true" />;
                 })()}
                 <span className="truncate">{item.label}</span>
