@@ -297,10 +297,29 @@ ${productSummary(items)}
 const loadOrderItems = async (orderId) => {
   const result = await db.query(
     `
-    SELECT *
-    FROM order_items
-    WHERE order_id = $1
-    ORDER BY id ASC
+    SELECT
+      oi.*,
+      COALESCE(
+        NULLIF(oi.image_url, ''),
+        NULLIF(oi.product_image, ''),
+        NULLIF(oi.variant_image, ''),
+        NULLIF(pv.image_url, ''),
+        NULLIF(pv.image, ''),
+        NULLIF(pv.photo_url, ''),
+        NULLIF(pv.thumbnail_url, ''),
+        NULLIF(p.image_url, ''),
+        NULLIF(p.image, ''),
+        NULLIF(p.photo_url, ''),
+        NULLIF(p.thumbnail_url, ''),
+        ''
+      ) AS resolved_image_url,
+      COALESCE(NULLIF(oi.product_name, ''), NULLIF(p.name, ''), 'منتج') AS resolved_product_name,
+      COALESCE(NULLIF(oi.variant_name, ''), NULLIF(CONCAT_WS(' / ', pv.color, pv.size), ''), '') AS resolved_variant_name
+    FROM order_items oi
+    LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+    LEFT JOIN products p ON p.id = COALESCE(oi.product_id, pv.product_id)
+    WHERE oi.order_id = $1
+    ORDER BY oi.id ASC
     `,
     [orderId]
   );

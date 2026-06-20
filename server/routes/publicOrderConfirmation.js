@@ -16,12 +16,26 @@ const normalizeItems = (items = []) =>
   (Array.isArray(items) ? items : [])
     .map((item) => ({
       id: item?.id ?? null,
-      product_name: firstText(item?.product_name, item?.name, item?.title, "منتج"),
-      variant_name: firstText(item?.variant_name, [item?.color, item?.size].filter(Boolean).join(" / ")),
+      product_name: firstText(item?.resolved_product_name, item?.product_name, item?.name, item?.title, "منتج"),
+      variant_name: firstText(item?.resolved_variant_name, item?.variant_name, [item?.color, item?.size].filter(Boolean).join(" / ")),
       color: firstText(item?.color),
       size: firstText(item?.size),
       quantity: Number(item?.quantity || item?.qty || 1) || 1,
-      image_url: firstText(item?.image_url, item?.product_image, item?.variant_image, item?.photo_url, item?.thumbnail_url),
+      image_url: firstText(
+        item?.resolved_image_url,
+        item?.image_url,
+        item?.product_image,
+        item?.variant_image,
+        item?.primary_image_url,
+        item?.public_image_url,
+        item?.photo_url,
+        item?.thumbnail_url
+      ),
+      resolved_image_url: firstText(item?.resolved_image_url, item?.image_url),
+      resolved_product_name: firstText(item?.resolved_product_name, item?.product_name),
+      resolved_variant_name: firstText(item?.resolved_variant_name, item?.variant_name),
+      product_image: firstText(item?.product_image, item?.image_url),
+      variant_image: firstText(item?.variant_image, item?.image_url),
       total_amount: Number(item?.total_amount || 0) || 0,
     }));
 
