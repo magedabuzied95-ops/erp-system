@@ -96,6 +96,7 @@ const splitFacetValues = (value = "") =>
     .map((item) => normalizeFilterText(item))
     .filter(Boolean);
 const parseNumberValue = (value) => {
+  if (!normalizeFilterText(value)) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 };
@@ -299,52 +300,79 @@ const applyCatalogFilters = (products = [], filters = {}, ignore = []) => {
   const saleOnly = Boolean(filters.saleView);
   const lastSizesOnly = Boolean(filters.lastSizes);
   const inStockOnly = Boolean(filters.inStock);
-
   return (Array.isArray(products) ? products : []).filter((product) => {
-    if (!product?.id || !product?.name) return false;
+    if (!product?.id || !product?.name) {
+      return false;
+    }
     if (saleOnly) {
       const price = productFacetPrice(product);
       const salePrice = Number(product.sale_price || product.offer_price || 0) || 0;
-      if (!(salePrice > 0 && salePrice < price)) return false;
+      if (!(salePrice > 0 && salePrice < price)) {
+        return false;
+      }
     }
-    if (lastSizesOnly && !isLastPieceProduct(product)) return false;
-    if (inStockOnly && productFacetStock(product) <= 0) return false;
+    if (lastSizesOnly && !isLastPieceProduct(product)) {
+      return false;
+    }
+    if (inStockOnly && productFacetStock(product) <= 0) {
+      return false;
+    }
 
-    if (!ignoreSet.has("gender") && selectedGender && !productListingAudienceValues(product).includes(selectedGender)) return false;
+    if (!ignoreSet.has("gender") && selectedGender && !productListingAudienceValues(product).includes(selectedGender)) {
+      return false;
+    }
     if (!ignoreSet.has("category") && selectedCategory) {
       const categoryValues = productFacetCategoryValues(product).map(normalizeFilterKey);
-      if (!categoryValues.includes(selectedCategory)) return false;
+      if (!categoryValues.includes(selectedCategory)) {
+        return false;
+      }
     }
     if (!ignoreSet.has("brand") && selectedBrand) {
       const brandValues = productFacetBrandValues(product).map(normalizeFilterKey);
-      if (!brandValues.includes(selectedBrand)) return false;
+      if (!brandValues.includes(selectedBrand)) {
+        return false;
+      }
     }
     if (!ignoreSet.has("productType") && selectedProductType) {
       const typeValues = productFacetCategoryValues(product).map(normalizeFilterKey);
-      if (!typeValues.includes(selectedProductType)) return false;
+      if (!typeValues.includes(selectedProductType)) {
+        return false;
+      }
     }
     if (!ignoreSet.has("grade") && selectedGrade) {
       const gradeValues = productGradeValues(product).map(normalizeFilterKey);
-      if (!gradeValues.includes(selectedGrade)) return false;
+      if (!gradeValues.includes(selectedGrade)) {
+        return false;
+      }
     }
     if (!ignoreSet.has("quality") && selectedQuality) {
       const qualityValues = productGradeValues(product).map(normalizeFilterKey);
-      if (!qualityValues.includes(selectedQuality)) return false;
+      if (!qualityValues.includes(selectedQuality)) {
+        return false;
+      }
     }
     if (!ignoreSet.has("color") && selectedColor) {
       const colorValues = productFacetColorValues(product).map(normalizeFilterKey);
-      if (!colorValues.includes(selectedColor)) return false;
+      if (!colorValues.includes(selectedColor)) {
+        return false;
+      }
     }
     if (!ignoreSet.has("sizes") && selectedSizes.size) {
       const sizeValues = (Array.isArray(product.variants) ? product.variants : [])
         .map((variant) => normalizeFilterKey(variant?.size))
         .filter(Boolean);
-      if (!sizeValues.some((sizeValue) => selectedSizes.has(sizeValue))) return false;
+      if (!sizeValues.some((sizeValue) => selectedSizes.has(sizeValue))) {
+        return false;
+      }
     }
     if (minPrice !== null || maxPrice !== null) {
       const price = productFacetPrice(product);
-      if (minPrice !== null && price < minPrice) return false;
-      if (maxPrice !== null && price > maxPrice) return false;
+      if (minPrice !== null && price < minPrice) {
+        return false;
+      }
+      if (maxPrice !== null && price > maxPrice) {
+        return false;
+      }
     }
     return true;
   });
@@ -384,7 +412,6 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   const [selectedProductType, setSelectedProductType] = useState(productType);
   const [selectedSize, setSelectedSize] = useState(size);
   const [currentStep, setCurrentStep] = useState(gender ? (grade ? (productType ? "grid" : "productType") : "grade") : "gender");
-  const listingStageCountsLoggedRef = useRef(false);
   const productTypeStepRef = useRef(null);
   const gradeStepRef = useRef(null);
   const gridStepRef = useRef(null);
@@ -452,21 +479,131 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     }),
     [brand, category, color, grade, inStock, lastSizes, maxPrice, minPrice, productType, quality, saleView, selectedSizes, gender]
   );
-  const filteredProducts = useMemo(() => applyCatalogFilters(catalogProducts, catalogFilters), [catalogFilters, catalogProducts]);
+  const catalogFiltersWithoutGender = useMemo(
+    () => ({ ...catalogFilters, gender: "" }),
+    [catalogFilters]
+  );
+  const hasActiveCatalogFilters = Boolean(
+    gender ||
+      category ||
+      brand ||
+      productType ||
+      grade ||
+      quality ||
+      color ||
+      selectedSizes.length ||
+      minPrice ||
+      maxPrice ||
+      saleView ||
+      lastSizes ||
+      inStock
+  );
+  const filterCatalogProducts = (items = [], filters = {}, ignore = []) => {
+    const ignoreSet = new Set(Array.isArray(ignore) ? ignore : [ignore].filter(Boolean));
+    const selectedGender = normalizeStorefrontAudienceValue(filters.gender);
+    const selectedCategory = normalizeFilterKey(filters.category);
+    const selectedBrand = normalizeFilterKey(filters.brand);
+    const selectedProductType = normalizeFilterKey(filters.productType);
+    const selectedGrade = normalizeFilterKey(filters.grade);
+    const selectedQuality = normalizeFilterKey(filters.quality);
+    const selectedColor = normalizeFilterKey(filters.color);
+    const selectedSizesSet = new Set((Array.isArray(filters.sizes) ? filters.sizes : []).map(normalizeFilterKey).filter(Boolean));
+    const min = parseNumberValue(filters.minPrice);
+    const max = parseNumberValue(filters.maxPrice);
+    const saleOnlyActive = Boolean(filters.saleView);
+    const lastSizesOnlyActive = Boolean(filters.lastSizes);
+    const inStockOnlyActive = Boolean(filters.inStock);
+    const output = [];
+
+    for (const product of Array.isArray(items) ? items : []) {
+      if (!product?.id || !product?.name) continue;
+      if (saleOnlyActive) {
+        const price = productFacetPrice(product);
+        const salePrice = Number(product.sale_price || product.offer_price || 0) || 0;
+        if (!(salePrice > 0 && salePrice < price)) continue;
+      }
+      if (lastSizesOnlyActive && !isLastPieceProduct(product)) continue;
+      if (inStockOnlyActive && productFacetStock(product) <= 0) continue;
+
+      if (!ignoreSet.has("gender") && selectedGender && !productListingAudienceValues(product).includes(selectedGender)) continue;
+      if (!ignoreSet.has("category") && selectedCategory) {
+        const categoryValues = productFacetCategoryValues(product).map(normalizeFilterKey);
+        if (!categoryValues.includes(selectedCategory)) continue;
+      }
+      if (!ignoreSet.has("brand") && selectedBrand) {
+        const brandValues = productFacetBrandValues(product).map(normalizeFilterKey);
+        if (!brandValues.includes(selectedBrand)) continue;
+      }
+      if (!ignoreSet.has("productType") && selectedProductType) {
+        const typeValues = productFacetCategoryValues(product).map(normalizeFilterKey);
+        if (!typeValues.includes(selectedProductType)) continue;
+      }
+      if (!ignoreSet.has("grade") && selectedGrade) {
+        const gradeValues = productGradeValues(product).map(normalizeFilterKey);
+        if (!gradeValues.includes(selectedGrade)) continue;
+      }
+      if (!ignoreSet.has("quality") && selectedQuality) {
+        const qualityValues = productGradeValues(product).map(normalizeFilterKey);
+        if (!qualityValues.includes(selectedQuality)) continue;
+      }
+      if (!ignoreSet.has("color") && selectedColor) {
+        const colorValues = productFacetColorValues(product).map(normalizeFilterKey);
+        if (!colorValues.includes(selectedColor)) continue;
+      }
+      if (!ignoreSet.has("sizes") && selectedSizesSet.size) {
+        const sizeValues = (Array.isArray(product.variants) ? product.variants : [])
+          .map((variant) => normalizeFilterKey(variant?.size))
+          .filter(Boolean);
+        if (!sizeValues.some((sizeValue) => selectedSizesSet.has(sizeValue))) continue;
+      }
+      if (min !== null || max !== null) {
+        const price = productFacetPrice(product);
+        if (min !== null && price < min) continue;
+        if (max !== null && price > max) continue;
+      }
+      output.push(product);
+    }
+
+    return output;
+  };
+  const filteredProducts = useMemo(
+    () => (hasActiveCatalogFilters ? filterCatalogProducts(catalogProducts, catalogFiltersWithoutGender) : catalogProducts),
+    [catalogFiltersWithoutGender, catalogProducts, hasActiveCatalogFilters]
+  );
   const orderedFilteredProducts = useMemo(() => sortStorefrontColorCardsByModel(sortCatalogProducts(filteredProducts, selectedSort)), [filteredProducts, selectedSort]);
-  const filteredProductsForGender = useMemo(() => applyCatalogFilters(catalogProducts, catalogFilters, ["gender"]), [catalogFilters, catalogProducts]);
-  const filteredProductsForCategory = useMemo(() => applyCatalogFilters(catalogProducts, catalogFilters, ["category"]), [catalogFilters, catalogProducts]);
-  const filteredProductsForBrand = useMemo(() => applyCatalogFilters(catalogProducts, catalogFilters, ["brand"]), [catalogFilters, catalogProducts]);
-  const filteredProductsForGrade = useMemo(() => applyCatalogFilters(catalogProducts, catalogFilters, ["grade"]), [catalogFilters, catalogProducts]);
-  const filteredProductsForColor = useMemo(() => applyCatalogFilters(catalogProducts, catalogFilters, ["color"]), [catalogFilters, catalogProducts]);
-  const filteredProductsForSizes = useMemo(() => applyCatalogFilters(catalogProducts, catalogFilters, ["sizes"]), [catalogFilters, catalogProducts]);
-  const filteredProductsForPrice = useMemo(() => applyCatalogFilters(catalogProducts, catalogFilters, ["minPrice", "maxPrice"]), [catalogFilters, catalogProducts]);
+  const filteredProductsForGender = useMemo(
+    () => (hasActiveCatalogFilters ? filterCatalogProducts(catalogProducts, catalogFilters, ["gender"]) : catalogProducts),
+    [catalogFilters, catalogProducts, hasActiveCatalogFilters]
+  );
+  const filteredProductsForCategory = useMemo(
+    () => (hasActiveCatalogFilters ? filterCatalogProducts(catalogProducts, catalogFilters, ["category"]) : catalogProducts),
+    [catalogFilters, catalogProducts, hasActiveCatalogFilters]
+  );
+  const filteredProductsForBrand = useMemo(
+    () => (hasActiveCatalogFilters ? filterCatalogProducts(catalogProducts, catalogFilters, ["brand"]) : catalogProducts),
+    [catalogFilters, catalogProducts, hasActiveCatalogFilters]
+  );
+  const filteredProductsForGrade = useMemo(
+    () => (hasActiveCatalogFilters ? filterCatalogProducts(catalogProducts, catalogFilters, ["grade"]) : catalogProducts),
+    [catalogFilters, catalogProducts, hasActiveCatalogFilters]
+  );
+  const filteredProductsForColor = useMemo(
+    () => (hasActiveCatalogFilters ? filterCatalogProducts(catalogProducts, catalogFilters, ["color"]) : catalogProducts),
+    [catalogFilters, catalogProducts, hasActiveCatalogFilters]
+  );
+  const filteredProductsForSizes = useMemo(
+    () => (hasActiveCatalogFilters ? filterCatalogProducts(catalogProducts, catalogFilters, ["sizes"]) : catalogProducts),
+    [catalogFilters, catalogProducts, hasActiveCatalogFilters]
+  );
+  const filteredProductsForPrice = useMemo(
+    () => (hasActiveCatalogFilters ? filterCatalogProducts(catalogProducts, catalogFilters, ["minPrice", "maxPrice"]) : catalogProducts),
+    [catalogFilters, catalogProducts, hasActiveCatalogFilters]
+  );
   const priceBounds = useMemo(() => {
     const prices = filteredProductsForPrice.map((product) => productFacetPrice(product)).filter((price) => Number.isFinite(price) && price >= 0);
     if (!prices.length) return { min: "", max: "" };
     return { min: Math.min(...prices), max: Math.max(...prices) };
   }, [filteredProductsForPrice]);
-
   const genderOptions = useMemo(
     () =>
       storefrontGenderSwitchOptions.map((option) => {
@@ -518,19 +655,6 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
       ),
     [catalogProducts]
   );
-  useEffect(() => {
-    if (listingStageCountsLoggedRef.current) return;
-    listingStageCountsLoggedRef.current = true;
-    console.info("[listing-stage-counts]", {
-      productsCount: Array.isArray(products) ? products.length : 0,
-      catalogProductsCount: Array.isArray(catalogProducts) ? catalogProducts.length : 0,
-      filteredProductsCount: Array.isArray(filteredProducts) ? filteredProducts.length : 0,
-      orderedFilteredProductsCount: Array.isArray(orderedFilteredProducts) ? orderedFilteredProducts.length : 0,
-      firstProduct: Array.isArray(products) ? products[0] : null,
-      firstCatalogProduct: Array.isArray(catalogProducts) ? catalogProducts[0] : null,
-      activeFilters: catalogFilters,
-    });
-  }, [catalogFilters, catalogProducts, filteredProducts, orderedFilteredProducts, products]);
   const sortOptions = useMemo(
     () => {
       const options = [
@@ -629,34 +753,6 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   };
   const showEmptyResults = !loading && !orderedFilteredProducts.length;
   const showGuidedProducts = Boolean(selectedGender && selectedGrade && selectedProductType);
-
-  useEffect(() => {
-    if (!import.meta.env.DEV) return;
-    const sampleProducts = (Array.isArray(catalogProducts) ? catalogProducts : []).slice(0, 3).map((product) => {
-      const rawAudience = product.audience || product.audiences || product.gender || product.genders || product.product_audience || product.product_audiences || product.target_audience || "";
-      return {
-        id: product.id,
-        name: product.name,
-        rawAudience,
-        normalizedAudience: productListingAudienceValues(product),
-      };
-    });
-    console.debug("[storefront-product-listing-debug]", {
-      searchTerm: q,
-      normalizedSearchTerm,
-      selectedAudience: genderParam || "",
-      selectedType: typeParam || "",
-      normalizedSelectedAudience: gender || "",
-      normalizedSelectedType: productType || "",
-      productsApiParams,
-      rawProductsCount: Array.isArray(products) ? products.length : 0,
-      productsBeforeFilters: Array.isArray(catalogProducts) ? catalogProducts.length : 0,
-      productsAfterFilters: Array.isArray(filteredProducts) ? filteredProducts.length : 0,
-      activeFilters: catalogFilters,
-      sampleProducts,
-    });
-  }, [catalogFilters, catalogProducts, filteredProducts, gender, genderParam, normalizedSearchTerm, products, productsApiParams, productType, q, typeParam]);
-
 
   return (
     <section className="mx-auto max-w-7xl px-3 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.75rem)] pt-2.5 md:px-4 md:py-5">
