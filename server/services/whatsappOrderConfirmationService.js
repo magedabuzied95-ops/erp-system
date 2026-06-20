@@ -15,6 +15,7 @@ import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { getSetting } from "./settingsService.js";
 import { emitToRooms } from "../utils/socket.js";
 import { appendWhatsappOutboundSupportReply, appendManualAiSupportReply, markAiSupportConversationEscalated } from "./aiSupportLogService.js";
+import { buildCodOrderConfirmationMessage } from "../utils/orderConfirmationMessage.js";
 
 const CONFIRM_WORDS = new Set(["1", "تأكيد", "تاكيد", "confirm", "yes", "تمام"]);
 const CANCEL_WORDS = new Set(["2", "إلغاء", "الغاء", "cancel", "no"]);
@@ -23,13 +24,7 @@ const PAYMENT_REVIEW_METHODS = new Set(["instapay", "vodafone_cash", "bank_trans
 const PAYMENT_REVIEW_STATUSES = new Set(["partially_paid", "awaiting_payment_review", "shipping_paid"]);
 const ORDER_CONFIRMATION_CODE_LENGTH = 7;
 const ORDER_CONFIRMATION_TOKEN_TTL_MINUTES = Number(process.env.ORDER_CONFIRMATION_TOKEN_TTL_MINUTES || 72 * 60);
-const ORDER_CONFIRMATION_FALLBACK_TEXT = [
-  "",
-  "?? ?????? ?? ????? ??:",
-  "1 - ????? ?????",
-  "2 - ????? ?????",
-  "3 - ????? ?????",
-].join("\n");
+const ORDER_CONFIRMATION_FALLBACK_TEXT = buildCodOrderConfirmationMessage();
 
 const text = (value, fallback = "") => String(value ?? fallback).trim();
 const whatsappButtonSignalValues = (message = {}) => {
@@ -256,20 +251,10 @@ const productSummary = (items = []) => {
   return lines.length ? lines.join("\n") : "- منتجات الطلب";
 };
 
-const buildConfirmationMessage = (order = {}, items = []) => `أهلاً يا ${firstName(order.customer_name)}
-
-طلبك من M1 Store جاهز للتأكيد ✅
-
-رقم الطلب: #${orderNumber(order)}
-
-${productSummary(items)}
-
-الإجمالي: ${money(order.total_amount ?? order.total_price ?? order.total)} جنيه
-
-1️⃣ تأكيد الطلب
-2️⃣ إلغاء الطلب
-
-يمكنك أيضًا كتابة أي استفسار وسنرد عليك.`;
+const buildConfirmationMessage = (order = {}, items = []) => buildCodOrderConfirmationMessage({
+  customerName: firstName(order.customer_name),
+  confirmationLink: order.confirmation_link || order.confirmation_url || "",
+});
 
 const remainingAmount = (order = {}) => {
   const total = number(order.total_amount ?? order.total_price ?? order.total);
@@ -486,11 +471,11 @@ const buildOrderConfirmationPublicUrl = (code = "") => {
   const baseUrl = text(resolvePublicAppUrl() || process.env.PUBLIC_APP_URL || process.env.FRONTEND_URL || "").replace(/\/+$/, "");
   return baseUrl ? `${baseUrl}/shop/confirm/${encodeURIComponent(safeCode)}` : `/shop/confirm/${encodeURIComponent(safeCode)}`;
 };
-const buildOrderConfirmationLinksMessage = (publicUrl = "") => [
-  "طلبك جاهز للتأكيد",
-  "اضغط هنا لتأكيد أو تعديل أو إلغاء الطلب:",
-  publicUrl,
-].filter(Boolean).join("\n");
+const buildOrderConfirmationLinksMessage = ({ customerName = "", publicUrl = "" } = {}) =>
+  buildCodOrderConfirmationMessage({
+    customerName: firstName(customerName),
+    confirmationLink: publicUrl,
+  });
 
 const storeOrderConfirmationCode = async (client, { tenantId, orderId, action, expiresAt, code }) => {
   const codeHash = hashOrderConfirmationCode(code);
@@ -594,7 +579,10 @@ export const sendOrderConfirmation = async (order = {}) => {
       orderId: current.id,
     });
     const confirmUrl = buildOrderConfirmationPublicUrl(confirmCode.code);
-    message = buildOrderConfirmationLinksMessage(confirmUrl);
+    message = buildOrderConfirmationLinksMessage({
+      customerName: current.customer_name,
+      publicUrl: confirmUrl,
+    });
     if (!confirmUrl) {
       console.warn("[whatsapp:order-confirmation-link-build-warning]", {
         order_id: current.id,

@@ -17,6 +17,7 @@ import { emitToRooms } from "../utils/socket.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
+import { buildCodOrderConfirmationMessage } from "../utils/orderConfirmationMessage.js";
 import { getConversationMemory } from "./aiConversationMemory.js";
 import { resolveFollowupContext, summarizeConversationMemoryV2 } from "../utils/aiConversationMemoryV2.js";
 
@@ -1029,22 +1030,10 @@ export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "
 
 export const buildOrderConfirmationMessage = (order = {}) => {
   const customerName = text(order.customer_name || order.customerName || order.name, "عميلنا");
-  const orderNumber = text(order.public_order_number || order.display_order_number || order.invoice_number || order.order_number || order.id, "-");
-  const totalAmount = money(order.total_amount ?? order.grand_total ?? order.total ?? order.net_total);
-  const summary = orderSummaryLines(order.items);
-  const address = orderAddressLine(order);
-  const storeName = orderStoreName(order);
-  return `أهلاً يا ${customerName}
-طلبك من ${storeName} جاهز للتأكيد.
-
-رقم الطلب: ${orderNumber}
-${summary.length ? `${summary.join("\n")}\n` : ""}
-${address ? `العنوان: ${address}\n` : ""}
-الإجمالي: ${totalAmount} جنيه
-
-1 - تأكيد الطلب
-2 - تعديل الطلب
-3 إلغاء الطلب`;
+  return buildCodOrderConfirmationMessage({
+    customerName,
+    confirmationLink: order.confirmation_link || order.confirmation_url || "",
+  });
 };
 
 export const sendWhatsAppButtonsDebugTest = async ({ phone = "", mode = "simple", useSafeIds = false } = {}) => {
