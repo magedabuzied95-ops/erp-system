@@ -69,120 +69,7 @@ import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
 import { VirtualGrid, VirtualList } from "../shared/components/VirtualList";
 import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
-import instaPayLogo from "../assets/payments/instapay.png";
-import instaPayLogoWebp from "../assets/payments/instapay.webp";
-import vodafoneCashLogo from "../assets/payments/vodafone-cash.png";
-import vodafoneCashLogoWebp from "../assets/payments/vodafone-cash.webp";
-
-const ARABIC_RE = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/u;
-const MOJIBAKE_BYTE_MARKER_RE = /[\u00C0-\u00FF]/u;
-const MOJIBAKE_SYMBOL_RE = /[\u00A0-\u00BF\u2018-\u201F\u2020-\u203A\u20A0-\u20CF\uFE50-\uFE6F\uFFFD]/u;
-const SUSPICIOUS_ARABIC_GLYPH_RE = /[\uFFFD]/;
-
-const countMatches = (value, pattern) => {
-  const text = String(value || "");
-  if (!text) return 0;
-  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
-  return text.match(new RegExp(pattern.source, flags))?.length || 0;
-};
-
-const getArabicTextMetrics = (value = "") => {
-  const text = String(value ?? "");
-  const compactText = text.replace(/\s+/g, "");
-  return {
-    text,
-    compactText,
-    arabicCount: countMatches(text, ARABIC_RE),
-    suspiciousGlyphCount: countMatches(text, SUSPICIOUS_ARABIC_GLYPH_RE),
-    mojibakeByteCount: countMatches(text, MOJIBAKE_BYTE_MARKER_RE),
-    mojibakeSymbolCount: countMatches(text, MOJIBAKE_SYMBOL_RE),
-  };
-};
-
-const isLikelyArabicMojibake = (value) => {
-  const { compactText, arabicCount, suspiciousGlyphCount, mojibakeByteCount, mojibakeSymbolCount } = getArabicTextMetrics(value);
-  if (!compactText) return false;
-
-  if (mojibakeByteCount > 0 || mojibakeSymbolCount > 0) return true;
-  if (arabicCount < 4) return false;
-
-  const suspiciousCount = suspiciousGlyphCount;
-  if (suspiciousCount < 4) return false;
-
-  const suspiciousDensity = suspiciousCount / Math.max(1, compactText.length);
-  const suspiciousToArabicRatio = suspiciousCount / Math.max(1, arabicCount);
-
-  return suspiciousDensity >= 0.28 || suspiciousToArabicRatio >= 0.35;
-};
-
-const scoreArabicRepairCandidate = (value) => {
-  const { compactText, arabicCount, suspiciousGlyphCount, mojibakeByteCount, mojibakeSymbolCount } = getArabicTextMetrics(value);
-  const length = Math.max(1, Array.from(compactText).length);
-  const penalty = suspiciousGlyphCount * 4 + (mojibakeByteCount + mojibakeSymbolCount) * 3 + Math.max(0, length - arabicCount) * 0.15;
-  return arabicCount * 2 - penalty;
-};
-
-const getWindows1256ReverseMap = (() => {
-  let reverseMap = null;
-  return () => {
-    if (reverseMap) return reverseMap;
-    if (typeof TextDecoder === "undefined") return null;
-
-    try {
-      const decoder = new TextDecoder("windows-1256");
-      const map = new Map();
-      for (let byte = 0; byte < 256; byte += 1) {
-        const char = decoder.decode(Uint8Array.of(byte));
-        if (char && !map.has(char)) map.set(char, byte);
-      }
-      reverseMap = map;
-      return reverseMap;
-    } catch {
-      return null;
-    }
-  };
-})();
-
-const repairArabicMojibakeText = (value) => {
-  if (typeof value !== "string") return value;
-  if (!value || !isLikelyArabicMojibake(value)) return value;
-
-  const reverseMap = getWindows1256ReverseMap();
-  if (!reverseMap || typeof TextDecoder === "undefined") return value;
-
-  try {
-    const bytes = [];
-    for (const char of value) {
-      const byte = reverseMap.get(char);
-      if (byte === undefined) return value;
-      bytes.push(byte);
-    }
-
-    const repaired = new TextDecoder("utf-8").decode(Uint8Array.from(bytes));
-    if (!repaired || repaired === value) return value;
-
-    const originalScore = scoreArabicRepairCandidate(value);
-    const repairedScore = scoreArabicRepairCandidate(repaired);
-    return repairedScore > originalScore ? repaired : value;
-  } catch {
-    return value;
-  }
-};
-
-// Guardrails:
-// repairArabicMojibakeText("رجالي") === "رجالي"
-// repairArabicMojibakeText("حريمي") === "حريمي"
-// repairArabicMojibakeText("ط±ط¬ط§ظ„ظٹ") === "رجالي"
-
-const repairArabicMojibakeDeep = (value) => {
-  if (typeof value === "string") return repairArabicMojibakeText(value);
-  if (Array.isArray(value)) return value.map(repairArabicMojibakeDeep);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, repairArabicMojibakeDeep(entry)]));
-  }
-  return value;
-};
-
+import { repairArabicMojibakeDeep } from "./utils/arabicText";
 const productRouteIdentifier = (product = {}) =>
   firstTextValue(
     product.product_id,
@@ -322,7 +209,7 @@ const imageFor = (value) => {
 };
 const responsiveImageProps = (value, preset = "grid") => getStorefrontResponsiveImageProps(imageFor(value), preset);
 const money = (value) => formatCurrency(Number(value || 0));
-const sfText = (key, fallback, options = {}) => repairArabicMojibakeText(i18n.t(String(key || ""), { defaultValue: fallback, ...options }));
+const sfText = (key, fallback, options = {}) => i18n.t(String(key || ""), { defaultValue: fallback, ...options });
 const couponErrorKeyMap = {
   "Coupon code is required": "storefront.checkout.couponErrors.required",
   "Coupon not found": "storefront.checkout.couponErrors.notFound",
@@ -340,7 +227,7 @@ const couponErrorKeyMap = {
 };
 const couponErrorText = (reason = "") => {
   const key = couponErrorKeyMap[String(reason || "").trim()] || "storefront.checkout.couponErrors.invalid";
-  return sfText(key, String(reason || "").trim() || "ظƒظˆط¯ ط§ظ„ط®طµظ… ط؛ظٹط± طµط§ظ„ط­");
+  return sfText(key, String(reason || "").trim() || "����� ����� ��� ����");
 };
 const truthyFlag = (value) => value === true || value === 1 || String(value || "").toLowerCase() === "true";
 const BODY_SCROLL_LOCK_ATTR = "data-storefront-scroll-lock-count";
@@ -646,7 +533,7 @@ const useStorefrontGenderClassifications = () => {
       })
       .catch((error) => {
         if (!cancelled && error?.cause?.name !== "AbortError") {
-          setState({ loading: false, error: error?.message || "طھط¹ط°ط± طھط­ظ…ظٹظ„ طھطµظ†ظٹظپط§طھ ط§ظ„ظ…ظ†طھط¬ط§طھ", options: [] });
+          setState({ loading: false, error: error?.message || "���� ����� ������� ��������", options: [] });
         }
       });
     return () => {
@@ -929,9 +816,9 @@ const lastPieceMatchingVariant = (product = {}, selectedSize = "") => {
 };
 const normalizeAudienceValue = (value = "") => {
   const normalized = String(value || "").trim().toLowerCase();
-  if (["men", "man", "male", "mens", "ط±ط¬ط§ظ„ظٹ", "ط±ط¬ط§ظ„"].includes(normalized)) return "men";
-  if (["women", "woman", "female", "ladies", "lady", "ظ†ط³ط§ط¦ظٹ", "ظ†ط³ط§ط،", "ط­ط±ظٹظ…ظٹ"].includes(normalized)) return "women";
-  if (["kids", "kid", "children", "child", "boys", "girls", "ط£ط·ظپط§ظ„", "ط£ظˆظ„ط§ط¯"].includes(normalized)) return "kids";
+  if (["men", "man", "male", "mens", "�����", "����"].includes(normalized)) return "men";
+  if (["women", "woman", "female", "ladies", "lady", "�����", "����", "�����"].includes(normalized)) return "women";
+  if (["kids", "kid", "children", "child", "boys", "girls", "�����", "������"].includes(normalized)) return "kids";
   return "";
 };
 const productAudienceValues = (product = {}) => {
@@ -1155,19 +1042,19 @@ const cleanupStorefrontStorage = () => {
 };
 const getSuccessMessages = () => {
   const messages = i18n.t("storefront.toasts.successMessages", { returnObjects: true });
-  return Array.isArray(messages) && messages.length ? messages : ["ط§ط®طھظٹط§ط± ظ…ظ…طھط§ط²", "ط·ظ„ط¨ظƒ ظٹطھظ… طھط¬ظ‡ظٹط²ظ‡ ط§ظ„ط¢ظ†", "ط§ط®طھظٹط§ط± ظ‚ظˆظٹ", "ط³ظ†ط¬ظ‡ط²ظ‡ ظ„ظƒ ط¨ط£ط³ط±ط¹ ظˆظ‚طھ"];
+  return Array.isArray(messages) && messages.length ? messages : ["������ �����", "����� ��� ������ ����", "������ ����", "������ ��� ����� ����"];
 };
 
 const getConversionTrustPoints = () => {
   const points = i18n.t("storefront.home.trustPoints", { returnObjects: true });
-  return Array.isArray(points) && points.length ? points : ["ط¯ظپط¹ ط¢ظ…ظ†", "طھط¨ط¯ظٹظ„ ط³ظ‡ظ„", "طµظˆط± ط­ظ‚ظٹظ‚ظٹط©", "ط´ط­ظ† ط³ط±ظٹط¹"];
+  return Array.isArray(points) && points.length ? points : ["��� ���", "����� ���", "���� ������", "��� ����"];
 };
 
 const homeSellingBadges = [
-  { labelAr: "ط´ط­ظ† ط³ط±ظٹط¹", labelEn: "Fast shipping", icon: Truck },
-  { labelAr: "ط§ط³طھط¨ط¯ط§ظ„ ط®ظ„ط§ظ„ 14 ظٹظˆظ…ظ‹ط§", labelEn: "14-day exchange", icon: RefreshCcw },
-  { labelAr: "ط¯ظپط¹ ط¢ظ…ظ†", labelEn: "Secure payment", icon: ShieldCheck },
-  { labelAr: "طµظˆط± ط­ظ‚ظٹظ‚ظٹط©", labelEn: "Real photos", icon: Camera },
+  { labelAr: "��� ����", labelEn: "Fast shipping", icon: Truck },
+  { labelAr: "������� ���� 14 ������", labelEn: "14-day exchange", icon: RefreshCcw },
+  { labelAr: "��� ���", labelEn: "Secure payment", icon: ShieldCheck },
+  { labelAr: "���� ������", labelEn: "Real photos", icon: Camera },
 ];
 
 const storefrontApi = {
@@ -1228,8 +1115,8 @@ const prefetchStorefrontProductDetails = (identifier) => {
   });
 };
 const productFromDetailsResponse = (data = {}) => data?.product || data?.data?.product || (data?.id ? data : null);
-const MANUAL_CITY_AREA = "ط§ظ„ط§ط®طھظٹط§ط± ط§ظ„ظٹط¯ظˆظٹ";
-const MANUAL_CITY_AREA_LABEL = "ط§ظ„ط§ط®طھظٹط§ط± ط§ظ„ظٹط¯ظˆظٹ";
+const MANUAL_CITY_AREA = "�������� �������";
+const MANUAL_CITY_AREA_LABEL = "�������� �������";
 const governorateCityAreas = repairedDefaultEgyptShippingLocations.reduce((acc, location) => {
   const governorate = String(location.governorate_name_ar || location.governorate_name_en || "").trim();
   const area = String(location.area_name_ar || location.area_name_en || location.city_name_ar || location.city_name_en || "").trim();
@@ -1373,7 +1260,7 @@ const matchBostaPickerOption = (options = [], source = {}) => {
     return savedNames.some((savedName) => optionNames.some((optionName) => optionName === savedName));
   }) || null;
 };
-const DEFAULT_STOREFRONT_PAYMENT_SETTINGS = repairArabicMojibakeDeep({
+const DEFAULT_STOREFRONT_PAYMENT_SETTINGS = {
   instapay: {
     enabled: true,
     displayName: "InstaPay",
@@ -1394,7 +1281,7 @@ const DEFAULT_STOREFRONT_PAYMENT_SETTINGS = repairArabicMojibakeDeep({
     amount: 75,
     label: "Shipping confirmation amount",
   },
-});
+};
 const getPaymentMethods = (paymentSettings = DEFAULT_STOREFRONT_PAYMENT_SETTINGS) => [
   {
     id: "cod",
@@ -1571,12 +1458,12 @@ const SEARCH_RECENT_KEY = "storefront.search.recent";
 const reason = "";
 const getSearchPlaceholders = () => {
   const values = i18n.t("storefront.search.placeholders", { returnObjects: true });
-  return Array.isArray(values) && values.length ? values : ["ط§ط¨ط­ط« ط¹ظ† Jordan 4...", "ط§ط¨ط­ط« ط¹ظ† Sneakers...", "ط§ط¨ط­ط« ط¨ط§ظ„ظ…ظ‚ط§ط³ 42...", "ط§ط¨ط­ط« ط¨ط§ط³ظ… ط§ظ„ط¨ط±ط§ظ†ط¯...", "ط§ط¨ط­ط« ط¨ظ€ SKU..."];
+  return Array.isArray(values) && values.length ? values : ["���� �� Jordan 4...", "���� �� Sneakers...", "���� ������� 42...", "���� ���� �������...", "���� �� SKU..."];
 };
 
 const getTrendingSearches = () => {
   const values = i18n.t("storefront.search.trending", { returnObjects: true });
-  return Array.isArray(values) && values.length ? values : ["Jordan 4", "Sneakers", "ظ…ظ‚ط§ط³ 42", "Mirror Original", "Adidas", "ط±ط¬ط§ظ„ظٹ ط£ط³ظˆط¯"];
+  return Array.isArray(values) && values.length ? values : ["Jordan 4", "Sneakers", "���� 42", "Mirror Original", "Adidas", "����� ����"];
 };
 
 const getSearchFallbackSections = () => {
@@ -1584,7 +1471,7 @@ const getSearchFallbackSections = () => {
   return sections && typeof sections === "object" && !Array.isArray(sections)
     ? sections
     : {
-      categories: ["ط±ط¬ط§ظ„ظٹ", "ط­ط±ظٹظ…ظٹ", "ط£ط·ظپط§ظ„", "ط¹ط±ظˆط¶", "ط¢ط®ط± ظ‚ط·ط¹ط©"],
+      categories: ["�����", "�����", "�����", "����", "��� ����"],
       brands: ["Nike", "Adidas", "New Balance", "Air Jordan"],
     };
 };
@@ -1615,12 +1502,12 @@ const featuredCategoryDefinitions = [
   {
     id: "men",
     labelEn: "Men",
-    labelAr: "ط±ط¬ط§ظ„ظٹ",
+    labelAr: "�����",
     headlineEn: "Latest Men's Shoes",
-    headlineAr: "ط£ط­ط¯ط« ط£ط­ط°ظٹط© ط§ظ„ط±ط¬ط§ظ„",
+    headlineAr: "���� ����� ������",
     subtitleEn: "Fresh sneakers, daily picks, and standout sizes for every look.",
-    subtitleAr: "ط³ظ†ظٹظƒط±ط² ط¬ط¯ظٹط¯ط©طŒ ط§ط®طھظٹط§ط±ط§طھ ظٹظˆظ…ظٹط©طŒ ظˆظ…ظ‚ط§ط³ط§طھ ظ…ظ…ظٹط²ط© ظ„ظƒظ„ ط¥ط·ظ„ط§ظ„ط©.",
-    query: "Jordan 4 Nike Shox Air Force Adidas Campus ط±ط¬ط§ظ„ظٹ",
+    subtitleAr: "������ ����ɡ �������� ����ɡ ������� ����� ��� ������.",
+    query: "Jordan 4 Nike Shox Air Force Adidas Campus �����",
     href: "/shop/products?gender=men",
     examples: ["Jordan 4", "Nike Shox", "Air Force", "Adidas Campus"],
     test: (product, text) => productAudienceValues(product).includes("men") || /men|mens|male|.{3,5}/i.test(text),
@@ -1629,12 +1516,12 @@ const featuredCategoryDefinitions = [
   {
     id: "women",
     labelEn: "Women",
-    labelAr: "ط­ط±ظٹظ…ظٹ",
+    labelAr: "�����",
     headlineEn: "New Women's Collection",
-    headlineAr: "ظ…ط¬ظ…ظˆط¹ط© ط§ظ„ط­ط±ظٹظ…ظٹ ط§ظ„ط¬ط¯ظٹط¯ط©",
+    headlineAr: "������ ������� �������",
     subtitleEn: "Soft colors, bold silhouettes, and everyday favorites in one edit.",
-    subtitleAr: "ط£ظ„ظˆط§ظ† ظ†ط§ط¹ظ…ط©طŒ ظ‚طµط§طھ ط¬ط±ظٹط¦ط©طŒ ظˆظ…ظپط¶ظ„ط§طھ ظٹظˆظ…ظٹط© ظپظٹ ط§ط®طھظٹط§ط± ظˆط§ط­ط¯.",
-    query: "Nike Adidas Jordan ط­ط±ظٹظ…ظٹ",
+    subtitleAr: "����� ����ɡ ���� ����ɡ ������� ����� �� ������ ����.",
+    query: "Nike Adidas Jordan �����",
     href: "/shop/products?gender=women",
     examples: ["Nike", "Adidas", "Jordan"],
     test: (product, text) => productAudienceValues(product).includes("women") || /women|womens|female|ladies|.{3,5}/i.test(text),
@@ -1643,12 +1530,12 @@ const featuredCategoryDefinitions = [
   {
     id: "kids",
     labelEn: "Kids",
-    labelAr: "ط£ط·ظپط§ظ„",
+    labelAr: "�����",
     headlineEn: "Kids Essentials",
-    headlineAr: "ط£ط³ط§ط³ظٹط§طھ ط§ظ„ط£ط·ظپط§ظ„",
+    headlineAr: "������� �������",
     subtitleEn: "Built for school, play and movement.",
-    subtitleAr: "ظ…طµظ…ظ…ط© ظ„ظ„ظ…ط¯ط±ط³ط©طŒ ط§ظ„ظ„ط¹ط¨ ظˆط§ظ„ط­ط±ظƒط©.",
-    query: "kids children school play ط£ط·ظپط§ظ„",
+    subtitleAr: "����� ������ɡ ����� �������.",
+    query: "kids children school play �����",
     href: "/shop/products?gender=kids",
     examples: ["kids", "children", "school", "play"],
     test: (product, text) => productAudienceValues(product).includes("kids") || /kids?|children|child|.{3,5}/i.test(text),
@@ -1657,12 +1544,12 @@ const featuredCategoryDefinitions = [
   {
     id: "offers",
     labelEn: "Offers",
-    labelAr: "ط¹ط±ظˆط¶",
+    labelAr: "����",
     headlineEn: "Season Offers",
-    headlineAr: "ط¹ط±ظˆط¶ ط§ظ„ظ…ظˆط³ظ…",
+    headlineAr: "���� ������",
     subtitleEn: "Selected discounts and high-value picks for a limited time.",
-    subtitleAr: "ط®طµظˆظ…ط§طھ ظ…ط®طھط§ط±ط© ظˆظ‚ط·ط¹ ط¹ط§ظ„ظٹط© ط§ظ„ظ‚ظٹظ…ط© ظ„ظپطھط±ط© ظ…ط­ط¯ظˆط¯ط©.",
-    query: "offers sale discount ط¹ط±ظˆط¶",
+    subtitleAr: "������ ������ ���� ����� ������ ����� ������.",
+    query: "offers sale discount ����",
     href: "/shop/products?sale=true",
     examples: ["Sale", "Discount", "Offers", "Best Price"],
     test: (product, text) => hasSale(product) || /offer|offers|sale|discount|.{3,5}/i.test(text),
@@ -1671,12 +1558,12 @@ const featuredCategoryDefinitions = [
   {
     id: "crocs",
     labelEn: "Crocs",
-    labelAr: "ظƒط±ظˆظƒط³",
+    labelAr: "�����",
     headlineEn: "Crocs Picks",
-    headlineAr: "ط§ط®طھظٹط§ط±ط§طھ ظƒط±ظˆظƒط³",
+    headlineAr: "�������� �����",
     subtitleEn: "Easy comfort, summer colors, and quick everyday pairs.",
-    subtitleAr: "ط±ط§ط­ط© ط³ظ‡ظ„ط©طŒ ط£ظ„ظˆط§ظ† طµظٹظپظٹط©طŒ ظˆظ‚ط·ط¹ ظٹظˆظ…ظٹط© ط®ظپظٹظپط©.",
-    query: "crocs crocband classic clog slides ظƒط±ظˆظƒط³",
+    subtitleAr: "���� ���ɡ ����� ����ɡ ���� ����� �����.",
+    query: "crocs crocband classic clog slides �����",
     href: "/shop/products?type=crocs",
     examples: ["Crocs", "Crocband", "Classic Clog", "Slides"],
     test: (_product, text) => /crocs?|crocband|classics*clog|slides|.{3,5}/i.test(text),
@@ -1685,12 +1572,12 @@ const featuredCategoryDefinitions = [
   {
     id: "last-sizes",
     labelEn: "Last Sizes",
-    labelAr: "ط¢ط®ط± ط§ظ„ظ…ظ‚ط§ط³ط§طھ",
+    labelAr: "��� ��������",
     headlineEn: "Last Sizes",
-    headlineAr: "ط¢ط®ط± ط§ظ„ظ…ظ‚ط§ط³ط§طھ",
+    headlineAr: "��� ��������",
     subtitleEn: "Limited pairs with final sizes before they disappear.",
-    subtitleAr: "ط£ط²ظˆط§ط¬ ظ…ط­ط¯ظˆط¯ط© ط¨ط§ظ„ظ…ظ‚ط§ط³ط§طھ ط§ظ„ط£ط®ظٹط±ط© ظ‚ط¨ظ„ ظ†ظپط§ط¯ظ‡ط§.",
-    query: "last sizes final size ط¢ط®ط± ط§ظ„ظ…ظ‚ط§ط³ط§طھ",
+    subtitleAr: "����� ������ ��������� ������� ��� ������.",
+    query: "last sizes final size ��� ��������",
     href: "/shop/products?stock=last",
     examples: ["Last Sizes", "Final Size", "Limited Stock"],
     test: (_product, text) => /lasts*sizes|finals*size|.{3,5} .{3,5}|.{3,5} .{3,5} .{3,5}/i.test(text),
@@ -1830,7 +1717,7 @@ const cleanDisplayText = (value = "") =>
     .replace(/\uFFFD/g, "")
     .replace(/\u00e2\u0153\u00a8/g, "")
     .replace(/\u00e2\u20ac\u00a6/g, "...")
-    .replace(/\u0637\u0152/g, "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¥ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬أ¢â‚¬ع†ط·آ¢ط¢آ¢")
+    .replace(/\u0637\u0152/g, "ط·آ·ط¢آ·ط·آ¥أ¢â‚¬â„¢")
     .replace(/\s+/g, " ")
     .trim();
 const classificationColor = (option = {}) => option.color || "#6d28d9";
@@ -1844,7 +1731,7 @@ const storefrontLabelKey = (value = "") =>
     .trim()
     .toLowerCase();
 const storefrontLocalizedLabels = {
-  ar: { men: "ط±ط¬ط§ظ„ظٹ", women: "ط­ط±ظٹظ…ظٹ", kids: "ط£ط·ظپط§ظ„", bag: "ط´ظ†ط·", crocs: "ظƒط±ظˆظƒط³", slipper: "ط³ظ„ظٹط¨ط±", sneaker: "ط³ظ†ظٹظƒط±ط²" },
+  ar: { men: "�����", women: "�����", kids: "�����", bag: "���", crocs: "�����", slipper: "�����", sneaker: "������" },
   en: { men: "Men", women: "Women", kids: "Kids", bag: "Bags", crocs: "Crocs", slipper: "Slippers", sneaker: "Sneakers" },
 };
 const classificationLabel = (option = {}, lang = "ar") =>
@@ -2008,7 +1895,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
 
   const { product, image } = activeSlide;
   const ActiveIcon = activeCategory.icon;
-  const cta = isRtl ? "طھط³ظˆظ‘ظ‚ ط§ظ„ظپط¦ط©" : t("storefront.common.shopCategory", "Shop category");
+  const cta = isRtl ? "������ �����" : t("storefront.common.shopCategory");
   const headline = isRtl ? activeCategory.headlineAr : activeCategory.headlineEn;
   const subtitle = isRtl ? activeCategory.subtitleAr : activeCategory.subtitleEn;
   const categoryHref = activeCategory.href || `/shop/products?q=${encodeURIComponent(activeCategory.query || activeCategory.label)}`;
@@ -2029,7 +1916,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
               {activeCategory.label}
             </div>
             <div className="absolute start-4 top-4 z-20 flex gap-2">
-              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? 1 : -1); }} className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border shadow-sm backdrop-blur transition-[background-color,color,opacity,transform] duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 ${darkMode ? "border-transparent bg-white/10 text-white hover:bg-white/16 hover:text-white focus-visible:ring-white/35" : "border-slate-200 bg-white/90 text-slate-700 hover:bg-white hover:text-slate-950 focus-visible:ring-slate-300"}`} aria-label="ط¸ث†ط·آ§ط·ع¾ط·آ³ط·آ§ط·آ¨">
+              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? 1 : -1); }} className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border shadow-sm backdrop-blur transition-[background-color,color,opacity,transform] duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 ${darkMode ? "border-transparent bg-white/10 text-white hover:bg-white/16 hover:text-white focus-visible:ring-white/35" : "border-slate-200 bg-white/90 text-slate-700 hover:bg-white hover:text-slate-950 focus-visible:ring-slate-300"}`} aria-label="�������">
                 <ChevronLeft className={`h-4 w-4 ${isRtl ? "rotate-180" : ""}`} />
               </button>
               <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? -1 : 1); }} className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border shadow-sm backdrop-blur transition-[background-color,color,opacity,transform] duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 ${darkMode ? "border-transparent bg-white/10 text-white hover:bg-white/16 hover:text-white focus-visible:ring-white/35" : "border-slate-200 bg-white/90 text-slate-700 hover:bg-white hover:text-slate-950 focus-visible:ring-slate-300"}`} aria-label="Next slide">
@@ -2084,9 +1971,9 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
 
           <aside className={`hidden border-s p-5 shadow-[inset_1px_0_0_rgba(255,255,255,0.06)] lg:block lg:[direction:rtl] ${darkMode ? "border-white/10 bg-white/[0.045]" : "border-slate-200 bg-slate-50 shadow-[inset_1px_0_0_rgba(15,23,42,0.04)]"}`}>
             <div className={`mb-4 border-b pb-3 text-sm font-black ${darkMode ? "border-white/10 text-white" : "border-slate-200 text-slate-900"}`}>
-              طھط³ظˆظ‚ ط­ط³ط¨ ط§ظ„ظ‚ط³ظ…
+              ���� ��� �����
             </div>
-            <nav className="grid gap-1" aria-label="ط·آ§ط¸â€‍ط¸ظ¾ط·آ¦ط·آ§ط·ع¾ ط·آ§ط¸â€‍ط·آ±ط·آ¦ط¸ظ¹ط·آ³ط¸ظ¹ط·آ©">
+            <nav className="grid gap-1" aria-label="������ ��������">
               {categories.map((category) => {
                 const active = category.id === activeCategory.id;
                 return (
@@ -2115,9 +2002,9 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
 const mainHomeCategoryCards = [
   {
     id: "men",
-    titleAr: "ط±ط¬ط§ظ„ظٹ",
+    titleAr: "�����",
     titleEn: "Men",
-    subtitleAr: "ط£ط­ط¯ط« Nike ظˆ Adidas ظˆ Jordan",
+    subtitleAr: "���� Nike � Adidas � Jordan",
     subtitleEn: "Latest Nike, Adidas & Jordan",
     href: "/shop/products?gender=men",
     test: (product, text) => productAudienceValues(product).includes("men") || /men|mens|male|.{3,5}/i.test(text),
@@ -2125,9 +2012,9 @@ const mainHomeCategoryCards = [
   },
   {
     id: "women",
-    titleAr: "ط­ط±ظٹظ…ظٹ",
+    titleAr: "�����",
     titleEn: "Women",
-    subtitleAr: "ط±ط§ط­ط© ظˆط£ظ†ط§ظ‚ط© ظ„ظƒظ„ ظٹظˆظ…",
+    subtitleAr: "���� ������ ��� ���",
     subtitleEn: "Comfort and style for every day",
     href: "/shop/products?gender=women",
     test: (product, text) => productAudienceValues(product).includes("women") || /women|womens|female|ladies|.{3,5}/i.test(text),
@@ -2135,9 +2022,9 @@ const mainHomeCategoryCards = [
   },
   {
     id: "kids",
-    titleAr: "ط£ط·ظپط§ظ„",
+    titleAr: "�����",
     titleEn: "Kids",
-    subtitleAr: "ظ…ظ†ط§ط³ط¨ ظ„ظ„ظ…ط¯ط±ط³ط© ظˆط§ظ„ظ„ط¹ط¨ ظˆط§ظ„ط­ط±ظƒط©",
+    subtitleAr: "����� ������� ������ �������",
     subtitleEn: "Built for school, play and movement",
     href: "/shop/products?gender=kids",
     test: (product, text) => productAudienceValues(product).includes("kids") || /kids?|children|child|.{3,5}/i.test(text),
@@ -2145,9 +2032,9 @@ const mainHomeCategoryCards = [
   },
   {
     id: "offers",
-    titleAr: "ط¹ط±ظˆط¶",
+    titleAr: "����",
     titleEn: "Offers",
-    subtitleAr: "ط¹ط±ظˆط¶ ط§ظ„ظ…ظˆط³ظ…",
+    subtitleAr: "���� ������",
     subtitleEn: "Season offers",
     href: "/shop/products?sale=true",
     test: (product, text) => hasSale(product) || /offer|offers|sale|discount|.{3,5}/i.test(text),
@@ -2155,9 +2042,9 @@ const mainHomeCategoryCards = [
   },
   {
     id: "crocs",
-    titleAr: "ظƒط±ظˆظƒط³",
+    titleAr: "�����",
     titleEn: "Crocs",
-    subtitleAr: "ط±ط§ط­ط© ط³ظ‡ظ„ط© ظ„ظƒظ„ ظٹظˆظ…",
+    subtitleAr: "���� ���� ��� ���",
     subtitleEn: "Easy comfort for every day",
     href: "/shop/products?type=crocs",
     test: (_product, text) => /crocs?|crocband|classics*clog|slides|.{3,5}/i.test(text),
@@ -2165,9 +2052,9 @@ const mainHomeCategoryCards = [
   },
   {
     id: "last-sizes",
-    titleAr: "ط¢ط®ط± ط§ظ„ظ…ظ‚ط§ط³ط§طھ",
+    titleAr: "��� ��������",
     titleEn: "Last Sizes",
-    subtitleAr: "ظ‚ط·ط¹ ظ…ط­ط¯ظˆط¯ط© ظ‚ط¨ظ„ ظ…ط§ طھط®طھظپظٹ",
+    subtitleAr: "��� ������ ��� �� �����",
     subtitleEn: "Limited pairs before they disappear",
     href: "/shop/products?stock=last",
     test: (_product, text) => /lasts*sizes|finals*size|.{3,5} .{3,5}|.{3,5} .{3,5} .{3,5}/i.test(text),
@@ -2207,10 +2094,10 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
       <div className={`mb-8 flex items-end justify-between gap-3 md:mb-11 ${isRtl ? "text-right" : "text-left"}`}>
         <div>
           <div className={`mb-2 text-[10px] font-black uppercase tracking-[0.18em] ${darkMode ? "text-[#f8e7b3]" : "text-[#7c3aed]"}`}>
-            {sfText("storefront.home.shopByCategory", "ط§ظ„ظپط¦ط§طھ ط§ظ„ط±ط¦ظٹط³ظٹط©")}
+            {sfText("storefront.home.shopByCategory")}
           </div>
           <h2 className={`text-3xl font-black tracking-normal md:text-6xl ${darkMode ? "text-white/90" : "text-[#0f172a]"}`}>
-            ط§ظ„ظپط¦ط§طھ ط§ظ„ط±ط¦ظٹط³ظٹط©
+            ������ ��������
           </h2>
         </div>
         <Link to="/shop/products" className={`hidden min-h-11 items-center justify-center rounded-full border px-6 text-xs font-black shadow-[0_14px_34px_rgba(39,20,75,0.08)] transition hover:-translate-y-0.5 active:scale-[0.98] sm:inline-flex ${darkMode ? "border-white/10 bg-white/5 text-stone-200 hover:bg-white hover:text-stone-950 dark:hover:bg-white dark:hover:text-stone-950" : "border-slate-300 bg-white text-[#0f172a] hover:border-[#7c3aed]/50 hover:bg-white hover:text-[#0f172a]"}`}>
@@ -2238,7 +2125,7 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
                 <h3 className={`text-[3.3rem] font-black leading-none tracking-normal md:text-7xl lg:text-8xl ${darkMode ? "text-white" : "text-slate-900"}`}>{title}</h3>
                 <p className={`mt-4 max-w-[28rem] text-base font-bold leading-7 md:text-xl md:leading-8 ${darkMode ? "text-white/84" : "text-slate-600"}`}>{subtitle}</p>
                 <span className={`mt-7 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full px-6 text-sm font-black transition md:min-h-14 md:px-8 ${darkMode ? "bg-white text-stone-950 shadow-[0_16px_34px_rgba(0,0,0,0.26)] group-hover:bg-[#f8e7b3] group-hover:shadow-[0_18px_42px_rgba(248,231,179,0.26)]" : "bg-slate-900 text-white shadow-[0_16px_34px_rgba(15,23,42,0.16)] group-hover:bg-[#7c3aed] group-hover:shadow-[0_18px_42px_rgba(124,58,237,0.16)]"}`}>
-                  {isRtl ? "طھط³ظˆظ‚ ط§ظ„ط¢ظ†" : sfText("storefront.common.shopNow")}
+                  {isRtl ? "����� ����" : sfText("storefront.common.shopNow")}
                   <ChevronLeft className={`h-4 w-4 transition group-hover:-translate-x-1 ${isRtl ? "" : "rotate-180 group-hover:translate-x-1 group-hover:-translate-y-0"}`} />
                 </span>
               </div>
@@ -2569,7 +2456,7 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
       <div className={sectionTone}>
         <div className="mb-4 flex items-end justify-between gap-3 text-right md:mb-6">
           <div className="min-w-0">
-            <div className={`mb-1 text-[10px] font-black uppercase tracking-[0.18em] md:text-[11px] ${eyebrowClass}`}>{sfText("storefront.common.shopNow", "طھط³ظˆظ‚ ط§ظ„ط¢ظ†")}</div>
+            <div className={`mb-1 text-[10px] font-black uppercase tracking-[0.18em] md:text-[11px] ${eyebrowClass}`}>{sfText("storefront.common.shopNow")}</div>
             <h2 className={`text-[1.75rem] font-black tracking-normal md:text-4xl ${darkMode ? "text-stone-100" : "text-[#0f172a]"}`}>{title}</h2>
             {subtitle ? <p className={`mt-1 text-xs font-bold leading-5 md:text-base md:leading-6 ${darkMode ? "text-stone-400" : "text-[#475569]"}`}>{subtitle}</p> : null}
             <div className={`mt-2 h-1 w-16 rounded-full bg-gradient-to-l ${toneConfig.line || "from-[#7c3aed] to-[#f8e7b3]"}`} />
@@ -2705,8 +2592,8 @@ function HomeBrandsSection() {
     <section className={sectionClassName} dir={normalizeLanguage(lang) === "ar" ? "rtl" : "ltr"}>
       <div className="rounded-[2.15rem] border border-stone-200 bg-white px-4 py-5 shadow-[0_18px_54px_rgba(39,20,75,0.07)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(7,11,22,0.98),rgba(7,11,22,0.92))] dark:shadow-[0_24px_80px_rgba(0,0,0,0.28)] md:px-5 md:py-6">
         <div className="mb-4 text-center">
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7c3aed] dark:text-[#d8b4fe]">{sfText("storefront.home.brandsEyebrow", "ط§ظ„ط¨ط±ط§ظ†ط¯ط§طھ")}</p>
-          <h2 className="mt-1 text-2xl font-black tracking-normal text-stone-950 dark:text-white md:text-3xl">ط§ظ„ظپط¦ط§طھ ط§ظ„ط±ط¦ظٹط³ظٹط©</h2>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7c3aed] dark:text-[#d8b4fe]">{sfText("storefront.home.brandsEyebrow")}</p>
+          <h2 className="mt-1 text-2xl font-black tracking-normal text-stone-950 dark:text-white md:text-3xl">������ ��������</h2>
         </div>
         {isSingleBrand ? (
           <div className="mx-auto flex w-fit justify-center">
@@ -2733,7 +2620,7 @@ function HomeBrandsSection() {
                       />
                     </span>
                     <div className="mt-4 text-lg font-black text-white">{brandName}</div>
-                    <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-black text-white/80">ط§ظ„ط¨ط±ط§ظ†ط¯ط§طھ ط§ظ„ظ…ط®طھط§ط±ط©</div>
+                    <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-black text-white/80">��������� ��������</div>
                   </span>
                 </Link>
               );
@@ -2876,10 +2763,10 @@ function HomePage(props) {
       <FeaturedCategoriesHero products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} />
       <QuickSellingStrips lang={lang} />
       <ShopByMainCategories products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} />
-      <HomeProductSection title={sfText("storefront.nav.new", "ط¬ط¯ظٹط¯")} subtitle={sfText("storefront.home.newSubtitle")} viewAllTo="/shop/products?sort=newest" loading={loading || storefrontHome.loading} products={homeSections.newArrivals} railType="new" tone="new" {...props} />
+      <HomeProductSection title={sfText("storefront.nav.new")} subtitle={sfText("storefront.home.newSubtitle")} viewAllTo="/shop/products?sort=newest" loading={loading || storefrontHome.loading} products={homeSections.newArrivals} railType="new" tone="new" {...props} />
       <HomeProductSection title={sfText("storefront.nav.sale")} subtitle={sfText("storefront.home.saleSubtitle")} viewAllTo="/shop/products?sale=true" loading={saleLoading && !homeSections.sale.length} products={homeSections.sale} railType="sale" tone="sale" {...props} />
-      <HomeProductSection title={sfText("storefront.home.lastSizes", "ط¢ط®ط± ط§ظ„ظ…ظ‚ط§ط³ط§طھ")} subtitle={sfText("storefront.home.productOfWeekEmpty")} viewAllTo="/shop/products?lastSizes=true" loading={loading || storefrontHome.loading} products={homeSections.lastSizes} railType="last-size" tone="last" {...props} />
-      <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "ط§ظ„ط£ظƒط«ط± ط·ظ„ط¨ظ‹ط§" : "Trending"} subtitle={normalizeLanguage(lang) === "ar" ? "ط§ط®طھظٹط§ط±ط§طھ ط±ط§ط¦ط¬ط© ظ…ط¹ ط£ط­ط¯ط« ط§ظ„ظ…ظ†طھط¬ط§طھ ظƒط®ظٹط§ط± ط¨ط¯ظٹظ„." : "Popular picks, with newest products as fallback."} viewAllTo="/shop/products?sort=trending" loading={loading || storefrontHome.loading} products={homeSections.trending} railType="trending" tone="trending" {...props} />
+      <HomeProductSection title={sfText("storefront.home.lastSizes")} subtitle={sfText("storefront.home.productOfWeekEmpty")} viewAllTo="/shop/products?lastSizes=true" loading={loading || storefrontHome.loading} products={homeSections.lastSizes} railType="last-size" tone="last" {...props} />
+      <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "������ �����" : "Trending"} subtitle={normalizeLanguage(lang) === "ar" ? "�������� ����� �� ���� �������� ����� ����." : "Popular picks, with newest products as fallback."} viewAllTo="/shop/products?sort=trending" loading={loading || storefrontHome.loading} products={homeSections.trending} railType="trending" tone="trending" {...props} />
       <Reviews />
       <HomeBrandsSection />
       <LastPieceFinder open={lastPieceOpen} onClose={() => setLastPieceOpen(false)} />
@@ -3033,7 +2920,7 @@ function LastPieceFinder({ open, onClose }) {
     });
   }, [categories, criticalProducts]);
   const step = selectedSize ? "products" : selectedCategory ? "sizes" : "categories";
-  const title = step === "categories" ? "ط¢ط®ط± ظ‚ط·ط¹ط©" : step === "sizes" ? "ط§ط®طھط± ط§ظ„ظ…ظ‚ط§ط³" : `${selectedCategory} / ${selectedSize}`;
+  const title = step === "categories" ? "��� ����" : step === "sizes" ? "���� ������" : `${selectedCategory} / ${selectedSize}`;
 
   useEffect(() => {
     if (!open) {
@@ -3095,7 +2982,7 @@ function LastPieceFinder({ open, onClose }) {
             {selectedCategory ? <ChevronLeft className="h-5 w-5 rotate-180" /> : <X className="h-5 w-5" />}
           </button>
           <div className="min-w-0 text-center">
-            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f8e7b3]">ط¸â€¦ط¸â€ ط·ع¾ط·آ¬ط·آ§ط·ع¾ ط¸â€¦ط·آ­ط·آ¯ط¸ث†ط·آ¯ط·آ©</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f8e7b3]">منتجات محد�ˆدة</p>
             <h2 className="mt-1 truncate text-2xl font-black">{title}</h2>
           </div>
           <button onClick={onClose} className="grid h-11 w-11 place-items-center rounded-full border border-white/12 bg-white/10 text-white backdrop-blur transition active:scale-95" aria-label={sfText("storefront.common.close")}>
@@ -3118,7 +3005,7 @@ function LastPieceFinder({ open, onClose }) {
           {!loading && !error && step === "categories" ? (
             <div className="grid grid-cols-2 gap-2 pt-3 sm:gap-3 sm:pt-5">
               {displayedCategories.map((category) => {
-                const visual = { icon: <ShoppingBag className="h-4 w-4 sm:h-6 sm:w-6" />, text: "ط¸â€¦ط¸â€ ط·ع¾ط·آ¬ط·آ§ط·ع¾ ط¸â€¦ط·آ­ط·آ¯ط¸ث†ط·آ¯ط·آ©" };
+                const visual = { icon: <ShoppingBag className="h-4 w-4 sm:h-6 sm:w-6" />, text: "������ ���ψ��" };
                 return (
                   <button
                     key={category.label}
@@ -3130,14 +3017,14 @@ function LastPieceFinder({ open, onClose }) {
                       <span>
                         <span className="grid h-9 w-9 place-items-center rounded-full bg-[#f8e7b3] text-stone-950 shadow-[0_10px_26px_rgba(248,231,179,0.18)] sm:h-12 sm:w-12">{visual.icon}</span>
                         <span className="mt-2 block text-lg font-black leading-5 sm:mt-4 sm:text-3xl">{category.label}</span>
-                        <span className="mt-0.5 block text-[10.5px] font-bold leading-4 text-white/58 sm:mt-1 sm:text-sm sm:leading-5">ط¸â€¦ط¸â€ ط·ع¾ط·آ¬ط·آ§ط·ع¾ ط¸â€¦ط·آ­ط·آ¯ط¸ث†ط·آ¯ط·آ©</span>
+                        <span className="mt-0.5 block text-[10.5px] font-bold leading-4 text-white/58 sm:mt-1 sm:text-sm sm:leading-5">منتجات محد�ˆدة</span>
                       </span>
-                      <span className="w-fit rounded-full border border-white/12 bg-white/10 px-2 py-1 text-[10px] font-black text-[#f8e7b3] sm:px-3 sm:text-xs">{category.count} ط¸â€¦ط¸â€ ط·ع¾ط·آ¬</span>
+                      <span className="w-fit rounded-full border border-white/12 bg-white/10 px-2 py-1 text-[10px] font-black text-[#f8e7b3] sm:px-3 sm:text-xs">{category.count} منتج</span>
                     </span>
                   </button>
                 );
               })}
-              {!displayedCategories.length ? <LastPieceEmpty text="ط¸â€‍ط·آ§ ط·ع¾ط¸ث†ط·آ¬ط·آ¯ ط¸â€¦ط¸â€ ط·ع¾ط·آ¬ط·آ§ط·ع¾ ط¸â€¦ط¸â€ ط·آ®ط¸ظ¾ط·آ¶ط·آ© ط·آ§ط¸â€‍ط¸â€¦ط·آ®ط·آ²ط¸ث†ط¸â€  ط·آ­ط·آ§ط¸â€‍ط¸ظ¹ط¸â€¹ط·آ§" /> : null}
+              {!displayedCategories.length ? <LastPieceEmpty text="���� �ʈ�� ������ ������ ��Ǟ���҈� ���Ǟ���" /> : null}
             </div>
           ) : null}
 
@@ -3154,7 +3041,7 @@ function LastPieceFinder({ open, onClose }) {
                   </button>
                 ))}
               </div>
-              {!sizeOptions.length ? <LastPieceEmpty text="ط¸â€‍ط·آ§ ط·ع¾ط¸ث†ط·آ¬ط·آ¯ ط¸â€¦ط¸â€ ط·ع¾ط·آ¬ط·آ§ط·ع¾ ط¸â€¦ط¸â€ ط·آ®ط¸ظ¾ط·آ¶ط·آ© ط·آ§ط¸â€‍ط¸â€¦ط·آ®ط·آ²ط¸ث†ط¸â€  ط·آ­ط·آ§ط¸â€‍ط¸ظ¹ط¸â€¹ط·آ§" /> : null}
+              {!sizeOptions.length ? <LastPieceEmpty text="���� �ʈ�� ������ ������ ��Ǟ���҈� ���Ǟ���" /> : null}
             </div>
           ) : null}
 
@@ -3236,13 +3123,13 @@ const ProductRail = memo(function ProductRail({ title, subtitle, products, loadi
     <section className="sf-reveal mx-auto max-w-[1200px] px-4 py-2 md:py-4">
       <div className="mb-2 flex items-end justify-between gap-3 text-right md:mb-4 md:gap-4">
         <div className="min-w-0">
-          <div className="mb-0.5 text-[9.5px] font-black uppercase tracking-[0.15em] text-[#7c3aed] dark:text-[#d8b4fe] md:mb-1 md:text-[11px] md:tracking-[0.18em]">{t("storefront.common.shopNow", "طھط³ظˆظ‚ ط§ظ„ط¢ظ†")}</div>
+          <div className="mb-0.5 text-[9.5px] font-black uppercase tracking-[0.15em] text-[#7c3aed] dark:text-[#d8b4fe] md:mb-1 md:text-[11px] md:tracking-[0.18em]">{t("storefront.common.shopNow")}</div>
           <h2 className="text-[1.25rem] font-black tracking-normal md:text-3xl">{title}</h2>
           {subtitle ? <p className="mt-0.5 text-[11px] font-bold text-stone-500 dark:text-stone-400 md:mt-1 md:text-sm">{subtitle}</p> : null}
           <div className="mt-1 h-0.5 w-10 rounded-full bg-gradient-to-l from-[#7c3aed] to-[#d8b4fe] md:mt-1.5 md:h-1 md:w-14" />
         </div>
         <Link to="/shop/products" className="mb-0.5 inline-flex min-h-8 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-black text-stone-700 shadow-[0_10px_26px_rgba(39,20,75,0.07)] transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 hover:text-[#6d28d9] active:scale-[0.98] md:mb-1 md:min-h-10 md:px-5 md:py-2 md:text-xs dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
-          {t("common.viewAll", "ط¹ط±ط¶ ط§ظ„ظƒظ„")}
+          {t("common.viewAll")}
         </Link>
       </div>
       <div className="sf-product-rail sf-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-1.5 md:flex-nowrap md:gap-4 md:overflow-hidden md:pb-1">
@@ -3267,8 +3154,8 @@ function MiniRailEmpty() {
       <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-[#8b5cf6]/20 bg-[#7c3aed]/14 text-[#c4b5fd]">
         <Sparkles className="h-6 w-6" />
       </span>
-      <h3 className="mt-3 text-lg font-black text-stone-50">{t("storefront.products.emptyRailTitle", "ظ„ط§ طھظˆط¬ط¯ ظ…ظ†طھط¬ط§طھ ط¨ط¹ط¯")}</h3>
-      <p className="mt-1 text-sm font-bold text-stone-400">{t("storefront.products.comingSoon", "ط¸â€ڑط·آ±ط¸ظ¹ط·آ¨ط¸â€¹ط·آ§")}</p>
+      <h3 className="mt-3 text-lg font-black text-stone-50">{t("storefront.products.emptyRailTitle")}</h3>
+      <p className="mt-1 text-sm font-bold text-stone-400">{t("storefront.products.comingSoon")}</p>
     </div>
   );
 }
@@ -3367,7 +3254,7 @@ function GuidedGenderStep({ options = [], selectedGender, lang, onSelect }) {
   return (
     <section className="scroll-mt-20">
       <div className="mb-2 flex items-end justify-between gap-2 md:mb-2.5 md:gap-3">
-        <SectionIntro eyebrow={t("storefront.filters.gender", "ط§ظ„ط¬ظ†ط³")} title={t("storefront.products.chooseWearer", "ط§ط®طھط± ط§ظ„ط¬ظ†ط³")} subtitle={t("storefront.products.chooseWearerSubtitle", "ط§ط®طھط± ط§ظ„ط¬ظ†ط³ ظ„ط±ط¤ظٹط© ط§ظ„ط£ظ†ظ…ط§ط· ط§ظ„ظ…ظ†ط§ط³ط¨ط©.")} compact />
+        <SectionIntro eyebrow={t("storefront.filters.gender")} title={t("storefront.products.chooseWearer")} subtitle={t("storefront.products.chooseWearerSubtitle")} compact />
       </div>
       <div className="flex flex-wrap gap-1.5 md:gap-2">
         {options.map((option) => {
@@ -3420,12 +3307,12 @@ function GuidedGradeStep({ options = [], selectedGrade, lang, disabled, loading,
                 <Icon className="h-3 w-3" />
               </span>
               <span className="block truncate text-[11px] font-black leading-4 md:text-[13px] md:leading-5">{classificationLabel(option, lang)}</span>
-              {Number.isFinite(Number(count)) ? <span className="mr-auto text-[9px] font-bold leading-3 text-stone-500 dark:text-stone-400 md:text-[10px] md:leading-4">{t("storefront.products.productCount", "{{count}} items", { count })}</span> : null}
+              {Number.isFinite(Number(count)) ? <span className="mr-auto text-[9px] font-bold leading-3 text-stone-500 dark:text-stone-400 md:text-[10px] md:leading-4">{t("storefront.products.productCount", undefined, { count })}</span> : null}
             </button>
           );
         })}
       </div>
-      {!loading && !options.length ? <EmptyState title={t("storefront.products.noGradesAvailable", "No grades available")} text={t("storefront.products.goBackChooseAnother", "Go back and choose another category.")} /> : null}
+      {!loading && !options.length ? <EmptyState title={t("storefront.products.noGradesAvailable")} text={t("storefront.products.goBackChooseAnother")} /> : null}
     </div>
   );
 }
@@ -3463,12 +3350,12 @@ function GuidedProductTypeStep({ options = [], selectedProductType, lang, disabl
                 <Icon className="h-3 w-3" />
               </span>
               <span className="block truncate text-[11px] font-black leading-4 md:text-[13px] md:leading-5">{classificationLabel(option, lang)}</span>
-              {Number.isFinite(Number(count)) ? <span className="mr-auto text-[9px] font-bold leading-3 text-stone-500 dark:text-stone-400 md:text-[10px] md:leading-4">{t("storefront.products.productCount", "{{count}} items", { count })}</span> : null}
+              {Number.isFinite(Number(count)) ? <span className="mr-auto text-[9px] font-bold leading-3 text-stone-500 dark:text-stone-400 md:text-[10px] md:leading-4">{t("storefront.products.productCount", undefined, { count })}</span> : null}
             </button>
           );
         })}
       </div>
-      {!loading && !options.length ? <EmptyState title={t("storefront.products.noTypesForCategory", "No types available for this category")} text={t("storefront.products.goBackChooseAnother", "Go back and choose another category.")} /> : null}
+      {!loading && !options.length ? <EmptyState title={t("storefront.products.noTypesForCategory")} text={t("storefront.products.goBackChooseAnother")} /> : null}
     </div>
   );
 }
@@ -3485,12 +3372,12 @@ function GuidedSizeFilter({ sizes = [], selectedSize, onSelect, disabled }) {
     <div className={`mb-2 rounded-[0.9rem] border border-stone-200 bg-white p-2 shadow-[0_10px_24px_rgba(39,20,75,0.05)] dark:border-white/10 dark:bg-[#0b1020] md:mb-3 md:rounded-[1.15rem] md:p-2.5 ${disabled ? "opacity-55" : ""}`}>
       <div className="mb-1.5 flex items-center justify-between gap-2 md:mb-2 md:gap-3">
         <div>
-          <p className="text-[8px] font-black uppercase tracking-[0.14em] text-[#7c3aed] md:text-[9px] md:tracking-[0.18em]">{t("storefront.filters.sizeFilter", "Size filter")}</p>
-          <h3 className="text-[11px] font-black md:text-xs">{t("storefront.filters.availableSize", "Available sizes")}</h3>
+          <p className="text-[8px] font-black uppercase tracking-[0.14em] text-[#7c3aed] md:text-[9px] md:tracking-[0.18em]">{t("storefront.filters.sizeFilter")}</p>
+          <h3 className="text-[11px] font-black md:text-xs">{t("storefront.filters.availableSize")}</h3>
         </div>
         {selectedSize ? (
           <button type="button" onClick={() => onSelect("")} className="rounded-full bg-stone-100 px-2 py-1 text-[9.5px] font-black text-stone-600 transition hover:bg-stone-950 hover:text-white dark:bg-white/8 dark:text-stone-200 md:px-3 md:py-1 md:text-[11px]">
-            {t("storefront.filters.showAllSizes", "Show all sizes")}
+            {t("storefront.filters.showAllSizes")}
           </button>
         ) : null}
       </div>
@@ -3501,7 +3388,7 @@ function GuidedSizeFilter({ sizes = [], selectedSize, onSelect, disabled }) {
           onClick={() => onSelect("")}
           className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-black transition md:px-3 md:py-1.5 md:text-xs ${!selectedSize ? "border-[#7c3aed] bg-[#f5f3ff] text-[#6d28d9]" : "border-stone-200 bg-stone-50 text-stone-700 hover:border-[#7c3aed]/50 dark:border-white/10 dark:bg-white/5 dark:text-stone-200"}`}
         >
-          {t("common.all", "All")}
+          {t("common.all")}
         </button>
         {sizes.map((item) => {
           const active = String(selectedSize) === String(item.size);
@@ -3522,7 +3409,7 @@ function GuidedSizeFilter({ sizes = [], selectedSize, onSelect, disabled }) {
             </button>
           );
         })}
-        {!sizes.length ? <span className="rounded-full border border-dashed border-stone-200 px-2.5 py-1 text-[10px] font-bold text-stone-400 dark:border-white/10 md:px-3 md:py-1.5 md:text-xs">{t("storefront.filters.sizesAppearAfterType", "Sizes appear after selecting a type")}</span> : null}
+        {!sizes.length ? <span className="rounded-full border border-dashed border-stone-200 px-2.5 py-1 text-[10px] font-bold text-stone-400 dark:border-white/10 md:px-3 md:py-1.5 md:text-xs">{t("storefront.filters.sizesAppearAfterType")}</span> : null}
       </div>
     </div>
   );
@@ -3547,8 +3434,8 @@ function PremiumFilterPanel({ sections, lang, buildFilterUrl, clearUrl, activeFi
             <SlidersHorizontal className="h-4 w-4" />
           </span>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#7c3aed]">{t("storefront.filters.curatedFilters", "Curated filters")}</p>
-            <h2 className="text-sm font-black text-stone-950 dark:text-white">{t("storefront.filters.quickPremium", "Quick premium filters")}</h2>
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#7c3aed]">{t("storefront.filters.curatedFilters")}</p>
+            <h2 className="text-sm font-black text-stone-950 dark:text-white">{t("storefront.filters.quickPremium")}</h2>
           </div>
         </div>
         {activeFilterCount ? (
@@ -3556,7 +3443,7 @@ function PremiumFilterPanel({ sections, lang, buildFilterUrl, clearUrl, activeFi
             to={clearUrl}
             className="rounded-full border border-stone-200 bg-white/80 px-4 py-2 text-[11px] font-black text-stone-600 shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:border-[#7c3aed]/35 hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
           >
-            {t("storefront.filters.clearFilters", "Clear filters")}
+            {t("storefront.filters.clearFilters")}
           </Link>
         ) : null}
       </div>
@@ -3590,7 +3477,7 @@ function PremiumFilterSection({ section, lang, buildFilterUrl }) {
         {section.value ? <span className="h-2 w-2 rounded-full bg-[#d8b4fe] shadow-[0_0_18px_rgba(216,180,254,0.85)]" /> : null}
       </div>
       <div className="relative flex flex-wrap gap-2">
-        <PremiumFilterChip to={buildFilterUrl(section.key, "")} active={!section.value} icon={Tag} label={t("common.all", "All")} />
+        <PremiumFilterChip to={buildFilterUrl(section.key, "")} active={!section.value} icon={Tag} label={t("common.all")} />
         {options.map((option) => (
           <PremiumFilterChip
             key={option.id || option.value}
@@ -3636,7 +3523,7 @@ function MobileFilterTrigger({ activeFilterCount = 0, onOpen }) {
       style={{ bottom: "calc(var(--mobile-bottom-nav-height, 76px) + env(safe-area-inset-bottom) + 1rem)" }}
     >
       <SlidersHorizontal className="h-4 w-4" />
-      <span>{t("storefront.filters.filters", "Filters")}</span>
+      <span>{t("storefront.filters.filters")}</span>
       {activeFilterCount ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[#d8b4fe] px-1 text-[10px] text-stone-950">{activeFilterCount}</span> : null}
     </button>
   );
@@ -3648,15 +3535,15 @@ function MobileFilterDrawer({ open, sections, lang, draftFilters, setDraftFilter
   if (!open) return null;
   return (
     <div className="sf-mobile-filter-drawer fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
-      <button type="button" className="absolute inset-0 bg-stone-950/55 backdrop-blur-sm" onClick={onClose} aria-label={t("storefront.filters.closeFilters", "Close filters")} />
+      <button type="button" className="absolute inset-0 bg-stone-950/55 backdrop-blur-sm" onClick={onClose} aria-label={t("storefront.filters.closeFilters")} />
       <div className="absolute inset-x-0 bottom-0 max-h-[82dvh] overflow-hidden rounded-t-[1.5rem] border border-white/10 bg-[linear-gradient(180deg,#101426_0%,#070b16_100%)] text-white shadow-[0_-24px_70px_rgba(0,0,0,0.42)]">
         <div className="mx-auto mt-2.5 h-1.5 w-10 rounded-full bg-white/20" />
         <div className="flex items-center justify-between gap-3 border-b border-white/10 px-3.5 py-3">
           <div>
-            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#d8b4fe]">{t("storefront.filters.premiumFilters", "Premium filters")}</p>
-            <h2 className="text-base font-black">{t("storefront.filters.chooseWhatFits", "Choose what fits")}</h2>
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#d8b4fe]">{t("storefront.filters.premiumFilters")}</p>
+            <h2 className="text-base font-black">{t("storefront.filters.chooseWhatFits")}</h2>
           </div>
-          <button type="button" onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/5 transition active:scale-95" aria-label={t("common.close", "Close")}>
+          <button type="button" onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/5 transition active:scale-95" aria-label={t("common.close")}>
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -3667,10 +3554,10 @@ function MobileFilterDrawer({ open, sections, lang, draftFilters, setDraftFilter
         </div>
         <div className="absolute inset-x-0 bottom-0 flex gap-2 border-t border-white/10 bg-[#070b16]/92 px-3 py-2.5 pb-[calc(env(safe-area-inset-bottom)+0.625rem)] backdrop-blur-xl">
           <button type="button" onClick={onApply} className="flex-1 rounded-xl bg-gradient-to-l from-[#7c3aed] to-[#111827] px-4 py-2.5 text-sm font-black text-white shadow-[0_14px_34px_rgba(124,58,237,0.32)] active:scale-[0.98]">
-            {t("storefront.filters.applyFilters", "Apply filters")}
+            {t("storefront.filters.applyFilters")}
           </button>
           <button type="button" onClick={onReset} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-black text-white/80 active:scale-[0.98]">
-            {t("common.reset", "Reset")}
+            {t("common.reset")}
           </button>
         </div>
       </div>
@@ -3695,7 +3582,7 @@ function MobileFilterSection({ section, lang, draftValue, onSelect }) {
         </div>
       </div>
       <div className="sf-scroll flex gap-1.5 overflow-x-auto pb-0.5">
-        <MobileFilterChip active={!draftValue} label={t("common.all", "All")} icon={Tag} onClick={() => onSelect("")} />
+        <MobileFilterChip active={!draftValue} label={t("common.all")} icon={Tag} onClick={() => onSelect("")} />
         {options.map((option) => (
           <MobileFilterChip
             key={option.id || option.value}
@@ -3740,18 +3627,18 @@ function filterOptionCount(option = {}) {
 function filterOptionIcon(sectionKey, option = {}, lang = "ar") {
   const label = `${classificationLabel(option, lang)} ${option.value || ""}`.toLowerCase();
   if (sectionKey === "gender") {
-    if (label.includes("kid") || label.includes("child") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ·ط¢آ¹ط£آ¢أ¢â€ڑآ¬ط¢آ ") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ·ط¢آ¹ط£آ¢أ¢â€ڑآ¬ط¢آ ")) return Baby;
-    if (label.includes("women") || label.includes("woman") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ³ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹")) return Heart;
+    if (label.includes("kid") || label.includes("child") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¸ط·آ¸ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬أ¢â‚¬ع†") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¸ط·آ¸ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬أ¢â‚¬ع†")) return Baby;
+    if (label.includes("women") || label.includes("woman") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ±ط·آ·ط¢آ¸ط·آ¸ط¢آ¹ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¦ط·آ·ط¢آ¸ط·آ¸ط¢آ¹") || label.includes("ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ³ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¦ط·آ·ط¢آ¸ط·آ¸ط¢آ¹")) return Heart;
     return Users;
   }
   if (sectionKey === "product_type") {
-    if (label.includes("bag") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ´ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¹ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹ط¢آ©ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ©")) return Briefcase;
-    if (label.includes("sneaker") || label.includes("shoe") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¦ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬أ¢â‚¬ع†ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ«ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ·ط¢آ¢ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ´ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ°ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¥ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â‚¬â€چط¢آ¢")) return Footprints;
+    if (label.includes("bag") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ´ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ­ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ·ط¢آ¸ط·آ¸ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ©")) return Briefcase;
+    if (label.includes("sneaker") || label.includes("shoe") || label.includes("ط·آ·ط¢آ¸ط·آ¦أ¢â‚¬â„¢ط·آ·ط¢آ¸ط·آ«أ¢â‚¬آ ط·آ·ط¢آ·ط·آ¹ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ´ط·آ·ط¢آ¸ط·آ¸ط¢آ¹") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ°ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ·ط¥â€�➢")) return Footprints;
     return ShoppingBag;
   }
   if (sectionKey === "grade") {
-    if (label.includes("mirror") || label.includes("original") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ«ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ·ط¢آ¢ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ·ط¢آ¹ط£آ¢أ¢â€ڑآ¬ط¢آ ")) return Crown;
-    if (label.includes("import") || label.includes("vietnam") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¦")) return Gem;
+    if (label.includes("mirror") || label.includes("original") || label.includes("ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ¸ط·آ«أ¢â‚¬آ ط·آ·ط¢آ·ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ¬ط·آ·ط¢آ¸ط·آ¸ط¢آ¹ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬أ¢â‚¬ع†")) return Crown;
+    if (label.includes("import") || label.includes("vietnam") || label.includes("ط·آ·ط¢آ¸ط·آ¸ط¢آ¾ط·آ·ط¢آ¸ط·آ¸ط¢آ¹ط·آ·ط¢آ·ط·آ¹ط¢آ¾ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¦")) return Gem;
     return ShieldCheck;
   }
   return Sparkles;
@@ -3760,18 +3647,18 @@ function filterOptionIcon(sectionKey, option = {}, lang = "ar") {
 const swatchColorStyle = (label = "") => {
   const value = String(label || "").toLowerCase();
   const color =
-    /(black|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ³ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ«ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ·ط¢آ¢ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¯|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ³ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ«ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ·ط¢آ¢ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¯|charcoal)/.test(value) ? "#111827" :
-    /(white|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¶|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¶|ivory|cream|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ«ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ·ط¢آ¢ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¾|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ«ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ·ط¢آ¢ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¾|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¦ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬أ¢â‚¬ع†ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹)/.test(value) ? "#f8fafc" :
-    /(burgundy|maroon|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹)/.test(value) ? "#7f1d1d" :
-    /(red|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ±|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ±)/.test(value) ? "#dc2626" :
-    /(blue|navy|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ²ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¹ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹ط¢آ©|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ²ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¹ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹ط¢آ©|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¦ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬أ¢â‚¬ع†ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ·ط¢آ¹ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹)/.test(value) ? "#2563eb" :
-    /(green|olive|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ®ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¶ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ±|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ®ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¶ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ±|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ²ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹)/.test(value) ? "#16a34a" :
-    /(brown|mocha|coffee|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¦ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬أ¢â‚¬ع†ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¥ط£آ¢أ¢â€ڑآ¬أ¢â€‍آ¢)/.test(value) ? "#7c4a2d" :
-    /(beige|tan|camel|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¬|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ·ط¢آ¹ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹)/.test(value) ? "#d6b88f" :
-    /(grey|gray|silver|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¯ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¶ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ³ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ·ط¢آ¹ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ±)/.test(value) ? "#a1a1aa" :
-    /(pink|rose|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ«ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ·ط¢آ¢ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¯ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹)/.test(value) ? "#fb7185" :
-    /(purple|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ³ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹)/.test(value) ? "#7c3aed" :
-    /(yellow|gold|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آµط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ±|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آµط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ±|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ°ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¥ط£آ¢أ¢â€ڑآ¬أ¢â€‍آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹)/.test(value) ? "#facc15" :
+    /(black|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ³ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ«ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¯|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ³ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ«ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¯|charcoal)/.test(value) ? "#111827" :
+    /(white|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¶|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¶|ivory|cream|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ«ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¾|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ«ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¾|ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¦ط£آ¢أ¢â€ڑآ¬أ¢â€‍آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹)/.test(value) ? "#f8fafc" :
+    /(burgundy|maroon|ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¹ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹)/.test(value) ? "#7f1d1d" :
+    /(red|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±)/.test(value) ? "#dc2626" :
+    /(blue|navy|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ²ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ²ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©|ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¦ط£آ¢أ¢â€ڑآ¬أ¢â€‍آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹)/.test(value) ? "#2563eb" :
+    /(green|olive|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ®ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¶ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ®ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¶ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ²ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¹ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹)/.test(value) ? "#16a34a" :
+    /(brown|mocha|coffee|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹|ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¦ط£آ¢أ¢â€ڑآ¬أ¢â€‍آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ·ط¥â€��‍�)/.test(value) ? "#7c4a2d" :
+    /(beige|tan|camel|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¬|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹)/.test(value) ? "#d6b88f" :
+    /(grey|gray|silver|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¯ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹|ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¶ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ³ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±)/.test(value) ? "#a1a1aa" :
+    /(pink|rose|ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ«ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¯ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹)/.test(value) ? "#fb7185" :
+    /(purple|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ³ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹)/.test(value) ? "#7c3aed" :
+    /(yellow|gold|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آµط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آµط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ°ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ·ط¥â€��‍�ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹)/.test(value) ? "#facc15" :
     "#8b5cf6";
   return { background: color };
 };
@@ -3814,59 +3701,59 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
   const nextLanguage = currentLanguage === "ar" ? "en" : "ar";
   const languageLabel =
     nextLanguage === "ar"
-      ? t("storefront.header.languageArabic", "Arabic")
-      : t("storefront.header.languageEnglish", "English");
+      ? t("storefront.header.languageArabic")
+      : t("storefront.header.languageEnglish");
   const getMobileCategoryChipIcon = (keyOrLabel = "") => {
     const normalized = String(keyOrLabel || "").toLowerCase();
-    if (normalized.includes("men") || normalized.includes("ط±ط¬ط§ظ„ظٹ")) return Shirt;
-    if (normalized.includes("women") || normalized.includes("ط­ط±ظٹظ…ظٹ")) return UserRound;
-    if (normalized.includes("kids") || normalized.includes("ط£ط·ظپط§ظ„") || normalized.includes("ط§ط·ظپط§ظ„")) return Baby;
-    if (normalized.includes("bag") || normalized.includes("ط´ظ†ط·")) return ShoppingBag;
-    if (normalized.includes("crocs") || normalized.includes("ظƒط±ظˆظƒط³")) return Footprints;
-    if (normalized.includes("slipper") || normalized.includes("ط³ظ„ظٹط¨ط±") || normalized.includes("sandal")) return Footprints;
+    if (normalized.includes("men") || normalized.includes("�����")) return Shirt;
+    if (normalized.includes("women") || normalized.includes("�����")) return UserRound;
+    if (normalized.includes("kids") || normalized.includes("�����") || normalized.includes("�����")) return Baby;
+    if (normalized.includes("bag") || normalized.includes("���")) return ShoppingBag;
+    if (normalized.includes("crocs") || normalized.includes("�����")) return Footprints;
+    if (normalized.includes("slipper") || normalized.includes("�����") || normalized.includes("sandal")) return Footprints;
     return Tag;
   };
   const mobileCategoryChips = [
-    { key: "men", label: "ط±ط¬ط§ظ„ظٹ", to: "/shop/products?gender=men", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "men" },
-    { key: "women", label: "ط­ط±ظٹظ…ظٹ", to: "/shop/products?gender=women", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "women" },
-    { key: "kids", label: "ط£ط·ظپط§ظ„", to: "/shop/products?gender=kids", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "kids" },
-    { key: "bags", label: "ط´ظ†ط·", to: "/shop/products?type=bags", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("type") === "bags" },
-    { key: "crocs", label: "ظƒط±ظˆظƒط³", to: "/shop/products?type=crocs", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("type") === "crocs" },
+    { key: "men", label: "�����", to: "/shop/products?gender=men", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "men" },
+    { key: "women", label: "�����", to: "/shop/products?gender=women", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "women" },
+    { key: "kids", label: "�����", to: "/shop/products?gender=kids", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "kids" },
+    { key: "bags", label: "���", to: "/shop/products?type=bags", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("type") === "bags" },
+    { key: "crocs", label: "�����", to: "/shop/products?type=crocs", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("type") === "crocs" },
   ];
   const searchPlaceholders = getSearchPlaceholders();
   const announcementItems = [
-    t("storefront.header.announcements.fastShipping", "Fast shipping in Egypt"),
-    t("storefront.header.announcements.exchange", "14-day exchange"),
-    t("storefront.header.announcements.cod", "Cash on delivery"),
-    t("storefront.header.announcements.premium", "Mirror Premium products"),
-    t("storefront.header.announcements.todayDeals", "Today's deals"),
+    t("storefront.header.announcements.fastShipping"),
+    t("storefront.header.announcements.exchange"),
+    t("storefront.header.announcements.cod"),
+    t("storefront.header.announcements.premium"),
+    t("storefront.header.announcements.todayDeals"),
   ];
   const headerCategoryItems = [
-    { label: t("storefront.nav.men", "ط±ط¬ط§ظ„ظٹ"), to: "/shop/products?gender=men" },
-    { label: t("storefront.nav.women", "ط­ط±ظٹظ…ظٹ"), to: "/shop/products?gender=women" },
-    { label: t("storefront.nav.kids", "ط£ط·ظپط§ظ„"), to: "/shop/products?gender=kids" },
-    { label: "ط´ظ†ط·", to: "/shop/products?type=bags" },
-    { label: "ظƒط±ظˆظƒط³", to: "/shop/products?type=crocs" },
-    { label: "ط³ظ„ظٹط¨ط±", to: "/shop/products?type=slippers" },
+    { label: t("storefront.nav.men"), to: "/shop/products?gender=men" },
+    { label: t("storefront.nav.women"), to: "/shop/products?gender=women" },
+    { label: t("storefront.nav.kids"), to: "/shop/products?gender=kids" },
+    { label: "���", to: "/shop/products?type=bags" },
+    { label: "�����", to: "/shop/products?type=crocs" },
+    { label: "�����", to: "/shop/products?type=slippers" },
   ];
   const utilityItems = [
     { label: "WhatsApp", to: "https://wa.me/", icon: <MessageCircle className="h-3.5 w-3.5" />, external: true },
-    { label: t("storefront.header.trackOrder", "Track order"), to: "/shop/track", icon: <PackageSearch className="h-3.5 w-3.5" /> },
-    { label: t("storefront.header.wishlist", "Wishlist"), to: "/shop/wishlist", icon: <Heart className="h-3.5 w-3.5" /> },
-    { label: t("storefront.header.account", "Account"), to: "/shop/account", icon: <User className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.trackOrder"), to: "/shop/track", icon: <PackageSearch className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.wishlist"), to: "/shop/wishlist", icon: <Heart className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.account"), to: "/shop/account", icon: <User className="h-3.5 w-3.5" /> },
   ];
   const navItems = [
-    { label: t("storefront.nav.categories", "Categories"), to: "/shop/products" },
-    { label: t("storefront.nav.sale", "Sale"), to: "/shop/sale" },
-    { label: t("storefront.nav.new", "New"), to: "/shop/products?sort=new" },
-    { label: t("storefront.nav.men", "Men"), to: "/shop/products?gender=men" },
-    { label: t("storefront.nav.women", "Women"), to: "/shop/products?gender=women" },
-    { label: t("storefront.nav.kids", "Kids"), to: "/shop/products?gender=kids" },
+    { label: t("storefront.nav.categories"), to: "/shop/products" },
+    { label: t("storefront.nav.sale"), to: "/shop/sale" },
+    { label: t("storefront.nav.new"), to: "/shop/products?sort=new" },
+    { label: t("storefront.nav.men"), to: "/shop/products?gender=men" },
+    { label: t("storefront.nav.women"), to: "/shop/products?gender=women" },
+    { label: t("storefront.nav.kids"), to: "/shop/products?gender=kids" },
   ];
   const themeIsDark = effectiveTheme === "dark";
   const themeToggleLabel = themeIsDark
-    ? t("storefront.header.lightMode", "Switch to light mode")
-    : t("storefront.header.darkMode", "Switch to dark mode");
+    ? t("storefront.header.lightMode")
+    : t("storefront.header.darkMode");
   const menuOpen = Boolean(mobileMenuOpen);
   const mobilePortalTarget = typeof document !== "undefined" ? document.body : null;
   const mobileMenuScrollRef = useRef(0);
@@ -4062,7 +3949,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
   const handleVoiceSearch = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      toast.error(sfText("storefront.toasts.voiceUnsupported", "Voice search is not supported in this browser."));
+      toast.error(sfText("storefront.toasts.voiceUnsupported"));
       return;
     }
     const recognition = new SpeechRecognition();
@@ -4083,13 +3970,13 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
       selectedVisualImageRef.current = file;
       const supportedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
       if (!supportedTypes.has(file.type)) {
-        toast.error(sfText("storefront.toasts.unsupportedImageType", "Unsupported image type. Use JPG, PNG, or WEBP."));
+        toast.error(sfText("storefront.toasts.unsupportedImageType"));
         selectedVisualImageRef.current = null;
         event.target.value = "";
         return;
       }
       if (file.size > 8 * 1024 * 1024) {
-        toast.error(sfText("storefront.toasts.imageTooLarge", "The image is too large. Upload a smaller image."));
+        toast.error(sfText("storefront.toasts.imageTooLarge"));
         selectedVisualImageRef.current = null;
         event.target.value = "";
         return;
@@ -4177,7 +4064,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
             <button
               className="sf-mobile-header-button grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]"
               onClick={() => setMobileMenuOpen((value) => !value)}
-              aria-label={t("storefront.header.menu", "Menu")}
+              aria-label={t("storefront.header.menu")}
               type="button"
             >
               {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -4190,7 +4077,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
                 {brandLogoUrl ? <img src={resolveProductImageUrl(brandLogoUrl)} alt={brandName} className="h-[130%] w-[130%] object-cover object-center" style={{ imageRendering: "auto", transform: "translateZ(0)", backfaceVisibility: "hidden" }} loading="lazy" decoding="async" width="64" height="64" /> : brandInitials}
               </span>
             </Link>
-            <button onClick={onCart} className="sf-mobile-header-button sf-cart-action relative grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]" aria-label={t("storefront.cart.title", "Cart")} type="button">
+            <button onClick={onCart} className="sf-mobile-header-button sf-cart-action relative grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]" aria-label={t("storefront.cart.title")} type="button">
               <ShoppingCart className="h-5 w-5" />
               {cartCount ? <span className="sf-action-badge sf-mobile-cart-badge">{cartCount}</span> : null}
             </button>
@@ -4205,7 +4092,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
             className="sf-mobile-header-searchbar mt-3 flex h-12 w-full items-center gap-3 rounded-full px-4 text-right text-sm font-semibold transition duration-200 ease-out"
           >
             <Search className="sf-mobile-header-search-icon h-4.5 w-4.5 shrink-0" />
-            <span className="truncate">ط§ط¨ط­ط« ط¨ط§ظ„ط§ط³ظ… ط£ظˆ SKU...</span>
+            <span className="truncate">���� ������ ��ˆ SKU...</span>
           </button>
           <div className="sf-mobile-category-chips mt-3 flex min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1 rtl:justify-start">
             {mobileCategoryChips.map((item) => (
@@ -4257,7 +4144,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
             <button
               className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-stone-200/80 bg-white/80 transition duration-200 ease-out hover:-translate-y-px hover:border-stone-300 hover:bg-white hover:text-stone-950 active:scale-[0.98] dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 md:h-14 md:w-14"
               onClick={() => setMobileMenuOpen((value) => !value)}
-              aria-label={t("storefront.header.menu", "Menu")}
+              aria-label={t("storefront.header.menu")}
               type="button"
             >
               {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -4288,8 +4175,8 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
               type="button"
               onClick={() => setSearchOpen(true)}
               className="sf-header-action hidden md:grid transition duration-200 ease-out hover:-translate-y-px hover:border-stone-300 hover:bg-white hover:text-stone-950 active:scale-[0.98] dark:hover:bg-white/10"
-              aria-label={t("storefront.header.search", "Search")}
-              title={t("storefront.header.search", "Search")}
+              aria-label={t("storefront.header.search")}
+              title={t("storefront.header.search")}
             >
               <Search className="h-5 w-5" />
             </button>
@@ -4302,8 +4189,8 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
             >
               {themeIsDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
-            <HeaderAction to="/shop/account" label={t("storefront.header.account", "Account")} icon={<User className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
-            <button onClick={onCart} className="sf-header-action sf-cart-action transition duration-200 ease-out hover:-translate-y-px hover:border-stone-300 hover:bg-white hover:text-stone-950 active:scale-[0.98] dark:hover:bg-white/10" aria-label={t("storefront.cart.title", "Cart")} type="button">
+            <HeaderAction to="/shop/account" label={t("storefront.header.account")} icon={<User className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
+            <button onClick={onCart} className="sf-header-action sf-cart-action transition duration-200 ease-out hover:-translate-y-px hover:border-stone-300 hover:bg-white hover:text-stone-950 active:scale-[0.98] dark:hover:bg-white/10" aria-label={t("storefront.cart.title")} type="button">
               <ShoppingCart className="h-5 w-5" />
               {cartCount ? <span className="sf-action-badge">{cartCount}</span> : null}
             </button>
@@ -4362,24 +4249,24 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
         mobileOnly
       />
       {menuOpen && mobilePortalTarget ? createPortal(
-        <div className="fixed inset-0 z-[160] md:hidden" dir="rtl" role="dialog" aria-modal="true" aria-label="مساعدة وخدمات">
+        <div className="fixed inset-0 z-[160] md:hidden" dir="rtl" role="dialog" aria-modal="true" aria-label="������ ������">
           <button
             type="button"
             className="absolute inset-0 bg-black/65 backdrop-blur-sm"
-            aria-label={t("storefront.common.close", "إغلاق")}
+            aria-label={t("storefront.common.close")}
             onClick={closeMobileMenu}
           />
           <aside className="fixed inset-x-0 bottom-0 z-[161] max-h-[86svh] overflow-hidden rounded-t-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(10,14,28,0.99),rgba(7,10,20,0.98))] text-white shadow-[0_-26px_70px_rgba(0,0,0,0.48)]">
             <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 pb-3 pt-4">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">مساعدة وخدمات</p>
-                <h2 className="mt-1 text-lg font-black text-white">القائمة السريعة</h2>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">������ ������</p>
+                <h2 className="mt-1 text-lg font-black text-white">������� �������</h2>
               </div>
               <button
                 type="button"
                 onClick={closeMobileMenu}
                 className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/8 text-white transition hover:bg-white/12 active:scale-[0.98]"
-                aria-label={t("storefront.common.close", "إغلاق")}
+                aria-label={t("storefront.common.close")}
               >
                 <X className="h-5 w-5" />
               </button>
@@ -4387,12 +4274,12 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
             <div className="max-h-[calc(86svh-4.5rem)] overflow-y-auto px-4 py-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
               <div className="grid gap-2">
                 {[
-                  { label: "دليل المقاسات", to: "/shop/size-guide" },
-                  { label: "سياسة الاستبدال", to: "/shop/returns" },
-                  { label: "تتبع الطلب", to: "/shop/track" },
-                  { label: "واتساب", to: "https://wa.me/", external: true, icon: MessageCircle },
-                  { label: "موقع المعرض / تواصل معنا", to: "/shop/contact" },
-                  { label: "حسابي", to: "/shop/account" },
+                  { label: "���� ��������", to: "/shop/size-guide" },
+                  { label: "����� ���������", to: "/shop/returns" },
+                  { label: "���� �����", to: "/shop/track" },
+                  { label: "������", to: "https://wa.me/", external: true, icon: MessageCircle },
+                  { label: "���� ������ / ����� ����", to: "/shop/contact" },
+                  { label: "�����", to: "/shop/account" },
                 ].map(({ label, to, external = false, icon: Icon }) =>
                   external ? (
                     <a
@@ -4887,11 +4774,11 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
         <button
           onClick={(event) => { event.stopPropagation(); handleWishlist(); }}
           className="absolute left-3.5 top-3.5 z-20 grid h-11 w-11 place-items-center rounded-full border border-white/55 bg-white/92 text-stone-700 shadow-[0_12px_28px_rgba(15,23,42,0.18),0_0_0_1px_rgba(255,255,255,0.7)_inset] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:scale-[1.03] hover:border-white/75 hover:bg-white active:scale-95 active:translate-y-0 md:h-12 md:w-12 dark:border-white/10 dark:bg-white/5 dark:text-stone-100 dark:shadow-[0_12px_28px_rgba(0,0,0,0.18),0_0_0_1px_rgba(255,255,255,0.05)_inset] dark:hover:bg-white/10"
-          aria-label={t("storefront.header.wishlist", "Wishlist")}
+          aria-label={t("storefront.header.wishlist")}
         >
           <Heart className={`h-5 w-5 transition duration-200 md:h-[22px] md:w-[22px] ${inWishlist ? "animate-[wishlist-pop_320ms_ease-out] fill-rose-500 text-rose-500" : "text-slate-600 dark:text-stone-200"}`} />
         </button>
-          {product.low_stock ? <span className="absolute bottom-2 right-2 z-20 inline-flex h-5 items-center rounded-full border border-amber-200 bg-amber-50/95 px-2 text-[9px] font-black leading-none text-amber-800 shadow-sm backdrop-blur md:bottom-auto md:left-12 md:right-auto md:top-2.5 md:h-6 md:px-2.5 md:text-[10px] dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100">{t("storefront.products.onlyLeft", "Only {{count}} left", { count: product.total_stock })}</span> : null}
+          {product.low_stock ? <span className="absolute bottom-2 right-2 z-20 inline-flex h-5 items-center rounded-full border border-amber-200 bg-amber-50/95 px-2 text-[9px] font-black leading-none text-amber-800 shadow-sm backdrop-blur md:bottom-auto md:left-12 md:right-auto md:top-2.5 md:h-6 md:px-2.5 md:text-[10px] dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100">{t("storefront.products.onlyLeft", undefined, { count: product.total_stock })}</span> : null}
       </div>
         <div className={`flex flex-1 flex-col md:p-3.5 md:pt-3 ${densityClasses.body}`}>
         <Link to={detailsUrl} className={`line-clamp-2 font-black tracking-[-0.01em] text-stone-900 transition hover:text-[#6d28d9] md:text-[13.75px] md:leading-5 dark:text-stone-100 ${densityClasses.title}`}>{product.name}</Link>
@@ -4937,7 +4824,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
             <span dir="ltr" className="inline-flex h-6 shrink-0 items-center justify-center rounded-full border border-stone-300/90 bg-white px-2 text-[9px] font-black leading-none text-stone-500 shadow-sm md:text-[10px] dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-500">+{extraSizeCount}</span>
           ) : null}
           {!visibleSizes.length ? (
-            <span className="inline-flex h-6 shrink-0 items-center rounded-full border border-stone-300/90 bg-white px-2 text-[9px] font-bold leading-none text-stone-500 shadow-sm md:text-[10px] dark:border-white/10 dark:bg-white/5 dark:text-stone-500">{t("storefront.products.oneSize", "One size")}</span>
+            <span className="inline-flex h-6 shrink-0 items-center rounded-full border border-stone-300/90 bg-white px-2 text-[9px] font-bold leading-none text-stone-500 shadow-sm md:text-[10px] dark:border-white/10 dark:bg-white/5 dark:text-stone-500">{t("storefront.products.oneSize")}</span>
           ) : null}
         </div>
         <button
@@ -4945,10 +4832,10 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           onClick={handleQuickAdd}
           disabled={!canQuickAdd}
           className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-[#c4b5fd]/45 bg-[linear-gradient(135deg,#7c3aed,#6d28d9_55%,#4c1d95)] px-4 py-3 text-[12px] font-black text-white shadow-[0_14px_34px_rgba(124,58,237,0.32),0_0_0_1px_rgba(196,181,253,0.16)_inset] backdrop-blur transition duration-200 hover:-translate-y-0.5 hover:border-[#ddd6fe]/60 hover:shadow-[0_18px_42px_rgba(124,58,237,0.42)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100"
-          aria-label={canQuickAdd ? t("storefront.cart.addToCart", "Add to cart") : t("storefront.products.unavailable", "Unavailable")}
+          aria-label={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
         >
           <ShoppingCart className="h-[18px] w-[18px] text-white" />
-          {canQuickAdd ? t("storefront.cart.addToCart", "Add to cart") : t("storefront.products.unavailable", "Unavailable")}
+          {canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
         </button>
       </div>
       {variantSheetOpen ? (
@@ -5040,7 +4927,7 @@ function ProductCardVariantSheet({
         type="button"
         className="absolute inset-0 z-0 bg-stone-950/62 backdrop-blur-sm"
         onClick={handleCloseRequest}
-        aria-label={t("common.close", "Close")}
+        aria-label={t("common.close")}
       />
       <section
         className="sf-product-variant-sheet-panel absolute inset-x-0 bottom-0 z-10 rounded-t-[1.55rem] border border-white/10 bg-[linear-gradient(180deg,#101426_0%,#070b16_100%)] p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] text-white shadow-[0_-24px_70px_rgba(0,0,0,0.42)]"
@@ -5050,7 +4937,7 @@ function ProductCardVariantSheet({
         <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-white/20" />
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#d8b4fe]">{t("storefront.products.chooseSize", "Choose size")}</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#d8b4fe]">{t("storefront.products.chooseSize")}</p>
             <h3 className="mt-1 line-clamp-2 text-base font-black leading-5">{product?.name}</h3>
           </div>
           <button
@@ -5079,7 +4966,7 @@ function ProductCardVariantSheet({
 
         {colorGroups.length > 1 ? (
           <div className="mt-4">
-            <div className="mb-2 text-[11px] font-black text-white/50">{t("storefront.products.color", "Color")}</div>
+            <div className="mb-2 text-[11px] font-black text-white/50">{t("storefront.products.color")}</div>
             <div className="sf-scroll flex gap-2 overflow-x-auto pb-1">
               {colorGroups.map((group) => {
                 const active = String(group.key) === String(activeGroup?.key);
@@ -5099,7 +4986,7 @@ function ProductCardVariantSheet({
         ) : null}
 
         <div className="mt-4">
-          <div className="mb-2 text-[11px] font-black text-white/50">{t("storefront.products.size", "Size")}</div>
+          <div className="mb-2 text-[11px] font-black text-white/50">{t("storefront.products.size")}</div>
           <div className="grid grid-cols-4 gap-2">
             {sizeOptions.map(({ size, variant }) => {
               const active = String(variant?.id) === String(selectedVariant?.id);
@@ -5111,13 +4998,13 @@ function ProductCardVariantSheet({
                   disabled={!variantHasStock(variant)}
                   className={`h-10 rounded-xl border text-xs font-black transition ${active ? "border-[#d8b4fe]/70 bg-white text-stone-950" : "border-white/10 bg-white/6 text-white/75"} disabled:cursor-not-allowed disabled:opacity-35 disabled:line-through`}
                 >
-                  {size || t("storefront.products.oneSize", "One size")}
+                  {size || t("storefront.products.oneSize")}
                 </button>
               );
             })}
             {!sizeOptions.length ? (
               <div className="col-span-4 rounded-xl border border-white/10 bg-white/5 p-3 text-center text-xs font-bold text-white/45">
-                {t("storefront.products.unavailable", "Unavailable")}
+                {t("storefront.products.unavailable")}
               </div>
             ) : null}
           </div>
@@ -5126,7 +5013,7 @@ function ProductCardVariantSheet({
         <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-2">
           <button type="button" onClick={() => onQuantityChange(Math.max(1, safeQty - 1))} className="grid h-10 w-10 place-items-center rounded-full bg-white/8 text-lg font-black">-</button>
           <div className="text-center">
-            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">{t("storefront.cart.quantity", "Quantity")}</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">{t("storefront.cart.quantity")}</div>
             <div className="text-lg font-black">{safeQty}</div>
           </div>
           <button type="button" onClick={() => onQuantityChange(Math.min(maxQty, safeQty + 1))} className="grid h-10 w-10 place-items-center rounded-full bg-white/8 text-lg font-black">+</button>
@@ -5139,7 +5026,7 @@ function ProductCardVariantSheet({
           className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-l from-[#7c3aed] to-[#111827] text-sm font-black text-white shadow-[0_14px_34px_rgba(124,58,237,0.32)] disabled:cursor-not-allowed disabled:opacity-45"
         >
           <ShoppingCart className="h-4 w-4" />
-          {t("storefront.cart.addToCart", "Add to cart")}
+          {t("storefront.cart.addToCart")}
         </button>
       </section>
     </div>,
@@ -5316,7 +5203,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const discount = couponDiscount;
   const deliveryFee = form.governorate ? shippingQuote.price : 0;
   const total = Math.max(0, subtotal - discount + deliveryFee);
-  const isDamietta = ["ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¯ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·", "ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¯ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·"].some((name) => String(form.governorate || "").includes(name));
+  const isDamietta = ["ط·آ·ط¢آ·ط·آ¢ط¢آ¯ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¦ط·آ·ط¢آ¸ط·آ¸ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·", "ط·آ·ط¢آ·ط·آ¢ط¢آ¯ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¦ط·آ·ط¢آ¸ط·آ¸ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·"].some((name) => String(form.governorate || "").includes(name));
   const trustedCustomer = customerTrust.customer || {};
   const codAvailable = shippingQuote.cod_allowed !== false;
   const normalizedFormPaymentMethod = paymentMode === "cod" ? "cod" : "shipping_confirmation";
@@ -5328,14 +5215,14 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const couponCode = String(form.coupon || "").trim().toUpperCase();
   const submitDisabled = isFinalCheckoutStep && (submitting || couponLoading || shippingQuote.loading || (shippingProofRequired && !hasShippingPaymentProof));
   const checkoutActionLabel = checkoutStep === 1
-  ? t("storefront.checkout.actions.continueToAddress", "ظ…طھط§ط¨ط¹ط© ط¥ظ„ظ‰ ط§ظ„ط¹ظ†ظˆط§ظ†")
+  ? t("storefront.checkout.actions.continueToAddress")
   : checkoutStep === 2
-    ? t("storefront.checkout.actions.continueToPayment", "ظ…طھط§ط¨ط¹ط© ط¥ظ„ظ‰ ط§ظ„ط¯ظپط¹")
+    ? t("storefront.checkout.actions.continueToPayment")
     : normalizedFormPaymentMethod === "cod"
-      ? t("storefront.checkout.actions.confirmOrder", "طھط£ظƒظٹط¯ ط§ظ„ط·ظ„ط¨")
+      ? t("storefront.checkout.actions.confirmOrder")
       : shippingProofRequired
-        ? t("storefront.checkout.actions.uploadProofAndConfirm", "ط§ط±ظپط¹ ط§ظ„ط¥ظٹطµط§ظ„ ط«ظ… ط£ظƒط¯ ط§ظ„ط·ظ„ط¨")
-        : t("storefront.checkout.actions.confirmOrder", "طھط£ظƒظٹط¯ ط§ظ„ط·ظ„ط¨");
+        ? t("storefront.checkout.actions.uploadProofAndConfirm")
+        : t("storefront.checkout.actions.confirmOrder");
   const codAmount = normalizedFormPaymentMethod === "cod" ? total : Math.max(0, total - deliveryFee);
   const storefrontPaymentSettings = useMemo(() => normalizeStorefrontPaymentSettings(publicStoreSettings), [publicStoreSettings]);
   const storefrontBrandSettings = useMemo(() => ({
@@ -6136,8 +6023,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     const composedAddress = [
       form.street_address || form.detailed_address,
       form.building_number ? `Building ${form.building_number}` : "",
-      form.floor_number ? `ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ·ط¢آ¹ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¯ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ«ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ·ط¢آ¢ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ± ${form.floor_number}` : "",
-      form.apartment_number ? `ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ·ط¢آ¹ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ´ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¹ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹ط¢آ©ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ© ${form.apartment_number}` : "",
+      form.floor_number ? `ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬أ¢â‚¬ع†ط·آ·ط¢آ·ط·آ¢ط¢آ¯ط·آ·ط¢آ¸ط·آ«أ¢â‚¬آ ط·آ·ط¢آ·ط·آ¢ط¢آ± ${form.floor_number}` : "",
+      form.apartment_number ? `ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬أ¢â‚¬ع†ط·آ·ط¢آ·ط·آ¢ط¢آ´ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ·ط¢آ·ط·آ¢ط¢آ© ${form.apartment_number}` : "",
       form.landmark ? `Near ${form.landmark}` : "",
     ].filter(Boolean).join(", ");
 
@@ -6409,7 +6296,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
               <div className="sf-checkout-address-success mb-3 flex items-center justify-between gap-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black leading-5 text-emerald-100">
                 <span className="sf-checkout-address-success-text">{sfText("storefront.checkout.latestAddressApplied")}</span>
                 <button type="button" onClick={useNewAddress} className="shrink-0 rounded-full border border-emerald-200/20 bg-white/10 px-3 py-1 text-[10px] font-black text-white transition hover:bg-white/15">
-                  ط§ط³طھط®ط¯ط§ظ… ط¹ظ†ظˆط§ظ† ط¬ط¯ظٹط¯
+                  ������� ���ˆ�� ����
                 </button>
               </div>
             ) : null}
@@ -6426,7 +6313,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     required
                     error={errors.governorate}
                     placeholder={sfText("storefront.checkout.chooseGovernorate")}
-                    searchPlaceholder="ط§ط¨ط­ط« ط¹ظ† ظ…ط­ط§ظپط¸ط©..."
+                    searchPlaceholder="���� �� ������..."
                     loadingText={sfText("storefront.checkout.loadingGovernorates")}
                     themeMode={themeMode}
                   />
@@ -6441,7 +6328,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     disabled={!form.shipping_city_id}
                     error={!form.shipping_zone_id && errors.city_area ? errors.city_area : ""}
                     placeholder={form.shipping_city_id ? sfText("storefront.checkout.chooseZone") : sfText("storefront.checkout.chooseGovernorateFirst")}
-                    searchPlaceholder="ط§ط¨ط­ط« ط¹ظ† Zone..."
+                    searchPlaceholder="���� �� Zone..."
                     loadingText={sfText("storefront.checkout.loadingZones")}
                     themeMode={themeMode}
                     helperText={form.shipping_city_id ? sfText("storefront.checkout.zoneSearchHint") : ""}
@@ -6458,7 +6345,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     disabled={!form.shipping_zone_id}
                     error={!form.shipping_district_id ? errors.city_area : ""}
                     placeholder={form.shipping_zone_id ? sfText("storefront.checkout.chooseDistrict") : sfText("storefront.checkout.chooseZoneFirst")}
-                    searchPlaceholder="ط§ط¨ط­ط« ط¹ظ† ط§ظ„ظ…ظ†ط·ظ‚ط©..."
+                    searchPlaceholder="���� �� �������..."
                     loadingText={sfText("storefront.checkout.loadingDistricts")}
                     themeMode={themeMode}
                     helperText={form.shipping_zone_id ? sfText("storefront.checkout.districtSearchHint") : ""}
@@ -6505,7 +6392,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     }}
                     className={`checkout-payment-choice flex min-h-[4.75rem] flex-col items-start justify-center rounded-[1.35rem] border px-4 py-3 text-right transition ${paymentMode === "cod" ? "border-emerald-300/35 bg-emerald-400/12 shadow-[0_16px_34px_rgba(16,185,129,0.12)]" : "border-white/10 bg-white/[0.045] hover:border-white/18 hover:bg-white/[0.07]"}`}
                   >
-                    <span className="text-sm font-black text-white">ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…</span>
+                    <span className="text-sm font-black text-white">����� ��� ��������</span>
                     <span className="mt-1 text-xs font-semibold leading-5 text-white/56">{sfText("storefront.checkout.payment.cod.text")}</span>
                   </button>
                   <button
@@ -6518,7 +6405,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     }}
                     className={`checkout-payment-choice flex min-h-[4.75rem] flex-col items-start justify-center rounded-[1.35rem] border px-4 py-3 text-right transition ${paymentMode === "electronic" ? "border-[#a78bfa]/35 bg-[#7c3aed]/14 shadow-[0_16px_34px_rgba(124,58,237,0.12)]" : "border-white/10 bg-white/[0.045] hover:border-white/18 hover:bg-white/[0.07]"}`}
                   >
-                    <span className="text-sm font-black text-white">ط§ظ„ط¯ظپط¹ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ</span>
+                    <span className="text-sm font-black text-white">����� �����ƒ���ˆ��</span>
                     <span className="mt-1 text-xs font-semibold leading-5 text-white/56">{sfText("storefront.checkout.payment.shippingConfirmation.text")}</span>
                   </button>
                 </div>
@@ -6677,7 +6564,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                         </div>
                         {couponValidation?.valid ? (
                           <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black text-emerald-100">
-                            {sfText("storefront.checkout.couponAppliedSummary", "أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½: {{code}} - {{discount}}", {
+                            {sfText("storefront.checkout.couponAppliedSummary", undefined, {
                               code: couponValidation?.coupon?.code || couponCode,
                               discount: money(couponDiscount),
                             })}
@@ -6780,7 +6667,7 @@ function OrderSuccess({ profile, themeMode, brandName = "MONE", brandLogoUrl = "
   }), [brandLogoUrl, brandName, order]);
   const publicNumber = displayPublicOrderNumber(order) || displayPublicOrderNumber(decodedOrderNumber);
   const items = loaded?.items || [];
-  const customerName = order.customer_name || loaded?.customer?.full_name || profile.full_name || t("storefront.customer.dearCustomer", "أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½");
+  const customerName = order.customer_name || loaded?.customer?.full_name || profile.full_name || t("storefront.customer.dearCustomer");
   const total = order.total_amount || order.total || order.total_price || 0;
   const address = [order.governorate, order.city_area, order.customer_address || loaded?.checkout?.detailed_address].filter(Boolean).join(" - ");
   const paymentLabel = paymentCopy(order.payment_method || loaded?.checkout?.payment_method || "cod");
@@ -6788,12 +6675,12 @@ function OrderSuccess({ profile, themeMode, brandName = "MONE", brandLogoUrl = "
     (order.payment_method || loaded?.checkout?.payment_method) === "shipping_confirmation" ||
     order.payment_status === "awaiting_verification" ||
     order.status === "awaiting_verification";
-  const successTitle = isShippingAwaitingVerification ? t("storefront.success.awaitingVerificationTitle", "أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½") : t("storefront.success.confirmedTitle", "أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½");
+  const successTitle = isShippingAwaitingVerification ? t("storefront.success.awaitingVerificationTitle") : t("storefront.success.confirmedTitle");
   const successSubtitle = isShippingAwaitingVerification
-    ? t("storefront.success.awaitingVerificationSubtitle", "أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½.")
-    : t("storefront.success.confirmedSubtitle", "أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½.");
-  const successStatus = isShippingAwaitingVerification ? t("storefront.status.awaiting_verification", "أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½") : statusCopy(order.status || "pending");
-  const whatsAppHref = whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(`ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¥ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬أ¢â‚¬ع†ط·آ¢ط¢آ¢ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¯ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ© ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ¢ط¢آ¬ط·آ·ط¢آ¹ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¹ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¹ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹ط¢آ©ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ·ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¸ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ¢ط·آ¢ط¢آ¢ط·آ·ط¢آ£ط·آ¢ط¢آ¢ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¢ط·آ·ط¢آ¢ط·آ¢ط¢آ¦ ${publicNumber}`)}` : "";
+    ? t("storefront.success.awaitingVerificationSubtitle")
+    : t("storefront.success.confirmedSubtitle");
+  const successStatus = isShippingAwaitingVerification ? t("storefront.status.awaiting_verification") : statusCopy(order.status || "pending");
+  const whatsAppHref = whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(`ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ¨ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¥أ¢â‚¬â„¢ ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ±ط·آ·ط¢آ¸ط·آ¸ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ¯ ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¦ط·آ·ط¢آ·ط·آ¹ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ© ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬أ¢â‚¬ع†ط·آ·ط¢آ·ط·آ¢ط¢آ¨ط·آ·ط¢آ¸ط·آ¸ط¢آ¹ ط·آ·ط¢آ·ط·آ¢ط¢آ±ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¦ ${publicNumber}`)}` : "";
 
   return (
     <section className="relative mx-auto max-w-6xl px-4 py-6 md:py-10">
@@ -6803,7 +6690,7 @@ function OrderSuccess({ profile, themeMode, brandName = "MONE", brandLogoUrl = "
           <Check className="h-12 w-12" />
         </div>
         <h1 className="mt-6 text-3xl font-black md:text-4xl">{successTitle}</h1>
-        <p className="mt-2 text-lg font-bold text-stone-600">{t("storefront.success.thanks", "أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½")}</p>
+        <p className="mt-2 text-lg font-bold text-stone-600">{t("storefront.success.thanks")}</p>
         <p className="mt-1 text-sm font-bold text-stone-500">{successSubtitle}</p>
         <div className="mt-5 inline-flex rounded-full bg-[#f5f3ff] px-4 py-2 text-sm font-black text-[#6d28d9]">{message}</div>
       </div>
@@ -6811,20 +6698,20 @@ function OrderSuccess({ profile, themeMode, brandName = "MONE", brandLogoUrl = "
         <div className="space-y-4">
           <div className={`sf-storefront-card rounded-[2rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] md:p-6 ${darkMode ? "text-slate-900" : ""}`}>
             <div className="grid gap-3 sm:grid-cols-2">
-              <InfoBox label={t("storefront.orders.orderNumber", "أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½")} value={<OrderNumberBadge value={publicNumber} className="border-[#7c3aed]/20 bg-[#7c3aed]/10 text-[#5b21b6]" />} />
-              <InfoBox label={t("storefront.customer.customer", "أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½")} value={customerName} />
-              <InfoBox label={t("storefront.checkout.total", "أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½")} value={total ? money(total) : t("storefront.success.orderRecorded", "أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½")} />
-              <InfoBox label={t("storefront.checkout.paymentMethod", "أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½")} value={paymentLabel} />
-              <InfoBox label={t("storefront.orders.orderStatus", "أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½")} value={successStatus} />
-              <InfoBox label={t("storefront.orders.expectedDelivery", "ط§ظ„طھظˆطµظٹظ„ ط§ظ„ظ…طھظˆظ‚ط¹")} value={t("storefront.orders.expectedDeliveryWindow", "ط§ظ„طھظˆطµظٹظ„ ط§ظ„ظ…طھظˆظ‚ط¹ ط®ظ„ط§ظ„ 2-5 ط£ظٹط§ظ… ط¹ظ…ظ„")} />
+              <InfoBox label={t("storefront.orders.orderNumber")} value={<OrderNumberBadge value={publicNumber} className="border-[#7c3aed]/20 bg-[#7c3aed]/10 text-[#5b21b6]" />} />
+              <InfoBox label={t("storefront.customer.customer")} value={customerName} />
+              <InfoBox label={t("storefront.checkout.total")} value={total ? money(total) : t("storefront.success.orderRecorded")} />
+              <InfoBox label={t("storefront.checkout.paymentMethod")} value={paymentLabel} />
+              <InfoBox label={t("storefront.orders.orderStatus")} value={successStatus} />
+              <InfoBox label={t("storefront.orders.expectedDelivery")} value={t("storefront.orders.expectedDeliveryWindow")} />
             </div>
             <div className="sf-info-box mt-4 rounded-2xl bg-stone-50 p-4 text-right">
-              <div className="sf-info-label text-xs font-black text-stone-500">{t("storefront.checkout.deliveryAddress", "أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½")}</div>
-              <div className="sf-info-value mt-1 font-black">{address || t("storefront.orders.addressSaved", "أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½")}</div>
+              <div className="sf-info-label text-xs font-black text-stone-500">{t("storefront.checkout.deliveryAddress")}</div>
+              <div className="sf-info-value mt-1 font-black">{address || t("storefront.orders.addressSaved")}</div>
             </div>
           </div>
           <div className={`sf-storefront-card rounded-[2rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] md:p-6 ${darkMode ? "text-slate-900" : ""}`}>
-            <h2 className="sf-section-heading text-xl font-black">{t("storefront.orders.tracking", "أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½")}</h2>
+            <h2 className="sf-section-heading text-xl font-black">{t("storefront.orders.tracking")}</h2>
             <SuccessTimeline />
           </div>
           <Suspense fallback={<div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm font-bold text-white/60">{sfText("storefront.orders.itemsLoading")}</div>}>
@@ -6833,16 +6720,16 @@ function OrderSuccess({ profile, themeMode, brandName = "MONE", brandLogoUrl = "
         </div>
         <aside className={`sf-storefront-card h-max rounded-[2rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] lg:sticky lg:top-24 ${darkMode ? "text-slate-900" : ""}`}>
           <div className="grid gap-3">
-            <Link to={`/shop/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="rounded-full bg-stone-950 px-5 py-4 text-center font-black text-white transition hover:bg-[#6d28d9]">{t("storefront.orders.trackOrder", "أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½")}</Link>
-            <Link to="/shop/products" className="sf-soft-pill rounded-full border border-stone-300 px-5 py-4 text-center font-black transition hover:border-[#7c3aed] hover:text-[#6d28d9]">{t("storefront.common.continueShopping", "أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½")}</Link>
-            {whatsAppHref ? <a href={whatsAppHref} className="rounded-full border border-emerald-200 bg-emerald-50 px-5 py-4 text-center font-black text-emerald-700">{t("storefront.support.whatsapp", "أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½")}</a> : <button disabled className="rounded-full border border-stone-200 bg-stone-100 px-5 py-4 font-black text-stone-400">{t("storefront.support.whatsappUnavailable", "أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½")}</button>}
+            <Link to={`/shop/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="rounded-full bg-stone-950 px-5 py-4 text-center font-black text-white transition hover:bg-[#6d28d9]">{t("storefront.orders.trackOrder")}</Link>
+            <Link to="/shop/products" className="sf-soft-pill rounded-full border border-stone-300 px-5 py-4 text-center font-black transition hover:border-[#7c3aed] hover:text-[#6d28d9]">{t("storefront.common.continueShopping")}</Link>
+            {whatsAppHref ? <a href={whatsAppHref} className="rounded-full border border-emerald-200 bg-emerald-50 px-5 py-4 text-center font-black text-emerald-700">{t("storefront.support.whatsapp")}</a> : <button disabled className="rounded-full border border-stone-200 bg-stone-100 px-5 py-4 font-black text-stone-400">{t("storefront.support.whatsappUnavailable")}</button>}
           </div>
-          <div className="sf-info-box mt-5 rounded-2xl bg-[#f5f3ff] p-4 text-sm font-bold leading-6 text-stone-700">{t("storefront.success.reviewNotice", "أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½.")}</div>
+          <div className="sf-info-box mt-5 rounded-2xl bg-[#f5f3ff] p-4 text-sm font-bold leading-6 text-stone-700">{t("storefront.success.reviewNotice")}</div>
         </aside>
       </div>
       {products.length ? (
         <div className="mt-6">
-          <ProductRail title={t("storefront.nav.new", "أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½")} subtitle={t("storefront.success.recommendedProducts", "أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½")} products={products} loading={false} railType="new" wishlist={[]} toggleWishlist={() => undefined} onAddToCart={() => undefined} />
+          <ProductRail title={t("storefront.nav.new")} subtitle={t("storefront.success.recommendedProducts")} products={products} loading={false} railType="new" wishlist={[]} toggleWishlist={() => undefined} onAddToCart={() => undefined} />
         </div>
       ) : null}
     </section>
@@ -6879,7 +6766,7 @@ const formatDate = (value) => {
   }
 };
 const supportHref = (orderNumber = "") => {
-  const text = orderNumber ? sfText("storefront.support.orderHelpMessage", "ط¥ط°ط§ ط§ط­طھط¬طھ ظ…ط³ط§ط¹ط¯ط© ط¨ط®طµظˆطµ ط§ظ„ط·ظ„ط¨ {{orderNumber}}", { orderNumber }) : sfText("storefront.support.generalHelpMessage");
+  const text = orderNumber ? sfText("storefront.support.orderHelpMessage", undefined, { orderNumber }) : sfText("storefront.support.generalHelpMessage");
   return whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(text)}` : "https://wa.me/";
 };
 
@@ -7251,7 +7138,7 @@ function CityAreaField({ governorate, options, value, onChange, manual, onManual
 
   return (
     <div className="sf-checkout-field block">
-      <span className={`sf-checkout-field-label mb-1.5 block text-sm font-black ${darkMode ? "text-white/82" : "text-slate-800"}`}>أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ / أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½</span>
+      <span className={`sf-checkout-field-label mb-1.5 block text-sm font-black ${darkMode ? "text-white/82" : "text-slate-800"}`}>�������� / �������</span>
       <Suspense fallback={<CityAreaNativeSelect themeMode={themeMode} governorate={governorate} options={selectOptions} value={manual ? MANUAL_CITY_AREA_LABEL : value} onChange={onChange} required={required} error={error} />}>
         <Select
           instanceId="checkout-city-area"
@@ -7709,7 +7596,7 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
       <aside dir="rtl" className="sf-cart-drawer absolute inset-x-0 bottom-0 flex max-h-[94dvh] min-h-[72dvh] w-full min-w-0 flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,18,33,0.98),rgba(7,10,20,0.98))] text-white shadow-[0_-28px_80px_rgba(0,0,0,0.48),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl md:inset-y-0 md:end-0 md:start-auto md:max-h-none md:min-h-0 md:w-[28rem] md:rounded-s-[2rem] md:rounded-tr-none">
         <div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-white/[0.035] px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-5">
           <div className="min-w-0">
-            <p className="text-xs font-black text-[#c4b5fd]">{cart.length ? sfText("storefront.products.productCount", "{{count}} items", { count: cart.length }) : "Your cart is empty"}</p>
+            <p className="text-xs font-black text-[#c4b5fd]">{cart.length ? sfText("storefront.products.productCount", undefined, { count: cart.length }) : "Your cart is empty"}</p>
             <h2 className="mt-1 truncate text-2xl font-black text-white">Cart</h2>
           </div>
           <button onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.065] text-white/74 shadow-[0_12px_28px_rgba(0,0,0,0.24)] transition hover:bg-white/[0.10] hover:text-white active:scale-95" aria-label={sfText("storefront.common.close")}><X className="h-5 w-5" /></button>
@@ -7753,7 +7640,7 @@ function MobileCartRow({ item, updateCart, removeFromCart }) {
         </div>
         <div className="min-w-0 flex-1 self-stretch">
           <h3 className="line-clamp-2 break-words text-sm font-black leading-5 text-white">{item.name}</h3>
-          <p className="mt-1 inline-flex max-w-full rounded-full border border-white/10 bg-white/[0.055] px-2 py-1 text-xs font-bold text-white/58">{item.color || sfText("storefront.products.color", "Color")} / {item.size || sfText("storefront.products.size", "Size")}</p>
+          <p className="mt-1 inline-flex max-w-full rounded-full border border-white/10 bg-white/[0.055] px-2 py-1 text-xs font-bold text-white/58">{item.color || sfText("storefront.products.color")} / {item.size || sfText("storefront.products.size")}</p>
           <p className="mt-2 flex flex-wrap items-center gap-2 text-sm font-black text-white">
             {displayCartItemComparePrice(item) ? <span className="text-xs text-white/38 line-through">{money(displayCartItemComparePrice(item))}</span> : null}
             <span>{money(displayCartItemPrice(item))}</span>
@@ -7823,19 +7710,19 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
   const isVisible = /^(\/shop(\/|$)|\/c\/[^/]+)/.test(path) && !isCheckoutFlow;
   const saleHref = "/shop/sale";
   const categoryLinks = [
-    { id: "men", label: "ط±ط¬ط§ظ„ظٹ", to: "/shop/products?gender=men", icon: Users },
-    { id: "women", label: "ط­ط±ظٹظ…ظٹ", to: "/shop/products?gender=women", icon: Users },
-    { id: "kids", label: "ط£ط·ظپط§ظ„", to: "/shop/products?gender=kids", icon: Baby },
-    { id: "bags", label: "ط´ظ†ط·", to: "/shop/products?type=bags", icon: ShoppingBag },
-    { id: "crocs", label: "ظƒط±ظˆظƒط³", to: "/shop/products?type=crocs", icon: Footprints },
-    { id: "slippers", label: "ط³ظ„ظٹط¨ط±", to: "/shop/products?type=slippers", icon: SlidersHorizontal },
+    { id: "men", label: "�����", to: "/shop/products?gender=men", icon: Users },
+    { id: "women", label: "�����", to: "/shop/products?gender=women", icon: Users },
+    { id: "kids", label: "�����", to: "/shop/products?gender=kids", icon: Baby },
+    { id: "bags", label: "���", to: "/shop/products?type=bags", icon: ShoppingBag },
+    { id: "crocs", label: "��������", to: "/shop/products?type=crocs", icon: Footprints },
+    { id: "slippers", label: "�����", to: "/shop/products?type=slippers", icon: SlidersHorizontal },
   ];
   const links = [
-    { id: "home", to: "/shop", label: "ط§ظ„ط±ط¦ظٹط³ظٹط©", icon: Home },
-    { id: "categories", label: "ط§ظ„ط£ظ‚ط³ط§ظ…", icon: Grid2x2, action: "categories" },
-    { id: "sale", to: saleHref, label: "ط§ظ„ط¹ط±ظˆط¶", icon: Tag },
-    { id: "wishlist", to: "/shop/wishlist", label: "ط§ظ„ظ…ظپط¶ظ„ط©", icon: Heart },
-    { id: "account", to: "/shop/account", label: "ط­ط³ط§ط¨ظٹ", icon: User },
+    { id: "home", to: "/shop", label: "��������", icon: Home },
+    { id: "categories", label: "�������", icon: Grid2x2, action: "categories" },
+    { id: "sale", to: saleHref, label: "�������", icon: Tag },
+    { id: "wishlist", to: "/shop/wishlist", label: "�������", icon: Heart },
+    { id: "account", to: "/shop/account", label: "�����", icon: User },
   ];
   const isActive = (item) => {
     if (item.id === "home") return path === "/shop";
@@ -7863,13 +7750,13 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
   if (!isVisible) return null;
 
   const categoriesSheet = categoriesOpen && mobilePortalTarget ? createPortal(
-    <div className="fixed inset-0 z-[120] md:hidden" dir="rtl" role="dialog" aria-modal="true" aria-label="ط§ظ„ط£ظ‚ط³ط§ظ…">
-      <button type="button" className="absolute inset-0 bg-black/55 backdrop-blur-sm" aria-label="ط¥ط؛ظ„ط§ظ‚ ط§ظ„ط£ظ‚ط³ط§ظ…" onClick={() => setCategoriesOpen(false)} />
+    <div className="fixed inset-0 z-[120] md:hidden" dir="rtl" role="dialog" aria-modal="true" aria-label="�������">
+      <button type="button" className="absolute inset-0 bg-black/55 backdrop-blur-sm" aria-label="����� �������" onClick={() => setCategoriesOpen(false)} />
       <div className="absolute inset-x-0 bottom-0 rounded-t-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(9,12,20,0.98),rgba(6,8,14,0.98))] px-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 text-white shadow-[0_-28px_80px_rgba(0,0,0,0.48)]">
         <div className="mx-auto flex max-w-[28rem] items-center justify-between gap-3">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">ط§ظ„ط£ظ‚ط³ط§ظ…</p>
-            <h3 className="mt-0.5 text-base font-black">طھطµظپط­ ط§ظ„ط³ط±ظٹط¹</h3>
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">�������</p>
+            <h3 className="mt-0.5 text-base font-black">���� ������</h3>
           </div>
           <button type="button" onClick={() => setCategoriesOpen(false)} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white transition active:scale-[0.98]">
             <X className="h-5 w-5" />
@@ -8072,7 +7959,7 @@ function PaymentCopyLine({ method, label, value, amount, deepLink }) {
       <div className="flex min-w-0 items-start gap-3">
         <PaymentBrandLogo method={method} size="copy" label={label} />
         <div className="min-w-0 flex-1">
-          <div className="text-xs font-black text-white/48">{sfText("storefront.checkout.transfer.transferDetailsVia", "أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½أ¯طںآ½ أ¯طںآ½أ¯طںآ½أ¯طںآ½ {{label}}", { label })}</div>
+          <div className="text-xs font-black text-white/48">{sfText("storefront.checkout.transfer.transferDetailsVia", undefined, { label })}</div>
           <div className="sf-checkout-payment-value mt-2 rounded-2xl border border-white/10 bg-black/24 px-3 py-3 font-mono text-xl font-black tracking-wide text-white shadow-inner shadow-black/20" dir="ltr">{value}</div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-bold text-white/54">
             <span className="rounded-full border border-white/10 bg-white/[0.055] px-3 py-1">{sfText("storefront.checkout.transfer.amount")}: {money(amount)}</span>
@@ -8767,3 +8654,5 @@ function StorefrontWithBoundary() {
 }
 
 export default StorefrontWithBoundary;
+
+
