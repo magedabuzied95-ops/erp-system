@@ -4306,21 +4306,65 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
         mobileOnly
       />
       {menuOpen ? (
-        <div className="grid gap-2 border-t border-stone-200 bg-white/96 px-4 py-4 text-sm font-bold backdrop-blur dark:border-white/10 dark:bg-[#0b1020]/96 md:hidden">
-          {[
-            { label: t("storefront.nav.home", "Home"), to: "/shop" },
-            { label: t("storefront.nav.categories", "Categories"), to: "/shop/products" },
-            { label: t("storefront.nav.sale", "Sale"), to: "/shop/sale" },
-            { label: t("storefront.nav.new", "New"), to: "/shop/products?sort=new" },
-            { label: t("storefront.nav.men", "Men"), to: "/shop/products?gender=men" },
-            { label: t("storefront.nav.women", "Women"), to: "/shop/products?gender=women" },
-            { label: t("storefront.nav.sizeGuide", "Size Guide"), to: "/shop/size-guide" },
-            { label: t("storefront.nav.returns", "Returns"), to: "/shop/returns" },
-          ].map(({ label, to }) => (
-            <Link key={`${label}-${to}`} to={to} onClick={() => setMenuOpen(false)} className="rounded-2xl px-3 py-3 transition hover:bg-stone-100 dark:hover:bg-white/5 active:scale-[0.98]">
-              {label}
-            </Link>
-          ))}
+        <div className="fixed inset-0 z-[130] md:hidden" dir="rtl" role="dialog" aria-modal="true" aria-label="مساعدة وخدمات">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/55 backdrop-blur-sm"
+            aria-label={t("storefront.common.close", "إغلاق")}
+            onClick={() => setMenuOpen(false)}
+          />
+          <aside className="absolute inset-x-0 bottom-0 max-h-[86svh] overflow-hidden rounded-t-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(10,14,28,0.99),rgba(7,10,20,0.98))] text-white shadow-[0_-26px_70px_rgba(0,0,0,0.48)]">
+            <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 pb-3 pt-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">مساعدة وخدمات</p>
+                <h2 className="mt-1 text-lg font-black text-white">القائمة السريعة</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/8 text-white transition hover:bg-white/12 active:scale-[0.98]"
+                aria-label={t("storefront.common.close", "إغلاق")}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="max-h-[calc(86svh-4.5rem)] overflow-y-auto px-4 py-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+              <div className="grid gap-2">
+                {[
+                  { label: "دليل المقاسات", to: "/shop/size-guide" },
+                  { label: "سياسة الاستبدال", to: "/shop/returns" },
+                  { label: "تتبع الطلب", to: "/shop/track" },
+                  { label: "واتساب", to: "https://wa.me/", external: true, icon: MessageCircle },
+                  { label: "موقع المعرض / تواصل معنا", to: "/shop/contact" },
+                  { label: "حسابي", to: "/shop/account" },
+                ].map(({ label, to, external = false, icon: Icon }) =>
+                  external ? (
+                    <a
+                      key={`${label}-${to}`}
+                      href={to}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex min-h-12 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3.5 text-sm font-bold text-white transition hover:bg-white/[0.08] active:scale-[0.98]"
+                    >
+                      {Icon ? <Icon className="h-4 w-4 shrink-0 text-[#d8b4fe]" /> : null}
+                      <span>{label}</span>
+                    </a>
+                  ) : (
+                    <Link
+                      key={`${label}-${to}`}
+                      to={to}
+                      onClick={() => setMenuOpen(false)}
+                      className="flex min-h-12 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3.5 text-sm font-bold text-white transition hover:bg-white/[0.08] active:scale-[0.98]"
+                    >
+                      {Icon ? <Icon className="h-4 w-4 shrink-0 text-[#d8b4fe]" /> : null}
+                      <span>{label}</span>
+                    </Link>
+                  )
+                )}
+              </div>
+            </div>
+          </aside>
         </div>
       ) : null}
     </header>
