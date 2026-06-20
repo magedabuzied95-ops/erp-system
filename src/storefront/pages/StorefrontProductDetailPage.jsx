@@ -6,7 +6,6 @@ import {
   EmptyState,
   LazyProductDetailsVariantSheet,
   LazyStorefrontProductGallery,
-  MobileBuyBar,
   ProductSkeleton,
   ProductGalleryFallback,
   RecentProductsSection,
@@ -118,10 +117,8 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const [reloadToken, setReloadToken] = useState(0);
   const [selected, setSelected] = useState({ variantId: "", size: "", colorKey: "", colorName: "", image: "" });
   const [qty, setQty] = useState(1);
-  const [showMobileBuyBar, setShowMobileBuyBar] = useState(false);
   const [variantSheetAction, setVariantSheetAction] = useState("");
   const [touchedOptions, setTouchedOptions] = useState({ color: false, size: false });
-  const mainCtaRef = useRef(null);
   const recentlyViewedSentRef = useRef("");
   const normalizeQueryValue = (value = "") => String(value || "").trim();
 
@@ -307,42 +304,6 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     document.title = mirrorProduct ? displayTitle : cleanDisplayText(product.name) || document.title;
     applyProductSocialMeta(productToSocialMeta(product));
   }, [product, mirrorProduct, displayTitle]);
-  useEffect(() => {
-    const node = mainCtaRef.current;
-    if (!node || typeof window === "undefined") return undefined;
-    if (!("IntersectionObserver" in window)) {
-      let cancelled = false;
-      setTimeout(() => {
-        if (!cancelled) setShowMobileBuyBar(false);
-      }, 0);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setShowMobileBuyBar(!entry.isIntersecting);
-      },
-      {
-        threshold: 0.2,
-        rootMargin: "0px 0px -112px 0px",
-      }
-    );
-
-    observer.observe(node);
-    return () => {
-      observer.disconnect();
-      setShowMobileBuyBar(false);
-    };
-  }, [product?.id]);
-  useEffect(() => {
-    if (typeof document === "undefined") return undefined;
-    document.documentElement.style.setProperty("--product-sticky-actions-height", showMobileBuyBar ? "74px" : "0px");
-    return () => {
-      document.documentElement.style.setProperty("--product-sticky-actions-height", "0px");
-    };
-  }, [showMobileBuyBar]);
   const selectVariant = (candidate, options = {}) => {
     if (!candidate) return;
     const candidateColorKey = variantColorKey(candidate);
@@ -395,25 +356,6 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   };
   const buyNow = () => {
     submitVariant(safeActiveVariant, qty, "buy");
-  };
-  const hasMultipleVariantOptions = colors.length > 1 || sizes.length > 1 || variants.length > 1;
-  const colorSelectionReady = colors.length <= 1 || touchedOptions.color;
-  const sizeSelectionReady = sizes.length <= 1 || touchedOptions.size;
-  const canSubmitDirectly = !hasMultipleVariantOptions || (colorSelectionReady && sizeSelectionReady);
-  const requestMobilePurchase = (action) => {
-    if (!product || !safeActiveVariant || Number(safeActiveVariant.stock || 0) <= 0) return;
-    if (hasMultipleVariantOptions && !canSubmitDirectly) {
-      setVariantSheetAction(action);
-      return;
-    }
-    submitVariant(safeActiveVariant, qty, action);
-  };
-  const addFromStickyBar = () => {
-    requestMobilePurchase("cart");
-    setShowMobileBuyBar(false);
-  };
-  const buyFromStickyBar = () => {
-    requestMobilePurchase("buy");
   };
   const shareProduct = async () => {
     const url = typeof window !== "undefined" ? window.location.href : "";
@@ -567,11 +509,10 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
         </div>
 
         <button
-          ref={mainCtaRef}
           type="button"
           onClick={() => safeActiveVariant && onAddToCart(product, safeActiveVariant, qty)}
           disabled={!safeActiveVariant || !variantHasStock(safeActiveVariant)}
-        className="sf-product-cta mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white text-sm font-black text-stone-950 shadow-[0_14px_34px_rgba(255,255,255,0.16)] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35"
+          className="sf-product-cta mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white text-sm font-black text-stone-950 shadow-[0_14px_34px_rgba(255,255,255,0.16)] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35"
         >
           <ShoppingCart className="h-4 w-4" />
           {sfText("storefront.cart.addToCart", "Add to cart")}
@@ -605,8 +546,6 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
         <RelatedProducts currentId={product.id} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} />
         <RecentProductsSection currentId={product.id} recent={recent} />
       </div>
-
-      <MobileBuyBar product={product} variant={safeActiveVariant} visible={showMobileBuyBar} onAddToCart={addFromStickyBar} buyNow={buyFromStickyBar} />
     </section>
   );
 }
