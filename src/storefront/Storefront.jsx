@@ -3371,6 +3371,51 @@ function GuidedGenderStep({ options = [], selectedGender, lang, onSelect }) {
   );
 }
 
+function GuidedGradeStep({ options = [], selectedGrade, lang, disabled, loading, products = [], onSelect }) {
+  const { t } = useTranslation();
+  const gradeCountByValue = useMemo(() => {
+    const counts = new Map();
+    for (const product of Array.isArray(products) ? products : []) {
+      for (const value of productFacetQualityValues(product)) {
+        const key = normalizeFilterKey(value);
+        if (!key) continue;
+        counts.set(key, (counts.get(key) || 0) + 1);
+      }
+    }
+    return counts;
+  }, [products]);
+  return (
+    <div className={`rounded-[0.9rem] border border-stone-200 bg-white p-2 shadow-[0_10px_24px_rgba(39,20,75,0.05)] dark:border-white/10 dark:bg-[#0b1020] md:rounded-[1.25rem] md:p-2.5 ${disabled ? "pointer-events-none opacity-55" : ""}`}>
+      <div className="flex flex-wrap gap-1.5 md:gap-2">
+        {loading ? <ProductTypeSkeleton /> : options.map((option) => {
+          const active = normalizeFilterKey(selectedGrade) === normalizeFilterKey(option.value);
+          const Icon = filterOptionIcon("grade", option, lang);
+          const count = gradeCountByValue.get(normalizeFilterKey(option.value)) ?? filterOptionCount(option);
+          return (
+            <button
+              key={option.id || option.value}
+              type="button"
+              onClick={() => onSelect(option.value)}
+              className={`group inline-flex min-h-[44px] min-w-[112px] items-center gap-2 rounded-full border px-3 py-1.5 text-right transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-[52px] md:min-w-[128px] md:px-4 ${
+                active
+                  ? "border-[#7c3aed] bg-[#f5f3ff] text-[#5b21b6] ring-2 ring-[#7c3aed]/15"
+                  : "border-stone-200 bg-[#fbfaf7] text-stone-900 hover:border-[#7c3aed]/45 dark:border-white/10 dark:bg-white/5 dark:text-white"
+              }`}
+            >
+              <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${active ? "bg-[#7c3aed] text-white" : "bg-white text-[#6d28d9] shadow-sm dark:bg-white/8"}`}>
+                <Icon className="h-3 w-3" />
+              </span>
+              <span className="block truncate text-[11px] font-black leading-4 md:text-[13px] md:leading-5">{classificationLabel(option, lang)}</span>
+              {Number.isFinite(Number(count)) ? <span className="mr-auto text-[9px] font-bold leading-3 text-stone-500 dark:text-stone-400 md:text-[10px] md:leading-4">{t("storefront.products.productCount", "{{count}} items", { count })}</span> : null}
+            </button>
+          );
+        })}
+      </div>
+      {!loading && !options.length ? <EmptyState title={t("storefront.products.noGradesAvailable", "No grades available")} text={t("storefront.products.goBackChooseAnother", "Go back and choose another category.")} /> : null}
+    </div>
+  );
+}
+
 function GuidedProductTypeStep({ options = [], selectedProductType, lang, disabled, loading, products = [], onSelect }) {
   const { t } = useTranslation();
   const productCountByType = useMemo(() => {
@@ -8431,6 +8476,7 @@ export {
   LazyStorefrontProductDetailPage,
   EmptyState,
   GuidedGenderStep,
+  GuidedGradeStep,
   GuidedProductTypeStep,
   GuidedSizeFilter,
   MobileBuyBar,
