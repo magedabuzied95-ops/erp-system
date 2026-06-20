@@ -30,6 +30,7 @@ import {
   Mic,
   Minus,
   MapPin,
+  Grid2x2,
   PackageCheck,
   PackageSearch,
   Phone,
@@ -49,9 +50,11 @@ import {
   Truck,
   Upload,
   User,
+  UserRound,
   Users,
   Sun,
   X,
+  Shirt,
 } from "lucide-react";
 import { api } from "../shared/api/api";
 import { API_BASE_URL } from "../shared/constants/app";
@@ -3822,12 +3825,6 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     { label: t("storefront.header.wishlist", "Wishlist"), to: "/shop/wishlist", icon: <Heart className="h-3.5 w-3.5" /> },
     { label: t("storefront.header.account", "Account"), to: "/shop/account", icon: <User className="h-3.5 w-3.5" /> },
   ];
-  const mobileQuickActions = [
-    { key: "wishlist", label: "المفضلة", to: "/shop/wishlist", icon: <Heart className="h-4 w-4" />, external: false },
-    { key: "track", label: "تتبع الطلب", to: "/shop/track", icon: <PackageSearch className="h-4 w-4" />, external: false },
-    { key: "whatsapp", label: "واتساب", to: quickActionLinks.whatsappHref || supportHref(), icon: <MessageCircle className="h-4 w-4" />, external: true },
-    { key: "gallery", label: "المعرض", to: quickActionLinks.galleryHref || "/shop/contact", icon: <MapPin className="h-4 w-4" />, external: Boolean(quickActionLinks.galleryHref && /^https?:\/\//i.test(quickActionLinks.galleryHref)) },
-  ];
   const navItems = [
     { label: t("storefront.nav.categories", "Categories"), to: "/shop/products" },
     { label: t("storefront.nav.sale", "Sale"), to: "/shop/sale" },
@@ -4132,35 +4129,6 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
               {cartCount ? <span className="sf-action-badge sf-mobile-cart-badge">{cartCount}</span> : null}
             </button>
           </div>
-          {/* EXPERIMENTAL_MOBILE_QUICK_ACTIONS_LAYOUT */}
-          <div className="mt-2 grid grid-cols-4 gap-1.5">
-            {mobileQuickActions.map((item) => {
-              const commonClassName = "flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border border-white/10 bg-white/[0.04] px-1.5 py-1.5 text-center text-[9px] font-semibold leading-none text-white/80 transition active:scale-[0.98]";
-              const iconNode = (
-                <span className="grid h-6 w-6 place-items-center rounded-full bg-white/7 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-                  {item.icon}
-                </span>
-              );
-              return item.external ? (
-                <a
-                  key={item.key}
-                  href={item.to}
-                  className={commonClassName}
-                  aria-label={item.label}
-                  target={item.key === "whatsapp" ? "_self" : undefined}
-                  rel={item.key === "whatsapp" ? undefined : "noreferrer"}
-                >
-                  {iconNode}
-                  <span className="truncate">{item.label}</span>
-                </a>
-              ) : (
-                <Link key={item.key} to={item.to} className={commonClassName} aria-label={item.label}>
-                  {iconNode}
-                  <span className="truncate">{item.label}</span>
-                </Link>
-              );
-            })}
-          </div>
           <button
             type="button"
             onClick={() => {
@@ -4179,9 +4147,14 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
                 key={item.key}
                 to={item.to}
                 aria-current={item.active ? "page" : undefined}
-                className={`sf-mobile-category-chip inline-flex h-[40px] shrink-0 items-center rounded-full px-[16px] text-[12px] font-semibold transition duration-200 ease-out active:scale-[0.98] ${item.active ? "sf-mobile-category-chip--active" : "sf-mobile-category-chip--inactive"}`}
+                dir="rtl"
+                className={`sf-mobile-category-chip inline-flex h-[40px] shrink-0 items-center gap-1.5 rounded-full px-[14px] text-[12px] font-semibold transition duration-200 ease-out active:scale-[0.98] ${item.active ? "sf-mobile-category-chip--active" : "sf-mobile-category-chip--inactive"}`}
               >
-                {item.label}
+                {(() => {
+                  const Icon = mobileCategoryChipIcon(item.key);
+                  return <Icon className="h-[15px] w-[15px] shrink-0" aria-hidden="true" />;
+                })()}
+                <span className="truncate">{item.label}</span>
               </Link>
             ))}
           </div>
@@ -7726,68 +7699,150 @@ function FooterLinks({ title, links }) {
   return <div><h4 className="font-black">{title}</h4><div className="mt-3 grid gap-2 text-sm font-bold text-stone-600 dark:text-stone-400">{links.map(([label, href]) => <Link className="transition hover:text-[#6d28d9] dark:hover:text-[#d8b4fe]" key={label} to={href}>{label}</Link>)}</div></div>;
 }
 
-function MobileBottomNav({ count }) {
+function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = {}, publicStoreSettings = {} }) {
   const location = useLocation();
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const mobilePortalTarget = typeof document !== "undefined" ? document.body : null;
+  const path = location.pathname || "";
+  const search = location.search || "";
+  const isCheckoutFlow = /^\/shop\/(checkout|success|confirm)/.test(path) || /^\/c\/[^/]+/.test(path);
+  const isVisible = /^(\/shop(\/|$)|\/c\/[^/]+)/.test(path) && !isCheckoutFlow;
+  const saleHref = "/shop/sale";
+  const categoryLinks = [
+    { id: "men", label: "رجالي", to: "/shop/products?gender=men", icon: Users },
+    { id: "women", label: "حريمي", to: "/shop/products?gender=women", icon: Users },
+    { id: "kids", label: "أطفال", to: "/shop/products?gender=kids", icon: Baby },
+    { id: "bags", label: "شنط", to: "/shop/products?type=bags", icon: ShoppingBag },
+    { id: "crocs", label: "كروكس", to: "/shop/products?type=crocs", icon: Footprints },
+    { id: "slippers", label: "سليبر", to: "/shop/products?type=slippers", icon: SlidersHorizontal },
+  ];
   const links = [
-    { id: "home", to: "/shop", label: sfText("storefront.nav.home"), icon: Home },
-    { id: "products", to: "/shop/products", label: sfText("storefront.nav.categories"), icon: Menu },
-    { id: "search", to: "/shop/products?search=1", label: sfText("storefront.common.search"), icon: Search },
-    { id: "wishlist", to: "/shop/wishlist", label: sfText("storefront.header.wishlist"), icon: Heart },
-    { id: "cart", to: "/shop/cart", label: sfText("storefront.cart.title"), icon: ShoppingCart },
+    { id: "home", to: "/shop", label: "الرئيسية", icon: Home },
+    { id: "categories", label: "الأقسام", icon: Grid2x2, action: "categories" },
+    { id: "sale", to: saleHref, label: "العروض", icon: Tag },
+    { id: "wishlist", to: "/shop/wishlist", label: "المفضلة", icon: Heart },
+    { id: "account", to: "/shop/account", label: "حسابي", icon: User },
   ];
   const isActive = (item) => {
-    const path = location.pathname;
-    const search = location.search || "";
     if (item.id === "home") return path === "/shop";
-    if (item.id === "products") return path === "/shop/products" && !search.includes("search=1");
-    if (item.id === "search") return path === "/shop/products" && search.includes("search=1");
+    if (item.id === "categories") return path === "/shop/products" || path === saleHref || categoriesOpen;
+    if (item.id === "sale") return path === saleHref || (path === "/shop/products" && new URLSearchParams(search).get("sale") === "true");
     if (item.id === "wishlist") return path === "/shop/wishlist";
-    if (item.id === "cart") return path === "/shop/cart";
+    if (item.id === "account") return path === "/shop/account";
     return false;
   };
 
-  return (
-    <nav
-      dir="rtl"
-      className="sf-mobile-bottom-nav fixed inset-x-0 bottom-0 z-[48] h-[calc(var(--mobile-bottom-nav-height)+var(--safe-bottom))] border-t border-white/10 bg-slate-950/[0.88] px-3 pb-[var(--safe-bottom)] pt-1.5 shadow-[0_-18px_46px_rgba(0,0,0,0.32),0_1px_0_rgba(255,255,255,0.05)_inset] backdrop-blur-2xl md:hidden"
-      aria-label={sfText("storefront.nav.mobileNavigation")}
-    >
-      <div className="mx-auto grid h-full w-full max-w-[25.5rem] min-w-0 grid-cols-5 items-center gap-0.5 overflow-hidden">
-        {links.map((item) => {
-          const active = isActive(item);
-          const Icon = item.icon;
-          const badgeCount = Number(count || 0);
-          return (
-            <Link
-              key={item.id}
-              to={item.to}
-              aria-current={active ? "page" : undefined}
-              className={[
-                "group relative flex min-h-[2.75rem] min-w-0 flex-col items-center justify-center gap-0 rounded-2xl px-0.5 text-[9.5px] font-semibold leading-none transition duration-300",
-                active
-                  ? "scale-[1.03] bg-white/14 text-white shadow-[0_0_24px_rgba(124,58,237,0.22)]"
-                  : "text-slate-200/92 hover:bg-white/[0.08] hover:text-white",
-              ].join(" ")}
-            >
-              <span
-                className={[
-                  "grid h-6 w-6 place-items-center rounded-full transition duration-300",
-                  active ? "bg-[#7c3aed]/18 text-white" : "text-slate-100/90 group-hover:text-white",
-                ].join(" ")}
+  useEffect(() => {
+    if (!categoriesOpen || typeof document === "undefined") return undefined;
+    const { body } = document;
+    const previousOverflow = body.style.overflow;
+    body.style.overflow = "hidden";
+    return () => {
+      body.style.overflow = previousOverflow;
+    };
+  }, [categoriesOpen]);
+
+  useEffect(() => {
+    if (categoriesOpen) setCategoriesOpen(false);
+  }, [location.pathname, location.search]);
+
+  if (!isVisible) return null;
+
+  const categoriesSheet = categoriesOpen && mobilePortalTarget ? createPortal(
+    <div className="fixed inset-0 z-[120] md:hidden" dir="rtl" role="dialog" aria-modal="true" aria-label="الأقسام">
+      <button type="button" className="absolute inset-0 bg-black/55 backdrop-blur-sm" aria-label="إغلاق الأقسام" onClick={() => setCategoriesOpen(false)} />
+      <div className="absolute inset-x-0 bottom-0 rounded-t-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(9,12,20,0.98),rgba(6,8,14,0.98))] px-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 text-white shadow-[0_-28px_80px_rgba(0,0,0,0.48)]">
+        <div className="mx-auto flex max-w-[28rem] items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">الأقسام</p>
+            <h3 className="mt-0.5 text-base font-black">تصفح السريع</h3>
+          </div>
+          <button type="button" onClick={() => setCategoriesOpen(false)} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white transition active:scale-[0.98]">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="mx-auto mt-3 grid max-w-[28rem] gap-2">
+          {categoryLinks.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.id}
+                to={item.to}
+                onClick={() => setCategoriesOpen(false)}
+                className="flex items-center gap-3 rounded-[1rem] border border-white/10 bg-white/[0.045] px-3 py-3.5 text-sm font-bold text-white/88 transition active:scale-[0.99] hover:bg-white/[0.08] hover:text-white"
               >
-                <Icon className="h-[17px] w-[17px]" strokeWidth={2.15} />
-              </span>
-              <span className={`max-w-full truncate ${active ? "font-black text-white" : "font-semibold text-slate-100/92"}`}>{item.label}</span>
-              {item.id === "cart" && badgeCount > 0 ? (
-                <span className="absolute left-2 top-1 min-w-4 rounded-full border border-white/25 bg-rose-500 px-1.5 py-0.5 text-[8.5px] font-black leading-none text-white shadow-[0_0_14px_rgba(244,63,94,0.55)] animate-[pulse_1.8s_ease-in-out_infinite]">
-                  {badgeCount > 99 ? "99+" : badgeCount}
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/8 text-emerald-300">
+                  <Icon className="h-4.5 w-4.5" />
                 </span>
-              ) : null}
-            </Link>
-          );
-        })}
+                <span className="flex-1">{item.label}</span>
+                <ChevronLeft className="h-4 w-4 text-white/40" />
+              </Link>
+            );
+          })}
+        </div>
       </div>
-    </nav>
+    </div>,
+    mobilePortalTarget
+  ) : null;
+
+  return (
+    <>
+      {categoriesSheet}
+      <nav
+        dir="rtl"
+        className="sf-mobile-bottom-nav fixed inset-x-0 bottom-0 z-[110] md:hidden"
+        aria-label={sfText("storefront.nav.mobileNavigation")}
+      >
+        <div className="mx-auto max-w-[30rem] px-3 pb-[calc(env(safe-area-inset-bottom)+0.65rem)]">
+          <div className="grid h-[calc(var(--mobile-bottom-nav-height,70px))] grid-cols-5 items-stretch overflow-hidden rounded-[1.6rem] border border-white/10 bg-slate-950/[0.84] shadow-[0_-18px_46px_rgba(0,0,0,0.30),0_1px_0_rgba(255,255,255,0.05)_inset] backdrop-blur-2xl">
+            {links.map((item) => {
+              const active = isActive(item);
+              const Icon = item.icon;
+              const baseClass = [
+                "group flex min-w-0 flex-col items-center justify-center gap-1 px-1 text-[10px] font-semibold transition duration-200 active:scale-[0.98]",
+                active ? "text-emerald-300" : "text-slate-200/88 hover:text-white",
+              ].join(" ");
+              const iconClass = [
+                "grid h-8 w-8 place-items-center rounded-full transition duration-200",
+                active ? "bg-emerald-500/15 text-emerald-300 shadow-[0_0_0_1px_rgba(16,185,129,0.18)]" : "text-slate-100/88 group-hover:text-white",
+              ].join(" ");
+              const content = (
+                <>
+                  <span className={iconClass}>
+                    <Icon className="h-[22px] w-[22px]" strokeWidth={2.1} />
+                  </span>
+                  <span className={`max-w-full truncate leading-none ${active ? "font-black" : "font-semibold"}`}>{item.label}</span>
+                </>
+              );
+              if (item.action === "categories") {
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setCategoriesOpen(true)}
+                    aria-current={active ? "page" : undefined}
+                    className={baseClass}
+                  >
+                    {content}
+                  </button>
+                );
+              }
+              return (
+                <Link
+                  key={item.id}
+                  to={item.to}
+                  aria-current={active ? "page" : undefined}
+                  className={baseClass}
+                  onClick={onHome}
+                >
+                  {content}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </nav>
+    </>
   );
 }
 
@@ -8339,6 +8394,8 @@ function Storefront() {
       ),
     };
   }, [publicStoreSettings]);
+  const hideMobileBottomNav = /^\/shop\/(checkout|success|confirm)/.test(location.pathname || "") || /^\/c\/[^/]+/.test(location.pathname || "");
+  const showMobileBottomNav = routeReady && !hideMobileBottomNav;
 
   const components = useMemo(() => ({
     EmptyState,
@@ -8453,6 +8510,9 @@ function Storefront() {
         updateCart={updateCart}
         removeFromCart={removeFromCart}
       />
+      {showMobileBottomNav ? (
+        <MobileBottomNav cartCount={cartCount} quickActionLinks={quickActionLinks} publicStoreSettings={publicStoreSettings} />
+      ) : null}
     </>
   );
 }
