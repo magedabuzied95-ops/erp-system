@@ -29,6 +29,7 @@ import {
   MessageCircle,
   Mic,
   Minus,
+  MapPin,
   PackageCheck,
   PackageSearch,
   Phone,
@@ -3725,7 +3726,7 @@ function HeaderAction({ to, icon, count, label, className = "" }) {
   );
 }
 
-function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme, onToggleTheme, brandName = "MONE", brandTagline = "", brandLogoUrl = "" }) {
+function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme, onToggleTheme, brandName = "MONE", brandTagline = "", brandLogoUrl = "", quickActionLinks = {} }) {
   const { i18n: storefrontI18n, t } = useTranslation();
   const brandInitials = resolveBrandInitials(brandName);
   const [search, setSearch] = useState("");
@@ -3785,6 +3786,12 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     { label: t("storefront.header.trackOrder", "Track order"), to: "/shop/track", icon: <PackageSearch className="h-3.5 w-3.5" /> },
     { label: t("storefront.header.wishlist", "Wishlist"), to: "/shop/wishlist", icon: <Heart className="h-3.5 w-3.5" /> },
     { label: t("storefront.header.account", "Account"), to: "/shop/account", icon: <User className="h-3.5 w-3.5" /> },
+  ];
+  const mobileQuickActions = [
+    { key: "wishlist", label: "المفضلة", to: "/shop/wishlist", icon: <Heart className="h-5 w-5" />, external: false },
+    { key: "track", label: "تتبع الطلب", to: "/shop/track", icon: <PackageSearch className="h-5 w-5" />, external: false },
+    { key: "whatsapp", label: "واتساب", to: quickActionLinks.whatsappHref || supportHref(), icon: <MessageCircle className="h-5 w-5" />, external: true },
+    { key: "gallery", label: "المعرض", to: quickActionLinks.galleryHref || "/shop/contact", icon: <MapPin className="h-5 w-5" />, external: Boolean(quickActionLinks.galleryHref && /^https?:\/\//i.test(quickActionLinks.galleryHref)) },
   ];
   const navItems = [
     { label: t("storefront.nav.categories", "Categories"), to: "/shop/products" },
@@ -4113,6 +4120,33 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
                 {item.label}
               </Link>
             ))}
+          </div>
+          <div className="sf-mobile-quick-actions mt-2.5 grid h-[68px] grid-cols-4 divide-x divide-white/10 overflow-hidden rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.94),rgba(2,6,23,0.92))] shadow-[0_16px_38px_rgba(2,6,23,0.28)] backdrop-blur-xl rtl:divide-x-reverse">
+            {mobileQuickActions.map((item) => {
+              const commonClassName = "flex h-full min-w-0 flex-col items-center justify-center gap-1 px-1 text-center text-[10px] font-bold leading-none text-white/82 transition active:scale-[0.98]";
+              return item.external ? (
+                <a
+                  key={item.key}
+                  href={item.to}
+                  className={commonClassName}
+                  aria-label={item.label}
+                  target={item.key === "whatsapp" ? "_self" : undefined}
+                  rel={item.key === "whatsapp" ? undefined : "noreferrer"}
+                >
+                  <span className="grid h-8 w-8 place-items-center rounded-full bg-white/8 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                    {item.icon}
+                  </span>
+                  <span className="truncate">{item.label}</span>
+                </a>
+              ) : (
+                <Link key={item.key} to={item.to} className={commonClassName} aria-label={item.label}>
+                  <span className="grid h-8 w-8 place-items-center rounded-full bg-white/8 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                    {item.icon}
+                  </span>
+                  <span className="truncate">{item.label}</span>
+                </Link>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -8213,6 +8247,61 @@ function Storefront() {
     brandTagline: String(publicStoreSettings?.["storefront.store_tagline"] || "").trim(),
     brandLogoUrl,
   }), [brandLogoUrl, brandName, publicStoreSettings]);
+  const quickActionLinks = useMemo(() => {
+    const settings = publicStoreSettings || {};
+    const firstValue = (...keys) => keys.map((key) => String(settings[key] || "").trim()).find(Boolean) || "";
+    const normalizeWhatsAppHref = (value, fallback = "") => {
+      const raw = String(value || "").trim();
+      if (!raw) return fallback;
+      if (/^(https?:|mailto:|tel:|whatsapp:)/i.test(raw) || raw.startsWith("/")) return raw;
+      const digits = raw.replace(/\D/g, "");
+      return digits ? `https://wa.me/${digits}` : fallback;
+    };
+    const normalizeStoreHref = (value, fallback = "") => {
+      const raw = String(value || "").trim();
+      if (!raw) return fallback;
+      if (/^(https?:|mailto:|tel:)/i.test(raw) || raw.startsWith("/")) return raw;
+      return fallback;
+    };
+
+    return {
+      whatsappHref: normalizeWhatsAppHref(
+        firstValue(
+          "storefront.whatsapp_url",
+          "storefront.whatsapp_link",
+          "storefront.whatsapp_phone",
+          "storefront.support_whatsapp",
+          "general.whatsapp_phone",
+          "general.whatsapp",
+          "company.whatsapp",
+          "company.whatsapp_phone",
+          "support.whatsapp",
+          "contact.whatsapp",
+          "whatsapp",
+        ),
+        supportHref(),
+      ),
+      galleryHref: normalizeStoreHref(
+        firstValue(
+          "storefront.map_url",
+          "storefront.google_map_url",
+          "storefront.location_url",
+          "storefront.location_link",
+          "storefront.store_location_url",
+          "storefront.address_url",
+          "general.map_url",
+          "general.google_map_url",
+          "company.map_url",
+          "company.google_maps_url",
+          "company.location_url",
+          "map_url",
+          "google_map_url",
+          "location_url",
+        ),
+        "/shop/contact",
+      ),
+    };
+  }, [publicStoreSettings]);
 
   const components = useMemo(() => ({
     EmptyState,
@@ -8244,6 +8333,7 @@ function Storefront() {
         brandName={storefrontBrandSettings.brandName}
         brandTagline={storefrontBrandSettings.brandTagline}
         brandLogoUrl={storefrontBrandSettings.brandLogoUrl}
+        quickActionLinks={quickActionLinks}
       />
       <Routes>
       <Route
