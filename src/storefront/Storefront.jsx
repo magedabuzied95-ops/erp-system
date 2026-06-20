@@ -4063,11 +4063,60 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
       data-compact={!compactDisabled && isCompact ? "true" : "false"}
       className="sf-luxury-header sticky top-0 z-40 bg-transparent shadow-none backdrop-blur-2xl transition-all duration-300 dark:bg-transparent"
     >
-      <div className="sf-announcement-row sf-header-announcement overflow-hidden bg-[linear-gradient(105deg,#09090b,#1c1917_42%,#312e81)] text-white/90 backdrop-blur transition-all duration-300">
-        <div className="mx-auto flex h-10 w-full max-w-7xl items-center justify-center px-4">
-          <span key={announcementIndex} className="inline-flex w-full items-center justify-center text-center text-[12px] font-medium tracking-wide text-stone-100/95 animate-[sfFadeUp_420ms_ease-out_both]">
+      <div className="sf-announcement-row sf-header-announcement overflow-hidden bg-[linear-gradient(105deg,rgba(8,10,16,0.96),rgba(18,20,30,0.95)_42%,rgba(42,34,79,0.96))] text-white/90 backdrop-blur transition-all duration-300">
+        <div className="mx-auto flex h-8 w-full max-w-7xl items-center justify-center px-4 md:h-10">
+          <span key={announcementIndex} className="inline-flex w-full items-center justify-center text-center text-[10px] font-semibold tracking-[0.08em] text-stone-100/88 animate-[sfFadeUp_420ms_ease-out_both] md:text-[12px] md:font-medium md:tracking-wide">
             {announcementItems[announcementIndex] || announcementItems[0]}
           </span>
+        </div>
+      </div>
+      <div className="sf-mobile-header md:hidden">
+        <div className="px-3 pb-3 pt-[calc(0.7rem+env(safe-area-inset-top))]">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2" dir="rtl">
+            <button
+              className="sf-mobile-header-action grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]"
+              onClick={() => setMenuOpen((value) => !value)}
+              aria-label={t("storefront.header.menu", "Menu")}
+              type="button"
+            >
+              {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+            <Link to="/shop" className="sf-header-logo mx-auto inline-flex shrink-0 items-center justify-center" aria-label={brandName || "MONE"}>
+              <span
+                className="sf-header-logo-chip sf-mobile-header-logo grid h-12 w-12 place-items-center overflow-hidden rounded-full text-[0.7rem] font-black tracking-[0.16em] transition"
+                style={{ clipPath: "circle(50% at 50% 50%)", transform: "translateZ(0)", backfaceVisibility: "hidden" }}
+              >
+                {brandLogoUrl ? <img src={resolveProductImageUrl(brandLogoUrl)} alt={brandName} className="h-[130%] w-[130%] object-cover object-center" style={{ imageRendering: "auto", transform: "translateZ(0)", backfaceVisibility: "hidden" }} loading="lazy" decoding="async" width="72" height="72" /> : brandInitials}
+              </span>
+            </Link>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onToggleTheme}
+                className="sf-mobile-header-action grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]"
+                aria-label={themeToggleLabel}
+                title={themeToggleLabel}
+              >
+                {themeIsDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </button>
+              <button onClick={onCart} className="sf-mobile-header-action sf-cart-action relative grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]" aria-label={t("storefront.cart.title", "Cart")} type="button">
+                <ShoppingCart className="h-5 w-5" />
+                {cartCount ? <span className="sf-action-badge sf-mobile-cart-badge">{cartCount}</span> : null}
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setSearchOpen(true);
+              setMobileSearchOpen(true);
+            }}
+            dir="rtl"
+            className="sf-mobile-header-search mt-3 flex h-12 w-full items-center gap-3 rounded-full px-4 text-right text-sm font-semibold text-white/55 transition duration-200 ease-out"
+          >
+            <Search className="sf-mobile-header-search-icon h-4.5 w-4.5 shrink-0 text-[#c4b5fd]" />
+            <span className="truncate">ابحث بالاسم أو SKU...</span>
+          </button>
         </div>
       </div>
       <div className="sf-utility-row hidden border-b border-white/10 bg-[linear-gradient(105deg,#09090b,#1c1917_42%,#312e81)] px-4 text-xs font-semibold text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-300 sm:block">
@@ -4095,7 +4144,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
           </div>
         </div>
       </div>
-      <div className="sf-main-row sf-header-main relative mx-auto max-w-7xl px-4 py-3 md:py-5">
+      <div className="sf-main-row sf-header-main relative mx-auto hidden max-w-7xl px-4 py-3 md:block md:py-5">
         <div className="flex w-full items-center gap-3 md:gap-6" dir="rtl">
           <div className="flex shrink-0 items-center gap-2 md:gap-4">
             <button
@@ -4181,7 +4230,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
           </div>
         ) : null}
       </div>
-      <div className="sf-mobile-search bg-[#fcfaf6]/94 px-4 pb-3 pt-1 backdrop-blur transition-all duration-300 dark:bg-[#090d18]/96 md:hidden">
+      <div className="sf-mobile-search hidden bg-[#fcfaf6]/94 px-4 pb-3 pt-1 backdrop-blur transition-all duration-300 dark:bg-[#090d18]/96 md:hidden">
         <button
           type="button"
           onClick={() => {
