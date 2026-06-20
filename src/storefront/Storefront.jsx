@@ -3272,7 +3272,7 @@ const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist
       wishlist={wishlist}
       toggleWishlist={toggleWishlist}
       onAddToCart={onAddToCart}
-      sizeLimit={6}
+      sizeLimit={4}
     />
   ), [onAddToCart, toggleWishlist, wishlist]);
 
@@ -4799,32 +4799,32 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   }, [productIdentifier, requestDetailPrefetch]);
   const cardDensityClasses = {
     hero: {
-      image: "aspect-[1.02/1] p-1.5",
-      body: "p-3 pt-2.5",
-      title: "min-h-11 text-[13px] leading-[1.35rem]",
-      price: "text-[17px]",
-      sizes: "mt-3 min-h-8 gap-1.5",
-      chip: "h-6 px-2 text-[9px]",
+      image: "aspect-[1.02/1] p-1",
+      body: "p-2.5 pt-2",
+      title: "min-h-10 text-[12.5px] leading-[1.28rem]",
+      price: "text-[16px]",
+      sizes: "mt-2.5 min-h-7 gap-1.5",
+      chip: "h-5.5 px-2 text-[8.5px]",
       color: "h-6 w-6",
       swatch: "h-3.5 w-3.5",
     },
     standard: {
-      image: "aspect-[0.96/1] p-1.5",
-      body: "p-3 pt-2.5",
-      title: "min-h-11 text-[13.25px] leading-[1.35rem]",
-      price: "text-[16px]",
-      sizes: "mt-3 min-h-8 gap-1.5",
-      chip: "h-6 px-2 text-[9px]",
+      image: "aspect-[1.04/1] p-1",
+      body: "p-2.75 pt-2",
+      title: "min-h-10 text-[12.75px] leading-[1.28rem]",
+      price: "text-[15.5px]",
+      sizes: "mt-2.5 min-h-7 gap-1.5",
+      chip: "h-5.5 px-2 text-[8.5px]",
       color: "h-[22px] w-[22px]",
       swatch: "h-3 w-3",
     },
     compact: {
-      image: "aspect-[0.98/1] p-1.5",
-      body: "p-3 pt-2.5",
-      title: "min-h-10 text-[12.75px] leading-[1.3rem]",
-      price: "text-[15.5px]",
-      sizes: "mt-3 min-h-8 gap-1.5",
-      chip: "h-6 px-2 text-[9px]",
+      image: "aspect-[1.06/1] p-1",
+      body: "p-2.5 pt-2",
+      title: "min-h-9 text-[12.5px] leading-[1.25rem]",
+      price: "text-[15px]",
+      sizes: "mt-2.5 min-h-7 gap-1.25",
+      chip: "h-5.5 px-2 text-[8.5px]",
       color: "h-6 w-6",
       swatch: "h-3 w-3",
     },
@@ -4832,10 +4832,10 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const densityClasses = cardDensityClasses[density] || cardDensityClasses.standard;
 
   return (
-    <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onClick={openDetails} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={`sf-product-card group/product relative flex h-full min-h-0 transform-gpu cursor-pointer flex-col overflow-hidden rounded-[1.2rem] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(250,248,244,0.94)_48%,rgba(245,241,234,0.84))] shadow-[0_10px_26px_rgba(39,20,75,0.07),inset_0_1px_0_rgba(255,255,255,0.8)] ring-1 ring-stone-200/55 transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-1 hover:border-[#a78bfa]/38 hover:ring-[#7c3aed]/22 hover:shadow-[0_18px_44px_rgba(39,20,75,0.12),0_0_0_1px_rgba(124,58,237,0.08)_inset] md:rounded-[1.55rem] dark:border-white/[0.08] dark:bg-[linear-gradient(145deg,rgba(17,24,39,0.95),rgba(11,16,32,0.93)_52%,rgba(8,13,25,0.98))] dark:ring-white/[0.05] dark:shadow-[0_14px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.05)] dark:hover:border-[#a78bfa]/24 dark:hover:shadow-[0_20px_54px_rgba(0,0,0,0.32),0_0_24px_rgba(124,58,237,0.10)] ${featured ? "md:shadow-[0_18px_52px_rgba(109,40,217,0.12)]" : ""}`}>
-      <div className="pointer-events-none absolute inset-x-8 top-8 h-14 rounded-full bg-[#a78bfa]/0 blur-xl transition duration-300 group-hover/product:bg-[#a78bfa]/10" />
-      <div className={`relative overflow-visible bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.12),transparent_28%),linear-gradient(180deg,#fbfaf7_0%,#eee7dc_100%)] md:p-3 dark:bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.10),transparent_28%),linear-gradient(180deg,#101426_0%,#0b1020_100%)] ${densityClasses.image}`}>
-        <div className="absolute inset-x-8 top-[18%] h-24 rounded-full bg-white/40 blur-lg dark:bg-white/[0.07]" />
+    <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onClick={openDetails} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={`sf-product-card group/product relative flex h-full min-h-0 transform-gpu cursor-pointer flex-col overflow-hidden rounded-[1.2rem] border border-stone-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(250,248,244,0.92))] shadow-[0_8px_20px_rgba(15,23,42,0.06)] ring-1 ring-stone-200/35 transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-[#a78bfa]/28 hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)] md:rounded-[1.4rem] dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,rgba(17,24,39,0.96),rgba(11,16,32,0.94))] dark:ring-white/[0.04] dark:shadow-[0_10px_24px_rgba(0,0,0,0.18)] dark:hover:border-[#a78bfa]/20 dark:hover:shadow-[0_14px_30px_rgba(0,0,0,0.24)] ${featured ? "md:shadow-[0_14px_34px_rgba(109,40,217,0.08)]" : ""}`}>
+      <div className="pointer-events-none absolute inset-x-10 top-8 h-12 rounded-full bg-[#a78bfa]/0 blur-xl transition duration-300 group-hover/product:bg-[#a78bfa]/6" />
+      <div className={`relative overflow-visible bg-[linear-gradient(180deg,rgba(251,250,247,0.94),rgba(240,236,228,0.92))] md:p-2.5 dark:bg-[linear-gradient(180deg,rgba(14,18,30,0.92),rgba(9,12,22,0.98))] ${densityClasses.image}`}>
+        <div className="absolute inset-x-10 top-[20%] h-20 rounded-full bg-white/28 blur-lg dark:bg-white/[0.05]" />
         <Link to={detailsUrl} onClick={resetStorefrontViewportScroll} className="relative z-10 block h-full">
           {displayImage ? (
             <img
@@ -4843,7 +4843,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
               {...responsiveImageProps(displayImage, imagePreset)}
               alt={product.name}
               onError={fallbackProductImage}
-              className="h-full w-full transform-gpu rounded-[0.85rem] object-contain object-center p-0 transition-transform duration-300 ease-out will-change-transform group-hover/product:-translate-y-0.5 group-hover/product:scale-[1.035] md:rounded-[1.15rem] md:scale-[1.01] md:group-hover/product:scale-[1.05]"
+              className="h-full w-full transform-gpu rounded-[0.85rem] object-contain object-center p-0 transition-transform duration-300 ease-out will-change-transform group-hover/product:-translate-y-0.5 group-hover/product:scale-[1.025] md:rounded-[1rem] md:scale-[1.005] md:group-hover/product:scale-[1.035]"
               loading={eagerImage ? "eager" : "lazy"}
               decoding="async"
               width="360"
@@ -4855,27 +4855,27 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
             </div>
           )}
         </Link>
-        <div className="absolute right-3.5 top-3.5 z-20 flex flex-col items-start gap-1.5 md:right-4 md:top-4">
-          {rank && railType === "bestseller" && rank <= 3 ? <span className="inline-flex min-h-7 items-center rounded-full bg-stone-950/92 px-3 py-1 text-[9px] font-black leading-none text-white shadow-[0_10px_22px_rgba(0,0,0,0.20)] backdrop-blur md:min-h-8 md:px-3.5 md:text-[10px] dark:bg-white dark:text-stone-950">TOP {rank}</span> : null}
-          {discountPercent ? <span className="inline-flex min-h-8 items-center rounded-full border border-[#a78bfa]/40 bg-[linear-gradient(135deg,#7c3aed,#6d28d9_55%,#4c1d95)] px-3 py-1 text-[10px] font-extrabold leading-none tracking-[0.02em] text-white shadow-[0_10px_24px_rgba(124,58,237,0.28),0_0_0_1px_rgba(196,181,253,0.18)_inset] backdrop-blur md:min-h-9 md:px-3.5 md:text-[11px] dark:border-white/10 dark:bg-[linear-gradient(135deg,#7c3aed,#4c1d95)] dark:text-[#ffffff]">-{discountPercent}%</span> : null}
+        <div className="absolute right-3 top-3 z-20 flex flex-col items-start gap-1 md:right-3.5 md:top-3.5">
+          {rank && railType === "bestseller" && rank <= 3 ? <span className="inline-flex min-h-6 items-center rounded-full bg-stone-950/86 px-2.5 py-0.5 text-[8.5px] font-black leading-none text-white shadow-[0_8px_18px_rgba(0,0,0,0.14)] backdrop-blur md:min-h-7 md:px-3 md:text-[9px] dark:bg-white dark:text-stone-950">TOP {rank}</span> : null}
+          {discountPercent ? <span className="inline-flex min-h-7 items-center rounded-full border border-[#a78bfa]/22 bg-[linear-gradient(135deg,rgba(124,58,237,0.94),rgba(109,40,217,0.90))] px-2.5 py-0.5 text-[9px] font-extrabold leading-none tracking-[0.02em] text-white shadow-[0_8px_18px_rgba(124,58,237,0.16)] backdrop-blur md:min-h-8 md:px-3 md:text-[10px] dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(124,58,237,0.92),rgba(76,29,149,0.88))] dark:text-[#ffffff]">-{discountPercent}%</span> : null}
         </div>
         <button
           onClick={(event) => { event.stopPropagation(); handleWishlist(); }}
-          className="absolute left-3.5 top-3.5 z-20 grid h-11 w-11 place-items-center rounded-full border border-white/55 bg-white/92 text-stone-700 shadow-[0_12px_28px_rgba(15,23,42,0.18),0_0_0_1px_rgba(255,255,255,0.7)_inset] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:scale-[1.03] hover:border-white/75 hover:bg-white active:scale-95 active:translate-y-0 md:h-12 md:w-12 dark:border-white/10 dark:bg-white/5 dark:text-stone-100 dark:shadow-[0_12px_28px_rgba(0,0,0,0.18),0_0_0_1px_rgba(255,255,255,0.05)_inset] dark:hover:bg-white/10"
+          className="absolute left-3 top-3 z-20 grid h-10 w-10 place-items-center rounded-full border border-white/50 bg-white/90 text-stone-700 shadow-[0_8px_18px_rgba(15,23,42,0.12)] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:scale-[1.03] hover:border-white/70 hover:bg-white active:scale-95 active:translate-y-0 md:h-11 md:w-11 dark:border-white/10 dark:bg-white/6 dark:text-stone-100 dark:shadow-[0_8px_18px_rgba(0,0,0,0.14)] dark:hover:bg-white/10"
           aria-label={t("storefront.header.wishlist")}
         >
-          <Heart className={`h-5 w-5 transition duration-200 md:h-[22px] md:w-[22px] ${inWishlist ? "animate-[wishlist-pop_320ms_ease-out] fill-rose-500 text-rose-500" : "text-slate-600 dark:text-stone-200"}`} />
+          <Heart className={`h-4.5 w-4.5 transition duration-200 md:h-5 md:w-5 ${inWishlist ? "animate-[wishlist-pop_320ms_ease-out] fill-rose-500 text-rose-500" : "text-slate-600 dark:text-stone-200"}`} />
         </button>
-          {product.low_stock ? <span className="absolute bottom-2 right-2 z-20 inline-flex h-5 items-center rounded-full border border-amber-200 bg-amber-50/95 px-2 text-[9px] font-black leading-none text-amber-800 shadow-sm backdrop-blur md:bottom-auto md:left-12 md:right-auto md:top-2.5 md:h-6 md:px-2.5 md:text-[10px] dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100">{t("storefront.products.onlyLeft", undefined, { count: product.total_stock })}</span> : null}
+          {product.low_stock ? <span className="absolute bottom-2 right-2 z-20 inline-flex h-5 items-center rounded-full border border-amber-200/70 bg-amber-50/92 px-2 text-[8.5px] font-black leading-none text-amber-800 shadow-sm backdrop-blur md:bottom-auto md:left-12 md:right-auto md:top-2.5 md:h-6 md:px-2.5 md:text-[9px] dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100">{t("storefront.products.onlyLeft", undefined, { count: product.total_stock })}</span> : null}
       </div>
-        <div className={`flex flex-1 flex-col md:p-3.5 md:pt-3 ${densityClasses.body}`}>
-        <Link to={detailsUrl} onClick={resetStorefrontViewportScroll} className={`line-clamp-2 font-black tracking-[-0.01em] text-stone-900 transition hover:text-[#6d28d9] md:text-[13.75px] md:leading-5 dark:text-stone-100 ${densityClasses.title}`}>{product.name}</Link>
+        <div className={`flex flex-1 flex-col md:p-3 md:pt-2.5 ${densityClasses.body}`}>
+        <Link to={detailsUrl} onClick={resetStorefrontViewportScroll} className={`line-clamp-2 overflow-hidden font-black tracking-[-0.01em] text-stone-900 transition hover:text-[#6d28d9] md:text-[13px] md:leading-5 dark:text-stone-100 ${densityClasses.title}`}>{product.name}</Link>
         <div className="mt-2 flex min-h-6 flex-wrap items-baseline gap-x-2 gap-y-0.5 md:mt-2.5 md:min-h-7 md:gap-x-2">
-          <span className={`font-black leading-none text-stone-950 md:text-[1.28rem] dark:text-white ${densityClasses.price}`}>{money(sellingPrice)}</span>
-          {comparePrice ? <span className="text-[9.5px] font-semibold leading-none text-stone-400 line-through opacity-70 dark:text-stone-500 md:text-[10px]">{money(comparePrice)}</span> : null}
+          <span className={`font-black leading-none text-stone-950 md:text-[1.18rem] dark:text-white ${densityClasses.price}`}>{money(sellingPrice)}</span>
+          {comparePrice ? <span className="text-[9px] font-semibold leading-none text-stone-400 line-through opacity-70 dark:text-stone-500 md:text-[9.5px]">{money(comparePrice)}</span> : null}
         </div>
         {colorGroups.length > 1 ? (
-          <div className="mt-2 flex min-h-6 items-center gap-1 overflow-hidden md:mt-2.5 md:min-h-7 md:gap-1.5">
+          <div className="mt-2 flex min-h-6 items-center gap-1 overflow-hidden md:mt-2 md:min-h-7 md:gap-1.25">
             {visibleColorOptions.map((group) => {
               const active = String(group.key) === String(selectedColorKey);
               return (
@@ -4885,7 +4885,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                   onClick={(event) => chooseColor(event, group)}
                   title={group.colorName || group.color}
                   aria-label={group.colorName || group.color}
-                  className={`grid shrink-0 place-items-center rounded-full border transition active:scale-95 md:h-7 md:w-7 ${densityClasses.color} ${active ? "border-[#7c3aed] bg-white shadow-[0_0_0_2px_rgba(124,58,237,0.18)] dark:border-[#d8b4fe] dark:bg-white/10" : "border-stone-200 bg-white/70 hover:border-[#7c3aed]/45 dark:border-white/10 dark:bg-white/[0.055]"}`}
+                  className={`grid shrink-0 place-items-center rounded-full border transition active:scale-95 md:h-7 md:w-7 ${densityClasses.color} ${active ? "border-[#7c3aed] bg-white shadow-[0_0_0_2px_rgba(124,58,237,0.12)] dark:border-[#d8b4fe] dark:bg-white/10" : "border-stone-200 bg-white/70 hover:border-[#7c3aed]/35 dark:border-white/10 dark:bg-white/[0.055]"}`}
                 >
                   <span className={`rounded-full border border-black/10 shadow-inner md:h-4 md:w-4 ${densityClasses.swatch}`} style={swatchColorStyle(group.colorName || group.color)} />
                 </button>
@@ -4894,7 +4894,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
             {extraColorCount ? <span dir="ltr" className="inline-flex h-6 shrink-0 items-center rounded-full border border-stone-200/80 bg-white/[0.58] px-2 text-[9px] font-black leading-none text-stone-500 dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-400">+{extraColorCount}</span> : null}
           </div>
         ) : null}
-        <div className={`sf-scroll flex flex-nowrap overflow-x-auto pb-0.5 md:mt-3 md:min-h-12 md:flex-wrap md:content-start md:gap-1.5 md:overflow-hidden ${densityClasses.sizes}`}>
+        <div className={`sf-scroll flex flex-nowrap overflow-x-auto pb-0.5 md:mt-2.5 md:min-h-11 md:flex-wrap md:content-start md:gap-1.5 md:overflow-hidden ${densityClasses.sizes}`}>
           {visibleSizes.map(({ size, variant }) => {
             const selected = String(availableVariant?.id) === String(variant?.id);
             return (
@@ -4902,7 +4902,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                 key={`${activeColorGroup?.key || "default"}-${size}`}
                 type="button"
                 onClick={(event) => { event.stopPropagation(); setSelectedVariantId(variant.id); setSelectedColorKeyState(variantColorKey(variant)); }}
-                className={`inline-flex shrink-0 items-center justify-center rounded-full border font-black leading-none transition duration-200 md:h-6 md:px-2 md:text-[10px] ${densityClasses.chip} ${selected ? "border-[#7c3aed] bg-[#6d28d9] text-white shadow-[0_10px_22px_rgba(124,58,237,0.28)] ring-2 ring-[#c4b5fd]/25 dark:border-[#d8b4fe] dark:bg-[#d8b4fe] dark:text-stone-950" : "border-stone-300/90 bg-white text-stone-700 hover:border-[#7c3aed]/45 hover:text-[#6d28d9] dark:border-white/12 dark:bg-white/[0.055] dark:text-stone-300 dark:hover:border-[#d8b4fe]/50 dark:hover:text-white"} disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300 disabled:line-through disabled:opacity-45 dark:disabled:bg-white/5 dark:disabled:text-stone-500`}
+                className={`inline-flex shrink-0 items-center justify-center rounded-full border font-black leading-none transition duration-200 md:h-6 md:px-2 md:text-[10px] ${densityClasses.chip} ${selected ? "border-[#7c3aed] bg-[#7c3aed] text-white shadow-[0_8px_18px_rgba(124,58,237,0.18)] ring-1 ring-[#c4b5fd]/20 dark:border-[#d8b4fe] dark:bg-[#d8b4fe] dark:text-stone-950" : "border-stone-300/90 bg-white text-stone-700 hover:border-[#7c3aed]/35 hover:text-[#6d28d9] dark:border-white/12 dark:bg-white/[0.055] dark:text-stone-300 dark:hover:border-[#d8b4fe]/45 dark:hover:text-white"} disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300 disabled:line-through disabled:opacity-45 dark:disabled:bg-white/5 dark:disabled:text-stone-500`}
               >
                 {size}
               </button>
@@ -4919,10 +4919,10 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           type="button"
           onClick={handleQuickAdd}
           disabled={!canQuickAdd}
-          className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-[#c4b5fd]/45 bg-[linear-gradient(135deg,#7c3aed,#6d28d9_55%,#4c1d95)] px-4 py-3 text-[12px] font-black text-white shadow-[0_14px_34px_rgba(124,58,237,0.32),0_0_0_1px_rgba(196,181,253,0.16)_inset] backdrop-blur transition duration-200 hover:-translate-y-0.5 hover:border-[#ddd6fe]/60 hover:shadow-[0_18px_42px_rgba(124,58,237,0.42)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100"
+          className="mt-2.5 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full border border-[#c4b5fd]/28 bg-[linear-gradient(135deg,rgba(124,58,237,0.92),rgba(109,40,217,0.92)_55%,rgba(76,29,149,0.96))] px-4 py-2.5 text-[11.5px] font-black text-white shadow-[0_10px_24px_rgba(124,58,237,0.18)] backdrop-blur transition duration-200 hover:-translate-y-0.5 hover:border-[#ddd6fe]/45 hover:shadow-[0_14px_30px_rgba(124,58,237,0.24)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100"
           aria-label={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
         >
-          <ShoppingCart className="h-[18px] w-[18px] text-white" />
+          <ShoppingCart className="h-[16px] w-[16px] text-white" />
           {canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
         </button>
       </div>
