@@ -1,5 +1,5 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import {
@@ -109,9 +109,10 @@ function StorefrontProductDetailErrorState({ title, text, onRetry, retryLabel, b
 
 export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishlist, rememberProduct, recent, profile }) {
   const { identifier } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const productQueryKey = searchParams.toString();
+  const productPageKey = `${location.pathname}${location.search}`;
   const variantParam = String(searchParams.get("variant") || searchParams.get("variantId") || "").trim();
   const colorParam = String(searchParams.get("color") || searchParams.get("colorId") || "").trim();
   const sizeParam = String(searchParams.get("size") || "").trim();
@@ -124,6 +125,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const [variantSheetAction, setVariantSheetAction] = useState("");
   const [touchedOptions, setTouchedOptions] = useState({ color: false, size: false });
   const recentlyViewedSentRef = useRef("");
+  const productTopRef = useRef(null);
   const normalizeQueryValue = (value = "") => String(value || "").trim();
 
   useEffect(() => {
@@ -231,12 +233,37 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
       cancelled = true;
       controller.abort();
     };
-  }, [identifier, productQueryKey, profilePhone, rememberProduct, reloadToken]);
+  }, [identifier, location.pathname, location.search, profilePhone, rememberProduct, reloadToken]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, [identifier, variantParam, colorParam, sizeParam, slugParam]);
+    if ("scrollRestoration" in window.history) {
+      const previous = window.history.scrollRestoration;
+      window.history.scrollRestoration = "manual";
+      return () => {
+        window.history.scrollRestoration = previous;
+      };
+    }
+    return undefined;
+  }, []);
+
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const scrollTop = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      document.scrollingElement?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+      productTopRef.current?.scrollIntoView?.({ block: "start", inline: "nearest", behavior: "auto" });
+    };
+    scrollTop();
+    const raf = window.requestAnimationFrame(scrollTop);
+    const timeout = window.setTimeout(scrollTop, 80);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(timeout);
+    };
+  }, [productPageKey, identifier, variantParam, colorParam, sizeParam, slugParam]);
 
   const product = state.product;
   const variants = useMemo(() => product?.variants || [], [product]);
@@ -407,6 +434,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
 
   return (
     <section dir="rtl" className="sf-product-details-page mx-auto grid max-w-7xl gap-2 px-3 pb-28 pt-1 md:gap-5 md:px-4 md:pb-36 md:pt-5 lg:grid-cols-[minmax(0,55fr)_minmax(360px,45fr)] lg:items-start lg:pb-8">
+      <div ref={productTopRef} aria-hidden="true" className="h-0 w-0 overflow-hidden" />
       <Suspense fallback={<ProductGalleryFallback />}>
         <LazyStorefrontProductGallery
           mainImage={mainImage}
