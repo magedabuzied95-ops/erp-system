@@ -24,6 +24,7 @@ import {
   classificationLabel,
   displaySellingPrice,
   firstDisplayVariant,
+  filterOptionCount,
   normalizeAudienceValue,
   money,
   sortStorefrontColorCardsByModel,

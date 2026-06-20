@@ -8697,6 +8697,7 @@ export {
   fallbackProductImage,
   firstDisplayVariant,
   firstVariantImage,
+  filterOptionCount,
   getSessionId,
   imageFor,
   isLastPieceProduct,
