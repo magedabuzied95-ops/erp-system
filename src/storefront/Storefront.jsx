@@ -74,12 +74,17 @@ import instaPayLogoWebp from "../assets/payments/instapay.webp";
 import vodafoneCashLogo from "../assets/payments/vodafone-cash.png";
 import vodafoneCashLogoWebp from "../assets/payments/vodafone-cash.webp";
 
-const ARABIC_RE = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/;
-const MOJIBAKE_BYTE_MARKER_RE = /[?U?A]/;
-const MOJIBAKE_SYMBOL_RE = /[â€¦â€؛â„¢ئ’â€ڑ]/;
+const ARABIC_RE = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/u;
+const MOJIBAKE_BYTE_MARKER_RE = /[\u00C0-\u00FF]/u;
+const MOJIBAKE_SYMBOL_RE = /[\u00A0-\u00BF\u2018-\u201F\u2020-\u203A\u20A0-\u20CF\uFE50-\uFE6F\uFFFD]/u;
 const SUSPICIOUS_ARABIC_GLYPH_RE = /[\uFFFD]/;
 
-const countMatches = (value, pattern) => String(value || "").match(pattern)?.length || 0;
+const countMatches = (value, pattern) => {
+  const text = String(value || "");
+  if (!text) return 0;
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+  return text.match(new RegExp(pattern.source, flags))?.length || 0;
+};
 
 const getArabicTextMetrics = (value = "") => {
   const text = String(value ?? "");
@@ -108,6 +113,13 @@ const isLikelyArabicMojibake = (value) => {
   const suspiciousToArabicRatio = suspiciousCount / Math.max(1, arabicCount);
 
   return suspiciousDensity >= 0.28 || suspiciousToArabicRatio >= 0.35;
+};
+
+const scoreArabicRepairCandidate = (value) => {
+  const { compactText, arabicCount, suspiciousGlyphCount, mojibakeByteCount, mojibakeSymbolCount } = getArabicTextMetrics(value);
+  const length = Math.max(1, Array.from(compactText).length);
+  const penalty = suspiciousGlyphCount * 4 + (mojibakeByteCount + mojibakeSymbolCount) * 3 + Math.max(0, length - arabicCount) * 0.15;
+  return arabicCount * 2 - penalty;
 };
 
 const getWindows1256ReverseMap = (() => {
@@ -147,11 +159,20 @@ const repairArabicMojibakeText = (value) => {
     }
 
     const repaired = new TextDecoder("utf-8").decode(Uint8Array.from(bytes));
-    return repaired && repaired !== value ? repaired : value;
+    if (!repaired || repaired === value) return value;
+
+    const originalScore = scoreArabicRepairCandidate(value);
+    const repairedScore = scoreArabicRepairCandidate(repaired);
+    return repairedScore > originalScore ? repaired : value;
   } catch {
     return value;
   }
 };
+
+// Guardrails:
+// repairArabicMojibakeText("رجالي") === "رجالي"
+// repairArabicMojibakeText("حريمي") === "حريمي"
+// repairArabicMojibakeText("ط±ط¬ط§ظ„ظٹ") === "رجالي"
 
 const repairArabicMojibakeDeep = (value) => {
   if (typeof value === "string") return repairArabicMojibakeText(value);

@@ -165,7 +165,7 @@
 
   html[data-language="ar"] body,
   body[data-language="ar"] {
-    font-family: var(--app-font, "Cairo", "IBM Plex Sans Arabic", "Segoe UI", sans-serif);
+    font-family: var(--app-font, "Cairo", "Tajawal", "Noto Sans Arabic", "IBM Plex Sans Arabic", "Segoe UI", sans-serif);
   }
 
   html[data-language="en"] body,
@@ -4336,7 +4336,7 @@ html[dir="rtl"] :where(.recharts-wrapper, .recharts-surface, canvas, svg[role="i
 html[dir="rtl"] :where(.pos-receipt, .invoice-print, .print-document) {
   direction: rtl;
   text-align: right;
-  font-family: var(--app-font), "Cairo", "Segoe UI", sans-serif;
+  font-family: var(--app-font), "Cairo", "Tajawal", "Noto Sans Arabic", "IBM Plex Sans Arabic", "Segoe UI", sans-serif;
 }
 
 html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums, .print-document .tabular-nums) {
@@ -4352,7 +4352,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 
 @media (max-width: 1023px) {
   .manager-portal-readable-v2 {
-    font-family: var(--app-font, "Cairo", "IBM Plex Sans Arabic", "Segoe UI", sans-serif);
+    font-family: var(--app-font, "Cairo", "Tajawal", "Noto Sans Arabic", "IBM Plex Sans Arabic", "Segoe UI", sans-serif);
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

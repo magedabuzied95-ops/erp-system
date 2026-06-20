@@ -182,7 +182,7 @@ const resources = {
 
 const resolveFontFamily = (language) =>
   normalizeLanguage(language) === "ar"
-    ? '"Cairo", "IBM Plex Sans Arabic", "Segoe UI", sans-serif'
+    ? '"Cairo", "Tajawal", "Noto Sans Arabic", "IBM Plex Sans Arabic", "Segoe UI", sans-serif'
     : '"Inter", "Segoe UI", sans-serif';
 
 export const applyDocumentLanguage = (language) => {
