@@ -153,12 +153,17 @@ const productFacetCategoryValues = (product = {}) => splitFacetValues([
 ].filter(Boolean).join(" | "));
 const catalogListingProductKey = (product = {}, index = 0) =>
   String(
-    product?.id ||
+      product?.card_id ||
+      product?.storefront_card_id ||
+      product?.id ||
       product?.product_id ||
       product?.productId ||
-      product?.card_id ||
       product?.slug ||
       product?.canonical_slug ||
+      product?.color_key ||
+      product?.display_color_key ||
+      product?.selected_variant_id ||
+      product?.display_variant_id ||
       product?.name ||
       product?.title ||
       product?.product_name ||
@@ -175,6 +180,8 @@ const normalizeCatalogListingProduct = (product = {}) => {
     ...product,
     id,
     name,
+    card_id: product?.card_id || product?.storefront_card_id || id,
+    storefront_card_id: product?.storefront_card_id || product?.card_id || id,
     product_id: product?.product_id || product?.productId || id,
     slug: product?.slug || product?.canonical_slug || id,
     title: product?.title || name,
