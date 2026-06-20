@@ -8449,7 +8449,7 @@ function Storefront() {
     };
   }, [publicStoreSettings]);
   const hideMobileBottomNav = /^\/shop\/(checkout|success|confirm)/.test(location.pathname || "") || /^\/c\/[^/]+/.test(location.pathname || "");
-  const showMobileBottomNav = routeReady && !hideMobileBottomNav;
+  const showMobileBottomNav = routeReady && !hideMobileBottomNav && !cartDrawerOpen && !menuOpen;
 
   const components = useMemo(() => ({
     EmptyState,
