@@ -618,6 +618,19 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
+    console.info("[ProductListing:data]", {
+      rawProductsType: Array.isArray(products) ? "array" : typeof products,
+      rawProductsIsArray: Array.isArray(products),
+      rawProductsCount: Array.isArray(products) ? products.length : 0,
+      rawProductsSample: Array.isArray(products) ? products.slice(0, 3) : products,
+      catalogProductsCount: Array.isArray(catalogProducts) ? catalogProducts.length : 0,
+      filteredProductsCount: Array.isArray(filteredProducts) ? filteredProducts.length : 0,
+      activeFilters: catalogFilters,
+    });
+  }, [catalogFilters, catalogProducts, filteredProducts, products]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
     const sampleProducts = (Array.isArray(catalogProducts) ? catalogProducts : []).slice(0, 3).map((product) => {
       const rawAudience = product.audience || product.audiences || product.gender || product.genders || product.product_audience || product.product_audiences || product.target_audience || "";
       return {
@@ -897,6 +910,23 @@ function CatalogSizeFilter({ sizes = [], selectedSizes = [], onToggle, onClear }
 function CatalogPriceFilter({ minPrice = "", maxPrice = "", onChange, priceBounds = {} }) {
   const { t } = useTranslation();
   const hasValue = Boolean(normalizeFilterText(minPrice) || normalizeFilterText(maxPrice));
+  const resolvedMinBound = Number.isFinite(Number(priceBounds.min)) ? Number(priceBounds.min) : 0;
+  const resolvedMaxBound = Number.isFinite(Number(priceBounds.max)) ? Number(priceBounds.max) : resolvedMinBound;
+  const rangeSpan = Math.max(1, resolvedMaxBound - resolvedMinBound);
+  const currentMin = Number.isFinite(Number(minPrice)) ? Number(minPrice) : resolvedMinBound;
+  const currentMax = Number.isFinite(Number(maxPrice)) ? Number(maxPrice) : resolvedMaxBound;
+  const safeMin = Math.min(Math.max(currentMin, resolvedMinBound), currentMax);
+  const safeMax = Math.max(Math.min(currentMax, resolvedMaxBound), safeMin);
+  const minPercent = ((safeMin - resolvedMinBound) / rangeSpan) * 100;
+  const maxPercent = ((safeMax - resolvedMinBound) / rangeSpan) * 100;
+  const handleMinChange = (nextValue) => {
+    const nextMin = Math.min(Math.max(Number(nextValue) || resolvedMinBound, resolvedMinBound), safeMax);
+    onChange(String(nextMin), normalizeFilterText(maxPrice) ? String(safeMax) : String(safeMax));
+  };
+  const handleMaxChange = (nextValue) => {
+    const nextMax = Math.max(Math.min(Number(nextValue) || resolvedMaxBound, resolvedMaxBound), safeMin);
+    onChange(normalizeFilterText(minPrice) ? String(safeMin) : String(safeMin), String(nextMax));
+  };
   return (
     <section className="rounded-[1.35rem] border border-stone-200 bg-white p-3 shadow-[0_12px_32px_rgba(39,20,75,0.06)] dark:border-white/10 dark:bg-[#0b1020] md:p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -910,35 +940,50 @@ function CatalogPriceFilter({ minPrice = "", maxPrice = "", onChange, priceBound
           </button>
         ) : null}
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <label className="grid gap-1 text-right">
-          <span className="text-[10px] font-bold text-stone-500 dark:text-stone-400">{t("storefront.filters.minPrice", "أقل")}</span>
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={minPrice}
-            onChange={(event) => onChange(event.target.value, maxPrice)}
-            placeholder={priceBounds.min !== "" ? String(priceBounds.min) : "0"}
-            className="min-h-11 rounded-2xl border border-stone-200 bg-stone-50 px-3 text-sm font-bold text-stone-900 outline-none transition focus:border-[#7c3aed] dark:border-white/10 dark:bg-white/5 dark:text-white"
-          />
-        </label>
-        <label className="grid gap-1 text-right">
-          <span className="text-[10px] font-bold text-stone-500 dark:text-stone-400">{t("storefront.filters.maxPrice", "أعلى")}</span>
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={maxPrice}
-            onChange={(event) => onChange(minPrice, event.target.value)}
-            placeholder={priceBounds.max !== "" ? String(priceBounds.max) : "0"}
-            className="min-h-11 rounded-2xl border border-stone-200 bg-stone-50 px-3 text-sm font-bold text-stone-900 outline-none transition focus:border-[#7c3aed] dark:border-white/10 dark:bg-white/5 dark:text-white"
-          />
-        </label>
+      <div className="space-y-3">
+        <div className="rounded-[1.15rem] border border-stone-200 bg-stone-50 px-3 py-4 dark:border-white/10 dark:bg-white/5">
+          <div className="relative mx-1 h-10" dir="ltr">
+            <div className="absolute left-0 right-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-stone-200 dark:bg-white/10" />
+            <div
+              className="absolute top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-gradient-to-r from-[#7c3aed] to-[#a855f7]"
+              style={{ left: `${minPercent}%`, right: `${100 - maxPercent}%` }}
+            />
+            <input
+              type="range"
+              min={resolvedMinBound}
+              max={resolvedMaxBound}
+              step="1"
+              value={safeMin}
+              onChange={(event) => handleMinChange(event.target.value)}
+              className="absolute inset-0 z-20 h-10 w-full cursor-pointer appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-[#7c3aed] [&::-webkit-slider-thumb]:shadow-[0_8px_20px_rgba(124,58,237,0.35)] [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-[#7c3aed] [&::-moz-range-thumb]:shadow-[0_8px_20px_rgba(124,58,237,0.35)]"
+              aria-label={t("storefront.filters.minPrice", "أقل")}
+            />
+            <input
+              type="range"
+              min={resolvedMinBound}
+              max={resolvedMaxBound}
+              step="1"
+              value={safeMax}
+              onChange={(event) => handleMaxChange(event.target.value)}
+              className="absolute inset-0 z-30 h-10 w-full cursor-pointer appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-[#7c3aed] [&::-webkit-slider-thumb]:shadow-[0_8px_20px_rgba(124,58,237,0.35)] [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-[#7c3aed] [&::-moz-range-thumb]:shadow-[0_8px_20px_rgba(124,58,237,0.35)]"
+              aria-label={t("storefront.filters.maxPrice", "أعلى")}
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-right text-[11px] font-black text-stone-600 dark:text-stone-300">
+          <div className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 dark:border-white/10 dark:bg-white/5">
+            <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-stone-400 dark:text-stone-500">{t("storefront.filters.minPrice", "أقل سعر")}</span>
+            <span className="mt-0.5 block text-sm font-black text-stone-950 dark:text-white">{money(safeMin)} جنيه</span>
+          </div>
+          <div className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 dark:border-white/10 dark:bg-white/5">
+            <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-stone-400 dark:text-stone-500">{t("storefront.filters.maxPrice", "أعلى سعر")}</span>
+            <span className="mt-0.5 block text-sm font-black text-stone-950 dark:text-white">{money(safeMax)} جنيه</span>
+          </div>
+        </div>
+        <p className="text-[11px] font-bold text-stone-500 dark:text-stone-400">
+          {priceBounds.min !== "" && priceBounds.max !== "" ? `${money(priceBounds.min)} - ${money(priceBounds.max)}` : t("storefront.filters.priceHint", "استخدم نطاق السعر لتضييق النتائج")}
+        </p>
       </div>
-      <p className="mt-2 text-[11px] font-bold text-stone-500 dark:text-stone-400">
-        {priceBounds.min !== "" && priceBounds.max !== "" ? `${money(priceBounds.min)} - ${money(priceBounds.max)}` : t("storefront.filters.priceHint", "استخدم نطاق السعر لتضييق النتائج")}
-      </p>
     </section>
   );
 }
