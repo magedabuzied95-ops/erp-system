@@ -69,6 +69,10 @@ import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
 import { VirtualGrid, VirtualList } from "../shared/components/VirtualList";
 import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
+import instaPayLogoWebp from "../assets/payments/instapay.webp";
+import instaPayLogo from "../assets/payments/instapay.png";
+import vodafoneCashLogoWebp from "../assets/payments/vodafone-cash.webp";
+import vodafoneCashLogo from "../assets/payments/vodafone-cash.png";
 const productRouteIdentifier = (product = {}) =>
   firstTextValue(
     product.product_id,
