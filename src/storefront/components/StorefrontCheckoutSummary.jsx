@@ -101,7 +101,7 @@ export default function StorefrontCheckoutSummary({
       ? t("common.loading", "جاري التحميل...")
       : money(deliveryFee)
     : t("storefront.checkout.chooseGovernorate", "اختر المحافظة");
-  const deliveryText = shippingQuote.estimated_delivery_text || t("storefront.checkout.expectedDeliveryNotice", "التسليم المتوقع خلال 2 إلى 5 أيام عمل حسب المحافظة.");
+  const deliveryText = shippingQuote.estimated_delivery_text || t("storefront.checkout.expectedDeliveryNotice", "٢–٥ أيام عمل");
   const cartCount = Array.isArray(cart) ? cart.length : 0;
 
   return (
