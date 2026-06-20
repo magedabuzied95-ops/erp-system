@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
-  ArrowLeft,
   CheckCircle2,
-  ExternalLink,
   Image as ImageIcon,
   Loader2,
   MapPin,
   MessageCircleWarning,
-  Package2,
   PencilLine,
   Phone,
   ShoppingBag,
@@ -62,6 +59,8 @@ const toNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const formatMoney = (value = 0) => `${moneyFormatter.format(toNumber(value))} جنيه`;
+
 const normalizeItems = (payload = {}) => {
   const order = payload?.order ?? payload?.data?.order ?? payload?.result?.order ?? payload?.data ?? payload?.result ?? payload ?? {};
   const sources = [
@@ -109,7 +108,6 @@ const normalizeItems = (payload = {}) => {
         item?.variant?.variant_image_url,
         item?.variant?.product_image_url
       ),
-      total_amount: toNumber(item?.total_amount || 0),
     }))
     .filter((item) => item.product_name || item.image_url);
 };
@@ -119,33 +117,14 @@ const getWhatsAppUrl = (phone = "") => {
   return digits ? `https://wa.me/${digits}` : "https://wa.me/";
 };
 
-const formatMoney = (value = 0) => `${moneyFormatter.format(toNumber(value))} جنيه`;
-
-function MetaTile({ label, value, icon: Icon }) {
+function InfoCard({ title, icon: Icon, children }) {
   return (
     <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-start gap-3">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-slate-100 text-[#ea580c]">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div className="min-w-0">
-          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
-          <div className="mt-1 break-words text-sm font-black leading-6 text-slate-950">{value}</div>
-        </div>
+      <div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-950">
+        <Icon className="h-4 w-4 text-[#f97316]" />
+        {title}
       </div>
-    </div>
-  );
-}
-
-function Pill({ children }) {
-  return <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black text-slate-700">{children}</span>;
-}
-
-function SummaryRow({ label, value }) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-      <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{label}</span>
-      <span className="max-w-[60%] text-right text-sm font-black text-slate-950">{value}</span>
+      {children}
     </div>
   );
 }
@@ -177,9 +156,6 @@ export function OrderConfirmationActionPage() {
   const customerPhone = text(order?.customer_phone, order?.phone, order?.whatsapp, order?.mobile);
   const customerAddress = text(order?.customer_address, order?.shipping_address_line, order?.street_address, order?.address);
   const totalAmount = toNumber(order?.total_amount ?? order?.total_price ?? order?.total ?? 0);
-  const governorate = text(order?.governorate, order?.city_area);
-  const itemsCount = items.length;
-  const totalQuantity = items.reduce((sum, item) => sum + toNumber(item.quantity), 0);
   const waUrl = getWhatsAppUrl(customerPhone);
 
   const isExpiredState =
@@ -260,18 +236,16 @@ export function OrderConfirmationActionPage() {
           <div className="px-4 pb-5 pt-5 sm:px-6 sm:pb-6 sm:pt-6">
             <div className="h-1 w-full rounded-full bg-slate-900" />
 
-            <div className="mt-4 grid gap-4 lg:grid-cols-[1.12fr_0.88fr]">
+            <div className="mt-4 space-y-4">
               <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                <div className="mb-4 flex items-start gap-3">
+                <div className="mb-3 flex items-start gap-3">
                   <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-slate-100 text-[#ea580c]">
                     <CheckCircle2 className="h-7 w-7" />
                   </div>
                   <div className="min-w-0">
                     <p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#b45309]">COD confirmation</p>
                     <h1 className="mt-1 text-2xl font-black leading-tight tracking-tight text-slate-950 sm:text-3xl">طلبك جاهز للتأكيد</h1>
-                    <p className="mt-2 text-sm leading-6 text-slate-700">
-                      راجع تفاصيل الطلب ثم اختر الإجراء المناسب. إذا انتهى الرابط أو تم استخدامه، ستظهر لك طريقة تواصل سريعة.
-                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">رقم الطلب: {orderNumber || "—"}</p>
                   </div>
                 </div>
 
@@ -290,21 +264,14 @@ export function OrderConfirmationActionPage() {
                       </div>
                       <div>
                         <h2 className="text-lg font-black">الرابط انتهت صلاحيته أو تم استخدامه</h2>
-                        <p className="mt-1 text-sm leading-7 text-slate-700">
-                          لا يمكن تنفيذ الإجراء من هذا الرابط الآن. يمكنك التواصل مع الفريق عبر واتساب لإعادة إرسال رابط جديد أو استكمال الطلب يدويًا.
-                        </p>
+                        <p className="mt-1 text-sm leading-7 text-slate-700">لا يمكن تنفيذ الإجراء من هذا الرابط الآن.</p>
                       </div>
                     </div>
-
                     <div className="flex flex-col gap-3 sm:flex-row">
                       <a href={waUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#16a34a] px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5">
                         <Phone className="h-4 w-4" />
                         تواصل عبر واتساب
                       </a>
-                      <Link to="/shop" className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-800 transition hover:-translate-y-0.5">
-                        <ShoppingBag className="h-4 w-4" />
-                        العودة للمتجر
-                      </Link>
                     </div>
                   </div>
                 ) : error ? (
@@ -323,35 +290,12 @@ export function OrderConfirmationActionPage() {
                         <Phone className="h-4 w-4" />
                         تواصل عبر واتساب
                       </a>
-                      <Link to="/shop" className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-800 transition hover:-translate-y-0.5">
-                        <ShoppingBag className="h-4 w-4" />
-                        العودة للمتجر
-                      </Link>
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="rounded-[1.35rem] border border-emerald-200 bg-emerald-50 p-4 text-slate-950 shadow-sm">
-                      <div className="flex items-start gap-3">
-                        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-200/80 text-slate-950">
-                          <CheckCircle2 className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <h2 className="text-lg font-black">{resultMessage}</h2>
-                          <p className="mt-1 text-sm leading-7 text-slate-700">اختر أحد الأزرار بالأسفل لإكمال العملية. كل زر يتنفذ مرة واحدة فقط.</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <MetaTile label="رقم الطلب" value={orderNumber || "—"} icon={({ className }) => <span className={className}>#</span>} />
-                      <MetaTile label="اسم العميل" value={customerName || "—"} icon={({ className }) => <span className={className}>👤</span>} />
-                      <MetaTile label="رقم الهاتف" value={customerPhone || "—"} icon={({ className }) => <span className={className}>📞</span>} />
-                      <MetaTile label="الإجمالي" value={formatMoney(totalAmount)} icon={({ className }) => <span className={className}>E£</span>} />
-                    </div>
-
-                    <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-                      <div className="overflow-hidden rounded-[1.35rem] border border-slate-200 bg-white shadow-sm">
+                    <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="overflow-hidden rounded-[1.25rem] border border-slate-200 bg-slate-50">
                         <div className="aspect-[4/3] bg-slate-50">
                           {primaryItem?.image_url ? (
                             <img src={primaryItem.image_url} alt={primaryItem.product_name} className="h-full w-full object-cover" loading="lazy" />
@@ -361,66 +305,31 @@ export function OrderConfirmationActionPage() {
                             </div>
                           )}
                         </div>
-
-                        <div className="space-y-2 p-4">
-                          <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-slate-500">
-                            <Package2 className="h-4 w-4 text-[#f97316]" />
-                            أول منتج في الطلب
-                          </div>
+                        <div className="space-y-3 p-4">
                           <h3 className="text-lg font-black leading-snug text-slate-950">{primaryItem?.product_name || "منتج"}</h3>
                           <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-700">
-                            {primaryItem?.size ? <Pill>{`المقاس: ${primaryItem.size}`}</Pill> : null}
-                            {primaryItem?.color ? <Pill>{`اللون: ${primaryItem.color}`}</Pill> : null}
-                            <Pill>{`الكمية: ${primaryItem?.quantity || 1}`}</Pill>
+                            {primaryItem?.color ? <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">اللون: {primaryItem.color}</span> : null}
+                            {primaryItem?.size ? <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">المقاس: {primaryItem.size}</span> : null}
+                            <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">الكمية: {primaryItem?.quantity || 1}</span>
                           </div>
-                          {primaryItem?.variant_name ? <p className="text-sm leading-6 text-slate-700">{primaryItem.variant_name}</p> : null}
                         </div>
                       </div>
+                    </div>
 
-                      <div className="space-y-4">
-                        <div className="rounded-[1.35rem] border border-slate-200 bg-slate-50 p-4 shadow-sm">
-                          <div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-950">
-                            <ShoppingBag className="h-4 w-4 text-[#f97316]" />
-                            تفاصيل الطلب
-                          </div>
-                          <div className="space-y-3">
-                            {items.length ? (
-                              items.map((item) => (
-                                <div key={item.key} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0">
-                                      <div className="text-sm font-black text-slate-950">{item.product_name}</div>
-                                      {item.variant_name ? <div className="mt-1 text-xs font-bold text-slate-500">{item.variant_name}</div> : null}
-                                    </div>
-                                    <div className="rounded-full bg-slate-900 px-3 py-1 text-xs font-black text-white">x{item.quantity}</div>
-                                  </div>
-                                  <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
-                                    {item.size ? <Pill>{`Size: ${item.size}`}</Pill> : null}
-                                    {item.color ? <Pill>{`Color: ${item.color}`}</Pill> : null}
-                                  </div>
-                                </div>
-                              ))
-                            ) : (
-                              <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-5 text-sm text-slate-600">
-                                لا توجد منتجات ظاهرة لهذا الطلب بعد.
-                              </div>
-                            )}
-                          </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <InfoCard title="العميل" icon={ShoppingBag}>
+                        <div className="space-y-2">
+                          <div className="text-sm font-black text-slate-950">{customerName || "—"}</div>
+                          <div className="text-sm font-bold text-slate-700">{customerPhone || "—"}</div>
                         </div>
+                      </InfoCard>
 
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <MetaTile label="عدد القطع" value={String(totalQuantity || itemsCount || 0)} icon={({ className }) => <span className={className}>◌</span>} />
-                          <MetaTile label="المحافظة / المنطقة" value={governorate || "—"} icon={({ className }) => <span className={className}>⌂</span>} />
+                      <InfoCard title="الطلب" icon={MapPin}>
+                        <div className="space-y-2">
+                          <div className="text-sm font-black text-slate-950">{formatMoney(totalAmount)}</div>
+                          <div className="text-sm leading-7 text-slate-700">{customerAddress || "لا يوجد عنوان ظاهر لهذا الطلب"}</div>
                         </div>
-
-                        <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-sm">
-                          <div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-950">
-                            <MapPin className="h-4 w-4 text-[#f97316]" />
-                            العنوان
-                          </div>
-                          <p className="text-sm leading-7 text-slate-700">{customerAddress || "لا يوجد عنوان ظاهر لهذا الطلب"}</p>
-                        </div>
-                      </div>
+                      </InfoCard>
                     </div>
 
                     {!resultAction ? (
@@ -450,7 +359,11 @@ export function OrderConfirmationActionPage() {
                           })}
                         </div>
 
-                        {pendingAction ? <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm">جاري تنفيذ: {ACTION_META[pendingAction]?.label || "الإجراء"}...</div> : null}
+                        {pendingAction ? (
+                          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm">
+                            جاري تنفيذ: {ACTION_META[pendingAction]?.label || "الإجراء"}...
+                          </div>
+                        ) : null}
                       </div>
                     ) : (
                       <div className="rounded-[1.35rem] border border-emerald-200 bg-emerald-50 p-4 text-slate-950 shadow-sm">
@@ -468,42 +381,6 @@ export function OrderConfirmationActionPage() {
                     )}
                   </div>
                 )}
-              </div>
-
-              <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.24em] text-slate-500">
-                  <Package2 className="h-4 w-4 text-[#f97316]" />
-                  ملخص سريع
-                </div>
-
-                <div className="mt-4 space-y-3">
-                  <SummaryRow label="رقم الطلب" value={orderNumber || "—"} />
-                  <SummaryRow label="اسم العميل" value={customerName || "—"} />
-                  <SummaryRow label="الهاتف" value={customerPhone || "—"} />
-                  <SummaryRow label="الإجمالي" value={formatMoney(totalAmount)} />
-                  <SummaryRow label="عدد المنتجات" value={String(itemsCount)} />
-                  <SummaryRow label="الحالة الحالية" value={text(result?.target_status, order?.status, "—")} />
-                </div>
-
-                <div className="mt-5 rounded-[1.35rem] border border-slate-200 bg-slate-50 p-4">
-                  <div className="text-sm font-black text-slate-950">ملاحظات</div>
-                  <ul className="mt-3 space-y-2 text-sm leading-7 text-slate-700">
-                    <li>• الأزرار الكبيرة مناسبة للمس المباشر على الموبايل.</li>
-                    <li>• التحميل يظهر داخل الزر نفسه فقط.</li>
-                    <li>• إذا انتهى الرابط ستجد زر تواصل سريع بدل إعادة التحميل.</li>
-                  </ul>
-                </div>
-
-                <div className="mt-5 flex flex-col gap-3">
-                  <Link to="/shop" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5">
-                    <ArrowLeft className="h-4 w-4" />
-                    العودة إلى المتجر
-                  </Link>
-                  <a href={waUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-800 transition hover:-translate-y-0.5">
-                    <ExternalLink className="h-4 w-4" />
-                    مساعدة واتساب
-                  </a>
-                </div>
               </div>
             </div>
           </div>
