@@ -469,7 +469,7 @@ const buildOrderConfirmationPublicUrl = (code = "") => {
   const safeCode = text(code);
   if (!safeCode) return "";
   const baseUrl = text(resolvePublicAppUrl() || process.env.PUBLIC_APP_URL || process.env.FRONTEND_URL || "").replace(/\/+$/, "");
-  return baseUrl ? `${baseUrl}/shop/confirm/${encodeURIComponent(safeCode)}` : `/shop/confirm/${encodeURIComponent(safeCode)}`;
+  return baseUrl ? `${baseUrl}/c/${encodeURIComponent(safeCode)}` : `/c/${encodeURIComponent(safeCode)}`;
 };
 const buildOrderConfirmationLinksMessage = ({ customerName = "", publicUrl = "" } = {}) =>
   buildCodOrderConfirmationMessage({

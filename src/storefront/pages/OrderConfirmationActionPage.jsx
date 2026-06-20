@@ -117,6 +117,49 @@ const getWhatsAppUrl = (phone = "") => {
   return digits ? `https://wa.me/${digits}` : "https://wa.me/";
 };
 
+const firstDefined = (...values) => values.find((value) => value !== undefined && value !== null && String(value).trim() !== "");
+
+const normalizeMaybeMoney = (value) => {
+  if (value === undefined || value === null || value === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+const formatMaybeMoney = (value) => {
+  const normalized = normalizeMaybeMoney(value);
+  if (normalized === undefined) return "غير محدد";
+  return formatMoney(normalized);
+};
+
+const joinAddressParts = (...parts) => parts.map((part) => String(part ?? "").trim()).filter(Boolean).join("، ");
+
+const getShippingFee = (order = {}) => {
+  const shippingValue = firstDefined(
+    order.shipping_fee,
+    order.delivery_fee,
+    order.shipping_cost,
+    order.delivery_cost,
+    order.shipping_amount
+  );
+  return normalizeMaybeMoney(shippingValue);
+};
+
+const getItemsSubtotal = (order = {}) => normalizeMaybeMoney(firstDefined(order.items_subtotal, order.subtotal, order.products_subtotal, order.items_total, order.items_total_amount));
+
+const getDiscountValue = (order = {}) => normalizeMaybeMoney(firstDefined(order.discount, order.discount_amount, order.discount_value, order.coupon_discount));
+
+const getTotalValue = (order = {}) => normalizeMaybeMoney(firstDefined(order.total, order.total_amount, order.total_price, order.grand_total));
+
+const getAddressSummary = (order = {}) => {
+  const governorate = firstDefined(order.governorate, order.city, order.area);
+  const addressLine = firstDefined(order.address_line, order.street_address, order.notes, order.address, order.shipping_address, order.customer_address, order.delivery_address);
+  const fallbackAddress = firstDefined(order.shipping_address_line, order.shipping_address_details, order.location);
+  return {
+    locationLine: joinAddressParts(governorate, firstDefined(order.city, order.area)),
+    addressLine: joinAddressParts(addressLine, fallbackAddress),
+  };
+};
+
 function InfoCard({ title, icon: Icon, children }) {
   return (
     <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-sm">
@@ -154,8 +197,11 @@ export function OrderConfirmationActionPage() {
   const orderNumber = text(order?.public_order_number, order?.display_order_number, order?.invoice_number, order?.order_number, order?.id);
   const customerName = text(order?.customer_name, "العميل");
   const customerPhone = text(order?.customer_phone, order?.phone, order?.whatsapp, order?.mobile);
-  const customerAddress = text(order?.customer_address, order?.shipping_address_line, order?.street_address, order?.address);
-  const totalAmount = toNumber(order?.total_amount ?? order?.total_price ?? order?.total ?? 0);
+  const itemsSubtotal = getItemsSubtotal(order);
+  const shippingFee = getShippingFee(order);
+  const discountValue = getDiscountValue(order);
+  const totalAmount = getTotalValue(order);
+  const addressSummary = getAddressSummary(order);
   const waUrl = getWhatsAppUrl(customerPhone);
 
   const isExpiredState =
@@ -325,9 +371,38 @@ export function OrderConfirmationActionPage() {
                       </InfoCard>
 
                       <InfoCard title="الطلب" icon={MapPin}>
-                        <div className="space-y-2">
-                          <div className="text-sm font-black text-slate-950">{formatMoney(totalAmount)}</div>
-                          <div className="text-sm leading-7 text-slate-700">{customerAddress || "لا يوجد عنوان ظاهر لهذا الطلب"}</div>
+                        <div className="space-y-4">
+                          <div className="space-y-2 text-sm">
+                            <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
+                              <span className="font-bold text-slate-600">سعر المنتجات</span>
+                              <span className="font-black text-slate-950">{formatMaybeMoney(itemsSubtotal)}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
+                              <span className="font-bold text-slate-600">الشحن</span>
+                              <span className="font-black text-slate-950">{formatMaybeMoney(shippingFee)}</span>
+                            </div>
+                            {discountValue !== undefined ? (
+                              <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
+                                <span className="font-bold text-slate-600">الخصم</span>
+                                <span className="font-black text-slate-950">{formatMoney(discountValue)}</span>
+                              </div>
+                            ) : null}
+                            <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                              <span className="font-bold text-slate-600">الإجمالي النهائي</span>
+                              <span className="font-black text-slate-950">{formatMoney(totalAmount)}</span>
+                            </div>
+                          </div>
+
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">المحافظة / المدينة / المنطقة</div>
+                            <div className="mt-1 text-sm font-bold text-slate-900">
+                              {addressSummary.locationLine || "غير محدد"}
+                            </div>
+                            <div className="mt-3 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">العنوان التفصيلي</div>
+                            <div className="mt-1 text-sm leading-7 text-slate-700">
+                              {addressSummary.addressLine || "غير محدد"}
+                            </div>
+                          </div>
                         </div>
                       </InfoCard>
                     </div>
