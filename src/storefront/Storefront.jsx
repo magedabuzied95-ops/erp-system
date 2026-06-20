@@ -69,7 +69,6 @@ import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
 import { VirtualGrid, VirtualList } from "../shared/components/VirtualList";
 import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
-import { repairArabicMojibakeDeep } from "./utils/arabicText";
 const productRouteIdentifier = (product = {}) =>
   firstTextValue(
     product.product_id,
@@ -227,7 +226,7 @@ const couponErrorKeyMap = {
 };
 const couponErrorText = (reason = "") => {
   const key = couponErrorKeyMap[String(reason || "").trim()] || "storefront.checkout.couponErrors.invalid";
-  return sfText(key, String(reason || "").trim() || "����� ����� ��� ����");
+  return sfText(key, String(reason || "").trim() || "تعذر تطبيق العملية");
 };
 const truthyFlag = (value) => value === true || value === 1 || String(value || "").toLowerCase() === "true";
 const BODY_SCROLL_LOCK_ATTR = "data-storefront-scroll-lock-count";
@@ -533,7 +532,7 @@ const useStorefrontGenderClassifications = () => {
       })
       .catch((error) => {
         if (!cancelled && error?.cause?.name !== "AbortError") {
-          setState({ loading: false, error: error?.message || "���� ����� ������� ��������", options: [] });
+          setState({ loading: false, error: error?.message || "تعذر تحميل خيارات الفئة", options: [] });
         }
       });
     return () => {
@@ -816,9 +815,9 @@ const lastPieceMatchingVariant = (product = {}, selectedSize = "") => {
 };
 const normalizeAudienceValue = (value = "") => {
   const normalized = String(value || "").trim().toLowerCase();
-  if (["men", "man", "male", "mens", "�����", "����"].includes(normalized)) return "men";
-  if (["women", "woman", "female", "ladies", "lady", "�����", "����", "�����"].includes(normalized)) return "women";
-  if (["kids", "kid", "children", "child", "boys", "girls", "�����", "������"].includes(normalized)) return "kids";
+  if (["men", "man", "male", "mens", "رجالي", "رجال"].includes(normalized)) return "men";
+  if (["women", "woman", "female", "ladies", "lady", "حريمي", "نساء", "بناتي"].includes(normalized)) return "women";
+  if (["kids", "kid", "children", "child", "boys", "girls", "أطفال", "طفل"].includes(normalized)) return "kids";
   return "";
 };
 const productAudienceValues = (product = {}) => {
@@ -916,7 +915,7 @@ const getSizesForColorGroup = (activeColorGroup = {}) => {
   return Array.from(sizes.values());
 };
 
-const repairedDefaultEgyptShippingLocations = repairArabicMojibakeDeep(defaultEgyptShippingLocations);
+const repairedDefaultEgyptShippingLocations = defaultEgyptShippingLocations;
 
 const OrderInvoiceCard = lazy(() => import("../shared/components/invoices/OrderInvoiceCard"));
 const Select = lazy(() => import("react-select"));
@@ -1042,19 +1041,19 @@ const cleanupStorefrontStorage = () => {
 };
 const getSuccessMessages = () => {
   const messages = i18n.t("storefront.toasts.successMessages", { returnObjects: true });
-  return Array.isArray(messages) && messages.length ? messages : ["������ �����", "����� ��� ������ ����", "������ ����", "������ ��� ����� ����"];
+  return Array.isArray(messages) && messages.length ? messages : ["اختيار ممتاز", "طلبك يتم تجهيزه الآن", "اختيار قوي", "سنجهزه لك بأسرع وقت"];
 };
 
 const getConversionTrustPoints = () => {
   const points = i18n.t("storefront.home.trustPoints", { returnObjects: true });
-  return Array.isArray(points) && points.length ? points : ["��� ���", "����� ���", "���� ������", "��� ����"];
+  return Array.isArray(points) && points.length ? points : ["دفع آمن", "تبديل سهل", "صور حقيقية", "شحن سريع"];
 };
 
 const homeSellingBadges = [
-  { labelAr: "��� ����", labelEn: "Fast shipping", icon: Truck },
-  { labelAr: "������� ���� 14 ������", labelEn: "14-day exchange", icon: RefreshCcw },
-  { labelAr: "��� ���", labelEn: "Secure payment", icon: ShieldCheck },
-  { labelAr: "���� ������", labelEn: "Real photos", icon: Camera },
+  { labelAr: "شحن سريع", labelEn: "Fast shipping", icon: Truck },
+  { labelAr: "استبدال خلال 14 يومًا", labelEn: "14-day exchange", icon: RefreshCcw },
+  { labelAr: "دفع آمن", labelEn: "Secure payment", icon: ShieldCheck },
+  { labelAr: "صور حقيقية", labelEn: "Real photos", icon: Camera },
 ];
 
 const storefrontApi = {
@@ -1115,8 +1114,8 @@ const prefetchStorefrontProductDetails = (identifier) => {
   });
 };
 const productFromDetailsResponse = (data = {}) => data?.product || data?.data?.product || (data?.id ? data : null);
-const MANUAL_CITY_AREA = "�������� �������";
-const MANUAL_CITY_AREA_LABEL = "�������� �������";
+const MANUAL_CITY_AREA = "الاختيار اليدوي";
+const MANUAL_CITY_AREA_LABEL = "الاختيار اليدوي";
 const governorateCityAreas = repairedDefaultEgyptShippingLocations.reduce((acc, location) => {
   const governorate = String(location.governorate_name_ar || location.governorate_name_en || "").trim();
   const area = String(location.area_name_ar || location.area_name_en || location.city_name_ar || location.city_name_en || "").trim();
@@ -1458,12 +1457,12 @@ const SEARCH_RECENT_KEY = "storefront.search.recent";
 const reason = "";
 const getSearchPlaceholders = () => {
   const values = i18n.t("storefront.search.placeholders", { returnObjects: true });
-  return Array.isArray(values) && values.length ? values : ["���� �� Jordan 4...", "���� �� Sneakers...", "���� ������� 42...", "���� ���� �������...", "���� �� SKU..."];
+  return Array.isArray(values) && values.length ? values : ["ابحث عن Jordan 4...", "ابحث عن Sneakers...", "ابحث بالمقاس 42...", "ابحث باسم البراند...", "ابحث بـ SKU..."];
 };
 
 const getTrendingSearches = () => {
   const values = i18n.t("storefront.search.trending", { returnObjects: true });
-  return Array.isArray(values) && values.length ? values : ["Jordan 4", "Sneakers", "���� 42", "Mirror Original", "Adidas", "����� ����"];
+  return Array.isArray(values) && values.length ? values : ["Jordan 4", "Sneakers", "مقاس 42", "Mirror Original", "Adidas", "رجالي أسود"];
 };
 
 const getSearchFallbackSections = () => {
@@ -1471,7 +1470,7 @@ const getSearchFallbackSections = () => {
   return sections && typeof sections === "object" && !Array.isArray(sections)
     ? sections
     : {
-      categories: ["�����", "�����", "�����", "����", "��� ����"],
+      categories: ["رجالي", "حريمي", "أطفال", "عروض", "آخر قطعة"],
       brands: ["Nike", "Adidas", "New Balance", "Air Jordan"],
     };
 };
@@ -1502,12 +1501,12 @@ const featuredCategoryDefinitions = [
   {
     id: "men",
     labelEn: "Men",
-    labelAr: "�����",
+    labelAr: "رجالي",
     headlineEn: "Latest Men's Shoes",
-    headlineAr: "���� ����� ������",
+    headlineAr: "أحدث أحذية الرجال",
     subtitleEn: "Fresh sneakers, daily picks, and standout sizes for every look.",
-    subtitleAr: "������ ����ɡ �������� ����ɡ ������� ����� ��� ������.",
-    query: "Jordan 4 Nike Shox Air Force Adidas Campus �����",
+    subtitleAr: "سنيكرز جديدة، اختيارات يومية، ومقاسات مميزة لكل إطلالة.",
+    query: "Jordan 4 Nike Shox Air Force Adidas Campus رجالي",
     href: "/shop/products?gender=men",
     examples: ["Jordan 4", "Nike Shox", "Air Force", "Adidas Campus"],
     test: (product, text) => productAudienceValues(product).includes("men") || /men|mens|male|.{3,5}/i.test(text),
@@ -1516,12 +1515,12 @@ const featuredCategoryDefinitions = [
   {
     id: "women",
     labelEn: "Women",
-    labelAr: "�����",
+    labelAr: "حريمي",
     headlineEn: "New Women's Collection",
-    headlineAr: "������ ������� �������",
+    headlineAr: "مجموعة الحريمي الجديدة",
     subtitleEn: "Soft colors, bold silhouettes, and everyday favorites in one edit.",
-    subtitleAr: "����� ����ɡ ���� ����ɡ ������� ����� �� ������ ����.",
-    query: "Nike Adidas Jordan �����",
+    subtitleAr: "ألوان ناعمة، قصات جريئة، ومفضلات يومية في اختيار واحد.",
+    query: "Nike Adidas Jordan حريمي",
     href: "/shop/products?gender=women",
     examples: ["Nike", "Adidas", "Jordan"],
     test: (product, text) => productAudienceValues(product).includes("women") || /women|womens|female|ladies|.{3,5}/i.test(text),
@@ -1530,12 +1529,12 @@ const featuredCategoryDefinitions = [
   {
     id: "kids",
     labelEn: "Kids",
-    labelAr: "�����",
+    labelAr: "أطفال",
     headlineEn: "Kids Essentials",
-    headlineAr: "������� �������",
+    headlineAr: "أساسيات الأطفال",
     subtitleEn: "Built for school, play and movement.",
-    subtitleAr: "����� ������ɡ ����� �������.",
-    query: "kids children school play �����",
+    subtitleAr: "مصممة للمدرسة، اللعب والحركة.",
+    query: "kids children school play أطفال",
     href: "/shop/products?gender=kids",
     examples: ["kids", "children", "school", "play"],
     test: (product, text) => productAudienceValues(product).includes("kids") || /kids?|children|child|.{3,5}/i.test(text),
@@ -1544,12 +1543,12 @@ const featuredCategoryDefinitions = [
   {
     id: "offers",
     labelEn: "Offers",
-    labelAr: "����",
+    labelAr: "عروض",
     headlineEn: "Season Offers",
-    headlineAr: "���� ������",
+    headlineAr: "عروض الموسم",
     subtitleEn: "Selected discounts and high-value picks for a limited time.",
-    subtitleAr: "������ ������ ���� ����� ������ ����� ������.",
-    query: "offers sale discount ����",
+    subtitleAr: "خصومات مختارة وقطع عالية القيمة لفترة محدودة.",
+    query: "offers sale discount عروض",
     href: "/shop/products?sale=true",
     examples: ["Sale", "Discount", "Offers", "Best Price"],
     test: (product, text) => hasSale(product) || /offer|offers|sale|discount|.{3,5}/i.test(text),
@@ -1558,12 +1557,12 @@ const featuredCategoryDefinitions = [
   {
     id: "crocs",
     labelEn: "Crocs",
-    labelAr: "�����",
+    labelAr: "كروكس",
     headlineEn: "Crocs Picks",
-    headlineAr: "�������� �����",
+    headlineAr: "اختيارات كروكس",
     subtitleEn: "Easy comfort, summer colors, and quick everyday pairs.",
-    subtitleAr: "���� ���ɡ ����� ����ɡ ���� ����� �����.",
-    query: "crocs crocband classic clog slides �����",
+    subtitleAr: "راحة سهلة، ألوان صيفية، وقطع يومية خفيفة.",
+    query: "crocs crocband classic clog slides كروكس",
     href: "/shop/products?type=crocs",
     examples: ["Crocs", "Crocband", "Classic Clog", "Slides"],
     test: (_product, text) => /crocs?|crocband|classics*clog|slides|.{3,5}/i.test(text),
@@ -1572,12 +1571,12 @@ const featuredCategoryDefinitions = [
   {
     id: "last-sizes",
     labelEn: "Last Sizes",
-    labelAr: "��� ��������",
+    labelAr: "آخر المقاسات",
     headlineEn: "Last Sizes",
-    headlineAr: "��� ��������",
+    headlineAr: "آخر المقاسات",
     subtitleEn: "Limited pairs with final sizes before they disappear.",
-    subtitleAr: "����� ������ ��������� ������� ��� ������.",
-    query: "last sizes final size ��� ��������",
+    subtitleAr: "أزواج محدودة بالمقاسات الأخيرة قبل نفادها.",
+    query: "last sizes final size آخر المقاسات",
     href: "/shop/products?stock=last",
     examples: ["Last Sizes", "Final Size", "Limited Stock"],
     test: (_product, text) => /lasts*sizes|finals*size|.{3,5} .{3,5}|.{3,5} .{3,5} .{3,5}/i.test(text),
@@ -1731,7 +1730,7 @@ const storefrontLabelKey = (value = "") =>
     .trim()
     .toLowerCase();
 const storefrontLocalizedLabels = {
-  ar: { men: "�����", women: "�����", kids: "�����", bag: "���", crocs: "�����", slipper: "�����", sneaker: "������" },
+  ar: { men: "رجالي", women: "حريمي", kids: "أطفال", bag: "شنط", crocs: "كروكس", slipper: "سليبر", sneaker: "سنيكرز" },
   en: { men: "Men", women: "Women", kids: "Kids", bag: "Bags", crocs: "Crocs", slipper: "Slippers", sneaker: "Sneakers" },
 };
 const classificationLabel = (option = {}, lang = "ar") =>
@@ -1895,7 +1894,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
 
   const { product, image } = activeSlide;
   const ActiveIcon = activeCategory.icon;
-  const cta = isRtl ? "������ �����" : t("storefront.common.shopCategory");
+  const cta = isRtl ? "تسوّق الفئة" : t("storefront.common.shopCategory", "Shop category");
   const headline = isRtl ? activeCategory.headlineAr : activeCategory.headlineEn;
   const subtitle = isRtl ? activeCategory.subtitleAr : activeCategory.subtitleEn;
   const categoryHref = activeCategory.href || `/shop/products?q=${encodeURIComponent(activeCategory.query || activeCategory.label)}`;
@@ -1916,7 +1915,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
               {activeCategory.label}
             </div>
             <div className="absolute start-4 top-4 z-20 flex gap-2">
-              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? 1 : -1); }} className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border shadow-sm backdrop-blur transition-[background-color,color,opacity,transform] duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 ${darkMode ? "border-transparent bg-white/10 text-white hover:bg-white/16 hover:text-white focus-visible:ring-white/35" : "border-slate-200 bg-white/90 text-slate-700 hover:bg-white hover:text-slate-950 focus-visible:ring-slate-300"}`} aria-label="�������">
+              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? 1 : -1); }} className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border shadow-sm backdrop-blur transition-[background-color,color,opacity,transform] duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 ${darkMode ? "border-transparent bg-white/10 text-white hover:bg-white/16 hover:text-white focus-visible:ring-white/35" : "border-slate-200 bg-white/90 text-slate-700 hover:bg-white hover:text-slate-950 focus-visible:ring-slate-300"}`} aria-label="السابق">
                 <ChevronLeft className={`h-4 w-4 ${isRtl ? "rotate-180" : ""}`} />
               </button>
               <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? -1 : 1); }} className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border shadow-sm backdrop-blur transition-[background-color,color,opacity,transform] duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 ${darkMode ? "border-transparent bg-white/10 text-white hover:bg-white/16 hover:text-white focus-visible:ring-white/35" : "border-slate-200 bg-white/90 text-slate-700 hover:bg-white hover:text-slate-950 focus-visible:ring-slate-300"}`} aria-label="Next slide">
@@ -1971,9 +1970,9 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
 
           <aside className={`hidden border-s p-5 shadow-[inset_1px_0_0_rgba(255,255,255,0.06)] lg:block lg:[direction:rtl] ${darkMode ? "border-white/10 bg-white/[0.045]" : "border-slate-200 bg-slate-50 shadow-[inset_1px_0_0_rgba(15,23,42,0.04)]"}`}>
             <div className={`mb-4 border-b pb-3 text-sm font-black ${darkMode ? "border-white/10 text-white" : "border-slate-200 text-slate-900"}`}>
-              ���� ��� �����
+              الأقسام المميزة
             </div>
-            <nav className="grid gap-1" aria-label="������ ��������">
+            <nav className="grid gap-1" aria-label="فئات الأقسام">
               {categories.map((category) => {
                 const active = category.id === activeCategory.id;
                 return (
@@ -2002,9 +2001,9 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
 const mainHomeCategoryCards = [
   {
     id: "men",
-    titleAr: "�����",
+    titleAr: "رجالي",
     titleEn: "Men",
-    subtitleAr: "���� Nike � Adidas � Jordan",
+    subtitleAr: "أحدث Nike و Adidas و Jordan",
     subtitleEn: "Latest Nike, Adidas & Jordan",
     href: "/shop/products?gender=men",
     test: (product, text) => productAudienceValues(product).includes("men") || /men|mens|male|.{3,5}/i.test(text),
@@ -2012,9 +2011,9 @@ const mainHomeCategoryCards = [
   },
   {
     id: "women",
-    titleAr: "�����",
+    titleAr: "حريمي",
     titleEn: "Women",
-    subtitleAr: "���� ������ ��� ���",
+    subtitleAr: "راحة وأناقة لكل يوم",
     subtitleEn: "Comfort and style for every day",
     href: "/shop/products?gender=women",
     test: (product, text) => productAudienceValues(product).includes("women") || /women|womens|female|ladies|.{3,5}/i.test(text),
@@ -2022,9 +2021,9 @@ const mainHomeCategoryCards = [
   },
   {
     id: "kids",
-    titleAr: "�����",
+    titleAr: "أطفال",
     titleEn: "Kids",
-    subtitleAr: "����� ������� ������ �������",
+    subtitleAr: "مصممة للمدرسة واللعب والحركة",
     subtitleEn: "Built for school, play and movement",
     href: "/shop/products?gender=kids",
     test: (product, text) => productAudienceValues(product).includes("kids") || /kids?|children|child|.{3,5}/i.test(text),
@@ -2032,9 +2031,9 @@ const mainHomeCategoryCards = [
   },
   {
     id: "offers",
-    titleAr: "����",
+    titleAr: "عروض",
     titleEn: "Offers",
-    subtitleAr: "���� ������",
+    subtitleAr: "عروض الموسم",
     subtitleEn: "Season offers",
     href: "/shop/products?sale=true",
     test: (product, text) => hasSale(product) || /offer|offers|sale|discount|.{3,5}/i.test(text),
@@ -2042,9 +2041,9 @@ const mainHomeCategoryCards = [
   },
   {
     id: "crocs",
-    titleAr: "�����",
+    titleAr: "كروكس",
     titleEn: "Crocs",
-    subtitleAr: "���� ���� ��� ���",
+    subtitleAr: "راحة سهلة لكل يوم",
     subtitleEn: "Easy comfort for every day",
     href: "/shop/products?type=crocs",
     test: (_product, text) => /crocs?|crocband|classics*clog|slides|.{3,5}/i.test(text),
@@ -2052,9 +2051,9 @@ const mainHomeCategoryCards = [
   },
   {
     id: "last-sizes",
-    titleAr: "��� ��������",
+    titleAr: "آخر المقاسات",
     titleEn: "Last Sizes",
-    subtitleAr: "��� ������ ��� �� �����",
+    subtitleAr: "مقاسات محدودة قبل النفاد",
     subtitleEn: "Limited pairs before they disappear",
     href: "/shop/products?stock=last",
     test: (_product, text) => /lasts*sizes|finals*size|.{3,5} .{3,5}|.{3,5} .{3,5} .{3,5}/i.test(text),
@@ -2097,7 +2096,7 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
             {sfText("storefront.home.shopByCategory")}
           </div>
           <h2 className={`text-3xl font-black tracking-normal md:text-6xl ${darkMode ? "text-white/90" : "text-[#0f172a]"}`}>
-            ������ ��������
+            الأقسام المميزة
           </h2>
         </div>
         <Link to="/shop/products" className={`hidden min-h-11 items-center justify-center rounded-full border px-6 text-xs font-black shadow-[0_14px_34px_rgba(39,20,75,0.08)] transition hover:-translate-y-0.5 active:scale-[0.98] sm:inline-flex ${darkMode ? "border-white/10 bg-white/5 text-stone-200 hover:bg-white hover:text-stone-950 dark:hover:bg-white dark:hover:text-stone-950" : "border-slate-300 bg-white text-[#0f172a] hover:border-[#7c3aed]/50 hover:bg-white hover:text-[#0f172a]"}`}>
@@ -2125,7 +2124,7 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
                 <h3 className={`text-[3.3rem] font-black leading-none tracking-normal md:text-7xl lg:text-8xl ${darkMode ? "text-white" : "text-slate-900"}`}>{title}</h3>
                 <p className={`mt-4 max-w-[28rem] text-base font-bold leading-7 md:text-xl md:leading-8 ${darkMode ? "text-white/84" : "text-slate-600"}`}>{subtitle}</p>
                 <span className={`mt-7 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full px-6 text-sm font-black transition md:min-h-14 md:px-8 ${darkMode ? "bg-white text-stone-950 shadow-[0_16px_34px_rgba(0,0,0,0.26)] group-hover:bg-[#f8e7b3] group-hover:shadow-[0_18px_42px_rgba(248,231,179,0.26)]" : "bg-slate-900 text-white shadow-[0_16px_34px_rgba(15,23,42,0.16)] group-hover:bg-[#7c3aed] group-hover:shadow-[0_18px_42px_rgba(124,58,237,0.16)]"}`}>
-                  {isRtl ? "����� ����" : sfText("storefront.common.shopNow")}
+                  {isRtl ? "تسوّق الآن" : sfText("storefront.common.shopNow")}
                   <ChevronLeft className={`h-4 w-4 transition group-hover:-translate-x-1 ${isRtl ? "" : "rotate-180 group-hover:translate-x-1 group-hover:-translate-y-0"}`} />
                 </span>
               </div>
@@ -2593,7 +2592,7 @@ function HomeBrandsSection() {
       <div className="rounded-[2.15rem] border border-stone-200 bg-white px-4 py-5 shadow-[0_18px_54px_rgba(39,20,75,0.07)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(7,11,22,0.98),rgba(7,11,22,0.92))] dark:shadow-[0_24px_80px_rgba(0,0,0,0.28)] md:px-5 md:py-6">
         <div className="mb-4 text-center">
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7c3aed] dark:text-[#d8b4fe]">{sfText("storefront.home.brandsEyebrow")}</p>
-          <h2 className="mt-1 text-2xl font-black tracking-normal text-stone-950 dark:text-white md:text-3xl">������ ��������</h2>
+          <h2 className="mt-1 text-2xl font-black tracking-normal text-stone-950 dark:text-white md:text-3xl">العلامات التجارية</h2>
         </div>
         {isSingleBrand ? (
           <div className="mx-auto flex w-fit justify-center">
@@ -2620,7 +2619,7 @@ function HomeBrandsSection() {
                       />
                     </span>
                     <div className="mt-4 text-lg font-black text-white">{brandName}</div>
-                    <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-black text-white/80">��������� ��������</div>
+                    <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-black text-white/80">المزيد من العلامات التجارية</div>
                   </span>
                 </Link>
               );
@@ -2766,7 +2765,7 @@ function HomePage(props) {
       <HomeProductSection title={sfText("storefront.nav.new")} subtitle={sfText("storefront.home.newSubtitle")} viewAllTo="/shop/products?sort=newest" loading={loading || storefrontHome.loading} products={homeSections.newArrivals} railType="new" tone="new" {...props} />
       <HomeProductSection title={sfText("storefront.nav.sale")} subtitle={sfText("storefront.home.saleSubtitle")} viewAllTo="/shop/products?sale=true" loading={saleLoading && !homeSections.sale.length} products={homeSections.sale} railType="sale" tone="sale" {...props} />
       <HomeProductSection title={sfText("storefront.home.lastSizes")} subtitle={sfText("storefront.home.productOfWeekEmpty")} viewAllTo="/shop/products?lastSizes=true" loading={loading || storefrontHome.loading} products={homeSections.lastSizes} railType="last-size" tone="last" {...props} />
-      <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "������ �����" : "Trending"} subtitle={normalizeLanguage(lang) === "ar" ? "�������� ����� �� ���� �������� ����� ����." : "Popular picks, with newest products as fallback."} viewAllTo="/shop/products?sort=trending" loading={loading || storefrontHome.loading} products={homeSections.trending} railType="trending" tone="trending" {...props} />
+      <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "الأكثر طلبًا" : "Trending"} subtitle={normalizeLanguage(lang) === "ar" ? "اختيارات رائجة مع أحدث المنتجات كخيار بديل." : "Popular picks, with newest products as fallback."} viewAllTo="/shop/products?sort=trending" loading={loading || storefrontHome.loading} products={homeSections.trending} railType="trending" tone="trending" {...props} />
       <Reviews />
       <HomeBrandsSection />
       <LastPieceFinder open={lastPieceOpen} onClose={() => setLastPieceOpen(false)} />
@@ -2920,7 +2919,7 @@ function LastPieceFinder({ open, onClose }) {
     });
   }, [categories, criticalProducts]);
   const step = selectedSize ? "products" : selectedCategory ? "sizes" : "categories";
-  const title = step === "categories" ? "��� ����" : step === "sizes" ? "���� ������" : `${selectedCategory} / ${selectedSize}`;
+  const title = step === "categories" ? "اختيار الفئة" : step === "sizes" ? "اختيار المقاس" : `${selectedCategory} / ${selectedSize}`;
 
   useEffect(() => {
     if (!open) {
@@ -2982,7 +2981,7 @@ function LastPieceFinder({ open, onClose }) {
             {selectedCategory ? <ChevronLeft className="h-5 w-5 rotate-180" /> : <X className="h-5 w-5" />}
           </button>
           <div className="min-w-0 text-center">
-            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f8e7b3]">منتجات محد�ˆدة</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f8e7b3]">منتجات محددة</p>
             <h2 className="mt-1 truncate text-2xl font-black">{title}</h2>
           </div>
           <button onClick={onClose} className="grid h-11 w-11 place-items-center rounded-full border border-white/12 bg-white/10 text-white backdrop-blur transition active:scale-95" aria-label={sfText("storefront.common.close")}>
@@ -3005,7 +3004,7 @@ function LastPieceFinder({ open, onClose }) {
           {!loading && !error && step === "categories" ? (
             <div className="grid grid-cols-2 gap-2 pt-3 sm:gap-3 sm:pt-5">
               {displayedCategories.map((category) => {
-                const visual = { icon: <ShoppingBag className="h-4 w-4 sm:h-6 sm:w-6" />, text: "������ ���ψ��" };
+                const visual = { icon: <ShoppingBag className="h-4 w-4 sm:h-6 sm:w-6" />, text: "منتجات مميزة" };
                 return (
                   <button
                     key={category.label}
@@ -3017,14 +3016,14 @@ function LastPieceFinder({ open, onClose }) {
                       <span>
                         <span className="grid h-9 w-9 place-items-center rounded-full bg-[#f8e7b3] text-stone-950 shadow-[0_10px_26px_rgba(248,231,179,0.18)] sm:h-12 sm:w-12">{visual.icon}</span>
                         <span className="mt-2 block text-lg font-black leading-5 sm:mt-4 sm:text-3xl">{category.label}</span>
-                        <span className="mt-0.5 block text-[10.5px] font-bold leading-4 text-white/58 sm:mt-1 sm:text-sm sm:leading-5">منتجات محد�ˆدة</span>
+                        <span className="mt-0.5 block text-[10.5px] font-bold leading-4 text-white/58 sm:mt-1 sm:text-sm sm:leading-5">منتجات محددة</span>
                       </span>
                       <span className="w-fit rounded-full border border-white/12 bg-white/10 px-2 py-1 text-[10px] font-black text-[#f8e7b3] sm:px-3 sm:text-xs">{category.count} منتج</span>
                     </span>
                   </button>
                 );
               })}
-              {!displayedCategories.length ? <LastPieceEmpty text="���� �ʈ�� ������ ������ ��Ǟ���҈� ���Ǟ���" /> : null}
+              {!displayedCategories.length ? <LastPieceEmpty text="لا توجد نتائج مطابقة" /> : null}
             </div>
           ) : null}
 
@@ -3041,7 +3040,7 @@ function LastPieceFinder({ open, onClose }) {
                   </button>
                 ))}
               </div>
-              {!sizeOptions.length ? <LastPieceEmpty text="���� �ʈ�� ������ ������ ��Ǟ���҈� ���Ǟ���" /> : null}
+              {!sizeOptions.length ? <LastPieceEmpty text="لا توجد نتائج مطابقة" /> : null}
             </div>
           ) : null}
 
@@ -3632,13 +3631,13 @@ function filterOptionIcon(sectionKey, option = {}, lang = "ar") {
     return Users;
   }
   if (sectionKey === "product_type") {
-    if (label.includes("bag") || label.includes("ط·آ·ط¢آ´ط·آ¸أ¢â‚¬آ ط·آ·ط¢آ·") || label.includes("ط·آ·ط¢آ­ط·آ¸أ¢â‚¬ع‘ط·آ¸ط¸آ¹ط·آ·ط¢آ¨ط·آ·ط¢آ©")) return Briefcase;
-    if (label.includes("sneaker") || label.includes("shoe") || label.includes("ط·آ¸ط¦â€™ط·آ¸ط«â€ ط·آ·ط¹آ¾ط·آ·ط¢آ´ط·آ¸ط¸آ¹") || label.includes("ط·آ·ط¢آ­ط·آ·ط¢آ°ط·آ·ط¢آ§ط·آ·ط·إ�➢�")) return Footprints;
+    if (label.includes("bag") || label.includes("شنط") || label.includes("حقائب")) return Briefcase;
+    if (label.includes("sneaker") || label.includes("shoe") || label.includes("كروكس") || label.includes("سليبر")) return Footprints;
     return ShoppingBag;
   }
   if (sectionKey === "grade") {
-    if (label.includes("mirror") || label.includes("original") || label.includes("ط·آ·ط¢آ§ط·آ¸ط«â€ ط·آ·ط¢آ±ط·آ·ط¢آ¬ط·آ¸ط¸آ¹ط·آ¸أ¢â‚¬آ ط·آ·ط¢آ§ط·آ¸أ¢â‚¬â€چ")) return Crown;
-    if (label.includes("import") || label.includes("vietnam") || label.includes("ط·آ¸ط¸آ¾ط·آ¸ط¸آ¹ط·آ·ط¹آ¾ط·آ¸أ¢â‚¬آ ط·آ·ط¢آ§ط·آ¸أ¢â‚¬آ¦")) return Gem;
+    if (label.includes("mirror") || label.includes("original") || label.includes("ميرور")) return Crown;
+    if (label.includes("import") || label.includes("vietnam") || label.includes("فيتنام")) return Gem;
     return ShieldCheck;
   }
   return Sparkles;
@@ -3653,12 +3652,12 @@ const swatchColorStyle = (label = "") => {
     /(red|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±)/.test(value) ? "#dc2626" :
     /(blue|navy|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ²ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ²ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¹أ¢â‚¬ع©|ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¦ط£آ¢أ¢â€ڑآ¬أ¢â€‍آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹)/.test(value) ? "#2563eb" :
     /(green|olive|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ®ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¶ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ®ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¶ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ²ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¹ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹)/.test(value) ? "#16a34a" :
-    /(brown|mocha|coffee|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹|ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¦ط£آ¢أ¢â€ڑآ¬أ¢â€‍آ¢ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ·ط¥â€��‍�)/.test(value) ? "#7c4a2d" :
+    /(brown|mocha|coffee|???|??? ????|????|????????)/.test(value) ? "#7c4a2d" :
     /(beige|tan|camel|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¬|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹)/.test(value) ? "#d6b88f" :
     /(grey|gray|silver|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¯ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹|ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¶ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ³ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط£آ¢أ¢â€ڑآ¬ط¹â€ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±)/.test(value) ? "#a1a1aa" :
     /(pink|rose|ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ«ط£آ¢أ¢â€ڑآ¬ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¯ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹)/.test(value) ? "#fb7185" :
     /(purple|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ¢ط¢آ ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ³ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¬ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹)/.test(value) ? "#7c3aed" :
-    /(yellow|gold|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آµط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آµط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ±|ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ°ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ£ط¢آ¢ط£آ¢أ¢â‚¬ع‘ط¢آ¬ط·آ·ط¥â€��‍�ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¢ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ¸ط·آ·ط¢آ¸ط·آ¢ط¢آ¹)/.test(value) ? "#facc15" :
+    /(yellow|gold|????|????|??????)/.test(value) ? "#facc15" :
     "#8b5cf6";
   return { background: color };
 };
@@ -3705,20 +3704,20 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
       : t("storefront.header.languageEnglish");
   const getMobileCategoryChipIcon = (keyOrLabel = "") => {
     const normalized = String(keyOrLabel || "").toLowerCase();
-    if (normalized.includes("men") || normalized.includes("�����")) return Shirt;
-    if (normalized.includes("women") || normalized.includes("�����")) return UserRound;
-    if (normalized.includes("kids") || normalized.includes("�����") || normalized.includes("�����")) return Baby;
-    if (normalized.includes("bag") || normalized.includes("���")) return ShoppingBag;
-    if (normalized.includes("crocs") || normalized.includes("�����")) return Footprints;
-    if (normalized.includes("slipper") || normalized.includes("�����") || normalized.includes("sandal")) return Footprints;
+    if (normalized.includes("men") || normalized.includes("رجالي")) return Shirt;
+    if (normalized.includes("women") || normalized.includes("حريمي")) return UserRound;
+    if (normalized.includes("kids") || normalized.includes("أطفال") || normalized.includes("طفل")) return Baby;
+    if (normalized.includes("bag") || normalized.includes("شنط")) return ShoppingBag;
+    if (normalized.includes("crocs") || normalized.includes("كروكس")) return Footprints;
+    if (normalized.includes("slipper") || normalized.includes("سليبر") || normalized.includes("sandal")) return Footprints;
     return Tag;
   };
   const mobileCategoryChips = [
-    { key: "men", label: "�����", to: "/shop/products?gender=men", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "men" },
-    { key: "women", label: "�����", to: "/shop/products?gender=women", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "women" },
-    { key: "kids", label: "�����", to: "/shop/products?gender=kids", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "kids" },
-    { key: "bags", label: "���", to: "/shop/products?type=bags", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("type") === "bags" },
-    { key: "crocs", label: "�����", to: "/shop/products?type=crocs", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("type") === "crocs" },
+    { key: "men", label: "رجالي", to: "/shop/products?gender=men", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "men" },
+    { key: "women", label: "حريمي", to: "/shop/products?gender=women", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "women" },
+    { key: "kids", label: "أطفال", to: "/shop/products?gender=kids", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "kids" },
+    { key: "bags", label: "شنط", to: "/shop/products?type=bags", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("type") === "bags" },
+    { key: "crocs", label: "كروكس", to: "/shop/products?type=crocs", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("type") === "crocs" },
   ];
   const searchPlaceholders = getSearchPlaceholders();
   const announcementItems = [
@@ -3732,9 +3731,9 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     { label: t("storefront.nav.men"), to: "/shop/products?gender=men" },
     { label: t("storefront.nav.women"), to: "/shop/products?gender=women" },
     { label: t("storefront.nav.kids"), to: "/shop/products?gender=kids" },
-    { label: "���", to: "/shop/products?type=bags" },
-    { label: "�����", to: "/shop/products?type=crocs" },
-    { label: "�����", to: "/shop/products?type=slippers" },
+    { label: "شنط", to: "/shop/products?type=bags" },
+    { label: "كروكس", to: "/shop/products?type=crocs" },
+    { label: "سليبر", to: "/shop/products?type=slippers" },
   ];
   const utilityItems = [
     { label: "WhatsApp", to: "https://wa.me/", icon: <MessageCircle className="h-3.5 w-3.5" />, external: true },
@@ -4092,7 +4091,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
             className="sf-mobile-header-searchbar mt-3 flex h-12 w-full items-center gap-3 rounded-full px-4 text-right text-sm font-semibold transition duration-200 ease-out"
           >
             <Search className="sf-mobile-header-search-icon h-4.5 w-4.5 shrink-0" />
-            <span className="truncate">���� ������ ��ˆ SKU...</span>
+            <span className="truncate">ابحث باسم المنتج أو SKU...</span>
           </button>
           <div className="sf-mobile-category-chips mt-3 flex min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1 rtl:justify-start">
             {mobileCategoryChips.map((item) => (
@@ -4249,7 +4248,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
         mobileOnly
       />
       {menuOpen && mobilePortalTarget ? createPortal(
-        <div className="fixed inset-0 z-[160] md:hidden" dir="rtl" role="dialog" aria-modal="true" aria-label="������ ������">
+        <div className="fixed inset-0 z-[160] md:hidden" dir="rtl" role="dialog" aria-modal="true" aria-label="القائمة الرئيسية">
           <button
             type="button"
             className="absolute inset-0 bg-black/65 backdrop-blur-sm"
@@ -4259,8 +4258,8 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
           <aside className="fixed inset-x-0 bottom-0 z-[161] max-h-[86svh] overflow-hidden rounded-t-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(10,14,28,0.99),rgba(7,10,20,0.98))] text-white shadow-[0_-26px_70px_rgba(0,0,0,0.48)]">
             <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 pb-3 pt-4">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">������ ������</p>
-                <h2 className="mt-1 text-lg font-black text-white">������� �������</h2>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">القائمة</p>
+                <h2 className="mt-1 text-lg font-black text-white">روابط سريعة</h2>
               </div>
               <button
                 type="button"
@@ -4274,12 +4273,12 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
             <div className="max-h-[calc(86svh-4.5rem)] overflow-y-auto px-4 py-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
               <div className="grid gap-2">
                 {[
-                  { label: "���� ��������", to: "/shop/size-guide" },
-                  { label: "����� ���������", to: "/shop/returns" },
-                  { label: "���� �����", to: "/shop/track" },
-                  { label: "������", to: "https://wa.me/", external: true, icon: MessageCircle },
-                  { label: "���� ������ / ����� ����", to: "/shop/contact" },
-                  { label: "�����", to: "/shop/account" },
+                  { label: "دليل المقاسات", to: "/shop/size-guide" },
+                  { label: "سياسة الاستبدال", to: "/shop/returns" },
+                  { label: "تتبع الطلب", to: "/shop/track" },
+                  { label: "واتساب", to: "https://wa.me/", external: true, icon: MessageCircle },
+                  { label: "تواصل معنا / رقم المتجر", to: "/shop/contact" },
+                  { label: "حسابي", to: "/shop/account" },
                 ].map(({ label, to, external = false, icon: Icon }) =>
                   external ? (
                     <a
@@ -6296,7 +6295,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
               <div className="sf-checkout-address-success mb-3 flex items-center justify-between gap-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black leading-5 text-emerald-100">
                 <span className="sf-checkout-address-success-text">{sfText("storefront.checkout.latestAddressApplied")}</span>
                 <button type="button" onClick={useNewAddress} className="shrink-0 rounded-full border border-emerald-200/20 bg-white/10 px-3 py-1 text-[10px] font-black text-white transition hover:bg-white/15">
-                  ������� ���ˆ�� ����
+                  استخدم عنوانًا جديدًا
                 </button>
               </div>
             ) : null}
@@ -6313,7 +6312,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     required
                     error={errors.governorate}
                     placeholder={sfText("storefront.checkout.chooseGovernorate")}
-                    searchPlaceholder="���� �� ������..."
+                    searchPlaceholder="ابحث عن المحافظة..."
                     loadingText={sfText("storefront.checkout.loadingGovernorates")}
                     themeMode={themeMode}
                   />
@@ -6328,7 +6327,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     disabled={!form.shipping_city_id}
                     error={!form.shipping_zone_id && errors.city_area ? errors.city_area : ""}
                     placeholder={form.shipping_city_id ? sfText("storefront.checkout.chooseZone") : sfText("storefront.checkout.chooseGovernorateFirst")}
-                    searchPlaceholder="���� �� Zone..."
+                    searchPlaceholder="ابحث عن المنطقة..."
                     loadingText={sfText("storefront.checkout.loadingZones")}
                     themeMode={themeMode}
                     helperText={form.shipping_city_id ? sfText("storefront.checkout.zoneSearchHint") : ""}
@@ -6345,7 +6344,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     disabled={!form.shipping_zone_id}
                     error={!form.shipping_district_id ? errors.city_area : ""}
                     placeholder={form.shipping_zone_id ? sfText("storefront.checkout.chooseDistrict") : sfText("storefront.checkout.chooseZoneFirst")}
-                    searchPlaceholder="���� �� �������..."
+                    searchPlaceholder="ابحث عن الحي..."
                     loadingText={sfText("storefront.checkout.loadingDistricts")}
                     themeMode={themeMode}
                     helperText={form.shipping_zone_id ? sfText("storefront.checkout.districtSearchHint") : ""}
@@ -6392,7 +6391,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     }}
                     className={`checkout-payment-choice flex min-h-[4.75rem] flex-col items-start justify-center rounded-[1.35rem] border px-4 py-3 text-right transition ${paymentMode === "cod" ? "border-emerald-300/35 bg-emerald-400/12 shadow-[0_16px_34px_rgba(16,185,129,0.12)]" : "border-white/10 bg-white/[0.045] hover:border-white/18 hover:bg-white/[0.07]"}`}
                   >
-                    <span className="text-sm font-black text-white">����� ��� ��������</span>
+                    <span className="text-sm font-black text-white">الدفع عند الاستلام</span>
                     <span className="mt-1 text-xs font-semibold leading-5 text-white/56">{sfText("storefront.checkout.payment.cod.text")}</span>
                   </button>
                   <button
@@ -6405,7 +6404,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     }}
                     className={`checkout-payment-choice flex min-h-[4.75rem] flex-col items-start justify-center rounded-[1.35rem] border px-4 py-3 text-right transition ${paymentMode === "electronic" ? "border-[#a78bfa]/35 bg-[#7c3aed]/14 shadow-[0_16px_34px_rgba(124,58,237,0.12)]" : "border-white/10 bg-white/[0.045] hover:border-white/18 hover:bg-white/[0.07]"}`}
                   >
-                    <span className="text-sm font-black text-white">����� �����ƒ���ˆ��</span>
+                    <span className="text-sm font-black text-white">تأكيد الشحن</span>
                     <span className="mt-1 text-xs font-semibold leading-5 text-white/56">{sfText("storefront.checkout.payment.shippingConfirmation.text")}</span>
                   </button>
                 </div>
@@ -7138,7 +7137,7 @@ function CityAreaField({ governorate, options, value, onChange, manual, onManual
 
   return (
     <div className="sf-checkout-field block">
-      <span className={`sf-checkout-field-label mb-1.5 block text-sm font-black ${darkMode ? "text-white/82" : "text-slate-800"}`}>�������� / �������</span>
+      <span className={`sf-checkout-field-label mb-1.5 block text-sm font-black ${darkMode ? "text-white/82" : "text-slate-800"}`}>المدينة / المنطقة</span>
       <Suspense fallback={<CityAreaNativeSelect themeMode={themeMode} governorate={governorate} options={selectOptions} value={manual ? MANUAL_CITY_AREA_LABEL : value} onChange={onChange} required={required} error={error} />}>
         <Select
           instanceId="checkout-city-area"
@@ -7710,19 +7709,19 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
   const isVisible = /^(\/shop(\/|$)|\/c\/[^/]+)/.test(path) && !isCheckoutFlow;
   const saleHref = "/shop/sale";
   const categoryLinks = [
-    { id: "men", label: "�����", to: "/shop/products?gender=men", icon: Users },
-    { id: "women", label: "�����", to: "/shop/products?gender=women", icon: Users },
-    { id: "kids", label: "�����", to: "/shop/products?gender=kids", icon: Baby },
-    { id: "bags", label: "���", to: "/shop/products?type=bags", icon: ShoppingBag },
-    { id: "crocs", label: "��������", to: "/shop/products?type=crocs", icon: Footprints },
-    { id: "slippers", label: "�����", to: "/shop/products?type=slippers", icon: SlidersHorizontal },
+    { id: "men", label: "رجالي", to: "/shop/products?gender=men", icon: Users },
+    { id: "women", label: "حريمي", to: "/shop/products?gender=women", icon: Users },
+    { id: "kids", label: "أطفال", to: "/shop/products?gender=kids", icon: Baby },
+    { id: "bags", label: "شنط", to: "/shop/products?type=bags", icon: ShoppingBag },
+    { id: "crocs", label: "كروكس", to: "/shop/products?type=crocs", icon: Footprints },
+    { id: "slippers", label: "سليبر", to: "/shop/products?type=slippers", icon: SlidersHorizontal },
   ];
   const links = [
-    { id: "home", to: "/shop", label: "��������", icon: Home },
-    { id: "categories", label: "�������", icon: Grid2x2, action: "categories" },
-    { id: "sale", to: saleHref, label: "�������", icon: Tag },
-    { id: "wishlist", to: "/shop/wishlist", label: "�������", icon: Heart },
-    { id: "account", to: "/shop/account", label: "�����", icon: User },
+    { id: "home", to: "/shop", label: "الرئيسية", icon: Home },
+    { id: "categories", label: "الأقسام", icon: Grid2x2, action: "categories" },
+    { id: "sale", to: saleHref, label: "العروض", icon: Tag },
+    { id: "wishlist", to: "/shop/wishlist", label: "المفضلة", icon: Heart },
+    { id: "account", to: "/shop/account", label: "حسابي", icon: User },
   ];
   const isActive = (item) => {
     if (item.id === "home") return path === "/shop";
@@ -7750,13 +7749,13 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
   if (!isVisible) return null;
 
   const categoriesSheet = categoriesOpen && mobilePortalTarget ? createPortal(
-    <div className="fixed inset-0 z-[120] md:hidden" dir="rtl" role="dialog" aria-modal="true" aria-label="�������">
-      <button type="button" className="absolute inset-0 bg-black/55 backdrop-blur-sm" aria-label="����� �������" onClick={() => setCategoriesOpen(false)} />
+    <div className="fixed inset-0 z-[120] md:hidden" dir="rtl" role="dialog" aria-modal="true" aria-label="الأقسام">
+      <button type="button" className="absolute inset-0 bg-black/55 backdrop-blur-sm" aria-label="إغلاق الأقسام" onClick={() => setCategoriesOpen(false)} />
       <div className="absolute inset-x-0 bottom-0 rounded-t-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(9,12,20,0.98),rgba(6,8,14,0.98))] px-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 text-white shadow-[0_-28px_80px_rgba(0,0,0,0.48)]">
         <div className="mx-auto flex max-w-[28rem] items-center justify-between gap-3">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">�������</p>
-            <h3 className="mt-0.5 text-base font-black">���� ������</h3>
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">الأقسام</p>
+            <h3 className="mt-0.5 text-base font-black">تصفح الأقسام</h3>
           </div>
           <button type="button" onClick={() => setCategoriesOpen(false)} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white transition active:scale-[0.98]">
             <X className="h-5 w-5" />
@@ -8654,5 +8653,3 @@ function StorefrontWithBoundary() {
 }
 
 export default StorefrontWithBoundary;
-
-
