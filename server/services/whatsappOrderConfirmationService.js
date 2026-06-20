@@ -307,6 +307,15 @@ const loadOrderItems = async (orderId) => {
   return result.rows;
 };
 
+const attachOrderConfirmationItems = async (order = null) => {
+  if (!order?.id) return order;
+  const items = await loadOrderItems(order.id).catch(() => []);
+  return {
+    ...order,
+    items,
+  };
+};
+
 const loadOrderById = async (orderId, trace = {}) => {
   const result = await timedOrderConfirmationQuery({
     client: db,
@@ -317,7 +326,7 @@ const loadOrderById = async (orderId, trace = {}) => {
     tokenCode: trace?.tokenCode || "",
     action: trace?.action || "",
   });
-  return result.rows[0] || null;
+  return attachOrderConfirmationItems(result.rows[0] || null);
 };
 
 const loadLatestOrderByPhone = async (phone) => {
@@ -339,7 +348,7 @@ const loadLatestOrderByPhone = async (phone) => {
     `,
     [normalizedPhone, [...STOREFRONT_SOURCES]]
   ).catch(() => ({ rows: [] }));
-  return result.rows[0] || null;
+  return attachOrderConfirmationItems(result.rows[0] || null);
 };
 
 const loadOrderItemsForUpdate = async (client, orderId, trace = {}) => {
@@ -1336,6 +1345,7 @@ export const consumeOrderConfirmationLink = async ({ code = "", action = "", ipA
       error.code = "ORDER_CONFIRMATION_ORDER_NOT_FOUND";
       throw error;
     }
+    const currentWithItems = await attachOrderConfirmationItems(current);
 
     const requestedAction = text(action);
     if (!requestedAction) {
@@ -1353,7 +1363,7 @@ export const consumeOrderConfirmationLink = async ({ code = "", action = "", ipA
         action: "",
         target_status: text(current.status),
         already_applied: false,
-        order: current,
+        order: currentWithItems,
         message: "confirmation_code_valid",
         code_expires_at: codeRow.expires_at,
         used_at: codeRow.used_at || null,
@@ -1376,7 +1386,7 @@ export const consumeOrderConfirmationLink = async ({ code = "", action = "", ipA
     const actionConfig = actionMap[requestedAction];
     const alreadyApplied = text(current.status) === actionConfig.expectedStatus;
     const updated = alreadyApplied
-      ? current
+      ? currentWithItems
       : await applyConfirmationAction({
           orderId: current.id,
           order: current,
@@ -1388,6 +1398,7 @@ export const consumeOrderConfirmationLink = async ({ code = "", action = "", ipA
           manageTransaction: false,
           tokenCode: safeCode,
         });
+    const updatedWithItems = alreadyApplied ? updated : await attachOrderConfirmationItems(updated);
     const markResult = await timedOrderConfirmationQuery({
       client,
       queryName: "confirmation_code_mark_used",
@@ -1417,7 +1428,7 @@ export const consumeOrderConfirmationLink = async ({ code = "", action = "", ipA
       action: actionConfig.payloadAction,
       target_status: actionConfig.expectedStatus,
       already_applied: alreadyApplied,
-      order: updated,
+      order: updatedWithItems,
       message: actionConfig.message,
       code_expires_at: codeRow.expires_at,
       used_at: markResult.rows[0]?.used_at || null,
