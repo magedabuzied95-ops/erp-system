@@ -1843,8 +1843,12 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
 
     return featuredCategoryDefinitions
       .map((definition) => {
-        const keywordPattern = new RegExp(definition.examples.map((item) => item.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "i");
-        const exactSlides = sourceProducts.filter(({ product }) => keywordPattern.test(productSearchText(product)));
+        const escapedKeywords = (Array.isArray(definition.examples) ? definition.examples : [])
+          .map((item) => String(item || "").trim())
+          .filter(Boolean)
+          .map((item) => item.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+        const keywordPattern = escapedKeywords.length ? new RegExp(escapedKeywords.join("|"), "i") : null;
+        const exactSlides = keywordPattern ? sourceProducts.filter(({ product }) => keywordPattern.test(productSearchText(product))) : [];
         const matchedSlides = sourceProducts.filter(({ product }) => definition.test(product, productSearchText(product)));
         const slides = uniqueProductsByIdentity([...exactSlides, ...matchedSlides, ...sourceProducts].map((item) => item.product))
           .map(featuredSlideProduct)
