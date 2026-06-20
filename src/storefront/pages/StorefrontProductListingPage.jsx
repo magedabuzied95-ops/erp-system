@@ -520,6 +520,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     console.info("[listing-stage-counts]", {
+      traceId: "storefront-product-listing-stage-counts",
       productsCount: Array.isArray(products) ? products.length : 0,
       catalogProductsCount: Array.isArray(catalogProducts) ? catalogProducts.length : 0,
       filteredProductsCount: Array.isArray(filteredProducts) ? filteredProducts.length : 0,
