@@ -517,6 +517,18 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
       ),
     [catalogProducts]
   );
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    console.info("[listing-stage-counts]", {
+      productsCount: Array.isArray(products) ? products.length : 0,
+      catalogProductsCount: Array.isArray(catalogProducts) ? catalogProducts.length : 0,
+      filteredProductsCount: Array.isArray(filteredProducts) ? filteredProducts.length : 0,
+      orderedFilteredProductsCount: Array.isArray(orderedFilteredProducts) ? orderedFilteredProducts.length : 0,
+      firstProduct: Array.isArray(products) ? products[0] : null,
+      firstCatalogProduct: Array.isArray(catalogProducts) ? catalogProducts[0] : null,
+      activeFilters: catalogFilters,
+    });
+  }, [catalogFilters, catalogProducts, filteredProducts, orderedFilteredProducts, products]);
   const sortOptions = useMemo(
     () => {
       const options = [
@@ -615,19 +627,6 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   };
   const showEmptyResults = !loading && !orderedFilteredProducts.length;
   const showGuidedProducts = Boolean(selectedGender && selectedGrade && selectedProductType);
-
-  useEffect(() => {
-    if (!import.meta.env.DEV) return;
-    console.info("[ProductListing:data]", {
-      rawProductsType: Array.isArray(products) ? "array" : typeof products,
-      rawProductsIsArray: Array.isArray(products),
-      rawProductsCount: Array.isArray(products) ? products.length : 0,
-      rawProductsSample: Array.isArray(products) ? products.slice(0, 3) : products,
-      catalogProductsCount: Array.isArray(catalogProducts) ? catalogProducts.length : 0,
-      filteredProductsCount: Array.isArray(filteredProducts) ? filteredProducts.length : 0,
-      activeFilters: catalogFilters,
-    });
-  }, [catalogFilters, catalogProducts, filteredProducts, products]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -929,10 +928,9 @@ function CatalogPriceFilter({ minPrice = "", maxPrice = "", onChange, priceBound
   };
   return (
     <section className="rounded-[1.35rem] border border-stone-200 bg-white p-3 shadow-[0_12px_32px_rgba(39,20,75,0.06)] dark:border-white/10 dark:bg-[#0b1020] md:p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="mb-2.5 flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#7c3aed] dark:text-[#d8b4fe]">{t("storefront.filters.priceRange", "نطاق السعر")}</p>
-          <h3 className="mt-0.5 text-sm font-black text-stone-950 dark:text-white">{t("storefront.filters.filterByPrice", "فلترة بالسعر")}</h3>
+          <h3 className="text-sm font-black text-stone-950 dark:text-white">{t("storefront.filters.filterByPrice", "فلترة بالسعر")}</h3>
         </div>
         {hasValue ? (
           <button type="button" onClick={() => onChange("", "")} className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1.5 text-[11px] font-black text-stone-600 transition hover:border-[#7c3aed]/35 hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
@@ -991,14 +989,13 @@ function CatalogPriceFilter({ minPrice = "", maxPrice = "", onChange, priceBound
 function CatalogSectionShell({ eyebrow, title, icon: Icon = SlidersHorizontal, action = null, children, className = "" }) {
   return (
     <section className={`rounded-[1.35rem] border border-stone-200 bg-white p-3 shadow-[0_12px_32px_rgba(39,20,75,0.06)] dark:border-white/10 dark:bg-[#0b1020] md:p-4 ${className}`}>
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="mb-2.5 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <span className="grid h-8 w-8 shrink-0 place-items-center rounded-2xl border border-stone-200 bg-stone-50 text-[#7c3aed] dark:border-white/10 dark:bg-white/5 dark:text-[#d8b4fe]">
             <Icon className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#7c3aed] dark:text-[#d8b4fe]">{eyebrow}</p>
-          <h3 className="mt-0.5 text-sm font-black text-stone-950 dark:text-white">{title}</h3>
+            <h3 className="text-sm font-black text-stone-950 dark:text-white">{title}</h3>
           </div>
         </div>
         {action}
@@ -1013,7 +1010,6 @@ function CatalogSortControl({ value = "newest", options = [], onChange, compact 
   return (
     <label className={`inline-flex min-h-10 items-center gap-2 rounded-full border border-stone-200 bg-white px-3.5 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7c3aed]/45 hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200 ${compact ? "w-full justify-between" : ""}`}>
       <SlidersHorizontal className="h-4 w-4 shrink-0" />
-      <span className={compact ? "shrink-0" : "hidden md:inline"}>{t("storefront.filters.sort", "ترتيب")}</span>
       <select
         value={normalizeCatalogSortValue(value)}
         onChange={(event) => onChange?.(event.target.value)}
