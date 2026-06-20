@@ -202,6 +202,7 @@ const Storefront = lazy(() => import("./storefront/Storefront"));
 const PrivacyPage = lazy(() => import("./storefront/pages/LegalPages").then((module) => ({ default: module.PrivacyPage })));
 const TermsPage = lazy(() => import("./storefront/pages/LegalPages").then((module) => ({ default: module.TermsPage })));
 const DataDeletionPage = lazy(() => import("./storefront/pages/LegalPages").then((module) => ({ default: module.DataDeletionPage })));
+const OrderConfirmationActionPage = lazy(() => import("./storefront/pages/OrderConfirmationActionPage.jsx").then((module) => ({ default: module.OrderConfirmationActionPage })));
 
 const Workspace = lazy(() => import("./modules/saas/pages/Workspace"));
 
@@ -350,6 +351,11 @@ function App() {
       <Route
         path="/attendance/branch/:token"
         element={<PublicBranchAttendance />}
+      />
+
+      <Route
+        path="/c/:code"
+        element={<OrderConfirmationActionPage />}
       />
 
       <Route
