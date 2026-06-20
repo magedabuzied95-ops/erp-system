@@ -4070,40 +4070,29 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
           </span>
         </div>
       </div>
-      <div className="sf-mobile-header md:hidden">
-        <div className="px-3 pb-3 pt-[calc(0.7rem+env(safe-area-inset-top))]">
-          <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2" dir="rtl">
+      <div className="sf-mobile-header-shell md:hidden" dir="rtl">
+        <div className="px-3 pb-3 pt-[calc(0.55rem+env(safe-area-inset-top))]">
+          <div className="sf-mobile-header-row grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
             <button
-              className="sf-mobile-header-action grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]"
+              className="sf-mobile-header-button grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]"
               onClick={() => setMenuOpen((value) => !value)}
               aria-label={t("storefront.header.menu", "Menu")}
               type="button"
             >
               {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
-            <Link to="/shop" className="sf-header-logo mx-auto inline-flex shrink-0 items-center justify-center" aria-label={brandName || "MONE"}>
+            <Link to="/shop" className="sf-header-logo mx-auto inline-flex min-w-0 items-center justify-center" aria-label={brandName || "MONE"}>
               <span
-                className="sf-header-logo-chip sf-mobile-header-logo grid h-12 w-12 place-items-center overflow-hidden rounded-full text-[0.7rem] font-black tracking-[0.16em] transition"
+                className="sf-mobile-header-logo grid h-11 w-11 place-items-center overflow-hidden rounded-full text-[0.7rem] font-black tracking-[0.16em] transition"
                 style={{ clipPath: "circle(50% at 50% 50%)", transform: "translateZ(0)", backfaceVisibility: "hidden" }}
               >
-                {brandLogoUrl ? <img src={resolveProductImageUrl(brandLogoUrl)} alt={brandName} className="h-[130%] w-[130%] object-cover object-center" style={{ imageRendering: "auto", transform: "translateZ(0)", backfaceVisibility: "hidden" }} loading="lazy" decoding="async" width="72" height="72" /> : brandInitials}
+                {brandLogoUrl ? <img src={resolveProductImageUrl(brandLogoUrl)} alt={brandName} className="h-[130%] w-[130%] object-cover object-center" style={{ imageRendering: "auto", transform: "translateZ(0)", backfaceVisibility: "hidden" }} loading="lazy" decoding="async" width="64" height="64" /> : brandInitials}
               </span>
             </Link>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onToggleTheme}
-                className="sf-mobile-header-action grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]"
-                aria-label={themeToggleLabel}
-                title={themeToggleLabel}
-              >
-                {themeIsDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-              </button>
-              <button onClick={onCart} className="sf-mobile-header-action sf-cart-action relative grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]" aria-label={t("storefront.cart.title", "Cart")} type="button">
-                <ShoppingCart className="h-5 w-5" />
-                {cartCount ? <span className="sf-action-badge sf-mobile-cart-badge">{cartCount}</span> : null}
-              </button>
-            </div>
+            <button onClick={onCart} className="sf-mobile-header-button sf-cart-action relative grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]" aria-label={t("storefront.cart.title", "Cart")} type="button">
+              <ShoppingCart className="h-5 w-5" />
+              {cartCount ? <span className="sf-action-badge sf-mobile-cart-badge">{cartCount}</span> : null}
+            </button>
           </div>
           <button
             type="button"
@@ -4112,11 +4101,24 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
               setMobileSearchOpen(true);
             }}
             dir="rtl"
-            className="sf-mobile-header-search mt-3 flex h-12 w-full items-center gap-3 rounded-full px-4 text-right text-sm font-semibold text-white/55 transition duration-200 ease-out"
+            className="sf-mobile-header-searchbar mt-3 flex h-12 w-full items-center gap-3 rounded-full px-4 text-right text-sm font-semibold transition duration-200 ease-out"
           >
-            <Search className="sf-mobile-header-search-icon h-4.5 w-4.5 shrink-0 text-[#c4b5fd]" />
+            <Search className="sf-mobile-header-search-icon h-4.5 w-4.5 shrink-0" />
             <span className="truncate">ابحث بالاسم أو SKU...</span>
           </button>
+          <div className="sf-mobile-category-chips mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
+            {[
+              { label: "رجالي", to: "/shop/products?gender=men" },
+              { label: "حريمي", to: "/shop/products?gender=women" },
+              { label: "أطفال", to: "/shop/products?gender=kids" },
+              { label: "شنط", to: "/shop/products?type=bags" },
+              { label: "كروكس", to: "/shop/products?type=crocs" },
+            ].map((item) => (
+              <Link key={item.label} to={item.to} className="sf-mobile-category-chip inline-flex h-9 shrink-0 items-center rounded-full px-3 text-[11px] font-bold transition duration-200 ease-out active:scale-[0.98]">
+                {item.label}
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
       <div className="sf-utility-row hidden border-b border-white/10 bg-[linear-gradient(105deg,#09090b,#1c1917_42%,#312e81)] px-4 text-xs font-semibold text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-300 sm:block">
@@ -4229,19 +4231,6 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
             />
           </div>
         ) : null}
-      </div>
-      <div className="sf-mobile-search hidden bg-[#fcfaf6]/94 px-4 pb-3 pt-1 backdrop-blur transition-all duration-300 dark:bg-[#090d18]/96 md:hidden">
-        <button
-          type="button"
-          onClick={() => {
-            setSearchOpen(true);
-            setMobileSearchOpen(true);
-          }}
-          className="sf-mobile-search-trigger flex h-12 w-full items-center gap-3 rounded-2xl border border-stone-200/90 bg-white/70 px-4 text-right text-sm font-bold text-stone-500 shadow-[0_12px_32px_rgba(39,20,75,0.055)] backdrop-blur dark:border-white/10 dark:bg-white/6 dark:text-stone-400"
-        >
-          <Search className="sf-mobile-search-trigger-icon h-4.5 w-4.5 text-[#7c3aed]" />
-          <span>{searchPlaceholders[placeholderIndex] || searchPlaceholders[0]}</span>
-        </button>
       </div>
       <PremiumSearch
         value={search}
