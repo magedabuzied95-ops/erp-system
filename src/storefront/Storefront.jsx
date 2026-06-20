@@ -1989,19 +1989,8 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
   const supportingSlides = [activeSlide, ...slides.filter((slide) => slide.product?.id !== activeSlide.product?.id)].slice(0, 5);
 
   return (
-    <section className="mx-auto max-w-[1320px] px-4 pb-5 pt-5 md:pb-8 md:pt-8" dir={isRtl ? "rtl" : "ltr"}>
+    <section className="mx-auto max-w-[1320px] px-4 pb-4 pt-2 md:pb-8 md:pt-8" dir={isRtl ? "rtl" : "ltr"}>
       <div className={`overflow-hidden rounded-[1.85rem] border shadow-[0_34px_100px_rgba(15,23,42,0.30)] md:rounded-[2.35rem] ${darkMode ? "border-white/10 bg-[#050711]" : "border-slate-200 bg-white shadow-[0_34px_100px_rgba(15,23,42,0.10)]"}`}>
-        <div className={`sf-scroll flex gap-2.5 overflow-x-auto border-b p-2 lg:hidden ${darkMode ? "border-white/10 bg-white/[0.045]" : "border-slate-200 bg-slate-50"}`}>
-          {categories.map((category) => {
-            const active = category.id === activeCategory.id;
-            return (
-              <Link key={category.id} to={category.href} onMouseEnter={() => pickCategory(category.id)} onFocus={() => pickCategory(category.id)} className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-4 text-xs font-black transition active:scale-[0.98] ${darkMode ? (active ? "border-white bg-white text-stone-950" : "border-white/10 bg-white/[0.06] text-white/76 hover:border-[#f8e7b3]/45 hover:text-white") : (active ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-[#7c3aed]/30 hover:text-slate-950")}`}>
-                {category.label}
-                <ChevronLeft className={`h-3.5 w-3.5 shrink-0 ${isRtl ? "" : "rotate-180"}`} />
-              </Link>
-            );
-          })}
-        </div>
         <div className="grid min-h-[520px] lg:grid-cols-[minmax(0,0.72fr)_minmax(18rem,0.28fr)] lg:[direction:ltr]">
           <Link
             to={categoryHref}
