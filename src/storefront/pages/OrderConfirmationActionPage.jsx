@@ -86,6 +86,16 @@ const normalizeItems = (payload = {}) => {
     .map((item, index) => ({
       key: item?.id ?? `${index}-${text(item?.product_name, item?.name, item?.title, "item")}`,
       product_name: text(item?.resolved_product_name, item?.product_name, item?.name, item?.title, item?.product?.name, "منتج"),
+      price: item?.price,
+      unit_price: item?.unit_price,
+      selling_price: item?.selling_price,
+      product_price: item?.product_price,
+      sale_price: item?.sale_price,
+      final_price: item?.final_price,
+      total_price: item?.total_price,
+      total: item?.total,
+      line_total: item?.line_total,
+      total_amount: item?.total_amount,
       variant_name: text(item?.resolved_variant_name, item?.variant_name, item?.variant?.name, [item?.color, item?.size].filter(Boolean).join(" / ")),
       color: text(item?.color, item?.variant?.color),
       size: text(item?.size, item?.variant?.size),
@@ -113,7 +123,7 @@ const normalizeItems = (payload = {}) => {
 };
 
 
-const getItemPrice = (item = {}) => normalizeMaybeMoney(firstDefined(item?.price, item?.unit_price, item?.sale_price, item?.final_price, item?.total_price, item?.line_total));
+const getItemPrice = (item = {}) => normalizeMaybeMoney(firstDefined(item?.price, item?.unit_price, item?.selling_price, item?.product_price, item?.sale_price, item?.final_price, item?.total_price, item?.line_total));
 
 const getItemLineTotal = (item = {}) => {
   const quantity = Math.max(1, toNumber(item?.quantity || item?.qty || 1));
@@ -126,7 +136,7 @@ const getItemLineTotal = (item = {}) => {
     item?.final_total,
   ));
   if (directLineTotal !== undefined) return directLineTotal;
-  const unitPrice = normalizeMaybeMoney(firstDefined(item?.unit_price, item?.price, item?.sale_price, item?.final_price));
+  const unitPrice = normalizeMaybeMoney(firstDefined(item?.unit_price, item?.price, item?.selling_price, item?.product_price, item?.sale_price, item?.final_price));
   return unitPrice !== undefined ? unitPrice * quantity : undefined;
 };
 
@@ -237,6 +247,7 @@ function OrderConfirmationActionPageInner() {
   const [result, setResult] = useState(null);
 
   useEffect(() => {
+    if (!import.meta.env.DEV) return;
     const confirmationCode = String(code || token || "").trim();
     console.info("[OrderConfirmationActionPage] mounted", { confirmationCode });
   }, [code, token]);
@@ -256,23 +267,26 @@ function OrderConfirmationActionPageInner() {
   const primaryItem = items[0] || null;
   const pricing = useMemo(() => {
     const subtotalSource = firstDefined(order?.items_subtotal, order?.subtotal, order?.items_total, order?.items_total_amount, order?.products_subtotal);
-    const shippingSource = firstDefined(order?.shipping_fee, order?.delivery_fee, order?.shipping_cost);
+    const shippingSource = firstDefined(order?.shipping_fee, order?.delivery_fee, order?.shipping_cost, order?.delivery_cost, order?.shipping_amount);
     const discountSource = firstDefined(order?.discount, order?.discount_amount, order?.discount_value, order?.coupon_discount);
     const totalSource = firstDefined(order?.total, order?.grand_total, order?.total_amount, order?.total_price);
     const calculatedSubtotal = (Array.isArray(items) ? items : []).reduce((sum, item) => sum + (getItemLineTotal(item) || 0), 0);
     const subtotalValue = normalizeMaybeMoney(subtotalSource);
     const discountValue = normalizeMaybeMoney(discountSource);
+    const totalValue = normalizeMaybeMoney(totalSource);
+    const subtotalFallback = calculatedSubtotal || Math.max(0, (totalValue ?? 0) - (normalizeMaybeMoney(shippingSource) ?? 0) + (discountValue ?? 0));
+    const resolvedSubtotal = subtotalValue && subtotalValue > 0 ? subtotalValue : subtotalFallback || subtotalValue || 0;
     return {
-      subtotal: subtotalValue ?? calculatedSubtotal ?? 0,
+      subtotal: resolvedSubtotal,
       shipping: normalizeMaybeMoney(shippingSource) ?? 0,
       discount: discountValue ?? 0,
-      total: normalizeMaybeMoney(totalSource) ?? 0,
-      subtotalAvailable: subtotalValue !== undefined || calculatedSubtotal > 0,
+      total: totalValue ?? 0,
+      subtotalAvailable: resolvedSubtotal > 0,
       shippingAvailable: shippingSource !== undefined && shippingSource !== null && String(shippingSource).trim() !== "",
       discountAvailable: discountValue !== undefined || discountSource === 0 || discountSource === "0",
       totalAvailable: totalSource !== undefined && totalSource !== null && String(totalSource).trim() !== "",
     };
-  }, [items, order]);
+  }, [items, order, resolvedCode]);
 
   const orderNumber = text(order?.public_order_number, order?.display_order_number, order?.invoice_number, order?.order_number, order?.id);
   const customerName = text(order?.customer_name, "العميل");
