@@ -150,8 +150,25 @@ const productFacetCategoryValues = (product = {}) => splitFacetValues([
   product.product_type,
   product.productType,
 ].filter(Boolean).join(" | "));
+const catalogListingProductKey = (product = {}, index = 0) =>
+  String(
+    product?.id ||
+      product?.product_id ||
+      product?.productId ||
+      product?.card_id ||
+      product?.slug ||
+      product?.canonical_slug ||
+      product?.name ||
+      product?.title ||
+      product?.product_name ||
+      product?.productName ||
+      product?.label ||
+      product?.display_name ||
+      product?.displayName ||
+      index
+  ).trim();
 const normalizeCatalogListingProduct = (product = {}) => {
-  const id = String(product?.id || product?.product_id || product?.productId || product?.card_id || product?.slug || product?.canonical_slug || "").trim();
+  const id = catalogListingProductKey(product);
   const name = String(product?.name || product?.title || product?.product_name || product?.productName || product?.label || product?.display_name || product?.displayName || id || "").trim();
   return {
     ...product,
@@ -412,7 +429,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
       uniqueByKey(
         (Array.isArray(products) ? products : [])
           .map(normalizeCatalogListingProduct)
-          .filter((product) => product?.id && (product?.name || product?.title || product?.product_name))
+          .filter((product) => Boolean(product?.id || product?.name || product?.title || product?.product_name))
       ),
     [products]
   );
@@ -618,11 +635,13 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
       normalizedSelectedAudience: gender || "",
       normalizedSelectedType: productType || "",
       productsApiParams,
+      rawProductsCount: Array.isArray(products) ? products.length : 0,
       productsBeforeFilters: Array.isArray(catalogProducts) ? catalogProducts.length : 0,
       productsAfterFilters: Array.isArray(filteredProducts) ? filteredProducts.length : 0,
+      activeFilters: catalogFilters,
       sampleProducts,
     });
-  }, [catalogProducts, filteredProducts, gender, genderParam, normalizedSearchTerm, productsApiParams, productType, q, typeParam]);
+  }, [catalogFilters, catalogProducts, filteredProducts, gender, genderParam, normalizedSearchTerm, products, productsApiParams, productType, q, typeParam]);
 
 
   return (
