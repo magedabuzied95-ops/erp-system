@@ -168,7 +168,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             continue;
           }
           const productVariants = Array.isArray(product?.variants) ? product.variants : [];
-          const routeSearchParams = new URLSearchParams(productQueryKey);
+          const routeSearchParams = new URLSearchParams(productPageKey.split("?")[1] || "");
           const requestedVariantId = normalizeQueryValue(routeSearchParams.get("variant") || routeSearchParams.get("variantId"));
           const requestedSize = normalizeQueryValue(routeSearchParams.get("size"));
           const requestedColor = normalizeQueryValue(routeSearchParams.get("color")).toLowerCase();

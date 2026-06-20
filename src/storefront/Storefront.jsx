@@ -109,6 +109,37 @@ const productUrl = (product = {}) => {
   ]);
 };
 
+const resetStorefrontViewportScroll = () => {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  const scrollTargets = [
+    window,
+    document.scrollingElement,
+    document.documentElement,
+    document.body,
+    ...Array.from(document.querySelectorAll("[data-storefront-scroll-root]")),
+  ].filter(Boolean);
+  const scrollTop = () => {
+    scrollTargets.forEach((target) => {
+      try {
+        if (typeof target?.scrollTo === "function") {
+          target.scrollTo({ top: 0, left: 0, behavior: "auto" });
+          return;
+        }
+        if ("scrollTop" in target) target.scrollTop = 0;
+      } catch {
+        // Ignore best-effort scroll reset failures.
+      }
+    });
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    document.scrollingElement?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+  };
+  scrollTop();
+  window.requestAnimationFrame(scrollTop);
+  window.setTimeout(scrollTop, 80);
+};
+
 const compactStorefrontReceipt = (payload = {}, meta = {}) => ({
   order: payload.order || {},
   items: Array.isArray(payload.items) ? payload.items : [],
@@ -4668,6 +4699,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const openDetails = useCallback((event) => {
     if (event.defaultPrevented) return;
     if (event.target?.closest?.("button,a,input,select,textarea")) return;
+    resetStorefrontViewportScroll();
     navigate(productUrl({ ...product, selected_variant_id: availableVariant?.id || product.selected_variant_id, color_key: selectedColorKey || product.color_key }));
   }, [availableVariant?.id, navigate, product, selectedColorKey]);
   const handleWishlist = useCallback(() => {
@@ -4754,7 +4786,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       <div className="pointer-events-none absolute inset-x-8 top-8 h-14 rounded-full bg-[#a78bfa]/0 blur-xl transition duration-300 group-hover/product:bg-[#a78bfa]/10" />
       <div className={`relative overflow-visible bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.12),transparent_28%),linear-gradient(180deg,#fbfaf7_0%,#eee7dc_100%)] md:p-3 dark:bg-[radial-gradient(circle_at_50%_42%,rgba(167,139,250,0.10),transparent_28%),linear-gradient(180deg,#101426_0%,#0b1020_100%)] ${densityClasses.image}`}>
         <div className="absolute inset-x-8 top-[18%] h-24 rounded-full bg-white/40 blur-lg dark:bg-white/[0.07]" />
-        <Link to={detailsUrl} className="relative z-10 block h-full">
+        <Link to={detailsUrl} onClick={resetStorefrontViewportScroll} className="relative z-10 block h-full">
           {displayImage ? (
             <img
               src={imageFor(displayImage)}
@@ -4787,7 +4819,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           {product.low_stock ? <span className="absolute bottom-2 right-2 z-20 inline-flex h-5 items-center rounded-full border border-amber-200 bg-amber-50/95 px-2 text-[9px] font-black leading-none text-amber-800 shadow-sm backdrop-blur md:bottom-auto md:left-12 md:right-auto md:top-2.5 md:h-6 md:px-2.5 md:text-[10px] dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100">{t("storefront.products.onlyLeft", undefined, { count: product.total_stock })}</span> : null}
       </div>
         <div className={`flex flex-1 flex-col md:p-3.5 md:pt-3 ${densityClasses.body}`}>
-        <Link to={detailsUrl} className={`line-clamp-2 font-black tracking-[-0.01em] text-stone-900 transition hover:text-[#6d28d9] md:text-[13.75px] md:leading-5 dark:text-stone-100 ${densityClasses.title}`}>{product.name}</Link>
+        <Link to={detailsUrl} onClick={resetStorefrontViewportScroll} className={`line-clamp-2 font-black tracking-[-0.01em] text-stone-900 transition hover:text-[#6d28d9] md:text-[13.75px] md:leading-5 dark:text-stone-100 ${densityClasses.title}`}>{product.name}</Link>
         <div className="mt-2 flex min-h-6 flex-wrap items-baseline gap-x-2 gap-y-0.5 md:mt-2.5 md:min-h-7 md:gap-x-2">
           <span className={`font-black leading-none text-stone-950 md:text-[1.28rem] dark:text-white ${densityClasses.price}`}>{money(sellingPrice)}</span>
           {comparePrice ? <span className="text-[9.5px] font-semibold leading-none text-stone-400 line-through opacity-70 dark:text-stone-500 md:text-[10px]">{money(comparePrice)}</span> : null}
@@ -5123,7 +5155,7 @@ function RecentProductsSection({ currentId, recent = [] }) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         {items.map((item) => (
-          <Link key={item.id} to={`/shop/product/${item.slug || item.id}`} className="min-w-0 rounded-2xl bg-stone-50 p-2 transition hover:-translate-y-0.5 dark:bg-white/[0.055]">
+          <Link key={item.id} to={`/shop/product/${item.slug || item.id}`} onClick={resetStorefrontViewportScroll} className="min-w-0 rounded-2xl bg-stone-50 p-2 transition hover:-translate-y-0.5 dark:bg-white/[0.055]">
             <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" className="aspect-square w-full rounded-xl object-cover" loading="lazy" decoding="async" width="240" height="240" />
             <div className="mt-2 truncate text-sm font-black text-stone-950 dark:text-white">{item.name}</div>
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs font-bold text-stone-500 dark:text-white/55">
@@ -8233,6 +8265,7 @@ function Storefront() {
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [routeReady, setRouteReady] = useState(false);
+  const storefrontRouteKey = `${location.pathname}${location.search}`;
   const cartCount = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const wishlistCount = wishlist.length;
   const toggleThemeMode = useCallback(() => {
@@ -8277,6 +8310,42 @@ function Storefront() {
       cancelled = true;
     };
   }, []);
+
+  useLayoutEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return undefined;
+    if (!location.pathname.startsWith("/shop/product/")) return undefined;
+    const scrollTop = () => {
+      const scrollTargets = [
+        window,
+        document.scrollingElement,
+        document.documentElement,
+        document.body,
+        ...Array.from(document.querySelectorAll("[data-storefront-scroll-root]")),
+      ].filter(Boolean);
+      scrollTargets.forEach((target) => {
+        try {
+          if (typeof target?.scrollTo === "function") {
+            target.scrollTo({ top: 0, left: 0, behavior: "auto" });
+            return;
+          }
+          if ("scrollTop" in target) target.scrollTop = 0;
+        } catch {
+          // Ignore best-effort scroll reset failures.
+        }
+      });
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      document.scrollingElement?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+    };
+    scrollTop();
+    const raf = window.requestAnimationFrame(scrollTop);
+    const timeout = window.setTimeout(scrollTop, 80);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(timeout);
+    };
+  }, [location.pathname, location.search]);
 
   const clearCart = useCallback(() => setCart([]), []);
 
@@ -8467,7 +8536,7 @@ function Storefront() {
       />
       <Route
         path="product/:identifier"
-        element={<LazyStorefrontProductDetailPage onAddToCart={onAddToCart} toggleWishlist={toggleWishlist} wishlist={wishlist} rememberProduct={rememberProduct} recent={recent} profile={profile} />}
+        element={<LazyStorefrontProductDetailPage key={storefrontRouteKey} onAddToCart={onAddToCart} toggleWishlist={toggleWishlist} wishlist={wishlist} rememberProduct={rememberProduct} recent={recent} profile={profile} />}
       />
       <Route
         path="cart"
