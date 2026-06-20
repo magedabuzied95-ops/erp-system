@@ -1989,12 +1989,12 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
   const supportingSlides = [activeSlide, ...slides.filter((slide) => slide.product?.id !== activeSlide.product?.id)].slice(0, 5);
 
   return (
-    <section className="mx-auto max-w-[1320px] px-4 pb-4 pt-2 md:pb-8 md:pt-8" dir={isRtl ? "rtl" : "ltr"}>
+    <section className="mx-auto max-w-[1320px] px-4 pb-3 pt-1.5 md:pb-8 md:pt-8" dir={isRtl ? "rtl" : "ltr"}>
       <div className={`overflow-hidden rounded-[1.85rem] border shadow-[0_34px_100px_rgba(15,23,42,0.30)] md:rounded-[2.35rem] ${darkMode ? "border-white/10 bg-[#050711]" : "border-slate-200 bg-white shadow-[0_34px_100px_rgba(15,23,42,0.10)]"}`}>
-        <div className="grid min-h-[520px] lg:grid-cols-[minmax(0,0.72fr)_minmax(18rem,0.28fr)] lg:[direction:ltr]">
+        <div className="grid min-h-[420px] lg:grid-cols-[minmax(0,0.72fr)_minmax(18rem,0.28fr)] lg:[direction:ltr] md:min-h-[520px]">
           <Link
             to={categoryHref}
-            className={`group relative flex min-h-[500px] overflow-hidden lg:min-h-[580px] lg:[direction:rtl] ${darkMode ? "bg-[radial-gradient(circle_at_74%_36%,rgba(248,231,179,0.23),transparent_24%),radial-gradient(circle_at_18%_18%,rgba(124,58,237,0.22),transparent_32%),linear-gradient(135deg,#090b16_0%,#111827_54%,#020617_100%)]" : "bg-[radial-gradient(circle_at_74%_36%,rgba(124,58,237,0.10),transparent_26%),radial-gradient(circle_at_18%_18%,rgba(248,231,179,0.28),transparent_30%),linear-gradient(135deg,#ffffff_0%,#f8fafc_56%,#eef2ff_100%)]"}`}
+            className={`group relative flex min-h-[410px] overflow-hidden lg:min-h-[580px] lg:[direction:rtl] md:min-h-[500px] ${darkMode ? "bg-[radial-gradient(circle_at_74%_36%,rgba(248,231,179,0.23),transparent_24%),radial-gradient(circle_at_18%_18%,rgba(124,58,237,0.22),transparent_32%),linear-gradient(135deg,#090b16_0%,#111827_54%,#020617_100%)]" : "bg-[radial-gradient(circle_at_74%_36%,rgba(124,58,237,0.10),transparent_26%),radial-gradient(circle_at_18%_18%,rgba(248,231,179,0.28),transparent_30%),linear-gradient(135deg,#ffffff_0%,#f8fafc_56%,#eef2ff_100%)]"}`}
           >
             <div className={`pointer-events-none absolute inset-0 ${darkMode ? "bg-[linear-gradient(120deg,rgba(255,255,255,0.08),transparent_34%,rgba(0,0,0,0.42))]" : "bg-[linear-gradient(120deg,rgba(255,255,255,0.54),transparent_34%,rgba(255,255,255,0.06))]"}`} />
             <div className={`pointer-events-none absolute inset-x-0 bottom-0 h-1/2 ${darkMode ? "bg-gradient-to-t from-black/52 to-transparent" : "bg-gradient-to-t from-white/90 to-transparent"}`} />
@@ -2010,23 +2010,23 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
                 <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
               </button>
             </div>
-            <div className="relative z-10 grid w-full gap-6 p-6 md:grid-cols-[minmax(0,0.4fr)_minmax(0,0.6fr)] md:p-9 lg:p-12">
-              <div key={`category-copy-${activeCategory.id}`} className="relative z-20 flex min-h-[12.5rem] flex-col justify-end self-end pb-2 animate-[sfFadeUp_420ms_ease-out_both] md:min-h-0 md:justify-center md:pb-0">
-                <div className={`mb-5 inline-flex w-fit items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-black uppercase tracking-[0.14em] shadow-sm backdrop-blur ${darkMode ? "border-white/12 bg-white/10 text-[#f8e7b3]" : "border-slate-200 bg-white/85 text-[#7c3aed] shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
+            <div className="relative z-10 grid w-full gap-4 p-4 md:grid-cols-[minmax(0,0.4fr)_minmax(0,0.6fr)] md:gap-6 md:p-9 lg:p-12">
+              <div key={`category-copy-${activeCategory.id}`} className="relative z-20 flex min-h-[10.25rem] flex-col justify-end self-end pb-1.5 animate-[sfFadeUp_420ms_ease-out_both] md:min-h-0 md:justify-center md:pb-0">
+                <div className={`mb-3.5 inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] shadow-sm backdrop-blur md:mb-5 md:px-3.5 md:py-2 md:text-xs ${darkMode ? "border-white/12 bg-white/10 text-[#f8e7b3]" : "border-slate-200 bg-white/85 text-[#7c3aed] shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
                   <ActiveIcon className="h-4 w-4" />
                   {activeCategory.label}
                 </div>
-                <h1 className={`line-clamp-2 max-w-lg text-4xl font-black leading-[0.98] md:text-6xl lg:text-7xl ${darkMode ? "text-white" : "text-slate-900"}`}>
+                <h1 className={`line-clamp-2 max-w-lg text-[2.15rem] font-black leading-[0.98] md:text-6xl lg:text-7xl ${darkMode ? "text-white" : "text-slate-900"}`}>
                   {headline}
                 </h1>
-                <p className={`mt-5 line-clamp-2 max-w-md text-sm font-bold leading-6 md:text-lg md:leading-8 ${darkMode ? "text-white/68" : "text-slate-600"}`}>
+                <p className={`mt-3 line-clamp-2 max-w-md text-[0.95rem] font-bold leading-6 md:mt-5 md:text-lg md:leading-8 ${darkMode ? "text-white/68" : "text-slate-600"}`}>
                   {subtitle}
                 </p>
-                <span className={`mt-8 inline-flex min-h-12 w-fit items-center justify-center rounded-full px-7 text-sm font-black transition duration-200 ease-out group-hover:-translate-y-0.5 ${darkMode ? "bg-[#f8e7b3] text-stone-950 shadow-[0_18px_40px_rgba(248,231,179,0.26)] ring-1 ring-white/10 group-hover:bg-white" : "bg-slate-900 text-white shadow-[0_18px_40px_rgba(15,23,42,0.16)] ring-1 ring-slate-200 group-hover:bg-[#7c3aed] group-hover:text-white"}`}>
+                <span className={`mt-5 inline-flex min-h-11 w-fit items-center justify-center rounded-full px-6 text-sm font-black transition duration-200 ease-out group-hover:-translate-y-0.5 md:mt-8 md:min-h-12 md:px-7 ${darkMode ? "bg-[#f8e7b3] text-stone-950 shadow-[0_18px_40px_rgba(248,231,179,0.26)] ring-1 ring-white/10 group-hover:bg-white" : "bg-slate-900 text-white shadow-[0_18px_40px_rgba(15,23,42,0.16)] ring-1 ring-slate-200 group-hover:bg-[#7c3aed] group-hover:text-white"}`}>
                   {cta}
                 </span>
               </div>
-              <div className="relative flex min-h-[290px] items-center justify-center md:min-h-[430px]">
+              <div className="relative flex min-h-[235px] items-center justify-center md:min-h-[430px]">
                 <div className={`absolute bottom-10 left-1/2 h-10 w-[72%] -translate-x-1/2 rounded-[100%] blur-2xl ${darkMode ? "bg-black/70" : "bg-slate-300/80"}`} />
                 {supportingSlides.map((slide, index) => {
                   const active = slide.product?.id === product?.id;
@@ -2037,7 +2037,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
                       {...responsiveImageProps(slide.image, "hero")}
                       alt=""
                       onError={fallbackProductImage}
-                      className={`absolute object-contain drop-shadow-[0_34px_34px_rgba(0,0,0,0.38)] transition-all duration-700 ease-out ${active ? "z-30 max-h-[310px] w-[88%] opacity-100 animate-[sfFadeUp_420ms_ease-out_both] md:max-h-[455px]" : index === 1 ? "z-20 max-h-[155px] w-[33%] -translate-x-[112%] translate-y-[36%] -rotate-12 opacity-56 md:max-h-[210px]" : index === 2 ? "z-20 max-h-[150px] w-[32%] translate-x-[112%] -translate-y-[34%] rotate-12 opacity-54 md:max-h-[205px]" : index === 3 ? "z-10 max-h-[130px] w-[27%] -translate-x-[132%] -translate-y-[34%] rotate-6 opacity-34 blur-[0.3px] md:max-h-[170px]" : "z-10 max-h-[130px] w-[27%] translate-x-[132%] translate-y-[36%] -rotate-6 opacity-34 blur-[0.3px] md:max-h-[170px]"}`}
+                      className={`absolute object-contain drop-shadow-[0_34px_34px_rgba(0,0,0,0.38)] transition-all duration-700 ease-out ${active ? "z-30 max-h-[250px] w-[80%] opacity-100 animate-[sfFadeUp_420ms_ease-out_both] md:max-h-[455px]" : index === 1 ? "z-20 max-h-[132px] w-[29%] -translate-x-[112%] translate-y-[32%] -rotate-12 opacity-56 md:max-h-[210px]" : index === 2 ? "z-20 max-h-[128px] w-[28%] translate-x-[112%] -translate-y-[30%] rotate-12 opacity-54 md:max-h-[205px]" : index === 3 ? "z-10 max-h-[112px] w-[24%] -translate-x-[132%] -translate-y-[30%] rotate-6 opacity-34 blur-[0.3px] md:max-h-[170px]" : "z-10 max-h-[112px] w-[24%] translate-x-[132%] translate-y-[32%] -rotate-6 opacity-34 blur-[0.3px] md:max-h-[170px]"}`}
                       loading={active ? "eager" : "lazy"}
                       decoding="async"
                       width="760"
@@ -2749,7 +2749,7 @@ function HomeBrandsSection() {
 function QuickSellingStrips({ lang = "ar" }) {
   const isRtl = normalizeLanguage(lang) === "ar";
   return (
-    <section className="mx-auto max-w-[1200px] px-4 py-2" dir={isRtl ? "rtl" : "ltr"}>
+    <section className="mx-auto max-w-[1200px] px-4 py-1.5 md:py-2" dir={isRtl ? "rtl" : "ltr"}>
       <div className="sf-scroll flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0">
         {homeSellingBadges.map((badge) => {
           const Icon = badge.icon;
@@ -3757,6 +3757,13 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     nextLanguage === "ar"
       ? t("storefront.header.languageArabic", "Arabic")
       : t("storefront.header.languageEnglish", "English");
+  const mobileCategoryChips = [
+    { key: "men", label: "رجالي", to: "/shop/products?gender=men", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "men" },
+    { key: "women", label: "حريمي", to: "/shop/products?gender=women", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "women" },
+    { key: "kids", label: "أطفال", to: "/shop/products?gender=kids", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "kids" },
+    { key: "bags", label: "شنط", to: "/shop/products?type=bags", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("type") === "bags" },
+    { key: "crocs", label: "كروكس", to: "/shop/products?type=crocs", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("type") === "crocs" },
+  ];
   const searchPlaceholders = getSearchPlaceholders();
   const announcementItems = [
     t("storefront.header.announcements.fastShipping", "Fast shipping in Egypt"),
@@ -4095,15 +4102,14 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
             <Search className="sf-mobile-header-search-icon h-4.5 w-4.5 shrink-0" />
             <span className="truncate">ابحث بالاسم أو SKU...</span>
           </button>
-          <div className="sf-mobile-category-chips mt-3 flex min-w-0 gap-2 overflow-x-auto pb-1">
-            {[
-              { label: "رجالي", to: "/shop/products?gender=men" },
-              { label: "حريمي", to: "/shop/products?gender=women" },
-              { label: "أطفال", to: "/shop/products?gender=kids" },
-              { label: "شنط", to: "/shop/products?type=bags" },
-              { label: "كروكس", to: "/shop/products?type=crocs" },
-            ].map((item) => (
-              <Link key={item.label} to={item.to} className="sf-mobile-category-chip inline-flex h-9 shrink-0 items-center rounded-full px-3 text-[11px] font-bold transition duration-200 ease-out active:scale-[0.98]">
+          <div className="sf-mobile-category-chips mt-3 flex min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1 rtl:justify-start">
+            {mobileCategoryChips.map((item) => (
+              <Link
+                key={item.key}
+                to={item.to}
+                aria-current={item.active ? "page" : undefined}
+                className={`sf-mobile-category-chip inline-flex h-[40px] shrink-0 items-center rounded-full px-[16px] text-[12px] font-semibold transition duration-200 ease-out active:scale-[0.98] ${item.active ? "sf-mobile-category-chip--active" : "sf-mobile-category-chip--inactive"}`}
+              >
                 {item.label}
               </Link>
             ))}

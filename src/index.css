@@ -1493,23 +1493,48 @@
     }
 
     .storefront-shell .sf-mobile-category-chip {
-      border: 1px solid rgba(255, 255, 255, 0.09);
+      border: 1px solid rgba(255, 255, 255, 0.10);
       background: rgba(255, 255, 255, 0.055);
       color: rgba(248, 250, 252, 0.9);
       box-shadow:
         0 10px 20px rgba(0, 0, 0, 0.12),
         inset 0 1px 0 rgba(255, 255, 255, 0.05);
       white-space: nowrap;
+      min-height: 40px;
     }
 
-    .storefront-shell .sf-mobile-category-chip:hover,
-    .storefront-shell .sf-mobile-category-chip:focus-visible {
-      border-color: rgba(196, 181, 253, 0.28);
+    .storefront-shell .sf-mobile-category-chip--inactive:hover,
+    .storefront-shell .sf-mobile-category-chip--inactive:focus-visible {
+      border-color: rgba(196, 181, 253, 0.24);
       color: #ffffff !important;
       background: rgba(124, 58, 237, 0.16);
       box-shadow:
         0 12px 24px rgba(124, 58, 237, 0.16),
         0 0 0 4px rgba(124, 58, 237, 0.08);
+      outline: none;
+    }
+
+    .storefront-shell .sf-mobile-category-chip--active {
+      border-color: rgba(196, 181, 253, 0.46);
+      background:
+        linear-gradient(180deg, rgba(124, 58, 237, 0.26), rgba(124, 58, 237, 0.16)),
+        rgba(255, 255, 255, 0.06);
+      color: #ffffff;
+      box-shadow:
+        0 14px 30px rgba(124, 58, 237, 0.24),
+        0 0 0 1px rgba(196, 181, 253, 0.12),
+        0 0 18px rgba(124, 58, 237, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    .storefront-shell .sf-mobile-category-chip--active:hover,
+    .storefront-shell .sf-mobile-category-chip--active:focus-visible {
+      border-color: rgba(216, 180, 254, 0.58);
+      box-shadow:
+        0 16px 34px rgba(124, 58, 237, 0.28),
+        0 0 0 4px rgba(124, 58, 237, 0.12),
+        0 0 22px rgba(124, 58, 237, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.10);
       outline: none;
     }
 
