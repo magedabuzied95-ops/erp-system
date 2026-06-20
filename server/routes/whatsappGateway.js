@@ -9,6 +9,7 @@ import {
   loadOrderForWhatsapp,
   normalizeEgyptPhone,
   sendTextMessage,
+  sendWhatsAppButtonsDebugTest,
   triggerWhatsappAiAutoReply,
   verifyWebhookSecret,
 } from "../services/whatsappGatewayService.js";
@@ -67,6 +68,29 @@ router.post("/send-test", protect, permit("settings", "edit"), async (req, res) 
     return res.json({ success: true, result });
   } catch (error) {
     return sendError(res, error, "Failed to send WhatsApp test message");
+  }
+});
+
+router.post("/debug/whatsapp/send-buttons-test", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const phone = normalizeEgyptPhone(req.body?.phone);
+    const mode = String(req.body?.mode || "simple").trim().toLowerCase();
+    const useSafeIds = Boolean(req.body?.useSafeIds);
+    console.info("[whatsapp:buttons-debug-request]", {
+      userId: req.user?.id,
+      tenantId: tenantScope(req),
+      phoneSuffix: phone ? phone.slice(-4) : "",
+      mode,
+      useSafeIds,
+    });
+    const result = await sendWhatsAppButtonsDebugTest({
+      phone,
+      mode,
+      useSafeIds,
+    });
+    return res.json({ success: true, mode, result });
+  } catch (error) {
+    return sendError(res, error, "Failed to send WhatsApp buttons debug test");
   }
 });
 

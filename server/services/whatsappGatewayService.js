@@ -524,12 +524,12 @@ export const sendImageMessage = async ({ phone, imageUrl, caption = "" } = {}) =
   }
 };
 
-const buildOrderConfirmationButtonsPayload = ({ phone = "", title = "", text = "", footer = "", orderId = "" } = {}) => {
+const buildOrderConfirmationButtonsPayload = ({ phone = "", title = "", text = "", footer = "", orderId = "", useSafeIds = false, buttonCount = 3 } = {}) => {
   const safeTitle = String(title || "").trim();
   const safeText = String(text || "").trim();
   const safeFooter = String(footer || "").trim();
   const safeOrderId = String(orderId || "").trim();
-  const suffix = safeOrderId ? `:${safeOrderId}` : "";
+  const suffix = safeOrderId ? (useSafeIds ? `_${safeOrderId}` : `:${safeOrderId}`) : "";
   const buttons = [
     {
       type: "reply",
@@ -546,7 +546,7 @@ const buildOrderConfirmationButtonsPayload = ({ phone = "", title = "", text = "
       displayText: "❌ إلغاء الطلب",
       id: `cancel_order${suffix}`,
     },
-  ];
+  ].slice(0, Math.max(1, Math.min(3, Number(buttonCount) || 3)));
   return {
     number: normalizeEgyptPhone(phone),
     title: safeTitle,
@@ -556,10 +556,27 @@ const buildOrderConfirmationButtonsPayload = ({ phone = "", title = "", text = "
   };
 };
 
-const buildOrderConfirmationListPayload = ({ phone = "", title = "", text = "", footer = "", orderId = "" } = {}) => {
+const buildOrderConfirmationListPayload = ({ phone = "", title = "", text = "", footer = "", orderId = "", useSafeIds = false, buttonCount = 3 } = {}) => {
   const safeText = String(text || "").trim();
   const safeOrderId = String(orderId || "").trim();
-  const suffix = safeOrderId ? `:${safeOrderId}` : "";
+  const suffix = safeOrderId ? (useSafeIds ? `_${safeOrderId}` : `:${safeOrderId}`) : "";
+  const rows = [
+    {
+      title: "✅ تأكيد الطلب",
+      description: "تأكيد تجهيز الطلب",
+      rowId: `confirm_order${suffix}`,
+    },
+    {
+      title: "✏️ تعديل الطلب",
+      description: "تعديل المقاس أو العنوان",
+      rowId: `edit_order${suffix}`,
+    },
+    {
+      title: "❌ إلغاء الطلب",
+      description: "إلغاء الطلب الحالي",
+      rowId: `cancel_order${suffix}`,
+    },
+  ].slice(0, Math.max(1, Math.min(3, Number(buttonCount) || 3)));
   return {
     number: normalizeEgyptPhone(phone),
     title: "تأكيد الطلب",
@@ -569,23 +586,7 @@ const buildOrderConfirmationListPayload = ({ phone = "", title = "", text = "", 
     sections: [
       {
         title: "إجراءات الطلب",
-        rows: [
-          {
-            title: "✅ تأكيد الطلب",
-            description: "تأكيد تجهيز الطلب",
-            rowId: `confirm_order${suffix}`,
-          },
-          {
-            title: "✏️ تعديل الطلب",
-            description: "تعديل المقاس أو العنوان",
-            rowId: `edit_order${suffix}`,
-          },
-          {
-            title: "❌ إلغاء الطلب",
-            description: "إلغاء الطلب الحالي",
-            rowId: `cancel_order${suffix}`,
-          },
-        ],
+        rows,
       },
     ],
   };
@@ -672,6 +673,20 @@ const sendEvolutionButtonsMessage = async ({
       throw error;
     }
 
+    const responseKeys = data && typeof data === "object" ? Object.keys(data) : [];
+    console.info("[evolution:send-buttons-success-body]", {
+      file: "server/services/whatsappGatewayService.js",
+      function: functionName,
+      endpoint,
+      status: response.status,
+      ...logBase,
+      messageId: extractEvolutionButtonsMessageId(data),
+      response_keys: responseKeys,
+      remoteJid: data?.key?.remoteJid || data?.remoteJid || data?.result?.key?.remoteJid || data?.result?.remoteJid || "",
+      messageType: data?.messageType || data?.type || data?.result?.messageType || data?.result?.type || data?.message?.messageType || data?.message?.type || "",
+      warning: data?.warning || data?.warnings || "",
+      error: data?.error || data?.errors || "",
+    });
     console.info("[evolution:send-buttons-success]", {
       file: "server/services/whatsappGatewayService.js",
       function: functionName,
@@ -839,7 +854,7 @@ const sendEvolutionListMessage = async ({
   }
 };
 
-export const sendOrderConfirmationListMessage = async ({ phone, title = "", text = "", footer = "", orderId = "" } = {}) => {
+export const sendOrderConfirmationListMessage = async ({ phone, title = "", text = "", footer = "", orderId = "", useSafeIds = false, buttonCount = 3 } = {}) => {
   if (provider() !== "evolution") {
     throw gatewayError("Interactive list is only supported on the Evolution provider", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
   }
@@ -847,7 +862,7 @@ export const sendOrderConfirmationListMessage = async ({ phone, title = "", text
   if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
   const current = requireEvolutionConfig();
   const requestTimeoutMs = 9000;
-  const payload = buildOrderConfirmationListPayload({ phone: normalizedPhone, title, text, footer, orderId });
+  const payload = buildOrderConfirmationListPayload({ phone: normalizedPhone, title, text, footer, orderId, useSafeIds, buttonCount });
   const requestBody = JSON.stringify(payload);
   const payloadPreview = {
     number: payload.number,
@@ -876,7 +891,7 @@ export const sendOrderConfirmationListMessage = async ({ phone, title = "", text
   });
 };
 
-export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "", text = "", footer = "", orderId = "" } = {}) => {
+export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "", text = "", footer = "", orderId = "", useSafeIds = false, buttonCount = 3 } = {}) => {
   if (provider() !== "evolution") {
     throw gatewayError("Interactive buttons are only supported on the Evolution provider", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
   }
@@ -884,7 +899,7 @@ export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "
   if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
   const current = requireEvolutionConfig();
   const requestTimeoutMs = 9000;
-  const payload = buildOrderConfirmationButtonsPayload({ phone: normalizedPhone, title, text, footer, orderId });
+  const payload = buildOrderConfirmationButtonsPayload({ phone: normalizedPhone, title, text, footer, orderId, useSafeIds, buttonCount });
   const requestBody = JSON.stringify(payload);
   const payloadPreview = {
     number: payload.number,
@@ -933,6 +948,8 @@ export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "
             text,
             footer,
             orderId,
+            useSafeIds,
+            buttonCount: buttonCount === 1 ? 1 : 3,
           });
         } catch (listError) {
           console.warn("[whatsapp:order-confirmation-list-fallback]", {
@@ -962,6 +979,8 @@ export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "
       text,
       footer,
       orderId,
+      useSafeIds,
+      buttonCount: buttonCount === 1 ? 1 : 3,
     });
     return {
       ...listResult,
@@ -990,6 +1009,56 @@ ${address ? `العنوان: ${address}\n` : ""}
 1 - تأكيد الطلب
 2 - تعديل الطلب
 3 إلغاء الطلب`;
+};
+
+export const sendWhatsAppButtonsDebugTest = async ({ phone = "", mode = "simple", useSafeIds = false } = {}) => {
+  if (provider() !== "evolution") {
+    throw gatewayError("Interactive buttons are only supported on the Evolution provider", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
+  }
+  const normalizedPhone = normalizeEgyptPhone(phone);
+  if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
+  const current = requireEvolutionConfig();
+  const normalizedMode = String(mode || "simple").trim().toLowerCase();
+  const presets = {
+    simple: { title: "اختبار", text: "اختبار أزرار واتساب", footer: "M1Store", buttonCount: 2, useSafeIds },
+    single: { title: "اختبار", text: "اختبار زر واحد", footer: "M1Store", buttonCount: 1, useSafeIds },
+    plain: { title: "Test", text: "Button test", footer: "M1Store", buttonCount: 2, useSafeIds },
+    cod_safe: { title: "تأكيد الطلب", text: "طلبك جاهز للتأكيد", footer: "M1Store", buttonCount: 3, useSafeIds: true },
+  };
+  const preset = presets[normalizedMode] || presets.simple;
+  const payload = buildOrderConfirmationButtonsPayload({
+    phone: normalizedPhone,
+    title: preset.title,
+    text: preset.text,
+    footer: preset.footer,
+    orderId: "debug",
+    useSafeIds: preset.useSafeIds,
+    buttonCount: preset.buttonCount,
+  });
+  const requestBody = JSON.stringify(payload);
+  const endpoint = `/message/sendButtons/${encodeURIComponent(current.instanceName)}`;
+  const buttonIds = Array.isArray(payload.buttons) ? payload.buttons.map((button) => button?.id || button?.buttonId).filter(Boolean) : [];
+  console.info("[whatsapp:buttons-debug-test]", {
+    file: "server/services/whatsappGatewayService.js",
+    function: "sendWhatsAppButtonsDebugTest",
+    endpoint,
+    mode: normalizedMode,
+    phoneSuffix: normalizedPhone.slice(-4),
+    buttonIds,
+    payload_keys: Object.keys(payload),
+  });
+  return sendEvolutionButtonsMessage({
+    current,
+    endpoint,
+    requestBody,
+    requestTimeoutMs: 9000,
+    logBase: {
+      order_id: null,
+      phoneSuffix: normalizedPhone.slice(-4),
+      buttonIds,
+    },
+    phone: normalizedPhone,
+  });
 };
 
 export const sendOrderConfirmationMessage = async ({ order } = {}) => {
@@ -3433,6 +3502,63 @@ export const handleIncomingWebhook = async (payload = {}) => {
   const envelope = extractWhatsappWebhookEnvelope(payload);
   const sanitizedPayload = redactSensitive(payload);
   const fullPayloadText = extractMessageText(envelope.data, payload);
+  const webhookMessage = envelope.data?.message || envelope.data?.messages?.[0]?.message || payload?.body?.data?.message || payload?.body?.message || payload?.message || {};
+  const webhookMessageType = text(
+    envelope.data?.messageType ||
+    envelope.data?.message_type ||
+    envelope.data?.type ||
+    webhookMessage?.type ||
+    webhookMessage?.messageType ||
+    webhookMessage?.message_type ||
+    payload?.messageType ||
+    payload?.message_type ||
+    payload?.type ||
+    payload?.data?.messageType ||
+    payload?.data?.message_type ||
+    payload?.data?.type ||
+    ""
+  );
+  const hasViewOnceMessage = Boolean(
+    getPathValue(payload, "data.message.viewOnceMessage") ||
+    getPathValue(payload, "body.data.message.viewOnceMessage") ||
+    getPathValue(envelope.data, "message.viewOnceMessage") ||
+    webhookMessage?.viewOnceMessage
+  );
+  const hasInteractiveMessage = Boolean(
+    getPathValue(payload, "data.message.interactiveMessage") ||
+    getPathValue(payload, "body.data.message.interactiveMessage") ||
+    getPathValue(envelope.data, "message.interactiveMessage") ||
+    webhookMessage?.interactiveMessage
+  );
+  const hasNativeFlowMessage = Boolean(
+    getPathValue(payload, "data.message.interactiveMessage.nativeFlowMessage") ||
+    getPathValue(payload, "body.data.message.interactiveMessage.nativeFlowMessage") ||
+    getPathValue(envelope.data, "message.interactiveMessage.nativeFlowMessage") ||
+    webhookMessage?.interactiveMessage?.nativeFlowMessage
+  );
+  const hasButtonsMessage = Boolean(
+    getPathValue(payload, "data.message.buttonsMessage") ||
+    getPathValue(payload, "body.data.message.buttonsMessage") ||
+    getPathValue(envelope.data, "message.buttonsMessage") ||
+    webhookMessage?.buttonsMessage
+  );
+  const hasTemplateButtonReplyMessage = Boolean(
+    getPathValue(payload, "data.message.templateButtonReplyMessage") ||
+    getPathValue(payload, "body.data.message.templateButtonReplyMessage") ||
+    getPathValue(envelope.data, "message.templateButtonReplyMessage") ||
+    webhookMessage?.templateButtonReplyMessage
+  );
+  console.info("[evolution:buttons-webhook-shape]", {
+    messageId: envelope.messageId || "",
+    messageType: webhookMessageType,
+    hasViewOnceMessage,
+    hasInteractiveMessage,
+    hasNativeFlowMessage,
+    hasButtonsMessage,
+    hasTemplateButtonReplyMessage,
+    source: envelope.rawEvent || payload?.event || payload?.type || "",
+    status: text(payload?.status || envelope.data?.status || envelope.data?.message?.status || payload?.data?.status || ""),
+  });
   const skipReason = getEvolutionWebhookSkipReason({
     event: envelope.event,
     remoteJid: envelope.remoteJid,
