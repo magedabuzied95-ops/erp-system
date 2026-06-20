@@ -3764,7 +3764,7 @@ function HeaderAction({ to, icon, count, label, className = "" }) {
   );
 }
 
-function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme, onToggleTheme, brandName = "MONE", brandTagline = "", brandLogoUrl = "", quickActionLinks = {} }) {
+function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme, onToggleTheme, brandName = "MONE", brandTagline = "", brandLogoUrl = "", quickActionLinks = {}, mobileMenuOpen = false, setMobileMenuOpen = () => {} }) {
   const { i18n: storefrontI18n, t } = useTranslation();
   const brandInitials = resolveBrandInitials(brandName);
   const [search, setSearch] = useState("");
@@ -3779,7 +3779,6 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [recentSearches, setRecentSearches] = useState(() => readJson(SEARCH_RECENT_KEY, []));
   const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [isCompact, setIsCompact] = useState(false);
@@ -3847,6 +3846,42 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
   const themeToggleLabel = themeIsDark
     ? t("storefront.header.lightMode", "Switch to light mode")
     : t("storefront.header.darkMode", "Switch to dark mode");
+  const menuOpen = Boolean(mobileMenuOpen);
+  const mobilePortalTarget = typeof document !== "undefined" ? document.body : null;
+  const mobileMenuScrollRef = useRef(0);
+
+  useEffect(() => {
+    if (!menuOpen || typeof document === "undefined" || typeof window === "undefined") return undefined;
+    const { body } = document;
+    const scrollY = window.scrollY || window.pageYOffset || 0;
+    mobileMenuScrollRef.current = scrollY;
+    const previous = {
+      overflow: body.style.overflow,
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+    };
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    return () => {
+      body.style.overflow = previous.overflow;
+      body.style.position = previous.position;
+      body.style.top = previous.top;
+      body.style.left = previous.left;
+      body.style.right = previous.right;
+      body.style.width = previous.width;
+      window.scrollTo(0, mobileMenuScrollRef.current);
+    };
+  }, [menuOpen]);
+
+  const openMobileMenu = useCallback(() => setMobileMenuOpen(true), [setMobileMenuOpen]);
+  const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), [setMobileMenuOpen]);
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
     let frameId = 0;
@@ -4120,7 +4155,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
           <div className="sf-mobile-header-row grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
             <button
               className="sf-mobile-header-button grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]"
-              onClick={() => setMenuOpen((value) => !value)}
+              onClick={() => setMobileMenuOpen((value) => !value)}
               aria-label={t("storefront.header.menu", "Menu")}
               type="button"
             >
@@ -4200,7 +4235,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
           <div className="flex shrink-0 items-center gap-2 md:gap-4">
             <button
               className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-stone-200/80 bg-white/80 transition duration-200 ease-out hover:-translate-y-px hover:border-stone-300 hover:bg-white hover:text-stone-950 active:scale-[0.98] dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 md:h-14 md:w-14"
-              onClick={() => setMenuOpen((value) => !value)}
+              onClick={() => setMobileMenuOpen((value) => !value)}
               aria-label={t("storefront.header.menu", "Menu")}
               type="button"
             >
@@ -4305,13 +4340,13 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
         imageSearchOpen={imageSearchOpen}
         mobileOnly
       />
-      {menuOpen ? (
+      {menuOpen && mobilePortalTarget ? createPortal(
         <div className="fixed inset-0 z-[130] md:hidden" dir="rtl" role="dialog" aria-modal="true" aria-label="مساعدة وخدمات">
           <button
             type="button"
             className="absolute inset-0 bg-black/55 backdrop-blur-sm"
             aria-label={t("storefront.common.close", "إغلاق")}
-            onClick={() => setMenuOpen(false)}
+            onClick={closeMobileMenu}
           />
           <aside className="absolute inset-x-0 bottom-0 max-h-[86svh] overflow-hidden rounded-t-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(10,14,28,0.99),rgba(7,10,20,0.98))] text-white shadow-[0_-26px_70px_rgba(0,0,0,0.48)]">
             <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 pb-3 pt-4">
@@ -4321,7 +4356,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
               </div>
               <button
                 type="button"
-                onClick={() => setMenuOpen(false)}
+                onClick={closeMobileMenu}
                 className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/8 text-white transition hover:bg-white/12 active:scale-[0.98]"
                 aria-label={t("storefront.common.close", "إغلاق")}
               >
@@ -4344,7 +4379,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
                       href={to}
                       target="_blank"
                       rel="noreferrer"
-                      onClick={() => setMenuOpen(false)}
+                      onClick={closeMobileMenu}
                       className="flex min-h-12 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3.5 text-sm font-bold text-white transition hover:bg-white/[0.08] active:scale-[0.98]"
                     >
                       {Icon ? <Icon className="h-4 w-4 shrink-0 text-[#d8b4fe]" /> : null}
@@ -4354,7 +4389,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
                     <Link
                       key={`${label}-${to}`}
                       to={to}
-                      onClick={() => setMenuOpen(false)}
+                      onClick={closeMobileMenu}
                       className="flex min-h-12 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3.5 text-sm font-bold text-white transition hover:bg-white/[0.08] active:scale-[0.98]"
                     >
                       {Icon ? <Icon className="h-4 w-4 shrink-0 text-[#d8b4fe]" /> : null}
@@ -4365,7 +4400,8 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
               </div>
             </div>
           </aside>
-        </div>
+        </div>,
+        mobilePortalTarget
       ) : null}
     </header>
   );
@@ -6293,6 +6329,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       setProfile({
         full_name: form.full_name,
         primary_phone: cleanPhone,
+        phone: cleanPhone,
+        customer_id: data.order?.customer_id || profile?.customer_id || profile?.id || "",
         street_address: form.street_address,
         building_number: form.building_number,
         floor_number: form.floor_number,
@@ -8211,6 +8249,19 @@ const writeJson = (key, value) => {
   writeStorefrontStorage(key, value);
 };
 
+const normalizeStorefrontProfile = (value = {}) => {
+  const profile = value && typeof value === "object" ? value : {};
+  const primaryPhone = String(profile.primary_phone || profile.phone || profile.customer_phone || "").trim();
+  const customerId = String(profile.customer_id || profile.id || "").trim();
+  return {
+    ...profile,
+    full_name: String(profile.full_name || "").trim(),
+    primary_phone: primaryPhone,
+    phone: String(profile.phone || primaryPhone || "").trim(),
+    customer_id: customerId,
+  };
+};
+
 const writeStorefrontStorage = (key, value) => {
   if (typeof window === "undefined") return;
   try {
@@ -8261,10 +8312,11 @@ function Storefront() {
   const [cart, setCart] = useState(() => readStorefrontStorage(CART_KEY, []));
   const [wishlist, setWishlist] = useState(() => readStorefrontStorage(WISHLIST_KEY, []));
   const [recent, setRecent] = useState(() => readStorefrontStorage(RECENT_KEY, []));
-  const [profile, setProfile] = useState(() => readStorefrontStorage(PROFILE_KEY, { full_name: "", primary_phone: "", phone: "" }));
+  const [profile, setProfile] = useState(() => normalizeStorefrontProfile(readStorefrontStorage(PROFILE_KEY, { full_name: "", primary_phone: "", phone: "", customer_id: "" })));
   const [themeMode, setThemeMode] = useState(() => readStorefrontStorage(THEME_KEY, "light"));
   const [publicStoreSettings, setPublicStoreSettings] = useState({});
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [routeReady, setRouteReady] = useState(false);
   const cartCount = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const wishlistCount = wishlist.length;
@@ -8289,7 +8341,7 @@ function Storefront() {
   }, [recent]);
 
   useEffect(() => {
-    writeStorefrontStorage(PROFILE_KEY, profile);
+    writeStorefrontStorage(PROFILE_KEY, normalizeStorefrontProfile(profile));
   }, [profile]);
 
   useEffect(() => {
@@ -8449,7 +8501,7 @@ function Storefront() {
     };
   }, [publicStoreSettings]);
   const hideMobileBottomNav = /^\/shop\/(checkout|success|confirm)/.test(location.pathname || "") || /^\/c\/[^/]+/.test(location.pathname || "");
-  const showMobileBottomNav = routeReady && !hideMobileBottomNav && !cartDrawerOpen && !menuOpen;
+  const showMobileBottomNav = routeReady && !hideMobileBottomNav && !cartDrawerOpen && !mobileMenuOpen;
 
   const components = useMemo(() => ({
     EmptyState,
@@ -8482,6 +8534,8 @@ function Storefront() {
         brandTagline={storefrontBrandSettings.brandTagline}
         brandLogoUrl={storefrontBrandSettings.brandLogoUrl}
         quickActionLinks={quickActionLinks}
+        mobileMenuOpen={mobileMenuOpen}
+        setMobileMenuOpen={setMobileMenuOpen}
       />
       <Routes>
       <Route
