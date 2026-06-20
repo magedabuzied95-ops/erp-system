@@ -1,9 +1,22 @@
 import express from "express";
-import { protect } from "../middleware/authMiddleware.js";
-import permit from "../middleware/permissionMiddleware.js";
 import { normalizeEgyptPhone, sendWhatsAppButtonsDebugTest } from "../services/whatsappGatewayService.js";
 
 const router = express.Router();
+const debugKey = () =>
+  String(
+    process.env.WHATSAPP_DEBUG_KEY ||
+      process.env.WHATSAPP_DEBUG_BUTTONS_KEY ||
+      process.env.DEBUG_KEY ||
+      process.env.WHATSAPP_WEBHOOK_SECRET ||
+      ""
+  ).trim();
+
+const canUseDebugRoute = (req) => {
+  if (String(process.env.NODE_ENV || "").toLowerCase() !== "production") return true;
+  const provided = String(req.query?.debug_key || req.body?.debug_key || "").trim();
+  const expected = debugKey();
+  return Boolean(expected) && provided === expected;
+};
 
 const sendError = (res, error, fallback = "WhatsApp gateway error") =>
   res.status(error?.status || 500).json({
@@ -12,8 +25,15 @@ const sendError = (res, error, fallback = "WhatsApp gateway error") =>
     message: error?.message || fallback,
   });
 
-router.post("/send-buttons-test", protect, permit("settings", "edit"), async (req, res) => {
+router.post("/send-buttons-test", async (req, res) => {
   try {
+    if (!canUseDebugRoute(req)) {
+      return res.status(401).json({
+        success: false,
+        code: "WHATSAPP_DEBUG_KEY_REQUIRED",
+        message: "debug_key is required for this endpoint in production",
+      });
+    }
     const phone = normalizeEgyptPhone(req.body?.phone);
     const mode = String(req.body?.mode || "simple").trim().toLowerCase();
     const useSafeIds = Boolean(req.body?.useSafeIds);
