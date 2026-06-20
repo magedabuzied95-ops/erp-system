@@ -4073,6 +4073,35 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
           </span>
         </div>
       </div>
+      <div className="sf-mobile-quick-actions-shell md:hidden px-3 pt-2" dir="rtl">
+        <div className="sf-mobile-quick-actions grid h-[56px] grid-cols-4 divide-x divide-white/10 overflow-hidden rounded-[1.25rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.94),rgba(2,6,23,0.92))] shadow-[0_14px_30px_rgba(2,6,23,0.24)] backdrop-blur-xl rtl:divide-x-reverse">
+          {mobileQuickActions.map((item) => {
+            const commonClassName = "flex h-full min-w-0 flex-col items-center justify-center gap-0.5 px-1 text-center text-[9px] font-bold leading-none text-white/82 transition active:scale-[0.98]";
+            return item.external ? (
+              <a
+                key={item.key}
+                href={item.to}
+                className={commonClassName}
+                aria-label={item.label}
+                target={item.key === "whatsapp" ? "_self" : undefined}
+                rel={item.key === "whatsapp" ? undefined : "noreferrer"}
+              >
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-white/8 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                  {item.icon}
+                </span>
+                <span className="truncate">{item.label}</span>
+              </a>
+            ) : (
+              <Link key={item.key} to={item.to} className={commonClassName} aria-label={item.label}>
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-white/8 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                  {item.icon}
+                </span>
+                <span className="truncate">{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
       <div className="sf-mobile-header-shell md:hidden" dir="rtl">
         <div className="px-3 pb-3 pt-[calc(0.55rem+env(safe-area-inset-top))]">
           <div className="sf-mobile-header-row grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
@@ -4120,33 +4149,6 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
                 {item.label}
               </Link>
             ))}
-          </div>
-          <div className="sf-mobile-quick-actions mt-2.5 grid h-[68px] grid-cols-4 divide-x divide-white/10 overflow-hidden rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.94),rgba(2,6,23,0.92))] shadow-[0_16px_38px_rgba(2,6,23,0.28)] backdrop-blur-xl rtl:divide-x-reverse">
-            {mobileQuickActions.map((item) => {
-              const commonClassName = "flex h-full min-w-0 flex-col items-center justify-center gap-1 px-1 text-center text-[10px] font-bold leading-none text-white/82 transition active:scale-[0.98]";
-              return item.external ? (
-                <a
-                  key={item.key}
-                  href={item.to}
-                  className={commonClassName}
-                  aria-label={item.label}
-                  target={item.key === "whatsapp" ? "_self" : undefined}
-                  rel={item.key === "whatsapp" ? undefined : "noreferrer"}
-                >
-                  <span className="grid h-8 w-8 place-items-center rounded-full bg-white/8 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                    {item.icon}
-                  </span>
-                  <span className="truncate">{item.label}</span>
-                </a>
-              ) : (
-                <Link key={item.key} to={item.to} className={commonClassName} aria-label={item.label}>
-                  <span className="grid h-8 w-8 place-items-center rounded-full bg-white/8 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                    {item.icon}
-                  </span>
-                  <span className="truncate">{item.label}</span>
-                </Link>
-              );
-            })}
           </div>
         </div>
       </div>
