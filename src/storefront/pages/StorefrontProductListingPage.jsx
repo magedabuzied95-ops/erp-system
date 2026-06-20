@@ -28,13 +28,13 @@ import {
   sortStorefrontColorCardsByModel,
   useBodyScrollLock,
   useProducts,
+  normalizeFilterKey,
 } from "../Storefront";
 import { useProductClassifications } from "../../modules/products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../../modules/products/lib/productClassifications";
 import { ChevronLeft, DollarSign, Gem, Footprints, SlidersHorizontal, Tag, Users, X } from "lucide-react";
 
 const normalizeFilterText = (value = "") => String(value ?? "").trim();
-const normalizeFilterKey = (value = "") => normalizeFilterText(value).toLowerCase();
 const normalizeAudienceFilterKey = (value = "") => normalizeFilterKey(String(value ?? "").normalize("NFKD").replace(/[\u0640\u200c\u200d\u200e\u200f]/g, "").replace(/\p{M}+/gu, "")).replace(/['\u2019]/g, "'");
 const normalizeStorefrontAudienceValue = (value = "") => {
   const normalized = normalizeAudienceFilterKey(value);

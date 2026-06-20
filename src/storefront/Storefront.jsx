@@ -1843,6 +1843,7 @@ const normalizeStorefrontProductTypeKey = (value = "") => {
   if (["sneaker", "sneakers"].includes(normalized)) return "sneaker";
   return normalized;
 };
+const normalizeFilterKey = (value = "") => storefrontLabelKey(value);
 const uniqueClassificationOptions = (options = []) => {
   const seen = new Set();
   return (Array.isArray(options) ? options : []).filter((option) => {
@@ -8500,6 +8501,7 @@ export {
   isMirrorProduct,
   money,
   normalizeAudienceValue,
+  normalizeFilterKey,
   mirrorProductTitle,
   productAudienceValues,
   productCardKey,
