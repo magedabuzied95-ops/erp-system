@@ -16,23 +16,23 @@ import { api } from "../../shared/api/api";
 
 const ACTION_META = {
   confirm: {
-    label: "تأكيد الطلب",
-    success: "تم تأكيد الطلب",
-    hint: "سيتم تجهيز الطلب وإرساله للفريق.",
+    label: "����� �����",
+    success: "�� ����� �����",
+    hint: "���� ����� ����� ������� ������.",
     icon: CheckCircle2,
     className: "border-emerald-200 bg-emerald-600 text-white hover:bg-emerald-500",
   },
   edit: {
-    label: "تعديل الطلب",
-    success: "تم طلب تعديل الطلب",
-    hint: "سيتواصل معك أحد أفراد الفريق للتعديل.",
+    label: "����� �����",
+    success: "�� ��� ����� �����",
+    hint: "������� ��� ��� ����� ������ �������.",
     icon: PencilLine,
     className: "border-amber-200 bg-amber-400 text-slate-950 hover:bg-amber-300",
   },
   cancel: {
-    label: "إلغاء الطلب",
-    success: "تم إلغاء الطلب",
-    hint: "تم تسجيل الإلغاء وسيتم إيقاف التجهيز.",
+    label: "����� �����",
+    success: "�� ����� �����",
+    hint: "�� ����� ������� ����� ����� �������.",
     icon: XCircle,
     className: "border-rose-200 bg-rose-600 text-white hover:bg-rose-500",
   },
@@ -59,7 +59,7 @@ const toNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const formatMoney = (value = 0) => `${moneyFormatter.format(toNumber(value))} جنيه`;
+const formatMoney = (value = 0) => `${moneyFormatter.format(toNumber(value))} ����`;
 
 const normalizeItems = (payload = {}) => {
   const order = payload?.order ?? payload?.data?.order ?? payload?.result?.order ?? payload?.data ?? payload?.result ?? payload ?? {};
@@ -85,7 +85,7 @@ const normalizeItems = (payload = {}) => {
   return items
     .map((item, index) => ({
       key: item?.id ?? `${index}-${text(item?.product_name, item?.name, item?.title, "item")}`,
-      product_name: text(item?.resolved_product_name, item?.product_name, item?.name, item?.title, item?.product?.name, "منتج"),
+      product_name: text(item?.resolved_product_name, item?.product_name, item?.name, item?.title, item?.product?.name, "����"),
       variant_name: text(item?.resolved_variant_name, item?.variant_name, item?.variant?.name, [item?.color, item?.size].filter(Boolean).join(" / ")),
       color: text(item?.color, item?.variant?.color),
       size: text(item?.size, item?.variant?.size),
@@ -112,6 +112,9 @@ const normalizeItems = (payload = {}) => {
     .filter((item) => item.product_name || item.image_url);
 };
 
+
+const getItemPrice = (item = {}) => normalizeMaybeMoney(firstDefined(item?.price, item?.unit_price, item?.sale_price, item?.final_price, item?.total_price, item?.line_total));
+
 const getWhatsAppUrl = (phone = "") => {
   const digits = String(phone || "").replace(/\D/g, "");
   return digits ? `https://wa.me/${digits}` : "https://wa.me/";
@@ -127,11 +130,11 @@ const normalizeMaybeMoney = (value) => {
 
 const formatMaybeMoney = (value) => {
   const normalized = normalizeMaybeMoney(value);
-  if (normalized === undefined) return "غير متوفر";
+  if (normalized === undefined) return "��� �����";
   return formatMoney(normalized);
 };
 
-const joinAddressParts = (...parts) => parts.map((part) => String(part ?? "").trim()).filter(Boolean).join("، ");
+const joinAddressParts = (...parts) => parts.map((part) => String(part ?? "").trim()).filter(Boolean).join("� ");
 
 const getShippingFee = (order = null) => {
   const shippingValue = firstDefined(
@@ -191,8 +194,8 @@ class OrderConfirmationActionPageErrorBoundary extends Component {
       return (
         <main className="min-h-screen bg-gradient-to-b from-[#f8fafc] to-[#eef2ff] px-4 py-8 text-slate-950">
           <div className="mx-auto max-w-3xl rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
-            <h1 className="text-xl font-black">تعذر تحميل تفاصيل الطلب</h1>
-            <p className="mt-2 text-sm leading-7 text-slate-700">حدث خطأ غير متوقع أثناء عرض الصفحة. يمكنك المحاولة مرة أخرى أو التواصل مع الدعم.</p>
+            <h1 className="text-xl font-black">���� ����� ������ �����</h1>
+            <p className="mt-2 text-sm leading-7 text-slate-700">��� ��� ��� ����� ����� ��� ������. ����� �������� ��� ���� �� ������� �� �����.</p>
           </div>
         </main>
       );
@@ -254,7 +257,7 @@ function OrderConfirmationActionPageInner() {
   }, [order]);
 
   const orderNumber = text(order?.public_order_number, order?.display_order_number, order?.invoice_number, order?.order_number, order?.id);
-  const customerName = text(order?.customer_name, "العميل");
+  const customerName = text(order?.customer_name, "������");
   const customerPhone = text(order?.customer_phone, order?.phone, order?.whatsapp, order?.mobile);
   const itemsSubtotal = pricing.subtotal;
   const shippingFee = pricing.shipping;
@@ -282,11 +285,15 @@ function OrderConfirmationActionPageInner() {
       has_primary_image: Boolean(primaryItem?.image_url || text(order?.primary_image_url, order?.image_url, order?.product_image_url, order?.public_image_url)),
       has_hostname_text: false,
     });
+    console.info("[OrderConfirmationActionPage] confirmation items", {
+      count: order?.items?.length,
+      items: order?.items,
+    });
   }, [result, resolvedCode, order, primaryItem]);
 
   const loadCode = async () => {
     if (!resolvedCode) {
-      setError("كود التأكيد غير صالح.");
+      setError("��� ������� ��� ����.");
       setLinkState("error");
       setLoading(false);
       return;
@@ -302,7 +309,7 @@ function OrderConfirmationActionPageInner() {
     } catch (err) {
       const status = Number(err?.status || err?.response?.status || 0);
       const responseCode = String(err?.responseBody?.code || err?.responseBody?.error || err?.code || "");
-      setError(err?.responseBody?.message || err?.message || "تعذر التحقق من رابط التأكيد");
+      setError(err?.responseBody?.message || err?.message || "���� ������ �� ���� �������");
       if (status === 410 || responseCode === "ORDER_CONFIRMATION_CODE_EXPIRED") setLinkState("expired");
       else if (status === 404 || responseCode === "ORDER_CONFIRMATION_CODE_NOT_FOUND") setLinkState("used");
       else setLinkState("error");
@@ -324,7 +331,7 @@ function OrderConfirmationActionPageInner() {
       setResult(response?.data || response);
       setLinkState("ready");
     } catch (err) {
-      setError(err?.responseBody?.message || err?.message || "تعذر تنفيذ الإجراء");
+      setError(err?.responseBody?.message || err?.message || "���� ����� �������");
     } finally {
       setPendingAction("");
     }
@@ -333,13 +340,13 @@ function OrderConfirmationActionPageInner() {
   const resultAction = String(result?.action || "").trim();
   const actionMeta = ACTION_META[resultAction];
   const isReadOnlyResult = Boolean(result?.already_used || result?.link_locked);
-  const resultMessage = String(result?.message || (actionMeta ? actionMeta.success : "طلبك جاهز للتأكيد")).trim();
+  const resultMessage = String(result?.message || (actionMeta ? actionMeta.success : "���� ���� �������")).trim();
   const resultHeadline = isReadOnlyResult
-    ? (result?.link_locked ? "لا يمكن تعديل هذا الطلب من الرابط الآن، برجاء التواصل معنا" : "تم استخدام هذا الرابط بالفعل")
-    : (actionMeta ? actionMeta.success : "طلبك جاهز للتأكيد");
+    ? (result?.link_locked ? "�� ���� ����� ��� ����� �� ������ ���� ����� ������� ����" : "�� ������� ��� ������ ������")
+    : (actionMeta ? actionMeta.success : "���� ���� �������");
   const resultSubtext = isReadOnlyResult
-    ? (result?.link_locked && !result?.already_used ? "برجاء التواصل معنا عبر واتساب." : resultMessage)
-    : (actionMeta?.hint || "تم تنفيذ الإجراء بنجاح.");
+    ? (result?.link_locked && !result?.already_used ? "����� ������� ���� ��� ������." : resultMessage)
+    : (actionMeta?.hint || "�� ����� ������� �����.");
   const ResultCardIcon = isReadOnlyResult ? MessageCircleWarning : CheckCircle2;
   const resultCardClassName = isReadOnlyResult
     ? "rounded-[1.35rem] border border-amber-200 bg-amber-50 p-4 text-slate-950 shadow-sm"
@@ -363,8 +370,8 @@ function OrderConfirmationActionPageInner() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#b45309]">COD confirmation</p>
-                    <h1 className="mt-1 text-2xl font-black leading-tight tracking-tight text-slate-950 sm:text-3xl">طلبك جاهز للتأكيد</h1>
-                    <p className="mt-2 text-sm leading-6 text-slate-700">رقم الطلب: {orderNumber || "—"}</p>
+                    <h1 className="mt-1 text-2xl font-black leading-tight tracking-tight text-slate-950 sm:text-3xl">���� ���� �������</h1>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">��� �����: {orderNumber || "—"}</p>
                   </div>
                 </div>
 
@@ -372,7 +379,7 @@ function OrderConfirmationActionPageInner() {
                   <div className="rounded-[1.35rem] border border-slate-200 bg-slate-50 px-4 py-5 text-sm font-bold text-slate-700 shadow-sm">
                     <div className="flex items-center gap-3">
                       <Loader2 className="h-5 w-5 animate-spin text-[#f97316]" />
-                      جاري تحميل تفاصيل الطلب...
+                      ���� ����� ������ �����...
                     </div>
                   </div>
                 ) : error && isExpiredState ? (
@@ -382,14 +389,14 @@ function OrderConfirmationActionPageInner() {
                         <MessageCircleWarning className="h-5 w-5" />
                       </div>
                       <div>
-                        <h2 className="text-lg font-black">الرابط انتهت صلاحيته أو تم استخدامه</h2>
-                        <p className="mt-1 text-sm leading-7 text-slate-700">لا يمكن تنفيذ الإجراء من هذا الرابط الآن.</p>
+                        <h2 className="text-lg font-black">������ ����� ������� �� �� ��������</h2>
+                        <p className="mt-1 text-sm leading-7 text-slate-700">�� ���� ����� ������� �� ��� ������ ����.</p>
                       </div>
                     </div>
                     <div className="flex flex-col gap-3 sm:flex-row">
                       <a href={waUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#16a34a] px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5">
                         <Phone className="h-4 w-4" />
-                        تواصل عبر واتساب
+                        ����� ��� ������
                       </a>
                     </div>
                   </div>
@@ -400,78 +407,109 @@ function OrderConfirmationActionPageInner() {
                         <MessageCircleWarning className="h-5 w-5" />
                       </div>
                       <div>
-                        <h2 className="text-lg font-black">تعذر التحقق من الرابط</h2>
+                        <h2 className="text-lg font-black">���� ������ �� ������</h2>
                         <p className="mt-1 text-sm leading-7 text-slate-700">{error}</p>
                       </div>
                     </div>
                     <div className="flex flex-col gap-3 sm:flex-row">
                       <a href={waUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#16a34a] px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5">
                         <Phone className="h-4 w-4" />
-                        تواصل عبر واتساب
+                        ����� ��� ������
                       </a>
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-sm">
-                      <div className="overflow-hidden rounded-[1.25rem] border border-slate-200 bg-slate-50">
-                        <div className="aspect-[4/3] bg-slate-50">
-                          {primaryItem?.image_url ? (
-                            <img src={primaryItem.image_url} alt={primaryItem.product_name} className="h-full w-full object-cover" loading="lazy" />
-                          ) : (
-                            <div className="flex h-full items-center justify-center text-slate-300">
-                              <ImageIcon className="h-12 w-12" />
-                            </div>
-                          )}
+                      {items.length > 1 ? (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {items.map((item) => {
+                            const itemPrice = getItemPrice(item);
+                            return (
+                              <div key={item.key} className="overflow-hidden rounded-[1.25rem] border border-slate-200 bg-slate-50">
+                                <div className="aspect-[4/3] bg-slate-50">
+                                  {item.image_url ? (
+                                    <img src={item.image_url} alt={item.product_name} className="h-full w-full object-cover" loading="lazy" />
+                                  ) : (
+                                    <div className="flex h-full items-center justify-center text-slate-300">
+                                      <ImageIcon className="h-12 w-12" />
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="space-y-3 p-4">
+                                  <h3 className="text-lg font-black leading-snug text-slate-950">{item.product_name || "����"}</h3>
+                                  <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-700">
+                                    {item.color ? <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">�����: {item.color}</span> : null}
+                                    {item.size ? <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">������: {item.size}</span> : null}
+                                    <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">������: {item.quantity || 1}</span>
+                                    {itemPrice !== undefined ? <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">�����: {formatMoney(itemPrice)}</span> : null}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                        <div className="space-y-3 p-4">
-                          <h3 className="text-lg font-black leading-snug text-slate-950">{primaryItem?.product_name || "منتج"}</h3>
-                          <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-700">
-                            {primaryItem?.color ? <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">اللون: {primaryItem.color}</span> : null}
-                            {primaryItem?.size ? <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">المقاس: {primaryItem.size}</span> : null}
-                            <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">الكمية: {primaryItem?.quantity || 1}</span>
+                      ) : (
+                        <div className="overflow-hidden rounded-[1.25rem] border border-slate-200 bg-slate-50">
+                          <div className="aspect-[4/3] bg-slate-50">
+                            {primaryItem?.image_url ? (
+                              <img src={primaryItem.image_url} alt={primaryItem.product_name} className="h-full w-full object-cover" loading="lazy" />
+                            ) : (
+                              <div className="flex h-full items-center justify-center text-slate-300">
+                                <ImageIcon className="h-12 w-12" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="space-y-3 p-4">
+                            <h3 className="text-lg font-black leading-snug text-slate-950">{primaryItem?.product_name || "����"}</h3>
+                            <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-700">
+                              {primaryItem?.color ? <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">�����: {primaryItem.color}</span> : null}
+                              {primaryItem?.size ? <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">������: {primaryItem.size}</span> : null}
+                              <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">������: {primaryItem?.quantity || 1}</span>
+                              {getItemPrice(primaryItem) !== undefined ? <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">�����: {formatMoney(getItemPrice(primaryItem))}</span> : null}
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      )}
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <InfoCard title="العميل" icon={ShoppingBag}>
+                      <InfoCard title="������" icon={ShoppingBag}>
                         <div className="space-y-2">
                           <div className="text-sm font-black text-slate-950">{customerName || "—"}</div>
                           <div className="text-sm font-bold text-slate-700">{customerPhone || "—"}</div>
                         </div>
                       </InfoCard>
 
-                      <InfoCard title="الطلب" icon={MapPin}>
+                      <InfoCard title="�����" icon={MapPin}>
                         <div className="space-y-4">
                           <div className="space-y-2 text-sm">
                             <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
-                              <span className="font-bold text-slate-600">سعر المنتجات</span>
-                              <span className="font-black text-slate-950">{pricing.subtotalAvailable ? formatMoney(itemsSubtotal) : "غير متوفر"}</span>
+                              <span className="font-bold text-slate-600">��� ��������</span>
+                              <span className="font-black text-slate-950">{pricing.subtotalAvailable ? formatMoney(itemsSubtotal) : "��� �����"}</span>
                             </div>
                             <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
-                              <span className="font-bold text-slate-600">الشحن</span>
-                              <span className="font-black text-slate-950">{pricing.shippingAvailable ? formatMoney(shippingFee) : "غير متوفر"}</span>
+                              <span className="font-bold text-slate-600">�����</span>
+                              <span className="font-black text-slate-950">{pricing.shippingAvailable ? formatMoney(shippingFee) : "��� �����"}</span>
                             </div>
                             <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
-                              <span className="font-bold text-slate-600">الخصم</span>
-                              <span className="font-black text-slate-950">{pricing.discountAvailable ? formatMoney(discountValue) : "غير متوفر"}</span>
+                              <span className="font-bold text-slate-600">�����</span>
+                              <span className="font-black text-slate-950">{pricing.discountAvailable ? formatMoney(discountValue) : "��� �����"}</span>
                             </div>
                             <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
-                              <span className="font-bold text-slate-600">الإجمالي النهائي</span>
-                              <span className="font-black text-slate-950">{pricing.totalAvailable ? formatMoney(totalAmount) : "غير متوفر"}</span>
+                              <span className="font-bold text-slate-600">�������� �������</span>
+                              <span className="font-black text-slate-950">{pricing.totalAvailable ? formatMoney(totalAmount) : "��� �����"}</span>
                             </div>
                           </div>
 
                           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">المحافظة / المدينة / المنطقة</div>
+                            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">�������� / ������� / �������</div>
                             <div className="mt-1 text-sm font-bold text-slate-900">
-                              {addressSummary.locationLine || "غير محدد"}
+                              {addressSummary.locationLine || "��� ����"}
                             </div>
-                            <div className="mt-3 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">العنوان التفصيلي</div>
+                            <div className="mt-3 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">������� ��������</div>
                             <div className="mt-1 text-sm leading-7 text-slate-700">
-                              {addressSummary.addressLine || "غير محدد"}
+                              {addressSummary.addressLine || "��� ����"}
                             </div>
                           </div>
                         </div>
@@ -507,7 +545,7 @@ function OrderConfirmationActionPageInner() {
 
                         {pendingAction ? (
                           <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm">
-                            جاري تنفيذ: {ACTION_META[pendingAction]?.label || "الإجراء"}...
+                            ���� �����: {ACTION_META[pendingAction]?.label || "�������"}...
                           </div>
                         ) : null}
                       </div>
@@ -521,8 +559,8 @@ function OrderConfirmationActionPageInner() {
                             <div>
                               <h2 className="text-lg font-black">{resultHeadline}</h2>
                               <p className="mt-1 text-sm leading-7 text-slate-700">{resultSubtext}</p>
-                              {isReadOnlyResult ? <p className="mt-2 text-xs font-bold text-slate-700">هذا الرابط لم يعد يسمح بتنفيذ أي إجراء جديد.</p> : null}
-                              {!isReadOnlyResult && result?.already_applied ? <p className="mt-2 text-xs font-bold text-slate-700">تم تطبيق هذا الإجراء سابقًا بالفعل.</p> : null}
+                              {isReadOnlyResult ? <p className="mt-2 text-xs font-bold text-slate-700">��� ������ �� ��� ���� ������ �� ����� ����.</p> : null}
+                              {!isReadOnlyResult && result?.already_applied ? <p className="mt-2 text-xs font-bold text-slate-700">�� ����� ��� ������� ������ ������.</p> : null}
                             </div>
                           </div>
                         </div>
@@ -530,7 +568,7 @@ function OrderConfirmationActionPageInner() {
                           <div className="flex flex-col gap-3 sm:flex-row">
                             <a href={waUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#16a34a] px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5">
                               <Phone className="h-4 w-4" />
-                              تواصل عبر واتساب
+                              ����� ��� ������
                             </a>
                           </div>
                         ) : null}
