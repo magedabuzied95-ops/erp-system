@@ -384,6 +384,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   const [selectedProductType, setSelectedProductType] = useState(productType);
   const [selectedSize, setSelectedSize] = useState(size);
   const [currentStep, setCurrentStep] = useState(gender ? (grade ? (productType ? "grid" : "productType") : "grade") : "gender");
+  const listingStageCountsLoggedRef = useRef(false);
   const productTypeStepRef = useRef(null);
   const gradeStepRef = useRef(null);
   const gridStepRef = useRef(null);
@@ -518,7 +519,8 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     [catalogProducts]
   );
   useEffect(() => {
-    if (!import.meta.env.DEV) return;
+    if (listingStageCountsLoggedRef.current) return;
+    listingStageCountsLoggedRef.current = true;
     console.info("[listing-stage-counts]", {
       productsCount: Array.isArray(products) ? products.length : 0,
       catalogProductsCount: Array.isArray(catalogProducts) ? catalogProducts.length : 0,
