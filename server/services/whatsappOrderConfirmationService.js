@@ -140,13 +140,16 @@ export const ensureWhatsappOrderConfirmationSchema = async (clientOrPool = db) =
           code_hash TEXT NOT NULL UNIQUE,
           expires_at TIMESTAMP NOT NULL,
           used_at TIMESTAMP NULL,
-          used_action VARCHAR(30) NULL,
-          used_order_status VARCHAR(50) NULL,
+          used_action TEXT NULL,
+          used_order_status TEXT NULL,
           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, order_id, action)
         )
       `);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS order_confirmation_codes ADD COLUMN IF NOT EXISTS used_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS order_confirmation_codes ADD COLUMN IF NOT EXISTS used_action TEXT NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS order_confirmation_codes ADD COLUMN IF NOT EXISTS used_order_status TEXT NULL`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_order_confirmation_codes_lookup ON order_confirmation_codes (tenant_id, order_id, action, expires_at DESC)`);
     };
     if (clientOrPool !== db) return run();

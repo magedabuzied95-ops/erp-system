@@ -1,0 +1,4 @@
+ALTER TABLE IF EXISTS order_confirmation_codes
+  ADD COLUMN IF NOT EXISTS used_at TIMESTAMP NULL,
+  ADD COLUMN IF NOT EXISTS used_action TEXT NULL,
+  ADD COLUMN IF NOT EXISTS used_order_status TEXT NULL;
