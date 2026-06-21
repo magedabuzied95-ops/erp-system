@@ -104,6 +104,7 @@ import {
   updateAiSupportConversationAiEnabled,
   updateAiSupportConversationState,
 } from "../services/aiSupportLogService.js";
+import { ensureAIPersistentEventLogSchema, logAIPersistentEvent } from "../services/aiPersistentEventLogService.js";
 import { loadAiReplyTraces } from "../services/aiReplyTraceService.js";
 import { buildReplyHarness, getLastReplyHarnessDebug } from "../services/aiReplyHarnessService.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
@@ -182,6 +183,130 @@ const normalizeAiReplyDraft = (value = {}) => {
     pipeline_debug: draft.pipeline_debug && typeof draft.pipeline_debug === "object" ? draft.pipeline_debug : (draft.metadata && typeof draft.metadata === "object" && draft.metadata.pipeline_debug && typeof draft.metadata.pipeline_debug === "object" ? draft.metadata.pipeline_debug : null),
     updated_at: draft.updated_at || null,
   };
+};
+
+const parseDaysParam = (value, fallback = 7) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(1, Math.min(30, Math.trunc(parsed)));
+};
+
+const parseLimitParam = (value, fallback = 50) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(1, Math.min(200, Math.trunc(parsed)));
+};
+
+const buildAiEventLogWhere = ({ tenantId, days = 7, type = "", channel = "" } = {}) => {
+  const clauses = ["tenant_id = $1", "created_at >= NOW() - ($2::int || ' days')::interval"];
+  const params = [Number(tenantId), parseDaysParam(days, 7)];
+  if (String(type || "").trim()) {
+    params.push(String(type).trim());
+    clauses.push(`category = $${params.length}`);
+  }
+  if (String(channel || "").trim()) {
+    params.push(String(channel).trim());
+    clauses.push(`channel = $${params.length}`);
+  }
+  return { clauses, params };
+};
+
+const loadAiEventLogSummary = async ({ tenantId, days = 7 } = {}) => {
+  const safeTenantId = Number(tenantId);
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0) {
+    throw Object.assign(new Error("tenant_id is required"), { status: 400 });
+  }
+  await ensureAIPersistentEventLogSchema();
+  const safeDays = parseDaysParam(days, 7);
+  const where = buildAiEventLogWhere({ tenantId: safeTenantId, days: safeDays });
+  const latestWhere = buildAiEventLogWhere({ tenantId: safeTenantId, days: safeDays });
+  const [{ rows: countsRows }, { rows: dayRows }, { rows: channelRows }, { rows: latestRows }] = await Promise.all([
+    db.query(
+      `
+      SELECT
+        COUNT(*)::int AS total_events,
+        COUNT(*) FILTER (WHERE category = 'duplicate_prevention')::int AS duplicate_prevention_count,
+        COUNT(*) FILTER (WHERE category = 'auto_reply_failure')::int AS auto_reply_failure_count
+      FROM ai_event_logs
+      WHERE ${where.clauses.join(" AND ")}
+      `,
+      where.params
+    ),
+    db.query(
+      `
+      SELECT
+        DATE_TRUNC('day', created_at)::date AS day,
+        COUNT(*)::int AS total_events,
+        COUNT(*) FILTER (WHERE category = 'duplicate_prevention')::int AS duplicate_prevention_count,
+        COUNT(*) FILTER (WHERE category = 'auto_reply_failure')::int AS auto_reply_failure_count
+      FROM ai_event_logs
+      WHERE ${where.clauses.join(" AND ")}
+      GROUP BY 1
+      ORDER BY 1 DESC
+      `,
+      where.params
+    ),
+    db.query(
+      `
+      SELECT
+        COALESCE(NULLIF(channel, ''), 'unknown') AS channel,
+        COUNT(*)::int AS total_events
+      FROM ai_event_logs
+      WHERE ${where.clauses.join(" AND ")}
+      GROUP BY 1
+      ORDER BY total_events DESC, channel ASC
+      `,
+      where.params
+    ),
+    db.query(
+      `
+      SELECT *
+      FROM ai_event_logs
+      WHERE ${latestWhere.clauses.join(" AND ")}
+      ORDER BY created_at DESC, id DESC
+      LIMIT 50
+      `,
+      latestWhere.params
+    ),
+  ]);
+  return {
+    total_events: Number(countsRows[0]?.total_events || 0),
+    duplicate_prevention_count: Number(countsRows[0]?.duplicate_prevention_count || 0),
+    auto_reply_failure_count: Number(countsRows[0]?.auto_reply_failure_count || 0),
+    grouped_by_day: dayRows.map((row) => ({
+      day: row.day,
+      total_events: Number(row.total_events || 0),
+      duplicate_prevention_count: Number(row.duplicate_prevention_count || 0),
+      auto_reply_failure_count: Number(row.auto_reply_failure_count || 0),
+    })),
+    grouped_by_channel: channelRows.map((row) => ({
+      channel: row.channel || "unknown",
+      total_events: Number(row.total_events || 0),
+    })),
+    latest_events: latestRows,
+  };
+};
+
+const loadAiEventLogs = async ({ tenantId, days = 7, type = "", channel = "", limit = 50 } = {}) => {
+  const safeTenantId = Number(tenantId);
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0) {
+    throw Object.assign(new Error("tenant_id is required"), { status: 400 });
+  }
+  await ensureAIPersistentEventLogSchema();
+  const safeDays = parseDaysParam(days, 7);
+  const safeLimit = parseLimitParam(limit, 50);
+  const where = buildAiEventLogWhere({ tenantId: safeTenantId, days: safeDays, type, channel });
+  const result = await db.query(
+    `
+    SELECT *
+    FROM ai_event_logs
+    WHERE ${where.clauses.join(" AND ")}
+    ORDER BY created_at DESC, id DESC
+    LIMIT $${where.params.length + 1}
+    `,
+    [...where.params, safeLimit]
+  );
+  return { events: result.rows, days: safeDays, limit: safeLimit, type: String(type || "").trim(), channel: String(channel || "").trim() };
 };
 
 const normalizePipelineDebugSnapshot = (value = {}) => (value && typeof value === "object" ? value : null);
@@ -1073,6 +1198,21 @@ router.post("/channels/whatsapp/webhook", async (req, res) => {
           message: error?.message,
           status: error?.status,
         });
+        await logAIPersistentEvent({
+          tenantId,
+          category: "auto_reply_failure",
+          eventType: "agent_whatsapp_ai_flow_failed",
+          conversationId: message.external_conversation_id,
+          sessionId: message.external_conversation_id,
+          channel: AI_AGENT_CHANNELS.WHATSAPP,
+          source: "aiAgentOrders.routeChannelMessageThroughAi",
+          reason: "ai_flow_failed",
+          message: error?.message || "AI flow failed",
+          error,
+          metadata: {
+            external_customer_id: message.external_customer_id,
+          },
+        });
         results.push({ external_customer_id: message.external_customer_id, ai_error: error?.message || "AI flow failed" });
         continue;
       }
@@ -1137,6 +1277,22 @@ router.post("/channels/whatsapp/webhook", async (req, res) => {
           code: error?.code,
           status: error?.status,
           message: error?.message,
+        });
+        await logAIPersistentEvent({
+          tenantId,
+          category: "auto_reply_failure",
+          eventType: "agent_whatsapp_send_failed",
+          conversationId: message.external_conversation_id,
+          sessionId: message.external_conversation_id,
+          channel: AI_AGENT_CHANNELS.WHATSAPP,
+          source: "aiAgentOrders.sendWhatsAppCloudReply",
+          reason: "whatsapp_send_failed",
+          message: error?.message || "WhatsApp send failed",
+          error,
+          metadata: {
+            external_customer_id: message.external_customer_id,
+            conversation_id: message.external_conversation_id,
+          },
         });
         results.push({
           external_customer_id: message.external_customer_id,
@@ -1381,6 +1537,21 @@ router.post("/channels/meta/webhook", async (req, res) => {
           message: error?.message,
           status: error?.status,
         });
+        await logAIPersistentEvent({
+          tenantId,
+          category: "auto_reply_failure",
+          eventType: "agent_meta_ai_flow_failed",
+          conversationId: message.external_conversation_id,
+          sessionId: message.external_conversation_id,
+          channel,
+          source: "aiAgentOrders.routeChannelMessageThroughAi",
+          reason: "ai_flow_failed",
+          message: error?.message || "AI flow failed",
+          error,
+          metadata: {
+            external_customer_id: message.external_customer_id,
+          },
+        });
         results.push({ channel, external_customer_id: message.external_customer_id, ai_error: error?.message || "AI flow failed" });
         continue;
       }
@@ -1569,6 +1740,22 @@ router.post("/channels/meta/webhook", async (req, res) => {
           code: error?.code,
           status: error?.status,
           message: error?.message,
+        });
+        await logAIPersistentEvent({
+          tenantId,
+          category: "auto_reply_failure",
+          eventType: "agent_meta_send_failed",
+          conversationId: message.external_conversation_id,
+          sessionId: message.external_conversation_id,
+          channel,
+          source: "aiAgentOrders.sendMetaInboxOutboundMessage",
+          reason: "meta_send_failed",
+          message: error?.message || "Meta send failed",
+          error,
+          metadata: {
+            external_customer_id: message.external_customer_id,
+            conversation_id: message.external_conversation_id,
+          },
         });
         results.push({ channel, external_customer_id: message.external_customer_id, conversation_id: message.external_conversation_id, sent: false, send_error: error?.message || "Meta send failed" });
         pushAIEvent({
@@ -5210,6 +5397,33 @@ router.patch("/settings/ai-assistant-global", protect, permit("settings", "edit"
     });
   } catch (error) {
     return sendError(res, error, "Failed to update AI assistant global status");
+  }
+});
+
+router.get("/event-logs/summary", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const days = req.query?.days || 7;
+    const summary = await loadAiEventLogSummary({ tenantId, days });
+    return res.json({ success: true, days: parseDaysParam(days, 7), ...summary });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI event logs summary");
+  }
+});
+
+router.get("/event-logs", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const events = await loadAiEventLogs({
+      tenantId,
+      days: req.query?.days || 7,
+      type: req.query?.type || "",
+      channel: req.query?.channel || "",
+      limit: req.query?.limit || 50,
+    });
+    return res.json({ success: true, ...events });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI event logs");
   }
 });
 

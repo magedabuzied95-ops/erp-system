@@ -11,6 +11,7 @@ import {
 import { generateWhatsappAiAutoReply, logWhatsappAiOutbound } from "./aiInboxService.js";
 import { debugAiImagesLog, normalizeProductCards } from "./aiProductCards.js";
 import { appendAiGeneratedSupportReply, appendWhatsappOutboundSupportReply, updateAiSupportMessageDeliveryStatus } from "./aiSupportLogService.js";
+import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
 import { addTraceStep, failTrace, finishTrace, setTraceInboundMessage, startTrace } from "./aiReplyTraceService.js";
 import { normalizeWhatsappPhone, normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
 import { emitToRooms } from "../utils/socket.js";
@@ -2283,11 +2284,12 @@ const ensureWhatsappOutboundDedupSchema = async () => {
   `).catch(() => {});
 };
 
-const blockDuplicateWhatsappReply = async ({ plan = {}, outboundType = "unknown" } = {}) => {
+const blockDuplicateWhatsappReply = async ({ tenantId = 0, plan = {}, outboundType = "unknown" } = {}) => {
   const channel = text(plan.channel || "whatsapp");
   const instance = text(plan.instance || "");
   const conversationId = text(plan.conversation_id || "");
   const inboundMessageId = text(plan.inbound_message_id || "");
+  const safeTenantId = number(tenantId, 0);
   if (!conversationId || !inboundMessageId) return { blocked: false };
   await ensureWhatsappOutboundDedupSchema();
   try {
@@ -2314,6 +2316,20 @@ const blockDuplicateWhatsappReply = async ({ plan = {}, outboundType = "unknown"
         channel,
         instance,
       });
+      await logAIPersistentEvent({
+        tenantId: safeTenantId,
+        category: "duplicate_prevention",
+        eventType: "whatsapp_duplicate_reply_blocked",
+        conversationId,
+        channel,
+        source: "whatsappGatewayService.blockDuplicateWhatsappReply",
+        reason: "duplicate_reply",
+        message: "WhatsApp duplicate reply blocked",
+        metadata: {
+          instance: instance || "",
+          inbound_message_id: inboundMessageId,
+        },
+      });
       return { blocked: true, reason: "duplicate_reply" };
     }
     return { blocked: false };
@@ -2324,6 +2340,21 @@ const blockDuplicateWhatsappReply = async ({ plan = {}, outboundType = "unknown"
         inbound_message_id: inboundMessageId,
         channel,
         instance,
+      });
+      await logAIPersistentEvent({
+        tenantId: safeTenantId,
+        category: "duplicate_prevention",
+        eventType: "whatsapp_duplicate_reply_blocked",
+        conversationId,
+        channel,
+        source: "whatsappGatewayService.blockDuplicateWhatsappReply",
+        reason: "duplicate_reply",
+        message: "WhatsApp duplicate reply blocked",
+        metadata: {
+          instance: instance || "",
+          inbound_message_id: inboundMessageId,
+          error_code: error?.code || "",
+        },
       });
       return { blocked: true, reason: "duplicate_reply" };
     }
@@ -4299,6 +4330,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
       selected_variant_ids: outboundPlan.selected_variant_ids,
     });
     const dedupeResult = await blockDuplicateWhatsappReply({
+      tenantId: message.tenant_id || message.tenantId || process.env.WHATSAPP_TENANT_ID || 0,
       plan: outboundPlan,
       outboundType: outboundPlan.will_send_cards ? "cards" : "text",
     });

@@ -15,6 +15,7 @@ import {
 import { detectEscalation } from "./aiEscalationDetector.js";
 import { pushAIEvent } from "./aiEventLogger.js";
 import { getAISettings, getAIToneInstruction } from "./aiSettingsService.js";
+import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
 import { getAiAgentSettings } from "./aiSalesAgentService.js";
 import {
   loadAiConversationMemory,
@@ -1697,6 +1698,23 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
       deliveryStatus: "failed",
       deliveryError: summary.causeMessage ? `${summary.message} / cause: ${summary.causeMessage}` : summary.message,
     }).catch(() => {});
+    await logAIPersistentEvent({
+      tenantId: safeTenantId,
+      category: "auto_reply_failure",
+      eventType: "whatsapp_ai_generation_failed",
+      conversationId: safeSessionId,
+      sessionId: safeSessionId,
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      source: "aiInboxService.generateAiInboxReply",
+      reason: "ai_generation_failed",
+      message: summary.message || "WhatsApp AI generation failed",
+      error: summary,
+      metadata: {
+        trace_id: traceId || "",
+        phone_suffix: safePhone.slice(-4),
+        target: "ai-support-chat",
+      },
+    });
     await addTraceStep(traceId, "reply_generation", {
       generated_text: "",
       response_type: "error",

@@ -122,6 +122,35 @@ function DataTable({ rows = [], columns = [], empty = "No rows." }) {
   );
 }
 
+function EventLogList({ rows = [] }) {
+  const items = asArray(rows);
+  if (!items.length) return <EmptyState text="No AI event logs in the selected period." />;
+  return (
+    <div className="space-y-2">
+      {items.slice(0, 5).map((item, index) => (
+        <div key={item.id || `${item.event_type || "event"}-${index}`} className="rounded-xl border border-white/10 bg-slate-950/35 p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">
+              {item.category || item.event_type || "event"}
+            </span>
+            {item.channel ? (
+              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-300">
+                {item.channel}
+              </span>
+            ) : null}
+            <span className="text-xs text-slate-500">{item.created_at ? new Date(item.created_at).toLocaleString() : ""}</span>
+          </div>
+          <div className="mt-2 text-sm font-bold text-white">{item.message || item.reason || item.source || "AI event"}</div>
+          <div className="mt-1 text-xs text-slate-400">
+            {item.conversation_id ? `Conversation: ${item.conversation_id}` : "Conversation: -"}
+            {item.error?.message ? ` • Error: ${item.error.message}` : ""}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function AiAgentAnalytics() {
   const tenantApi = useTenant();
   const tenantId = useMemo(() => tenantIdFrom(tenantApi), [tenantApi]);
@@ -130,6 +159,8 @@ export default function AiAgentAnalytics() {
   const [branches, setBranches] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [shadowAnalytics, setShadowAnalytics] = useState(null);
+  const [aiEventLogsSummary, setAiEventLogsSummary] = useState(null);
+  const [aiEventLogsError, setAiEventLogsError] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -137,7 +168,7 @@ export default function AiAgentAnalytics() {
     setLoading(true);
     setError("");
     try {
-      const [baseResult, shadowResult] = await Promise.allSettled([
+      const [baseResult, shadowResult, eventLogsResult] = await Promise.allSettled([
         api.get("/ai-agent/analytics", {
           params: {
             tenant_id: tenantId,
@@ -155,6 +186,14 @@ export default function AiAgentAnalytics() {
           },
           headers,
         }),
+        api.get("/ai-agent/event-logs/summary", {
+          params: {
+            tenant_id: tenantId,
+            days: 7,
+          },
+          headers,
+          suppressErrorStatuses: [400, 401, 403, 404, 500],
+        }),
       ]);
       if (baseResult.status === "fulfilled") {
         setAnalytics(baseResult.value.analytics || {});
@@ -165,6 +204,13 @@ export default function AiAgentAnalytics() {
         setShadowAnalytics(shadowResult.value.analytics || {});
       } else {
         setShadowAnalytics(null);
+      }
+      if (eventLogsResult?.status === "fulfilled") {
+        setAiEventLogsSummary(eventLogsResult.value || {});
+        setAiEventLogsError("");
+      } else {
+        setAiEventLogsSummary(null);
+        setAiEventLogsError(eventLogsResult?.reason?.message || "Failed to load AI safety monitor");
       }
     } catch (err) {
       setError(err?.message || "Failed to load AI agent analytics");
@@ -187,6 +233,7 @@ export default function AiAgentAnalytics() {
   const productIntel = analytics?.product_intelligence || {};
   const followups = analytics?.followup_performance || {};
   const shadow = shadowAnalytics || {};
+  const aiSafety = aiEventLogsSummary || {};
   const shadowReadinessClass = {
     pilot_ready: "text-emerald-200",
     monitor: "text-amber-200",
@@ -343,6 +390,31 @@ export default function AiAgentAnalytics() {
                   <KpiCard icon={ShieldAlert} label="Safety Blocks" value={shadow.safety_blocks_count || 0} tone="rose" />
                   <KpiCard icon={AlertTriangle} label="Validator Violations" value={shadow.validator_violations_count || 0} tone="amber" />
                 </div>
+              </Panel>
+
+              <Panel icon={ShieldAlert} title="AI Safety Monitor">
+                {aiEventLogsError ? (
+                  <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm font-bold text-amber-100">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    {aiEventLogsError}
+                  </div>
+                ) : null}
+                {aiEventLogsSummary && (aiSafety.total_events > 0 || asArray(aiSafety.latest_events).length > 0) ? (
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <KpiCard icon={ShieldAlert} label="Duplicate prevented" value={aiSafety.duplicate_prevention_count || 0} tone="emerald" />
+                    <KpiCard icon={AlertTriangle} label="Auto reply failures" value={aiSafety.auto_reply_failure_count || 0} tone="rose" />
+                    <KpiCard icon={BarChart3} label="Total events" value={aiSafety.total_events || 0} tone="cyan" />
+                  </div>
+                ) : aiEventLogsSummary && !aiEventLogsError ? (
+                  <EmptyState text="No AI safety events recorded in the last 7 days." />
+                ) : null}
+
+                {aiEventLogsSummary && (aiSafety.total_events > 0 || asArray(aiSafety.latest_events).length > 0) ? (
+                  <div className="mt-5">
+                    <div className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-slate-500">Latest 5 events</div>
+                    <EventLogList rows={aiSafety.latest_events || []} />
+                  </div>
+                ) : null}
               </Panel>
 
               <div className="grid gap-5 xl:grid-cols-2">

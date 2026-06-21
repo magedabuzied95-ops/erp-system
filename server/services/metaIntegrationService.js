@@ -14,11 +14,13 @@ import { buildAiPriceGuard, guardAiNameCapture } from "../utils/aiProductReplyGu
 import {
   appendAiGeneratedSupportReply,
   ensureAiSupportLogSchema,
+  hasRecentAiReplyDuplicate,
   getAiSupportConversationState,
   markAiSupportConversationEscalated,
   claimAiInboxReplyLock,
   completeAiInboxReplyLock,
 } from "./aiSupportLogService.js";
+import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
 import { createNotification, ensureNotificationsSchema } from "./notificationsService.js";
 import {
   AI_AGENT_CHANNELS,
@@ -17569,6 +17571,12 @@ export const processMetaWebhook = async ({ req } = {}) => {
       continue;
     }
     if (["human_takeover", "closed"].includes(status)) {
+      console.log("[AI_AUTO_REPLY_SKIPPED] reason=human_takeover", {
+        tenant_id: config.tenant_id,
+        session_id: message.external_conversation_id,
+        channel: alias,
+        status,
+      });
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: status });
       continue;
     }
@@ -17927,6 +17935,22 @@ export const processMetaWebhook = async ({ req } = {}) => {
         status: error?.status || "",
         code: error?.code || "",
       });
+      await logAIPersistentEvent({
+        tenantId: config.tenant_id,
+        category: "auto_reply_failure",
+        eventType: "meta_ai_generation_failed",
+        conversationId: message.external_conversation_id,
+        sessionId: message.external_conversation_id,
+        channel: alias,
+        source: "metaIntegrationService.autoReply",
+        reason: "ai_generation_failed",
+        message: error?.message || "AI flow failed",
+        error,
+        metadata: {
+          external_customer_id: message.external_customer_id,
+          selected_route: latestDebugRoute || "",
+        },
+      });
       const fallback = await sendAiGenerationFailedProductFallback({ config, message, error }).catch((fallbackError) => {
         console.error("ai_generation_failed_no_fallback", {
           tenant_id: config.tenant_id,
@@ -18131,6 +18155,40 @@ export const processMetaWebhook = async ({ req } = {}) => {
       const finalReplyText = protectedV2ProductIntent(aiPayload.detected_intent || latestDebugClassification?.intent || "") ? text(replyText) : finalOutbound.text;
       const finalOutboundMetadata = finalOutbound.metadata;
       const outboundPreview = productCards.length ? productCards.map(productCardReplyText).join("\n\n").slice(0, 500) : finalReplyText;
+      const duplicateReply = await hasRecentAiReplyDuplicate({
+        tenantId: config.tenant_id,
+        sessionId: message.external_conversation_id,
+        messageText: finalReplyText,
+        withinMinutes: 10,
+      }).catch(() => null);
+      if (duplicateReply) {
+        console.log("[AI_AUTO_REPLY_SKIPPED] reason=duplicate_reply", {
+          tenant_id: config.tenant_id,
+          session_id: message.external_conversation_id,
+          channel: alias,
+          reply_preview: previewText(finalReplyText),
+          duplicate_message_id: duplicateReply.id || null,
+          duplicate_created_at: duplicateReply.created_at || null,
+        });
+        await logAIPersistentEvent({
+          tenantId: config.tenant_id,
+          category: "duplicate_prevention",
+          eventType: "meta_duplicate_reply_blocked",
+          conversationId: message.external_conversation_id,
+          sessionId: message.external_conversation_id,
+          channel: alias,
+          source: "metaIntegrationService.autoReply",
+          reason: "duplicate_reply",
+          message: "Meta duplicate reply blocked",
+          metadata: {
+            duplicate_message_id: duplicateReply.id || null,
+            duplicate_created_at: duplicateReply.created_at || null,
+            reply_preview: previewText(finalReplyText),
+          },
+        });
+        results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: "duplicate_reply" });
+        continue;
+      }
       if (productCards.length) {
         const presentationGuard = evaluatePresentationGuard({
           conversationId: message.external_conversation_id,
@@ -18369,6 +18427,23 @@ export const processMetaWebhook = async ({ req } = {}) => {
         code: error?.code || "",
         message: error?.message || "Meta send failed",
         meta_error: error?.metaResponse?.error || null,
+      });
+      await logAIPersistentEvent({
+        tenantId: config.tenant_id,
+        category: "auto_reply_failure",
+        eventType: "meta_auto_reply_send_failed",
+        conversationId: message.external_conversation_id,
+        sessionId: message.external_conversation_id,
+        channel: alias,
+        source: "metaIntegrationService.autoReply",
+        reason: "meta_send_failed",
+        message: error?.message || "Meta send failed",
+        error,
+        metadata: {
+          external_customer_id: message.external_customer_id,
+          meta_code: error?.code || "",
+          meta_status: error?.status || "",
+        },
       });
       await storeMetaOutboundDiagnostics({
         tenantId: config.tenant_id,

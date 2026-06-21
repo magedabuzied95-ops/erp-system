@@ -1,4 +1,5 @@
 import db from "../database/db.js";
+import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
 
 import { repairCorruptedArabicValue } from "../utils/arabicTextRepair.js";
 import { normalizeWhatsappPhone, normalizeWhatsappSessionId as normalizeCanonicalWhatsappSessionId } from "../utils/whatsappIdentity.js";
@@ -1920,6 +1921,22 @@ export const claimAiInboxReplyLock = async ({
     ai_reply_id: lock?.ai_reply_id || null,
     outbound_meta_message_id: lock?.outbound_meta_message_id || "",
     status: lock?.status || "duplicate",
+  });
+  await logAIPersistentEvent({
+    tenantId: safeTenantId,
+    category: "duplicate_prevention",
+    eventType: "duplicate_ai_reply_lock",
+    conversationId: safeConversationId,
+    channel: safeChannel,
+    source: safeTriggerSource || "ai_support_log_service",
+    reason: "provider_message_id_duplicate",
+    message: "AI reply lock duplicate prevented",
+    metadata: {
+      provider_message_id: safeProviderMessageId,
+      ai_reply_id: lock?.ai_reply_id || null,
+      outbound_meta_message_id: lock?.outbound_meta_message_id || "",
+      status: lock?.status || "duplicate",
+    },
   });
   return { claimed: false, duplicate: true, lock };
 };
