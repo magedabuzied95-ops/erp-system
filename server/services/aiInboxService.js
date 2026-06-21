@@ -15,6 +15,7 @@ import {
 import { detectEscalation } from "./aiEscalationDetector.js";
 import { pushAIEvent } from "./aiEventLogger.js";
 import { getAISettings, getAIToneInstruction } from "./aiSettingsService.js";
+import { getAiAgentSettings } from "./aiSalesAgentService.js";
 import {
   loadAiConversationMemory,
   updateAiConversationMemory,
@@ -1009,6 +1010,7 @@ const addAiPayloadTraceSteps = async ({ traceId, aiPayload, messageText, replyTe
 const shouldAutoReplyToWhatsapp = async ({ tenantId, conversationId, payload = {} } = {}) => {
   const state = await getAiSupportConversationState({ tenantId, sessionId: conversationId }).catch(() => null);
   const status = text(state?.status || payload?.conversation_status).toLowerCase();
+  const agentSettings = await getAiAgentSettings({ tenantId }).catch(() => ({}));
   const globalSettings = await getAISettings();
   const channelAISettings = await getAIChannelSettings(AI_AGENT_CHANNELS.WHATSAPP, AI_AGENT_CHANNELS.WHATSAPP);
   const runtimeSettings = await getChannelSettings({ tenantId, channel: AI_AGENT_CHANNELS.WHATSAPP }).catch(() => ({}));
@@ -1025,6 +1027,7 @@ const shouldAutoReplyToWhatsapp = async ({ tenantId, conversationId, payload = {
     tenantId,
     conversationId,
     channel: AI_AGENT_CHANNELS.WHATSAPP,
+    globalAssistantEnabled: agentSettings.ai_assistant_global_enabled !== false,
     globalMode,
     channelMode,
     runtimeMode,
@@ -1053,6 +1056,7 @@ const shouldAutoReplyToWhatsapp = async ({ tenantId, conversationId, payload = {
 
   if (status === "human_takeover") return { ok: false, reason: "human_takeover", ...base };
   if (status === "closed" || payload?.auto_response_paused === true) return { ok: false, reason: "paused", ...base };
+  if (agentSettings.ai_assistant_global_enabled === false) return { ok: false, reason: "AI_ASSISTANT_GLOBAL_PAUSED", ...base };
   if (globalMode === "off") return { ok: false, reason: "GLOBAL_OFF", ...base };
   if (channelMode === "off") return { ok: false, reason: "CHANNEL_OFF", ...base };
   if (runtimeSettings.ai_replies_enabled !== true || !automaticModes.has(runtimeMode)) {

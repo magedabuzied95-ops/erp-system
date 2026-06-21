@@ -412,6 +412,7 @@ const DEFAULT_SETTINGS = {
   tone_intensity: 0.72,
   egyptian_tone_level: 0.72,
   emoji_level: 0.2,
+  ai_assistant_global_enabled: true,
   reply_length: "balanced",
   sales_pressure: "medium",
   allowed_phrases: ["ط£ظٹظˆظ‡ ظٹط§ ظپظ†ط¯ظ…", "طھظ…ط§ظ…", "ط§ط®طھظٹط§ط± ط­ظ„ظˆ", "ط£ط±ط´ط­ظ„ظƒ"],
@@ -478,6 +479,8 @@ const pick = (items = [], seed = "") => {
   const value = [...String(seed)].reduce((sum, char) => sum + char.charCodeAt(0), 0);
   return list[value % list.length];
 };
+
+const isAiAssistantGlobalEnabled = (settings = {}) => settings?.ai_assistant_global_enabled !== false;
 
 export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
   if (!schemaReadyPromise) {
@@ -759,6 +762,7 @@ export const getAiAgentSettings = async ({ tenantId }) => {
     followup_cooldown_hours: stored.followup_cooldown_hours ?? stored.cooldown_hours ?? DEFAULT_SETTINGS.followup_cooldown_hours,
     tone_intensity: stored.tone_intensity ?? stored.egyptian_tone_level ?? DEFAULT_SETTINGS.tone_intensity,
     egyptian_tone_level: stored.egyptian_tone_level ?? stored.tone_intensity ?? DEFAULT_SETTINGS.egyptian_tone_level,
+    ai_assistant_global_enabled: stored.ai_assistant_global_enabled ?? DEFAULT_SETTINGS.ai_assistant_global_enabled,
   };
 };
 
@@ -781,6 +785,9 @@ export const updateAiAgentSettings = async ({ tenantId, settings = {} }) => {
     egyptian_tone_level: clamp(settings.egyptian_tone_level ?? settings.tone_intensity ?? DEFAULT_SETTINGS.egyptian_tone_level, 0, 1),
     tone_intensity: clamp(settings.egyptian_tone_level ?? settings.tone_intensity ?? DEFAULT_SETTINGS.tone_intensity, 0, 1),
     emoji_level: clamp(settings.emoji_level ?? DEFAULT_SETTINGS.emoji_level, 0, 1),
+    ai_assistant_global_enabled: settings.ai_assistant_global_enabled !== undefined
+      ? Boolean(settings.ai_assistant_global_enabled)
+      : DEFAULT_SETTINGS.ai_assistant_global_enabled,
   };
   const result = await db.query(
     `
@@ -4404,6 +4411,10 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   };
   const conversation = asArray(inbox.conversations).find((item) => item.session_id === conversationId);
   if (!conversation) throw Object.assign(new Error("Conversation not found"), { status: 404 });
+  const aiSettings = await getAiAgentSettings({ tenantId }).catch(() => DEFAULT_SETTINGS);
+  if (!isAiAssistantGlobalEnabled(aiSettings)) {
+    throw Object.assign(new Error("AI assistant is globally paused"), { status: 409, code: "AI_ASSISTANT_GLOBAL_PAUSED" });
+  }
   if (["human_takeover", "closed"].includes(conversation.conversation_status)) {
     throw Object.assign(new Error("AI is paused for this conversation"), { status: 409 });
   }
@@ -4464,7 +4475,6 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   pipelineQueryCounts.db_reads_count += 1;
   pipelineQueryCounts.correction_queries_count += 1;
   const preloadedCorrectionSources = buildReplyCorrectionContextSource(employeeCorrections, lastMessage);
-  const aiSettings = await getAISettings();
   pipelineQueryCounts.db_reads_count += 1;
   let conversationMemory = getConversationMemory(conversationId);
   const latestMessageRow = [...asArray(conversation.messages)].reverse().find((message) => text(message.customer_message || message.message_text || message.last_message)) || {};
@@ -5068,6 +5078,9 @@ export const generateAiSuggestedReplies = async ({ tenantId, conversationId } = 
   }
 
   const settings = await getAiAgentSettings({ tenantId }).catch(() => DEFAULT_SETTINGS);
+  if (!isAiAssistantGlobalEnabled(settings)) {
+    throw Object.assign(new Error("AI assistant is globally paused"), { status: 409, code: "AI_ASSISTANT_GLOBAL_PAUSED" });
+  }
   if (settings.suggested_replies_enabled === false) {
     throw Object.assign(new Error("Suggested replies are disabled"), { status: 409 });
   }

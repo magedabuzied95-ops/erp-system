@@ -73,6 +73,8 @@ import {
   sendAiFollowupManual,
   snoozeAiFollowup,
   upsertAiCustomerProfile,
+  getAiAgentSettings,
+  updateAiAgentSettings,
 } from "../services/aiSalesAgentService.js";
 import {
   createOrUpdateLeadOpportunity,
@@ -623,7 +625,7 @@ const shouldAutoReplyToConversation = async ({ tenantId, conversationId, channel
       conversationId,
       platform: channel,
     });
-    console.log("ai_auto_reply_skipped_human_takeover", base);
+    console.log("[AI_AUTO_REPLY_SKIPPED] reason=human_takeover", base);
     return { ok: false, reason: "human_takeover", state, mode };
   }
   if (status === "closed" || payload?.auto_response_paused === true) {
@@ -1601,6 +1603,7 @@ router.get("/channels/status", protect, permit("settings", "view"), async (req, 
     const tenantId = toTenantId(req);
     const status = await getAiChannelsStatus({ tenantId });
     const globalSettings = await getAISettings();
+    const aiAgentSettings = await getAiAgentSettings({ tenantId }).catch(() => ({}));
     const [whatsappAISettings, instagramAISettings, facebookAISettings] = await Promise.all([
       getAIChannelSettings(AI_AGENT_CHANNELS.WHATSAPP, AI_AGENT_CHANNELS.WHATSAPP),
       getAIChannelSettings(AI_AGENT_CHANNELS.INSTAGRAM, AI_AGENT_CHANNELS.INSTAGRAM),
@@ -1615,6 +1618,7 @@ router.get("/channels/status", protect, permit("settings", "view"), async (req, 
       const effectiveMode = globalSettings.autoReplyMode !== "fully_automatic"
         ? globalSettings.autoReplyMode
         : aiSettings.aiMode || "suggest_only";
+      const assistantGlobalEnabled = aiAgentSettings.ai_assistant_global_enabled !== false;
       const effectiveTone = aiSettings.tone || globalSettings.tone || "casual";
       const whatsappProvider = envText(data.whatsapp_provider || data.provider).toLowerCase();
       const isEvolutionWhatsapp = channel === AI_AGENT_CHANNELS.WHATSAPP && whatsappProvider === "evolution";
@@ -1641,15 +1645,17 @@ router.get("/channels/status", protect, permit("settings", "view"), async (req, 
         messaging_active: messagingActive,
         aiStatus: resolveAIStatus({
           connected,
-          aiEnabled: effectiveMode === "fully_automatic",
+          aiEnabled: assistantGlobalEnabled && effectiveMode === "fully_automatic",
           humanOverride: hasHumanOverride(channel),
           webhookHealthy,
           tokenValid,
         }),
+        ai_assistant_global_enabled: assistantGlobalEnabled,
       };
     };
     return res.json({
       success: true,
+      ai_assistant_global_enabled: aiAgentSettings.ai_assistant_global_enabled !== false,
       channels: {
         whatsapp: {
           ...withResolvedStatus(AI_AGENT_CHANNELS.WHATSAPP, status[AI_AGENT_CHANNELS.WHATSAPP], whatsappAISettings),
@@ -4736,6 +4742,13 @@ router.post("/inbox/:conversationId/reply", protect, permit("settings", "edit"),
       staffUserId: req.user?.id || null,
       staffUserName: userDisplayName(req.user),
     });
+    await updateAiSupportConversationState({
+      tenantId,
+      sessionId: req.params.conversationId,
+      status: "human_takeover",
+      actorUserId: req.user?.id || null,
+      source: "ai_inbox",
+    }).catch(() => {});
     return res.status(201).json({ success: true, message });
   } catch (error) {
     return sendError(res, error, "Failed to send manual reply");
@@ -5159,6 +5172,44 @@ router.put("/settings", protect, permit("settings", "edit"), async (req, res) =>
     return res.json({ success: true, settings, persisted: wasAISettingsPersisted() });
   } catch (error) {
     return sendError(res, error, "Failed to update AI agent settings");
+  }
+});
+
+router.get("/settings/ai-assistant-global", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const settings = await getAiAgentSettings({ tenantId });
+    return res.json({
+      success: true,
+      ai_assistant_global_enabled: settings.ai_assistant_global_enabled !== false,
+      settings,
+      persisted: true,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI assistant global status");
+  }
+});
+
+router.patch("/settings/ai-assistant-global", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const enabled = req.body?.ai_assistant_global_enabled !== false && req.body?.enabled !== false;
+    const current = await getAiAgentSettings({ tenantId });
+    const settings = await updateAiAgentSettings({
+      tenantId,
+      settings: {
+        ...current,
+        ai_assistant_global_enabled: enabled,
+      },
+    });
+    return res.json({
+      success: true,
+      ai_assistant_global_enabled: settings.ai_assistant_global_enabled !== false,
+      settings,
+      persisted: true,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to update AI assistant global status");
   }
 });
 
