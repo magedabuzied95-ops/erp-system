@@ -135,6 +135,37 @@ const productFacetStock = (product = {}) => {
   const directStock = Number(product?.total_stock || product?.stock || product?.inventory_stock || product?.available_stock || product?.quantity || 0) || 0;
   return Number(directStock || variantStock || 0) || 0;
 };
+const storefrontKnownBrandPrefixes = [
+  "Air Jordan",
+  "The North Face",
+  "New Balance",
+  "Skechers",
+  "Adidas",
+  "Nike",
+  "Jordan",
+  "Reebok",
+  "Converse",
+  "Vans",
+  "Puma",
+  "DC",
+];
+const normalizeBrandFacetText = (value = "") =>
+  normalizeFilterKey(
+    String(value ?? "")
+      .normalize("NFKD")
+      .replace(/[\u0640\u200c\u200d\u200e\u200f]/g, "")
+      .replace(/\p{M}+/gu, "")
+  ).replace(/\s+/g, " ").trim();
+const deriveKnownBrandLabel = (value = "") => {
+  const normalized = normalizeBrandFacetText(value);
+  if (!normalized) return "";
+  return storefrontKnownBrandPrefixes.find((brand) => {
+    const normalizedBrand = normalizeBrandFacetText(brand);
+    if (normalized === normalizedBrand) return true;
+    if (normalized.startsWith(`${normalizedBrand} `)) return true;
+    return normalizedBrand === "dc" && (normalized === "dc shoes" || normalized.startsWith("dc "));
+  }) || "";
+};
 const productFacetBrandValues = (product = {}) => {
   const values = [];
   const addValues = (source = {}) => {
@@ -144,16 +175,17 @@ const productFacetBrandValues = (product = {}) => {
       source.brandName,
       source.product_brand,
       source.productBrand,
-      source.manufacturer,
-      source.manufacturer_name,
-      source.manufacturerName,
-      source.vendor,
-      source.vendor_name
+      source.manufacturer_brand
     );
   };
   addValues(product);
   (Array.isArray(product?.variants) ? product.variants : []).forEach(addValues);
-  return splitFacetValues(values.filter(Boolean).join(" | "));
+  const explicit = values.filter(Boolean);
+  if (!explicit.length) {
+    const derived = deriveKnownBrandLabel([product.name, product.title, product.product_name, product.display_name, product.displayName].filter(Boolean).join(" "));
+    if (derived) explicit.push(derived);
+  }
+  return splitFacetValues(explicit.join(" | "));
 };
 const productFacetCategoryValues = (product = {}) => splitFacetValues([
   product.category,
@@ -187,6 +219,13 @@ const catalogListingProductKey = (product = {}, index = 0) =>
 const normalizeCatalogListingProduct = (product = {}) => {
   const id = catalogListingProductKey(product);
   const name = String(product?.name || product?.title || product?.product_name || product?.productName || product?.label || product?.display_name || product?.displayName || id || "").trim();
+  const resolvedBrand =
+    normalizeFilterText(product?.brand)
+      || normalizeFilterText(product?.brand_name)
+      || normalizeFilterText(product?.brandName)
+      || normalizeFilterText(product?.product_brand)
+      || normalizeFilterText(product?.manufacturer_brand)
+      || deriveKnownBrandLabel([product?.name, product?.title, product?.product_name, product?.productName, product?.label, product?.display_name, product?.displayName].filter(Boolean).join(" "));
   return {
     ...product,
     id,
@@ -197,6 +236,11 @@ const normalizeCatalogListingProduct = (product = {}) => {
     slug: product?.slug || product?.canonical_slug || id,
     title: product?.title || name,
     product_name: product?.product_name || name,
+    brand: resolvedBrand || product?.brand || "",
+    brand_name: resolvedBrand || product?.brand_name || "",
+    brandName: resolvedBrand || product?.brandName || "",
+    product_brand: resolvedBrand || product?.product_brand || "",
+    manufacturer_brand: product?.manufacturer_brand || "",
   };
 };
 const productGradeValues = (product = {}) => splitFacetValues([
@@ -479,6 +523,18 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
       ),
     [products]
   );
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    console.debug("[storefront-listing-normalized-products]", catalogProducts.slice(0, 5).map((product) => ({
+      id: product.id,
+      name: product.name,
+      title: product.title,
+      brand: product.brand,
+      brand_name: product.brand_name,
+      product_brand: product.product_brand,
+      manufacturer_brand: product.manufacturer_brand,
+    })));
+  }, [catalogProducts]);
   const catalogFilters = useMemo(
     () => ({
       gender,

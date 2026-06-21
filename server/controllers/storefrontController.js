@@ -1014,6 +1014,48 @@ const slugifyBrandName = (value = "") =>
     .replace(/-+/g, "-")
     .replace(/^-+|-+$/g, "") || "";
 
+const STOREFRONT_KNOWN_BRAND_PREFIXES = [
+  "Air Jordan",
+  "The North Face",
+  "New Balance",
+  "Skechers",
+  "Adidas",
+  "Nike",
+  "Jordan",
+  "Reebok",
+  "Converse",
+  "Vans",
+  "Puma",
+  "DC",
+];
+
+const normalizeBrandFacetText = (value = "") =>
+  queryText(value)
+    .normalize("NFKD")
+    .replace(/[\u0640\u200c\u200d\u200e\u200f]/g, "")
+    .replace(/\p{M}+/gu, "")
+    .toLowerCase()
+    .trim();
+
+const deriveKnownBrandLabel = (value = "") => {
+  const normalized = normalizeBrandFacetText(value);
+  if (!normalized) return "";
+  return STOREFRONT_KNOWN_BRAND_PREFIXES.find((brand) => {
+    const normalizedBrand = normalizeBrandFacetText(brand);
+    if (normalized === normalizedBrand) return true;
+    if (normalized.startsWith(`${normalizedBrand} `)) return true;
+    return normalizedBrand === "dc" && (normalized === "dc shoes" || normalized.startsWith("dc "));
+  }) || "";
+};
+
+const storefrontBrandMatchSql = (fieldSql = "p.name", param = "$4") => {
+  const cases = STOREFRONT_KNOWN_BRAND_PREFIXES.map((brand) => {
+    const normalized = normalizeBrandFacetText(brand).replace(/'/g, "''");
+    return `WHEN LOWER(TRIM(COALESCE(${fieldSql}, ''))) = '${normalized}' OR LOWER(TRIM(COALESCE(${fieldSql}, ''))) LIKE '${normalized} %' THEN '${normalized}'`;
+  }).join(" ");
+  return `CASE ${cases} ELSE '' END = LOWER(TRIM(${param}))`;
+};
+
 const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULTS) => {
   const galleryImages = parseJsonArray(row.gallery_images).filter(Boolean);
   const productImage = firstText(row.public_image_url, row.image_url, row.image, row.photo_url, row.thumbnail_url, galleryImages[0]);
@@ -1098,6 +1140,14 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
   const saleModeActive = productResolvedPrice.saleActive || Boolean(bestVariantPrice?.sale_mode_applied);
   const compareAtPrice = bestVariantPrice?.compare_at_price || productResolvedPrice.compareAtPrice;
   const discount = compareAtPrice > currentPrice && currentPrice > 0;
+  const resolvedBrand = firstText(
+    row.brand_name,
+    row.brand,
+    row.product_brand,
+    row.brandName,
+    row.manufacturer_brand,
+    deriveKnownBrandLabel([row.name, row.title, row.product_name, row.productName, row.label, row.display_name].filter(Boolean).join(" "))
+  );
 
   const product = {
     id: row.id,
@@ -1113,9 +1163,11 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
     product_type: row.product_type || "",
     productType: row.product_type || "",
     grade: row.grade || "",
-    brand: row.brand_name || row.brand || row.product_brand || row.manufacturer_name || row.manufacturer || "",
-    brand_name: row.brand_name || row.brand || row.product_brand || row.manufacturer_name || row.manufacturer || "",
-    product_brand: row.product_brand || row.brand || row.brand_name || "",
+    brand: resolvedBrand,
+    brand_name: resolvedBrand,
+    brandName: resolvedBrand,
+    product_brand: row.product_brand || resolvedBrand,
+    manufacturer_brand: row.manufacturer_brand || "",
     manufacturer: row.manufacturer || row.manufacturer_name || "",
     manufacturer_name: row.manufacturer_name || row.manufacturer || "",
     image_url: firstText(productImage, variants.find((variant) => variant.image_url)?.image_url),
@@ -1355,6 +1407,7 @@ const storefrontProductsSql = `
         OR LOWER(TRIM(COALESCE(b.name, ''))) = LOWER(TRIM($4))
         OR LOWER(TRIM(COALESCE(m.name, ''))) = LOWER(TRIM($4))
         OR LOWER(TRIM(COALESCE(p.brand, ''))) = LOWER(TRIM($4))
+        OR ${storefrontBrandMatchSql("p.name", "$4")}
       )
       AND (
         $5::boolean = FALSE
@@ -1811,7 +1864,9 @@ const slimProductForList = (product = {}) => ({
   grade: product.grade,
   brand: product.brand,
   brand_name: product.brand_name || product.brand || "",
+  brandName: product.brandName || product.brand || "",
   product_brand: product.product_brand || product.brand || "",
+  manufacturer_brand: product.manufacturer_brand || "",
   manufacturer: product.manufacturer || product.manufacturer_name || "",
   manufacturer_name: product.manufacturer_name || product.manufacturer || "",
   image_url: product.image_url,
