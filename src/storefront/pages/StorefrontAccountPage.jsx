@@ -195,6 +195,7 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
   const [loading, setLoading] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const lastAutoLoadedPhoneRef = useRef("");
+  const autoLoadTriggeredRef = useRef("");
   const accountRefreshIntervalMs = selectedOrder ? 10 * 1000 : 30 * 1000;
 
   useEffect(() => {
@@ -218,8 +219,8 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
     }));
   }, [setProfile]);
 
-  const load = useCallback(async ({ silent = false, source = "manual" } = {}) => {
-    const normalizedPhone = normalizePhoneDigits(phone);
+  const load = useCallback(async ({ silent = false, source = "manual", phoneOverride = "" } = {}) => {
+    const normalizedPhone = normalizePhoneDigits(phoneOverride || phone);
     if (!normalizedPhone) {
       clearCustomerIdentity();
       return null;
@@ -263,11 +264,13 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
   useEffect(() => {
     const normalizedPhone = normalizePhoneDigits(savedIdentity.primary_phone || "");
     if (!normalizedPhone) return;
-    if (normalizePhoneDigits(phone) !== normalizedPhone) return;
     if (account || loading) return;
-    if (lastAutoLoadedPhoneRef.current === normalizedPhone) return;
-    lastAutoLoadedPhoneRef.current = normalizedPhone;
-    load({ silent: true, source: "auto" });
+    if (autoLoadTriggeredRef.current === normalizedPhone) return;
+    autoLoadTriggeredRef.current = normalizedPhone;
+    if (normalizePhoneDigits(phone) !== normalizedPhone) {
+      setPhone(normalizedPhone);
+    }
+    load({ silent: true, source: "auto", phoneOverride: normalizedPhone });
   }, [account, load, loading, phone, savedIdentity.primary_phone]);
 
   useEffect(() => {
