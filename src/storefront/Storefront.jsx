@@ -4278,7 +4278,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
           >
             <Search className="sf-mobile-header-search-icon h-4.5 w-4.5 shrink-0" />
             <span className="truncate">ابحث باسم المنتج أو SKU...</span>
-          </button>
+            </button>
           <div className="sf-mobile-category-chips mt-3 flex min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1 rtl:justify-start">
             {mobileCategoryChips.map((item) => (
               <Link
@@ -4296,6 +4296,9 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
               </Link>
             ))}
           </div>
+          </>) : (
+            <div className="h-1" />
+          )}
         </div>
       </div>
       <div className="sf-utility-row hidden border-b border-white/10 bg-[linear-gradient(105deg,#09090b,#1c1917_42%,#312e81)] px-4 text-xs font-semibold text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-300 sm:block">
@@ -4759,6 +4762,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     () => variants.find((variant) => String(variant.id) === String(selectedVariantId)) || null,
     [selectedVariantId, variants]
   );
+  const selectedVariantIsAvailable = Boolean(selectedVariant && variantHasStock(selectedVariant));
   const selectedColorKey = selectedColorKeyState || (selectedVariant ? variantColorKey(selectedVariant) : "");
   const activeColorGroup = useMemo(
     () => getActiveColorGroup(product, selectedColorKey),
