@@ -138,6 +138,10 @@ const encodeConversationId = (value = "") => {
     return encodeURIComponent(raw);
   }
 };
+const buildClientRequestId = () => {
+  if (typeof crypto !== "undefined" && crypto?.randomUUID) return crypto.randomUUID();
+  return `req_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+};
 const aiInboxConversationEndpoint = (sessionId = "", suffix = "") =>
   `/ai-inbox/conversations/${encodeConversationId(sessionId)}${suffix}`;
 const aiAgentInboxEndpoint = (sessionId = "", suffix = "") =>
