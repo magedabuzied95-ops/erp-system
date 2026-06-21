@@ -34,7 +34,7 @@ import {
 } from "../Storefront";
 import { useProductClassifications } from "../../modules/products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../../modules/products/lib/productClassifications";
-import { Baby, Briefcase, ChevronLeft, DollarSign, Gem, Footprints, ShieldCheck, ShoppingBag, Shirt, SlidersHorizontal, Tag, UserRound, Users, X } from "lucide-react";
+import { Baby, Briefcase, ChevronLeft, DollarSign, Gem, Footprints, ShoppingBag, Shirt, SlidersHorizontal, Tag, UserRound, Users, X } from "lucide-react";
 
 const normalizeFilterText = (value = "") => String(value ?? "").trim();
 const normalizeAudienceFilterKey = (value = "") => normalizeFilterKey(String(value ?? "").normalize("NFKD").replace(/[\u0640\u200c\u200d\u200e\u200f]/g, "").replace(/\p{M}+/gu, "")).replace(/['\u2019]/g, "'");
@@ -829,7 +829,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   const showGuidedProducts = Boolean(selectedGender && selectedGrade && selectedProductType);
 
   return (
-    <section className="mx-auto max-w-7xl px-3 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.75rem)] pt-2.5 md:px-4 md:py-5">
+    <section className="mx-auto max-w-7xl px-3 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+2.25rem)] pt-2.5 md:px-4 md:py-5">
       <div className="flex flex-col gap-2 md:gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-bold text-stone-500 md:text-sm">{saleView ? t("storefront.products.limitedOffers", "عروض محدودة") : t("storefront.products.shopEasily", "تسوّق بسهولة")}</p>
@@ -1199,7 +1199,7 @@ function CatalogSortControl({ value = "newest", options = [], onChange, compact 
 
 function CatalogQuickChips({ params, items = [], buildUrl }) {
   return (
-    <div className="sf-scroll mt-3 flex min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1.5 rtl:justify-start md:mt-4">
+    <div className="sf-scroll mt-3 hidden min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1.5 rtl:justify-start md:mt-4 md:flex">
       {items.map((item) => {
         const activeValue = item.field === "gender" ? normalizeStorefrontAudienceValue(params.get("gender")) : normalizeStorefrontProductTypeValue(params.get("type") || params.get("product_type"));
         const isActive =
@@ -1255,9 +1255,6 @@ function CatalogAppliedFilterChips({
     if (size) chips.push({ key: `size:${size}`, label: size, field: "size", value: size });
   });
   if (minPrice || maxPrice) chips.push({ key: "price", label: `${normalizeFilterText(minPrice) || "0"} - ${normalizeFilterText(maxPrice) || "∞"} جنيه`, field: "price" });
-  if (saleView) chips.push({ key: "sale", label: t("storefront.nav.sale", "العروض"), field: "sale" });
-  if (lastSizes) chips.push({ key: "lastSizes", label: t("storefront.home.lastSizes", "آخر قطعة"), field: "lastSizes" });
-  if (inStock) chips.push({ key: "inStock", label: t("storefront.filters.availableOnly", "متاح فقط"), field: "inStock" });
   if (normalizeCatalogSortValue(selectedSort) !== "newest") chips.push({ key: "sort", label: sortLabelForValue(selectedSort, t), field: "sort" });
   if (!chips.length) return null;
   return (
@@ -1357,35 +1354,6 @@ function CatalogSingleSelectFilter({
   );
 }
 
-function CatalogAvailabilityFilter({ saleView = false, lastSizes = false, inStock = "", onToggleFlag }) {
-  const { t } = useTranslation();
-  const items = [
-    { key: "inStock", label: t("storefront.filters.availableOnly", "متاح فقط"), active: Boolean(inStock) },
-    { key: "lastSizes", label: t("storefront.home.lastSizes", "آخر قطعة"), active: Boolean(lastSizes) },
-    { key: "sale", label: t("storefront.nav.sale", "العروض"), active: Boolean(saleView) },
-  ];
-  return (
-    <CatalogSectionShell eyebrow={t("storefront.filters.availability", "التوفر")} title={t("storefront.filters.availability", "التوفر")} icon={ShieldCheck}>
-      <div className="sf-scroll flex flex-wrap gap-2">
-        {items.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            onClick={() => onToggleFlag?.(item.key)}
-            className={`inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-[12px] font-black transition ${
-              item.active
-                ? "border-[#7c3aed]/70 bg-[#7c3aed] text-white shadow-[0_10px_24px_rgba(124,58,237,0.24)]"
-                : "border-stone-200 bg-stone-50 text-stone-700 hover:border-[#7c3aed]/45 hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-    </CatalogSectionShell>
-  );
-}
-
 function CatalogFiltersPanel({
   lang,
   title,
@@ -1434,7 +1402,6 @@ function CatalogFiltersPanel({
       <CatalogPriceFilter minPrice={minPrice} maxPrice={maxPrice} onChange={onPriceChange} priceBounds={priceBounds} />
       <CatalogSingleSelectFilter eyebrow={t("storefront.filters.color", "اللون")} title={t("storefront.filters.color", "اللون")} icon={Tag} options={colorOptions} value={selectedColor} onChange={onColorChange} onClear={() => onColorChange("")} lang={lang} />
       <CatalogSingleSelectFilter eyebrow={t("storefront.filters.brand", "البرند")} title={t("storefront.filters.brand", "البرند")} icon={Briefcase} options={brandOptions} value={selectedBrand} onChange={onBrandChange} onClear={() => onBrandChange("")} lang={lang} />
-      <CatalogAvailabilityFilter saleView={saleView} lastSizes={lastSizes} inStock={inStock} onToggleFlag={onToggleFlag} />
       {onClearAll ? (
         <button type="button" onClick={onClearAll} className="rounded-[1.25rem] border border-stone-200 bg-white px-4 py-3 text-sm font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7c3aed]/45 hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
           {t("storefront.filters.clearAll", "مسح الكل")}

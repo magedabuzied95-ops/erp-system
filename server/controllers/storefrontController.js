@@ -9,6 +9,7 @@ import { sendManagerInvoiceCreatedPush } from "../services/managerPortalPushServ
 import {
   attachGroupedColorImages,
   attachVariantImages,
+  dedupeImages,
   ensureProductVariantImagesSchema,
   loadProductVariantImages,
 } from "../services/productVariantImagesService.js";
@@ -1779,6 +1780,7 @@ const hydrateProductsWithImages = async (products = [], options = {}) => {
     const imageBundle = imageBundleMap.get(String(product.id)) || null;
     const variants = attachVariantImages(Array.isArray(product.variants) ? product.variants : [], imageBundle);
     if (compact) {
+      const colorImages = attachGroupedColorImages(deriveColorGroupsFromVariants(variants), imageBundle);
       const compactVariants = variants.map((variant) => {
         const imageUrl = variant.primary_image_url || variant.image_url || variant.variant_image_url || variant.color_image_url || product.image_url || product.product_image_url || "";
         return {
@@ -1817,6 +1819,12 @@ const hydrateProductsWithImages = async (products = [], options = {}) => {
           original_price: variant.original_price,
           stock: variant.stock,
           last_piece_category: variant.last_piece_category,
+          images: Array.isArray(variant.images) ? variant.images : [],
+          gallery_images: Array.isArray(variant.images) ? variant.images : [],
+          image_urls: Array.isArray(variant.images) ? variant.images : [],
+          product_images: Array.isArray(variant.images) ? variant.images : [],
+          additional_images: Array.isArray(variant.images) ? variant.images.slice(1) : [],
+          color_images: Array.isArray(variant.images) ? variant.images : [],
         };
       });
       const primaryVariant = compactVariants.find((variant) => variant.image_url) || null;
@@ -1824,6 +1832,8 @@ const hydrateProductsWithImages = async (products = [], options = {}) => {
       return {
         ...product,
         variants: compactVariants,
+        colors: colorImages,
+        color_images: colorImages,
         image_url: primaryImage,
         product_image_url: primaryImage,
       };
@@ -1871,6 +1881,12 @@ const slimProductForList = (product = {}) => ({
   manufacturer_name: product.manufacturer_name || product.manufacturer || "",
   image_url: product.image_url,
   product_image_url: product.product_image_url || product.image_url || "",
+  images: Array.isArray(product.images) ? product.images : [],
+  gallery_images: Array.isArray(product.gallery_images) ? product.gallery_images : [],
+  image_urls: Array.isArray(product.image_urls) ? product.image_urls : [],
+  product_images: Array.isArray(product.product_images) ? product.product_images : [],
+  additional_images: Array.isArray(product.additional_images) ? product.additional_images : [],
+  color_images: Array.isArray(product.color_images) ? product.color_images : [],
   description: product.description,
   created_at: product.created_at,
   price: product.price,
@@ -2108,9 +2124,21 @@ const expandProductsToColorCards = (products = []) => {
     for (const group of groups.values()) {
       const selectedVariant = preferredVariantForColorCard(group.variants, product);
       if (!selectedVariant) continue;
+      const productColorImages = Array.isArray(product.color_images) ? product.color_images : Array.isArray(product.colors) ? product.colors : [];
+      const matchedColorRecord = productColorImages.find((color) => {
+        const colorKey = variantColorKeyForCard({ color: color?.color || color?.color_name || "" });
+        return colorKey === group.key;
+      }) || null;
+      const groupImages = dedupeImages([
+        ...(Array.isArray(matchedColorRecord?.images) ? matchedColorRecord.images : []),
+        ...(Array.isArray(selectedVariant?.images) ? selectedVariant.images : []),
+        ...(Array.isArray(group.variants) ? group.variants.flatMap((variant) => Array.isArray(variant.images) ? variant.images : []) : []),
+        ...(Array.isArray(group.variants) ? group.variants.flatMap((variant) => Array.isArray(variant.color_images) ? variant.color_images : []) : []),
+      ]);
+      const groupPrimaryImage = groupImages.find((image) => image?.is_primary) || groupImages[0] || null;
       const groupStock = group.variants.reduce((sum, variant) => sum + Math.max(0, toNumber(variant.stock)), 0);
       const groupSizes = [...new Set(group.variants.filter((variant) => toNumber(variant.stock) > 0 && variant.size).map((variant) => variant.size))];
-      const groupImage = variantCardImage(selectedVariant, product);
+      const groupImage = groupPrimaryImage?.image_url || groupPrimaryImage?.preview || variantCardImage(selectedVariant, product);
       const sellingPrice = roundMoney(selectedVariant.selling_price || selectedVariant.price || product.selling_price || product.price);
       const salePrice = roundMoney(selectedVariant.sale_price ?? product.sale_price);
       const finalPrice = roundMoney(selectedVariant.final_price || product.final_price || sellingPrice);
@@ -2128,8 +2156,13 @@ const expandProductsToColorCards = (products = []) => {
         color_key: group.key,
         name: productColorDisplayName(product.name, group.color),
         image_url: groupImage,
-        product_image_url: product.product_image_url || product.image_url || "",
-        gallery_images: [...new Set([groupImage, ...(Array.isArray(product.gallery_images) ? product.gallery_images : [])].filter(Boolean))],
+        product_image_url: groupImage,
+        image_urls: groupImages,
+        images: groupImages,
+        gallery_images: groupImages,
+        product_images: groupImages,
+        additional_images: groupImages.slice(1),
+        color_images: groupImages,
         variants: group.variants,
         total_stock: groupStock,
         low_stock: groupStock > 0 && groupStock <= LOW_STOCK_LIMIT,

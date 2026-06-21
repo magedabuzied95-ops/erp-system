@@ -59,7 +59,7 @@ import {
 import { api } from "../shared/api/api";
 import { API_BASE_URL } from "../shared/constants/app";
 import { resolveProductImageUrl } from "../shared/lib/imageUrls";
-import { formatCurrency, getCurrency } from "../shared/lib/currency";
+import { formatCurrencyParts, getCurrency } from "../shared/lib/currency";
 import { useProductClassifications } from "../modules/products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../modules/products/lib/productClassifications";
 import useDismissableLayer from "../shared/hooks/useDismissableLayer";
@@ -242,7 +242,11 @@ const imageFor = (value) => {
   return resolved;
 };
 const responsiveImageProps = (value, preset = "grid") => getStorefrontResponsiveImageProps(imageFor(value), preset);
-const money = (value) => formatCurrency(Number(value || 0));
+const money = (value) => {
+  const parts = formatCurrencyParts(Number(value || 0));
+  const amount = String(parts.amount || "").replace(/([.,])0{2}$/, "");
+  return parts.isRtl ? `${amount} ${parts.symbol}`.trim() : `${parts.symbol} ${amount}`.trim();
+};
 const sfText = (key, fallback, options = {}) => i18n.t(String(key || ""), { defaultValue: fallback, ...options });
 const couponErrorKeyMap = {
   "Coupon code is required": "storefront.checkout.couponErrors.required",
@@ -358,15 +362,7 @@ const useProducts = (params = {}, { ttlMs = STOREFRONT_PRODUCTS_CACHE_TTL_MS } =
     }
     cachedStorefrontGet(requestUrl, { ttlMs })
       .then((data) => {
-        console.info("[useProducts-raw-response]", {
-          typeofData: typeof data,
-          keys: Object.keys(data || {}),
-          sample: data,
-        });
         const products = Array.isArray(data.products) ? data.products : [];
-        console.info("[useProducts-products-extraction]", {
-          extractedProductsCount: products.length,
-        });
         if (import.meta.env.DEV) {
           console.debug("[storefront-color-card-response]", products.map((product) => ({
             card_id: product?.card_id,
@@ -696,6 +692,28 @@ const variantImages = (variant = {}) => {
     variantImage(variant),
   ].filter(Boolean).reduce((acc, image) => (acc.includes(image) ? acc : [...acc, image]), []);
 };
+const cardImageCandidateValue = (value = "") => {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object") {
+    return value.image_url || value.preview || value.url || value.src || value.image || value.photo_url || value.thumbnail_url || value.large || value.medium || value.small || "";
+  }
+  return "";
+};
+const cardImageAtIndex = (collection = [], index = 0) => {
+  if (!Array.isArray(collection) || index < 0) return "";
+  return cardImageCandidateValue(collection[index]);
+};
+const productCardResolvedImageCollection = (collection = []) =>
+  (Array.isArray(collection) ? collection : [])
+    .map((item) => resolveCardImageUrl(item))
+    .filter(Boolean)
+    .reduce((acc, image) => (acc.includes(image) ? acc : [...acc, image]), []);
+const resolveCardImageUrl = (value = "") => {
+  const resolved = compactImageValue(resolveProductImageUrl(cardImageCandidateValue(value)));
+  if (!resolved || resolved === "/favicon.svg") return "";
+  return resolved;
+};
 const variantColorName = (variant = {}) =>
   cleanDisplayText(variant.color_name || variant.edition_name || variant.color || variant.color_slug || "Default") || "Default";
 const variantColorKey = (variant = {}) => {
@@ -708,7 +726,63 @@ const firstDisplayVariant = (variants = []) =>
   variants.find((variant) => variantHasStock(variant)) ||
   variants.find((variant) => variantImage(variant)) ||
   variants[0];
+const productCardPrimaryImageFor = (product = {}, variant = null, activeColorGroup = null) => {
+  const cardImages = productCardResolvedImageCollection([
+    ...(Array.isArray(product?.images) ? product.images : []),
+    ...(Array.isArray(product?.gallery_images) ? product.gallery_images : []),
+    ...(Array.isArray(product?.image_urls) ? product.image_urls : []),
+    ...(Array.isArray(product?.product_images) ? product.product_images : []),
+    ...(Array.isArray(product?.color_images) ? product.color_images : []),
+  ]);
+  const variantImagesList = productCardResolvedImageCollection([
+    ...(Array.isArray(activeColorGroup?.images) ? activeColorGroup.images : []),
+    ...(Array.isArray(variant?.images) ? variant.images : []),
+    ...(Array.isArray(variant?.color_images) ? variant.color_images : []),
+    ...(Array.isArray(variant?.gallery_images) ? variant.gallery_images : []),
+    ...(Array.isArray(variant?.image_urls) ? variant.image_urls : []),
+  ]);
+  return (
+    cardImages[0] ||
+    variantImagesList[0] ||
+    resolveCardImageUrl(activeColorGroup?.primaryImage) ||
+    resolveCardImageUrl(activeColorGroup?.image_url) ||
+    resolveCardImageUrl(variant?.image_url) ||
+    resolveCardImageUrl(variant?.image) ||
+    resolveCardImageUrl(product?.image_url) ||
+    ""
+  );
+};
 const displayImageForProduct = (product = {}, variant = null) => variantImage(variant || {}) || firstVariantImage(product.variants || []) || product.image_url || product.gallery_images?.[0];
+const productCardSecondaryImageFor = (product = {}, variant = null, activeColorGroup = null, primaryImage = "") => {
+  const primary = resolveCardImageUrl(primaryImage || productCardPrimaryImageFor(product, variant, activeColorGroup) || "");
+  const cardImages = productCardResolvedImageCollection([
+    ...(Array.isArray(product?.images) ? product.images : []),
+    ...(Array.isArray(product?.gallery_images) ? product.gallery_images : []),
+    ...(Array.isArray(product?.image_urls) ? product.image_urls : []),
+    ...(Array.isArray(product?.product_images) ? product.product_images : []),
+    ...(Array.isArray(product?.color_images) ? product.color_images : []),
+  ]);
+  const variantImagesList = productCardResolvedImageCollection([
+    ...(Array.isArray(activeColorGroup?.images) ? activeColorGroup.images : []),
+    ...(Array.isArray(variant?.images) ? variant.images : []),
+    ...(Array.isArray(variant?.color_images) ? variant.color_images : []),
+    ...(Array.isArray(variant?.gallery_images) ? variant.gallery_images : []),
+    ...(Array.isArray(variant?.image_urls) ? variant.image_urls : []),
+  ]);
+  const candidates = [
+    cardImages[1],
+    cardImages[0],
+    variantImagesList[1],
+    variantImagesList[0],
+    cardImageAtIndex(activeColorGroup?.additional_images, 0),
+    cardImageAtIndex(variant?.additional_images, 0),
+  ];
+  for (const candidate of candidates) {
+    const next = resolveCardImageUrl(candidate);
+    if (next && next !== primary) return next;
+  }
+  return "";
+};
 const normalizeModelToken = (value = "") =>
   cleanDisplayText(value)
     .toLowerCase()
@@ -956,6 +1030,22 @@ const getSizesForColorGroup = (activeColorGroup = {}) => {
     sizes.set(size, { size, variant });
   });
   return Array.from(sizes.values());
+};
+const productCardBrandLabel = (product = {}) => firstTextValue(
+  product.brand_name,
+  product.brand,
+  product.product_brand,
+  product.manufacturer_name,
+  product.manufacturer
+);
+const productCardBrandFilterUrl = (product = {}) => {
+  const brandLabel = String(productCardBrandLabel(product) || "").trim();
+  if (!brandLabel) return "";
+  return `/shop/products?brand=${encodeURIComponent(brandLabel)}`;
+};
+const productCardIsNew = (product = {}) => {
+  const createdAt = new Date(product.created_at || product.createdAt || 0).getTime();
+  return Number.isFinite(createdAt) && createdAt > 0 && (Date.now() - createdAt) <= (1000 * 60 * 60 * 24 * 40);
 };
 
 const repairedDefaultEgyptShippingLocations = defaultEgyptShippingLocations;
@@ -4685,23 +4775,36 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const inWishlist = useMemo(() => wishlist.some((item) => String(item.id) === String(product.id)), [product.id, wishlist]);
   const sellingPrice = displaySellingPrice(product, availableVariant);
   const comparePrice = displayComparePrice(product, availableVariant);
-  const hasDiscount = comparePrice > sellingPrice;
   const discountPercent = displayDiscountPercent(product, availableVariant);
   const activeSizes = useMemo(
     () => providedAvailableSizes || getSizesForColorGroup(activeColorGroup),
     [activeColorGroup, providedAvailableSizes]
   );
-  const visibleSizes = useMemo(() => activeSizes.slice(0, sizeLimit), [activeSizes, sizeLimit]);
+  const visibleSizes = useMemo(() => {
+    const maxVisible = activeSizes.length > 1 ? 2 : activeSizes.length;
+    return activeSizes.slice(0, Math.min(maxVisible, sizeLimit));
+  }, [activeSizes, sizeLimit]);
   const extraSizeCount = Math.max(0, activeSizes.length - visibleSizes.length);
-  const displayImage = useMemo(() => displayImageForProduct(product, availableVariant), [availableVariant, product]);
+  const displayImage = useMemo(
+    () => productCardPrimaryImageFor(product, availableVariant, activeColorGroup),
+    [activeColorGroup, availableVariant, product]
+  );
+  const secondaryDisplayImage = useMemo(
+    () => productCardSecondaryImageFor(product, availableVariant, activeColorGroup, displayImage),
+    [activeColorGroup, availableVariant, displayImage, product]
+  );
+  const primaryImageUrl = useMemo(() => resolveCardImageUrl(displayImage), [displayImage]);
+  const secondaryImageUrl = useMemo(() => resolveCardImageUrl(secondaryDisplayImage), [secondaryDisplayImage]);
+  const hasReadySecondaryImage = Boolean(secondaryImageUrl && secondaryImageUrl !== primaryImageUrl);
   const [variantSheetOpen, setVariantSheetOpen] = useState(false);
   const [sheetColorKey, setSheetColorKey] = useState("");
   const [sheetVariantId, setSheetVariantId] = useState("");
   const [sheetQty, setSheetQty] = useState(1);
+  const [secondaryImageReady, setSecondaryImageReady] = useState(false);
+  const [secondaryFlashActive, setSecondaryFlashActive] = useState(false);
   const sheetDismissedRef = useRef(false);
-  useEffect(() => {
-    console.log("variantSheetOpen changed:", variantSheetOpen);
-  }, [variantSheetOpen]);
+  const imageDebugLoggedRef = useRef("");
+  const secondaryFlashTimerRef = useRef(null);
   useEffect(() => {
     let cancelled = false;
     deferReactState(() => {
@@ -4715,6 +4818,97 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       cancelled = true;
     };
   }, [firstAvailableVariant?.id, product.id, providedSelectedColor, providedSelectedVariant]);
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const debugKey = `${product?.id || "unknown"}:${selectedColorKey || activeColorGroup?.key || ""}:${availableVariant?.id || ""}`;
+    if (imageDebugLoggedRef.current === debugKey) return;
+    imageDebugLoggedRef.current = debugKey;
+    console.info("[ProductCard color images]", {
+      productId: product?.id || null,
+      cardId: product?.card_id || product?.storefront_card_id || null,
+      color: selectedColorKey || activeColorGroup?.key || variantColorKey(availableVariant || {}),
+      primaryImageUrl: displayImage || "",
+      secondaryImageUrl: secondaryDisplayImage || "",
+      cardImages: productCardResolvedImageCollection([
+        ...(Array.isArray(product?.images) ? product.images : []),
+        ...(Array.isArray(product?.gallery_images) ? product.gallery_images : []),
+        ...(Array.isArray(product?.image_urls) ? product.image_urls : []),
+        ...(Array.isArray(product?.product_images) ? product.product_images : []),
+        ...(Array.isArray(product?.color_images) ? product.color_images : []),
+      ]),
+      variantImages: productCardResolvedImageCollection([
+        ...(Array.isArray(activeColorGroup?.images) ? activeColorGroup.images : []),
+        ...(Array.isArray(availableVariant?.images) ? availableVariant.images : []),
+        ...(Array.isArray(availableVariant?.color_images) ? availableVariant.color_images : []),
+        ...(Array.isArray(availableVariant?.gallery_images) ? availableVariant.gallery_images : []),
+        ...(Array.isArray(availableVariant?.image_urls) ? availableVariant.image_urls : []),
+      ]),
+      productImages: productCardResolvedImageCollection([
+        ...(Array.isArray(product?.images) ? product.images : []),
+        ...(Array.isArray(product?.gallery_images) ? product.gallery_images : []),
+        ...(Array.isArray(product?.image_urls) ? product.image_urls : []),
+        ...(Array.isArray(product?.product_images) ? product.product_images : []),
+        ...(Array.isArray(product?.additional_images) ? product.additional_images : []),
+        ...(Array.isArray(product?.color_images) ? product.color_images : []),
+      ]),
+    });
+    console.info("[ProductCard raw images]", product);
+  }, [activeColorGroup?.key, availableVariant?.id, displayImage, product, secondaryDisplayImage, selectedColorKey]);
+
+  useEffect(() => {
+    setSecondaryImageReady(false);
+    setSecondaryFlashActive(false);
+    if (secondaryFlashTimerRef.current) {
+      window.clearTimeout(secondaryFlashTimerRef.current);
+      secondaryFlashTimerRef.current = null;
+    }
+    if (!hasReadySecondaryImage || typeof window === "undefined") return undefined;
+    let cancelled = false;
+    const preloadImage = new Image();
+    preloadImage.decoding = "async";
+    preloadImage.onload = () => {
+      if (!cancelled) setSecondaryImageReady(true);
+    };
+    preloadImage.onerror = () => {
+      if (!cancelled) setSecondaryImageReady(false);
+    };
+    preloadImage.src = imageFor(secondaryImageUrl);
+    if (preloadImage.complete) {
+      if (preloadImage.naturalWidth > 0) {
+        setSecondaryImageReady(true);
+      } else {
+        setSecondaryImageReady(false);
+      }
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [hasReadySecondaryImage, secondaryImageUrl]);
+
+  useEffect(() => () => {
+    if (secondaryFlashTimerRef.current && typeof window !== "undefined") {
+      window.clearTimeout(secondaryFlashTimerRef.current);
+      secondaryFlashTimerRef.current = null;
+    }
+  }, []);
+
+  const triggerSecondaryFlash = useCallback(() => {
+    if (!hasReadySecondaryImage || !secondaryImageReady || typeof window === "undefined") return;
+    setSecondaryFlashActive(true);
+    if (secondaryFlashTimerRef.current) window.clearTimeout(secondaryFlashTimerRef.current);
+    secondaryFlashTimerRef.current = window.setTimeout(() => {
+      setSecondaryFlashActive(false);
+      secondaryFlashTimerRef.current = null;
+    }, 140);
+  }, [hasReadySecondaryImage, secondaryImageReady]);
+
+  const clearSecondaryFlash = useCallback(() => {
+    if (secondaryFlashTimerRef.current && typeof window !== "undefined") {
+      window.clearTimeout(secondaryFlashTimerRef.current);
+      secondaryFlashTimerRef.current = null;
+    }
+    setSecondaryFlashActive(false);
+  }, []);
 
   useEffect(() => {
     if (!selectedVariantId || !activeSizes.length) return;
@@ -4726,7 +4920,6 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const canQuickAdd = availableVariant && variantHasStock(availableVariant);
   const handleQuickAdd = useCallback(() => onAddToCart(product, availableVariant), [availableVariant, onAddToCart, product]);
   const openVariantSheet = useCallback(() => {
-    console.log("SHEET_OPEN_FROM", "openVariantSheet");
     sheetDismissedRef.current = false;
     const first = availableVariant && variantHasStock(availableVariant) ? availableVariant : sellableVariants[0] || null;
     setSheetColorKey(first ? variantColorKey(first) : colorGroups[0]?.key || "");
@@ -4735,31 +4928,16 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     setVariantSheetOpen(true);
   }, [availableVariant, colorGroups, sellableVariants]);
   const closeVariantSheet = useCallback(() => {
-    console.log("CLOSE_TAPPED");
-    console.log("closeVariantSheet CALLED");
-    console.log("closeVariantSheet: before setVariantSheetOpen(false)");
     sheetDismissedRef.current = true;
     setVariantSheetOpen(false);
-    setTimeout(() => console.log("variantSheetOpen after close tick", variantSheetOpen), 0);
     setSheetColorKey("");
     setSheetVariantId("");
     setSheetQty(1);
-  }, [variantSheetOpen]);
+  }, []);
   const handleVariantSheetAdd = useCallback((variant, quantity) => {
     onAddToCart(product, variant, quantity);
     closeVariantSheet();
   }, [closeVariantSheet, onAddToCart, product]);
-  const handleMobileCart = useCallback((event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    openVariantSheet();
-  }, [openVariantSheet]);
-  const openDetails = useCallback((event) => {
-    if (event.defaultPrevented) return;
-    if (event.target?.closest?.("button,a,input,select,textarea")) return;
-    resetStorefrontViewportScroll();
-    navigate(productUrl({ ...product, selected_variant_id: availableVariant?.id || product.selected_variant_id, color_key: selectedColorKey || product.color_key }));
-  }, [availableVariant?.id, navigate, product, selectedColorKey]);
   const handleWishlist = useCallback(() => {
     toggleWishlist(product);
     playSoftClick();
@@ -4782,15 +4960,6 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     setSelectedColorKeyState(group?.key || "");
     setSelectedVariantId(next?.id || "");
   }, []);
-  if (variantSheetOpen) {
-    console.log("SHEET_STATE variantSheetOpen", {
-      productId: product.id,
-      sheetColorKey,
-      sheetVariantId,
-      sheetQty,
-      sheetDismissed: sheetDismissedRef.current,
-    });
-  }
   useEffect(() => {
     const node = cardRef.current;
     if (!node || !productIdentifier || typeof window === "undefined" || !("IntersectionObserver" in window)) return undefined;
@@ -4807,83 +4976,167 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   }, [productIdentifier, requestDetailPrefetch]);
   const cardDensityClasses = {
     hero: {
-      image: "aspect-[1.02/1] p-1",
-      body: "p-2.5 pt-2",
-      title: "min-h-10 text-[12.5px] leading-[1.28rem]",
+      image: "aspect-[0.72/1] p-[2px]",
+      body: "px-[14px] pb-[14px] pt-[7px]",
+      title: "min-h-10 text-[12.5px] leading-[1.22rem]",
       price: "text-[16px]",
-      sizes: "mt-2.5 min-h-7 gap-1.5",
+      sizes: "gap-1.5",
       chip: "h-5.5 px-2 text-[8.5px]",
       color: "h-6 w-6",
       swatch: "h-3.5 w-3.5",
     },
     standard: {
-      image: "aspect-[1.04/1] p-1",
-      body: "p-2.75 pt-2",
-      title: "min-h-10 text-[12.75px] leading-[1.28rem]",
+      image: "aspect-[0.76/1] p-[2px]",
+      body: "px-[14px] pb-[14px] pt-[7px]",
+      title: "min-h-10 text-[12.75px] leading-[1.22rem]",
       price: "text-[15.5px]",
-      sizes: "mt-2.5 min-h-7 gap-1.5",
+      sizes: "gap-1.5",
       chip: "h-5.5 px-2 text-[8.5px]",
       color: "h-[22px] w-[22px]",
       swatch: "h-3 w-3",
     },
     compact: {
-      image: "aspect-[1.06/1] p-1",
-      body: "p-2.5 pt-2",
-      title: "min-h-9 text-[12.5px] leading-[1.25rem]",
+      image: "aspect-[0.8/1] p-[2px]",
+      body: "px-[14px] pb-[14px] pt-[7px]",
+      title: "min-h-9 text-[12.5px] leading-[1.22rem]",
       price: "text-[15px]",
-      sizes: "mt-2.5 min-h-7 gap-1.25",
+      sizes: "gap-1.25",
       chip: "h-5.5 px-2 text-[8.5px]",
       color: "h-6 w-6",
       swatch: "h-3 w-3",
     },
   };
   const densityClasses = cardDensityClasses[density] || cardDensityClasses.standard;
+  const brandLabel = productCardBrandLabel(product);
+  const brandFilterUrl = useMemo(() => productCardBrandFilterUrl(product), [product]);
+    const cardBadge = useMemo(() => {
+    if (discountPercent) {
+      return { key: "sale", label: "Sale" };
+    }
+    const soldCount = Number(product.total_sold ?? product.sold_count ?? product.sales_count ?? product.order_count ?? product.orders_count ?? product.units_sold ?? 0);
+    if (soldCount > 0) {
+      return { key: "bestseller", label: "Best Seller" };
+    }
+    if (productCardIsNew(product)) {
+      return { key: "new", label: "✨ New Arrival" };
+    }
+    return null;
+  }, [discountPercent, product]);
 
   return (
-    <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onClick={openDetails} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={`sf-product-card group/product relative flex h-full min-h-0 transform-gpu cursor-pointer flex-col overflow-hidden rounded-[1.2rem] border border-stone-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(250,248,244,0.92))] shadow-[0_8px_20px_rgba(15,23,42,0.06)] ring-1 ring-stone-200/35 transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-[#a78bfa]/28 hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)] md:rounded-[1.4rem] dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,rgba(17,24,39,0.96),rgba(11,16,32,0.94))] dark:ring-white/[0.04] dark:shadow-[0_10px_24px_rgba(0,0,0,0.18)] dark:hover:border-[#a78bfa]/20 dark:hover:shadow-[0_14px_30px_rgba(0,0,0,0.24)] ${featured ? "md:shadow-[0_14px_34px_rgba(109,40,217,0.08)]" : ""}`}>
-      <div className="pointer-events-none absolute inset-x-10 top-8 h-12 rounded-full bg-[#a78bfa]/0 blur-xl transition duration-300 group-hover/product:bg-[#a78bfa]/6" />
-      <div className={`relative overflow-visible bg-[linear-gradient(180deg,rgba(251,250,247,0.94),rgba(240,236,228,0.92))] md:p-2.5 dark:bg-[linear-gradient(180deg,rgba(14,18,30,0.92),rgba(9,12,22,0.98))] ${densityClasses.image}`}>
-        <div className="absolute inset-x-10 top-[20%] h-20 rounded-full bg-white/28 blur-lg dark:bg-white/[0.05]" />
-        <Link to={detailsUrl} onClick={resetStorefrontViewportScroll} className="relative z-10 block h-full">
+    <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={`sf-product-card group/product relative flex h-full transform-gpu flex-col overflow-hidden rounded-[1.2rem] border border-stone-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(250,248,244,0.92))] shadow-[0_8px_20px_rgba(15,23,42,0.06)] ring-1 ring-stone-200/35 transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-[#a78bfa]/28 hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)] md:rounded-[1.4rem] dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,rgba(17,24,39,0.96),rgba(11,16,32,0.94))] dark:ring-white/[0.04] dark:shadow-[0_10px_24px_rgba(0,0,0,0.18)] dark:hover:border-[#a78bfa]/20 dark:hover:shadow-[0_14px_30px_rgba(0,0,0,0.24)] ${featured ? "md:shadow-[0_14px_34px_rgba(109,40,217,0.08)]" : ""}`}>
+      <div className="pointer-events-none absolute inset-x-10 top-8 h-12 rounded-full bg-[#a78bfa]/0 transition duration-200 group-hover/product:bg-[#a78bfa]/6" />
+      <div className={`relative overflow-hidden rounded-[1rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(246,244,239,0.97))] ring-1 ring-black/5 md:rounded-[1.1rem] md:p-2.5 dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,244,237,0.96))] dark:ring-white/10 ${densityClasses.image}`}>
+        <Link to={detailsUrl} onClick={resetStorefrontViewportScroll} className="relative z-10 block h-full active:opacity-95">
           {displayImage ? (
-            <img
-              src={imageFor(displayImage)}
-              {...responsiveImageProps(displayImage, imagePreset)}
-              alt={product.name}
-              onError={fallbackProductImage}
-              className="h-full w-full transform-gpu rounded-[0.85rem] object-contain object-center p-0 transition-transform duration-300 ease-out will-change-transform group-hover/product:-translate-y-0.5 group-hover/product:scale-[1.025] md:rounded-[1rem] md:scale-[1.005] md:group-hover/product:scale-[1.035]"
-              loading={eagerImage ? "eager" : "lazy"}
-              decoding="async"
-              width="360"
-              height="432"
-            />
+            <div
+              className="relative h-full w-full overflow-hidden rounded-[0.95rem] md:rounded-[1.05rem]"
+              onMouseEnter={triggerSecondaryFlash}
+              onMouseLeave={clearSecondaryFlash}
+            >
+              {hasReadySecondaryImage && secondaryImageReady ? (
+                <div
+                  className="pointer-events-none absolute inset-0 z-[2] bg-stone-100/20 opacity-0 transition-opacity duration-150 ease-out md:group-hover/product:opacity-0"
+                  style={{ opacity: secondaryFlashActive ? 0.18 : 0 }}
+                />
+              ) : null}
+              <img
+                src={imageFor(displayImage)}
+                {...responsiveImageProps(displayImage, imagePreset)}
+                alt={product.name}
+                onError={fallbackProductImage}
+                className={`sf-card-primary-image pointer-events-none absolute inset-0 z-[1] h-full w-full transform-gpu rounded-[0.95rem] object-contain object-center opacity-100 transition-[opacity,transform] duration-[140ms] ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/product:scale-[1.035] md:group-active/product:scale-[1.02] ${hasReadySecondaryImage && secondaryImageReady ? "md:group-hover/product:opacity-0" : "md:group-hover/product:opacity-100"}`}
+                style={{ backfaceVisibility: "hidden", transform: "translateZ(0)" }}
+                loading={eagerImage ? "eager" : "lazy"}
+                decoding="async"
+                width="360"
+                height="432"
+              />
+              {hasReadySecondaryImage && secondaryImageReady ? (
+                <img
+                  src={imageFor(secondaryImageUrl)}
+                  {...responsiveImageProps(secondaryImageUrl, imagePreset)}
+                  alt={product.name}
+                  aria-hidden="true"
+                  onError={fallbackProductImage}
+                  className="sf-card-secondary-image pointer-events-none absolute inset-0 z-[2] h-full w-full transform-gpu rounded-[0.95rem] object-contain object-center opacity-0 transition-[opacity,transform] duration-[140ms] ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/product:opacity-100 md:group-active/product:opacity-95"
+                  style={{ backfaceVisibility: "hidden", transform: "translateZ(0)" }}
+                  loading="lazy"
+                  decoding="async"
+                  width="360"
+                  height="432"
+                />
+              ) : null}
+            </div>
           ) : (
             <div className="grid h-full w-full place-items-center rounded-[1rem] bg-white/70 text-center text-xs font-black text-stone-400 dark:bg-white/5 dark:text-stone-500 md:rounded-[1.15rem]">
               <Sparkles className="h-6 w-6 opacity-50" />
             </div>
           )}
         </Link>
-        <div className="absolute right-3 top-3 z-20 flex flex-col items-start gap-1 md:right-3.5 md:top-3.5">
-          {rank && railType === "bestseller" && rank <= 3 ? <span className="inline-flex min-h-6 items-center rounded-full bg-stone-950/86 px-2.5 py-0.5 text-[8.5px] font-black leading-none text-white shadow-[0_8px_18px_rgba(0,0,0,0.14)] backdrop-blur md:min-h-7 md:px-3 md:text-[9px] dark:bg-white dark:text-stone-950">TOP {rank}</span> : null}
-          {discountPercent ? <span className="inline-flex min-h-7 items-center rounded-full border border-[#a78bfa]/22 bg-[linear-gradient(135deg,rgba(124,58,237,0.94),rgba(109,40,217,0.90))] px-2.5 py-0.5 text-[9px] font-extrabold leading-none tracking-[0.02em] text-white shadow-[0_8px_18px_rgba(124,58,237,0.16)] backdrop-blur md:min-h-8 md:px-3 md:text-[10px] dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(124,58,237,0.92),rgba(76,29,149,0.88))] dark:text-[#ffffff]">-{discountPercent}%</span> : null}
+        <div className="absolute right-3 top-[29px] z-20 flex flex-col items-end gap-2.5 md:right-3.5 md:top-[31px]">
+          {rank && railType === "bestseller" && rank <= 3 ? <span className="inline-flex min-h-6 items-center gap-1 rounded-full border border-[#ddd6fe]/30 bg-[linear-gradient(135deg,rgba(124,58,237,0.98),rgba(168,85,247,0.98))] px-2.5 py-0.5 text-[8.5px] font-extrabold leading-none tracking-[0.02em] text-white shadow-[0_10px_20px_rgba(124,58,237,0.22)] md:min-h-7 md:px-3 md:text-[9px] dark:border-[#c4b5fd]/20 dark:bg-[linear-gradient(135deg,rgba(109,40,217,0.98),rgba(88,28,135,0.98))]"><Star className="h-3 w-3 fill-current" />TOP {rank}</span> : null}
+          {discountPercent ? <span className="inline-flex min-h-7 items-center rounded-full border border-[#c4b5fd]/26 bg-[linear-gradient(135deg,rgba(109,40,217,0.98),rgba(91,33,182,0.98))] px-2.5 py-0.5 text-[9px] font-extrabold leading-none tracking-[0.02em] text-white shadow-[0_4px_10px_rgba(109,40,217,0.12)] backdrop-blur md:min-h-8 md:px-3 md:text-[9.5px] dark:border-[#ddd6fe]/18 dark:bg-[linear-gradient(135deg,rgba(124,58,237,0.98),rgba(76,29,149,0.98))] dark:text-[#ffffff]">-{discountPercent}%</span> : null}
         </div>
         <button
           onClick={(event) => { event.stopPropagation(); handleWishlist(); }}
-          className="absolute left-3 top-3 z-20 grid h-10 w-10 place-items-center rounded-full border border-white/50 bg-white/90 text-stone-700 shadow-[0_8px_18px_rgba(15,23,42,0.12)] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:scale-[1.03] hover:border-white/70 hover:bg-white active:scale-95 active:translate-y-0 md:h-11 md:w-11 dark:border-white/10 dark:bg-white/6 dark:text-stone-100 dark:shadow-[0_8px_18px_rgba(0,0,0,0.14)] dark:hover:bg-white/10"
+          className="absolute left-3 top-[29px] z-20 grid h-10 w-10 place-items-center rounded-full border border-white/70 bg-white text-stone-700 shadow-[0_10px_22px_rgba(15,23,42,0.18)] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:scale-[1.03] hover:border-white hover:bg-white active:scale-95 active:translate-y-0 md:h-11 md:w-11 dark:border-white/12 dark:bg-[#0b1220] dark:text-stone-100 dark:shadow-[0_10px_22px_rgba(0,0,0,0.2)] dark:hover:bg-[#10192c]"
           aria-label={t("storefront.header.wishlist")}
         >
           <Heart className={`h-4.5 w-4.5 transition duration-200 md:h-5 md:w-5 ${inWishlist ? "animate-[wishlist-pop_320ms_ease-out] fill-rose-500 text-rose-500" : "text-slate-600 dark:text-stone-200"}`} />
         </button>
-          {product.low_stock ? <span className="absolute bottom-2 right-2 z-20 inline-flex h-5 items-center rounded-full border border-amber-200/70 bg-amber-50/92 px-2 text-[8.5px] font-black leading-none text-amber-800 shadow-sm backdrop-blur md:bottom-auto md:left-12 md:right-auto md:top-2.5 md:h-6 md:px-2.5 md:text-[9px] dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100">{t("storefront.products.onlyLeft", undefined, { count: product.total_stock })}</span> : null}
+        {cardBadge ? (
+          <div className="absolute bottom-3 right-3 z-20 flex max-w-[78%] flex-col items-end gap-1.5 md:bottom-3.5 md:right-3.5 md:gap-1.5">
+            <span
+              className={`inline-flex min-h-8 items-center gap-1 rounded-full px-3.5 py-0.5 text-[10px] font-black leading-none tracking-[0.02em] shadow-[0_8px_16px_rgba(15,23,42,0.14)] ${cardBadge.key === "sale" ? "border border-[#c4b5fd]/28 bg-[linear-gradient(135deg,rgba(109,40,217,0.98),rgba(91,33,182,0.98))] text-white dark:border-[#ddd6fe]/18 dark:bg-[linear-gradient(135deg,rgba(124,58,237,0.98),rgba(76,29,149,0.98))]" : cardBadge.key === "bestseller" ? "border border-[#ddd6fe]/30 bg-[linear-gradient(135deg,rgba(124,58,237,0.98),rgba(168,85,247,0.98))] text-white dark:border-[#c4b5fd]/20 dark:bg-[linear-gradient(135deg,rgba(109,40,217,0.98),rgba(88,28,135,0.98))]" : "border border-emerald-300/30 bg-[linear-gradient(135deg,rgba(22,163,74,0.98),rgba(34,197,94,0.98))] text-white dark:border-emerald-300/20 dark:bg-[linear-gradient(135deg,rgba(21,128,61,0.98),rgba(22,163,74,0.98))]"}`}
+            >
+              {cardBadge.key === "bestseller" ? <Star className="h-3 w-3 fill-current" /> : null}
+              {cardBadge.label}
+            </span>
+          </div>
+        ) : null}
       </div>
-        <div className={`flex flex-1 flex-col md:p-3 md:pt-2.5 ${densityClasses.body}`}>
-        <Link to={detailsUrl} onClick={resetStorefrontViewportScroll} className={`line-clamp-2 overflow-hidden font-black tracking-[-0.01em] text-stone-900 transition hover:text-[#6d28d9] md:text-[13px] md:leading-5 dark:text-stone-100 ${densityClasses.title}`}>{product.name}</Link>
-        <div className="mt-2 flex min-h-6 flex-wrap items-baseline gap-x-2 gap-y-0.5 md:mt-2.5 md:min-h-7 md:gap-x-2">
-          <span className={`font-black leading-none text-stone-950 md:text-[1.18rem] dark:text-white ${densityClasses.price}`}>{money(sellingPrice)}</span>
-          {comparePrice ? <span className="text-[9px] font-semibold leading-none text-stone-400 line-through opacity-70 dark:text-stone-500 md:text-[9.5px]">{money(comparePrice)}</span> : null}
+      <div className={`flex flex-col md:p-3 md:pt-2 ${densityClasses.body}`}>
+        {brandLabel ? (
+          <Link
+            to={brandFilterUrl || "/shop/products"}
+            onClick={(event) => event.stopPropagation()}
+            aria-label={`عرض منتجات ${brandLabel}`}
+            dir="ltr"
+            className="line-clamp-1 flex min-h-[1rem] w-full max-w-full items-start text-left text-[11px] font-bold leading-4 text-stone-700 transition hover:text-[#6d28d9] hover:underline focus-visible:text-[#6d28d9] focus-visible:underline focus-visible:outline-none dark:text-stone-300 dark:hover:text-[#d8b4fe] md:min-h-[1.05rem]"
+          >
+            {brandLabel}
+          </Link>
+        ) : null}
+        <Link
+          to={detailsUrl}
+          onClick={resetStorefrontViewportScroll}
+          dir="ltr"
+          className={`mt-0 flex min-h-[2.45rem] w-full items-start text-left line-clamp-2 overflow-hidden font-black tracking-[-0.01em] text-stone-900 transition hover:text-[#6d28d9] md:min-h-[2.7rem] md:text-[13px] md:leading-5 dark:text-stone-100 ${densityClasses.title}`}
+        >
+          {product.name}
+        </Link>
+        <div className="mt-[4px] flex min-h-[2.05rem] items-center justify-between gap-2 md:min-h-[2.15rem]">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className={`font-black leading-none text-sky-600 md:text-[1.18rem] dark:text-sky-300 ${densityClasses.price}`}>{money(sellingPrice)}</span>
+            {comparePrice ? <span className="text-[9px] font-semibold leading-none text-stone-400 line-through opacity-80 dark:text-stone-500 md:text-[9.5px]">{money(comparePrice)}</span> : null}
+          </div>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              handleQuickAdd();
+            }}
+            disabled={!canQuickAdd}
+            className="sf-quick-add-button inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#c4b5fd]/28 bg-[linear-gradient(135deg,rgba(124,58,237,0.92),rgba(109,40,217,0.92)_55%,rgba(76,29,149,0.96))] px-3 py-1.5 text-[10px] font-black leading-none text-white shadow-[0_10px_24px_rgba(124,58,237,0.18)] transition duration-200 hover:-translate-y-0.5 hover:border-[#ddd6fe]/45 hover:shadow-[0_14px_30px_rgba(124,58,237,0.24)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100 md:pointer-events-none md:translate-y-1 md:opacity-0 md:transition-[opacity,transform] md:group-hover/product:pointer-events-auto md:group-hover/product:translate-y-0 md:group-hover/product:opacity-100 md:group-active/product:opacity-100"
+            aria-label={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
+          >
+            <ShoppingCart className="h-3.5 w-3.5" />
+            <span className="whitespace-nowrap">{canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}</span>
+          </button>
         </div>
         {colorGroups.length > 1 ? (
-          <div className="mt-2 flex min-h-6 items-center gap-1 overflow-hidden md:mt-2 md:min-h-7 md:gap-1.25">
+          <div className="mt-1 flex min-h-6 items-center gap-1 overflow-hidden md:mt-1 md:min-h-7 md:gap-1.25">
             {visibleColorOptions.map((group) => {
               const active = String(group.key) === String(selectedColorKey);
               return (
@@ -4902,7 +5155,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
             {extraColorCount ? <span dir="ltr" className="inline-flex h-6 shrink-0 items-center rounded-full border border-stone-200/80 bg-white/[0.58] px-2 text-[9px] font-black leading-none text-stone-500 dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-400">+{extraColorCount}</span> : null}
           </div>
         ) : null}
-        <div className={`sf-scroll flex flex-nowrap overflow-x-auto pb-0.5 md:mt-2.5 md:min-h-11 md:flex-wrap md:content-start md:gap-1.5 md:overflow-hidden ${densityClasses.sizes}`}>
+        <div className={`sf-scroll mt-[4px] flex h-7 flex-nowrap items-center gap-1 overflow-x-auto overflow-y-hidden pb-0.5 whitespace-nowrap md:h-8 md:gap-1.5 ${densityClasses.sizes}`}>
           {visibleSizes.map(({ size, variant }) => {
             const selected = String(availableVariant?.id) === String(variant?.id);
             return (
@@ -4910,29 +5163,30 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                 key={`${activeColorGroup?.key || "default"}-${size}`}
                 type="button"
                 onClick={(event) => { event.stopPropagation(); setSelectedVariantId(variant.id); setSelectedColorKeyState(variantColorKey(variant)); }}
-                className={`inline-flex shrink-0 items-center justify-center rounded-full border font-black leading-none transition duration-200 md:h-6 md:px-2 md:text-[10px] ${densityClasses.chip} ${selected ? "border-[#7c3aed] bg-[#7c3aed] text-white shadow-[0_8px_18px_rgba(124,58,237,0.18)] ring-1 ring-[#c4b5fd]/20 dark:border-[#d8b4fe] dark:bg-[#d8b4fe] dark:text-stone-950" : "border-stone-300/90 bg-white text-stone-700 hover:border-[#7c3aed]/35 hover:text-[#6d28d9] dark:border-white/12 dark:bg-white/[0.055] dark:text-stone-300 dark:hover:border-[#d8b4fe]/45 dark:hover:text-white"} disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300 disabled:line-through disabled:opacity-45 dark:disabled:bg-white/5 dark:disabled:text-stone-500`}
+                className={`inline-flex shrink-0 items-center justify-center rounded-full border font-black leading-none transition duration-200 md:h-6 md:px-2 md:text-[10px] ${densityClasses.chip} ${selected ? "border-[#6d28d9] bg-[linear-gradient(135deg,#7c3aed,#6d28d9)] text-white shadow-none ring-1 ring-[#c4b5fd]/12 dark:border-[#d8b4fe] dark:bg-[linear-gradient(135deg,#8b5cf6,#6d28d9)] dark:text-white dark:ring-[#d8b4fe]/14" : "border-stone-300/90 bg-white text-stone-700 shadow-none hover:border-[#7c3aed]/35 hover:bg-[#faf7ff] hover:text-[#6d28d9] dark:border-white/12 dark:bg-white/[0.055] dark:text-stone-300 dark:hover:border-[#d8b4fe]/45 dark:hover:bg-white/[0.08] dark:hover:text-white"} disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300 disabled:line-through disabled:opacity-45 dark:disabled:bg-white/5 dark:disabled:text-stone-500`}
               >
                 {size}
               </button>
             );
           })}
           {extraSizeCount ? (
-            <span dir="ltr" className="inline-flex h-6 shrink-0 items-center justify-center rounded-full border border-stone-300/90 bg-white px-2 text-[9px] font-black leading-none text-stone-500 shadow-sm md:text-[10px] dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-500">+{extraSizeCount}</span>
+            <span dir="ltr" className="inline-flex h-6 shrink-0 items-center justify-center rounded-full border border-stone-300/90 bg-white px-2 text-[9px] font-black leading-none text-stone-500 shadow-none md:text-[10px] dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-500">+{extraSizeCount}</span>
           ) : null}
           {!visibleSizes.length ? (
-            <span className="inline-flex h-6 shrink-0 items-center rounded-full border border-stone-300/90 bg-white px-2 text-[9px] font-bold leading-none text-stone-500 shadow-sm md:text-[10px] dark:border-white/10 dark:bg-white/5 dark:text-stone-500">{t("storefront.products.oneSize")}</span>
+            <span className="inline-flex h-6 shrink-0 items-center rounded-full border border-stone-300/90 bg-white px-2 text-[9px] font-bold leading-none text-stone-500 shadow-none md:text-[10px] dark:border-white/10 dark:bg-white/5 dark:text-stone-500">{t("storefront.products.oneSize")}</span>
           ) : null}
+          <button
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              navigate("/shop/size-guide");
+            }}
+            className="inline-flex h-6 shrink-0 whitespace-nowrap items-center justify-center rounded-full border border-stone-200 bg-white px-2.5 text-[9px] font-black text-stone-600 transition hover:border-[#7c3aed]/35 hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-200"
+          >
+            {t("storefront.products.sizeGuide", "\u062f\u0644\u064a\u0644 \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a")}
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={handleQuickAdd}
-          disabled={!canQuickAdd}
-          className="mt-2.5 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full border border-[#c4b5fd]/28 bg-[linear-gradient(135deg,rgba(124,58,237,0.92),rgba(109,40,217,0.92)_55%,rgba(76,29,149,0.96))] px-4 py-2.5 text-[11.5px] font-black text-white shadow-[0_10px_24px_rgba(124,58,237,0.18)] backdrop-blur transition duration-200 hover:-translate-y-0.5 hover:border-[#ddd6fe]/45 hover:shadow-[0_14px_30px_rgba(124,58,237,0.24)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100"
-          aria-label={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
-        >
-          <ShoppingCart className="h-[16px] w-[16px] text-white" />
-          {canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
-        </button>
       </div>
       {variantSheetOpen ? (
         <Suspense fallback={null}>
