@@ -21,7 +21,9 @@ import {
   Loader2,
   LockKeyhole,
   Image as ImageIcon,
+  Maximize2,
   MessageSquareText,
+  Minimize2,
   MoreVertical,
   PackageCheck,
   PauseCircle,
@@ -1093,13 +1095,20 @@ function InboxChatHeader({
   onAssign,
   onClose,
   showBack = false,
+  isFullscreenConversation = false,
+  onToggleFullscreen,
 }) {
   if (!conversation) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
   const avatarUrl = customerAvatarUrl(conversation);
   const name = isMessengerConversation(conversation) ? messengerDisplayName(conversation) : getConversationDisplayName(conversation);
   const channel = conversation.channel || conversation.source || "web_chat";
-  const aiEnabled = isConversationAiEnabled(conversation) && status !== "closed" && status !== "human_takeover";
+  const conversationAiEnabled = isConversationAiEnabled(conversation);
+  const aiTone = status === "human_takeover"
+    ? "border-amber-300/20 bg-amber-400/10 text-amber-100"
+    : conversationAiEnabled
+      ? "bg-emerald-300 text-slate-950"
+      : "border border-rose-300/20 bg-rose-400/10 text-rose-100";
   const closeToggleLabel = status === "closed" ? "Reopen" : "Close";
   const currentLeadStatus = normalizeLeadStatus(leadStatus || conversation.lead_status || conversation.channel_metadata?.lead_status || "new");
   const leadStatusClass = {
@@ -1150,14 +1159,22 @@ function InboxChatHeader({
         <div className="flex flex-wrap items-center justify-end gap-1.5">
           <button
             type="button"
+            onClick={() => onToggleFullscreen?.()}
+            disabled={loading}
+            className="inline-flex h-8 items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.06] px-2.5 text-[11px] font-black text-slate-100 transition disabled:opacity-50"
+            aria-label={isFullscreenConversation ? "Restore conversation layout" : "Expand conversation layout"}
+            title={isFullscreenConversation ? "Restore conversation layout" : "Expand conversation layout"}
+          >
+            {isFullscreenConversation ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          </button>
+          <button
+            type="button"
             onClick={() => onToggleAi?.()}
             disabled={loading}
-            className={`inline-flex h-8 items-center gap-1.5 rounded-2xl px-2.5 text-[11px] font-black transition disabled:opacity-50 ${
-              aiEnabled ? "bg-emerald-300 text-slate-950" : "border border-white/10 bg-white/[0.06] text-slate-100"
-            }`}
+            className={`inline-flex h-8 items-center gap-1.5 rounded-2xl px-2.5 text-[11px] font-black transition disabled:opacity-50 ${aiTone}`}
           >
             <Bot className="h-3.5 w-3.5" />
-            {status === "human_takeover" ? "Return to AI" : `AI ${aiEnabled ? "ON" : "OFF"}`}
+            {status === "human_takeover" ? "Return to AI" : `AI ${conversationAiEnabled ? "ON" : "OFF"}`}
           </button>
           <button type="button" onClick={onAssign} disabled={loading} className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.06] px-2.5 text-[11px] font-black text-slate-100">
             <UserPlus className="h-3.5 w-3.5" />
@@ -1315,45 +1332,45 @@ function LeadQuickActionsBar({
   }));
 
   return (
-    <div className="mb-2 rounded-2xl border border-white/10 bg-slate-950/60 p-2.5">
-      <div className="flex flex-col gap-2">
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          <button type="button" onClick={onSendPrivateMessage} disabled={busy || isClosed} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100 disabled:opacity-50">
+    <div className="mb-1.5 rounded-2xl border border-white/10 bg-slate-950/60 p-2">
+      <div className="flex flex-col gap-1.5">
+        <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
+          <button type="button" onClick={onSendPrivateMessage} disabled={busy || isClosed} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[11px] font-black text-cyan-100 disabled:opacity-50">
             <MessageSquareText className="h-3.5 w-3.5" />
             إرسال رسالة خاصة
           </button>
           {isComment ? (
-            <button type="button" onClick={onSendCommentReply} disabled={busy || isClosed} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-[11px] font-black text-violet-100 disabled:opacity-50">
+            <button type="button" onClick={onSendCommentReply} disabled={busy || isClosed} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-2.5 text-[11px] font-black text-violet-100 disabled:opacity-50">
               <MessageSquareText className="h-3.5 w-3.5" />
               رد على الكومنت
             </button>
           ) : null}
-          <button type="button" onClick={onOpenProductPicker} disabled={busy || isClosed} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-[11px] font-black text-slate-100 disabled:opacity-50">
+          <button type="button" onClick={onOpenProductPicker} disabled={busy || isClosed} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-2.5 text-[11px] font-black text-slate-100 disabled:opacity-50">
             <ShoppingCart className="h-3.5 w-3.5" />
             إرسال منتج
           </button>
-          <button type="button" onClick={onCreateCustomer} disabled={busy || isClosed} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-[11px] font-black text-emerald-100 disabled:opacity-50">
+          <button type="button" onClick={onCreateCustomer} disabled={busy || isClosed} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-2.5 text-[11px] font-black text-emerald-100 disabled:opacity-50">
             <UserPlus className="h-3.5 w-3.5" />
             إنشاء عميل
           </button>
-          <button type="button" onClick={onCreateOpportunity} disabled={busy || isClosed} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 text-[11px] font-black text-amber-100 disabled:opacity-50">
+          <button type="button" onClick={onCreateOpportunity} disabled={busy || isClosed} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-amber-300/20 bg-amber-400/10 px-2.5 text-[11px] font-black text-amber-100 disabled:opacity-50">
             <ArrowUpRight className="h-3.5 w-3.5" />
             إنشاء فرصة بيع
           </button>
         </div>
-        <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.035] p-2 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-1.5 rounded-xl border border-white/10 bg-white/[0.035] p-1.5 sm:flex-row sm:items-center">
           <select
             value={selectedEmployeeId}
             onChange={(event) => onSelectedEmployeeIdChange?.(event.target.value)}
             disabled={busy || isClosed}
-            className="h-9 min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-950/80 px-3 text-xs font-black text-white outline-none focus:border-cyan-300/40 disabled:opacity-50"
+            className="h-8 min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-950/80 px-3 text-xs font-black text-white outline-none focus:border-cyan-300/40 disabled:opacity-50"
           >
             <option value="">{employeeOptions.length ? "اختر موظف" : "لا يوجد موظفون متاحون"}</option>
             {employeeOptions.map((employee) => (
               <option key={employee.value} value={employee.value}>{employee.label}</option>
             ))}
           </select>
-          <button type="button" onClick={onAssignEmployee} disabled={busy || isClosed || !selectedEmployeeId} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-[11px] font-black text-white disabled:opacity-50">
+          <button type="button" onClick={onAssignEmployee} disabled={busy || isClosed || !selectedEmployeeId} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-2.5 text-[11px] font-black text-white disabled:opacity-50">
             <UserCheck className="h-3.5 w-3.5" />
             تعيين لموظف
           </button>
@@ -2858,6 +2875,8 @@ export default function AiInbox() {
   const [drafts, setDrafts] = useState([]);
   const [analytics, setAnalytics] = useState({});
   const [channelStatus, setChannelStatus] = useState({});
+  const [aiAssistantGlobalEnabled, setAiAssistantGlobalEnabled] = useState(true);
+  const [aiAssistantGlobalSaving, setAiAssistantGlobalSaving] = useState(false);
   const [employees, setEmployees] = useState([]);
   const [recommendations, setRecommendations] = useState({ sessionId: "", products: [], intelligence: null, loading: false });
   const [salesCloser, setSalesCloser] = useState({ sessionId: "", plan: {}, loading: false });
@@ -2888,6 +2907,7 @@ export default function AiInbox() {
   const [correctionModal, setCorrectionModal] = useState({ open: false, draft: buildReplyCorrectionDraft() });
   const [correctionSaving, setCorrectionSaving] = useState(false);
   const [leadFunnelExpanded, setLeadFunnelExpanded] = useState(false);
+  const [isFullscreenConversation, setIsFullscreenConversation] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState({ tone: "", text: "" });
@@ -2932,11 +2952,12 @@ export default function AiInbox() {
     if (!silent) setSocialCommentsDebug((current) => ({ ...current, error: "" }));
     setError("");
     try {
-      const [inboxPayload, draftsPayload, analyticsPayload, channelPayload, employeesPayload] = await Promise.all([
+      const [inboxPayload, draftsPayload, analyticsPayload, channelPayload, globalAiPayload, employeesPayload] = await Promise.all([
         api.get("/ai-inbox/conversations", { params: { tenant_id: tenantId, filter, search: debouncedSearch, limit: 50, message_limit: 30 }, headers, perfComponent: "AiInbox.conversations" }),
         api.get("/ai-agent/orders/drafts", { params: { tenant_id: tenantId, limit: 50 }, headers, perfComponent: "AiInbox.drafts" }),
         api.get("/ai-agent/analytics", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.analytics" }),
         api.get("/ai-agent/channels/status", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.channels" }).catch(() => ({ channels: {} })),
+        api.get("/ai-agent/settings/ai-assistant-global", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.globalAi" }).catch(() => ({ ai_assistant_global_enabled: true })),
         api.get("/employees", { params: { active: true, limit: 200 }, headers, perfComponent: "AiInbox.employees" }).catch(() => ({ employees: [] })),
       ]);
       if (seq !== requestSeqRef.current) return;
@@ -2954,6 +2975,7 @@ export default function AiInbox() {
       setDrafts(asArray(draftsPayload.drafts));
       setAnalytics(analyticsPayload.analytics || {});
       setChannelStatus(channelPayload.channels || {});
+      setAiAssistantGlobalEnabled(globalAiPayload?.ai_assistant_global_enabled !== false);
       setEmployees(asArray(employeesPayload?.employees || employeesPayload?.data || employeesPayload || []));
       if (!activeSelectedId && nextConversations[0]?.conversation_key) {
         setSelectedSessionId(nextConversations[0].conversation_key);
@@ -3545,6 +3567,33 @@ export default function AiInbox() {
         !["token_expired", "expired", "invalid", "revoked", "error"].includes(clean(selectedChannelStatus.token_status || selectedChannelStatus.token_health_status).toLowerCase()))
   );
   const selectedMessagingActive = Boolean(selectedChannelStatus.live_operational || selectedChannelStatus.effective_enabled || selectedChannelStatus.messaging_active);
+  const fullscreenConversation = Boolean(isFullscreenConversation && selectedConversation && inboxSection === "conversations");
+  const handleToggleConversationFullscreen = useCallback(async () => {
+    const doc = typeof document !== "undefined" ? document : null;
+    if (!doc) {
+      setIsFullscreenConversation((current) => !current);
+      return;
+    }
+    if (isFullscreenConversation) {
+      setIsFullscreenConversation(false);
+      if (doc.fullscreenElement) {
+        try {
+          await doc.exitFullscreen?.();
+        } catch (error) {
+          console.warn("[AiInbox][fullscreen-exit-failed]", error?.message || error);
+        }
+      }
+      return;
+    }
+    setIsFullscreenConversation(true);
+    if (doc.documentElement?.requestFullscreen) {
+      try {
+        await doc.documentElement.requestFullscreen();
+      } catch (error) {
+        console.warn("[AiInbox][fullscreen-enter-failed]", error?.message || error);
+      }
+    }
+  }, [isFullscreenConversation]);
   const canViewAiDebug = useMemo(() => canViewAiDebugPanel(getCurrentUser?.() || {}), []);
   const openProductCardPicker = useCallback((options = {}) => {
     setProductCardPickerConfig({
@@ -3896,6 +3945,26 @@ export default function AiInbox() {
       setLeadActionLoading("");
     }
   }, [headers, patchConversation, selectedConversation?.conversation_key, selectedConversation?.session_id, tenantId]);
+
+  useEffect(() => {
+    const doc = typeof document !== "undefined" ? document : null;
+    if (!doc) return undefined;
+    const syncFullscreenState = () => {
+      const active = Boolean(doc.fullscreenElement);
+      setIsFullscreenConversation(active);
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && doc.fullscreenElement) {
+        syncFullscreenState();
+      }
+    };
+    doc.addEventListener("fullscreenchange", syncFullscreenState);
+    doc.addEventListener("keydown", handleKeyDown);
+    return () => {
+      doc.removeEventListener("fullscreenchange", syncFullscreenState);
+      doc.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
 
   const debugMessengerProfile = async () => {
     if (!selectedConversation?.session_id) return;
@@ -4605,6 +4674,34 @@ export default function AiInbox() {
     }
   };
 
+  const toggleGlobalAiAssistant = useCallback(() => {
+    void (async () => {
+      setAiAssistantGlobalSaving(true);
+      setError("");
+      try {
+        const nextEnabled = !aiAssistantGlobalEnabled;
+        const payload = await api.patch("/ai-agent/settings/ai-assistant-global", {
+          tenant_id: tenantId,
+          ai_assistant_global_enabled: nextEnabled,
+          enabled: nextEnabled,
+        }, { headers, perfComponent: "AiInbox.globalAiToggle" });
+        const resolvedEnabled = payload?.ai_assistant_global_enabled !== false;
+        setAiAssistantGlobalEnabled(resolvedEnabled);
+        setToast({
+          tone: resolvedEnabled ? "emerald" : "amber",
+          text: resolvedEnabled
+            ? "تم تشغيل مساعد الذكاء الاصطناعي لكل المحادثات."
+            : "مساعد الذكاء الاصطناعي متوقف على كل المحادثات.",
+        });
+        await loadAll({ silent: true });
+      } catch (err) {
+        setError(err?.message || "تعذر تحديث حالة مساعد الذكاء الاصطناعي العامة");
+      } finally {
+        setAiAssistantGlobalSaving(false);
+      }
+    })();
+  }, [aiAssistantGlobalEnabled, headers, loadAll, tenantId]);
+
   const toggleAiEnabled = useCallback(() => {
     if (!selectedConversation?.session_id) return;
     const channel = selectedConversation?.channel || selectedConversation?.source || "";
@@ -4764,8 +4861,8 @@ export default function AiInbox() {
         onChange={patchReplyCorrection}
         onSave={saveReplyCorrection}
       />
-      <div className="mx-auto flex h-[100dvh] max-w-[96rem] flex-col gap-2 overflow-hidden p-2 md:p-3">
-        <section className="shrink-0 rounded-3xl border border-white/10 bg-white/[0.055] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.2)] backdrop-blur">
+      <div className={`${fullscreenConversation ? "fixed inset-0 z-[9999] flex h-[100dvh] max-w-none flex-col overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] p-0 md:p-0" : "mx-auto flex h-[100dvh] max-w-[96rem] flex-col gap-2 overflow-hidden p-2 md:p-3"}`}>
+        <section className={`${fullscreenConversation ? "hidden" : "shrink-0"} rounded-3xl border border-white/10 bg-white/[0.055] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.2)] backdrop-blur`}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100">
@@ -4775,6 +4872,19 @@ export default function AiInbox() {
               <div className="mt-1 text-xl font-black text-white">مركز قيادة المبيعات</div>
             </div>
             <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={toggleGlobalAiAssistant}
+                  disabled={aiAssistantGlobalSaving}
+                  className={`inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-3 text-xs font-black transition disabled:opacity-50 ${
+                  aiAssistantGlobalEnabled
+                    ? "bg-emerald-300 text-slate-950"
+                    : "border border-rose-300/20 bg-rose-400/10 text-rose-100"
+                }`}
+              >
+                <Bot className="h-4 w-4" />
+                {aiAssistantGlobalEnabled ? "AI Assistant Global ON" : "AI Assistant Global OFF"}
+              </button>
               <button type="button" onClick={() => setConsoleOpen(true)} className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.07] px-3 text-xs font-black text-slate-100">
                 <Brain className="h-4 w-4" />
                 سجلات الذكاء الاصطناعي
@@ -4785,10 +4895,15 @@ export default function AiInbox() {
               </button>
             </div>
           </div>
+          {!aiAssistantGlobalEnabled ? (
+            <div className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-sm font-black text-amber-100">
+              مساعد الذكاء الاصطناعي متوقف على كل المحادثات.
+            </div>
+          ) : null}
           {error ? <div className="mt-3 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
         </section>
 
-        <details className="shrink-0 rounded-3xl border border-white/10 bg-white/[0.045] shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
+        <details className={`${fullscreenConversation ? "hidden" : "shrink-0"} rounded-3xl border border-white/10 bg-white/[0.045] shadow-[0_14px_40px_rgba(0,0,0,0.16)]`}>
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
             <div>
               <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">مؤشرات مركز المبيعات</div>
@@ -4807,7 +4922,7 @@ export default function AiInbox() {
           </div>
         </details>
 
-        <section className="shrink-0 rounded-3xl border border-white/10 bg-white/[0.045] p-2.5 shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
+        <section className={`${fullscreenConversation ? "hidden" : "shrink-0"} rounded-3xl border border-white/10 bg-white/[0.045] p-2.5 shadow-[0_14px_40px_rgba(0,0,0,0.16)]`}>
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -4859,8 +4974,8 @@ export default function AiInbox() {
           ) : null}
         </section>
 
-        <section className="flex min-h-0 flex-1 gap-2 overflow-hidden">
-          <div className="hidden xl:block w-[72px] shrink-0">
+        <section className={`${fullscreenConversation ? "flex min-h-0 flex-1 gap-0 overflow-hidden" : "flex min-h-0 flex-1 gap-2 overflow-hidden"}`}>
+          <div className={`${fullscreenConversation ? "hidden" : "hidden xl:block"} w-[72px] shrink-0`}>
             <InboxChannelSidebar
               channels={fixedChannelSummaries}
               allUnread={channelSummaries.all.unread}
@@ -4872,7 +4987,7 @@ export default function AiInbox() {
             />
           </div>
 
-          <aside className={`flex min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)] md:w-[300px] md:max-w-[300px] ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
+          <aside className={`flex min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)] md:w-[300px] md:max-w-[300px] xl:w-[20%] xl:max-w-[20%] ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
             <div className="shrink-0 space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <SectionTitle icon={MessageSquareText} title="المحادثات" action={<Pill tone="zinc">{filteredConversations.length} ظاهرة</Pill>} />
@@ -4991,9 +5106,9 @@ export default function AiInbox() {
             </div>
           </aside>
 
-          <main className={`flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)] ${mobileView === "chat" ? "flex" : "hidden md:flex"}`}>
+          <main className={`flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden ${fullscreenConversation ? "h-full rounded-none border-0 bg-transparent p-0 shadow-none" : "rounded-3xl border border-white/10 bg-white/[0.045] p-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)]"} ${mobileView === "chat" ? "flex" : "hidden md:flex"}`}>
             {selectedConversation ? (
-              <div className="flex min-h-0 flex-1 gap-2 overflow-hidden">
+              <div className={`${fullscreenConversation ? "flex h-full min-h-0 flex-1 gap-0 overflow-hidden" : "flex min-h-0 flex-1 gap-2 overflow-hidden"}`}>
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                   <InboxChatHeader
                     conversation={selectedConversation}
@@ -5009,9 +5124,12 @@ export default function AiInbox() {
                     onReturnToAi={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "return")}
                     onClose={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "close")}
                     onOpenTools={() => setToolsTab("customer")}
+                    isFullscreenConversation={fullscreenConversation}
+                    onToggleFullscreen={handleToggleConversationFullscreen}
                     showBack
                   />
-                  <LeadQuickActionsBar
+                  {fullscreenConversation ? null : (
+                    <LeadQuickActionsBar
                     conversation={selectedConversation}
                     employees={employees}
                     selectedEmployeeId={leadAssignEmployeeId}
@@ -5023,7 +5141,8 @@ export default function AiInbox() {
                     onOpenProductPicker={() => openProductCardPicker()}
                     onAssignEmployee={assignLeadEmployee}
                     busy={Boolean(leadActionLoading || loading || productCardSending)}
-                  />
+                    />
+                  )}
                   <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40">
                     <div ref={transcriptScrollRef} className="min-h-0 flex-1 overflow-y-auto p-4">
                       <Transcript
@@ -5035,7 +5154,7 @@ export default function AiInbox() {
                         olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
                       />
                     </div>
-                    <div className="shrink-0 border-t border-white/10 bg-slate-950/70 p-3">
+                    <div className="sticky bottom-0 z-20 shrink-0 border-t border-white/10 bg-slate-950/90 p-3 backdrop-blur">
                       <ManualReplyComposer
                         conversation={{ ...safeConversation, live_sending_available: Boolean(selectedChannelStatus.effective_enabled) || isMetaChannel(safeConversation.channel || safeConversation.source) }}
                         value={replyText}
@@ -5060,38 +5179,40 @@ export default function AiInbox() {
                     </div>
                   </div>
                 </div>
-                <RightToolsTabsPanel
-                  activeTab={toolsTab}
-                  onTabChange={setToolsTab}
-                  conversation={selectedConversation}
-                  channelStatus={selectedChannelStatus}
-                  loading={loading}
-                  assignName={currentAssignName}
-                  onAssignNameChange={updateAssignName}
-                  onAction={updateConversationAction}
-                  mode={resolveChannelAutoReplyMode(selectedChannelStatus)}
-                  onModeChange={updateAutoReplyMode}
-                  modeSaving={modeSaving}
-                  recommendations={recommendations}
-                  salesCloser={salesCloser}
-                  drafts={drafts}
-                  onRefreshRecommendations={loadRecommendations}
-                  onQuickSend={quickSendProduct}
-                  onSendImages={sendProductImages}
-                  onCreateDraft={createDraftFromProduct}
-                  onRefreshSalesCloser={loadSalesCloser}
-                  onTakeover={() => updateConversationAction("takeover")}
-                  onUseText={setReplyText}
-                  onPaymentAction={usePaymentAction}
-                  onOpenAiTrace={isWhatsappChannel(safeConversation.channel || safeConversation.source) ? openAiTrace : null}
-                  aiTrace={aiTrace}
-                  onSyncMessengerProfile={syncMessengerProfile}
-                  profileSyncing={profileSyncing}
-                  onDebugMessengerProfile={debugMessengerProfile}
-                  profileDebugging={profileDebugging}
-                  onResetAiState={resetAiState}
-                  resettingAiState={resettingAiState}
-                />
+                {!fullscreenConversation ? (
+                  <RightToolsTabsPanel
+                    activeTab={toolsTab}
+                    onTabChange={setToolsTab}
+                    conversation={selectedConversation}
+                    channelStatus={selectedChannelStatus}
+                    loading={loading}
+                    assignName={currentAssignName}
+                    onAssignNameChange={updateAssignName}
+                    onAction={updateConversationAction}
+                    mode={resolveChannelAutoReplyMode(selectedChannelStatus)}
+                    onModeChange={updateAutoReplyMode}
+                    modeSaving={modeSaving}
+                    recommendations={recommendations}
+                    salesCloser={salesCloser}
+                    drafts={drafts}
+                    onRefreshRecommendations={loadRecommendations}
+                    onQuickSend={quickSendProduct}
+                    onSendImages={sendProductImages}
+                    onCreateDraft={createDraftFromProduct}
+                    onRefreshSalesCloser={loadSalesCloser}
+                    onTakeover={() => updateConversationAction("takeover")}
+                    onUseText={setReplyText}
+                    onPaymentAction={usePaymentAction}
+                    onOpenAiTrace={isWhatsappChannel(safeConversation.channel || safeConversation.source) ? openAiTrace : null}
+                    aiTrace={aiTrace}
+                    onSyncMessengerProfile={syncMessengerProfile}
+                    profileSyncing={profileSyncing}
+                    onDebugMessengerProfile={debugMessengerProfile}
+                    profileDebugging={profileDebugging}
+                    onResetAiState={resetAiState}
+                    resettingAiState={resettingAiState}
+                  />
+                ) : null}
               </div>
             ) : (
               <EmptyBlock text="اختر محادثة لعرض سجلها." />
@@ -5215,9 +5336,9 @@ export default function AiInbox() {
           </div>
         </section>
 
-        <section dir="ltr" className="grid min-h-0 flex-1 gap-3 overflow-hidden xl:grid-cols-[228px_minmax(0,1fr)_300px]">
-          {profileOpen ? (
-            <aside className="hidden min-w-0 space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-3 xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100vh-15rem)] xl:flex-col xl:overflow-y-auto">
+        <section dir="ltr" className={`grid min-h-0 flex-1 gap-3 overflow-hidden ${fullscreenConversation ? "xl:grid-cols-1" : "xl:grid-cols-[minmax(0,18%)_minmax(0,62%)_minmax(0,20%)]"}`}>
+          {!fullscreenConversation && profileOpen ? (
+            <aside className="hidden min-w-0 space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-3 xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100vh-15rem)] xl:flex-col xl:overflow-y-auto xl:w-full xl:max-w-none">
               <CustomerProfilePanel
                 conversation={selectedConversation}
                 canSyncMessenger={canSyncMessengerProfile(selectedConversation)}
@@ -5227,8 +5348,8 @@ export default function AiInbox() {
             </aside>
           ) : null}
 
-          <main className="min-w-0 space-y-3">
-            <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-3 shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
+          <main className="min-w-0 space-y-2">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-2.5 shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
               {selectedConversation ? (
                 <>
                   <InboxChatHeader
@@ -5244,6 +5365,8 @@ export default function AiInbox() {
                     onReturnToAi={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "return")}
                     onClose={() => updateConversationAction("close")}
                     onOpenTools={() => setProfileOpen(true)}
+                    isFullscreenConversation={fullscreenConversation}
+                    onToggleFullscreen={handleToggleConversationFullscreen}
                   />
                   <LeadQuickActionsBar
                     conversation={safeConversation}
@@ -5262,7 +5385,7 @@ export default function AiInbox() {
                     <CommentAutomationBadges automationState={selectedConversation?.channel_metadata?.automation_state || selectedConversation?.automation_state || {}} />
                   ) : null}
 
-                  <div className="mt-2 grid gap-2 rounded-2xl border border-white/10 bg-slate-950/60 p-2 text-[11px] sm:grid-cols-3">
+                  <div className="mt-1.5 grid gap-1.5 rounded-2xl border border-white/10 bg-slate-950/60 p-2 text-[11px] sm:grid-cols-3">
                     <div><span className="text-slate-500">الويب هوك</span><div className={selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "سليم" : "فشل"}</div></div>
                     <div><span className="text-slate-500">Token</span><div className={selectedTokenActive ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedTokenActive ? "نشط" : "منتهي"}</div></div>
                     <div><span className="text-slate-500">Messaging</span><div className={selectedMessagingActive ? "font-black text-emerald-100" : "font-black text-slate-300"}>{selectedMessagingActive ? "نشط" : "غير نشط"}</div></div>
@@ -5277,7 +5400,7 @@ export default function AiInbox() {
                     ) : null}
                   </div>
 
-                  <div className="mt-2 grid gap-2 rounded-2xl border border-white/10 bg-slate-950/65 p-2.5 lg:grid-cols-4">
+                  <div className="mt-1.5 grid gap-1.5 rounded-2xl border border-white/10 bg-slate-950/65 p-2 lg:grid-cols-4">
                     <Info label="درجة العميل المحتمل" value={conversationLeadScore(safeConversation)} />
                     <Info label="حرارة العميل" value={conversationLeadTemperature(safeConversation)} />
                     <Info label="الإجراء الموصى به" value={conversationRecommendedSalesAction(safeConversation)} />
@@ -5289,7 +5412,7 @@ export default function AiInbox() {
                     </div>
                   </div>
 
-                  <div className="mt-2">
+                  <div className="mt-1.5">
                     <SalesIntelligencePanel
                       conversation={selectedConversation}
                       recommendationIntel={recommendations.sessionId === safeConversation.session_id ? recommendations.intelligence : null}
@@ -5403,7 +5526,7 @@ export default function AiInbox() {
                     </div>
                   </div>
 
-                  <div className="grid gap-3 xl:grid-cols-2">
+                  <div className="grid gap-2 xl:grid-cols-2">
                     <SalesCloserPanel
                       plan={salesCloser.sessionId === safeConversation.session_id ? salesCloser.plan : {}}
                       products={recommendations.sessionId === safeConversation.session_id ? recommendations.products : []}
@@ -5425,17 +5548,17 @@ export default function AiInbox() {
                     />
                   </div>
 
-                  <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.8fr)]">
-                    <div className="space-y-3">
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-2.5">
-                        <div className="mb-1.5 flex items-center justify-between gap-3">
+                  <div className="mt-2 grid gap-2 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,0.75fr)]">
+                    <div className="flex min-h-0 flex-col gap-2">
+                      <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-2">
+                        <div className="mb-1 flex items-center justify-between gap-3">
                           <div>
                             <h3 className="text-sm font-black leading-5">سجل المحادثة</h3>
                             <p className="text-[11px] leading-4.5 text-slate-400">تسلسل مباشر للرسائل وردود الموظفين وأحداث المحادثة.</p>
                           </div>
                           {selectedConversation?.messages?.length ? <Pill tone="zinc">{selectedConversation.messages.length} رسالة</Pill> : null}
                         </div>
-                        <div ref={transcriptScrollRef} className="max-h-[44rem] overflow-y-auto pr-1">
+                        <div ref={transcriptScrollRef} className="min-h-0 flex-1 overflow-y-auto pr-1">
                           <Transcript
                             rows={selectedTranscriptRows}
                             events={selectedTranscriptEvents}
@@ -5446,7 +5569,8 @@ export default function AiInbox() {
                           />
                         </div>
                       </div>
-                      <ManualReplyComposer
+                      <div className="sticky bottom-0 z-20">
+                        <ManualReplyComposer
                         conversation={{ ...safeConversation, live_sending_available: Boolean(selectedChannelStatus.effective_enabled) || isMetaChannel(safeConversation.channel || safeConversation.source) }}
                         value={replyText}
                         onChange={setReplyText}
@@ -5466,9 +5590,10 @@ export default function AiInbox() {
                         onEditAiSuggestion={handleEditAiSuggestion}
                         onApproveAiSuggestion={handleApproveAiSuggestion}
                         onDismissAiSuggestion={handleDismissAiSuggestion}
-                      />
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {selectedConversation?.draft_orders?.length ? <OrderDraftPanel conversation={selectedConversation} drafts={drafts} onAction={updateDraft} busy={loading} /> : null}
                     </div>
                   </div>
@@ -5477,7 +5602,7 @@ export default function AiInbox() {
             </div>
           </main>
 
-          <aside className="hidden min-w-0 w-full shrink-0 space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-3 xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100vh-15rem)] xl:w-[228px] xl:max-w-[228px] xl:flex-col xl:overflow-y-auto">
+          <aside className="hidden min-w-0 w-full shrink-0 space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-3 xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100vh-15rem)] xl:w-full xl:max-w-none xl:flex-col xl:overflow-y-auto">
             <SectionTitle
               icon={MessageSquareText}
               title={inboxSection === "social_comments" ? "تعليقات السوشيال" : "قائمة المحادثات"}

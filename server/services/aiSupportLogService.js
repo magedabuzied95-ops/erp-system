@@ -1589,6 +1589,16 @@ export const appendManualAiSupportReply = async ({
       [safeTenantId, safeSessionId, safeMessage || repairText(message || previewMessage), repairText(channel)]
     ).catch(() => {});
   }
+  if (safeTenantId && safeSessionId) {
+    await updateAiSupportConversationState({
+      tenantId: safeTenantId,
+      sessionId: safeSessionId,
+      status: "human_takeover",
+      channel: safeChannel,
+      actorUserId: staffUserId,
+      source: source || "admin_console",
+    }).catch(() => {});
+  }
 
   return result || null;
 };
@@ -1912,6 +1922,38 @@ export const claimAiInboxReplyLock = async ({
     status: lock?.status || "duplicate",
   });
   return { claimed: false, duplicate: true, lock };
+};
+
+export const hasRecentAiReplyDuplicate = async ({
+  tenantId,
+  sessionId = "",
+  messageText = "",
+  withinMinutes = 10,
+} = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeSessionId = toText(sessionId);
+  const safeMessageText = repairText(messageText || "").trim();
+  const safeMinutes = Math.max(1, Math.min(60, Number(withinMinutes || 10)));
+  if (!safeTenantId || !safeSessionId || !safeMessageText) {
+    return null;
+  }
+  await ensureAiSupportLogSchema();
+  const result = await db.query(
+    `
+    SELECT id, created_at, message_text, answer, staff_message, source, channel
+    FROM ai_support_messages
+    WHERE tenant_id = $1::bigint
+      AND session_id = $2::text
+      AND sender_type = 'ai'
+      AND created_at >= NOW() - ($4::int || ' minutes')::interval
+      AND regexp_replace(lower(trim(COALESCE(NULLIF(message_text, ''), NULLIF(answer, ''), NULLIF(staff_message, ''), ''))), '\\s+', ' ', 'g') =
+          regexp_replace(lower(trim($3::text)), '\\s+', ' ', 'g')
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+    `,
+    [safeTenantId, safeSessionId, safeMessageText, safeMinutes]
+  );
+  return result.rows[0] || null;
 };
 
 export const completeAiInboxReplyLock = async ({

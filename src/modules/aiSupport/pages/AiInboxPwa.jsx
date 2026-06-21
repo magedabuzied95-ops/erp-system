@@ -13,8 +13,10 @@ import {
   Image,
   Layers3,
   Loader2,
+  Maximize2,
   MessageCircleMore,
   MoreHorizontal,
+  Minimize2,
   PackagePlus,
   Ruler,
   Search,
@@ -1749,6 +1751,7 @@ export default function AiInboxPwa() {
   const [leadFilter, setLeadFilter] = useState("new");
   const [composerText, setComposerText] = useState("");
   const [composerMode, setComposerMode] = useState("reply");
+  const [isFullscreenConversation, setIsFullscreenConversation] = useState(false);
   const [editingAiDraft, setEditingAiDraft] = useState(false);
   const [dismissedAiSuggestionKey, setDismissedAiSuggestionKey] = useState("");
   const [sending, setSending] = useState(false);
@@ -1765,6 +1768,8 @@ export default function AiInboxPwa() {
   const [installPrompt, setInstallPrompt] = useState(null);
   const [conversationHeaderHeight, setConversationHeaderHeight] = useState(0);
   const [userIsNearBottom, setUserIsNearBottom] = useState(true);
+  const [aiAssistantGlobalEnabled, setAiAssistantGlobalEnabled] = useState(true);
+  const [aiAssistantGlobalSaving, setAiAssistantGlobalSaving] = useState(false);
   const mainScrollRef = useRef(null);
   const conversationHeaderRef = useRef(null);
   const menuButtonRef = useRef(null);
@@ -1862,6 +1867,11 @@ export default function AiInboxPwa() {
           headers,
           perfComponent: "AiInboxPwa.conversations",
         });
+        const globalAiPayload = await api.get("/ai-agent/settings/ai-assistant-global", {
+          params: { tenant_id: tenantId },
+          headers,
+          perfComponent: "AiInboxPwa.globalAi",
+        }).catch(() => ({ ai_assistant_global_enabled: true }));
 
         const nextConversations = asArray(payload.conversations)
           .map((conversation) => ({
@@ -1911,6 +1921,7 @@ export default function AiInboxPwa() {
             })
           );
         });
+        setAiAssistantGlobalEnabled(globalAiPayload?.ai_assistant_global_enabled !== false);
 
         if (conversationParam) {
           const normalizedConversationParam = normalizeConversationSessionId(conversationParam);
@@ -2989,6 +3000,28 @@ export default function AiInboxPwa() {
     }
   }, [headers, loadConversations, patchConversation, selectedConversation, tenantId]);
 
+  const toggleGlobalAiAssistant = useCallback(() => {
+    void (async () => {
+      setAiAssistantGlobalSaving(true);
+      try {
+        const nextEnabled = !aiAssistantGlobalEnabled;
+        const payload = await api.patch("/ai-agent/settings/ai-assistant-global", {
+          tenant_id: tenantId,
+          ai_assistant_global_enabled: nextEnabled,
+          enabled: nextEnabled,
+        }, { headers, perfComponent: "AiInboxPwa.globalAiToggle" });
+        const resolvedEnabled = payload?.ai_assistant_global_enabled !== false;
+        setAiAssistantGlobalEnabled(resolvedEnabled);
+        toast.success(resolvedEnabled ? "تم تشغيل مساعد الذكاء الاصطناعي لكل المحادثات." : "مساعد الذكاء الاصطناعي متوقف على كل المحادثات.");
+        await loadConversations({ silent: true });
+      } catch (err) {
+        toast.error(err?.message || "تعذر تحديث حالة مساعد الذكاء الاصطناعي العامة");
+      } finally {
+        setAiAssistantGlobalSaving(false);
+      }
+    })();
+  }, [aiAssistantGlobalEnabled, headers, loadConversations, tenantId]);
+
   const updateLeadStatus = useCallback(
     async (nextLeadStatus) => {
       if (!selectedConversation?.session_id) return;
@@ -3179,11 +3212,13 @@ export default function AiInboxPwa() {
   }, [installPrompt]);
 
   const contentScreen = Boolean(selectedConversation);
+  const fullscreenConversation = Boolean(isFullscreenConversation && contentScreen && tab === "conversations");
   const showComposer = contentScreen && tab === "conversations";
   const selectedMeta = channelMeta(selectedConversation?.channel || selectedConversation?.source || "");
   const SelectedChannelIcon = selectedMeta.icon;
   const currentLeadStatus = conversationLeadStatus(selectedConversation || {});
   const selectedWorkflowStatus = conversationWorkflowStatus(selectedConversation || {});
+  const selectedConversationAiEnabled = isConversationAiEnabled(selectedConversation || {});
   const selectedAvatar = customerAvatarUrl(selectedConversation || {});
   const selectedLastSeen = relativeSeenLabel(
     selectedConversation?.last_activity_at || selectedConversation?.updated_at
@@ -3253,6 +3288,28 @@ export default function AiInboxPwa() {
               <div className="relative">
                 <button
                   type="button"
+                  onClick={() => setIsFullscreenConversation((current) => !current)}
+                  className="mr-2 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
+                  aria-label={fullscreenConversation ? "Restore conversation layout" : "Expand conversation layout"}
+                  title={fullscreenConversation ? "Restore conversation layout" : "Expand conversation layout"}
+                >
+                  {fullscreenConversation ? <Minimize2 className="h-4.5 w-4.5" /> : <Maximize2 className="h-4.5 w-4.5" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleConversationAi}
+                  disabled={aiToggling}
+                  className={`mr-2 inline-flex h-11 items-center gap-1.5 rounded-full px-3 text-[11px] font-black shadow-sm ring-1 disabled:opacity-50 ${
+                    selectedConversationAiEnabled
+                      ? "bg-emerald-300 text-slate-950 ring-emerald-200"
+                      : "bg-rose-50 text-rose-700 ring-rose-200"
+                  }`}
+                >
+                  {aiToggling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
+                  {selectedWorkflowStatus === "human_takeover" ? "Return to AI" : selectedConversationAiEnabled ? "AI ON" : "AI OFF"}
+                </button>
+                <button
+                  type="button"
                   ref={menuButtonRef}
                   onClick={() => setMenuOpen((current) => !current)}
                   className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
@@ -3264,9 +3321,13 @@ export default function AiInboxPwa() {
                   anchorRef={menuButtonRef}
                   onClose={() => setMenuOpen(false)}
                 >
+                  <button type="button" onClick={() => { toggleGlobalAiAssistant(); setMenuOpen(false); }} disabled={aiAssistantGlobalSaving} className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100 disabled:opacity-50">
+                    {aiAssistantGlobalSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
+                    {aiAssistantGlobalEnabled ? "AI Assistant Global ON" : "AI Assistant Global OFF"}
+                  </button>
                   <button type="button" onClick={toggleConversationAi} disabled={aiToggling} className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100 disabled:opacity-50">
                     {aiToggling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
-                    {selectedWorkflowStatus === "human_takeover" ? "Return to AI" : isConversationAiEnabled(selectedConversation) ? "Pause AI" : "Enable AI"}
+                    {selectedWorkflowStatus === "human_takeover" ? "Return to AI" : isConversationAiEnabled(selectedConversation) ? "AI ON" : "AI OFF"}
                   </button>
                   <button type="button" onClick={() => { setProductSheetOpen(true); setMenuOpen(false); }} className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100">
                     <PackagePlus className="h-4 w-4" />
@@ -3290,7 +3351,32 @@ export default function AiInboxPwa() {
                 </HeaderOverflowMenu>
               </div>
             </div>
-            <div className="mt-2 space-y-2">
+            {!fullscreenConversation ? (
+              <div className="mt-2 space-y-2">
+              <div className="flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Global AI Assistant</div>
+                  <div className="truncate text-[12px] font-semibold text-slate-700">
+                    {aiAssistantGlobalEnabled ? "تشغيل مساعد الذكاء الاصطناعي لكل المحادثات" : "مساعد الذكاء الاصطناعي متوقف على كل المحادثات"}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleGlobalAiAssistant}
+                  disabled={aiAssistantGlobalSaving}
+                  className={`inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[11px] font-black disabled:opacity-50 ${
+                    aiAssistantGlobalEnabled ? "bg-emerald-300 text-slate-950" : "border border-rose-200 bg-rose-50 text-rose-700"
+                  }`}
+                >
+                  {aiAssistantGlobalSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bot className="h-3.5 w-3.5" />}
+                  {aiAssistantGlobalEnabled ? "ON" : "OFF"}
+                </button>
+              </div>
+              {!aiAssistantGlobalEnabled ? (
+                <div className="rounded-2xl border border-amber-300/20 bg-amber-100 px-3 py-2 text-[12px] font-semibold text-amber-800">
+                  مساعد الذكاء الاصطناعي متوقف على كل المحادثات.
+                </div>
+              ) : null}
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Lead status</div>
@@ -3377,7 +3463,8 @@ export default function AiInboxPwa() {
                   إنشاء فرصة بيع
                 </button>
               </div>
-            </div>
+              </div>
+            ) : null}
           </header>
         ) : (
           <header className="border-b border-slate-200 bg-slate-50/95 px-2.5 pb-2 pt-[max(0.65rem,env(safe-area-inset-top))] backdrop-blur">
