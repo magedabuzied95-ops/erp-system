@@ -4188,7 +4188,15 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
     });
     const previewText = formatProductCardPreviewText(productCards[0] || {});
     const fallbackText = buildProductCardFallbackText(productCards);
-    const externalCustomerId = envText(conversation.external_customer_id || conversation.customer_id || "");
+    const externalCustomerId = envText(
+      channelMetadata.customer_psid ||
+        channelMetadata.sender_psid ||
+        channelMetadata.resolved_customer_id ||
+        conversation.external_customer_id ||
+        conversation.customer_profile?.external_customer_id ||
+        conversation.customer_profile?.psid ||
+        ""
+    );
     const channelMetadata = conversation.channel_metadata || {};
     console.info("[ai-inbox][product-card-send][request]", {
       tenant_id: tenantId,
@@ -4267,14 +4275,25 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
           messageText: fallbackText,
           recipientId: externalCustomerId,
           conversationId,
-          pageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
+          facebookPageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
           instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
         });
-        deliveryStatus = sendResult.sent ? "sent" : "failed";
+        deliveryStatus = sendResult?.delivery_status || (sendResult.sent ? "sent" : "failed");
         if (deliveryStatus === "failed" && !deliveryError) {
           deliveryError = sendResult?.message || "Product card message was not delivered";
         }
         externalMessageId = sendResult.message_id || "";
+        console.info("[ai-inbox][product-card-send][meta-delivery]", {
+          tenant_id: tenantId,
+          conversation_id: conversationId,
+          channel: normalizedChannel,
+          sent: sendResult?.sent === true,
+          delivery_status: sendResult?.delivery_status || "",
+          delivery_error: sendResult?.delivery_error || sendResult?.message || "",
+          recipient_id: externalCustomerId,
+          page_id: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
+          token_present: Boolean(sendResult?.token_present),
+        });
       }
     } else {
       console.warn("[ai-inbox][product-card-send] unsupported channel, storing fallback transcript message only", {
@@ -4348,6 +4367,8 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
 
     return res.status(201).json({
       success: deliveryStatus !== "failed",
+      stored: true,
+      delivered: deliveryStatus === "sent",
       sent: deliveryStatus === "sent",
       delivery_status: deliveryStatus,
       delivery_error: deliveryStatus === "failed" ? (deliveryError || sendResult?.delivery_error || "") : "",
