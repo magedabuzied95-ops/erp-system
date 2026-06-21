@@ -1006,7 +1006,7 @@ const getProductColorGroups = (product = {}) => {
     if (!group.image_url) group.image_url = variantPrimaryImage(variant);
     group.variants.push(variant);
   });
-  return Array.from(groups.values());
+  return Array.from(groups.values()).filter((group) => group.variants.some((variant) => variantHasStock(variant)));
 };
 const getActiveColorGroup = (product = {}, selectedColorId = "") => {
   const groups = getProductColorGroups(product);
@@ -3882,6 +3882,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
   const location = useLocation();
   const deferredSearch = useDeferredValue(search);
   const compactDisabled = /^\/shop\/product\/[^/]+/.test(location.pathname);
+  const isCheckoutMobile = location.pathname === "/shop/checkout";
   const currentLanguage = normalizeLanguage(storefrontI18n.resolvedLanguage || storefrontI18n.language || "en");
   const nextLanguage = currentLanguage === "ar" ? "en" : "ar";
   const languageLabel =
@@ -4236,7 +4237,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
       data-compact={!compactDisabled && isCompact ? "true" : "false"}
       className="sf-luxury-header sticky top-0 z-40 bg-transparent shadow-none backdrop-blur-2xl transition-all duration-300 dark:bg-transparent"
     >
-      <div className="sf-announcement-row sf-header-announcement overflow-hidden bg-[linear-gradient(105deg,rgba(8,10,16,0.96),rgba(18,20,30,0.95)_42%,rgba(42,34,79,0.96))] text-white/90 backdrop-blur transition-all duration-300">
+      <div className={`${isCheckoutMobile ? "hidden md:block" : ""} sf-announcement-row sf-header-announcement overflow-hidden bg-[linear-gradient(105deg,rgba(8,10,16,0.96),rgba(18,20,30,0.95)_42%,rgba(42,34,79,0.96))] text-white/90 backdrop-blur transition-all duration-300`}>
         <div className="mx-auto flex h-8 w-full max-w-7xl items-center justify-center px-4 md:h-10">
           <span key={announcementIndex} className="inline-flex w-full items-center justify-center text-center text-[10px] font-semibold tracking-[0.08em] text-stone-100/88 animate-[sfFadeUp_420ms_ease-out_both] md:text-[12px] md:font-medium md:tracking-wide">
             {announcementItems[announcementIndex] || announcementItems[0]}
@@ -4267,36 +4268,39 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
               {cartCount ? <span className="sf-action-badge sf-mobile-cart-badge">{cartCount}</span> : null}
             </button>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setSearchOpen(true);
-              setMobileSearchOpen(true);
-            }}
-            dir="rtl"
-            className="sf-mobile-header-searchbar mt-3 flex h-12 w-full items-center gap-3 rounded-full px-4 text-right text-sm font-semibold transition duration-200 ease-out"
-          >
-            <Search className="sf-mobile-header-search-icon h-4.5 w-4.5 shrink-0" />
-            <span className="truncate">ابحث باسم المنتج أو SKU...</span>
-            </button>
-          <div className="sf-mobile-category-chips mt-3 flex min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1 rtl:justify-start">
-            {mobileCategoryChips.map((item) => (
-              <Link
-                key={item.key}
-                to={item.to}
-                aria-current={item.active ? "page" : undefined}
+          {!isCheckoutMobile ? (
+            <div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchOpen(true);
+                  setMobileSearchOpen(true);
+                }}
                 dir="rtl"
-                className={`sf-mobile-category-chip inline-flex h-[40px] shrink-0 items-center gap-1.5 rounded-full px-[14px] text-[12px] font-semibold transition duration-200 ease-out active:scale-[0.98] ${item.active ? "sf-mobile-category-chip--active" : "sf-mobile-category-chip--inactive"}`}
+                className="sf-mobile-header-searchbar mt-3 flex h-12 w-full items-center gap-3 rounded-full px-4 text-right text-sm font-semibold transition duration-200 ease-out"
               >
-                {(() => {
-                  const Icon = getMobileCategoryChipIcon(item.key || item.label);
-                  return <Icon className="h-[15px] w-[15px] shrink-0" aria-hidden="true" />;
-                })()}
-                <span className="truncate">{item.label}</span>
-              </Link>
-            ))}
-          </div>
-          </>) : (
+                <Search className="sf-mobile-header-search-icon h-4.5 w-4.5 shrink-0" />
+                <span className="truncate">ابحث باسم المنتج أو SKU...</span>
+              </button>
+              <div className="sf-mobile-category-chips mt-3 flex min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1 rtl:justify-start">
+                {mobileCategoryChips.map((item) => (
+                  <Link
+                    key={item.key}
+                    to={item.to}
+                    aria-current={item.active ? "page" : undefined}
+                    dir="rtl"
+                    className={`sf-mobile-category-chip inline-flex h-[40px] shrink-0 items-center gap-1.5 rounded-full px-[14px] text-[12px] font-semibold transition duration-200 ease-out active:scale-[0.98] ${item.active ? "sf-mobile-category-chip--active" : "sf-mobile-category-chip--inactive"}`}
+                  >
+                    {(() => {
+                      const Icon = getMobileCategoryChipIcon(item.key || item.label);
+                      return <Icon className="h-[15px] w-[15px] shrink-0" aria-hidden="true" />;
+                    })()}
+                    <span className="truncate">{item.label}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ) : (
             <div className="h-1" />
           )}
         </div>
@@ -4773,8 +4777,8 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     [activeColorGroup]
   );
   const availableVariant = useMemo(
-    () => selectedVariant || activeColorVariant || firstAvailableVariant,
-    [activeColorVariant, firstAvailableVariant, selectedVariant]
+    () => (selectedVariantIsAvailable ? selectedVariant : null) || activeColorVariant || firstAvailableVariant,
+    [activeColorVariant, firstAvailableVariant, selectedVariant, selectedVariantIsAvailable]
   );
   const inWishlist = useMemo(() => wishlist.some((item) => String(item.id) === String(product.id)), [product.id, wishlist]);
   const sellingPrice = displaySellingPrice(product, availableVariant);
@@ -4807,13 +4811,12 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const [secondaryImageReady, setSecondaryImageReady] = useState(false);
   const [secondaryFlashActive, setSecondaryFlashActive] = useState(false);
   const sheetDismissedRef = useRef(false);
-  const imageDebugLoggedRef = useRef("");
   const secondaryFlashTimerRef = useRef(null);
   useEffect(() => {
     let cancelled = false;
     deferReactState(() => {
       if (!cancelled) {
-        const next = providedSelectedVariant || firstAvailableVariant;
+        const next = providedSelectedVariant && variantHasStock(providedSelectedVariant) ? providedSelectedVariant : firstAvailableVariant;
         setSelectedVariantId(next?.id || "");
         setSelectedColorKeyState(providedSelectedColor || (next ? variantColorKey(next) : ""));
       }
@@ -4822,43 +4825,6 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       cancelled = true;
     };
   }, [firstAvailableVariant?.id, product.id, providedSelectedColor, providedSelectedVariant]);
-  useEffect(() => {
-    if (!import.meta.env.DEV) return;
-    const debugKey = `${product?.id || "unknown"}:${selectedColorKey || activeColorGroup?.key || ""}:${availableVariant?.id || ""}`;
-    if (imageDebugLoggedRef.current === debugKey) return;
-    imageDebugLoggedRef.current = debugKey;
-    console.info("[ProductCard color images]", {
-      productId: product?.id || null,
-      cardId: product?.card_id || product?.storefront_card_id || null,
-      color: selectedColorKey || activeColorGroup?.key || variantColorKey(availableVariant || {}),
-      primaryImageUrl: displayImage || "",
-      secondaryImageUrl: secondaryDisplayImage || "",
-      cardImages: productCardResolvedImageCollection([
-        ...(Array.isArray(product?.images) ? product.images : []),
-        ...(Array.isArray(product?.gallery_images) ? product.gallery_images : []),
-        ...(Array.isArray(product?.image_urls) ? product.image_urls : []),
-        ...(Array.isArray(product?.product_images) ? product.product_images : []),
-        ...(Array.isArray(product?.color_images) ? product.color_images : []),
-      ]),
-      variantImages: productCardResolvedImageCollection([
-        ...(Array.isArray(activeColorGroup?.images) ? activeColorGroup.images : []),
-        ...(Array.isArray(availableVariant?.images) ? availableVariant.images : []),
-        ...(Array.isArray(availableVariant?.color_images) ? availableVariant.color_images : []),
-        ...(Array.isArray(availableVariant?.gallery_images) ? availableVariant.gallery_images : []),
-        ...(Array.isArray(availableVariant?.image_urls) ? availableVariant.image_urls : []),
-      ]),
-      productImages: productCardResolvedImageCollection([
-        ...(Array.isArray(product?.images) ? product.images : []),
-        ...(Array.isArray(product?.gallery_images) ? product.gallery_images : []),
-        ...(Array.isArray(product?.image_urls) ? product.image_urls : []),
-        ...(Array.isArray(product?.product_images) ? product.product_images : []),
-        ...(Array.isArray(product?.additional_images) ? product.additional_images : []),
-        ...(Array.isArray(product?.color_images) ? product.color_images : []),
-      ]),
-    });
-    console.info("[ProductCard raw images]", product);
-  }, [activeColorGroup?.key, availableVariant?.id, displayImage, product, secondaryDisplayImage, selectedColorKey]);
-
   useEffect(() => {
     setSecondaryImageReady(false);
     setSecondaryFlashActive(false);
@@ -5269,7 +5235,6 @@ function ProductCardVariantSheet({
     if (event) {
       event.stopPropagation();
     }
-    console.log("CLOSE_HANDLER_EXISTS", typeof onClose);
     if (typeof onClose === "function") {
       onClose();
     }
@@ -5298,14 +5263,12 @@ function ProductCardVariantSheet({
             type="button"
             onPointerUp={(event) => {
               event.stopPropagation();
-              console.log("CLOSE_HANDLER_EXISTS", typeof onClose);
               if (typeof onClose === "function") {
                 onClose();
               }
             }}
             onClick={(event) => {
               event.stopPropagation();
-              console.log("CLOSE_HANDLER_EXISTS", typeof onClose);
               if (typeof onClose === "function") {
                 onClose();
               }
