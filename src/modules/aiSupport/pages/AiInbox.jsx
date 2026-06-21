@@ -402,7 +402,7 @@ const normalizeWhatsappSessionIdentity = (value = "", phone = "") => {
 };
 const conversationKey = (conversation = {}) => {
   const channel = normalizeConversationChannel(conversation);
-  const sessionId = clean(conversation?.session_id || conversation?.conversation_id || conversation?.id);
+  const sessionId = clean(conversation?.id || conversation?.conversation_id || conversation?.session_id);
   const whatsappSessionId = channel === "whatsapp" ? normalizeWhatsappSessionIdentity(sessionId, conversation?.external_customer_id || conversation?.phone || "") : "";
   return whatsappSessionId || `${channel}:${sessionId}`;
 };
@@ -3314,11 +3314,15 @@ export default function AiInbox() {
   }, [channelSummaries.channels]);
   const realMetaCount = conversations.filter((item) => item.is_live_meta || isMetaChannel(item.channel || item.source)).length;
   const selectedConversation = useMemo(
-    () => conversations.find((item) => item.conversation_key === selectedSessionId) ||
+    () => conversations.find((item) => item.conversation_key === selectedSessionId || clean(item.id || item.conversation_id || "") === clean(selectedSessionId)) ||
       (selectedConversationCacheRef.current?.conversation_key === selectedSessionId ? selectedConversationCacheRef.current : null) ||
       conversations[0] ||
       null,
     [conversations, selectedSessionId]
+  );
+  const selectedConversationRouteId = useMemo(
+    () => clean(selectedConversation?.id || selectedConversation?.conversation_id || selectedConversation?.conversation_key || ""),
+    [selectedConversation]
   );
   const syncTranscriptScrollProximity = useCallback((scroller = transcriptScrollRef.current) => {
     if (!scroller) return;
@@ -3358,7 +3362,7 @@ export default function AiInbox() {
     setProfileSyncing(true);
     setError("");
     try {
-      const payload = await api.post(aiInboxConversationEndpoint(sessionId, "/sync-messenger-profile"), {
+      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/sync-messenger-profile"), {
         tenant_id: tenantId,
         external_customer_id: externalCustomerId,
       }, { headers, perfComponent: "AiInbox.syncMessengerProfile" });
@@ -3397,7 +3401,7 @@ export default function AiInbox() {
     } finally {
       setProfileSyncing(false);
     }
-  }, [headers, loadAll, messengerProfileSyncAttemptedRef, patchConversation, selectedConversation, setError, setProfileSyncing, setToast, tenantId]);
+  }, [headers, loadAll, messengerProfileSyncAttemptedRef, patchConversation, selectedConversation, selectedConversationRouteId, setError, setProfileSyncing, setToast, tenantId]);
   useEffect(() => {
     if (!selectedConversation || !canSyncMessengerProfile(selectedConversation)) return;
     const currentName = clean(selectedConversation.customer_name || selectedConversation.customer_profile?.name || "");
@@ -3702,7 +3706,7 @@ export default function AiInbox() {
     const sessionId = selectedConversation.session_id;
     setAiDebug((current) => ({ ...current, sessionId, loading: true, error: "" }));
     try {
-      const payload = await api.get(aiInboxConversationEndpoint(sessionId, "/ai-debug"), {
+      const payload = await api.get(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/ai-debug"), {
         params: { tenant_id: tenantId, channel: selectedConversation.channel || selectedConversation.source || "" },
         headers,
         perfComponent: "AiInbox.aiDebug",
@@ -3730,7 +3734,7 @@ export default function AiInbox() {
     const sessionId = selectedConversation.session_id;
     setAiTrace((current) => ({ ...current, sessionId, loading: true, error: "" }));
     try {
-      const payload = await api.get(aiInboxConversationEndpoint(sessionId, "/ai-trace"), {
+      const payload = await api.get(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/ai-trace"), {
         params: { tenant_id: tenantId, channel: "whatsapp", limit: 10 },
         headers,
         perfComponent: "AiInbox.aiTrace",
@@ -3762,7 +3766,7 @@ export default function AiInbox() {
     isLoadingOlderRef.current = true;
     setOlderMessagesLoading(true);
     try {
-      const payload = await api.get(aiInboxConversationEndpoint(sessionId, "/messages"), {
+      const payload = await api.get(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/messages"), {
         params: { tenant_id: tenantId, before, limit: 30 },
         headers,
         perfComponent: "AiInbox.messages.loadOlder",
@@ -3973,7 +3977,7 @@ export default function AiInbox() {
     setProfileDebugging(true);
     setError("");
     try {
-      const payload = await api.post(aiInboxConversationEndpoint(sessionId, "/debug-messenger-profile"), {
+      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/debug-messenger-profile"), {
         tenant_id: tenantId,
         external_customer_id: selectedConversation.external_customer_id || "",
       }, { headers, perfComponent: "AiInbox.debugMessengerProfile" });
@@ -4052,7 +4056,7 @@ export default function AiInbox() {
   const persistDraftReply = async (message) => {
     const sessionId = selectedConversation?.session_id;
     if (!sessionId || !clean(message)) return;
-    return api.post(aiInboxConversationEndpoint(sessionId, "/reply"), { tenant_id: tenantId, message }, { headers, perfComponent: "AiInbox.saveDraftReply" });
+    return api.post(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/reply"), { tenant_id: tenantId, message }, { headers, perfComponent: "AiInbox.saveDraftReply" });
   };
 
   const saveEditedAiReplyCorrection = async ({ sentMessageId = "", aiReplyDraft = null, employeeCorrectAnswer = "", allowSameText = false, metadata = {} } = {}) => {
@@ -4195,7 +4199,7 @@ export default function AiInbox() {
     setLoading(true);
     setError("");
     try {
-      const payload = await api.post(aiInboxConversationEndpoint(sessionId, "/send"), { tenant_id: tenantId, message, client_request_id: clientRequestId, message_identity_key: messageIdentityKey }, { headers, perfComponent: "AiInbox.sendManualReply" });
+      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/send"), { tenant_id: tenantId, message, client_request_id: clientRequestId, message_identity_key: messageIdentityKey }, { headers, perfComponent: "AiInbox.sendManualReply" });
       if (payload.message) {
         patchConversation(conversationIdentifier, (conversation) => ({
           ...conversation,
@@ -4461,25 +4465,29 @@ export default function AiInbox() {
         share_url: clean(card.share_url || card.shareUrl || ""),
       }))
       .filter((card) => card.product_name || card.product_id || card.storefront_url);
-    if (!selectedConversation?.session_id || !cards.length) return;
+    const conversationId = clean(selectedConversation?.id || selectedConversation?.conversation_id || "");
+    if (!conversationId || !cards.length) return;
 
-    const sessionId = selectedConversation.session_id;
-    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
     const now = new Date().toISOString();
     const previewText = productCardPreviewText(cards) || "إرسال منتج";
     const clientRequestId = buildClientRequestId();
     const messageIdentityKey = buildMessageIdentityKey({
       tenantId,
-      sessionId,
+      sessionId: conversationId,
       direction: "outbound",
       clientRequestId,
+    });
+
+    console.info("[product-card-send]", {
+      conversationId,
+      conversation: selectedConversation,
     });
 
     setProductCardSending(true);
     setError("");
     try {
       const payload = await api.post(
-        aiInboxConversationEndpoint(sessionId, "/product-card/send"),
+        aiInboxConversationEndpoint(conversationId, "/product-card/send"),
         {
           tenant_id: tenantId,
           product_cards: cards,
@@ -4595,7 +4603,7 @@ export default function AiInbox() {
     const sessionId = selectedConversation?.session_id;
     setRecommendations((current) => ({ ...current, sessionId, loading: true }));
     try {
-      const payload = await api.get(aiInboxConversationEndpoint(sessionId, "/recommendations"), { params: { tenant_id: tenantId, limit: 8 }, headers, perfComponent: "AiInbox.recommendations" });
+      const payload = await api.get(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/recommendations"), { params: { tenant_id: tenantId, limit: 8 }, headers, perfComponent: "AiInbox.recommendations" });
       setRecommendations({ sessionId, products: asArray(payload.products), intelligence: payload.sales_intelligence || null, loading: false });
     } catch {
       setRecommendations({ sessionId, products: [], intelligence: null, loading: false });
@@ -4607,7 +4615,7 @@ export default function AiInbox() {
     const sessionId = selectedConversation?.session_id;
     setSalesCloser((current) => ({ ...current, sessionId, loading: true }));
     try {
-      const payload = await api.get(aiInboxConversationEndpoint(sessionId, "/sales-closer"), { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.salesCloser" });
+      const payload = await api.get(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/sales-closer"), { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.salesCloser" });
       setSalesCloser({ sessionId, plan: payload || {}, loading: false });
       if (payload?.products?.length) {
         setRecommendations({ sessionId, products: asArray(payload.products), loading: false });
@@ -4631,7 +4639,7 @@ export default function AiInbox() {
     setDismissedAiSuggestionKey("");
     setAiReply({ sessionId, text: "", loading: true, error: "", validation: null, confidence_engine: null });
     try {
-      const payload = await api.post(aiInboxConversationEndpoint(sessionId, "/ai-reply"), { tenant_id: tenantId, persist }, { headers, perfComponent: "AiInbox.generateAiReply" });
+      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/ai-reply"), { tenant_id: tenantId, persist }, { headers, perfComponent: "AiInbox.generateAiReply" });
       const aiReplyDraft = payload.ai_reply_draft || payload.draft || payload.suggestion || null;
       const textValue = clean(aiReplyDraft?.text || payload.reply?.answer || payload.text || "");
       const validation = normalizeValidationSummary(payload.validation || aiReplyDraft?.validation || payload.reply?.validation || {});
@@ -4712,11 +4720,11 @@ export default function AiInbox() {
       setError("");
       try {
         const payload = status === "human_takeover"
-          ? await api.post(aiInboxConversationEndpoint(selectedConversation.session_id, "/return-to-ai"), {
+          ? await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || selectedConversation.session_id, "/return-to-ai"), {
               tenant_id: tenantId,
               channel,
             }, { headers, perfComponent: "AiInbox.returnToAi" })
-          : await api.patch(aiInboxConversationEndpoint(selectedConversation.session_id, "/ai-enabled"), {
+          : await api.patch(aiInboxConversationEndpoint(selectedConversationRouteId || selectedConversation.session_id, "/ai-enabled"), {
               tenant_id: tenantId,
               conversation_id: selectedConversation.session_id,
               external_id: selectedConversation.external_conversation_id || "",
@@ -4754,7 +4762,7 @@ export default function AiInbox() {
     setError("");
     setLoading(true);
     try {
-      const payload = await api.post(aiInboxConversationEndpoint(selectedConversation?.session_id, "/create-draft-order"), {
+      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || selectedConversation?.session_id, "/create-draft-order"), {
         tenant_id: tenantId,
         product_id: product.product_id || product.id,
         product,

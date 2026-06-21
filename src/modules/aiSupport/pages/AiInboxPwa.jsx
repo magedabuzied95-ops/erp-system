@@ -225,12 +225,12 @@ const mergeMessagesByIdentity = (messages = []) => {
 const conversationIdentifiers = (conversation = {}) => {
   const channel = conversation.channel || conversation.source || conversation.provider || conversation.platform || "";
   const sessionId = normalizeConversationSessionId(
-    conversation.session_id || conversation.external_conversation_id || conversation.conversation_id || conversation.id,
+    conversation.session_id || conversation.external_conversation_id || conversation.id || conversation.conversation_id,
     channel
   );
-  const fallbackId = clean(conversation.session_id || conversation.external_conversation_id || conversation.conversation_id || conversation.id);
-  const conversationId = normalizeConversationSessionId(conversation.conversation_id || conversation.id || sessionId, channel);
-  const conversationKey = normalizeConversationSessionId(conversation.conversation_key || sessionId || fallbackId, channel);
+  const fallbackId = clean(conversation.session_id || conversation.external_conversation_id || conversation.id || conversation.conversation_id);
+  const conversationId = normalizeConversationSessionId(conversation.id || conversation.conversation_id || sessionId, channel);
+  const conversationKey = normalizeConversationSessionId(conversation.conversation_key || conversation.id || sessionId || fallbackId, channel);
   const rawSessionId = stripConversationPrefixes(sessionId).value || fallbackId;
   return {
     channel,
@@ -1933,8 +1933,8 @@ export default function AiInboxPwa() {
               stripConversationPrefixes(conversation.conversation_key).value === stripConversationPrefixes(normalizedConversationParam).value ||
               encodeConversationId(conversation.session_id) === clean(conversationParam)
           );
-          if (!exists && nextConversations[0]?.session_id && tab === "conversations") {
-            updateUrlState({ nextConversationId: nextConversations[0].session_id, replace: true });
+          if (!exists && nextConversations[0]?.id && tab === "conversations") {
+            updateUrlState({ nextConversationId: nextConversations[0].id, replace: true });
           }
         }
       } catch (loadError) {
@@ -2220,9 +2220,13 @@ export default function AiInboxPwa() {
             clean(identifiers.conversationKey) === clean(conversationParam)
           );
         }
-      ) || null
+    ) || null
     );
   }, [conversationParam, conversations]);
+  const selectedConversationRouteId = useMemo(
+    () => clean(selectedConversation?.id || selectedConversation?.conversation_id || selectedConversation?.conversation_key || ""),
+    [selectedConversation]
+  );
 
   const activeAiReplyDraft = useMemo(
     () => selectedConversation?.ai_reply_draft || selectedConversation?.last_ai_reply_draft || null,
@@ -2318,7 +2322,7 @@ export default function AiInboxPwa() {
         unread: false,
       }));
       void api.post(
-        aiInboxConversationEndpoint(sessionId, "/read"),
+        aiInboxConversationEndpoint(conversationIdentifiers(selectedConversation).conversationId || sessionId, "/read"),
         { tenant_id: tenantId, conversation_id: sessionId, channel: conversation.channel || conversation.source || "" },
         { headers, perfComponent: "AiInboxPwa.markRead" }
       ).catch((markError) => {
@@ -2353,7 +2357,7 @@ export default function AiInboxPwa() {
       if (messengerProfileSyncAttemptedRef.current.has(attemptKey)) return false;
       messengerProfileSyncAttemptedRef.current.add(attemptKey);
       try {
-        const payload = await api.post(aiInboxConversationEndpoint(sessionId, "/sync-messenger-profile"), {
+        const payload = await api.post(aiInboxConversationEndpoint(conversationIdentifiers(selectedConversation).conversationId || sessionId, "/sync-messenger-profile"), {
           tenant_id: tenantId,
           external_customer_id: externalCustomerId,
         }, { headers, perfComponent: "AiInboxPwa.syncMessengerProfile" });
@@ -2399,7 +2403,7 @@ export default function AiInboxPwa() {
     (conversation) => {
       setComposerMode("reply");
       setMenuOpen(false);
-      updateUrlState({ nextConversationId: conversationIdentifiers(conversation).sessionId, nextTab: "conversations" });
+      updateUrlState({ nextConversationId: conversationIdentifiers(conversation).conversationId, nextTab: "conversations" });
     },
     [updateUrlState]
   );
@@ -2530,7 +2534,7 @@ export default function AiInboxPwa() {
     isLoadingOlderRef.current = true;
     setOlderLoading(true);
     try {
-      const payload = await api.get(aiInboxConversationEndpoint(normalizeConversationSessionId(selectedConversation.session_id, selectedConversation.channel || selectedConversation.source || selectedConversation.provider || selectedConversation.platform || ""), "/messages"), {
+      const payload = await api.get(aiInboxConversationEndpoint(selectedConversationRouteId || normalizeConversationSessionId(selectedConversation.session_id, selectedConversation.channel || selectedConversation.source || selectedConversation.provider || selectedConversation.platform || ""), "/messages"), {
         params: { tenant_id: tenantId, before, before_id: beforeId, limit: 30 },
         headers,
         perfComponent: "AiInboxPwa.messages",
@@ -2551,7 +2555,7 @@ export default function AiInboxPwa() {
       setOlderLoading(false);
       isLoadingOlderRef.current = false;
     }
-  }, [headers, olderLoading, patchConversation, selectedConversation, tenantId]);
+  }, [headers, olderLoading, patchConversation, selectedConversation, selectedConversationRouteId, tenantId]);
 
   useEffect(() => {
     if (!selectedConversation?.session_id || tab !== "conversations") return;
@@ -2564,7 +2568,7 @@ export default function AiInboxPwa() {
     const message = clean(overrideText || composerText);
     if (!selectedConversation?.session_id || !message) return;
     const clientRequestId = buildClientRequestId();
-    const canonicalSessionId = normalizeConversationSessionId(selectedConversation.session_id, selectedConversation.channel || selectedConversation.source || selectedConversation.provider || selectedConversation.platform || "");
+    const canonicalSessionId = selectedConversationRouteId || normalizeConversationSessionId(selectedConversation.session_id, selectedConversation.channel || selectedConversation.source || selectedConversation.provider || selectedConversation.platform || "");
     const messageIdentityKey = buildMessageIdentityKey({
       tenantId,
       sessionId: canonicalSessionId,
@@ -2780,12 +2784,12 @@ export default function AiInboxPwa() {
 
   const sendProductCards = useCallback(
     async (cards = []) => {
-      if (!selectedConversation?.session_id || !cards.length) return;
+      const conversationId = clean(selectedConversation?.id || selectedConversation?.conversation_id || "");
+      if (!conversationId || !cards.length) return;
       const clientRequestId = buildClientRequestId();
-      const canonicalSessionId = normalizeConversationSessionId(selectedConversation.session_id, selectedConversation.channel || selectedConversation.source || selectedConversation.provider || selectedConversation.platform || "");
       const messageIdentityKey = buildMessageIdentityKey({
         tenantId,
-        sessionId: canonicalSessionId,
+        sessionId: conversationId,
         direction: "outbound",
         clientRequestId,
       });
@@ -2826,8 +2830,12 @@ export default function AiInboxPwa() {
             media_url: clean(card.media_url || card.mediaUrl || ""),
           };
         });
+        console.info("[product-card-send]", {
+          conversationId,
+          conversation: selectedConversation,
+        });
         console.debug("[AiInboxPwa][product-card-send]", {
-          conversation_id: selectedConversation.session_id || "",
+          conversation_id: conversationId,
           product_cards: sentCards.map((card) => ({
             product_id: card.product_id || card.id || "",
             name: card.product_name || card.name || card.title || "",
@@ -2839,7 +2847,7 @@ export default function AiInboxPwa() {
           })),
         });
         const payload = await api.post(
-          aiInboxConversationEndpoint(canonicalSessionId, "/product-card/send"),
+          aiInboxConversationEndpoint(conversationId, "/product-card/send"),
           {
             tenant_id: tenantId,
             product_cards: sentCards,
@@ -2965,12 +2973,12 @@ export default function AiInboxPwa() {
       const nextEnabled = !isConversationAiEnabled(selectedConversation);
       const payload = workflowStatus === "human_takeover"
         ? await api.post(
-            aiInboxConversationEndpoint(sessionId, "/return-to-ai"),
+            aiInboxConversationEndpoint(conversationIdentifiers(selectedConversation).conversationId || sessionId, "/return-to-ai"),
             { tenant_id: tenantId, channel: selectedConversation.channel || selectedConversation.source || "" },
             { headers, perfComponent: "AiInboxPwa.returnToAi" }
           )
         : await api.patch(
-            aiInboxConversationEndpoint(sessionId, "/ai-enabled"),
+            aiInboxConversationEndpoint(conversationIdentifiers(selectedConversation).conversationId || sessionId, "/ai-enabled"),
             {
               tenant_id: tenantId,
               conversation_id: sessionId,
