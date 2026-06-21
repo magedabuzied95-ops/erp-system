@@ -180,10 +180,11 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
           const requestedColor = normalizeQueryValue(routeSearchParams.get("color")).toLowerCase();
           const requestedColorId = normalizeQueryValue(routeSearchParams.get("colorId"));
           const requestedColorKey = requestedColor;
+          const availableVariants = productVariants.filter(variantHasStock);
           const requested =
-            productVariants.find((variant) => requestedVariantId && String(variant?.id || "") === String(requestedVariantId) && variantHasStock(variant)) ||
-            productVariants.find((variant) => requestedVariantId && String(variant?.edition_slug || "") === String(requestedVariantId) && variantHasStock(variant)) ||
-            productVariants.find((variant) => requestedColorId && String(variant?.color_id || "") === String(requestedColorId) && variantHasStock(variant)) ||
+            availableVariants.find((variant) => requestedVariantId && String(variant?.id || "") === String(requestedVariantId)) ||
+            availableVariants.find((variant) => requestedVariantId && String(variant?.edition_slug || "") === String(requestedVariantId)) ||
+            availableVariants.find((variant) => requestedColorId && String(variant?.color_id || "") === String(requestedColorId)) ||
             productVariants.find(
               (variant) =>
                 requestedSize &&
@@ -191,9 +192,11 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                 (!requestedColor || variantColorKey(variant) === requestedColorKey || variantColorName(variant).toLowerCase() === requestedColorKey) &&
                 variantHasStock(variant)
             ) ||
-            productVariants.find((variant) => requestedColorId && String(variant?.color_id || "") === String(requestedColorId)) ||
-            productVariants.find((variant) => requestedSize && String(variant?.size || "") === requestedSize && variantHasStock(variant));
-          const first = requested || firstDisplayVariant(productVariants) || null;
+            availableVariants.find((variant) => requestedSize && String(variant?.size || "") === requestedSize) ||
+            availableVariants[0] ||
+            firstDisplayVariant(productVariants) ||
+            null;
+          const first = requested || availableVariants[0] || firstDisplayVariant(productVariants) || null;
           if (!cancelled) {
             setState({ loading: false, product, error: "" });
             setSelected({
@@ -271,8 +274,8 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     };
   }, [productPageKey, identifier, variantParam, colorParam, sizeParam, slugParam]);
 
-  const product = state.product;
-  const variants = useMemo(() => product?.variants || [], [product]);
+          const product = state.product;
+          const variants = useMemo(() => product?.variants || [], [product]);
   const colorGroups = useMemo(() => {
     const groups = new Map();
     variants.forEach((item) => {
@@ -299,10 +302,12 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
       }
       group.variants.push(item);
     });
-    return Array.from(groups.values()).map((group) => ({
-      ...group,
-      primaryImage: group.images.find((image) => image?.is_primary) || group.images[0] || null,
-    }));
+    return Array.from(groups.values())
+      .filter((group) => group.variants.some((item) => variantHasStock(item)))
+      .map((group) => ({
+        ...group,
+        primaryImage: group.images.find((image) => image?.is_primary) || group.images[0] || null,
+      }));
   }, [variants]);
   const selectedVariant = variants.find((item) => String(item.id) === String(selected.variantId)) || null;
   const selectedColorKey = selected.colorKey || (selectedVariant ? variantColorKey(selectedVariant) : "");

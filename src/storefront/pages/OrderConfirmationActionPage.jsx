@@ -359,11 +359,37 @@ function OrderConfirmationActionPageInner() {
     try {
       setPendingAction(action);
       setError("");
-      const response = await api.post(`/public/order-confirmation/${encodeURIComponent(resolvedCode)}`, { action });
-      setResult(response?.data || response);
+      const endpoint = `/public/order-confirmation/${encodeURIComponent(resolvedCode)}`;
+      const payload = { action };
+      if (import.meta.env.DEV) {
+        console.info("[OrderConfirmationActionPage] action request", {
+          action,
+          confirmationCode: resolvedCode,
+          endpoint,
+          payload,
+        });
+      }
+      const response = await api.post(endpoint, payload);
+      const data = response?.data || response;
+      if (import.meta.env.DEV) {
+        console.info("[OrderConfirmationActionPage] action response", {
+          action,
+          status: response?.status ?? response?.data?.status ?? 200,
+          data,
+        });
+      }
+      setResult(data);
       setLinkState("ready");
     } catch (err) {
-      setError(err?.responseBody?.message || err?.message || "تعذر تنفيذ الإجراء.");
+      const responseData = err?.response?.data || err?.responseBody || err?.data || null;
+      const backendMessage =
+        responseData?.message ||
+        responseData?.error?.message ||
+        responseData?.error ||
+        err?.responseBody?.message ||
+        err?.message ||
+        "";
+      setError(backendMessage || "تعذر تنفيذ الإجراء الآن، حاول مرة أخرى.");
     } finally {
       setPendingAction("");
     }

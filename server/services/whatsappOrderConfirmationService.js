@@ -1486,11 +1486,11 @@ export const consumeOrderConfirmationLink = async ({ code = "", action = "", ipA
       cancel: { expectedStatus: "cancelled_by_customer", payloadAction: "cancel", message: ORDER_CONFIRMATION_ACTION_META.cancel.success },
     }[requestedAction];
     const alreadyApplied = currentStatus === actionConfig.expectedStatus;
-    const updated = alreadyApplied
+      const updated = alreadyApplied
       ? currentWithItems
       : await applyConfirmationAction({
           orderId: current.id,
-          order: current,
+          providedOrder: current,
           action: actionConfig.payloadAction,
           source,
           reason: `public_code:${actionConfig.payloadAction}`,
