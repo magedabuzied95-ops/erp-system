@@ -451,6 +451,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
   }, [visibleSizeCardKeySet]);
 
   const submitSelection = useCallback(async () => {
+    console.info("[ProductCardPicker] submit started");
     if (!activeCard || submitting) return;
     setSubmitting(true);
     setError("");
@@ -464,6 +465,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
   }, [activeCard, onSubmit, submitting]);
 
   const submitSelectionWithSizeMode = useCallback(async () => {
+    console.info("[ProductCardPicker] submit started");
     const cards = selectedSizeCards
       .map((card) => card.payload || buildProductCardPayload(card.product, card.variant))
       .filter((card) => card.product_name || card.product_id || card.storefront_url);
@@ -834,7 +836,10 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
 
                 <button
                   type="button"
-                  onClick={submitSelectionWithSizeMode}
+                  onClick={() => {
+                    console.info("[ProductCardPicker] button clicked");
+                    submitSelection();
+                  }}
                   disabled={submitting || (!allowMultiple ? !activeCard : !(selectedProducts.length || activeCard))}
                   className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
                 >
