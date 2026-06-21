@@ -4181,6 +4181,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
     const channel = envText(conversation.channel || conversation.source || "");
     const normalizedChannel = normalizeProductCardSendChannel(channel);
     const safeChannel = normalizedChannel || channel || AI_AGENT_CHANNELS.WEB_CHAT;
+    const channelMetadata = conversation.channel_metadata || {};
     console.info("[product-card-send route]", {
       channel,
       safeChannel,
@@ -4197,7 +4198,6 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
         conversation.customer_profile?.psid ||
         ""
     );
-    const channelMetadata = conversation.channel_metadata || {};
     console.info("[ai-inbox][product-card-send][request]", {
       tenant_id: tenantId,
       conversation_id: conversationId,
