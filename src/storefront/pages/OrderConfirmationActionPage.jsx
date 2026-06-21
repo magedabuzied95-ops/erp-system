@@ -188,6 +188,23 @@ const getAddressSummary = (order = null) => {
   };
 };
 
+const getStructuredAddressFields = (order = null) => {
+  const fields = [
+    ["المحافظة", firstDefined(order?.governorate, order?.governorate_name, order?.province, order?.province_name, order?.state, order?.state_name)],
+    ["المركز / المدينة", firstDefined(order?.center, order?.center_name, order?.city, order?.city_name, order?.town, order?.town_name, order?.district, order?.district_name)],
+    ["المنطقة", firstDefined(order?.area, order?.area_name, order?.region, order?.region_name, order?.neighborhood, order?.neighborhood_name, order?.zone, order?.zone_name)],
+    ["الشارع", firstDefined(order?.street, order?.street_name, order?.street_address, order?.address_line)],
+    ["رقم العمارة", firstDefined(order?.building_number, order?.building_no, order?.building, order?.building_name)],
+    ["الدور", firstDefined(order?.floor, order?.floor_number, order?.level, order?.level_number)],
+    ["الشقة", firstDefined(order?.apartment, order?.apartment_number, order?.unit, order?.unit_number, order?.flat, order?.flat_number)],
+    ["علامة مميزة / ملاحظات", firstDefined(order?.landmark, order?.notes, order?.note, order?.delivery_notes, order?.customer_notes, order?.special_instructions)],
+  ];
+
+  return fields
+    .map(([label, value]) => ({ label, value: String(value ?? "").trim() }))
+    .filter((field) => field.value);
+};
+
 function InfoCard({ title, icon: Icon, children }) {
   return (
     <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-sm">
@@ -296,6 +313,10 @@ function OrderConfirmationActionPageInner() {
   const discountValue = pricing.discount;
   const totalAmount = pricing.total;
   const addressSummary = getAddressSummary(order);
+  const structuredAddressFields = getStructuredAddressFields(order);
+  const fallbackAddress = String(order?.customer_address ?? "").trim();
+  const hasStructuredAddressFields = structuredAddressFields.length > 0;
+  const shouldUseFallbackAddress = !hasStructuredAddressFields && Boolean(fallbackAddress);
   const waUrl = getWhatsAppUrl(customerPhone);
 
   const isExpiredState =
@@ -531,7 +552,7 @@ function OrderConfirmationActionPageInner() {
                       )}
                     </div>
 
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    {false && (<div className="grid gap-4 sm:grid-cols-2">
                       <InfoCard title="العميل" icon={ShoppingBag}>
                         <div className="space-y-2">
                           <div className="text-sm font-black text-slate-950">{customerName || "â€”"}</div>
@@ -569,6 +590,59 @@ function OrderConfirmationActionPageInner() {
                             <div className="mt-1 text-sm leading-7 text-slate-700">
                               {addressSummary.addressLine || "غير محدد"}
                             </div>
+                          </div>
+                        </div>
+                      </InfoCard>
+                    </div>)}
+
+                    <div className="space-y-4">
+                      <InfoCard title="العميل" icon={ShoppingBag}>
+                        <div className="space-y-2">
+                          <div className="text-sm font-black text-slate-950">{customerName || "—"}</div>
+                          <div className="text-sm font-bold text-slate-700">{customerPhone || "—"}</div>
+                        </div>
+                      </InfoCard>
+
+                      <InfoCard title="العنوان" icon={MapPin}>
+                        <div className="space-y-3">
+                          {hasStructuredAddressFields ? (
+                            <div className="grid gap-2 text-sm">
+                              {structuredAddressFields.map((field) => (
+                                <div key={field.label} className="flex items-start justify-between gap-4 rounded-2xl bg-slate-50 px-3 py-2">
+                                  <span className="min-w-0 shrink-0 font-bold text-slate-600">{field.label}</span>
+                                  <span className="min-w-0 text-left font-black leading-6 text-slate-950 rtl:text-right">{field.value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : shouldUseFallbackAddress ? (
+                            <div className="rounded-2xl bg-slate-50 px-3 py-3 text-sm leading-7 font-bold text-slate-900">
+                              {fallbackAddress}
+                            </div>
+                          ) : (
+                            <div className="rounded-2xl bg-slate-50 px-3 py-3 text-sm font-bold text-slate-500">
+                              غير محدد
+                            </div>
+                          )}
+                        </div>
+                      </InfoCard>
+
+                      <InfoCard title="ملخص الدفع" icon={ShoppingBag}>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
+                            <span className="font-bold text-slate-600">سعر المنتجات</span>
+                            <span className="font-black text-slate-950">{formatMoney(itemsSubtotal)}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
+                            <span className="font-bold text-slate-600">الشحن</span>
+                            <span className="font-black text-slate-950">{pricing.shippingAvailable ? formatMoney(shippingFee) : "غير محدد"}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
+                            <span className="font-bold text-slate-600">الخصم</span>
+                            <span className="font-black text-slate-950">{formatMoney(discountValue || 0)}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                            <span className="font-bold text-slate-600">الإجمالي النهائي</span>
+                            <span className="font-black text-slate-950">{pricing.totalAvailable ? formatMoney(totalAmount) : "غير محدد"}</span>
                           </div>
                         </div>
                       </InfoCard>
