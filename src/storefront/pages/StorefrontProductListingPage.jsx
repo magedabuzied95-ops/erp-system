@@ -135,15 +135,26 @@ const productFacetStock = (product = {}) => {
   const directStock = Number(product?.total_stock || product?.stock || product?.inventory_stock || product?.available_stock || product?.quantity || 0) || 0;
   return Number(directStock || variantStock || 0) || 0;
 };
-const productFacetBrandValues = (product = {}) => splitFacetValues([
-  product.brand,
-  product.brand_name,
-  product.brandName,
-  product.manufacturer,
-  product.manufacturer_name,
-  product.vendor,
-  product.vendor_name,
-].filter(Boolean).join(" | "));
+const productFacetBrandValues = (product = {}) => {
+  const values = [];
+  const addValues = (source = {}) => {
+    values.push(
+      source.brand,
+      source.brand_name,
+      source.brandName,
+      source.product_brand,
+      source.productBrand,
+      source.manufacturer,
+      source.manufacturer_name,
+      source.manufacturerName,
+      source.vendor,
+      source.vendor_name
+    );
+  };
+  addValues(product);
+  (Array.isArray(product?.variants) ? product.variants : []).forEach(addValues);
+  return splitFacetValues(values.filter(Boolean).join(" | "));
+};
 const productFacetCategoryValues = (product = {}) => splitFacetValues([
   product.category,
   product.category_name,

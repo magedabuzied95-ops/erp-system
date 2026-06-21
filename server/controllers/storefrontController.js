@@ -1113,7 +1113,11 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
     product_type: row.product_type || "",
     productType: row.product_type || "",
     grade: row.grade || "",
-    brand: row.brand_name || "",
+    brand: row.brand_name || row.brand || row.product_brand || row.manufacturer_name || row.manufacturer || "",
+    brand_name: row.brand_name || row.brand || row.product_brand || row.manufacturer_name || row.manufacturer || "",
+    product_brand: row.product_brand || row.brand || row.brand_name || "",
+    manufacturer: row.manufacturer || row.manufacturer_name || "",
+    manufacturer_name: row.manufacturer_name || row.manufacturer || "",
     image_url: firstText(productImage, variants.find((variant) => variant.image_url)?.image_url),
     gallery_images: [...new Set([productImage, ...galleryImages, ...variants.map((variant) => variant.image_url)].filter(Boolean))],
     description: row.description || "",
@@ -1212,6 +1216,7 @@ const catalogQuery = `
     p.*,
     c.name AS category_name,
     b.name AS brand_name,
+    m.name AS manufacturer_name,
     COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS public_image_url,
     COALESCE((SELECT jsonb_agg(pa.audience ORDER BY pa.audience) FROM product_audiences pa WHERE pa.product_id = p.id), '[]'::jsonb) AS audiences,
     COALESCE((
@@ -1257,6 +1262,7 @@ const catalogQuery = `
   FROM products p
   LEFT JOIN categories c ON c.id = p.category_id
   LEFT JOIN brands b ON b.id = p.brand_id
+  LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
   LEFT JOIN product_variants pv ON pv.product_id = p.id
     AND pv.is_active IS DISTINCT FROM FALSE
     AND pv.deleted_at IS NULL
@@ -1347,6 +1353,7 @@ const storefrontProductsSql = `
         OR (TRIM($4) ~ '^[0-9]+$' AND b.id = $4::bigint)
         OR LOWER(TRIM(COALESCE(b.slug, ''))) = LOWER(TRIM($4))
         OR LOWER(TRIM(COALESCE(b.name, ''))) = LOWER(TRIM($4))
+        OR LOWER(TRIM(COALESCE(m.name, ''))) = LOWER(TRIM($4))
         OR LOWER(TRIM(COALESCE(p.brand, ''))) = LOWER(TRIM($4))
       )
       AND (
@@ -1803,6 +1810,10 @@ const slimProductForList = (product = {}) => ({
   productType: product.productType,
   grade: product.grade,
   brand: product.brand,
+  brand_name: product.brand_name || product.brand || "",
+  product_brand: product.product_brand || product.brand || "",
+  manufacturer: product.manufacturer || product.manufacturer_name || "",
+  manufacturer_name: product.manufacturer_name || product.manufacturer || "",
   image_url: product.image_url,
   product_image_url: product.product_image_url || product.image_url || "",
   description: product.description,
