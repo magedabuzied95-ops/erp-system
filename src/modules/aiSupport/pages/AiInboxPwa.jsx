@@ -33,6 +33,7 @@ import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStora
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { subscribeRealtime, useRealtimeStatus } from "../../../shared/realtime/socketStore";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
 import { getPosSellableProducts } from "../../pos/services/posProductsApi";
 import TranscriptMessage from "../components/TranscriptMessage";
 import ProductCardPicker from "../components/ProductCardPicker";
@@ -2023,7 +2024,7 @@ export default function AiInboxPwa() {
 
   useEffect(() => {
     if (typeof document !== "undefined") {
-      document.title = "AI Inbox";
+      document.title = buildPageTitle("AI Inbox");
       document.documentElement.style.backgroundColor = "#f8fafc";
       document.body.style.backgroundColor = "#f8fafc";
     }
