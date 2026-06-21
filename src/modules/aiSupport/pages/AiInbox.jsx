@@ -4578,7 +4578,7 @@ export default function AiInbox() {
               };
             })
           : cards;
-        patchConversation(conversationIdentifier, (conversation) => ({
+        patchConversation(conversationId, (conversation) => ({
           ...conversation,
           messages: mergeMessagesByIdentity([...asArray(conversation.messages), { ...returnedMessage, client_request_id: returnedMessage.client_request_id || clientRequestId, message_identity_key: returnedMessage.message_identity_key || messageIdentityKey, product_cards: normalizedCards }]),
           latest_message_preview:
@@ -4591,7 +4591,7 @@ export default function AiInbox() {
           updated_at: returnedMessage.created_at || now,
         }));
       } else {
-        patchConversation(conversationIdentifier, (conversation) => ({
+        patchConversation(conversationId, (conversation) => ({
           ...conversation,
           latest_message_preview: previewText,
           last_activity_at: now,
