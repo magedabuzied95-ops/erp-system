@@ -142,6 +142,11 @@ const buildClientRequestId = () => {
   if (typeof crypto !== "undefined" && crypto?.randomUUID) return crypto.randomUUID();
   return `req_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 };
+const buildMessageIdentityKey = ({ tenantId = "", sessionId = "", direction = "outbound", clientRequestId = "", providerMessageId = "", externalMessageId = "" } = {}) => {
+  const canonicalSessionId = encodeConversationId(sessionId);
+  const stableKey = clean(clientRequestId || providerMessageId || externalMessageId);
+  return stableKey && canonicalSessionId ? `msg:${clean(tenantId)}|${canonicalSessionId}|${clean(direction || "outbound")}|${stableKey}` : "";
+};
 const aiInboxConversationEndpoint = (sessionId = "", suffix = "") =>
   `/ai-inbox/conversations/${encodeConversationId(sessionId)}${suffix}`;
 const aiAgentInboxEndpoint = (sessionId = "", suffix = "") =>
