@@ -1591,6 +1591,7 @@ export const appendManualAiSupportReply = async ({
     ).catch(() => {});
   }
   if (safeTenantId && safeSessionId) {
+    const safeChannel = repairText(channel || "web_chat");
     await updateAiSupportConversationState({
       tenantId: safeTenantId,
       sessionId: safeSessionId,

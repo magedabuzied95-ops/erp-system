@@ -4180,6 +4180,12 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
 
     const channel = envText(conversation.channel || conversation.source || "");
     const normalizedChannel = normalizeProductCardSendChannel(channel);
+    const safeChannel = normalizedChannel || channel || AI_AGENT_CHANNELS.WEB_CHAT;
+    console.info("[product-card-send route]", {
+      channel,
+      safeChannel,
+      conversationId,
+    });
     const previewText = formatProductCardPreviewText(productCards[0] || {});
     const fallbackText = buildProductCardFallbackText(productCards);
     const externalCustomerId = envText(conversation.external_customer_id || conversation.customer_id || "");
@@ -4189,6 +4195,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
       conversation_id: conversationId,
       channel,
       normalized_channel: normalizedChannel,
+      safeChannel,
       recipient_present: Boolean(externalCustomerId),
       product_cards: productCards.map((card) => ({
         product_id: card.product_id || card.id || "",
@@ -4298,7 +4305,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
       staffUserId: req.user?.id || null,
       staffUserName: userDisplayName(req.user),
       source: "ai_inbox_product_card",
-      channel: normalizedChannel || conversation.channel || conversation.source || "web_chat",
+      channel: safeChannel,
       deliveryStatus,
       deliveryError,
       externalMessageId,
@@ -4310,7 +4317,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
     });
     await logChannelEvent({
       tenantId,
-      channel: normalizedChannel || conversation.channel || conversation.source || AI_AGENT_CHANNELS.WEB_CHAT,
+      channel: safeChannel,
       direction: "outbound",
       externalCustomerId,
       conversationId,
@@ -4324,7 +4331,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
     }).catch(() => {});
     await upsertChannelConversationMapping({
       tenantId,
-      channel: normalizedChannel || conversation.channel || conversation.source || AI_AGENT_CHANNELS.WEB_CHAT,
+      channel: safeChannel,
       externalConversationId: conversationId,
       externalCustomerId,
       customerName: conversation.customer_name || "",
