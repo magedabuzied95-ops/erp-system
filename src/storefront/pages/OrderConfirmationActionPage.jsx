@@ -178,6 +178,22 @@ const getDiscountValue = (order = null) => normalizeMaybeMoney(firstDefined(orde
 
 const getTotalValue = (order = null) => normalizeMaybeMoney(firstDefined(order?.total, order?.total_amount, order?.total_price, order?.grand_total));
 
+const getConfirmationAddressFields = (order = null) => {
+  const fields = [
+    ["المحافظة", firstDefined(order?.governorate, order?.governorate_name, order?.province, order?.province_name, order?.state, order?.state_name)],
+    ["المركز / المدينة", firstDefined(order?.center, order?.center_name, order?.city, order?.city_name, order?.town, order?.town_name, order?.district, order?.district_name, order?.shipping_zone_name, order?.shipping_zone_name_ar, order?.shipping_zone_name_en)],
+    ["المنطقة", firstDefined(order?.area, order?.area_name, order?.region, order?.region_name, order?.neighborhood, order?.neighborhood_name, order?.zone, order?.zone_name, order?.shipping_district_name, order?.shipping_district_name_ar, order?.shipping_district_name_en)],
+    ["الشارع", firstDefined(order?.street, order?.street_name, order?.street_address, order?.address_line)],
+    ["رقم العمارة", firstDefined(order?.building_number, order?.building_no, order?.building, order?.building_name)],
+    ["الدور", firstDefined(order?.floor, order?.floor_number, order?.level, order?.level_number)],
+    ["الشقة", firstDefined(order?.apartment, order?.apartment_number, order?.unit, order?.unit_number, order?.flat, order?.flat_number)],
+  ];
+
+  return fields
+    .map(([label, value]) => ({ label, value: String(value ?? "").trim() }))
+    .filter((field) => field.value);
+};
+
 const getAddressSummary = (order = null) => {
   const governorate = firstDefined(order?.governorate, order?.city, order?.area);
   const addressLine = firstDefined(order?.address_line, order?.street_address, order?.notes, order?.address, order?.shipping_address, order?.customer_address, order?.delivery_address);
@@ -312,9 +328,12 @@ function OrderConfirmationActionPageInner() {
   const shippingFee = pricing.shipping;
   const discountValue = pricing.discount;
   const totalAmount = pricing.total;
-  const addressSummary = getAddressSummary(order);
-  const structuredAddressFields = getStructuredAddressFields(order);
-  const fallbackAddress = String(order?.customer_address ?? "").trim();
+  const structuredAddressFields = getConfirmationAddressFields(order);
+  const fallbackAddress = String(order?.customer_address || order?.shipping_address_line || order?.street_address || "").trim();
+  const addressSummary = {
+    locationLine: structuredAddressFields.map((field) => field.value).filter(Boolean).join(" - "),
+    addressLine: fallbackAddress,
+  };
   const hasStructuredAddressFields = structuredAddressFields.length > 0;
   const shouldUseFallbackAddress = !hasStructuredAddressFields && Boolean(fallbackAddress);
   const waUrl = getWhatsAppUrl(customerPhone);

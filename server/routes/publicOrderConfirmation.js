@@ -42,6 +42,16 @@ const normalizeItems = (items = []) =>
 const serializeOrder = (order = null) => {
   if (!order) return null;
   const items = normalizeItems(order.items);
+  const structuredAddressFields = [
+    firstText(order.governorate, order.governorate_name, order.province, order.province_name, order.state, order.state_name),
+    firstText(order.center, order.center_name, order.city, order.city_name, order.town, order.town_name, order.district, order.district_name),
+    firstText(order.area, order.area_name, order.region, order.region_name, order.neighborhood, order.neighborhood_name, order.zone, order.zone_name),
+    firstText(order.street, order.street_name, order.street_address, order.address_line),
+    firstText(order.building_number, order.building_no, order.building, order.building_name),
+    firstText(order.floor, order.floor_number, order.level, order.level_number),
+    firstText(order.apartment, order.apartment_number, order.unit, order.unit_number, order.flat, order.flat_number),
+  ].filter(Boolean);
+  const hasStructuredAddress = structuredAddressFields.length > 0;
   return {
     id: order.id,
     public_order_number: order.public_order_number || order.display_order_number || order.invoice_number || order.order_number || String(order.id),
@@ -50,13 +60,15 @@ const serializeOrder = (order = null) => {
     status: order.status || "",
     customer_name: firstText(order.customer_name, order.customer?.name),
     customer_phone: firstText(order.customer_phone, order.phone, order.whatsapp, order.mobile),
-    customer_address: firstText(
-      order.customer_address,
-      order.shipping_address_line,
-      order.street_address,
-      order.address
-    ),
-    governorate: firstText(order.governorate),
+    customer_address: hasStructuredAddress ? "" : firstText(order.customer_address, order.shipping_address_line, order.street_address, order.address),
+    governorate: firstText(order.governorate, order.governorate_name, order.province, order.province_name, order.state, order.state_name),
+    city: firstText(order.city, order.city_name, order.shipping_city_name, order.shipping_city_name_ar, order.shipping_city_name_en, order.city_area),
+    center: firstText(order.center, order.center_name, order.shipping_zone_name, order.shipping_zone_name_ar, order.shipping_zone_name_en, order.city_area),
+    area: firstText(order.area, order.area_name, order.shipping_district_name, order.shipping_district_name_ar, order.shipping_district_name_en, order.city_area),
+    street: firstText(order.street, order.street_name, order.street_address, order.address_line, order.customer_address),
+    building_number: firstText(order.building_number, order.building_no, order.building, order.building_name),
+    floor: firstText(order.floor, order.floor_number, order.level, order.level_number),
+    apartment: firstText(order.apartment, order.apartment_number, order.unit, order.unit_number, order.flat, order.flat_number),
     city_area: firstText(order.city_area),
     landmark: firstText(order.landmark),
     order_notes: firstText(order.order_notes),

@@ -335,11 +335,80 @@ const loadOrderItems = async (orderId) => {
   return result.rows;
 };
 
+const loadOrderShippingDetails = async (orderId) => {
+  if (!orderId) return null;
+  const result = await db.query(
+    `
+    SELECT
+      o.id,
+      o.governorate,
+      o.city_area,
+      o.customer_address,
+      o.shipping_address_line,
+      o.street_address,
+      o.building_number,
+      o.floor_number,
+      o.apartment_number,
+      o.landmark,
+      o.delivery_notes,
+      o.order_notes,
+      o.notes,
+      o.city_id,
+      o.area_id,
+      o.zone_id,
+      o.district_id,
+      o.shipping_city_id,
+      o.shipping_zone_id,
+      o.shipping_district_id,
+      COALESCE(sc.name_ar, sc.name_en, '') AS shipping_city_name,
+      COALESCE(sz.name_ar, sz.name_en, '') AS shipping_zone_name,
+      COALESCE(sd.name_ar, sd.name_en, '') AS shipping_district_name
+    FROM orders o
+    LEFT JOIN shipping_cities sc
+      ON sc.id::text = o.shipping_city_id OR sc.provider_city_id = o.shipping_city_id OR sc.id::text = o.city_id
+    LEFT JOIN shipping_zones sz
+      ON sz.id::text = o.shipping_zone_id OR sz.provider_zone_id = o.shipping_zone_id OR sz.id::text = o.zone_id
+    LEFT JOIN shipping_districts sd
+      ON sd.id::text = o.shipping_district_id OR sd.provider_district_id = o.shipping_district_id OR sd.id::text = o.area_id OR sd.id::text = o.district_id
+    WHERE o.id = $1
+    LIMIT 1
+    `,
+    [orderId]
+  );
+  return result.rows[0] || null;
+};
+
+const normalizeConfirmationOrder = (order = null, shippingDetails = null) => {
+  if (!order) return order;
+  const shipping = shippingDetails && typeof shippingDetails === "object" ? shippingDetails : {};
+  const governorate = text(order.governorate || shipping.governorate || "");
+  const city = text(order.city || shipping.shipping_city_name || order.city_area || "");
+  const center = text(order.center || shipping.shipping_zone_name || order.city_area || "");
+  const area = text(order.area || shipping.shipping_district_name || order.city_area || "");
+  const street = text(order.street || order.street_address || shipping.street_address || order.shipping_address_line || order.customer_address || "");
+  const buildingNumber = text(order.building_number || shipping.building_number || "");
+  const floor = text(order.floor || order.floor_number || shipping.floor_number || "");
+  const apartment = text(order.apartment || order.apartment_number || shipping.apartment_number || "");
+  return {
+    ...order,
+    governorate,
+    city,
+    center,
+    area,
+    street,
+    building_number: buildingNumber,
+    floor,
+    apartment,
+    customer_address: text(order.customer_address || order.shipping_address_line || order.street_address || ""),
+  };
+};
+
 const attachOrderConfirmationItems = async (order = null) => {
   if (!order?.id) return order;
   const items = await loadOrderItems(order.id).catch(() => []);
+  const shippingDetails = await loadOrderShippingDetails(order.id).catch(() => null);
   return {
-    ...order,
+    ...normalizeConfirmationOrder(order, shippingDetails),
     items,
   };
 };
@@ -348,7 +417,22 @@ const loadOrderById = async (orderId, trace = {}) => {
   const result = await timedOrderConfirmationQuery({
     client: db,
     queryName: "orders_lookup_by_id",
-    sql: `SELECT * FROM orders WHERE id = $1 LIMIT 1`,
+    sql: `
+    SELECT
+      o.*,
+      COALESCE(sc.name_ar, sc.name_en, '') AS shipping_city_name,
+      COALESCE(sz.name_ar, sz.name_en, '') AS shipping_zone_name,
+      COALESCE(sd.name_ar, sd.name_en, '') AS shipping_district_name
+    FROM orders o
+    LEFT JOIN shipping_cities sc
+      ON sc.id::text = o.shipping_city_id OR sc.provider_city_id = o.shipping_city_id OR sc.id::text = o.city_id
+    LEFT JOIN shipping_zones sz
+      ON sz.id::text = o.shipping_zone_id OR sz.provider_zone_id = o.shipping_zone_id OR sz.id::text = o.zone_id
+    LEFT JOIN shipping_districts sd
+      ON sd.id::text = o.shipping_district_id OR sd.provider_district_id = o.shipping_district_id OR sd.id::text = o.area_id OR sd.id::text = o.district_id
+    WHERE o.id = $1
+    LIMIT 1
+    `,
     params: [orderId],
     orderId,
     tokenCode: trace?.tokenCode || "",
@@ -362,16 +446,26 @@ const loadLatestOrderByPhone = async (phone) => {
   if (!normalizedPhone) return null;
   const result = await db.query(
     `
-    SELECT *
-    FROM orders
-    WHERE LOWER(COALESCE(source, channel, '')) = ANY($2::text[])
+    SELECT
+      o.*,
+      COALESCE(sc.name_ar, sc.name_en, '') AS shipping_city_name,
+      COALESCE(sz.name_ar, sz.name_en, '') AS shipping_zone_name,
+      COALESCE(sd.name_ar, sd.name_en, '') AS shipping_district_name
+    FROM orders o
+    LEFT JOIN shipping_cities sc
+      ON sc.id::text = o.shipping_city_id OR sc.provider_city_id = o.shipping_city_id OR sc.id::text = o.city_id
+    LEFT JOIN shipping_zones sz
+      ON sz.id::text = o.shipping_zone_id OR sz.provider_zone_id = o.shipping_zone_id OR sz.id::text = o.zone_id
+    LEFT JOIN shipping_districts sd
+      ON sd.id::text = o.shipping_district_id OR sd.provider_district_id = o.shipping_district_id OR sd.id::text = o.area_id OR sd.id::text = o.district_id
+    WHERE LOWER(COALESCE(o.source, o.channel, '')) = ANY($2::text[])
       AND (
-        regexp_replace(COALESCE(customer_phone, ''), '\\D', '', 'g') = $1
-        OR regexp_replace(COALESCE(customer_phone, ''), '\\D', '', 'g') = regexp_replace($1, '^20', '0')
+        regexp_replace(COALESCE(o.customer_phone, ''), '\\D', '', 'g') = $1
+        OR regexp_replace(COALESCE(o.customer_phone, ''), '\\D', '', 'g') = regexp_replace($1, '^20', '0')
       )
     ORDER BY
-      created_at DESC,
-      id DESC
+      o.created_at DESC,
+      o.id DESC
     LIMIT 1
     `,
     [normalizedPhone, [...STOREFRONT_SOURCES]]
@@ -1002,17 +1096,27 @@ export const findPendingOrderByPhone = async (phone) => {
   if (!normalizedPhone) return null;
   const result = await db.query(
     `
-    SELECT *
-    FROM orders
-    WHERE LOWER(COALESCE(status, '')) = 'pending_confirmation'
-      AND LOWER(COALESCE(source, channel, '')) = ANY($2::text[])
-      AND whatsapp_confirmed_at IS NULL
-      AND whatsapp_cancelled_at IS NULL
+    SELECT
+      o.*,
+      COALESCE(sc.name_ar, sc.name_en, '') AS shipping_city_name,
+      COALESCE(sz.name_ar, sz.name_en, '') AS shipping_zone_name,
+      COALESCE(sd.name_ar, sd.name_en, '') AS shipping_district_name
+    FROM orders o
+    LEFT JOIN shipping_cities sc
+      ON sc.id::text = o.shipping_city_id OR sc.provider_city_id = o.shipping_city_id OR sc.id::text = o.city_id
+    LEFT JOIN shipping_zones sz
+      ON sz.id::text = o.shipping_zone_id OR sz.provider_zone_id = o.shipping_zone_id OR sz.id::text = o.zone_id
+    LEFT JOIN shipping_districts sd
+      ON sd.id::text = o.shipping_district_id OR sd.provider_district_id = o.shipping_district_id OR sd.id::text = o.area_id OR sd.id::text = o.district_id
+    WHERE LOWER(COALESCE(o.status, '')) = 'pending_confirmation'
+      AND LOWER(COALESCE(o.source, o.channel, '')) = ANY($2::text[])
+      AND o.whatsapp_confirmed_at IS NULL
+      AND o.whatsapp_cancelled_at IS NULL
       AND (
-        regexp_replace(COALESCE(customer_phone, ''), '\\D', '', 'g') = $1
-        OR regexp_replace(COALESCE(customer_phone, ''), '\\D', '', 'g') = regexp_replace($1, '^20', '0')
+        regexp_replace(COALESCE(o.customer_phone, ''), '\\D', '', 'g') = $1
+        OR regexp_replace(COALESCE(o.customer_phone, ''), '\\D', '', 'g') = regexp_replace($1, '^20', '0')
       )
-    ORDER BY created_at DESC, id DESC
+    ORDER BY o.created_at DESC, o.id DESC
     LIMIT 1
     `,
     [normalizedPhone, [...STOREFRONT_SOURCES]]
