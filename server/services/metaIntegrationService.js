@@ -3565,6 +3565,16 @@ const parseMetaDate = (value = null) => {
 };
 
 const channelAlias = (channel = "") => (channel === AI_AGENT_CHANNELS.INSTAGRAM ? "instagram" : "facebook");
+
+const isMetaAutoReplyChannel = (channel = "") => {
+  const normalized = text(channel).toLowerCase();
+  return normalized.includes("instagram") || normalized.includes("facebook") || normalized.includes("messenger");
+};
+
+const metaAutoReplyPauseChannelLabel = (channel = "") => {
+  const normalized = text(channel).toLowerCase();
+  return normalized.includes("instagram") ? "instagram" : "messenger";
+};
 const adapterChannel = (channel = "") => (channel === "instagram" ? AI_AGENT_CHANNELS.INSTAGRAM : AI_AGENT_CHANNELS.FACEBOOK_MESSENGER);
 
 let schemaReadyPromise = null;
@@ -6304,6 +6314,19 @@ const logIncomingToInbox = async ({ message, config }) => {
 
 const routeMessageThroughAi = async ({ req, message, config }) => {
   const channel = channelAlias(message.channel);
+  const globalAiSettings = await getAiAgentSettings({ tenantId: config.tenant_id }).catch(() => ({}));
+  if (isMetaAutoReplyChannel(message.channel) && globalAiSettings.ai_assistant_global_enabled === false) {
+    const pauseChannel = metaAutoReplyPauseChannelLabel(message.channel);
+    console.log(`[AI_AUTO_REPLY_SKIPPED] reason=global_pause channel=${pauseChannel}`, {
+      tenant_id: config.tenant_id,
+      session_id: message.external_conversation_id,
+      channel: pauseChannel,
+      meta_channel: channel,
+      adapter_channel: text(message.channel || ""),
+      ai_assistant_global_enabled: false,
+    });
+    return null;
+  }
   const aiMemory = persistentAiMemoryFromRuntime(getConversationMemory(message.external_conversation_id) || {});
   const customerContext = aiMemory.customerContext || null;
   const conversationMemoryV2 = aiMemory?.preferences?.aiConversationMemoryV2 || aiMemory?.aiConversationMemoryV2 || null;
@@ -17578,6 +17601,20 @@ export const processMetaWebhook = async ({ req } = {}) => {
         status,
       });
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: status });
+      continue;
+    }
+    const globalAiSettings = await getAiAgentSettings({ tenantId: config.tenant_id }).catch(() => ({}));
+    if (isMetaAutoReplyChannel(message.channel) && globalAiSettings.ai_assistant_global_enabled === false) {
+      const pauseChannel = metaAutoReplyPauseChannelLabel(message.channel);
+      console.log(`[AI_AUTO_REPLY_SKIPPED] reason=global_pause channel=${pauseChannel}`, {
+        tenant_id: config.tenant_id,
+        session_id: message.external_conversation_id,
+        channel: pauseChannel,
+        meta_channel: alias,
+        adapter_channel: text(message.channel || ""),
+        ai_assistant_global_enabled: false,
+      });
+      results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: "global_pause" });
       continue;
     }
     const providerMessageId = text(message.external_message_id || message.raw?.event?.message?.mid || message.raw?.event?.message?.id || message.dedupe_key || "");
