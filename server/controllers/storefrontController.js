@@ -2137,6 +2137,7 @@ const expandProductsToColorCards = (products = []) => {
       ]);
       const groupPrimaryImage = groupImages.find((image) => image?.is_primary) || groupImages[0] || null;
       const groupStock = group.variants.reduce((sum, variant) => sum + Math.max(0, toNumber(variant.stock)), 0);
+      if (groupStock <= 0) continue;
       const groupSizes = [...new Set(group.variants.filter((variant) => toNumber(variant.stock) > 0 && variant.size).map((variant) => variant.size))];
       const groupImage = groupPrimaryImage?.image_url || groupPrimaryImage?.preview || variantCardImage(selectedVariant, product);
       const sellingPrice = roundMoney(selectedVariant.selling_price || selectedVariant.price || product.selling_price || product.price);
