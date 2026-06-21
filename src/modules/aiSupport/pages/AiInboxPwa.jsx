@@ -2788,6 +2788,10 @@ export default function AiInboxPwa() {
       const conversationId = clean(selectedConversation?.id || selectedConversation?.conversation_id || "");
       if (!conversationId || !cards.length) return;
       const clientRequestId = buildClientRequestId();
+      const builderClientRequestId = clientRequestId;
+      console.info("[product-card-send]", {
+        builderClientRequestId,
+      });
       const messageIdentityKey = buildMessageIdentityKey({
         tenantId,
         sessionId: conversationId,

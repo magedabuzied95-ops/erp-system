@@ -4471,6 +4471,10 @@ export default function AiInbox() {
     const now = new Date().toISOString();
     const previewText = productCardPreviewText(cards) || "إرسال منتج";
     const clientRequestId = buildClientRequestId();
+    const builderClientRequestId = clientRequestId;
+    console.info("[product-card-send]", {
+      builderClientRequestId,
+    });
     const messageIdentityKey = buildMessageIdentityKey({
       tenantId,
       sessionId: conversationId,
