@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { lazy, Suspense } from "react";
 import i18n, { applyDocumentLanguage, normalizeLanguage, persistApplicationLanguage } from "../i18n/i18n";
 import { logPagePerf } from "../shared/lib/perfDebug";
+import usePageTitle from "../shared/hooks/usePageTitle";
 import { safeSetSessionStorage } from "../utils/safeStorage";
 import {
   Bell,
@@ -8533,6 +8534,7 @@ const OrderNumberBadge = ({ value, className = "" }) => {
 };
 
 function Storefront() {
+  usePageTitle("Storefront");
   const location = useLocation();
   const navigate = useNavigate();
   const [cart, setCart] = useState(() => readStorefrontStorage(CART_KEY, []));

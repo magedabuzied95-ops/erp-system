@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, ClipboardList, Clock3, Loader2, Lock, Play
 import { toast } from "react-hot-toast";
 
 import { staffTasksApi } from "../services/staffTasksApi";
+import usePageTitle from "../../../shared/hooks/usePageTitle";
 
 const openStatuses = new Set(["pending", "in_progress", "overdue"]);
 const portalCachePrefix = "employee.portal.cache.";
@@ -198,6 +199,7 @@ function TaskCard({ task, readOnly, saving, onStatus }) {
 }
 
 export default function EmployeePortal() {
+  usePageTitle("Employee Portal");
   const { token } = useParams();
   const navigate = useNavigate();
   const [portal, setPortal] = useState(null);

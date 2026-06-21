@@ -52,6 +52,7 @@ import PortalChatMessageList from "../../../shared/chat/PortalChatMessageList";
 import { allowedPortalChatAttachment } from "../../../shared/chat/portalChatUtils";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import { getEmployeeSalesOpportunities } from "../services/salesOpportunitiesApi";
+import usePageTitle from "../../../shared/hooks/usePageTitle";
 
 const labels = {
   ar: {
@@ -1313,6 +1314,7 @@ function HeaderBadgeButton({ count = 0, label, Icon, onClick, tone = "slate" }) 
 }
 
 export default function EmployeePayrollPortal() {
+  usePageTitle("Employee Portal");
   const { token } = useParams();
   const navigate = useNavigate();
   const location = useLocation();

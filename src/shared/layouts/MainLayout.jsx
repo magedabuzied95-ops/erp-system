@@ -10,6 +10,7 @@ import { translateSidebarSections } from "../../i18n/navigation";
 import NotificationSoundProvider from "../../components/feedback/NotificationSoundProvider";
 import AnimatedBadgeCounter from "../../components/feedback/AnimatedBadgeCounter";
 import SidebarPulseIndicator from "../../components/feedback/SidebarPulseIndicator";
+import usePageTitle from "../hooks/usePageTitle";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { NotificationBoundary, NotificationsProvider, useNotifications } from "../notifications/index.js";
 import { useRealtimeConnection } from "../realtime/socketStore";
@@ -217,6 +218,31 @@ const sidebarItemMatchesSearch = (item, groupTitle, query) => {
   if (query.length >= 3 && tokens.some((token) => isSubsequenceMatch(query, token))) return true;
   if (query.length >= 3 && tokens.some((token) => Math.max(query.length, token.length) <= 24 && levenshteinDistance(query, token) <= 1)) return true;
   return false;
+};
+
+const resolveMainLayoutTitle = (pathname = "") => {
+  const path = String(pathname || "");
+  if (path === "/dashboard" || path === "/") return "Dashboard";
+  if (path.startsWith("/orders")) return "Orders";
+  if (path.startsWith("/products")) return "Products";
+  if (path.startsWith("/inventory")) return "Inventory";
+  if (path.startsWith("/customers")) return "Customers";
+  if (path.startsWith("/purchases")) return "Purchases";
+  if (path.startsWith("/accounting")) return "Accounting";
+  if (path.startsWith("/settings")) return "Settings";
+  if (path === "/notifications") return "Notifications";
+  if (path === "/workspace") return "Workspace";
+  if (path === "/billing") return "Billing";
+  if (path === "/admin/ai-inbox") return "AI Inbox";
+  if (path === "/admin/ai-followups") return "AI Follow-ups";
+  if (path === "/admin/ai-channels") return "AI Channels";
+  if (path === "/admin/ai-agent-analytics") return "AI Analytics";
+  if (path === "/admin/ai-agent-settings") return "AI Agent Settings";
+  if (path === "/admin/ai-support-console") return "AI Support Console";
+  if (path === "/admin/ai-support-knowledge-base") return "AI Knowledge Base";
+  if (path === "/admin/tenants") return "Tenants";
+  if (path === "/marketing/ai-center") return "AI Marketing";
+  return "";
 };
 
 const groupForSidebarItem = (sectionTitle, item) => {
@@ -431,6 +457,7 @@ function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { t, i18n } = useTranslation();
+  usePageTitle(resolveMainLayoutTitle(location.pathname));
   const user = useMemo(
     () => getCurrentUser() || { name: "Admin", role: "Admin", permissions: ["*"] },
     []

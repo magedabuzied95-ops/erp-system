@@ -49,6 +49,7 @@ import { formatCurrency } from "../../../shared/lib/currency";
 import { SOCKET_URL } from "../../../shared/constants/app";
 import { playRealtimeSound, requestBrowserNotificationPermission, unlockRealtimeFeedbackAudio } from "../../../services/realtimeFeedbackService";
 import { managerPortalApi } from "../services/managerPortalApi";
+import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
 import { safeSetLocalStorage } from "../../../utils/safeStorage";
 
 const TABS = ["today", "staff", "tasks", "sales", "chat", "more"];
@@ -1099,7 +1100,7 @@ export default function ManagerPortal() {
       document.head.appendChild(appleTitle);
     }
     appleTitle.setAttribute("content", "Manager");
-      document.title = "بوابة المدير";
+      document.title = buildPageTitle("Manager Portal");
 
     return () => {
       link.remove();
@@ -1112,7 +1113,7 @@ export default function ManagerPortal() {
           document.head.appendChild(restored);
         });
       }
-      document.title = previousTitle || "بوابة المدير";
+      document.title = previousTitle || buildPageTitle("Manager Portal");
       appleTitle?.setAttribute("content", previousAppleTitle || "Manager");
     };
   }, [token]);

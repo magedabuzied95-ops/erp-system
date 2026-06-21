@@ -10,6 +10,7 @@ import { getEmployeePortalProducts, requestEmployeeWarehousePick } from "../serv
 import ProductGrid from "../../pos/components/ProductGrid";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { normalizePosCatalogProduct, normalizePosSellableProducts } from "../../pos/services/posProductsApi";
+import usePageTitle from "../../../shared/hooks/usePageTitle";
 
 const text = (value = "") => String(value || "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -789,6 +790,7 @@ function EmployeePortalCameraScannerModal({
 }
 
 export default function EmployeePortalProducts() {
+  usePageTitle("Employee Portal");
   const { token } = useParams();
   const navigate = useNavigate();
   const location = useLocation();

@@ -72,6 +72,7 @@ import { normalizePosCatalogProduct, normalizePosSellableProducts, resolvePosIma
 import { normalizeSaleModeSettings } from "../../../shared/lib/saleMode";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
 import { buildLoyaltyReceiptMessage, buildLoyaltyReceiptWhatsappUrl, normalizeReceiptPhone } from "../lib/whatsappReceiptMessage.js";
+import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
 import BarcodeScanner, { barcodeScannerMessages } from "../../../components/BarcodeScanner";
 import ProductGrid from "../components/ProductGrid";
 import CartSidebar, { ReceiptPreview } from "../components/CartSidebar";
@@ -121,7 +122,7 @@ const isStandaloneDisplayMode = () =>
 
 const POS_LAST_SALESPERSON_KEY = "pos.lastSalespersonId";
 const POS_MANIFEST_HREF = "/pos-manifest.webmanifest";
-const POS_APP_TITLE = "M One POS";
+const POS_APP_TITLE = buildPageTitle("POS");
 const POS_APP_SHORT_TITLE = "POS";
 const POS_THEME_COLOR = "#07111f";
 const POS_STATUS_BAR_STYLE = "black-translucent";

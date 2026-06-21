@@ -28,6 +28,7 @@ import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmpl
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { normalizePosCatalogProduct, normalizePosSellableProducts } from "../../pos/services/posProductsApi";
 import { getEmployeePortalProducts } from "../services/employeePortalProductsApi";
+import usePageTitle from "../../../shared/hooks/usePageTitle";
 import {
   createEmployeePortalInventorySession,
   getEmployeePortalInventorySession,
@@ -416,6 +417,7 @@ function ScannerModal({ onClose, onScan }) {
 }
 
 export default function EmployeePortalInventory() {
+  usePageTitle("Employee Portal");
   const { token, sessionId: routeSessionId } = useParams();
   const navigate = useNavigate();
   const [sessions, setSessions] = useState([]);

@@ -20,6 +20,7 @@ import {
 import toast from "react-hot-toast";
 
 import { managerPortalApi } from "../services/managerPortalApi";
+import usePageTitle from "../../../shared/hooks/usePageTitle";
 
 const resolveStoredToken = () => {
   if (typeof window === "undefined") return "";
@@ -68,6 +69,7 @@ export default function InventoryApprovalsPage() {
   const navigate = useNavigate();
   const { token: routeToken = "" } = useParams();
   const [searchParams] = useSearchParams();
+  usePageTitle("Manager Portal");
   const token = routeToken || searchParams.get("token") || resolveStoredToken();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
