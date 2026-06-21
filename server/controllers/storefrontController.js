@@ -1449,7 +1449,7 @@ const storefrontProductsSql = `
           AND pv_stock.deleted_at IS NULL
           AND COALESCE(pv_stock.stock, 0) > 0
     ))
-    GROUP BY p.id, c.name, b.name
+    GROUP BY p.id, c.name, b.name, m.name
     ORDER BY p.id DESC
     LIMIT $12 OFFSET $13
 `;
@@ -1469,12 +1469,12 @@ const queryProductsByIds = async (tenantId, productIds = [], pricingSettings = S
   const ids = productIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
   if (!ids.length) return [];
   let result = await db.query(
-    `${catalogQuery} AND p.id = ANY($2::bigint[]) GROUP BY p.id, c.name, b.name`,
+    `${catalogQuery} AND p.id = ANY($2::bigint[]) GROUP BY p.id, c.name, b.name, m.name`,
     [tenantId, ids]
   );
   if (!result.rows.length && tenantId !== null) {
     result = await db.query(
-      `${catalogQuery} AND p.id = ANY($2::bigint[]) GROUP BY p.id, c.name, b.name`,
+      `${catalogQuery} AND p.id = ANY($2::bigint[]) GROUP BY p.id, c.name, b.name, m.name`,
       [null, ids]
     );
   }
@@ -1673,12 +1673,12 @@ const collectProductImageUrls = (product = {}) => [
 const queryVisualImageCandidates = async (tenantId, limit = 600) => {
   const pricingSettings = await loadStorefrontPricingSettings(tenantId);
   let result = await db.query(
-    `${catalogQuery} GROUP BY p.id, c.name, b.name ORDER BY p.id DESC LIMIT $2`,
+    `${catalogQuery} GROUP BY p.id, c.name, b.name, m.name ORDER BY p.id DESC LIMIT $2`,
     [tenantId, limit]
   );
   if (!result.rows.length && tenantId !== null) {
     result = await db.query(
-      `${catalogQuery} GROUP BY p.id, c.name, b.name ORDER BY p.id DESC LIMIT $2`,
+      `${catalogQuery} GROUP BY p.id, c.name, b.name, m.name ORDER BY p.id DESC LIMIT $2`,
       [null, limit]
     );
   }
@@ -2186,7 +2186,7 @@ const normalizeStorefrontProductsQuery = (query = {}) => {
     inStock: queryFlagOn(query.inStock || query.in_stock || query.stock),
     saleOnly: queryFlagOn(query.sale),
     sort: normalizeStorefrontSort(query.sort || query.order),
-    scope: normalizeStorefrontScope(query.scope || query._last_piece_scope),
+    scope: normalizeStorefrontScope(query.scope || query.last_piece_scope || query._last_piece_scope),
     groupingMode: normalizeStorefrontGroupingMode(query.grouping || query.grouping_mode || query.groupingMode || query._color_cards),
     limit: queryPositiveInt(query.limit, 24, { min: 1, max: 80 }),
     offset: queryPositiveInt(query.offset, 0, { min: 0, max: 100000 }),
@@ -2776,7 +2776,7 @@ const queryLastPieceProducts = async (tenantId, category, size, limit) => {
     JOIN active_variants av ON av.product_id = p.id
     LEFT JOIN categories c ON c.id = p.category_id
     LEFT JOIN brands b ON b.id = p.brand_id
-    GROUP BY p.id, c.name, b.name, lpp.total_product_stock
+    GROUP BY p.id, c.name, b.name, m.name, lpp.total_product_stock
     ORDER BY lpp.total_product_stock ASC, MIN(GREATEST(COALESCE(av.stock, 0), 0)) ASC, MAX(p.updated_at) DESC NULLS LAST, p.id DESC
     LIMIT $4
     `,
@@ -2983,7 +2983,7 @@ export const resolveProductLink = async (req, res) => {
     const slugOrId = toText(req.params.slugOrId || req.params.identifier || "");
     if (!slugOrId) return res.status(404).json({ success: false, resolvable: false, message: "Product not found" });
     const identifiers = productIdentifierCandidates(slugOrId);
-    const query = `${catalogQuery} ${productIdentifierClause("$2")} GROUP BY p.id, c.name, b.name ${productIdentifierOrder("$2")} LIMIT 1`;
+    const query = `${catalogQuery} ${productIdentifierClause("$2")} GROUP BY p.id, c.name, b.name, m.name ${productIdentifierOrder("$2")} LIMIT 1`;
     let result = await db.query(query, [tenantId, identifiers]);
     if (!result.rows[0] && tenantId !== null) {
       result = await db.query(query, [null, identifiers]);
@@ -3026,7 +3026,7 @@ export const getProduct = async (req, res) => {
     const identifier = toText(req.params.identifier || req.params.id || "");
     if (!identifier) return res.status(404).json({ success: false, message: "Product not found" });
     const identifiers = productIdentifierCandidates(identifier);
-    const query = `${catalogQuery} ${productIdentifierClause("$2")} GROUP BY p.id, c.name, b.name ${productIdentifierOrder("$2")} LIMIT 1`;
+    const query = `${catalogQuery} ${productIdentifierClause("$2")} GROUP BY p.id, c.name, b.name, m.name ${productIdentifierOrder("$2")} LIMIT 1`;
     console.log("[storefront] product lookup", { identifier, identifiers, tenant_id: tenantId, filters: productLookupFilters });
     let result = await db.query(query, [tenantId, identifiers]);
     if (!result.rows[0] && tenantId !== null) {
@@ -3126,7 +3126,7 @@ export const getProductByToken = async (req, res) => {
         `
         ${catalogQuery}
           ${productIdentifierClause("$2")}
-        GROUP BY p.id, c.name, b.name
+        GROUP BY p.id, c.name, b.name, m.name
         ${productIdentifierOrder("$2")}
         LIMIT 1
         `,
