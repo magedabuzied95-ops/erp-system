@@ -1401,6 +1401,54 @@ function CommentReplyDraftPanel({ draftText = "", onLoadDraft, onCopyDraft, load
   );
 }
 
+function AiSuggestionCard({
+  text = "",
+  onEdit,
+  onApprove,
+  onDismiss,
+  editing = false,
+}) {
+  const value = clean(text);
+  if (!value) return null;
+
+  return (
+    <div className={`mb-2 rounded-2xl border p-3 ${editing ? "border-violet-300/30 bg-violet-400/10" : "border-cyan-300/15 bg-cyan-300/8"}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">اقتراح الذكاء الاصطناعي</div>
+          <div className="mt-2 max-h-40 overflow-auto rounded-xl border border-white/10 bg-slate-950/75 p-3 text-sm leading-7 text-slate-100">
+            {value}
+          </div>
+        </div>
+        {editing ? <Pill tone="violet" className="shrink-0 px-2 py-0.5 text-[10px] font-black">Editing</Pill> : null}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-[11px] font-black text-violet-100 transition hover:bg-violet-400/15"
+        >
+          ✏️ تعديل الرد
+        </button>
+        <button
+          type="button"
+          onClick={onApprove}
+          className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-[11px] font-black text-emerald-100 transition hover:bg-emerald-400/15"
+        >
+          ✅ اعتماد وإرسال
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black text-slate-200 transition hover:bg-white/[0.08]"
+        >
+          ❌ تجاهل
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ManualReplyComposer({
   conversation,
   value,
@@ -1415,6 +1463,12 @@ function ManualReplyComposer({
   loading,
   validationSummary = null,
   confidenceEngineSummary = null,
+  aiSuggestionText = "",
+  aiSuggestionVisible = false,
+  aiSuggestionEditing = false,
+  onEditAiSuggestion,
+  onApproveAiSuggestion,
+  onDismissAiSuggestion,
 }) {
   if (!conversation) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
@@ -1498,6 +1552,15 @@ function ManualReplyComposer({
             loading={loading}
           />
         </div>
+      ) : null}
+      {aiSuggestionVisible && clean(aiSuggestionText) ? (
+        <AiSuggestionCard
+          text={aiSuggestionText}
+          editing={aiSuggestionEditing}
+          onEdit={onEditAiSuggestion}
+          onApprove={onApproveAiSuggestion}
+          onDismiss={onDismissAiSuggestion}
+        />
       ) : null}
       <div className="flex flex-col gap-1.5">
         <div className="flex min-w-0 flex-col gap-1.5 rounded-2xl border border-white/10 bg-slate-950/70 p-1.5 focus-within:border-cyan-300/40 sm:flex-row sm:items-end">
@@ -2805,6 +2868,8 @@ export default function AiInbox() {
   const [profileOpen, setProfileOpen] = useState(true);
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
+  const [editingAiDraft, setEditingAiDraft] = useState(false);
+  const [dismissedAiSuggestionKey, setDismissedAiSuggestionKey] = useState("");
   const [productCardPickerConfig, setProductCardPickerConfig] = useState({ open: false, sizeMode: false, allowMultiple: false });
   const [productCardSending, setProductCardSending] = useState(false);
   const [assignNameDraft, setAssignNameDraft] = useState({ sessionId: "", value: "" });
@@ -3248,6 +3313,69 @@ export default function AiInbox() {
       selectedConversationCacheRef.current = selectedConversation;
     }
   }, [selectedConversation]);
+  const patchConversation = useCallback((identifier, updater) => {
+    const target = clean(identifier);
+    setInbox((current) => ({
+      ...current,
+      conversations: asArray(current.conversations).map((conversation) => {
+        if (conversation.conversation_key !== target && conversation.session_id !== target) return conversation;
+        const next = updater(conversation);
+        return { ...next, messages: mergeMessagesByIdentity(next.messages) };
+      }),
+    }));
+  }, []);
+  const syncMessengerProfile = useCallback(async (options = {}) => {
+    const silent = Boolean(options?.silent);
+    if (!selectedConversation?.session_id || !canSyncMessengerProfile(selectedConversation)) return;
+    const sessionId = selectedConversation.session_id;
+    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+    const externalCustomerId = clean(selectedConversation.external_customer_id || "");
+    const attemptKey = `${sessionId}:${externalCustomerId}`;
+    if (!silent && messengerProfileSyncAttemptedRef.current.has(attemptKey)) return;
+    messengerProfileSyncAttemptedRef.current.add(attemptKey);
+    setProfileSyncing(true);
+    setError("");
+    try {
+      const payload = await api.post(aiInboxConversationEndpoint(sessionId, "/sync-messenger-profile"), {
+        tenant_id: tenantId,
+        external_customer_id: externalCustomerId,
+      }, { headers, perfComponent: "AiInbox.syncMessengerProfile" });
+      if (payload.conversation) {
+        patchConversation(conversationIdentifier, (conversation) => ({
+          ...conversation,
+          ...payload.conversation,
+          messages: asArray(payload.conversation.messages).length ? payload.conversation.messages : conversation.messages,
+        }));
+      } else {
+        patchConversation(conversationIdentifier, (conversation) => ({
+          ...conversation,
+          customer_name: payload.customer_name || payload.display_name || payload.facebook_name || payload.messenger_name || conversation.customer_name,
+          customer_avatar_url: payload.customer_avatar_url || conversation.customer_avatar_url,
+          customer_profile: {
+            ...(conversation.customer_profile || {}),
+            name: payload.customer_name || payload.display_name || payload.facebook_name || payload.messenger_name || conversation.customer_profile?.name || "",
+            display_name: payload.display_name || payload.customer_name || conversation.customer_profile?.display_name || "",
+            facebook_name: payload.facebook_name || payload.display_name || payload.customer_name || conversation.customer_profile?.facebook_name || "",
+            messenger_name: payload.messenger_name || payload.display_name || payload.customer_name || conversation.customer_profile?.messenger_name || "",
+            avatar_url: payload.customer_avatar_url || conversation.customer_profile?.avatar_url || "",
+            profile_pic_url: payload.customer_avatar_url || conversation.customer_profile?.profile_pic_url || "",
+          },
+        }));
+      }
+      if (!silent) setToast({ tone: "emerald", text: "Profile synced" });
+      await loadAll({ silent: true });
+    } catch (err) {
+      console.warn("[AiInbox][messenger-profile-sync-failed]", {
+        conversation_id: sessionId,
+        external_customer_id: externalCustomerId,
+        message: err?.message || "",
+      });
+      if (!silent) setToast({ tone: "rose", text: "تعذر جلب ملف ماسنجر" });
+      setError(err?.message || "تعذر جلب ملف ماسنجر");
+    } finally {
+      setProfileSyncing(false);
+    }
+  }, [headers, loadAll, messengerProfileSyncAttemptedRef, patchConversation, selectedConversation, setError, setProfileSyncing, setToast, tenantId]);
   useEffect(() => {
     if (!selectedConversation || !canSyncMessengerProfile(selectedConversation)) return;
     const currentName = clean(selectedConversation.customer_name || selectedConversation.customer_profile?.name || "");
@@ -3330,6 +3458,17 @@ export default function AiInbox() {
     () => selectedConversation?.ai_reply_draft || selectedConversation?.last_ai_reply_draft || null,
     [selectedConversation?.ai_reply_draft, selectedConversation?.last_ai_reply_draft]
   );
+  const activeAiSuggestionText = useMemo(() => {
+    const draftText = clean(activeAiReplyDraft?.text || "");
+    const aiReplyText = aiReply.sessionId === selectedConversation?.session_id ? clean(aiReply.text || "") : "";
+    return draftText || aiReplyText;
+  }, [activeAiReplyDraft?.text, aiReply.sessionId, aiReply.text, selectedConversation?.session_id]);
+  const activeAiSuggestionKey = useMemo(() => {
+    if (!selectedConversation?.session_id || !activeAiSuggestionText) return "";
+    const stamp = selectedConversation?.last_ai_reply_draft_updated_at || activeAiReplyDraft?.updated_at || activeAiReplyDraft?.metadata?.updated_at || "";
+    return `${selectedConversation.session_id}:${stamp || activeAiSuggestionText.length}`;
+  }, [activeAiReplyDraft?.metadata?.updated_at, activeAiReplyDraft?.updated_at, activeAiSuggestionText, selectedConversation?.last_ai_reply_draft_updated_at, selectedConversation?.session_id]);
+  const aiSuggestionVisible = Boolean(activeAiSuggestionText) && dismissedAiSuggestionKey !== activeAiSuggestionKey;
   const activeAiReplyValidation = useMemo(
     () => normalizeValidationSummary(
       aiReply.validation ||
@@ -3488,6 +3627,10 @@ export default function AiInbox() {
   }, [activeAiReplyDraft?.text, selectedConversation?.session_id]);
 
   useEffect(() => {
+    setEditingAiDraft(false);
+  }, [selectedConversation?.session_id]);
+
+  useEffect(() => {
     const channelKey = clean(selectedConversation?.channel || selectedConversation?.source);
     const currentMode = resolveChannelAutoReplyMode(selectedChannelStatus);
     if (channelKey && currentMode !== "off") {
@@ -3553,18 +3696,6 @@ export default function AiInbox() {
     setAiTrace((current) => ({ ...current, open: true, error: "" }));
     void loadAiTrace();
   }, [loadAiTrace]);
-
-  const patchConversation = useCallback((identifier, updater) => {
-    const target = clean(identifier);
-    setInbox((current) => ({
-      ...current,
-      conversations: asArray(current.conversations).map((conversation) => {
-        if (conversation.conversation_key !== target && conversation.session_id !== target) return conversation;
-        const next = updater(conversation);
-        return { ...next, messages: mergeMessagesByIdentity(next.messages) };
-      }),
-    }));
-  }, []);
 
   const loadOlderMessages = useCallback(async () => {
     if (!selectedConversation?.session_id || olderMessagesLoading || isLoadingOlderRef.current || isRefreshingRef.current) return;
@@ -3766,59 +3897,6 @@ export default function AiInbox() {
     }
   }, [headers, patchConversation, selectedConversation?.conversation_key, selectedConversation?.session_id, tenantId]);
 
-  const syncMessengerProfile = async (options = {}) => {
-    const silent = Boolean(options?.silent);
-    if (!selectedConversation?.session_id || !canSyncMessengerProfile(selectedConversation)) return;
-    const sessionId = selectedConversation.session_id;
-    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
-    const externalCustomerId = clean(selectedConversation.external_customer_id || "");
-    const attemptKey = `${sessionId}:${externalCustomerId}`;
-    if (!silent && messengerProfileSyncAttemptedRef.current.has(attemptKey)) return;
-    messengerProfileSyncAttemptedRef.current.add(attemptKey);
-    setProfileSyncing(true);
-    setError("");
-    try {
-      const payload = await api.post(aiInboxConversationEndpoint(sessionId, "/sync-messenger-profile"), {
-        tenant_id: tenantId,
-        external_customer_id: externalCustomerId,
-      }, { headers, perfComponent: "AiInbox.syncMessengerProfile" });
-      if (payload.conversation) {
-        patchConversation(conversationIdentifier, (conversation) => ({
-          ...conversation,
-          ...payload.conversation,
-          messages: asArray(payload.conversation.messages).length ? payload.conversation.messages : conversation.messages,
-        }));
-      } else {
-        patchConversation(conversationIdentifier, (conversation) => ({
-          ...conversation,
-          customer_name: payload.customer_name || payload.display_name || payload.facebook_name || payload.messenger_name || conversation.customer_name,
-          customer_avatar_url: payload.customer_avatar_url || conversation.customer_avatar_url,
-          customer_profile: {
-            ...(conversation.customer_profile || {}),
-            name: payload.customer_name || payload.display_name || payload.facebook_name || payload.messenger_name || conversation.customer_profile?.name || "",
-            display_name: payload.display_name || payload.customer_name || conversation.customer_profile?.display_name || "",
-            facebook_name: payload.facebook_name || payload.display_name || payload.customer_name || conversation.customer_profile?.facebook_name || "",
-            messenger_name: payload.messenger_name || payload.display_name || payload.customer_name || conversation.customer_profile?.messenger_name || "",
-            avatar_url: payload.customer_avatar_url || conversation.customer_profile?.avatar_url || "",
-            profile_pic_url: payload.customer_avatar_url || conversation.customer_profile?.profile_pic_url || "",
-          },
-        }));
-      }
-      if (!silent) setToast({ tone: "emerald", text: "Profile synced" });
-      await loadAll({ silent: true });
-    } catch (err) {
-      console.warn("[AiInbox][messenger-profile-sync-failed]", {
-        conversation_id: sessionId,
-        external_customer_id: externalCustomerId,
-        message: err?.message || "",
-      });
-      if (!silent) setToast({ tone: "rose", text: "تعذر جلب ملف ماسنجر" });
-      setError(err?.message || "تعذر جلب ملف ماسنجر");
-    } finally {
-      setProfileSyncing(false);
-    }
-  };
-
   const debugMessengerProfile = async () => {
     if (!selectedConversation?.session_id) return;
     const sessionId = selectedConversation.session_id;
@@ -3908,13 +3986,14 @@ export default function AiInbox() {
     return api.post(aiInboxConversationEndpoint(sessionId, "/reply"), { tenant_id: tenantId, message }, { headers, perfComponent: "AiInbox.saveDraftReply" });
   };
 
-  const saveEditedAiReplyCorrection = async ({ sentMessageId = "", aiReplyDraft = null, employeeCorrectAnswer = "" } = {}) => {
+  const saveEditedAiReplyCorrection = async ({ sentMessageId = "", aiReplyDraft = null, employeeCorrectAnswer = "", allowSameText = false, metadata = {} } = {}) => {
     const sessionId = selectedConversation?.session_id;
     const conversation = selectedConversation || {};
     const draft = aiReplyDraft || selectedConversation?.ai_reply_draft || selectedConversation?.last_ai_reply_draft || null;
     const normalizedDraftText = clean(draft?.text || "");
     const correctedText = clean(employeeCorrectAnswer || "");
-    if (!sessionId || !sentMessageId || !normalizedDraftText || !correctedText || normalizedDraftText === correctedText) return;
+    if (!sessionId || !sentMessageId || !normalizedDraftText || !correctedText) return;
+    if (!allowSameText && normalizedDraftText === correctedText) return;
     if (draft?.status && draft.status !== "not_sent" && draft.status !== "draft") return;
 
     const customerQuestion = [...asArray(conversation.messages)]
@@ -3932,6 +4011,10 @@ export default function AiInbox() {
         correction_type: draft?.metadata?.correction_type || "other",
         product_id: draft?.metadata?.product_id || null,
         channel: conversation.channel || conversation.source || "",
+        metadata: {
+          ...(draft?.metadata || {}),
+          ...metadata,
+        },
       },
       { headers, perfComponent: "AiInbox.aiReplyCorrection" }
     );
@@ -3980,7 +4063,7 @@ export default function AiInbox() {
     }
   };
 
-  const sendManualReply = async (overrideText = "") => {
+  const sendManualReply = async (overrideText = "", options = {}) => {
     const message = clean(overrideText || replyText);
     if (!selectedConversation?.session_id || !message) return;
     const sessionId = selectedConversation?.session_id;
@@ -4012,6 +4095,9 @@ export default function AiInbox() {
       if (!confirmed) return;
     }
     const now = new Date().toISOString();
+    const allowSameTextCorrection = options.allowSameTextCorrection === true || editingAiDraft;
+    const correctionMetadata = options.correctionMetadata || {};
+    const sendFlow = options.flow || (allowSameTextCorrection ? "edit" : "normal");
     const optimistic = {
       id: `sending-${Date.now()}`,
       session_id: sessionId,
@@ -4041,26 +4127,50 @@ export default function AiInbox() {
     setError("");
     try {
       const payload = await api.post(aiInboxConversationEndpoint(sessionId, "/send"), { tenant_id: tenantId, message, client_request_id: clientRequestId, message_identity_key: messageIdentityKey }, { headers, perfComponent: "AiInbox.sendManualReply" });
-      setToast({ tone: "emerald", text: "Message sent" });
       if (payload.message) {
         patchConversation(conversationIdentifier, (conversation) => ({
           ...conversation,
+          ai_reply_draft: null,
+          last_ai_reply_draft: null,
+          last_ai_reply_validation: null,
+          last_ai_reply_confidence_engine: null,
+          last_ai_reply_draft_updated_at: null,
           messages: mergeMessagesByIdentity([...asArray(conversation.messages).filter((item) => item.id !== optimistic.id), payload.message]),
           latest_message_preview: message,
           last_activity_at: payload.message.created_at || now,
           updated_at: payload.message.created_at || now,
         }));
-        void saveEditedAiReplyCorrection({
-          sentMessageId: payload.message.id || "",
-          aiReplyDraft: activeDraft,
-          employeeCorrectAnswer: message,
-        }).catch((error) => {
+        let correctionSaved = true;
+        try {
+          await saveEditedAiReplyCorrection({
+            sentMessageId: payload.message.id || "",
+            aiReplyDraft: activeDraft,
+            employeeCorrectAnswer: message,
+            allowSameText: allowSameTextCorrection,
+            metadata: correctionMetadata,
+          });
+        } catch (error) {
+          correctionSaved = false;
           console.warn("[ai-inbox][ai-reply-correction] skipped", {
             session_id: sessionId,
             message_id: payload.message?.id || "",
             error: error?.message || String(error),
           });
-        });
+          setToast({ tone: "amber", text: "تم الإرسال، لكن لم يتم حفظ التصحيح" });
+        }
+        setEditingAiDraft(false);
+        if (sendFlow === "approve") {
+          setToast({ tone: "emerald", text: "تم اعتماد رد الذكاء الاصطناعي وإرساله" });
+        } else if (allowSameTextCorrection) {
+          setToast({
+            tone: correctionSaved ? "emerald" : "amber",
+            text: correctionSaved ? "تم إرسال الرد المعدل وحفظ التصحيح للتعلم" : "تم الإرسال، لكن لم يتم حفظ التصحيح",
+          });
+        } else {
+          setToast({ tone: "emerald", text: "Message sent" });
+        }
+      } else {
+        setToast({ tone: "emerald", text: "Message sent" });
       }
     } catch (err) {
       setToast({ tone: "rose", text: err?.message || "فشل الإرسال" });
@@ -4074,12 +4184,38 @@ export default function AiInbox() {
     }
   };
 
-  const sendCurrentReply = async (overrideText = "") => {
+  const sendCurrentReply = async (overrideText = "", options = {}) => {
     if (isCommentConversation(selectedConversation || {})) {
       return sendCommentReply(overrideText);
     }
-    return sendManualReply(overrideText);
+    return sendManualReply(overrideText, options);
   };
+
+  const handleEditAiSuggestion = useCallback(() => {
+    if (!activeAiSuggestionText) return;
+    setEditingAiDraft(true);
+    setDismissedAiSuggestionKey("");
+    setReplyText(activeAiSuggestionText);
+  }, [activeAiSuggestionText]);
+
+  const handleApproveAiSuggestion = useCallback(() => {
+    if (!activeAiSuggestionText) return;
+    setReplyText(activeAiSuggestionText);
+    void sendCurrentReply(activeAiSuggestionText, {
+      allowSameTextCorrection: true,
+      flow: "approve",
+      correctionMetadata: {
+        source: "ai_suggestion_approved",
+        approved_ai_reply: true,
+      },
+    });
+  }, [activeAiSuggestionText, sendCurrentReply]);
+
+  const handleDismissAiSuggestion = useCallback(() => {
+    if (!activeAiSuggestionKey) return;
+    setEditingAiDraft(false);
+    setDismissedAiSuggestionKey(activeAiSuggestionKey);
+  }, [activeAiSuggestionKey]);
 
   const createLeadCustomer = async () => {
     if (!selectedConversation?.session_id) return;
@@ -4422,6 +4558,8 @@ export default function AiInbox() {
     if (!selectedConversation?.session_id) return;
     const sessionId = selectedConversation?.session_id;
     const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+    setEditingAiDraft(false);
+    setDismissedAiSuggestionKey("");
     setAiReply({ sessionId, text: "", loading: true, error: "", validation: null, confidence_engine: null });
     try {
       const payload = await api.post(aiInboxConversationEndpoint(sessionId, "/ai-reply"), { tenant_id: tenantId, persist }, { headers, perfComponent: "AiInbox.generateAiReply" });
@@ -4912,6 +5050,12 @@ export default function AiInbox() {
                         loading={loading || productCardSending}
                         validationSummary={activeAiReplyValidation}
                         confidenceEngineSummary={activeAiReplyConfidence}
+                        aiSuggestionText={activeAiSuggestionText}
+                        aiSuggestionVisible={aiSuggestionVisible}
+                        aiSuggestionEditing={editingAiDraft}
+                        onEditAiSuggestion={handleEditAiSuggestion}
+                        onApproveAiSuggestion={handleApproveAiSuggestion}
+                        onDismissAiSuggestion={handleDismissAiSuggestion}
                       />
                     </div>
                   </div>
@@ -5316,6 +5460,12 @@ export default function AiInbox() {
                         loading={loading}
                         validationSummary={activeAiReplyValidation}
                         confidenceEngineSummary={activeAiReplyConfidence}
+                        aiSuggestionText={activeAiSuggestionText}
+                        aiSuggestionVisible={aiSuggestionVisible}
+                        aiSuggestionEditing={editingAiDraft}
+                        onEditAiSuggestion={handleEditAiSuggestion}
+                        onApproveAiSuggestion={handleApproveAiSuggestion}
+                        onDismissAiSuggestion={handleDismissAiSuggestion}
                       />
                     </div>
                     <div className="space-y-3">

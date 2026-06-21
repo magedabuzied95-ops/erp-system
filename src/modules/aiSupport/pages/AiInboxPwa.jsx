@@ -1749,6 +1749,8 @@ export default function AiInboxPwa() {
   const [leadFilter, setLeadFilter] = useState("new");
   const [composerText, setComposerText] = useState("");
   const [composerMode, setComposerMode] = useState("reply");
+  const [editingAiDraft, setEditingAiDraft] = useState(false);
+  const [dismissedAiSuggestionKey, setDismissedAiSuggestionKey] = useState("");
   const [sending, setSending] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [aiToggling, setAiToggling] = useState(false);
@@ -2215,6 +2217,13 @@ export default function AiInboxPwa() {
     () => selectedConversation?.ai_reply_draft || selectedConversation?.last_ai_reply_draft || null,
     [selectedConversation?.ai_reply_draft, selectedConversation?.last_ai_reply_draft]
   );
+  const activeAiSuggestionText = useMemo(() => clean(activeAiReplyDraft?.text || ""), [activeAiReplyDraft?.text]);
+  const activeAiSuggestionKey = useMemo(() => {
+    if (!selectedConversation?.session_id || !activeAiSuggestionText) return "";
+    const stamp = selectedConversation?.last_ai_reply_draft_updated_at || activeAiReplyDraft?.updated_at || activeAiReplyDraft?.metadata?.updated_at || "";
+    return `${selectedConversation.session_id}:${stamp || activeAiSuggestionText.length}`;
+  }, [activeAiReplyDraft?.metadata?.updated_at, activeAiReplyDraft?.updated_at, activeAiSuggestionText, selectedConversation?.last_ai_reply_draft_updated_at, selectedConversation?.session_id]);
+  const aiSuggestionVisible = Boolean(activeAiSuggestionText) && dismissedAiSuggestionKey !== activeAiSuggestionKey;
   const activeAiReplyValidation = useMemo(
     () => normalizeValidationSummary(
       selectedConversation?.last_ai_reply_validation ||
@@ -2243,6 +2252,10 @@ export default function AiInboxPwa() {
   const autoReplyShadowTone = activeAiReplyShadow?.evaluated
     ? (activeAiReplyShadow.eligible ? "emerald" : "amber")
     : "zinc";
+
+  useEffect(() => {
+    setEditingAiDraft(false);
+  }, [selectedConversation?.session_id]);
   const selectedTranscriptRows = useMemo(() => {
     const messages = uniqueMessages(selectedConversation?.messages || []).filter((message) => !isHiddenAiReplyDraftMessage(message));
     return messages
@@ -2536,8 +2549,8 @@ export default function AiInboxPwa() {
     void loadOlderMessages();
   }, [loadOlderMessages, selectedConversation?.conversationHydrated, selectedConversation?.session_id, tab]);
 
-  const sendManualReply = useCallback(async () => {
-    const message = clean(composerText);
+  const sendManualReply = useCallback(async (overrideText = "", options = {}) => {
+    const message = clean(overrideText || composerText);
     if (!selectedConversation?.session_id || !message) return;
     const clientRequestId = buildClientRequestId();
     const canonicalSessionId = normalizeConversationSessionId(selectedConversation.session_id, selectedConversation.channel || selectedConversation.source || selectedConversation.provider || selectedConversation.platform || "");
@@ -2564,6 +2577,9 @@ export default function AiInboxPwa() {
       const confirmed = window.confirm("الرد عليه تحذيرات، هل تريد الإرسال؟");
       if (!confirmed) return;
     }
+    const allowSameTextCorrection = options.allowSameTextCorrection === true || editingAiDraft;
+    const correctionMetadata = options.correctionMetadata || {};
+    const sendFlow = options.flow || (allowSameTextCorrection ? "edit" : "normal");
     setSending(true);
     try {
       const payload =
@@ -2601,6 +2617,11 @@ export default function AiInboxPwa() {
         }
         patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({
           ...conversation,
+          ai_reply_draft: null,
+          last_ai_reply_draft: null,
+          last_ai_reply_validation: null,
+          last_ai_reply_confidence_engine: null,
+          last_ai_reply_draft_updated_at: null,
           messages: mergeMessagesByIdentity([...asArray(conversation.messages), returnedMessage]),
           latest_message_preview: messageDisplayText(returnedMessage) || message,
           last_activity_at: returnedMessage.created_at || new Date().toISOString(),
@@ -2615,25 +2636,87 @@ export default function AiInboxPwa() {
             .find((item) => clean(item.customer_message || item.message_text || item.last_message || ""));
           const draftText = clean(activeDraft?.text || "");
           if (draftText && draftText !== message && ["not_sent", "draft"].includes(clean(activeDraft?.status || "not_sent").toLowerCase())) {
-            await api.post(
-              aiReplyCorrectionEndpoint(canonicalSessionId, returnedMessage.id || payload?.message?.id || ""),
-              {
-                tenant_id: tenantId,
-                customer_question: clean(customerQuestion?.customer_message || customerQuestion?.message_text || customerQuestion?.last_message || selectedConversation.latest_message_preview || selectedConversation.last_message || ""),
-                ai_wrong_answer: draftText,
-                employee_correct_answer: message,
-                correction_type: activeDraft?.metadata?.correction_type || "other",
-                product_id: activeDraft?.metadata?.product_id || null,
-                channel: selectedConversation.channel || selectedConversation.source || "",
-              },
-              { headers, perfComponent: "AiInboxPwa.aiReplyCorrection" }
-            ).catch((error) => {
+            let correctionSaved = true;
+            try {
+              await api.post(
+                aiReplyCorrectionEndpoint(canonicalSessionId, returnedMessage.id || payload?.message?.id || ""),
+                {
+                  tenant_id: tenantId,
+                  customer_question: clean(customerQuestion?.customer_message || customerQuestion?.message_text || customerQuestion?.last_message || selectedConversation.latest_message_preview || selectedConversation.last_message || ""),
+                  ai_wrong_answer: draftText,
+                  employee_correct_answer: message,
+                  correction_type: activeDraft?.metadata?.correction_type || "other",
+                  product_id: activeDraft?.metadata?.product_id || null,
+                  channel: selectedConversation.channel || selectedConversation.source || "",
+                  metadata: {
+                    ...(activeDraft?.metadata || {}),
+                    ...correctionMetadata,
+                  },
+                },
+                { headers, perfComponent: "AiInboxPwa.aiReplyCorrection" }
+              );
+            } catch (error) {
+              correctionSaved = false;
               console.warn("[ai-inbox-pwa][ai-reply-correction] skipped", {
                 session_id: selectedConversation.session_id,
                 message_id: returnedMessage.id || payload?.message?.id || "",
                 error: error?.message || String(error),
               });
-            });
+              toast.warn("تم الإرسال، لكن لم يتم حفظ التصحيح");
+            }
+            if (sendFlow === "approve") {
+              toast.success("تم اعتماد رد الذكاء الاصطناعي وإرساله");
+            } else if (allowSameTextCorrection) {
+              toast[correctionSaved ? "success" : "warn"](
+                correctionSaved ? "تم إرسال الرد المعدل وحفظ التصحيح للتعلم" : "تم الإرسال، لكن لم يتم حفظ التصحيح"
+              );
+            }
+          } else if (allowSameTextCorrection && draftText && activeDraft) {
+            let correctionSaved = true;
+            try {
+              await api.post(
+                aiReplyCorrectionEndpoint(canonicalSessionId, returnedMessage.id || payload?.message?.id || ""),
+                {
+                  tenant_id: tenantId,
+                  customer_question: clean(
+                    [...asArray(selectedConversation?.messages)]
+                      .slice()
+                      .reverse()
+                      .find((item) => clean(item.customer_message || item.message_text || item.last_message || ""))?.customer_message ||
+                    selectedConversation.latest_message_preview ||
+                    selectedConversation.last_message ||
+                    ""
+                  ),
+                  ai_wrong_answer: draftText,
+                  employee_correct_answer: message,
+                  correction_type: activeDraft?.metadata?.correction_type || "other",
+                  product_id: activeDraft?.metadata?.product_id || null,
+                  channel: selectedConversation.channel || selectedConversation.source || "",
+                  metadata: {
+                    ...(activeDraft?.metadata || {}),
+                    ...correctionMetadata,
+                    approval: true,
+                    approved_ai_reply: true,
+                  },
+                },
+                { headers, perfComponent: "AiInboxPwa.aiReplyApproval" }
+              );
+            } catch (error) {
+              correctionSaved = false;
+              console.warn("[ai-inbox-pwa][ai-reply-approval] skipped", {
+                session_id: selectedConversation.session_id,
+                message_id: returnedMessage.id || payload?.message?.id || "",
+                error: error?.message || String(error),
+              });
+              toast.warn("تم الإرسال، لكن لم يتم حفظ التصحيح");
+            }
+            if (sendFlow === "approve") {
+              toast.success("تم اعتماد رد الذكاء الاصطناعي وإرساله");
+            } else if (allowSameTextCorrection) {
+              toast[correctionSaved ? "success" : "warn"](
+                correctionSaved ? "تم إرسال الرد المعدل وحفظ التصحيح للتعلم" : "تم الإرسال، لكن لم يتم حفظ التصحيح"
+              );
+            }
           }
         }
       }
@@ -2644,9 +2727,10 @@ export default function AiInboxPwa() {
         toast.error(payload?.delivery_error || payload?.message || "Failed to send");
       } else if (payload?.delivery_status === "stored_only") {
         toast.info("Saved only, not delivered");
-      } else {
+      } else if (!editingAiDraft && !allowSameTextCorrection) {
         toast.success("Message sent");
       }
+      setEditingAiDraft(false);
       setComposerText("");
       if (composerMode === "note") setComposerMode("reply");
     } catch (sendError) {
@@ -2654,7 +2738,34 @@ export default function AiInboxPwa() {
     } finally {
       setSending(false);
     }
-  }, [composerMode, composerText, headers, patchConversation, selectedConversation, tenantId]);
+  }, [composerMode, composerText, editingAiDraft, headers, patchConversation, selectedConversation, tenantId]);
+
+  const handleEditAiSuggestion = useCallback(() => {
+    if (!activeAiSuggestionText) return;
+    setComposerMode("reply");
+    setEditingAiDraft(true);
+    setDismissedAiSuggestionKey("");
+    setComposerText(activeAiSuggestionText);
+  }, [activeAiSuggestionText]);
+
+  const handleApproveAiSuggestion = useCallback(() => {
+    if (!activeAiSuggestionText) return;
+    setComposerMode("reply");
+    setComposerText(activeAiSuggestionText);
+    void sendManualReply(activeAiSuggestionText, {
+      allowSameTextCorrection: true,
+      correctionMetadata: {
+        source: "ai_suggestion_approved",
+        approved_ai_reply: true,
+      },
+    });
+  }, [activeAiSuggestionText, sendManualReply]);
+
+  const handleDismissAiSuggestion = useCallback(() => {
+    if (!activeAiSuggestionKey) return;
+    setEditingAiDraft(false);
+    setDismissedAiSuggestionKey(activeAiSuggestionKey);
+  }, [activeAiSuggestionKey]);
 
   const sendProductCards = useCallback(
     async (cards = []) => {
@@ -3393,6 +3504,24 @@ export default function AiInboxPwa() {
                   </div>
                   {activeAiReplyConfidence.reasonsPreview.length ? <div className="mt-1.5 space-y-1">{activeAiReplyConfidence.reasonsPreview.slice(0, 3).map((item) => <div key={item} className="flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-current/80" /><span>{item}</span></div>)}</div> : null}
                   {activeAiReplyConfidence.decision === "high_risk" ? <div className="mt-1.5 font-black uppercase tracking-[0.12em]">High risk: manual review recommended before sending.</div> : null}
+                </div>
+              ) : null}
+              {aiSuggestionVisible ? (
+                <div className={`mb-2 rounded-2xl border p-3 ${editingAiDraft ? "border-violet-300/30 bg-violet-400/10" : "border-cyan-300/15 bg-cyan-300/8"}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">اقتراح الذكاء الاصطناعي</div>
+                      <div className="mt-2 max-h-40 overflow-auto rounded-xl border border-white/10 bg-slate-950/75 p-3 text-sm leading-7 text-slate-100">
+                        {activeAiSuggestionText}
+                      </div>
+                    </div>
+                    {editingAiDraft ? <span className="shrink-0 rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-100">Editing</span> : null}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" onClick={handleEditAiSuggestion} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-[11px] font-black text-violet-100 transition hover:bg-violet-400/15">✏️ تعديل الرد</button>
+                    <button type="button" onClick={handleApproveAiSuggestion} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-[11px] font-black text-emerald-100 transition hover:bg-emerald-400/15">✅ اعتماد وإرسال</button>
+                    <button type="button" onClick={handleDismissAiSuggestion} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black text-slate-200 transition hover:bg-white/[0.08]">❌ تجاهل</button>
+                  </div>
                 </div>
               ) : null}
               <div className="flex items-end gap-2">
