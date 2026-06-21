@@ -155,10 +155,10 @@ function Login() {
         </div>
 
         <h1 className="mb-2 text-3xl font-bold text-center text-[var(--text)]">
-          طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„
+          تسجيل الدخول
         </h1>
         <p className="mb-6 text-center text-sm text-[var(--muted)]">
-          ط³ط¬ظ‘ظ„ ط¯ط®ظˆظ„ظƒ ط¥ظ„ظ‰ ظ…ط³ط§ط­ط© ط§ظ„ط¹ظ…ظ„
+          سجّل دخولك إلى مساحة العمل
         </p>
 
         <input
@@ -171,7 +171,7 @@ function Login() {
 
         <input
           type="password"
-          placeholder="ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±"
+          placeholder="كلمة المرور"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="mb-4 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-[var(--text)] outline-none placeholder:text-[var(--muted)]"
@@ -190,7 +190,7 @@ function Login() {
           disabled={loading}
           className="w-full rounded-2xl bg-[var(--primary)] px-4 py-3 font-semibold text-white"
         >
-          {loading ? "ط¬ط§ط±ظچ ط§ظ„طھط­ظ…ظٹظ„..." : "طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„"}
+          {loading ? "جارٍ تسجيل الدخول..." : "تسجيل الدخول"}
         </button>
 
         {error ? (
