@@ -4,6 +4,7 @@ import { useDeferredValue } from "react";
 import { Link, NavLink, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
+import { FaWhatsapp } from "react-icons/fa";
 import { useTranslation } from "react-i18next";
 import { lazy, Suspense } from "react";
 import i18n, { applyDocumentLanguage, normalizeLanguage, persistApplicationLanguage } from "../i18n/i18n";
@@ -1687,10 +1688,10 @@ const featuredCategoryDefinitions = [
     id: "men",
     labelEn: "Men",
     labelAr: "رجالي",
-    headlineEn: "Latest Men's Shoes",
-    headlineAr: "أحدث أحذية الرجال",
-    subtitleEn: "Fresh sneakers, daily picks, and standout sizes for every look.",
-    subtitleAr: "سنيكرز جديدة، اختيارات يومية، ومقاسات مميزة لكل إطلالة.",
+    headlineEn: "New Collection",
+    headlineAr: "New Collection",
+    subtitleEn: "Premium styles. Daily arrivals.",
+    subtitleAr: "Premium styles. Daily arrivals.",
     query: "Jordan 4 Nike Shox Air Force Adidas Campus رجالي",
     href: "/shop/products?gender=men",
     examples: ["Jordan 4", "Nike Shox", "Air Force", "Adidas Campus"],
@@ -2090,7 +2091,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
   const supportingSlides = [activeSlide, ...slides.filter((slide) => slide.product?.id !== activeSlide.product?.id)].slice(0, 5);
 
   return (
-    <section className="mx-auto max-w-[1320px] px-4 pb-3 pt-1.5 md:pb-8 md:pt-8" dir={isRtl ? "rtl" : "ltr"}>
+    <section className="mx-auto max-w-[1320px] px-4 pb-3 pt-1.5 mt-3 md:mt-0 md:pb-8 md:pt-8" dir={isRtl ? "rtl" : "ltr"}>
       <div className={`overflow-hidden rounded-[1.85rem] border shadow-[0_34px_100px_rgba(15,23,42,0.30)] md:rounded-[2.35rem] ${darkMode ? "border-white/10 bg-[#080808]" : "border-slate-200 bg-white shadow-[0_34px_100px_rgba(15,23,42,0.10)]"}`}>
         <div className="grid min-h-[420px] lg:grid-cols-[minmax(0,0.72fr)_minmax(18rem,0.28fr)] lg:[direction:ltr] md:min-h-[520px]">
           <Link
@@ -2099,11 +2100,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
           >
             <div className={`pointer-events-none absolute inset-0 ${darkMode ? "bg-[linear-gradient(120deg,rgba(255,255,255,0.08),transparent_34%,rgba(0,0,0,0.42))]" : "bg-[linear-gradient(120deg,rgba(255,255,255,0.54),transparent_34%,rgba(255,255,255,0.06))]"}`} />
             <div className={`pointer-events-none absolute inset-x-0 bottom-0 h-1/2 ${darkMode ? "bg-gradient-to-t from-black/52 to-transparent" : "bg-gradient-to-t from-white/90 to-transparent"}`} />
-            <div className={`absolute end-4 top-4 z-20 inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-black shadow-sm backdrop-blur ${darkMode ? "border-white/12 bg-white/10 text-white" : "border-slate-200 bg-white/85 text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
-              <ActiveIcon className="h-4 w-4" />
-              {activeCategory.label}
-            </div>
-            <div className="absolute start-4 top-4 z-20 flex gap-2">
+            <div className="absolute start-4 top-4 z-20 hidden gap-2 md:flex">
               <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? 1 : -1); }} className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border shadow-sm backdrop-blur transition-[background-color,color,opacity,transform] duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 ${darkMode ? "border-transparent bg-white/10 text-white hover:bg-white/16 hover:text-white focus-visible:ring-white/35" : "border-slate-200 bg-white/90 text-slate-700 hover:bg-white hover:text-slate-950 focus-visible:ring-slate-300"}`} aria-label="السابق">
                 <ChevronLeft className={`h-4 w-4 ${isRtl ? "rotate-180" : ""}`} />
               </button>
@@ -2112,22 +2109,20 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
               </button>
             </div>
             <div className="relative z-10 grid w-full gap-5 p-4 md:grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] md:gap-7 md:p-9 lg:p-12">
-              <div key={`category-copy-${activeCategory.id}`} className="relative z-20 flex min-h-[11rem] flex-col justify-end self-end pb-1.5 animate-[sfFadeUp_420ms_ease-out_both] md:min-h-0 md:justify-center md:pb-0">
-                <div className={`mb-4 inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] shadow-sm backdrop-blur md:mb-5 md:px-3.5 md:py-2 md:text-xs ${darkMode ? "border-white/12 bg-white/10 text-[#f8e7b3]" : "border-slate-200 bg-white/85 text-[#d4af37] shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
-                  <ActiveIcon className="h-4 w-4" />
-                  {activeCategory.label}
+              <div key={`category-copy-${activeCategory.id}`} className="relative z-20 flex min-h-[9.5rem] w-full max-w-[20rem] flex-col items-start justify-start self-start pb-0 ml-0 mr-auto text-left animate-[sfFadeUp_420ms_ease-out_both] md:min-h-0 md:max-w-none md:justify-center md:pb-0 md:ml-0 md:mr-0">
+                <div dir="ltr" className="flex w-full flex-col items-start text-left">
+                  <h1 className={`max-w-[20rem] text-left text-[1.84rem] font-black leading-[1.06] tracking-[-0.03em] sm:max-w-[22rem] sm:text-[2.08rem] sm:leading-[1.02] md:max-w-xl md:text-6xl lg:text-[4.9rem] ${darkMode ? "text-white" : "text-slate-900"}`}>
+                    {headline}
+                  </h1>
+                  <p className={`mt-3 max-w-[18rem] text-left text-[0.92rem] font-bold leading-6 sm:max-w-[20rem] md:mt-6 md:max-w-[34rem] md:text-lg md:leading-8 ${darkMode ? "text-white/68" : "text-slate-600"}`}>
+                    {subtitle}
+                  </p>
                 </div>
-                <h1 className={`line-clamp-2 max-w-xl text-[2.35rem] font-black leading-[0.95] md:text-6xl lg:text-[4.9rem] ${darkMode ? "text-white" : "text-slate-900"}`}>
-                  {headline}
-                </h1>
-                <p className={`mt-4 line-clamp-2 max-w-[34rem] text-[0.98rem] font-bold leading-6 md:mt-6 md:text-lg md:leading-8 ${darkMode ? "text-white/68" : "text-slate-600"}`}>
-                  {subtitle}
-                </p>
-                <span className={`mt-6 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full px-7 text-sm font-black transition duration-200 ease-out group-hover:-translate-y-0.5 md:mt-9 md:min-h-14 md:px-8 ${darkMode ? "bg-[#f8e7b3] text-stone-950 shadow-[0_20px_46px_rgba(248,231,179,0.22)] ring-1 ring-white/10 group-hover:bg-white" : "bg-slate-900 text-white shadow-[0_20px_46px_rgba(15,23,42,0.18)] ring-1 ring-slate-200 group-hover:bg-[#d4af37] group-hover:text-white"}`}>
+                <span className={`mt-4 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full px-7 text-sm font-black text-left transition duration-200 ease-out group-hover:-translate-y-0.5 md:mt-9 md:min-h-14 md:px-8 ${darkMode ? "bg-[#f8e7b3] text-stone-950 shadow-[0_20px_46px_rgba(248,231,179,0.22)] ring-1 ring-white/10 group-hover:bg-white" : "bg-slate-900 text-white shadow-[0_20px_46px_rgba(15,23,42,0.18)] ring-1 ring-slate-200 group-hover:bg-[#d4af37] group-hover:text-white"} self-start md:self-auto`}>
                   {cta}
                 </span>
               </div>
-              <div className="relative flex min-h-[270px] items-center justify-center md:min-h-[490px]">
+              <div className="relative mt-4 flex min-h-[250px] items-end justify-end md:mt-0 md:min-h-[490px] md:items-center md:justify-center">
                 <div className={`absolute bottom-8 left-1/2 h-14 w-[82%] -translate-x-1/2 rounded-[100%] blur-3xl ${darkMode ? "bg-black/75" : "bg-slate-300/80"}`} />
                 {supportingSlides.map((slide, index) => {
                   const active = slide.product?.id === product?.id;
@@ -2138,7 +2133,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
                       {...responsiveImageProps(slide.image, "hero")}
                       alt=""
                       onError={fallbackProductImage}
-                      className={`absolute object-contain drop-shadow-[0_40px_42px_rgba(0,0,0,0.42)] transition-all duration-700 ease-out ${active ? "z-30 max-h-[290px] w-[86%] opacity-100 animate-[sfFadeUp_420ms_ease-out_both] md:max-h-[520px]" : index === 1 ? "z-20 max-h-[148px] w-[31%] -translate-x-[108%] translate-y-[30%] -rotate-12 opacity-56 md:max-h-[230px]" : index === 2 ? "z-20 max-h-[144px] w-[30%] translate-x-[108%] -translate-y-[28%] rotate-12 opacity-54 md:max-h-[225px]" : index === 3 ? "z-10 max-h-[120px] w-[26%] -translate-x-[128%] -translate-y-[28%] rotate-6 opacity-36 blur-[0.3px] md:max-h-[180px]" : "z-10 max-h-[120px] w-[26%] translate-x-[128%] translate-y-[30%] -rotate-6 opacity-36 blur-[0.3px] md:max-h-[180px]"}`}
+                      className={`absolute object-contain drop-shadow-[0_40px_42px_rgba(0,0,0,0.42)] transition-all duration-700 ease-out ${active ? "z-30 left-0 right-0 mx-auto bottom-3 max-h-[300px] w-[92%] opacity-100 animate-[sfFadeUp_420ms_ease-out_both] md:left-auto md:right-auto md:bottom-auto md:mx-0 md:max-h-[520px] md:w-[86%] md:translate-x-0 md:translate-y-0" : index === 1 ? "z-20 right-[4%] bottom-[14%] max-h-[126px] w-[28%] -rotate-12 opacity-56 md:right-auto md:bottom-auto md:max-h-[230px] md:w-[31%] md:-translate-x-[108%] md:translate-y-[30%]" : index === 2 ? "z-20 right-[16%] bottom-[18%] max-h-[120px] w-[27%] rotate-12 opacity-54 md:right-auto md:bottom-auto md:max-h-[225px] md:w-[30%] md:translate-x-[108%] md:-translate-y-[28%]" : index === 3 ? "z-10 right-[28%] bottom-[8%] max-h-[104px] w-[23%] rotate-6 opacity-36 blur-[0.3px] md:right-auto md:bottom-auto md:max-h-[180px] md:w-[26%] md:-translate-x-[128%] md:-translate-y-[28%]" : "z-10 right-[8%] bottom-[4%] max-h-[104px] w-[23%] -rotate-6 opacity-36 blur-[0.3px] md:right-auto md:bottom-auto md:max-h-[180px] md:w-[26%] md:translate-x-[128%] md:translate-y-[30%]"}`}
                       loading={active ? "eager" : "lazy"}
                       decoding="async"
                       width="760"
@@ -2148,7 +2143,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
                 })}
               </div>
               {slides.length > 1 ? (
-                <div className="absolute bottom-3 end-3 z-20 flex gap-1.5">
+                <div className="absolute bottom-4 end-4 z-20 flex gap-1.5 sm:bottom-3 sm:end-3">
                   {slides.map((slide, index) => (
                     <button key={productIdentityKey(slide.product, index)} type="button" onClick={(event) => { event.preventDefault(); setSlideIndex(index); setManualTick((current) => current + 1); }} className={`h-1.5 rounded-full transition ${index === slideIndex ? "w-8 bg-stone-950 dark:bg-white" : "w-2 bg-stone-950/24 dark:bg-white/30"}`} aria-label={`Slide ${index + 1}`} />
                   ))}
@@ -2255,9 +2250,103 @@ const homeProductWithImage = (product = {}) => {
   return slide.image ? { ...slide, product } : null;
 };
 
+function MobileStoryCategories({ products = [], lang = "ar", themeMode = "light" }) {
+  const isRtl = normalizeLanguage(lang) === "ar";
+  const darkMode = themeMode === "dark" || (typeof document !== "undefined" && document.body.classList.contains("storefront-dark"));
+  const sourceProducts = useMemo(
+    () => uniqueProductsByIdentity(products)
+      .filter((product) => product?.id && product?.name && isAvailableProduct(product))
+      .map(homeProductWithImage)
+      .filter(Boolean),
+    [products]
+  );
+  const storyCards = useMemo(() => {
+    const usedProducts = new Set();
+    return mainHomeCategoryCards.slice(0, 4).map((definition) => {
+      const match = sourceProducts.find(({ product }) => {
+        if (usedProducts.has(productIdentityKey(product))) return false;
+        if (definition.id === "offers") return hasSale(product);
+        return definition.test(product, productSearchText(product));
+      });
+      if (match?.product) usedProducts.add(productIdentityKey(match.product));
+      return {
+        ...definition,
+        image: match?.image || "",
+      };
+    });
+  }, [sourceProducts]);
+
+  if (!storyCards.length) return null;
+
+  return (
+    <section className="-mt-1 mx-auto max-w-[1320px] px-4 pt-1 md:hidden" dir={isRtl ? "rtl" : "ltr"}>
+      <div className="border-t border-white/10 pt-2">
+        <div className="grid w-full grid-cols-4 gap-[clamp(10px,3vw,16px)]">
+        {storyCards.map((card) => {
+          const Icon = card.icon;
+          const href = card.href || `/shop/products?q=${encodeURIComponent(card.titleAr || card.titleEn || "")}`;
+          const label = isRtl ? card.titleAr : card.titleEn;
+          const imageSrc = card.image ? imageFor(card.image) : "";
+          return (
+            <Link
+              key={card.id}
+              to={href}
+              className="group flex min-w-0 flex-col items-center gap-1 text-center"
+              aria-label={label}
+            >
+              <span className="relative grid h-[clamp(56px,15vw,66px)] w-[clamp(56px,15vw,66px)] place-items-center overflow-hidden rounded-full border border-[#d4af37]/55 bg-[radial-gradient(circle_at_30%_25%,rgba(212,175,55,0.22),transparent_35%),linear-gradient(180deg,#050505_0%,#101010_100%)] p-[2px] shadow-[0_0_0_1px_rgba(212,175,55,0.24),0_10px_24px_rgba(212,175,55,0.18)] transition duration-200 group-active:scale-[0.98]">
+                {imageSrc ? (
+                  <img
+                    src={imageSrc}
+                    {...responsiveImageProps(card.image, "grid")}
+                    alt=""
+                    onError={fallbackProductImage}
+                    className="h-full w-full rounded-full object-cover object-center"
+                    loading="lazy"
+                    decoding="async"
+                    width="180"
+                    height="180"
+                  />
+                ) : (
+                  <Icon className="h-7 w-7 text-[#f8e7b3]" />
+                )}
+                <span className="pointer-events-none absolute inset-0 rounded-full border border-white/5" />
+              </span>
+              <span className="text-[clamp(11px,3vw,12px)] font-black leading-[1.1] text-white/86 whitespace-nowrap">{label}</span>
+            </Link>
+          );
+        })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ShopByMainCategories({ products = [], lang = "ar", loading = false, themeMode = "light" }) {
   const isRtl = normalizeLanguage(lang) === "ar";
   const darkMode = themeMode === "dark" || (typeof document !== "undefined" && document.body.classList.contains("storefront-dark"));
+  const heroCopyById = {
+    men: {
+      title: "Men Collection",
+      subtitle: "Premium styles. Daily arrivals.",
+    },
+    women: {
+      title: "Women Collection",
+      subtitle: "Premium styles. Daily arrivals.",
+    },
+    kids: {
+      title: "Kids Collection",
+      subtitle: "Premium styles. Daily arrivals.",
+    },
+    offers: {
+      title: "Sale Collection",
+      subtitle: "Best deals. Limited offers.",
+    },
+    crocs: {
+      title: "Crocs Collection",
+      subtitle: "Comfort. Everyday wear.",
+    },
+  };
   const sourceProducts = useMemo(
     () => uniqueProductsByIdentity(products)
       .filter((product) => product?.id && product?.name && isAvailableProduct(product))
@@ -2268,18 +2357,18 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
 
   const cards = useMemo(() => mainHomeCategoryCards.map((definition) => {
     const matched = sourceProducts.filter(({ product }) => definition.test(product, productSearchText(product)));
-    const images = uniqueProductsByIdentity([...matched, ...sourceProducts].map((item) => item.product))
-      .map(homeProductWithImage)
-      .filter(Boolean)
-      .slice(0, 4);
-    return { ...definition, images };
+        const images = uniqueProductsByIdentity([...matched, ...sourceProducts].map((item) => item.product))
+          .map(homeProductWithImage)
+          .filter(Boolean)
+          .slice(0, 4);
+        return { ...definition, images };
   }), [sourceProducts]);
 
   if (!cards.length) return loading ? <ShopByMainCategoriesSkeleton lang={lang} /> : null;
 
   return (
-    <section className="mx-auto max-w-[1360px] px-4 py-10 md:py-16" dir={isRtl ? "rtl" : "ltr"}>
-      <div className={`mb-8 flex items-end justify-between gap-3 md:mb-11 ${isRtl ? "text-right" : "text-left"}`}>
+    <section className="mx-auto max-w-[1360px] px-4 py-8 sm:py-9 md:py-16" dir={isRtl ? "rtl" : "ltr"}>
+      <div className={`mb-6 flex items-end justify-between gap-3 sm:mb-8 md:mb-11 ${isRtl ? "text-right" : "text-left"}`}>
         <div>
           <div className={`mb-2 text-[10px] font-black uppercase tracking-[0.18em] ${darkMode ? "text-[#f8e7b3]" : "text-[#d4af37]"}`}>
             {sfText("storefront.home.shopByCategory")}
@@ -2292,59 +2381,49 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
           {sfText("common.viewAll")}
         </Link>
       </div>
-      <div className="grid gap-7 md:gap-10">
-        {cards.map((card, cardIndex) => {
-          const title = isRtl ? card.titleAr : card.titleEn;
-          const subtitle = isRtl ? card.subtitleAr : card.subtitleEn;
-          const collage = card.images;
-          const reverse = cardIndex % 2 === 1;
+      <div className="grid gap-4 sm:gap-5 md:gap-10">
+        {cards.map((card) => {
+          const heroCopy = heroCopyById[card.id] || {};
+          const title = heroCopy.title || (isRtl ? card.titleAr : card.titleEn);
+          const subtitle = heroCopy.subtitle || (isRtl ? card.subtitleAr : card.subtitleEn);
+          const image = card.images?.[0] || null;
+          const imageSrc = image ? imageFor(image.image) : "";
+          const Icon = card.icon;
           return (
             <Link
               key={card.id}
               to={card.href}
-              className={`group relative grid min-h-[320px] overflow-hidden rounded-[2.35rem] border transition duration-500 hover:-translate-y-1.5 active:scale-[0.99] md:min-h-[375px] lg:min-h-[420px] ${darkMode ? (card.id === "men" ? "border-white/12 bg-[linear-gradient(180deg,#050505_0%,#0a0a0a_45%,#111111_100%)] text-white shadow-[0_34px_110px_rgba(0,0,0,0.34)] hover:border-[#d4af37]/40 hover:shadow-[0_48px_130px_rgba(0,0,0,0.48)]" : "border-white/10 bg-stone-950 text-white shadow-[0_34px_110px_rgba(0,0,0,0.28)] hover:border-[#d4af37]/50 hover:shadow-[0_48px_130px_rgba(0,0,0,0.42)]") : "border-slate-200 bg-white text-stone-950 shadow-[0_34px_110px_rgba(15,23,42,0.10)] hover:border-[#d4af37]/30 hover:shadow-[0_48px_130px_rgba(15,23,42,0.16)]"} ${reverse ? "md:grid-cols-[0.58fr_0.42fr]" : "md:grid-cols-[0.42fr_0.58fr]"}`}
+              className={`group relative flex min-h-[410px] flex-col overflow-hidden rounded-[2.35rem] border transition duration-500 hover:-translate-y-1.5 active:scale-[0.99] md:min-h-[500px] lg:min-h-[580px] ${darkMode ? "border-white/12 bg-[linear-gradient(180deg,#050505_0%,#0a0a0a_45%,#111111_100%)] text-white shadow-[0_34px_110px_rgba(0,0,0,0.34)] hover:border-[#d4af37]/40 hover:shadow-[0_48px_130px_rgba(0,0,0,0.48)]" : "border-slate-200 bg-white text-stone-950 shadow-[0_34px_110px_rgba(15,23,42,0.10)] hover:border-[#d4af37]/30 hover:shadow-[0_48px_130px_rgba(15,23,42,0.16)]"}`}
             >
-              <div className={`absolute inset-0 ${darkMode ? (card.id === "men" ? "bg-[radial-gradient(circle_at_76%_24%,rgba(212,175,55,0.06),transparent_31%),linear-gradient(135deg,#050505_0%,#0a0a0a_52%,#111111_100%)]" : "bg-[radial-gradient(circle_at_76%_24%,rgba(212,175,55,0.18),transparent_31%),linear-gradient(135deg,#1c1917_0%,#111111_52%,#030712_100%)]") : "bg-[radial-gradient(circle_at_76%_24%,rgba(212,175,55,0.10),transparent_31%),linear-gradient(135deg,#ffffff_0%,#f8fafc_52%,#eef2ff_100%)]"}`} />
-              <div className={`absolute inset-0 ${darkMode ? (card.id === "men" ? "bg-gradient-to-l from-black/70 via-black/38 to-black/10" : "bg-gradient-to-l from-black/80 via-black/35 to-black/12") : "bg-gradient-to-l from-white/78 via-white/40 to-white/8"}`} />
-              <div className={`relative z-10 flex min-h-[320px] flex-col justify-end p-7 md:min-h-0 md:p-10 lg:p-12 ${isRtl ? "text-right" : "text-left"} ${reverse ? "md:order-2" : ""}`}>
-                <div className={`mb-4 w-fit rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] backdrop-blur ${darkMode ? "border-white/15 bg-white/10 text-[#f8e7b3]" : "border-slate-200 bg-white/85 text-[#d4af37] shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
-                  {isRtl ? "\u0627\u062e\u062a\u064a\u0627\u0631\u0627\u062a \u0645\u0646\u062a\u0642\u0627\u0629" : "Curated edit"}
+              <div className={`absolute inset-0 ${darkMode ? "bg-[radial-gradient(circle_at_74%_36%,rgba(212,175,55,0.08),transparent_24%),radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.03),transparent_32%),linear-gradient(135deg,#050505_0%,#0a0a0a_54%,#151515_100%)]" : "bg-[radial-gradient(circle_at_74%_36%,rgba(212,175,55,0.10),transparent_26%),radial-gradient(circle_at_18%_18%,rgba(248,231,179,0.28),transparent_30%),linear-gradient(135deg,#ffffff_0%,#f8fafc_56%,#eef2ff_100%)]"}`} />
+              <div className={`absolute inset-0 ${darkMode ? "bg-[linear-gradient(120deg,rgba(255,255,255,0.08),transparent_34%,rgba(0,0,0,0.42))]" : "bg-[linear-gradient(120deg,rgba(255,255,255,0.54),transparent_34%,rgba(255,255,255,0.06))]"}`} />
+              <div className="relative z-10 flex flex-1 flex-col justify-start p-4 pt-4 sm:p-5 sm:pt-6 md:p-10 lg:p-12">
+                <div dir="ltr" className="flex w-full flex-col items-start text-left">
+                  <h3 className={`max-w-[20rem] text-[1.84rem] font-black leading-[1.06] tracking-[-0.03em] sm:max-w-[22rem] sm:text-[2.08rem] sm:leading-[1.02] md:max-w-xl md:text-7xl lg:text-[5.1rem] ${darkMode ? "text-white" : "text-slate-900"}`}>{title}</h3>
+                  <p className={`mt-3 max-w-[18rem] text-[0.92rem] font-bold leading-6 sm:max-w-[20rem] md:mt-6 md:max-w-[34rem] md:text-xl md:leading-8 ${darkMode ? "text-white/82" : "text-slate-600"}`}>{subtitle}</p>
                 </div>
-                <h3 className={`text-[3.45rem] font-black leading-none tracking-tight md:text-7xl lg:text-[5.1rem] ${darkMode ? "text-white" : "text-slate-900"}`}>{title}</h3>
-                <p className={`mt-4 max-w-[30rem] text-base font-bold leading-7 md:mt-5 md:text-xl md:leading-8 ${darkMode ? "text-white/84" : "text-slate-600"}`}>{subtitle}</p>
-                <span className={`mt-7 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full px-6 text-sm font-black transition md:min-h-14 md:px-8 ${darkMode ? "bg-white text-stone-950 shadow-[0_16px_34px_rgba(0,0,0,0.26)] group-hover:bg-[#f8e7b3] group-hover:shadow-[0_18px_42px_rgba(248,231,179,0.26)]" : "bg-stone-950 text-white shadow-[0_16px_34px_rgba(0,0,0,0.16)] group-hover:bg-[#d4af37] group-hover:shadow-[0_18px_42px_rgba(212,175,55,0.16)]"}`}>
+                <span className={`mt-4 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full px-7 text-sm font-black transition duration-200 ease-out group-hover:-translate-y-0.5 md:mt-9 md:min-h-14 md:px-8 ${darkMode ? "bg-[#f8e7b3] text-stone-950 shadow-[0_20px_46px_rgba(248,231,179,0.22)] ring-1 ring-white/10 group-hover:bg-white" : "bg-slate-900 text-white shadow-[0_20px_46px_rgba(15,23,42,0.18)] ring-1 ring-slate-200 group-hover:bg-[#d4af37] group-hover:text-white"} self-start`}>
                   {isRtl ? "تسوّق الآن" : sfText("storefront.common.shopNow")}
                   <ChevronLeft className={`h-4 w-4 transition group-hover:-translate-x-1 ${isRtl ? "" : "rotate-180 group-hover:translate-x-1 group-hover:-translate-y-0"}`} />
                 </span>
-              </div>
-              <div className="relative z-10 min-h-[245px] overflow-hidden p-3 md:min-h-0 md:p-6 lg:p-8">
-                <div className={`absolute bottom-8 left-1/2 h-14 w-[80%] -translate-x-1/2 rounded-full blur-3xl ${darkMode ? (card.id === "men" ? "bg-black/20" : "bg-black/45") : "bg-slate-300/70"}`} />
-                {collage.length ? collage.map(({ product, image }, index) => (
-                  <div
-                    key={`${card.id}-${productIdentityKey(product, index)}`}
-                    className={`absolute overflow-hidden rounded-[1.8rem] backdrop-blur transition duration-700 group-hover:scale-[1.08] ${darkMode ? (card.id === "men" ? "bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_28px_60px_rgba(0,0,0,0.22)]" : "bg-white/[0.12] shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_28px_60px_rgba(0,0,0,0.24)]") : "bg-slate-100/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_20px_50px_rgba(15,23,42,0.10)]"} ${
-                      index === 0
-                        ? "bottom-8 left-1/2 z-30 h-[66%] w-[72%] -translate-x-1/2 md:h-[78%]"
-                        : index === 1
-                          ? "left-4 top-6 z-20 h-[37%] w-[34%] -rotate-6 opacity-78"
-                          : index === 2
-                            ? "right-4 top-8 z-20 h-[35%] w-[32%] rotate-6 opacity-76"
-                            : "bottom-8 right-6 z-10 h-[29%] w-[28%] opacity-50"
-                    }`}
-                  >
+                <div className="relative mt-4 flex min-h-[168px] items-end justify-center overflow-hidden p-1.5 sm:mt-5 sm:min-h-[190px] sm:p-2.5 md:mt-6 md:min-h-[230px] md:p-6 lg:p-8">
+                  <div className={`absolute bottom-4 left-1/2 h-12 w-[78%] -translate-x-1/2 rounded-full blur-3xl ${darkMode ? "bg-black/18" : "bg-slate-300/70"}`} />
+                  {imageSrc ? (
                     <img
-                      src={imageFor(image)}
+                      src={imageSrc}
                       {...responsiveImageProps(image, "hero")}
                       alt=""
                       onError={fallbackProductImage}
-                      className="h-full w-full scale-[1.18] object-contain p-1 transition duration-700 group-hover:scale-[1.34]"
+                      className="relative z-10 h-full w-full max-w-[340px] object-contain"
                       loading="lazy"
                       decoding="async"
                       width="420"
                       height="320"
                     />
-                  </div>
-                )) : null}
+                  ) : (
+                    <Icon className="relative z-10 h-12 w-12 text-[#f8e7b3]" />
+                  )}
+                </div>
               </div>
             </Link>
           );
@@ -2948,6 +3027,7 @@ function HomePage(props) {
 
   return (
     <div className="sf-page pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] md:pb-0">
+      <MobileStoryCategories products={featuredCategoryProducts} lang={lang} themeMode={props.themeMode || "light"} />
       <FeaturedCategoriesHero products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} />
       <QuickSellingStrips lang={lang} />
       <ShopByMainCategories products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} />
@@ -4272,7 +4352,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
             </button>
           </div>
           {!isCheckoutMobile ? (
-            <div className="sf-mobile-category-chips mt-3 flex min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1 rtl:justify-start">
+            <div className="sf-mobile-category-chips hidden min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1 rtl:justify-start md:flex">
               {mobileCategoryChips.map((item) => (
                 <Link
                   key={item.key}
@@ -7074,15 +7154,14 @@ const paymentCopy = (value = "") => {
   return getPaymentMethods().find((method) => method.id === raw)?.title || statusCopy(raw);
 };
 const shippingProviderCopy = (value = "") => {
-  const raw = rawOptionValue(value);
-  return {
-    manual: sfText("storefront.shipping.inStoreDelivery"),
-    store_pickup: sfText("storefront.shipping.inStoreDelivery"),
-    in_store_delivery: sfText("storefront.shipping.inStoreDelivery"),
-    bosta: "Bosta",
-    mylerz: "Mylerz",
-    shipblu: "ShipBlu",
-  }[raw.toLowerCase()] || raw || sfText("storefront.common.soon");
+  const raw = String(rawOptionValue(value) || "").trim().toLowerCase();
+  if (!raw || raw === "default" || raw === "dev" || raw === "undefined" || raw === "null" || raw === "dev: default") {
+    return sfText("storefront.shipping.inStoreDelivery");
+  }
+  if (raw === "bosta" || raw.includes("bosta")) {
+    return "بوسطة";
+  }
+  return sfText("storefront.shipping.inStoreDelivery");
 };
 const formatDate = (value) => {
   if (!value) return sfText("storefront.common.soon");
@@ -9425,11 +9504,9 @@ function Storefront() {
           target="_blank"
           rel="noreferrer"
           aria-label="WhatsApp"
-          className="fixed bottom-[calc(92px+env(safe-area-inset-bottom))] right-4 z-[70] grid h-[42px] w-[42px] place-items-center rounded-full bg-[#25D366] text-white shadow-[0_8px_18px_rgba(0,0,0,0.2)] transition duration-200 hover:scale-110 hover:bg-[#25D366] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366]/40 md:bottom-6 md:right-6"
+          className="fixed bottom-[calc(105px+env(safe-area-inset-bottom))] right-[14px] z-[70] grid h-[40px] w-[40px] place-items-center rounded-full bg-[#25D366] text-white shadow-[0_6px_20px_rgba(37,211,102,0.35)] transition duration-200 hover:scale-110 hover:bg-[#25D366] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366]/40 md:bottom-6 md:right-6 md:h-[42px] md:w-[42px]"
         >
-          <svg aria-hidden="true" viewBox="0 0 32 32" className="h-6 w-6 fill-white" focusable="false">
-            <path d="M19.11 17.41c-.28-.14-1.65-.81-1.91-.91-.26-.1-.45-.14-.64.14-.19.28-.73.91-.9 1.1-.17.19-.34.21-.62.07-.28-.14-1.19-.44-2.27-1.4-.84-.75-1.4-1.67-1.57-1.95-.17-.28-.02-.43.13-.57.13-.13.28-.34.42-.51.14-.17.19-.28.28-.47.09-.19.05-.35-.02-.49-.07-.14-.64-1.54-.88-2.11-.23-.55-.46-.48-.64-.49h-.55c-.19 0-.49.07-.75.35-.26.28-1 0.98-1 2.39 0 1.41 1.02 2.77 1.16 2.96.14.19 2 3.06 4.84 4.29.68.29 1.21.47 1.62.6.68.22 1.3.19 1.79.11.55-.08 1.65-.67 1.88-1.32.23-.65.23-1.2.16-1.32-.07-.12-.26-.19-.54-.33ZM16.02 4C9.38 4 4 9.38 4 16.02c0 2.1.55 4.15 1.6 5.95L4 28l6.21-1.6a11.93 11.93 0 0 0 5.81 1.48h.01C22.66 27.88 28 22.54 28 16.02 28 9.38 22.66 4 16.02 4Zm0 21.67h-.01a9.58 9.58 0 0 1-4.89-1.34l-.35-.21-3.69.95.98-3.59-.23-.37a9.58 9.58 0 0 1-1.48-5.13c0-5.28 4.29-9.57 9.57-9.57 2.56 0 4.96 1 6.76 2.81a9.5 9.5 0 0 1 2.81 6.76c0 5.28-4.29 9.59-9.57 9.59Z" />
-          </svg>
+          <FaWhatsapp className="h-[24px] w-[24px] text-white" />
         </a>
       ) : null}
       {showMobileBottomNav ? (
