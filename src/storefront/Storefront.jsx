@@ -55,7 +55,7 @@ import {
   Users,
   Sun,
   X,
-  Shirt,
+  ContactRound,
 } from "lucide-react";
 import { api } from "../shared/api/api";
 import { API_BASE_URL } from "../shared/constants/app";
@@ -3892,12 +3892,10 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
       : t("storefront.header.languageEnglish");
   const getMobileCategoryChipIcon = (keyOrLabel = "") => {
     const normalized = String(keyOrLabel || "").toLowerCase();
-    if (normalized.includes("men") || normalized.includes("رجالي")) return Shirt;
-    if (normalized.includes("women") || normalized.includes("حريمي")) return UserRound;
-    if (normalized.includes("kids") || normalized.includes("أطفال") || normalized.includes("طفل")) return Baby;
-    if (normalized.includes("bag") || normalized.includes("شنط")) return ShoppingBag;
-    if (normalized.includes("crocs") || normalized.includes("كروكس")) return Footprints;
-    if (normalized.includes("slipper") || normalized.includes("سليبر") || normalized.includes("sandal")) return Footprints;
+    if (normalized.includes("men")) return UserRound;
+    if (normalized.includes("women")) return ContactRound;
+    if (normalized.includes("kids")) return Baby;
+    if (normalized.includes("bag")) return ShoppingBag;
     return Tag;
   };
   const mobileCategoryChips = [
@@ -7135,13 +7133,20 @@ function ContactPage() {
 function SizeGuide() {
   const darkMode = typeof document !== "undefined" && (document.documentElement.classList.contains("dark") || document.body.classList.contains("storefront-dark"));
   const sizeRows = [
-    { eu: 39, foot: "24.8 cm", usMen: "6.5", usWomen: "8", uk: "6", note: sfText("storefront.sizeGuide.notes.39") },
-    { eu: 40, foot: "25.4 cm", usMen: "7", usWomen: "8.5", uk: "6.5", note: sfText("storefront.sizeGuide.notes.40") },
-    { eu: 41, foot: "26.0 cm", usMen: "8", usWomen: "9.5", uk: "7.5", note: sfText("storefront.sizeGuide.notes.41") },
-    { eu: 42, foot: "26.6 cm", usMen: "8.5", usWomen: "10", uk: "8", note: sfText("storefront.sizeGuide.notes.42") },
-    { eu: 43, foot: "27.2 cm", usMen: "9.5", usWomen: "11", uk: "9", note: sfText("storefront.sizeGuide.notes.43") },
-    { eu: 44, foot: "27.8 cm", usMen: "10", usWomen: "11.5", uk: "9.5", note: sfText("storefront.sizeGuide.notes.44") },
-    { eu: 45, foot: "28.4 cm", usMen: "11", usWomen: "12.5", uk: "10.5", note: sfText("storefront.sizeGuide.notes.45") },
+    { eu: 37, foot: "23.6 cm" },
+    { eu: 38, foot: "24.2 cm" },
+    { eu: 39, foot: "24.8 cm" },
+    { eu: 40, foot: "25.4 cm" },
+    { eu: 41, foot: "26.0 cm" },
+    { eu: 42, foot: "26.6 cm" },
+    { eu: 43, foot: "27.2 cm" },
+    { eu: 44, foot: "27.8 cm" },
+    { eu: 45, foot: "28.4 cm" },
+    { eu: 46, foot: "29.0 cm" },
+    { eu: 47, foot: "29.6 cm" },
+    { eu: 48, foot: "30.2 cm" },
+    { eu: 49, foot: "30.8 cm" },
+    { eu: 50, foot: "31.4 cm" },
   ];
   const measureSteps = [
     ["1", sfText("storefront.sizeGuide.steps.paper.title"), sfText("storefront.sizeGuide.steps.paper.text")],
@@ -7171,15 +7176,11 @@ function SizeGuide() {
           <p className="mt-1 text-sm font-bold text-stone-500 dark:text-slate-400">{sfText("storefront.sizeGuide.mobileScrollHint")}</p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-right text-sm font-bold">
+          <table className="w-full min-w-[520px] text-right text-sm font-bold">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-xs font-black text-stone-600 dark:border-white/10 dark:bg-white/[0.045] dark:text-slate-300">
-                <th className="whitespace-nowrap px-5 py-4">{sfText("storefront.sizeGuide.euSize")}</th>
-                <th className="whitespace-nowrap px-5 py-4">{sfText("storefront.sizeGuide.footLength")}</th>
-                <th className="whitespace-nowrap px-5 py-4">US Men</th>
-                <th className="whitespace-nowrap px-5 py-4">US Women</th>
-                <th className="whitespace-nowrap px-5 py-4">UK</th>
-                <th className="whitespace-nowrap px-5 py-4">{sfText("storefront.sizeGuide.notesLabel")}</th>
+                <th className="whitespace-nowrap px-5 py-4">المقاس (EU)</th>
+                <th className="whitespace-nowrap px-5 py-4">طول القدم (سم)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-white/10">
@@ -7187,10 +7188,6 @@ function SizeGuide() {
                 <tr key={row.eu} className="text-stone-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/[0.06]">
                   <td className="px-5 py-4 text-lg font-black text-stone-950 dark:text-white">{row.eu}</td>
                   <td className="whitespace-nowrap px-5 py-4 text-stone-800 dark:text-slate-100">{row.foot}</td>
-                  <td className="px-5 py-4 tabular-nums">{row.usMen}</td>
-                  <td className="px-5 py-4 tabular-nums">{row.usWomen}</td>
-                  <td className="px-5 py-4 tabular-nums">{row.uk}</td>
-                  <td className="min-w-56 px-5 py-4 text-stone-600 dark:text-slate-300">{row.note}</td>
                 </tr>
               ))}
             </tbody>
@@ -7230,17 +7227,34 @@ function SizeGuide() {
               preserveAspectRatio="xMidYMid meet"
             >
               <defs>
+                <linearGradient id="sizeGuideScene" x1="0" x2="1" y1="0" y2="1">
+                  <stop offset="0%" stopColor="#0b1120" />
+                  <stop offset="52%" stopColor="#111827" />
+                  <stop offset="100%" stopColor="#1f2937" />
+                </linearGradient>
                 <linearGradient id="sizeGuidePaper" x1="0" x2="1" y1="0" y2="1">
                   <stop offset="0%" stopColor="#ffffff" />
-                  <stop offset="100%" stopColor="#dbeafe" />
+                  <stop offset="100%" stopColor="#eef2ff" />
                 </linearGradient>
-                <linearGradient id="sizeGuideFoot" x1="0" x2="1" y1="0" y2="1">
-                  <stop offset="0%" stopColor="#fef3c7" />
-                  <stop offset="100%" stopColor="#f3c7a6" />
+                <linearGradient id="sizeGuideFoot" x1="0" x2="0.95" y1="0" y2="1">
+                  <stop offset="0%" stopColor="#f9d8b9" />
+                  <stop offset="52%" stopColor="#eab28b" />
+                  <stop offset="100%" stopColor="#c9835d" />
                 </linearGradient>
-                <filter id="sizeGuideGlow" x="-30%" y="-30%" width="160%" height="160%">
-                  <feGaussianBlur stdDeviation="10" result="blur" />
-                  <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.49 0 0 0 0 0.23 0 0 0 0 0.93 0 0 0 0.45 0" />
+                <linearGradient id="sizeGuideToeGlow" x1="0" x2="1" y1="0" y2="1">
+                  <stop offset="0%" stopColor="#fff7ed" stopOpacity="0.95" />
+                  <stop offset="100%" stopColor="#f8c58e" stopOpacity="0.15" />
+                </linearGradient>
+                <linearGradient id="sizeGuideRuler" x1="0" x2="1" y1="0" y2="0">
+                  <stop offset="0%" stopColor="#e2e8f0" />
+                  <stop offset="100%" stopColor="#cbd5e1" />
+                </linearGradient>
+                <filter id="sizeGuideShadow" x="-30%" y="-30%" width="160%" height="160%">
+                  <feDropShadow dx="0" dy="16" stdDeviation="18" floodColor="#020617" floodOpacity="0.42" />
+                </filter>
+                <filter id="sizeGuideSoftGlow" x="-25%" y="-25%" width="150%" height="150%">
+                  <feGaussianBlur stdDeviation="8" result="blur" />
+                  <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.60 0 0 0 0 0.72 0 0 0 0 1 0 0 0 0.26 0" />
                   <feMerge>
                     <feMergeNode />
                     <feMergeNode in="SourceGraphic" />
@@ -7248,42 +7262,87 @@ function SizeGuide() {
                 </filter>
               </defs>
 
-              <rect x="20" y="20" width="720" height="320" rx="30" fill="#020617" opacity="0.04" />
-              <rect x="82" y="44" width="596" height="250" rx="24" fill="url(#sizeGuidePaper)" opacity="0.96" />
-              <path d="M126 86 H634 M126 130 H634 M126 174 H634 M126 218 H634 M126 262 H634" stroke="#94a3b8" strokeOpacity="0.28" strokeWidth="2" />
-              <path d="M154 66 V276 M242 66 V276 M330 66 V276 M418 66 V276 M506 66 V276 M594 66 V276" stroke="#94a3b8" strokeOpacity="0.18" strokeWidth="2" />
+              <rect x="22" y="20" width="716" height="320" rx="32" fill="url(#sizeGuideScene)" />
+              <ellipse cx="380" cy="228" rx="250" ry="110" fill="#020617" opacity="0.28" />
+              <g filter="url(#sizeGuideShadow)">
+                <rect x="110" y="42" width="540" height="254" rx="28" fill="url(#sizeGuidePaper)" />
+                <rect x="128" y="60" width="504" height="218" rx="22" fill="#ffffff" opacity="0.86" />
+                <path d="M150 92 H610 M150 138 H610 M150 184 H610 M150 230 H610" stroke="#cbd5e1" strokeOpacity="0.5" strokeWidth="1.8" />
+                <path d="M190 70 V266 M270 70 V266 M350 70 V266 M430 70 V266 M510 70 V266 M590 70 V266" stroke="#cbd5e1" strokeOpacity="0.36" strokeWidth="1.6" />
+                <path d="M150 252 H610" stroke="#dbe4f0" strokeWidth="6" strokeLinecap="round" opacity="0.8" />
+              </g>
 
-              <path
-                d="M266 244 C220 226 193 184 200 138 C206 96 235 73 270 75 C297 77 314 94 328 119 C337 90 354 65 379 58 C405 51 424 64 431 91 C439 66 457 49 481 51 C507 54 520 74 516 103 C528 85 546 76 565 82 C589 90 595 116 578 139 C598 136 616 147 622 166 C631 194 607 221 566 225 C502 231 450 254 392 267 C346 278 302 258 266 244 Z"
-                fill="url(#sizeGuideFoot)"
-                stroke="#92400e"
-                strokeOpacity="0.34"
-                strokeWidth="3"
-              />
-              <path d="M236 232 C276 252 329 263 383 252 C445 239 498 216 562 211" fill="none" stroke="#7c2d12" strokeOpacity="0.22" strokeWidth="5" strokeLinecap="round" />
+              <g filter="url(#sizeGuideShadow)">
+                <ellipse cx="388" cy="212" rx="165" ry="86" fill="#020617" opacity="0.18" />
+                <path
+                  d="M260 237
+                    C222 224 198 194 200 155
+                    C203 120 226 92 256 83
+                    C274 77 294 82 313 96
+                    C321 73 337 58 360 53
+                    C385 47 404 56 415 76
+                    C425 57 442 47 461 48
+                    C485 50 499 65 501 89
+                    C510 77 525 72 541 76
+                    C563 82 572 100 569 121
+                    C584 118 599 125 605 140
+                    C612 160 599 176 578 181
+                    C544 189 517 203 489 217
+                    C447 239 397 257 350 255
+                    C318 253 285 248 260 237 Z"
+                  fill="url(#sizeGuideFoot)"
+                />
+                <path
+                  d="M266 238
+                    C237 226 219 200 221 166
+                    C224 125 248 100 280 96
+                    C299 94 316 103 330 120
+                    C342 98 356 83 377 79
+                    C396 75 409 82 418 98
+                    C427 82 441 74 457 75
+                    C477 76 490 89 492 107
+                    C500 98 511 94 523 96
+                    C539 99 547 110 546 125
+                    C557 122 568 126 573 136
+                    C579 149 570 159 559 163
+                    C525 176 498 190 472 203
+                    C433 224 391 239 346 238
+                    C317 238 289 236 266 238 Z"
+                  fill="url(#sizeGuideToeGlow)"
+                  opacity="0.55"
+                />
+                <path d="M286 229 C311 239 346 243 381 239 C430 233 477 220 521 206" fill="none" stroke="#7c2d12" strokeOpacity="0.18" strokeWidth="4" strokeLinecap="round" />
+              </g>
 
-              <g filter="url(#sizeGuideGlow)">
-                <path d="M198 302 H622" stroke="#7c3aed" strokeWidth="5" strokeLinecap="round" />
-                <path d="M198 288 V316 M622 288 V316" stroke="#7c3aed" strokeWidth="5" strokeLinecap="round" />
-                <path d="M215 302 l18 -14 M215 302 l18 14 M605 302 l-18 -14 M605 302 l-18 14" stroke="#c4b5fd" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+              <g filter="url(#sizeGuideSoftGlow)">
+                <path d="M222 292 H552" stroke="#8b5cf6" strokeWidth="4.5" strokeLinecap="round" />
+                <path d="M222 278 V306 M552 278 V306" stroke="#8b5cf6" strokeWidth="4.5" strokeLinecap="round" />
+                <path d="M239 292 l16 -13 M239 292 l16 13 M535 292 l-16 -13 M535 292 l-16 13" stroke="#ddd6fe" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
               </g>
 
               <g>
-                <line x1="198" y1="238" x2="198" y2="324" stroke="#10b981" strokeWidth="3" strokeDasharray="8 8" />
-                <circle cx="198" cy="238" r="8" fill="#10b981" />
-                <rect x="126" y="204" width="118" height="38" rx="19" fill="#064e3b" opacity="0.95" />
-                <text x="185" y="228" textAnchor="middle" fill="#d1fae5" fontSize="18" fontWeight="900">{sfText("storefront.sizeGuide.heel")}</text>
+                <line x1="228" y1="231" x2="228" y2="320" stroke="#10b981" strokeWidth="3" strokeDasharray="8 8" />
+                <circle cx="228" cy="231" r="8" fill="#10b981" />
+                <rect x="146" y="196" width="118" height="38" rx="19" fill="#064e3b" opacity="0.96" />
+                <text x="205" y="220" textAnchor="middle" fill="#d1fae5" fontSize="18" fontWeight="900">{sfText("storefront.sizeGuide.heel")}</text>
               </g>
 
               <g>
-                <line x1="622" y1="166" x2="622" y2="324" stroke="#f59e0b" strokeWidth="3" strokeDasharray="8 8" />
-                <circle cx="622" cy="166" r="8" fill="#f59e0b" />
-                <rect x="552" y="118" width="142" height="38" rx="19" fill="#78350f" opacity="0.95" />
-                <text x="623" y="142" textAnchor="middle" fill="#fef3c7" fontSize="17" fontWeight="900">{sfText("storefront.sizeGuide.longestToe")}</text>
+                <line x1="544" y1="128" x2="544" y2="320" stroke="#f59e0b" strokeWidth="3" strokeDasharray="8 8" />
+                <circle cx="544" cy="128" r="8" fill="#f59e0b" />
+                <rect x="470" y="82" width="150" height="38" rx="19" fill="#78350f" opacity="0.96" />
+                <text x="545" y="106" textAnchor="middle" fill="#fef3c7" fontSize="17" fontWeight="900">{sfText("storefront.sizeGuide.longestToe")}</text>
               </g>
 
-              <rect x="315" y="276" width="190" height="42" rx="21" fill="#111827" opacity="0.96" />
-              <text x="410" y="303" textAnchor="middle" fill="#ffffff" fontSize="18" fontWeight="900">{sfText("storefront.sizeGuide.lengthCm")}</text>
+              <g>
+                <rect x="558" y="46" width="24" height="202" rx="12" fill="url(#sizeGuideRuler)" opacity="0.92" />
+                <path d="M570 62 V230" stroke="#94a3b8" strokeOpacity="0.7" strokeWidth="1.5" />
+                <path d="M570 74 h-12 M570 90 h-8 M570 106 h-12 M570 122 h-8 M570 138 h-12 M570 154 h-8 M570 170 h-12 M570 186 h-8 M570 202 h-12 M570 218 h-8" stroke="#475569" strokeWidth="2" strokeLinecap="round" />
+                <text x="595" y="72" fill="#0f172a" fontSize="12" fontWeight="800">cm</text>
+              </g>
+
+              <rect x="292" y="270" width="176" height="40" rx="20" fill="#111827" opacity="0.96" />
+              <text x="380" y="297" textAnchor="middle" fill="#ffffff" fontSize="18" fontWeight="900">{sfText("storefront.sizeGuide.lengthCm")}</text>
             </svg>
           </div>
           <p className="mx-auto mt-3 max-w-2xl text-center text-sm font-black leading-7 text-stone-600 dark:text-slate-300">
@@ -8020,6 +8079,7 @@ function FooterLinks({ title, links }) {
 
 function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = {}, publicStoreSettings = {} }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const mobilePortalTarget = typeof document !== "undefined" ? document.body : null;
   const path = location.pathname || "";
@@ -8027,6 +8087,18 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
   const isCheckoutFlow = /^\/shop\/(checkout|success|confirm)/.test(path) || /^\/c\/[^/]+/.test(path);
   const isVisible = /^(\/shop(\/|$)|\/c\/[^/]+)/.test(path) && !isCheckoutFlow;
   const saleHref = "/shop/sale";
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+  const handleHomeClick = useCallback((event) => {
+    event.preventDefault();
+    if (path !== "/shop") {
+      navigate("/shop");
+      requestAnimationFrame(() => requestAnimationFrame(scrollToTop));
+      return;
+    }
+    scrollToTop();
+  }, [navigate, path, scrollToTop]);
   const categoryLinks = [
     { id: "men", label: "رجالي", to: "/shop/products?gender=men", icon: Users },
     { id: "women", label: "حريمي", to: "/shop/products?gender=women", icon: Users },
@@ -8109,28 +8181,27 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
       {categoriesSheet}
       <nav
         dir="rtl"
-        className="sf-mobile-bottom-nav fixed inset-x-0 bottom-0 z-[110] md:hidden"
+        className="sf-mobile-bottom-nav fixed left-1/2 z-[110] md:hidden"
+        style={{ bottom: "calc(10px + env(safe-area-inset-bottom))", width: "calc(100% - 24px)", transform: "translateX(-50%)" }}
         aria-label={sfText("storefront.nav.mobileNavigation")}
       >
-        <div className="mx-auto max-w-[30rem] px-3 pb-[calc(env(safe-area-inset-bottom)+0.65rem)]">
-          <div className="grid h-[calc(var(--mobile-bottom-nav-height,70px))] grid-cols-5 items-stretch overflow-hidden rounded-[1.6rem] border border-white/10 bg-slate-950/[0.84] shadow-[0_-18px_46px_rgba(0,0,0,0.30),0_1px_0_rgba(255,255,255,0.05)_inset] backdrop-blur-2xl">
+        <div className="mx-auto">
+          <div className="flex h-[calc(var(--mobile-bottom-nav-height,58px))] items-center justify-evenly overflow-hidden rounded-[999px] border border-[rgba(255,255,255,0.08)] bg-[rgba(8,12,24,0.88)] px-2 backdrop-blur-[20px] shadow-[0_14px_38px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.04)]">
             {links.map((item) => {
               const active = isActive(item);
               const Icon = item.icon;
+              const isSale = item.id === "sale";
               const baseClass = [
-                "group flex min-w-0 flex-col items-center justify-center gap-1 px-1 text-[10px] font-semibold transition duration-200 active:scale-[0.98]",
-                active ? "text-emerald-300" : "text-slate-200/88 hover:text-white",
+                "group flex h-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-full px-1.5 text-[9px] leading-none transition duration-200 ease-out active:scale-[0.98]",
+                active ? "scale-[1.05] bg-white/[0.08] text-[#7c3aed]" : "opacity-75 text-white/90 hover:opacity-90",
               ].join(" ");
-              const iconClass = [
-                "grid h-8 w-8 place-items-center rounded-full transition duration-200",
-                active ? "bg-emerald-500/15 text-emerald-300 shadow-[0_0_0_1px_rgba(16,185,129,0.18)]" : "text-slate-100/88 group-hover:text-white",
-              ].join(" ");
+              const iconClass = "h-[22px] w-[22px]";
               const content = (
                 <>
                   <span className={iconClass}>
                     <Icon className="h-[22px] w-[22px]" strokeWidth={2.1} />
                   </span>
-                  <span className={`max-w-full truncate leading-none ${active ? "font-black" : "font-semibold"}`}>{item.label}</span>
+                  <span className={`max-w-full min-w-[2.8rem] truncate text-center font-semibold ${isSale ? "text-[10px]" : "text-[9px]"} ${active || isSale ? "opacity-100" : "opacity-75"}`}>{item.label}</span>
                 </>
               );
               if (item.action === "categories") {
@@ -8140,6 +8211,7 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
                     type="button"
                     onClick={() => setCategoriesOpen(true)}
                     aria-current={active ? "page" : undefined}
+                    aria-label={item.label}
                     className={baseClass}
                   >
                     {content}
@@ -8151,8 +8223,9 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
                   key={item.id}
                   to={item.to}
                   aria-current={active ? "page" : undefined}
+                  aria-label={item.label}
                   className={baseClass}
-                  onClick={onHome}
+                  onClick={item.id === "home" ? handleHomeClick : onHome}
                 >
                   {content}
                 </Link>
