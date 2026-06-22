@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+﻿import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
@@ -49,7 +49,7 @@ function StorefrontProductDetailSkeleton() {
         </div>
       </div>
       <div className="space-y-4">
-        <div className="overflow-hidden rounded-[1rem] border border-white/[0.08] bg-[linear-gradient(180deg,#07111f_0%,#050b16_100%)] p-3.5 shadow-[0_24px_70px_rgba(0,0,0,0.35)] md:rounded-[1.45rem] md:p-6">
+        <div className="overflow-hidden rounded-[1rem] border border-white/[0.08] bg-[linear-gradient(180deg,#080808_0%,#080808_100%)] p-3.5 shadow-[0_24px_70px_rgba(0,0,0,0.35)] md:rounded-[1.45rem] md:p-6">
           <div className="sf-skeleton-shimmer h-4 w-28 rounded-full bg-white/[0.08]" />
           <div className="mt-3 sf-skeleton-shimmer h-10 w-4/5 rounded-[1rem] bg-white/[0.08] md:h-14" />
           <div className="mt-3 sf-skeleton-shimmer h-5 w-1/3 rounded-full bg-white/[0.08]" />
@@ -58,7 +58,7 @@ function StorefrontProductDetailSkeleton() {
             <div className="sf-skeleton-shimmer h-10 w-20 rounded-full bg-white/[0.08]" />
           </div>
         </div>
-        <div className="rounded-[1.1rem] border border-white/[0.08] bg-[#07111f] p-3 md:rounded-[1.45rem] md:p-4">
+        <div className="rounded-[1.1rem] border border-white/[0.08] bg-[#080808] p-3 md:rounded-[1.45rem] md:p-4">
           <div className="sf-skeleton-shimmer h-4 w-24 rounded-full bg-white/[0.08]" />
           <div className="mt-3 flex gap-2">
             {Array.from({ length: 4 }).map((_, index) => (
@@ -66,7 +66,7 @@ function StorefrontProductDetailSkeleton() {
             ))}
           </div>
         </div>
-        <div className="rounded-[1.1rem] border border-white/[0.08] bg-[#07111f] p-3 md:rounded-[1.45rem] md:p-4">
+        <div className="rounded-[1.1rem] border border-white/[0.08] bg-[#080808] p-3 md:rounded-[1.45rem] md:p-4">
           <div className="sf-skeleton-shimmer h-4 w-24 rounded-full bg-white/[0.08]" />
           <div className="mt-3 flex flex-wrap gap-2">
             {Array.from({ length: 5 }).map((_, index) => (
@@ -92,7 +92,7 @@ function StorefrontProductDetailErrorState({ title, text, onRetry, retryLabel, b
         <button
           type="button"
           onClick={onRetry}
-          className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#d4af37]/24 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-5 py-3 text-sm font-black text-[#111827] shadow-[0_14px_34px_rgba(212,175,55,0.25)] transition hover:-translate-y-0.5 hover:border-[#f3d77a]/45 hover:shadow-[0_18px_42px_rgba(212,175,55,0.34)] active:scale-[0.98]"
+          className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#d4af37]/24 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-5 py-3 text-sm font-black text-[#151515] shadow-[0_14px_34px_rgba(212,175,55,0.25)] transition hover:-translate-y-0.5 hover:border-[#f3d77a]/45 hover:shadow-[0_18px_42px_rgba(212,175,55,0.34)] active:scale-[0.98]"
         >
           {retryLabel}
         </button>
@@ -343,7 +343,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const selectedComparePrice = selectedPrice.comparePrice || displayComparePrice(product, safeActiveVariant);
   const selectedDiscountPercent = selectedComparePrice > selectedSellingPrice ? Math.max(1, Math.round(((selectedComparePrice - selectedSellingPrice) / selectedComparePrice) * 100)) : 0;
   const descriptionText = cleanDisplayText(product?.seo_description || product?.description_ar || product?.description_en || product?.description)
-    || "تصميم عملي بخامة Premium مناسب للخروج اليومي وسهل التنسيق مع ستايلات مختلفة.";
+    || "طھطµظ…ظٹظ… ط¹ظ…ظ„ظٹ ط¨ط®ط§ظ…ط© Premium ظ…ظ†ط§ط³ط¨ ظ„ظ„ط®ط±ظˆط¬ ط§ظ„ظٹظˆظ…ظٹ ظˆط³ظ‡ظ„ ط§ظ„طھظ†ط³ظٹظ‚ ظ…ط¹ ط³طھط§ظٹظ„ط§طھ ظ…ط®طھظ„ظپط©.";
   const inWishlist = product && wishlist.some((item) => String(item.id) === String(product.id));
 
   useEffect(() => {
@@ -459,7 +459,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
           />
         </Suspense>
         <div className="sf-product-info-sticky min-w-0 lg:sticky lg:self-start">
-          <div className="sf-product-summary-card overflow-hidden rounded-[1rem] border border-white/[0.08] bg-[linear-gradient(180deg,#07111f_0%,#050b16_100%)] p-3.5 text-white shadow-[0_24px_70px_rgba(0,0,0,0.35)] md:rounded-[1.45rem] md:p-6">
+          <div className="sf-product-summary-card overflow-hidden rounded-[1rem] border border-white/[0.08] bg-[linear-gradient(180deg,#080808_0%,#080808_100%)] p-3.5 text-white shadow-[0_24px_70px_rgba(0,0,0,0.35)] md:rounded-[1.45rem] md:p-6">
             <div className="mb-2 flex items-start justify-between gap-3 md:mb-4">
               <div className="min-w-0">
                 <div className="mt-1.5 hidden text-[11px] font-black text-[#f3d77a] md:mt-3 md:block md:text-xs">{sfText("storefront.products.curatedDetails", "Carefully selected product details")}</div>
@@ -488,7 +488,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
           </div>
 
           {colors.length > 1 ? (
-            <div className="sf-product-option-card mt-4 rounded-[1.1rem] border border-white/[0.08] bg-[#07111f] p-3 text-white md:rounded-[1.45rem] md:p-4">
+            <div className="sf-product-option-card mt-4 rounded-[1.1rem] border border-white/[0.08] bg-[#080808] p-3 text-white md:rounded-[1.45rem] md:p-4">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div>
                   <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/35">{sfText("storefront.products.color", "Color")}</div>
@@ -515,7 +515,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             </div>
           ) : null}
 
-          <div className="sf-product-option-card mt-4 rounded-[1.1rem] border border-white/[0.08] bg-[#07111f] p-3 text-white md:rounded-[1.45rem] md:p-4">
+          <div className="sf-product-option-card mt-4 rounded-[1.1rem] border border-white/[0.08] bg-[#080808] p-3 text-white md:rounded-[1.45rem] md:p-4">
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>
                 <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/35">{sfText("storefront.products.size", "Size")}</div>
@@ -598,3 +598,4 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     </section>
   );
 }
+

@@ -235,7 +235,7 @@ export function RecentPageRoute({ recent, helpers, components }) {
     <section className="mx-auto max-w-7xl px-4 py-5 md:py-8">
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-black text-[#6d28d9]">{sfText("storefront.recent.lastTwenty", "ط¢ط®ط± 20 ظ…ظ†طھط¬ظ‹ط§")}</p>
+          <p className="text-sm font-black text-[#d4af37]">{sfText("storefront.recent.lastTwenty", "ط¢ط®ط± 20 ظ…ظ†طھط¬ظ‹ط§")}</p>
           <h1 className="text-3xl font-black md:text-5xl">{sfText("storefront.account.recentlyViewed", "ط´ظˆظ‡ط¯ ظ…ط¤ط®ط±ظ‹ط§")}</h1>
         </div>
         <Link to="/shop/products" className="inline-flex min-h-12 items-center justify-center rounded-full bg-stone-950 px-5 py-3 font-black text-white">{sfText("storefront.common.continueShopping", "ظ…طھط§ط¨ط¹ط© ط§ظ„طھط³ظˆظ‚")}</Link>
@@ -294,3 +294,4 @@ export function CartPageRoute({ cart, updateCart, removeFromCart, helpers, compo
     </section>
   );
 }
+

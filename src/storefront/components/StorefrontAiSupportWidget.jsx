@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -28,7 +28,7 @@ function AiVisualAttachments({ attachments = [], onOpenProduct, helpers }) {
           if (!sizes.length) return null;
           return (
             <div key={`${attachment.type}-${sectionIndex}`} className="rounded-2xl border border-stone-200 bg-white/75 p-3 dark:border-white/10 dark:bg-white/10">
-              <div className="text-xs font-black text-stone-700 dark:text-stone-100">{attachment.title || "دليل المقاسات"}</div>
+              <div className="text-xs font-black text-stone-700 dark:text-stone-100">{attachment.title || "ط¯ظ„ظٹظ„ ط§ظ„ظ…ظ‚ط§ط³ط§طھ"}</div>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {sizes.slice(0, 14).map((size) => (
                   <span key={size} className="rounded-full bg-stone-950 px-2.5 py-1 text-[11px] font-black text-white dark:bg-white dark:text-stone-950">{size}</span>
@@ -47,8 +47,8 @@ function AiVisualAttachments({ attachments = [], onOpenProduct, helpers }) {
               onClick={() => onOpenProduct?.({ id: attachment.product_id, product_url: attachment.product_url, name: attachment.title })}
               className="w-full rounded-2xl border border-stone-200 bg-white/75 p-2 text-right shadow-sm transition hover:-translate-y-0.5 active:scale-[0.99] dark:border-white/10 dark:bg-white/10"
             >
-              <img src={imageFor(attachment.url)} onError={fallbackProductImage} alt={attachment.title || "صورة المنتج"} className="aspect-square w-full rounded-xl object-cover" loading="lazy" decoding="async" />
-              <span className="mt-2 block truncate text-[11px] font-black text-stone-950 dark:text-white">{attachment.title || "صورة المنتج"}</span>
+              <img src={imageFor(attachment.url)} onError={fallbackProductImage} alt={attachment.title || "طµظˆط±ط© ط§ظ„ظ…ظ†طھط¬"} className="aspect-square w-full rounded-xl object-cover" loading="lazy" decoding="async" />
+              <span className="mt-2 block truncate text-[11px] font-black text-stone-950 dark:text-white">{attachment.title || "طµظˆط±ط© ط§ظ„ظ…ظ†طھط¬"}</span>
               {attachment.subtitle ? <span className="mt-0.5 block truncate text-[10px] font-bold text-stone-500 dark:text-stone-300">{attachment.subtitle}</span> : null}
             </button>
           );
@@ -58,7 +58,7 @@ function AiVisualAttachments({ attachments = [], onOpenProduct, helpers }) {
         if (!items.length) return null;
         return (
           <div key={`${attachment.type}-${sectionIndex}`} className="rounded-2xl border border-stone-200 bg-white/75 p-2.5 dark:border-white/10 dark:bg-white/10">
-            <div className="mb-2 px-1 text-xs font-black text-stone-700 dark:text-stone-100">{attachment.title || "صور مقترحة"}</div>
+            <div className="mb-2 px-1 text-xs font-black text-stone-700 dark:text-stone-100">{attachment.title || "طµظˆط± ظ…ظ‚طھط±ط­ط©"}</div>
             <div className="flex gap-2 overflow-x-auto pb-1">
               {items.slice(0, 8).map((item, index) => (
                 <button
@@ -67,11 +67,11 @@ function AiVisualAttachments({ attachments = [], onOpenProduct, helpers }) {
                   onClick={() => onOpenProduct?.({ id: item.product_id || item.id, product_url: item.product_url, name: item.title })}
                   className="min-w-[8.5rem] max-w-[8.5rem] rounded-2xl border border-stone-200 bg-white p-2 text-right shadow-sm transition hover:-translate-y-0.5 active:scale-[0.99] dark:border-white/10 dark:bg-[#080d1a]"
                 >
-                  <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt={item.title || "صورة المنتج"} className="aspect-square w-full rounded-xl object-cover" loading="lazy" decoding="async" />
-                  <span className="mt-2 block truncate text-[11px] font-black text-stone-950 dark:text-white">{item.title || "منتج"}</span>
+                  <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt={item.title || "طµظˆط±ط© ط§ظ„ظ…ظ†طھط¬"} className="aspect-square w-full rounded-xl object-cover" loading="lazy" decoding="async" />
+                  <span className="mt-2 block truncate text-[11px] font-black text-stone-950 dark:text-white">{item.title || "ظ…ظ†طھط¬"}</span>
                   {item.subtitle ? <span className="mt-0.5 block truncate text-[10px] font-bold text-stone-500 dark:text-stone-300">{item.subtitle}</span> : null}
                   <span className="mt-1 flex items-center justify-between gap-1 text-[10px] font-black text-stone-600 dark:text-stone-300">
-                    <span>{Number(item.price || 0) > 0 ? money(item.price) : "السعر غير محدد"}</span>
+                    <span>{Number(item.price || 0) > 0 ? money(item.price) : "ط§ظ„ط³ط¹ط± ط؛ظٹط± ظ…ط­ط¯ط¯"}</span>
                     <ChevronLeft className="h-3.5 w-3.5 shrink-0" />
                   </span>
                 </button>
@@ -184,7 +184,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
   }, [aiSupportContext, saveAiSupportContext, sessionId]);
 
   const supportHref = useMemo(() => {
-    const text = encodeURIComponent(`محتاج مساعدة من الدعم بخصوص محادثة رقم ${sessionId}`);
+    const text = encodeURIComponent(`ظ…ط­طھط§ط¬ ظ…ط³ط§ط¹ط¯ط© ظ…ظ† ط§ظ„ط¯ط¹ظ… ط¨ط®طµظˆطµ ظ…ط­ط§ط¯ط«ط© ط±ظ‚ظ… ${sessionId}`);
     return whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${text}` : "/shop/contact";
   }, [sessionId, whatsappPhone]);
 
@@ -280,7 +280,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
           {
             id: `a_${Date.now()}`,
             role: "assistant",
-            answer: unifiedReply?.text || response?.answer || "مش قادر أأكد الإجابة من بيانات المتجر حاليا. تواصل مع الدعم لو سمحت.",
+            answer: unifiedReply?.text || response?.answer || "ظ…ط´ ظ‚ط§ط¯ط± ط£ط£ظƒط¯ ط§ظ„ط¥ط¬ط§ط¨ط© ظ…ظ† ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…طھط¬ط± ط­ط§ظ„ظٹط§. طھظˆط§طµظ„ ظ…ط¹ ط§ظ„ط¯ط¹ظ… ظ„ظˆ ط³ظ…ط­طھ.",
             reply_text: unifiedReply?.text || response?.answer || "",
             confidence: Number(response?.confidence || 0),
             needs_human_support: Boolean(response?.needs_human_support),
@@ -333,7 +333,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
       {
         id: `u_img_${Date.now()}`,
         role: "user",
-        answer: "دي الصورة اللي بدور على شبهها",
+        answer: "ط¯ظٹ ط§ظ„طµظˆط±ط© ط§ظ„ظ„ظٹ ط¨ط¯ظˆط± ط¹ظ„ظ‰ ط´ط¨ظ‡ظ‡ط§",
         image_preview: previewUrl,
       },
     ]);
@@ -417,7 +417,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
         requestError?.responseBody?.answer ||
         requestError?.responseBody?.message ||
         (requestError?.message && requestError.message !== "Request Failed" ? requestError.message : "") ||
-        "حصلت مشكلة أثناء تحليل الصورة، حاول مرة تانية.";
+        "ط­طµظ„طھ ظ…ط´ظƒظ„ط© ط£ط«ظ†ط§ط، طھط­ظ„ظٹظ„ ط§ظ„طµظˆط±ط©طŒ ط­ط§ظˆظ„ ظ…ط±ط© طھط§ظ†ظٹط©.";
       setError(message);
       toast.error(message);
     } finally {
@@ -530,7 +530,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
     const sizeFromAction = textOrEmpty(action?.size || action?.size_value || action?.value || action?.label || action?.text || context.size || context.selected_size || "").replace(/\s+/g, " ");
     const colorFromAction = textOrEmpty(action?.color || action?.color_value || action?.value || action?.label || action?.text || context.color || context.selected_color || "");
     const explicitSizeValue = /^\d{1,2}(?:\.\d)?$/.test(sizeFromAction || raw);
-    const knownColorValues = ["black", "white", "gray", "grey", "red", "blue", "green", "beige", "brown", "pink", "yellow", "orange", "purple", "اسود", "أبيض", "ابيض", "رمادي", "احمر", "أحمر", "ازرق", "أزرق", "اخضر", "أخضر", "بيج", "بني", "وردي", "اصفر", "أصفر", "برتقالي", "بنفسجي"];
+    const knownColorValues = ["black", "white", "gray", "grey", "red", "blue", "green", "beige", "brown", "pink", "yellow", "orange", "purple", "ط§ط³ظˆط¯", "ط£ط¨ظٹط¶", "ط§ط¨ظٹط¶", "ط±ظ…ط§ط¯ظٹ", "ط§ط­ظ…ط±", "ط£ط­ظ…ط±", "ط§ط²ط±ظ‚", "ط£ط²ط±ظ‚", "ط§ط®ط¶ط±", "ط£ط®ط¶ط±", "ط¨ظٹط¬", "ط¨ظ†ظٹ", "ظˆط±ط¯ظٹ", "ط§طµظپط±", "ط£طµظپط±", "ط¨ط±طھظ‚ط§ظ„ظٹ", "ط¨ظ†ظپط³ط¬ظٹ"];
     const explicitColorValue = knownColorValues.some((value) => {
       const candidate = colorFromAction.toLowerCase();
       const target = String(value || "").toLowerCase();
@@ -567,7 +567,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
     if (["choose_size", "select_size", "ask_size"].includes(key) || isSizeAction) {
       const selectedSize = explicitSizeValue ? (sizeFromAction || raw) : (context.size || context.selected_size || aiSupportContext.selected_size || "");
       pushAiSupportContext({ ...messageContext, selected_size: selectedSize, last_action: "choose_size" });
-      await submitQuestion(selectedSize || "عايز مقاس", {
+      await submitQuestion(selectedSize || "ط¹ط§ظٹط² ظ…ظ‚ط§ط³", {
         metadata: {
           last_action: "choose_size",
           selected_size: selectedSize,
@@ -582,7 +582,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
     if (["choose_color", "select_color", "ask_color"].includes(key) || isColorAction) {
       const selectedColor = explicitColorValue ? (colorFromAction || raw) : (context.color || context.selected_color || aiSupportContext.selected_color || "");
       pushAiSupportContext({ ...messageContext, selected_color: selectedColor, last_action: "choose_color" });
-      await submitQuestion(selectedColor || "الألوان المتاحة؟", {
+      await submitQuestion(selectedColor || "ط§ظ„ط£ظ„ظˆط§ظ† ط§ظ„ظ…طھط§ط­ط©طں", {
         metadata: {
           last_action: "choose_color",
           selected_color: selectedColor,
@@ -596,7 +596,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
     }
     if (["ask_for_more_images", "show_more_images", "more_images"].includes(key)) {
       pushAiSupportContext({ ...messageContext, last_action: "more_images" });
-      await submitQuestion("صور أكتر", {
+      await submitQuestion("طµظˆط± ط£ظƒطھط±", {
         metadata: {
           last_action: "more_images",
           selected_product_context: messageContext.selected_product_context,
@@ -610,7 +610,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
     }
     if (["show_alternatives", "alternatives", "similar_products"].includes(key)) {
       pushAiSupportContext({ ...messageContext, rejected_product_context: messageContext.selected_product_context || messageContext.rejected_product_context || null, last_action: "show_alternatives" });
-      await submitQuestion("مش عاجبني، وريني بدائل", {
+      await submitQuestion("ظ…ط´ ط¹ط§ط¬ط¨ظ†ظٹطŒ ظˆط±ظٹظ†ظٹ ط¨ط¯ط§ط¦ظ„", {
         metadata: {
           last_action: "show_alternatives",
           selected_product_context: messageContext.selected_product_context,
@@ -625,7 +625,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
     if (["escalate_to_human", "human_handoff", "handoff", "contact_support"].includes(key)) {
       logWebsiteChatEvent("WEBSITE_CHAT_HANDOFF_TRIGGERED", { intent: "human_handoff", early_return_reason: "website_handoff_requested" });
       pushAiSupportContext({ ...messageContext, handoff: true, last_action: "escalate_to_human" });
-      await submitQuestion("كلم بني آدم", {
+      await submitQuestion("ظƒظ„ظ… ط¨ظ†ظٹ ط¢ط¯ظ…", {
         force: true,
         metadata: {
           last_action: "escalate_to_human",
@@ -643,12 +643,12 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
       const selection = await resolveAiSupportVariantSelection(product || messageContext.selected_product_context, messageContext);
       if (!selection.product) {
         logWebsiteChatEvent("WEBSITE_CHAT_ACTION_FALLBACK", { intent: key, early_return_reason: "missing_product_context" });
-        await submitQuestion("عايز أشتري", { metadata: { last_action: key, ...messageContext }, context: messageContext });
+        await submitQuestion("ط¹ط§ظٹط² ط£ط´طھط±ظٹ", { metadata: { last_action: key, ...messageContext }, context: messageContext });
         return;
       }
       if (selection.reason === "missing_size") {
         logWebsiteChatEvent("WEBSITE_CHAT_ACTION_FALLBACK", { intent: key, early_return_reason: "missing_size" });
-        await submitQuestion("عايز مقاس كام؟", {
+        await submitQuestion("ط¹ط§ظٹط² ظ…ظ‚ط§ط³ ظƒط§ظ…طں", {
           metadata: {
             last_action: key,
             selected_product_context: selection.product,
@@ -662,7 +662,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
       }
       if (selection.reason === "missing_color") {
         logWebsiteChatEvent("WEBSITE_CHAT_ACTION_FALLBACK", { intent: key, early_return_reason: "missing_color" });
-        await submitQuestion("أي لون تفضل؟", {
+        await submitQuestion("ط£ظٹ ظ„ظˆظ† طھظپط¶ظ„طں", {
           metadata: {
             last_action: key,
             selected_product_context: selection.product,
@@ -677,7 +677,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
       const resolvedVariant = selection.variant;
       if (!resolvedVariant) {
         logWebsiteChatEvent("WEBSITE_CHAT_ACTION_FALLBACK", { intent: key, early_return_reason: selection.reason || "variant_resolution_failed" });
-        await submitQuestion("مش قادر أحدد النسخة المناسبة دلوقتي، جرب مرة تانية أو ابعت صورة أوضح.", {
+        await submitQuestion("ظ…ط´ ظ‚ط§ط¯ط± ط£ط­ط¯ط¯ ط§ظ„ظ†ط³ط®ط© ط§ظ„ظ…ظ†ط§ط³ط¨ط© ط¯ظ„ظˆظ‚طھظٹطŒ ط¬ط±ط¨ ظ…ط±ط© طھط§ظ†ظٹط© ط£ظˆ ط§ط¨ط¹طھ طµظˆط±ط© ط£ظˆط¶ط­.", {
           metadata: { last_action: key, selected_product_context: resolvedProduct },
           context: { ...messageContext, selected_product_context: resolvedProduct },
         });
@@ -702,7 +702,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
       const result = onAddToCart(resolvedProduct, resolvedVariant, 1);
       if (result === "capture_required") {
         logWebsiteChatEvent("WEBSITE_CHAT_ACTION_FALLBACK", { intent: key, early_return_reason: "customer_capture_required" });
-        await submitQuestion("لازم أولًا أراجع بياناتك قبل ما أكمل الإضافة للسلة.", {
+        await submitQuestion("ظ„ط§ط²ظ… ط£ظˆظ„ظ‹ط§ ط£ط±ط§ط¬ط¹ ط¨ظٹط§ظ†ط§طھظƒ ظ‚ط¨ظ„ ظ…ط§ ط£ظƒظ…ظ„ ط§ظ„ط¥ط¶ط§ظپط© ظ„ظ„ط³ظ„ط©.", {
           force: true,
           metadata: {
             last_action: key,
@@ -722,7 +722,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
           selected_size: resolvedVariant?.size || messageContext.selected_size || "",
           selected_color: resolvedVariant?.color || resolvedVariant?.color_name || messageContext.selected_color || "",
         });
-        const confirmationText = `تمام، ضفت ${cleanDisplayText(mirrorProductTitle(resolvedProduct, resolvedVariant) || resolvedProduct.name || "المنتج")} ${resolvedVariant?.size ? `مقاس ${resolvedVariant.size}` : ""}${resolvedVariant?.color ? ` - ${resolvedVariant.color}` : ""} للسلة.`;
+        const confirmationText = `طھظ…ط§ظ…طŒ ط¶ظپطھ ${cleanDisplayText(mirrorProductTitle(resolvedProduct, resolvedVariant) || resolvedProduct.name || "ط§ظ„ظ…ظ†طھط¬")} ${resolvedVariant?.size ? `ظ…ظ‚ط§ط³ ${resolvedVariant.size}` : ""}${resolvedVariant?.color ? ` - ${resolvedVariant.color}` : ""} ظ„ظ„ط³ظ„ط©.`;
         setMessages((items) => [
           ...items,
           {
@@ -787,7 +787,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
           }}
           onDrop={handleDrop}
         >
-          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-stone-200/70 bg-gradient-to-l from-stone-950 via-[#111827] to-[#d4af37] px-3.5 py-3 text-white dark:border-white/10">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-stone-200/70 bg-gradient-to-l from-stone-950 via-[#151515] to-[#d4af37] px-3.5 py-3 text-white dark:border-white/10">
             <div className="flex min-w-0 items-center gap-2.5">
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/15 shadow-inner">
                 <Sparkles className="h-[18px] w-[18px]" />
@@ -940,7 +940,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
         </div>
       ) : (
         <>
-          {showAssistantHint ? <button type="button" onClick={openAssistant} className="sf-ai-chat-hint" aria-label={t("storefront.aiSupport.openAssistant", "Open AI shopping assistant")}>{t("storefront.aiSupport.hint", "Ask about size or model")} ✨</button> : null}
+          {showAssistantHint ? <button type="button" onClick={openAssistant} className="sf-ai-chat-hint" aria-label={t("storefront.aiSupport.openAssistant", "Open AI shopping assistant")}>{t("storefront.aiSupport.hint", "Ask about size or model")} âœ¨</button> : null}
           <button type="button" onClick={openAssistant} className="sf-ai-chat-launcher group" aria-label={t("storefront.aiSupport.openAssistant", "Open AI shopping assistant")}>
             <span className="sf-ai-chat-launcher__halo" aria-hidden="true" />
             <span className="sf-ai-chat-launcher__icon">
@@ -958,3 +958,4 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
     </section>
   );
 }
+

@@ -31,6 +31,13 @@
     background: var(--bg);
   }
 
+  html:has(.sf-luxury-header),
+  body:has(.sf-luxury-header),
+  #root:has(.sf-luxury-header) {
+    background: linear-gradient(180deg, #030303 0%, #070707 45%, #0b0b0b 100%) !important;
+    background-color: #050505 !important;
+  }
+
   html {
     overflow-y: scroll;
   }
@@ -1400,7 +1407,7 @@
     }
 
     .storefront-shell .sf-header-announcement {
-      background: linear-gradient(105deg, rgba(8, 10, 16, 0.96), rgba(16, 19, 29, 0.95) 48%, rgba(38, 30, 74, 0.96)) !important;
+      background: linear-gradient(90deg, #050505 0%, #0a0a0a 55%, #111111 100%) !important;
       color: #f8fafc !important;
       box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.04) !important;
     }
@@ -4492,7 +4499,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   }
 
   .storefront-shell {
-    background: linear-gradient(180deg, #020617 0%, #0b0f19 45%, #111827 100%) !important;
+    background: linear-gradient(180deg, #030303 0%, #070707 45%, #0b0b0b 100%) !important;
   }
 
   .storefront-shell :is(.sf-luxury-header, .sf-utility-row, .sf-mobile-search, .sf-search-results-panel, .sf-mobile-filter-trigger, .sf-mobile-menu-drawer, .sf-mobile-bottom-nav, .sf-mobile-buy-bar, .sf-ai-chat-panel, .sf-ai-chat-hint, .sf-header-action, .sf-header-search, .sf-header-logo-chip, .sf-checkout-section, .sf-checkout-summary, .sf-cart-drawer, .sf-cart-row, .sf-checkout-payment-copy, .sf-checkout-info-line, .sf-checkout-info-box, .sf-checkout-panel, .sf-checkout-summary-item, .sf-checkout-summary-totals, .sf-order-item-row, .sf-empty-state, .sf-checkout-trust-pill, .sf-checkout-progress, .sf-storefront-card, .sf-small-product-card, .sf-product-card, .sf-review-card) {
@@ -4504,8 +4511,8 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 
   .storefront-shell :is(.sf-luxury-header, .sf-utility-row, .sf-mobile-search, .sf-search-results-panel, .sf-mobile-filter-trigger, .sf-mobile-menu-drawer, .sf-mobile-bottom-nav, .sf-mobile-buy-bar, .sf-ai-chat-panel, .sf-ai-chat-hint, .sf-checkout-section, .sf-checkout-summary, .sf-cart-drawer, .sf-empty-state) {
     background:
-      radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.12), transparent 70%),
-      linear-gradient(180deg, #020617 0%, #0b0f19 45%, #111827 100%) !important;
+      radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.04), transparent 70%),
+      linear-gradient(180deg, #030303 0%, #070707 45%, #0b0b0b 100%) !important;
   }
 
   .storefront-shell .sf-mobile-bottom-nav a {
@@ -4699,7 +4706,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   }
 
   .storefront-shell .sf-storefront-card {
-    background: linear-gradient(180deg, #020617 0%, #0b0f19 40%, #111827 100%) !important;
+    background: linear-gradient(180deg, #050505 0%, #0a0a0a 45%, #111111 100%) !important;
     border-color: rgba(255, 255, 255, 0.08) !important;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35) !important;
   }

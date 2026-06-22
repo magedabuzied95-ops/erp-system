@@ -2095,7 +2095,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
         <div className="grid min-h-[420px] lg:grid-cols-[minmax(0,0.72fr)_minmax(18rem,0.28fr)] lg:[direction:ltr] md:min-h-[520px]">
           <Link
             to={categoryHref}
-            className={`group relative flex min-h-[410px] overflow-hidden lg:min-h-[580px] lg:[direction:rtl] md:min-h-[500px] ${darkMode ? "bg-[radial-gradient(circle_at_74%_36%,rgba(212,175,55,0.14),transparent_24%),radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.05),transparent_32%),linear-gradient(135deg,#020617_0%,#0b0f19_54%,#151515_100%)]" : "bg-[radial-gradient(circle_at_74%_36%,rgba(212,175,55,0.10),transparent_26%),radial-gradient(circle_at_18%_18%,rgba(248,231,179,0.28),transparent_30%),linear-gradient(135deg,#ffffff_0%,#f8fafc_56%,#eef2ff_100%)]"}`}
+            className={`group relative flex min-h-[410px] overflow-hidden lg:min-h-[580px] lg:[direction:rtl] md:min-h-[500px] ${darkMode ? "bg-[radial-gradient(circle_at_74%_36%,rgba(212,175,55,0.08),transparent_24%),radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.03),transparent_32%),linear-gradient(135deg,#050505_0%,#0a0a0a_54%,#151515_100%)]" : "bg-[radial-gradient(circle_at_74%_36%,rgba(212,175,55,0.10),transparent_26%),radial-gradient(circle_at_18%_18%,rgba(248,231,179,0.28),transparent_30%),linear-gradient(135deg,#ffffff_0%,#f8fafc_56%,#eef2ff_100%)]"}`}
           >
             <div className={`pointer-events-none absolute inset-0 ${darkMode ? "bg-[linear-gradient(120deg,rgba(255,255,255,0.08),transparent_34%,rgba(0,0,0,0.42))]" : "bg-[linear-gradient(120deg,rgba(255,255,255,0.54),transparent_34%,rgba(255,255,255,0.06))]"}`} />
             <div className={`pointer-events-none absolute inset-x-0 bottom-0 h-1/2 ${darkMode ? "bg-gradient-to-t from-black/52 to-transparent" : "bg-gradient-to-t from-white/90 to-transparent"}`} />
@@ -2302,10 +2302,10 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
             <Link
               key={card.id}
               to={card.href}
-            className={`group relative grid min-h-[320px] overflow-hidden rounded-[2.35rem] border transition duration-500 hover:-translate-y-1.5 active:scale-[0.99] md:min-h-[375px] lg:min-h-[420px] ${darkMode ? "border-white/10 bg-stone-950 text-white shadow-[0_34px_110px_rgba(0,0,0,0.28)] hover:border-[#d4af37]/50 hover:shadow-[0_48px_130px_rgba(0,0,0,0.42)]" : "border-slate-200 bg-white text-stone-950 shadow-[0_34px_110px_rgba(15,23,42,0.10)] hover:border-[#d4af37]/30 hover:shadow-[0_48px_130px_rgba(15,23,42,0.16)]"} ${reverse ? "md:grid-cols-[0.58fr_0.42fr]" : "md:grid-cols-[0.42fr_0.58fr]"}`}
+              className={`group relative grid min-h-[320px] overflow-hidden rounded-[2.35rem] border transition duration-500 hover:-translate-y-1.5 active:scale-[0.99] md:min-h-[375px] lg:min-h-[420px] ${darkMode ? (card.id === "men" ? "border-white/12 bg-[linear-gradient(180deg,#050505_0%,#0a0a0a_45%,#111111_100%)] text-white shadow-[0_34px_110px_rgba(0,0,0,0.34)] hover:border-[#d4af37]/40 hover:shadow-[0_48px_130px_rgba(0,0,0,0.48)]" : "border-white/10 bg-stone-950 text-white shadow-[0_34px_110px_rgba(0,0,0,0.28)] hover:border-[#d4af37]/50 hover:shadow-[0_48px_130px_rgba(0,0,0,0.42)]") : "border-slate-200 bg-white text-stone-950 shadow-[0_34px_110px_rgba(15,23,42,0.10)] hover:border-[#d4af37]/30 hover:shadow-[0_48px_130px_rgba(15,23,42,0.16)]"} ${reverse ? "md:grid-cols-[0.58fr_0.42fr]" : "md:grid-cols-[0.42fr_0.58fr]"}`}
             >
-              <div className={`absolute inset-0 ${darkMode ? "bg-[radial-gradient(circle_at_76%_24%,rgba(212,175,55,0.18),transparent_31%),linear-gradient(135deg,#1c1917_0%,#111111_52%,#030712_100%)]" : "bg-[radial-gradient(circle_at_76%_24%,rgba(212,175,55,0.10),transparent_31%),linear-gradient(135deg,#ffffff_0%,#f8fafc_52%,#eef2ff_100%)]"}`} />
-              <div className={`absolute inset-0 ${darkMode ? "bg-gradient-to-l from-black/80 via-black/35 to-black/12" : "bg-gradient-to-l from-white/78 via-white/40 to-white/8"}`} />
+              <div className={`absolute inset-0 ${darkMode ? (card.id === "men" ? "bg-[radial-gradient(circle_at_76%_24%,rgba(212,175,55,0.06),transparent_31%),linear-gradient(135deg,#050505_0%,#0a0a0a_52%,#111111_100%)]" : "bg-[radial-gradient(circle_at_76%_24%,rgba(212,175,55,0.18),transparent_31%),linear-gradient(135deg,#1c1917_0%,#111111_52%,#030712_100%)]") : "bg-[radial-gradient(circle_at_76%_24%,rgba(212,175,55,0.10),transparent_31%),linear-gradient(135deg,#ffffff_0%,#f8fafc_52%,#eef2ff_100%)]"}`} />
+              <div className={`absolute inset-0 ${darkMode ? (card.id === "men" ? "bg-gradient-to-l from-black/70 via-black/38 to-black/10" : "bg-gradient-to-l from-black/80 via-black/35 to-black/12") : "bg-gradient-to-l from-white/78 via-white/40 to-white/8"}`} />
               <div className={`relative z-10 flex min-h-[320px] flex-col justify-end p-7 md:min-h-0 md:p-10 lg:p-12 ${isRtl ? "text-right" : "text-left"} ${reverse ? "md:order-2" : ""}`}>
                 <div className={`mb-4 w-fit rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] backdrop-blur ${darkMode ? "border-white/15 bg-white/10 text-[#f8e7b3]" : "border-slate-200 bg-white/85 text-[#d4af37] shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
                   {isRtl ? "\u0627\u062e\u062a\u064a\u0627\u0631\u0627\u062a \u0645\u0646\u062a\u0642\u0627\u0629" : "Curated edit"}
@@ -2318,11 +2318,11 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
                 </span>
               </div>
               <div className="relative z-10 min-h-[245px] overflow-hidden p-3 md:min-h-0 md:p-6 lg:p-8">
-                <div className={`absolute bottom-8 left-1/2 h-14 w-[80%] -translate-x-1/2 rounded-full blur-3xl ${darkMode ? "bg-black/45" : "bg-slate-300/70"}`} />
+                <div className={`absolute bottom-8 left-1/2 h-14 w-[80%] -translate-x-1/2 rounded-full blur-3xl ${darkMode ? (card.id === "men" ? "bg-black/20" : "bg-black/45") : "bg-slate-300/70"}`} />
                 {collage.length ? collage.map(({ product, image }, index) => (
                   <div
                     key={`${card.id}-${productIdentityKey(product, index)}`}
-                    className={`absolute overflow-hidden rounded-[1.8rem] backdrop-blur transition duration-700 group-hover:scale-[1.08] ${darkMode ? "bg-white/[0.12] shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_28px_60px_rgba(0,0,0,0.24)]" : "bg-slate-100/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_20px_50px_rgba(15,23,42,0.10)]"} ${
+                    className={`absolute overflow-hidden rounded-[1.8rem] backdrop-blur transition duration-700 group-hover:scale-[1.08] ${darkMode ? (card.id === "men" ? "bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_28px_60px_rgba(0,0,0,0.22)]" : "bg-white/[0.12] shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_28px_60px_rgba(0,0,0,0.24)]") : "bg-slate-100/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_20px_50px_rgba(15,23,42,0.10)]"} ${
                       index === 0
                         ? "bottom-8 left-1/2 z-30 h-[66%] w-[72%] -translate-x-1/2 md:h-[78%]"
                         : index === 1
@@ -4240,7 +4240,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
       data-compact={!compactDisabled && isCompact ? "true" : "false"}
       className="sf-luxury-header sticky top-0 z-40 bg-transparent shadow-none backdrop-blur-2xl transition-all duration-300 dark:bg-transparent"
     >
-      <div className={`${isCheckoutMobile ? "hidden md:block" : ""} sf-announcement-row sf-header-announcement overflow-hidden bg-[linear-gradient(105deg,rgba(8,10,16,0.96),rgba(18,20,30,0.95)_42%,rgba(42,34,79,0.96))] text-white/90 backdrop-blur transition-all duration-300`}>
+      <div className={`${isCheckoutMobile ? "hidden md:block" : ""} sf-announcement-row sf-header-announcement overflow-hidden bg-[linear-gradient(90deg,#050505_0%,#0a0a0a_55%,#111111_100%)] text-white/90 backdrop-blur transition-all duration-300`}>
         <div className="mx-auto flex h-8 w-full max-w-7xl items-center justify-center px-4 md:h-10">
           <span key={announcementIndex} className="inline-flex w-full items-center justify-center text-center text-[10px] font-semibold tracking-[0.08em] text-stone-100/88 animate-[sfFadeUp_420ms_ease-out_both] md:text-[12px] md:font-medium md:tracking-wide">
             {announcementItems[announcementIndex] || announcementItems[0]}
@@ -5004,9 +5004,9 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   }, [discountPercent, product]);
 
   return (
-    <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={`sf-product-card group/product relative flex h-full transform-gpu flex-col overflow-hidden rounded-[1.2rem] border border-white/[0.08] bg-[linear-gradient(180deg,#020617_0%,#0b0f19_40%,#151515_100%)] shadow-[0_8px_20px_rgba(15,23,42,0.06)] ring-1 ring-white/[0.04] transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-[#d4af37]/28 hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)] md:rounded-[1.4rem] dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,#020617_0%,#0b0f19_40%,#151515_100%)] dark:ring-white/[0.04] dark:shadow-[0_10px_24px_rgba(0,0,0,0.18)] dark:hover:border-[#d4af37]/20 dark:hover:shadow-[0_14px_30px_rgba(0,0,0,0.24)] ${featured ? "md:shadow-[0_14px_34px_rgba(212,175,55,0.08)]" : ""}`}>
+    <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={`sf-product-card group/product relative flex h-full transform-gpu flex-col overflow-hidden rounded-[1.2rem] border border-white/[0.08] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] shadow-[0_8px_20px_rgba(15,23,42,0.06)] ring-1 ring-white/[0.04] transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-[#d4af37]/28 hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)] md:rounded-[1.4rem] dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] dark:ring-white/[0.04] dark:shadow-[0_10px_24px_rgba(0,0,0,0.18)] dark:hover:border-[#d4af37]/20 dark:hover:shadow-[0_14px_30px_rgba(0,0,0,0.24)] ${featured ? "md:shadow-[0_14px_34px_rgba(212,175,55,0.08)]" : ""}`}>
       <div className="pointer-events-none absolute inset-x-10 top-8 h-12 rounded-full bg-[rgba(212,175,55,0)] transition duration-200 group-hover/product:bg-[rgba(212,175,55,0.06)]" />
-      <div className={`relative overflow-hidden rounded-[1rem] bg-[linear-gradient(180deg,#020617_0%,#0b0f19_40%,#151515_100%)] ring-1 ring-white/[0.04] md:rounded-[1.1rem] md:p-2.5 dark:bg-[linear-gradient(180deg,#020617_0%,#0b0f19_40%,#151515_100%)] dark:ring-white/10 ${densityClasses.image}`}>
+      <div className={`relative overflow-hidden rounded-[1rem] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] ring-1 ring-white/[0.04] md:rounded-[1.1rem] md:p-2.5 dark:bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] dark:ring-white/10 ${densityClasses.image}`}>
         <Link to={detailsUrl} onClick={resetStorefrontViewportScroll} className="relative z-10 block h-full active:opacity-95">
           {displayImage ? (
             <div
@@ -7659,7 +7659,7 @@ function SizeGuide() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_22px_70px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-[linear-gradient(145deg,rgba(2,6,23,0.98),rgba(15,23,42,0.94)_45%,rgba(12,10,28,0.96))] dark:shadow-[0_24px_80px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.06)]">
+      <div className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_22px_70px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-[linear-gradient(145deg,rgba(5,5,5,0.98),rgba(16,16,16,0.95)_45%,rgba(21,21,21,0.96))] dark:shadow-[0_24px_80px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.06)]">
         <div className="border-b border-slate-200 px-4 py-4 dark:border-white/10 sm:px-6">
           <h2 className="text-xl font-black text-stone-950 dark:text-white">{sfText("storefront.sizeGuide.tableTitle")}</h2>
           <p className="mt-1 text-sm font-bold text-stone-500 dark:text-slate-400">{sfText("storefront.sizeGuide.mobileScrollHint")}</p>
@@ -7684,7 +7684,7 @@ function SizeGuide() {
         </div>
       </div>
 
-      <div className="mt-5 rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_18px_55px_rgba(15,23,42,0.07)] dark:border-white/10 dark:bg-[linear-gradient(145deg,rgba(2,6,23,0.94),rgba(15,23,42,0.88))] dark:shadow-[0_20px_70px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-6">
+        <div className="mt-5 rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_18px_55px_rgba(15,23,42,0.07)] dark:border-white/10 dark:bg-[linear-gradient(145deg,rgba(5,5,5,0.94),rgba(16,16,16,0.90))] dark:shadow-[0_20px_70px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <h2 className="text-2xl font-black text-stone-950 dark:text-white">{sfText("storefront.sizeGuide.measurementMethod")}</h2>
@@ -7706,9 +7706,9 @@ function SizeGuide() {
             </div>
           ))}
         </div>
-        <div className="mt-6 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-[linear-gradient(145deg,#f8fafc,#ffffff)] p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-[linear-gradient(145deg,rgba(3,7,18,0.88),rgba(15,23,42,0.74))] dark:shadow-[0_20px_70px_rgba(0,0,0,0.36),inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-6">
+        <div className="mt-6 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-[linear-gradient(145deg,#f8fafc,#ffffff)] p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-[linear-gradient(180deg,#050505_0%,#101010_100%)] dark:shadow-[0_20px_70px_rgba(0,0,0,0.36),inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-6">
           <div className="mx-auto w-full max-w-3xl">
-            <div className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-100 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900">
+            <div className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-100 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-[#101010]">
               <img
                 src={sizeGuidePhoto}
                 alt={sfText("storefront.sizeGuide.illustrationAria")}
@@ -8332,17 +8332,17 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
 
 function ProductCardSkeleton() {
   return (
-    <article className="overflow-hidden rounded-[1.2rem] border border-white/70 bg-white shadow-[0_10px_26px_rgba(39,20,75,0.07)] ring-1 ring-stone-200/55 dark:border-white/[0.08] dark:bg-[linear-gradient(145deg,rgba(17,24,39,0.95),rgba(11,16,32,0.93)_52%,rgba(8,13,25,0.98))] dark:ring-white/[0.05]">
+    <article className="overflow-hidden rounded-[1.2rem] border border-white/70 bg-white shadow-[0_10px_26px_rgba(39,20,75,0.07)] ring-1 ring-stone-200/55 dark:border-white/[0.08] dark:bg-[linear-gradient(145deg,rgba(5,5,5,0.98),rgba(17,17,17,0.95)_52%,rgba(21,21,21,0.98))] dark:ring-white/[0.05]">
       <div className="relative aspect-[0.96/1] p-1.5">
-        <div className="sf-skeleton-shimmer h-full rounded-[1rem] bg-stone-200/80 dark:bg-white/[0.06]" />
+        <div className="sf-skeleton-shimmer h-full rounded-[1rem] bg-stone-200/80 dark:bg-white/[0.04]" />
       </div>
       <div className="space-y-2 p-2.5 pt-2">
-        <div className="sf-skeleton-shimmer h-5 w-[88%] rounded-full bg-stone-200/80 dark:bg-white/[0.08]" />
-        <div className="sf-skeleton-shimmer h-4 w-2/3 rounded-full bg-stone-200/80 dark:bg-white/[0.08]" />
+        <div className="sf-skeleton-shimmer h-5 w-[88%] rounded-full bg-stone-200/80 dark:bg-white/[0.04]" />
+        <div className="sf-skeleton-shimmer h-4 w-2/3 rounded-full bg-stone-200/80 dark:bg-white/[0.04]" />
         <div className="flex gap-1.5 overflow-hidden">
-          <div className="sf-skeleton-shimmer h-6 w-10 rounded-full bg-stone-200/80 dark:bg-white/[0.08]" />
-          <div className="sf-skeleton-shimmer h-6 w-10 rounded-full bg-stone-200/80 dark:bg-white/[0.08]" />
-          <div className="sf-skeleton-shimmer h-6 w-10 rounded-full bg-stone-200/80 dark:bg-white/[0.08]" />
+          <div className="sf-skeleton-shimmer h-6 w-10 rounded-full bg-stone-200/80 dark:bg-white/[0.04]" />
+          <div className="sf-skeleton-shimmer h-6 w-10 rounded-full bg-stone-200/80 dark:bg-white/[0.04]" />
+          <div className="sf-skeleton-shimmer h-6 w-10 rounded-full bg-stone-200/80 dark:bg-white/[0.04]" />
         </div>
       </div>
     </article>
@@ -8363,8 +8363,8 @@ function StorefrontPageFallback() {
   return (
     <section className="mx-auto max-w-6xl px-4 py-6">
       <div className="grid gap-4">
-        <div className="sf-skeleton-shimmer h-28 rounded-[1.75rem] bg-white/80 shadow-[0_12px_32px_rgba(39,20,75,0.05)] dark:bg-white/5" />
-        <div className="sf-skeleton-shimmer h-64 rounded-[1.75rem] bg-white/80 shadow-[0_12px_32px_rgba(39,20,75,0.05)] dark:bg-white/5" />
+        <div className="sf-skeleton-shimmer h-28 rounded-[1.75rem] bg-white/80 shadow-[0_12px_32px_rgba(39,20,75,0.05)] dark:bg-[linear-gradient(180deg,#050505_0%,#101010_100%)]" />
+        <div className="sf-skeleton-shimmer h-64 rounded-[1.75rem] bg-white/80 shadow-[0_12px_32px_rgba(39,20,75,0.05)] dark:bg-[linear-gradient(180deg,#050505_0%,#101010_100%)]" />
       </div>
     </section>
   );
@@ -8392,9 +8392,9 @@ function VisualSearchResultsFallback() {
 function ProductGalleryFallback() {
   return (
     <div className="min-w-0">
-      <div className="mx-auto h-[clamp(250px,42vh,340px)] w-full max-w-[92vw] animate-pulse rounded-[24px] bg-white/80 shadow-[0_14px_40px_rgba(39,20,75,0.10)] md:h-[clamp(420px,58vh,540px)] md:max-w-none md:rounded-[1.75rem] dark:bg-white/5" />
+      <div className="mx-auto h-[clamp(250px,42vh,340px)] w-full max-w-[92vw] animate-pulse rounded-[24px] bg-white/80 shadow-[0_14px_40px_rgba(39,20,75,0.10)] md:h-[clamp(420px,58vh,540px)] md:max-w-none md:rounded-[1.75rem] dark:bg-[linear-gradient(180deg,#050505_0%,#101010_100%)]" />
       <div className="mt-3 flex gap-2">
-        {[0, 1, 2, 3].map((item) => <div key={item} className="h-12 w-12 animate-pulse rounded-xl bg-white/80 dark:bg-white/5 md:h-20 md:w-20 md:rounded-2xl" />)}
+        {[0, 1, 2, 3].map((item) => <div key={item} className="h-12 w-12 animate-pulse rounded-xl bg-white/80 dark:bg-[linear-gradient(180deg,#050505_0%,#101010_100%)] md:h-20 md:w-20 md:rounded-2xl" />)}
       </div>
     </div>
   );
@@ -8871,7 +8871,7 @@ function SmallProductGrid({ items, action, onAddToCart }) {
   return (
     <div className="mt-6 grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {normalizedItems.map((item) => (
-        <div key={item.id} className={`sf-storefront-card sf-small-product-card group min-w-0 overflow-hidden rounded-[1.6rem] border border-white/[0.08] bg-[linear-gradient(180deg,#020617_0%,#0b0f19_40%,#151515_100%)] shadow-[0_20px_58px_rgba(0,0,0,0.34)] ring-1 ring-white/[0.025] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-[#d4af37]/25 hover:shadow-[0_28px_74px_rgba(0,0,0,0.42)] ${item.unavailable ? "flex min-h-[430px] flex-col p-4" : "flex min-h-[460px] flex-col p-3.5"}`}>
+        <div key={item.id} className={`sf-storefront-card sf-small-product-card group min-w-0 overflow-hidden rounded-[1.6rem] border border-white/[0.08] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] shadow-[0_20px_58px_rgba(0,0,0,0.34)] ring-1 ring-white/[0.025] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-[#d4af37]/25 hover:shadow-[0_28px_74px_rgba(0,0,0,0.42)] ${item.unavailable ? "flex min-h-[430px] flex-col p-4" : "flex min-h-[460px] flex-col p-3.5"}`}>
           {item.unavailable ? (
             <div className="flex flex-1 flex-col justify-center rounded-[1.25rem] border border-rose-300/15 bg-gradient-to-br from-rose-500/10 to-white/[0.04] p-4 text-center">
               <span className="mx-auto grid h-12 w-12 place-items-center rounded-full border border-rose-300/20 bg-rose-400/10 text-rose-300 shadow-[0_12px_30px_rgba(244,63,94,0.12)]">
