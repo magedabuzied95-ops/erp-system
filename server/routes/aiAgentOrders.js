@@ -3256,7 +3256,7 @@ const resolveProductCardSendConversation = async ({ tenantId, conversationId }) 
     SELECT *
     FROM ai_support_sessions
     WHERE tenant_id = $1
-      AND session_id = $2
+      AND (session_id = $2 OR id::text = $2)
     LIMIT 1
     `,
     [safeTenantId, safeConversationId]
@@ -4186,6 +4186,12 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
       channel,
       safeChannel,
       conversationId,
+      selectedConversation: {
+        id: conversation.id || null,
+        channel: conversation.channel || "",
+        external_customer_id: conversation.external_customer_id || "",
+        customer_name: conversation.customer_name || "",
+      },
     });
     const previewText = formatProductCardPreviewText(productCards[0] || {});
     const fallbackText = buildProductCardFallbackText(productCards);
@@ -4290,11 +4296,20 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
           sent: sendResult?.sent === true,
           delivery_status: sendResult?.delivery_status || "",
           delivery_error: sendResult?.delivery_error || sendResult?.message || "",
-          recipient_id: externalCustomerId,
-          page_id: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
-          token_present: Boolean(sendResult?.token_present),
-        });
-      }
+        recipient_id: externalCustomerId,
+        page_id: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
+        token_present: Boolean(sendResult?.token_present),
+      });
+      console.info("[messenger-identity]", {
+        channel: safeChannel,
+        psid: externalCustomerId,
+        external_customer_id: externalCustomerId,
+        customer_psid: envText(channelMetadata.customer_psid || ""),
+        sender_psid: envText(channelMetadata.sender_psid || ""),
+        resolved_customer_id: externalCustomerId,
+        conversation_id: conversationId,
+      });
+    }
     } else {
       console.warn("[ai-inbox][product-card-send] unsupported channel, storing fallback transcript message only", {
         tenantId,

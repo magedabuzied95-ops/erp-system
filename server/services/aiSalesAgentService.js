@@ -967,6 +967,156 @@ const summarizeInboxMessage = (row = {}) => {
     system_events: Array.isArray(row.system_events) ? row.system_events.slice(0, 2) : [],
   };
 };
+
+const isMessengerInboxConversation = (conversation = {}) => {
+  const channel = text(conversation.channel || conversation.session_channel || conversation.source || conversation.channel_source || "").toLowerCase();
+  return ["facebook_messenger", "facebook", "messenger"].includes(channel) || channel.includes("facebook_messenger") || channel.includes("facebook") || channel.includes("messenger");
+};
+
+const messengerConversationPsid = (conversation = {}) =>
+  text(
+    conversation.external_customer_id ||
+      conversation.channel_metadata?.customer_psid ||
+      conversation.channel_metadata?.sender_psid ||
+      conversation.channel_metadata?.resolved_customer_id ||
+      conversation.customer_profile?.external_customer_id ||
+      conversation.customer_profile?.psid ||
+      ""
+  );
+
+const messengerConversationIdentityKey = (conversation = {}) => {
+  if (!isMessengerInboxConversation(conversation)) return "";
+  const psid = messengerConversationPsid(conversation);
+  return psid ? `facebook_messenger:${psid}` : "";
+};
+
+const conversationHasMeaningfulMessengerIdentity = (conversation = {}) => {
+  if (!isMessengerInboxConversation(conversation)) return true;
+  const name = text(conversation.customer_name || conversation.customer_profile?.name || conversation.customer_profile?.display_name || "");
+  const avatar = text(conversation.customer_avatar_url || conversation.customer_profile?.avatar_url || "");
+  return Boolean(name && name.toLowerCase() !== "customer") || Boolean(avatar);
+};
+
+const mergeConversationMessages = (left = [], right = []) => {
+  const merged = new Map();
+  for (const raw of [...asArray(left), ...asArray(right)]) {
+    const message = normalizeInboxMessage(raw);
+    const identity = text(message.message_identity_key || message.provider_message_id || message.external_message_id || message.id || `${message.created_at || ""}:${message.message_text || message.customer_message || message.ai_answer || ""}`);
+    if (!merged.has(identity)) {
+      merged.set(identity, message);
+      continue;
+    }
+    const current = merged.get(identity) || {};
+    merged.set(identity, {
+      ...current,
+      ...message,
+      product_cards: message.product_cards?.length ? message.product_cards : current.product_cards || [],
+      productCards: message.productCards?.length ? message.productCards : current.productCards || [],
+      customer_message: message.customer_message || current.customer_message || "",
+      ai_answer: message.ai_answer || current.ai_answer || "",
+      staff_message: message.staff_message || current.staff_message || "",
+    });
+  }
+  return [...merged.values()].sort((leftMessage, rightMessage) => {
+    const leftAt = new Date(leftMessage.created_at || 0).getTime() || 0;
+    const rightAt = new Date(rightMessage.created_at || 0).getTime() || 0;
+    if (leftAt !== rightAt) return leftAt - rightAt;
+    return Number(leftMessage.id || 0) - Number(rightMessage.id || 0);
+  });
+};
+
+const mergeMessengerConversationRecords = (left = {}, right = {}) => {
+  const leftHasIdentity = conversationHasMeaningfulMessengerIdentity(left);
+  const rightHasIdentity = conversationHasMeaningfulMessengerIdentity(right);
+  const preferred = rightHasIdentity && !leftHasIdentity ? right : left;
+  const fallback = preferred === left ? right : left;
+  const mergedMessages = mergeConversationMessages(left.messages || [], right.messages || []);
+  const resolvedPsid = messengerConversationPsid(preferred) || messengerConversationPsid(fallback);
+  const canonicalSessionId = resolvedPsid ? `facebook_messenger:${resolvedPsid}` : text(preferred.session_id || fallback.session_id || preferred.conversation_key || fallback.conversation_key || "");
+  return {
+    ...left,
+    ...right,
+    ...preferred,
+    session_id: canonicalSessionId || text(preferred.session_id || fallback.session_id || ""),
+    conversation_id: canonicalSessionId || text(preferred.conversation_id || fallback.conversation_id || preferred.session_id || fallback.session_id || ""),
+    conversation_key: canonicalSessionId || text(preferred.conversation_key || fallback.conversation_key || preferred.session_id || fallback.session_id || ""),
+    external_customer_id: resolvedPsid || text(preferred.external_customer_id || fallback.external_customer_id || ""),
+    external_conversation_id: canonicalSessionId || text(preferred.external_conversation_id || fallback.external_conversation_id || preferred.session_id || fallback.session_id || ""),
+    customer_name: text(preferred.customer_name || fallback.customer_name || preferred.customer_profile?.name || fallback.customer_profile?.name || ""),
+    customer_avatar_url: text(preferred.customer_avatar_url || fallback.customer_avatar_url || preferred.customer_profile?.avatar_url || fallback.customer_profile?.avatar_url || ""),
+    customer_profile: {
+      ...(fallback.customer_profile || {}),
+      ...(preferred.customer_profile || {}),
+      external_customer_id: resolvedPsid || text((preferred.customer_profile || {}).external_customer_id || (fallback.customer_profile || {}).external_customer_id || ""),
+      name: text(preferred.customer_profile?.name || fallback.customer_profile?.name || preferred.customer_name || fallback.customer_name || ""),
+      avatar_url: text(preferred.customer_profile?.avatar_url || fallback.customer_profile?.avatar_url || preferred.customer_avatar_url || fallback.customer_avatar_url || ""),
+    },
+    channel_metadata: {
+      ...(fallback.channel_metadata || {}),
+      ...(preferred.channel_metadata || {}),
+    },
+    messages: mergedMessages,
+    message_count: mergedMessages.length,
+    preview_message: text(preferred.preview_message || fallback.preview_message || preferred.latest_message_preview || fallback.latest_message_preview || ""),
+    latest_message_preview: text(preferred.latest_message_preview || fallback.latest_message_preview || preferred.preview_message || fallback.preview_message || ""),
+    last_message: text(preferred.last_message || fallback.last_message || ""),
+    last_activity_at: preferred.last_activity_at || fallback.last_activity_at || preferred.updated_at || fallback.updated_at || null,
+    updated_at: preferred.updated_at || fallback.updated_at || null,
+    unread_count: Math.max(Number(preferred.unread_count || 0), Number(fallback.unread_count || 0)),
+    unread: Boolean(preferred.unread || fallback.unread),
+    older_messages_available: Boolean(
+      preferred.older_messages_available ||
+      fallback.older_messages_available ||
+      mergedMessages.length > Math.max(asArray(left.messages || []).length, asArray(right.messages || []).length)
+    ),
+  };
+};
+
+const normalizeAndMergeInboxConversations = (conversations = []) => {
+  const merged = [];
+  const indexByKey = new Map();
+
+  for (const conversation of asArray(conversations)) {
+    const normalized = { ...conversation };
+    const messengerKey = messengerConversationIdentityKey(normalized);
+    const sessionKey = text(normalized.conversation_key || normalized.session_id || normalized.conversation_id || "");
+    const canonicalKey = messengerKey || sessionKey;
+    if (!canonicalKey) {
+      merged.push(normalized);
+      continue;
+    }
+
+    const existingIndex = indexByKey.has(canonicalKey) ? indexByKey.get(canonicalKey) : -1;
+    if (existingIndex < 0) {
+      const nextConversation = messengerKey
+        ? {
+            ...normalized,
+            session_id: messengerKey,
+            conversation_id: messengerKey,
+            conversation_key: messengerKey,
+            external_conversation_id: messengerKey,
+            external_customer_id: messengerConversationPsid(normalized) || normalized.external_customer_id || "",
+          }
+        : normalized;
+      indexByKey.set(canonicalKey, merged.length);
+      merged.push(nextConversation);
+      continue;
+    }
+
+    const existing = merged[existingIndex];
+    const nextConversation = messengerKey
+      ? mergeMessengerConversationRecords(existing, normalized)
+      : {
+          ...existing,
+          ...normalized,
+          messages: mergeConversationMessages(existing.messages || [], normalized.messages || []),
+        };
+    merged[existingIndex] = nextConversation;
+    indexByKey.set(canonicalKey, existingIndex);
+  }
+
+  return merged;
+};
 const isOutboundMessageRow = (row = {}) => {
   const direction = text(row.direction || row.message_direction || row.latest_direction || row.latest_message_direction || "").toLowerCase();
   const senderType = text(row.sender_type || row.senderType || row.latest_sender_type || row.latestSenderType || "").toLowerCase();
@@ -1651,7 +1801,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       return ["new", "contacted", "interested", "won"].includes(key) ? key : "new";
     };
 
-    const conversations = summaryResult.rows.map((conversation) => {
+    const conversations = normalizeAndMergeInboxConversations(summaryResult.rows.map((conversation) => {
     const summaryMessage = conversation.latest_message_id
       ? summarizeInboxMessage(normalizeInboxMessage({
           ...conversation,
@@ -1768,7 +1918,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
         next_messages_before: summaryMessages[0]?.created_at || "",
         anyFullMessages: false,
       };
-    });
+    }));
     logAiInboxTiming({
       phase: "inbox_summary_build",
       startedAt: summaryStartedAt,
@@ -1914,7 +2064,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
     `,
     params
   );
-  const conversations = result.rows;
+  const conversations = normalizeAndMergeInboxConversations(result.rows);
   const sessionIds = conversations.map((item) => item.session_id).filter(Boolean);
   const profileIds = conversations.map((item) => item.profile_id).filter(Boolean);
   const messageTotalsBySession = new Map();

@@ -1208,6 +1208,14 @@ function ProductSheet({
   const [selectedSize, setSelectedSize] = useState("");
   const [view, setView] = useState("list");
 
+  useEffect(() => {
+    if (!open) return;
+    setSelectedProductId("");
+    setSelectedColor("");
+    setSelectedSize("");
+    setView("list");
+  }, [open, selectedConversation?.session_id]);
+
   const filteredProducts = useMemo(() => {
     const normalized = clean(query).toLowerCase();
     if (!normalized) return products;
@@ -2225,7 +2233,7 @@ export default function AiInboxPwa() {
     );
   }, [conversationParam, conversations]);
   const selectedConversationRouteId = useMemo(
-    () => clean(selectedConversation?.id || selectedConversation?.conversation_id || selectedConversation?.conversation_key || ""),
+    () => clean(selectedConversation?.session_id || selectedConversation?.conversation_key || selectedConversation?.conversation_id || selectedConversation?.id || ""),
     [selectedConversation]
   );
 
@@ -2404,7 +2412,7 @@ export default function AiInboxPwa() {
     (conversation) => {
       setComposerMode("reply");
       setMenuOpen(false);
-      updateUrlState({ nextConversationId: conversationIdentifiers(conversation).conversationId, nextTab: "conversations" });
+      updateUrlState({ nextConversationId: conversationIdentifiers(conversation).sessionId || conversationIdentifiers(conversation).conversationId, nextTab: "conversations" });
     },
     [updateUrlState]
   );
@@ -2785,12 +2793,14 @@ export default function AiInboxPwa() {
 
   const sendProductCards = useCallback(
     async (cards = []) => {
-      const conversationId = clean(selectedConversation?.id || selectedConversation?.conversation_id || "");
+      const conversationId = clean(selectedConversation?.session_id || selectedConversation?.conversation_key || selectedConversation?.conversation_id || "");
       if (!conversationId || !cards.length) return;
       const clientRequestId = buildClientRequestId();
-      const builderClientRequestId = clientRequestId;
-      console.info("[product-card-send]", {
-        builderClientRequestId,
+      console.info("[selected-conversation-product-send]", {
+        id: selectedConversation?.id,
+        channel: selectedConversation?.channel,
+        external_customer_id: selectedConversation?.external_customer_id,
+        name: selectedConversation?.customer_name,
       });
       const messageIdentityKey = buildMessageIdentityKey({
         tenantId,

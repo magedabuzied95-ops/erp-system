@@ -17420,6 +17420,15 @@ export const processMetaWebhook = async ({ req } = {}) => {
           dedupe_key: message.dedupe_key || inboxResult?.dedupe_key || "",
         },
       }).catch(() => {});
+    console.info("[messenger-identity]", {
+      channel: message.channel,
+      psid: text(message.external_customer_id || ""),
+      external_customer_id: text(message.external_customer_id || ""),
+      customer_psid: text(message.raw?.customer_psid || ""),
+      sender_psid: text(message.raw?.sender_psid || ""),
+      resolved_customer_id: text(message.external_customer_id || ""),
+      conversation_id: text(message.external_conversation_id || ""),
+    });
     const channelConversation = await upsertChannelConversationMapping({
       tenantId: config.tenant_id,
       channel: message.channel,

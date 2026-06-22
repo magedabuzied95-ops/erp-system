@@ -157,6 +157,16 @@ const isSafeMessengerProfileName = (value = "") => {
   return !MESSENGER_INFERENCE_TOKENS.some((token) => lowerCandidate.includes(token.toLowerCase()));
 };
 
+const resolveMessengerCanonicalConversationId = ({ channel = "", externalConversationId = "", externalCustomerId = "" } = {}) => {
+  const normalizedChannel = normalizeChannel(channel);
+  const psid = toText(externalCustomerId);
+  const conversationId = toText(externalConversationId);
+  if (normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER && psid) {
+    return `facebook_messenger:${psid}`;
+  }
+  return conversationId;
+};
+
 export const resolveMessengerConversationDisplayName = ({
   customerName = "",
   customerProfile = {},
@@ -776,6 +786,14 @@ export const upsertChannelConversationMapping = async ({
 } = {}) => {
   await ensureAiChannelAdapterSchema();
   const normalizedChannel = normalizeChannel(channel);
+  const canonicalExternalCustomerId = normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER
+    ? toText(externalCustomerId || metadata?.sender_psid || metadata?.customer_psid || metadata?.resolved_customer_id || "")
+    : toText(externalCustomerId);
+  const resolvedExternalConversationId = resolveMessengerCanonicalConversationId({
+    channel: normalizedChannel,
+    externalConversationId,
+    externalCustomerId: canonicalExternalCustomerId,
+  });
   const isGroup = Boolean(
     metadata?.is_group === true ||
     metadata?.isGroup === true ||
@@ -789,7 +807,7 @@ export const upsertChannelConversationMapping = async ({
         customerName,
         customerProfile: metadata?.messenger_profile || {},
         metadata,
-        externalCustomerId,
+        externalCustomerId: canonicalExternalCustomerId,
       })
     : toText(customerName);
   const result = await db.query(
@@ -803,9 +821,22 @@ export const upsertChannelConversationMapping = async ({
       is_group = COALESCE(EXCLUDED.is_group, ai_channel_conversations.is_group),
       ai_enabled = COALESCE(EXCLUDED.ai_enabled, ai_channel_conversations.ai_enabled),
       thread_kind = COALESCE(NULLIF(EXCLUDED.thread_kind, ''), ai_channel_conversations.thread_kind),
-      lead_status = COALESCE(NULLIF(EXCLUDED.lead_status, ''), ai_channel_conversations.lead_status),
-      customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_channel_conversations.customer_name),
-      customer_avatar_url = COALESCE(NULLIF(EXCLUDED.customer_avatar_url, ''), ai_channel_conversations.customer_avatar_url),
+      lead_status = CASE
+        WHEN COALESCE(NULLIF(ai_channel_conversations.customer_name, ''), '') = '' OR LOWER(ai_channel_conversations.customer_name) = 'customer'
+          THEN COALESCE(NULLIF(EXCLUDED.lead_status, ''), ai_channel_conversations.lead_status)
+        ELSE COALESCE(NULLIF(EXCLUDED.lead_status, ''), ai_channel_conversations.lead_status)
+      END,
+      customer_name = CASE
+        WHEN COALESCE(NULLIF(ai_channel_conversations.customer_name, ''), '') = '' OR LOWER(ai_channel_conversations.customer_name) = 'customer'
+          THEN COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_channel_conversations.customer_name)
+        WHEN COALESCE(NULLIF(EXCLUDED.customer_name, ''), '') <> '' AND LOWER(EXCLUDED.customer_name) <> 'customer'
+          THEN EXCLUDED.customer_name
+        ELSE ai_channel_conversations.customer_name
+      END,
+      customer_avatar_url = CASE
+        WHEN COALESCE(NULLIF(ai_channel_conversations.customer_avatar_url, ''), '') = '' THEN COALESCE(NULLIF(EXCLUDED.customer_avatar_url, ''), ai_channel_conversations.customer_avatar_url)
+        ELSE COALESCE(NULLIF(EXCLUDED.customer_avatar_url, ''), ai_channel_conversations.customer_avatar_url)
+      END,
       last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_channel_conversations.last_message),
       customer_profile_id = COALESCE(EXCLUDED.customer_profile_id, ai_channel_conversations.customer_profile_id),
       metadata = ai_channel_conversations.metadata || EXCLUDED.metadata,
@@ -816,8 +847,8 @@ export const upsertChannelConversationMapping = async ({
     [
       numberOrNull(tenantId),
       normalizedChannel,
-      toText(externalConversationId),
-      toText(externalCustomerId),
+      resolvedExternalConversationId,
+      canonicalExternalCustomerId,
       isGroup,
       toText(metadata?.thread_kind || "dm"),
       toText(leadStatus || metadata?.lead_status || "new"),
@@ -839,6 +870,15 @@ export const linkChannelConversationToCustomerProfile = async ({
   externalCustomerId = "",
 } = {}) => {
   await ensureAiChannelAdapterSchema();
+  const normalizedChannel = normalizeChannel(channel);
+  const canonicalExternalCustomerId = normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER
+    ? toText(externalCustomerId)
+    : toText(externalCustomerId);
+  const resolvedExternalConversationId = resolveMessengerCanonicalConversationId({
+    channel: normalizedChannel,
+    externalConversationId,
+    externalCustomerId: canonicalExternalCustomerId,
+  });
   const result = await db.query(
     `
     UPDATE ai_channel_conversations c
@@ -847,12 +887,21 @@ export const linkChannelConversationToCustomerProfile = async ({
     FROM ai_customer_profiles p
     WHERE c.tenant_id = $1
       AND c.channel = $2
-      AND c.external_conversation_id = $3
+      AND (
+        c.external_conversation_id = $3
+        OR ($4::text <> '' AND c.external_customer_id = $4)
+      )
       AND p.tenant_id = c.tenant_id
-      AND p.phone = $4
+      AND p.phone = $5
     RETURNING c.*
     `,
-    [numberOrNull(tenantId), normalizeChannel(channel), toText(externalConversationId), toText(externalCustomerId)]
+    [
+      numberOrNull(tenantId),
+      normalizedChannel,
+      resolvedExternalConversationId,
+      canonicalExternalCustomerId,
+      toText(externalCustomerId),
+    ]
   );
   return result.rows[0] || null;
 };

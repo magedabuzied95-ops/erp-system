@@ -3330,7 +3330,7 @@ export default function AiInbox() {
     [conversations, selectedSessionId]
   );
   const selectedConversationRouteId = useMemo(
-    () => clean(selectedConversation?.id || selectedConversation?.conversation_id || selectedConversation?.conversation_key || ""),
+    () => clean(selectedConversation?.session_id || selectedConversation?.conversation_key || selectedConversation?.conversation_id || selectedConversation?.id || ""),
     [selectedConversation]
   );
   const syncTranscriptScrollProximity = useCallback((scroller = transcriptScrollRef.current) => {
@@ -4474,15 +4474,17 @@ export default function AiInbox() {
         share_url: clean(card.share_url || card.shareUrl || ""),
       }))
       .filter((card) => card.product_name || card.product_id || card.storefront_url);
-    const conversationId = clean(selectedConversation?.id || selectedConversation?.conversation_id || "");
+    const conversationId = clean(selectedConversation?.session_id || selectedConversation?.conversation_key || selectedConversation?.conversation_id || "");
     if (!conversationId || !cards.length) return;
 
     const now = new Date().toISOString();
     const previewText = productCardPreviewText(cards) || "إرسال منتج";
     const clientRequestId = buildClientRequestId();
-    const builderClientRequestId = clientRequestId;
-    console.info("[product-card-send]", {
-      builderClientRequestId,
+    console.info("[selected-conversation-product-send]", {
+      id: selectedConversation?.id,
+      channel: selectedConversation?.channel,
+      external_customer_id: selectedConversation?.external_customer_id,
+      name: selectedConversation?.customer_name,
     });
     const messageIdentityKey = buildMessageIdentityKey({
       tenantId,
@@ -4868,6 +4870,7 @@ export default function AiInbox() {
         onClose={() => setAiTrace((current) => ({ ...current, open: false }))}
       />
       <ProductCardPicker
+        key={selectedConversation?.session_id || selectedConversation?.conversation_key || "product-picker"}
         open={productCardPickerConfig.open}
         onClose={closeProductCardPicker}
         onSubmit={sendProductCards}
