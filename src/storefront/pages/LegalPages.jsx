@@ -192,7 +192,7 @@ function LegalShell({ pageKey }) {
 
   return (
     <main dir="rtl" className="min-h-screen overflow-hidden bg-[linear-gradient(180deg,#f7f4ee_0%,#ffffff_38%,#f2f7f5_100%)] text-slate-950 dark:bg-[radial-gradient(circle_at_top,rgba(7,11,22,1),rgba(2,6,23,1)_60%,rgba(3,7,18,1)_100%)] dark:text-white">
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_12%_18%,rgba(16,185,129,0.12),transparent_24%),radial-gradient(circle_at_88%_12%,rgba(245,158,11,0.12),transparent_22%),radial-gradient(circle_at_50%_100%,rgba(124,58,237,0.08),transparent_28%)] dark:bg-[radial-gradient(circle_at_12%_18%,rgba(16,185,129,0.10),transparent_24%),radial-gradient(circle_at_88%_12%,rgba(245,158,11,0.08),transparent_22%),radial-gradient(circle_at_50%_100%,rgba(124,58,237,0.10),transparent_28%)]" />
+      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_12%_18%,rgba(212,175,55,0.12),transparent_24%),radial-gradient(circle_at_88%_12%,rgba(245,158,11,0.12),transparent_22%),radial-gradient(circle_at_50%_100%,rgba(255,255,255,0.05),transparent_28%)] dark:bg-[radial-gradient(circle_at_12%_18%,rgba(212,175,55,0.10),transparent_24%),radial-gradient(circle_at_88%_12%,rgba(245,158,11,0.08),transparent_22%),radial-gradient(circle_at_50%_100%,rgba(255,255,255,0.05),transparent_28%)]" />
       <section className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
         <header className={`overflow-hidden rounded-[2rem] border px-5 py-6 shadow-[0_24px_70px_rgba(15,23,42,0.10)] backdrop-blur-2xl ${accent.shell}`}>
           <div className={`rounded-[1.6rem] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(255,255,255,0.68))] p-5 dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))]`}>
@@ -292,4 +292,3 @@ export function TermsPage() {
 export function DataDeletionPage() {
   return <LegalShell pageKey="data-deletion" />;
 }
-

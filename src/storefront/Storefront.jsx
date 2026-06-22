@@ -2302,17 +2302,17 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
             <Link
               key={card.id}
               to={card.href}
-            className={`group relative grid min-h-[320px] overflow-hidden rounded-[2.35rem] border transition duration-500 hover:-translate-y-1.5 active:scale-[0.99] md:min-h-[375px] lg:min-h-[420px] ${darkMode ? "border-white/10 bg-stone-950 text-white shadow-[0_34px_110px_rgba(15,23,42,0.28)] hover:border-[#f8e7b3]/50 hover:shadow-[0_48px_130px_rgba(15,23,42,0.42)]" : "border-slate-200 bg-white text-[#0f172a] shadow-[0_34px_110px_rgba(15,23,42,0.10)] hover:border-[#7c3aed]/30 hover:shadow-[0_48px_130px_rgba(15,23,42,0.16)]"} ${reverse ? "md:grid-cols-[0.58fr_0.42fr]" : "md:grid-cols-[0.42fr_0.58fr]"}`}
+            className={`group relative grid min-h-[320px] overflow-hidden rounded-[2.35rem] border transition duration-500 hover:-translate-y-1.5 active:scale-[0.99] md:min-h-[375px] lg:min-h-[420px] ${darkMode ? "border-white/10 bg-stone-950 text-white shadow-[0_34px_110px_rgba(0,0,0,0.28)] hover:border-[#d4af37]/50 hover:shadow-[0_48px_130px_rgba(0,0,0,0.42)]" : "border-slate-200 bg-white text-stone-950 shadow-[0_34px_110px_rgba(15,23,42,0.10)] hover:border-[#d4af37]/30 hover:shadow-[0_48px_130px_rgba(15,23,42,0.16)]"} ${reverse ? "md:grid-cols-[0.58fr_0.42fr]" : "md:grid-cols-[0.42fr_0.58fr]"}`}
             >
-              <div className={`absolute inset-0 ${darkMode ? "bg-[radial-gradient(circle_at_76%_24%,rgba(248,231,179,0.24),transparent_31%),linear-gradient(135deg,#1c1917_0%,#0f172a_52%,#030712_100%)]" : "bg-[radial-gradient(circle_at_76%_24%,rgba(124,58,237,0.10),transparent_31%),linear-gradient(135deg,#ffffff_0%,#f8fafc_52%,#eef2ff_100%)]"}`} />
+              <div className={`absolute inset-0 ${darkMode ? "bg-[radial-gradient(circle_at_76%_24%,rgba(212,175,55,0.18),transparent_31%),linear-gradient(135deg,#1c1917_0%,#111111_52%,#030712_100%)]" : "bg-[radial-gradient(circle_at_76%_24%,rgba(212,175,55,0.10),transparent_31%),linear-gradient(135deg,#ffffff_0%,#f8fafc_52%,#eef2ff_100%)]"}`} />
               <div className={`absolute inset-0 ${darkMode ? "bg-gradient-to-l from-black/80 via-black/35 to-black/12" : "bg-gradient-to-l from-white/78 via-white/40 to-white/8"}`} />
               <div className={`relative z-10 flex min-h-[320px] flex-col justify-end p-7 md:min-h-0 md:p-10 lg:p-12 ${isRtl ? "text-right" : "text-left"} ${reverse ? "md:order-2" : ""}`}>
-                <div className={`mb-4 w-fit rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] backdrop-blur ${darkMode ? "border-white/15 bg-white/10 text-[#f8e7b3]" : "border-slate-200 bg-white/85 text-[#7c3aed] shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
+                <div className={`mb-4 w-fit rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] backdrop-blur ${darkMode ? "border-white/15 bg-white/10 text-[#f8e7b3]" : "border-slate-200 bg-white/85 text-[#d4af37] shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
                   {isRtl ? "\u0627\u062e\u062a\u064a\u0627\u0631\u0627\u062a \u0645\u0646\u062a\u0642\u0627\u0629" : "Curated edit"}
                 </div>
                 <h3 className={`text-[3.45rem] font-black leading-none tracking-tight md:text-7xl lg:text-[5.1rem] ${darkMode ? "text-white" : "text-slate-900"}`}>{title}</h3>
                 <p className={`mt-4 max-w-[30rem] text-base font-bold leading-7 md:mt-5 md:text-xl md:leading-8 ${darkMode ? "text-white/84" : "text-slate-600"}`}>{subtitle}</p>
-                <span className={`mt-7 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full px-6 text-sm font-black transition md:min-h-14 md:px-8 ${darkMode ? "bg-white text-stone-950 shadow-[0_16px_34px_rgba(0,0,0,0.26)] group-hover:bg-[#f8e7b3] group-hover:shadow-[0_18px_42px_rgba(248,231,179,0.26)]" : "bg-slate-900 text-white shadow-[0_16px_34px_rgba(15,23,42,0.16)] group-hover:bg-[#7c3aed] group-hover:shadow-[0_18px_42px_rgba(124,58,237,0.16)]"}`}>
+                <span className={`mt-7 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full px-6 text-sm font-black transition md:min-h-14 md:px-8 ${darkMode ? "bg-white text-stone-950 shadow-[0_16px_34px_rgba(0,0,0,0.26)] group-hover:bg-[#f8e7b3] group-hover:shadow-[0_18px_42px_rgba(248,231,179,0.26)]" : "bg-stone-950 text-white shadow-[0_16px_34px_rgba(0,0,0,0.16)] group-hover:bg-[#d4af37] group-hover:shadow-[0_18px_42px_rgba(212,175,55,0.16)]"}`}>
                   {isRtl ? "تسوّق الآن" : sfText("storefront.common.shopNow")}
                   <ChevronLeft className={`h-4 w-4 transition group-hover:-translate-x-1 ${isRtl ? "" : "rotate-180 group-hover:translate-x-1 group-hover:-translate-y-0"}`} />
                 </span>
@@ -2743,10 +2743,10 @@ function HomeBrandsSection() {
     ? "mx-auto grid max-w-5xl grid-cols-2 gap-5 md:gap-6"
     : "grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5";
   const cardClassName = isDualBrand
-    ? "flex h-36 items-center justify-center rounded-3xl border border-stone-200 bg-white px-6 py-5 shadow-[0_10px_24px_rgba(39,20,75,0.05)] transition duration-200 group-hover:-translate-y-0.5 group-hover:border-[#a78bfa]/40 group-hover:shadow-[0_16px_36px_rgba(124,58,237,0.08)] md:h-44 dark:border-white/10 dark:bg-white/[0.04]"
+    ? "flex h-36 items-center justify-center rounded-3xl border border-stone-200 bg-white px-6 py-5 shadow-[0_10px_24px_rgba(39,20,75,0.05)] transition duration-200 group-hover:-translate-y-0.5 group-hover:border-[#d4af37]/40 group-hover:shadow-[0_16px_36px_rgba(0,0,0,0.08)] md:h-44 dark:border-white/10 dark:bg-white/[0.04]"
     : isSingleBrand
-      ? "inline-flex w-fit max-w-none flex-col items-center justify-center rounded-[24px] border border-white/10 bg-white/[0.04] px-6 py-5 text-center shadow-sm transition duration-200 group-hover:-translate-y-0.5 group-hover:border-[#a78bfa]/40 group-hover:shadow-[0_16px_36px_rgba(124,58,237,0.08)] dark:bg-white/[0.04]"
-      : "flex h-28 items-center justify-center rounded-2xl border border-stone-200 bg-white px-6 py-4 shadow-[0_10px_24px_rgba(39,20,75,0.05)] transition duration-200 group-hover:-translate-y-0.5 group-hover:border-[#a78bfa]/40 group-hover:shadow-[0_16px_36px_rgba(124,58,237,0.08)] md:h-32 dark:border-white/10 dark:bg-white/[0.04]";
+      ? "inline-flex w-fit max-w-none flex-col items-center justify-center rounded-[24px] border border-white/10 bg-white/[0.04] px-6 py-5 text-center shadow-sm transition duration-200 group-hover:-translate-y-0.5 group-hover:border-[#d4af37]/40 group-hover:shadow-[0_16px_36px_rgba(0,0,0,0.08)] dark:bg-white/[0.04]"
+      : "flex h-28 items-center justify-center rounded-2xl border border-stone-200 bg-white px-6 py-4 shadow-[0_10px_24px_rgba(39,20,75,0.05)] transition duration-200 group-hover:-translate-y-0.5 group-hover:border-[#d4af37]/40 group-hover:shadow-[0_16px_36px_rgba(0,0,0,0.08)] md:h-32 dark:border-white/10 dark:bg-white/[0.04]";
   const logoClassName = isDualBrand
     ? "max-h-24 max-w-[210px] object-contain md:max-h-[140px] md:max-w-[240px]"
     : isSingleBrand
@@ -2970,11 +2970,11 @@ function SimpleHomeProductGrid({ title, subtitle, products = [], loading = false
     <section className="mx-auto max-w-[1200px] px-4 py-3 md:py-5">
       <div className="mb-4 flex items-end justify-between gap-3 text-right md:mb-5">
         <div className="min-w-0">
-          <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-[#7c3aed] dark:text-[#d8b4fe]">{sfText("storefront.common.shopNow")}</div>
+          <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-[#d4af37] dark:text-[#f3d77a]">{sfText("storefront.common.shopNow")}</div>
           <h2 className="text-[1.9rem] font-black tracking-tight text-stone-950 dark:text-stone-100 md:text-[2.85rem]">{title}</h2>
           {subtitle ? <p className="mt-1.5 text-xs font-bold text-stone-500 dark:text-stone-400 md:text-sm">{subtitle}</p> : null}
         </div>
-        <Link to="/shop/products" className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 hover:text-[#6d28d9] active:scale-[0.98] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
+        <Link to="/shop/products" className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#d4af37]/50 hover:text-[#d4af37] active:scale-[0.98] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
           {sfText("common.viewAll")}
         </Link>
       </div>
@@ -2989,7 +2989,7 @@ function SimpleHomeProductGrid({ title, subtitle, products = [], loading = false
             <Link
               key={product.card_id || product.id || index}
               to={productUrl(product)}
-              className="group min-w-0 overflow-hidden rounded-[1.15rem] border border-stone-200 bg-white text-right shadow-[0_12px_30px_rgba(39,20,75,0.07)] transition duration-300 hover:-translate-y-1 hover:border-[#a78bfa]/45 hover:shadow-[0_20px_50px_rgba(39,20,75,0.14)] active:scale-[0.99] dark:border-white/10 dark:bg-[#0b1020]"
+              className="group min-w-0 overflow-hidden rounded-[1.15rem] border border-stone-200 bg-white text-right shadow-[0_12px_30px_rgba(39,20,75,0.07)] transition duration-300 hover:-translate-y-1 hover:border-[#d4af37]/45 hover:shadow-[0_20px_50px_rgba(0,0,0,0.14)] active:scale-[0.99] dark:border-white/10 dark:bg-[#101010]"
             >
               <div className="aspect-[0.95/1] overflow-hidden bg-stone-100 p-2.5 dark:bg-white/5">
                 <img
@@ -3020,10 +3020,10 @@ function SimpleHomeProductGrid({ title, subtitle, products = [], loading = false
 function SectionIntro({ eyebrow, title, subtitle, compact = false }) {
   return (
     <div className={compact ? "max-w-2xl" : "max-w-3xl"}>
-      <div className="mb-0.5 text-[9.5px] font-black uppercase tracking-[0.15em] text-[#7c3aed] dark:text-[#d8b4fe] md:mb-1 md:text-[11px] md:tracking-[0.18em]">{eyebrow}</div>
+      <div className="mb-0.5 text-[9.5px] font-black uppercase tracking-[0.15em] text-[#d4af37] dark:text-[#f3d77a] md:mb-1 md:text-[11px] md:tracking-[0.18em]">{eyebrow}</div>
       <h2 className={`${compact ? "text-[1.4rem] md:text-[2.2rem]" : "text-[1.65rem] md:text-[2.6rem]"} font-black tracking-tight text-stone-950 dark:text-stone-100`}>{title}</h2>
       {subtitle ? <p className="mt-1.5 text-xs font-semibold leading-5 text-stone-500 dark:text-stone-400 md:mt-2.5 md:text-sm md:leading-6">{subtitle}</p> : null}
-      <div className="mt-2 h-1 w-12 rounded-full bg-gradient-to-l from-[#7c3aed] to-[#d8b4fe] md:mt-2.5 md:h-[3px] md:w-16" />
+      <div className="mt-2 h-1 w-12 rounded-full bg-gradient-to-l from-[#d4af37] to-[#f3d77a] md:mt-2.5 md:h-[3px] md:w-16" />
     </div>
   );
 }
@@ -3455,11 +3455,11 @@ function GuidedGenderStep({ options = [], selectedGender, lang, onSelect }) {
               onClick={() => onSelect(option.value)}
               className={`group inline-flex min-h-[44px] min-w-[96px] items-center gap-2 rounded-full border px-3 py-1.5 text-right shadow-[0_10px_24px_rgba(39,20,75,0.045)] transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-[52px] md:min-w-[120px] md:px-4 ${
                 active
-                  ? "border-[#7c3aed] bg-[#f5f3ff] text-[#5b21b6] ring-2 ring-[#7c3aed]/15"
-                  : "border-stone-200 bg-white text-stone-900 hover:border-[#7c3aed]/45 dark:border-white/10 dark:bg-[#0b1020] dark:text-white"
+                  ? "border-[#d4af37] bg-[#151515] text-[#d4af37] ring-2 ring-[#d4af37]/15"
+                  : "border-stone-200 bg-white text-stone-900 hover:border-[#d4af37]/45 dark:border-white/10 dark:bg-[#101010] dark:text-white"
               }`}
             >
-              <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${active ? "bg-[#7c3aed] text-white" : "bg-stone-100 text-[#6d28d9] dark:bg-white/8"}`}>
+              <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${active ? "bg-[#d4af37] text-stone-950" : "bg-stone-100 text-[#d4af37] dark:bg-white/8"}`}>
                 <Icon className="h-3 w-3" />
               </span>
               <span className="block whitespace-nowrap text-[11px] font-black leading-4 md:text-[13px] md:leading-5">{classificationLabel(option, lang)}</span>
@@ -3474,7 +3474,7 @@ function GuidedGenderStep({ options = [], selectedGender, lang, onSelect }) {
 function GuidedGradeStep({ options = [], selectedGrade, lang, disabled, loading, onSelect }) {
   const { t } = useTranslation();
   return (
-    <div className={`rounded-[0.9rem] border border-stone-200 bg-white p-2 shadow-[0_10px_24px_rgba(39,20,75,0.05)] dark:border-white/10 dark:bg-[#0b1020] md:rounded-[1.25rem] md:p-2.5 ${disabled ? "pointer-events-none opacity-55" : ""}`}>
+    <div className={`rounded-[0.9rem] border border-stone-200 bg-white p-2 shadow-[0_10px_24px_rgba(39,20,75,0.05)] dark:border-white/10 dark:bg-[#101010] md:rounded-[1.25rem] md:p-2.5 ${disabled ? "pointer-events-none opacity-55" : ""}`}>
       <div className="flex flex-wrap gap-1.5 md:gap-2">
         {loading ? <ProductTypeSkeleton /> : options.map((option) => {
           const active = normalizeFilterKey(selectedGrade) === normalizeFilterKey(option.value);
@@ -3487,11 +3487,11 @@ function GuidedGradeStep({ options = [], selectedGrade, lang, disabled, loading,
               onClick={() => onSelect(option.value)}
               className={`group inline-flex min-h-[44px] min-w-[112px] items-center gap-2 rounded-full border px-3 py-1.5 text-right transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-[52px] md:min-w-[128px] md:px-4 ${
                 active
-                  ? "border-[#7c3aed] bg-[#f5f3ff] text-[#5b21b6] ring-2 ring-[#7c3aed]/15"
-                  : "border-stone-200 bg-[#fbfaf7] text-stone-900 hover:border-[#7c3aed]/45 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                  ? "border-[#d4af37] bg-[#151515] text-[#d4af37] ring-2 ring-[#d4af37]/15"
+                  : "border-stone-200 bg-[#fbfaf7] text-stone-900 hover:border-[#d4af37]/45 dark:border-white/10 dark:bg-white/5 dark:text-white"
               }`}
             >
-              <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${active ? "bg-[#7c3aed] text-white" : "bg-white text-[#6d28d9] shadow-sm dark:bg-white/8"}`}>
+              <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${active ? "bg-[#d4af37] text-stone-950" : "bg-white text-[#d4af37] shadow-sm dark:bg-white/8"}`}>
                 <Icon className="h-3 w-3" />
               </span>
               <span className="block truncate text-[11px] font-black leading-4 md:text-[13px] md:leading-5">{classificationLabel(option, lang)}</span>
@@ -3557,10 +3557,10 @@ function ProductTypeSkeleton() {
 function GuidedSizeFilter({ sizes = [], selectedSize, onSelect, disabled }) {
   const { t } = useTranslation();
   return (
-    <div className={`mb-2 rounded-[0.9rem] border border-stone-200 bg-white p-2 shadow-[0_10px_24px_rgba(39,20,75,0.05)] dark:border-white/10 dark:bg-[#0b1020] md:mb-3 md:rounded-[1.15rem] md:p-2.5 ${disabled ? "opacity-55" : ""}`}>
+    <div className={`mb-2 rounded-[0.9rem] border border-stone-200 bg-white p-2 shadow-[0_10px_24px_rgba(39,20,75,0.05)] dark:border-white/10 dark:bg-[#101010] md:mb-3 md:rounded-[1.15rem] md:p-2.5 ${disabled ? "opacity-55" : ""}`}>
       <div className="mb-1.5 flex items-center justify-between gap-2 md:mb-2 md:gap-3">
         <div>
-          <p className="text-[8px] font-black uppercase tracking-[0.14em] text-[#7c3aed] md:text-[9px] md:tracking-[0.18em]">{t("storefront.filters.sizeFilter")}</p>
+          <p className="text-[8px] font-black uppercase tracking-[0.14em] text-[#d4af37] md:text-[9px] md:tracking-[0.18em]">{t("storefront.filters.sizeFilter")}</p>
           <h3 className="text-[11px] font-black md:text-xs">{t("storefront.filters.availableSize")}</h3>
         </div>
         {selectedSize ? (
@@ -3574,7 +3574,7 @@ function GuidedSizeFilter({ sizes = [], selectedSize, onSelect, disabled }) {
           type="button"
           disabled={disabled}
           onClick={() => onSelect("")}
-          className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-black transition md:px-3 md:py-1.5 md:text-xs ${!selectedSize ? "border-[#7c3aed] bg-[#f5f3ff] text-[#6d28d9]" : "border-stone-200 bg-stone-50 text-stone-700 hover:border-[#7c3aed]/50 dark:border-white/10 dark:bg-white/5 dark:text-stone-200"}`}
+          className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-black transition md:px-3 md:py-1.5 md:text-xs ${!selectedSize ? "border-[#d4af37] bg-[#151515] text-[#d4af37]" : "border-stone-200 bg-stone-50 text-stone-700 hover:border-[#d4af37]/50 dark:border-white/10 dark:bg-white/5 dark:text-stone-200"}`}
         >
           {t("common.all")}
         </button>
@@ -7257,7 +7257,7 @@ function ContactPage({ publicStoreSettings = {}, quickActionLinks = {} }) {
     {
       id: "facebook",
       title: "Facebook",
-      icon: Facebook,
+      icon: ExternalLink,
       value: facebookPage,
       meta: "تابع آخر التحديثات",
       href: facebookHref,
@@ -7412,7 +7412,7 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
     { id: "phone", title: "الهاتف", icon: Phone, value: safeText(phoneNumber, "رقم الهاتف غير متوفر"), href: phoneHref, cta: "اتصال", tone: "gold" },
     { id: "whatsapp", title: "واتساب", icon: MessageCircle, value: safeText(whatsappNumber, "واتساب غير متوفر"), href: whatsappHref, cta: "فتح واتساب", tone: "green" },
     { id: "instagram", title: "انستجرام", icon: Camera, value: safeText(instagramUsername, "الحساب غير متوفر"), href: instagramHref, cta: "زيارة الصفحة", tone: "gold" },
-    { id: "facebook", title: "فيسبوك", icon: Facebook, value: safeText(facebookPage, "الصفحة غير متوفرة"), href: facebookHref, cta: "زيارة الصفحة", tone: "gold" },
+    { id: "facebook", title: "فيسبوك", icon: ExternalLink, value: safeText(facebookPage, "الصفحة غير متوفرة"), href: facebookHref, cta: "زيارة الصفحة", tone: "gold" },
     { id: "address", title: "العنوان", icon: MapPin, value: safeText(addressDisplay, "عنوان المتجر غير متوفر حاليًا"), href: mapHref, cta: mapHref ? "فتح الخريطة" : "الخريطة غير متوفرة", tone: "gold" },
   ];
   const normalizedContactRows = contactRows.map((row) => {
@@ -8449,7 +8449,7 @@ function Footer() {
           <div className="mt-3 flex gap-2">
             <a href="https://wa.me/" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:text-emerald-600 dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-emerald-300/40 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-300" aria-label="WhatsApp"><MessageCircle className="h-5 w-5" /></a>
             <Link to="/shop/contact" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-[#c4b5fd] hover:text-[#6d28d9] dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-[#c4b5fd]/40 dark:hover:bg-[#7c3aed]/12 dark:hover:text-[#d8b4fe]" aria-label="Instagram"><Camera className="h-5 w-5" /></Link>
-            <Link to="/shop/contact" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-[#c4b5fd] hover:text-[#6d28d9] dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-[#c4b5fd]/40 dark:hover:bg-[#7c3aed]/12 dark:hover:text-[#d8b4fd]" aria-label="Facebook"><Facebook className="h-5 w-5" /></Link>
+            <Link to="/shop/contact" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-[#c4b5fd] hover:text-[#6d28d9] dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-[#c4b5fd]/40 dark:hover:bg-[#7c3aed]/12 dark:hover:text-[#d8b4fd]" aria-label="Facebook"><ExternalLink className="h-5 w-5" /></Link>
           </div>
           <a href="https://wa.me/" className="mt-4 inline-flex items-center justify-center gap-2 rounded-full border border-emerald-300/30 bg-stone-950 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#6d28d9] dark:bg-emerald-500 dark:text-white dark:shadow-[0_14px_34px_rgba(16,185,129,0.22)] dark:hover:bg-emerald-400">
             <MessageCircle className={`h-4 w-4 ${darkMode ? "text-white" : "text-[#7c3aed]"}`} />
@@ -8848,7 +8848,7 @@ function Reviews() {
     <section className="mx-auto max-w-7xl px-4 py-3 text-white md:py-7">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="text-2xl font-black text-white">{sfText("storefront.reviews.title")}</h2>
-        <span className="rounded-full border border-white/[0.08] bg-white/[0.055] px-3 py-1.5 text-xs font-black text-[#c4b5fd] shadow-[0_0_28px_rgba(124,58,237,0.18)] backdrop-blur-xl">4.8 / 5</span>
+        <span className="rounded-full border border-white/[0.08] bg-white/[0.055] px-3 py-1.5 text-xs font-black text-[#d4af37] shadow-[0_0_28px_rgba(212,175,55,0.18)] backdrop-blur-xl">4.8 / 5</span>
       </div>
       <div className="grid gap-3 md:grid-cols-3">
         {reviews.map(([avatar, review]) => (
@@ -8856,7 +8856,7 @@ function Reviews() {
             <div className="flex items-center gap-3">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/[0.08] bg-white/[0.06] text-sm font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">{avatar}</span>
               <div className="min-w-0">
-                <div className="flex gap-0.5 text-[#8b5cf6]">
+                <div className="flex gap-0.5 text-[#d4af37]">
                   {Array.from({ length: 5 }).map((_, index) => <Star key={index} className="h-3.5 w-3.5 fill-current" />)}
                 </div>
                 <div className="mt-1 inline-flex rounded-full border border-white/[0.08] bg-white/[0.045] px-2 py-0.5 text-[11px] font-black text-white/65">{sfText("storefront.reviews.verifiedCustomer")}</div>
@@ -8883,7 +8883,7 @@ function MobileBuyBar({ product, variant, visible, onAddToCart, buyNow }) {
           <div className="truncate text-xs font-black text-white">{cleanDisplayText(product.name)}</div>
           <div className="mt-0.5 text-sm font-black text-white">{money(displaySellingPrice(product, variant))}</div>
         </div>
-        <button onClick={onAddToCart} disabled={disabled} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-l from-[#7c3aed] to-[#111827] px-4 py-3 text-sm font-black text-white shadow-[0_18px_42px_rgba(124,58,237,0.34)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#7c3aed]/35 disabled:text-white/60 disabled:shadow-none">
+        <button onClick={onAddToCart} disabled={disabled} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-l from-[#d4af37] to-[#111111] px-4 py-3 text-sm font-black text-stone-950 shadow-[0_18px_42px_rgba(212,175,55,0.34)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#d4af37]/35 disabled:text-white/60 disabled:shadow-none">
           <ShoppingCart className="h-4 w-4" />
           {sfText("storefront.cart.addToCart")}
         </button>

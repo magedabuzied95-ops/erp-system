@@ -772,7 +772,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
     <section dir="rtl" className={`sf-ai-chat ${open ? "sf-ai-chat--open" : "sf-ai-chat--collapsed"}`} aria-label={t("storefront.aiSupport.aria", "Smart store assistant")}>
       {open ? (
         <div
-          className={`sf-ai-chat-panel flex flex-col overflow-hidden rounded-[1.55rem] border bg-white/96 text-stone-950 shadow-[0_24px_70px_rgba(39,20,75,0.24)] backdrop-blur-2xl dark:bg-[#080d1a]/96 dark:text-stone-100 ${dragActive ? "border-[#7c3aed] ring-4 ring-[#7c3aed]/20" : "border-white/70 dark:border-white/10"}`}
+          className={`sf-ai-chat-panel flex flex-col overflow-hidden rounded-[1.55rem] border bg-white/96 text-stone-950 shadow-[0_24px_70px_rgba(39,20,75,0.24)] backdrop-blur-2xl dark:bg-[#080d1a]/96 dark:text-stone-100 ${dragActive ? "border-[#d4af37] ring-4 ring-[#d4af37]/20" : "border-white/70 dark:border-white/10"}`}
           onDragEnter={(event) => {
             event.preventDefault();
             setDragActive(true);
@@ -787,7 +787,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
           }}
           onDrop={handleDrop}
         >
-          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-stone-200/70 bg-gradient-to-l from-stone-950 via-[#3b1d78] to-[#7c3aed] px-3.5 py-3 text-white dark:border-white/10">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-stone-200/70 bg-gradient-to-l from-stone-950 via-[#111827] to-[#d4af37] px-3.5 py-3 text-white dark:border-white/10">
             <div className="flex min-w-0 items-center gap-2.5">
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/15 shadow-inner">
                 <Sparkles className="h-[18px] w-[18px]" />
@@ -863,7 +863,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
                                 key={`quick-reply-${label}-${index}`}
                                 type="button"
                                 onClick={() => handleUnifiedActionClick(item, { product: message.product_cards?.[0] || message.suggested_products?.[0] || aiSupportContext.selected_product_context || null })}
-                                className="rounded-full border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-black text-stone-700 transition hover:-translate-y-0.5 hover:border-[#7c3aed]/45 hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
+                                className="rounded-full border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-black text-stone-700 transition hover:-translate-y-0.5 hover:border-[#d4af37]/45 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
                               >
                                 {label}
                               </button>
@@ -882,7 +882,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
                                 key={`action-${key}-${index}`}
                                 type="button"
                                 onClick={() => handleUnifiedActionClick(item, { product: message.product_cards?.[0] || message.suggested_products?.[0] || aiSupportContext.selected_product_context || null })}
-                                className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 text-right text-[11px] font-black text-stone-700 transition hover:-translate-y-0.5 hover:border-[#7c3aed]/45 hover:bg-[#f5f3ff] hover:text-[#6d28d9] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
+                                className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 text-right text-[11px] font-black text-stone-700 transition hover:-translate-y-0.5 hover:border-[#d4af37]/45 hover:bg-[#f8e7b3]/10 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
                               >
                                 {key}
                               </button>

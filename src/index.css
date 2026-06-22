@@ -3,8 +3,8 @@
 @layer base {
   :root {
     --bg: #020617;
-    --surface: #0f172a;
-    --card: #111827;
+    --surface: #111111;
+    --card: #151515;
     --text: #ffffff;
     --muted: rgba(255, 255, 255, 0.72);
     --border: rgba(255, 255, 255, 0.08);
@@ -13,7 +13,7 @@
     --success: #22c55e;
     --warning: #f59e0b;
     --danger: #ef4444;
-    --surface-soft: #111827;
+    --surface-soft: #151515;
     --card-soft: #18181b;
     --shadow: rgba(0, 0, 0, 0.35);
     color-scheme: dark;
@@ -4570,6 +4570,61 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 
   .storefront-shell :is([class*="border-[#7c3aed]"], [class*="border-[#6d28d9]"], [class*="border-[#8b5cf6]"], [class*="border-[#a78bfa]"], [class*="border-[#c4b5fd]"], [class*="border-[#d8b4fe]"], [class*="border-[#f8e7b3]"]) {
     border-color: rgba(212, 175, 55, 0.35) !important;
+  }
+
+  .storefront-shell :is(
+    [class*="bg-[#0f172a]"],
+    [class*="bg-[#111827]"],
+    [class*="bg-[#1e293b]"],
+    [class*="bg-[#172033]"],
+    [class*="bg-[#0b1020]"],
+    [class*="bg-[#090b16]"],
+    [class*="bg-[#050816]"],
+    [class*="bg-[#0b1120]"],
+    [class*="bg-[#0b1220]"],
+    [class*="bg-[#07111f]"],
+    [class*="bg-[#050b16]"]
+  ) {
+    background-color: #111111 !important;
+    background-image: linear-gradient(180deg, #020617 0%, #0b0f19 40%, #111827 100%) !important;
+  }
+
+  .storefront-shell :is(
+    [class*="from-[#7c3aed]"],
+    [class*="via-[#7c3aed]"],
+    [class*="to-[#7c3aed]"],
+    [class*="from-[#6d28d9]"],
+    [class*="via-[#6d28d9]"],
+    [class*="to-[#6d28d9]"],
+    [class*="from-[#8b5cf6]"],
+    [class*="via-[#8b5cf6]"],
+    [class*="to-[#8b5cf6]"],
+    [class*="from-[#a78bfa]"],
+    [class*="via-[#a78bfa]"],
+    [class*="to-[#a78bfa]"],
+    [class*="from-[#c4b5fd]"],
+    [class*="via-[#c4b5fd]"],
+    [class*="to-[#c4b5fd]"],
+    [class*="from-[#d8b4fe]"],
+    [class*="via-[#d8b4fe]"],
+    [class*="to-[#d8b4fe]"],
+    [class*="from-[#2563eb]"],
+    [class*="to-[#2563eb]"],
+    [class*="from-[#3b82f6]"],
+    [class*="to-[#3b82f6]"],
+    [class*="rgba(124,58,237"],
+    [class*="rgba(109,40,217"],
+    [class*="rgba(167,139,250"],
+    [class*="rgba(59,130,246"],
+    [class*="rgba(37,99,235"]
+  ) {
+    background-image: linear-gradient(135deg, #d4af37, #e5c158) !important;
+  }
+
+  .storefront-shell :is(.sf-storefront-card, .sf-product-card, .sf-small-product-card, .sf-checkout-summary, .sf-product-summary-card, .sf-product-option-card, .sf-track-search-form, .sf-loyalty-card, .sf-account-order-row, .sf-order-item-row, .sf-visual-empty, .sf-ai-chat-panel, .sf-ai-product-card, .sf-visual-card, .sf-visual-preview, .sf-product-variant-sheet-panel, .sf-product-details-page) {
+    background-color: #111111 !important;
+    background-image: linear-gradient(180deg, #020617 0%, #0b0f19 40%, #111827 100%) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
   }
 
   .storefront-shell :is(.sf-header-nav-link:hover, .sf-header-nav-link.active, .sf-header-main .sf-nav-link:hover, .sf-header-main .sf-nav-link.active) {

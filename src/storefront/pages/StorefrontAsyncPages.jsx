@@ -75,7 +75,7 @@ function TrackingResult({ data, helpers, components }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="sf-muted-text text-sm font-bold text-stone-500">{sfText("storefront.orders.orderNumber", "ط±ظ‚ظ… ط§ظ„ط·ظ„ط¨")}</div>
-            <OrderNumberBadge value={publicNumber} className="mt-2 border-[#7c3aed]/20 bg-[#7c3aed]/10 text-[#5b21b6]" />
+            <OrderNumberBadge value={publicNumber} className="mt-2 border-[#d4af37]/20 bg-[#d4af37]/10 text-[#d4af37]" />
           </div>
           <span className="rounded-full bg-stone-950 px-4 py-2 text-sm font-black text-white">{statusCopy(order.status || order.shipping_status || "pending")}</span>
         </div>
@@ -171,7 +171,7 @@ export function TrackOrderPage({ helpers, components }) {
       <form onSubmit={submit} className="sf-storefront-card sf-track-search-form mt-5 grid gap-3 rounded-[1.7rem] border border-stone-200 bg-white p-4 shadow-[0_18px_50px_rgba(39,20,75,0.07)] md:grid-cols-[1fr_1fr_auto] md:p-5">
         <Field label={sfText("storefront.orders.orderNumber", "ط±ظ‚ظ… ط§ظ„ط·ظ„ط¨")} value={form.order_number} onChange={(value) => setForm((prev) => ({ ...prev, order_number: value }))} required />
         <Field label={sfText("storefront.form.mobileNumber", "ط±ظ‚ظ… ط§ظ„ظ‡ط§طھظپ")} value={form.phone} onChange={(value) => setForm((prev) => ({ ...prev, phone: value }))} inputMode="tel" />
-        <button disabled={state.loading} className="min-h-13 self-end rounded-full bg-stone-950 px-7 py-4 font-black text-white transition hover:bg-[#6d28d9] disabled:bg-stone-300">{sfText("storefront.orders.trackOrder", "طھطھط¨ط¹ ط§ظ„ط·ظ„ط¨")}</button>
+        <button disabled={state.loading} className="min-h-13 self-end rounded-full bg-stone-950 px-7 py-4 font-black text-white transition hover:bg-[#d4af37] disabled:bg-stone-300">{sfText("storefront.orders.trackOrder", "طھطھط¨ط¹ ط§ظ„ط·ظ„ط¨")}</button>
       </form>
       {state.loading ? <div className="sf-storefront-card mt-5 h-32 animate-pulse rounded-3xl bg-white" /> : null}
       {!state.loading && !state.data && !state.error ? <EmptyState title={sfText("storefront.tracking.readyTitle", "ط¬ط§ظ‡ط² ظ„ظ„ط¨ط­ط«")} text={sfText("storefront.tracking.readyText", "ط³ظٹط¸ظ‡ط± ط±ظ‚ظ… ط§ظ„ط·ظ„ط¨ ظˆط­ط§ظ„ط© ط§ظ„ط´ط­ظ† ظ‡ظ†ط§ ط¨ط¹ط¯ ط§ظ„ط¨ط­ط«.")} /> : null}
@@ -190,7 +190,7 @@ export function WishlistPageRoute({ wishlist, toggleWishlist, onAddToCart, helpe
       <div className="rounded-[2rem] border border-white/[0.08] bg-[linear-gradient(145deg,rgba(15,23,42,0.82),rgba(3,7,18,0.94))] p-4 shadow-[0_28px_90px_rgba(0,0,0,0.34)] backdrop-blur-xl md:p-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div className="min-w-0">
-            <p className="text-sm font-black text-[#a78bfa]">{sfText("storefront.wishlist.subtitle", "طھظڈط­ظپط¸ ط§ط®طھظٹط§ط±ط§طھظƒ ط§ظ„ظ…ظپط¶ظ„ط© ظ‡ظ†ط§")}</p>
+            <p className="text-sm font-black text-[#d4af37]">{sfText("storefront.wishlist.subtitle", "طھظڈط­ظپط¸ ط§ط®طھظٹط§ط±ط§طھظƒ ط§ظ„ظ…ظپط¶ظ„ط© ظ‡ظ†ط§")}</p>
             <h1 className="mt-1 text-3xl font-black text-white md:text-5xl">{sfText("storefront.header.wishlist", "ط§ظ„ظ…ظپط¶ظ„ط©")}</h1>
           </div>
           <div className="w-fit rounded-full border border-white/[0.1] bg-white/[0.07] px-4 py-2 text-sm font-black text-white/80 shadow-[0_12px_32px_rgba(0,0,0,0.2)]">
@@ -203,7 +203,7 @@ export function WishlistPageRoute({ wishlist, toggleWishlist, onAddToCart, helpe
             <SmallProductGrid items={wishlist} action={toggleWishlist} onAddToCart={onAddToCart} />
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <div className="flex items-start gap-4 rounded-[1.5rem] border border-white/[0.08] bg-white/[0.055] p-5 text-start shadow-[0_18px_50px_rgba(0,0,0,0.22)] ring-1 ring-white/[0.025] backdrop-blur-xl">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-[#a78bfa]/20 bg-[#7c3aed]/15 text-[#c4b5fd]">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-[#d4af37]/20 bg-[#d4af37]/15 text-[#d4af37]">
                   <Bell className="h-5 w-5" />
                 </span>
                 <div className="min-w-0">
@@ -294,4 +294,3 @@ export function CartPageRoute({ cart, updateCart, removeFromCart, helpers, compo
     </section>
   );
 }
-

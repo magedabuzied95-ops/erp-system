@@ -103,7 +103,7 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd, he
                   event.stopPropagation();
                   setSelectedVariantId(item.id || "");
                 }}
-                className={`rounded-full border px-2.5 py-1 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${selected ? "border-[#7c3aed] bg-[#7c3aed] text-white" : "border-stone-200 bg-white text-stone-700 hover:border-[#7c3aed]/50 dark:border-white/10 dark:bg-white/8 dark:text-stone-200"}`}
+                className={`rounded-full border px-2.5 py-1 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${selected ? "border-[#d4af37] bg-[rgba(212,175,55,0.12)] text-[#d4af37]" : "border-stone-200 bg-white text-stone-700 hover:border-[#d4af37]/50 dark:border-white/10 dark:bg-white/8 dark:text-stone-200"}`}
               >
                 {size}
               </button>
@@ -143,7 +143,7 @@ function VisualSearchEmpty({ message, keywords, onPickTerm }) {
   const { t } = useTranslation();
   return (
     <div className="sf-visual-empty">
-      <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-[#8b5cf6]/20 bg-[#7c3aed]/14 text-[#c4b5fd] shadow-[0_14px_34px_rgba(124,58,237,0.16)]">
+      <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-[#d4af37]/20 bg-[rgba(212,175,55,0.14)] text-[#d4af37] shadow-[0_14px_34px_rgba(212,175,55,0.16)]">
         <PackageSearch className="h-6 w-6" />
       </div>
       <div className="min-w-0">
@@ -152,7 +152,7 @@ function VisualSearchEmpty({ message, keywords, onPickTerm }) {
         {keywords.length ? (
           <div className="mt-3 flex flex-wrap gap-2">
             {keywords.map((keyword) => (
-              <button key={keyword} type="button" onClick={() => onPickTerm(keyword)} className="rounded-full border border-white/10 bg-white/[0.07] px-3 py-1.5 text-xs font-black text-stone-200 transition hover:border-[#a78bfa]/40 hover:bg-[#7c3aed]/18 hover:text-white active:scale-95">
+              <button key={keyword} type="button" onClick={() => onPickTerm(keyword)} className="rounded-full border border-white/10 bg-white/[0.07] px-3 py-1.5 text-xs font-black text-stone-200 transition hover:border-[#d4af37]/40 hover:bg-[rgba(212,175,55,0.18)] hover:text-white active:scale-95">
                 {keyword}
               </button>
             ))}

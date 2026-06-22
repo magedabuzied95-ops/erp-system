@@ -56,7 +56,7 @@ const cartItemUnitPrice = (item = {}) => firstSummaryNumber(item.price, item.uni
 function SummaryMeta({ label, value, variant = "muted" }) {
   const variantClass =
     variant === "accent"
-      ? "border-[#a78bfa]/20 bg-[#7c3aed]/12 text-[#ddd6fe]"
+      ? "border-[#d4af37]/20 bg-[#d4af37]/12 text-[#f3d77a]"
       : "border-white/10 bg-white/[0.055] text-white/68";
 
   return (
@@ -158,8 +158,8 @@ export default function StorefrontCheckoutSummary({
                             {comparePrice ? <span className="text-[10px] text-white/36 line-through">{money(comparePrice)}</span> : null}
                           </div>
                         </div>
-                        <div className="rounded-2xl border border-[#a78bfa]/20 bg-[#7c3aed]/14 px-2.5 py-2 text-right">
-                          <div className="text-[#ddd6fe]/80">{t("storefront.checkout.lineTotal", "الإجمالي")}</div>
+                        <div className="rounded-2xl border border-[#d4af37]/20 bg-[rgba(212,175,55,0.14)] px-2.5 py-2 text-right">
+                          <div className="text-[#f3d77a]/80">{t("storefront.checkout.lineTotal", "الإجمالي")}</div>
                           <div className="mt-1 text-white">{money(lineTotal)}</div>
                         </div>
                       </div>
@@ -186,7 +186,7 @@ export default function StorefrontCheckoutSummary({
         ) : null}
         <span className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-emerald-100">{deliveryText}</span>
         {governorate && shippingQuote.cod_allowed === false ? <span className="rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-amber-100">{t("storefront.checkout.codUnavailableForAddress", "الدفع عند الاستلام غير متاح لهذا العنوان.")}</span> : null}
-        <span className="rounded-2xl border border-[#a78bfa]/20 bg-[#7c3aed]/12 px-3 py-2 text-[#ddd6fe]">{t("storefront.checkout.shippingProvidersReady", "بيانات الشحن جاهزة لـ Bosta / Mylerz / ShipBlu / التسليم داخل المتجر عند تفعيل شركة الشحن.")}</span>
+        <span className="rounded-2xl border border-[#d4af37]/20 bg-[rgba(212,175,55,0.12)] px-3 py-2 text-[#f3d77a]">{t("storefront.checkout.shippingProvidersReady", "بيانات الشحن جاهزة لـ Bosta / Mylerz / ShipBlu / التسليم داخل المتجر عند تفعيل شركة الشحن.")}</span>
       </div>
       <div className="mt-4 hidden md:block">
         <SubmitButton submitting={submitting} paymentMethod={paymentMethod} disabled={submitDisabled} label={actionLabel} />

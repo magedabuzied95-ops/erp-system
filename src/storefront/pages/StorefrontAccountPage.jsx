@@ -101,10 +101,10 @@ function LoyaltyWidget({ loyalty, loading, helpers }) {
   const progress = Math.max(0, Math.min(100, Number(loyalty?.progress || 0)));
 
   return (
-    <div className="sf-loyalty-card mt-4 overflow-hidden rounded-[1.35rem] border border-[#7c3aed]/20 bg-[#faf7ff] p-4">
+    <div className="sf-loyalty-card mt-4 overflow-hidden rounded-[1.35rem] border border-[#d4af37]/20 bg-[#111111] p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <span className="sf-loyalty-icon grid h-10 w-10 place-items-center rounded-full bg-white text-[#6d28d9] shadow-sm">
+          <span className="sf-loyalty-icon grid h-10 w-10 place-items-center rounded-full bg-white text-[#d4af37] shadow-sm">
             <Gem className="h-5 w-5" />
           </span>
           <div>
@@ -120,7 +120,7 @@ function LoyaltyWidget({ loyalty, loading, helpers }) {
         </span>
       </div>
       <div className="sf-loyalty-progress mt-4 h-2 overflow-hidden rounded-full bg-white">
-        <div className="h-full rounded-full bg-[#7c3aed] transition-all duration-700" style={{ width: `${progress}%` }} />
+        <div className="h-full rounded-full bg-[#d4af37] transition-all duration-700" style={{ width: `${progress}%` }} />
       </div>
       <div className="sf-secondary-text mt-3 flex flex-wrap items-center justify-between gap-2 text-xs font-black text-stone-600">
         <span>
@@ -147,7 +147,7 @@ const AccountOrderRow = memo(function AccountOrderRow({ order, phone, onOpen, on
     <div className="sf-account-order-row rounded-2xl bg-stone-50 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <OrderNumberBadge value={order} className="border-[#7c3aed]/20 bg-[#7c3aed]/10 text-[#5b21b6]" />
+          <OrderNumberBadge value={order} className="border-[#d4af37]/20 bg-[#d4af37]/10 text-[#d4af37]" />
           <div className="sf-muted-text mt-1 text-xs font-bold text-stone-500">{formatDate(order.created_at)} - {statusCopy(order.status)}</div>
         </div>
         <div className="sf-primary-text font-black">{money(order.total_amount || order.total || order.total_price)}</div>
@@ -155,7 +155,7 @@ const AccountOrderRow = memo(function AccountOrderRow({ order, phone, onOpen, on
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
         <button onClick={open} className="sf-soft-pill min-h-11 rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-black">{sfText("storefront.orders.orderDetails", "تفاصيل الطلب")}</button>
         <Link to={`/shop/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-11 rounded-full bg-stone-950 px-4 py-2 text-center text-sm font-black text-white">{sfText("storefront.orders.trackOrder", "تتبع الطلب")}</Link>
-        <button onClick={reorderOrder} className="min-h-11 rounded-full border border-[#7c3aed]/30 bg-[#f5f3ff] px-4 py-2 text-sm font-black text-[#6d28d9]">{sfText("storefront.orders.reorder", "إعادة الطلب")}</button>
+        <button onClick={reorderOrder} className="min-h-11 rounded-full border border-[#d4af37]/30 bg-[#f8e7b3]/10 px-4 py-2 text-sm font-black text-[#d4af37]">{sfText("storefront.orders.reorder", "إعادة الطلب")}</button>
       </div>
     </div>
   );
@@ -169,7 +169,7 @@ function CustomerOrderDetails({ data, phone, onReorder, helpers, components }) {
   if (data.loading) return <div className="sf-storefront-card h-40 animate-pulse rounded-3xl bg-white" />;
   return (
     <Panel title={sfText("storefront.orders.orderDetails", "تفاصيل الطلب")}>
-      <OrderNumberBadge value={publicNumber} className="mb-1 border-[#7c3aed]/20 bg-[#7c3aed]/10 text-[#5b21b6]" />
+      <OrderNumberBadge value={publicNumber} className="mb-1 border-[#d4af37]/20 bg-[#d4af37]/10 text-[#d4af37]" />
       <div className="grid gap-3 md:grid-cols-3">
         <InfoBox label={sfText("storefront.orders.orderStatus", "حالة الطلب")} value={statusCopy(order.status)} />
         <InfoBox label={sfText("storefront.checkout.paymentMethod", "Payment")} value={`${paymentCopy(order.payment_method)} - ${statusCopy(order.payment_status)}`} />
@@ -179,7 +179,7 @@ function CustomerOrderDetails({ data, phone, onReorder, helpers, components }) {
       <OrderItemsSummaryLocal items={data.items || []} helpers={helpers} />
       <div className="grid gap-2 sm:grid-cols-3">
         <Link to={`/shop/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-12 rounded-full bg-stone-950 px-5 py-3 text-center font-black text-white">{sfText("storefront.orders.trackOrder", "تتبع الطلب")}</Link>
-        <button onClick={() => onReorder({ ...order, items: data.items || [] })} className="min-h-12 rounded-full border border-[#7c3aed]/30 bg-[#f5f3ff] px-5 py-3 font-black text-[#6d28d9]">{sfText("storefront.orders.reorder", "إعادة الطلب")}</button>
+        <button onClick={() => onReorder({ ...order, items: data.items || [] })} className="min-h-12 rounded-full border border-[#d4af37]/30 bg-[#f8e7b3]/10 px-5 py-3 font-black text-[#d4af37]">{sfText("storefront.orders.reorder", "إعادة الطلب")}</button>
         <a href={supportHref(publicNumber)} className="min-h-12 rounded-full border border-emerald-200 bg-emerald-50 px-5 py-3 text-center font-black text-emerald-700">{sfText("storefront.support.whatsapp", "واتساب")}</a>
       </div>
     </Panel>
@@ -361,7 +361,7 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
     <section className="mx-auto max-w-7xl px-4 py-5 md:py-8">
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-black text-[#6d28d9]">{sfText("storefront.account.eyebrow", "حساب سريع برقم الهاتف")}</p>
+          <p className="text-sm font-black text-[#d4af37]">{sfText("storefront.account.eyebrow", "حساب سريع برقم الهاتف")}</p>
           <h1 className="text-3xl font-black md:text-5xl">{sfText("storefront.account.title", "حسابي")}</h1>
         </div>
         <Link to="/shop/track" className="sf-soft-pill inline-flex min-h-12 items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 font-black">{sfText("storefront.orders.trackOrder", "تتبع الطلب")}</Link>
