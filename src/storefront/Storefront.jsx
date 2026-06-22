@@ -4413,7 +4413,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
             aria-label={t("storefront.common.close")}
             onClick={closeMobileMenu}
           />
-          <aside className="fixed inset-y-0 right-0 z-[161] flex h-full w-[min(22rem,88vw)] flex-col overflow-hidden rounded-l-[2rem] border-l border-white/10 bg-[linear-gradient(180deg,rgba(10,14,28,0.99),rgba(7,10,20,0.98))] text-white shadow-[-26px_0_70px_rgba(0,0,0,0.48)]">
+          <aside className="fixed inset-y-0 right-0 z-[161] flex h-full w-[min(22rem,88vw)] flex-col overflow-hidden rounded-l-[2rem] border-l border-white/10 bg-[linear-gradient(180deg,#050505_0%,#0a0a0a_55%,#111111_100%)] text-white shadow-[-26px_0_70px_rgba(0,0,0,0.48)]">
             <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 pb-3 pt-4">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">القائمة</p>
@@ -4604,7 +4604,7 @@ function PremiumSearch({
   );
 
   const resultsPanel = (
-    <div className="rounded-[1.6rem] border border-white/60 bg-white/92 p-3 text-stone-950 shadow-[0_28px_90px_rgba(15,23,42,0.22)] backdrop-blur-2xl dark:border-white/10 dark:bg-[#090d18]/96 dark:text-white">
+    <div className="rounded-[1.6rem] border border-white/60 bg-white/92 p-3 text-stone-950 shadow-[0_28px_90px_rgba(15,23,42,0.22)] backdrop-blur-2xl dark:border-white/10 dark:bg-[#0a0a0a]/96 dark:text-white">
       <SearchQuickSections
         value={value}
         loading={loading}
@@ -4633,7 +4633,7 @@ function PremiumSearch({
   if (mobileOnly) {
     if (!mobileOpen) return null;
     return (
-      <div className="fixed inset-0 z-[100] bg-[#070b16]/88 p-4 pt-[calc(1rem+env(safe-area-inset-top))] text-white backdrop-blur-2xl md:hidden" dir="rtl">
+      <div className="fixed inset-0 z-[100] bg-[#050505]/88 p-4 pt-[calc(1rem+env(safe-area-inset-top))] text-white backdrop-blur-2xl md:hidden" dir="rtl">
         <div className="mx-auto flex h-full max-w-xl flex-col">
           <div className="sticky top-0 z-10 flex items-center gap-2 pb-4">
             <div className="min-w-0 flex-1">{searchInput}</div>
@@ -8639,7 +8639,7 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
         aria-label={sfText("storefront.nav.mobileNavigation")}
       >
         <div className="mx-auto">
-          <div className="flex h-[calc(var(--mobile-bottom-nav-height,58px))] items-center justify-evenly overflow-hidden rounded-[999px] border border-[rgba(255,255,255,0.08)] bg-[rgba(8,12,24,0.88)] px-2 backdrop-blur-[20px] shadow-[0_14px_38px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.04)]">
+          <div className="flex h-[calc(var(--mobile-bottom-nav-height,58px))] items-center justify-evenly overflow-hidden rounded-[999px] border border-[rgba(255,255,255,0.10)] bg-[linear-gradient(180deg,rgba(5,5,5,0.94),rgba(10,10,10,0.96))] px-2 backdrop-blur-[20px] shadow-[0_-18px_40px_rgba(0,0,0,0.45)]">
             {links.map((item) => {
               const active = isActive(item);
               const Icon = item.icon;

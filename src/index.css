@@ -1999,14 +1999,15 @@
   }
 
   .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav a[aria-current="page"] {
-    background: rgba(255, 255, 255, 0.08) !important;
-    color: #7c3aed !important;
+    background: rgba(212, 175, 55, 0.14) !important;
+    border: 1px solid rgba(212, 175, 55, 0.35) !important;
+    color: #d4af37 !important;
     opacity: 1 !important;
     transform: scale(1.05);
   }
 
   .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav a[aria-current="page"] span:first-child {
-    color: #7c3aed !important;
+    color: #d4af37 !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav a span:first-child {
@@ -3791,17 +3792,17 @@ body.sf-mobile-search-scroll-lock {
 .sf-mobile-search-backdrop {
   z-index: 0;
   background:
-    radial-gradient(circle at 18% 0%, rgba(124, 58, 237, 0.2), transparent 32%),
-    linear-gradient(180deg, rgba(3, 7, 18, 0.98), rgba(7, 11, 22, 1));
+    radial-gradient(circle at 18% 0%, rgba(212, 175, 55, 0.05), transparent 32%),
+    linear-gradient(180deg, #050505, #0a0a0a 55%, #111111);
 }
 
 .sf-mobile-search-panel {
   z-index: 1;
-  background: #070b16;
+  background: #0a0a0a;
 }
 
 .sf-mobile-search-head {
-  background: #070b16;
+  background: #0a0a0a;
 }
 
 .sf-mobile-search-body {
@@ -3819,7 +3820,7 @@ body.sf-mobile-search-scroll-lock {
 }
 
 .storefront-dark .sf-mobile-search-overlay .sf-search-results-panel {
-  background: #090d18;
+  background: #0a0a0a;
 }
 
 .sf-visual-results {
@@ -4507,6 +4508,12 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
     background-color: #111827 !important;
     color: #ffffff !important;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35) !important;
+  }
+
+  .storefront-shell .sf-mobile-bottom-nav {
+    background: linear-gradient(180deg, rgba(5, 5, 5, 0.94), rgba(10, 10, 10, 0.96)) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 -18px 40px rgba(0, 0, 0, 0.45) !important;
   }
 
   .storefront-shell :is(.sf-luxury-header, .sf-utility-row, .sf-mobile-search, .sf-search-results-panel, .sf-mobile-filter-trigger, .sf-mobile-menu-drawer, .sf-mobile-bottom-nav, .sf-mobile-buy-bar, .sf-ai-chat-panel, .sf-ai-chat-hint, .sf-checkout-section, .sf-checkout-summary, .sf-cart-drawer, .sf-empty-state) {
