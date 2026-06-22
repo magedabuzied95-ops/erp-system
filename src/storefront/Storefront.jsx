@@ -7132,6 +7132,7 @@ function ContactPage() {
 
 function SizeGuide() {
   const darkMode = typeof document !== "undefined" && (document.documentElement.classList.contains("dark") || document.body.classList.contains("storefront-dark"));
+  const sizeGuidePhoto = "https://cdn.shopify.com/s/files/1/0592/5807/7362/files/measure-foot-at-home-guide.png?v=1759953450";
   const sizeRows = [
     { eu: 37, foot: "23.6 cm" },
     { eu: 38, foot: "24.2 cm" },
@@ -7219,131 +7220,14 @@ function SizeGuide() {
         </div>
         <div className="mt-6 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-[linear-gradient(145deg,#f8fafc,#ffffff)] p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-[linear-gradient(145deg,rgba(3,7,18,0.88),rgba(15,23,42,0.74))] dark:shadow-[0_20px_70px_rgba(0,0,0,0.36),inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-6">
           <div className="mx-auto w-full max-w-3xl">
-            <svg
-              className="h-auto w-full"
-              viewBox="0 0 760 360"
-              role="img"
-              aria-label={sfText("storefront.sizeGuide.illustrationAria")}
-              preserveAspectRatio="xMidYMid meet"
-            >
-              <defs>
-                <linearGradient id="sizeGuideScene" x1="0" x2="1" y1="0" y2="1">
-                  <stop offset="0%" stopColor="#0b1120" />
-                  <stop offset="52%" stopColor="#111827" />
-                  <stop offset="100%" stopColor="#1f2937" />
-                </linearGradient>
-                <linearGradient id="sizeGuidePaper" x1="0" x2="1" y1="0" y2="1">
-                  <stop offset="0%" stopColor="#ffffff" />
-                  <stop offset="100%" stopColor="#eef2ff" />
-                </linearGradient>
-                <linearGradient id="sizeGuideFoot" x1="0" x2="0.95" y1="0" y2="1">
-                  <stop offset="0%" stopColor="#f9d8b9" />
-                  <stop offset="52%" stopColor="#eab28b" />
-                  <stop offset="100%" stopColor="#c9835d" />
-                </linearGradient>
-                <linearGradient id="sizeGuideToeGlow" x1="0" x2="1" y1="0" y2="1">
-                  <stop offset="0%" stopColor="#fff7ed" stopOpacity="0.95" />
-                  <stop offset="100%" stopColor="#f8c58e" stopOpacity="0.15" />
-                </linearGradient>
-                <linearGradient id="sizeGuideRuler" x1="0" x2="1" y1="0" y2="0">
-                  <stop offset="0%" stopColor="#e2e8f0" />
-                  <stop offset="100%" stopColor="#cbd5e1" />
-                </linearGradient>
-                <filter id="sizeGuideShadow" x="-30%" y="-30%" width="160%" height="160%">
-                  <feDropShadow dx="0" dy="16" stdDeviation="18" floodColor="#020617" floodOpacity="0.42" />
-                </filter>
-                <filter id="sizeGuideSoftGlow" x="-25%" y="-25%" width="150%" height="150%">
-                  <feGaussianBlur stdDeviation="8" result="blur" />
-                  <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.60 0 0 0 0 0.72 0 0 0 0 1 0 0 0 0.26 0" />
-                  <feMerge>
-                    <feMergeNode />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-              </defs>
-
-              <rect x="22" y="20" width="716" height="320" rx="32" fill="url(#sizeGuideScene)" />
-              <ellipse cx="380" cy="228" rx="250" ry="110" fill="#020617" opacity="0.28" />
-              <g filter="url(#sizeGuideShadow)">
-                <rect x="110" y="42" width="540" height="254" rx="28" fill="url(#sizeGuidePaper)" />
-                <rect x="128" y="60" width="504" height="218" rx="22" fill="#ffffff" opacity="0.86" />
-                <path d="M150 92 H610 M150 138 H610 M150 184 H610 M150 230 H610" stroke="#cbd5e1" strokeOpacity="0.5" strokeWidth="1.8" />
-                <path d="M190 70 V266 M270 70 V266 M350 70 V266 M430 70 V266 M510 70 V266 M590 70 V266" stroke="#cbd5e1" strokeOpacity="0.36" strokeWidth="1.6" />
-                <path d="M150 252 H610" stroke="#dbe4f0" strokeWidth="6" strokeLinecap="round" opacity="0.8" />
-              </g>
-
-              <g filter="url(#sizeGuideShadow)">
-                <ellipse cx="388" cy="212" rx="165" ry="86" fill="#020617" opacity="0.18" />
-                <path
-                  d="M260 237
-                    C222 224 198 194 200 155
-                    C203 120 226 92 256 83
-                    C274 77 294 82 313 96
-                    C321 73 337 58 360 53
-                    C385 47 404 56 415 76
-                    C425 57 442 47 461 48
-                    C485 50 499 65 501 89
-                    C510 77 525 72 541 76
-                    C563 82 572 100 569 121
-                    C584 118 599 125 605 140
-                    C612 160 599 176 578 181
-                    C544 189 517 203 489 217
-                    C447 239 397 257 350 255
-                    C318 253 285 248 260 237 Z"
-                  fill="url(#sizeGuideFoot)"
-                />
-                <path
-                  d="M266 238
-                    C237 226 219 200 221 166
-                    C224 125 248 100 280 96
-                    C299 94 316 103 330 120
-                    C342 98 356 83 377 79
-                    C396 75 409 82 418 98
-                    C427 82 441 74 457 75
-                    C477 76 490 89 492 107
-                    C500 98 511 94 523 96
-                    C539 99 547 110 546 125
-                    C557 122 568 126 573 136
-                    C579 149 570 159 559 163
-                    C525 176 498 190 472 203
-                    C433 224 391 239 346 238
-                    C317 238 289 236 266 238 Z"
-                  fill="url(#sizeGuideToeGlow)"
-                  opacity="0.55"
-                />
-                <path d="M286 229 C311 239 346 243 381 239 C430 233 477 220 521 206" fill="none" stroke="#7c2d12" strokeOpacity="0.18" strokeWidth="4" strokeLinecap="round" />
-              </g>
-
-              <g filter="url(#sizeGuideSoftGlow)">
-                <path d="M222 292 H552" stroke="#8b5cf6" strokeWidth="4.5" strokeLinecap="round" />
-                <path d="M222 278 V306 M552 278 V306" stroke="#8b5cf6" strokeWidth="4.5" strokeLinecap="round" />
-                <path d="M239 292 l16 -13 M239 292 l16 13 M535 292 l-16 -13 M535 292 l-16 13" stroke="#ddd6fe" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-              </g>
-
-              <g>
-                <line x1="228" y1="231" x2="228" y2="320" stroke="#10b981" strokeWidth="3" strokeDasharray="8 8" />
-                <circle cx="228" cy="231" r="8" fill="#10b981" />
-                <rect x="146" y="196" width="118" height="38" rx="19" fill="#064e3b" opacity="0.96" />
-                <text x="205" y="220" textAnchor="middle" fill="#d1fae5" fontSize="18" fontWeight="900">{sfText("storefront.sizeGuide.heel")}</text>
-              </g>
-
-              <g>
-                <line x1="544" y1="128" x2="544" y2="320" stroke="#f59e0b" strokeWidth="3" strokeDasharray="8 8" />
-                <circle cx="544" cy="128" r="8" fill="#f59e0b" />
-                <rect x="470" y="82" width="150" height="38" rx="19" fill="#78350f" opacity="0.96" />
-                <text x="545" y="106" textAnchor="middle" fill="#fef3c7" fontSize="17" fontWeight="900">{sfText("storefront.sizeGuide.longestToe")}</text>
-              </g>
-
-              <g>
-                <rect x="558" y="46" width="24" height="202" rx="12" fill="url(#sizeGuideRuler)" opacity="0.92" />
-                <path d="M570 62 V230" stroke="#94a3b8" strokeOpacity="0.7" strokeWidth="1.5" />
-                <path d="M570 74 h-12 M570 90 h-8 M570 106 h-12 M570 122 h-8 M570 138 h-12 M570 154 h-8 M570 170 h-12 M570 186 h-8 M570 202 h-12 M570 218 h-8" stroke="#475569" strokeWidth="2" strokeLinecap="round" />
-                <text x="595" y="72" fill="#0f172a" fontSize="12" fontWeight="800">cm</text>
-              </g>
-
-              <rect x="292" y="270" width="176" height="40" rx="20" fill="#111827" opacity="0.96" />
-              <text x="380" y="297" textAnchor="middle" fill="#ffffff" fontSize="18" fontWeight="900">{sfText("storefront.sizeGuide.lengthCm")}</text>
-            </svg>
+            <div className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-100 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900">
+              <img
+                src={sizeGuidePhoto}
+                alt={sfText("storefront.sizeGuide.illustrationAria")}
+                className="h-auto w-full object-cover"
+                loading="lazy"
+              />
+            </div>
           </div>
           <p className="mx-auto mt-3 max-w-2xl text-center text-sm font-black leading-7 text-stone-600 dark:text-slate-300">
               {sfText("storefront.sizeGuide.measurementCaption")}
@@ -7355,16 +7239,97 @@ function SizeGuide() {
 }
 
 function ReturnsPolicy() {
-  const returnPolicy = i18n.t("print.invoice.returnPolicy", {
-    defaultValue: "Exchange and return are allowed within 14 days if the item is unused and the invoice is kept.",
-  });
+  const sections = [
+    {
+      title: "الاستبدال والاسترجاع",
+      items: [
+        "يحق للعميل طلب الاستبدال أو الاسترجاع خلال 14 يومًا من تاريخ الاستلام وفقًا للشروط التالية:",
+        "أن يكون المنتج في حالته الأصلية كما تم استلامه.",
+        "عدم استخدام المنتج أو تعرضه لأي تلف أو اتساخ.",
+        "وجود العلبة الأصلية وجميع الملحقات الخاصة بالمنتج.",
+        "تقديم أصل الفاتورة أو رقم الطلب.",
+      ],
+    },
+    {
+      title: "حالات لا يشملها الاستبدال أو الاسترجاع",
+      items: [
+        "المنتجات التي تم استخدامها أو تعرضت للتلف بعد الاستلام.",
+        "المنتجات التي لا تكون في حالتها الأصلية.",
+        "المنتجات التي تم تعديلها أو إصلاحها بواسطة العميل.",
+        "المنتجات التي يظهر عليها أي آثار استخدام أو سوء تخزين.",
+      ],
+    },
+    {
+      title: "الطلبات الأونلاين",
+      items: [
+        "في حالة طلب المنتج أونلاين واستلامه من شركة الشحن، يحق للعميل طلب الاستبدال أو الاسترجاع خلال 14 يومًا من تاريخ الاستلام وفقًا للشروط المذكورة.",
+      ],
+    },
+    {
+      title: "في حالة تغيير المقاس أو الاختيار الخاطئ من العميل",
+      items: [
+        "إذا كان سبب الاستبدال أو الاسترجاع هو اختيار مقاس غير مناسب.",
+        "أو تغيير الرأي بعد الاستلام.",
+        "أو الرغبة في تغيير اللون أو الموديل.",
+        "فإن العميل يتحمل كامل مصاريف الشحن والاستبدال أو الاسترجاع ذهابًا وإيابًا.",
+      ],
+    },
+    {
+      title: "في حالة وجود خطأ من المتجر",
+      items: [
+        "إرسال مقاس مختلف عن الطلب.",
+        "إرسال منتج مختلف عن الطلب.",
+        "وجود عيب تصنيع مؤكد بالمنتج.",
+        "فإن المتجر يتحمل جميع مصاريف الشحن والاستبدال أو الاسترجاع بالكامل.",
+      ],
+    },
+    {
+      title: "فحص المنتجات",
+      items: [
+        "يتم فحص جميع المنتجات المرتجعة قبل اعتماد طلب الاستبدال أو الاسترجاع.",
+        "يحتفظ المتجر بحق رفض الطلب إذا تبين عدم مطابقة المنتج لشروط الاستبدال والاسترجاع.",
+      ],
+    },
+    {
+      title: "استرداد المبلغ",
+      items: [
+        "يتم رد قيمة الطلب بعد استلام المنتج وفحصه واعتماد طلب الاسترجاع.",
+        "قد تستغرق عملية استرداد المبلغ عدة أيام عمل وفقًا لوسيلة الدفع المستخدمة.",
+      ],
+    },
+    {
+      title: "ملاحظات هامة",
+      items: [
+        "يُنصح بمراجعة جدول المقاسات والتواصل مع خدمة العملاء قبل إتمام الطلب لضمان اختيار المقاس المناسب.",
+        "اختلاف درجة اللون بشكل بسيط نتيجة الإضاءة أو إعدادات شاشة الهاتف أو الكمبيوتر لا يُعد عيبًا في المنتج.",
+        "إتمام عملية الشراء يعني الموافقة على سياسة الاستبدال والاسترجاع الخاصة بالمتجر.",
+      ],
+    },
+  ];
   return (
-    <section className="mx-auto max-w-4xl px-4 py-6">
-      <h1 className="text-3xl font-black">{sfText("storefront.returns.title")}</h1>
-      <div className="mt-5 rounded-3xl border border-stone-200 bg-white p-6 text-lg font-bold leading-9 text-stone-700">
-        <p>{returnPolicy}</p>
-        <p>{sfText("storefront.returns.noBags")}</p>
-        <p>{sfText("storefront.returns.originalCondition")}</p>
+    <section className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="rounded-3xl border border-stone-200 bg-white p-5 shadow-[0_18px_54px_rgba(15,23,42,0.08)] sm:p-6 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(7,11,22,0.96),rgba(7,11,22,0.88))]">
+        <div className="max-w-3xl">
+          <h1 className="text-2xl font-black tracking-tight text-stone-950 sm:text-3xl dark:text-white">{sfText("storefront.returns.title")}</h1>
+          <p className="mt-3 text-sm leading-7 text-stone-600 sm:text-base dark:text-slate-300">
+            يوضح هذا القسم شروط الاستبدال والاسترجاع المعتمدة داخل المتجر، بما يضمن وضوح الإجراءات وحفظ حقوق العميل والمتجر.
+          </p>
+        </div>
+        <div className="mt-6 grid gap-4">
+          {sections.map((section) => (
+            <section key={section.title} className="rounded-2xl border border-stone-200/80 bg-stone-50/70 p-4 sm:p-5 dark:border-white/10 dark:bg-white/[0.03]">
+              <h2 className="text-base font-black text-stone-950 sm:text-lg dark:text-white">{section.title}</h2>
+              <ul className="mt-3 space-y-2 text-sm leading-7 text-stone-700 sm:text-[15px] dark:text-slate-300">
+                {section.items.map((item) => (
+                  <li key={item} className="flex gap-3">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
       </div>
     </section>
   );
