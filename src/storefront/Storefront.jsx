@@ -7488,9 +7488,9 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
     { icon: PackageCheck, label: "مشكلة في منتج" },
   ];
   const actionButtonStyles = {
-    phone: "border-[rgba(212,175,55,0.2)] bg-[#101010] text-white shadow-[0_14px_34px_rgba(255,255,255,0.04)] hover:bg-[#151515] hover:border-[rgba(212,175,55,0.34)]",
-    instagram: "border-[rgba(212,175,55,0.2)] bg-[#101010] text-white shadow-[0_14px_34px_rgba(255,255,255,0.04)] hover:bg-[#151515] hover:border-[rgba(212,175,55,0.34)]",
-    facebook: "border-[rgba(212,175,55,0.2)] bg-[#101010] text-white shadow-[0_14px_34px_rgba(255,255,255,0.04)] hover:bg-[#151515] hover:border-[rgba(212,175,55,0.34)]",
+    phone: "border-none bg-[#10B981] text-white shadow-[0_14px_34px_rgba(16,185,129,0.28)] hover:bg-[#0EA5E9]",
+    instagram: "border-none bg-[linear-gradient(135deg,#F58529,#DD2A7B,#8134AF,#515BD4)] text-white shadow-[0_14px_34px_rgba(221,42,123,0.26)] hover:brightness-110",
+    facebook: "border-none bg-[#1877F2] text-white shadow-[0_14px_34px_rgba(24,119,242,0.28)] hover:bg-[#166fe5]",
     map: "border-[rgba(212,175,55,0.3)] bg-gradient-to-r from-[#D4AF37] to-[#9c7b22] text-white shadow-[0_14px_34px_rgba(212,175,55,0.24)] hover:from-[#e0bc47] hover:to-[#b9922f]",
   };
   const actionIconStyles = {
