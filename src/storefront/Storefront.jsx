@@ -2016,7 +2016,8 @@ function ShopByMainCategoriesSkeleton({ lang = "ar", themeMode = "dark" }) {
 function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, themeMode = "dark" }) {
   const { t } = useTranslation();
   const isRtl = normalizeLanguage(lang) === "ar";
-  const darkMode = themeMode === "dark" || (typeof document !== "undefined" && document.body.classList.contains("storefront-dark"));
+  const normalizedThemeMode = themeMode || "dark";
+  const darkMode = normalizedThemeMode !== "light";
   const [activeCategoryId, setActiveCategoryId] = useState("");
   const [slideIndex, setSlideIndex] = useState(0);
   const [manualTick, setManualTick] = useState(0);
