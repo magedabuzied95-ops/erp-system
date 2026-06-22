@@ -997,11 +997,126 @@
   .storefront-shell--checkout .sf-checkout-page {
     min-height: 100dvh;
     overflow-anchor: none;
+    background: linear-gradient(180deg, #030303 0%, #070707 45%, #0b0b0b 100%) !important;
   }
 
   .storefront-shell--checkout .sf-checkout-summary {
     align-self: start;
     overflow-anchor: none;
+  }
+
+  .storefront-shell--checkout .sf-checkout-page,
+  .storefront-shell--checkout .sf-checkout-section,
+  .storefront-shell--checkout .sf-checkout-summary,
+  .storefront-shell--checkout .sf-checkout-summary-item,
+  .storefront-shell--checkout .sf-checkout-summary-totals,
+  .storefront-shell--checkout .sf-checkout-info-line,
+  .storefront-shell--checkout .sf-checkout-info-box,
+  .storefront-shell--checkout .sf-checkout-panel,
+  .storefront-shell--checkout .sf-checkout-payment-copy,
+  .storefront-shell--checkout .sf-checkout-trust-pill,
+  .storefront-shell--checkout .sf-checkout-step-badge,
+  .storefront-shell--checkout .sf-checkout-progress-step,
+  .storefront-shell--checkout .sf-checkout-payment-tab,
+  .storefront-shell--checkout .sf-checkout-payment-value,
+  .storefront-shell--checkout .sf-checkout-copy-link,
+  .storefront-shell--checkout .checkout-picker-search,
+  .storefront-shell--checkout .checkout-picker-search input,
+  .storefront-shell--checkout .checkout-picker-list button,
+  .storefront-shell--checkout .sf-field-input,
+  .storefront-shell--checkout .sf-checkout-submit-button,
+  .storefront-shell--checkout .sf-checkout-sticky-actions .sf-checkout-submit-button--compact {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: #ffffff !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-section,
+  .storefront-shell--checkout .sf-checkout-summary,
+  .storefront-shell--checkout .sf-checkout-info-box,
+  .storefront-shell--checkout .sf-checkout-panel,
+  .storefront-shell--checkout .sf-checkout-payment-copy,
+  .storefront-shell--checkout .sf-checkout-trust-pill,
+  .storefront-shell--checkout .sf-checkout-progress,
+  .storefront-shell--checkout .sf-checkout-payment-tab,
+  .storefront-shell--checkout .sf-checkout-payment-value,
+  .storefront-shell--checkout .checkout-picker-search,
+  .storefront-shell--checkout .checkout-picker-list button,
+  .storefront-shell--checkout .sf-field-input,
+  .storefront-shell--checkout .sf-checkout-copy-link {
+    background: linear-gradient(180deg, #050505 0%, #101010 45%, #151515 100%) !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-page .sf-checkout-progress {
+    background: linear-gradient(180deg, #050505 0%, #0a0a0a 55%, #111111 100%) !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-page .sf-checkout-progress-step--done {
+    background: rgba(212, 175, 55, 0.18) !important;
+    color: #d4af37 !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-page .sf-checkout-progress-step--active {
+    background: #d4af37 !important;
+    color: #ffffff !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-page .sf-checkout-progress-step--pending {
+    background: #101010 !important;
+    color: rgba(255, 255, 255, 0.38) !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-page .sf-checkout-step-badge {
+    background: #d4af37 !important;
+    color: #ffffff !important;
+    border-color: rgba(229, 193, 88, 0.25) !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-page .sf-checkout-payment-copy {
+    box-shadow: 0 22px 54px rgba(0, 0, 0, 0.26) !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-page .sf-checkout-info-line,
+  .storefront-shell--checkout .sf-checkout-page .sf-checkout-trust-pill {
+    background: #101010 !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-page .sf-field-input,
+  .storefront-shell--checkout .sf-checkout-page .checkout-picker-search input {
+    background: #101010 !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-page .sf-field-input::placeholder,
+  .storefront-shell--checkout .sf-checkout-page .checkout-picker-search input::placeholder {
+    color: rgba(255, 255, 255, 0.34) !important;
+    -webkit-text-fill-color: rgba(255, 255, 255, 0.34) !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-page .checkout-picker-list button {
+    background: #101010 !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-page .checkout-picker-list button:hover {
+    background: #151515 !important;
+    border-color: rgba(212, 175, 55, 0.22) !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-page :is(.sf-field-input, textarea.sf-field-input, select.sf-field-input, .sf-checkout-field-input, .checkout-picker-search input) {
+    background-color: #101010 !important;
+    background-image: none !important;
+    border-color: rgba(255, 255, 255, 0.10) !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-page :is(.sf-field-input, textarea.sf-field-input, select.sf-field-input, .sf-checkout-field-input, .checkout-picker-search input):focus {
+    background-color: #151515 !important;
+    background-image: none !important;
+    border-color: rgba(212, 175, 55, 0.35) !important;
+    box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.18) !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-page .checkout-picker-search {
+    background-color: #101010 !important;
+    background-image: none !important;
+    border-color: rgba(255, 255, 255, 0.10) !important;
   }
 
   .storefront-shell--checkout .sf-reveal,
@@ -1721,8 +1836,18 @@
     border-color: var(--sf-dark-border) !important;
   }
 
+  .storefront-dark .sf-order-invoice-card [class*="border-slate"] {
+    border-color: var(--sf-dark-border) !important;
+  }
+
   .storefront-dark .sf-order-invoice-card [class*="bg-stone-50"],
   .storefront-dark .sf-order-invoice-card [class*="bg-white"] {
+    background-color: var(--sf-dark-nested) !important;
+  }
+
+  .storefront-dark .sf-order-invoice-card [class*="bg-slate-50"],
+  .storefront-dark .sf-order-invoice-card [class*="bg-slate-100"],
+  .storefront-dark .sf-order-invoice-card [class*="bg-slate-200"] {
     background-color: var(--sf-dark-nested) !important;
   }
 
@@ -1733,6 +1858,16 @@
   .storefront-dark .sf-order-invoice-card [class*="text-stone-500"],
   .storefront-dark .sf-order-invoice-card [class*="text-stone-400"] {
     color: var(--sf-dark-muted) !important;
+  }
+
+  .storefront-dark .sf-order-invoice-card [class*="text-slate-950"],
+  .storefront-dark .sf-order-invoice-card [class*="text-slate-900"],
+  .storefront-dark .sf-order-invoice-card [class*="text-slate-800"],
+  .storefront-dark .sf-order-invoice-card [class*="text-slate-700"],
+  .storefront-dark .sf-order-invoice-card [class*="text-slate-600"],
+  .storefront-dark .sf-order-invoice-card [class*="text-slate-500"],
+  .storefront-dark .sf-order-invoice-card [class*="text-slate-400"] {
+    color: var(--sf-dark-text) !important;
   }
 
   .storefront-shell:not(.storefront-dark) {
@@ -3256,6 +3391,24 @@
     color: var(--sf-light-text) !important;
   }
 
+  .storefront-shell .sf-cart-page .sf-cart-row,
+  .storefront-shell .sf-cart-page .sf-checkout-summary,
+  .storefront-shell .sf-cart-page .sf-empty-state {
+    border-color: rgba(255, 255, 255, 0.10) !important;
+    background: linear-gradient(180deg, #050505 0%, #101010 45%, #151515 100%) !important;
+    color: #ffffff !important;
+    box-shadow:
+      0 18px 52px rgba(0, 0, 0, 0.32),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+  }
+
+  .storefront-shell .sf-cart-page .sf-empty-state h2,
+  .storefront-shell .sf-cart-page .sf-empty-state p,
+  .storefront-shell .sf-cart-page .sf-checkout-summary h2,
+  .storefront-shell .sf-cart-page .sf-checkout-summary p {
+    color: #ffffff !important;
+  }
+
   .storefront-shell:not(.storefront-dark) .sf-checkout-sticky-actions {
     border-top-color: rgba(148, 163, 184, 0.22);
     background:
@@ -4750,5 +4903,13 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 
   .storefront-shell .grid.grid-cols-2 > button.group.relative[class*="min-h-[112px]"][class*="rounded-[1rem]"] .text-\[\#f8e7b3\] {
     color: #d4af37 !important;
+  }
+
+  .storefront-shell .sf-cart-page .sf-cart-row,
+  .storefront-shell .sf-cart-page .sf-checkout-summary,
+  .storefront-shell .sf-cart-page .sf-empty-state {
+    background-color: #101010 !important;
+    background-image: linear-gradient(180deg, #050505 0%, #101010 45%, #151515 100%) !important;
+    border-color: rgba(255, 255, 255, 0.10) !important;
   }
 }
