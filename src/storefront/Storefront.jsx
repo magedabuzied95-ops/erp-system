@@ -4496,19 +4496,40 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
             onClick={closeMobileMenu}
           />
           <aside className="fixed inset-y-0 right-0 z-[161] flex h-full w-[min(22rem,88vw)] flex-col overflow-hidden rounded-l-[2rem] border-l border-white/10 bg-[linear-gradient(180deg,#050505_0%,#0a0a0a_55%,#111111_100%)] text-white shadow-[-26px_0_70px_rgba(0,0,0,0.48)]">
-            <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 pb-3 pt-4">
-              <div>
+            <div className="border-b border-white/10 px-4 pb-3 pt-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={switchLanguage}
+                    className="inline-flex h-8 items-center justify-center rounded-full border border-white/10 bg-white/8 px-3 text-[11px] font-black text-white transition hover:bg-white/12 active:scale-[0.98]"
+                  >
+                    {languageLabel}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onToggleTheme}
+                    className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-full border px-3 text-[11px] font-black transition hover:bg-white/12 active:scale-[0.98] ${themeIsDark ? "border-[#d4af37]/35 bg-[#d4af37]/12 text-[#f3d77a] hover:bg-[#d4af37]/16" : "border-white/10 bg-white/8 text-white"}`}
+                    aria-label={themeToggleLabel}
+                    title={themeToggleLabel}
+                  >
+                    {themeIsDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+                    <span className="whitespace-nowrap">{themeIsDark ? "Dark" : "Light"}</span>
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeMobileMenu}
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/8 text-white transition hover:bg-white/12 active:scale-[0.98]"
+                  aria-label={t("storefront.common.close")}
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="mt-3">
                 <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">القائمة</p>
                 <h2 className="mt-1 text-lg font-black text-white">روابط سريعة</h2>
               </div>
-              <button
-                type="button"
-                onClick={closeMobileMenu}
-                className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/8 text-white transition hover:bg-white/12 active:scale-[0.98]"
-                aria-label={t("storefront.common.close")}
-              >
-                <X className="h-5 w-5" />
-              </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
               <div className="grid gap-4">
