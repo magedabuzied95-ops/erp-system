@@ -1950,7 +1950,7 @@ const uniqueClassificationOptions = (options = []) => {
   });
 };
 
-function FeaturedCategoriesHeroSkeleton({ lang = "ar", themeMode = "light" }) {
+function FeaturedCategoriesHeroSkeleton({ lang = "ar", themeMode = "dark" }) {
   const isRtl = normalizeLanguage(lang) === "ar";
   const darkMode = themeMode === "dark" || (typeof document !== "undefined" && document.body.classList.contains("storefront-dark"));
   return (
@@ -1982,7 +1982,7 @@ function FeaturedCategoriesHeroSkeleton({ lang = "ar", themeMode = "light" }) {
   );
 }
 
-function ShopByMainCategoriesSkeleton({ lang = "ar", themeMode = "light" }) {
+function ShopByMainCategoriesSkeleton({ lang = "ar", themeMode = "dark" }) {
   const isRtl = normalizeLanguage(lang) === "ar";
   const darkMode = themeMode === "dark" || (typeof document !== "undefined" && document.body.classList.contains("storefront-dark"));
   return (
@@ -2013,7 +2013,7 @@ function ShopByMainCategoriesSkeleton({ lang = "ar", themeMode = "light" }) {
   );
 }
 
-function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, themeMode = "light" }) {
+function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, themeMode = "dark" }) {
   const { t } = useTranslation();
   const isRtl = normalizeLanguage(lang) === "ar";
   const darkMode = themeMode === "dark" || (typeof document !== "undefined" && document.body.classList.contains("storefront-dark"));
@@ -2250,7 +2250,7 @@ const homeProductWithImage = (product = {}) => {
   return slide.image ? { ...slide, product } : null;
 };
 
-function MobileStoryCategories({ products = [], lang = "ar", themeMode = "light" }) {
+function MobileStoryCategories({ products = [], lang = "ar", themeMode = "dark" }) {
   const isRtl = normalizeLanguage(lang) === "ar";
   const darkMode = themeMode === "dark" || (typeof document !== "undefined" && document.body.classList.contains("storefront-dark"));
   const sourceProducts = useMemo(
@@ -2322,7 +2322,7 @@ function MobileStoryCategories({ products = [], lang = "ar", themeMode = "light"
   );
 }
 
-function ShopByMainCategories({ products = [], lang = "ar", loading = false, themeMode = "light" }) {
+function ShopByMainCategories({ products = [], lang = "ar", loading = false, themeMode = "dark" }) {
   const isRtl = normalizeLanguage(lang) === "ar";
   const darkMode = themeMode === "dark" || (typeof document !== "undefined" && document.body.classList.contains("storefront-dark"));
   const heroCopyById = {
@@ -2951,6 +2951,7 @@ function HomePage(props) {
   const location = useLocation();
   const [params] = useSearchParams();
   const lang = i18n.language || "ar";
+  const themeMode = props.themeMode || "dark";
   const [lastPieceOpen, setLastPieceOpen] = useState(false);
   const brandFilter = params.get("brand") || "";
   const storefrontHome = useStorefrontHome();
@@ -3027,10 +3028,10 @@ function HomePage(props) {
 
   return (
     <div className="sf-page pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] md:pb-0">
-      <MobileStoryCategories products={featuredCategoryProducts} lang={lang} themeMode={props.themeMode || "light"} />
-      <FeaturedCategoriesHero products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} />
+      <MobileStoryCategories products={featuredCategoryProducts} lang={lang} themeMode={themeMode} />
+      <FeaturedCategoriesHero products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} themeMode={themeMode} />
       <QuickSellingStrips lang={lang} />
-      <ShopByMainCategories products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} />
+      <ShopByMainCategories products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} themeMode={themeMode} />
       <HomeProductSection title={sfText("storefront.nav.new")} subtitle={sfText("storefront.home.newSubtitle")} viewAllTo="/shop/products?sort=newest" loading={loading || storefrontHome.loading} products={homeSections.newArrivals} railType="new" tone="new" {...props} />
       <HomeProductSection title={sfText("storefront.nav.sale")} subtitle={sfText("storefront.home.saleSubtitle")} viewAllTo="/shop/products?sale=true" loading={saleLoading && !homeSections.sale.length} products={homeSections.sale} railType="sale" tone="sale" {...props} />
       <HomeProductSection title={sfText("storefront.home.lastSizes")} subtitle={sfText("storefront.home.productOfWeekEmpty")} viewAllTo="/shop/products?lastSizes=true" loading={loading || storefrontHome.loading} products={homeSections.lastSizes} railType="last-size" tone="last" {...props} />
