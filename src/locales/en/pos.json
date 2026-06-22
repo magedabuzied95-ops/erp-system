@@ -210,7 +210,7 @@
   },
   "receipt": {
     "unavailable": "Unavailable",
-    "returnPolicy": "Exchange and return are allowed within 14 days if the item is unused and the invoice is kept.",
+    "returnPolicy": "Exchange and return are accepted within 14 days of delivery, subject to the store's conditions.",
     "price": "Price",
     "total": "Total"
   },

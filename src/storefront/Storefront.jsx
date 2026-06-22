@@ -20,6 +20,7 @@ import {
   ChevronLeft,
   Copy,
   Crown,
+  Clock3,
   Footprints,
   Gem,
   Heart,
@@ -2094,7 +2095,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
         <div className="grid min-h-[420px] lg:grid-cols-[minmax(0,0.72fr)_minmax(18rem,0.28fr)] lg:[direction:ltr] md:min-h-[520px]">
           <Link
             to={categoryHref}
-            className={`group relative flex min-h-[410px] overflow-hidden lg:min-h-[580px] lg:[direction:rtl] md:min-h-[500px] ${darkMode ? "bg-[radial-gradient(circle_at_74%_36%,rgba(248,231,179,0.23),transparent_24%),radial-gradient(circle_at_18%_18%,rgba(124,58,237,0.22),transparent_32%),linear-gradient(135deg,#090b16_0%,#111827_54%,#020617_100%)]" : "bg-[radial-gradient(circle_at_74%_36%,rgba(124,58,237,0.10),transparent_26%),radial-gradient(circle_at_18%_18%,rgba(248,231,179,0.28),transparent_30%),linear-gradient(135deg,#ffffff_0%,#f8fafc_56%,#eef2ff_100%)]"}`}
+            className={`group relative flex min-h-[410px] overflow-hidden lg:min-h-[580px] lg:[direction:rtl] md:min-h-[500px] ${darkMode ? "bg-[radial-gradient(circle_at_74%_36%,rgba(212,175,55,0.14),transparent_24%),radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.05),transparent_32%),linear-gradient(135deg,#020617_0%,#0b0f19_54%,#111827_100%)]" : "bg-[radial-gradient(circle_at_74%_36%,rgba(124,58,237,0.10),transparent_26%),radial-gradient(circle_at_18%_18%,rgba(248,231,179,0.28),transparent_30%),linear-gradient(135deg,#ffffff_0%,#f8fafc_56%,#eef2ff_100%)]"}`}
           >
             <div className={`pointer-events-none absolute inset-0 ${darkMode ? "bg-[linear-gradient(120deg,rgba(255,255,255,0.08),transparent_34%,rgba(0,0,0,0.42))]" : "bg-[linear-gradient(120deg,rgba(255,255,255,0.54),transparent_34%,rgba(255,255,255,0.06))]"}`} />
             <div className={`pointer-events-none absolute inset-x-0 bottom-0 h-1/2 ${darkMode ? "bg-gradient-to-t from-black/52 to-transparent" : "bg-gradient-to-t from-white/90 to-transparent"}`} />
@@ -3197,12 +3198,12 @@ function LastPieceFinder({ open, onClose }) {
                   <button
                     key={category.label}
                     onClick={() => setSelectedCategory(category.label)}
-                    className="group relative min-h-[112px] overflow-hidden rounded-[1rem] border border-white/12 bg-white/[0.08] p-3 text-right shadow-[0_16px_42px_rgba(0,0,0,0.22)] backdrop-blur transition duration-300 active:scale-[0.98] sm:min-h-36 sm:rounded-[1.65rem] sm:p-5"
+                    className="group relative min-h-[112px] overflow-hidden rounded-[1rem] border border-white/12 bg-[linear-gradient(180deg,#0b0f19,#111827)] p-3 text-right shadow-[0_16px_42px_rgba(0,0,0,0.22)] backdrop-blur transition duration-300 active:scale-[0.98] sm:min-h-36 sm:rounded-[1.65rem] sm:p-5"
                   >
-                    <span className="absolute inset-y-0 left-0 w-1/2 bg-[radial-gradient(circle_at_30%_50%,rgba(248,231,179,0.16),transparent_48%)] opacity-80" />
+                    <span className="absolute inset-y-0 left-0 w-1/2 bg-[radial-gradient(circle_at_30%_50%,rgba(212,175,55,0.12),transparent_48%)] opacity-80" />
                     <span className="relative flex h-full flex-col justify-between gap-2 sm:flex-row sm:items-center sm:gap-4">
                       <span>
-                        <span className="grid h-9 w-9 place-items-center rounded-full bg-[#f8e7b3] text-stone-950 shadow-[0_10px_26px_rgba(248,231,179,0.18)] sm:h-12 sm:w-12">{visual.icon}</span>
+                        <span className="grid h-9 w-9 place-items-center rounded-full bg-[#d4af37] text-stone-950 shadow-[0_10px_26px_rgba(212,175,55,0.18)] sm:h-12 sm:w-12">{visual.icon}</span>
                         <span className="mt-2 block text-lg font-black leading-5 sm:mt-4 sm:text-3xl">{category.label}</span>
                         <span className="mt-0.5 block text-[10.5px] font-bold leading-4 text-white/58 sm:mt-1 sm:text-sm sm:leading-5">منتجات محددة</span>
                       </span>
@@ -3688,12 +3689,12 @@ function PremiumFilterChip({ to, active, icon: Icon = Sparkles, label, count, co
       to={to}
       className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 text-[11px] font-black transition duration-200 ${
         active
-          ? "scale-[1.03] border-[#d8b4fe]/55 bg-[linear-gradient(135deg,rgba(124,58,237,0.95),rgba(17,24,39,0.92))] text-white shadow-[0_12px_30px_rgba(124,58,237,0.32)]"
-          : "border-white/10 bg-white/6 text-white/70 hover:-translate-y-0.5 hover:border-[#a78bfa]/40 hover:bg-white/10 hover:text-white"
+          ? "scale-[1.03] border-[#d4af37]/55 bg-[linear-gradient(135deg,rgba(212,175,55,0.95),rgba(17,24,39,0.92))] text-white shadow-[0_12px_30px_rgba(212,175,55,0.32)]"
+          : "border-white/10 bg-white/6 text-white/70 hover:-translate-y-0.5 hover:border-[#d4af37]/40 hover:bg-white/10 hover:text-white"
       }`}
       style={!active && color ? { borderColor: `${color}44` } : undefined}
     >
-      {preview ? <span className="h-3 w-3 rounded-full border border-white/20" style={{ background: color || "#7c3aed" }} /> : <Icon className="h-3.5 w-3.5" />}
+      {preview ? <span className="h-3 w-3 rounded-full border border-white/20" style={{ background: color || "#d4af37" }} /> : <Icon className="h-3.5 w-3.5" />}
       <span>{label}</span>
       {count !== null ? <span className={active ? "text-white/70" : "text-white/35"}>({count})</span> : null}
     </Link>
@@ -3794,12 +3795,12 @@ function MobileFilterChip({ active, label, count, icon: Icon = Sparkles, color, 
       onClick={onClick}
       className={`inline-flex min-h-8 shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[9.5px] font-black transition ${
         active
-          ? "scale-[1.03] border-[#d8b4fe]/60 bg-[linear-gradient(135deg,rgba(124,58,237,0.95),rgba(17,24,39,0.92))] text-white shadow-[0_12px_30px_rgba(124,58,237,0.34)]"
+          ? "scale-[1.03] border-[#d4af37]/60 bg-[linear-gradient(135deg,rgba(212,175,55,0.95),rgba(17,24,39,0.92))] text-white shadow-[0_12px_30px_rgba(212,175,55,0.34)]"
           : "border-white/10 bg-white/6 text-white/65"
       }`}
       style={!active && color ? { borderColor: `${color}44` } : undefined}
     >
-      {preview ? <span className="h-2.5 w-2.5 rounded-full border border-white/20" style={{ background: color || "#7c3aed" }} /> : <Icon className="h-3 w-3" />}
+      {preview ? <span className="h-2.5 w-2.5 rounded-full border border-white/20" style={{ background: color || "#d4af37" }} /> : <Icon className="h-3 w-3" />}
       <span>{label}</span>
       {count !== null ? <span className={active ? "text-white/70" : "text-white/35"}>({count})</span> : null}
     </button>
@@ -4993,9 +4994,9 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   }, [discountPercent, product]);
 
   return (
-    <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={`sf-product-card group/product relative flex h-full transform-gpu flex-col overflow-hidden rounded-[1.2rem] border border-stone-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(250,248,244,0.92))] shadow-[0_8px_20px_rgba(15,23,42,0.06)] ring-1 ring-stone-200/35 transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-[#a78bfa]/28 hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)] md:rounded-[1.4rem] dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,rgba(17,24,39,0.96),rgba(11,16,32,0.94))] dark:ring-white/[0.04] dark:shadow-[0_10px_24px_rgba(0,0,0,0.18)] dark:hover:border-[#a78bfa]/20 dark:hover:shadow-[0_14px_30px_rgba(0,0,0,0.24)] ${featured ? "md:shadow-[0_14px_34px_rgba(109,40,217,0.08)]" : ""}`}>
-      <div className="pointer-events-none absolute inset-x-10 top-8 h-12 rounded-full bg-[#a78bfa]/0 transition duration-200 group-hover/product:bg-[#a78bfa]/6" />
-      <div className={`relative overflow-hidden rounded-[1rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(246,244,239,0.97))] ring-1 ring-black/5 md:rounded-[1.1rem] md:p-2.5 dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,244,237,0.96))] dark:ring-white/10 ${densityClasses.image}`}>
+    <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={`sf-product-card group/product relative flex h-full transform-gpu flex-col overflow-hidden rounded-[1.2rem] border border-white/[0.08] bg-[linear-gradient(180deg,#020617_0%,#0b0f19_40%,#111827_100%)] shadow-[0_8px_20px_rgba(15,23,42,0.06)] ring-1 ring-white/[0.04] transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-[#d4af37]/28 hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)] md:rounded-[1.4rem] dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,#020617_0%,#0b0f19_40%,#111827_100%)] dark:ring-white/[0.04] dark:shadow-[0_10px_24px_rgba(0,0,0,0.18)] dark:hover:border-[#d4af37]/20 dark:hover:shadow-[0_14px_30px_rgba(0,0,0,0.24)] ${featured ? "md:shadow-[0_14px_34px_rgba(212,175,55,0.08)]" : ""}`}>
+      <div className="pointer-events-none absolute inset-x-10 top-8 h-12 rounded-full bg-[rgba(212,175,55,0)] transition duration-200 group-hover/product:bg-[rgba(212,175,55,0.06)]" />
+      <div className={`relative overflow-hidden rounded-[1rem] bg-[linear-gradient(180deg,#020617_0%,#0b0f19_40%,#111827_100%)] ring-1 ring-white/[0.04] md:rounded-[1.1rem] md:p-2.5 dark:bg-[linear-gradient(180deg,#020617_0%,#0b0f19_40%,#111827_100%)] dark:ring-white/10 ${densityClasses.image}`}>
         <Link to={detailsUrl} onClick={resetStorefrontViewportScroll} className="relative z-10 block h-full active:opacity-95">
           {displayImage ? (
             <div
@@ -5044,7 +5045,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           )}
         </Link>
         <div className="absolute right-3 top-[29px] z-20 flex flex-col items-end gap-2.5 md:right-3.5 md:top-[31px]">
-          {rank && railType === "bestseller" && rank <= 3 ? <span className="inline-flex min-h-6 items-center gap-1 rounded-full border border-[#ddd6fe]/30 bg-[linear-gradient(135deg,rgba(124,58,237,0.98),rgba(168,85,247,0.98))] px-2.5 py-0.5 text-[8.5px] font-extrabold leading-none tracking-[0.02em] text-white shadow-[0_10px_20px_rgba(124,58,237,0.22)] md:min-h-7 md:px-3 md:text-[9px] dark:border-[#c4b5fd]/20 dark:bg-[linear-gradient(135deg,rgba(109,40,217,0.98),rgba(88,28,135,0.98))]"><Star className="h-3 w-3 fill-current" />TOP {rank}</span> : null}
+          {rank && railType === "bestseller" && rank <= 3 ? <span className="inline-flex min-h-6 items-center gap-1 rounded-full border border-[#d4af37]/30 bg-[linear-gradient(135deg,rgba(212,175,55,0.98),rgba(229,193,88,0.98))] px-2.5 py-0.5 text-[8.5px] font-extrabold leading-none tracking-[0.02em] text-stone-950 shadow-[0_10px_20px_rgba(212,175,55,0.22)] md:min-h-7 md:px-3 md:text-[9px] dark:border-[#d4af37]/20 dark:bg-[linear-gradient(135deg,rgba(212,175,55,0.98),rgba(229,193,88,0.98))]"><Star className="h-3 w-3 fill-current" />TOP {rank}</span> : null}
           {discountPercent ? <span className="inline-flex min-h-7 items-center rounded-full border border-[#c4b5fd]/26 bg-[linear-gradient(135deg,rgba(109,40,217,0.98),rgba(91,33,182,0.98))] px-2.5 py-0.5 text-[9px] font-extrabold leading-none tracking-[0.02em] text-white shadow-[0_4px_10px_rgba(109,40,217,0.12)] backdrop-blur md:min-h-8 md:px-3 md:text-[9.5px] dark:border-[#ddd6fe]/18 dark:bg-[linear-gradient(135deg,rgba(124,58,237,0.98),rgba(76,29,149,0.98))] dark:text-[#ffffff]">-{discountPercent}%</span> : null}
         </div>
         <button
@@ -5097,7 +5098,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
               handleQuickAdd();
             }}
             disabled={!canQuickAdd}
-            className="sf-quick-add-button inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#c4b5fd]/28 bg-[linear-gradient(135deg,rgba(124,58,237,0.92),rgba(109,40,217,0.92)_55%,rgba(76,29,149,0.96))] px-3 py-1.5 text-[10px] font-black leading-none text-white shadow-[0_10px_24px_rgba(124,58,237,0.18)] transition duration-200 hover:-translate-y-0.5 hover:border-[#ddd6fe]/45 hover:shadow-[0_14px_30px_rgba(124,58,237,0.24)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100 md:pointer-events-none md:translate-y-1 md:opacity-0 md:transition-[opacity,transform] md:group-hover/product:pointer-events-auto md:group-hover/product:translate-y-0 md:group-hover/product:opacity-100 md:group-active/product:opacity-100"
+            className="sf-quick-add-button inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#d4af37]/28 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-3 py-1.5 text-[10px] font-black leading-none text-stone-950 shadow-[0_10px_24px_rgba(212,175,55,0.18)] transition duration-200 hover:-translate-y-0.5 hover:border-[#e5c158]/45 hover:shadow-[0_14px_30px_rgba(212,175,55,0.24)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100 md:pointer-events-none md:translate-y-1 md:opacity-0 md:transition-[opacity,transform] md:group-hover/product:pointer-events-auto md:group-hover/product:translate-y-0 md:group-hover/product:opacity-100 md:group-active/product:opacity-100"
             aria-label={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
           >
             <ShoppingCart className="h-3.5 w-3.5" />
@@ -5115,7 +5116,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                   onClick={(event) => chooseColor(event, group)}
                   title={group.colorName || group.color}
                   aria-label={group.colorName || group.color}
-                  className={`grid shrink-0 place-items-center rounded-full border transition active:scale-95 md:h-7 md:w-7 ${densityClasses.color} ${active ? "border-[#7c3aed] bg-white shadow-[0_0_0_2px_rgba(124,58,237,0.12)] dark:border-[#d8b4fe] dark:bg-white/10" : "border-stone-200 bg-white/70 hover:border-[#7c3aed]/35 dark:border-white/10 dark:bg-white/[0.055]"}`}
+                  className={`grid shrink-0 place-items-center rounded-full border transition active:scale-95 md:h-7 md:w-7 ${densityClasses.color} ${active ? "border-[#d4af37] bg-[rgba(212,175,55,0.12)] shadow-[0_0_0_2px_rgba(212,175,55,0.12)] dark:border-[#e5c158] dark:bg-[rgba(212,175,55,0.12)]" : "border-stone-200 bg-white/70 hover:border-[#d4af37]/35 dark:border-white/10 dark:bg-white/[0.055]"}`}
                 >
                   <span className={`rounded-full border border-black/10 shadow-inner md:h-4 md:w-4 ${densityClasses.swatch}`} style={swatchColorStyle(group.colorName || group.color)} />
                 </button>
@@ -7114,19 +7115,384 @@ function FaqPage() {
   return <StaticPage title={sfText("storefront.faq.title")} items={items} />;
 }
 
-function ContactPage() {
+function ContactPage({ publicStoreSettings = {}, quickActionLinks = {} }) {
+  const settings = publicStoreSettings || {};
+  const firstValue = (...keys) => keys.map((key) => String(settings[key] || "").trim()).find(Boolean) || "";
+  const normalizeUrl = (value, fallback = "") => {
+    const raw = String(value || "").trim();
+    if (!raw) return fallback;
+    if (/^(https?:|mailto:|tel:|whatsapp:)/i.test(raw) || raw.startsWith("/")) return raw;
+    return fallback;
+  };
+  const normalizePhoneHref = (value, fallback = "") => {
+    const raw = String(value || "").trim();
+    const digits = raw.replace(/\D/g, "");
+    return digits ? `tel:${digits}` : fallback;
+  };
+  const phoneNumber = firstValue(
+    "storefront.phone",
+    "storefront.contact_phone",
+    "general.phone",
+    "company.phone",
+    "contact.phone",
+    "phone",
+    "support.phone",
+  ) || "01000000000";
+  const phoneHref = normalizePhoneHref(phoneNumber, `tel:${phoneNumber.replace(/\D/g, "") || "01000000000"}`);
+  const whatsappNumber = firstValue(
+    "storefront.whatsapp_phone",
+    "storefront.whatsapp_url",
+    "storefront.whatsapp_link",
+    "storefront.support_whatsapp",
+    "general.whatsapp_phone",
+    "general.whatsapp",
+    "company.whatsapp",
+    "company.whatsapp_phone",
+    "support.whatsapp",
+    "contact.whatsapp",
+    "whatsapp",
+  ) || "";
+  const whatsappHref = quickActionLinks.whatsappHref || normalizeUrl(whatsappNumber, `https://wa.me/${whatsappNumber.replace(/\D/g, "")}`);
+  const instagramUsername = firstValue(
+    "storefront.instagram_username",
+    "storefront.instagram",
+    "company.instagram_username",
+    "social.instagram_username",
+    "instagram_username",
+  ) || "@m1store_eg";
+  const instagramHref = normalizeUrl(
+    firstValue(
+      "storefront.instagram_url",
+      "storefront.instagram_link",
+      "company.instagram_url",
+      "social.instagram_url",
+      "instagram_url",
+    ),
+    `https://www.instagram.com/${String(instagramUsername).replace(/^@/, "")}`,
+  );
+  const facebookPage = firstValue(
+    "storefront.facebook_page_name",
+    "storefront.facebook_name",
+    "company.facebook_page_name",
+    "social.facebook_page_name",
+    "facebook_page_name",
+  ) || "M1 Store";
+  const facebookHref = normalizeUrl(
+    firstValue(
+      "storefront.facebook_url",
+      "storefront.facebook_link",
+      "company.facebook_url",
+      "social.facebook_url",
+      "facebook_url",
+    ),
+    "https://www.facebook.com/",
+  );
+  const address = firstValue("address", "storeAddress", "store_address", "publicAddress", "public_address", "storefront.address", "company.address") || "القاهرة، مصر";
+  const mapHref = quickActionLinks.galleryHref || normalizeUrl(
+    firstValue(
+      "storefront.map_url",
+      "storefront.google_map_url",
+      "storefront.location_url",
+      "storefront.location_link",
+      "storefront.store_location_url",
+      "storefront.address_url",
+      "general.map_url",
+      "general.google_map_url",
+      "company.map_url",
+      "company.google_maps_url",
+      "company.location_url",
+      "map_url",
+      "google_map_url",
+      "location_url",
+    ),
+    "/shop/contact",
+  );
+  const weekdayHours = firstValue(
+    "storefront.weekday_hours",
+    "storefront.working_hours_weekday",
+    "working_hours_weekday",
+    "working_hours",
+    "business_hours",
+    "storefront.working_hours",
+  ) || "السبت - الخميس: 10:00 ص - 10:00 م";
+  const weekendHours = firstValue(
+    "storefront.weekend_hours",
+    "storefront.working_hours_weekend",
+    "working_hours_weekend",
+  ) || "الجمعة: 2:00 م - 10:00 م";
+
+  const contactCards = [
+    {
+      id: "phone",
+      title: sfText("storefront.contact.phone"),
+      icon: Phone,
+      value: phoneNumber,
+      meta: "اتصال مباشر بفريق المتجر",
+      href: phoneHref,
+      cta: "اتصال الآن",
+      accent: "gold",
+    },
+    {
+      id: "whatsapp",
+      title: sfText("storefront.support.whatsapp", "واتساب"),
+      icon: MessageCircle,
+      value: whatsappNumber || "wa.me",
+      meta: sfText("storefront.contact.whatsappHint"),
+      href: whatsappHref,
+      cta: "مراسلة واتساب",
+      accent: "green",
+      external: true,
+    },
+    {
+      id: "instagram",
+      title: "Instagram",
+      icon: Camera,
+      value: instagramUsername,
+      meta: "آخر الموديلات والعروض",
+      href: instagramHref,
+      cta: "فتح الحساب",
+      accent: "gold",
+      external: true,
+    },
+    {
+      id: "facebook",
+      title: "Facebook",
+      icon: Send,
+      value: facebookPage,
+      meta: "تابع آخر التحديثات",
+      href: facebookHref,
+      cta: "زيارة الصفحة",
+      accent: "gold",
+      external: true,
+    },
+  ];
+
   return (
-    <StaticPage
-      title={sfText("storefront.contact.title")}
-      items={[
-        [sfText("storefront.contact.phone"), "01000000000"],
-        [sfText("storefront.support.whatsapp"), sfText("storefront.contact.whatsappHint")],
-        ["Instagram", "@store"],
-        ["Facebook", "Store page"],
-        [sfText("storefront.contact.address"), sfText("storefront.contact.addressPlaceholder")],
-        [sfText("storefront.contact.workingHours"), sfText("storefront.contact.workingHoursValue")],
-      ]}
-    />
+    <section className="mx-auto w-full max-w-6xl bg-[#020817] px-4 py-6 text-white md:px-6 md:py-10" dir="rtl">
+      <div className="mb-6 flex flex-col gap-3 md:mb-8 md:flex-row md:items-end md:justify-between">
+        <div className="max-w-2xl">
+          <p className="text-xs font-black uppercase tracking-[0.24em] text-[#D4AF37]/85">M1 Store</p>
+          <h1 className="mt-2 text-3xl font-black tracking-tight text-white md:text-5xl">{sfText("storefront.contact.title")}</h1>
+          <p className="mt-3 text-sm font-medium leading-7 text-slate-400 md:text-base">
+            {sfText("storefront.contact.whatsappHint")}
+          </p>
+        </div>
+        <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[rgba(255,255,255,0.08)] bg-[#0F172A] px-4 py-2 text-xs font-black text-slate-200 shadow-[0_12px_30px_rgba(0,0,0,0.24)]">
+          <Sparkles className="h-4 w-4 text-[#D4AF37]" />
+          دعم سريع وتجربة فاخرة
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {contactCards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <article
+              key={card.id}
+              className="group rounded-[20px] border border-[rgba(255,255,255,0.08)] bg-[#0F172A] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.24)] transition duration-200 hover:-translate-y-0.5 hover:border-[rgba(212,175,55,0.26)] hover:shadow-[0_24px_60px_rgba(0,0,0,0.34)] active:translate-y-0 active:scale-[0.99]"
+            >
+              <div className="flex items-start gap-4">
+                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[rgba(212,175,55,0.18)] bg-[rgba(212,175,55,0.08)] text-[#D4AF37] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-lg font-black text-white">{card.title}</h2>
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{card.meta}</p>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[rgba(2,6,23,0.34)] p-4">
+                <div className="text-sm font-semibold text-slate-400">{card.id === "whatsapp" ? "الرقم" : card.id === "instagram" ? "الاسم" : card.id === "facebook" ? "الصفحة" : "الرقم"}</div>
+                <div className="mt-1 text-lg font-black leading-7 text-white break-words">{card.value}</div>
+              </div>
+
+              <a
+                href={card.href}
+                target={card.external ? "_blank" : undefined}
+                rel={card.external ? "noreferrer" : undefined}
+                className={`mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border px-4 py-3 text-sm font-black transition duration-200 active:scale-[0.98] ${card.accent === "green" ? "border-emerald-400/20 bg-emerald-500 text-white shadow-[0_16px_36px_rgba(16,185,129,0.24)] hover:bg-emerald-400" : "border-[rgba(212,175,55,0.20)] bg-[#0b1220] text-white shadow-[0_16px_36px_rgba(0,0,0,0.22)] hover:border-[rgba(212,175,55,0.36)] hover:bg-[#111a2f]"}`}
+              >
+                {card.cta}
+              </a>
+            </article>
+          );
+        })}
+
+        <article className="rounded-[20px] border border-[rgba(255,255,255,0.08)] bg-[#0F172A] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.24)] transition duration-200 hover:-translate-y-0.5 hover:border-[rgba(212,175,55,0.26)] md:col-span-2">
+          <div className="flex items-start gap-4">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[rgba(212,175,55,0.18)] bg-[rgba(212,175,55,0.08)] text-[#D4AF37]">
+              <MapPin className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-black text-white">{sfText("storefront.contact.address")}</h2>
+              <p className="mt-1 text-sm font-medium leading-7 text-slate-400">العنوان الكامل والوصول على الخريطة</p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1.35fr)_minmax(0,0.95fr)]">
+            <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[rgba(2,6,23,0.34)] p-4">
+              <div className="text-sm font-semibold text-slate-400">{sfText("storefront.contact.address")}</div>
+              <div className="mt-1 text-base font-black leading-8 text-white">{address}</div>
+            </div>
+            <a
+              href={mapHref}
+              target={mapHref.startsWith("http") ? "_blank" : undefined}
+              rel={mapHref.startsWith("http") ? "noreferrer" : undefined}
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-[rgba(212,175,55,0.20)] bg-[#0b1220] px-4 py-3 text-sm font-black text-white shadow-[0_16px_36px_rgba(0,0,0,0.22)] transition duration-200 hover:-translate-y-0.5 hover:border-[rgba(212,175,55,0.36)] hover:bg-[#111a2f] active:scale-[0.98]"
+            >
+              فتح الموقع على الخريطة
+            </a>
+          </div>
+        </article>
+
+        <article className="rounded-[20px] border border-[rgba(255,255,255,0.08)] bg-[#0F172A] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.24)] transition duration-200 hover:-translate-y-0.5 hover:border-[rgba(212,175,55,0.26)] md:col-span-2">
+          <div className="flex items-start gap-4">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[rgba(212,175,55,0.18)] bg-[rgba(212,175,55,0.08)] text-[#D4AF37]">
+              <Clock3 className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-black text-white">{sfText("storefront.contact.workingHours")}</h2>
+              <p className="mt-1 text-sm font-medium leading-7 text-slate-400">مواعيد العمل خلال أيام الأسبوع وعطلة نهاية الأسبوع</p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[rgba(2,6,23,0.34)] p-4">
+              <div className="text-sm font-semibold text-slate-400">أيام الأسبوع</div>
+              <div className="mt-1 text-base font-black leading-8 text-white">{weekdayHours}</div>
+            </div>
+            <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[rgba(2,6,23,0.34)] p-4">
+              <div className="text-sm font-semibold text-slate-400">الويك إند</div>
+              <div className="mt-1 text-base font-black leading-8 text-white">{weekendHours}</div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+  );
+}
+
+function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} }) {
+  const settings = publicStoreSettings || {};
+  const firstValue = (...keys) => keys.map((key) => String(settings[key] || "").trim()).find(Boolean) || "";
+  const safeText = (value, fallback = "غير متوفر حاليًا") => String(value || "").trim() || fallback;
+  const normalizeUrl = (value) => {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    if (/^(https?:|mailto:|tel:|whatsapp:)/i.test(raw) || raw.startsWith("/")) return raw;
+    return "";
+  };
+
+  const phoneNumber = firstValue("storefront.phone", "storefront.contact_phone", "general.phone", "company.phone", "contact.phone", "phone", "support.phone");
+  const phoneHref = phoneNumber ? `tel:${phoneNumber.replace(/\D/g, "")}` : "";
+  const whatsappNumber = firstValue("storefront.whatsapp_phone", "storefront.whatsapp_url", "storefront.whatsapp_link", "storefront.support_whatsapp", "general.whatsapp_phone", "general.whatsapp", "company.whatsapp", "company.whatsapp_phone", "support.whatsapp", "contact.whatsapp", "whatsapp");
+  const whatsappHref = quickActionLinks.whatsappHref || (whatsappNumber ? normalizeUrl(whatsappNumber) || `https://wa.me/${whatsappNumber.replace(/\D/g, "")}` : "");
+  const instagramUsername = firstValue("storefront.instagram_username", "storefront.instagram", "company.instagram_username", "social.instagram_username", "instagram_username");
+  const instagramHref = normalizeUrl(firstValue("storefront.instagram_url", "storefront.instagram_link", "company.instagram_url", "social.instagram_url", "instagram_url")) || (instagramUsername ? `https://www.instagram.com/${String(instagramUsername).replace(/^@/, "")}` : "");
+  const facebookPage = firstValue("storefront.facebook_page_name", "storefront.facebook_name", "company.facebook_page_name", "social.facebook_page_name", "facebook_page_name");
+  const facebookHref = normalizeUrl(firstValue("storefront.facebook_url", "storefront.facebook_link", "company.facebook_url", "social.facebook_url", "facebook_url"));
+  const address = firstValue("address", "storeAddress", "store_address", "publicAddress", "public_address", "storefront.address", "company.address");
+  const mapHref = quickActionLinks.galleryHref || normalizeUrl(firstValue("storefront.map_url", "storefront.google_map_url", "storefront.location_url", "storefront.location_link", "storefront.store_location_url", "storefront.address_url", "general.map_url", "general.google_map_url", "company.map_url", "company.google_maps_url", "company.location_url", "map_url", "google_map_url", "location_url"));
+  const weekdayHours = firstValue("storefront.weekday_hours", "storefront.working_hours_weekday", "working_hours_weekday", "working_hours", "business_hours", "storefront.working_hours");
+  const weekendHours = firstValue("storefront.weekend_hours", "storefront.working_hours_weekend", "working_hours_weekend");
+
+  const contactRows = [
+    { id: "phone", title: "الهاتف", icon: Phone, value: safeText(phoneNumber, "رقم الهاتف غير متوفر"), href: phoneHref, cta: "اتصال", tone: "gold" },
+    { id: "whatsapp", title: "واتساب", icon: MessageCircle, value: safeText(whatsappNumber, "واتساب غير متوفر"), href: whatsappHref, cta: "فتح واتساب", tone: "green" },
+    { id: "instagram", title: "انستجرام", icon: Camera, value: safeText(instagramUsername, "الحساب غير متوفر"), href: instagramHref, cta: "زيارة الصفحة", tone: "gold" },
+    { id: "facebook", title: "فيسبوك", icon: Send, value: safeText(facebookPage, "الصفحة غير متوفرة"), href: facebookHref, cta: "زيارة الصفحة", tone: "gold" },
+    { id: "address", title: "العنوان", icon: MapPin, value: safeText(address, "عنوان المتجر غير متوفر حاليًا"), href: mapHref, cta: mapHref ? "فتح الخريطة" : "الخريطة غير متوفرة", tone: "gold" },
+  ];
+  const helpItems = [
+    { icon: Footprints, label: "استفسار عن مقاس" },
+    { icon: PackageSearch, label: "متابعة طلب" },
+    { icon: RefreshCcw, label: "استبدال أو استرجاع" },
+    { icon: PackageCheck, label: "مشكلة في منتج" },
+  ];
+
+  return (
+    <section className="mx-auto w-full max-w-6xl bg-[#020817] px-4 pt-6 pb-[calc(var(--mobile-bottom-nav-height,58px)+env(safe-area-inset-bottom)+1.5rem)] text-white md:px-6 md:py-10 md:pb-10" dir="rtl">
+      <div className="mx-auto max-w-2xl">
+        <p className="text-xs font-black uppercase tracking-[0.24em] text-[#D4AF37]/85">M1 Store</p>
+        <h1 className="mt-2 text-3xl font-black tracking-tight text-white md:text-5xl">تواصل معنا</h1>
+        <p className="mt-3 text-sm font-medium leading-7 text-slate-400 md:text-base">
+          فريق M1 Store جاهز لمساعدتك في الطلبات، المقاسات، الاستبدال والاسترجاع.
+        </p>
+      </div>
+
+      <div className="mx-auto mt-5 max-w-2xl">
+        <a
+          href={whatsappHref || undefined}
+          target={whatsappHref.startsWith("http") ? "_blank" : undefined}
+          rel={whatsappHref.startsWith("http") ? "noreferrer" : undefined}
+          aria-disabled={!whatsappHref}
+          className={`inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border px-4 py-3 text-sm font-black transition duration-200 active:scale-[0.99] ${whatsappHref ? "border-emerald-400/25 bg-emerald-500 text-white shadow-[0_18px_40px_rgba(16,185,129,0.24)] hover:bg-emerald-400" : "cursor-not-allowed border-white/10 bg-white/[0.05] text-white/45"}`}
+        >
+          <MessageCircle className="h-4.5 w-4.5" />
+          تواصل عبر واتساب
+        </a>
+      </div>
+
+      <div className="mt-6 grid gap-3">
+        {contactRows.map((card) => {
+          const Icon = card.icon;
+          const hasLink = Boolean(card.href);
+          return (
+            <article key={card.id} className="rounded-[20px] border border-[rgba(255,255,255,0.08)] bg-[rgba(15,23,42,0.92)] p-4 shadow-[0_18px_44px_rgba(0,0,0,0.22)] backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-[rgba(212,175,55,0.18)] active:scale-[0.99]">
+              <div className="flex items-start gap-3">
+                <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl border ${card.tone === "green" ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-300" : "border-[rgba(212,175,55,0.18)] bg-[rgba(212,175,55,0.08)] text-[#D4AF37]"}`}>
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-base font-black text-white">{card.title}</h2>
+                  <p className="mt-1 break-words text-sm font-medium leading-7 text-slate-400">{card.value}</p>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                {hasLink ? (
+                  <a
+                    href={card.href}
+                    target={card.href.startsWith("http") ? "_blank" : undefined}
+                    rel={card.href.startsWith("http") ? "noreferrer" : undefined}
+                    className={`inline-flex min-h-10 items-center justify-center rounded-full border px-4 py-2 text-xs font-black transition duration-200 active:scale-[0.98] ${card.tone === "green" ? "w-full border-emerald-400/25 bg-emerald-500 text-white shadow-[0_12px_28px_rgba(16,185,129,0.22)] hover:bg-emerald-400" : "border-[rgba(212,175,55,0.18)] bg-white/[0.04] text-white hover:border-[rgba(212,175,55,0.32)] hover:bg-white/[0.06]"}`}
+                  >
+                    {card.cta}
+                  </a>
+                ) : (
+                  <button type="button" disabled className="inline-flex min-h-10 w-full items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-black text-white/45">
+                    {card.cta}
+                  </button>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
+      <article className="mt-6 rounded-[20px] border border-[rgba(255,255,255,0.08)] bg-[rgba(15,23,42,0.92)] p-4 shadow-[0_18px_44px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+        <div className="flex items-start gap-3">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-[rgba(212,175,55,0.18)] bg-[rgba(212,175,55,0.08)] text-[#D4AF37]">
+            <Sparkles className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-black text-white">كيف نساعدك؟</h2>
+            <p className="mt-1 text-sm font-medium leading-7 text-slate-400">اختر نوع المساعدة المناسب وسيصلك الرد بأوضح طريقة ممكنة.</p>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          {helpItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <div key={item.label} className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-white/[0.035] p-3 text-center">
+                <div className="mx-auto grid h-10 w-10 place-items-center rounded-full border border-[rgba(212,175,55,0.14)] bg-[rgba(212,175,55,0.07)] text-[#D4AF37]">
+                  <Icon className="h-4.5 w-4.5" />
+                </div>
+                <div className="mt-2 text-sm font-black text-white">{item.label}</div>
+              </div>
+            );
+          })}
+        </div>
+      </article>
+    </section>
   );
 }
 
@@ -7406,7 +7772,7 @@ function SubmitButton({ submitting, compact = false, paymentMethod = "cod", disa
       form="storefront-checkout-form"
       type="submit"
       disabled={disabled}
-      className={`sf-checkout-submit-button ${isSuccess ? "sf-checkout-submit-button--success checkout-payment-confirm" : ""} sf-shimmer-button inline-flex items-center justify-center gap-2 rounded-full border font-black text-white shadow-[0_18px_42px_rgba(124,58,237,0.24)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_54px_rgba(109,40,217,0.34)] active:translate-y-0 active:scale-[0.985] disabled:translate-y-0 disabled:text-white/55 disabled:shadow-none ${isSuccess ? "border-emerald-300/25 bg-[linear-gradient(135deg,rgba(22,163,74,0.96),rgba(5,46,22,0.98))] hover:border-emerald-200/40 hover:bg-[linear-gradient(135deg,rgba(34,197,94,0.98),rgba(4,120,87,0.98))]" : "border-[#a78bfa]/20 bg-[linear-gradient(135deg,rgba(124,58,237,0.96),rgba(17,24,39,0.98))] hover:border-[#c4b5fd]/40 hover:bg-[#6d28d9]"} ${compact ? "sf-checkout-submit-button--compact min-h-13 min-w-36 px-5 py-3 text-sm" : "min-h-14 w-full px-5 py-4"} ${disabled ? "border-white/10 bg-slate-700" : ""}`}
+      className={`sf-checkout-submit-button ${isSuccess ? "sf-checkout-submit-button--success checkout-payment-confirm" : ""} sf-shimmer-button inline-flex items-center justify-center gap-2 rounded-full border font-black ${isSuccess ? "text-white" : "text-stone-950"} shadow-[0_18px_42px_rgba(212,175,55,0.24)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_54px_rgba(212,175,55,0.34)] active:translate-y-0 active:scale-[0.985] disabled:translate-y-0 disabled:text-white/55 disabled:shadow-none ${isSuccess ? "border-emerald-300/25 bg-[linear-gradient(135deg,rgba(22,163,74,0.96),rgba(5,46,22,0.98))] hover:border-emerald-200/40 hover:bg-[linear-gradient(135deg,rgba(34,197,94,0.98),rgba(4,120,87,0.98))]" : "border-[#d4af37]/20 bg-[linear-gradient(135deg,#d4af37,#e5c158)] hover:border-[#e5c158]/40 hover:bg-[linear-gradient(135deg,#e5c158,#d4af37)]"} ${compact ? "sf-checkout-submit-button--compact min-h-13 min-w-36 px-5 py-3 text-sm" : "min-h-14 w-full px-5 py-4"} ${disabled ? "border-white/10 bg-slate-700" : ""}`}
     >
       {submitting ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : null}
       <span>{submitting ? sfText("storefront.checkout.actions.confirming") : label || fallbackLabel}</span>
@@ -7914,13 +8280,13 @@ function ProductGalleryFallback() {
 
 function EmptyState({ title, text, actionTo = "/shop/products", actionLabel }) {
   return (
-    <div className="sf-empty-state mx-auto mt-6 mb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] max-w-xl rounded-[1.75rem] border border-[#8b5cf6]/18 bg-[linear-gradient(180deg,rgba(18,18,28,0.96),rgba(7,10,20,0.94))] p-6 text-center text-stone-50 shadow-[0_18px_45px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-xl md:mb-6 md:p-7">
-      <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-[#8b5cf6]/20 bg-[#7c3aed]/14 text-[#c4b5fd] shadow-[0_14px_34px_rgba(124,58,237,0.16)]">
+    <div className="sf-empty-state mx-auto mt-6 mb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] max-w-xl rounded-[1.75rem] border border-[#d4af37]/18 bg-[linear-gradient(180deg,#020617,#0b0f19_40%,#111827_100%)] p-6 text-center text-stone-50 shadow-[0_18px_45px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-xl md:mb-6 md:p-7">
+      <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-[#d4af37]/20 bg-[rgba(212,175,55,0.14)] text-[#d4af37] shadow-[0_14px_34px_rgba(212,175,55,0.16)]">
         <PackageSearch className="h-7 w-7" />
       </div>
       <h2 className="mt-4 text-2xl font-black text-stone-50">{title}</h2>
       <p className="mx-auto mt-2 max-w-md font-bold leading-7 text-stone-400">{text}</p>
-      <Link to={actionTo} className="mt-5 inline-flex min-h-12 items-center justify-center rounded-full border border-[#a78bfa]/24 bg-[linear-gradient(135deg,rgba(124,58,237,0.95),rgba(17,24,39,0.92))] px-5 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(124,58,237,0.25)] transition hover:-translate-y-0.5 hover:border-[#c4b5fd]/45 hover:shadow-[0_18px_42px_rgba(124,58,237,0.34)] active:scale-[0.98]">
+      <Link to={actionTo} className="mt-5 inline-flex min-h-12 items-center justify-center rounded-full border border-[#d4af37]/24 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-5 py-3 text-sm font-black text-stone-950 shadow-[0_14px_34px_rgba(212,175,55,0.25)] transition hover:-translate-y-0.5 hover:border-[#e5c158]/45 hover:shadow-[0_18px_42px_rgba(212,175,55,0.34)] active:scale-[0.98]">
         {actionLabel || sfText("storefront.common.shopNow")}
       </Link>
     </div>
@@ -7963,7 +8329,7 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
               </div>
               <p className="max-w-32 text-start text-[11px] font-bold leading-5 text-white/46">{sfText("storefront.checkout.finalShippingAtCheckout")}</p>
             </div>
-            <Link to="/shop/checkout" onClick={onClose} className="sf-cart-drawer-checkout-button sf-shimmer-button block min-h-14 rounded-full border border-[#a78bfa]/20 bg-[linear-gradient(135deg,rgba(124,58,237,0.96),rgba(17,24,39,0.98))] px-5 py-4 text-center text-base font-black text-white shadow-[0_18px_42px_rgba(124,58,237,0.26)] transition hover:-translate-y-0.5 hover:border-[#c4b5fd]/40 hover:shadow-[0_22px_54px_rgba(109,40,217,0.34)] active:translate-y-0 active:scale-[0.98]">
+            <Link to="/shop/checkout" onClick={onClose} className="sf-cart-drawer-checkout-button sf-shimmer-button block min-h-14 rounded-full border border-[#d4af37]/20 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-5 py-4 text-center text-base font-black text-stone-950 shadow-[0_18px_42px_rgba(212,175,55,0.26)] transition hover:-translate-y-0.5 hover:border-[#e5c158]/40 hover:shadow-[0_22px_54px_rgba(212,175,55,0.34)] active:translate-y-0 active:scale-[0.98]">
               {sfText("storefront.checkout.actions.completePurchase")}
             </Link>
           </div>
@@ -8158,7 +8524,7 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
               const isSale = item.id === "sale";
               const baseClass = [
                 "group flex h-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-full px-1.5 text-[9px] leading-none transition duration-200 ease-out active:scale-[0.98]",
-                active ? "scale-[1.05] bg-white/[0.08] text-[#7c3aed]" : "opacity-75 text-white/90 hover:opacity-90",
+                active ? "scale-[1.05] bg-[rgba(212,175,55,0.12)] text-[#d4af37]" : "opacity-75 text-white/90 hover:opacity-90",
               ].join(" ");
               const iconClass = "h-[22px] w-[22px]";
               const content = (
@@ -8213,7 +8579,7 @@ function SummaryRow({ label, value, strong, dark = false, rtl = false }) {
 function InfoLine({ icon, text }) {
   return (
     <div className="sf-checkout-info-line flex min-h-14 items-center gap-2 rounded-[1rem] border border-white/[0.08] bg-white/[0.055] p-3 text-white/74 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur transition hover:border-white/16 hover:bg-white/[0.075]">
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-white/[0.07] text-[#c4b5fd]">{icon}</span>
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-white/[0.07] text-[#d4af37]">{icon}</span>
       <span>{text}</span>
     </div>
   );
@@ -8233,7 +8599,7 @@ function PaymentMethodTab({ method, active, onClick, label, helperText, logoUrl 
         active
           ? isVodafone
             ? "border border-red-300/35 bg-[linear-gradient(135deg,rgba(230,0,0,0.28),rgba(255,255,255,0.08))] text-white shadow-[0_18px_42px_rgba(230,0,0,0.20)] ring-2 ring-red-400/12"
-            : "border border-[#c4b5fd]/45 bg-[linear-gradient(135deg,rgba(124,58,237,0.34),rgba(255,255,255,0.10))] text-white shadow-[0_18px_46px_rgba(124,58,237,0.28)] ring-2 ring-[#a78bfa]/16"
+            : "border border-[#d4af37]/35 bg-[rgba(212,175,55,0.12)] text-[#d4af37] shadow-[0_18px_46px_rgba(212,175,55,0.28)] ring-2 ring-[#d4af37]/16"
           : "border border-transparent text-white/58 hover:border-white/10 hover:bg-white/[0.065] hover:text-white hover:shadow-[0_16px_36px_rgba(124,58,237,0.12)]"
       }`}
     >
@@ -8383,7 +8749,7 @@ function SmallProductGrid({ items, action, onAddToCart }) {
   return (
     <div className="mt-6 grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {normalizedItems.map((item) => (
-        <div key={item.id} className={`sf-storefront-card sf-small-product-card group min-w-0 overflow-hidden rounded-[1.6rem] border border-white/[0.08] bg-[linear-gradient(160deg,rgba(15,23,42,0.86),rgba(3,7,18,0.94))] shadow-[0_20px_58px_rgba(0,0,0,0.34)] ring-1 ring-white/[0.025] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-[#a78bfa]/25 hover:shadow-[0_28px_74px_rgba(0,0,0,0.42)] ${item.unavailable ? "flex min-h-[430px] flex-col p-4" : "flex min-h-[460px] flex-col p-3.5"}`}>
+        <div key={item.id} className={`sf-storefront-card sf-small-product-card group min-w-0 overflow-hidden rounded-[1.6rem] border border-white/[0.08] bg-[linear-gradient(180deg,#020617_0%,#0b0f19_40%,#111827_100%)] shadow-[0_20px_58px_rgba(0,0,0,0.34)] ring-1 ring-white/[0.025] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-[#d4af37]/25 hover:shadow-[0_28px_74px_rgba(0,0,0,0.42)] ${item.unavailable ? "flex min-h-[430px] flex-col p-4" : "flex min-h-[460px] flex-col p-3.5"}`}>
           {item.unavailable ? (
             <div className="flex flex-1 flex-col justify-center rounded-[1.25rem] border border-rose-300/15 bg-gradient-to-br from-rose-500/10 to-white/[0.04] p-4 text-center">
               <span className="mx-auto grid h-12 w-12 place-items-center rounded-full border border-rose-300/20 bg-rose-400/10 text-rose-300 shadow-[0_12px_30px_rgba(244,63,94,0.12)]">
@@ -8899,7 +9265,7 @@ function Storefront() {
       />
       <Route
         path="contact"
-        element={<ContactPage />}
+        element={<PremiumContactPage publicStoreSettings={publicStoreSettings} quickActionLinks={quickActionLinks} />}
       />
       <Route
         path="size-guide"

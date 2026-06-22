@@ -114,7 +114,7 @@ const receiptPrintLabel = (key, fallback, options = {}) =>
 const posLabel = (key, fallback, options = {}) =>
   i18n.t(`pos.${key}`, { defaultValue: fallback, ...options });
 
-const getReturnPolicyText = () => receiptPrintLabel("returnPolicy", "Exchange and return are allowed within 14 days if the item is unused and the invoice is kept.");
+const getReturnPolicyText = () => receiptPrintLabel("returnPolicy", "يتم قبول الاستبدال أو الاسترجاع خلال 14 يومًا من تاريخ الاستلام وفق الشروط المعتمدة.");
 
 const DEFAULT_SOCIAL_LINKS = {
   googleReviewUrl: "https://www.google.com/maps/place//data=!4m3!3m2!1s0x14f9e3498b6a02f9:0xd576a0402361f8c8!12e1?source=g.page.m._&laa=merchant-review-solicitation",

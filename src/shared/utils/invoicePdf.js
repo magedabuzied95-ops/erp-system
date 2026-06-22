@@ -187,7 +187,7 @@ const buildInvoicePrintHtml = (invoice = {}, format = "a4", language) => {
         <div>${escapeHtml(p("quantityTotal", "Total quantity"))}: <span class="number">${items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)}</span></div>
         <div class="total">${escapeHtml(p("finalTotal", "Final total"))}: <span class="amount">${escapeHtml(formatCurrency(invoice.totals?.total || 0))}</span></div>
       </section>
-      <section class="print-card policy">${escapeHtml(p("returnPolicy", "Exchange and return are allowed within 14 days if the item is unused and the invoice is kept."))}</section>
+      <section class="print-card policy">${escapeHtml(p("returnPolicy", "يتم قبول الاستبدال أو الاسترجاع خلال 14 يومًا من تاريخ الاستلام وفق الشروط المعتمدة."))}</section>
       ${social ? `<section class="print-card" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap">${social}</section>` : ""}
       <footer class="print-footer">
         <div class="barcode">${escapeHtml(invoiceNumber)}</div>
@@ -277,7 +277,7 @@ const drawEnglishPdf = async ({ format, invoice, filename }) => {
   doc.setFont("helvetica", "normal");
   doc.setTextColor(71, 85, 105);
   doc.setFontSize(isThermal ? 6 : 8);
-  doc.text(p("returnPolicy", "Exchange and return are allowed within 14 days if the item is unused and the invoice is kept."), pageWidth / 2, y + 8, {
+  doc.text(p("returnPolicy", "يتم قبول الاستبدال أو الاسترجاع خلال 14 يومًا من تاريخ الاستلام وفق الشروط المعتمدة."), pageWidth / 2, y + 8, {
     align: "center",
     maxWidth: pageWidth - margin * 2,
   });

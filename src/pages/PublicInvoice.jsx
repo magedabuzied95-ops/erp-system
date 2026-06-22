@@ -327,8 +327,8 @@ function PublicInvoice() {
           className="print:rounded-none print:border-0 print:shadow-none"
         />
 
-        <div className="mt-4 rounded-2xl border border-slate-200/80 bg-[#FAFAF9] p-3 text-center text-xs font-bold text-slate-600 shadow-[0_18px_50px_rgba(2,6,23,0.22)] print:border-slate-200 print:bg-white print:text-slate-700 print:shadow-none">
-            <div className="flex items-center justify-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-600" />{invoicePrintLabel("returnPolicy", "Exchange and return are allowed within 14 days if the item is unused and the invoice is kept.")}</div>
+          <div className="mt-4 rounded-2xl border border-slate-200/80 bg-[#FAFAF9] p-3 text-center text-xs font-bold text-slate-600 shadow-[0_18px_50px_rgba(2,6,23,0.22)] print:border-slate-200 print:bg-white print:text-slate-700 print:shadow-none">
+            <div className="flex items-center justify-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-600" />{invoicePrintLabel("returnPolicy", "يتم قبول الاستبدال أو الاسترجاع خلال 14 يومًا من تاريخ الاستلام وفق الشروط المعتمدة.")}</div>
           </div>
           <div className="mx-auto mt-3 h-px max-w-3xl bg-gradient-to-r from-transparent via-emerald-700/55 to-transparent" />
 
