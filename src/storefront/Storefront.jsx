@@ -2357,12 +2357,12 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
   );
 
   const cards = useMemo(() => mainHomeCategoryCards.map((definition) => {
-    const matched = sourceProducts.filter(({ product }) => definition.test(product, productSearchText(product)));
-        const images = uniqueProductsByIdentity([...matched, ...sourceProducts].map((item) => item.product))
-          .map(homeProductWithImage)
-          .filter(Boolean)
-          .slice(0, 4);
-        return { ...definition, images };
+    const matchedProducts = sourceProducts.filter(({ product }) => definition.test(product, productSearchText(product)));
+    const images = uniqueProductsByIdentity(matchedProducts.map((item) => item.product))
+      .map(homeProductWithImage)
+      .filter(Boolean)
+      .slice(0, 4);
+    return { ...definition, images };
   }), [sourceProducts]);
 
   if (!cards.length) return loading ? <ShopByMainCategoriesSkeleton lang={lang} /> : null;
@@ -2411,6 +2411,7 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
                   <div className={`absolute bottom-4 left-1/2 h-12 w-[78%] -translate-x-1/2 rounded-full blur-3xl ${darkMode ? "bg-black/18" : "bg-slate-300/70"}`} />
                   {imageSrc ? (
                     <img
+                      key={`${card.id}-${productIdentityKey(image?.product)}`}
                       src={imageSrc}
                       {...responsiveImageProps(image, "hero")}
                       alt=""
