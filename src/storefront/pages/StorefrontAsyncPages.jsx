@@ -84,7 +84,6 @@ function TrackingResult({ data, helpers, components }) {
           <InfoBox label={sfText("storefront.orders.orderDate", "طھط§ط±ظٹط® ط§ظ„ط·ظ„ط¨")} value={formatDate(order.created_at)} />
           <InfoBox label={sfText("storefront.checkout.total", "ط§ظ„ط¥ط¬ظ…ط§ظ„ظٹ")} value={money(total)} />
           <InfoBox label={sfText("storefront.checkout.paymentMethod", "ط·ط±ظٹظ‚ط© ط§ظ„ط¯ظپط¹")} value={`${paymentCopy(order.payment_method)} - ${statusCopy(order.payment_status || "pending")}`} />
-          <InfoBox label={sfText("storefront.shipping.provider", "ط´ط±ظƒط© ط§ظ„ط´ط­ظ†")} value={shippingProviderCopy(order.shipping_provider)} />
           <InfoBox label={sfText("storefront.shipping.trackingNumber", "ط±ظ‚ظ… ط§ظ„طھطھط¨ط¹")} value={order.tracking_number || sfText("storefront.common.soon", "ظ‚ط±ظٹط¨ظ‹ط§")} />
           <InfoBox label={sfText("storefront.shipping.status", "ط­ط§ظ„ط© ط§ظ„ط´ط­ظ†")} value={statusCopy(order.shipping_status || "pending")} />
           <InfoBox label={sfText("storefront.checkout.deliveryAddress", "ط§ظ„ط¹ظ†ظˆط§ظ†")} value={address || sfText("storefront.orders.addressSaved", "طھظ… ط­ظپط¸ ط§ظ„ط¹ظ†ظˆط§ظ† ظ…ط¹ ط§ظ„ط·ظ„ط¨")} />

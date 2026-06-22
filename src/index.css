@@ -1110,13 +1110,67 @@
     background-color: #151515 !important;
     background-image: none !important;
     border-color: rgba(212, 175, 55, 0.35) !important;
-    box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.18) !important;
+    box-shadow:
+      0 0 0 1px rgba(212, 175, 55, 0.45),
+      0 0 12px rgba(212, 175, 55, 0.15) !important;
   }
 
   .storefront-shell--checkout .sf-checkout-page .checkout-picker-search {
     background-color: #101010 !important;
     background-image: none !important;
     border-color: rgba(255, 255, 255, 0.10) !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-trust-pill {
+    box-shadow:
+      0 0 0 1px rgba(212, 175, 55, 0.45),
+      0 0 12px rgba(212, 175, 55, 0.15) !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-progress-step--active {
+    box-shadow:
+      0 0 0 1px rgba(212, 175, 55, 0.65),
+      0 0 18px rgba(212, 175, 55, 0.22) !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-submit-button:not(.sf-checkout-submit-button--success):not(:disabled),
+  .storefront-shell--checkout .sf-checkout-sticky-actions .sf-checkout-submit-button--compact:not(:disabled) {
+    box-shadow:
+      0 0 0 1px rgba(212, 175, 55, 0.45),
+      0 0 12px rgba(212, 175, 55, 0.15) !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-submit-button:not(.sf-checkout-submit-button--success):not(:disabled):hover,
+  .storefront-shell--checkout .sf-checkout-submit-button:not(.sf-checkout-submit-button--success):not(:disabled):focus-visible,
+  .storefront-shell--checkout .sf-checkout-sticky-actions .sf-checkout-submit-button--compact:not(:disabled):hover,
+  .storefront-shell--checkout .sf-checkout-sticky-actions .sf-checkout-submit-button--compact:not(:disabled):focus-visible {
+    box-shadow:
+      0 0 0 1px rgba(212, 175, 55, 0.65),
+      0 0 18px rgba(212, 175, 55, 0.22) !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-address-success button {
+    box-shadow:
+      0 0 0 1px rgba(212, 175, 55, 0.45),
+      0 0 12px rgba(212, 175, 55, 0.15) !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-address-success button:hover,
+  .storefront-shell--checkout .sf-checkout-address-success button:focus-visible {
+    box-shadow:
+      0 0 0 1px rgba(212, 175, 55, 0.65),
+      0 0 18px rgba(212, 175, 55, 0.22) !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-field:focus-within,
+  .storefront-shell--checkout .sf-checkout-bosta-card:focus-within,
+  .storefront-shell--checkout .checkout-picker-search:focus-within,
+  .storefront-shell--checkout .checkout-payment-choice:focus-within,
+  .storefront-shell--checkout .checkout-payment-method:focus-within {
+    box-shadow:
+      0 0 0 1px rgba(212, 175, 55, 0.45),
+      0 0 12px rgba(212, 175, 55, 0.15) !important;
+    border-color: rgba(212, 175, 55, 0.35) !important;
   }
 
   .storefront-shell--checkout .sf-reveal,
@@ -1818,7 +1872,9 @@
     background: #151515 !important;
     background-image: none !important;
     border-color: rgba(212, 175, 55, 0.35) !important;
-    box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.18) !important;
+    box-shadow:
+      0 0 0 1px rgba(212, 175, 55, 0.45),
+      0 0 12px rgba(212, 175, 55, 0.15) !important;
   }
 
   .storefront-dark .sf-loyalty-card {
@@ -4956,7 +5012,9 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
     background-color: #151515 !important;
     background-image: none !important;
     border-color: rgba(212, 175, 55, 0.35) !important;
-    box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.18) !important;
+    box-shadow:
+      0 0 0 1px rgba(212, 175, 55, 0.45),
+      0 0 12px rgba(212, 175, 55, 0.15) !important;
   }
 
   .storefront-shell--checkout .sf-checkout-page :is(.sf-field-input, textarea.sf-field-input, select.sf-field-input, .sf-checkout-field-input, .checkout-picker-search input)::placeholder {
