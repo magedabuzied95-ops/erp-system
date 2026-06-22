@@ -209,13 +209,25 @@ export const getPrivateSettings = async () => {
 
 export const getPublicSettings = async () => {
   const rowsByKey = await loadRows("WHERE is_public = TRUE");
-  return settingsRegistry
+  const flat = settingsRegistry
     .filter((definition) => definition.isPublic && !definition.isSecret)
     .map((definition) => buildSettingRecord(definition, rowsByKey.get(definition.key)))
     .reduce((acc, setting) => {
       acc[setting.key] = setting.value;
       return acc;
     }, {});
+
+  const storefront = Object.entries(flat)
+    .filter(([key]) => key.startsWith("storefront."))
+    .reduce((acc, [key, value]) => {
+      acc[key.slice("storefront.".length)] = value;
+      return acc;
+    }, {});
+
+  return {
+    ...flat,
+    storefront,
+  };
 };
 
 export const getSettingsRegistry = () => ({

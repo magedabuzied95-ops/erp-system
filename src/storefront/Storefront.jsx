@@ -2111,24 +2111,24 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
                 <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
               </button>
             </div>
-            <div className="relative z-10 grid w-full gap-4 p-4 md:grid-cols-[minmax(0,0.4fr)_minmax(0,0.6fr)] md:gap-6 md:p-9 lg:p-12">
-              <div key={`category-copy-${activeCategory.id}`} className="relative z-20 flex min-h-[10.25rem] flex-col justify-end self-end pb-1.5 animate-[sfFadeUp_420ms_ease-out_both] md:min-h-0 md:justify-center md:pb-0">
-                <div className={`mb-3.5 inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] shadow-sm backdrop-blur md:mb-5 md:px-3.5 md:py-2 md:text-xs ${darkMode ? "border-white/12 bg-white/10 text-[#f8e7b3]" : "border-slate-200 bg-white/85 text-[#7c3aed] shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
+            <div className="relative z-10 grid w-full gap-5 p-4 md:grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] md:gap-7 md:p-9 lg:p-12">
+              <div key={`category-copy-${activeCategory.id}`} className="relative z-20 flex min-h-[11rem] flex-col justify-end self-end pb-1.5 animate-[sfFadeUp_420ms_ease-out_both] md:min-h-0 md:justify-center md:pb-0">
+                <div className={`mb-4 inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] shadow-sm backdrop-blur md:mb-5 md:px-3.5 md:py-2 md:text-xs ${darkMode ? "border-white/12 bg-white/10 text-[#f8e7b3]" : "border-slate-200 bg-white/85 text-[#7c3aed] shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
                   <ActiveIcon className="h-4 w-4" />
                   {activeCategory.label}
                 </div>
-                <h1 className={`line-clamp-2 max-w-lg text-[2.15rem] font-black leading-[0.98] md:text-6xl lg:text-7xl ${darkMode ? "text-white" : "text-slate-900"}`}>
+                <h1 className={`line-clamp-2 max-w-xl text-[2.35rem] font-black leading-[0.95] md:text-6xl lg:text-[4.9rem] ${darkMode ? "text-white" : "text-slate-900"}`}>
                   {headline}
                 </h1>
-                <p className={`mt-3 line-clamp-2 max-w-md text-[0.95rem] font-bold leading-6 md:mt-5 md:text-lg md:leading-8 ${darkMode ? "text-white/68" : "text-slate-600"}`}>
+                <p className={`mt-4 line-clamp-2 max-w-[34rem] text-[0.98rem] font-bold leading-6 md:mt-6 md:text-lg md:leading-8 ${darkMode ? "text-white/68" : "text-slate-600"}`}>
                   {subtitle}
                 </p>
-                <span className={`mt-5 inline-flex min-h-11 w-fit items-center justify-center rounded-full px-6 text-sm font-black transition duration-200 ease-out group-hover:-translate-y-0.5 md:mt-8 md:min-h-12 md:px-7 ${darkMode ? "bg-[#f8e7b3] text-stone-950 shadow-[0_18px_40px_rgba(248,231,179,0.26)] ring-1 ring-white/10 group-hover:bg-white" : "bg-slate-900 text-white shadow-[0_18px_40px_rgba(15,23,42,0.16)] ring-1 ring-slate-200 group-hover:bg-[#7c3aed] group-hover:text-white"}`}>
+                <span className={`mt-6 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full px-7 text-sm font-black transition duration-200 ease-out group-hover:-translate-y-0.5 md:mt-9 md:min-h-14 md:px-8 ${darkMode ? "bg-[#f8e7b3] text-stone-950 shadow-[0_20px_46px_rgba(248,231,179,0.22)] ring-1 ring-white/10 group-hover:bg-white" : "bg-slate-900 text-white shadow-[0_20px_46px_rgba(15,23,42,0.18)] ring-1 ring-slate-200 group-hover:bg-[#7c3aed] group-hover:text-white"}`}>
                   {cta}
                 </span>
               </div>
-              <div className="relative flex min-h-[235px] items-center justify-center md:min-h-[430px]">
-                <div className={`absolute bottom-10 left-1/2 h-10 w-[72%] -translate-x-1/2 rounded-[100%] blur-2xl ${darkMode ? "bg-black/70" : "bg-slate-300/80"}`} />
+              <div className="relative flex min-h-[270px] items-center justify-center md:min-h-[490px]">
+                <div className={`absolute bottom-8 left-1/2 h-14 w-[82%] -translate-x-1/2 rounded-[100%] blur-3xl ${darkMode ? "bg-black/75" : "bg-slate-300/80"}`} />
                 {supportingSlides.map((slide, index) => {
                   const active = slide.product?.id === product?.id;
                   return (
@@ -2138,7 +2138,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
                       {...responsiveImageProps(slide.image, "hero")}
                       alt=""
                       onError={fallbackProductImage}
-                      className={`absolute object-contain drop-shadow-[0_34px_34px_rgba(0,0,0,0.38)] transition-all duration-700 ease-out ${active ? "z-30 max-h-[250px] w-[80%] opacity-100 animate-[sfFadeUp_420ms_ease-out_both] md:max-h-[455px]" : index === 1 ? "z-20 max-h-[132px] w-[29%] -translate-x-[112%] translate-y-[32%] -rotate-12 opacity-56 md:max-h-[210px]" : index === 2 ? "z-20 max-h-[128px] w-[28%] translate-x-[112%] -translate-y-[30%] rotate-12 opacity-54 md:max-h-[205px]" : index === 3 ? "z-10 max-h-[112px] w-[24%] -translate-x-[132%] -translate-y-[30%] rotate-6 opacity-34 blur-[0.3px] md:max-h-[170px]" : "z-10 max-h-[112px] w-[24%] translate-x-[132%] translate-y-[32%] -rotate-6 opacity-34 blur-[0.3px] md:max-h-[170px]"}`}
+                      className={`absolute object-contain drop-shadow-[0_40px_42px_rgba(0,0,0,0.42)] transition-all duration-700 ease-out ${active ? "z-30 max-h-[290px] w-[86%] opacity-100 animate-[sfFadeUp_420ms_ease-out_both] md:max-h-[520px]" : index === 1 ? "z-20 max-h-[148px] w-[31%] -translate-x-[108%] translate-y-[30%] -rotate-12 opacity-56 md:max-h-[230px]" : index === 2 ? "z-20 max-h-[144px] w-[30%] translate-x-[108%] -translate-y-[28%] rotate-12 opacity-54 md:max-h-[225px]" : index === 3 ? "z-10 max-h-[120px] w-[26%] -translate-x-[128%] -translate-y-[28%] rotate-6 opacity-36 blur-[0.3px] md:max-h-[180px]" : "z-10 max-h-[120px] w-[26%] translate-x-[128%] translate-y-[30%] -rotate-6 opacity-36 blur-[0.3px] md:max-h-[180px]"}`}
                       loading={active ? "eager" : "lazy"}
                       decoding="async"
                       width="760"
@@ -2302,34 +2302,34 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
             <Link
               key={card.id}
               to={card.href}
-            className={`group relative grid min-h-[300px] overflow-hidden rounded-[2.35rem] border transition duration-500 hover:-translate-y-2 active:scale-[0.99] md:min-h-[360px] lg:min-h-[400px] ${darkMode ? "border-white/10 bg-stone-950 text-white shadow-[0_34px_110px_rgba(15,23,42,0.28)] hover:border-[#f8e7b3]/50 hover:shadow-[0_48px_130px_rgba(15,23,42,0.42)]" : "border-slate-200 bg-white text-[#0f172a] shadow-[0_34px_110px_rgba(15,23,42,0.10)] hover:border-[#7c3aed]/30 hover:shadow-[0_48px_130px_rgba(15,23,42,0.16)]"} ${reverse ? "md:grid-cols-[0.58fr_0.42fr]" : "md:grid-cols-[0.42fr_0.58fr]"}`}
+            className={`group relative grid min-h-[320px] overflow-hidden rounded-[2.35rem] border transition duration-500 hover:-translate-y-1.5 active:scale-[0.99] md:min-h-[375px] lg:min-h-[420px] ${darkMode ? "border-white/10 bg-stone-950 text-white shadow-[0_34px_110px_rgba(15,23,42,0.28)] hover:border-[#f8e7b3]/50 hover:shadow-[0_48px_130px_rgba(15,23,42,0.42)]" : "border-slate-200 bg-white text-[#0f172a] shadow-[0_34px_110px_rgba(15,23,42,0.10)] hover:border-[#7c3aed]/30 hover:shadow-[0_48px_130px_rgba(15,23,42,0.16)]"} ${reverse ? "md:grid-cols-[0.58fr_0.42fr]" : "md:grid-cols-[0.42fr_0.58fr]"}`}
             >
               <div className={`absolute inset-0 ${darkMode ? "bg-[radial-gradient(circle_at_76%_24%,rgba(248,231,179,0.24),transparent_31%),linear-gradient(135deg,#1c1917_0%,#0f172a_52%,#030712_100%)]" : "bg-[radial-gradient(circle_at_76%_24%,rgba(124,58,237,0.10),transparent_31%),linear-gradient(135deg,#ffffff_0%,#f8fafc_52%,#eef2ff_100%)]"}`} />
               <div className={`absolute inset-0 ${darkMode ? "bg-gradient-to-l from-black/80 via-black/35 to-black/12" : "bg-gradient-to-l from-white/78 via-white/40 to-white/8"}`} />
-              <div className={`relative z-10 flex min-h-[300px] flex-col justify-end p-7 md:min-h-0 md:p-10 lg:p-12 ${isRtl ? "text-right" : "text-left"} ${reverse ? "md:order-2" : ""}`}>
-                <div className={`mb-4 w-fit rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] backdrop-blur ${darkMode ? "border-white/15 bg-white/10 text-[#f8e7b3]" : "border-slate-200 bg-white/85 text-[#7c3aed] shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
+              <div className={`relative z-10 flex min-h-[320px] flex-col justify-end p-7 md:min-h-0 md:p-10 lg:p-12 ${isRtl ? "text-right" : "text-left"} ${reverse ? "md:order-2" : ""}`}>
+                <div className={`mb-4 w-fit rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] backdrop-blur ${darkMode ? "border-white/15 bg-white/10 text-[#f8e7b3]" : "border-slate-200 bg-white/85 text-[#7c3aed] shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
                   {isRtl ? "\u0627\u062e\u062a\u064a\u0627\u0631\u0627\u062a \u0645\u0646\u062a\u0642\u0627\u0629" : "Curated edit"}
                 </div>
-                <h3 className={`text-[3.3rem] font-black leading-none tracking-normal md:text-7xl lg:text-8xl ${darkMode ? "text-white" : "text-slate-900"}`}>{title}</h3>
-                <p className={`mt-4 max-w-[28rem] text-base font-bold leading-7 md:text-xl md:leading-8 ${darkMode ? "text-white/84" : "text-slate-600"}`}>{subtitle}</p>
+                <h3 className={`text-[3.45rem] font-black leading-none tracking-tight md:text-7xl lg:text-[5.1rem] ${darkMode ? "text-white" : "text-slate-900"}`}>{title}</h3>
+                <p className={`mt-4 max-w-[30rem] text-base font-bold leading-7 md:mt-5 md:text-xl md:leading-8 ${darkMode ? "text-white/84" : "text-slate-600"}`}>{subtitle}</p>
                 <span className={`mt-7 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full px-6 text-sm font-black transition md:min-h-14 md:px-8 ${darkMode ? "bg-white text-stone-950 shadow-[0_16px_34px_rgba(0,0,0,0.26)] group-hover:bg-[#f8e7b3] group-hover:shadow-[0_18px_42px_rgba(248,231,179,0.26)]" : "bg-slate-900 text-white shadow-[0_16px_34px_rgba(15,23,42,0.16)] group-hover:bg-[#7c3aed] group-hover:shadow-[0_18px_42px_rgba(124,58,237,0.16)]"}`}>
                   {isRtl ? "تسوّق الآن" : sfText("storefront.common.shopNow")}
                   <ChevronLeft className={`h-4 w-4 transition group-hover:-translate-x-1 ${isRtl ? "" : "rotate-180 group-hover:translate-x-1 group-hover:-translate-y-0"}`} />
                 </span>
               </div>
-              <div className="relative z-10 min-h-[260px] overflow-hidden p-4 md:min-h-0 md:p-7 lg:p-9">
-                <div className={`absolute bottom-8 left-1/2 h-12 w-[76%] -translate-x-1/2 rounded-full blur-2xl ${darkMode ? "bg-black/45" : "bg-slate-300/70"}`} />
+              <div className="relative z-10 min-h-[245px] overflow-hidden p-3 md:min-h-0 md:p-6 lg:p-8">
+                <div className={`absolute bottom-8 left-1/2 h-14 w-[80%] -translate-x-1/2 rounded-full blur-3xl ${darkMode ? "bg-black/45" : "bg-slate-300/70"}`} />
                 {collage.length ? collage.map(({ product, image }, index) => (
                   <div
                     key={`${card.id}-${productIdentityKey(product, index)}`}
-                    className={`absolute overflow-hidden rounded-[1.8rem] backdrop-blur transition duration-700 group-hover:scale-[1.06] ${darkMode ? "bg-white/[0.12] shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_28px_60px_rgba(0,0,0,0.24)]" : "bg-slate-100/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_20px_50px_rgba(15,23,42,0.10)]"} ${
+                    className={`absolute overflow-hidden rounded-[1.8rem] backdrop-blur transition duration-700 group-hover:scale-[1.08] ${darkMode ? "bg-white/[0.12] shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_28px_60px_rgba(0,0,0,0.24)]" : "bg-slate-100/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_20px_50px_rgba(15,23,42,0.10)]"} ${
                       index === 0
-                        ? "bottom-8 left-1/2 z-30 h-[60%] w-[68%] -translate-x-1/2 md:h-[74%]"
+                        ? "bottom-8 left-1/2 z-30 h-[66%] w-[72%] -translate-x-1/2 md:h-[78%]"
                         : index === 1
-                          ? "left-5 top-7 z-20 h-[34%] w-[32%] -rotate-6 opacity-78"
+                          ? "left-4 top-6 z-20 h-[37%] w-[34%] -rotate-6 opacity-78"
                           : index === 2
-                            ? "right-5 top-9 z-20 h-[32%] w-[30%] rotate-6 opacity-76"
-                            : "bottom-8 right-8 z-10 h-[27%] w-[26%] opacity-50"
+                            ? "right-4 top-8 z-20 h-[35%] w-[32%] rotate-6 opacity-76"
+                            : "bottom-8 right-6 z-10 h-[29%] w-[28%] opacity-50"
                     }`}
                   >
                     <img
@@ -2337,7 +2337,7 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
                       {...responsiveImageProps(image, "hero")}
                       alt=""
                       onError={fallbackProductImage}
-                      className="h-full w-full scale-125 object-contain p-1 transition duration-700 group-hover:scale-[1.32]"
+                      className="h-full w-full scale-[1.18] object-contain p-1 transition duration-700 group-hover:scale-[1.34]"
                       loading="lazy"
                       decoding="async"
                       width="420"
@@ -2640,14 +2640,14 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
   if (!loading && !visibleProducts.length) return null;
 
   return (
-    <section className="sf-reveal mx-auto max-w-[1240px] px-4 py-6 md:py-9">
+    <section className="sf-reveal mx-auto max-w-[1240px] px-4 py-7 md:py-10">
       <div className={sectionTone}>
-        <div className="mb-4 flex items-end justify-between gap-3 text-right md:mb-6">
+        <div className="mb-5 flex items-end justify-between gap-3 text-right md:mb-7">
           <div className="min-w-0">
-            <div className={`mb-1 text-[10px] font-black uppercase tracking-[0.18em] md:text-[11px] ${eyebrowClass}`}>{sfText("storefront.common.shopNow")}</div>
-            <h2 className={`text-[1.75rem] font-black tracking-normal md:text-4xl ${darkMode ? "text-stone-100" : "text-[#0f172a]"}`}>{title}</h2>
-            {subtitle ? <p className={`mt-1 text-xs font-bold leading-5 md:text-base md:leading-6 ${darkMode ? "text-stone-400" : "text-[#475569]"}`}>{subtitle}</p> : null}
-            <div className={`mt-2 h-1 w-16 rounded-full bg-gradient-to-l ${toneConfig.line || "from-[#7c3aed] to-[#f8e7b3]"}`} />
+            <div className={`mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] md:text-[11px] ${eyebrowClass}`}>{sfText("storefront.common.shopNow")}</div>
+            <h2 className={`text-[1.9rem] font-black tracking-tight md:text-[4rem] ${darkMode ? "text-stone-100" : "text-[#0f172a]"}`}>{title}</h2>
+            {subtitle ? <p className={`mt-1.5 text-xs font-bold leading-5 md:mt-2 md:text-base md:leading-6 ${darkMode ? "text-stone-400" : "text-[#475569]"}`}>{subtitle}</p> : null}
+            <div className={`mt-3 h-1 w-20 rounded-full bg-gradient-to-l ${toneConfig.line || "from-[#7c3aed] to-[#f8e7b3]"}`} />
           </div>
           <Link to={viewAllTo} className={`mb-0.5 inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full border px-4 py-2 text-xs font-black shadow-[0_14px_34px_rgba(39,20,75,0.09)] transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-12 md:px-6 ${darkMode ? "border-white/10 bg-white/5 text-stone-200 hover:bg-white hover:text-stone-950 dark:hover:bg-white dark:hover:text-stone-950" : "border-slate-300 bg-white text-[#0f172a] hover:border-[#7c3aed]/50 hover:bg-white hover:text-[#0f172a]"} ${toneConfig.button || "hover:border-[#7c3aed]/50"}`}>
             {sfText("common.viewAll")}
@@ -2672,7 +2672,7 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", pro
         >
           <div
             ref={railTrackRef}
-            className="flex w-max min-w-full gap-3.5 will-change-transform"
+            className="flex w-max min-w-full gap-[1.125rem] will-change-transform md:gap-5"
             style={{
               transform: `translate3d(${trackMotion.x}px, 0, 0)`,
               transition: trackMotion.transition,
@@ -2968,11 +2968,11 @@ function SimpleHomeProductGrid({ title, subtitle, products = [], loading = false
 
   return (
     <section className="mx-auto max-w-[1200px] px-4 py-3 md:py-5">
-      <div className="mb-3 flex items-end justify-between gap-3 text-right">
+      <div className="mb-4 flex items-end justify-between gap-3 text-right md:mb-5">
         <div className="min-w-0">
-          <div className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#7c3aed] dark:text-[#d8b4fe]">{sfText("storefront.common.shopNow")}</div>
-          <h2 className="text-2xl font-black tracking-normal text-stone-950 dark:text-stone-100 md:text-3xl">{title}</h2>
-          {subtitle ? <p className="mt-1 text-xs font-bold text-stone-500 dark:text-stone-400 md:text-sm">{subtitle}</p> : null}
+          <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-[#7c3aed] dark:text-[#d8b4fe]">{sfText("storefront.common.shopNow")}</div>
+          <h2 className="text-[1.9rem] font-black tracking-tight text-stone-950 dark:text-stone-100 md:text-[2.85rem]">{title}</h2>
+          {subtitle ? <p className="mt-1.5 text-xs font-bold text-stone-500 dark:text-stone-400 md:text-sm">{subtitle}</p> : null}
         </div>
         <Link to="/shop/products" className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#7c3aed]/50 hover:text-[#6d28d9] active:scale-[0.98] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
           {sfText("common.viewAll")}
@@ -2991,22 +2991,22 @@ function SimpleHomeProductGrid({ title, subtitle, products = [], loading = false
               to={productUrl(product)}
               className="group min-w-0 overflow-hidden rounded-[1.15rem] border border-stone-200 bg-white text-right shadow-[0_12px_30px_rgba(39,20,75,0.07)] transition duration-300 hover:-translate-y-1 hover:border-[#a78bfa]/45 hover:shadow-[0_20px_50px_rgba(39,20,75,0.14)] active:scale-[0.99] dark:border-white/10 dark:bg-[#0b1020]"
             >
-              <div className="aspect-[1.05/1] overflow-hidden bg-stone-100 p-2 dark:bg-white/5">
+              <div className="aspect-[0.95/1] overflow-hidden bg-stone-100 p-2.5 dark:bg-white/5">
                 <img
                   src={imageFor(image)}
                   {...responsiveImageProps(image, "grid")}
                   alt={product.name || ""}
                   onError={fallbackProductImage}
-                  className="h-full w-full rounded-[0.9rem] object-contain transition duration-500 group-hover:scale-[1.05]"
+                  className="h-full w-full rounded-[0.9rem] object-contain transition duration-500 group-hover:scale-[1.08]"
                   loading="lazy"
                   decoding="async"
                   width="360"
                   height="360"
                 />
               </div>
-              <div className="p-3">
-                <h3 className="line-clamp-2 min-h-10 text-sm font-black leading-5 text-stone-950 dark:text-stone-100">{product.name}</h3>
-                <div className="mt-2 text-base font-black text-stone-950 dark:text-white">{money(price)}</div>
+              <div className="p-3 pt-2.5">
+                <h3 className="line-clamp-2 min-h-10 text-[0.95rem] font-black leading-5 text-stone-950 dark:text-stone-100">{product.name}</h3>
+                <div className="mt-2 text-[1.05rem] font-black text-stone-950 dark:text-white">{money(price)}</div>
               </div>
             </Link>
           );
@@ -3021,9 +3021,9 @@ function SectionIntro({ eyebrow, title, subtitle, compact = false }) {
   return (
     <div className={compact ? "max-w-2xl" : "max-w-3xl"}>
       <div className="mb-0.5 text-[9.5px] font-black uppercase tracking-[0.15em] text-[#7c3aed] dark:text-[#d8b4fe] md:mb-1 md:text-[11px] md:tracking-[0.18em]">{eyebrow}</div>
-      <h2 className={`${compact ? "text-xl md:text-3xl" : "text-2xl md:text-4xl"} font-black tracking-normal text-stone-950 dark:text-stone-100`}>{title}</h2>
-      {subtitle ? <p className="mt-1 text-xs font-semibold leading-5 text-stone-500 dark:text-stone-400 md:mt-2 md:text-sm md:leading-6">{subtitle}</p> : null}
-      <div className="mt-1.5 h-0.5 w-10 rounded-full bg-gradient-to-l from-[#7c3aed] to-[#d8b4fe] md:mt-2 md:h-1 md:w-14" />
+      <h2 className={`${compact ? "text-[1.4rem] md:text-[2.2rem]" : "text-[1.65rem] md:text-[2.6rem]"} font-black tracking-tight text-stone-950 dark:text-stone-100`}>{title}</h2>
+      {subtitle ? <p className="mt-1.5 text-xs font-semibold leading-5 text-stone-500 dark:text-stone-400 md:mt-2.5 md:text-sm md:leading-6">{subtitle}</p> : null}
+      <div className="mt-2 h-1 w-12 rounded-full bg-gradient-to-l from-[#7c3aed] to-[#d8b4fe] md:mt-2.5 md:h-[3px] md:w-16" />
     </div>
   );
 }
@@ -4946,34 +4946,34 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   }, [productIdentifier, requestDetailPrefetch]);
   const cardDensityClasses = {
     hero: {
-      image: "aspect-[0.72/1] p-[2px]",
-      body: "px-[14px] pb-[14px] pt-[7px]",
-      title: "min-h-10 text-[12.5px] leading-[1.22rem]",
-      price: "text-[16px]",
+      image: "aspect-[0.7/1] p-[2.5px]",
+      body: "px-[13px] pb-[13px] pt-[6px]",
+      title: "min-h-10 text-[12.75px] leading-[1.22rem]",
+      price: "text-[16.5px]",
       sizes: "gap-1.5",
-      chip: "h-5.5 px-2 text-[8.5px]",
+      chip: "h-6 px-2 text-[8.5px]",
       color: "h-6 w-6",
       swatch: "h-3.5 w-3.5",
     },
     standard: {
-      image: "aspect-[0.76/1] p-[2px]",
-      body: "px-[14px] pb-[14px] pt-[7px]",
-      title: "min-h-10 text-[12.75px] leading-[1.22rem]",
-      price: "text-[15.5px]",
+      image: "aspect-[0.72/1] p-[2.5px]",
+      body: "px-[13px] pb-[13px] pt-[6px]",
+      title: "min-h-10 text-[13px] leading-[1.2rem]",
+      price: "text-[16px]",
       sizes: "gap-1.5",
-      chip: "h-5.5 px-2 text-[8.5px]",
+      chip: "h-6 px-2 text-[8.5px]",
       color: "h-[22px] w-[22px]",
-      swatch: "h-3 w-3",
+      swatch: "h-3.5 w-3.5",
     },
     compact: {
-      image: "aspect-[0.8/1] p-[2px]",
-      body: "px-[14px] pb-[14px] pt-[7px]",
-      title: "min-h-9 text-[12.5px] leading-[1.22rem]",
-      price: "text-[15px]",
+      image: "aspect-[0.76/1] p-[2.5px]",
+      body: "px-[13px] pb-[13px] pt-[6px]",
+      title: "min-h-9 text-[12.75px] leading-[1.18rem]",
+      price: "text-[15.5px]",
       sizes: "gap-1.25",
-      chip: "h-5.5 px-2 text-[8.5px]",
+      chip: "h-6 px-2 text-[8.5px]",
       color: "h-6 w-6",
-      swatch: "h-3 w-3",
+      swatch: "h-3.5 w-3.5",
     },
   };
   const densityClasses = cardDensityClasses[density] || cardDensityClasses.standard;
@@ -5082,11 +5082,11 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           to={detailsUrl}
           onClick={resetStorefrontViewportScroll}
           dir="ltr"
-          className={`mt-0 flex min-h-[2.45rem] w-full items-start text-left line-clamp-2 overflow-hidden font-black tracking-[-0.01em] text-stone-900 transition hover:text-[#6d28d9] md:min-h-[2.7rem] md:text-[13px] md:leading-5 dark:text-stone-100 ${densityClasses.title}`}
+          className={`mt-0 flex min-h-[2.55rem] w-full items-start text-left line-clamp-2 overflow-hidden font-black tracking-[-0.01em] text-stone-900 transition hover:text-[#6d28d9] md:min-h-[2.85rem] md:text-[13.5px] md:leading-5 dark:text-stone-100 ${densityClasses.title}`}
         >
           {product.name}
         </Link>
-        <div className="mt-[4px] flex min-h-[2.05rem] items-center justify-between gap-2 md:min-h-[2.15rem]">
+        <div className="mt-[3px] flex min-h-[2.15rem] items-center justify-between gap-2 md:min-h-[2.2rem]">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <span className={`font-black leading-none text-sky-600 md:text-[1.18rem] dark:text-sky-300 ${densityClasses.price}`}>{money(sellingPrice)}</span>
             {comparePrice ? <span className="text-[9px] font-semibold leading-none text-stone-400 line-through opacity-80 dark:text-stone-500 md:text-[9.5px]">{money(comparePrice)}</span> : null}
@@ -5098,7 +5098,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
               handleQuickAdd();
             }}
             disabled={!canQuickAdd}
-            className="sf-quick-add-button inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#d4af37]/28 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-3 py-1.5 text-[10px] font-black leading-none text-stone-950 shadow-[0_10px_24px_rgba(212,175,55,0.18)] transition duration-200 hover:-translate-y-0.5 hover:border-[#e5c158]/45 hover:shadow-[0_14px_30px_rgba(212,175,55,0.24)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100 md:pointer-events-none md:translate-y-1 md:opacity-0 md:transition-[opacity,transform] md:group-hover/product:pointer-events-auto md:group-hover/product:translate-y-0 md:group-hover/product:opacity-100 md:group-active/product:opacity-100"
+            className="sf-quick-add-button inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#d4af37]/28 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-3.5 py-1.5 text-[10px] font-black leading-none text-stone-950 shadow-[0_10px_24px_rgba(212,175,55,0.18)] transition duration-200 hover:-translate-y-0.5 hover:border-[#e5c158]/45 hover:shadow-[0_14px_30px_rgba(212,175,55,0.24)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100 md:pointer-events-none md:translate-y-1 md:opacity-0 md:transition-[opacity,transform] md:group-hover/product:pointer-events-auto md:group-hover/product:translate-y-0 md:group-hover/product:opacity-100 md:group-active/product:opacity-100"
             aria-label={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
           >
             <ShoppingCart className="h-3.5 w-3.5" />
@@ -5106,7 +5106,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           </button>
         </div>
         {colorGroups.length > 1 ? (
-          <div className="mt-1 flex min-h-6 items-center gap-1 overflow-hidden md:mt-1 md:min-h-7 md:gap-1.25">
+          <div className="mt-1.5 flex min-h-7 items-center gap-1 overflow-hidden md:mt-1.5 md:min-h-7 md:gap-1.25">
             {visibleColorOptions.map((group) => {
               const active = String(group.key) === String(selectedColorKey);
               return (
@@ -7372,7 +7372,15 @@ function ContactPage({ publicStoreSettings = {}, quickActionLinks = {} }) {
 
 function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} }) {
   const settings = publicStoreSettings || {};
-  const firstValue = (...keys) => keys.map((key) => String(settings[key] || "").trim()).find(Boolean) || "";
+  const storefrontSettings = settings.storefront && typeof settings.storefront === "object" ? settings.storefront : {};
+  const readSetting = (key) => {
+    if (String(key || "").startsWith("storefront.")) {
+      const storefrontKey = String(key).slice("storefront.".length);
+      return storefrontSettings[storefrontKey] ?? settings[key];
+    }
+    return settings[key];
+  };
+  const firstValue = (...keys) => keys.map((key) => String(readSetting(key) || "").trim()).find(Boolean) || "";
   const safeText = (value, fallback = "غير متوفر حاليًا") => String(value || "").trim() || fallback;
   const normalizeUrl = (value) => {
     const raw = String(value || "").trim();
@@ -7380,19 +7388,23 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
     if (/^(https?:|mailto:|tel:|whatsapp:)/i.test(raw) || raw.startsWith("/")) return raw;
     return "";
   };
+  const missingContactText = "غير متوفر";
+  const displayText = (value) => String(value || "").trim() || missingContactText;
 
-  const phoneNumber = firstValue("storefront.phone", "storefront.contact_phone", "general.phone", "company.phone", "contact.phone", "phone", "support.phone");
+  const phoneNumber = firstValue("storefront.contact_phone", "storefront.phone", "general.phone", "company.phone", "contact.phone", "phone", "support.phone");
   const phoneHref = phoneNumber ? `tel:${phoneNumber.replace(/\D/g, "")}` : "";
-  const whatsappNumber = firstValue("storefront.whatsapp_phone", "storefront.whatsapp_url", "storefront.whatsapp_link", "storefront.support_whatsapp", "general.whatsapp_phone", "general.whatsapp", "company.whatsapp", "company.whatsapp_phone", "support.whatsapp", "contact.whatsapp", "whatsapp");
-  const whatsappHref = quickActionLinks.whatsappHref || (whatsappNumber ? normalizeUrl(whatsappNumber) || `https://wa.me/${whatsappNumber.replace(/\D/g, "")}` : "");
+  const whatsappPhone = firstValue("storefront.whatsapp_phone", "general.whatsapp_phone", "general.whatsapp", "company.whatsapp", "company.whatsapp_phone", "support.whatsapp", "contact.whatsapp", "whatsapp");
+  const whatsappUrl = normalizeUrl(firstValue("storefront.whatsapp_url", "storefront.whatsapp_link"));
+  const whatsappHref = quickActionLinks.whatsappHref || whatsappUrl || (whatsappPhone ? `https://wa.me/${whatsappPhone.replace(/\D/g, "")}` : "");
+  const whatsappNumber = whatsappPhone || whatsappUrl;
+  const whatsappDisplay = whatsappPhone || whatsappUrl;
   const instagramUsername = firstValue("storefront.instagram_username", "storefront.instagram", "company.instagram_username", "social.instagram_username", "instagram_username");
   const instagramHref = normalizeUrl(firstValue("storefront.instagram_url", "storefront.instagram_link", "company.instagram_url", "social.instagram_url", "instagram_url")) || (instagramUsername ? `https://www.instagram.com/${String(instagramUsername).replace(/^@/, "")}` : "");
   const facebookPage = firstValue("storefront.facebook_page_name", "storefront.facebook_name", "company.facebook_page_name", "social.facebook_page_name", "facebook_page_name");
   const facebookHref = normalizeUrl(firstValue("storefront.facebook_url", "storefront.facebook_link", "company.facebook_url", "social.facebook_url", "facebook_url"));
-  const address = firstValue("address", "storeAddress", "store_address", "publicAddress", "public_address", "storefront.address", "company.address");
+  const address = firstValue("storefront.address", "address", "storeAddress", "store_address", "publicAddress", "public_address", "company.address");
   const mapHref = quickActionLinks.galleryHref || normalizeUrl(firstValue("storefront.map_url", "storefront.google_map_url", "storefront.location_url", "storefront.location_link", "storefront.store_location_url", "storefront.address_url", "general.map_url", "general.google_map_url", "company.map_url", "company.google_maps_url", "company.location_url", "map_url", "google_map_url", "location_url"));
-  const weekdayHours = firstValue("storefront.weekday_hours", "storefront.working_hours_weekday", "working_hours_weekday", "working_hours", "business_hours", "storefront.working_hours");
-  const weekendHours = firstValue("storefront.weekend_hours", "storefront.working_hours_weekend", "working_hours_weekend");
+  const workingHours = firstValue("storefront.working_hours", "working_hours", "business_hours", "storefront.weekday_hours", "storefront.working_hours_weekday", "working_hours_weekday");
 
   const contactRows = [
     { id: "phone", title: "الهاتف", icon: Phone, value: safeText(phoneNumber, "رقم الهاتف غير متوفر"), href: phoneHref, cta: "اتصال", tone: "gold" },
@@ -7401,6 +7413,22 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
     { id: "facebook", title: "فيسبوك", icon: Send, value: safeText(facebookPage, "الصفحة غير متوفرة"), href: facebookHref, cta: "زيارة الصفحة", tone: "gold" },
     { id: "address", title: "العنوان", icon: MapPin, value: safeText(address, "عنوان المتجر غير متوفر حاليًا"), href: mapHref, cta: mapHref ? "فتح الخريطة" : "الخريطة غير متوفرة", tone: "gold" },
   ];
+  const normalizedContactRows = contactRows.map((row) => {
+    if (row.id === "phone") return { ...row, title: "الهاتف", value: displayText(phoneNumber), href: phoneHref, cta: "اتصال" };
+    if (row.id === "whatsapp") return { ...row, title: "واتساب", value: displayText(whatsappDisplay), href: whatsappHref, cta: "فتح واتساب" };
+    if (row.id === "instagram") return { ...row, title: "انستجرام", value: displayText(instagramUsername), href: instagramHref, cta: "زيارة الصفحة" };
+    if (row.id === "facebook") return { ...row, title: "فيسبوك", value: displayText(facebookPage), href: facebookHref, cta: "زيارة الصفحة" };
+    if (row.id === "address") return { ...row, title: "العنوان", value: displayText(address), href: mapHref, cta: mapHref ? "فتح الخريطة" : "غير متوفر" };
+    return row;
+  }).concat({
+    id: "working_hours",
+    title: "مواعيد العمل",
+    icon: Clock3,
+    value: displayText(workingHours),
+    href: "",
+    cta: "غير متوفر",
+    tone: "gold",
+  });
   const helpItems = [
     { icon: Footprints, label: "استفسار عن مقاس" },
     { icon: PackageSearch, label: "متابعة طلب" },
@@ -7432,7 +7460,7 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
       </div>
 
       <div className="mt-6 grid gap-3">
-        {contactRows.map((card) => {
+        {normalizedContactRows.map((card) => {
           const Icon = card.icon;
           const hasLink = Boolean(card.href);
           return (
@@ -9116,7 +9144,15 @@ function Storefront() {
   }), [brandLogoUrl, brandName, publicStoreSettings]);
   const quickActionLinks = useMemo(() => {
     const settings = publicStoreSettings || {};
-    const firstValue = (...keys) => keys.map((key) => String(settings[key] || "").trim()).find(Boolean) || "";
+    const storefrontSettings = settings.storefront && typeof settings.storefront === "object" ? settings.storefront : {};
+    const readSetting = (key) => {
+      if (String(key || "").startsWith("storefront.")) {
+        const storefrontKey = String(key).slice("storefront.".length);
+        return storefrontSettings[storefrontKey] ?? settings[key];
+      }
+      return settings[key];
+    };
+    const firstValue = (...keys) => keys.map((key) => String(readSetting(key) || "").trim()).find(Boolean) || "";
     const normalizeWhatsAppHref = (value, fallback = "") => {
       const raw = String(value || "").trim();
       if (!raw) return fallback;

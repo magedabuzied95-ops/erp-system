@@ -27,6 +27,7 @@ import {
   PanelLeftClose,
   PlayCircle,
   Plus,
+  Phone,
   RefreshCw,
   Save,
   Search,
@@ -1412,6 +1413,21 @@ function StorefrontSettings(props) {
           {renderField(setting("storefront.public_url"), true)}
           <VisualUpload title="Logo Upload" value={value("storefront.store_logo_url")} onChange={(next) => updateValue("storefront.store_logo_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
           <VisualUpload title="Favicon Upload" value={value("storefront.favicon_url")} onChange={(next) => updateValue("storefront.favicon_url", next)} helper={ui.uploadHelper} placeholder={ui.pasteImageUrl} clearLabel={ui.clearImage} fallbackLabel={ui.imageUnavailable} />
+        </div>
+      </VisualSection>
+
+      <VisualSection icon={Phone} title="Contact & Social" description="Public phone, WhatsApp, social profiles, address, map link, and working hours.">
+        <div className="grid gap-4 xl:grid-cols-2">
+          {renderField(setting("storefront.contact_phone"), true)}
+          {renderField(setting("storefront.whatsapp_phone"), true)}
+          {renderField(setting("storefront.whatsapp_url"), true)}
+          {renderField(setting("storefront.instagram_username"), true)}
+          {renderField(setting("storefront.instagram_url"), true)}
+          {renderField(setting("storefront.facebook_page_name"), true)}
+          {renderField(setting("storefront.facebook_url"), true)}
+          {renderField(setting("storefront.map_url"), true)}
+          {renderField(setting("storefront.address"), true)}
+          {renderField(setting("storefront.working_hours"), true)}
         </div>
       </VisualSection>
 
