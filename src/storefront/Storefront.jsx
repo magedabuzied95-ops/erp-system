@@ -9146,7 +9146,7 @@ function Storefront() {
   const [wishlist, setWishlist] = useState(() => readStorefrontStorage(WISHLIST_KEY, []));
   const [recent, setRecent] = useState(() => readStorefrontStorage(RECENT_KEY, []));
   const [profile, setProfile] = useState(() => normalizeStorefrontProfile(readStorefrontStorage(PROFILE_KEY, { full_name: "", primary_phone: "", phone: "", customer_id: "" })));
-  const [themeMode, setThemeMode] = useState(() => readStorefrontStorage(THEME_KEY, "light"));
+  const [themeMode, setThemeMode] = useState(() => readStorefrontStorage(THEME_KEY, "dark"));
   const [publicStoreSettings, setPublicStoreSettings] = useState({});
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
