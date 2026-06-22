@@ -22,6 +22,7 @@ import {
   Crown,
   Clock3,
   Footprints,
+  ExternalLink,
   Gem,
   Heart,
   Home,
@@ -42,7 +43,6 @@ import {
   SlidersHorizontal,
   Sparkles,
   Star,
-  Send,
   ShieldCheck,
   Share2,
   Tag,
@@ -7257,7 +7257,7 @@ function ContactPage({ publicStoreSettings = {}, quickActionLinks = {} }) {
     {
       id: "facebook",
       title: "Facebook",
-      icon: Send,
+      icon: Facebook,
       value: facebookPage,
       meta: "تابع آخر التحديثات",
       href: facebookHref,
@@ -7405,17 +7405,19 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
   const address = firstValue("storefront.address", "address", "storeAddress", "store_address", "publicAddress", "public_address", "company.address");
   const mapHref = quickActionLinks.galleryHref || normalizeUrl(firstValue("storefront.map_url", "storefront.google_map_url", "storefront.location_url", "storefront.location_link", "storefront.store_location_url", "storefront.address_url", "general.map_url", "general.google_map_url", "company.map_url", "company.google_maps_url", "company.location_url", "map_url", "google_map_url", "location_url"));
   const workingHours = firstValue("storefront.working_hours", "working_hours", "business_hours", "storefront.weekday_hours", "storefront.working_hours_weekday", "working_hours_weekday");
+  const workingHoursLines = String(workingHours || "").split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  const addressDisplay = String(address || "").replace(/\s+-\s+/g, "\n");
 
   const contactRows = [
     { id: "phone", title: "الهاتف", icon: Phone, value: safeText(phoneNumber, "رقم الهاتف غير متوفر"), href: phoneHref, cta: "اتصال", tone: "gold" },
     { id: "whatsapp", title: "واتساب", icon: MessageCircle, value: safeText(whatsappNumber, "واتساب غير متوفر"), href: whatsappHref, cta: "فتح واتساب", tone: "green" },
     { id: "instagram", title: "انستجرام", icon: Camera, value: safeText(instagramUsername, "الحساب غير متوفر"), href: instagramHref, cta: "زيارة الصفحة", tone: "gold" },
-    { id: "facebook", title: "فيسبوك", icon: Send, value: safeText(facebookPage, "الصفحة غير متوفرة"), href: facebookHref, cta: "زيارة الصفحة", tone: "gold" },
-    { id: "address", title: "العنوان", icon: MapPin, value: safeText(address, "عنوان المتجر غير متوفر حاليًا"), href: mapHref, cta: mapHref ? "فتح الخريطة" : "الخريطة غير متوفرة", tone: "gold" },
+    { id: "facebook", title: "فيسبوك", icon: Facebook, value: safeText(facebookPage, "الصفحة غير متوفرة"), href: facebookHref, cta: "زيارة الصفحة", tone: "gold" },
+    { id: "address", title: "العنوان", icon: MapPin, value: safeText(addressDisplay, "عنوان المتجر غير متوفر حاليًا"), href: mapHref, cta: mapHref ? "فتح الخريطة" : "الخريطة غير متوفرة", tone: "gold" },
   ];
   const normalizedContactRows = contactRows.map((row) => {
     if (row.id === "phone") return { ...row, title: "الهاتف", value: displayText(phoneNumber), href: phoneHref, cta: "اتصال" };
-    if (row.id === "whatsapp") return { ...row, title: "واتساب", value: displayText(whatsappDisplay), href: whatsappHref, cta: "فتح واتساب" };
+    if (row.id === "whatsapp") return { ...row, title: "واتساب", value: displayText(whatsappDisplay), href: whatsappHref, cta: "" };
     if (row.id === "instagram") return { ...row, title: "انستجرام", value: displayText(instagramUsername), href: instagramHref, cta: "زيارة الصفحة" };
     if (row.id === "facebook") return { ...row, title: "فيسبوك", value: displayText(facebookPage), href: facebookHref, cta: "زيارة الصفحة" };
     if (row.id === "address") return { ...row, title: "العنوان", value: displayText(address), href: mapHref, cta: mapHref ? "فتح الخريطة" : "غير متوفر" };
@@ -7457,6 +7459,19 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
           <MessageCircle className="h-4.5 w-4.5" />
           تواصل عبر واتساب
         </a>
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {[
+            [Clock3, "الرد خلال دقائق"],
+            [Footprints, "مساعدة المقاسات"],
+            [PackageSearch, "متابعة الطلبات"],
+            [RefreshCcw, "استبدال واسترجاع"],
+          ].map(([Icon, label]) => (
+            <div key={label} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3 py-2 text-[11px] font-black text-slate-200 shadow-[0_10px_24px_rgba(0,0,0,0.18)]">
+              <Icon className="h-3.5 w-3.5 text-[#D4AF37]" />
+              <span className="leading-none">{label}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="mt-6 grid gap-3">
@@ -7471,22 +7486,36 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
                 </div>
                 <div className="min-w-0 flex-1">
                   <h2 className="text-base font-black text-white">{card.title}</h2>
-                  <p className="mt-1 break-words text-sm font-medium leading-7 text-slate-400">{card.value}</p>
+                  {card.id === "working_hours" ? (
+                    <div className="mt-2 space-y-2">
+                      {workingHoursLines.length ? workingHoursLines.map((line, index) => (
+                        <div key={`${card.id}-${index}`} className="whitespace-pre-line rounded-2xl border border-white/[0.06] bg-white/[0.035] px-3 py-2 text-sm font-semibold leading-6 text-slate-200">
+                          {line}
+                        </div>
+                      )) : (
+                        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.035] px-3 py-2 text-sm font-semibold leading-6 text-slate-200">{displayText(workingHours)}</div>
+                      )}
+                    </div>
+                  ) : card.id === "address" ? (
+                    <p className="mt-1 whitespace-pre-line break-words text-sm font-medium leading-7 text-slate-400">{card.value}</p>
+                  ) : (
+                    <p className="mt-1 break-words text-sm font-medium leading-7 text-slate-400">{card.value}</p>
+                  )}
                 </div>
               </div>
 
               <div className="mt-4">
-                {hasLink ? (
+                {card.id === "whatsapp" ? null : hasLink ? (
                   <a
                     href={card.href}
                     target={card.href.startsWith("http") ? "_blank" : undefined}
                     rel={card.href.startsWith("http") ? "noreferrer" : undefined}
-                    className={`inline-flex min-h-10 items-center justify-center rounded-full border px-4 py-2 text-xs font-black transition duration-200 active:scale-[0.98] ${card.tone === "green" ? "w-full border-emerald-400/25 bg-emerald-500 text-white shadow-[0_12px_28px_rgba(16,185,129,0.22)] hover:bg-emerald-400" : "border-[rgba(212,175,55,0.18)] bg-white/[0.04] text-white hover:border-[rgba(212,175,55,0.32)] hover:bg-white/[0.06]"}`}
+                    className={`inline-flex min-h-11 w-full items-center justify-center rounded-full border px-4 py-2 text-xs font-black transition duration-200 active:scale-[0.98] ${card.tone === "green" ? "border-emerald-400/25 bg-emerald-500 text-white shadow-[0_12px_28px_rgba(16,185,129,0.22)] hover:bg-emerald-400" : "border-[rgba(212,175,55,0.18)] bg-white/[0.04] text-white hover:border-[rgba(212,175,55,0.32)] hover:bg-white/[0.06]"}`}
                   >
                     {card.cta}
                   </a>
                 ) : (
-                  <button type="button" disabled className="inline-flex min-h-10 w-full items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-black text-white/45">
+                  <button type="button" disabled className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-black text-white/45">
                     {card.cta}
                   </button>
                 )}
@@ -7496,10 +7525,10 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
         })}
       </div>
 
-      <article className="mt-6 rounded-[20px] border border-[rgba(255,255,255,0.08)] bg-[rgba(15,23,42,0.92)] p-4 shadow-[0_18px_44px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+      <article className="mt-6 rounded-[20px] border border-[rgba(255,255,255,0.08)] bg-[rgba(15,23,42,0.92)] p-5 shadow-[0_18px_44px_rgba(0,0,0,0.22)] backdrop-blur-xl">
         <div className="flex items-start gap-3">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-[rgba(212,175,55,0.18)] bg-[rgba(212,175,55,0.08)] text-[#D4AF37]">
-            <Sparkles className="h-5 w-5" />
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[rgba(212,175,55,0.18)] bg-[rgba(212,175,55,0.08)] text-[#D4AF37]">
+            <Sparkles className="h-6 w-6" />
           </div>
           <div>
             <h2 className="text-base font-black text-white">كيف نساعدك؟</h2>
@@ -7510,11 +7539,11 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
           {helpItems.map((item) => {
             const Icon = item.icon;
             return (
-              <div key={item.label} className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-white/[0.035] p-3 text-center">
-                <div className="mx-auto grid h-10 w-10 place-items-center rounded-full border border-[rgba(212,175,55,0.14)] bg-[rgba(212,175,55,0.07)] text-[#D4AF37]">
-                  <Icon className="h-4.5 w-4.5" />
+              <div key={item.label} className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-white/[0.035] p-4 text-center">
+                <div className="mx-auto grid h-11 w-11 place-items-center rounded-full border border-[rgba(212,175,55,0.14)] bg-[rgba(212,175,55,0.07)] text-[#D4AF37]">
+                  <Icon className="h-5 w-5" />
                 </div>
-                <div className="mt-2 text-sm font-black text-white">{item.label}</div>
+                <div className="mt-3 text-sm font-black text-white">{item.label}</div>
               </div>
             );
           })}
@@ -8420,7 +8449,7 @@ function Footer() {
           <div className="mt-3 flex gap-2">
             <a href="https://wa.me/" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:text-emerald-600 dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-emerald-300/40 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-300" aria-label="WhatsApp"><MessageCircle className="h-5 w-5" /></a>
             <Link to="/shop/contact" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-[#c4b5fd] hover:text-[#6d28d9] dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-[#c4b5fd]/40 dark:hover:bg-[#7c3aed]/12 dark:hover:text-[#d8b4fe]" aria-label="Instagram"><Camera className="h-5 w-5" /></Link>
-            <Link to="/shop/contact" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-[#c4b5fd] hover:text-[#6d28d9] dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-[#c4b5fd]/40 dark:hover:bg-[#7c3aed]/12 dark:hover:text-[#d8b4fe]" aria-label="Facebook"><Send className="h-5 w-5" /></Link>
+            <Link to="/shop/contact" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-[#c4b5fd] hover:text-[#6d28d9] dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-[#c4b5fd]/40 dark:hover:bg-[#7c3aed]/12 dark:hover:text-[#d8b4fd]" aria-label="Facebook"><Facebook className="h-5 w-5" /></Link>
           </div>
           <a href="https://wa.me/" className="mt-4 inline-flex items-center justify-center gap-2 rounded-full border border-emerald-300/30 bg-stone-950 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#6d28d9] dark:bg-emerald-500 dark:text-white dark:shadow-[0_14px_34px_rgba(16,185,129,0.22)] dark:hover:bg-emerald-400">
             <MessageCircle className={`h-4 w-4 ${darkMode ? "text-white" : "text-[#7c3aed]"}`} />
