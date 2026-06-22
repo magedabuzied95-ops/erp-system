@@ -1675,10 +1675,10 @@
   }
 
   .storefront-dark {
-    --sf-dark-card: rgba(15, 23, 42, 0.88);
-    --sf-dark-card-strong: rgba(15, 23, 42, 0.96);
-    --sf-dark-nested: rgba(30, 41, 59, 0.72);
-    --sf-dark-nested-strong: rgba(30, 41, 59, 0.88);
+    --sf-dark-card: rgba(16, 16, 16, 0.94);
+    --sf-dark-card-strong: rgba(21, 21, 21, 0.96);
+    --sf-dark-nested: rgba(16, 16, 16, 0.92);
+    --sf-dark-nested-strong: rgba(21, 21, 21, 0.94);
     --sf-dark-border: rgba(148, 163, 184, 0.18);
     --sf-dark-border-strong: rgba(148, 163, 184, 0.26);
     --sf-dark-text: #f8fafc;
@@ -1686,6 +1686,11 @@
     --sf-dark-muted: #94a3b8;
     --sf-dark-input: rgba(15, 23, 42, 0.9);
     --sf-dark-input-border: rgba(148, 163, 184, 0.22);
+  }
+
+  .storefront-shell--checkout {
+    --sf-dark-input: #101010;
+    --sf-dark-input-border: rgba(255, 255, 255, 0.10);
   }
 
   .storefront-dark .sf-storefront-card,
@@ -1788,6 +1793,32 @@
   .storefront-dark .sf-field-input::placeholder {
     color: rgba(148, 163, 184, 0.72) !important;
     -webkit-text-fill-color: rgba(148, 163, 184, 0.72) !important;
+  }
+
+  .storefront-dark:has(.sf-checkout-page) {
+    --sf-dark-input: #101010;
+    --sf-dark-input-border: rgba(255, 255, 255, 0.10);
+  }
+
+  .storefront-dark:has(.sf-checkout-page) .sf-field-input,
+  .storefront-dark:has(.sf-checkout-page) .sf-checkout-field-input,
+  .storefront-dark:has(.sf-checkout-page) textarea.sf-field-input,
+  .storefront-dark:has(.sf-checkout-page) select.sf-field-input,
+  .storefront-dark:has(.sf-checkout-page) .checkout-picker-search input {
+    background: #101010 !important;
+    background-image: none !important;
+    border-color: rgba(255, 255, 255, 0.10) !important;
+  }
+
+  .storefront-dark:has(.sf-checkout-page) .sf-field-input:focus,
+  .storefront-dark:has(.sf-checkout-page) .sf-checkout-field-input:focus,
+  .storefront-dark:has(.sf-checkout-page) textarea.sf-field-input:focus,
+  .storefront-dark:has(.sf-checkout-page) select.sf-field-input:focus,
+  .storefront-dark:has(.sf-checkout-page) .checkout-picker-search input:focus {
+    background: #151515 !important;
+    background-image: none !important;
+    border-color: rgba(212, 175, 55, 0.35) !important;
+    box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.18) !important;
   }
 
   .storefront-dark .sf-loyalty-card {
@@ -4658,7 +4689,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 
   .storefront-shell :is(.sf-luxury-header, .sf-utility-row, .sf-mobile-search, .sf-search-results-panel, .sf-mobile-filter-trigger, .sf-mobile-menu-drawer, .sf-mobile-bottom-nav, .sf-mobile-buy-bar, .sf-ai-chat-panel, .sf-ai-chat-hint, .sf-header-action, .sf-header-search, .sf-header-logo-chip, .sf-checkout-section, .sf-checkout-summary, .sf-cart-drawer, .sf-cart-row, .sf-checkout-payment-copy, .sf-checkout-info-line, .sf-checkout-info-box, .sf-checkout-panel, .sf-checkout-summary-item, .sf-checkout-summary-totals, .sf-order-item-row, .sf-empty-state, .sf-checkout-trust-pill, .sf-checkout-progress, .sf-storefront-card, .sf-small-product-card, .sf-product-card, .sf-review-card) {
     border-color: rgba(255, 255, 255, 0.08) !important;
-    background-color: #111827 !important;
+    background-color: #101010 !important;
     color: #ffffff !important;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35) !important;
   }
@@ -4672,7 +4703,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   .storefront-shell :is(.sf-luxury-header, .sf-utility-row, .sf-mobile-search, .sf-search-results-panel, .sf-mobile-filter-trigger, .sf-mobile-menu-drawer, .sf-mobile-bottom-nav, .sf-mobile-buy-bar, .sf-ai-chat-panel, .sf-ai-chat-hint, .sf-checkout-section, .sf-checkout-summary, .sf-cart-drawer, .sf-empty-state) {
     background:
       radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.04), transparent 70%),
-      linear-gradient(180deg, #030303 0%, #070707 45%, #0b0b0b 100%) !important;
+      linear-gradient(180deg, #050505 0%, #101010 45%, #151515 100%) !important;
   }
 
   .storefront-shell .sf-mobile-bottom-nav a {
@@ -4753,7 +4784,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
     [class*="bg-[#050b16]"]
   ) {
     background-color: #111111 !important;
-    background-image: linear-gradient(180deg, #020617 0%, #0b0f19 40%, #111827 100%) !important;
+    background-image: linear-gradient(180deg, #050505 0%, #101010 45%, #151515 100%) !important;
   }
 
   .storefront-shell :is(
@@ -4790,7 +4821,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 
   .storefront-shell :is(.sf-storefront-card, .sf-product-card, .sf-small-product-card, .sf-checkout-summary, .sf-product-summary-card, .sf-product-option-card, .sf-track-search-form, .sf-loyalty-card, .sf-account-order-row, .sf-order-item-row, .sf-visual-empty, .sf-ai-chat-panel, .sf-ai-product-card, .sf-visual-card, .sf-visual-preview, .sf-product-variant-sheet-panel, .sf-product-details-page) {
     background-color: #111111 !important;
-    background-image: linear-gradient(180deg, #020617 0%, #0b0f19 40%, #111827 100%) !important;
+    background-image: linear-gradient(180deg, #050505 0%, #101010 45%, #151515 100%) !important;
     border-color: rgba(255, 255, 255, 0.08) !important;
   }
 
@@ -4831,7 +4862,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   .storefront-shell .sf-last-piece-story {
     background:
       radial-gradient(circle at 50% 50%, rgba(212, 175, 55, 0.16), transparent 38%),
-      linear-gradient(180deg, #020617 0%, #0b0f19 40%, #111827 100%) !important;
+      linear-gradient(180deg, #050505 0%, #101010 45%, #151515 100%) !important;
     box-shadow:
       0 16px 36px rgba(0, 0, 0, 0.34),
       0 0 24px rgba(212, 175, 55, 0.12) !important;
@@ -4842,8 +4873,8 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   }
 
   .storefront-shell .sf-product-card {
-    background-color: #0f172a !important;
-    background-image: linear-gradient(180deg, #020617 0%, #0b0f19 40%, #111827 100%) !important;
+    background-color: #101010 !important;
+    background-image: linear-gradient(180deg, #050505 0%, #101010 45%, #151515 100%) !important;
     border-color: rgba(255, 255, 255, 0.08) !important;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35) !important;
   }
@@ -4860,7 +4891,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   }
 
   .storefront-shell .sf-small-product-card {
-    background: linear-gradient(180deg, #020617 0%, #0b0f19 40%, #111827 100%) !important;
+    background: linear-gradient(180deg, #050505 0%, #101010 45%, #151515 100%) !important;
     border-color: rgba(255, 255, 255, 0.08) !important;
     box-shadow: 0 20px 58px rgba(0, 0, 0, 0.34) !important;
   }
@@ -4884,7 +4915,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 
   .storefront-shell .grid.grid-cols-2 > button.group.relative[class*="min-h-[112px]"][class*="rounded-[1rem]"] {
     border-color: rgba(255, 255, 255, 0.08) !important;
-    background: linear-gradient(180deg, #0b0f19, #111827) !important;
+    background: linear-gradient(180deg, #050505, #101010) !important;
     box-shadow:
       0 14px 34px rgba(0, 0, 0, 0.32),
       inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
@@ -4910,6 +4941,44 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   .storefront-shell .sf-cart-page .sf-empty-state {
     background-color: #101010 !important;
     background-image: linear-gradient(180deg, #050505 0%, #101010 45%, #151515 100%) !important;
+    border-color: rgba(255, 255, 255, 0.10) !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-page :is(.sf-field-input, textarea.sf-field-input, select.sf-field-input, .sf-checkout-field-input, .checkout-picker-search input) {
+    background-color: #101010 !important;
+    background-image: none !important;
+    border-color: rgba(255, 255, 255, 0.10) !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-page :is(.sf-field-input, textarea.sf-field-input, select.sf-field-input, .sf-checkout-field-input, .checkout-picker-search input):focus {
+    background-color: #151515 !important;
+    background-image: none !important;
+    border-color: rgba(212, 175, 55, 0.35) !important;
+    box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.18) !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-page :is(.sf-field-input, textarea.sf-field-input, select.sf-field-input, .sf-checkout-field-input, .checkout-picker-search input)::placeholder {
+    color: rgba(255, 255, 255, 0.45) !important;
+    -webkit-text-fill-color: rgba(255, 255, 255, 0.45) !important;
+  }
+
+  .storefront-shell .sf-cart-drawer {
+    background-color: #101010 !important;
+    background-image: linear-gradient(180deg, #050505 0%, #101010 45%, #151515 100%) !important;
+    border-color: rgba(255, 255, 255, 0.10) !important;
+  }
+
+  .storefront-shell .sf-cart-drawer-footer {
+    background-color: #101010 !important;
+    background-image: linear-gradient(180deg, #050505 0%, #101010 45%, #151515 100%) !important;
+    border-color: rgba(255, 255, 255, 0.10) !important;
+  }
+
+  .storefront-shell .sf-cart-drawer .sf-cart-row {
+    background-color: #151515 !important;
+    background-image: linear-gradient(180deg, #101010 0%, #151515 100%) !important;
     border-color: rgba(255, 255, 255, 0.10) !important;
   }
 }

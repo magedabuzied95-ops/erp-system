@@ -251,35 +251,35 @@ function CartContent({ cart, updateCart, removeFromCart, helpers, components }) 
   const subtotal = cart.reduce((sum, item) => sum + displayCartItemPrice(item) * item.quantity, 0);
   if (!cart.length) return <EmptyState title="السلة فارغة" text="اختر منتجًا أولًا ثم أكمل الدفع" actionLabel="تسوق الآن" />;
   return (
-    <div dir="rtl" className="mt-5 grid gap-5 lg:grid-cols-[1fr_320px]">
+    <div dir="rtl" className="sf-cart-page mt-5 grid gap-5 lg:grid-cols-[1fr_320px]">
       <div className="space-y-3">
         {cart.map((item) => (
-        <div key={item.lineId} dir="rtl" className="sf-order-item-row flex gap-3 rounded-3xl border border-stone-200 bg-white p-3 text-right">
+        <div key={item.lineId} dir="rtl" className="sf-order-item-row sf-cart-row flex gap-3 rounded-3xl border border-white/8 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-3 text-right text-white shadow-[0_16px_42px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)]">
             <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" className="h-24 w-24 rounded-2xl object-cover" loading="lazy" decoding="async" width="96" height="96" />
             <div className="min-w-0 flex-1">
-              <div className="font-black">{item.name}</div>
-              <div className="mt-1 text-xs font-bold text-stone-500">{item.color || "اللون"} / {item.size || "المقاس"}</div>
+              <div className="font-black text-white">{item.name}</div>
+              <div className="mt-1 text-xs font-bold text-white/54">{item.color || "اللون"} / {item.size || "المقاس"}</div>
               <div className="mt-2 flex flex-wrap items-center gap-2 font-black">
-                {displayCartItemComparePrice(item) ? <span className="text-sm text-stone-400 line-through">{money(displayCartItemComparePrice(item))}</span> : null}
+                {displayCartItemComparePrice(item) ? <span className="text-sm text-white/38 line-through">{money(displayCartItemComparePrice(item))}</span> : null}
                 <span>{money(displayCartItemPrice(item))}</span>
               </div>
               <div className="mt-3 flex items-center gap-2">
-                <button onClick={() => updateCart(item.lineId, item.quantity - 1)} className="rounded-full border border-stone-200 p-2"><Minus className="h-4 w-4" /></button>
-                <span className="w-7 text-center font-black">{item.quantity}</span>
-                <button onClick={() => updateCart(item.lineId, item.quantity + 1)} className="rounded-full border border-stone-200 px-3 py-1.5">+</button>
+                <button onClick={() => updateCart(item.lineId, item.quantity - 1)} className="rounded-full border border-white/10 bg-white/[0.05] p-2 text-white transition hover:bg-white/[0.08]"><Minus className="h-4 w-4" /></button>
+                <span className="w-7 text-center font-black text-white">{item.quantity}</span>
+                <button onClick={() => updateCart(item.lineId, item.quantity + 1)} className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-white transition hover:bg-white/[0.08]">+</button>
                 <button onClick={() => removeFromCart(item.lineId)} className="ms-auto rounded-full p-2 text-rose-600" aria-label={sfText("storefront.cart.removeItem", "حذف المنتج")}><Trash2 className="h-5 w-5" /></button>
               </div>
             </div>
           </div>
         ))}
       </div>
-      <aside dir="rtl" className="sf-storefront-card h-max rounded-3xl border border-stone-200 bg-white p-5 text-right">
-        <h2 className="text-xl font-black">ملخص الطلب</h2>
-        <SummaryRow rtl label="المنتجات" value={money(subtotal)} />
-        <SummaryRow rtl label="الشحن التقديري" value={money(0)} />
-        <SummaryRow rtl label="الإجمالي" value={money(subtotal)} strong />
-        <Link to="/shop/checkout" className="mt-5 block rounded-full bg-stone-950 px-5 py-4 text-center font-black text-white">إتمام الشراء</Link>
-        <p className="mt-3 text-xs font-bold text-stone-500">يُحتسب الشحن النهائي عند الدفع</p>
+      <aside dir="rtl" className="sf-storefront-card sf-checkout-summary h-max rounded-3xl border border-white/8 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-5 text-right text-white shadow-[0_18px_52px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.04)]">
+        <h2 className="text-xl font-black text-white">ملخص الطلب</h2>
+        <SummaryRow rtl dark label="المنتجات" value={money(subtotal)} />
+        <SummaryRow rtl dark label="الشحن التقديري" value={money(0)} />
+        <SummaryRow rtl dark label="الإجمالي" value={money(subtotal)} strong />
+        <Link to="/shop/checkout" className="mt-5 block rounded-full bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-5 py-4 text-center font-black text-[#151515] shadow-[0_18px_42px_rgba(212,175,55,0.26)]">إتمام الشراء</Link>
+        <p className="mt-3 text-xs font-bold text-white/54">يُحتسب الشحن النهائي عند الدفع</p>
       </aside>
     </div>
   );
@@ -288,8 +288,8 @@ function CartContent({ cart, updateCart, removeFromCart, helpers, components }) 
 export function CartPageRoute({ cart, updateCart, removeFromCart, helpers, components }) {
   const { sfText } = helpers;
   return (
-    <section dir="rtl" className="mx-auto max-w-5xl px-4 py-6">
-      <h1 className="text-3xl font-black">السلة</h1>
+    <section dir="rtl" className="sf-cart-page mx-auto max-w-5xl px-4 py-6 text-white">
+      <h1 className="text-3xl font-black text-white">السلة</h1>
       <CartContent cart={cart} updateCart={updateCart} removeFromCart={removeFromCart} helpers={helpers} components={components} />
     </section>
   );

@@ -7010,34 +7010,34 @@ function OrderSuccess({ profile, themeMode, brandName = "MONE", brandLogoUrl = "
   const whatsAppHref = whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(`ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ¨ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¥أ¢â‚¬â„¢ ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ±ط·آ·ط¢آ¸ط·آ¸ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ¯ ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¦ط·آ·ط¢آ·ط·آ¹ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ© ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬أ¢â‚¬ع†ط·آ·ط¢آ·ط·آ¢ط¢آ¨ط·آ·ط¢آ¸ط·آ¸ط¢آ¹ ط·آ·ط¢آ·ط·آ¢ط¢آ±ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¦ ${publicNumber}`)}` : "";
 
   return (
-    <section className="relative mx-auto max-w-6xl px-4 py-6 md:py-10">
+    <section className="storefront-dark relative mx-auto max-w-6xl px-4 py-6 md:py-10">
       {confetti ? <Confetti /> : null}
       <div className="mx-auto max-w-3xl text-center">
         <div className="mx-auto grid h-24 w-24 animate-[success-pop_650ms_ease-out] place-items-center rounded-full bg-emerald-100 text-emerald-700 shadow-[0_20px_45px_rgba(16,185,129,0.18)]">
           <Check className="h-12 w-12" />
         </div>
-        <h1 className="mt-6 text-3xl font-black md:text-4xl">{successTitle}</h1>
-        <p className="mt-2 text-lg font-bold text-stone-600">{t("storefront.success.thanks")}</p>
-        <p className="mt-1 text-sm font-bold text-stone-500">{successSubtitle}</p>
-        <div className="mt-5 inline-flex rounded-full bg-[#f5f3ff] px-4 py-2 text-sm font-black text-[#d4af37]">{message}</div>
+        <h1 className="mt-6 text-3xl font-black text-white md:text-4xl">{successTitle}</h1>
+        <p className="mt-2 text-lg font-bold text-white/72">{t("storefront.success.thanks")}</p>
+        <p className="mt-1 text-sm font-bold text-white/54">{successSubtitle}</p>
+        <div className="mt-5 inline-flex rounded-full border border-[#d4af37]/20 bg-[linear-gradient(135deg,rgba(212,175,55,0.12),rgba(255,255,255,0.05))] px-4 py-2 text-sm font-black text-[#d4af37]">{message}</div>
       </div>
       <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_360px]">
         <div className="space-y-4">
-          <div className={`sf-storefront-card rounded-[2rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] md:p-6 ${darkMode ? "text-slate-900" : ""}`}>
+          <div className="sf-storefront-card rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-5 text-white shadow-[0_18px_50px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.04)] md:p-6">
             <div className="grid gap-3 sm:grid-cols-2">
-              <InfoBox label={t("storefront.orders.orderNumber")} value={<OrderNumberBadge value={publicNumber} className="border-[#d4af37]/20 bg-[#d4af37]/10 text-[#5b21b6]" />} />
+              <InfoBox label={t("storefront.orders.orderNumber")} value={<OrderNumberBadge value={publicNumber} className="border-[#d4af37]/20 bg-[#d4af37]/12 text-[#d4af37]" />} />
               <InfoBox label={t("storefront.customer.customer")} value={customerName} />
               <InfoBox label={t("storefront.checkout.total")} value={total ? money(total) : t("storefront.success.orderRecorded")} />
               <InfoBox label={t("storefront.checkout.paymentMethod")} value={paymentLabel} />
               <InfoBox label={t("storefront.orders.orderStatus")} value={successStatus} />
               <InfoBox label={t("storefront.orders.expectedDelivery")} value={t("storefront.orders.expectedDeliveryWindow")} />
             </div>
-            <div className="sf-info-box mt-4 rounded-2xl bg-stone-50 p-4 text-right">
+            <div className="sf-info-box mt-4 rounded-2xl border border-white/10 bg-[#101010] p-4 text-right text-white">
               <div className="sf-info-label text-xs font-black text-stone-500">{t("storefront.checkout.deliveryAddress")}</div>
               <div className="sf-info-value mt-1 font-black">{address || t("storefront.orders.addressSaved")}</div>
             </div>
           </div>
-          <div className={`sf-storefront-card rounded-[2rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] md:p-6 ${darkMode ? "text-slate-900" : ""}`}>
+          <div className="sf-storefront-card rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-5 text-white shadow-[0_18px_50px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.04)] md:p-6">
             <h2 className="sf-section-heading text-xl font-black">{t("storefront.orders.tracking")}</h2>
             <SuccessTimeline />
           </div>
@@ -7045,13 +7045,13 @@ function OrderSuccess({ profile, themeMode, brandName = "MONE", brandLogoUrl = "
             <OrderInvoiceCard className="sf-order-invoice-card" order={{ ...brandedOrder, source: "Website" }} items={items} />
           </Suspense>
         </div>
-        <aside className={`sf-storefront-card h-max rounded-[2rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] lg:sticky lg:top-24 ${darkMode ? "text-slate-900" : ""}`}>
+        <aside className="sf-storefront-card h-max rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-5 text-white shadow-[0_18px_50px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.04)] lg:sticky lg:top-24">
           <div className="grid gap-3">
-            <Link to={`/shop/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="rounded-full bg-stone-950 px-5 py-4 text-center font-black text-white transition hover:bg-[#d4af37]">{t("storefront.orders.trackOrder")}</Link>
+            <Link to={`/shop/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="rounded-full bg-[#101010] px-5 py-4 text-center font-black text-white transition hover:bg-[#d4af37]">{t("storefront.orders.trackOrder")}</Link>
             <Link to="/shop/products" className="sf-soft-pill rounded-full border border-stone-300 px-5 py-4 text-center font-black transition hover:border-[#d4af37] hover:text-[#d4af37]">{t("storefront.common.continueShopping")}</Link>
             {whatsAppHref ? <a href={whatsAppHref} className="rounded-full border border-emerald-200 bg-emerald-50 px-5 py-4 text-center font-black text-emerald-700">{t("storefront.support.whatsapp")}</a> : <button disabled className="rounded-full border border-stone-200 bg-stone-100 px-5 py-4 font-black text-stone-400">{t("storefront.support.whatsappUnavailable")}</button>}
           </div>
-          <div className="sf-info-box mt-5 rounded-2xl bg-[#f5f3ff] p-4 text-sm font-bold leading-6 text-stone-700">{t("storefront.success.reviewNotice")}</div>
+          <div className="sf-info-box mt-5 rounded-2xl border border-white/10 bg-[#101010] p-4 text-sm font-bold leading-6 text-white/72">{t("storefront.success.reviewNotice")}</div>
         </aside>
       </div>
       {products.length ? (
@@ -7848,7 +7848,7 @@ function CheckoutProgress({ currentStep = 1, onStepChange }) {
   ];
   const activeIndex = Math.min(3, currentStep);
   return (
-    <div className="sf-reveal overflow-hidden rounded-[1.35rem] border border-white/10 bg-white/[0.045] p-2 shadow-[0_16px_42px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl">
+    <div className="sf-reveal sf-checkout-progress overflow-hidden rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#0a0a0a_55%,#111111_100%)] p-2 shadow-[0_16px_42px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl">
       <div className="grid grid-cols-4 gap-1 text-center text-[11px] font-black text-white/48 sm:text-xs">
         {steps.map((step, index) => (
           <button
@@ -7894,7 +7894,7 @@ function SubmitButton({ submitting, compact = false, paymentMethod = "cod", disa
       form="storefront-checkout-form"
       type="submit"
       disabled={disabled}
-      className={`sf-checkout-submit-button ${isSuccess ? "sf-checkout-submit-button--success checkout-payment-confirm" : ""} sf-shimmer-button inline-flex items-center justify-center gap-2 rounded-full border font-black ${isSuccess ? "text-white" : "text-stone-950"} shadow-[0_18px_42px_rgba(212,175,55,0.24)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_54px_rgba(212,175,55,0.34)] active:translate-y-0 active:scale-[0.985] disabled:translate-y-0 disabled:text-white/55 disabled:shadow-none ${isSuccess ? "border-emerald-300/25 bg-[linear-gradient(135deg,rgba(22,163,74,0.96),rgba(5,46,22,0.98))] hover:border-emerald-200/40 hover:bg-[linear-gradient(135deg,rgba(34,197,94,0.98),rgba(4,120,87,0.98))]" : "border-[#d4af37]/20 bg-[linear-gradient(135deg,#d4af37,#e5c158)] hover:border-[#e5c158]/40 hover:bg-[linear-gradient(135deg,#e5c158,#d4af37)]"} ${compact ? "sf-checkout-submit-button--compact min-h-13 min-w-36 px-5 py-3 text-sm" : "min-h-14 w-full px-5 py-4"} ${disabled ? "border-white/10 bg-slate-700" : ""}`}
+      className={`sf-checkout-submit-button ${isSuccess ? "sf-checkout-submit-button--success checkout-payment-confirm" : ""} sf-shimmer-button inline-flex items-center justify-center gap-2 rounded-full border font-black ${isSuccess ? "text-white" : "text-stone-950"} shadow-[0_18px_42px_rgba(212,175,55,0.24)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_54px_rgba(212,175,55,0.34)] active:translate-y-0 active:scale-[0.985] disabled:translate-y-0 disabled:text-white/55 disabled:shadow-none ${isSuccess ? "border-emerald-300/25 bg-[linear-gradient(135deg,rgba(22,163,74,0.96),rgba(5,46,22,0.98))] hover:border-emerald-200/40 hover:bg-[linear-gradient(135deg,rgba(34,197,94,0.98),rgba(4,120,87,0.98))]" : "border-[#d4af37]/20 bg-[linear-gradient(135deg,#d4af37,#e5c158)] hover:border-[#e5c158]/40 hover:bg-[linear-gradient(135deg,#e5c158,#d4af37)]"} ${compact ? "sf-checkout-submit-button--compact min-h-13 min-w-36 px-5 py-3 text-sm" : "min-h-14 w-full px-5 py-4"} ${disabled ? "border-white/10 bg-[#1a1a1a]" : ""}`}
     >
       {submitting ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : null}
       <span>{submitting ? sfText("storefront.checkout.actions.confirming") : label || fallbackLabel}</span>
@@ -7904,7 +7904,7 @@ function SubmitButton({ submitting, compact = false, paymentMethod = "cod", disa
 
 function CheckoutSection({ number, title, note, children, className = "", dir }) {
   return (
-    <section dir={dir} className={`sf-reveal sf-checkout-section ${className} rounded-[1.6rem] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.075),rgba(255,255,255,0.035)_42%,rgba(7,10,20,0.86))] p-4 text-white shadow-[0_22px_60px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl md:p-5`}>
+    <section dir={dir} className={`sf-reveal sf-checkout-section ${className} rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-4 text-white shadow-[0_22px_60px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl md:p-5`}>
       <div className="mb-3 flex items-start gap-3">
         <span className="sf-checkout-step-badge grid h-9 w-9 shrink-0 place-items-center rounded-full border border-[#e5c158]/25 bg-[#d4af37]/24 text-sm font-black text-white shadow-[0_12px_28px_rgba(212,175,55,0.20)]">{number}</span>
         <div>
@@ -7940,7 +7940,7 @@ function Field({ label, value, onChange, required, error, inputMode, placeholder
   return (
     <label className="sf-field sf-checkout-field block">
       <span className="sf-field-label sf-checkout-field-label mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
-      <input required={required} inputMode={inputMode} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input ${inputClassName} min-h-14 w-full rounded-2xl border bg-white/[0.055] px-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#e5c158] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.16),0_18px_38px_rgba(212,175,55,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
+      <input required={required} inputMode={inputMode} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input ${inputClassName} min-h-14 w-full rounded-2xl border bg-[#101010] px-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#e5c158] focus:bg-[#151515] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.16),0_18px_38px_rgba(212,175,55,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
       {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
     </label>
   );
@@ -7950,7 +7950,7 @@ function TextField({ label, value, onChange, required, error, compact, placehold
   return (
     <label className="sf-checkout-field block md:col-span-2">
       <span className="sf-checkout-field-label mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
-      <textarea required={required} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} rows={compact ? 2 : 3} className={`sf-field-input sf-checkout-field-input ${inputClassName} ${compact ? "sf-checkout-notes-textarea max-h-[90px]" : ""} w-full resize-y rounded-2xl border bg-white/[0.055] p-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#e5c158] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.16),0_18px_38px_rgba(212,175,55,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
+      <textarea required={required} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} rows={compact ? 2 : 3} className={`sf-field-input sf-checkout-field-input ${inputClassName} ${compact ? "sf-checkout-notes-textarea max-h-[90px]" : ""} w-full resize-y rounded-2xl border bg-[#101010] p-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#e5c158] focus:bg-[#151515] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.16),0_18px_38px_rgba(212,175,55,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
       {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
     </label>
   );
@@ -7993,17 +7993,17 @@ function CityAreaField({ governorate, options, value, onChange, manual, onManual
               borderRadius: 16,
               backgroundColor: darkMode
                 ? state.isFocused
-                  ? "rgba(255,255,255,0.075)"
-                  : "rgba(255,255,255,0.055)"
+                  ? "#151515"
+                  : "#101010"
                 : state.isFocused
-                  ? "rgba(212,175,55,0.04)"
-                  : "rgba(255,255,255,0.95)",
+                  ? "#151515"
+                  : "#101010",
               borderColor: error
                 ? "rgba(253,164,175,0.78)"
                 : state.isFocused
                   ? "#d4af37"
                   : darkMode
-                    ? "rgba(255,255,255,0.12)"
+                    ? "rgba(255,255,255,0.10)"
                     : "rgba(148,163,184,0.28)",
               boxShadow: state.isFocused
                 ? "0 0 0 4px rgba(212,175,55,0.16),0 18px 38px rgba(212,175,55,0.16)"
@@ -8016,19 +8016,19 @@ function CityAreaField({ governorate, options, value, onChange, manual, onManual
               "&:hover": { borderColor: error ? "#fb7185" : "#e5c158" },
             }),
             valueContainer: (base) => ({ ...base, paddingInline: 10 }),
-            input: (base) => ({ ...base, color: darkMode ? "#ffffff" : "#101010", fontSize: 15, fontWeight: 700 }),
-            singleValue: (base) => ({ ...base, color: darkMode ? "#ffffff" : "#101010", fontSize: 15, fontWeight: 700 }),
-            placeholder: (base) => ({ ...base, color: darkMode ? "rgba(255,255,255,0.38)" : "#64748b", opacity: 1, fontSize: 15, fontWeight: 700 }),
-            dropdownIndicator: (base) => ({ ...base, color: darkMode ? "rgba(255,255,255,0.58)" : "rgba(71,85,105,0.9)" }),
-            indicatorSeparator: (base) => ({ ...base, backgroundColor: darkMode ? "rgba(255,255,255,0.12)" : "rgba(148,163,184,0.32)" }),
-            menu: (base) => ({ ...base, zIndex: 80, borderRadius: 16, overflow: "hidden", direction: "rtl", backgroundColor: darkMode ? "#0d0d0d" : "#ffffff", border: darkMode ? "1px solid rgba(255,255,255,0.10)" : "1px solid rgba(226,232,240,0.92)", boxShadow: darkMode ? "0 24px 60px rgba(0,0,0,0.42)" : "0 24px 60px rgba(15,23,42,0.16)" }),
+            input: (base) => ({ ...base, color: "#ffffff", fontSize: 15, fontWeight: 700 }),
+            singleValue: (base) => ({ ...base, color: "#ffffff", fontSize: 15, fontWeight: 700 }),
+            placeholder: (base) => ({ ...base, color: "rgba(255,255,255,0.34)", opacity: 1, fontSize: 15, fontWeight: 700 }),
+            dropdownIndicator: (base) => ({ ...base, color: "rgba(255,255,255,0.58)" }),
+            indicatorSeparator: (base) => ({ ...base, backgroundColor: "rgba(255,255,255,0.10)" }),
+            menu: (base) => ({ ...base, zIndex: 80, borderRadius: 16, overflow: "hidden", direction: "rtl", backgroundColor: "#101010", border: "1px solid rgba(255,255,255,0.10)", boxShadow: "0 24px 60px rgba(0,0,0,0.42)" }),
             menuPortal: (base) => ({ ...base, zIndex: 9999 }),
             option: (base, state) => ({
               ...base,
               backgroundColor: darkMode
-                ? (state.isSelected ? "#d4af37" : state.isFocused ? "rgba(212,175,55,0.18)" : "#0d0d0d")
+                ? (state.isSelected ? "#d4af37" : state.isFocused ? "rgba(212,175,55,0.18)" : "#101010")
                 : (state.isSelected ? "#d4af37" : state.isFocused ? "rgba(212,175,55,0.08)" : "#ffffff"),
-              color: darkMode ? "#ffffff" : (state.isSelected ? "#ffffff" : "#101010"),
+              color: "#ffffff",
               cursor: "pointer",
               fontSize: 15,
               fontWeight: 800,
@@ -8044,7 +8044,7 @@ function CityAreaField({ governorate, options, value, onChange, manual, onManual
           placeholder={sfText("storefront.checkout.cityAreaManualPlaceholder")}
           value={value}
           onChange={(event) => onManualChange(event.target.value)}
-          className={`sf-field-input sf-checkout-field-input mt-2 min-h-14 w-full rounded-2xl border bg-white/[0.055] px-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#e5c158] focus:bg-white/[0.075] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.16),0_18px_38px_rgba(212,175,55,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`}
+          className={`sf-field-input sf-checkout-field-input mt-2 min-h-14 w-full rounded-2xl border bg-[#101010] px-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#e5c158] focus:bg-[#151515] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.16),0_18px_38px_rgba(212,175,55,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`}
         />
       ) : null}
       {error ? <span className={`mt-1.5 block text-xs font-black ${darkMode ? "text-rose-200" : "text-rose-600"}`}>{error}</span> : null}
@@ -8060,13 +8060,13 @@ function CityAreaNativeSelect({ governorate, options, value, onChange, required,
       disabled={!governorate}
       value={value || ""}
       onChange={(event) => onChange(event.target.value)}
-      className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-2xl border px-4 text-[15px] font-bold shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[#d4af37] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.12),0_18px_38px_rgba(212,175,55,0.16)] disabled:opacity-60 ${darkMode ? "bg-white/[0.055] text-white placeholder:text-white/34 border-white/12 focus:bg-white/[0.075]" : "bg-white text-[#101010] placeholder:text-[#64748b] border-slate-300 focus:bg-white" } ${error ? (darkMode ? "border-rose-300/70 focus:border-rose-300" : "border-rose-300/80 focus:border-rose-400") : ""}`}
+      className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-2xl border px-4 text-[15px] font-bold shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[#d4af37] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.12),0_18px_38px_rgba(212,175,55,0.16)] disabled:opacity-60 ${darkMode ? "bg-[#101010] text-white placeholder:text-white/34 border-white/12 focus:bg-[#151515]" : "bg-[#101010] text-white placeholder:text-white/34 border-white/12 focus:bg-[#151515]"} ${error ? (darkMode ? "border-rose-300/70 focus:border-rose-300" : "border-rose-300/80 focus:border-rose-400") : ""}`}
     >
-      <option value="" className={darkMode ? "bg-[#0d0d0d] text-white" : "bg-white text-[#101010]"}>
+      <option value="" className="bg-[#101010] text-white">
         {governorate ? sfText("storefront.checkout.cityAreaPlaceholder") : sfText("storefront.checkout.chooseGovernorateFirst")}
       </option>
       {options.map((option) => (
-        <option key={option.value} value={option.value} className={darkMode ? "bg-[#0d0d0d] text-white" : "bg-white text-[#101010]"}>
+        <option key={option.value} value={option.value} className="bg-[#101010] text-white">
           {option.label}
         </option>
       ))}
@@ -8079,9 +8079,9 @@ function SelectField({ label, value, onChange, options, labels = {}, required, e
   return (
     <label className="block">
       <span className={`mb-1.5 block text-sm font-black ${darkMode ? "text-white/82" : "text-slate-800"}`}>{label}{required ? " *" : ""}</span>
-      <select required={required} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-2xl border px-4 text-[15px] font-bold shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[#d4af37] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.12),0_18px_38px_rgba(212,175,55,0.16)] ${darkMode ? "bg-white/[0.055] text-white placeholder:text-white/34 border-white/12 focus:bg-white/[0.075]" : "bg-white text-[#101010] placeholder:text-[#64748b] border-slate-300 focus:bg-white"} ${error ? (darkMode ? "border-rose-300/70 focus:border-rose-300" : "border-rose-300/80 focus:border-rose-400") : ""}`}>
-        <option value="" className={darkMode ? "bg-[#0d0d0d] text-white" : "bg-white text-[#101010]"}>{sfText("storefront.common.choose")}</option>
-        {options.map((option) => <option key={option} value={option} className={darkMode ? "bg-[#0d0d0d] text-white" : "bg-white text-[#101010]"}>{labels[option] || option}</option>)}
+      <select required={required} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-2xl border px-4 text-[15px] font-bold shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[#d4af37] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.12),0_18px_38px_rgba(212,175,55,0.16)] ${darkMode ? "bg-[#101010] text-white placeholder:text-white/34 border-white/12 focus:bg-[#151515]" : "bg-[#101010] text-white placeholder:text-white/34 border-white/12 focus:bg-[#151515]"} ${error ? (darkMode ? "border-rose-300/70 focus:border-rose-300" : "border-rose-300/80 focus:border-rose-400") : ""}`}>
+        <option value="" className="bg-[#101010] text-white">{sfText("storefront.common.choose")}</option>
+        {options.map((option) => <option key={option} value={option} className="bg-[#101010] text-white">{labels[option] || option}</option>)}
       </select>
       {error ? <span className={`mt-1.5 block text-xs font-black ${darkMode ? "text-rose-200" : "text-rose-600"}`}>{error}</span> : null}
     </label>
@@ -8271,8 +8271,8 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
                 onClick={(event) => event.stopPropagation()}
                 className={`fixed inset-auto bottom-0 left-0 right-0 flex max-h-[75vh] flex-col overflow-hidden rounded-t-[1.5rem] border border-white/10 px-3 pt-3 shadow-[0_-28px_80px_rgba(0,0,0,0.48)] ${
                   darkMode
-                    ? "bg-[linear-gradient(180deg,rgba(8,12,26,0.98),rgba(5,8,18,0.99))] text-white"
-                    : "bg-[linear-gradient(180deg,rgba(248,250,252,0.99),rgba(241,245,249,0.99))] text-slate-900"
+                    ? "bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] text-white"
+                    : "bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] text-white"
                 }`}
               >
                 <div className="sticky top-0 z-20 border-b border-white/10 pb-3">
@@ -8321,7 +8321,7 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
             mobilePortalTarget
           ) : null
         ) : (
-          <div className={`absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-[16px] border p-2.5 backdrop-blur-2xl ${darkMode ? "border-white/10 bg-[linear-gradient(180deg,rgba(8,12,26,0.98),rgba(5,8,18,0.98))] text-white shadow-[0_18px_46px_rgba(0,0,0,0.28)]" : "border-slate-300 bg-white text-slate-900 shadow-[0_18px_46px_rgba(15,23,42,0.14)]"}`}>
+          <div className={`absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-[16px] border p-2.5 backdrop-blur-2xl ${darkMode ? "border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] text-white shadow-[0_18px_46px_rgba(0,0,0,0.28)]" : "border-slate-300 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] text-white shadow-[0_18px_46px_rgba(15,23,42,0.14)]"}`}>
             {panelBody}
           </div>
         )
@@ -8423,7 +8423,7 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
   return (
     <div className="fixed inset-0 z-50">
       <button className="absolute inset-0 bg-black/55 backdrop-blur-[3px]" onClick={onClose} aria-label={sfText("storefront.common.close")} />
-      <aside dir="rtl" className="sf-cart-drawer absolute inset-x-0 bottom-0 flex max-h-[94dvh] min-h-[72dvh] w-full min-w-0 flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,18,33,0.98),rgba(7,10,20,0.98))] text-white shadow-[0_-28px_80px_rgba(0,0,0,0.48),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl md:inset-y-0 md:end-0 md:start-auto md:max-h-none md:min-h-0 md:w-[28rem] md:rounded-s-[2rem] md:rounded-tr-none">
+      <aside dir="rtl" className="sf-cart-drawer absolute inset-x-0 bottom-0 flex max-h-[94dvh] min-h-[72dvh] w-full min-w-0 flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] text-white shadow-[0_-28px_80px_rgba(0,0,0,0.48),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl md:inset-y-0 md:end-0 md:start-auto md:max-h-none md:min-h-0 md:w-[28rem] md:rounded-s-[2rem] md:rounded-tr-none">
         <div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-white/[0.035] px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-5">
           <div className="min-w-0">
             <p className="text-xs font-black text-[#f3d77a]">{cart.length ? sfText("storefront.products.productCount", undefined, { count: cart.length }) : "Your cart is empty"}</p>
@@ -8443,7 +8443,7 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
           )}
         </div>
         {cart.length ? (
-          <div dir="rtl" className="sf-cart-drawer-footer shrink-0 border-t border-white/10 bg-[#070b16]/92 px-4 pb-[calc(1.35rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-24px_60px_rgba(0,0,0,0.34)] backdrop-blur-2xl sm:px-5">
+          <div dir="rtl" className="sf-cart-drawer-footer shrink-0 border-t border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] px-4 pb-[calc(1.35rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-24px_60px_rgba(0,0,0,0.34)] backdrop-blur-2xl sm:px-5">
             <div className="mb-3 flex items-end justify-between gap-3 text-right">
               <div className="sf-cart-drawer-total">
                 <p className="text-xs font-black text-white/54">{sfText("storefront.checkout.total")}</p>
@@ -8463,7 +8463,7 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
 
 function MobileCartRow({ item, updateCart, removeFromCart }) {
   return (
-    <article dir="rtl" className="sf-cart-row w-full min-w-0 rounded-[1.35rem] border border-white/10 bg-white/[0.055] p-3 text-right text-white shadow-[0_16px_42px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-xl">
+    <article dir="rtl" className="sf-cart-row w-full min-w-0 rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,#101010_0%,#151515_100%)] p-3 text-right text-white shadow-[0_16px_42px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-xl">
       <div className="flex min-w-0 items-start gap-3">
         <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-white/[0.065] ring-1 ring-white/10">
           <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" width="80" height="80" />
@@ -9301,6 +9301,8 @@ function Storefront() {
   }, [publicStoreSettings]);
   const hideMobileBottomNav = /^\/shop\/(checkout|success|confirm)/.test(location.pathname || "") || /^\/c\/[^/]+/.test(location.pathname || "");
   const showMobileBottomNav = routeReady && !hideMobileBottomNav && !cartDrawerOpen && !mobileMenuOpen;
+  const isCheckoutPage = (location.pathname || "").replace(/\/+$/, "") === "/shop/checkout";
+  const hideFloatingWhatsApp = cartDrawerOpen || mobileMenuOpen || isCheckoutPage;
 
   const components = useMemo(() => ({
     EmptyState,
@@ -9417,6 +9419,19 @@ function Storefront() {
         updateCart={updateCart}
         removeFromCart={removeFromCart}
       />
+      {!hideFloatingWhatsApp ? (
+        <a
+          href="https://wa.me/201000659301"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="WhatsApp"
+          className="fixed bottom-[calc(92px+env(safe-area-inset-bottom))] right-4 z-[70] grid h-[42px] w-[42px] place-items-center rounded-full bg-[#25D366] text-white shadow-[0_8px_18px_rgba(0,0,0,0.2)] transition duration-200 hover:scale-110 hover:bg-[#25D366] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366]/40 md:bottom-6 md:right-6"
+        >
+          <svg aria-hidden="true" viewBox="0 0 32 32" className="h-6 w-6 fill-white" focusable="false">
+            <path d="M19.11 17.41c-.28-.14-1.65-.81-1.91-.91-.26-.1-.45-.14-.64.14-.19.28-.73.91-.9 1.1-.17.19-.34.21-.62.07-.28-.14-1.19-.44-2.27-1.4-.84-.75-1.4-1.67-1.57-1.95-.17-.28-.02-.43.13-.57.13-.13.28-.34.42-.51.14-.17.19-.28.28-.47.09-.19.05-.35-.02-.49-.07-.14-.64-1.54-.88-2.11-.23-.55-.46-.48-.64-.49h-.55c-.19 0-.49.07-.75.35-.26.28-1 0.98-1 2.39 0 1.41 1.02 2.77 1.16 2.96.14.19 2 3.06 4.84 4.29.68.29 1.21.47 1.62.6.68.22 1.3.19 1.79.11.55-.08 1.65-.67 1.88-1.32.23-.65.23-1.2.16-1.32-.07-.12-.26-.19-.54-.33ZM16.02 4C9.38 4 4 9.38 4 16.02c0 2.1.55 4.15 1.6 5.95L4 28l6.21-1.6a11.93 11.93 0 0 0 5.81 1.48h.01C22.66 27.88 28 22.54 28 16.02 28 9.38 22.66 4 16.02 4Zm0 21.67h-.01a9.58 9.58 0 0 1-4.89-1.34l-.35-.21-3.69.95.98-3.59-.23-.37a9.58 9.58 0 0 1-1.48-5.13c0-5.28 4.29-9.57 9.57-9.57 2.56 0 4.96 1 6.76 2.81a9.5 9.5 0 0 1 2.81 6.76c0 5.28-4.29 9.59-9.57 9.59Z" />
+          </svg>
+        </a>
+      ) : null}
       {showMobileBottomNav ? (
         <MobileBottomNav cartCount={cartCount} quickActionLinks={quickActionLinks} publicStoreSettings={publicStoreSettings} />
       ) : null}

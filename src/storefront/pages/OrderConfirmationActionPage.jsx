@@ -223,9 +223,9 @@ const getStructuredAddressFields = (order = null) => {
 
 function InfoCard({ title, icon: Icon, children }) {
   return (
-    <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-950">
-        <Icon className="h-4 w-4 text-[#f97316]" />
+    <div className="rounded-[1.35rem] border border-white/10 bg-[#101010] p-4 shadow-[0_14px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <div className="mb-3 flex items-center gap-2 text-sm font-black text-white">
+        <Icon className="h-4 w-4 text-[#d4af37]" />
         {title}
       </div>
       {children}
@@ -250,8 +250,8 @@ class OrderConfirmationActionPageErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <main className="min-h-screen bg-gradient-to-b from-[#f8fafc] to-[#eef2ff] px-4 py-8 text-slate-950">
-          <div className="mx-auto max-w-3xl rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
+        <main className="min-h-screen bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] px-4 py-8 text-white">
+          <div className="mx-auto max-w-3xl rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 text-white shadow-[0_14px_34px_rgba(0,0,0,0.24)]">
             <h1 className="text-xl font-black">حدث خطأ في صفحة تأكيد الطلب</h1>
             <p className="mt-2 text-sm leading-7 text-slate-700">تعذر تحميل الصفحة. حاول مرة أخرى أو تواصل معنا إذا استمرت المشكلة.</p>
           </div>
@@ -454,41 +454,41 @@ function OrderConfirmationActionPageInner() {
     : "grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-200/80 text-slate-950";
 
   return (
-    <main className="min-h-screen bg-[#070b1a] px-4 py-5 text-slate-950 sm:px-6 lg:px-8">
+    <main className="storefront-dark min-h-screen bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] px-4 py-5 text-white sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[100svh] max-w-3xl items-center justify-center py-3">
-        <section className="w-full overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.14)]">
+        <section className="w-full overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] text-white shadow-[0_30px_90px_rgba(0,0,0,0.38),inset_0_1px_0_rgba(255,255,255,0.04)]">
           <div className="px-4 pb-5 pt-5 sm:px-6 sm:pb-6 sm:pt-6">
-            <div className="h-1 w-full rounded-full bg-slate-900" />
+            <div className="h-1 w-full rounded-full bg-[linear-gradient(90deg,#d4af37,#e5c158)]" />
 
             <div className="mt-4 space-y-4">
-              <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+              <div className="rounded-[1.5rem] border border-white/10 bg-[#101010] p-4 shadow-[0_18px_45px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-5">
                 <div className="mb-3 flex items-start gap-3">
-                  <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-slate-100 text-[#ea580c]">
+                  <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-[#d4af37]/20 bg-[rgba(212,175,55,0.12)] text-[#d4af37]">
                     <CheckCircle2 className="h-7 w-7" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#b45309]">COD confirmation</p>
-                    <h1 className="mt-1 text-2xl font-black leading-tight tracking-tight text-slate-950 sm:text-3xl">طلبك جاهز للتأكيد</h1>
-                    <p className="mt-2 text-sm leading-6 text-slate-700">رقم الطلب: {orderNumber || "—"}</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#d4af37]">COD confirmation</p>
+                    <h1 className="mt-1 text-2xl font-black leading-tight tracking-tight text-white sm:text-3xl">طلبك جاهز للتأكيد</h1>
+                    <p className="mt-2 text-sm leading-6 text-white/72">رقم الطلب: {orderNumber || "—"}</p>
                   </div>
                 </div>
 
                 {loading ? (
-                  <div className="rounded-[1.35rem] border border-slate-200 bg-slate-50 px-4 py-5 text-sm font-bold text-slate-700 shadow-sm">
+                  <div className="rounded-[1.35rem] border border-white/10 bg-[#101010] px-4 py-5 text-sm font-bold text-white/72 shadow-[0_14px_34px_rgba(0,0,0,0.24)]">
                     <div className="flex items-center gap-3">
-                      <Loader2 className="h-5 w-5 animate-spin text-[#f97316]" />
+                      <Loader2 className="h-5 w-5 animate-spin text-[#d4af37]" />
                       جاري تحميل بيانات الطلب...
                     </div>
                   </div>
                 ) : error && isExpiredState ? (
-                  <div className="space-y-4 rounded-[1.35rem] border border-amber-200 bg-amber-50 p-4 text-slate-950 shadow-sm">
+                  <div className="space-y-4 rounded-[1.35rem] border border-amber-200/35 bg-[#101010] p-4 text-white shadow-[0_14px_34px_rgba(0,0,0,0.24)]">
                     <div className="flex items-start gap-3">
-                      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-amber-200/80 text-slate-950">
+                      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-amber-200/30 bg-[rgba(212,175,55,0.12)] text-[#d4af37]">
                         <MessageCircleWarning className="h-5 w-5" />
                       </div>
                       <div>
                         <h2 className="text-lg font-black">هذا الرابط لم يعد صالحًا</h2>
-                        <p className="mt-1 text-sm leading-7 text-slate-700">يبدو أن الرابط انتهت صلاحيته أو تم استخدامه بالفعل. تواصل معنا لإرسال رابط جديد.</p>
+                        <p className="mt-1 text-sm leading-7 text-white/72">يبدو أن الرابط انتهت صلاحيته أو تم استخدامه بالفعل. تواصل معنا لإرسال رابط جديد.</p>
                       </div>
                     </div>
                     <div className="flex flex-col gap-3 sm:flex-row">
@@ -499,14 +499,14 @@ function OrderConfirmationActionPageInner() {
                     </div>
                   </div>
                 ) : error ? (
-                  <div className="space-y-4 rounded-[1.35rem] border border-rose-200 bg-rose-50 p-4 text-slate-950 shadow-sm">
+                  <div className="space-y-4 rounded-[1.35rem] border border-rose-200/35 bg-[#101010] p-4 text-white shadow-[0_14px_34px_rgba(0,0,0,0.24)]">
                     <div className="flex items-start gap-3">
-                      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-rose-200/80 text-slate-950">
+                      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-rose-200/30 bg-[rgba(244,63,94,0.12)] text-rose-200">
                         <MessageCircleWarning className="h-5 w-5" />
                       </div>
                       <div>
                         <h2 className="text-lg font-black">تعذر تحميل الرابط</h2>
-                        <p className="mt-1 text-sm leading-7 text-slate-700">{error}</p>
+                        <p className="mt-1 text-sm leading-7 text-white/72">{error}</p>
                       </div>
                     </div>
                     <div className="flex flex-col gap-3 sm:flex-row">
@@ -518,29 +518,29 @@ function OrderConfirmationActionPageInner() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="rounded-[1.35rem] border border-white/10 bg-[#101010] p-4 shadow-[0_14px_34px_rgba(0,0,0,0.24)]">
                       {items.length > 1 ? (
                         <div className="grid gap-3 sm:grid-cols-2">
                           {items.map((item) => {
                             const itemPrice = getItemPrice(item);
                             return (
-                              <div key={item.key} className="overflow-hidden rounded-[1.25rem] border border-slate-200 bg-slate-50">
-                                <div className="aspect-[4/3] bg-slate-50">
+                              <div key={item.key} className="overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#101010]">
+                                <div className="aspect-[4/3] bg-[#101010]">
                                   {item.image_url ? (
                                     <img src={item.image_url} alt={item.product_name} className="h-full w-full object-cover" loading="lazy" />
                                   ) : (
-                                    <div className="flex h-full items-center justify-center text-slate-300">
+                                    <div className="flex h-full items-center justify-center text-white/24">
                                       <ImageIcon className="h-12 w-12" />
                                     </div>
                                   )}
                                 </div>
                                 <div className="space-y-3 p-4">
-                                  <h3 className="text-lg font-black leading-snug text-slate-950">{item.product_name || "منتج"}</h3>
-                                  <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-700">
-                                    {item.color ? <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">اللون: {item.color}</span> : null}
-                                    {item.size ? <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">المقاس: {item.size}</span> : null}
-                                    <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">الكمية: {item.quantity || 1}</span>
-                                    {itemPrice !== undefined ? <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">السعر: {formatMoney(itemPrice)}</span> : null}
+                                  <h3 className="text-lg font-black leading-snug text-white">{item.product_name || "منتج"}</h3>
+                                  <div className="flex flex-wrap gap-2 text-xs font-bold text-white/72">
+                                    {item.color ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">اللون: {item.color}</span> : null}
+                                    {item.size ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">المقاس: {item.size}</span> : null}
+                                    <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">الكمية: {item.quantity || 1}</span>
+                                    {itemPrice !== undefined ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">السعر: {formatMoney(itemPrice)}</span> : null}
                                   </div>
                                 </div>
                               </div>
@@ -548,23 +548,23 @@ function OrderConfirmationActionPageInner() {
                           })}
                         </div>
                       ) : (
-                        <div className="overflow-hidden rounded-[1.25rem] border border-slate-200 bg-slate-50">
-                          <div className="aspect-[4/3] bg-slate-50">
+                        <div className="overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#101010]">
+                          <div className="aspect-[4/3] bg-[#101010]">
                             {primaryItem?.image_url ? (
                               <img src={primaryItem.image_url} alt={primaryItem.product_name} className="h-full w-full object-cover" loading="lazy" />
                             ) : (
-                              <div className="flex h-full items-center justify-center text-slate-300">
+                              <div className="flex h-full items-center justify-center text-white/24">
                                 <ImageIcon className="h-12 w-12" />
                               </div>
                             )}
                           </div>
                           <div className="space-y-3 p-4">
-                            <h3 className="text-lg font-black leading-snug text-slate-950">{primaryItem?.product_name || "منتج"}</h3>
-                            <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-700">
-                              {primaryItem?.color ? <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">اللون: {primaryItem.color}</span> : null}
-                              {primaryItem?.size ? <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">المقاس: {primaryItem.size}</span> : null}
-                              <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">الكمية: {primaryItem?.quantity || 1}</span>
-                              {getItemPrice(primaryItem) !== undefined ? <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1">السعر: {formatMoney(getItemPrice(primaryItem))}</span> : null}
+                            <h3 className="text-lg font-black leading-snug text-white">{primaryItem?.product_name || "منتج"}</h3>
+                            <div className="flex flex-wrap gap-2 text-xs font-bold text-white/72">
+                              {primaryItem?.color ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">اللون: {primaryItem.color}</span> : null}
+                              {primaryItem?.size ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">المقاس: {primaryItem.size}</span> : null}
+                              <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">الكمية: {primaryItem?.quantity || 1}</span>
+                              {getItemPrice(primaryItem) !== undefined ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">السعر: {formatMoney(getItemPrice(primaryItem))}</span> : null}
                             </div>
                           </div>
                         </div>
