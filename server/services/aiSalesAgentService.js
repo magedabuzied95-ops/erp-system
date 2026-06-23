@@ -968,26 +968,79 @@ const summarizeInboxMessage = (row = {}) => {
   };
 };
 
-const isMessengerInboxConversation = (conversation = {}) => {
-  const channel = text(conversation.channel || conversation.session_channel || conversation.source || conversation.channel_source || "").toLowerCase();
-  return ["facebook_messenger", "facebook", "messenger"].includes(channel) || channel.includes("facebook_messenger") || channel.includes("facebook") || channel.includes("messenger");
+const canonicalInboxChannel = (value = "") => {
+  const channel = text(value).toLowerCase();
+  if (!channel) return "";
+  if (channel.includes("whatsapp")) return "whatsapp";
+  if (channel.includes("facebook_comment")) return "facebook_comment";
+  if (channel.includes("instagram_comment")) return "instagram_comment";
+  if (channel.includes("facebook") && channel.includes("messenger")) return "facebook_messenger";
+  if (channel === "facebook_messenger" || channel === "messenger" || channel === "facebook") return "facebook_messenger";
+  if (channel.includes("instagram")) return "instagram";
+  if (channel === "web_chat" || channel === "web") return "web_chat";
+  return channel;
 };
 
+const extractMessengerPsid = (value = "") => {
+  const raw = text(value);
+  if (!raw) return "";
+  const lowerRaw = raw.toLowerCase();
+  const trimmed = lowerRaw.startsWith("facebook_messenger:")
+    ? raw.slice(raw.indexOf(":") + 1)
+    : lowerRaw.startsWith("messenger:")
+      ? raw.slice(raw.indexOf(":") + 1)
+      : lowerRaw.startsWith("facebook:")
+        ? raw.slice(raw.indexOf(":") + 1)
+        : raw;
+  const digits = trimmed.replace(/\D/g, "");
+  return /^\d{5,}$/.test(digits) ? digits : "";
+};
+
+const canonicalMessengerSessionId = (value = "") => {
+  const raw = text(value);
+  if (!raw) return "facebook_messenger";
+  const psid = extractMessengerPsid(raw);
+  if (psid) return `facebook_messenger:${psid}`;
+  const lowerRaw = raw.toLowerCase();
+  if (lowerRaw === "facebook_messenger" || lowerRaw === "messenger" || lowerRaw === "facebook") return "facebook_messenger";
+  if (lowerRaw.startsWith("facebook_messenger:")) return raw;
+  if (lowerRaw.startsWith("messenger:") || lowerRaw.startsWith("facebook:")) {
+    const suffix = raw.slice(raw.indexOf(":") + 1).trim();
+    return suffix ? `facebook_messenger:${suffix}` : "facebook_messenger";
+  }
+  if (/^\d{5,}$/.test(raw.replace(/\D/g, ""))) return `facebook_messenger:${raw.replace(/\D/g, "")}`;
+  return `facebook_messenger:${raw}`;
+};
+
+const isMessengerInboxConversation = (conversation = {}) => canonicalInboxChannel(
+  conversation.channel || conversation.session_channel || conversation.source || conversation.channel_source || conversation.provider || conversation.platform || ""
+) === "facebook_messenger";
+
 const messengerConversationPsid = (conversation = {}) =>
-  text(
+  extractMessengerPsid(
     conversation.external_customer_id ||
       conversation.channel_metadata?.customer_psid ||
       conversation.channel_metadata?.sender_psid ||
       conversation.channel_metadata?.resolved_customer_id ||
+      conversation.external_conversation_id ||
+      conversation.session_id ||
+      conversation.conversation_key ||
       conversation.customer_profile?.external_customer_id ||
       conversation.customer_profile?.psid ||
+      conversation.customer_profile?.external_psid ||
       ""
   );
 
 const messengerConversationIdentityKey = (conversation = {}) => {
   if (!isMessengerInboxConversation(conversation)) return "";
-  const psid = messengerConversationPsid(conversation);
-  return psid ? `facebook_messenger:${psid}` : "";
+  return canonicalMessengerSessionId(
+    conversation.external_conversation_id ||
+      conversation.session_id ||
+      conversation.conversation_key ||
+      conversation.external_customer_id ||
+      conversation.customer_profile?.external_customer_id ||
+      ""
+  );
 };
 
 const conversationHasMeaningfulMessengerIdentity = (conversation = {}) => {
@@ -1032,11 +1085,22 @@ const mergeMessengerConversationRecords = (left = {}, right = {}) => {
   const fallback = preferred === left ? right : left;
   const mergedMessages = mergeConversationMessages(left.messages || [], right.messages || []);
   const resolvedPsid = messengerConversationPsid(preferred) || messengerConversationPsid(fallback);
-  const canonicalSessionId = resolvedPsid ? `facebook_messenger:${resolvedPsid}` : text(preferred.session_id || fallback.session_id || preferred.conversation_key || fallback.conversation_key || "");
+  const canonicalSessionId = canonicalMessengerSessionId(
+    preferred.session_id ||
+      preferred.conversation_key ||
+      preferred.external_conversation_id ||
+      fallback.session_id ||
+      fallback.conversation_key ||
+      fallback.external_conversation_id ||
+      resolvedPsid ||
+      ""
+  );
   return {
     ...left,
     ...right,
     ...preferred,
+    channel: "facebook_messenger",
+    session_channel: "facebook_messenger",
     session_id: canonicalSessionId || text(preferred.session_id || fallback.session_id || ""),
     conversation_id: canonicalSessionId || text(preferred.conversation_id || fallback.conversation_id || preferred.session_id || fallback.session_id || ""),
     conversation_key: canonicalSessionId || text(preferred.conversation_key || fallback.conversation_key || preferred.session_id || fallback.session_id || ""),
@@ -1078,8 +1142,9 @@ const normalizeAndMergeInboxConversations = (conversations = []) => {
 
   for (const conversation of asArray(conversations)) {
     const normalized = { ...conversation };
-    const messengerKey = messengerConversationIdentityKey(normalized);
-    const sessionKey = text(normalized.conversation_key || normalized.session_id || normalized.conversation_id || "");
+    const canonicalChannel = canonicalInboxChannel(normalized.channel || normalized.session_channel || normalized.source || normalized.provider || normalized.platform || "");
+    const messengerKey = canonicalChannel === "facebook_messenger" ? messengerConversationIdentityKey({ ...normalized, channel: canonicalChannel }) : "";
+    const sessionKey = text(normalized.conversation_key || normalized.session_id || normalized.conversation_id || normalized.external_conversation_id || "");
     const canonicalKey = messengerKey || sessionKey;
     if (!canonicalKey) {
       merged.push(normalized);
@@ -1091,13 +1156,43 @@ const normalizeAndMergeInboxConversations = (conversations = []) => {
       const nextConversation = messengerKey
         ? {
             ...normalized,
-            session_id: messengerKey,
-            conversation_id: messengerKey,
-            conversation_key: messengerKey,
-            external_conversation_id: messengerKey,
+            channel: "facebook_messenger",
+            session_channel: "facebook_messenger",
+            session_id: canonicalMessengerSessionId(
+              normalized.session_id ||
+                normalized.conversation_key ||
+                normalized.external_conversation_id ||
+                normalized.external_customer_id ||
+                ""
+            ),
+            conversation_id: canonicalMessengerSessionId(
+              normalized.conversation_id ||
+                normalized.session_id ||
+                normalized.conversation_key ||
+                normalized.external_conversation_id ||
+                normalized.external_customer_id ||
+                ""
+            ),
+            conversation_key: canonicalMessengerSessionId(
+              normalized.conversation_key ||
+                normalized.session_id ||
+                normalized.external_conversation_id ||
+                normalized.external_customer_id ||
+                ""
+            ),
+            external_conversation_id: canonicalMessengerSessionId(
+              normalized.external_conversation_id ||
+                normalized.session_id ||
+                normalized.conversation_key ||
+                normalized.external_customer_id ||
+                ""
+            ),
             external_customer_id: messengerConversationPsid(normalized) || normalized.external_customer_id || "",
           }
-        : normalized;
+        : {
+            ...normalized,
+            channel: canonicalChannel || normalized.channel || "",
+          };
       indexByKey.set(canonicalKey, merged.length);
       merged.push(nextConversation);
       continue;
@@ -1109,6 +1204,7 @@ const normalizeAndMergeInboxConversations = (conversations = []) => {
       : {
           ...existing,
           ...normalized,
+          channel: canonicalChannel || existing.channel || normalized.channel || "",
           messages: mergeConversationMessages(existing.messages || [], normalized.messages || []),
         };
     merged[existingIndex] = nextConversation;
@@ -1116,6 +1212,29 @@ const normalizeAndMergeInboxConversations = (conversations = []) => {
   }
 
   return merged;
+};
+
+const canonicalInboxConversationSessionId = (conversation = {}) => {
+  const channel = canonicalInboxChannel(conversation.channel || conversation.session_channel || conversation.source || conversation.provider || conversation.platform || "");
+  const rawSessionId = text(conversation.session_id || conversation.conversation_key || conversation.conversation_id || "");
+  const externalConversationId = text(conversation.external_conversation_id || "");
+  const externalCustomerId = text(conversation.external_customer_id || conversation.customer_profile?.external_customer_id || "");
+
+  if (channel === "whatsapp") {
+    return normalizeWhatsappSessionId(rawSessionId, externalCustomerId || externalConversationId || conversation.phone || "") || rawSessionId || externalConversationId || "";
+  }
+
+  if (channel === "facebook_messenger") {
+    return canonicalMessengerSessionId(
+      rawSessionId ||
+        externalConversationId ||
+        externalCustomerId ||
+        conversation.customer_profile?.psid ||
+        ""
+    );
+  }
+
+  return rawSessionId || externalConversationId || text(conversation.conversation_key || conversation.conversation_id || "");
 };
 const isOutboundMessageRow = (row = {}) => {
   const direction = text(row.direction || row.message_direction || row.latest_direction || row.latest_message_direction || "").toLowerCase();
@@ -1838,8 +1957,8 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
         confirmedCount: 0,
         followupDue: false,
       });
-    const channel = conversation.channel || conversation.session_channel || conversation.source || "web_chat";
-    const canonicalSessionId = normalizeWhatsappSessionId(conversation.session_id, conversation.external_customer_id || conversation.external_conversation_id || "");
+    const channel = canonicalInboxChannel(conversation.channel || conversation.session_channel || conversation.source || "web_chat") || "web_chat";
+    const canonicalSessionId = canonicalInboxConversationSessionId(conversation);
     const customerName = resolveConversationDisplayName({ conversation });
     const customerAvatarUrl = conversation.customer_avatar_url || conversation.session_customer_avatar_url || "";
     const summaryDirection = isOutboundMessageRow(conversation) ? "outbound" : text(conversation.direction || conversation.message_direction || "");
@@ -1851,7 +1970,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
     return {
       session_id: canonicalSessionId || conversation.session_id,
       conversation_id: canonicalSessionId || conversation.session_id,
-      conversation_key: normalizeWhatsappSessionId(conversation.conversation_key, conversation.external_customer_id || conversation.external_conversation_id || "") || canonicalSessionId || conversation.session_id,
+      conversation_key: canonicalSessionId || conversation.conversation_key || conversation.session_id,
       source: conversation.source || channel || "web_chat",
       channel,
       direction: summaryDirection || conversation.direction || conversation.message_direction || "",
@@ -1883,7 +2002,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
         profile_name: "",
         contact_name: "",
         external_customer_id: conversation.external_customer_id || "",
-        external_conversation_id: conversation.external_conversation_id || conversation.session_id,
+        external_conversation_id: canonicalSessionId || conversation.external_conversation_id || conversation.session_id,
         last_message: summaryPreviewMessage,
         latest_message_preview: summaryPreviewMessage,
         last_message_at: conversation.last_message_at || conversation.updated_at,
@@ -2562,12 +2681,13 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
         const requiresAttention = conversation.latest_sender_type === "customer" || conversation.needs_human_support === true || conversation.conversation_status === "human_takeover";
         return requiresAttention && (!readAt || lastActivityAt > readAt) ? 1 : 0;
       })();
+      const conversationSessionId = canonicalInboxConversationSessionId(conversation);
       return {
-        session_id: conversation.session_id,
-        conversation_id: conversation.session_id,
-        conversation_key: conversation.conversation_key || conversation.session_id,
+        session_id: conversationSessionId || conversation.session_id,
+        conversation_id: conversationSessionId || conversation.session_id,
+        conversation_key: conversationSessionId || conversation.conversation_key || conversation.session_id,
         source: conversation.source || conversation.channel || "web_chat",
-        channel: conversation.channel || conversation.session_channel || conversation.source || "web_chat",
+        channel: channel,
         status: conversation.conversation_status || "ai_active",
         conversation_status: conversation.conversation_status || "ai_active",
         thread_kind: conversation.thread_kind || "",
@@ -2592,7 +2712,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
         profile_name: isMessengerConversation ? messengerDisplayName : conversation.profile_name || "",
         contact_name: isMessengerConversation ? messengerDisplayName : conversation.contact_name || "",
         external_customer_id: conversation.external_customer_id || "",
-        external_conversation_id: conversation.external_conversation_id || conversation.session_id,
+        external_conversation_id: conversationSessionId || conversation.external_conversation_id || conversation.session_id,
         last_message: lastMessagePreview,
         latest_message_preview: lastMessagePreview,
         last_message_at: conversation.last_message_at || conversation.updated_at,
@@ -2638,7 +2758,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
     return {
       ...conversation,
       source: conversation.source || conversation.channel || "web_chat",
-      channel: conversation.channel || conversation.session_channel || conversation.source || "web_chat",
+      channel: canonicalInboxChannel(conversation.channel || conversation.session_channel || conversation.source || "web_chat") || "web_chat",
       customer_name: messengerDisplayName || customerProfile.name || "",
       sender_name: isMessengerConversation ? messengerDisplayName : conversation.sender_name || "",
       profile_name: isMessengerConversation ? messengerDisplayName : conversation.profile_name || "",
@@ -2649,9 +2769,9 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       last_message: conversation.customer_message || conversation.message_text || conversation.session_last_message || "",
       latest_message_preview: conversation.customer_message || conversation.message_text || conversation.ai_answer || conversation.session_last_message || "",
       external_customer_id: conversation.external_customer_id || "",
-      external_conversation_id: conversation.external_conversation_id || conversation.session_id,
-      is_live_meta: ["facebook_messenger", "instagram"].includes(conversation.channel || conversation.session_channel || conversation.source),
-      live_badge: ["facebook_messenger", "instagram"].includes(conversation.channel || conversation.session_channel || conversation.source) ? "Live Meta" : "",
+      external_conversation_id: canonicalInboxConversationSessionId(conversation) || conversation.external_conversation_id || conversation.session_id,
+      is_live_meta: ["facebook_messenger", "instagram"].includes(canonicalInboxChannel(conversation.channel || conversation.session_channel || conversation.source || "")),
+      live_badge: ["facebook_messenger", "instagram"].includes(canonicalInboxChannel(conversation.channel || conversation.session_channel || conversation.source || "")) ? "Live Meta" : "",
       last_message_at: conversation.last_message_at || conversation.updated_at,
       last_webhook_event_at: conversation.last_webhook_event_at || null,
       last_webhook_status: conversation.last_webhook_status || "",
