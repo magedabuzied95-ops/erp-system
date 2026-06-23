@@ -1936,13 +1936,50 @@ const storefrontLabelKey = (value = "") =>
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
+const PRODUCT_TYPE_LABELS = {
+  bags: { ar: "شنط", en: "Bags", aliases: ["bag", "bags", "handbag", "handbags", "شنط", "شنطة", "شنطتي", "حقائب", "حقيبة", "حقيبه"] },
+  crocs: { ar: "كروكس", en: "Crocs", aliases: ["croc", "crocs", "كروكس"] },
+  slippers: { ar: "سليبر", en: "Slippers", aliases: ["slipper", "slippers", "slide", "slides", "سليبر", "شباشب"] },
+  sneakers: { ar: "سنيكرز", en: "Sneakers", aliases: ["sneaker", "sneakers", "سنيكرز"] },
+  shoes: { ar: "Shoes", en: "Shoes", aliases: ["shoe", "shoes", "أحذية", "حذاء", "أحذيه"] },
+  running: { ar: "Running", en: "Running", aliases: ["running", "run", "جري", "رياضي"] },
+  casualshoes: { ar: "Casual Shoes", en: "Casual Shoes", aliases: ["casual shoe", "casual shoes", "casual", "كاجوال", "كاجوال شوز"] },
+};
+const normalizeProductTypeKey = (value = "") => storefrontLabelKey(value).replace(/[\s_-]+/g, "");
+const resolveProductTypeKey = (value = "") => {
+  const normalized = normalizeProductTypeKey(value);
+  if (!normalized) return "";
+  for (const [key, entry] of Object.entries(PRODUCT_TYPE_LABELS)) {
+    if (normalizeProductTypeKey(key) === normalized) return key;
+    if ((entry.aliases || []).some((alias) => normalizeProductTypeKey(alias) === normalized)) return key;
+  }
+  if (normalized === "shoe") return "shoes";
+  if (normalized === "sneaker") return "sneakers";
+  if (normalized === "bag") return "bags";
+  if (normalized === "slipper") return "slippers";
+  if (normalized === "casualshoe") return "casualshoes";
+  return normalized;
+};
+const getProductTypeLabel = (value = "", lang = "ar") => {
+  const key = resolveProductTypeKey(value);
+  const entry = PRODUCT_TYPE_LABELS[key];
+  if (!entry) return cleanDisplayText(String(value || ""));
+  return cleanDisplayText((lang === "en" ? entry.en : entry.ar) || entry.ar || entry.en || value || "");
+};
 const storefrontLocalizedLabels = {
-  ar: { men: "رجالي", women: "حريمي", kids: "أطفال", bag: "شنط", crocs: "كروكس", slipper: "سليبر", sneaker: "سنيكرز" },
-  en: { men: "Men", women: "Women", kids: "Kids", bag: "Bags", crocs: "Crocs", slipper: "Slippers", sneaker: "Sneakers" },
+  ar: { men: "رجالي", women: "حريمي", kids: "أطفال" },
+  en: { men: "Men", women: "Women", kids: "Kids" },
 };
 const classificationLabel = (option = {}, lang = "ar") =>
-  cleanDisplayText(
-    storefrontLocalizedLabels[lang]?.[storefrontLabelKey(option?.value || option?.slug || option?.id || option?.key || option?.label || option?.name || option?.title || option?.display_name || option?.displayName || "")] ||
+  (() => {
+    const rawValue = option?.value || option?.slug || option?.id || option?.key || option?.label || option?.name || option?.title || option?.display_name || option?.displayName || "";
+    const rawKey = storefrontLabelKey(rawValue);
+    const productTypeKey = resolveProductTypeKey(rawValue);
+    const productTypeEntry = PRODUCT_TYPE_LABELS[productTypeKey];
+    const productTypeLabel = productTypeEntry ? getProductTypeLabel(rawValue, lang) : "";
+    return cleanDisplayText(
+      productTypeLabel ||
+        storefrontLocalizedLabels[lang]?.[rawKey] ||
       option?.label ||
       option?.name ||
       option?.title ||
@@ -1954,7 +1991,8 @@ const classificationLabel = (option = {}, lang = "ar") =>
       option?.key ||
       (lang === "ar" ? option?.label_ar || option?.name_ar || option?.title_ar : option?.label_en || option?.name_en || option?.title_en) ||
       "",
-  ) || "";
+    ) || "";
+  })();
 const normalizeStorefrontProductTypeKey = (value = "") => {
   const normalized = storefrontLabelKey(value);
   if (["sneaker", "sneakers"].includes(normalized)) return "sneaker";
@@ -4008,8 +4046,8 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     { key: "men", label: "رجالي", to: "/shop/products?gender=men", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "men" },
     { key: "women", label: "حريمي", to: "/shop/products?gender=women", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "women" },
     { key: "kids", label: "أطفال", to: "/shop/products?gender=kids", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "kids" },
-    { key: "bags", label: "شنط", to: "/shop/products?type=bags", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("type") === "bags" },
-    { key: "crocs", label: "كروكس", to: "/shop/products?type=crocs", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("type") === "crocs" },
+    { key: "bags", label: getProductTypeLabel("bags", currentLanguage), to: "/shop/products?type=bags", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("type") === "bags" },
+    { key: "crocs", label: getProductTypeLabel("crocs", currentLanguage), to: "/shop/products?type=crocs", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("type") === "crocs" },
   ];
   const searchPlaceholders = getSearchPlaceholders();
   const announcementItems = [
@@ -4023,9 +4061,9 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     { label: t("storefront.nav.men"), to: "/shop/products?gender=men" },
     { label: t("storefront.nav.women"), to: "/shop/products?gender=women" },
     { label: t("storefront.nav.kids"), to: "/shop/products?gender=kids" },
-    { label: "شنط", to: "/shop/products?type=bags" },
-    { label: "كروكس", to: "/shop/products?type=crocs" },
-    { label: "سليبر", to: "/shop/products?type=slippers" },
+    { label: getProductTypeLabel("bags", currentLanguage), to: "/shop/products?type=bags" },
+    { label: getProductTypeLabel("crocs", currentLanguage), to: "/shop/products?type=crocs" },
+    { label: getProductTypeLabel("slippers", currentLanguage), to: "/shop/products?type=slippers" },
   ];
   const utilityItems = [
     { label: "WhatsApp", to: "https://wa.me/", icon: <MessageCircle className="h-3.5 w-3.5" />, external: true },
@@ -8681,9 +8719,9 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
     { id: "men", label: "رجالي", to: "/shop/products?gender=men", icon: Users },
     { id: "women", label: "حريمي", to: "/shop/products?gender=women", icon: Users },
     { id: "kids", label: "أطفال", to: "/shop/products?gender=kids", icon: Baby },
-    { id: "bags", label: "شنط", to: "/shop/products?type=bags", icon: ShoppingBag },
-    { id: "crocs", label: "كروكس", to: "/shop/products?type=crocs", icon: Footprints },
-    { id: "slippers", label: "سليبر", to: "/shop/products?type=slippers", icon: SlidersHorizontal },
+    { id: "bags", label: getProductTypeLabel("bags", currentLanguage), to: "/shop/products?type=bags", icon: ShoppingBag },
+    { id: "crocs", label: getProductTypeLabel("crocs", currentLanguage), to: "/shop/products?type=crocs", icon: Footprints },
+    { id: "slippers", label: getProductTypeLabel("slippers", currentLanguage), to: "/shop/products?type=slippers", icon: SlidersHorizontal },
   ];
   const links = [
     { id: "home", to: "/shop", label: "الرئيسية", icon: Home },
@@ -9601,6 +9639,7 @@ export {
   firstDisplayVariant,
   firstVariantImage,
   filterOptionCount,
+  getProductTypeLabel,
   getSessionId,
   imageFor,
   isLastPieceProduct,

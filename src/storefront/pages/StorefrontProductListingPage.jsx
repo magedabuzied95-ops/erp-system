@@ -17,6 +17,7 @@ import {
   buildAvailableSizeOptions,
   deferReactState,
   isLastPieceProduct,
+  getProductTypeLabel,
   productHasAvailableSize,
   sfText,
   truthyFlag,
@@ -47,18 +48,17 @@ const normalizeStorefrontAudienceValue = (value = "") => {
 };
 const normalizeStorefrontProductTypeValue = (value = "") => {
   const normalized = normalizeAudienceFilterKey(value);
-  if (["bag", "bags", "handbag", "handbags", "شنط", "شنطة", "شنطتي"].includes(normalized)) return "bag";
+  if (["bag", "bags", "handbag", "handbags", "شنط", "شنطة", "شنطتي", "حقائب", "حقيبة", "حقيبه"].includes(normalized)) return "bags";
   if (["croc", "crocs", "كروكس"].includes(normalized)) return "crocs";
-  if (["slipper", "slippers", "slide", "slides", "سليبر", "شباشب"].includes(normalized)) return "slipper";
-  if (["sneaker", "sneakers"].includes(normalized)) return "sneaker";
-  return normalizeFilterKey(value);
+  if (["slipper", "slippers", "slide", "slides", "سليبر", "شباشب"].includes(normalized)) return "slippers";
+  if (["sneaker", "sneakers", "سنيكرز"].includes(normalized)) return "sneakers";
+  if (["shoe", "shoes", "أحذية", "حذاء"].includes(normalized)) return "shoes";
+  if (["running", "run", "رياضي", "جري"].includes(normalized)) return "running";
+  if (["casual shoe", "casual shoes", "casual", "كاجوال", "كاجوال شوز"].includes(normalized)) return "casualshoes";
+  return normalizeFilterKey(value).replace(/[\s_-]+/g, "");
 };
 const storefrontProductTypeQueryValue = (value = "") => {
-  const normalized = normalizeStorefrontProductTypeValue(value);
-  if (normalized === "bag") return "bags";
-  if (normalized === "slipper") return "slippers";
-  if (normalized === "sneaker") return "sneakers";
-  return normalized;
+  return normalizeStorefrontProductTypeValue(value);
 };
 const storefrontGenderSwitchOptions = [
   { value: "men", label: "رجالي" },
@@ -311,9 +311,9 @@ const catalogQuickCategoryItems = [
   { key: "men", label: "رجالي", field: "gender", value: "men", icon: "shirt" },
   { key: "women", label: "حريمي", field: "gender", value: "women", icon: "user" },
   { key: "kids", label: "أطفال", field: "gender", value: "kids", icon: "baby" },
-  { key: "bags", label: "شنط", field: "type", value: "bags", icon: "bag" },
-  { key: "crocs", label: "كروكس", field: "type", value: "crocs", icon: "footprints" },
-  { key: "slippers", label: "سليبر", field: "type", value: "slippers", icon: "footprints" },
+  { key: "bags", label: getProductTypeLabel("bags", "ar"), field: "type", value: "bags", icon: "bag" },
+  { key: "crocs", label: getProductTypeLabel("crocs", "ar"), field: "type", value: "crocs", icon: "footprints" },
+  { key: "slippers", label: getProductTypeLabel("slippers", "ar"), field: "type", value: "slippers", icon: "footprints" },
 ];
 const catalogQuickCategoryIcon = (value = "") => {
   const normalized = String(value || "").toLowerCase();
@@ -752,6 +752,23 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   const selectedColorOption = colorOptions.find((option) => normalizeFilterKey(option.value) === normalizeFilterKey(color));
   const selectedSortOption = sortOptions.find((option) => normalizeCatalogSortValue(option.value) === selectedSort);
 
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    console.debug("[storefront-product-type-filter]", {
+      availableProductTypeValues: typeOptions.map((option) => ({
+        value: option.value,
+        label: getProductTypeLabel(option.value, lang),
+      })),
+      selectedProductTypeValue: selectedType,
+      selectedProductTypeLabel: getProductTypeLabel(selectedType, lang),
+      appliedProductTypeValues: {
+        type: params.get("type") || "",
+        product_type: params.get("product_type") || "",
+      },
+      normalizedAppliedProductType: normalizeStorefrontProductTypeValue(params.get("type") || params.get("product_type") || ""),
+    });
+  }, [lang, params, selectedType, typeOptions]);
+
   const setSearchParam = (mutator, { replace = false } = {}) => {
     const next = new URLSearchParams(params);
     mutator(next);
@@ -839,7 +856,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
               : selectedBrandOption
                 ? classificationLabel(selectedBrandOption, lang)
                 : selectedTypeOption
-                  ? classificationLabel(selectedTypeOption, lang)
+                  ? getProductTypeLabel(selectedTypeOption.value || productType, lang)
                   : selectedColorOption
                     ? classificationLabel(selectedColorOption, lang)
                     : selectedGenderOption
@@ -884,6 +901,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
         saleView={saleView}
         lastSizes={lastSizes}
         inStock={inStock}
+        lang={lang}
         onClearAll={() => navigate(clearClassificationFiltersUrl())}
       onRemove={(field, value) => {
         setSearchParam((next) => {
@@ -1197,7 +1215,7 @@ function CatalogSortControl({ value = "newest", options = [], onChange, compact 
   );
 }
 
-function CatalogQuickChips({ params, items = [], buildUrl }) {
+function CatalogQuickChips({ params, items = [], buildUrl, lang = "ar" }) {
   return (
     <div className="sf-scroll mt-3 hidden min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1.5 rtl:justify-start md:mt-4 md:flex">
       {items.map((item) => {
@@ -1207,6 +1225,7 @@ function CatalogQuickChips({ params, items = [], buildUrl }) {
             ? normalizeStorefrontAudienceValue(activeValue) === normalizeStorefrontAudienceValue(item.value)
             : normalizeStorefrontProductTypeValue(activeValue) === normalizeStorefrontProductTypeValue(item.value);
         const Icon = catalogQuickCategoryIcon(item.icon);
+        const label = item.field === "type" ? getProductTypeLabel(item.value, lang) : item.label;
         return (
           <Link
             key={item.key}
@@ -1216,7 +1235,7 @@ function CatalogQuickChips({ params, items = [], buildUrl }) {
             className={`inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-[14px] text-[12px] font-semibold transition duration-200 ease-out active:scale-[0.98] ${isActive ? "border border-[#d4af37]/55 bg-[#d4af37]/12 text-[#d4af37] shadow-[0_10px_28px_rgba(212,175,55,0.12)]" : "border border-stone-200 bg-white text-stone-700 hover:border-[#d4af37]/35 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"}`}
           >
             <Icon className="h-[15px] w-[15px] shrink-0" aria-hidden="true" />
-            <span className="truncate">{item.label}</span>
+            <span className="truncate">{label}</span>
           </Link>
         );
       })}
@@ -1239,6 +1258,7 @@ function CatalogAppliedFilterChips({
   saleView = false,
   lastSizes = false,
   inStock = "",
+  lang = "ar",
   onRemove,
   onClearAll,
 }) {
@@ -1247,7 +1267,7 @@ function CatalogAppliedFilterChips({
   if (q) chips.push({ key: "q", label: q, field: "q" });
   if (gender) chips.push({ key: "gender", label: gender === "men" ? "رجالي" : gender === "women" ? "حريمي" : "أطفال", field: "gender" });
   if (category) chips.push({ key: "category", label: category, field: "category" });
-  if (productType) chips.push({ key: "type", label: storefrontProductTypeQueryValue(productType) === "bags" ? "شنط" : storefrontProductTypeQueryValue(productType) === "crocs" ? "كروكس" : storefrontProductTypeQueryValue(productType) === "slippers" ? "سليبر" : classificationLabel({ value: productType }, "ar"), field: "type" });
+  if (productType) chips.push({ key: "type", label: getProductTypeLabel(productType, lang), field: "type" });
   if (grade) chips.push({ key: "grade", label: grade, field: "grade" });
   if (brand) chips.push({ key: "brand", label: brand, field: "brand" });
   if (color) chips.push({ key: "color", label: color, field: "color" });
@@ -1396,7 +1416,7 @@ function CatalogFiltersPanel({
         <CatalogSortControl value={selectedSort} options={sortOptions} onChange={onSortChange} compact />
       </CatalogSectionShell>
       <CatalogSingleSelectFilter eyebrow={t("storefront.filters.gender", "الجنس")} title={t("storefront.filters.gender", "الجنس")} icon={Users} options={genderOptions} value={selectedGender} onChange={onGenderChange} onClear={() => onGenderChange("")} lang={lang} normalizeValue={normalizeStorefrontAudienceValue} />
-      <CatalogSingleSelectFilter eyebrow={t("storefront.filters.productType", "نوع المنتج")} title={t("storefront.filters.productType", "نوع المنتج")} icon={Footprints} options={typeOptions} value={selectedType} onChange={onTypeChange} onClear={() => onTypeChange("")} lang={lang} normalizeValue={normalizeStorefrontProductTypeValue} />
+          <CatalogSingleSelectFilter eyebrow={t("storefront.filters.productType", "نوع المنتج")} title={t("storefront.filters.productType", "نوع المنتج")} icon={Footprints} options={typeOptions} value={selectedType} onChange={onTypeChange} onClear={() => onTypeChange("")} lang={lang} normalizeValue={normalizeStorefrontProductTypeValue} />
       <CatalogSingleSelectFilter eyebrow={t("storefront.filters.grade", "الفئة / الجودة")} title={t("storefront.filters.grade", "الفئة / الجودة")} icon={Gem} options={gradeOptions} value={selectedGrade} onChange={onGradeChange} onClear={() => onGradeChange("")} lang={lang} />
       <CatalogSizeFilter sizes={sizes} selectedSizes={selectedSizes} onToggle={onToggleSize} onClear={onClearSizes} />
       <CatalogPriceFilter minPrice={minPrice} maxPrice={maxPrice} onChange={onPriceChange} priceBounds={priceBounds} />
