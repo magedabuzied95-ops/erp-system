@@ -4,8 +4,28 @@ import { AlertTriangle, CheckCircle2, Package2, X } from "lucide-react";
 
 import { formatCurrency } from "../lib/posUtils";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
+import { getCrocsSizeInputDisplayLabel, isCrocsProductType } from "../../products/lib/variantBulkSizes";
 
 const failedAvailabilityImageUrls = new Set();
+
+const getAvailabilitySizeDisplayLabel = (product = {}, size = "") => {
+  const rawSize = String(size || "").trim();
+  if (!rawSize) return "";
+
+  const crocsSource = [
+    product?.product_type,
+    product?.productType,
+    product?.category,
+    product?.category_name,
+    product?.brand,
+    product?.brand_name,
+    product?.type,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return isCrocsProductType(crocsSource) ? getCrocsSizeInputDisplayLabel(rawSize) || rawSize : rawSize;
+};
 
 function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
   const { t } = useTranslation();
@@ -245,7 +265,7 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
                           }`}
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm font-black sm:text-lg">{size.size || t("pos.labels.oneSize")}</span>
+                            <span className="text-sm font-black sm:text-lg">{getAvailabilitySizeDisplayLabel(product, size.size) || t("pos.labels.oneSize")}</span>
                             <StatusBadge available={size.available} low={low} compact />
                           </div>
                           <div className="mt-1 text-[10px] font-bold text-zinc-400 sm:mt-2 sm:text-xs">
@@ -263,7 +283,7 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
               <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500 sm:text-xs sm:tracking-[0.18em]">{t("pos.labels.selectedVariant")}</div>
               <div className="mt-2 flex flex-wrap gap-1.5 text-xs sm:mt-3 sm:grid sm:grid-cols-2 sm:gap-3 sm:text-sm">
                 <Info compact label={t("pos.labels.color")} value={activeColor?.color || t("pos.labels.default")} />
-                <Info compact label={t("pos.labels.size")} value={isSimpleMode ? product?.fixed_size_label || t("pos.labels.oneSize") : selectedSize?.size || t("common.notAvailable")} />
+                <Info compact label={t("pos.labels.size")} value={isSimpleMode ? getAvailabilitySizeDisplayLabel(product, product?.fixed_size_label || t("pos.labels.oneSize")) || t("pos.labels.oneSize") : getAvailabilitySizeDisplayLabel(product, selectedSize?.size) || t("common.notAvailable")} />
                 <Info compact label={t("pos.labels.stock")} value={String(isSimpleMode ? product?.stock ?? 0 : selectedSize?.stock_quantity ?? 0)} />
                 <Info compact label={t("pos.labels.price")} value={formatCurrency(isSimpleMode ? simpleVariant.price : selectedSize?.sale_price || 0)} />
                 <Info className="hidden sm:block" label={t("pos.labels.sku")} value={selectedSize?.sku || t("common.notAvailable")} />

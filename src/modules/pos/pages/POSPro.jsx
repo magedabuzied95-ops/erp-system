@@ -73,6 +73,7 @@ import { normalizeSaleModeSettings } from "../../../shared/lib/saleMode";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
 import { buildLoyaltyReceiptMessage, buildLoyaltyReceiptWhatsappUrl, normalizeReceiptPhone } from "../lib/whatsappReceiptMessage.js";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
+import { getCrocsSizeInputDisplayLabel, isCrocsProductType } from "../../products/lib/variantBulkSizes";
 import BarcodeScanner, { barcodeScannerMessages } from "../../../components/BarcodeScanner";
 import ProductGrid from "../components/ProductGrid";
 import CartSidebar, { ReceiptPreview } from "../components/CartSidebar";
@@ -1123,6 +1124,25 @@ const getProductSmartFilterValue = (product, field, options = []) => {
   };
 
   return resolveSmartFilterMatch((aliases[field] || []).find((value) => String(value || "").trim()), options);
+};
+
+const getPosSizeDisplayLabel = (product = {}, size = "") => {
+  const rawSize = String(size || "").trim();
+  if (!rawSize) return "";
+
+  const crocsSource = [
+    product?.product_type,
+    product?.productType,
+    product?.category,
+    product?.category_name,
+    product?.brand,
+    product?.brand_name,
+    product?.type,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return isCrocsProductType(crocsSource) ? getCrocsSizeInputDisplayLabel(rawSize) || rawSize : rawSize;
 };
 
 const makeCategoryOption = (id, name) => {
@@ -2630,6 +2650,7 @@ function POSPro() {
         String(variant.size || "") === String(selectedSize || "")
     ) || null;
   }, [activeProduct, selectedColor, selectedSize]);
+  const activeVariantSizeLabel = getPosSizeDisplayLabel(activeProduct, activeVariant?.size);
 
   const activeVariantImageUrl = useMemo(() => {
     if (!activeProduct) return "";
@@ -6483,7 +6504,7 @@ function POSPro() {
                                 : "border-white/10 bg-black/30 text-white hover:bg-white/10"
                           }`}
                         >
-                          <span className="block leading-tight">{size || t("pos.labels.oneSize")}</span>
+                          <span className="block leading-tight">{getPosSizeDisplayLabel(activeProduct, size) || t("pos.labels.oneSize")}</span>
                           <span className={`block text-[10px] leading-tight ${disabled ? "text-zinc-600" : "text-zinc-300"}`}>
                             {t("pos.labels.stock")}: {stock}
                           </span>
@@ -6522,7 +6543,7 @@ function POSPro() {
                     </div>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-black text-zinc-300">
-                    <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1">{activeVariant?.color || t("pos.labels.default")} / {activeVariant?.size || t("pos.labels.oneSize")}</span>
+                    <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1">{activeVariant?.color || t("pos.labels.default")} / {activeVariantSizeLabel || t("pos.labels.oneSize")}</span>
                     <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1">{activeVariant?.sku || activeProduct.sku || t("common.notAvailable")}</span>
                   </div>
                 </div>
@@ -6578,7 +6599,7 @@ function POSPro() {
                         {activeProduct.name}
                       </div>
                       <div className="mt-2 truncate text-xs font-semibold text-zinc-400">
-                        {activeVariant?.color || t("pos.labels.default")} / {activeVariant?.size || t("pos.labels.oneSize")}
+                        {activeVariant?.color || t("pos.labels.default")} / {activeVariantSizeLabel || t("pos.labels.oneSize")}
                       </div>
                     </div>
                   </div>
@@ -6639,7 +6660,7 @@ function POSPro() {
                                   : "border border-white/10 bg-black/30 text-white hover:bg-white/10"
                             }`}
                           >
-                            <span className="block leading-tight">{size || t("pos.labels.oneSize")}</span>
+                            <span className="block leading-tight">{getPosSizeDisplayLabel(activeProduct, size) || t("pos.labels.oneSize")}</span>
                             <span className={`block text-[10px] leading-tight ${disabled ? "text-zinc-600" : "text-zinc-300"}`}>
                               {t("pos.labels.stock")}: {stock}
                             </span>
@@ -6675,7 +6696,7 @@ function POSPro() {
                           >
                             <div className="min-w-0">
                               <div className="truncate font-black text-white sm:font-semibold">
-                                {variant.color || t("pos.labels.default")} / {variant.size || t("pos.labels.oneSize")}
+                                {variant.color || t("pos.labels.default")} / {getPosSizeDisplayLabel(activeProduct, variant.size) || t("pos.labels.oneSize")}
                               </div>
                               <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-zinc-300 sm:text-xs lg:hidden">
                                 <span className="rounded-full bg-white/5 px-2 py-0.5">{t("pos.labels.stock")}: {stock}</span>
@@ -6724,7 +6745,7 @@ function POSPro() {
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-3 sm:rounded-3xl sm:p-4">
                     <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500 sm:text-xs sm:tracking-[0.18em]">{t("pos.labels.selectedVariant")}</div>
                     <div className="mt-1 text-base font-black text-white sm:mt-2 sm:text-xl">
-                      {activeVariant?.color || t("pos.labels.default")} / {activeVariant?.size || t("pos.labels.oneSize")}
+                      {activeVariant?.color || t("pos.labels.default")} / {activeVariantSizeLabel || t("pos.labels.oneSize")}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-black sm:mt-4 sm:grid sm:grid-cols-2 sm:gap-3 sm:text-sm">
                       <SmallCard compact label={t("pos.labels.stock")} value={String(normalizeStockQuantity(activeVariant?.stock_quantity ?? activeVariant?.stock))} />

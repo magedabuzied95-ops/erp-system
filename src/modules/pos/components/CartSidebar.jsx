@@ -44,6 +44,7 @@ import { matchesPhoneSearch, normalizePhone } from "../lib/phoneSearch";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { resolveInvoiceItemImageValue } from "../../../shared/lib/invoiceItemImages";
 import { getCurrentTenant } from "../../../shared/auth/authStorage";
+import { getCrocsSizeInputDisplayLabel, isCrocsProductType } from "../../products/lib/variantBulkSizes";
 
 const QRCodeSVG = lazy(() => import("qrcode.react").then((module) => ({ default: module.QRCodeSVG })));
 import { getBarcodeSvg } from "../../products/lib/barcodeLabels";
@@ -631,7 +632,7 @@ function CartSidebar({
                           const stock = getVariantStock(variant);
                           return {
                             value: String(variant.variant_id ?? variant.id ?? ""),
-                            label: `${variant.size || posLabel("labels.oneSize", "One size")} (${stock})`,
+                            label: `${getCartSizeDisplayLabel(item, variant.size) || posLabel("labels.oneSize", "One size")} (${stock})`,
                             disabled: stock <= 0,
                           };
                         })}
@@ -1443,7 +1444,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
             const unitPrice = getReceiptItemUnitPrice(item);
             const lineTotal = getReceiptItemTotal(item);
             const imageSrc = getInvoiceItemImage(item);
-            const variant = [item.size, item.color].filter(Boolean).join(" / ") || "غير محدد";
+            const variant = [item.color, getCartSizeDisplayLabel(item, item.size)].filter(Boolean).join(" / ") || "غير محدد";
 
             return (
               <div key={String(item.key || item.variant_id || item.name)} className="grid grid-cols-[minmax(0,1.5fr)_74px_40px_64px_70px] gap-1 border-b border-zinc-100 px-2 py-2.5 text-[11px] last:border-b-0">
@@ -1646,7 +1647,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
                   <div className="min-w-0 flex-1 text-right">
                     <div className="truncate font-black leading-tight text-zinc-950">{item.name}</div>
                     <div className="mt-0.5 text-[11px] leading-tight text-zinc-500">
-                      {item.color || receiptLabel("default", POS_ARABIC_TEXT.defaultVariant)} / {item.size || receiptLabel("oneSize", POS_ARABIC_TEXT.oneSize)}
+                      {item.color || receiptLabel("default", POS_ARABIC_TEXT.defaultVariant)} / {getCartSizeDisplayLabel(item, item.size) || receiptLabel("oneSize", POS_ARABIC_TEXT.oneSize)}
                     </div>
                   </div>
                 </div>
@@ -2147,6 +2148,26 @@ const getVariantStock = (variant = {}) => Math.max(0, Number(variant.stock_quant
 
 const variantColor = (variant = {}) => String(variant.color ?? variant.variant_color ?? "").trim();
 const variantSize = (variant = {}) => String(variant.size ?? variant.variant_size ?? "").trim();
+
+const getCartSizeDisplayLabel = (item = {}, size = "") => {
+  const rawSize = String(size || "").trim();
+  if (!rawSize) return "";
+
+  const product = item.product || item;
+  const crocsSource = [
+    product?.product_type,
+    product?.productType,
+    product?.category,
+    product?.category_name,
+    product?.brand,
+    product?.brand_name,
+    product?.type,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return isCrocsProductType(crocsSource) ? getCrocsSizeInputDisplayLabel(rawSize) || rawSize : rawSize;
+};
 
 function getCartVariantOptions(item = {}, catalogProducts = []) {
   const productId = String(item.product_id ?? item.product?.product_id ?? item.product?.id ?? "");

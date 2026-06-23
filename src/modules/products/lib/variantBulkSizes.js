@@ -1,5 +1,99 @@
 import { generateBarcode } from "./catalog";
 
+export const CROCS_SIZE_LIBRARY = {
+  adult: [
+    { eu: "35/36", us: "M3/W5", cm: "22", label: "35/36 (M3/W5) - 22 CM" },
+    { eu: "36/37", us: "M4/W6", cm: "23", label: "36/37 (M4/W6) - 23 CM" },
+    { eu: "37/38", us: "M5/W7", cm: "24", label: "37/38 (M5/W7) - 24 CM" },
+    { eu: "38/39", us: "M6/W8", cm: "25", label: "38/39 (M6/W8) - 25 CM" },
+    { eu: "39/40", us: "M7/W9", cm: "25.5", label: "39/40 (M7/W9) - 25.5 CM" },
+    { eu: "41/42", us: "M8/W10", cm: "26.5", label: "41/42 (M8/W10) - 26.5 CM" },
+    { eu: "42/43", us: "M9/W11", cm: "27.5", label: "42/43 (M9/W11) - 27.5 CM" },
+    { eu: "43/44", us: "M10/W12", cm: "28", label: "43/44 (M10/W12) - 28 CM" },
+    { eu: "44/45", us: "M11/W13", cm: "29", label: "44/45 (M11/W13) - 29 CM" },
+    { eu: "45/46", us: "M12", cm: "30", label: "45/46 (M12) - 30 CM" },
+  ],
+  kids: [
+    { eu: "20/21", us: "C4-C5", cm: "12", label: "20/21 (C4-C5) - 12 CM" },
+    { eu: "22/23", us: "C6-C7", cm: "13", label: "22/23 (C6-C7) - 13 CM" },
+    { eu: "24/25", us: "C8-C9", cm: "14", label: "24/25 (C8-C9) - 14 CM" },
+    { eu: "27/28", us: "C10-C11", cm: "16", label: "27/28 (C10-C11) - 16 CM" },
+    { eu: "29/30", us: "C12-C13", cm: "18", label: "29/30 (C12-C13) - 18 CM" },
+    { eu: "32/33", us: "J1", cm: "20", label: "32/33 (J1) - 20 CM" },
+    { eu: "33/34", us: "J2", cm: "21", label: "33/34 (J2) - 21 CM" },
+    { eu: "34/35", us: "J3", cm: "22", label: "34/35 (J3) - 22 CM" },
+  ],
+};
+
+export const CROCS_SIZE_LIBRARY_OPTIONS = [
+  { id: "adult", label: "Crocs Adult", sizes: CROCS_SIZE_LIBRARY.adult },
+  { id: "kids", label: "Crocs Kids", sizes: CROCS_SIZE_LIBRARY.kids },
+];
+
+export const formatCrocsSizeLibraryLabel = (size = {}) => {
+  const eu = String(size?.eu || "").trim();
+  const us = String(size?.us || "").trim();
+  const cm = String(size?.cm || "").trim();
+  return [eu, us, cm ? `${cm} CM` : ""].filter(Boolean).join(" — ");
+};
+
+export const getCrocsSizeLibraryItems = (libraryId = "") =>
+  (CROCS_SIZE_LIBRARY_OPTIONS.find((item) => item.id === libraryId)?.sizes || []).map((size) => ({
+    ...size,
+    displayLabel: formatCrocsSizeLibraryLabel(size),
+  }));
+
+export const getCrocsSizeInputDisplayLabel = (euValue = "") => {
+  const normalizedEu = String(euValue || "").trim();
+  if (!normalizedEu) return "";
+
+  for (const option of CROCS_SIZE_LIBRARY_OPTIONS) {
+    const match = option.sizes.find((size) => String(size?.eu || "").trim() === normalizedEu);
+    if (match) {
+      return match.us ? `${match.eu} = ${match.us}` : match.eu;
+    }
+  }
+
+  return normalizedEu;
+};
+
+const getProductSizeSortValue = (value = "") => {
+  const rawValue =
+    typeof value === "object" && value !== null
+      ? String(value.size || value.eu || value.label || "").trim()
+      : String(value || "").trim();
+  const normalizedValue = rawValue.toLowerCase().replace(/\s+/g, "");
+  const numericMatch = normalizedValue.match(/\d+(?:\.\d+)?/);
+  return {
+    normalizedValue,
+    numericValue: numericMatch ? Number(numericMatch[0]) : Number.POSITIVE_INFINITY,
+  };
+};
+
+export const sortProductSizes = (sizes = []) =>
+  [...(Array.isArray(sizes) ? sizes : [])].sort((left, right) => {
+    const leftSort = getProductSizeSortValue(left);
+    const rightSort = getProductSizeSortValue(right);
+
+    if (leftSort.numericValue !== rightSort.numericValue) {
+      return leftSort.numericValue - rightSort.numericValue;
+    }
+
+    if (leftSort.normalizedValue !== rightSort.normalizedValue) {
+      return leftSort.normalizedValue.localeCompare(rightSort.normalizedValue, "en", {
+        numeric: true,
+        sensitivity: "base",
+      });
+    }
+
+    return 0;
+  });
+
+export const isCrocsProductType = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized.includes("croc") || normalized.includes("كروكس");
+};
+
 const makeId = () =>
   typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
     ? crypto.randomUUID()
@@ -157,7 +251,14 @@ export const applyBulkSizesToGroups = ({
         .map((row) => normalizeSizeValue(row.size))
         .filter(Boolean)
     );
-    const missingSizes = sizes.filter((size) => !existingSizes.has(normalizeSizeValue(size)));
+    const missingSizes = [];
+    const missingSizeKeys = new Set();
+    sizes.forEach((size) => {
+      const key = normalizeSizeValue(size);
+      if (!key || existingSizes.has(key) || missingSizeKeys.has(key)) return;
+      missingSizeKeys.add(key);
+      missingSizes.push(size);
+    });
     const nextRows = [
       ...preservedRows,
       ...missingSizes.map((size) =>
