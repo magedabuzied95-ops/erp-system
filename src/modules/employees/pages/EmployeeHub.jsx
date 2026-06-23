@@ -14,6 +14,7 @@ import {
   UsersRound,
   WalletCards,
 } from "lucide-react";
+import usePermission from "../../permissions/hooks/usePermission";
 
 const AttendanceCenter = lazy(() => import("../../attendance/components/AttendanceCenter"));
 const AttendanceWorkspace = lazy(() => import("../../attendance/components/AttendanceWorkspace"));
@@ -22,12 +23,14 @@ const SalesEmployees = lazy(() => import("../../sales/pages/SalesEmployees"));
 const EmployeeAnalyticsWorkspace = lazy(() => import("../components/EmployeeAnalyticsWorkspace"));
 const EmployeeChatInbox = lazy(() => import("./EmployeeChatInbox"));
 const HRRequestsWorkspace = lazy(() => import("../components/HRRequestsWorkspace"));
+const StaffTasks = lazy(() => import("./StaffTasks"));
 
 const tabDefinitions = [
   { id: "overview", labelKey: "overview", icon: LayoutDashboard },
   { id: "employees", labelKey: "employees", icon: UsersRound },
   { id: "attendance", labelKey: "attendance", icon: CalendarClock },
   { id: "payroll", labelKey: "payroll", icon: BadgeDollarSign },
+  { id: "tasks", labelKey: "tasks", icon: ClipboardList },
   { id: "requests", labelKey: "requests", icon: ClipboardList },
   { id: "advances", labelKey: "advances", icon: WalletCards },
   { id: "chat", labelKey: "chat", icon: MessageCircle },
@@ -71,6 +74,7 @@ export default function EmployeeHub() {
   const params = useParams();
   const isRtl = String(i18n.language || "").toLowerCase().startsWith("ar");
   const direction = isRtl ? "rtl" : "ltr";
+  const canViewStaffTasks = usePermission("staff_tasks.view");
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const handleSelectedEmployeeChange = useCallback((employee) => {
     console.count("[hr-loop] onSelectedEmployeeChange");
@@ -78,9 +82,23 @@ export default function EmployeeHub() {
   }, []);
   const payrollVisibleTabs = useMemo(() => ["payroll", "penalties"], []);
   const advancesVisibleTabs = useMemo(() => ["advances", "approvals", "reports"], []);
+  const visibleTabDefinitions = useMemo(
+    () => tabDefinitions.filter((tab) => tab.id !== "tasks" || canViewStaffTasks),
+    [canViewStaffTasks]
+  );
   const tabs = useMemo(
-    () => tabDefinitions.map((tab) => ({ ...tab, label: t(`common.employeeHub.tabs.${tab.labelKey}`, tab.id === "analytics" ? t("common.analytics", "Analytics") : tab.labelKey) })),
-    [t]
+    () => visibleTabDefinitions.map((tab) => ({
+      ...tab,
+      label: t(
+        `common.employeeHub.tabs.${tab.labelKey}`,
+        tab.id === "analytics"
+          ? t("common.analytics", "Analytics")
+          : tab.id === "tasks"
+            ? (isRtl ? "المهام" : "Tasks")
+            : tab.labelKey
+      ),
+    })),
+    [isRtl, t, visibleTabDefinitions]
   );
   const activeTab = validTabs.has(params.tab) ? params.tab : "overview";
   const selectedEmployeeId = String(selectedEmployee?.id || selectedEmployee?.employee_id || "");
@@ -145,6 +163,20 @@ export default function EmployeeHub() {
           >
             <SalesEmployees defaultTab="payroll" visibleTabs={payrollVisibleTabs} embedded />
           </WorkspaceErrorBoundary>
+        ) : null}
+        {activeTab === "tasks" ? (
+          canViewStaffTasks ? (
+            <WorkspaceErrorBoundary
+              fallback={<div className="theme-card p-5 text-sm font-bold text-[var(--muted)]">تعذر تحميل مهام الموظفين. يرجى تحديث الصفحة.</div>}
+              onError={(error) => console.error("[employee-hub-staff-tasks-boundary]", error)}
+            >
+              <StaffTasks />
+            </WorkspaceErrorBoundary>
+          ) : (
+            <div className="theme-card p-5 text-sm font-bold text-[var(--muted)]">
+              {isRtl ? "ليس لديك صلاحية عرض إدارة المهام." : "You do not have permission to view task management."}
+            </div>
+          )
         ) : null}
         {activeTab === "requests" ? <HRRequestsWorkspace /> : null}
         {activeTab === "advances" ? <Expenses defaultTab="advances" visibleTabs={advancesVisibleTabs} embedded /> : null}
