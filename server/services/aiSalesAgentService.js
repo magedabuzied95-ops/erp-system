@@ -1255,7 +1255,34 @@ const isLikelyMessengerExternalId = (value = "") => {
   const candidate = text(value).replace(/\s+/g, "");
   return Boolean(candidate) && /^\d{5,}$/.test(candidate);
 };
-const resolveConversationDisplayName = ({ conversation = {}, customerProfile = {} } = {}) => {
+const extractMessengerPsidFromIdentity = (value = "") => {
+  const candidate = text(value);
+  if (!candidate) return "";
+  const lowerCandidate = candidate.toLowerCase();
+  let trimmed = candidate;
+  if (lowerCandidate.startsWith("facebook_messenger:") || lowerCandidate.startsWith("messenger:") || lowerCandidate.startsWith("facebook:")) {
+    trimmed = candidate.slice(candidate.indexOf(":") + 1);
+  }
+  const digits = trimmed.replace(/\D/g, "");
+  return /^\d{5,}$/.test(digits) ? digits : "";
+};
+const isHumanReadableDisplayName = (value = "", { sessionId = "", externalConversationId = "" } = {}) => {
+  const candidate = text(value);
+  if (!candidate) return false;
+  const normalized = candidate.toLowerCase();
+  const compact = candidate.replace(/\s+/g, "");
+  if (!compact) return false;
+  if (/^\d+$/.test(compact)) return false;
+  if (normalized.startsWith("facebook_messenger:") || normalized.startsWith("whatsapp:")) return false;
+  if (["customer", "unknown", "عميل", "زبون", "client", "user"].includes(normalized)) return false;
+  if (isLikelyMessageLikeName(candidate)) return false;
+  const idCandidates = [sessionId, externalConversationId]
+    .map((item) => extractMessengerPsidFromIdentity(item))
+    .filter(Boolean);
+  if (idCandidates.includes(compact)) return false;
+  return true;
+};
+const resolveConversationDisplayName = ({ conversation = {}, customerProfile = {}, customerName = "" } = {}) => {
   const sourceChannel = lower(conversation.channel || conversation.session_channel || conversation.source || "");
   const isMessenger = isMessengerConversationChannel(sourceChannel);
   const profile = customerProfile && typeof customerProfile === "object"
@@ -1264,6 +1291,8 @@ const resolveConversationDisplayName = ({ conversation = {}, customerProfile = {
       ? conversation.customer_profile
       : {};
   const messengerProfile = conversation.channel_metadata?.messenger_profile || conversation.channel_metadata?.customer_profile || profile?.messenger_profile || {};
+  const sessionId = text(conversation.session_id || conversation.conversation_key || "");
+  const externalConversationId = text(conversation.external_conversation_id || "");
   const candidates = [
     profile.name,
     profile.display_name,
@@ -1284,9 +1313,11 @@ const resolveConversationDisplayName = ({ conversation = {}, customerProfile = {
     messengerProfile.contact_name,
     [messengerProfile.first_name, messengerProfile.last_name].filter(Boolean).join(" "),
     conversation.session_customer_name,
+    customerName,
     conversation.customer_name,
     conversation.customer?.name,
     conversation.display_name,
+    conversation.participant_name,
     conversation.facebook_name,
     conversation.messenger_name,
     conversation.sender_name,
@@ -1300,7 +1331,7 @@ const resolveConversationDisplayName = ({ conversation = {}, customerProfile = {
   for (const candidate of candidates) {
     const name = text(candidate);
     if (!name) continue;
-    if (isMessenger && (isLikelyMessengerExternalId(name) || isLikelyMessageLikeName(name))) continue;
+    if (isMessenger && !isHumanReadableDisplayName(name, { sessionId, externalConversationId })) continue;
     return name;
   }
   return isMessenger ? "" : text(conversation.external_customer_id || conversation.phone || "");
@@ -1314,10 +1345,19 @@ const buildCustomerProfilePayload = ({ conversation = {}, memories = [] } = {}) 
   const displayName = resolveConversationDisplayName({
     conversation,
     customerProfile: profile,
+    customerName: conversation.customer_name || "",
   });
+  const messengerFallbackName = isMessengerConversationChannel(conversation.channel || conversation.source || "")
+    ? (isHumanReadableDisplayName(conversation.customer_name, {
+        sessionId: conversation.session_id || conversation.conversation_key || "",
+        externalConversationId: conversation.external_conversation_id || "",
+      }) ? conversation.customer_name : "")
+    : (conversation.customer_name || "");
+  const resolvedName = displayName || fullName || firstName || messengerFallbackName || "";
   return {
     id: profile.id || conversation.profile_id || null,
-    name: displayName || fullName || firstName || (!isMessengerConversationChannel(conversation.channel || conversation.source || "") ? conversation.customer_name : "") || "",
+    name: resolvedName,
+    display_name: resolvedName,
     first_name: firstName,
     last_name: lastName,
     avatar_url: profile.profile_pic_url || conversation.profile_pic_url || conversation.customer_avatar_url || conversation.session_customer_avatar_url || conversation.channel_metadata?.profile_pic || conversation.channel_metadata?.messenger_profile?.profile_pic || "",
@@ -1959,7 +1999,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       });
     const channel = canonicalInboxChannel(conversation.channel || conversation.session_channel || conversation.source || "web_chat") || "web_chat";
     const canonicalSessionId = canonicalInboxConversationSessionId(conversation);
-    const customerName = resolveConversationDisplayName({ conversation });
+    const customerName = resolveConversationDisplayName({ conversation, customerName: conversation.customer_name || "" });
     const customerAvatarUrl = conversation.customer_avatar_url || conversation.session_customer_avatar_url || "";
     const summaryDirection = isOutboundMessageRow(conversation) ? "outbound" : text(conversation.direction || conversation.message_direction || "");
     const summaryCustomerMessage = summaryDirection === "outbound" ? "" : text(conversation.customer_message || conversation.message_text || "");
@@ -2627,7 +2667,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
         }));
     const resolvedChannel = text(conversation.channel || conversation.session_channel || conversation.source);
     const isMessengerConversation = ["facebook_messenger", "facebook", "messenger"].includes(lower(resolvedChannel));
-    const messengerDisplayName = isMessengerConversation ? resolveConversationDisplayName({ conversation }) : "";
+    const messengerDisplayName = isMessengerConversation ? resolveConversationDisplayName({ conversation, customerName: conversation.customer_name || "" }) : "";
     const systemEvents = [
       conversation.conversation_status === "human_takeover" ? {
         type: "human_takeover",
@@ -2706,6 +2746,8 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
         returned_to_ai_at: conversation.returned_to_ai_at,
         closed_at: conversation.closed_at,
         customer_name: messengerDisplayName || customerProfile.name || "",
+        display_name: messengerDisplayName || customerProfile.display_name || customerProfile.name || "",
+        participant_name: messengerDisplayName || customerProfile.display_name || customerProfile.name || "",
         customer_avatar_url: customerProfile.avatar_url || conversation.customer_avatar_url || "",
         phone: customerProfile.phone || conversation.phone || "",
         sender_name: isMessengerConversation ? messengerDisplayName : conversation.sender_name || "",
@@ -2760,6 +2802,8 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       source: conversation.source || conversation.channel || "web_chat",
       channel: canonicalInboxChannel(conversation.channel || conversation.session_channel || conversation.source || "web_chat") || "web_chat",
       customer_name: messengerDisplayName || customerProfile.name || "",
+      display_name: messengerDisplayName || customerProfile.display_name || customerProfile.name || "",
+      participant_name: messengerDisplayName || customerProfile.display_name || customerProfile.name || "",
       sender_name: isMessengerConversation ? messengerDisplayName : conversation.sender_name || "",
       profile_name: isMessengerConversation ? messengerDisplayName : conversation.profile_name || "",
       contact_name: isMessengerConversation ? messengerDisplayName : conversation.contact_name || "",
