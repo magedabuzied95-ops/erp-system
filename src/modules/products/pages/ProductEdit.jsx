@@ -111,6 +111,7 @@ const emptyProduct = {
   product_type: "",
   style: "",
   grade: "",
+  is_offer_story: false,
   variation_mode: "full_variations",
   fixed_size_label: "One Size",
   low_stock_threshold: "",
@@ -308,6 +309,7 @@ const normalizeProductForm = (row = {}) => ({
   product_type: row.product_type || "",
   style: row.style || "",
   grade: row.grade || "",
+  is_offer_story: row.is_offer_story === true || String(row.is_offer_story || "").toLowerCase() === "true",
   variation_mode: row.variation_mode || "full_variations",
   fixed_size_label: row.fixed_size_label || "One Size",
   purchase_alerts_enabled: row.purchase_alerts_enabled === true || String(row.purchase_alerts_enabled || "").toLowerCase() === "true",
@@ -2284,6 +2286,7 @@ function ProductEdit() {
         product_type: product.product_type || "",
         style: product.style || "",
         grade: product.grade || "",
+        is_offer_story: Boolean(product.is_offer_story),
         variation_mode: product.variation_mode || "full_variations",
         fixed_size_label: isColorOnlyMode ? product.fixed_size_label || "One Size" : "",
         purchase_alerts_enabled: Boolean(product.purchase_alerts_enabled),
@@ -2366,6 +2369,7 @@ function ProductEdit() {
         product_type: product.product_type || "",
         style: product.style || "",
         grade: product.grade || "",
+        is_offer_story: Boolean(product.is_offer_story),
         variation_mode: product.variation_mode || "full_variations",
         fixed_size_label: isColorOnlyMode ? product.fixed_size_label || "One Size" : "",
         purchase_alerts_enabled: Boolean(product.purchase_alerts_enabled),
@@ -2746,6 +2750,7 @@ function ProductEdit() {
               audiences={product.audiences || []}
               productType={product.product_type}
               grade={product.grade}
+              isOfferStory={product.is_offer_story}
               onMainCategoryChange={setMainCategory}
               onSubCategoryChange={setSubCategory}
               onChildCategoryChange={setChildCategory}
@@ -2763,6 +2768,7 @@ function ProductEdit() {
               }}
               onProductTypeChange={(value) => updateProductField("product_type", value)}
               onGradeChange={(value) => updateProductField("grade", value)}
+              onIsOfferStoryChange={(value) => updateProductField("is_offer_story", value)}
               purchaseAlertsEnabled={product.purchase_alerts_enabled}
               purchaseAlertByColor={product.purchase_alert_by_color}
               cartonSize={product.carton_size}

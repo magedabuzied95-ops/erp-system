@@ -230,6 +230,7 @@ const normalizeCatalogListingProduct = (product = {}) => {
     ...product,
     id,
     name,
+    is_storefront_visible: product?.is_storefront_visible ?? true,
     card_id: product?.card_id || product?.storefront_card_id || id,
     storefront_card_id: product?.storefront_card_id || product?.card_id || id,
     product_id: product?.product_id || product?.productId || id,
@@ -460,14 +461,16 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   const inStock = params.get("inStock") || "";
   const quality = params.get("quality") || "";
   const productType = normalizeStorefrontProductTypeValue(params.get("product_type") || typeParam || "");
+  const selectedType = productType || "";
   const grade = params.get("grade") || "";
   const minPrice = params.get("min_price") || "";
   const maxPrice = params.get("max_price") || "";
   const sort = params.get("sort") || "";
   const selectedSort = normalizeCatalogSortValue(sort);
   const saleQuery = truthyFlag(params.get("sale"));
+  const offerStoryQuery = truthyFlag(params.get("offer_story") || params.get("offerStory"));
   const lastSizes = truthyFlag(params.get("lastSizes") || params.get("last_sizes"));
-  const saleView = sale || saleQuery;
+  const saleView = sale || saleQuery || offerStoryQuery;
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedGender, setSelectedGender] = useState(gender);
   const [selectedGrade, setSelectedGrade] = useState(grade);
@@ -484,7 +487,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     [classificationGroups, gender, grade, productType]
   );
   const productsApiParams = useMemo(
-    () => ({ q: backendSearchTerm, gender: gender || "", sale: saleView ? 1 : "", sort, limit: 500 }),
+    () => ({ q: backendSearchTerm, gender: gender || "", offer_story: saleView ? 1 : "", sort, limit: 500 }),
     [backendSearchTerm, gender, saleView, sort]
   );
   const { products, loading, error } = useProducts(productsApiParams, { ttlMs: 0 });
@@ -794,7 +797,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   };
   const clearClassificationFiltersUrl = () => {
     const next = new URLSearchParams(params);
-    ["q", "brand", "gender", "category", "product_type", "type", "style", "grade", "quality", "color", "size", "sizes", "min_price", "max_price", "inStock", "sale", "lastSizes", "last_sizes", "sort"].forEach((field) => next.delete(field));
+    ["q", "brand", "gender", "category", "product_type", "type", "style", "grade", "quality", "color", "size", "sizes", "min_price", "max_price", "inStock", "sale", "offer_story", "offerStory", "lastSizes", "last_sizes", "sort"].forEach((field) => next.delete(field));
     return `${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`;
   };
   const toggleSizeValue = (value) => {

@@ -167,6 +167,8 @@ const queryPositiveInt = (value, fallback, { min = 0, max = Number.MAX_SAFE_INTE
   return Math.min(Math.max(parsed, min), max);
 };
 
+const storefrontVisibilityConditionSql = "COALESCE(p.is_storefront_visible, TRUE) = TRUE";
+
 const roundMoney = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
 const normalizeStorefrontSort = (value = "") => STOREFRONT_SORT_ALIASES.get(queryText(value).toLowerCase()) || "";
@@ -1201,6 +1203,14 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
     sale_source: saleModeActive ? "product" : "regular",
     sale_mode_applied: saleModeActive,
     sale_badge: saleModeActive ? (pricingSettings.sale_mode_label || row.sale_reason || "Sale") : "",
+    is_storefront_visible:
+      row.is_storefront_visible === true ||
+      String(row.is_storefront_visible ?? "").toLowerCase() === "true" ||
+      row.isStorefrontVisible === true ||
+      String(row.isStorefrontVisible ?? "").toLowerCase() === "true" ||
+      row.is_storefront_visible === undefined ||
+      row.is_storefront_visible === null ||
+      row.is_storefront_visible === "",
     sale_reason: row.sale_reason || "",
     sale_start_at: row.sale_start_at || null,
     sale_end_at: row.sale_end_at || null,
@@ -1322,6 +1332,7 @@ const catalogQuery = `
   WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
     AND p.is_active IS DISTINCT FROM FALSE
     AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
+    AND ${storefrontVisibilityConditionSql}
 `;
 
 const lookupAny = (fieldSql, identifierParam) => `EXISTS (SELECT 1 FROM unnest(${identifierParam}::text[]) AS lookup(value) WHERE LOWER(TRIM(COALESCE(${fieldSql}, ''))) = LOWER(TRIM(lookup.value)))`;
@@ -1425,24 +1436,25 @@ const storefrontProductsSql = `
           AND (pv.sale_end_at IS NULL OR pv.sale_end_at >= NOW())
         )
       )
-      AND ${productAudienceFilterSql("$6")}
-      AND (COALESCE(array_length($7::text[], 1), 0) = 0 OR LOWER(TRIM(COALESCE(p.product_type, ''))) = ANY($7::text[]))
-      AND (COALESCE(array_length($8::text[], 1), 0) = 0 OR LOWER(TRIM(COALESCE(p.grade, ''))) = ANY($8::text[]))
+      AND ($6::boolean = FALSE OR COALESCE(p.is_offer_story, FALSE) = TRUE)
+      AND ${productAudienceFilterSql("$7")}
+      AND (COALESCE(array_length($8::text[], 1), 0) = 0 OR LOWER(TRIM(COALESCE(p.product_type, ''))) = ANY($8::text[]))
+      AND (COALESCE(array_length($9::text[], 1), 0) = 0 OR LOWER(TRIM(COALESCE(p.grade, ''))) = ANY($9::text[]))
       AND (
-        COALESCE(array_length($11::text[], 1), 0) = 0
-        OR LOWER(TRIM(COALESCE(p.grade, ''))) = ANY($11::text[])
-        OR LOWER(TRIM(COALESCE(p.product_type, ''))) = ANY($11::text[])
+        COALESCE(array_length($12::text[], 1), 0) = 0
+        OR LOWER(TRIM(COALESCE(p.grade, ''))) = ANY($12::text[])
+        OR LOWER(TRIM(COALESCE(p.product_type, ''))) = ANY($12::text[])
       )
-      AND ($9 = '' OR EXISTS (
+      AND ($10 = '' OR EXISTS (
         SELECT 1
         FROM product_variants pv_size
         WHERE pv_size.product_id = p.id
           AND pv_size.is_active IS DISTINCT FROM FALSE
           AND pv_size.deleted_at IS NULL
-          AND LOWER(TRIM(COALESCE(pv_size.size, ''))) = LOWER(TRIM($9))
-          AND ($10::boolean = FALSE OR COALESCE(pv_size.stock, 0) > 0)
+          AND LOWER(TRIM(COALESCE(pv_size.size, ''))) = LOWER(TRIM($10))
+          AND ($11::boolean = FALSE OR COALESCE(pv_size.stock, 0) > 0)
       ))
-      AND ($10::boolean = FALSE OR COALESCE(p.stock, 0) > 0 OR EXISTS (
+      AND ($11::boolean = FALSE OR COALESCE(p.stock, 0) > 0 OR EXISTS (
         SELECT 1
         FROM product_variants pv_stock
         WHERE pv_stock.product_id = p.id
@@ -1452,19 +1464,30 @@ const storefrontProductsSql = `
     ))
     GROUP BY p.id, c.name, b.name, m.name
     ORDER BY p.id DESC
-    LIMIT $12 OFFSET $13
+    LIMIT $13 OFFSET $14
 `;
 
-const queryProducts = async (tenantId, q, category, filters, saleOnly, limit, offset) => {
-  const params = [tenantId, q, category, filters.brand || "", saleOnly, filters.gender, filters.productType, filters.grade, filters.size || "", Boolean(filters.inStock), filters.quality || [], limit, offset];
+const storefrontProductsSqlWithoutVisibility = storefrontProductsSql.replace(
+  `    AND ${storefrontVisibilityConditionSql}\n`,
+  "\n"
+);
+
+const queryProductsWithSql = async (sql, tenantId, q, category, filters, saleOnly, limit, offset) => {
+  const params = [tenantId, q, category, filters.brand || "", saleOnly, Boolean(filters.offerStory), filters.gender, filters.productType, filters.grade, filters.size || "", Boolean(filters.inStock), filters.quality || [], limit, offset];
   try {
-    return await db.query(storefrontProductsSql, params);
+    return await db.query(sql, params);
   } catch (error) {
-    error.sql = storefrontProductsSql;
+    error.sql = sql;
     error.params = params;
     throw error;
   }
 };
+
+const queryProducts = async (tenantId, q, category, filters, saleOnly, limit, offset) =>
+  queryProductsWithSql(storefrontProductsSql, tenantId, q, category, filters, saleOnly, limit, offset);
+
+const queryProductsWithoutVisibility = async (tenantId, q, category, filters, saleOnly, limit, offset) =>
+  queryProductsWithSql(storefrontProductsSqlWithoutVisibility, tenantId, q, category, filters, saleOnly, limit, offset);
 
 const queryProductsByIds = async (tenantId, productIds = [], pricingSettings = STOREFRONT_PRICING_DEFAULTS) => {
   const ids = productIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
@@ -1562,6 +1585,7 @@ const queryVisualKeywordProductIds = async (tenantId, terms = [], limit = 8) => 
     WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
       AND p.is_active IS DISTINCT FROM FALSE
       AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
+      AND COALESCE(p.is_storefront_visible, TRUE) = TRUE
     GROUP BY p.id
     ORDER BY score DESC, p.id DESC
     LIMIT $3
@@ -1908,6 +1932,15 @@ const slimProductForList = (product = {}) => ({
   sale_source: product.sale_source,
   sale_badge: product.sale_badge,
   sale_mode_applied: product.sale_mode_applied,
+  is_offer_story: product.is_offer_story === true || String(product.is_offer_story || "").toLowerCase() === "true" || product.isOfferStory === true || String(product.isOfferStory || "").toLowerCase() === "true",
+  is_storefront_visible:
+    product.is_storefront_visible === true ||
+    String(product.is_storefront_visible ?? "").toLowerCase() === "true" ||
+    product.isStorefrontVisible === true ||
+    String(product.isStorefrontVisible ?? "").toLowerCase() === "true" ||
+    product.is_storefront_visible === undefined ||
+    product.is_storefront_visible === null ||
+    product.is_storefront_visible === "",
   compare_at_price: product.compare_at_price,
   old_price: product.old_price,
   original_price: product.original_price,
@@ -2219,6 +2252,7 @@ const normalizeStorefrontProductsQuery = (query = {}) => {
     size: queryText(query.size),
     inStock: queryFlagOn(query.inStock || query.in_stock || query.stock),
     saleOnly: queryFlagOn(query.sale),
+    offerStory: queryFlagOn(query.offer_story || query.offerStory),
     sort: normalizeStorefrontSort(query.sort || query.order),
     scope: normalizeStorefrontScope(query.scope || query.last_piece_scope || query._last_piece_scope),
     groupingMode: normalizeStorefrontGroupingMode(query.grouping || query.grouping_mode || query.groupingMode || query._color_cards),
@@ -2264,7 +2298,7 @@ export const listProducts = async (req, res) => {
     const pricingSettings = await loadStorefrontPricingSettings(tenantId);
     const payload = await (async () => {
       const normalizedQuery = normalizeStorefrontProductsQuery(req.query || {});
-      const { q, category, brand, saleOnly, sort, limit, offset, scope, groupingMode, size, inStock, audienceSearch } = normalizedQuery;
+      const { q, category, brand, saleOnly, offerStory, sort, limit, offset, scope, groupingMode, size, inStock, audienceSearch } = normalizedQuery;
       const genderAliases = await getClassificationFilterAliases("gender", normalizedQuery.gender);
       const productType = await getActiveClassificationFilterAliases("product_type", normalizedQuery.productType);
       const grade = await getActiveClassificationFilterAliases("grade", normalizedQuery.grade);
@@ -2272,6 +2306,7 @@ export const listProducts = async (req, res) => {
       const genderSource = normalizedQuery.gender || audienceSearch;
       const gender = normalizeProductAudiences(genderAliases, genderSource);
       const effectiveSaleOnly = saleOnly && saleModeEnabled(pricingSettings) && !pricingSettings.enable_fake_compare_price;
+      const effectiveOfferStoryOnly = Boolean(offerStory);
       const randomSeed = sort ? "" : storefrontRandomSeed(req);
       if (process.env.NODE_ENV !== "production") {
         console.debug("[storefront/products-debug]", {
@@ -2289,7 +2324,7 @@ export const listProducts = async (req, res) => {
           },
           computedSearchTerm: q,
           computedGenderFilter: gender,
-          finalWhereFilters: { q, category, brand, gender, productType, grade, quality, size, inStock, saleOnly: effectiveSaleOnly },
+          finalWhereFilters: { q, category, brand, gender, productType, grade, quality, size, inStock, saleOnly: effectiveSaleOnly, offerStory: effectiveOfferStoryOnly },
         });
       }
       if (ERP_PERF_DEBUG) console.log("[storefront-random-seed]", {
@@ -2306,10 +2341,10 @@ export const listProducts = async (req, res) => {
         ? Math.min(Math.max(limit + offset + 500, 1000), 5000)
         : limit;
       const queryOffset = shouldOrderAfterExpansion ? 0 : offset;
-      let result = await queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock }, effectiveSaleOnly, candidateLimit, queryOffset);
+      let result = await queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset);
       let usedTenantFallback = false;
       if (!result.rows.length && tenantId !== null) {
-        const fallback = await queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock }, effectiveSaleOnly, candidateLimit, queryOffset);
+        const fallback = await queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset);
         if (fallback.rows.length) {
           result = fallback;
           usedTenantFallback = true;
@@ -2317,7 +2352,7 @@ export const listProducts = async (req, res) => {
       }
       let products = result.rows.map((row) => normalizeProduct(row, pricingSettings));
       if (!products.some((product) => product.total_stock > 0) && tenantId !== null) {
-        const fallback = await queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock }, effectiveSaleOnly, candidateLimit, queryOffset);
+        const fallback = await queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset);
         const fallbackProducts = fallback.rows.map((row) => normalizeProduct(row, pricingSettings));
         if (fallbackProducts.some((product) => product.total_stock > 0)) {
           products = fallbackProducts;
@@ -2701,6 +2736,7 @@ const countActiveProductsByGender = async (tenantId, aliases = []) => {
     WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
       AND p.is_active IS DISTINCT FROM FALSE
       AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
+      AND COALESCE(p.is_storefront_visible, TRUE) = TRUE
       AND ${productAudienceFilterSql("$2")}
       AND COALESCE(pv.stock, p.stock, 0) > 0
     `,
@@ -2860,6 +2896,7 @@ const queryLastPieceProducts = async (tenantId, category, size, limit) => {
       WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
         AND p.is_active IS DISTINCT FROM FALSE
         AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
+        AND COALESCE(p.is_storefront_visible, TRUE) = TRUE
         AND pv.is_active IS DISTINCT FROM FALSE
         AND pv.deleted_at IS NULL
         ${variantStatusClause}
@@ -2961,6 +2998,7 @@ const queryLastPieceApiDebugStats = async (tenantId, category, size) => {
       WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
         AND p.is_active IS DISTINCT FROM FALSE
         AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
+        AND COALESCE(p.is_storefront_visible, TRUE) = TRUE
         AND pv.is_active IS DISTINCT FROM FALSE
         AND pv.deleted_at IS NULL
         ${variantStatusClause}

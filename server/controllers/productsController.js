@@ -595,6 +595,8 @@ export const ensureProductSchema = async () => {
             ADD COLUMN IF NOT EXISTS product_type TEXT,
             ADD COLUMN IF NOT EXISTS style TEXT,
             ADD COLUMN IF NOT EXISTS grade TEXT,
+            ADD COLUMN IF NOT EXISTS is_offer_story BOOLEAN NOT NULL DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS is_storefront_visible BOOLEAN NOT NULL DEFAULT TRUE,
             ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '',
             ADD COLUMN IF NOT EXISTS description_ar TEXT DEFAULT '',
             ADD COLUMN IF NOT EXISTS description_en TEXT DEFAULT '',
@@ -649,6 +651,7 @@ export const ensureProductSchema = async () => {
             ADD COLUMN IF NOT EXISTS qr_token TEXT,
             ADD COLUMN IF NOT EXISTS tenant_id BIGINT
         `);
+        await client.query(`UPDATE products SET is_storefront_visible = TRUE WHERE is_storefront_visible IS NULL`);
         await client.query(`
           DO $$
           BEGIN
@@ -902,6 +905,8 @@ const normalizeProductRow = (row = {}) => {
   product_type: row.product_type || "",
   style: row.style || "",
   grade: row.grade || "",
+  is_offer_story: row.is_offer_story === true || String(row.is_offer_story || "").toLowerCase() === "true",
+  is_storefront_visible: row.is_storefront_visible === true || String(row.is_storefront_visible ?? "").toLowerCase() === "true" || row.is_storefront_visible === undefined || row.is_storefront_visible === null || row.is_storefront_visible === "",
   variation_mode: normalizeVariationMode(row.variation_mode),
   fixed_size_label: row.fixed_size_label || "",
   brand_id: row.brand_id ?? "",
@@ -2418,6 +2423,8 @@ export const createProduct = async (req, res) => {
       product_type,
       style,
       grade,
+      is_offer_story,
+      is_storefront_visible,
       status,
       sku,
       barcode,
@@ -2609,6 +2616,8 @@ export const createProduct = async (req, res) => {
       "product_type",
       "style",
       "grade",
+      "is_offer_story",
+      "is_storefront_visible",
       "category_id",
       "brand_id",
       "unit_id",
@@ -2665,6 +2674,10 @@ export const createProduct = async (req, res) => {
       normalizedProductType || "",
       normalizedStyle || "",
       normalizedGrade || "",
+      Boolean(is_offer_story === true || String(is_offer_story || "").toLowerCase() === "true"),
+      is_storefront_visible === undefined || is_storefront_visible === null || String(is_storefront_visible).trim() === ""
+        ? true
+        : is_storefront_visible === true || String(is_storefront_visible || "").toLowerCase() === "true",
       normalizedForeignKeys.category_id,
       normalizedForeignKeys.brand_id,
       normalizedForeignKeys.unit_id,
@@ -2842,6 +2855,8 @@ export const updateProduct = async (req, res) => {
         product_type,
         style,
         grade,
+      is_offer_story,
+      is_storefront_visible,
       sku,
       barcode,
       status,
@@ -2915,6 +2930,11 @@ export const updateProduct = async (req, res) => {
     const normalizedProductType = await normalizeClassificationValue("product_type", product_type);
     const normalizedStyle = await normalizeClassificationValue("style", style);
     const normalizedGrade = await normalizeClassificationValue("grade", grade);
+    const normalizedOfferStory = is_offer_story === true || String(is_offer_story || "").toLowerCase() === "true";
+    const normalizedStorefrontVisible =
+      is_storefront_visible === undefined || is_storefront_visible === null || String(is_storefront_visible).trim() === ""
+        ? null
+        : is_storefront_visible === true || String(is_storefront_visible || "").toLowerCase() === "true";
     const normalizedDescriptionAr = String(description_ar || "").trim();
     const normalizedDescriptionEn = String(description_en || "").trim();
     const normalizedDescription = String(description || normalizedDescriptionEn || normalizedDescriptionAr || "").trim();
@@ -3038,6 +3058,8 @@ export const updateProduct = async (req, res) => {
         product_type = $26,
         style = $27,
         grade = $28,
+        is_storefront_visible = COALESCE($59, is_storefront_visible),
+        is_offer_story = $55,
         category_id = $29,
         brand_id = $30,
         unit_id = $31,
@@ -3060,8 +3082,8 @@ export const updateProduct = async (req, res) => {
         low_stock_tracking_mode = COALESCE($52, low_stock_tracking_mode),
         product_low_stock_threshold = COALESCE($53, product_low_stock_threshold),
         minimum_distinct_sizes_required = COALESCE($54, minimum_distinct_sizes_required)
-      WHERE id = $55
-        AND tenant_id = $57
+      WHERE id = $56
+        AND tenant_id = $58
       RETURNING *
       `,
       [
@@ -3121,9 +3143,11 @@ export const updateProduct = async (req, res) => {
         normalizedLowStockTrackingMode,
         normalizedProductLowStockThreshold,
         normalizedMinimumDistinctSizesRequired,
+        normalizedOfferStory,
         productId,
         productPricingProvided,
         tenantId,
+        normalizedStorefrontVisible,
       ]
     );
     if (updated.rows.length === 0) {
@@ -3337,14 +3361,23 @@ export const updateProductStatus = async (req, res) => {
     const productId = normalizeOptionalForeignKey(req.params.id);
     if (!productId) return res.status(400).json({ success: false, message: "Invalid product id" });
 
+    const statusProvided =
+      Object.prototype.hasOwnProperty.call(req.body || {}, "status") ||
+      Object.prototype.hasOwnProperty.call(req.body || {}, "is_active") ||
+      Object.prototype.hasOwnProperty.call(req.body || {}, "active");
+    const offerStoryProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "is_offer_story");
+    const storefrontVisibleProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "is_storefront_visible");
     const requestedStatus = String(req.body?.status || "").trim().toLowerCase();
     const requestedActive =
       req.body?.is_active === true ||
       req.body?.active === true ||
       requestedStatus === "active";
     const nextStatus = requestedActive ? "active" : "inactive";
-    if (requestedStatus && !["active", "inactive"].includes(requestedStatus)) {
+    if (statusProvided && requestedStatus && !["active", "inactive"].includes(requestedStatus)) {
       return res.status(400).json({ success: false, message: "Product status can only be active or inactive" });
+    }
+    if (!statusProvided && !offerStoryProvided && !storefrontVisibleProvided) {
+      return res.status(400).json({ success: false, message: "No status fields provided" });
     }
 
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
@@ -3369,7 +3402,7 @@ export const updateProductStatus = async (req, res) => {
     }
 
     const currentStatus = String(existing.rows[0]?.status || "active").trim().toLowerCase();
-    if (["draft", "archived", "deleted"].includes(currentStatus)) {
+    if (statusProvided && ["draft", "archived", "deleted"].includes(currentStatus)) {
       return res.status(409).json({
         success: false,
         message: "Draft, archived, and deleted products keep their own status workflow",
@@ -3378,13 +3411,23 @@ export const updateProductStatus = async (req, res) => {
 
     const setParts = [];
     const values = [];
-    if (productColumns.has("status")) {
+    if (statusProvided && productColumns.has("status")) {
       values.push(nextStatus);
       setParts.push(`status = $${values.length}`);
     }
-    if (productColumns.has("is_active")) {
+    if (statusProvided && productColumns.has("is_active")) {
       values.push(requestedActive);
       setParts.push(`is_active = $${values.length}`);
+    }
+    if (offerStoryProvided && productColumns.has("is_offer_story")) {
+      const nextOfferStory = req.body?.is_offer_story === true || String(req.body?.is_offer_story || "").toLowerCase() === "true";
+      values.push(nextOfferStory);
+      setParts.push(`is_offer_story = $${values.length}`);
+    }
+    if (storefrontVisibleProvided && productColumns.has("is_storefront_visible")) {
+      const nextStorefrontVisible = req.body?.is_storefront_visible === true || String(req.body?.is_storefront_visible || "").toLowerCase() === "true";
+      values.push(nextStorefrontVisible);
+      setParts.push(`is_storefront_visible = $${values.length}`);
     }
     if (productColumns.has("updated_at")) setParts.push("updated_at = NOW()");
     values.push(productId);
@@ -3409,8 +3452,10 @@ export const updateProductStatus = async (req, res) => {
     console.log("[products-status-toggle]", {
       product_id: productId,
       previous_status: currentStatus,
-      status: nextStatus,
-      is_active: requestedActive,
+      status: statusProvided ? nextStatus : currentStatus,
+      is_active: statusProvided ? requestedActive : null,
+      is_offer_story: offerStoryProvided ? (req.body?.is_offer_story === true || String(req.body?.is_offer_story || "").toLowerCase() === "true") : null,
+      is_storefront_visible: storefrontVisibleProvided ? (req.body?.is_storefront_visible === true || String(req.body?.is_storefront_visible || "").toLowerCase() === "true") : null,
       affected_rows: updated.rowCount,
     });
 

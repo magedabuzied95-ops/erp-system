@@ -95,6 +95,8 @@ export const compactProductMeta = (meta = {}) => ({
   status: compactText(meta.status || "", 32),
   variation_mode: compactText(meta.variation_mode || "", 40),
   fixed_size_label: compactText(meta.fixed_size_label || "", 80),
+  is_offer_story: Boolean(meta.is_offer_story),
+  is_storefront_visible: meta.is_storefront_visible !== false && String(meta.is_storefront_visible ?? "").toLowerCase() !== "false",
 });
 
 export const cleanupProductCache = ({ preserveProductMeta = false } = {}) => {
@@ -409,6 +411,8 @@ export const mergeProductRecord = (product, variant = null) => {
     wholesale_price: hasVariant ? mergedVariant.wholesale_price ?? meta.wholesale_price ?? product.wholesale_price ?? 0 : product.wholesale_price ?? meta.wholesale_price ?? 0,
     category: meta.category || product.category || "Uncategorized",
     brand: meta.brand || product.brand || "Unbranded",
+    is_offer_story: meta.is_offer_story ?? product.is_offer_story ?? false,
+    is_storefront_visible: meta.is_storefront_visible ?? product.is_storefront_visible ?? true,
     image_url: mergedVariant.image_url || meta.image_url || product.image_url || "",
     status,
     active,

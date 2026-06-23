@@ -72,6 +72,7 @@ import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
 import { VirtualGrid, VirtualList } from "../shared/components/VirtualList";
 import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
+import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "./lib/sizeGuide";
 import instaPayLogoWebp from "../assets/payments/instapay.webp";
 import instaPayLogo from "../assets/payments/instapay.png";
 import vodafoneCashLogoWebp from "../assets/payments/vodafone-cash.webp";
@@ -321,6 +322,9 @@ const useBodyScrollLock = (locked) => {
 const useProducts = (params = {}, { ttlMs = STOREFRONT_PRODUCTS_CACHE_TTL_MS } = {}) => {
   const randomSeedRef = useRef(`${Date.now()}-${Math.random()}`);
   const queryKey = JSON.stringify(params);
+  const offerStoryValue = String(params?.offer_story ?? params?.offerStory ?? "").trim().toLowerCase();
+  const hasOfferStoryFilter = offerStoryValue && !["0", "false", "no", "off"].includes(offerStoryValue);
+  const effectiveTtlMs = hasOfferStoryFilter ? 0 : ttlMs;
   const queryString = useMemo(() => {
     const query = new URLSearchParams();
     const queryParams = JSON.parse(queryKey || "{}");
@@ -340,7 +344,7 @@ const useProducts = (params = {}, { ttlMs = STOREFRONT_PRODUCTS_CACHE_TTL_MS } =
     return query.toString();
   }, [queryKey]);
   const requestUrl = `/storefront/products${queryString ? `?${queryString}` : ""}`;
-  const cachedProductsData = getCachedStorefrontGetData(requestUrl, { ttlMs });
+  const cachedProductsData = getCachedStorefrontGetData(requestUrl, { ttlMs: effectiveTtlMs });
   const [state, setState] = useState(() => {
     const initialProducts = Array.isArray(cachedProductsData?.products) ? cachedProductsData.products : [];
     return cachedProductsData ? { loading: false, error: "", products: initialProducts } : { loading: true, error: "", products: [] };
@@ -356,14 +360,14 @@ const useProducts = (params = {}, { ttlMs = STOREFRONT_PRODUCTS_CACHE_TTL_MS } =
     }
     if (import.meta.env.DEV) {
       const requestParams = new URLSearchParams(queryString);
-      console.debug("[storefront-random-seed]", {
-        seed: requestParams.get("random_seed") || "",
-        sort: requestParams.get("sort") || "",
-        url: requestUrl,
-        ttlMs,
-      });
-    }
-    cachedStorefrontGet(requestUrl, { ttlMs })
+        console.debug("[storefront-random-seed]", {
+          seed: requestParams.get("random_seed") || "",
+          sort: requestParams.get("sort") || "",
+          url: requestUrl,
+          ttlMs: effectiveTtlMs,
+        });
+      }
+    cachedStorefrontGet(requestUrl, { ttlMs: effectiveTtlMs })
       .then((data) => {
         const products = Array.isArray(data.products) ? data.products : [];
         if (import.meta.env.DEV) {
@@ -386,7 +390,7 @@ const useProducts = (params = {}, { ttlMs = STOREFRONT_PRODUCTS_CACHE_TTL_MS } =
     return () => {
       cancelled = true;
     };
-  }, [queryString, requestUrl, ttlMs]);
+  }, [queryString, requestUrl, effectiveTtlMs]);
 
   return state;
 };
@@ -891,6 +895,11 @@ const hasSale = (product = {}) => {
   const regular = storefrontSellingPrice(product);
   return storefrontSaleModeOn(product) && sale > 0 && regular > 0 && sale < regular;
 };
+const isOfferStory = (product = {}) =>
+  product?.is_offer_story === true ||
+  String(product?.is_offer_story || "").toLowerCase() === "true" ||
+  product?.isOfferStory === true ||
+  String(product?.isOfferStory || "").toLowerCase() === "true";
 const LAST_PIECE_MAX_STOCK = 3;
 const sellableVariantStock = (variant = {}) => {
   const stock = Number(variant.stock);
@@ -1055,6 +1064,15 @@ const getSizesForColorGroup = (activeColorGroup = {}) => {
   });
   return Array.from(sizes.values());
 };
+const getSizeOptionsForColorGroup = (activeColorGroup = {}) => {
+  const sizes = new Map();
+  (Array.isArray(activeColorGroup?.variants) ? activeColorGroup.variants : []).forEach((variant) => {
+    const size = String(variant?.size || "").trim();
+    if (!size || sizes.has(size)) return;
+    sizes.set(size, { size, variant, hasStock: variantHasStock(variant) });
+  });
+  return Array.from(sizes.values());
+};
 const productCardBrandLabel = (product = {}) => firstTextValue(
   product.brand_name,
   product.brand,
@@ -1090,6 +1108,7 @@ const LazyStorefrontTrackOrderPage = lazy(() => import("./pages/StorefrontAsyncP
 const LazyStorefrontAccountPage = lazy(() => import("./pages/StorefrontAccountPage.jsx").then((module) => ({ default: module.StorefrontAccountPage })));
 const LazyStorefrontWishlistPage = lazy(() => import("./pages/StorefrontAsyncPages").then((module) => ({ default: module.WishlistPageRoute })));
 const LazyStorefrontRecentPage = lazy(() => import("./pages/StorefrontAsyncPages").then((module) => ({ default: module.RecentPageRoute })));
+const LazyStorefrontSizeGuidePage = lazy(() => import("./pages/StorefrontSizeGuidePage.jsx").then((module) => ({ default: module.default })));
 const LazyOrderConfirmationActionPage = lazy(() => import("./pages/OrderConfirmationActionPage.jsx").then((module) => ({ default: module.OrderConfirmationActionPage })));
 
 const CART_KEY = "storefront.cart";
@@ -1757,9 +1776,9 @@ const featuredCategoryDefinitions = [
     subtitleEn: "Selected discounts and high-value picks for a limited time.",
     subtitleAr: "خصومات مختارة وقطع عالية القيمة لفترة محدودة.",
     query: "offers sale discount عروض",
-    href: "/shop/products?sale=true",
+    href: "/shop/products?offer_story=true",
     examples: ["Sale", "Discount", "Offers", "Best Price"],
-    test: (product, text) => hasSale(product) || /(?:^|\b)(offer|offers|sale|discount|خصم|عروض?)(?:\b|$)/i.test(text),
+    test: (product, text) => isOfferStory(product) || /(?:^|\b)(offer|offers|sale|discount|خصم|عروض?)(?:\b|$)/i.test(text),
     icon: BadgePercent,
   },
   {
@@ -2280,8 +2299,8 @@ const mainHomeCategoryCards = [
     titleEn: "Offers",
     subtitleAr: "عروض الموسم",
     subtitleEn: "Season offers",
-    href: "/shop/products?sale=true",
-    test: (product) => hasSale(product),
+    href: "/shop/products?offer_story=true",
+    test: (product) => isOfferStory(product),
     icon: BadgePercent,
   },
   {
@@ -2327,7 +2346,7 @@ function MobileStoryCategories({ products = [], lang = "ar", themeMode = "dark" 
     return mainHomeCategoryCards.slice(0, 4).map((definition) => {
       const match = sourceProducts.find(({ product }) => {
         if (usedProducts.has(productIdentityKey(product))) return false;
-        if (definition.id === "offers") return hasSale(product);
+        if (definition.id === "offers") return isOfferStory(product);
         return definition.test(product, productSearchText(product));
       });
       if (match?.product) usedProducts.add(productIdentityKey(match.product));
@@ -2993,13 +3012,13 @@ function QuickSellingStrips({ lang = "ar" }) {
   const isRtl = normalizeLanguage(lang) === "ar";
   return (
     <section className="mx-auto max-w-[1200px] px-4 py-1.5 md:py-2" dir={isRtl ? "rtl" : "ltr"}>
-      <div className="sf-scroll flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0">
+      <div className="grid grid-cols-2 gap-2 pb-1 sm:grid sm:grid-cols-4 sm:gap-2 sm:overflow-visible sm:pb-0">
         {homeSellingBadges.map((badge) => {
           const Icon = badge.icon;
           return (
-            <div key={badge.labelAr} className="flex min-h-12 min-w-[11rem] snap-start items-center justify-center gap-2 rounded-full border border-stone-200 bg-white/85 px-4 text-sm font-black text-stone-800 shadow-[0_10px_26px_rgba(39,20,75,0.05)] backdrop-blur dark:border-white/10 dark:bg-white/[0.055] dark:text-stone-100">
-              <Icon className="h-4 w-4 text-[#d4af37] dark:text-[#f8e7b3]" />
-              <span>{isRtl ? badge.labelAr : badge.labelEn}</span>
+            <div key={badge.labelAr} className="flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-full border border-stone-200 bg-white/85 px-2.5 py-2 text-[10px] font-black leading-none text-stone-800 shadow-[0_10px_26px_rgba(39,20,75,0.05)] backdrop-blur dark:border-white/10 dark:bg-white/[0.055] dark:text-stone-100 sm:min-h-12 sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm">
+              <Icon className="h-3.5 w-3.5 shrink-0 text-[#d4af37] dark:text-[#f8e7b3] sm:h-4 sm:w-4" />
+              <span className="truncate">{isRtl ? badge.labelAr : badge.labelEn}</span>
             </div>
           );
         })}
@@ -3019,7 +3038,7 @@ function HomePage(props) {
   const brandFilter = params.get("brand") || "";
   const storefrontHome = useStorefrontHome();
   const { products, loading } = useProducts({ limit: 24 });
-  const { products: saleProducts, loading: saleLoading } = useProducts({ sale: 1, limit: 12 });
+  const { products: saleProducts, loading: saleLoading } = useProducts({ offer_story: 1, limit: 12 });
 
   useEffect(() => {
     if (!brandFilter || location.pathname.replace(/\/+$/, "") !== "/shop") return;
@@ -3029,7 +3048,7 @@ function HomePage(props) {
   const merchProducts = useMemo(() => products.filter(isAvailableProduct), [products]);
   const railProducts = useMemo(() => (merchProducts.length ? merchProducts : products), [merchProducts, products]);
   const saleRailProducts = useMemo(() => saleProducts.filter(isAvailableProduct), [saleProducts]);
-  const saleFallback = useMemo(() => railProducts.filter(hasSale), [railProducts]);
+  const saleFallback = useMemo(() => railProducts.filter(isOfferStory), [railProducts]);
   const bestBase = useMemo(
     () => uniqueProductsByIdentity([...railProducts].sort((a, b) => stockScore(b) - stockScore(a) || newestScore(b) - newestScore(a))),
     [railProducts]
@@ -3039,13 +3058,14 @@ function HomePage(props) {
     [railProducts]
   );
   const saleBase = useMemo(
-    () => uniqueProductsByIdentity([...(saleRailProducts.length ? saleRailProducts : saleProducts), ...saleFallback].filter(hasSale)),
+    () => uniqueProductsByIdentity([...(saleRailProducts.length ? saleRailProducts : saleProducts), ...saleFallback].filter(isOfferStory)),
     [saleFallback, saleProducts, saleRailProducts]
   );
   const storefrontHomeProducts = useMemo(
     () => uniqueProductsByIdentity((storefrontHome.collections || []).flatMap((collection) => collection.products || [])),
     [storefrontHome.collections]
   );
+  const showHomeProductSections = false;
   const homepageProductPool = useMemo(
     () => uniqueProductsByIdentity([...railProducts, ...storefrontHomeProducts, ...saleBase, ...saleProducts, ...freshBase, ...bestBase]),
     [bestBase, freshBase, railProducts, saleBase, saleProducts, storefrontHomeProducts]
@@ -3076,7 +3096,7 @@ function HomePage(props) {
       .filter((product) => homeProductWithImage(product))
       .sort((a, b) => popularScore(b) - popularScore(a) || newestScore(b) - newestScore(a)));
     const newestPreferred = freshBase.filter((product) => homeProductWithImage(product));
-    const salePreferred = saleBase.filter((product) => hasSale(product) && homeProductWithImage(product));
+    const salePreferred = saleBase.filter((product) => isOfferStory(product) && homeProductWithImage(product));
     const lastSizePreferred = homepageProductPool.filter((product) => isLastPieceProduct(product) && homeProductWithImage(product));
     const trendingPreferred = bestBase.filter((product) => homeProductWithImage(product));
 
@@ -3095,10 +3115,14 @@ function HomePage(props) {
       <FeaturedCategoriesHero products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} themeMode={themeMode} />
       <QuickSellingStrips lang={lang} />
       <ShopByMainCategories products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} themeMode={themeMode} />
-      <HomeProductSection title={sfText("storefront.nav.new")} subtitle={sfText("storefront.home.newSubtitle")} viewAllTo="/shop/products?sort=newest" loading={loading || storefrontHome.loading} products={homeSections.newArrivals} railType="new" tone="new" {...props} />
-      <HomeProductSection title={sfText("storefront.nav.sale")} subtitle={sfText("storefront.home.saleSubtitle")} viewAllTo="/shop/products?sale=true" loading={saleLoading && !homeSections.sale.length} products={homeSections.sale} railType="sale" tone="sale" {...props} />
-      <HomeProductSection title={sfText("storefront.home.lastSizes")} subtitle={sfText("storefront.home.productOfWeekEmpty")} viewAllTo="/shop/products?lastSizes=true" loading={loading || storefrontHome.loading} products={homeSections.lastSizes} railType="last-size" tone="last" {...props} />
-      <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "الأكثر طلبًا" : "Trending"} subtitle={normalizeLanguage(lang) === "ar" ? "اختيارات رائجة مع أحدث المنتجات كخيار بديل." : "Popular picks, with newest products as fallback."} viewAllTo="/shop/products?sort=trending" loading={loading || storefrontHome.loading} products={homeSections.trending} railType="trending" tone="trending" {...props} />
+      {showHomeProductSections ? (
+        <>
+          <HomeProductSection title={sfText("storefront.nav.new")} subtitle={sfText("storefront.home.newSubtitle")} viewAllTo="/shop/products?sort=newest" loading={loading || storefrontHome.loading} products={homeSections.newArrivals} railType="new" tone="new" {...props} />
+          <HomeProductSection title={sfText("storefront.nav.sale")} subtitle={sfText("storefront.home.saleSubtitle")} viewAllTo="/shop/products?offer_story=true" loading={saleLoading && !homeSections.sale.length} products={homeSections.sale} railType="sale" tone="sale" {...props} />
+          <HomeProductSection title={sfText("storefront.home.lastSizes")} subtitle={sfText("storefront.home.productOfWeekEmpty")} viewAllTo="/shop/products?lastSizes=true" loading={loading || storefrontHome.loading} products={homeSections.lastSizes} railType="last-size" tone="last" {...props} />
+          <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "الأكثر طلبًا" : "Trending"} subtitle={normalizeLanguage(lang) === "ar" ? "اختيارات رائجة مع أحدث المنتجات كخيار بديل." : "Popular picks, with newest products as fallback."} viewAllTo="/shop/products?sort=trending" loading={loading || storefrontHome.loading} products={homeSections.trending} railType="trending" tone="trending" {...props} />
+        </>
+      ) : null}
       <Reviews />
       <HomeBrandsSection />
       <LastPieceFinder open={lastPieceOpen} onClose={() => setLastPieceOpen(false)} />
@@ -4085,7 +4109,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
   ];
   const navItems = [
     { label: t("storefront.nav.categories"), to: "/shop/products" },
-    { label: t("storefront.nav.sale"), to: "/shop/sale" },
+    { label: t("storefront.nav.sale"), to: "/shop/products?offer_story=true" },
     { label: t("storefront.nav.new"), to: "/shop/products?sort=new" },
     { label: t("storefront.nav.men"), to: "/shop/products?gender=men" },
     { label: t("storefront.nav.women"), to: "/shop/products?gender=women" },
@@ -5142,13 +5166,12 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const primaryImageUrl = useMemo(() => resolveCardImageUrl(displayImage), [displayImage]);
   const secondaryImageUrl = useMemo(() => resolveCardImageUrl(secondaryDisplayImage), [secondaryDisplayImage]);
   const hasReadySecondaryImage = Boolean(secondaryImageUrl && secondaryImageUrl !== primaryImageUrl);
-  const [variantSheetOpen, setVariantSheetOpen] = useState(false);
-  const [sheetColorKey, setSheetColorKey] = useState("");
-  const [sheetVariantId, setSheetVariantId] = useState("");
-  const [sheetQty, setSheetQty] = useState(1);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddColorKey, setQuickAddColorKey] = useState("");
+  const [quickAddVariantId, setQuickAddVariantId] = useState("");
+  const [quickAddQty, setQuickAddQty] = useState(1);
   const [secondaryImageReady, setSecondaryImageReady] = useState(false);
   const [secondaryFlashActive, setSecondaryFlashActive] = useState(false);
-  const sheetDismissedRef = useRef(false);
   const secondaryFlashTimerRef = useRef(null);
   useEffect(() => {
     let cancelled = false;
@@ -5225,27 +5248,69 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     if (nextVariant?.id) setSelectedVariantId(nextVariant.id);
   }, [activeSizes, selectedVariant?.size, selectedVariantId]);
 
-  const canQuickAdd = availableVariant && variantHasStock(availableVariant);
-  const handleQuickAdd = useCallback(() => onAddToCart(product, availableVariant), [availableVariant, onAddToCart, product]);
+  const quickAddActiveGroup = useMemo(
+    () => colorGroups.find((group) => String(group.key) === String(quickAddColorKey)) || (colorGroups.length === 1 ? colorGroups[0] : null),
+    [colorGroups, quickAddColorKey]
+  );
+  const quickAddSizeOptions = useMemo(
+    () => getSizeOptionsForColorGroup(quickAddActiveGroup),
+    [quickAddActiveGroup]
+  );
+  const quickAddSelectedVariant = useMemo(
+    () => quickAddSizeOptions.find((item) => String(item.variant?.id) === String(quickAddVariantId))?.variant || null,
+    [quickAddSizeOptions, quickAddVariantId]
+  );
+  const quickAddMaxQty = Math.max(1, Number(quickAddSelectedVariant?.stock || 1));
+  const quickAddSafeQty = Math.min(Math.max(1, Number(quickAddQty || 1)), quickAddMaxQty);
+  const canQuickAdd = sellableVariants.length > 0;
   const openVariantSheet = useCallback(() => {
-    sheetDismissedRef.current = false;
-    const first = availableVariant && variantHasStock(availableVariant) ? availableVariant : sellableVariants[0] || null;
-    setSheetColorKey(first ? variantColorKey(first) : colorGroups[0]?.key || "");
-    setSheetVariantId(first?.id || "");
-    setSheetQty(1);
-    setVariantSheetOpen(true);
-  }, [availableVariant, colorGroups, sellableVariants]);
+    const nextGroup = colorGroups.length === 1 ? colorGroups[0] : null;
+    const nextSizes = getSizeOptionsForColorGroup(nextGroup);
+    const availableSizes = nextSizes.filter((item) => variantHasStock(item.variant));
+    const nextVariant = availableSizes.length === 1 ? availableSizes[0]?.variant : null;
+    setQuickAddColorKey(nextGroup?.key || "");
+    setQuickAddVariantId(nextVariant?.id || "");
+    setQuickAddQty(1);
+    setQuickAddOpen(true);
+  }, [colorGroups]);
   const closeVariantSheet = useCallback(() => {
-    sheetDismissedRef.current = true;
-    setVariantSheetOpen(false);
-    setSheetColorKey("");
-    setSheetVariantId("");
-    setSheetQty(1);
+    setQuickAddOpen(false);
+    setQuickAddColorKey("");
+    setQuickAddVariantId("");
+    setQuickAddQty(1);
   }, []);
-  const handleVariantSheetAdd = useCallback((variant, quantity) => {
-    onAddToCart(product, variant, quantity);
+  const handleVariantSheetAdd = useCallback(async (variant, quantity) => {
+    await Promise.resolve(onAddToCart(product, variant, quantity));
     closeVariantSheet();
   }, [closeVariantSheet, onAddToCart, product]);
+  const handleQuickAddColorChange = useCallback((colorKey) => {
+    const nextGroup = colorGroups.find((group) => String(group.key) === String(colorKey)) || null;
+    const nextSizes = getSizeOptionsForColorGroup(nextGroup);
+    const availableSizes = nextSizes.filter((item) => variantHasStock(item.variant));
+    const currentSize = nextSizes.find((item) => String(item.variant?.id) === String(quickAddVariantId))?.size
+      || quickAddSizeOptions.find((item) => String(item.variant?.id) === String(quickAddVariantId))?.size
+      || "";
+    const sizeMatch = currentSize
+      ? nextSizes.find((item) => String(item.size) === String(currentSize) && variantHasStock(item.variant))?.variant || null
+      : null;
+    const nextVariant = sizeMatch
+      || (availableSizes.length === 1
+        ? availableSizes[0]?.variant || null
+        : null);
+    setQuickAddColorKey(nextGroup?.key || "");
+    setQuickAddVariantId(nextVariant?.id || "");
+    setQuickAddQty(1);
+  }, [colorGroups, quickAddSizeOptions, quickAddVariantId]);
+  const handleQuickAddVariantChange = useCallback((variantId) => {
+    setQuickAddVariantId(variantId);
+    setQuickAddQty(1);
+  }, []);
+  const handleQuickAddQuantityChange = useCallback((nextQty) => {
+    setQuickAddQty((current) => {
+      const target = Number.isFinite(Number(nextQty)) ? Number(nextQty) : Number(current || 1);
+      return Math.min(Math.max(1, target || 1), quickAddMaxQty);
+    });
+  }, [quickAddMaxQty]);
   const handleWishlist = useCallback(() => {
     toggleWishlist(product);
     playSoftClick();
@@ -5433,7 +5498,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              handleQuickAdd();
+              openVariantSheet();
             }}
             disabled={!canQuickAdd}
             className="sf-quick-add-button inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#d4af37]/28 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-3.5 py-1.5 text-[10px] font-black leading-none text-stone-950 shadow-[0_10px_24px_rgba(212,175,55,0.18)] transition duration-200 hover:-translate-y-0.5 hover:border-[#e5c158]/45 hover:shadow-[0_14px_30px_rgba(212,175,55,0.24)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100 md:pointer-events-none md:translate-y-1 md:opacity-0 md:transition-[opacity,transform] md:group-hover/product:pointer-events-auto md:group-hover/product:translate-y-0 md:group-hover/product:opacity-100 md:group-active/product:opacity-100"
@@ -5488,7 +5553,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
-              navigate("/shop/size-guide");
+              navigate(buildSizeGuidePath(resolveSizeGuideTypeForProduct(product)));
             }}
             className="inline-flex h-6 shrink-0 whitespace-nowrap items-center justify-center rounded-full border border-stone-200 bg-white px-2.5 text-[9px] font-black text-stone-600 transition hover:border-[#d4af37]/35 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-200"
           >
@@ -5496,27 +5561,18 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           </button>
         </div>
       </div>
-      {variantSheetOpen ? (
+      {quickAddOpen ? (
         <Suspense fallback={null}>
           <LazyProductCardVariantSheet
-            open={variantSheetOpen}
+            open={quickAddOpen}
             product={product}
             colorGroups={colorGroups}
-            selectedColorKey={sheetColorKey}
-            selectedVariantId={sheetVariantId}
-            quantity={sheetQty}
-            onColorChange={(colorKey) => {
-              const group = colorGroups.find((item) => item.key === colorKey);
-              const next = firstDisplayVariant(group?.variants || []);
-              setSheetColorKey(colorKey);
-              setSheetVariantId(next?.id || "");
-              setSheetQty(1);
-            }}
-            onVariantChange={(variantId) => {
-              setSheetVariantId(variantId);
-              setSheetQty(1);
-            }}
-            onQuantityChange={setSheetQty}
+            selectedColorKey={quickAddColorKey}
+            selectedVariantId={quickAddVariantId}
+            quantity={quickAddQty}
+            onColorChange={handleQuickAddColorChange}
+            onVariantChange={handleQuickAddVariantChange}
+            onQuantityChange={handleQuickAddQuantityChange}
             onClose={closeVariantSheet}
             onAdd={handleVariantSheetAdd}
           />
@@ -5561,14 +5617,31 @@ function ProductCardVariantSheet({
   onAdd,
 }) {
   const { t } = useTranslation();
+  useBodyScrollLock(open);
   if (!open) return null;
-  const activeGroup = colorGroups.find((group) => String(group.key) === String(selectedColorKey)) || colorGroups[0] || null;
-  const sizeOptions = getSizesForColorGroup(activeGroup);
-  const selectedVariant = sizeOptions.find((item) => String(item.variant?.id) === String(selectedVariantId))?.variant
-    || firstDisplayVariant(activeGroup?.variants || [])
-    || null;
+  const activeGroup = useMemo(
+    () => colorGroups.find((group) => String(group.key) === String(selectedColorKey)) || (colorGroups.length === 1 ? colorGroups[0] : null),
+    [colorGroups, selectedColorKey]
+  );
+  const sizeOptions = useMemo(
+    () => getSizeOptionsForColorGroup(activeGroup),
+    [activeGroup]
+  );
+  const availableSizeOptions = useMemo(
+    () => sizeOptions.filter((item) => variantHasStock(item.variant)),
+    [sizeOptions]
+  );
+  const selectedVariant = useMemo(
+    () => sizeOptions.find((item) => String(item.variant?.id) === String(selectedVariantId))?.variant || null,
+    [selectedVariantId, sizeOptions]
+  );
+  const priceVariant = selectedVariant || availableSizeOptions[0]?.variant || firstDisplayVariant(activeGroup?.variants || []) || null;
+  const sellingPrice = displaySellingPrice(product, priceVariant);
+  const comparePrice = displayComparePrice(product, priceVariant);
+  const previewImage = productCardPrimaryImageFor(product, priceVariant, activeGroup);
   const maxQty = Math.max(1, Number(selectedVariant?.stock || 1));
   const safeQty = Math.min(Math.max(1, Number(quantity || 1)), maxQty);
+  const submitLabel = !activeGroup ? "اختار اللون أولًا" : selectedVariant ? t("storefront.cart.addToCart") : "اختار المقاس أولًا";
   const handleCloseRequest = useCallback((event) => {
     if (event) {
       event.stopPropagation();
@@ -5577,52 +5650,74 @@ function ProductCardVariantSheet({
       onClose();
     }
   }, [onClose]);
+  useEffect(() => {
+    const selectable = availableSizeOptions.filter((item) => variantHasStock(item.variant));
+    if (selectable.length !== 1) return;
+    const nextVariantId = selectable[0]?.variant?.id || "";
+    if (String(nextVariantId) && String(nextVariantId) !== String(selectedVariantId) && typeof onVariantChange === "function") {
+      onVariantChange(nextVariantId);
+    }
+  }, [availableSizeOptions, onVariantChange, selectedVariantId]);
 
   return createPortal(
-    <div className="sf-product-variant-sheet fixed inset-0 z-[90] pointer-events-auto md:hidden" role="dialog" aria-modal="true">
+    <div dir="rtl" className="sf-product-variant-sheet fixed inset-0 z-[120] flex items-end justify-center pointer-events-auto md:items-center" role="dialog" aria-modal="true">
       <button
         type="button"
-        className="absolute inset-0 z-0 bg-stone-950/62 backdrop-blur-sm"
+        className="absolute inset-0 z-0 bg-stone-950/72 backdrop-blur-sm transition-opacity"
         onClick={handleCloseRequest}
         aria-label={t("common.close")}
       />
       <section
-        className="sf-product-variant-sheet-panel absolute inset-x-0 bottom-0 z-10 rounded-t-[1.55rem] border border-white/10 bg-[linear-gradient(180deg,#101426_0%,#070b16_100%)] p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] text-white shadow-[0_-24px_70px_rgba(0,0,0,0.42)]"
+        className="sf-product-variant-sheet-panel relative z-10 flex max-h-[92dvh] w-full flex-col overflow-hidden border border-white/10 bg-[linear-gradient(180deg,#0a0a0a_0%,#111111_45%,#151515_100%)] text-white shadow-[0_-24px_70px_rgba(0,0,0,0.42)] md:mx-4 md:w-[min(44rem,calc(100vw-2rem))] md:max-h-[90dvh] md:rounded-[2rem] rounded-t-[1.55rem]"
         onClick={(event) => event.stopPropagation()}
         onPointerUp={(event) => event.stopPropagation()}
       >
-        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-white/20" />
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#f3d77a]">{t("storefront.products.chooseSize")}</p>
-            <h3 className="mt-1 line-clamp-2 text-base font-black leading-5">{product?.name}</h3>
+        <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-white/20 md:hidden" />
+        <div className="flex items-start justify-between gap-3 border-b border-white/8 px-4 py-4 md:px-5">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[1rem] border border-white/10 bg-white/[0.04]">
+              <img
+                src={imageFor(previewImage)}
+                onError={fallbackProductImage}
+                alt={product?.name || ""}
+                className="h-full w-full object-cover"
+                loading="lazy"
+                decoding="async"
+                width="64"
+                height="64"
+              />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#f3d77a]">{t("storefront.products.chooseColor", "اختار اللون والمقاس")}</p>
+              <h3 className="mt-1 line-clamp-2 text-[1rem] font-black leading-6 md:text-[1.05rem]">{product?.name}</h3>
+              <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <span className="text-[1.05rem] font-black leading-none text-[#f3d77a]">{money(sellingPrice)}</span>
+                {comparePrice ? <span className="text-[11px] font-bold leading-none text-white/40 line-through">{money(comparePrice)}</span> : null}
+              </div>
+            </div>
           </div>
           <button
             type="button"
-            onPointerUp={(event) => {
-              event.stopPropagation();
-              if (typeof onClose === "function") {
-                onClose();
-              }
-            }}
-            onClick={(event) => {
-              event.stopPropagation();
-              if (typeof onClose === "function") {
-                onClose();
-              }
-            }}
-            className="relative z-20 grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75"
-            title="Close"
-            aria-label="Close"
+            onPointerUp={handleCloseRequest}
+            onClick={handleCloseRequest}
+            className="relative z-20 grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75 transition hover:border-white/20 hover:bg-white/10"
+            title={t("common.close")}
+            aria-label={t("common.close")}
           >
-            <X className="h-4 w-4" />
+            <X className="h-4.5 w-4.5" />
           </button>
         </div>
 
-        {colorGroups.length > 1 ? (
+        <div className="flex-1 overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 md:px-5">
+          <div className="rounded-[1.25rem] border border-[#d4af37]/18 bg-[linear-gradient(145deg,rgba(212,175,55,0.10),rgba(255,255,255,0.03))] px-3 py-2 text-[12px] font-bold leading-5 text-white/80">
+            سيتم إضافة اللون والمقاس المختارين فقط إلى السلة.
+          </div>
+
           <div className="mt-4">
-            <div className="mb-2 text-[11px] font-black text-white/50">{t("storefront.products.color")}</div>
-            <div className="sf-scroll flex gap-2 overflow-x-auto pb-1">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-white/45">{t("storefront.products.color", "اللون")}</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
               {colorGroups.map((group) => {
                 const active = String(group.key) === String(activeGroup?.key);
                 return (
@@ -5630,59 +5725,100 @@ function ProductCardVariantSheet({
                     key={group.key}
                     type="button"
                     onClick={() => onColorChange(group.key)}
-                    className={`min-h-9 shrink-0 rounded-full border px-3 py-2 text-xs font-black transition ${active ? "border-[#f3d77a]/70 bg-[#d4af37] text-white shadow-[0_12px_28px_rgba(212,175,55,0.32)]" : "border-white/10 bg-white/6 text-white/70"}`}
+                    className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-3 py-2 text-xs font-black transition ${active ? "border-[#f3d77a]/70 bg-[rgba(212,175,55,0.16)] text-white shadow-[0_12px_28px_rgba(212,175,55,0.22)]" : "border-white/10 bg-white/[0.055] text-white/75 hover:border-[#d4af37]/35 hover:bg-white/[0.075]"}`}
                   >
-                    {group.color}
+                    <span className="h-3.5 w-3.5 rounded-full border border-white/10" style={swatchColorStyle(group.colorName || group.color)} />
+                    <span className="whitespace-nowrap">{group.colorName || group.color}</span>
                   </button>
                 );
               })}
             </div>
           </div>
-        ) : null}
 
-        <div className="mt-4">
-          <div className="mb-2 text-[11px] font-black text-white/50">{t("storefront.products.size")}</div>
-          <div className="grid grid-cols-4 gap-2">
-            {sizeOptions.map(({ size, variant }) => {
-              const active = String(variant?.id) === String(selectedVariant?.id);
-              return (
-                <button
-                  key={variant?.id || size}
-                  type="button"
-                  onClick={() => onVariantChange(variant.id)}
-                  disabled={!variantHasStock(variant)}
-                  className={`h-10 rounded-xl border text-xs font-black transition ${active ? "border-[#f3d77a]/70 bg-white text-stone-950" : "border-white/10 bg-white/6 text-white/75"} disabled:cursor-not-allowed disabled:opacity-35 disabled:line-through`}
-                >
-                  {size || t("storefront.products.oneSize")}
-                </button>
-              );
-            })}
-            {!sizeOptions.length ? (
-              <div className="col-span-4 rounded-xl border border-white/10 bg-white/5 p-3 text-center text-xs font-bold text-white/45">
-                {t("storefront.products.unavailable")}
+          <div className="mt-4">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-white/45">{t("storefront.products.size", "المقاس")}</div>
+            </div>
+            {activeGroup ? (
+              <>
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {sizeOptions.map(({ size, variant, hasStock }) => {
+                    const active = String(variant?.id) === String(selectedVariant?.id);
+                    return (
+                      <button
+                        key={variant?.id || size}
+                        type="button"
+                        onClick={() => {
+                          if (!hasStock || !variant?.id) return;
+                          onVariantChange(variant.id);
+                        }}
+                        disabled={!hasStock}
+                        className={`min-h-11 rounded-2xl border text-sm font-black transition ${active ? "border-[#f3d77a]/70 bg-[#d4af37] text-white shadow-[0_12px_28px_rgba(212,175,55,0.24)]" : hasStock ? "border-white/10 bg-white/[0.055] text-white/80 hover:border-[#d4af37]/35 hover:bg-white/[0.08]" : "cursor-not-allowed border-white/[0.08] bg-white/[0.03] text-white/25 line-through opacity-60"}`}
+                      >
+                        {size || t("storefront.products.oneSize", "مقاس واحد")}
+                      </button>
+                    );
+                  })}
+                </div>
+                {!sizeOptions.length ? (
+                  <div className="rounded-[1.1rem] border border-white/10 bg-white/[0.04] p-3 text-center text-xs font-bold text-white/50">
+                    {t("storefront.products.unavailable", "غير متاح")}
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div className="rounded-[1.1rem] border border-white/10 bg-white/[0.04] p-3 text-center text-xs font-bold text-white/50">
+                اختار اللون أولًا
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4">
+            <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-white/45">{t("storefront.cart.quantity", "الكمية")}</div>
+            <div className="flex items-center justify-between gap-3 rounded-[1.2rem] border border-white/10 bg-white/[0.045] p-2">
+              <button
+                type="button"
+                onClick={() => onQuantityChange(Math.max(1, safeQty - 1))}
+                disabled={!selectedVariant}
+                className="grid h-11 w-11 place-items-center rounded-full bg-white/[0.06] text-lg font-black transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-35"
+                aria-label="-"
+              >
+                -
+              </button>
+              <div className="min-w-16 text-center">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">{t("storefront.cart.quantity", "الكمية")}</div>
+                <div className="text-lg font-black">{safeQty}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onQuantityChange(Math.min(maxQty, safeQty + 1))}
+                disabled={!selectedVariant || safeQty >= maxQty}
+                className="grid h-11 w-11 place-items-center rounded-full bg-white/[0.06] text-lg font-black transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-35"
+                aria-label="+"
+              >
+                +
+              </button>
+            </div>
+            {selectedVariant ? (
+              <div className="mt-2 text-[11px] font-bold text-white/45">
+                المتاح لهذا المقاس: {maxQty}
               </div>
             ) : null}
           </div>
-        </div>
 
-        <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-2">
-          <button type="button" onClick={() => onQuantityChange(Math.max(1, safeQty - 1))} className="grid h-10 w-10 place-items-center rounded-full bg-white/8 text-lg font-black">-</button>
-          <div className="text-center">
-            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">{t("storefront.cart.quantity")}</div>
-            <div className="text-lg font-black">{safeQty}</div>
-          </div>
-          <button type="button" onClick={() => onQuantityChange(Math.min(maxQty, safeQty + 1))} className="grid h-10 w-10 place-items-center rounded-full bg-white/8 text-lg font-black">+</button>
+          <button
+            type="button"
+            onClick={async () => {
+              if (!selectedVariant || !variantHasStock(selectedVariant) || !onAdd) return;
+              await Promise.resolve(onAdd(selectedVariant, safeQty));
+            }}
+            disabled={!selectedVariant || !variantHasStock(selectedVariant)}
+            className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-[1.15rem] border border-[#d4af37]/25 bg-[linear-gradient(135deg,#d4af37,#e5c158)] text-sm font-black text-stone-950 shadow-[0_14px_34px_rgba(212,175,55,0.28)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(212,175,55,0.34)] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.08] disabled:text-white/45 disabled:shadow-none disabled:hover:translate-y-0"
+          >
+            <ShoppingCart className="h-4 w-4" />
+            {submitLabel}
+          </button>
         </div>
-
-        <button
-          type="button"
-          onClick={() => selectedVariant && onAdd(selectedVariant, safeQty)}
-          disabled={!selectedVariant || !variantHasStock(selectedVariant)}
-          className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-l from-[#d4af37] to-[#151515] text-sm font-black text-white shadow-[0_14px_34px_rgba(212,175,55,0.32)] disabled:cursor-not-allowed disabled:opacity-45"
-        >
-          <ShoppingCart className="h-4 w-4" />
-          {t("storefront.cart.addToCart")}
-        </button>
       </section>
     </div>,
     document.body
@@ -8858,15 +8994,17 @@ function FooterLinks({ title, links }) {
 }
 
 function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = {}, publicStoreSettings = {} }) {
+  const { i18n: storefrontI18n } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const mobilePortalTarget = typeof document !== "undefined" ? document.body : null;
   const path = location.pathname || "";
   const search = location.search || "";
+  const currentLanguage = normalizeLanguage(storefrontI18n.resolvedLanguage || storefrontI18n.language || "en");
   const isCheckoutFlow = /^\/shop\/(checkout|success|confirm)/.test(path) || /^\/c\/[^/]+/.test(path);
   const isVisible = /^(\/shop(\/|$)|\/c\/[^/]+)/.test(path) && !isCheckoutFlow;
-  const saleHref = "/shop/sale";
+  const saleHref = "/shop/products?offer_story=true";
   const scrollToTop = useCallback(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
@@ -8897,7 +9035,7 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
   const isActive = (item) => {
     if (item.id === "home") return path === "/shop";
     if (item.id === "categories") return path === "/shop/products" || path === saleHref || categoriesOpen;
-    if (item.id === "sale") return path === saleHref || (path === "/shop/products" && new URLSearchParams(search).get("sale") === "true");
+    if (item.id === "sale") return path === "/shop/sale" || path === saleHref || (path === "/shop/products" && new URLSearchParams(search).get("offer_story") === "true");
     if (item.id === "wishlist") return path === "/shop/wishlist";
     if (item.id === "account") return path === "/shop/account";
     return false;
@@ -9728,7 +9866,7 @@ function Storefront() {
       />
       <Route
         path="size-guide"
-        element={<SizeGuide />}
+        element={<LazyStorefrontSizeGuidePage />}
       />
       <Route
         path="returns"

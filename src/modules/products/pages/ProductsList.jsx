@@ -17,6 +17,7 @@ import {
   Plus,
   Power,
   Search,
+  Tag,
   Barcode,
   CalendarClock,
   Megaphone,
@@ -70,6 +71,15 @@ const pageSizeOptions = [8, 12, 24];
 const REQUEST_TIMEOUT_MS = 15000;
 const ACTION_MENU_WIDTH = 224;
 const ACTION_MENU_ESTIMATED_HEIGHT = 480;
+const PRODUCT_TABLE_COLUMNS = {
+  select: "w-12",
+  product: "w-[440px]",
+  categoryBrand: "w-[210px]",
+  stock: "w-[135px]",
+  costSale: "w-[175px]",
+  status: "w-[125px]",
+  actions: "w-[260px]",
+};
 const ROW_ACTION_BREAKPOINTS = {
   lg: 1024,
   xl: 1280,
@@ -87,6 +97,14 @@ const PRODUCT_AUDIENCE_OPTIONS = [
 ];
 
 const productStatusValue = (row = {}) => String(row.status || "").trim().toLowerCase();
+const isOfferStoryValue = (row = {}) => row?.is_offer_story === true || String(row?.is_offer_story || "").trim().toLowerCase() === "true";
+const isNonOfferStoryValue = (row = {}) => row?.is_offer_story === false || String(row?.is_offer_story || "").trim().toLowerCase() === "false";
+const isStorefrontVisibleValue = (row = {}) =>
+  row?.is_storefront_visible === true ||
+  String(row?.is_storefront_visible ?? "").trim().toLowerCase() === "true" ||
+  row?.is_storefront_visible === undefined ||
+  row?.is_storefront_visible === null ||
+  row?.is_storefront_visible === "";
 
 const isInactiveProduct = (row = {}) =>
   row.active === false ||
@@ -1034,7 +1052,9 @@ function ProductsList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [catalogTab, setCatalogTab] = useState("products");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [storefrontVisibilityFilter, setStorefrontVisibilityFilter] = useState("all");
   const [classificationFilters, setClassificationFilters] = useState(() => ({
     gender: "all",
     productType: "all",
@@ -1287,7 +1307,12 @@ function ProductsList() {
           .join(" ")
           .toLowerCase()
           .includes(query);
+      const matchesTab = catalogTab === "offers" ? isOfferStoryValue(row) : isNonOfferStoryValue(row);
       const matchesStatus = statusFilter === "all" || effectiveStatus === statusFilter;
+      const isStorefrontVisible = isStorefrontVisibleValue(row);
+      const matchesStorefrontVisibility =
+        storefrontVisibilityFilter === "all" ||
+        (storefrontVisibilityFilter === "visible" ? isStorefrontVisible : !isStorefrontVisible);
       const matchesClassification = CLASSIFICATION_FILTER_FIELDS.every(({ key, field }) => {
         const selectedValue = classificationFilters[key];
         if (!selectedValue || selectedValue === "all") return true;
@@ -1299,9 +1324,9 @@ function ProductsList() {
         return normalizeClassificationValue(rowClassificationValue) === selectedValue;
       });
       const matchesBrand = brandFilter === "all" || row.brand === brandFilter;
-      return matchesSearch && matchesStatus && matchesClassification && matchesBrand;
+      return matchesSearch && matchesTab && matchesStatus && matchesStorefrontVisibility && matchesClassification && matchesBrand;
     });
-  }, [rows, search, statusFilter, classificationFilters, brandFilter]);
+  }, [rows, search, statusFilter, storefrontVisibilityFilter, classificationFilters, brandFilter, catalogTab]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -1344,6 +1369,22 @@ function ProductsList() {
     setSelectedProduct((prev) => (prev?.id === id ? { ...prev, active, is_active: active, status } : prev));
   };
 
+  const updateLocalOfferStory = (id, isOfferStory) => {
+    const item = rows.find((row) => row.id === id);
+    if (!item) return;
+    upsertProductMeta({ ...item, is_offer_story: isOfferStory });
+    setRows((prev) => prev.map((row) => (row.id === id ? { ...row, is_offer_story: isOfferStory } : row)));
+    setSelectedProduct((prev) => (prev?.id === id ? { ...prev, is_offer_story: isOfferStory } : prev));
+  };
+
+  const updateLocalStorefrontVisibility = (id, isStorefrontVisible) => {
+    const item = rows.find((row) => row.id === id);
+    if (!item) return;
+    upsertProductMeta({ ...item, is_storefront_visible: isStorefrontVisible });
+    setRows((prev) => prev.map((row) => (row.id === id ? { ...row, is_storefront_visible: isStorefrontVisible } : row)));
+    setSelectedProduct((prev) => (prev?.id === id ? { ...prev, is_storefront_visible: isStorefrontVisible } : prev));
+  };
+
   const requestProductStatusToggle = (row) => {
     setOpenActionId(null);
     setActionMenuPosition(null);
@@ -1373,6 +1414,41 @@ function ProductsList() {
     } catch (err) {
       console.error("[products:list] status toggle failed", err);
       toast.error(err?.responseBody?.message || err?.message || t("products.toasts.statusUpdateFailed", "Failed to update product status"));
+      await loadProducts();
+    }
+  };
+
+  const handleToggleOfferStory = async (row) => {
+    if (!row?.id) return;
+    const nextOfferStory = !Boolean(row.is_offer_story);
+    try {
+      await updateProductStatus(row.id, { is_offer_story: nextOfferStory });
+      updateLocalOfferStory(row.id, nextOfferStory);
+      toast.success(nextOfferStory ? t("products.toasts.addedToOffers", "Added to offers") : t("products.toasts.removedFromOffers", "Removed from offers"));
+      await loadProducts();
+    } catch (err) {
+      console.error("[products:list] offer story toggle failed", err);
+      toast.error(err?.responseBody?.message || err?.message || t("products.toasts.offerStoryUpdateFailed", "Failed to update offers"));
+      await loadProducts();
+    }
+  };
+
+  const handleBulkStorefrontVisibility = async (isStorefrontVisible) => {
+    const selectedRows = rows.filter((row) => selectedIds.includes(row.id));
+    if (!selectedRows.length) return;
+
+    try {
+      await Promise.all(selectedRows.map((row) => updateProductStatus(row.id, { is_storefront_visible: isStorefrontVisible })));
+      selectedRows.forEach((row) => updateLocalStorefrontVisibility(row.id, isStorefrontVisible));
+      toast.success(
+        isStorefrontVisible
+          ? t("products.toasts.storefrontVisible", "Shown on storefront")
+          : t("products.toasts.storefrontHidden", "Hidden from storefront")
+      );
+      await loadProducts();
+    } catch (err) {
+      console.error("[products:list] storefront visibility bulk update failed", err);
+      toast.error(err?.responseBody?.message || err?.message || t("products.toasts.storefrontVisibilityUpdateFailed", "Failed to update storefront visibility"));
       await loadProducts();
     }
   };
@@ -1546,6 +1622,20 @@ function ProductsList() {
         label: statusToggleLabel,
         placement: "dropdown",
         onClick: () => requestProductStatusToggle(row),
+      },
+      {
+        key: "toggle-offer-story",
+        icon: Tag,
+        label: isOfferStoryValue(row)
+          ? t("products.actionsMenu.removeFromOffers", "إزالة من العروض")
+          : t("products.actionsMenu.addToOffers", "إضافة للعروض"),
+        placement: "dropdown",
+        onClick: () => {
+          console.log("[products:list] action click", { action: "toggle-offer-story", productId: row.id, is_offer_story: isOfferStoryValue(row) });
+          setOpenActionId(null);
+          setActionMenuPosition(null);
+          handleToggleOfferStory(row);
+        },
       },
       {
         key: "generate-marketing-post",
@@ -1837,7 +1927,37 @@ function ProductsList() {
       }
     >
       <div className="w-full min-w-0 max-w-none rounded-2xl border border-white/8 bg-zinc-950/80 p-3 sm:rounded-[34px] sm:p-5 xl:p-6">
-        <div className="grid min-w-0 grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.8fr)_repeat(3,minmax(0,1fr))]">
+        <div className="mb-4 flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] p-1">
+          <button
+            type="button"
+            onClick={() => {
+              setCatalogTab("products");
+              setPage(1);
+            }}
+            className={`flex-1 rounded-xl px-4 py-2 text-sm font-black transition ${
+              catalogTab === "products"
+                ? "bg-emerald-500 text-black shadow-[0_8px_20px_rgba(16,185,129,0.18)]"
+                : "text-zinc-300 hover:bg-white/5 hover:text-white"
+            }`}
+          >
+            {t("products.tabs.products", "المنتجات")}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setCatalogTab("offers");
+              setPage(1);
+            }}
+            className={`flex-1 rounded-xl px-4 py-2 text-sm font-black transition ${
+              catalogTab === "offers"
+                ? "bg-emerald-500 text-black shadow-[0_8px_20px_rgba(16,185,129,0.18)]"
+                : "text-zinc-300 hover:bg-white/5 hover:text-white"
+            }`}
+          >
+            {t("products.tabs.offers", "العروض")}
+          </button>
+        </div>
+        <div className="grid min-w-0 grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.8fr)_repeat(4,minmax(0,1fr))]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
             <input
@@ -1878,6 +1998,19 @@ function ProductsList() {
                 {brand === "all" ? t("products.filters.allBrands") : brand}
               </option>
             ))}
+          </select>
+
+          <select
+            value={storefrontVisibilityFilter}
+            onChange={(e) => {
+              setStorefrontVisibilityFilter(e.target.value);
+              setPage(1);
+            }}
+            className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
+          >
+            <option value="all">{t("products.filters.storefrontVisibilityAll", "حالة الظهور على الموقع: الكل")}</option>
+            <option value="visible">{t("products.filters.storefrontVisibilityVisible", "ظاهر بالموقع")}</option>
+            <option value="hidden">{t("products.filters.storefrontVisibilityHidden", "مخفي من الموقع")}</option>
           </select>
 
           <div className="relative" data-products-filter-popover>
@@ -2002,6 +2135,18 @@ function ProductsList() {
             >
               {t("products.bulk.markInactive")}
             </button>
+            <button
+              onClick={() => handleBulkStorefrontVisibility(true)}
+              className="inline-flex items-center gap-2 rounded-full border border-sky-500/20 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-200"
+            >
+              {t("products.bulk.showOnStorefront", "إظهار بالموقع")}
+            </button>
+            <button
+              onClick={() => handleBulkStorefrontVisibility(false)}
+              className="inline-flex items-center gap-2 rounded-full border border-zinc-500/20 bg-zinc-500/10 px-4 py-2 text-sm font-semibold text-zinc-200"
+            >
+              {t("products.bulk.hideFromStorefront", "إخفاء من الموقع")}
+            </button>
           </div>
         )}
 
@@ -2029,6 +2174,7 @@ function ProductsList() {
                 const priceDisplay = getCatalogPriceDisplay(row);
                 const displaySku = cleanSkuDisplay(row.sku);
                 const inactiveProduct = isInactiveProduct(row);
+                const storefrontVisible = isStorefrontVisibleValue(row);
                 const statusToggleLabel = inactiveProduct
           ? t("products.actionsMenu.activateProduct", "تفعيل المنتج")
           : t("products.actionsMenu.deactivateProduct", "إلغاء تفعيل المنتج");
@@ -2062,6 +2208,7 @@ function ProductsList() {
                     lowStockAlert={lowStockAlert}
                     priceDisplay={priceDisplay}
                     displaySku={displaySku}
+                    storefrontVisible={storefrontVisible}
                     actions={dropdownActions}
                     t={t}
                   />
@@ -2071,18 +2218,18 @@ function ProductsList() {
           </div>
 
           <div className="hidden w-full min-w-0 overflow-x-auto lg:block">
-            <table className="w-full table-auto border-separate border-spacing-y-3">
+            <table className="w-full table-fixed border-separate border-spacing-y-3">
               <colgroup>
-                <col className="w-12" />
-                <col className="w-[440px]" />
-                <col className="w-[210px]" />
-                <col className="w-[135px]" />
-                <col className="w-[175px]" />
-                <col className="w-[125px]" />
-                <col className="w-[260px]" />
+                <col className={PRODUCT_TABLE_COLUMNS.select} />
+                <col className={PRODUCT_TABLE_COLUMNS.product} />
+                <col className={PRODUCT_TABLE_COLUMNS.categoryBrand} />
+                <col className={PRODUCT_TABLE_COLUMNS.stock} />
+                <col className={PRODUCT_TABLE_COLUMNS.costSale} />
+                <col className={PRODUCT_TABLE_COLUMNS.status} />
+                <col className={PRODUCT_TABLE_COLUMNS.actions} />
               </colgroup>
               <thead>
-                <tr className="text-left text-xs uppercase tracking-[0.22em] text-zinc-500">
+                <tr className="text-center text-xs uppercase tracking-[0.22em] text-zinc-500">
                   <th className="px-4 py-2">
                     <input
                       type="checkbox"
@@ -2124,6 +2271,7 @@ function ProductsList() {
                     const displaySku = cleanSkuDisplay(row.sku);
                     const barcodeTitle = cleanSkuDisplay(row.barcode) ? `${displaySku ? `${displaySku} / ` : ""}${row.barcode}` : displaySku;
                     const inactiveProduct = isInactiveProduct(row);
+                    const storefrontVisible = isStorefrontVisibleValue(row);
                     const statusToggleLabel = inactiveProduct
                       ? t("products.actionsMenu.activateProduct", "تفعيل المنتج")
                       : t("products.actionsMenu.deactivateProduct", "إلغاء تفعيل المنتج");
@@ -2206,22 +2354,33 @@ function ProductsList() {
                           </div>
                         </td>
                         <td className="px-4 py-4 align-middle">
-                          <span
-                            className={`
-                              inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold
-                              ${
-                                statusKey === "active"
-                                  ? "bg-emerald-500/15 text-emerald-300"
-                                  : statusKey === "low"
-                                    ? "bg-amber-500/15 text-amber-300"
-                                    : statusKey === "out"
-                                      ? "bg-red-500/15 text-red-300"
-                                      : "bg-zinc-500/15 text-zinc-300"
-                              }
-                            `}
-                          >
-                            {status}
-                          </span>
+                          <div className="flex flex-col gap-2">
+                            <span
+                              className={`
+                                inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold
+                                ${
+                                  statusKey === "active"
+                                    ? "bg-emerald-500/15 text-emerald-300"
+                                    : statusKey === "low"
+                                      ? "bg-amber-500/15 text-amber-300"
+                                      : statusKey === "out"
+                                        ? "bg-red-500/15 text-red-300"
+                                        : "bg-zinc-500/15 text-zinc-300"
+                                }
+                              `}
+                            >
+                              {status}
+                            </span>
+                            <span
+                              className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold ${
+                                storefrontVisible ? "bg-sky-500/15 text-sky-300" : "bg-zinc-500/15 text-zinc-300"
+                              }`}
+                            >
+                              {storefrontVisible
+                                ? t("products.storefront.visible", "ظاهر بالموقع")
+                                : t("products.storefront.hidden", "مخفي من الموقع")}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-4 py-4 align-middle">
                           <div className={`relative flex min-h-10 items-center justify-end gap-2 ${openActionId === row.id ? "z-[100]" : "z-0"}`}>
@@ -2471,7 +2630,7 @@ function ProductsList() {
   );
 }
 
-function ProductMobileCard({ row, selected, onToggleSelected, onOpen, statusKey, status, totalStock, lowStockAlert, priceDisplay, displaySku, actions, t }) {
+function ProductMobileCard({ row, selected, onToggleSelected, onOpen, statusKey, status, storefrontVisible, totalStock, lowStockAlert, priceDisplay, displaySku, actions, t }) {
   const visibleActions = (actions || []).slice(0, 4);
 
   return (
@@ -2502,6 +2661,15 @@ function ProductMobileCard({ row, selected, onToggleSelected, onOpen, statusKey,
                 }`}
               >
                 {status}
+              </span>
+              <span
+                className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black ${
+                  storefrontVisible ? "bg-sky-500/15 text-sky-300" : "bg-zinc-500/15 text-zinc-300"
+                }`}
+              >
+                {storefrontVisible
+                  ? t("products.storefront.visible", "ظاهر بالموقع")
+                  : t("products.storefront.hidden", "مخفي من الموقع")}
               </span>
               <span className="inline-flex items-center rounded-full bg-sky-500/10 px-2.5 py-1 text-[10px] font-black text-sky-200">
                 {row.variation_mode === "simple"

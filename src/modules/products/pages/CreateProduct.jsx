@@ -291,6 +291,7 @@ function CreateProduct() {
   const [audiences, setAudiences] = useState([]);
   const [productType, setProductType] = useState("");
   const [grade, setGrade] = useState("");
+  const [isOfferStory, setIsOfferStory] = useState(false);
   const [variationMode, setVariationMode] = useState("full_variations");
   const [fixedSizeLabel, setFixedSizeLabel] = useState("مقاس واحد");
   const [brand, setBrand] = useState("");
@@ -1834,6 +1835,7 @@ function CreateProduct() {
         product_audiences: audiences,
         product_type: productType,
         grade,
+        is_offer_story: isOfferStory,
         variation_mode: variationMode,
         fixed_size_label: isColorOnlyMode ? fixedSizeLabel : "",
         purchase_alerts_enabled: purchaseAlertsEnabled,
@@ -1908,6 +1910,7 @@ function CreateProduct() {
         product_audiences: audiences,
         product_type: productType,
         grade,
+        is_offer_story: isOfferStory,
         variation_mode: variationMode,
         fixed_size_label: isColorOnlyMode ? fixedSizeLabel : "",
         purchase_alerts_enabled: purchaseAlertsEnabled,
@@ -2277,6 +2280,7 @@ function CreateProduct() {
                 audiences={audiences}
                 productType={productType}
                 grade={grade}
+                isOfferStory={isOfferStory}
                 onMainCategoryChange={setMainCategory}
                 onSubCategoryChange={setSubCategory}
                 onChildCategoryChange={setChildCategory}
@@ -2293,6 +2297,7 @@ function CreateProduct() {
                 }}
                 onProductTypeChange={setProductType}
                 onGradeChange={setGrade}
+                onIsOfferStoryChange={setIsOfferStory}
                 purchaseAlertsEnabled={purchaseAlertsEnabled}
                 purchaseAlertByColor={purchaseAlertByColor}
                 cartonSize={cartonSize}

@@ -26,6 +26,7 @@ function ProductForm({
   audiences = [],
   productType = "",
   grade = "",
+  isOfferStory = false,
   purchaseAlertsEnabled = true,
   purchaseAlertByColor = false,
   cartonSize = "",
@@ -40,6 +41,7 @@ function ProductForm({
   onAudiencesChange,
   onProductTypeChange,
   onGradeChange,
+  onIsOfferStoryChange,
   onPurchaseAlertsEnabledChange,
   onPurchaseAlertByColorChange,
   onCartonSizeChange,
@@ -302,6 +304,23 @@ function ProductForm({
             options={classificationOptions.grade}
             placeholder={t("products.form.selectGrade", "اختر الدرجة")}
           />
+
+          <label className="flex items-start gap-3 rounded-[24px] border border-white/8 bg-zinc-950/60 px-4 py-3 md:col-span-2">
+            <input
+              type="checkbox"
+              checked={Boolean(isOfferStory)}
+              onChange={(event) => onIsOfferStoryChange?.(event.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-white/20 bg-zinc-950 accent-amber-400"
+            />
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-white">
+                {t("products.form.offerStory", "إضافة إلى العروض")}
+              </div>
+              <p className="mt-1 text-xs leading-5 text-zinc-400">
+                {t("products.form.offerStoryHelp", "يظهر هذا المنتج داخل قائمة العروض التي يحددها المدير يدوياً.")}
+              </p>
+            </div>
+          </label>
         </div>
       </section>
 

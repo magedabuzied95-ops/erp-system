@@ -183,6 +183,8 @@ CREATE TABLE IF NOT EXISTS products (
   product_type VARCHAR(80) DEFAULT '',
   style VARCHAR(80) DEFAULT '',
   grade VARCHAR(80) DEFAULT '',
+  is_offer_story BOOLEAN NOT NULL DEFAULT FALSE,
+  is_storefront_visible BOOLEAN NOT NULL DEFAULT TRUE,
   stock INTEGER NOT NULL DEFAULT 0,
   low_stock_alert INTEGER NOT NULL DEFAULT 0,
   low_stock_tracking_mode VARCHAR(30) NOT NULL DEFAULT 'variant',

@@ -36,22 +36,8 @@ import {
 import { api } from "../../shared/api/api";
 import { applyProductSocialMeta } from "../../shared/lib/socialMeta";
 import { Heart, Share2, ShoppingCart } from "lucide-react";
-import { CROCS_SIZE_LIBRARY, isCrocsProductType, sortProductSizes } from "../../modules/products/lib/variantBulkSizes";
-
-const DYNAMIC_SIZE_GUIDE_TYPE_KEYS = new Set(
-  ["رجالي", "حريمي", "sneakers", "running", "shoes", "casual shoes", "men", "women"].map((value) =>
-    String(value || "")
-      .trim()
-      .toLowerCase()
-      .replace(/[\s_-]+/g, "")
-  )
-);
-
-const normalizeDynamicSizeGuideTypeKey = (value = "") =>
-  String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[\s_-]+/g, "");
+import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "../lib/sizeGuide";
+import { sortProductSizes } from "../../modules/products/lib/variantBulkSizes";
 
 function StorefrontProductDetailSkeleton() {
   return (
@@ -331,46 +317,10 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const variantGroup = selectedColorGroup ? variants.filter((item) => variantColorKey(item) === selectedColorGroup.key) : variants;
   const sizes = sortProductSizes([...new Set(variantGroup.map((variant) => variant.size).filter(Boolean))]);
   const colors = colorGroups;
-  const isCrocsProduct = isCrocsProductType(product?.product_type || product?.productType || product?.category || "");
-  const isDynamicSizeGuideProduct = DYNAMIC_SIZE_GUIDE_TYPE_KEYS.has(
-    normalizeDynamicSizeGuideTypeKey(product?.product_type || product?.productType || product?.category || "")
+  const sizeGuideHref = useMemo(
+    () => buildSizeGuidePath(product ? resolveSizeGuideTypeForProduct(product) : "men"),
+    [product]
   );
-  const dynamicSizeGuideRows = useMemo(() => {
-    if (!isDynamicSizeGuideProduct || !selectedColorGroup) return [];
-    const rows = new Map();
-    (Array.isArray(selectedColorGroup.variants) ? selectedColorGroup.variants : []).forEach((variant) => {
-      const size = String(variant?.size || "").trim();
-      if (!size) return;
-      const current = rows.get(size) || { size, available: false };
-      current.available = current.available || variantHasStock(variant);
-      rows.set(size, current);
-    });
-    return sortProductSizes(Array.from(rows.values()));
-  }, [isDynamicSizeGuideProduct, selectedColorGroup]);
-  const crocsVariantSizes = useMemo(() => {
-    const rows = new Map();
-    variantGroup.forEach((variant) => {
-      const size = String(variant?.size || "").trim();
-      if (!size) return;
-      const current = rows.get(size) || { size, available: false };
-      current.available = current.available || variantHasStock(variant);
-      rows.set(size, current);
-    });
-    return rows;
-  }, [variantGroup]);
-  const crocsGuideSections = useMemo(() => {
-    if (!isCrocsProduct) return [];
-    return Object.entries(CROCS_SIZE_LIBRARY)
-      .map(([kind, rows]) => ({
-        kind,
-        title: kind === "adult" ? "Crocs Adult guide" : "Crocs Kids guide",
-        rows: rows.filter((row) => sizes.includes(row.eu)).map((row) => ({
-          ...row,
-          available: crocsVariantSizes.get(row.eu)?.available ?? false,
-        })),
-      }))
-      .filter((section) => section.rows.length > 0);
-  }, [crocsVariantSizes, isCrocsProduct, sizes]);
   const activeVariant = variants.find((item) => String(item.id) === String(selected.variantId))
     || variants.find((item) => item.size === selected.size && (!selectedColorKey || variantColorKey(item) === selectedColorKey) && variantHasStock(item))
     || firstDisplayVariant(variants);
@@ -596,89 +546,15 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                 );
               })}
             </div>
+            <div className="mt-3">
+              <Link
+                to={sizeGuideHref}
+                className="inline-flex min-h-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-black text-white/80 transition hover:border-[#d4af37]/35 hover:bg-white/[0.08] hover:text-[#f3d77a]"
+              >
+                {sfText("storefront.products.sizeGuide", "دليل المقاسات")}
+              </Link>
+            </div>
           </div>
-
-          {isCrocsProduct && crocsGuideSections.length ? (
-            <div className="sf-product-option-card mt-4 rounded-[1.1rem] border border-white/[0.08] bg-[#080808] p-3 text-white md:rounded-[1.45rem] md:p-4">
-              <div className="mb-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/35">{sfText("storefront.products.sizeGuide", "Size guide")}</div>
-                <h2 className="text-sm font-black">{sfText("storefront.products.sizeGuide", "دليل المقاسات")}</h2>
-              </div>
-              <div className="space-y-3">
-                {crocsGuideSections.map((section) => (
-                  <div key={section.kind} className="overflow-hidden rounded-[1rem] border border-white/10 bg-white/[0.04]">
-                    <div className="border-b border-white/10 px-3 py-2">
-                      <div className="text-xs font-black text-amber-100">{section.title}</div>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[380px] text-right text-xs font-bold">
-                        <thead>
-                          <tr className="border-b border-white/10 text-[10px] font-black uppercase tracking-[0.12em] text-white/45">
-                            <th className="whitespace-nowrap px-3 py-2">EU</th>
-                            <th className="whitespace-nowrap px-3 py-2">{section.kind === "adult" ? "US" : "Kids"}</th>
-                            <th className="whitespace-nowrap px-3 py-2">CM</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/8">
-                          {section.rows.map((row) => (
-                            <tr key={row.eu} className={row.available ? "text-white" : "text-white/38"}>
-                              <td className="px-3 py-2">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-black">{row.eu}</span>
-                                  {!row.available ? (
-                                    <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[9px] font-black text-white/35">
-                                      نفد
-                                    </span>
-                                  ) : null}
-                                </div>
-                              </td>
-                              <td className="px-3 py-2">{row.us}</td>
-                              <td className="px-3 py-2">{row.cm}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {!isCrocsProduct && isDynamicSizeGuideProduct && dynamicSizeGuideRows.length ? (
-            <div className="sf-product-option-card mt-4 rounded-[1.1rem] border border-white/[0.08] bg-[#080808] p-3 text-white md:rounded-[1.45rem] md:p-4">
-              <div className="mb-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/35">{sfText("storefront.products.sizeGuide", "دليل المقاسات")}</div>
-                <h2 className="text-sm font-black">{sfText("storefront.products.sizeGuideAvailableForColor", "المقاسات المتاحة لهذا اللون")}</h2>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {dynamicSizeGuideRows.map((row) => {
-                  const selectedSize = String(selected.size || "").trim() === String(row.size || "").trim();
-                  return (
-                    <span
-                      key={row.size}
-                      className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-3 py-2 text-sm font-black transition ${
-                        selectedSize
-                          ? "border-[#d4af37] bg-[rgba(212,175,55,0.14)] text-[#f3d77a] shadow-[0_0_0_2px_rgba(212,175,55,0.12)]"
-                          : row.available
-                            ? "border-white/10 bg-white/[0.05] text-white/85"
-                            : "border-white/[0.08] bg-white/[0.03] text-white/35"
-                      }`}
-                    >
-                      <span>{row.size}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] ${row.available ? "bg-emerald-400/10 text-emerald-200" : "bg-white/[0.05] text-white/40"}`}>
-                        {row.available ? "متاح" : "نفد"}
-                      </span>
-                    </span>
-                  );
-                })}
-              </div>
-              <p className="mt-3 text-xs font-semibold leading-6 text-white/55">
-                إذا كنت بين مقاسين، ننصح باختيار المقاس الأكبر.
-              </p>
-            </div>
-          ) : null}
-
           {safeActiveVariant && Number(safeActiveVariant.stock || 0) > 0 && Number(safeActiveVariant.stock || 0) <= 3 ? (
             <div className="mt-3 inline-flex rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1.5 text-xs font-black text-amber-100">
               {sfText("storefront.products.onlyLeft", "Only {{count}} left", { count: safeActiveVariant.stock })}
