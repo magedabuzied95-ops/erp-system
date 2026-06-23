@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -620,6 +620,7 @@ function ProductEdit() {
   const [expandedGroupId, setExpandedGroupId] = useState("");
   const [crocsLibraryGroupId, setCrocsLibraryGroupId] = useState("");
   const [removedVariantIds, setRemovedVariantIds] = useState([]);
+  const [variantStructureEdited, setVariantStructureEdited] = useState(false);
   const [bulkSizesInput, setBulkSizesInput] = useState("");
   const [bulkStockInput, setBulkStockInput] = useState("");
   const [bulkArticleCodeInput, setBulkArticleCodeInput] = useState("");
@@ -632,11 +633,22 @@ function ProductEdit() {
   const [aiProductLoading, setAiProductLoading] = useState(false);
   const [aiProductProgress, setAiProductProgress] = useState(AI_PROGRESS_STEPS[0]);
   const [colorPickTarget, setColorPickTarget] = useState(null);
+  const [searchParams] = useSearchParams();
   const productId = String(id || "").trim();
   const variationMode = product.variation_mode || "full_variations";
   const isFullVariationMode = variationMode === "full_variations";
   const isColorOnlyMode = variationMode === "color_only";
   const isSimpleMode = variationMode === "simple";
+  const copyModeParam = String(searchParams.get("copy") || searchParams.get("duplicate") || searchParams.get("mode") || "").trim().toLowerCase();
+  const isCopyMode = Boolean(
+    ["1", "true", "copy", "duplicate"].includes(copyModeParam) ||
+      product?.duplicate_of ||
+      product?.copied_from ||
+      product?.duplicate_source_id ||
+      product?.source_product_id ||
+      product?.is_copy ||
+      product?.isDuplicate
+  );
   const mirrorEditionEnabled = isMirrorProduct(product);
   const descriptionContext = useMemo(
     () => ({
@@ -1095,6 +1107,7 @@ function ProductEdit() {
         setDefaultManufacturerId(resolvedDefaultManufacturerId);
         setColorGroups(skuAwareColorGroups);
         setExpandedGroupId(skuAwareColorGroups[0]?.id || "");
+        setVariantStructureEdited(false);
       } catch (err) {
         console.log(err);
         if (!active) return;
@@ -1131,6 +1144,7 @@ function ProductEdit() {
       removedRows: removedVariantIds.length,
     };
   }, [colorGroups, removedVariantIds]);
+  const currentVariantRowsCount = summary.rows;
 
   const updateProductField = (field, value) => {
     setProduct((prev) => ({ ...prev, [field]: value }));
@@ -1568,6 +1582,7 @@ function ProductEdit() {
           : group
       )
     );
+    setVariantStructureEdited(true);
   };
 
   const applyCrocsSizeLibrary = (groupId, libraryId) => {
@@ -1585,6 +1600,7 @@ function ProductEdit() {
       toast("المقاسات موجودة بالفعل");
     } else {
       setColorGroups(buildAutoVariantGroups(updatedGroups));
+      setVariantStructureEdited(true);
       toast.success(t("products.editor.sizesAdded", "تمت إضافة المقاسات"));
     }
 
@@ -1629,6 +1645,7 @@ function ProductEdit() {
     }
 
     setColorGroups(buildAutoVariantGroups(updatedGroups));
+    setVariantStructureEdited(true);
     if (addedCount === 0) {
       toast("All sizes already exist");
       return;
@@ -1940,6 +1957,7 @@ function ProductEdit() {
         };
       })
     );
+    setVariantStructureEdited(true);
   };
 
   const updateSizeRow = (groupId, rowId, field, value) => {
@@ -1964,14 +1982,37 @@ function ProductEdit() {
         )
       )
     );
+    if (field === "size") {
+      setVariantStructureEdited(true);
+    }
   };
 
   const handleSave = async () => {
-    if (!isSimpleMode && (variantsHydrationFailed || (savedVariantsCount > 0 && summary.existingRows === 0))) {
+    console.log("[edit-product] save diagnostics", {
+      savedVariantsCount,
+      currentVariantRowsCount,
+      removedVariantIds,
+      isCopyMode,
+      variantStructureEdited,
+      variantsHydrationFailed,
+    });
+
+    const missingVariantsBlocked =
+      !isSimpleMode &&
+      (
+        variantsHydrationFailed ||
+        (savedVariantsCount > 0 && summary.existingRows === 0 && !variantStructureEdited && !isCopyMode)
+      );
+
+    if (missingVariantsBlocked) {
       console.error("[edit-product] save blocked due to missing variants", {
         productId,
         savedVariantsCount,
+        currentVariantRowsCount,
         existingRows: summary.existingRows,
+        removedVariantIds,
+        isCopyMode,
+        variantStructureEdited,
         variantsHydrationFailed,
       });
       toast.error(t("products.editor.variantsFailed"));
@@ -2276,6 +2317,9 @@ function ProductEdit() {
           ? savedProduct.variants.map((variant) => variant.id || variant.variant_id).filter(Boolean)
           : [],
       });
+      setSavedVariantsCount(variantPayloads.length);
+      setRemovedVariantIds([]);
+      setVariantStructureEdited(false);
       initialEditorSignatureRef.current = editorSignature;
       cleanupProductCache();
 
