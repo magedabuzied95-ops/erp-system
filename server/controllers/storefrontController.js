@@ -2567,6 +2567,128 @@ export const visualSearchProducts = async (req, res) => {
   }
 };
 
+export const imageSearchProducts = async (req, res) => {
+  const file = req.file;
+  const tenantId = tenantFromRequest(req);
+  try {
+    await ensureStorefrontSchema();
+    await ensureProductVariantImagesSchema();
+
+    if (!file?.buffer?.length) {
+      return res.status(400).json({ success: false, message: "يرجى رفع صورة للبحث" });
+    }
+    if (!VISUAL_SEARCH_ALLOWED_TYPES.has(file.mimetype)) {
+      return res.status(400).json({ success: false, message: "نوع الصورة غير مدعوم. استخدم JPG أو PNG أو WEBP" });
+    }
+    if (Number(file.size || file.buffer.length) > VISUAL_SEARCH_MAX_BYTES) {
+      return res.status(413).json({ success: false, message: "حجم الصورة كبير. ارفع صورة أصغر" });
+    }
+
+    const pricingSettings = await loadStorefrontPricingSettings(tenantId);
+    const imageMatches = await findProductsByImageSimilarity({ tenantId, imageBuffer: file.buffer, limit: 12 });
+    const matchedIds = [...new Set(imageMatches.map((item) => Number(item.productId)).filter((value) => Number.isFinite(value) && value > 0))];
+
+    let products = matchedIds.length ? await queryProductsByIds(tenantId, matchedIds, pricingSettings) : [];
+    products = matchedIds.length
+      ? await scrubInactiveClassifications(await hydrateProductsWithImages(products, { compact: true }))
+      : [];
+
+    const productsById = new Map(products.map((product) => [String(product.id), product]));
+    const exactMatches = [];
+    const similarMatches = [];
+
+    for (const match of imageMatches) {
+      const product = productsById.get(String(match.productId));
+      if (!product) continue;
+      const score = Math.max(0, Math.min(100, Math.round(Number(match.score || 0))));
+      const payload = {
+        ...slimProductForList(product),
+        confidence: score,
+        score,
+        match_type: match.reason === "exact_sha256" ? "exact" : "similar",
+        match_reason: match.reason || "",
+      };
+      if (score >= 95) {
+        exactMatches.push(payload);
+      } else {
+        similarMatches.push(payload);
+      }
+    }
+
+    const inferredGender = normalizeProductAudiences(req.body?.gender, req.body?.audience, req.body?.audiences);
+    const inferredCategory = String(req.body?.category || req.body?.product_category || "").trim();
+    const inferredProductType = String(req.body?.product_type || req.body?.productType || req.body?.type || "").trim();
+    const inferredBrand = String(req.body?.brand || "").trim();
+
+    if (!exactMatches.length && !similarMatches.length) {
+      const fallback = await queryProducts(
+        tenantId,
+        "",
+        inferredCategory,
+        {
+          brand: inferredBrand,
+          gender: inferredGender,
+          productType: inferredProductType,
+          grade: [],
+          quality: [],
+          size: "",
+          inStock: true,
+        },
+        false,
+        8,
+        0
+      );
+      const fallbackProducts = await scrubInactiveClassifications(
+        await hydrateProductsWithImages(
+          fallback.rows.map((row) => normalizeProduct(row, pricingSettings)),
+          { compact: true }
+        )
+      );
+      for (const product of fallbackProducts.slice(0, 8)) {
+        similarMatches.push({
+          ...slimProductForList(product),
+          confidence: 35,
+          score: 35,
+          match_type: "similar",
+          match_reason: "metadata_fallback",
+        });
+      }
+    }
+
+    const topConfidence = exactMatches[0]?.confidence || similarMatches[0]?.confidence || 0;
+    const confidence = Math.max(0, Math.min(100, Math.round(Number(topConfidence || 0))));
+    const message = exactMatches.length && confidence >= 80
+      ? "لقينا الموديل ده"
+      : similarMatches.length
+        ? "الموديل مش متوفر، بس دي أقرب موديلات شبهه"
+        : "الموديل ده مش متوفر حاليًا";
+
+    return res.json({
+      success: true,
+      exactMatches,
+      similarMatches,
+      confidence,
+      message,
+      source: exactMatches.length || similarMatches.length ? "placeholder_image_search" : "placeholder_image_search_empty",
+      fallback_used: !imageMatches.length,
+    });
+  } catch (error) {
+    console.error("[storefront-image-search] failed", {
+      req_file_exists: Boolean(req.file),
+      tenant_id: tenantId,
+      mimetype: file?.mimetype || "",
+      size: file?.size || file?.buffer?.length || 0,
+      message: error?.message || String(error),
+      stack: error?.stack,
+    });
+    return res.status(500).json({
+      success: false,
+      message: "تعذر البحث بالصورة الآن",
+      ...(process.env.NODE_ENV !== "production" ? { error: error?.message || "image_search_failed" } : {}),
+    });
+  }
+};
+
 const countActiveProductsByGender = async (tenantId, aliases = []) => {
   const normalizedAliases = normalizeProductAudiences(aliases);
   if (!normalizedAliases.length) return 0;

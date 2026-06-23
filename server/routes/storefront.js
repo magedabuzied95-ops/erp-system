@@ -22,6 +22,7 @@ import {
   saveRecentlyViewed,
   saveWishlist,
   searchProducts,
+  imageSearchProducts,
   trackOrder,
   visualSearchProducts,
 } from "../controllers/storefrontController.js";
@@ -315,6 +316,7 @@ router.get("/classifications/gender", listGenderClassifications);
 router.get("/last-piece", listLastPieceProducts);
 router.get("/products/search", searchProducts);
 router.post("/products/visual-search", visualUpload, visualSearchProducts);
+router.post("/image-search", visualUpload, imageSearchProducts);
 router.get("/product/by-token/:token", getProductByToken);
 router.get("/products/resolve/:slugOrId", resolveProductLink);
 router.get("/products/:identifier", getProduct);

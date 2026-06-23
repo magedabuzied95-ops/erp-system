@@ -1656,6 +1656,7 @@ const buildLatestCheckoutAddress = (customer = null, order = null) => {
 };
 const paymentLogoPreloadUrls = Object.values(paymentBrandLogos).flatMap((logo) => [logo.webp, logo.png].filter(Boolean));
 const whatsappPhone = String(import.meta.env.VITE_WHATSAPP_PHONE || import.meta.env.VITE_STORE_WHATSAPP || "").replace(/\D/g, "");
+const buildWhatsAppHref = (text = "") => (whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(text)}` : "https://wa.me/");
 const getStatusLabels = () => {
   const labels = i18n.t("storefront.orders.timelineLabels", { returnObjects: true });
   return Array.isArray(labels) && labels.length ? labels : ["Order received", "Preparing", "Shipped", "On the way", "Delivered"];
@@ -4010,7 +4011,18 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [visualSearch, setVisualSearch] = useState({ active: false, keywords: [], message: "", error: "", previewUrl: "", fileName: "" });
+  const [visualSearch, setVisualSearch] = useState({
+    active: false,
+    loading: false,
+    exactMatches: [],
+    similarMatches: [],
+    confidence: 0,
+    message: "",
+    error: "",
+    previewUrl: "",
+    fileName: "",
+    fileType: "",
+  });
   const [imageSearchOpen, setImageSearchOpen] = useState(false);
   const imageSearchResults = visualSearch;
   const setImageSearchResults = setVisualSearch;
@@ -4170,7 +4182,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
       visualPreviewUrlRef.current = "";
     }
     selectedVisualImageRef.current = null;
-    setVisualSearch({ active: false, keywords: [], message: "", error: "", previewUrl: "", fileName: "" });
+    setVisualSearch({ active: false, loading: false, exactMatches: [], similarMatches: [], confidence: 0, message: "", error: "", previewUrl: "", fileName: "", fileType: "" });
     setImageSearchOpen(false);
   }, []);
 
@@ -4317,29 +4329,45 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
       if (visualPreviewUrlRef.current) URL.revokeObjectURL(visualPreviewUrlRef.current);
       const previewUrl = URL.createObjectURL(file);
       visualPreviewUrlRef.current = previewUrl;
-      setSearch(`Image: ${label}`);
       setSuggestions([]);
       setImageSearchOpen(true);
-      setVisualSearch({ active: true, keywords: [], message: "", error: "", previewUrl, fileName: file.name });
-      setSearchLoading(true);
+      setSearchLoading(false);
+      setVisualSearch({
+        active: true,
+        loading: true,
+        exactMatches: [],
+        similarMatches: [],
+        confidence: 0,
+        message: "",
+        error: "",
+        previewUrl,
+        fileName: file.name,
+        fileType: file.type,
+      });
       setSearchOpen(true);
       setMobileSearchOpen(true);
       const formData = new FormData();
       formData.append("image", selectedVisualImageRef.current);
       const tenantId = resolveStorefrontTenantId();
       formData.append("tenant_id", tenantId);
-      const endpoint = "/storefront/products/visual-search";
+      const endpoint = "/storefront/image-search";
       try {
         const data = await api.post(endpoint, formData, { timeoutMs: 45000, headers: { "x-tenant-id": tenantId } });
-        const products = Array.isArray(data.products) ? data.products : [];
-        setSuggestions(products);
+        const exactMatches = Array.isArray(data.exactMatches) ? data.exactMatches : [];
+        const similarMatches = Array.isArray(data.similarMatches) ? data.similarMatches : Array.isArray(data.products) ? data.products : [];
+        const combined = [...exactMatches, ...similarMatches];
+        setSuggestions(combined);
         setVisualSearch({
           active: true,
-          keywords: Array.isArray(data.keywords) ? data.keywords : [],
-          message: products.length ? "" : data.message || "No matches found for this image.",
+          loading: false,
+          exactMatches,
+          similarMatches,
+          confidence: Number(data.confidence || 0),
+          message: data.message || "",
           error: "",
           previewUrl,
           fileName: file.name,
+          fileType: file.type,
         });
         setImageSearchOpen(true);
       } catch (error) {
@@ -4347,18 +4375,47 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
           error?.responseBody?.message ||
           error?.responseBody?.error ||
           (error?.message && error.message !== "Request Failed" ? error.message : "") ||
-          "Image search failed. Please try again.";
+          "البحث بالصورة غير متاح حاليًا. جرّب تاني أو استخدم البحث النصي.";
         setSuggestions([]);
-        setVisualSearch({ active: true, keywords: [], message: "", error: message, previewUrl, fileName: file.name });
+        setVisualSearch({
+          active: true,
+          loading: false,
+          exactMatches: [],
+          similarMatches: [],
+          confidence: 0,
+          message,
+          error: message,
+          previewUrl,
+          fileName: file.name,
+          fileType: file.type,
+        });
         setImageSearchOpen(true);
-        toast.error(message);
       } finally {
         setSearchLoading(false);
-        selectedVisualImageRef.current = null;
       }
     }
     event.target.value = "";
   };
+
+  const shareVisualSearchImage = useCallback(async () => {
+    const file = selectedVisualImageRef.current;
+    const text = "هذه صورة المنتج الذي أبحث عنه";
+    if (file && typeof navigator !== "undefined" && navigator.share) {
+      try {
+        if (navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file], text, title: "صورة للبحث عن موديل" });
+          return;
+        }
+      } catch {
+        // Fall through to WhatsApp text link.
+      }
+    }
+    window.open(buildWhatsAppHref(text), "_blank", "noopener,noreferrer");
+  }, []);
+
+  const requestVisualSearchSupply = useCallback(() => {
+    window.open(buildWhatsAppHref("عايز أطلب توفير الموديل ده لو متاح"), "_blank", "noopener,noreferrer");
+  }, []);
 
   const toggleNotifications = () => {
     setNotificationsOpen((value) => {
@@ -4544,6 +4601,10 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
               onVoice={handleVoiceSearch}
               onImage={handleImageSearch}
               imageSearchOpen={imageSearchOpen}
+              imageSearch={visualSearch}
+              onShareImageOnWhatsApp={shareVisualSearchImage}
+              onRequestVisualSearchSupply={requestVisualSearchSupply}
+              onClearImageSearch={clearVisualSearch}
             />
           </div>
         ) : null}
@@ -4628,6 +4689,10 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
                   onVoice={handleVoiceSearch}
                   onImage={handleImageSearch}
                   imageSearchOpen={imageSearchOpen}
+                  imageSearch={visualSearch}
+                  onShareImageOnWhatsApp={shareVisualSearchImage}
+                  onRequestVisualSearchSupply={requestVisualSearchSupply}
+                  onClearImageSearch={clearVisualSearch}
                   drawerMode
                 />
                 {[
@@ -4689,6 +4754,10 @@ function PremiumSearch({
   onPickProduct,
   onVoice,
   onImage,
+  imageSearch = null,
+  onShareImageOnWhatsApp = () => {},
+  onRequestVisualSearchSupply = () => {},
+  onClearImageSearch = () => {},
   className = "",
   mobileOnly = false,
   drawerMode = false,
@@ -4773,12 +4842,16 @@ function PremiumSearch({
         value={value}
         loading={loading}
         suggestions={suggestions}
+        imageSearch={imageSearch}
         chips={chips}
         activeIndex={activeIndex}
         onPickTerm={onPickTerm}
         onPickProduct={onPickProduct}
         trendingSearches={trendingSearches}
         searchFallbackSections={searchFallbackSections}
+        onShareImageOnWhatsApp={onShareImageOnWhatsApp}
+        onRequestVisualSearchSupply={onRequestVisualSearchSupply}
+        onClearImageSearch={onClearImageSearch}
       />
     </div>
   );
@@ -4824,10 +4897,101 @@ function PremiumSearch({
   );
 }
 
-function SearchQuickSections({ value, loading, suggestions, chips, activeIndex, onPickTerm, onPickProduct, trendingSearches = [], searchFallbackSections = {} }) {
+function SearchQuickSections({
+  value,
+  loading,
+  suggestions,
+  imageSearch = null,
+  chips,
+  activeIndex,
+  onPickTerm,
+  onPickProduct,
+  trendingSearches = [],
+  searchFallbackSections = {},
+  onShareImageOnWhatsApp = () => {},
+  onRequestVisualSearchSupply = () => {},
+  onClearImageSearch = () => {},
+}) {
   const query = value.trim();
+  const exactMatches = Array.isArray(imageSearch?.exactMatches) ? imageSearch.exactMatches : [];
+  const similarMatches = Array.isArray(imageSearch?.similarMatches) ? imageSearch.similarMatches : [];
+  const hasImageSearch = Boolean(imageSearch?.active || imageSearch?.loading || imageSearch?.error || exactMatches.length || similarMatches.length);
+  const imageResults = exactMatches.length ? exactMatches : similarMatches;
+  const imageTitle = imageSearch?.loading
+    ? "بنبحث عن أقرب موديل..."
+    : exactMatches.length && Number(imageSearch?.confidence || 0) >= 80
+      ? "لقينا الموديل ده"
+      : similarMatches.length
+        ? "الموديل مش متوفر، بس دي أقرب موديلات شبهه"
+        : imageSearch?.error
+          ? "البحث بالصورة غير متاح حاليًا"
+          : "الموديل ده مش متوفر حاليًا";
   return (
     <div className="grid gap-3">
+      {hasImageSearch ? (
+        <div className="rounded-[1.4rem] border border-[#d4af37]/18 bg-[linear-gradient(180deg,rgba(255,248,225,0.94),rgba(255,255,255,0.98))] p-3 text-stone-950 shadow-[0_18px_40px_rgba(212,175,55,0.08)] dark:border-[#d4af37]/18 dark:bg-white/[0.04] dark:text-white">
+          <div className="flex items-start gap-3">
+            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/60 bg-white shadow-sm dark:border-white/10 dark:bg-white/5">
+              {imageSearch?.previewUrl ? <img src={imageSearch.previewUrl} alt="" className="h-full w-full object-cover" loading="lazy" /> : null}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#b0891b] dark:text-[#f3d77a]">البحث بالصورة</div>
+              <h3 className="mt-1 text-sm font-black">{imageTitle}</h3>
+              {imageSearch?.loading ? (
+                <p className="mt-1 text-xs leading-5 text-stone-600 dark:text-stone-300">بنبحث عن أقرب موديل...</p>
+              ) : null}
+              {!imageSearch?.loading && imageSearch?.message ? (
+                <p className="mt-1 text-xs leading-5 text-stone-600 dark:text-stone-300">{imageSearch.message}</p>
+              ) : null}
+              {Number.isFinite(Number(imageSearch?.confidence)) && Number(imageSearch?.confidence || 0) > 0 ? (
+                <div className="mt-2 inline-flex items-center rounded-full border border-amber-300/30 bg-amber-100 px-2.5 py-1 text-[10px] font-black text-amber-700 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100">
+                  ثقة {Math.round(Number(imageSearch.confidence || 0))}%
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          {imageSearch?.loading ? (
+            <div className="mt-3 flex items-center gap-2 rounded-2xl border border-dashed border-[#d4af37]/25 bg-white/70 px-3 py-3 text-xs font-bold text-stone-600 dark:border-white/10 dark:bg-white/5 dark:text-stone-300">
+              <Loader2 className="h-4 w-4 animate-spin text-[#d4af37]" />
+              <span>بنبحث عن أقرب موديل...</span>
+            </div>
+          ) : null}
+
+          {!imageSearch?.loading && imageResults.length ? (
+            <div className="mt-3 grid gap-1.5">
+              {exactMatches.length ? <div className="px-1 text-[11px] font-black uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">النتيجة المطابقة</div> : null}
+              {imageResults.slice(0, 6).map((product, index) => (
+                <SearchResultRow
+                  key={`${product.id || product.product_id || index}-${product.match_type || "image"}`}
+                  product={product}
+                  active={false}
+                  onPickProduct={onPickProduct}
+                />
+              ))}
+            </div>
+          ) : null}
+
+          {!imageSearch?.loading && !imageResults.length ? (
+            <div className="mt-3 grid gap-2 rounded-[1.2rem] border border-dashed border-[#d4af37]/24 bg-white/75 p-3 dark:border-white/10 dark:bg-white/5">
+              <p className="text-sm font-black text-stone-900 dark:text-white">الموديل ده مش متوفر حاليًا</p>
+              <p className="text-xs leading-5 text-stone-600 dark:text-stone-300">ممكن تبعتلنا الصورة على واتساب أو تسيب رقمك ونبلغك أول ما يوصل</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button type="button" onClick={onShareImageOnWhatsApp} className="inline-flex min-h-10 items-center justify-center rounded-full border border-emerald-300/35 bg-emerald-500/10 px-3 text-xs font-black text-emerald-700 transition hover:bg-emerald-500/15 dark:text-emerald-100">
+                  إرسال الصورة على واتساب
+                </button>
+                <button type="button" onClick={onRequestVisualSearchSupply} className="inline-flex min-h-10 items-center justify-center rounded-full border border-[#d4af37]/28 bg-[#d4af37]/12 px-3 text-xs font-black text-[#8a6700] transition hover:bg-[#d4af37]/18 dark:text-[#f3d77a]">
+                  طلب توفير الموديل
+                </button>
+              </div>
+              <button type="button" onClick={onClearImageSearch} className="inline-flex min-h-9 items-center justify-center rounded-full border border-stone-200 bg-white px-3 text-[11px] font-black text-stone-600 transition hover:border-stone-300 hover:text-stone-900 dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
+                رجوع للبحث النصي
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {query ? (
         <div>
           <div className="mb-2 flex items-center justify-between px-1">
@@ -4835,23 +4999,23 @@ function SearchQuickSections({ value, loading, suggestions, chips, activeIndex, 
             {loading ? <span className="text-[11px] font-bold text-[#d4af37]">Searching...</span> : null}
           </div>
           <div className="grid gap-1.5">
-            {suggestions.length ? suggestions.map((product, index) => (
-              <SearchResultRow
-                key={product.id}
-                product={product}
-                active={activeIndex === index}
-                onPickProduct={onPickProduct}
-              />
-            )) : (
-              <button type="button" onClick={() => onPickTerm(query)} className="rounded-2xl border border-dashed border-stone-200 p-4 text-right text-sm font-black text-stone-600 dark:border-white/10 dark:text-stone-300">
+              {suggestions.length ? suggestions.map((product, index) => (
+                <SearchResultRow
+                  key={product.id}
+                  product={product}
+                  active={activeIndex === index}
+                  onPickProduct={onPickProduct}
+                />
+              )) : (
+                <button type="button" onClick={() => onPickTerm(query)} className="rounded-2xl border border-dashed border-stone-200 p-4 text-right text-sm font-black text-stone-600 dark:border-white/10 dark:text-stone-300">
                 Search for "{query}"
-              </button>
-            )}
+                </button>
+              )}
           </div>
         </div>
       ) : null}
 
-      {!query ? (
+      {!query && !hasImageSearch ? (
         <>
           <SearchChips title="Trending searches" items={trendingSearches} onPick={onPickTerm} />
           {chips.length ? <SearchChips title="Popular searches" items={chips.slice(0, 6)} onPick={onPickTerm} /> : null}
