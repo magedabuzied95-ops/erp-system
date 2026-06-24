@@ -387,7 +387,7 @@ const channelBadgeLabel = (value = "") => {
   return "الكل";
 };
 const isConversationAiEnabled = (conversation = {}) => conversation?.ai_enabled !== false;
-const conversationChannelAliases = ["whatsapp", "facebook_messenger", "messenger", "facebook", "instagram", "instagram_dm", "web_chat", "web"];
+const conversationChannelAliases = ["whatsapp", "facebook_messenger", "messenger", "instagram", "instagram_dm", "web_chat", "web"];
 const socialCommentChannelAliases = ["facebook_comment", "instagram_comment"];
 const isSocialCommentChannel = (value = "") => {
   const key = clean(value).toLowerCase();
@@ -410,7 +410,7 @@ const normalizeConversationChannel = (conversation = {}) => {
   if (key.includes("instagram")) return "instagram";
   if (key.includes("facebook") && key.includes("messenger")) return "messenger";
   if (key.includes("messenger")) return "messenger";
-  if (key.includes("facebook")) return "facebook";
+  if (key.includes("facebook")) return "messenger";
   if (key.includes("web")) return "web";
   return key || "unknown";
 };
@@ -3302,6 +3302,9 @@ export default function AiInbox() {
   const activePanelConversations = inboxSection === "social_comments" ? socialCommentPanelConversations : conversationPanelConversations;
   const filteredConversations = useMemo(() => {
     const items = [...activePanelConversations];
+    const activeChannelFilterAllowed = inboxSection === "social_comments"
+      ? isSocialCommentChannel(channelFilter)
+      : isConversationChannel(channelFilter);
     const matchesLeadFilter = (conversation = {}) => {
       const temperature = conversationLeadTemperature(conversation);
       if (leadFilter === "all") return true;
@@ -3316,7 +3319,7 @@ export default function AiInbox() {
         : { primary: updatedAt, secondary: score };
     };
     const matchesChannelFilter = (conversation = {}) => {
-      if (channelFilter === "all") return true;
+      if (channelFilter === "all" || !activeChannelFilterAllowed) return true;
       return normalizeConversationChannel(conversation) === channelFilter;
     };
     const sorted = items.filter(matchesLeadFilter).filter(matchesChannelFilter).sort((a, b) => {
@@ -3327,7 +3330,7 @@ export default function AiInbox() {
       return clean(b.session_id).localeCompare(clean(a.session_id));
     });
     return sorted;
-  }, [activePanelConversations, channelFilter, leadFilter, leadSort]);
+  }, [activePanelConversations, channelFilter, inboxSection, leadFilter, leadSort]);
   const channelSummaries = useMemo(() => {
     const buckets = new Map();
     const totalUnread = activePanelConversations.reduce((sum, conversation) => sum + Number(conversation.unread_count || conversation.unread || 0), 0);
@@ -3391,8 +3394,8 @@ export default function AiInbox() {
   const fixedChannelSummaries = useMemo(() => {
     const byKey = new Map(channelSummaries.channels.map((item) => [item.key, item]));
 
-    const order = inboxSection === "social_comments" ? socialCommentChannelOrder : conversationChannelOrder;
-    return order.map((key) => ({
+    const fixedChannelOrder = inboxSection === "social_comments" ? socialCommentChannelOrder : conversationChannelOrder;
+    return fixedChannelOrder.map((key) => ({
       key,
       label: channelBadgeLabel(key),
       count: Number(byKey.get(key)?.count || 0),
@@ -5090,82 +5093,95 @@ export default function AiInbox() {
             />
           </div>
 
-          <aside className={`flex min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)] md:w-[300px] md:max-w-[300px] xl:w-[20%] xl:max-w-[20%] ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
-            <div className="shrink-0 space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <SectionTitle icon={MessageSquareText} title="المحادثات" action={<Pill tone="zinc">{filteredConversations.length} ظاهرة</Pill>} />
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-2">
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setInboxSection("conversations")}
-                    className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
-                      inboxSection === "conversations"
-                        ? "bg-cyan-300 text-slate-950"
-                        : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
-                    }`}
-                  >
-                    المحادثات
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${inboxSection === "conversations" ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
-                      {filteredConversations.length}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setInboxSection("social_comments")}
-                    className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
-                      inboxSection === "social_comments"
-                        ? "bg-cyan-300 text-slate-950"
-                        : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
-                    }`}
-                  >
-                    تعليقات السوشيال
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${inboxSection === "social_comments" ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
-                      {socialComments.items.length}
-                    </span>
-                  </button>
-                </div>
-              </div>
-	              <div className="flex flex-col gap-3">
-	                <label className="relative min-w-0">
-	                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-	                  <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث عن العميل أو المعرّف الخارجي أو الهاتف أو الرسالة" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
-	                </label>
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
-                    <ArrowUpDown className="h-4 w-4 text-slate-500" />
-                    <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">الترتيب</span>
-                    <select value={leadSort} onChange={(event) => setLeadSort(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
-                      <option value="recent">الأحدث</option>
-                      <option value="lead_score_desc">أعلى درجة للعميل أولًا</option>
-                    </select>
-                  </label>
-                </div>
+	          <aside className={`flex min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)] md:w-[300px] md:max-w-[300px] xl:w-[20%] xl:max-w-[20%] ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
+	            <div className="shrink-0 space-y-3">
+	              <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-2">
+	                <div className="grid grid-cols-2 gap-2">
+	                  <button
+	                    type="button"
+	                    onClick={() => setInboxSection("conversations")}
+	                    className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
+	                      inboxSection === "conversations"
+	                        ? "bg-cyan-300 text-slate-950"
+	                        : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
+	                    }`}
+	                  >
+	                    <span>المحادثات</span>
+	                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${inboxSection === "conversations" ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
+	                      {conversationPanelCount}
+	                    </span>
+	                  </button>
+	                  <button
+	                    type="button"
+	                    onClick={() => setInboxSection("social_comments")}
+	                    className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
+	                      inboxSection === "social_comments"
+	                        ? "bg-cyan-300 text-slate-950"
+	                        : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
+	                    }`}
+	                  >
+	                    <span>تعليقات السوشيال</span>
+	                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${inboxSection === "social_comments" ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
+	                      {socialCommentsPanelCount}
+	                    </span>
+	                  </button>
+	                </div>
 	              </div>
+	              {inboxSection === "conversations" ? (
+	                <div className="flex flex-col gap-3">
+	                  <label className="relative min-w-0">
+	                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+	                    <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث عن العميل أو المعرّف الخارجي أو الهاتف أو الرسالة" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
+	                  </label>
+	                  <div className="flex flex-wrap items-center gap-2">
+	                    <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
+	                      <ArrowUpDown className="h-4 w-4 text-slate-500" />
+	                      <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">الترتيب</span>
+	                      <select value={leadSort} onChange={(event) => setLeadSort(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
+	                        <option value="recent">الأحدث</option>
+	                        <option value="lead_score_desc">أعلى درجة للعميل أولًا</option>
+	                      </select>
+	                    </label>
+	                  </div>
+	                </div>
+	              ) : null}
 	            </div>
 	            <div className="min-h-0 flex-1 overflow-hidden pr-1">
-              {loading && !conversations.length ? <LoadingBlock text="جارٍ تحميل المحادثات..." /> : null}
-              {filteredConversations.length ? (
-                <VirtualList
-                  items={filteredConversations}
-                  estimateSize={84}
-                  className="h-full pr-1"
-                  itemKey={(item) => item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`}
-                  renderItem={(item) => (
-                      <div className="pb-1.5">
-                      <InboxConversationCard
-                        item={item}
-                        unseen={unseenSessions.includes(item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
-                        active={selectedConversation?.conversation_key === (item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
-                        onSelect={handleSelectConversation}
-                      />
-                    </div>
-                  )}
-                />
-              ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? "لا توجد رسائل Meta حقيقية بعد. بيانات العرض مخفية كي تبقى محادثات الويبهوك الحية واضحة." : "لا توجد محادثات حقيقية تطابق المرشحات المحددة."} /> : null}
-            </div>
-          </aside>
+	              {inboxSection === "conversations" ? (
+	                <>
+	                  {loading && !conversations.length ? <LoadingBlock text="جارٍ تحميل المحادثات..." /> : null}
+	                  {filteredConversations.length ? (
+	                    <VirtualList
+	                      items={filteredConversations}
+	                      estimateSize={84}
+	                      className="h-full pr-1"
+	                      itemKey={(item) => item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`}
+	                      renderItem={(item) => (
+	                        <div className="pb-1.5">
+	                          <InboxConversationCard
+	                            item={item}
+	                            unseen={unseenSessions.includes(item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
+	                            active={selectedConversation?.conversation_key === (item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
+	                            onSelect={handleSelectConversation}
+	                          />
+	                        </div>
+	                      )}
+	                    />
+	                  ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? "لا توجد رسائل Meta حقيقية بعد. بيانات العرض مخفية كي تبقى محادثات الويبهوك الحية واضحة." : "لا توجد محادثات حقيقية تطابق المرشحات المحددة."} /> : null}
+	                </>
+	              ) : (
+	                <SocialCommentsPanel
+	                  items={socialComments.items}
+	                  loading={socialComments.loading}
+	                  error={socialComments.error}
+	                  filter={socialCommentsFilter}
+	                  debugInfo={socialCommentsDebug}
+	                  onFilterChange={setSocialCommentsFilter}
+	                  onRefresh={() => void loadAll({ silent: true })}
+	                />
+	              )}
+	            </div>
+	          </aside>
 
           <main className={`flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden ${fullscreenConversation ? "h-full rounded-none border-0 bg-transparent p-0 shadow-none" : "rounded-3xl border border-white/10 bg-white/[0.045] p-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)]"} ${mobileView === "chat" ? "flex" : "hidden md:flex"}`}>
             {selectedConversation ? (
