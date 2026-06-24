@@ -4186,8 +4186,29 @@ export default function AiInbox() {
       activeDraft?.metadata?.confidence_engine ||
       {}
     );
-    if (confidenceState.decision === "high_risk" || validationState.violationsCount > 0) {
-      const confirmed = window.confirm("الرد عليه تحذيرات، هل تريد الإرسال؟");
+    const validationWarnings = [
+      ...asArray(validationState.violations).map((item) => clean(item?.message || item?.type || item)),
+      ...asArray(validationState.warnings).map((item) => clean(item?.message || item?.type || item)),
+    ].filter(Boolean);
+    const confidenceWarnings = [
+      ...asArray(confidenceState.reasons).map((item) => clean(item)),
+      ...Object.entries(confidenceState.riskFlags || {}).filter(([, value]) => Boolean(value)).map(([key]) => clean(key)),
+    ].filter(Boolean);
+    const takeoverWarnings = selectedConversation?.conversation_status === "human_takeover" ? ["المحادثة في وضع human takeover"] : [];
+    const sendWarnings = [...new Set([...validationWarnings, ...confidenceWarnings, ...takeoverWarnings])].slice(0, 5);
+    const warningCount = sendWarnings.length;
+    console.info("[ai-support] sendWarnings", {
+      warningCount,
+      sendWarnings,
+      sessionId,
+      validationViolationsCount: validationState.violationsCount,
+      validationWarningsCount: validationState.warningsCount,
+      confidenceDecision: confidenceState.decision,
+      confidenceReasonsCount: confidenceState.reasonsCount,
+      confidenceRiskFlagsCount: confidenceState.riskFlagsCount,
+    });
+    if (warningCount > 0) {
+      const confirmed = window.confirm(sendWarnings.join("\n"));
       if (!confirmed) return;
     }
     const now = new Date().toISOString();

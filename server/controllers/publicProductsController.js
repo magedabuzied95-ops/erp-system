@@ -16,6 +16,7 @@ import {
   OG_IMAGE_WIDTH,
   buildAbsolutePublicUrl,
 } from "../services/productOgImageService.js";
+import sharp from "sharp";
 import { resolvePublicProductImageUrl } from "../services/aiProductCards.js";
 import { formatCurrency } from "../../src/shared/lib/currency.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
@@ -693,6 +694,28 @@ const buildShareAvailableTargetUrl = (req, filters = {}) => {
 
 const buildShareAvailableFallbackImageUrl = (req) => buildAbsolutePublicUrl(req, "/favicon.svg");
 
+const buildShareAvailableOgImageUrl = (req, filters = {}, format = "png") => {
+  const params = new URLSearchParams();
+  parseShareParamList(filters.sizes).forEach((size) => params.append("size", size));
+  if (filters.gender) params.set("gender", filters.gender);
+  if (filters.type) params.set("type", filters.type);
+  if (filters.brand) params.set("brand", filters.brand);
+  if (filters.minPrice !== null && filters.minPrice !== undefined && filters.minPrice !== "") params.set("min_price", String(filters.minPrice));
+  if (filters.maxPrice !== null && filters.maxPrice !== undefined && filters.maxPrice !== "") params.set("max_price", String(filters.maxPrice));
+  if (filters.q) params.set("q", filters.q);
+  if (filters.quality) params.set("quality", filters.quality);
+  if (req?.query?.v) params.set("v", String(req.query.v));
+  params.set("inStock", filters.inStock === false ? "0" : "1");
+  const suffix = format === "png" ? "/share/available/og-image.png" : "/share/available/og-image";
+  const publicBaseUrl = getPublicAppUrl() || DEFAULT_PUBLIC_APP_URL;
+  return new URL(`${suffix}${params.toString() ? `?${params.toString()}` : ""}`, publicBaseUrl).toString();
+};
+
+const buildShareAvailablePreviewPngBuffer = async ({ filters = {}, products = [], count = 0 } = {}) => {
+  const svg = buildShareAvailablePreviewSvg({ filters, products, count });
+  return sharp(Buffer.from(svg, "utf8")).png().toBuffer();
+};
+
 const buildShareAvailableWhereClause = () => `
   WHERE ${publicProductVisibilityClause}
     AND (
@@ -873,8 +896,9 @@ const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "
   const sizeLabel = filters.sizes?.length > 1 ? `المتاح بالمقاسات ${filters.sizes.join("، ")}` : `المتاح بالمقاس ${filters.sizes?.[0] || ""}`.trim();
   const title = escapeHtml(sizeLabel || "المتاح بالمقاس");
   const description = escapeHtml(Number(count || 0) > 0 ? `${count} موديل متاح دلوقتي في M1 Store` : "افتح المنتجات المتاحة الآن في M1 Store");
-  const absoluteUrl = escapeHtml(buildAbsolutePublicUrl(req, req.originalUrl || req.url || "/share/available"));
-  const absoluteImage = escapeHtml(ogImageUrl || buildShareAvailableFallbackImageUrl(req));
+  const publicBaseUrl = getPublicAppUrl() || DEFAULT_PUBLIC_APP_URL;
+  const absoluteUrl = escapeHtml(new URL(req.originalUrl || req.url || "/share/available", publicBaseUrl).toString());
+  const absoluteImage = escapeHtml(ogImageUrl || buildShareAvailableOgImageUrl(req, filters, "png"));
   const fallbackTarget = escapeHtml(targetUrl || buildShareAvailableTargetUrl(req, filters));
   const productsPreview = products
     .slice(0, 4)
@@ -893,6 +917,7 @@ const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "
     <meta property="og:image:secure_url" content="${absoluteImage}" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/png" />
     <meta property="og:url" content="${absoluteUrl}" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="${absoluteImage}" />
@@ -922,20 +947,6 @@ const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "
 </html>`;
 };
 
-const shareAvailableOgImageUrl = (req, filters = {}) => {
-  const params = new URLSearchParams();
-  parseShareParamList(filters.sizes).forEach((size) => params.append("size", size));
-  if (filters.gender) params.set("gender", filters.gender);
-  if (filters.type) params.set("type", filters.type);
-  if (filters.brand) params.set("brand", filters.brand);
-  if (filters.minPrice !== null && filters.minPrice !== undefined && filters.minPrice !== "") params.set("min_price", String(filters.minPrice));
-  if (filters.maxPrice !== null && filters.maxPrice !== undefined && filters.maxPrice !== "") params.set("max_price", String(filters.maxPrice));
-  if (filters.q) params.set("q", filters.q);
-  if (filters.quality) params.set("quality", filters.quality);
-  params.set("inStock", filters.inStock === false ? "0" : "1");
-  return buildAbsolutePublicUrl(req, `/share/available/og-image${params.toString() ? `?${params.toString()}` : ""}`);
-};
-
 export const getPublicAvailableSharePage = async (req, res) => {
   try {
     await ensurePublicProductEditionSchema();
@@ -943,7 +954,7 @@ export const getPublicAvailableSharePage = async (req, res) => {
     const filters = normalizeShareAvailableFilters(req.query || {});
     const { count, products } = await loadShareAvailableProducts(filters);
     const targetUrl = buildShareAvailableTargetUrl(req, filters);
-    const ogImageUrl = shareAvailableOgImageUrl(req, filters);
+    const ogImageUrl = buildShareAvailableOgImageUrl(req, filters, "png");
     console.log("shareAvailableTargetUrl", targetUrl);
     console.log("[share-available]", {
       query: req.query,
@@ -968,7 +979,7 @@ export const getPublicAvailableSharePage = async (req, res) => {
       req,
       filters,
       count: 0,
-      ogImageUrl: buildShareAvailableFallbackImageUrl(req),
+      ogImageUrl: buildShareAvailableOgImageUrl(req, filters, "png"),
       targetUrl,
       products: [],
     });
@@ -982,17 +993,17 @@ export const getPublicAvailableOgImage = async (req, res) => {
     await ensureProductVariantImagesSchema();
     const filters = normalizeShareAvailableFilters(req.query || {});
     const { count, products } = await loadShareAvailableProducts(filters);
-    const svg = buildShareAvailablePreviewSvg({ filters, products, count });
+    const png = await buildShareAvailablePreviewPngBuffer({ filters, products, count });
     console.log("shareAvailableTargetUrl", buildShareAvailableTargetUrl(req, filters));
     console.log("[share-available]", {
       query: req.query,
       matchedProductsCount: count,
-      ogImageUrl: "svg-generated",
+      ogImageUrl: "png-generated",
       finalTargetUrl: buildShareAvailableTargetUrl(req, filters),
     });
-    res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+    res.setHeader("Content-Type", "image/png");
     res.setHeader("Cache-Control", "public, max-age=300");
-    return res.status(200).send(svg);
+    return res.status(200).send(png);
   } catch (error) {
     console.error("[share-available]", {
       query: req.query,
@@ -1006,11 +1017,14 @@ export const getPublicAvailableOgImage = async (req, res) => {
       description: "جرّب مقاساً أو فلتراً آخر",
       targetUrl,
     });
-    res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+    const png = await sharp(Buffer.from(svg, "utf8")).png().toBuffer();
+    res.setHeader("Content-Type", "image/png");
     res.setHeader("Cache-Control", "public, max-age=300");
-    return res.status(200).send(svg);
+    return res.status(200).send(png);
   }
 };
+
+export const getPublicAvailableOgImagePng = getPublicAvailableOgImage;
 
 export const getPublicProductById = async (req, res) => {
   try {

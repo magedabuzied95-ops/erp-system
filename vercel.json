@@ -17,6 +17,10 @@
       "destination": "https://erp-system-0qhp.onrender.com/share/available"
     },
     {
+      "source": "/share/available/og-image.png",
+      "destination": "https://erp-system-0qhp.onrender.com/share/available/og-image.png"
+    },
+    {
       "source": "/share/available/(.*)",
       "destination": "https://erp-system-0qhp.onrender.com/share/available/$1"
     },
