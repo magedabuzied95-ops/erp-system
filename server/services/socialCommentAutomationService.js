@@ -512,7 +512,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
     const commenterName = resolveSocialCommentCustomerName(event);
     const commenterId = text(event.commenter_id || "");
     const commenterProfilePictureUrl = resolveSocialCommentAvatarUrl(event);
-    const customerProfileId = await resolveSocialCommentCustomerProfileId({ tenantId: safeTenantId, event });
+    const customerProfileId = bigintOrNull(await resolveSocialCommentCustomerProfileId({ tenantId: safeTenantId, event }));
     const postPermalink = resolveSocialCommentPostPermalink(event);
     const postId = text(event.post_id || "");
     const postMessage = resolveSocialCommentPostMessage(event);
@@ -547,7 +547,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       commenter_id: commenterId,
       commenter_name: commenterName,
       commenter_profile_picture_url: text(event.commenter_profile_picture_url || ""),
-      customer_profile_id: customerProfileId || null,
+      customer_profile_id: customerProfileId,
       original_comment_text: commentText,
       classification_label: text(event.classification_label || ""),
       classification_score: Number(event.classification_score || 0),
@@ -623,7 +623,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       comment_id: text(event.comment_id || ""),
       commenter_id: commenterId,
       conversation_id: sessionId,
-      session_ref_id: sessionResult.rows[0]?.id || null,
+      session_ref_id: bigintOrNull(sessionResult.rows[0]?.id),
     });
 
     await db.query(
@@ -663,7 +663,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       last_message_at = NOW(),
       updated_at = NOW()
       `,
-      [safeTenantId, channel, sessionId, commenterId, threadKind, commenterName, customerProfileId || null, commenterProfilePictureUrl, commentText, JSON.stringify(metadata)]
+      [safeTenantId, channel, sessionId, commenterId, threadKind, commenterName, customerProfileId, commenterProfilePictureUrl, commentText, JSON.stringify(metadata)]
     );
 
     const inboundMessage = await db.query(
@@ -717,7 +717,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       RETURNING *
       `,
       [
-        sessionResult.rows[0]?.id || null,
+        bigintOrNull(sessionResult.rows[0]?.id),
         safeTenantId,
         sessionId,
         channel,
@@ -850,7 +850,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
         RETURNING *
         `,
         [
-          sessionResult.rows[0]?.id || null,
+          bigintOrNull(sessionResult.rows[0]?.id),
           safeTenantId,
           sessionId,
           channel,
@@ -1647,6 +1647,12 @@ const isCommentChange = (body = {}, change = {}) => {
 };
 
 const firstText = (...values) => values.map((value) => text(value)).find(Boolean) || "";
+const bigintOrNull = (value) => {
+  const normalized = text(value || "");
+  if (!normalized || !/^\d+$/.test(normalized)) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+};
 
 const deriveCommentId = ({ platform = "", postId = "", parentCommentId = "", commenterId = "", commentText = "", timestamp = "", value = {}, change = {}, entry = {}, body = {} } = {}) => {
   const explicit = firstText(
