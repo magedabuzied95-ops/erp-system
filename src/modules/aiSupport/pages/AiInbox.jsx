@@ -974,7 +974,7 @@ function InboxChannelSidebar({ channels = [], allUnread = 0, activeChannel = "al
     const iconClass = active ? "drop-shadow-[0_0_10px_rgba(34,211,238,0.45)]" : "";
     const commentBaseClass = `relative inline-flex h-7 w-7 items-center justify-center ${iconClass}`;
     const commentGlyphClass = `h-7 w-7 ${active ? "text-white" : "text-white/90"}`;
-    const commentBadgeClass = `absolute -right-0.5 -bottom-0.5 h-3 w-3 ${active ? "drop-shadow-[0_0_8px_rgba(34,211,238,0.35)]" : ""}`;
+    const commentBadgeClass = `absolute -right-0.5 -bottom-0.5 h-[15px] w-[15px] ${active ? "drop-shadow-[0_0_8px_rgba(34,211,238,0.35)]" : ""}`;
 
     if (key === "all") {
       return <MessageSquareText className={`${baseIconClass} ${iconClass}`} />;
