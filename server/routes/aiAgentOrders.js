@@ -2313,6 +2313,7 @@ router.post("/inbox/:conversationId/private-message", protect, permit("settings"
   try {
     if (isCommentThread) {
       const commentId = envText(
+        envText(req.body?.comment_id || req.body?.commentId || "") ||
         channelMetadata.comment_id ||
           channelMetadata.lead?.comment_id ||
           conversation.external_comment_id ||

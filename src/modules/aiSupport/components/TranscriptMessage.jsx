@@ -79,6 +79,8 @@ function TranscriptMessage({
   row = null,
   variant = "desktop",
   onOpenCorrection,
+  onReplyComment,
+  onPrivateMessage,
   channelLabel = "",
 }) {
   const safeRow = row || {};
@@ -108,6 +110,7 @@ function TranscriptMessage({
   const postTime = commentThreadPostTime(message);
   const sourceLabel = clean(message.channel_label || channelLabel || (clean(message.channel).includes("instagram") ? "Instagram Comment" : "Facebook Comment")) || (clean(message.channel).includes("instagram") ? "Instagram Comment" : "Facebook Comment");
   const commentLabel = clean(message.channel_label || channelLabel || (clean(message.channel).includes("instagram") ? "Instagram Comment" : "Facebook Comment")) || (clean(message.channel).includes("instagram") ? "Instagram Comment" : "Facebook Comment");
+  const commenterName = clean(message.commenter_name || message.customer_name || message.sender_name || message.from_name || message.author_name || "");
   if (!safeRow.visible) return null;
 
   if (variant === "pwa") {
@@ -175,35 +178,33 @@ function TranscriptMessage({
           <div className="max-w-[88%] rounded-3xl rounded-tl-sm border border-amber-300/20 bg-amber-300/10 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-amber-100">
               <MessageSquareText className="h-3.5 w-3.5" />
-              <span>{commentLabel}</span>
+              <span>{commenterName || commentLabel}</span>
               <span className="text-slate-400">/</span>
               <span>{createdAt}</span>
             </div>
-            {(postTitle || postUrl || postTime) ? (
-              <div className="mt-3 rounded-2xl border border-white/10 bg-slate-950/55 p-3">
-                <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">
-                  <span>{sourceLabel}</span>
-                  {postTime ? (
-                    <>
-                      <span className="text-slate-500">/</span>
-                      <span>{postTime}</span>
-                    </>
-                  ) : null}
-                </div>
-                {postTitle ? (
-                  <div className="mt-2 line-clamp-2 text-[13px] font-bold leading-6 text-slate-50">{postTitle}</div>
-                ) : null}
-                {postUrl ? (
-                  <div className="mt-2">
-                    <a href={postUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-[11px] font-black text-emerald-100">
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      فتح البوست
-                    </a>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
             <LinkifiedText text={message.customer_message || message.message_text || message.text || message.body} className="mt-3 text-[16px] leading-8 text-white" />
+            <div className="mt-3 flex flex-wrap gap-2">
+              {message.comment_id && onReplyComment ? (
+                <button
+                  type="button"
+                  onClick={() => onReplyComment(message)}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-[11px] font-black text-violet-100"
+                >
+                  <MessageSquareText className="h-3.5 w-3.5" />
+                  رد على التعليق
+                </button>
+              ) : null}
+              {message.commenter_id && onPrivateMessage ? (
+                <button
+                  type="button"
+                  onClick={() => onPrivateMessage(message)}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  إرسال رسالة خاصة
+                </button>
+              ) : null}
+            </div>
           </div>
         </div>
       );
@@ -325,35 +326,33 @@ function TranscriptMessage({
           <div className="max-w-[88%] rounded-3xl rounded-tl-sm border border-amber-300/20 bg-amber-300/10 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-amber-100">
               <MessageSquareText className="h-3.5 w-3.5" />
-              <span>{commentLabel}</span>
+              <span>{commenterName || commentLabel}</span>
               <span className="text-slate-400">/</span>
               <span>{createdAt}</span>
             </div>
-            {(postTitle || postUrl || postTime) ? (
-              <div className="mt-3 rounded-2xl border border-white/10 bg-slate-950/55 p-3">
-                <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">
-                  <span>{sourceLabel}</span>
-                  {postTime ? (
-                    <>
-                      <span className="text-slate-500">/</span>
-                      <span>{postTime}</span>
-                    </>
-                  ) : null}
-                </div>
-                {postTitle ? (
-                  <div className="mt-2 line-clamp-2 text-[13px] font-bold leading-6 text-slate-50">{postTitle}</div>
-                ) : null}
-                {postUrl ? (
-                  <div className="mt-2">
-                    <a href={postUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-[11px] font-black text-emerald-100">
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      فتح البوست
-                    </a>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
             <LinkifiedText text={message.customer_message || message.message_text || message.text || message.body} className="mt-3 text-[16px] leading-8 text-white" />
+            <div className="mt-3 flex flex-wrap gap-2">
+              {message.comment_id && onReplyComment ? (
+                <button
+                  type="button"
+                  onClick={() => onReplyComment(message)}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-[11px] font-black text-violet-100"
+                >
+                  <MessageSquareText className="h-3.5 w-3.5" />
+                  رد على التعليق
+                </button>
+              ) : null}
+              {message.commenter_id && onPrivateMessage ? (
+                <button
+                  type="button"
+                  onClick={() => onPrivateMessage(message)}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  إرسال رسالة خاصة
+                </button>
+              ) : null}
+            </div>
           </div>
         </div>
       ) : null}

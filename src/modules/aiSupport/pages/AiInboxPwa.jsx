@@ -9,12 +9,14 @@ import {
   ChevronLeft,
   Clock3,
   Download,
+  ExternalLink,
   Globe,
   Image,
   Layers3,
   Loader2,
   Maximize2,
   MessageCircleMore,
+  MessageSquareText,
   MoreHorizontal,
   Minimize2,
   PackagePlus,
@@ -431,13 +433,96 @@ const isCommentConversation = (conversation = {}) => {
   return channel === "facebook_comment" || channel === "instagram_comment" || threadKind === "comment" || source.includes("_comment");
 };
 
-const buildLeadPrivateMessageText = (conversation = {}) => {
-  const name = clean(conversationName(conversation));
+const commentThreadPostUrl = (conversation = {}) =>
+  firstNonEmpty(
+    conversation?.channel_metadata?.comment_url,
+    conversation?.channel_metadata?.post_permalink_url,
+    conversation?.channel_metadata?.post_permalink,
+    conversation?.channel_metadata?.permalink_url,
+    conversation?.channel_metadata?.post_url,
+    conversation?.metadata?.comment_url,
+    conversation?.metadata?.post_permalink_url,
+    conversation?.metadata?.post_permalink,
+    conversation?.metadata?.permalink_url,
+    conversation?.metadata?.post_url,
+    conversation?.comment_url,
+    conversation?.post_permalink_url,
+    conversation?.post_permalink,
+    conversation?.permalink_url,
+    conversation?.post_url
+  );
+
+const commentThreadPostImageUrl = (conversation = {}) =>
+  firstNonEmpty(
+    conversation?.channel_metadata?.post_full_picture,
+    conversation?.channel_metadata?.full_picture,
+    conversation?.metadata?.post_full_picture,
+    conversation?.metadata?.full_picture,
+    conversation?.full_picture,
+    conversation?.image_url
+  );
+
+const commentThreadPostTitle = (conversation = {}) =>
+  firstNonEmpty(
+    conversation?.channel_metadata?.post_message,
+    conversation?.channel_metadata?.post_caption,
+    conversation?.metadata?.post_message,
+    conversation?.metadata?.post_caption,
+    conversation?.post_message,
+    conversation?.post_caption,
+    conversation?.last_message
+  );
+
+const commentThreadLastComment = (conversation = {}) =>
+  firstNonEmpty(
+    conversation?.channel_metadata?.last_comment_text,
+    conversation?.metadata?.last_comment_text,
+    conversation?.last_comment_text,
+    conversation?.latest_message_preview,
+    conversation?.last_message
+  );
+
+const commentThreadCommentCount = (conversation = {}) =>
+  Number(
+    conversation?.channel_metadata?.comments_count ||
+      conversation?.metadata?.comments_count ||
+      (Array.isArray(conversation?.messages) ? conversation.messages.filter((message) => clean(message?.message_type).toLowerCase() === "comment_inbound" || clean(message?.thread_kind).toLowerCase() === "comment").length : 0) ||
+      conversation?.message_count ||
+      conversation?.channel_metadata?.comment_count ||
+      0
+  ) || 0;
+
+const commentThreadPostTime = (conversation = {}) =>
+  firstNonEmpty(
+    conversation?.channel_metadata?.post_created_time,
+    conversation?.metadata?.post_created_time,
+    conversation?.post_created_time,
+    conversation?.channel_metadata?.last_comment_at,
+    conversation?.metadata?.last_comment_at,
+    conversation?.last_activity_at,
+    conversation?.last_message_at
+  );
+
+const commentThreadDisplayName = (conversation = {}) =>
+  firstNonEmpty(
+    commentThreadPostTitle(conversation),
+    conversation?.channel_metadata?.post_title,
+    conversation?.channel_metadata?.post_name,
+    conversation?.channel_metadata?.post_caption,
+    conversation?.metadata?.post_title,
+    conversation?.metadata?.post_name,
+    conversation?.metadata?.post_caption,
+    conversation?.last_message,
+    "Post"
+  );
+
+const buildLeadPrivateMessageText = (conversation = {}, comment = {}) => {
+  const name = clean(comment?.commenter_name || conversationName(conversation));
   return `مرحباً${name ? ` ${name}` : ""}، أرسلت لك التفاصيل في الخاص.`;
 };
 
-const buildLeadCommentReplyText = (conversation = {}) => {
-  const name = clean(conversationName(conversation));
+const buildLeadCommentReplyText = (conversation = {}, comment = {}) => {
+  const name = clean(comment?.commenter_name || conversationName(conversation));
   return `شكراً${name ? ` ${name}` : ""}، أرسلنا لك التفاصيل في الخاص.`;
 };
 
@@ -787,6 +872,8 @@ const conversationName = (conversation = {}) =>
       conversation.profile_name,
       conversation.contact_name,
       [conversation.first_name, conversation.last_name].filter(Boolean).join(" "),
+      conversation.channel_metadata?.commenter_name,
+      conversation.metadata?.commenter_name,
     ].filter(Boolean);
     if (!isMessengerConversation(conversation)) {
       candidates.push(conversation.external_customer_id, conversation.phone);
@@ -1004,8 +1091,13 @@ function ConversationListItem({ conversation, active, onSelect }) {
   const meta = channelMeta(conversation.channel || conversation.source);
   const Icon = meta.icon;
   const unreadCount = conversationUnreadCount(conversation);
-  const avatar = customerAvatarUrl(conversation);
-  const preview = conversationPreview(conversation) || "No messages yet";
+  const isCommentThread = isCommentConversation(conversation);
+  const avatar = isCommentThread ? commentThreadPostImageUrl(conversation) : customerAvatarUrl(conversation);
+  const title = isCommentThread ? commentThreadDisplayName(conversation) : conversationName(conversation);
+  const preview = isCommentThread ? commentThreadLastComment(conversation) || "No comments yet" : conversationPreview(conversation) || "No messages yet";
+  const commentCount = isCommentThread ? commentThreadCommentCount(conversation) : 0;
+  const lastActivity = relativeTime(conversation.last_activity_at || conversation.last_message_at || conversation.updated_at);
+  const postTime = isCommentThread ? commentThreadPostTime(conversation) : "";
   const unread = unreadCount > 0;
   return (
     <button
@@ -1020,12 +1112,15 @@ function ConversationListItem({ conversation, active, onSelect }) {
       }`}
     >
       {avatar ? (
-        <img
-          src={avatar}
-          alt={conversationName(conversation)}
-          className={`h-11 w-11 shrink-0 rounded-full object-cover ${unread && !active ? "ring-2 ring-emerald-200" : "ring-1 ring-slate-200"}`}
-          loading="lazy"
-        />
+        <div className={`relative h-11 w-11 shrink-0 overflow-hidden rounded-2xl ${unread && !active ? "ring-2 ring-emerald-200" : "ring-1 ring-slate-200"}`}>
+          <img
+            src={avatar}
+            alt={title}
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
+          {isCommentThread ? <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-transparent to-black/25" /> : null}
+        </div>
       ) : (
         <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${active ? "bg-white/12 text-white" : unread ? "bg-emerald-50 text-emerald-700 ring-2 ring-emerald-200" : "bg-slate-200 text-slate-600"}`}>
           <UserRound className="h-5 w-5" />
@@ -1034,12 +1129,17 @@ function ConversationListItem({ conversation, active, onSelect }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className={`truncate text-[14px] leading-5 ${unread && !active ? "font-bold" : "font-semibold"}`}>{conversationName(conversation)}</div>
+            <div className={`line-clamp-2 text-[14px] leading-5 ${unread && !active ? "font-bold" : "font-semibold"}`}>{title}</div>
             <div className="mt-1 flex items-center gap-1.5">
               <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-white/10 text-white" : "bg-slate-100 text-slate-600"}`}>
                 <Icon className={`h-3 w-3 ${active ? "text-white" : meta.tone}`} />
                 {meta.label}
               </span>
+              {isCommentThread ? (
+                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-white/10 text-white" : "bg-blue-50 text-blue-700"}`}>
+                  {commentCount ? `${commentCount} تعليق` : "تعليق"}
+                </span>
+              ) : null}
               {needsHumanAttention(conversation) ? (
                 <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-amber-300/20 text-amber-100" : "bg-amber-50 text-amber-700"}`}>
                   Needs Human
@@ -1049,7 +1149,7 @@ function ConversationListItem({ conversation, active, onSelect }) {
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
             <div className={`text-[11px] font-medium ${active ? "text-slate-300" : "text-slate-500"}`}>
-              {relativeTime(conversation.last_activity_at || conversation.updated_at)}
+              {lastActivity}
             </div>
             {unreadCount > 0 ? (
               <span className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${active ? "bg-white text-slate-900" : "bg-emerald-500 text-white"}`}>
@@ -1058,10 +1158,17 @@ function ConversationListItem({ conversation, active, onSelect }) {
             ) : null}
           </div>
         </div>
-        <div className={`mt-1.5 flex items-start gap-1.5 text-[12.5px] leading-4.5 ${active ? "text-slate-300" : unread ? "text-slate-700" : "text-slate-500"}`}>
-          <CheckCheck className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${unread && !active ? "text-emerald-600" : ""}`} />
-          <span className={`line-clamp-2 text-left ${unread && !active ? "font-medium" : ""}`}>{preview}</span>
-        </div>
+        {isCommentThread ? (
+          <div className={`mt-1.5 rounded-2xl border p-2 text-[12.5px] leading-4.5 ${active ? "border-white/10 bg-white/5 text-slate-200" : unread ? "border-slate-200 bg-slate-50 text-slate-700" : "border-slate-200 bg-slate-50 text-slate-500"}`}>
+            {postTime ? <div className="mb-1 text-[10px] font-black uppercase tracking-[0.14em] opacity-70">{postTime}</div> : null}
+            <span className="line-clamp-2">{preview}</span>
+          </div>
+        ) : (
+          <div className={`mt-1.5 flex items-start gap-1.5 text-[12.5px] leading-4.5 ${active ? "text-slate-300" : unread ? "text-slate-700" : "text-slate-500"}`}>
+            <CheckCheck className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${unread && !active ? "text-emerald-600" : ""}`} />
+            <span className={`line-clamp-2 text-left ${unread && !active ? "font-medium" : ""}`}>{preview}</span>
+          </div>
+        )}
       </div>
     </button>
   );
@@ -1157,12 +1264,16 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
 });
 
 const OptimizedTranscript = memo(function OptimizedTranscript({
+  conversation = null,
   rows = [],
   loadingOlder,
   onLoadOlder,
   olderMessagesAvailable = false,
+  onReplyComment,
+  onPrivateMessage,
 }) {
-  if (!rows.length) {
+  const isCommentThread = isCommentConversation(conversation || {});
+  if (!rows.length && !isCommentThread) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
         No messages yet.
@@ -1181,12 +1292,55 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
             className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 disabled:opacity-60"
           >
             {loadingOlder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock3 className="h-3.5 w-3.5" />}
-            Load older
+          Load older
           </button>
         </div>
       ) : null}
+      {isCommentThread ? (
+        <div className="sticky top-2 z-10 rounded-3xl border border-slate-200 bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.12)]">
+          <div className="flex items-start gap-3">
+            {commentThreadPostImageUrl(conversation || {}) ? (
+              <img src={commentThreadPostImageUrl(conversation || {})} alt="" className="h-20 w-20 shrink-0 rounded-2xl object-cover ring-1 ring-slate-200" loading="lazy" />
+            ) : (
+              <span className="grid h-20 w-20 shrink-0 place-items-center rounded-2xl bg-slate-100 text-slate-400">
+                <MessageSquareText className="h-6 w-6" />
+              </span>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-700">Post</div>
+              <div className="mt-1 line-clamp-2 text-[16px] font-black leading-6 text-slate-900">{commentThreadDisplayName(conversation || {})}</div>
+              {commentThreadPostTime(conversation || {}) ? (
+                <div className="mt-1 text-[11px] font-medium text-slate-500">{commentThreadPostTime(conversation || {})}</div>
+              ) : null}
+              <div className="mt-2 flex flex-wrap gap-2">
+                {commentThreadPostUrl(conversation || {}) ? (
+                  <a href={commentThreadPostUrl(conversation || {})} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-[11px] font-black text-emerald-700">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    فتح البوست
+                  </a>
+                ) : null}
+                <button type="button" onClick={() => onPrivateMessage?.(conversation)} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-3 text-[11px] font-black text-cyan-700">
+                  <MessageSquareText className="h-3.5 w-3.5" />
+                  إرسال رسالة خاصة
+                </button>
+              </div>
+              {commentThreadCommentCount(conversation || {}) ? (
+                <div className="mt-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-700">
+                  {commentThreadCommentCount(conversation || {})} تعليق
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
       {rows.map((row) => (
-        <TranscriptMessage key={row.key} row={row} variant="pwa" />
+        <TranscriptMessage
+          key={row.key}
+          row={row}
+          variant="pwa"
+          onReplyComment={onReplyComment}
+          onPrivateMessage={onPrivateMessage}
+        />
       ))}
     </div>
   );
@@ -2299,6 +2453,7 @@ export default function AiInboxPwa() {
           kind: hasProductCards || normalizedMessage.message_type === "product_card" ? "product_card" : isCustomer ? "customer" : isAi ? "ai" : "staff",
           visible: true,
           createdAt: absoluteTime(normalizedMessage.created_at),
+          conversationMetadata: selectedConversation?.channel_metadata || selectedConversation?.metadata || {},
         };
       })
       .filter(Boolean);
@@ -3162,12 +3317,12 @@ export default function AiInboxPwa() {
     }
   }, [headers, loadConversations, patchConversation, selectedConversation, tenantId]);
 
-  const sendLeadPrivateMessage = useCallback(async () => {
+  const sendLeadPrivateMessage = useCallback(async (targetComment = null) => {
     if (!selectedConversation?.session_id) return;
     const identifiers = conversationIdentifiers(selectedConversation);
     const sessionId = identifiers.sessionId;
     const conversationIdentifier = identifiers.conversationKey || sessionId;
-    const message = buildLeadPrivateMessageText(selectedConversation);
+    const message = buildLeadPrivateMessageText(selectedConversation, targetComment || {});
     setLeadActionLoading("private_message");
     try {
       const payload = await api.post(
@@ -3175,6 +3330,7 @@ export default function AiInboxPwa() {
         {
           tenant_id: tenantId,
           message,
+          comment_id: clean(targetComment?.comment_id || targetComment?.external_message_id || targetComment?.id || ""),
         },
         { headers, perfComponent: "AiInboxPwa.privateMessage" }
       );
@@ -3202,23 +3358,26 @@ export default function AiInboxPwa() {
     }
   }, [headers, loadConversations, patchConversation, selectedConversation, tenantId]);
 
-  const sendLeadCommentReply = useCallback(async () => {
+  const sendLeadCommentReply = useCallback(async (targetComment = null) => {
     if (!selectedConversation?.session_id || !isCommentConversation(selectedConversation)) return;
     const identifiers = conversationIdentifiers(selectedConversation);
     const sessionId = identifiers.sessionId;
     const conversationIdentifier = identifiers.conversationKey || sessionId;
     const commentId = clean(
-      selectedConversation?.channel_metadata?.comment_id ||
+      targetComment?.comment_id ||
+        targetComment?.external_message_id ||
+        targetComment?.id ||
+        selectedConversation?.channel_metadata?.comment_id ||
         selectedConversation?.channel_metadata?.lead?.comment_id ||
         selectedConversation?.external_comment_id ||
         selectedConversation?.comment_id ||
         ""
     );
     if (!commentId) {
-      toast.error("تعذر تحديد الكومنت المرتبط بهذه المحادثة");
+      toast.error("تعذر تحديد التعليق المرتبط بهذه المحادثة");
       return;
     }
-    const message = buildLeadCommentReplyText(selectedConversation);
+    const message = buildLeadCommentReplyText(selectedConversation, targetComment || {});
     setLeadActionLoading("comment_reply");
     try {
       const payload = await api.post(
@@ -3263,7 +3422,7 @@ export default function AiInboxPwa() {
   const currentLeadStatus = conversationLeadStatus(selectedConversation || {});
   const selectedWorkflowStatus = conversationWorkflowStatus(selectedConversation || {});
   const selectedConversationAiEnabled = isConversationAiEnabled(selectedConversation || {});
-  const selectedAvatar = customerAvatarUrl(selectedConversation || {});
+  const selectedAvatar = isCommentConversation(selectedConversation || {}) ? commentThreadPostImageUrl(selectedConversation || {}) : customerAvatarUrl(selectedConversation || {});
   const selectedLastSeen = relativeSeenLabel(
     selectedConversation?.last_activity_at || selectedConversation?.updated_at
   );
@@ -3295,7 +3454,7 @@ export default function AiInboxPwa() {
                 {selectedAvatar ? (
                   <img
                     src={selectedAvatar}
-                    alt={conversationName(selectedConversation)}
+                    alt={isCommentConversation(selectedConversation || {}) ? commentThreadDisplayName(selectedConversation || {}) : conversationName(selectedConversation)}
                     className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
                     loading="lazy"
                   />
@@ -3305,7 +3464,7 @@ export default function AiInboxPwa() {
                   </span>
                 )}
                 <div className="min-w-0">
-                  <div className="truncate text-[15px] font-semibold leading-5 text-slate-900">{conversationName(selectedConversation)}</div>
+                  <div className="truncate text-[15px] font-semibold leading-5 text-slate-900">{isCommentConversation(selectedConversation || {}) ? commentThreadDisplayName(selectedConversation || {}) : conversationName(selectedConversation)}</div>
                   <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
                     <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">
                       <SelectedChannelIcon className={`h-3 w-3 ${selectedMeta.tone}`} />
@@ -3486,7 +3645,7 @@ export default function AiInboxPwa() {
                   className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 disabled:opacity-50"
                 >
                   <MessageCircleMore className="h-3.5 w-3.5" />
-                  رد على الكومنت
+                  رد على التعليق
                 </button>
                 <button
                   type="button"
@@ -3555,10 +3714,13 @@ export default function AiInboxPwa() {
           {tab === "conversations" ? (
             contentScreen ? (
               <OptimizedTranscript
+                conversation={selectedConversation}
                 rows={selectedTranscriptRows}
                 loadingOlder={olderLoading}
                 onLoadOlder={loadOlderMessages}
                 olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
+                onReplyComment={sendLeadCommentReply}
+                onPrivateMessage={sendLeadPrivateMessage}
               />
           ) : loading ? (
               <div className="grid min-h-60 place-items-center rounded-3xl border border-slate-200 bg-white shadow-sm">

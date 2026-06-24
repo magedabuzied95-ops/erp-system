@@ -326,9 +326,8 @@ export const socialCommentConversationId = ({
 } = {}) => {
   const normalizedPlatform = text(platform) === "instagram" ? "instagram" : "facebook";
   const safePostId = text(postId || "");
-  const safeCommenterId = text(commenterId || "");
-  if (safePostId && safeCommenterId) {
-    return `${normalizedPlatform}_comment:${safePostId}:${safeCommenterId}`;
+  if (safePostId) {
+    return `${normalizedPlatform}_post:${safePostId}`;
   }
   const fallbackRoot = text(rootCommentId || commentId);
   return `social_comment:${normalizedPlatform}:${fallbackRoot}`;
@@ -380,6 +379,15 @@ const resolveSocialCommentPostMessage = (event = {}) =>
       event.raw_payload?.post?.caption ||
       event.raw_payload?.value?.post?.message ||
       event.raw_payload?.value?.post?.caption ||
+      ""
+  );
+
+const resolveSocialCommentPostFullPicture = (event = {}) =>
+  text(
+    event.post_full_picture ||
+      event.full_picture ||
+      event.raw_payload?.post?.full_picture ||
+      event.raw_payload?.value?.post?.full_picture ||
       ""
   );
 
@@ -508,6 +516,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
     const postPermalink = resolveSocialCommentPostPermalink(event);
     const postId = text(event.post_id || "");
     const postMessage = resolveSocialCommentPostMessage(event);
+    const postFullPicture = resolveSocialCommentPostFullPicture(event);
     const postCreatedTime = text(resolveSocialCommentPostCreatedTime(event) || "");
     const commentCreatedTime = text(
       event.comment_created_time ||
@@ -528,6 +537,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       post_url: postPermalink,
       post_message: postMessage,
       post_caption: text(event.post_caption || ""),
+      post_full_picture: resolveSocialCommentPostFullPicture(event),
       post_created_time: postCreatedTime,
       comment_id: text(event.comment_id || ""),
       comment_url: commentUrl || (postPermalink && event.comment_id ? `${postPermalink}${postPermalink.includes("?") ? "&" : "?"}comment_id=${encodeURIComponent(text(event.comment_id || ""))}` : ""),
@@ -662,12 +672,12 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
         session_ref_id,
         tenant_id,
         session_id,
-      channel,
-      customer_name,
-      customer_avatar_url,
-      last_message,
-      message_text,
-      customer_message,
+        channel,
+        customer_name,
+        customer_avatar_url,
+        last_message,
+        message_text,
+        customer_message,
         ai_answer,
         confidence,
         needs_human_support,
@@ -684,9 +694,25 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
         external_message_id,
         dedupe_key,
         source_path,
-        insert_source
+        insert_source,
+        post_id,
+        post_permalink_url,
+        post_message,
+        post_caption,
+        post_full_picture,
+        post_created_time,
+        comment_id,
+        parent_comment_id,
+        root_comment_id,
+        commenter_id,
+        commenter_name,
+        commenter_profile_picture_url,
+        comment_created_time,
+        comment_url,
+        platform,
+        thread_kind
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $7, '', 0.98, TRUE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, $8, '', 'comment_inbound', '', 'customer', FALSE, $9, $10, $11, $12)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $7, '', 0.98, TRUE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, $8, '', 'comment_inbound', '', 'customer', FALSE, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
       ON CONFLICT (tenant_id, session_id, dedupe_key) WHERE dedupe_key <> '' DO NOTHING
       RETURNING *
       `,
@@ -703,6 +729,22 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
         text(event.comment_id || ""),
         "social_comment_automation",
         "social_comment_lead",
+        postId,
+        postPermalink,
+        postMessage,
+        text(event.post_caption || ""),
+        resolveSocialCommentPostFullPicture(event),
+        postCreatedTime,
+        text(event.comment_id || ""),
+        text(event.parent_comment_id || ""),
+        text(event.root_comment_id || event.comment_id || ""),
+        commenterId,
+        commenterName,
+        commenterProfilePictureUrl,
+        commentCreatedTime,
+        commentUrl || (postPermalink && event.comment_id ? `${postPermalink}${postPermalink.includes("?") ? "&" : "?"}comment_id=${encodeURIComponent(text(event.comment_id || ""))}` : ""),
+        platform,
+        threadKind,
       ]
     );
 
@@ -728,6 +770,42 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
         conversation_id: sessionId,
       });
     }
+
+    const commentsCountResult = await db.query(
+      `
+      SELECT COUNT(*)::int AS total_comments
+      FROM ai_support_messages
+      WHERE tenant_id = $1::bigint
+        AND session_id = $2::text
+        AND message_type = 'comment_inbound'
+      `,
+      [safeTenantId, sessionId]
+    ).catch(() => ({ rows: [] }));
+    const commentsCount = Number(commentsCountResult.rows?.[0]?.total_comments || 0);
+    await db.query(
+      `
+      UPDATE ai_channel_conversations
+      SET metadata = COALESCE(metadata, '{}'::jsonb) || $4::jsonb,
+          updated_at = NOW()
+      WHERE tenant_id = $1::bigint
+        AND channel = $2::text
+        AND external_conversation_id = $3::text
+      `,
+      [
+        safeTenantId,
+        channel,
+        sessionId,
+        JSON.stringify({
+          comments_count: commentsCount,
+          last_comment_text: commentText,
+          last_comment_at: commentCreatedTime,
+          last_comment_id: text(event.comment_id || ""),
+          last_commenter_name: commenterName,
+          last_commenter_id: commenterId,
+          post_full_picture: postFullPicture,
+        }),
+      ]
+    ).catch(() => {});
 
     const suggestedMessage = text(suggestedReply || "");
 
@@ -1729,6 +1807,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       original_comment_text: text(event.original_comment_text || ""),
       post_message: text(event.post_message || ""),
       post_caption: text(event.post_caption || ""),
+      post_full_picture: text(event.post_full_picture || event.full_picture || ""),
       post_created_time: text(event.post_created_time || ""),
       comment_created_time: text(event.comment_created_time || ""),
       comment_url: text(event.comment_url || ""),
@@ -1746,6 +1825,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         ...(event.raw_payload && typeof event.raw_payload === "object" ? event.raw_payload : { raw_payload: event.raw_payload ?? null }),
         post_message: text(event.post_message || ""),
         post_caption: text(event.post_caption || ""),
+        post_full_picture: text(event.post_full_picture || event.full_picture || ""),
         post_created_time: text(event.post_created_time || ""),
         comment_created_time: text(event.comment_created_time || ""),
         comment_url: text(event.comment_url || ""),
