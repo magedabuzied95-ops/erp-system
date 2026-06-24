@@ -688,6 +688,8 @@ const buildShareAvailableTargetUrl = (req, filters = {}) => {
   return buildAbsolutePublicUrl(req, `/shop/products${params.toString() ? `?${params.toString()}` : ""}`);
 };
 
+const buildShareAvailableFallbackImageUrl = (req) => buildAbsolutePublicUrl(req, "/favicon.svg");
+
 const buildShareAvailableWhereClause = () => `
   WHERE ${publicProductVisibilityClause}
     AND (
@@ -865,11 +867,12 @@ const buildShareAvailablePreviewSvg = ({ filters = {}, products = [], count = 0 
 };
 
 const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "", targetUrl = "", products = [] } = {}) => {
-  const sizeLabel = filters.sizes?.length > 1 ? `ط§ظ„ظ…طھط§ط­ ط¨ط§ظ„ظ…ظ‚ط§ط³ط§طھ ${filters.sizes.join("طŒ ")}` : `ط§ظ„ظ…طھط§ط­ ط¨ط§ظ„ظ…ظ‚ط§ط³ ${filters.sizes?.[0] || ""}`.trim();
-  const title = escapeHtml(sizeLabel || "ط§ظ„ظ…طھط§ط­ ط¨ط§ظ„ظ…ظ‚ط§ط³");
-  const description = escapeHtml(`${count} ${count === 1 ? "ظ…ظˆط¯ظٹظ„ ظ…طھط§ط­" : "ظ…ظˆط¯ظٹظ„ط§طھ ظ…طھط§ط­ط©"} ط¯ظ„ظˆظ‚طھظٹ ظپظٹ M1 Store`);
+  const hasMatches = Number(count || 0) > 0;
+  const sizeLabel = filters.sizes?.length > 1 ? `المتاح بالمقاسات ${filters.sizes.join("، ")}` : `المتاح بالمقاس ${filters.sizes?.[0] || ""}`.trim();
+  const title = escapeHtml(hasMatches ? (sizeLabel || "المتاح بالمقاس") : "لا توجد منتجات مطابقة حالياً");
+  const description = escapeHtml(hasMatches ? `${count} موديل متاح دلوقتي في M1 Store` : "جرّب مقاساً أو فلتراً آخر");
   const absoluteUrl = escapeHtml(buildAbsolutePublicUrl(req, req.originalUrl || req.url || "/share/available"));
-  const absoluteImage = escapeHtml(ogImageUrl);
+  const absoluteImage = escapeHtml(ogImageUrl || buildShareAvailableFallbackImageUrl(req));
   const fallbackTarget = escapeHtml(targetUrl || buildShareAvailableTargetUrl(req, filters));
   const productsPreview = products
     .slice(0, 4)
@@ -938,20 +941,34 @@ export const getPublicAvailableSharePage = async (req, res) => {
     const { count, products } = await loadShareAvailableProducts(filters);
     const targetUrl = buildShareAvailableTargetUrl(req, filters);
     const ogImageUrl = shareAvailableOgImageUrl(req, filters);
+    console.log("[share-available]", {
+      query: req.query,
+      matchedProductsCount: count,
+      ogImageUrl,
+      finalTargetUrl: targetUrl,
+    });
     const html = renderShareAvailableHtml({ req, filters, count, ogImageUrl, targetUrl, products });
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
     return res.status(200).type("html").send(html);
   } catch (error) {
-    console.error("[public-products] share available page error", error);
-    return res.status(500).type("html").send(
-      renderStorefrontShellMissingHtml({
-        req,
-        title: "Available products page unavailable",
-        message: "Failed to render available products preview.",
-      })
-    );
+    console.error("[share-available]", {
+      query: req.query,
+      error: error?.message,
+      stack: error?.stack,
+    });
+    const filters = normalizeShareAvailableFilters(req.query || {});
+    const targetUrl = buildShareAvailableTargetUrl(req, filters);
+    const html = renderShareAvailableHtml({
+      req,
+      filters,
+      count: 0,
+      ogImageUrl: buildShareAvailableFallbackImageUrl(req),
+      targetUrl,
+      products: [],
+    });
+    return res.status(200).type("html").send(html);
   }
 };
 
@@ -962,12 +979,31 @@ export const getPublicAvailableOgImage = async (req, res) => {
     const filters = normalizeShareAvailableFilters(req.query || {});
     const { count, products } = await loadShareAvailableProducts(filters);
     const svg = buildShareAvailablePreviewSvg({ filters, products, count });
+    console.log("[share-available]", {
+      query: req.query,
+      matchedProductsCount: count,
+      ogImageUrl: "svg-generated",
+      finalTargetUrl: buildShareAvailableTargetUrl(req, filters),
+    });
     res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
     res.setHeader("Cache-Control", "public, max-age=300");
     return res.status(200).send(svg);
   } catch (error) {
-    console.error("[public-products] share available og image error", error);
-    return res.status(500).type("text/plain").send("Failed to render preview image");
+    console.error("[share-available]", {
+      query: req.query,
+      error: error?.message,
+      stack: error?.stack,
+    });
+    const filters = normalizeShareAvailableFilters(req.query || {});
+    const targetUrl = buildShareAvailableTargetUrl(req, filters);
+    const svg = buildShareAvailableFallbackSvg({
+      title: filters.sizes?.length ? `المتاح بالمقاس ${filters.sizes.join("، ")}` : "المتاح بالمقاس",
+      description: "جرّب مقاساً أو فلتراً آخر",
+      targetUrl,
+    });
+    res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=300");
+    return res.status(200).send(svg);
   }
 };
 
