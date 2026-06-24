@@ -6686,8 +6686,18 @@ const logIncomingToInbox = async ({ message, config }) => {
     facebookPageId: message.raw?.page_id || message.raw?.resolved_page_id || "",
     tenantId: config.tenant_id,
   });
-  const customerName = text(message.customer_name);
-  const customerAvatarUrl = text(message.customer_avatar_url || message.raw?.messenger_profile?.profile_pic || "");
+  const messengerProfile = message.raw?.messenger_profile || {};
+  const customerName = text(message.customer_name || (
+    ["facebook_messenger", "facebook", "messenger"].includes(channel)
+      ? resolveMessengerConversationDisplayName({
+          customerName: text(message.customer_name || message.display_name || messengerProfile.name || ""),
+          customerProfile: messengerProfile,
+          metadata: { messenger_profile: messengerProfile },
+          externalCustomerId: text(message.external_customer_id || ""),
+        })
+      : ""
+  ));
+  const customerAvatarUrl = text(message.customer_avatar_url || messengerProfile.profile_pic || "");
   const lastMessage = text(message.message_text) || "[attachment]";
   const externalMessageId = text(message.external_message_id || message.raw?.event?.message?.mid || message.raw?.event?.message?.id);
   const providerMessageId = externalMessageId;
@@ -6697,16 +6707,16 @@ const logIncomingToInbox = async ({ message, config }) => {
     .digest("hex");
   const messengerCustomerName = ["facebook_messenger", "facebook", "messenger"].includes(channel)
     ? resolveMessengerConversationDisplayName({
-        customerName: "",
+        customerName,
         customerProfile: {
-          first_name: text(message.raw?.messenger_profile?.first_name || ""),
-          last_name: text(message.raw?.messenger_profile?.last_name || ""),
-          name: text(message.raw?.messenger_profile?.name || ""),
+          first_name: text(messengerProfile.first_name || ""),
+          last_name: text(messengerProfile.last_name || ""),
+          name: text(messengerProfile.name || ""),
         },
-        metadata: { messenger_profile: message.raw?.messenger_profile || {} },
+        metadata: { messenger_profile: messengerProfile },
         externalCustomerId: text(message.external_customer_id || ""),
       })
-    : text(message.customer_name);
+    : customerName;
   console.log("[meta-inbox] meta_inbox_session_upsert_start", {
     tenant_id: config.tenant_id,
     session_id: sessionId,
