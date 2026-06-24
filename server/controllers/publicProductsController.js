@@ -830,6 +830,7 @@ const loadShareAvailableProducts = async (filters = {}) => {
 };
 
 const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = [], count = 0 } = {}) => {
+  const imageGeneratorVersion = "V2";
   const sizeLabel = filters.sizes?.length > 1
     ? `المتاح بالمقاسات ${filters.sizes.join("، ")}`
     : `المتاح بالمقاس ${filters.sizes?.[0] || ""}`.trim();
@@ -839,6 +840,18 @@ const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = []
   const primaryImage = normalizeImageUrlCandidate(firstImageProduct?.public_image_url || firstImageProduct?.image_url || "");
   const fallbackImage = buildShareAvailableFallbackImageUrl(req) || "";
   const heroImage = primaryImage || fallbackImage;
+  const routeBranch = primaryImage ? "single-product" : fallbackImage ? "fallback" : "empty";
+  const selectedTitle = title || "المتاح بالمقاس";
+  const selectedImage = heroImage || "";
+  console.log("[share-available-og-image]", {
+    routeHandler: "getPublicAvailableOgImage",
+    sourceFile: "server/controllers/publicProductsController.js",
+    imageGeneratorVersion,
+    routeBranch,
+    selectedTitle,
+    selectedImage,
+    requestedUrl: req?.originalUrl || req?.url || "",
+  });
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg" direction="rtl" xml:lang="ar">
   <defs>
@@ -861,8 +874,9 @@ const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = []
   <circle cx="112" cy="540" r="220" fill="#ffffff" opacity="0.05" />
   <rect x="56" y="46" width="160" height="40" rx="20" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.14)" />
   <text x="136" y="73" text-anchor="middle" fill="#f7f3e8" font-size="22" font-weight="700" font-family="Arial, sans-serif">M1 Store</text>
-  <text x="60" y="124" fill="#ffffff" font-size="52" font-weight="900" font-family="Arial, sans-serif">${title}</text>
+  <text x="60" y="124" fill="#ffffff" font-size="52" font-weight="900" font-family="Arial, sans-serif">${selectedTitle}</text>
   <text x="60" y="170" fill="#f4e8bf" font-size="28" font-weight="700" font-family="Arial, sans-serif">افتح كل المنتجات المتاحة الآن في M1 Store</text>
+  <text x="1110" y="500" text-anchor="end" fill="#ffffff" opacity="0.65" font-size="20" font-weight="700" font-family="Arial, sans-serif">${imageGeneratorVersion}</text>
   <g>
     <clipPath id="heroClip">
       <rect x="84" y="214" width="1032" height="312" rx="34" />
@@ -984,6 +998,7 @@ export const getPublicAvailableOgImage = async (req, res) => {
       .filter(Boolean);
     const ogTitle = filters.sizes?.length > 1 ? `المتاح بالمقاسات ${filters.sizes.join("، ")}` : `المتاح بالمقاس ${filters.sizes?.[0] || ""}`.trim();
     const ogDescription = `${ogProductsCount} موديل متاح الآن في M1 Store`;
+    const ogImageUrl = buildShareAvailableOgImageUrl(req, filters, "png");
     const png = await buildShareAvailablePreviewPngBuffer({ req, filters, products, count: ogProductsCount });
     console.log("shareAvailableTargetUrl", buildShareAvailableTargetUrl(req, filters));
     console.log("[share-available]", {
@@ -993,11 +1008,18 @@ export const getPublicAvailableOgImage = async (req, res) => {
       ogImageUrls,
       ogTitle,
       ogDescription,
-      ogImageUrl: "png-generated",
+      ogImageUrl,
+      imageGeneratorVersion: "V2",
+      routeHandler: "getPublicAvailableOgImage",
+      sourceFile: "server/controllers/publicProductsController.js",
+      routeBranch: ogImageUrls[0] ? "single-product" : (buildShareAvailableFallbackImageUrl(req) ? "fallback" : "empty"),
+      selectedTitle: ogTitle,
+      selectedImage: ogImageUrls[0] || buildShareAvailableFallbackImageUrl(req) || "",
       finalTargetUrl: buildShareAvailableTargetUrl(req, filters),
     });
     res.setHeader("Content-Type", "image/png");
     res.setHeader("Cache-Control", "public, max-age=300");
+    res.setHeader("X-OG-Image-Version", "V2");
     return res.status(200).send(png);
   } catch (error) {
     console.error("[share-available]", {
@@ -1017,6 +1039,7 @@ export const getPublicAvailableOgImage = async (req, res) => {
     const png = await sharp(Buffer.from(svg, "utf8")).png().toBuffer();
     res.setHeader("Content-Type", "image/png");
     res.setHeader("Cache-Control", "public, max-age=300");
+    res.setHeader("X-OG-Image-Version", "V2");
     return res.status(200).send(png);
   }
 };

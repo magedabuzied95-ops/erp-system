@@ -317,12 +317,30 @@ const extractWebhookEvents = async (payload = {}) => {
       const verb = trimString(value.verb || "add").toLowerCase();
       if (!isComment || (verb && !["add", "created"].includes(verb))) continue;
 
+      console.log("[COMMENT_WEBHOOK_HIT]", {
+        platform,
+        field,
+        object,
+        entry_id: entry.id || "",
+      });
+
       const commentId = nullableString(value.comment_id || value.id);
       const message = nullableString(value.message || value.text) || "";
       if (!commentId || !message) continue;
 
       const postId = nullableString(value.post_id || value.media_id || value.media?.id || value.parent_id) || "";
       const mediaId = nullableString(value.media_id || value.media?.id || (platform === "instagram" ? postId : null));
+      const pageId = nullableString(entry.id || value.page_id || value.metadata?.page_id || value.account_id || "");
+      const fromId = nullableString(value.from?.id || value.sender_id || value.user_id);
+
+      console.log("[COMMENT_EVENT_PARSED]", {
+        platform,
+        page_id: pageId,
+        post_id: postId,
+        comment_id: commentId,
+        from_id: fromId,
+        text_length: message.length,
+      });
 
       events.push({
         businessId: await findBusinessIdForEntry({ entryId: entry.id, platform }),
@@ -650,6 +668,14 @@ export const processCommentEvent = async (event = {}) => {
     devLog("[meta-webhook] duplicate skipped", { platform: event.platform, comment_id: event.commentId });
     return { skipped: true, reason: "duplicate_comment" };
   }
+  console.log("[COMMENT_EVENT_SAVED]", {
+    platform: event.platform,
+    page_id: event.rawPayload?.entry?.id || event.rawPayload?.entry?.changes?.[0]?.value?.page_id || event.rawPayload?.change?.value?.page_id || "",
+    post_id: event.postId || "",
+    comment_id: event.commentId || "",
+    from_id: event.userPlatformId || "",
+    text_length: String(event.message || "").length,
+  });
 
   let status = "processed";
   let errorMessage = null;

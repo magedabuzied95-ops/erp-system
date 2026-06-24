@@ -1196,6 +1196,15 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
   const parentCommentId = firstText(value.parent_id, value.parent_comment_id, value.parent?.id);
   const rootCommentId = firstText(value.root_comment_id, value.root_id, value.thread_root_id, value.thread_id, value.parent_id, value.parent_comment_id) || commentId;
   const classification = classifySocialCommentIntent(originalCommentText);
+  const pageId = firstText(entry.id, value.page_id, value.metadata?.page_id, value.account_id);
+  console.log("[COMMENT_EVENT_PARSED]", {
+    platform,
+    page_id: pageId,
+    post_id: postId,
+    comment_id: commentId,
+    from_id: commenterId,
+    text_length: originalCommentText.length,
+  });
 
   return {
     tenant_id: tenantId,
@@ -1240,6 +1249,12 @@ export const extractSocialCommentWebhookEvents = ({ body = {}, tenantId = null }
   asArray(body.entry).forEach((entry) => {
     asArray(entry.changes).forEach((change) => {
       if (!isCommentChange(body, change)) return;
+      console.log("[COMMENT_WEBHOOK_HIT]", {
+        platform: normalizedPlatform(body),
+        field: text(change.field || ""),
+        object: text(body.object || ""),
+        entry_id: entry.id || "",
+      });
       const normalized = normalizeCommentWebhookChange({ body, entry, change, tenantId });
       if (!normalized.comment_id) return;
       events.push(normalized);
@@ -1347,6 +1362,14 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       ]
     );
     const storedRow = result.rows[0] || normalized;
+    console.log("[COMMENT_EVENT_SAVED]", {
+      platform: storedRow.platform,
+      page_id: text(storedRow.raw_payload?.entry?.id || storedRow.raw_payload?.value?.page_id || ""),
+      post_id: storedRow.post_id || "",
+      comment_id: storedRow.comment_id || "",
+      from_id: storedRow.commenter_id || "",
+      text_length: String(storedRow.original_comment_text || "").length,
+    });
     if (COMMENT_THREAD_LABELS.has(storedRow.classification_label)) {
       try {
         const materialized = await upsertSocialCommentLeadConversation({
