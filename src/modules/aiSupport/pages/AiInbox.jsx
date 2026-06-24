@@ -1328,6 +1328,7 @@ function LeadQuickActionsBar({
   onSendPrivateMessage,
   onSendCommentReply,
   onOpenProductPicker,
+  onOpenAvailableBySizePicker,
   onAssignEmployee,
   busy = false,
 }) {
@@ -1357,6 +1358,10 @@ function LeadQuickActionsBar({
           <button type="button" onClick={onOpenProductPicker} disabled={busy || isClosed} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-2.5 text-[11px] font-black text-slate-100 disabled:opacity-50">
             <ShoppingCart className="h-3.5 w-3.5" />
             إرسال منتج
+          </button>
+          <button type="button" onClick={onOpenAvailableBySizePicker} disabled={busy || isClosed} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[11px] font-black text-cyan-100 disabled:opacity-50">
+            <Ruler className="h-3.5 w-3.5" />
+            المتاح بالمقاس
           </button>
           <button type="button" onClick={onCreateCustomer} disabled={busy || isClosed} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-2.5 text-[11px] font-black text-emerald-100 disabled:opacity-50">
             <UserPlus className="h-3.5 w-3.5" />
@@ -5163,6 +5168,7 @@ export default function AiInbox() {
                     onSendPrivateMessage={sendLeadPrivateMessage}
                     onSendCommentReply={sendLeadCommentReplyQuick}
                     onOpenProductPicker={() => openProductCardPicker()}
+                    onOpenAvailableBySizePicker={() => openProductCardPicker({ sizeMode: true, allowMultiple: true })}
                     onAssignEmployee={assignLeadEmployee}
                     busy={Boolean(leadActionLoading || loading || productCardSending)}
                     />
@@ -5402,6 +5408,7 @@ export default function AiInbox() {
                     onSendPrivateMessage={sendLeadPrivateMessage}
                     onSendCommentReply={sendLeadCommentReplyQuick}
                     onOpenProductPicker={() => openProductCardPicker()}
+                    onOpenAvailableBySizePicker={() => openProductCardPicker({ sizeMode: true, allowMultiple: true })}
                     onAssignEmployee={assignLeadEmployee}
                     busy={Boolean(leadActionLoading || loading || productCardSending)}
                   />
