@@ -870,6 +870,7 @@ app.get("/share/available/og-image", getPublicAvailableOgImage);
 app.get("/share/available/og-image.png", getPublicAvailableOgImagePng);
 app.get("/api/website/products/:slug/og-image", getPublicProductOgImage);
 app.get("/api/website/products/:slug/share-meta", getPublicProductShareMetadata);
+console.log("route_registered:", "/share/available/og-debug-svg");
 app.use("/api/website", liveActivityRoutes);
 app.use("/api/product-classifications", productClassificationsRoutes);
 console.log("Product classifications routes registered");
@@ -1143,6 +1144,11 @@ const runStartupDiagnostics = () => {
     FRONTEND_URL: process.env.FRONTEND_URL || "missing",
     detected_public_app_url: publicAppUrl || "missing",
     expected_meta_webhook_url: getMetaWebhookUrl(),
+  });
+  console.log("[startup] route_registered", {
+    route: "/share/available/og-debug-svg",
+    handler: "getPublicAvailableOgDebugSvg",
+    mounted: true,
   });
   if (!publicAppUrl) {
     console.warn("[startup] PUBLIC_APP_URL is missing. Employee portal links and QR codes require a real HTTPS app URL in production.");

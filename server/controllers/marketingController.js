@@ -22,6 +22,7 @@ import {
   renderCommentDmMessage,
   sendCommentPrivateReply,
 } from "../services/commentDmAutomationService.js";
+import { processMetaWebhook } from "../services/metaIntegrationService.js";
 import {
   createAutoReplyRule as createMarketingAutoReplyRule,
   deleteAutoReplyRule as deleteMarketingAutoReplyRule,
@@ -29,7 +30,6 @@ import {
   getCommentEvents as getMarketingCommentEvents,
   getMarketingConversations as getMarketingLeadConversations,
   getMetaWebhookStatus as getMarketingMetaWebhookStatus,
-  processMetaWebhook,
   saveLinksForPublishedPost,
   simulateCommentAutomation as simulateMarketingCommentAutomation,
   updateAutoReplyRule as updateMarketingAutoReplyRule,
