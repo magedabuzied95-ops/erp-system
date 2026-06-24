@@ -4,7 +4,7 @@ import iconv from "iconv-lite";
 
 import db from "../database/db.js";
 import { resolveCustomerDisplayPrice, formatCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
-import { getPublicAppUrl } from "../utils/publicUrl.js";
+import { getPublicAppUrl, getMetaWebhookUrl } from "../utils/publicUrl.js";
 import { emitToRooms } from "../utils/socket.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
@@ -48,6 +48,7 @@ import {
   countMarketingCommentEventsLast24h,
   countMarketingWebhookRequestsLast24h,
   getMetaWebhookStatus as getMarketingCommentWebhookStatus,
+  recordMetaWebhookRequest,
 } from "./marketingCommentAutomationService.js";
 import {
   normalizeProductCards,
@@ -4096,6 +4097,26 @@ const metaAutoReplyPauseChannelLabel = (channel = "") => {
 };
 const adapterChannel = (channel = "") => (channel === "instagram" ? AI_AGENT_CHANNELS.INSTAGRAM : AI_AGENT_CHANNELS.FACEBOOK_MESSENGER);
 const normalizeMetaAccountId = (value = "") => text(value).replace(/[^\d]/g, "");
+const summarizeMetaWebhookPayload = (payload = {}) => {
+  const entries = Array.isArray(payload.entry) ? payload.entry : [];
+  const changeFields = [];
+  const itemTypes = [];
+  const verbValues = [];
+  for (const entry of entries) {
+    for (const change of Array.isArray(entry?.changes) ? entry.changes : []) {
+      changeFields.push(text(change?.field || "").toLowerCase());
+      itemTypes.push(text(change?.value?.item || "").toLowerCase());
+      verbValues.push(text(change?.value?.verb || "").toLowerCase());
+    }
+  }
+  return {
+    object: text(payload.object || "").toLowerCase(),
+    entry_count: entries.length,
+    change_fields: [...new Set(changeFields)].filter(Boolean),
+    item_types: [...new Set(itemTypes)].filter(Boolean),
+    verb_values: [...new Set(verbValues)].filter(Boolean),
+  };
+};
 
 let schemaReadyPromise = null;
 
@@ -5676,6 +5697,8 @@ export const getMetaWebhookDebugStatus = async ({ tenantId, req = null } = {}) =
     instagram_business_account_id: config.instagram_business_account_id || "",
     verify_token_configured: Boolean(config.verify_token_configured),
     verify_token_masked: config.verify_token_masked || "",
+    primary_webhook_url: getMetaWebhookUrl(),
+    alternate_webhook_url: commentWebhookStatus?.webhook_url || integrationStatus?.webhook_url || "",
     webhook_url: commentWebhookStatus?.webhook_url || integrationStatus?.webhook_url || "",
     subscribed_fields: subscribedFields,
     last_comment_event_at: lastCommentEventAt,
@@ -18059,11 +18082,20 @@ export const sendMetaInboxOutboundMessage = async ({
 };
 
 export const processMetaWebhook = async ({ req } = {}) => {
-  const { pageIds, instagramBusinessAccountIds } = webhookAccountIdsFromBody(req.body);
+  const payload = req.body || {};
+  console.log("META_WEBHOOK_REQUEST_RECEIVED", {
+    object: text(payload.object || "").toLowerCase(),
+    entries_count: Array.isArray(payload.entry) ? payload.entry.length : 0,
+  });
+  console.log("META_WEBHOOK_PAYLOAD_SHAPE", summarizeMetaWebhookPayload(payload));
+  await recordMetaWebhookRequest({ payload }).catch((error) => {
+    console.warn("[meta-webhook] request record failed", { message: error?.message || "unknown" });
+  });
+  const { pageIds, instagramBusinessAccountIds } = webhookAccountIdsFromBody(payload);
   console.log("[meta-webhook] account ids extracted", {
     incoming_facebook_page_ids: pageIds.map(maskIdForLog),
     incoming_instagram_business_account_ids: instagramBusinessAccountIds.map(maskIdForLog),
-    object: req.body?.object || "",
+    object: payload?.object || "",
   });
   let config = null;
   const pairs = [];
@@ -18100,11 +18132,11 @@ export const processMetaWebhook = async ({ req } = {}) => {
   const appSecret = decryptSecret(config.app_secret_encrypted);
   const signatureOk = verifyMetaWebhookSignature({ rawBody: req.rawBody, signature: req.headers?.["x-hub-signature-256"], appSecret });
   if (!signatureOk) throw Object.assign(new Error("Invalid Meta webhook signature"), { status: 403 });
-  const commentEvents = extractSocialCommentWebhookEvents({ body: req.body, tenantId: config.tenant_id });
+  const commentEvents = extractSocialCommentWebhookEvents({ body: payload, tenantId: config.tenant_id });
   const storedCommentEvents = commentEvents.length
     ? await storeSocialCommentAutomationRuns({ tenantId: config.tenant_id, events: commentEvents })
     : [];
-  const messages = extractMetaWebhookMessages({ body: req.body, tenantId: config.tenant_id }).filter((message) => message.message_text || message.attachments?.length);
+  const messages = extractMetaWebhookMessages({ body: payload, tenantId: config.tenant_id }).filter((message) => message.message_text || message.attachments?.length);
   const results = [];
   for (const incomingMessage of messages) {
     const resolvedPageId = await resolveMessengerProfileFetchPageId({

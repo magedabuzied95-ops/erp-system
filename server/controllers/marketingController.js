@@ -29,8 +29,7 @@ import {
   getCommentEvents as getMarketingCommentEvents,
   getMarketingConversations as getMarketingLeadConversations,
   getMetaWebhookStatus as getMarketingMetaWebhookStatus,
-  processMetaWebhookPayload,
-  recordMetaWebhookRequest,
+  processMetaWebhook,
   saveLinksForPublishedPost,
   simulateCommentAutomation as simulateMarketingCommentAutomation,
   updateAutoReplyRule as updateMarketingAutoReplyRule,
@@ -67,27 +66,6 @@ const safeJsonObject = (value, fallback = {}) => {
     }
   }
   return fallback;
-};
-
-const summarizeMetaWebhookPayload = (payload = {}) => {
-  const entries = Array.isArray(payload.entry) ? payload.entry : [];
-  const changeFields = [];
-  const itemTypes = [];
-  const verbValues = [];
-  for (const entry of entries) {
-    for (const change of Array.isArray(entry?.changes) ? entry.changes : []) {
-      changeFields.push(String(change?.field || "").trim().toLowerCase());
-      itemTypes.push(String(change?.value?.item || "").trim().toLowerCase());
-      verbValues.push(String(change?.value?.verb || "").trim().toLowerCase());
-    }
-  }
-  return {
-    object: String(payload.object || "").trim().toLowerCase(),
-    entry_count: entries.length,
-    change_fields: [...new Set(changeFields)].filter(Boolean),
-    item_types: [...new Set(itemTypes)].filter(Boolean),
-    verb_values: [...new Set(verbValues)].filter(Boolean),
-  };
 };
 
 const uniqueList = (items = []) =>
@@ -5558,22 +5536,9 @@ export const verifyMetaMarketingWebhook = async (req, res) => {
 };
 
 export const receiveMetaMarketingWebhook = async (req, res) => {
-  const payload = req.body || {};
-  console.log("META_WEBHOOK_REQUEST_RECEIVED", {
-    object: String(payload.object || "").trim().toLowerCase(),
-    entries_count: Array.isArray(payload.entry) ? payload.entry.length : 0,
-  });
-  console.log("META_WEBHOOK_PAYLOAD_SHAPE", summarizeMetaWebhookPayload(payload));
   try {
     await ensureMarketingSchema();
-    await recordMetaWebhookRequest({ payload });
-    const signature = verifyMetaSignature(req);
-    if (!signature.valid) {
-      console.warn("[meta-webhook] invalid signature rejected", { reason: signature.reason });
-      return res.status(401).json({ success: false, message: "Invalid Meta webhook signature" });
-    }
-
-    const result = await processMetaWebhookPayload(payload);
+    const result = await processMetaWebhook({ req });
     res.status(200).json({ success: true, ...result });
   } catch (error) {
     console.error("[meta-webhook] processing error", error);

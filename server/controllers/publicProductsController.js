@@ -713,6 +713,12 @@ const buildShareAvailableOgImageUrl = (req, filters = {}, format = "png") => {
 
 const buildShareAvailablePreviewPngBuffer = async ({ req = null, filters = {}, products = [], count = 0 } = {}) => {
   const svg = buildShareAvailablePreviewSvg({ req, filters, products, count });
+  console.log("[share-available-svg-debug]", {
+    svgRectCount: (svg.match(/<rect/g) || []).length,
+    svgImageCount: (svg.match(/<image/g) || []).length,
+    svgTextCount: (svg.match(/<text/g) || []).length,
+    svgFirst500: svg.slice(0, 500),
+  });
   return sharp(Buffer.from(svg, "utf8")).png().toBuffer();
 };
 
@@ -1082,6 +1088,54 @@ export const getPublicAvailableOgImage = async (req, res) => {
 };
 
 export const getPublicAvailableOgImagePng = getPublicAvailableOgImage;
+
+export const getPublicAvailableOgDebugSvg = async (req, res) => {
+  try {
+    await ensurePublicProductEditionSchema();
+    await ensureProductVariantImagesSchema();
+    const filters = normalizeShareAvailableFilters(req.query || {});
+    const { count, products } = await loadShareAvailableProducts(filters);
+    const svg = buildShareAvailablePreviewSvg({ req, filters, products, count });
+    const svgStartsWith = typeof svg === "string" ? svg.slice(0, 20) : "";
+    console.log("[share-available-debug-svg]", {
+      svgStartsWith,
+      svgType: typeof svg,
+      svgRectCount: typeof svg === "string" ? (svg.match(/<rect/g) || []).length : 0,
+      svgImageCount: typeof svg === "string" ? (svg.match(/<image/g) || []).length : 0,
+      svgTextCount: typeof svg === "string" ? (svg.match(/<text/g) || []).length : 0,
+      query: req.query,
+    });
+    if (typeof svg !== "string") {
+      console.error("[share-available-debug-svg]", {
+        reason: "svg is not a string",
+        typeofSvg: typeof svg,
+      });
+    }
+    res.type("image/svg+xml; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=60");
+    return res.status(200).send(svg);
+  } catch (error) {
+    console.error("[share-available-debug-svg]", {
+      query: req.query,
+      error: error?.message,
+      stack: error?.stack,
+    });
+    const filters = normalizeShareAvailableFilters(req.query || {});
+    const svg = buildShareAvailablePreviewSvg({ req, filters, products: [], count: 0 });
+    const svgStartsWith = typeof svg === "string" ? svg.slice(0, 20) : "";
+    console.log("[share-available-debug-svg]", {
+      svgStartsWith,
+      svgType: typeof svg,
+      svgRectCount: typeof svg === "string" ? (svg.match(/<rect/g) || []).length : 0,
+      svgImageCount: typeof svg === "string" ? (svg.match(/<image/g) || []).length : 0,
+      svgTextCount: typeof svg === "string" ? (svg.match(/<text/g) || []).length : 0,
+      query: req.query,
+    });
+    res.type("image/svg+xml; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=60");
+    return res.status(200).send(svg);
+  }
+};
 
 export const getPublicProductById = async (req, res) => {
   try {
