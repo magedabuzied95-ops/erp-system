@@ -5781,6 +5781,61 @@ export const getMetaPermissionsDebugStatus = async ({ tenantId, req = null } = {
   };
 };
 
+export const getMetaPostCommentsDebugStatus = async ({ tenantId, postId = "" } = {}) => {
+  const scopedTenantId = numberOrNull(tenantId);
+  const safePostId = text(postId);
+  if (!safePostId) {
+    return {
+      success: false,
+      post_id: "",
+      comments_count: 0,
+      comments_sample: [],
+      graph_error: "post_id is required",
+    };
+  }
+
+  const row = await getMetaIntegrationConfig({ tenantId: scopedTenantId });
+  const token = row ? getTokenForConfig(row) : "";
+  if (!token) {
+    return {
+      success: false,
+      post_id: safePostId,
+      comments_count: 0,
+      comments_sample: [],
+      graph_error: "Page access token is missing",
+    };
+  }
+
+  try {
+    const payload = await callMetaGet({
+      endpoint: `/${encodeURIComponent(safePostId)}/comments`,
+      token,
+      params: { fields: "id,message,from,created_time,parent" },
+    });
+    const comments = Array.isArray(payload?.data) ? payload.data : [];
+    return {
+      success: true,
+      post_id: safePostId,
+      comments_count: comments.length,
+      comments_sample: comments.slice(0, 10),
+      graph_error: null,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      post_id: safePostId,
+      comments_count: 0,
+      comments_sample: [],
+      graph_error: {
+        message: error?.message || "Unable to load post comments",
+        status: error?.status || null,
+        code: error?.meta?.code || error?.code || "",
+        subcode: error?.meta?.error_subcode || "",
+      },
+    };
+  }
+};
+
 export const getMetaCapabilities = async ({ tenantId, req = null, live = true } = {}) => {
   const row = await getMetaIntegrationConfig({ tenantId });
   const config = row ? sanitizeConfig(row) : defaultPublicConfig(tenantId);
