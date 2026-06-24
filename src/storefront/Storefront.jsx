@@ -1357,15 +1357,44 @@ const cachedStorefrontGet = (url, { ttlMs = STOREFRONT_GET_CACHE_TTL_MS } = {}) 
   return request;
 };
 const extractStorefrontProductsFromResponse = (response) => {
+  const normalizePriceAliases = (product = {}) => {
+    if (!product || typeof product !== "object") return product;
+    const salePrice = product.sale_price ?? product.salePrice ?? product.discounted_price ?? product.discountedPrice ?? null;
+    const sellingPrice = product.selling_price ?? product.sellingPrice ?? product.price ?? null;
+    const compareAtPrice = product.compare_at_price ?? product.compareAtPrice ?? product.original_price ?? product.originalPrice ?? null;
+    const asPrice = (value) => {
+      const parsed = parseStorefrontPriceValue(value);
+      return parsed > 0 ? parsed : value;
+    };
+    const next = { ...product };
+    if (salePrice !== null && salePrice !== undefined) {
+      next.sale_price = asPrice(salePrice);
+      next.salePrice = asPrice(salePrice);
+    }
+    if (sellingPrice !== null && sellingPrice !== undefined) {
+      next.selling_price = asPrice(sellingPrice);
+      next.sellingPrice = asPrice(sellingPrice);
+      if (next.price === undefined || next.price === null || String(next.price).trim() === "") next.price = asPrice(sellingPrice);
+    }
+    if (compareAtPrice !== null && compareAtPrice !== undefined) {
+      next.compare_at_price = asPrice(compareAtPrice);
+      next.compareAtPrice = asPrice(compareAtPrice);
+      next.original_price = asPrice(compareAtPrice);
+      next.originalPrice = asPrice(compareAtPrice);
+    }
+    if (next.discounted_price === undefined && salePrice !== null && salePrice !== undefined) next.discounted_price = asPrice(salePrice);
+    if (next.discountedPrice === undefined && salePrice !== null && salePrice !== undefined) next.discountedPrice = asPrice(salePrice);
+    return next;
+  };
   if (Array.isArray(response)) return response;
   if (!response || typeof response !== "object") return [];
-  if (Array.isArray(response.products)) return response.products;
-  if (Array.isArray(response.items)) return response.items;
-  if (Array.isArray(response.data)) return response.data;
+  if (Array.isArray(response.products)) return response.products.map(normalizePriceAliases);
+  if (Array.isArray(response.items)) return response.items.map(normalizePriceAliases);
+  if (Array.isArray(response.data)) return response.data.map(normalizePriceAliases);
   if (response.data && typeof response.data === "object") {
-    if (Array.isArray(response.data.products)) return response.data.products;
-    if (Array.isArray(response.data.items)) return response.data.items;
-    if (Array.isArray(response.data.data)) return response.data.data;
+    if (Array.isArray(response.data.products)) return response.data.products.map(normalizePriceAliases);
+    if (Array.isArray(response.data.items)) return response.data.items.map(normalizePriceAliases);
+    if (Array.isArray(response.data.data)) return response.data.data.map(normalizePriceAliases);
   }
   return [];
 };
@@ -2130,6 +2159,32 @@ const displayComparePrice = (product = {}, variant = {}) => {
   const activePrice = displaySellingPrice(product, variant);
   const comparePrice = storefrontOriginalPrice(product, variant);
   return comparePrice > activePrice ? comparePrice : 0;
+};
+const parseStorefrontPriceValue = (value) => {
+  if (value === null || value === undefined || value === "") return 0;
+  const normalized = Number(String(value).replace(/,/g, "").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(normalized) ? normalized : 0;
+};
+const offerStoryPriceInfo = (product = {}) => {
+  const num = (value) => parseStorefrontPriceValue(value);
+  const offerSalePrice = num(product?.sale_price || product?.salePrice || product?.discounted_price || product?.discountedPrice);
+  const regularPrice = num(product?.selling_price || product?.sellingPrice || product?.price);
+  const comparePrice = num(
+    product?.compare_at_price ||
+      product?.compareAtPrice ||
+      product?.original_price ||
+      product?.originalPrice ||
+      regularPrice
+  );
+  const displayPrice = offerSalePrice > 0 ? offerSalePrice : regularPrice;
+  const crossedPrice = offerSalePrice > 0 ? (comparePrice > offerSalePrice ? comparePrice : regularPrice) : comparePrice;
+  return {
+    offerSalePrice,
+    regularPrice,
+    comparePrice,
+    displayPrice,
+    crossedPrice,
+  };
 };
 
 const cleanDisplayText = (value = "") =>
@@ -3701,11 +3756,10 @@ function OfferStoryBubble({ label, count, active, onClick, compact = false }) {
 
 function OfferStorySlide({ product, index, total, selectedSize, lang, onPrev, onNext, onViewProduct, onTouchStart, onTouchEnd }) {
   const variant = offerStoryMatchingVariant(product, selectedSize);
-  const sellingPrice = displaySellingPrice(product, variant);
-  const comparePrice = displayComparePrice(product, variant);
   const imageSrc = variantImage(variant) || imageFor(product.image_url || product.image || product.gallery_images?.[0] || "");
   const sizeChips = extractOfferSizes(product);
   const stock = Number(variant?.stock || 0) || productStock(product);
+  const priceInfo = offerStoryPriceInfo(product);
   return (
     <div
       className="relative isolate flex h-full min-h-[72dvh] overflow-hidden rounded-[2rem] border border-white/10 bg-black shadow-[0_28px_90px_rgba(0,0,0,0.45)] md:min-h-[76dvh]"
@@ -3713,33 +3767,14 @@ function OfferStorySlide({ product, index, total, selectedSize, lang, onPrev, on
       onTouchEnd={onTouchEnd}
     >
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.14)_0%,rgba(0,0,0,0.03)_18%,rgba(0,0,0,0.22)_68%,rgba(0,0,0,0.64)_100%)]" />
-      <div className="absolute inset-x-0 top-0 z-30 px-2 pt-3 md:px-2.5 md:pt-4">
-        <div className="flex items-start justify-between gap-2">
-          <button type="button" onClick={onPrev} className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/14 bg-black/30 text-white backdrop-blur transition active:scale-95" aria-label="السابق">
-            <ChevronLeft className="h-5 w-5 rotate-180" />
-          </button>
-          <div className="min-w-0 flex-1 px-2 pt-1">
-            <div className="flex gap-1.5">
-              {Array.from({ length: total }).map((_, itemIndex) => (
-                <span key={itemIndex} className={`h-1 flex-1 overflow-hidden rounded-full ${itemIndex === index ? "bg-white/22 after:block after:h-full after:w-full after:rounded-full after:bg-[#f8e7b3] after:content-['']" : itemIndex < index ? "bg-[#f8e7b3]" : "bg-white/16"}`} />
-              ))}
-            </div>
-          </div>
-          <button type="button" onClick={() => onViewProduct(variant)} className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/14 bg-black/30 text-white backdrop-blur transition active:scale-95" aria-label="عرض المنتج">
-            <ExternalLink className="h-4.5 w-4.5" />
-          </button>
-        </div>
-      </div>
-      <button type="button" onClick={onPrev} className="absolute inset-y-0 left-0 z-10 w-[22%] min-w-16" aria-label="السابق" />
-      <button type="button" onClick={onNext} className="absolute inset-y-0 right-0 z-10 w-[22%] min-w-16" aria-label="التالي" />
       <div className="relative z-20 flex h-full w-full flex-col px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[3.25rem] md:px-5 md:pt-[3.5rem]">
-        <div className="flex min-h-0 flex-[1.55] items-center justify-center">
+        <div className="relative flex min-h-0 flex-[1.55] items-center justify-center">
           <div className="flex h-full w-full max-w-[58rem] items-center justify-center rounded-[1.5rem] bg-white/100 p-3 shadow-[0_18px_60px_rgba(0,0,0,0.22)] md:p-4">
             <img
               src={imageSrc}
               onError={fallbackProductImage}
               alt={product.name}
-              className="h-full w-full max-h-[44dvh] aspect-square object-contain"
+              className="pointer-events-none h-full w-full max-h-[44dvh] aspect-square object-contain"
               loading="eager"
               decoding="async"
             />
@@ -3750,8 +3785,8 @@ function OfferStorySlide({ product, index, total, selectedSize, lang, onPrev, on
             <h3 className="line-clamp-2 text-lg font-black leading-6 text-white md:text-2xl md:leading-7">{product.name}</h3>
             <p className="mt-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/48">{product.brand_name || product.brand || ""}</p>
             <div className="mt-2 flex items-end gap-2">
-              <span className="text-2xl font-black text-white md:text-4xl">{money(sellingPrice)}</span>
-              {comparePrice > sellingPrice ? <span className="pb-1 text-sm font-bold text-white/40 line-through md:text-base">{money(comparePrice)}</span> : null}
+              <span className="text-2xl font-black text-white md:text-4xl">{money(priceInfo.displayPrice)}</span>
+              {priceInfo.crossedPrice > priceInfo.displayPrice ? <span className="pb-1 text-sm font-bold text-white/40 line-through md:text-base">{money(priceInfo.crossedPrice)}</span> : null}
             </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -3764,7 +3799,10 @@ function OfferStorySlide({ product, index, total, selectedSize, lang, onPrev, on
           <div className="mt-4 flex justify-end">
             <button
               type="button"
-              onClick={() => onViewProduct(variant)}
+              onClick={(event) => {
+                event.stopPropagation();
+                onViewProduct(variant);
+              }}
               className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#f8e7b3]/25 bg-[#f8e7b3] px-5 py-3 text-sm font-black text-stone-950 transition hover:bg-[#f3d77a] active:scale-[0.98]"
             >
               عرض المنتج
@@ -3798,6 +3836,16 @@ function OfferStoryViewer() {
 
   useEffect(() => {
     if (import.meta.env.DEV) {
+      offerProducts.slice(0, 3).forEach((product) => {
+        console.log("[offer-story-price-debug]", product.id, product.name, {
+          sale_price: product.sale_price,
+          salePrice: product.salePrice,
+          selling_price: product.selling_price,
+          price: product.price,
+          compare_at_price: product.compare_at_price,
+          original_price: product.original_price,
+        });
+      });
       console.log("[offer-story-filter-check]", normalizedProducts.map((product) => ({
         id: product.id,
         name: product.name,
@@ -3868,6 +3916,13 @@ function OfferStoryViewer() {
   const isLoading = Boolean(offerStoryQuery.loading);
   const loadError = offerStoryQuery.error || "";
 
+  console.log(
+    "[offer-story-current-product]",
+    currentIndex,
+    storyProducts[currentIndex]?.id,
+    storyProducts[currentIndex]?.name
+  );
+
   useEffect(() => {
     setCurrentIndex(0);
   }, [selectedSize, selectedType]);
@@ -3894,17 +3949,21 @@ function OfferStoryViewer() {
   const goPrev = () => {
     if (stage === "size") return navigate("/shop");
     if (stage === "type") return setSelectedSize("");
-    setCurrentIndex((index) => Math.max(0, index - 1));
+    setCurrentIndex((index) => {
+      const total = storyProducts.length;
+      console.log("[offer-story-nav]", { direction: "prev", currentIndex: index, total });
+      if (!total) return 0;
+      return (index - 1 + total) % total;
+    });
   };
 
   const goNext = () => {
     if (stage === "size" || stage === "type") return;
     setCurrentIndex((index) => {
-      if (index >= Math.max(storyProducts.length - 1, 0)) {
-        setSelectedType("");
-        return 0;
-      }
-      return Math.min(Math.max(storyProducts.length - 1, 0), index + 1);
+      const total = storyProducts.length;
+      console.log("[offer-story-nav]", { direction: "next", currentIndex: index, total });
+      if (!total) return 0;
+      return (index + 1) % total;
     });
   };
 
@@ -3938,28 +3997,39 @@ function OfferStoryViewer() {
     navigate("/shop");
   }, [navigate]);
 
-  const storyProgressTotal = Math.max(stage === "story" ? storyProducts.length : 1, 1);
+  const handleViewerClick = useCallback((event) => {
+    if (stage !== "story") return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    const isRightHalf = clickX > rect.width / 2;
+    if (isRightHalf) goNext();
+    else goPrev();
+  }, [goNext, goPrev, stage]);
+
+  const storyProgressTotal = Math.max(stage === "story" ? storyProducts.length : 0, 0);
   const storyProgressIndex = stage === "story" ? currentIndex : 0;
 
   if (typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[2000] overflow-hidden bg-[linear-gradient(180deg,#040404_0%,#101010_45%,#040404_100%)] text-white" dir="rtl">
+    <div className="fixed inset-0 z-[2000] overflow-hidden bg-[linear-gradient(180deg,#040404_0%,#101010_45%,#040404_100%)] text-white" dir="rtl" onClick={handleViewerClick}>
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(212,175,55,0.22),transparent_24%),radial-gradient(circle_at_82%_10%,rgba(248,231,179,0.12),transparent_18%)]" />
       <div className="relative flex h-[100dvh] w-[100vw] flex-col px-3 pb-[calc(0.8rem+env(safe-area-inset-bottom))] pt-[calc(env(safe-area-inset-top,12px)+0.35rem)] md:px-5">
         <div className="flex items-start gap-3">
-          <button type="button" onClick={closeStory} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/12 bg-white/8 text-white transition active:scale-95" aria-label="إغلاق">
+          <button type="button" onClick={(event) => { event.stopPropagation(); closeStory(); }} className="relative z-30 grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/12 bg-white/8 text-white transition active:scale-95" aria-label="إغلاق">
             <X className="h-5 w-5" />
           </button>
           <div className="flex-1 pt-1">
-            <div className="flex gap-1.5">
-              {Array.from({ length: storyProgressTotal }).map((_, itemIndex) => (
-                <span key={itemIndex} className={`h-1 flex-1 overflow-hidden rounded-full ${itemIndex === storyProgressIndex ? "bg-white/22 after:block after:h-full after:w-full after:rounded-full after:bg-[#f8e7b3] after:content-['']" : itemIndex < storyProgressIndex ? "bg-[#f8e7b3]" : "bg-white/16"}`} />
-              ))}
-            </div>
+            {stage === "story" && storyProgressTotal > 0 ? (
+              <div className="relative z-30 flex gap-1.5">
+                {Array.from({ length: storyProgressTotal }).map((_, itemIndex) => (
+                  <span key={itemIndex} className={`h-1 flex-1 overflow-hidden rounded-full ${itemIndex === storyProgressIndex ? "bg-white/22 after:block after:h-full after:w-full after:rounded-full after:bg-[#f8e7b3] after:content-['']" : itemIndex < storyProgressIndex ? "bg-[#f8e7b3]" : "bg-white/16"}`} />
+                ))}
+              </div>
+            ) : null}
           </div>
           {stage === "story" ? (
-            <button type="button" onClick={goPrev} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/12 bg-white/8 text-white transition active:scale-95" aria-label="رجوع">
+            <button type="button" onClick={(event) => { event.stopPropagation(); goPrev(); }} className="relative z-30 grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/12 bg-white/8 text-white transition active:scale-95" aria-label="رجوع">
               <ChevronLeft className="h-5 w-5 rotate-180" />
             </button>
           ) : (
@@ -4072,9 +4142,9 @@ function OfferStoryViewer() {
                 total={storyProducts.length}
                 selectedSize={selectedSize}
                 lang={lang}
-                onPrev={() => setCurrentIndex((index) => Math.max(0, index - 1))}
-                onNext={goNext}
-                onViewProduct={openProduct}
+                onPrev={(event) => { event?.stopPropagation?.(); setCurrentIndex((index) => Math.max(0, index - 1)); }}
+                onNext={(event) => { event?.stopPropagation?.(); goNext(); }}
+                onViewProduct={(variant) => openProduct(variant)}
                 onTouchStart={handleTouchStart}
                 onTouchEnd={handleTouchEnd}
               />
