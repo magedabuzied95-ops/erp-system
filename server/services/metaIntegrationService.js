@@ -5673,6 +5673,8 @@ export const getMetaWebhookDebugStatus = async ({ tenantId, req = null } = {}) =
     subscribed_fields: subscribedFields,
     last_comment_event_at: lastCommentEventAt,
     last_comment_saved_at: lastCommentSavedAt,
+    comments_delivery_mode: commentWebhookStatus?.comments_delivery_mode || (subscribedFields.includes("feed") ? "facebook_feed" : "webhook"),
+    comments_delivery_ready: Boolean(commentWebhookStatus?.comments_delivery_ready ?? subscribedFields.includes("feed")),
     comment_webhook_status: commentWebhookStatus || {},
     meta_integration_status: {
       overall_status: integrationStatus?.overall_status || "",

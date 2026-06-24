@@ -25,6 +25,16 @@ const devLog = (...args) => {
 };
 
 const maskSecretStatus = (value) => Boolean(trimString(value));
+const normalizeWebhookField = (value = "") => trimString(value).toLowerCase();
+const COMMENT_WEBHOOK_FIELDS = new Set(["feed", "comments", "mentions"]);
+const COMMENT_WEBHOOK_VERBS = new Set(["add", "created", "edited", "edit"]);
+const pickFirstText = (...values) => {
+  for (const value of values) {
+    const normalized = trimString(value);
+    if (normalized) return normalized;
+  }
+  return "";
+};
 
 const getPublicBackendUrl = () => trimString(process.env.PUBLIC_BACKEND_URL).replace(/\/+$/g, "");
 const getMetaAppAccessToken = () => {
@@ -310,12 +320,13 @@ const extractWebhookEvents = async (payload = {}) => {
   for (const entry of Array.isArray(payload.entry) ? payload.entry : []) {
     for (const change of Array.isArray(entry.changes) ? entry.changes : []) {
       const value = change.value || {};
-      const field = trimString(change.field).toLowerCase();
+      const field = normalizeWebhookField(change.field);
       const object = trimString(payload.object).toLowerCase();
       const platform = object.includes("instagram") || field.includes("instagram") || value.media || value.media_id || value.from?.username ? "instagram" : "facebook";
-      const isComment = field.includes("comment") || value.item === "comment" || value.comment_id || value.id;
-      const verb = trimString(value.verb || "add").toLowerCase();
-      if (!isComment || (verb && !["add", "created"].includes(verb))) continue;
+      const item = normalizeWebhookField(value.item);
+      const verb = normalizeWebhookField(value.verb || "add");
+      const isRelevantField = COMMENT_WEBHOOK_FIELDS.has(field) || field.includes("comment");
+      if (!(field === "feed" || isRelevantField) || item !== "comment" || !COMMENT_WEBHOOK_VERBS.has(verb)) continue;
 
       console.log("[COMMENT_WEBHOOK_HIT]", {
         platform,
@@ -324,14 +335,21 @@ const extractWebhookEvents = async (payload = {}) => {
         entry_id: entry.id || "",
       });
 
-      const commentId = nullableString(value.comment_id || value.id);
-      const message = nullableString(value.message || value.text) || "";
+      const commentId = pickFirstText(
+        value.comment_id,
+        value.commentId,
+        value.comment?.id,
+        value.comment?.comment_id,
+        value.id
+      );
+      const message = pickFirstText(value.message, value.text, value.comment?.message, value.comment?.text);
       if (!commentId || !message) continue;
 
-      const postId = nullableString(value.post_id || value.media_id || value.media?.id || value.parent_id) || "";
+      const postId = pickFirstText(value.post_id, value.postId, value.media_id, value.media?.id, value.post?.id);
       const mediaId = nullableString(value.media_id || value.media?.id || (platform === "instagram" ? postId : null));
-      const pageId = nullableString(entry.id || value.page_id || value.metadata?.page_id || value.account_id || "");
-      const fromId = nullableString(value.from?.id || value.sender_id || value.user_id);
+      const pageId = pickFirstText(entry.id, value.page_id, value.metadata?.page_id, value.account_id);
+      const fromId = pickFirstText(value.from?.id, value.sender_id, value.user_id);
+      const fromName = pickFirstText(value.from?.name, value.sender_name, value.username, value.from?.username);
 
       console.log("[COMMENT_EVENT_PARSED]", {
         platform,
@@ -348,10 +366,11 @@ const extractWebhookEvents = async (payload = {}) => {
         postId,
         mediaId,
         commentId,
-        parentCommentId: nullableString(value.parent_id || value.parent_comment_id),
-        userPlatformId: nullableString(value.from?.id || value.sender_id || value.user_id),
-        username: nullableString(value.from?.name || value.from?.username || value.username),
+        parentCommentId: pickFirstText(value.parent_id, value.parent_comment_id, value.parent?.id),
+        userPlatformId: fromId,
+        username: fromName,
         message,
+        createdTime: pickFirstText(value.created_time, value.createdTime),
         rawPayload: { entry, change },
       });
     }
@@ -373,6 +392,70 @@ const resolveProductId = async ({ businessId, platform, postId, mediaId }) => {
     [businessId, platform, postId || "", mediaId || null]
   );
   return result.rows[0]?.product_id || null;
+};
+
+const upsertMarketingCommentEvent = async (normalized = {}) => {
+  const result = await db.query(
+    `
+    INSERT INTO marketing_comment_events (
+      business_id,
+      platform,
+      post_id,
+      comment_id,
+      parent_comment_id,
+      user_platform_id,
+      username,
+      message,
+      matched_rule_id,
+      matched_keyword,
+      product_id,
+      status,
+      lead_score,
+      automation_actions,
+      error_message,
+      raw_payload,
+      processed_at
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::bigint,$10::text,$11::bigint,$12::varchar,$13::varchar,$14::jsonb,$15::text,$16::jsonb,$17::timestamp)
+    ON CONFLICT (platform, comment_id) DO UPDATE SET
+      business_id = COALESCE(marketing_comment_events.business_id, EXCLUDED.business_id),
+      post_id = COALESCE(NULLIF(EXCLUDED.post_id, ''), marketing_comment_events.post_id),
+      parent_comment_id = COALESCE(NULLIF(EXCLUDED.parent_comment_id, ''), marketing_comment_events.parent_comment_id),
+      user_platform_id = COALESCE(NULLIF(EXCLUDED.user_platform_id, ''), marketing_comment_events.user_platform_id),
+      username = COALESCE(NULLIF(EXCLUDED.username, ''), marketing_comment_events.username),
+      message = COALESCE(NULLIF(EXCLUDED.message, ''), marketing_comment_events.message),
+      matched_rule_id = COALESCE(EXCLUDED.matched_rule_id, marketing_comment_events.matched_rule_id),
+      matched_keyword = COALESCE(NULLIF(EXCLUDED.matched_keyword, ''), marketing_comment_events.matched_keyword),
+      product_id = COALESCE(EXCLUDED.product_id, marketing_comment_events.product_id),
+      status = COALESCE(NULLIF(EXCLUDED.status, ''), marketing_comment_events.status),
+      lead_score = COALESCE(NULLIF(EXCLUDED.lead_score, ''), marketing_comment_events.lead_score),
+      automation_actions = COALESCE(EXCLUDED.automation_actions, marketing_comment_events.automation_actions),
+      error_message = COALESCE(NULLIF(EXCLUDED.error_message, ''), marketing_comment_events.error_message),
+      raw_payload = COALESCE(marketing_comment_events.raw_payload, '{}'::jsonb) || COALESCE(EXCLUDED.raw_payload, '{}'::jsonb),
+      processed_at = COALESCE(EXCLUDED.processed_at, marketing_comment_events.processed_at)
+    RETURNING *
+    `,
+    [
+      normalized.business_id,
+      normalized.platform,
+      normalized.post_id,
+      normalized.comment_id,
+      normalized.parent_comment_id,
+      normalized.user_platform_id,
+      normalized.username,
+      normalized.message,
+      normalized.matched_rule_id,
+      normalized.matched_keyword,
+      normalized.product_id,
+      normalized.status,
+      normalized.lead_score,
+      JSON.stringify(normalized.automation_actions || {}),
+      normalized.error_message || null,
+      JSON.stringify(normalized.raw_payload || {}),
+      normalized.processed_at || new Date().toISOString(),
+    ]
+  );
+  return result.rows[0] || null;
 };
 
 const loadMatchingRule = async ({ businessId, platform, message }) => {
@@ -635,46 +718,32 @@ export const processCommentEvent = async (event = {}) => {
     text_length: String(event.message || "").length,
   });
 
-  const inserted = await db.query(
-    `
-    INSERT INTO marketing_comment_events (
-      business_id,
-      platform,
-      post_id,
-      comment_id,
-      parent_comment_id,
-      user_platform_id,
-      username,
-      message,
-      raw_payload
-    )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
-    ON CONFLICT (platform, comment_id) DO NOTHING
-    RETURNING *
-    `,
-    [
-      event.businessId,
-      event.platform,
-      event.postId || "",
-      event.commentId,
-      event.parentCommentId,
-      event.userPlatformId,
-      event.username,
-      event.message || "",
-      JSON.stringify(event.rawPayload || {}),
-    ]
-  );
-  if (!inserted.rows[0]) {
-    devLog("[meta-webhook] duplicate skipped", { platform: event.platform, comment_id: event.commentId });
-    return { skipped: true, reason: "duplicate_comment" };
-  }
-  console.log("[COMMENT_EVENT_SAVED]", {
+  const inserted = await upsertMarketingCommentEvent({
+    business_id: event.businessId,
     platform: event.platform,
-    page_id: event.rawPayload?.entry?.id || event.rawPayload?.entry?.changes?.[0]?.value?.page_id || event.rawPayload?.change?.value?.page_id || "",
     post_id: event.postId || "",
-    comment_id: event.commentId || "",
-    from_id: event.userPlatformId || "",
-    text_length: String(event.message || "").length,
+    comment_id: event.commentId,
+    parent_comment_id: event.parentCommentId || "",
+    user_platform_id: event.userPlatformId || "",
+    username: event.username || "",
+    message: event.message || "",
+    matched_rule_id: null,
+    matched_keyword: null,
+    product_id: null,
+    status: "processed",
+    lead_score: "low",
+    automation_actions: {},
+    error_message: null,
+    raw_payload: event.rawPayload || {},
+    processed_at: event.createdTime || new Date().toISOString(),
+  });
+  console.log("[COMMENT_EVENT_SAVED]", {
+    platform: inserted?.platform || event.platform,
+    page_id: inserted?.raw_payload?.entry?.[0]?.id || inserted?.raw_payload?.entry?.id || inserted?.raw_payload?.entry?.changes?.[0]?.value?.page_id || "",
+    post_id: inserted?.post_id || event.postId || "",
+    comment_id: inserted?.comment_id || event.commentId || "",
+    from_id: inserted?.user_platform_id || event.userPlatformId || "",
+    text_length: String(inserted?.message || event.message || "").length,
   });
 
   let status = "processed";
@@ -859,6 +928,8 @@ export const getMetaWebhookStatus = async (businessId) => {
       ...defaults,
       last_event_at: latest?.created_at || null,
       recent_payload_preview: latest?.raw_payload || null,
+      comments_delivery_mode: defaults.subscribed_fields.includes("feed") ? "facebook_feed" : "webhook",
+      comments_delivery_ready: defaults.subscribed_fields.includes("feed"),
     };
   } catch (error) {
     console.warn("[meta-webhook] status defaults returned", { message: error?.message });
@@ -970,6 +1041,41 @@ export const deleteAutoReplyRule = async (businessId, id) => {
 };
 
 export const simulateCommentAutomation = async (businessId, payload = {}) => {
+  if (payload.webhook_mode === "facebook_feed" || payload.use_webhook_payload === true) {
+    const webhookPayload = {
+      object: "page",
+      entry: [
+        {
+          id: nullableString(payload.page_id) || "1234567890",
+          time: Date.now(),
+          changes: [
+            {
+              field: "feed",
+              value: {
+                item: "comment",
+                verb: "add",
+                post_id: nullableString(payload.post_id) || "9876543210",
+                comment_id: nullableString(payload.comment_id) || `sim_${Date.now()}`,
+                parent_id: nullableString(payload.parent_id) || undefined,
+                from: {
+                  id: nullableString(payload.user_platform_id) || `sim-user-${Date.now()}`,
+                  name: nullableString(payload.username) || "Simulated Customer",
+                },
+                message: nullableString(payload.message) || "عايز المقاس متاح؟",
+                created_time: nullableString(payload.created_time) || new Date().toISOString(),
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const result = await processMetaWebhookPayload(webhookPayload);
+    return {
+      webhook_payload: webhookPayload,
+      result,
+      conversation_status: "saved",
+    };
+  }
   const event = {
     businessId,
     platform: nullableString(payload.platform) || "facebook",
