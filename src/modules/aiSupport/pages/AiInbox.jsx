@@ -568,6 +568,71 @@ const commentConversationPostUrl = (conversation = {}) =>
     conversation?.last_message_permalink
   );
 
+const commentThreadPostImageUrl = (conversation = {}) =>
+  firstNonEmpty(
+    conversation?.channel_metadata?.post_full_picture,
+    conversation?.channel_metadata?.full_picture,
+    conversation?.metadata?.post_full_picture,
+    conversation?.metadata?.full_picture,
+    conversation?.full_picture,
+    conversation?.image_url
+  );
+
+const commentThreadPostTitle = (conversation = {}) =>
+  firstNonEmpty(
+    conversation?.channel_metadata?.post_message,
+    conversation?.channel_metadata?.post_caption,
+    conversation?.metadata?.post_message,
+    conversation?.metadata?.post_caption,
+    conversation?.post_message,
+    conversation?.post_caption,
+    conversation?.last_message
+  );
+
+const commentThreadLastComment = (conversation = {}) =>
+  firstNonEmpty(
+    conversation?.channel_metadata?.last_comment_text,
+    conversation?.metadata?.last_comment_text,
+    conversation?.last_comment_text,
+    conversation?.latest_message_preview,
+    conversation?.last_message,
+    [...uniqueMessages(conversation.messages)].reverse().find((message) => clean(message.customer_message || message.message_text || message.text || message.body || message.content || message.caption || ""))?.customer_message ||
+      ""
+  );
+
+const commentThreadCommentCount = (conversation = {}) =>
+  Number(
+    conversation?.channel_metadata?.comments_count ||
+      conversation?.metadata?.comments_count ||
+      conversation?.message_count ||
+      conversation?.channel_metadata?.comment_count ||
+      0
+  ) || 0;
+
+const commentThreadPostTime = (conversation = {}) =>
+  firstNonEmpty(
+    conversation?.channel_metadata?.post_created_time,
+    conversation?.metadata?.post_created_time,
+    conversation?.post_created_time,
+    conversation?.channel_metadata?.last_comment_at,
+    conversation?.metadata?.last_comment_at,
+    conversation?.last_activity_at,
+    conversation?.last_message_at
+  );
+
+const commentThreadDisplayName = (conversation = {}) =>
+  firstNonEmpty(
+    commentThreadPostTitle(conversation),
+    conversation?.channel_metadata?.post_title,
+    conversation?.channel_metadata?.post_name,
+    conversation?.channel_metadata?.post_caption,
+    conversation?.metadata?.post_title,
+    conversation?.metadata?.post_name,
+    conversation?.metadata?.post_caption,
+    conversation?.last_message,
+    "Post"
+  );
+
 const isLeadThreadConversation = (conversation = {}) => isCommentConversation(conversation) || isMessengerConversation(conversation);
 
 const leadConversationDisplayName = (conversation = {}) => {
@@ -969,8 +1034,17 @@ function ProductCards({ products = [] }) {
 const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, onSelect }) {
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
-  const customerName = isMessengerConversation(item) ? messengerDisplayName(item) : getConversationDisplayName(item);
-  const avatarUrl = customerAvatarUrl(item);
+  const isCommentThread = isCommentConversation(item);
+  const customerName = isCommentThread
+    ? commentThreadDisplayName(item)
+    : isMessengerConversation(item)
+      ? messengerDisplayName(item)
+      : getConversationDisplayName(item);
+  const avatarUrl = isCommentThread ? commentThreadPostImageUrl(item) : customerAvatarUrl(item);
+  const commentCount = isCommentThread ? commentThreadCommentCount(item) : 0;
+  const lastComment = isCommentThread ? commentThreadLastComment(item) : "";
+  const lastActivity = relativeTime(item.last_message_at || item.last_activity_at || item.updated_at);
+  const postTime = isCommentThread ? commentThreadPostTime(item) : "";
   const unreadCount = Number(item.unread_count || item.unread || 0);
   const containerTone =
     active
@@ -982,12 +1056,17 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
     <button
       type="button"
       onClick={() => onSelect(item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
-      className={`w-full rounded-2xl border px-3 py-2.5 text-left transition ${containerTone}`}
-    >
+    className={`w-full rounded-2xl border px-3 py-2.5 text-left transition ${containerTone}`}
+  >
       <div className="flex items-start gap-3">
         <div className="relative shrink-0">
           {avatarUrl ? (
-            <img src={avatarUrl} alt="" className="h-11 w-11 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
+            <div className="relative h-11 w-11 overflow-hidden rounded-2xl ring-1 ring-white/10">
+              <img src={avatarUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+              {isCommentThread ? (
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-transparent to-black/25" />
+              ) : null}
+            </div>
           ) : (
             <span className={`grid h-11 w-11 place-items-center rounded-2xl ${liveMeta ? "bg-cyan-300/15 text-cyan-100" : "bg-white/[0.07] text-slate-200"}`}><User className="h-5 w-5" /></span>
           )}
@@ -996,13 +1075,27 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="truncate text-[15px] font-black leading-5 text-white">{customerName}</div>
+              <div className="line-clamp-2 text-[15px] font-black leading-5 text-white">{customerName}</div>
               <div className="mt-1 flex flex-wrap items-center gap-1.5">
                 <Pill tone={isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>{channelBadgeLabel(channel)}</Pill>
+                {isCommentThread ? (
+                  <Pill tone="blue">{commentCount ? `${commentCount} تعليق` : "تعليق"}</Pill>
+                ) : null}
               </div>
             </div>
-            <span className="shrink-0 text-[11px] font-bold text-slate-500">{relativeTime(item.last_message_at || item.last_activity_at || item.updated_at)}</span>
+            <span className="shrink-0 text-[11px] font-bold text-slate-500">{lastActivity}</span>
           </div>
+          {isCommentThread ? (
+            <div className="mt-2 space-y-1.5 rounded-2xl border border-white/8 bg-white/[0.03] p-2.5">
+              {postTime ? <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{postTime}</div> : null}
+              {lastComment ? <div className="line-clamp-2 text-[12.5px] font-medium leading-4.5 text-slate-200">آخر تعليق: {lastComment}</div> : null}
+            </div>
+          ) : (
+            <div className={`mt-1.5 flex items-start gap-1.5 text-[12.5px] leading-4.5 ${active ? "text-slate-300" : unreadCount ? "text-slate-700" : "text-slate-500"}`}>
+              <CheckCheck className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${unreadCount && !active ? "text-emerald-600" : ""}`} />
+              <span className={`line-clamp-2 text-left ${unreadCount && !active ? "font-medium" : ""}`}>{conversationPreview(item) || "No messages yet"}</span>
+            </div>
+          )}
           {unreadCount ? <div className="mt-2 flex justify-end"><span className="inline-flex h-5 items-center rounded-full bg-rose-400/12 px-2 text-[10px] font-black text-rose-100">غير مقروء {unreadCount}</span></div> : null}
         </div>
       </div>
@@ -1159,8 +1252,12 @@ function InboxChatHeader({
 }) {
   if (!conversation) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
-  const avatarUrl = customerAvatarUrl(conversation);
-  const name = isMessengerConversation(conversation) ? messengerDisplayName(conversation) : getConversationDisplayName(conversation);
+  const avatarUrl = isCommentConversation(conversation) ? commentThreadPostImageUrl(conversation) : customerAvatarUrl(conversation);
+  const name = isCommentConversation(conversation)
+    ? commentThreadDisplayName(conversation)
+    : isMessengerConversation(conversation)
+      ? messengerDisplayName(conversation)
+      : getConversationDisplayName(conversation);
   const channel = conversation.channel || conversation.source || "web_chat";
   const conversationAiEnabled = isConversationAiEnabled(conversation);
   const aiTone = status === "human_takeover"
@@ -1254,14 +1351,23 @@ function InboxChatHeader({
 }
 
 const Transcript = memo(function Transcript({
+  conversation = null,
   rows = [],
   events = [],
   loadingOlder,
   onLoadOlder,
   onOpenCorrection,
+  onReplyComment,
+  onPrivateMessage,
   olderMessagesAvailable = false,
 }) {
-  if (!rows.length && !events.length) {
+  const isCommentThread = isCommentConversation(conversation || {});
+  const postUrl = commentConversationPostUrl(conversation || {});
+  const postImage = commentThreadPostImageUrl(conversation || {});
+  const postTitle = commentThreadDisplayName(conversation || {});
+  const postTime = commentThreadPostTime(conversation || {});
+  const commentCount = commentThreadCommentCount(conversation || {});
+  if (!rows.length && !events.length && !isCommentThread) {
     return <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">No transcript yet.</div>;
   }
 
@@ -1275,12 +1381,45 @@ const Transcript = memo(function Transcript({
           </button>
         </div>
       ) : null}
+      {isCommentThread ? (
+        <div className="sticky top-2 z-10 rounded-3xl border border-white/10 bg-slate-950/90 p-3 shadow-[0_16px_40px_rgba(0,0,0,0.28)] backdrop-blur">
+          <div className="flex items-start gap-3">
+            {postImage ? (
+              <img src={postImage} alt="" className="h-20 w-20 shrink-0 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
+            ) : (
+              <span className="grid h-20 w-20 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] text-slate-400">
+                <MessageSquareText className="h-6 w-6" />
+              </span>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">بوست التعليق</div>
+              <div className="mt-1 line-clamp-2 text-[16px] font-black leading-6 text-white">{postTitle}</div>
+              {postTime ? <div className="mt-1 text-[11px] font-medium text-slate-400">{postTime}</div> : null}
+              <div className="mt-2 flex flex-wrap gap-2">
+                {postUrl ? (
+                  <a href={postUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-[11px] font-black text-emerald-100">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    فتح البوست
+                  </a>
+                ) : null}
+                <button type="button" onClick={() => onPrivateMessage?.(conversation)} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100">
+                  <MessageSquareText className="h-3.5 w-3.5" />
+                  إرسال رسالة خاصة
+                </button>
+              </div>
+              {commentCount ? <div className="mt-2 inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-black text-slate-200">{commentCount} تعليق</div> : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
       {rows.map((row) => (
         <TranscriptMessage
           key={row.key}
           row={row}
           variant="desktop"
           onOpenCorrection={onOpenCorrection}
+          onReplyComment={onReplyComment}
+          onPrivateMessage={onPrivateMessage}
           channelLabel={row.channelLabel}
         />
       ))}
@@ -2942,6 +3081,7 @@ export default function AiInbox() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedSessionId, setSelectedSessionId] = useState("");
+  const [selectedSocialCommentId, setSelectedSocialCommentId] = useState("");
   const [inbox, setInbox] = useState({ conversations: [], followups: [] });
   const [drafts, setDrafts] = useState([]);
   const [analytics, setAnalytics] = useState({});
@@ -3005,6 +3145,8 @@ export default function AiInbox() {
   });
   const scheduleRefreshRef = useRef(null);
   const selectedSessionIdRef = useRef("");
+  const selectedSocialCommentIdRef = useRef("");
+  const inboxSectionRef = useRef(inboxSection);
   const selectedConversationCacheRef = useRef(null);
   const lastEnabledAutoReplyModeRef = useRef({});
 
@@ -3013,6 +3155,12 @@ export default function AiInbox() {
   useEffect(() => {
     selectedSessionIdRef.current = selectedSessionId;
   }, [selectedSessionId]);
+  useEffect(() => {
+    selectedSocialCommentIdRef.current = selectedSocialCommentId;
+  }, [selectedSocialCommentId]);
+  useEffect(() => {
+    inboxSectionRef.current = inboxSection;
+  }, [inboxSection]);
 
   const loadAll = useCallback(async ({ silent = false } = {}) => {
     if (isRefreshingRef.current) return;
@@ -3037,11 +3185,13 @@ export default function AiInbox() {
         ...conversation,
         conversation_key: conversation.conversation_key || conversationKey(conversation),
       }));
-      const activeSelectedId = selectedSessionIdRef.current;
+      const activeSection = inboxSectionRef.current || "conversations";
+      const activeConversationSelectedId = selectedSessionIdRef.current;
+      const activeSocialCommentSelectedId = selectedSocialCommentIdRef.current;
       const cachedSelected = selectedConversationCacheRef.current;
-      const selectedStillPresent = activeSelectedId && conversations.some((item) => item.conversation_key === activeSelectedId);
-      const nextConversations = !selectedStillPresent && activeSelectedId && cachedSelected?.conversation_key === activeSelectedId
-        ? [cachedSelected, ...conversations.filter((item) => item.conversation_key !== activeSelectedId)]
+      const selectedStillPresent = activeConversationSelectedId && conversations.some((item) => item.conversation_key === activeConversationSelectedId);
+      const nextConversations = !selectedStillPresent && activeConversationSelectedId && cachedSelected?.conversation_key === activeConversationSelectedId
+        ? [cachedSelected, ...conversations.filter((item) => item.conversation_key !== activeConversationSelectedId)]
         : conversations;
       setInbox({ conversations: nextConversations, followups: asArray(inboxPayload.followups) });
       setDrafts(asArray(draftsPayload.drafts));
@@ -3049,7 +3199,7 @@ export default function AiInbox() {
       setChannelStatus(channelPayload.channels || {});
       setAiAssistantGlobalEnabled(globalAiPayload?.ai_assistant_global_enabled !== false);
       setEmployees(asArray(employeesPayload?.employees || employeesPayload?.data || employeesPayload || []));
-      if (!activeSelectedId && nextConversations[0]?.conversation_key) {
+      if (activeSection === "conversations" && !activeConversationSelectedId && nextConversations[0]?.conversation_key) {
         setSelectedSessionId(nextConversations[0].conversation_key);
       }
 
@@ -3085,6 +3235,10 @@ export default function AiInbox() {
           count: items.length,
           error: "",
         });
+        if (activeSection === "social_comments" && !activeSocialCommentSelectedId && items[0]?.conversation_key) {
+          setSelectedSocialCommentId(items[0].conversation_key);
+          setSelectedSessionId("");
+        }
       } catch (socialCommentsError) {
         if (seq !== requestSeqRef.current) return;
         const status = Number(socialCommentsError?.status || socialCommentsError?.responseBody?.status || 0) || "";
@@ -3331,6 +3485,14 @@ export default function AiInbox() {
     });
     return sorted;
   }, [activePanelConversations, channelFilter, inboxSection, leadFilter, leadSort]);
+  const visibleConversations = useMemo(
+    () => (inboxSection === "conversations" ? filteredConversations : []),
+    [filteredConversations, inboxSection]
+  );
+  const visibleSocialComments = useMemo(
+    () => (inboxSection === "social_comments" ? filteredConversations : []),
+    [filteredConversations, inboxSection]
+  );
   const channelSummaries = useMemo(() => {
     const buckets = new Map();
     const totalUnread = activePanelConversations.reduce((sum, conversation) => sum + Number(conversation.unread_count || conversation.unread || 0), 0);
@@ -3406,25 +3568,49 @@ export default function AiInbox() {
   const realMetaCount = conversationPanelConversations.filter((item) => item.is_live_meta || isMetaChannel(item.channel || item.source)).length;
   const conversationPanelCount = conversationPanelConversations.length;
   const socialCommentsPanelCount = socialCommentPanelConversations.length;
-  const selectedConversation = useMemo(
+  const selectedConversationThread = useMemo(
     () => conversations.find((item) => item.conversation_key === selectedSessionId || clean(item.id || item.conversation_id || "") === clean(selectedSessionId)) ||
       (selectedConversationCacheRef.current?.conversation_key === selectedSessionId ? selectedConversationCacheRef.current : null) ||
       conversations[0] ||
       null,
     [conversations, selectedSessionId]
   );
+  const selectedSocialComment = useMemo(
+    () => socialCommentPanelConversations.find((item) => item.conversation_key === selectedSocialCommentId || clean(item.id || item.conversation_id || "") === clean(selectedSocialCommentId)) ||
+      socialCommentPanelConversations[0] ||
+      null,
+    [selectedSocialCommentId, socialCommentPanelConversations]
+  );
+  const selectedConversation = inboxSection === "social_comments" ? selectedSocialComment : selectedConversationThread;
   useEffect(() => {
-    const activeList = inboxSection === "social_comments" ? socialCommentPanelConversations : conversationPanelConversations;
-    if (!activeList.length) return;
-    const selectedKey = selectedConversation?.conversation_key || "";
-    const hasActiveSelection = activeList.some((item) => item.conversation_key === selectedKey);
-    if (!hasActiveSelection) {
-      setSelectedSessionId(activeList[0].conversation_key);
-      if (inboxSection === "social_comments") {
+    if (inboxSection === "social_comments") {
+      const nextSelected = visibleSocialComments[0] || null;
+      const selectedKey = clean(selectedSocialCommentIdRef.current);
+      const hasActiveSelection = selectedKey && visibleSocialComments.some((item) => item.conversation_key === selectedKey);
+      if (!visibleSocialComments.length) {
+        if (selectedSocialCommentIdRef.current) setSelectedSocialCommentId("");
+        return;
+      }
+      if (!hasActiveSelection && nextSelected?.conversation_key) {
+        setSelectedSocialCommentId(nextSelected.conversation_key);
+        setSelectedSessionId("");
         setMobileView("chat");
       }
+      return;
     }
-  }, [conversationPanelConversations, inboxSection, selectedConversation?.conversation_key, socialCommentPanelConversations]);
+
+    const nextSelected = visibleConversations[0] || null;
+    const selectedKey = clean(selectedSessionIdRef.current);
+    const hasActiveSelection = selectedKey && visibleConversations.some((item) => item.conversation_key === selectedKey);
+    if (!visibleConversations.length) {
+      if (selectedSessionIdRef.current) setSelectedSessionId("");
+      return;
+    }
+    if (!hasActiveSelection && nextSelected?.conversation_key) {
+      setSelectedSessionId(nextSelected.conversation_key);
+      setSelectedSocialCommentId("");
+    }
+  }, [inboxSection, visibleConversations, visibleSocialComments]);
   const selectedConversationRouteId = useMemo(
     () => clean(selectedConversation?.session_id || selectedConversation?.conversation_key || selectedConversation?.conversation_id || selectedConversation?.id || ""),
     [selectedConversation]
@@ -3434,16 +3620,22 @@ export default function AiInbox() {
     setUserIsNearBottom(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 140);
   }, []);
   const handleSelectConversation = useCallback((conversationKey) => {
-    setSelectedSessionId(conversationKey);
+    if (inboxSectionRef.current === "social_comments") {
+      setSelectedSocialCommentId(conversationKey);
+      setSelectedSessionId("");
+    } else {
+      setSelectedSessionId(conversationKey);
+      setSelectedSocialCommentId("");
+    }
     setMobileView("chat");
     setReplyText("");
     setUnseenSessions((current) => current.filter((id) => id !== conversationKey));
   }, []);
   useEffect(() => {
-    if (selectedConversation?.session_id) {
+    if (inboxSection === "conversations" && selectedConversation?.session_id) {
       selectedConversationCacheRef.current = selectedConversation;
     }
-  }, [selectedConversation]);
+  }, [inboxSection, selectedConversation]);
   const patchConversation = useCallback((identifier, updater) => {
     const target = clean(identifier);
     setInbox((current) => ({
@@ -4161,19 +4353,25 @@ export default function AiInbox() {
     );
   };
 
-  const sendCommentReply = async (overrideText = "") => {
+  const sendCommentReply = async (overrideText = "", options = {}) => {
     const message = clean(overrideText || replyText);
     if (!selectedConversation?.session_id || !message) return;
     const sessionId = selectedConversation.session_id;
     const conversationIdentifier = selectedConversation.conversation_key || sessionId;
-    const commentId = clean(
-      selectedConversation?.channel_metadata?.comment_id ||
+    const targetCommentId = clean(
+      options.commentId ||
+        options.comment_id ||
+        options.external_message_id ||
+        options.externalMessageId ||
+        options.message?.comment_id ||
+        options.message?.external_message_id ||
+        selectedConversation?.channel_metadata?.comment_id ||
         selectedConversation?.channel_metadata?.lead?.comment_id ||
         selectedConversation?.external_comment_id ||
         selectedConversation?.comment_id ||
         ""
     );
-    if (!commentId) {
+    if (!targetCommentId) {
       setError("تعذر تحديد الكومنت المرتبط بهذه المحادثة");
       return;
     }
@@ -4181,7 +4379,7 @@ export default function AiInbox() {
     setLoading(true);
     setError("");
     try {
-      const payload = await api.post(`/ai-inbox/comments/${encodeURIComponent(commentId)}/reply`, {
+      const payload = await api.post(`/ai-inbox/comments/${encodeURIComponent(targetCommentId)}/reply`, {
         tenant_id: tenantId,
         reply_text: message,
       }, { headers, perfComponent: "AiInbox.commentReply" });
@@ -4429,7 +4627,7 @@ export default function AiInbox() {
     }
   };
 
-  const sendLeadPrivateMessage = async () => {
+  const sendLeadPrivateMessage = async (targetComment = null) => {
     if (!selectedConversation?.session_id) return;
     const defaultMessage = buildLeadPrivateMessageText(selectedConversation);
     const message = clean(replyText || defaultMessage);
@@ -4440,6 +4638,7 @@ export default function AiInbox() {
         await api.post(aiAgentInboxEndpoint(selectedConversation.session_id, "/private-message"), {
           tenant_id: tenantId,
           message,
+          comment_id: clean(targetComment?.comment_id || targetComment?.external_message_id || targetComment?.id || ""),
         }, { headers, perfComponent: "AiInbox.privateLeadMessage" });
       } else {
         await sendManualReply(message);
@@ -4456,13 +4655,18 @@ export default function AiInbox() {
     }
   };
 
-  const sendLeadCommentReplyQuick = async () => {
+  const sendLeadCommentReplyQuick = async (targetComment = null) => {
     if (!selectedConversation?.session_id || !isCommentConversation(selectedConversation || {})) return;
+    const targetCommentId = clean(targetComment?.comment_id || targetComment?.external_message_id || targetComment?.id || selectedConversation?.channel_metadata?.comment_id || selectedConversation?.channel_metadata?.lead?.comment_id || selectedConversation?.external_comment_id || selectedConversation?.comment_id || "");
+    if (!targetCommentId) {
+      setError("تعذر تحديد التعليق المطلوب");
+      return;
+    }
     const message = clean(replyText || buildLeadCommentReplyText(selectedConversation));
     if (!message) return;
     setLeadActionLoading("comment_reply");
     try {
-      await sendCommentReply(message);
+      await sendCommentReply(message, { commentId: targetCommentId, message: targetComment });
       await loadAll({ silent: true });
     } finally {
       setLeadActionLoading("");
@@ -5111,7 +5315,12 @@ export default function AiInbox() {
 	                <div className="grid grid-cols-2 gap-2">
 	                  <button
 	                    type="button"
-	                    onClick={() => setInboxSection("conversations")}
+	                    onClick={() => {
+	                      setInboxSection("conversations");
+	                      setSelectedSessionId(conversationPanelConversations[0]?.conversation_key || "");
+	                      setSelectedSocialCommentId("");
+	                      setMobileView("list");
+	                    }}
 	                    className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
 	                      inboxSection === "conversations"
 	                        ? "bg-cyan-300 text-slate-950"
@@ -5125,7 +5334,12 @@ export default function AiInbox() {
 	                  </button>
 	                  <button
 	                    type="button"
-	                    onClick={() => setInboxSection("social_comments")}
+	                    onClick={() => {
+	                      setInboxSection("social_comments");
+	                      setSelectedSocialCommentId(socialCommentPanelConversations[0]?.conversation_key || "");
+	                      setSelectedSessionId("");
+	                      setMobileView("chat");
+	                    }}
 	                    className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
 	                      inboxSection === "social_comments"
 	                        ? "bg-cyan-300 text-slate-950"
