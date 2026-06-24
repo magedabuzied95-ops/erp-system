@@ -10,6 +10,8 @@ import {
   getStaffTaskDashboard,
   generateDueTaskInstancesFromTemplates,
   listStaffTasks,
+  listStaffTaskTemplates,
+  saveStaffTaskTemplate,
   reassignOverdueTasks,
   redistributeTasks,
   resolveEmployeeForUser,
@@ -30,6 +32,24 @@ export const getTasks = async (req, res) => {
     return res.json({ success: true, tasks });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message || "Failed to load staff tasks" });
+  }
+};
+
+export const getTaskTemplates = async (req, res) => {
+  try {
+    const templates = await listStaffTaskTemplates(req.query || {}, req.user || {});
+    return res.json({ success: true, templates });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message || "Failed to load task templates" });
+  }
+};
+
+export const updateTaskTemplate = async (req, res) => {
+  try {
+    const template = await saveStaffTaskTemplate({ ...(req.body || {}), template_id: req.params.id }, req.user || {});
+    return res.json({ success: true, template });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message || "Failed to update task template" });
   }
 };
 

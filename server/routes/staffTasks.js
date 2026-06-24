@@ -8,6 +8,7 @@ import {
   getDashboard,
   getEmployeePortalTasks,
   getMyTasks,
+  getTaskTemplates,
   getPortalSettings,
   getTaskBootstrap,
   getTasks,
@@ -17,6 +18,7 @@ import {
   updateTask,
   updateEmployeePortalTask,
   updatePortalSettings,
+  updateTaskTemplate,
   updateTaskStatus,
 } from "../controllers/staffTasksController.js";
 import { protect } from "../middleware/authMiddleware.js";
@@ -31,6 +33,8 @@ router.get("/portal-settings", protect, permit("staff_tasks", "manage"), getPort
 router.put("/portal-settings", protect, permit("staff_tasks", "manage"), updatePortalSettings);
 router.get("/bootstrap", protect, permit("staff_tasks", "view"), getTaskBootstrap);
 router.get("/", protect, permit("staff_tasks", "view"), getTasks);
+router.get("/templates", protect, permit("staff_tasks", "view"), getTaskTemplates);
+router.put("/templates/:id", protect, permit("staff_tasks", "manage"), updateTaskTemplate);
 router.get("/my", protect, permit("staff_tasks", "view"), getMyTasks);
 router.get("/dashboard", protect, permit("staff_tasks", "view"), getDashboard);
 router.post("/", protect, permit("staff_tasks", "create"), createTask);

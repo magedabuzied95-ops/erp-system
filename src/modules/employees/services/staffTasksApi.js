@@ -3,6 +3,8 @@ import { api } from "../../../shared/api/api";
 export const staffTasksApi = {
   bootstrap: () => api.get("/staff-tasks/bootstrap"),
   list: (params = {}) => api.get("/staff-tasks", { params }),
+  templates: (params = {}) => api.get("/staff-tasks/templates", { params }),
+  updateTemplate: (id, payload) => api.put(`/staff-tasks/templates/${id}`, payload),
   my: (params = {}) => api.get("/staff-tasks/my", { params }),
   dashboard: (params = {}) => api.get("/staff-tasks/dashboard", { params }),
   create: (payload) => api.post("/staff-tasks", payload),

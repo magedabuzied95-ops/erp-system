@@ -28,6 +28,13 @@ const priorityLabel = {
   high: "ط¹ط§ظ„ظٹط©",
   critical: "ط¹ط§ظ„ظٹط© ط¬ط¯ط§",
 };
+const taskKindLabel = (task = {}) => {
+  const kind = String(task.task_type || task.metadata?.task_kind || task.metadata?.template_kind || "").toLowerCase();
+  if (kind === "opening_day") return "افتتاح اليوم";
+  if (kind === "daily") return "يومية";
+  if (kind === "weekly") return "أسبوعية";
+  return "";
+};
 
 const priorityClass = {
   low: "border-slate-200 bg-slate-100 text-slate-700",
@@ -152,6 +159,11 @@ function TaskCard({ task, readOnly, saving, onStatus }) {
             <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${priorityClass[task.priority] || priorityClass.medium}`}>
               {task.priority_label_ar || priorityLabel[task.priority] || priorityLabel.medium}
             </span>
+            {taskKindLabel(task) ? (
+              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-black text-emerald-700">
+                {taskKindLabel(task)}
+              </span>
+            ) : null}
             <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${isCompleted ? "bg-emerald-50 text-emerald-700" : isOverdue ? "bg-orange-100 text-orange-800" : "bg-slate-100 text-slate-700"}`}>
               {task.status_label_ar || statusLabel[task.status] || statusLabel.pending}
             </span>

@@ -45,21 +45,11 @@ const emptyForm = {
   id: "",
   title: "",
   description: "",
-  employee_id: "",
   branch_id: "",
   priority: "medium",
-  due_at: "",
-  frequency: "one_time",
-  weekdays: [],
-  day_of_month: "",
-  requires_checkin: false,
-  auto_assign_enabled: false,
-  assignment_strategy: "least_tasks_today",
-  fixed_employee_id: "",
-  checklist_items: "",
-  photo_required: false,
-  qr_required: false,
-  gps_required: false,
+  template_kind: "daily",
+  is_opening_day_task: false,
+  is_template_record: false,
 };
 
 const sameJson = (left, right) => {
@@ -153,10 +143,10 @@ const STAFF_TASK_COPY = {
   en: {
     pageTitle: "Employee Tasks", pageDescription: "Attendance-aware task assignment, redistribution, inventory counts, and performance tracking.",
     realtimeLive: "Realtime live", realtimeReconnecting: "Realtime reconnecting", realtimeOffline: "Realtime offline",
-    newTask: "New task", dailyCounts: "Daily counts", redistribute: "Redistribute", reassignOverdue: "Reassign overdue",
-    editOperationalTask: "Edit operational task", createOperationalTask: "Create operational task", panelDescription: "Admin-controlled assignment, due time, proof rules, and recurring metadata.",
+    newTask: "New task", addDailyTask: "Add daily task", addWeeklyTask: "Add weekly task", dailyCounts: "Daily counts", redistribute: "Redistribute", reassignOverdue: "Reassign overdue",
+    editOperationalTask: "Edit task template", createOperationalTask: "Create task template", panelDescription: "Simple daily and weekly task templates. Distribution is automatic by attendance.",
     taskTitle: "Task title", autoAssignEmployee: "Auto assign employee", anyBranch: "Any branch", photoProof: "Photo proof", qrVerification: "QR verification", gpsValidation: "GPS validation",
-    recurringRule: "Recurring task rule", frequency: "Frequency", one_time: "One time", daily: "Daily", weekly: "Weekly", monthly: "Monthly", weekdays: "Weekdays", dayOfMonth: "Day of month", requiresCheckin: "Requires check-in", autoAssignEnabled: "Auto assign", assignmentStrategy: "Assignment strategy", first_checked_in: "First checked-in", round_robin: "Round robin", least_tasks_today: "Least tasks today", fixed_employee: "Fixed employee", waitingEligible: "Waiting for eligible employee", dailyAutoTask: "Daily auto task", weeklyAutoTask: "Weekly auto task", monthlyAutoTask: "Monthly auto task", autoAssign: "Auto assign",
+    recurringRule: "Recurring task rule", frequency: "Frequency", one_time: "One time", daily: "Daily", weekly: "Weekly", monthly: "Monthly", weekdays: "Weekdays", dayOfMonth: "Day of month", requiresCheckin: "Requires check-in", autoAssignEnabled: "Auto assign", assignmentStrategy: "Assignment strategy", first_checked_in: "First checked-in", round_robin: "Round robin", least_tasks_today: "Least tasks today", fixed_employee: "Fixed employee", waitingEligible: "Waiting for eligible employee", dailyAutoTask: "Daily auto task", weeklyAutoTask: "Weekly auto task", monthlyAutoTask: "Monthly auto task", autoAssign: "Auto assign", todayTasks: "Today's tasks", dailyTemplates: "Daily templates", weeklyTemplates: "Weekly templates", openingDayTask: "Opening day task", dailyTask: "Daily task", weeklyTask: "Weekly task", automaticDistribution: "Automatic distribution by attendance", taskTemplates: "Templates",
     taskDetails: "Task details", checklistItems: "Checklist items, one per line", saveTask: "Save task",
     employeePortalSettings: "Employee portal settings", portalDescription: "Controls QR check-in redirect and task visibility enforcement.", requireCheckIn: "Require check-in", autoRedirect: "Auto redirect",
     taskQueue: "Task queue", loadingTasks: "Loading tasks", visibleTasks: "visible tasks", allStatuses: "All statuses", allEmployees: "All employees", allBranches: "All branches", allPriorities: "All priorities", today: "Today",
@@ -170,8 +160,8 @@ const STAFF_TASK_COPY = {
   ar: {
     pageTitle: "مهام الموظفين", pageDescription: "إسناد المهام حسب الحضور، إعادة التوزيع، جرد المخزون، ومتابعة الأداء.",
     realtimeLive: "التحديث المباشر يعمل", realtimeReconnecting: "إعادة الاتصال بالتحديث المباشر", realtimeOffline: "التحديث المباشر غير متصل",
-    newTask: "مهمة جديدة", dailyCounts: "الجرد اليومي", redistribute: "إعادة التوزيع", reassignOverdue: "إعادة إسناد المتأخر",
-    editOperationalTask: "تعديل مهمة تشغيلية", createOperationalTask: "إنشاء مهمة تشغيلية", panelDescription: "تحكم إداري في الإسناد، موعد التسليم، قواعد الإثبات، والتكرار.",
+    newTask: "مهمة جديدة", addDailyTask: "إضافة مهمة يومية", addWeeklyTask: "إضافة مهمة أسبوعية", dailyCounts: "الجرد اليومي", redistribute: "إعادة التوزيع", reassignOverdue: "إعادة إسناد المتأخر",
+    editOperationalTask: "تعديل قالب المهمة", createOperationalTask: "إنشاء قالب المهمة", panelDescription: "قوالب يومية وأسبوعية بسيطة. التوزيع تلقائي حسب الحضور.",
     taskTitle: "عنوان المهمة", autoAssignEmployee: "إسناد تلقائي للموظف", anyBranch: "أي فرع", photoProof: "إثبات بصورة", qrVerification: "تحقق QR", gpsValidation: "تحقق GPS",
     taskDetails: "تفاصيل المهمة", checklistItems: "عناصر التحقق، عنصر في كل سطر", saveTask: "حفظ المهمة",
     employeePortalSettings: "إعدادات بوابة الموظفين", portalDescription: "التحكم في تحويل تسجيل الحضور وإلزام عرض المهام.", requireCheckIn: "يتطلب تسجيل حضور", autoRedirect: "تحويل تلقائي",
@@ -209,6 +199,14 @@ const STAFF_TASK_AR_EXTRA = {
   weeklyAutoTask: "مهمة أسبوعية تلقائية",
   monthlyAutoTask: "مهمة شهرية تلقائية",
   autoAssign: "إسناد تلقائي",
+  todayTasks: "مهام اليوم",
+  dailyTemplates: "قوالب المهام اليومية",
+  weeklyTemplates: "قوالب المهام الأسبوعية",
+  openingDayTask: "مهمة افتتاح اليوم",
+  dailyTask: "مهمة يومية",
+  weeklyTask: "مهمة أسبوعية",
+  automaticDistribution: "توزيع تلقائي حسب الحضور",
+  taskTemplates: "القوالب",
 };
 const taskLabel = (language, key) => (isArabicLocale(language) ? STAFF_TASK_AR_EXTRA[key] : "") || STAFF_TASK_COPY[isArabicLocale(language) ? "ar" : "en"]?.[key] || STAFF_TASK_COPY.en[key] || key;
 const statusLabel = (status, language) => taskLabel(language, status) || statusLabels[status] || status;
@@ -219,6 +217,19 @@ const recurringBadgeLabel = (task = {}, language = "en") => {
   if (frequency === "weekly") return taskLabel(language, "weeklyAutoTask");
   if (frequency === "monthly") return taskLabel(language, "monthlyAutoTask");
   return "";
+};
+const taskScopeLabel = (task = {}, language = "en") => {
+  const kind = String(task.task_type || task.metadata?.task_kind || task.metadata?.template_kind || "").toLowerCase();
+  if (kind === "opening_day") return taskLabel(language, "openingDayTask");
+  if (kind === "daily") return taskLabel(language, "dailyTask");
+  if (kind === "weekly") return taskLabel(language, "weeklyTask");
+  return "";
+};
+const templateKindLabel = (kind = "", language = "en") => {
+  const normalized = String(kind || "").toLowerCase();
+  if (normalized === "daily") return taskLabel(language, "dailyTemplates");
+  if (normalized === "weekly") return taskLabel(language, "weeklyTemplates");
+  return taskLabel(language, "taskTemplates");
 };
 const localizedTaskText = (task = {}, field, language = "en") => {
   const useArabic = isArabicLocale(language);
@@ -242,6 +253,9 @@ function TaskRow({ task, onStart, onComplete, onEdit, onDelete, language }) {
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="min-w-0 max-w-full truncate text-sm font-black text-[var(--text)]" dir="auto">{title}</h3>
           <Pill className={priorityClass[task.priority] || priorityClass.medium}>{priorityLabel(task.priority, language)}</Pill>
+          {taskScopeLabel(task, language) ? (
+            <Pill className="border-emerald-300/40 bg-emerald-500/10 text-emerald-700">{taskScopeLabel(task, language)}</Pill>
+          ) : null}
           <Pill className="border-[var(--border)] bg-[var(--surface-soft)] text-[var(--muted)]">{statusLabel(task.status, language)}</Pill>
           {recurringBadgeLabel(task, language) ? (
             <Pill className="border-cyan-300/40 bg-cyan-500/10 text-cyan-700">{recurringBadgeLabel(task, language)}</Pill>
@@ -334,6 +348,7 @@ function StaffTasks() {
   const [todayOnly, setTodayOnly] = useState(true);
   const [employees, setEmployees] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [templates, setTemplates] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [panelOpen, setPanelOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -364,20 +379,25 @@ function StaffTasks() {
     });
     return groups;
   }, [tasks]);
+  const dailyTemplates = useMemo(() => templates.filter((template) => String(template.template_kind || "").toLowerCase() === "daily"), [templates]);
+  const weeklyTemplates = useMemo(() => templates.filter((template) => String(template.template_kind || "").toLowerCase() === "weekly"), [templates]);
 
   const refresh = useCallback(async () => {
     try {
       setError("");
       setLoading((current) => (current ? current : true));
-      const [dashboardRes, tasksRes, settingsRes] = await Promise.all([
+      const [dashboardRes, tasksRes, templatesRes, settingsRes] = await Promise.all([
         staffTasksApi.dashboard({ branch_id: branchFilter }),
         staffTasksApi.list({ limit: 120, today: todayOnly ? "true" : "", branch_id: branchFilter }),
+        staffTasksApi.templates({ limit: 200, branch_id: branchFilter }).catch(() => ({ templates: [] })),
         staffTasksApi.getPortalSettings().catch(() => null),
       ]);
       const nextDashboard = dashboardRes.dashboard || null;
       const nextTasks = tasksRes.tasks || [];
+      const nextTemplates = templatesRes?.templates || [];
       setDashboard((current) => (sameJson(current, nextDashboard) ? current : nextDashboard));
       setTasks((current) => (sameJson(current, nextTasks) ? current : nextTasks));
+      setTemplates((current) => (sameJson(current, nextTemplates) ? current : nextTemplates));
       if (settingsRes?.settings) {
         setPortalSettings((current) => (sameJson(current, settingsRes.settings) ? current : settingsRes.settings));
       }
@@ -489,56 +509,45 @@ function StaffTasks() {
   });
 
   const editTask = (task) => {
+    const scope = String(task.task_type || task.template_kind || task.metadata?.task_kind || task.metadata?.template_kind || "daily").toLowerCase();
     setForm({
       id: task.id,
       title: task.title || "",
       description: task.description || "",
-      employee_id: task.current_assignee_id || "",
       branch_id: task.branch_id || "",
       priority: task.priority || "medium",
-      due_at: task.due_at ? new Date(task.due_at).toISOString().slice(0, 16) : "",
-      frequency: task.recurring_rule?.frequency || task.metadata?.recurring_rule?.frequency || "one_time",
-      weekdays: task.recurring_rule?.weekdays || task.metadata?.recurring_rule?.weekdays || [],
-      day_of_month: task.recurring_rule?.day_of_month || task.metadata?.recurring_rule?.day_of_month || "",
-      requires_checkin: Boolean(task.metadata?.requires_checkin),
-      auto_assign_enabled: Boolean(task.metadata?.assignment_strategy),
-      assignment_strategy: task.metadata?.assignment_strategy || "least_tasks_today",
-      fixed_employee_id: task.metadata?.fixed_employee_id || "",
-      checklist_items: (task.checklist_items || task.metadata?.checklist_items || []).join("\n"),
-      photo_required: Boolean(task.photo_required || task.metadata?.photo_required),
-      qr_required: Boolean(task.qr_required || task.metadata?.qr_required),
-      gps_required: Boolean(task.gps_required || task.metadata?.gps_required),
+      template_kind: scope === "weekly" ? "weekly" : "daily",
+      is_opening_day_task: scope === "opening_day" || Boolean(task.metadata?.is_opening_day_task),
+      is_template_record: !task.status && Boolean(task.template_kind || task.metadata?.template_kind),
     });
     setPanelOpen(true);
   };
 
   const saveTask = () => runAction("save-task", async () => {
+    const templateKind = form.template_kind === "weekly" ? "weekly" : "daily";
+    const taskType = templateKind === "weekly" ? "weekly" : form.is_opening_day_task ? "opening_day" : "daily";
     const payload = {
       title: form.title,
       description: form.description,
-      employee_id: form.employee_id || null,
       branch_id: form.branch_id || null,
       priority: form.priority,
-      due_at: form.due_at ? new Date(form.due_at).toISOString() : null,
-      frequency: form.frequency,
-      weekdays: form.weekdays,
-      day_of_month: form.day_of_month || null,
-      requires_checkin: form.requires_checkin,
-      requires_photo: form.photo_required,
-      requires_qr: form.qr_required,
-      requires_gps: form.gps_required,
-      auto_assign_enabled: form.auto_assign_enabled,
-      assignment_strategy: form.assignment_strategy,
-      fixed_employee_id: form.assignment_strategy === "fixed_employee" ? form.fixed_employee_id || form.employee_id || null : null,
-      save_as_template: form.frequency !== "one_time",
-      checklist_items: form.checklist_items.split(/\r?\n/).map((item) => item.trim()).filter(Boolean),
-      photo_required: form.photo_required,
-      qr_required: form.qr_required,
-      gps_required: form.gps_required,
-      recurring_rule: { frequency: form.frequency || "one_time", weekdays: form.weekdays, day_of_month: form.day_of_month || null },
-      metadata: { recurring_rule: { frequency: form.frequency || "one_time", weekdays: form.weekdays, day_of_month: form.day_of_month || null }, assignment_strategy: form.auto_assign_enabled ? form.assignment_strategy : null },
+      frequency: templateKind,
+      template_kind: templateKind,
+      is_opening_day_task: templateKind === "daily" ? Boolean(form.is_opening_day_task) : false,
+      task_type: taskType,
+      save_as_template: true,
+      auto_assign_enabled: false,
+      requires_checkin: false,
+      requires_photo: false,
+      requires_qr: false,
+      requires_gps: false,
+      recurring_rule: { frequency: templateKind },
+      metadata: { template_kind: templateKind, is_opening_day_task: templateKind === "daily" ? Boolean(form.is_opening_day_task) : false, task_kind: taskType },
     };
-    if (form.id) {
+    if (form.is_template_record) {
+      await staffTasksApi.updateTemplate(form.id, payload);
+      toast.success(tr("taskUpdated"));
+    } else if (form.id) {
       await staffTasksApi.update(form.id, payload);
       toast.success(tr("taskUpdated"));
     } else {
@@ -577,13 +586,24 @@ function StaffTasks() {
           <button
             type="button"
             onClick={() => {
-              setForm(emptyForm);
+              setForm({ ...emptyForm, template_kind: "daily", is_opening_day_task: false });
               setPanelOpen(true);
             }}
             className="inline-flex h-11 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-black text-white"
           >
             <Plus className="h-4 w-4" />
-            {tr("newTask")}
+            {tr("addDailyTask")}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setForm({ ...emptyForm, template_kind: "weekly", is_opening_day_task: false });
+              setPanelOpen(true);
+            }}
+            className="inline-flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 text-sm font-black text-[var(--text)] hover:bg-[var(--surface-soft)]"
+          >
+            <Plus className="h-4 w-4" />
+            {tr("addWeeklyTask")}
           </button>
           <button
             type="button"
@@ -633,12 +653,8 @@ function StaffTasks() {
               <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-2">
             <input value={form.title} onChange={(e) => setForm((v) => ({ ...v, title: e.target.value }))} placeholder={tr("taskTitle")} className="h-11 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-start text-sm font-semibold text-[var(--text)] outline-none" />
-            <select value={form.employee_id} onChange={(e) => setForm((v) => ({ ...v, employee_id: e.target.value }))} className="h-11 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
-              <option value="">{tr("unassigned")}</option>
-              {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name || employee.employee_code}</option>)}
-            </select>
             <select value={form.branch_id} onChange={(e) => setForm((v) => ({ ...v, branch_id: e.target.value }))} className="h-11 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
               <option value="">{tr("anyBranch")}</option>
               {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name || branch.branch_name}</option>)}
@@ -646,41 +662,20 @@ function StaffTasks() {
             <select value={form.priority} onChange={(e) => setForm((v) => ({ ...v, priority: e.target.value }))} className="h-11 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
               {["low", "medium", "high", "critical"].map((item) => <option key={item} value={item}>{priorityLabel(item, language)}</option>)}
             </select>
-            <input type="datetime-local" value={form.due_at} onChange={(e) => setForm((v) => ({ ...v, due_at: e.target.value }))} className="h-11 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none" />
-            <select value={form.frequency} onChange={(e) => setForm((v) => ({ ...v, frequency: e.target.value }))} className="h-11 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
-              {frequencyOptions.map((item) => <option key={item} value={item}>{tr(item)}</option>)}
-            </select>
-            <select value={form.assignment_strategy} onChange={(e) => setForm((v) => ({ ...v, assignment_strategy: e.target.value }))} className="h-11 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
-              {assignmentStrategies.map((item) => <option key={item} value={item}>{tr(item)}</option>)}
-            </select>
-            {form.frequency === "monthly" ? (
-              <input type="number" min="1" max="31" value={form.day_of_month} onChange={(e) => setForm((v) => ({ ...v, day_of_month: e.target.value }))} placeholder={tr("dayOfMonth")} className="h-11 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none" />
-            ) : null}
-            <label className="flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-bold text-[var(--text)]"><input type="checkbox" checked={form.auto_assign_enabled} onChange={(e) => setForm((v) => ({ ...v, auto_assign_enabled: e.target.checked }))} /> {tr("autoAssignEnabled")}</label>
-            <label className="flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-bold text-[var(--text)]"><input type="checkbox" checked={form.requires_checkin} onChange={(e) => setForm((v) => ({ ...v, requires_checkin: e.target.checked }))} /> {tr("requiresCheckin")}</label>
-            <label className="flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-bold text-[var(--text)]"><input type="checkbox" checked={form.photo_required} onChange={(e) => setForm((v) => ({ ...v, photo_required: e.target.checked }))} /> {tr("photoProof")}</label>
-            <label className="flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-bold text-[var(--text)]"><input type="checkbox" checked={form.qr_required} onChange={(e) => setForm((v) => ({ ...v, qr_required: e.target.checked }))} /> {tr("qrVerification")}</label>
-            <label className="flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-bold text-[var(--text)]"><input type="checkbox" checked={form.gps_required} onChange={(e) => setForm((v) => ({ ...v, gps_required: e.target.checked }))} /> {tr("gpsValidation")}</label>
-            {form.frequency === "weekly" ? (
-              <div className="flex min-h-11 flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 md:col-span-2">
-                <span className="me-1 text-xs font-black text-[var(--muted)]">{tr("weekdays")}</span>
-                {weekdayOptions.map((day) => (
-                  <label key={day.value} className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)] px-2 py-1 text-xs font-bold">
-                    <input
-                      type="checkbox"
-                      checked={form.weekdays.includes(day.value)}
-                      onChange={(event) => setForm((value) => ({
-                        ...value,
-                        weekdays: event.target.checked ? [...value.weekdays, day.value].sort() : value.weekdays.filter((item) => item !== day.value),
-                      }))}
-                    />
-                    {day.label}
-                  </label>
-                ))}
+            <div className="flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-black text-[var(--muted)]">
+              {form.template_kind === "daily" ? taskLabel(language, "dailyTask") : taskLabel(language, "weeklyTask")}
+            </div>
+            {form.template_kind === "daily" ? (
+              <label className="flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-bold text-[var(--text)]">
+                <input type="checkbox" checked={form.is_opening_day_task} onChange={(e) => setForm((v) => ({ ...v, is_opening_day_task: e.target.checked }))} />
+                {taskLabel(language, "openingDayTask")}
+              </label>
+            ) : (
+              <div className="flex h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-black text-[var(--muted)]">
+                {taskLabel(language, "automaticDistribution")}
               </div>
-            ) : null}
+            )}
             <textarea value={form.description} onChange={(e) => setForm((v) => ({ ...v, description: e.target.value }))} placeholder={tr("taskDetails")} className="min-h-24 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-3 text-start text-sm font-semibold text-[var(--text)] outline-none md:col-span-2" />
-            <textarea value={form.checklist_items} onChange={(e) => setForm((v) => ({ ...v, checklist_items: e.target.value }))} placeholder={tr("checklistItems")} className="min-h-24 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-3 text-start text-sm font-semibold text-[var(--text)] outline-none md:col-span-2" />
           </div>
           <div className="mt-4 flex justify-end">
             <button type="button" disabled={busy === "save-task" || !form.title.trim()} onClick={saveTask} className="inline-flex h-11 items-center gap-2 rounded-xl bg-[var(--primary)] px-4 text-sm font-black text-white disabled:opacity-60">
@@ -742,6 +737,62 @@ function StaffTasks() {
         })}
       </div>
 
+      <section className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4">
+        <div className="flex flex-col gap-4 lg:flex-row">
+          <div className="min-w-0 flex-1">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-base font-black text-[var(--text)]">{tr("dailyTemplates")}</h2>
+              <Pill className="border-emerald-300/40 bg-emerald-500/10 text-emerald-700">{dailyTemplates.length}</Pill>
+            </div>
+            <div className="grid gap-2">
+              {dailyTemplates.length ? dailyTemplates.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  onClick={() => editTask({ ...template, task_type: template.is_opening_day_task ? "opening_day" : "daily", metadata: { ...template.metadata, template_kind: "daily", is_opening_day_task: template.is_opening_day_task } })}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-start"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-black text-[var(--text)]" dir="auto">{localizedTaskText(template, "title", language) || template.title}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-[var(--muted)]">
+                      <Pill className={priorityClass[template.priority] || priorityClass.medium}>{priorityLabel(template.priority, language)}</Pill>
+                      {template.is_opening_day_task ? <Pill className="border-emerald-300/40 bg-emerald-500/10 text-emerald-700">{taskLabel(language, "openingDayTask")}</Pill> : null}
+                    </div>
+                  </div>
+                  <span className="text-xs font-black text-[var(--primary)]">{tr("edit")}</span>
+                </button>
+              )) : <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-sm font-semibold text-[var(--muted)]">{tr("noTasksMatch")}</div>}
+            </div>
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-base font-black text-[var(--text)]">{tr("weeklyTemplates")}</h2>
+              <Pill className="border-sky-300/40 bg-sky-500/10 text-sky-700">{weeklyTemplates.length}</Pill>
+            </div>
+            <div className="grid gap-2">
+              {weeklyTemplates.length ? weeklyTemplates.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  onClick={() => editTask({ ...template, task_type: "weekly", metadata: { ...template.metadata, template_kind: "weekly" } })}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-start"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-black text-[var(--text)]" dir="auto">{localizedTaskText(template, "title", language) || template.title}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-[var(--muted)]">
+                      <Pill className={priorityClass[template.priority] || priorityClass.medium}>{priorityLabel(template.priority, language)}</Pill>
+                      <Pill className="border-sky-300/40 bg-sky-500/10 text-sky-700">{taskLabel(language, "weeklyTask")}</Pill>
+                    </div>
+                  </div>
+                  <span className="text-xs font-black text-[var(--primary)]">{tr("edit")}</span>
+                </button>
+              )) : <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-sm font-semibold text-[var(--muted)]">{tr("noTasksMatch")}</div>}
+            </div>
+          </div>
+        </div>
+      </section>
+
       <div className="grid gap-5 xl:grid-cols-[1fr_22rem]">
         <section className="min-w-0 rounded-2xl border border-[var(--border)] bg-[var(--card)]">
           <div className="grid gap-3 border-b border-[var(--border)] p-4 md:grid-cols-3 xl:grid-cols-6">
@@ -763,7 +814,7 @@ function StaffTasks() {
           </div>
           <div className="flex flex-col gap-3 border-b border-[var(--border)] p-4">
             <div>
-              <h2 className="text-base font-black text-[var(--text)]">{tr("taskQueue")}</h2>
+              <h2 className="text-base font-black text-[var(--text)]">{tr("todayTasks")}</h2>
               <p className="mt-1 text-sm text-[var(--muted)]">{loading ? tr("loadingTasks") : `${filteredTasks.length} ${tr("visibleTasks")}`}</p>
             </div>
             <div className="grid gap-2 md:grid-cols-5">

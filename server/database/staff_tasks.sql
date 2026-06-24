@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS staff_task_templates (
   priority VARCHAR(20) NOT NULL DEFAULT 'medium',
   default_deadline_minutes INTEGER NOT NULL DEFAULT 480,
   recurrence VARCHAR(30) NOT NULL DEFAULT 'manual',
+  template_kind VARCHAR(20) NOT NULL DEFAULT 'manual',
+  is_opening_day_task BOOLEAN NOT NULL DEFAULT FALSE,
   source_module VARCHAR(80) NOT NULL DEFAULT 'operations',
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
@@ -147,6 +149,8 @@ ALTER TABLE IF EXISTS staff_task_notification_queue ADD COLUMN IF NOT EXISTS ded
 ALTER TABLE IF EXISTS staff_task_templates ADD COLUMN IF NOT EXISTS title_ar TEXT;
 ALTER TABLE IF EXISTS staff_task_templates ADD COLUMN IF NOT EXISTS description_ar TEXT;
 ALTER TABLE IF EXISTS staff_task_templates ADD COLUMN IF NOT EXISTS notes_ar TEXT;
+ALTER TABLE IF EXISTS staff_task_templates ADD COLUMN IF NOT EXISTS template_kind VARCHAR(20) NOT NULL DEFAULT 'manual';
+ALTER TABLE IF EXISTS staff_task_templates ADD COLUMN IF NOT EXISTS is_opening_day_task BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE IF EXISTS staff_task_assignments ADD COLUMN IF NOT EXISTS title_ar TEXT;
 ALTER TABLE IF EXISTS staff_task_assignments ADD COLUMN IF NOT EXISTS description_ar TEXT;
 ALTER TABLE IF EXISTS staff_task_assignments ADD COLUMN IF NOT EXISTS notes_ar TEXT;

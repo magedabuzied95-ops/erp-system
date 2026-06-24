@@ -11,6 +11,7 @@ const TASK_STATUSES = new Set(["pending", "in_progress", "completed", "overdue",
 const STRICT_TASK_STATUSES = new Set(["pending", "in_progress", "completed", "overdue", "cancelled", "rejected"]);
 const TASK_PRIORITIES = new Set(["low", "medium", "high", "critical"]);
 const TASK_FREQUENCIES = new Set(["one_time", "daily", "weekly", "monthly"]);
+const TEMPLATE_KINDS = new Set(["manual", "daily", "weekly"]);
 const ASSIGNMENT_STRATEGIES = new Set(["attendance_first_checkin", "first_checked_in", "round_robin", "least_tasks_today", "fixed_employee"]);
 const OPEN_STATUSES = ["pending", "in_progress", "overdue"];
 const ATTENDANCE_TASK_SOURCE = "branch_qr_attendance";
@@ -48,6 +49,10 @@ const normalizeAutoAssignMode = (value = "") => {
   const mode = text(value).toLowerCase();
   if (mode === "attendance_first_checkin" || mode === "first_checked_in") return "attendance_first_checkin";
   return mode || null;
+};
+const normalizeTemplateKind = (value = "manual") => {
+  const kind = text(value || "manual").toLowerCase();
+  return TEMPLATE_KINDS.has(kind) ? kind : "manual";
 };
 const normalizeWeekdays = (value = []) => {
   const raw = Array.isArray(value) ? value : String(value || "").split(",");
@@ -94,6 +99,14 @@ const dateKey = (value = null) => {
   }
   return String(value).slice(0, 10);
 };
+const weekStartKey = (value = null) => {
+  const source = value instanceof Date ? value : new Date(`${dateKey(value)}T12:00:00`);
+  if (Number.isNaN(source.getTime())) return dateKey(value);
+  const day = source.getDay();
+  const offset = (day + 6) % 7;
+  source.setDate(source.getDate() - offset);
+  return dateKey(source);
+};
 
 export const resolveTaskTenantId = (reqOrUser = {}) => {
   const user = reqOrUser.user || reqOrUser;
@@ -136,6 +149,8 @@ export const ensureStaffTasksSchema = async (clientOrPool = db) => {
       priority VARCHAR(20) NOT NULL DEFAULT 'medium',
       default_deadline_minutes INTEGER NOT NULL DEFAULT 480,
       recurrence VARCHAR(30) NOT NULL DEFAULT 'manual',
+      template_kind VARCHAR(20) NOT NULL DEFAULT 'manual',
+      is_opening_day_task BOOLEAN NOT NULL DEFAULT FALSE,
       source_module VARCHAR(80) NOT NULL DEFAULT 'operations',
       is_active BOOLEAN NOT NULL DEFAULT TRUE,
       created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
@@ -282,6 +297,8 @@ export const ensureStaffTasksSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS staff_task_templates ADD COLUMN IF NOT EXISTS recurring_rule JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS staff_task_templates ADD COLUMN IF NOT EXISTS branch_id BIGINT NULL REFERENCES branches(id) ON DELETE SET NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS staff_task_templates ADD COLUMN IF NOT EXISTS frequency VARCHAR(30) NOT NULL DEFAULT 'one_time'`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS staff_task_templates ADD COLUMN IF NOT EXISTS template_kind VARCHAR(20) NOT NULL DEFAULT 'manual'`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS staff_task_templates ADD COLUMN IF NOT EXISTS is_opening_day_task BOOLEAN NOT NULL DEFAULT FALSE`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS staff_task_templates ADD COLUMN IF NOT EXISTS weekdays JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS staff_task_templates ADD COLUMN IF NOT EXISTS day_of_month INTEGER NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS staff_task_templates ADD COLUMN IF NOT EXISTS requires_checkin BOOLEAN NOT NULL DEFAULT FALSE`);
@@ -656,7 +673,6 @@ export const getEmployeePortal = async (token = "") => {
       employee_id: session.employee_id,
       branch_id: session.branch_id || null,
       include_branch_unassigned: true,
-      assigned_date: "today",
       limit: 200,
     },
     {}
@@ -1222,6 +1238,7 @@ const templatePayloadFromTaskPayload = (payload = {}, actor = {}) => {
   const dayOfMonth = normalizeDayOfMonth(payload.day_of_month ?? payload.dayOfMonth ?? payload.recurring_rule?.day_of_month ?? payload.recurringRule?.dayOfMonth);
   const assignmentStrategy = normalizeAssignmentStrategy(payload.assignment_strategy ?? payload.assignmentStrategy);
   const autoAssignMode = normalizeAutoAssignMode(payload.auto_assign_mode ?? payload.autoAssignMode ?? payload.metadata?.auto_assign_mode ?? assignmentStrategy);
+  const templateKind = normalizeTemplateKind(payload.template_kind ?? payload.templateKind ?? payload.metadata?.template_kind ?? "manual");
   return {
     tenantId: payload.tenantId ?? payload.tenant_id ?? resolveTaskTenantId(actor),
     title: text(payload.title),
@@ -1233,6 +1250,8 @@ const templatePayloadFromTaskPayload = (payload = {}, actor = {}) => {
     deadlineMinutes: Math.max(Number(payload.default_deadline_minutes ?? payload.deadlineMinutes ?? 480), 15),
     branchId: numberOrNull(payload.branch_id ?? payload.branchId),
     frequency,
+    templateKind,
+    isOpeningDayTask: booleanValue(payload.is_opening_day_task ?? payload.isOpeningDayTask ?? payload.metadata?.is_opening_day_task, false),
     weekdays,
     dayOfMonth,
     requiresCheckin: booleanValue(payload.requires_checkin ?? payload.requiresCheckin, false),
@@ -1276,24 +1295,26 @@ export const saveStaffTaskTemplate = async (payload = {}, actor = {}) => {
             branch_id = $8::bigint,
             recurrence = $9::text,
             frequency = $9::text,
-            weekdays = $10::jsonb,
-            day_of_month = $11::integer,
-            requires_checkin = $12::boolean,
-            requires_photo = $13::boolean,
-            requires_qr = $14::boolean,
-            requires_gps = $15::boolean,
-            photo_required = $13::boolean,
-            qr_required = $14::boolean,
-            gps_required = $15::boolean,
-            auto_assign_enabled = $16::boolean,
-            assignment_strategy = $17::text,
-            auto_assign_mode = $18::text,
-            fixed_employee_id = $19::bigint,
-            checklist_items = $20::jsonb,
-            recurring_rule = recurring_rule || $21::jsonb,
+            template_kind = $10::text,
+            is_opening_day_task = $11::boolean,
+            weekdays = $12::jsonb,
+            day_of_month = $13::integer,
+            requires_checkin = $14::boolean,
+            requires_photo = $15::boolean,
+            requires_qr = $16::boolean,
+            requires_gps = $17::boolean,
+            photo_required = $15::boolean,
+            qr_required = $16::boolean,
+            gps_required = $17::boolean,
+            auto_assign_enabled = $18::boolean,
+            assignment_strategy = $19::text,
+            auto_assign_mode = $20::text,
+            fixed_employee_id = $21::bigint,
+            checklist_items = $22::jsonb,
+            recurring_rule = recurring_rule || $23::jsonb,
             updated_at = NOW()
-        WHERE id = $22::bigint
-          AND ($23::bigint IS NULL OR tenant_id = $23::bigint)
+        WHERE id = $24::bigint
+          AND ($25::bigint IS NULL OR tenant_id = $25::bigint)
         RETURNING *
         `,
         [
@@ -1304,8 +1325,10 @@ export const saveStaffTaskTemplate = async (payload = {}, actor = {}) => {
           data.taskType,
           data.priority,
           data.deadlineMinutes,
-          data.branchId,
           data.frequency,
+          data.branchId,
+          data.templateKind,
+          data.isOpeningDayTask,
           JSON.stringify(data.weekdays),
           data.dayOfMonth,
           data.requiresCheckin,
@@ -1326,12 +1349,12 @@ export const saveStaffTaskTemplate = async (payload = {}, actor = {}) => {
         `
         INSERT INTO staff_task_templates (
           tenant_id, title, description, title_ar, description_ar, task_type, priority,
-          default_deadline_minutes, recurrence, source_module, branch_id, frequency, weekdays,
+          default_deadline_minutes, recurrence, source_module, branch_id, frequency, template_kind, is_opening_day_task, weekdays,
           day_of_month, requires_checkin, requires_photo, requires_qr, requires_gps,
           photo_required, qr_required, gps_required, auto_assign_enabled, assignment_strategy,
           auto_assign_mode, fixed_employee_id, checklist_items, recurring_rule, created_by
         )
-        VALUES ($1::bigint,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::integer,$9::text,'operations',$10::bigint,$9::text,$11::jsonb,$12::integer,$13::boolean,$14::boolean,$15::boolean,$16::boolean,$14::boolean,$15::boolean,$16::boolean,$17::boolean,$18::text,$19::text,$20::bigint,$21::jsonb,$22::jsonb,$23::bigint)
+        VALUES ($1::bigint,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::integer,$9::text,'operations',$10::bigint,$9::text,$11::text,$12::boolean,$13::jsonb,$14::integer,$15::boolean,$16::boolean,$17::boolean,$18::boolean,$16::boolean,$17::boolean,$18::boolean,$19::boolean,$20::text,$21::text,$22::bigint,$23::jsonb,$24::jsonb,$25::bigint)
         RETURNING *
         `,
         [
@@ -1345,6 +1368,8 @@ export const saveStaffTaskTemplate = async (payload = {}, actor = {}) => {
           data.deadlineMinutes,
           data.frequency,
           data.branchId,
+          data.templateKind,
+          data.isOpeningDayTask,
           JSON.stringify(data.weekdays),
           data.dayOfMonth,
           data.requiresCheckin,
@@ -1373,7 +1398,10 @@ export const saveStaffTaskTemplate = async (payload = {}, actor = {}) => {
 };
 
 const isTemplateDueOnDate = (template = {}, dueDate = dateKey()) => {
+  const templateKind = normalizeTemplateKind(template.template_kind || template.metadata?.template_kind);
   const frequency = normalizeFrequency(template.frequency || template.recurrence);
+  if (templateKind === "daily") return true;
+  if (templateKind === "weekly") return true;
   if (frequency === "one_time") return false;
   const date = new Date(`${dueDate}T12:00:00`);
   if (frequency === "daily") return true;
@@ -1402,7 +1430,7 @@ export const generateDueTaskInstancesFromTemplates = async ({ tenantId = null, d
     ORDER BY id ASC
     `,
     params
-  );
+    );
   const created = [];
   const skipped = [];
   for (const template of templatesResult.rows) {
@@ -1410,9 +1438,17 @@ export const generateDueTaskInstancesFromTemplates = async ({ tenantId = null, d
       skipped.push({ template_id: template.id, reason: "not_due" });
       continue;
     }
+    const templateKind = normalizeTemplateKind(template.template_kind || template.metadata?.template_kind);
+    const isOpeningDayTask = Boolean(template.is_opening_day_task || template.metadata?.is_opening_day_task);
+    const scheduleDate = templateKind === "weekly" ? weekStartKey(dueDate) : dateKey(dueDate);
+    const sourceRefType = templateKind === "daily" ? "daily_task_template" : templateKind === "weekly" ? "weekly_task_template" : "task_template";
+    const taskType = templateKind === "daily" ? (isOpeningDayTask ? "opening_day" : "daily") : templateKind === "weekly" ? "weekly" : template.task_type;
     const autoAssignEnabled = Boolean(template.auto_assign_enabled);
     const metadata = {
       recurring_template: true,
+      template_kind: templateKind,
+      is_opening_day_task: isOpeningDayTask,
+      week_key: templateKind === "weekly" ? scheduleDate : null,
       recurring_rule: {
         frequency: template.frequency || template.recurrence,
         weekdays: normalizeWeekdays(template.weekdays || template.recurring_rule?.weekdays),
@@ -1438,11 +1474,11 @@ export const generateDueTaskInstancesFromTemplates = async ({ tenantId = null, d
       description: template.description,
       title_ar: template.title_ar,
       description_ar: template.description_ar,
-      task_type: template.task_type,
-      source_module: "recurring_task_template",
-      source_ref_type: "task_template",
-      source_ref_id: String(template.id),
-      assigned_date: dueDate,
+      task_type: taskType,
+      source_module: templateKind === "daily" || templateKind === "weekly" ? ATTENDANCE_TASK_SOURCE : "recurring_task_template",
+      source_ref_type: sourceRefType,
+      source_ref_id: `${template.id}:${scheduleDate}`,
+      assigned_date: scheduleDate,
       priority: template.priority,
       default_deadline_minutes: template.default_deadline_minutes,
       auto_assigned: false,
@@ -1456,7 +1492,7 @@ export const generateDueTaskInstancesFromTemplates = async ({ tenantId = null, d
     console.log("[task-instance-generate]", {
       template_id: template.id,
       task_id: result.task.id,
-      due_date: dueDate,
+      due_date: scheduleDate,
       branch_id: template.branch_id,
       assigned_employee_id: result.task.current_assignee_id || null,
       assignment_state: metadata.assignment_state,
@@ -1891,6 +1927,53 @@ export const listStaffTasks = async (filters = {}, user = {}) => {
     params
   );
   return result.rows.map(normalizeTaskRow);
+};
+
+export const listStaffTaskTemplates = async (filters = {}, user = {}) => {
+  await ensureStaffTasksSchema();
+  const tenantId = filters.tenantId ?? resolveTaskTenantId(user);
+  const params = [tenantId];
+  const clauses = ["($1::bigint IS NULL OR tenant_id = $1::bigint)"];
+  if (filters.template_kind || filters.templateKind) {
+    const templateKinds = String(filters.template_kind || filters.templateKind)
+      .split(",")
+      .map((item) => normalizeTemplateKind(item))
+      .filter(Boolean);
+    if (templateKinds.length) {
+      params.push(templateKinds);
+      clauses.push(`template_kind = ANY($${params.length}::text[])`);
+    }
+  } else {
+    clauses.push(`template_kind IN ('daily','weekly')`);
+  }
+  if (filters.branch_id || filters.branchId) {
+    params.push(filters.branch_id || filters.branchId);
+    clauses.push(`(branch_id = $${params.length}::bigint OR branch_id IS NULL)`);
+  }
+  if (filters.search) {
+    params.push(`%${text(filters.search).toLowerCase()}%`);
+    clauses.push(`LOWER(CONCAT_WS(' ', title, description, task_type, template_kind)) LIKE $${params.length}`);
+  }
+  const limit = Math.min(Math.max(Number(filters.limit || 200), 1), 500);
+  params.push(limit);
+  const result = await db.query(
+    `
+    SELECT *
+    FROM staff_task_templates
+    WHERE ${clauses.join(" AND ")}
+    ORDER BY
+      CASE template_kind WHEN 'daily' THEN 0 WHEN 'weekly' THEN 1 ELSE 2 END,
+      CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+      id DESC
+    LIMIT $${params.length}
+    `,
+    params
+  );
+  return result.rows.map((row) => ({
+    ...row,
+    template_kind: normalizeTemplateKind(row.template_kind),
+    is_opening_day_task: Boolean(row.is_opening_day_task),
+  }));
 };
 
 export const updateStaffTaskDetails = async (taskId, payload = {}, actor = {}) => {
@@ -2485,6 +2568,262 @@ const createDailyAttendanceTasksForPresentEmployees = async ({ tenantId, branchI
   return created;
 };
 
+const claimAttendanceTaskForEmployee = async (client, task, assignee, metadata = {}) => {
+  const updated = await client.query(
+    `
+    UPDATE staff_task_assignments
+    SET current_assignee_id = $1::bigint,
+        assigned_employee_id = $1::bigint,
+        assigned_user_id = $2::bigint,
+        auto_assigned = TRUE,
+        assigned_at = NOW(),
+        assignment_source = 'attendance_checkin_auto',
+        assignment_event_id = $3::bigint,
+        auto_assign_mode = COALESCE($4::text, auto_assign_mode, 'attendance_first_checkin'),
+        metadata = metadata || $5::jsonb,
+        updated_at = NOW()
+    WHERE id = $6::bigint
+      AND current_assignee_id IS NULL
+      AND assigned_employee_id IS NULL
+      AND status = 'pending'
+    RETURNING *
+    `,
+    [
+      assignee.id,
+      assignee.user_id || null,
+      metadata.assignment_event_id || null,
+      metadata.auto_assign_mode || "attendance_first_checkin",
+      JSON.stringify(metadata),
+      task.id,
+    ]
+  );
+  if (!updated.rows[0]) return null;
+  await logTaskHistory(client, {
+    tenantId: task.tenant_id,
+    taskId: task.id,
+    action: "auto_assigned",
+    fromStatus: task.status,
+    toStatus: "pending",
+    fromEmployeeId: task.current_assignee_id,
+    toEmployeeId: assignee.id,
+    note: metadata.note || "Assigned automatically after attendance check-in",
+    metadata,
+  });
+  return updated.rows[0];
+};
+
+const assignDailyAttendanceTasksForCheckIn = async ({ tenantId, branchId, attendanceDate, presentEmployees, attendanceEventId = null }) => {
+  if (!presentEmployees.length) return [];
+  const client = await db.connect();
+  const created = [];
+  try {
+    await client.query("BEGIN");
+    await generateDueTaskInstancesFromTemplates({ tenantId, dueDate: attendanceDate });
+    const taskResult = await client.query(
+      `
+      SELECT sta.*, COALESCE(st.is_opening_day_task, FALSE) AS is_opening_day_task
+      FROM staff_task_assignments sta
+      LEFT JOIN staff_task_templates st ON st.id = sta.template_id
+      WHERE sta.tenant_id = $1
+        AND sta.branch_id = $2
+        AND sta.assigned_date = $3::date
+        AND sta.source_module = $4
+        AND sta.source_ref_type = 'daily_task_template'
+        AND sta.current_assignee_id IS NULL
+        AND sta.assigned_employee_id IS NULL
+        AND sta.status = 'pending'
+      ORDER BY COALESCE(st.is_opening_day_task, FALSE) DESC, CASE sta.priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, sta.id ASC
+      FOR UPDATE SKIP LOCKED
+      `,
+      [tenantId, branchId, attendanceDate, ATTENDANCE_TASK_SOURCE]
+    );
+
+    const openingEmployee = presentEmployees[0] || null;
+    const normalEmployees = presentEmployees.length > 1 ? presentEmployees.slice(1) : presentEmployees.slice();
+    const countsResult = await client.query(
+      `
+      SELECT current_assignee_id AS employee_id, COUNT(*)::int AS task_count
+      FROM staff_task_assignments
+      WHERE tenant_id = $1
+        AND branch_id = $2
+        AND assigned_date = $3::date
+        AND source_module = $4
+        AND source_ref_type = 'daily_task_template'
+        AND task_type = 'daily'
+        AND current_assignee_id IS NOT NULL
+        AND status <> 'cancelled'
+      GROUP BY current_assignee_id
+      `,
+      [tenantId, branchId, attendanceDate, ATTENDANCE_TASK_SOURCE]
+    );
+    const dailyCounts = new Map(countsResult.rows.map((row) => [String(row.employee_id), Number(row.task_count || 0)]));
+
+    for (const task of taskResult.rows.filter((row) => Boolean(row.is_opening_day_task || row.task_type === "opening_day"))) {
+      if (!openingEmployee) break;
+      const updated = await claimAttendanceTaskForEmployee(client, task, openingEmployee, {
+        assignment_reason: "opening_day",
+        attendance_date: attendanceDate,
+        branch_id: branchId,
+        template_kind: "daily",
+        is_opening_day_task: true,
+        task_kind: "opening_day",
+        assignment_event_id: attendanceEventId,
+        source: "attendance_qr",
+      });
+      if (updated) {
+        created.push(updated);
+        dailyCounts.set(String(openingEmployee.id), Number(dailyCounts.get(String(openingEmployee.id)) || 0) + 1);
+      }
+    }
+
+    const normalTasks = taskResult.rows.filter((row) => !Boolean(row.is_opening_day_task || row.task_type === "opening_day"));
+    for (const task of normalTasks) {
+      const candidatePool = normalEmployees.length ? normalEmployees : presentEmployees;
+      if (!candidatePool.length) break;
+      const assignee = candidatePool.slice().sort((a, b) => {
+        const aCount = Number(dailyCounts.get(String(a.id)) || 0);
+        const bCount = Number(dailyCounts.get(String(b.id)) || 0);
+        if (aCount !== bCount) return aCount - bCount;
+        const aTime = new Date(a.check_in_at || a.check_in || 0).getTime();
+        const bTime = new Date(b.check_in_at || b.check_in || 0).getTime();
+        if (aTime !== bTime) return aTime - bTime;
+        return Number(a.id || 0) - Number(b.id || 0);
+      })[0];
+      const updated = await claimAttendanceTaskForEmployee(client, task, assignee, {
+        assignment_reason: "daily_distribution",
+        attendance_date: attendanceDate,
+        branch_id: branchId,
+        template_kind: "daily",
+        is_opening_day_task: false,
+        task_kind: "daily",
+        assignment_event_id: attendanceEventId,
+        source: "attendance_qr",
+      });
+      if (updated) {
+        created.push(updated);
+        dailyCounts.set(String(assignee.id), Number(dailyCounts.get(String(assignee.id)) || 0) + 1);
+      }
+    }
+
+    await client.query("COMMIT");
+    for (const task of created) {
+      const assignee = presentEmployees.find((employee) => String(employee.id) === String(task.current_assignee_id));
+      if (assignee) {
+        await notifyTaskAssignment(db, task, assignee, "task_assigned");
+      }
+    }
+    return created.map((task) => normalizeTaskRow(task));
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+const assignWeeklyAttendanceTasksForCheckIn = async ({ tenantId, branchId, attendanceDate, presentEmployees, attendanceEventId = null }) => {
+  const client = await db.connect();
+  const created = [];
+  const weekStart = weekStartKey(attendanceDate);
+  try {
+    await client.query("BEGIN");
+    await generateDueTaskInstancesFromTemplates({ tenantId, dueDate: attendanceDate });
+    const taskResult = await client.query(
+      `
+      SELECT sta.*
+      FROM staff_task_assignments sta
+      WHERE sta.tenant_id = $1
+        AND sta.branch_id = $2
+        AND sta.assigned_date = $3::date
+        AND sta.source_module = $4
+        AND sta.source_ref_type = 'weekly_task_template'
+        AND sta.current_assignee_id IS NULL
+        AND sta.assigned_employee_id IS NULL
+        AND sta.status = 'pending'
+      ORDER BY CASE sta.priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, sta.id ASC
+      FOR UPDATE SKIP LOCKED
+      `,
+      [tenantId, branchId, weekStart, ATTENDANCE_TASK_SOURCE]
+    );
+    const candidateEmployees = presentEmployees.length
+      ? presentEmployees
+      : await getPresentBranchEmployees(db, { tenantId, branchId, attendanceDate });
+
+    for (const task of taskResult.rows) {
+      if (!candidateEmployees.length) break;
+      const history = await client.query(
+        `
+        SELECT current_assignee_id, source_ref_date
+        FROM staff_task_assignments
+        WHERE tenant_id = $1
+          AND template_id = $2
+          AND source_ref_type = 'weekly_task_template'
+          AND current_assignee_id IS NOT NULL
+          AND status <> 'cancelled'
+        ORDER BY source_ref_date DESC NULLS LAST, id DESC
+        LIMIT 20
+        `,
+        [tenantId, task.template_id]
+      );
+      const counts = await client.query(
+        `
+        SELECT current_assignee_id AS employee_id, COUNT(*)::int AS task_count
+        FROM staff_task_assignments
+        WHERE tenant_id = $1
+          AND template_id = $2
+          AND source_ref_type = 'weekly_task_template'
+          AND current_assignee_id IS NOT NULL
+          AND status <> 'cancelled'
+        GROUP BY current_assignee_id
+        `,
+        [tenantId, task.template_id]
+      );
+      const countMap = new Map(counts.rows.map((row) => [String(row.employee_id), Number(row.task_count || 0)]));
+      const lastAssigneeId = history.rows[0]?.current_assignee_id || null;
+      let pool = candidateEmployees.slice();
+      if (lastAssigneeId && pool.length > 1) {
+        const withoutLast = pool.filter((employee) => String(employee.id) !== String(lastAssigneeId));
+        if (withoutLast.length) pool = withoutLast;
+      }
+      const assignee = pool.sort((a, b) => {
+        const aCount = Number(countMap.get(String(a.id)) || 0);
+        const bCount = Number(countMap.get(String(b.id)) || 0);
+        if (aCount !== bCount) return aCount - bCount;
+        const aTime = new Date(a.check_in_at || a.check_in || 0).getTime();
+        const bTime = new Date(b.check_in_at || b.check_in || 0).getTime();
+        if (aTime !== bTime) return aTime - bTime;
+        return Number(a.id || 0) - Number(b.id || 0);
+      })[0];
+      const updated = await claimAttendanceTaskForEmployee(client, task, assignee, {
+        assignment_reason: "weekly_rotation",
+        attendance_date: attendanceDate,
+        branch_id: branchId,
+        template_kind: "weekly",
+        week_start: weekStart,
+        week_key: weekStart,
+        task_kind: "weekly",
+        assignment_event_id: attendanceEventId,
+        source: "attendance_qr",
+      });
+      if (updated) created.push(updated);
+    }
+
+    await client.query("COMMIT");
+    for (const task of created) {
+      const assignee = candidateEmployees.find((employee) => String(employee.id) === String(task.current_assignee_id));
+      if (assignee) {
+        await notifyTaskAssignment(db, task, assignee, "task_assigned");
+      }
+    }
+    return created.map((task) => normalizeTaskRow(task));
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 const assignBranchHotProductStockCounts = async ({ tenantId, branchId, attendanceDate, presentEmployees, limit = 5 }) => {
   if (!HOT_PRODUCT_COUNTS_ENABLED || !presentEmployees.length) return [];
 
@@ -2635,11 +2974,10 @@ const getEmployeeOpenTasksForDate = async ({ tenantId, employeeId, branchId, att
     WHERE sta.tenant_id = $1
       AND sta.current_assignee_id = $2
       AND sta.branch_id = $3
-      AND sta.assigned_date = $4::date
-      AND sta.status = ANY($5::text[])
+      AND sta.status = ANY($4::text[])
     ORDER BY sta.due_at NULLS LAST, sta.id ASC
     `,
-    [tenantId, employeeId, branchId, attendanceDate, OPEN_STATUSES]
+    [tenantId, employeeId, branchId, OPEN_STATUSES]
   );
   return result.rows.map(normalizeTaskRow);
 };
@@ -2794,11 +3132,19 @@ export const handleBranchQrCheckInStaffTasks = async ({ tenantId, branchId, empl
     attendanceEventId,
   });
 
-  const dailyTasks = await createDailyAttendanceTasksForPresentEmployees({
+  const dailyTasks = await assignDailyAttendanceTasksForCheckIn({
     tenantId: safeTenantId,
     branchId: safeBranchId,
     attendanceDate: safeDate,
     presentEmployees,
+  });
+
+  const weeklyTasks = await assignWeeklyAttendanceTasksForCheckIn({
+    tenantId: safeTenantId,
+    branchId: safeBranchId,
+    attendanceDate: safeDate,
+    presentEmployees,
+    attendanceEventId,
   });
 
   const stockTasks = await assignBranchHotProductStockCounts({
@@ -2844,6 +3190,7 @@ export const handleBranchQrCheckInStaffTasks = async ({ tenantId, branchId, empl
     generated_recurring_tasks: generatedRecurring.created.length,
     checkin_assigned_tasks: checkInAssigned.length,
     created_daily_tasks: dailyTasks.length,
+    created_weekly_tasks: weeklyTasks.length,
     created_stock_count_tasks: stockTasks.length,
     redistributed_tasks: redistributed.length,
     employee_task_count: employeeTasks.length,
