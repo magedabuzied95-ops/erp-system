@@ -5836,6 +5836,58 @@ export const getMetaPostCommentsDebugStatus = async ({ tenantId, postId = "" } =
   }
 };
 
+export const getMetaPagePostsDebugStatus = async ({ tenantId, limit = 20 } = {}) => {
+  const scopedTenantId = numberOrNull(tenantId);
+  const row = await getMetaIntegrationConfig({ tenantId: scopedTenantId });
+  const token = row ? getTokenForConfig(row) : "";
+  const pageId = text(row?.facebook_page_id || row?.page_id || "");
+  const safeLimit = Math.max(1, Math.min(20, numberOrNull(limit) || 20));
+
+  if (!pageId) {
+    return {
+      success: false,
+      posts: [],
+      graph_error: "Facebook page id is missing",
+    };
+  }
+
+  if (!token) {
+    return {
+      success: false,
+      posts: [],
+      graph_error: "Page access token is missing",
+    };
+  }
+
+  try {
+    const payload = await callMetaGet({
+      endpoint: `/${encodeURIComponent(pageId)}/posts`,
+      token,
+      params: {
+        fields: "id,message,created_time,permalink_url",
+        limit: String(safeLimit),
+      },
+    });
+    const posts = Array.isArray(payload?.data) ? payload.data.slice(0, safeLimit) : [];
+    return {
+      success: true,
+      posts,
+      graph_error: null,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      posts: [],
+      graph_error: {
+        message: error?.message || "Unable to load page posts",
+        status: error?.status || null,
+        code: error?.meta?.code || error?.code || "",
+        subcode: error?.meta?.error_subcode || "",
+      },
+    };
+  }
+};
+
 export const getMetaCapabilities = async ({ tenantId, req = null, live = true } = {}) => {
   const row = await getMetaIntegrationConfig({ tenantId });
   const config = row ? sanitizeConfig(row) : defaultPublicConfig(tenantId);

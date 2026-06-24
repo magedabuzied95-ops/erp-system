@@ -550,7 +550,7 @@ const { ensureAiInboxLeadActionsSchema } = await import("./services/aiInboxLeadA
 const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueTasks, sendUpcomingTaskDueReminders } = await import("./services/staffTasksService.js");
 const { processStaffTaskEmailQueue } = await import("./services/staffTaskEmailNotificationService.js");
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
-const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus } = await import("./services/metaIntegrationService.js");
+const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus } = await import("./services/metaIntegrationService.js");
 const { ensureSystemSettingsSchema } = await import("./services/settingsService.js");
 const { ensureSocialAutomationSettingsSchema } = await import("./services/socialAutomationSettingsService.js");
 
@@ -694,6 +694,23 @@ app.get("/api/debug/meta-post-comments", async (req, res) => {
     return res.status(error?.status || 500).json({
       success: false,
       message: error?.message || "Failed to load Meta post comments debug status",
+    });
+  }
+});
+app.get("/api/debug/meta-page-posts", async (req, res) => {
+  try {
+    const tenantId = Number(req.query?.tenant_id || req.user?.tenant_id || 1) || 1;
+    const limit = Number(req.query?.limit || 20) || 20;
+    const data = await getMetaPagePostsDebugStatus({ tenantId, limit });
+    return res.json({ success: true, data, ...data });
+  } catch (error) {
+    console.error("[meta-page-posts-debug] load failed", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+    });
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to load Meta page posts debug status",
     });
   }
 });
