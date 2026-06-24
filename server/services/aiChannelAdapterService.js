@@ -1751,14 +1751,22 @@ const postMetaPageMessage = async ({ payload, config }) => {
   const payloadType = payload?.message?.attachment?.type || (payload?.message?.text ? "text" : "unknown");
   console.log("[meta-send] preparing", {
     channel: config.channel || "",
+    provider: "meta",
     pageId: config.pageId ? maskSecret(config.pageId) : "",
     recipientId: payload?.recipient?.id ? maskSecret(payload.recipient.id) : "",
     tokenPresent: Boolean(config.pageAccessToken),
     payloadType,
     source: "aiChannelAdapterService",
   });
+  console.info("[meta-send] outbound payload", {
+    channel: config.channel || "",
+    provider: "meta",
+    payload,
+    source: "aiChannelAdapterService",
+  });
   console.log("[meta-send] calling graph API", {
     channel: config.channel || "",
+    provider: "meta",
     pageId: config.pageId ? maskSecret(config.pageId) : "",
     recipientId: payload?.recipient?.id ? maskSecret(payload.recipient.id) : "",
     tokenPresent: Boolean(config.pageAccessToken),

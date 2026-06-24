@@ -892,6 +892,8 @@ const buildShareAvailablePreviewSvg = ({ filters = {}, products = [], count = 0 
 </svg>`;
 };
 
+const buildShareAvailableFallbackSvg = (options = {}) => buildShareAvailablePreviewSvg(options);
+
 const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "", targetUrl = "", products = [] } = {}) => {
   const sizeLabel = filters.sizes?.length > 1 ? `المتاح بالمقاسات ${filters.sizes.join("، ")}` : `المتاح بالمقاس ${filters.sizes?.[0] || ""}`.trim();
   const title = escapeHtml(sizeLabel || "المتاح بالمقاس");
