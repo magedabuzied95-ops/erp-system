@@ -2853,8 +2853,8 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
     RETURNING customer_avatar_url
     `,
     [numberOrNull(tenantId), text(conversationId), name, psid, profilePic]
-  ).catch(() => ({ rows: [] }));
-  await db.query(
+  ).catch(() => ({ rows: [], rowCount: 0 }));
+  const messagesResult = await db.query(
     `
     UPDATE ai_support_messages
     SET customer_name = CASE
@@ -2867,7 +2867,7 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
       AND sender_type = 'customer'
     `,
     [numberOrNull(tenantId), text(conversationId), name, psid, profilePic]
-  ).catch(() => {});
+  ).catch(() => ({ rows: [], rowCount: 0 }));
   const channelConversationResult = await db.query(
     `
     UPDATE ai_channel_conversations
@@ -2905,7 +2905,7 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
       }).customer_profile),
       resolveMessengerPageIdCandidate(pageId, psid),
     ]
-  ).catch(() => ({ rows: [] }));
+  ).catch(() => ({ rows: [], rowCount: 0 }));
   console.log("messenger_profile_avatar_saved", {
     tenant_id: numberOrNull(tenantId),
     conversation_id: text(conversationId),
@@ -2933,6 +2933,173 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
     first_name: firstName,
     last_name: lastName,
     profile_pic: storedProfilePicUrl || profilePic,
+    updated_rows: Number(profileResult.rowCount || 0) + Number(sessionResult.rowCount || 0) + Number(messagesResult.rowCount || 0) + Number(channelConversationResult.rowCount || 0),
+  };
+};
+
+export const refreshMessengerProfileForConversation = async ({
+  tenantId,
+  conversationId = "",
+  externalCustomerId = "",
+  pageId = "",
+  dryRun = false,
+} = {}) => {
+  const scopedTenantId = numberOrNull(tenantId);
+  const safeConversationId = text(conversationId);
+  if (!scopedTenantId || !safeConversationId) {
+    throw Object.assign(new Error("tenant_id and conversation id are required"), { status: 400, code: "MESSENGER_PROFILE_REFRESH_INPUT_REQUIRED" });
+  }
+
+  await ensureMessengerProfileStorage();
+  const lookup = await db.query(
+    `
+    SELECT
+      s.session_id,
+      COALESCE(c.channel, s.channel, s.source) AS channel,
+      COALESCE(NULLIF(c.external_customer_id, ''), NULLIF($3::text, ''), regexp_replace(s.session_id, '^[^:]+:', '')) AS external_customer_id,
+      c.external_conversation_id,
+      c.metadata AS channel_metadata,
+      c.customer_profile_id,
+      c.customer_name AS channel_customer_name,
+      c.customer_avatar_url AS channel_customer_avatar_url,
+      s.customer_name AS session_customer_name,
+      s.customer_avatar_url AS session_customer_avatar_url
+    FROM ai_support_sessions s
+    LEFT JOIN ai_channel_conversations c
+      ON c.tenant_id = s.tenant_id
+      AND c.external_conversation_id = s.session_id
+    WHERE s.tenant_id = $1
+      AND s.session_id = $2
+    LIMIT 1
+    `,
+    [scopedTenantId, safeConversationId, text(externalCustomerId)]
+  );
+
+  const row = lookup.rows[0];
+  if (!row) {
+    throw Object.assign(new Error("Conversation not found"), { status: 404, code: "CONVERSATION_NOT_FOUND" });
+  }
+
+  const channel = row.channel || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER;
+  if (adapterChannel(channelAlias(channel) === "instagram" || channel === AI_AGENT_CHANNELS.INSTAGRAM ? "instagram" : "facebook") !== AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) {
+    throw Object.assign(new Error("Messenger profile refresh is only available for Facebook Messenger conversations."), { status: 400, code: "NOT_MESSENGER_CONVERSATION" });
+  }
+
+  const psid = text(row.external_customer_id);
+  if (!psid) {
+    throw Object.assign(new Error("Messenger PSID is missing for this conversation."), { status: 400, code: "MESSENGER_PSID_MISSING" });
+  }
+
+  const oldName = text(row.channel_customer_name || row.session_customer_name || "");
+  const oldAvatar = text(row.channel_customer_avatar_url || row.session_customer_avatar_url || "");
+  const requestedPageId = text(pageId || row.channel_metadata?.page_id || row.channel_metadata?.resolved_page_id || row.channel_metadata?.account_id);
+  const resolvedPageId = await resolveMessengerProfileFetchPageId({
+    message: {
+      external_customer_id: psid,
+      raw: {
+        page_id: requestedPageId,
+        resolved_page_id: text(row.channel_metadata?.resolved_page_id || ""),
+        recipient_page_id: text(row.channel_metadata?.recipient_page_id || ""),
+        metadata: row.channel_metadata || {},
+      },
+      channel_metadata: row.channel_metadata || {},
+    },
+    config: { facebook_page_id: requestedPageId },
+    facebookPageId: requestedPageId,
+    tenantId: scopedTenantId,
+  });
+
+  if (!resolvedPageId) {
+    throw Object.assign(new Error("Messenger page id could not be resolved"), {
+      status: 400,
+      code: "MESSENGER_PAGE_ID_INVALID",
+    });
+  }
+  if (resolvedPageId === psid) {
+    throw Object.assign(new Error("Messenger page id matched the PSID and was rejected."), {
+      status: 400,
+      code: "MESSENGER_PAGE_ID_INVALID",
+    });
+  }
+
+  console.log("messenger_profile_refresh_start", {
+    tenant_id: scopedTenantId,
+    conversation_id: safeConversationId,
+    psid: maskIdForLog(psid),
+    old_name: oldName,
+    requested_page_id: maskIdForLog(requestedPageId),
+    resolved_page_id: maskIdForLog(resolvedPageId),
+    dry_run: Boolean(dryRun),
+  });
+
+  if (dryRun) {
+    return {
+      tenant_id: scopedTenantId,
+      conversation_id: safeConversationId,
+      external_customer_id: psid,
+      old_name: oldName,
+      new_name: oldName,
+      graph_name: "",
+      updated_rows: 0,
+      dryRun: true,
+      page_id: resolvedPageId,
+    };
+  }
+
+  const message = await enrichMessengerProfile({
+    message: {
+      channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+      external_conversation_id: safeConversationId,
+      external_customer_id: psid,
+      raw: {
+        sender_psid: psid,
+        customer_psid: psid,
+        page_id: resolvedPageId,
+        recipient_page_id: resolvedPageId,
+        metadata: row.channel_metadata || {},
+      },
+    },
+    config: { tenant_id: scopedTenantId, facebook_page_id: resolvedPageId },
+    facebookPageId: resolvedPageId,
+    forceRefresh: true,
+  });
+
+  const graphName = text(message.raw?.messenger_profile?.name || message.display_name || message.customer_name || "");
+  const newName = text(message.customer_name || message.display_name || "");
+  const updatedRows = Number(message.updated_rows || 0);
+
+  await logAIPersistentEvent({
+    tenantId: scopedTenantId,
+    category: "audit",
+    eventType: "messenger_profile_refresh",
+    conversationId: safeConversationId,
+    sessionId: safeConversationId,
+    channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+    source: "admin_refresh_endpoint",
+    reason: "manual_messenger_profile_refresh",
+    message: "Messenger profile refresh completed",
+    metadata: {
+      page_id: resolvedPageId,
+      external_customer_id: psid,
+      old_name: oldName,
+      new_name: newName,
+      graph_name: graphName,
+      dryRun: false,
+    },
+  });
+
+  return {
+    tenant_id: scopedTenantId,
+    conversation_id: safeConversationId,
+    external_customer_id: psid,
+    old_name: oldName,
+    new_name: newName,
+    graph_name: graphName,
+    updated_rows: updatedRows,
+    dryRun: false,
+    page_id: resolvedPageId,
+    customer_avatar_url: text(message.customer_avatar_url || ""),
+    customer_profile_id: message.customer_profile_id || null,
   };
 };
 
@@ -3103,6 +3270,7 @@ const enrichMessengerProfile = async ({ message, config, facebookPageId = "", in
       messenger_name: persisted?.messenger_name || persisted?.name || cached?.messenger_name || cached?.name || "",
       customer_avatar_url: persisted?.profile_pic || cached?.profile_pic || "",
       customer_profile_id: persisted?.id || cached?.profile_id || null,
+      updated_rows: persisted?.updated_rows || 0,
       raw: { ...(message.raw || {}), messenger_profile: persisted || profile },
     };
   } catch (error) {
@@ -3128,6 +3296,7 @@ const enrichMessengerProfile = async ({ message, config, facebookPageId = "", in
       messenger_name: cached?.messenger_name || cached?.name || "",
       customer_avatar_url: cached?.profile_pic || message.customer_avatar_url || "",
       customer_profile_id: cached?.profile_id || null,
+      updated_rows: 0,
       raw: { ...(message.raw || {}), messenger_profile: cached || null },
     };
   }

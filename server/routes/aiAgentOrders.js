@@ -5,7 +5,13 @@ import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { emitToRooms } from "../utils/socket.js";
-import { debugMessengerProfileForConversation, getAiInboxConversationDebug, sendMetaInboxOutboundMessage, syncMessengerProfileForConversation } from "../services/metaIntegrationService.js";
+import {
+  debugMessengerProfileForConversation,
+  getAiInboxConversationDebug,
+  refreshMessengerProfileForConversation,
+  sendMetaInboxOutboundMessage,
+  syncMessengerProfileForConversation,
+} from "../services/metaIntegrationService.js";
 import { getAIEvents, pushAIEvent } from "../services/aiEventLogger.js";
 import { resolveIntent } from "../services/aiIntentResolver.js";
 import { buildProductContext, ensureProductLinkInReply } from "../services/aiProductContext.js";
@@ -2583,6 +2589,28 @@ router.post("/conversations/:conversationId/sync-messenger-profile", protect, pe
     return res.json({ success: true, ...result, conversation });
   } catch (error) {
     return sendError(res, error, "Could not fetch Messenger profile");
+  }
+});
+
+router.post("/messenger-profile/refresh", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const conversationId = decodeRouteId(req.body?.conversation_id || req.body?.conversationId || "");
+  const pageId = String(req.body?.page_id || req.body?.pageId || "").trim();
+  const dryRun = req.body?.dryRun === true || req.body?.dry_run === true || String(req.body?.dryRun || req.body?.dry_run || "").toLowerCase() === "true";
+  try {
+    const result = await refreshMessengerProfileForConversation({
+      tenantId,
+      conversationId,
+      pageId,
+      dryRun,
+      externalCustomerId: req.body?.external_customer_id || req.body?.psid || "",
+    });
+    return res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    return sendError(res, error, "Could not refresh Messenger profile");
   }
 });
 
