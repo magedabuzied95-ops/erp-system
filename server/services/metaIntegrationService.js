@@ -2392,7 +2392,7 @@ const ensureMessengerProfileStorage = async () => {
 
 const messengerDisplayName = ({ firstName = "", lastName = "", fallback = "" } = {}) =>
   [text(firstName), text(lastName)].filter(Boolean).join(" ") || text(fallback);
-const normalizeMessengerProfileRecord = ({ firstName = "", lastName = "", displayName = "", externalCustomerId = "", profilePic = "" } = {}) => {
+const normalizeMessengerProfileRecord = ({ firstName = "", lastName = "", displayName = "", externalCustomerId = "", profilePic = "", profileFetchedAt = "" } = {}) => {
   const fullName = messengerDisplayName({ firstName, lastName, fallback: displayName });
   const safeName = isUnsafeMessengerStoredName(fullName) ? "" : fullName;
   return {
@@ -2411,9 +2411,31 @@ const normalizeMessengerProfileRecord = ({ firstName = "", lastName = "", displa
       last_name: text(lastName),
       profile_pic: text(profilePic),
       external_customer_id: text(externalCustomerId),
+      profile_fetched_at: text(profileFetchedAt),
     },
     profile_pic: text(profilePic),
+    profile_fetched_at: text(profileFetchedAt),
   };
+};
+const MESSENGER_PROFILE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const parseMessengerProfileTimestamp = (value = "") => {
+  const timestamp = new Date(text(value));
+  return Number.isFinite(timestamp.getTime()) ? timestamp : null;
+};
+const resolveMessengerProfileFetchedAt = (row = {}) => {
+  const metadataProfile = row.channel_metadata?.messenger_profile || {};
+  const profilePayload = row.profile_customer_profile && typeof row.profile_customer_profile === "object" ? row.profile_customer_profile : {};
+  return (
+    parseMessengerProfileTimestamp(row.last_profile_sync_at) ||
+    parseMessengerProfileTimestamp(metadataProfile.profile_fetched_at) ||
+    parseMessengerProfileTimestamp(profilePayload.profile_fetched_at) ||
+    parseMessengerProfileTimestamp(row.profile_updated_at)
+  );
+};
+const isFreshMessengerProfileCache = (cachedProfile = {}) => {
+  const fetchedAt = parseMessengerProfileTimestamp(cachedProfile.profile_fetched_at);
+  if (!fetchedAt) return false;
+  return (Date.now() - fetchedAt.getTime()) < MESSENGER_PROFILE_CACHE_TTL_MS;
 };
 const MESSENGER_INFERENCE_TOKENS = [
   "غالي",
@@ -2710,8 +2732,10 @@ const getCachedMessengerProfile = async ({ tenantId, channel, conversationId, ps
       c.customer_avatar_url AS channel_customer_avatar_url,
       c.customer_profile_id,
       c.metadata AS channel_metadata,
+      c.updated_at AS channel_updated_at,
       s.customer_name AS session_customer_name,
       s.customer_avatar_url AS session_customer_avatar_url,
+      s.updated_at AS session_updated_at,
       p.first_name,
       p.last_name,
       p.profile_pic_url,
@@ -2719,7 +2743,9 @@ const getCachedMessengerProfile = async ({ tenantId, channel, conversationId, ps
       p.facebook_name,
       p.messenger_name,
       p.customer_name AS profile_customer_name,
-      p.customer_profile AS profile_customer_profile
+      p.customer_profile AS profile_customer_profile,
+      p.last_profile_sync_at,
+      p.updated_at AS profile_updated_at
     FROM ai_channel_conversations c
     FULL OUTER JOIN ai_support_sessions s
       ON s.tenant_id = c.tenant_id
@@ -2742,6 +2768,7 @@ const getCachedMessengerProfile = async ({ tenantId, channel, conversationId, ps
   const row = result.rows[0] || {};
   const metadataProfile = row.channel_metadata?.messenger_profile || {};
   const profilePayload = row.profile_customer_profile && typeof row.profile_customer_profile === "object" ? row.profile_customer_profile : {};
+  const profileFetchedAt = resolveMessengerProfileFetchedAt(row)?.toISOString() || "";
   const firstName = text(row.first_name || profilePayload.first_name || metadataProfile.first_name);
   const lastName = text(row.last_name || profilePayload.last_name || metadataProfile.last_name);
   const name = safeMessengerDisplayName({
@@ -2770,6 +2797,7 @@ const getCachedMessengerProfile = async ({ tenantId, channel, conversationId, ps
     name,
     profile_pic: avatarUrl,
     profile_id: row.customer_profile_id || null,
+    profile_fetched_at: text(profileFetchedAt),
     source: "cache",
   };
 };
@@ -2777,6 +2805,7 @@ const getCachedMessengerProfile = async ({ tenantId, channel, conversationId, ps
 const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid, pageId = "", profile = {} } = {}) => {
   const firstName = text(profile.first_name);
   const lastName = text(profile.last_name);
+  const profileFetchedAt = new Date().toISOString();
   const candidateName = messengerDisplayName({
     firstName,
     lastName,
@@ -2832,6 +2861,7 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
         displayName: name,
         externalCustomerId: psid,
         profilePic,
+        profileFetchedAt,
       }).customer_profile),
       name ? `Meta profile: ${name}` : "",
     ]
@@ -2877,8 +2907,8 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
         END,
         customer_avatar_url = COALESCE(NULLIF($5::text, ''), customer_avatar_url),
         customer_profile_id = COALESCE($6::bigint, customer_profile_id),
-        metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
-          'messenger_profile',
+      metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+        'messenger_profile',
           COALESCE(metadata->'messenger_profile', '{}'::jsonb) || $7::jsonb
         ) || CASE WHEN $8::text <> '' THEN jsonb_build_object('page_id', $8::text, 'facebook_page_id', $8::text) ELSE '{}'::jsonb END,
         updated_at = NOW()
@@ -2902,6 +2932,7 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
         displayName: name,
         externalCustomerId: psid,
         profilePic,
+        profileFetchedAt,
       }).customer_profile),
       resolveMessengerPageIdCandidate(pageId, psid),
     ]
@@ -2929,10 +2960,12 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
       displayName: name,
       externalCustomerId: psid,
       profilePic,
+      profileFetchedAt,
     }).customer_profile,
     first_name: firstName,
     last_name: lastName,
     profile_pic: storedProfilePicUrl || profilePic,
+    profile_fetched_at: profileFetchedAt,
     updated_rows: Number(profileResult.rowCount || 0) + Number(sessionResult.rowCount || 0) + Number(messagesResult.rowCount || 0) + Number(channelConversationResult.rowCount || 0),
   };
 };
@@ -3167,7 +3200,8 @@ const enrichMessengerProfile = async ({ message, config, facebookPageId = "", in
     conversationId: message.external_conversation_id,
     psid,
   }).catch(() => null);
-  if (!forceRefresh && cached?.name && cached?.profile_pic) {
+  const cachedIsFresh = Boolean(cached?.name && cached?.profile_pic && isFreshMessengerProfileCache(cached));
+  if (!forceRefresh && cachedIsFresh) {
     return {
       ...message,
       customer_name: cached.name,
