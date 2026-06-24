@@ -5770,11 +5770,11 @@ export const getMetaPermissionsDebugStatus = async ({ tenantId, req = null } = {
   const pageId = text(config.facebook_page_id || config.page_id);
   const pageTasks = await getPageTasks({ pageId, token });
   const granted = Array.isArray(permissions.granted) ? permissions.granted : [];
-  const allScopes = [...new Set(granted)];
   const declined = Array.isArray(permissions.declined) ? permissions.declined : [];
+  const allScopes = Array.isArray(permissions.all_scopes) ? permissions.all_scopes : granted;
   return {
     tenant_id: scopedTenantId,
-    granted_permissions: allScopes,
+    granted_permissions: granted,
     declined_permissions: declined,
     page_tasks: pageTasks,
     page_access_token_scopes: allScopes,
