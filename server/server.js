@@ -648,7 +648,7 @@ app.use((req, res, next) => {
 
 app.get("/api/meta/webhook", handleMetaWebhookVerification);
 app.get("/api/meta/webhook-self-test", handleMetaWebhookSelfTest);
-app.get("/api/debug/meta-webhook-status", protect, permit("settings", "view"), async (req, res) => {
+app.get("/api/debug/meta-webhook-status", async (req, res) => {
   try {
     const tenantId = Number(req.query?.tenant_id || req.user?.tenant_id || 1) || 1;
     const data = await getMetaWebhookDebugStatus({ tenantId, req });
