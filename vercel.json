@@ -9,15 +9,8 @@
       "destination": "/index.html"
     },
     {
-      "source": "/shop/product/(.*)",
-      "has": [
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": ".*(facebookexternalhit|Facebot|Twitterbot|WhatsApp|Slackbot|TelegramBot|LinkedInBot|Discordbot|Pinterest|Applebot|Googlebot|Bingbot).*"
-        }
-      ],
-      "destination": "https://erp-system-0qhp.onrender.com/shop/product/$1"
+      "source": "/share/product/(.*)",
+      "destination": "https://erp-system-0qhp.onrender.com/share/product/$1"
     },
     {
       "source": "/assets/(.*)",
