@@ -1117,13 +1117,35 @@ export const getPublicAvailableOgDebugSvg = async (req, res) => {
     const filters = normalizeShareAvailableFilters(req.query || {});
     const { count, products } = await loadShareAvailableProducts(filters);
     const svg = buildShareAvailablePreviewSvg({ req, filters, products, count });
+    const firstImageProduct = products.find((product) => normalizeImageUrlCandidate(product.public_image_url || product.image_url || "")) || null;
+    const primaryImage = normalizeImageUrlCandidate(firstImageProduct?.public_image_url || firstImageProduct?.image_url || "");
+    const svgImageCount = typeof svg === "string" ? (svg.match(/<image/g) || []).length : 0;
+    const svgRectCount = typeof svg === "string" ? (svg.match(/<rect/g) || []).length : 0;
+    const svgTextCount = typeof svg === "string" ? (svg.match(/<text/g) || []).length : 0;
+    if (String(req.query?.debug || "").trim() === "1") {
+      return res.status(200).json({
+        primaryImage,
+        firstImageProductId: firstImageProduct?.id || null,
+        firstImageProductName: firstImageProduct?.name || "",
+        productsCount: Array.isArray(products) ? products.length : 0,
+        firstFiveProducts: (Array.isArray(products) ? products : []).slice(0, 5).map((product) => ({
+          id: product.id,
+          name: product.name,
+          public_image_url: product.public_image_url || "",
+          image_url: product.image_url || "",
+        })),
+        svgImageCount,
+        svgRectCount,
+        svgTextCount,
+      });
+    }
     const svgStartsWith = typeof svg === "string" ? svg.slice(0, 20) : "";
     console.log("[share-available-debug-svg]", {
       svgStartsWith,
       svgType: typeof svg,
-      svgRectCount: typeof svg === "string" ? (svg.match(/<rect/g) || []).length : 0,
-      svgImageCount: typeof svg === "string" ? (svg.match(/<image/g) || []).length : 0,
-      svgTextCount: typeof svg === "string" ? (svg.match(/<text/g) || []).length : 0,
+      svgRectCount,
+      svgImageCount,
+      svgTextCount,
       query: req.query,
     });
     if (typeof svg !== "string") {
@@ -1143,13 +1165,30 @@ export const getPublicAvailableOgDebugSvg = async (req, res) => {
     });
     const filters = normalizeShareAvailableFilters(req.query || {});
     const svg = buildShareAvailablePreviewSvg({ req, filters, products: [], count: 0 });
+    const firstImageProduct = null;
+    const primaryImage = "";
+    const svgImageCount = typeof svg === "string" ? (svg.match(/<image/g) || []).length : 0;
+    const svgRectCount = typeof svg === "string" ? (svg.match(/<rect/g) || []).length : 0;
+    const svgTextCount = typeof svg === "string" ? (svg.match(/<text/g) || []).length : 0;
+    if (String(req.query?.debug || "").trim() === "1") {
+      return res.status(200).json({
+        primaryImage,
+        firstImageProductId: firstImageProduct?.id || null,
+        firstImageProductName: firstImageProduct?.name || "",
+        productsCount: 0,
+        firstFiveProducts: [],
+        svgImageCount,
+        svgRectCount,
+        svgTextCount,
+      });
+    }
     const svgStartsWith = typeof svg === "string" ? svg.slice(0, 20) : "";
     console.log("[share-available-debug-svg]", {
       svgStartsWith,
       svgType: typeof svg,
-      svgRectCount: typeof svg === "string" ? (svg.match(/<rect/g) || []).length : 0,
-      svgImageCount: typeof svg === "string" ? (svg.match(/<image/g) || []).length : 0,
-      svgTextCount: typeof svg === "string" ? (svg.match(/<text/g) || []).length : 0,
+      svgRectCount,
+      svgImageCount,
+      svgTextCount,
       query: req.query,
     });
     res.type("image/svg+xml; charset=utf-8");
