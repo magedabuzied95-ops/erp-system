@@ -212,6 +212,14 @@ const commentAutomationMessageLabel = (messageType = "") => {
   return "";
 };
 
+const labelMatchesFilter = (item = {}, filter = "all") => {
+  if (filter === "all") return true;
+  const label = clean(item.classification_label).toLowerCase();
+  if (filter === "ignore") return ["ignore", "engagement_only"].includes(label);
+  if (filter === "human_review") return label === "human_review";
+  return label === filter;
+};
+
 const tenantIdFrom = (tenantApi) => {
   const currentTenant = tenantApi?.currentTenant || getCurrentTenant?.() || {};
   const currentUser = getCurrentUser?.() || {};
