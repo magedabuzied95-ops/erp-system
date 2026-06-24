@@ -56,6 +56,12 @@ function TranscriptMessage({
   const cards = asArray(safeRow.cards);
   const mediaUrls = useMemo(() => imageUrlsForMessage(message).slice(0, 4), [message]);
   const createdAt = safeRow.createdAt || absoluteTime(message.created_at);
+  const isCommentMessage =
+    safeRow.kind === "comment" ||
+    clean(message.message_type).toLowerCase() === "comment_inbound" ||
+    (clean(message.thread_kind).toLowerCase() === "comment" && ["customer", "user", "client"].includes(clean(message.sender_type).toLowerCase()));
+  const postUrl = clean(safeRow.postUrl || message.post_permalink || message.permalink_url || message.post_url || message.metadata?.post_permalink || message.metadata?.permalink_url || message.channel_metadata?.post_permalink || message.channel_metadata?.permalink_url);
+  const commentLabel = clean(message.channel_label || channelLabel || (clean(message.channel).includes("instagram") ? "Instagram Comment" : "Facebook Comment")) || (clean(message.channel).includes("instagram") ? "Instagram Comment" : "Facebook Comment");
   if (!safeRow.visible) return null;
 
   if (variant === "pwa") {
@@ -111,6 +117,30 @@ function TranscriptMessage({
             <LinkifiedText text={message.staff_message} className={`text-[14px] leading-5.5 ${message.delivery_status === "failed" ? "text-rose-50" : "text-white"}`} />
             {message.delivery_status === "failed" && message.delivery_error ? (
               <p className="mt-1 text-[11px] leading-4 text-rose-200">{message.delivery_error}</p>
+            ) : null}
+          </div>
+        </div>
+      );
+    }
+
+    if (isCommentMessage) {
+      return (
+        <div className="flex justify-start">
+          <div className="max-w-[88%] rounded-3xl rounded-tl-sm border border-amber-300/20 bg-amber-300/10 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-amber-100">
+              <MessageSquareText className="h-3.5 w-3.5" />
+              <span>{commentLabel}</span>
+              <span className="text-slate-400">/</span>
+              <span>{createdAt}</span>
+            </div>
+            <LinkifiedText text={message.customer_message || message.message_text || message.text || message.body} className="mt-3 text-[16px] leading-8 text-white" />
+            {postUrl ? (
+              <div className="mt-3">
+                <a href={postUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-[11px] font-black text-emerald-100">
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  فتح البوست
+                </a>
+              </div>
             ) : null}
           </div>
         </div>
@@ -225,6 +255,27 @@ function TranscriptMessage({
               </div>
             ) : null}
             {message.delivery_error ? <p className="mt-2 text-xs font-bold text-rose-200">{message.delivery_error}</p> : null}
+          </div>
+        </div>
+      ) : null}
+      {isCommentMessage ? (
+        <div className="flex justify-start">
+          <div className="max-w-[88%] rounded-3xl rounded-tl-sm border border-amber-300/20 bg-amber-300/10 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-amber-100">
+              <MessageSquareText className="h-3.5 w-3.5" />
+              <span>{commentLabel}</span>
+              <span className="text-slate-400">/</span>
+              <span>{createdAt}</span>
+            </div>
+            <LinkifiedText text={message.customer_message || message.message_text || message.text || message.body} className="mt-3 text-[16px] leading-8 text-white" />
+            {postUrl ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <a href={postUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-[11px] font-black text-emerald-100">
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  فتح البوست
+                </a>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

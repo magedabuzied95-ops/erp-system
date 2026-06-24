@@ -335,6 +335,54 @@ export const socialCommentConversationId = ({
 
 const socialCommentLeadTemperature = (classificationLabel = "") => COMMENT_LEAD_TEMPERATURE[classificationLabel] || "cold";
 
+const isGenericSocialCommentDisplayName = (value = "") => {
+  const name = text(value).toLowerCase();
+  return !name || ["customer", "unknown", "guest", "anonymous", "عميل", "العميل"].includes(name);
+};
+
+const resolveSocialCommentCustomerName = (event = {}) => {
+  const candidates = [
+    event.commenter_name,
+    event.from?.name,
+    event.raw_payload?.comment?.from?.name,
+    event.raw_payload?.value?.from?.name,
+    event.raw_payload?.from?.name,
+    event.username,
+    event.profile_name,
+    event.contact_name,
+    event.author_name,
+  ];
+  const preferred = candidates.map(text).find((value) => value && !isGenericSocialCommentDisplayName(value));
+  if (preferred) return preferred;
+  const fallback = candidates.map(text).find(Boolean);
+  return fallback || "Customer";
+};
+
+const resolveSocialCommentAvatarUrl = (event = {}) =>
+  text(
+    event.commenter_profile_picture_url ||
+      event.profile_pic_url ||
+      event.profile_picture_url ||
+      event.avatar_url ||
+      event.raw_payload?.comment?.from?.profile_pic ||
+      event.raw_payload?.comment?.from?.picture ||
+      event.raw_payload?.from?.profile_pic ||
+      event.raw_payload?.from?.picture ||
+      ""
+  );
+
+const resolveSocialCommentPostPermalink = (event = {}) =>
+  text(
+    event.post_permalink ||
+      event.permalink_url ||
+      event.post_url ||
+      event.raw_payload?.post_permalink ||
+      event.raw_payload?.permalink_url ||
+      event.raw_payload?.post_url ||
+      event.raw_payload?.permalink ||
+      ""
+  );
+
 const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}, suggestedReply = "" } = {}) => {
   const safeTenantId = Number(tenantId);
   if (!Number.isFinite(safeTenantId) || safeTenantId <= 0) return null;
@@ -353,10 +401,10 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
     });
     const threadKind = "comment";
     const commentText = text(event.original_comment_text);
-    const commenterName = text(event.commenter_name) || "Customer";
+    const commenterName = resolveSocialCommentCustomerName(event);
     const commenterId = text(event.commenter_id || "");
-    const commenterProfilePictureUrl = text(event.commenter_profile_picture_url || "");
-    const postPermalink = text(event.post_permalink || "");
+    const commenterProfilePictureUrl = resolveSocialCommentAvatarUrl(event);
+    const postPermalink = resolveSocialCommentPostPermalink(event);
     const postId = text(event.post_id || "");
     const metadata = {
     thread_kind: threadKind,
@@ -416,8 +464,17 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       source = EXCLUDED.source,
       channel = EXCLUDED.channel,
       thread_kind = COALESCE(NULLIF(EXCLUDED.thread_kind, ''), ai_support_sessions.thread_kind),
-      customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_support_sessions.customer_name),
-      customer_avatar_url = COALESCE(NULLIF(EXCLUDED.customer_avatar_url, ''), ai_support_sessions.customer_avatar_url),
+      customer_name = CASE
+        WHEN COALESCE(NULLIF(ai_support_sessions.customer_name, ''), '') = ''
+          OR LOWER(ai_support_sessions.customer_name) IN ('customer', 'unknown', 'guest', 'anonymous', 'عميل', 'العميل')
+          THEN COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_support_sessions.customer_name)
+        ELSE ai_support_sessions.customer_name
+      END,
+      customer_avatar_url = CASE
+        WHEN COALESCE(NULLIF(ai_support_sessions.customer_avatar_url, ''), '') = ''
+          THEN COALESCE(NULLIF(EXCLUDED.customer_avatar_url, ''), ai_support_sessions.customer_avatar_url)
+        ELSE ai_support_sessions.customer_avatar_url
+      END,
       last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_support_sessions.last_message),
       updated_at = NOW()
     RETURNING id
@@ -452,11 +509,20 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       updated_at
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, NOW(), NOW())
-      ON CONFLICT (tenant_id, channel, external_conversation_id) DO UPDATE SET
+    ON CONFLICT (tenant_id, channel, external_conversation_id) DO UPDATE SET
       external_customer_id = COALESCE(NULLIF(EXCLUDED.external_customer_id, ''), ai_channel_conversations.external_customer_id),
       thread_kind = COALESCE(NULLIF(EXCLUDED.thread_kind, ''), ai_channel_conversations.thread_kind),
-      customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_channel_conversations.customer_name),
-      customer_avatar_url = COALESCE(NULLIF(EXCLUDED.customer_avatar_url, ''), ai_channel_conversations.customer_avatar_url),
+      customer_name = CASE
+        WHEN COALESCE(NULLIF(ai_channel_conversations.customer_name, ''), '') = ''
+          OR LOWER(ai_channel_conversations.customer_name) IN ('customer', 'unknown', 'guest', 'anonymous', 'عميل', 'العميل')
+          THEN COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_channel_conversations.customer_name)
+        ELSE ai_channel_conversations.customer_name
+      END,
+      customer_avatar_url = CASE
+        WHEN COALESCE(NULLIF(ai_channel_conversations.customer_avatar_url, ''), '') = ''
+          THEN COALESCE(NULLIF(EXCLUDED.customer_avatar_url, ''), ai_channel_conversations.customer_avatar_url)
+        ELSE ai_channel_conversations.customer_avatar_url
+      END,
       last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_channel_conversations.last_message),
       metadata = ai_channel_conversations.metadata || EXCLUDED.metadata,
       last_message_at = NOW(),
@@ -769,7 +835,7 @@ export const materializeSocialCommentInboxConversation = async ({
     sessionId,
     commentId,
   });
-  const shouldUpsert = Boolean(text(suggestedReply || "")) || !state.fully_materialized;
+  const shouldUpsert = true;
   let conversation = null;
   if (shouldUpsert) {
     conversation = await upsertSocialCommentLeadConversation({

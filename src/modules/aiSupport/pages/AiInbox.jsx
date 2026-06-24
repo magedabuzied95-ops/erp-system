@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   ArrowUpRight,
   ArrowUpDown,
+  ExternalLink,
   Bot,
   BadgePercent,
   ChevronLeft,
@@ -533,6 +534,20 @@ const isCommentConversation = (conversation = {}) => {
   const threadKind = clean(conversation?.thread_kind || conversation?.channel_metadata?.thread_kind || "").toLowerCase();
   return channel === "facebook_comment" || channel === "instagram_comment" || threadKind === "comment" || source.includes("_comment");
 };
+
+const commentConversationPostUrl = (conversation = {}) =>
+  firstNonEmpty(
+    conversation?.channel_metadata?.post_permalink,
+    conversation?.channel_metadata?.permalink_url,
+    conversation?.channel_metadata?.post_url,
+    conversation?.metadata?.post_permalink,
+    conversation?.metadata?.permalink_url,
+    conversation?.metadata?.post_url,
+    conversation?.post_permalink,
+    conversation?.permalink_url,
+    conversation?.post_url,
+    conversation?.last_message_permalink
+  );
 
 const isLeadThreadConversation = (conversation = {}) => isCommentConversation(conversation) || isMessengerConversation(conversation);
 
@@ -1347,6 +1362,7 @@ function LeadQuickActionsBar({
   const status = conversation.conversation_status || conversation.status || "ai_active";
   const isClosed = status === "closed";
   const isComment = isCommentConversation(conversation);
+  const postUrl = commentConversationPostUrl(conversation);
   const employeeOptions = asArray(employees).map((employee) => ({
     value: String(employee.id),
     label: employee.full_name || employee.name || `Employee ${employee.id}`,
@@ -1356,15 +1372,21 @@ function LeadQuickActionsBar({
     <div className="mb-1.5 rounded-2xl border border-white/10 bg-slate-950/60 p-2">
       <div className="flex flex-col gap-1.5">
         <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
-          <button type="button" onClick={onSendPrivateMessage} disabled={busy || isClosed} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[11px] font-black text-cyan-100 disabled:opacity-50">
-            <MessageSquareText className="h-3.5 w-3.5" />
-            إرسال رسالة خاصة
-          </button>
           {isComment ? (
             <button type="button" onClick={onSendCommentReply} disabled={busy || isClosed} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-2.5 text-[11px] font-black text-violet-100 disabled:opacity-50">
               <MessageSquareText className="h-3.5 w-3.5" />
               رد على الكومنت
             </button>
+          ) : null}
+          <button type="button" onClick={onSendPrivateMessage} disabled={busy || isClosed} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[11px] font-black text-cyan-100 disabled:opacity-50">
+            <MessageSquareText className="h-3.5 w-3.5" />
+            إرسال رسالة خاصة
+          </button>
+          {isComment && postUrl ? (
+            <a href={postUrl} target="_blank" rel="noreferrer" className={`inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-2.5 text-[11px] font-black text-emerald-100 ${busy || isClosed ? "pointer-events-none opacity-50" : ""}`}>
+              <ExternalLink className="h-3.5 w-3.5" />
+              فتح البوست
+            </a>
           ) : null}
           <button type="button" onClick={onOpenProductPicker} disabled={busy || isClosed} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-2.5 text-[11px] font-black text-slate-100 disabled:opacity-50">
             <ShoppingCart className="h-3.5 w-3.5" />
@@ -3564,19 +3586,23 @@ export default function AiInbox() {
         const normalizedMessage = normalizeTranscriptMessage(message);
         const productCards = normalizeProductCardsValue(normalizedMessage.product_cards || normalizedMessage.productCards);
         const isProductCardMessage = normalizedMessage.message_type === "product_card" || productCards.length > 0;
+        const isCommentMessage =
+          normalizedMessage.message_type === "comment_inbound" ||
+          (normalizedMessage.thread_kind === "comment" && (normalizedMessage.sender_type === "customer" || normalizedMessage.sender_type === "user" || normalizedMessage.direction === "inbound"));
         const isFromMe = isFromMeMessage(normalizedMessage);
         const isCustomer = Boolean(clean(normalizedMessage.customer_message)) && !isFromMe;
         const isAi = Boolean(clean(normalizedMessage.ai_answer)) || normalizedMessage.sender_type === "assistant" || normalizedMessage.sender_type === "ai" || normalizedMessage.direction === "outbound" || isFromMe;
         const isStaff = Boolean(clean(normalizedMessage.staff_message)) && !isProductCardMessage;
-        if (!isCustomer && !isAi && !isStaff && !isProductCardMessage) return null;
+        if (!isCustomer && !isAi && !isStaff && !isProductCardMessage && !isCommentMessage) return null;
         return {
           key: messageKey(normalizedMessage),
           message: normalizedMessage,
           cards: productCards,
-          kind: isProductCardMessage ? "product_card" : isCustomer ? "customer" : isAi ? "ai" : "staff",
+          kind: isProductCardMessage ? "product_card" : isCommentMessage ? "comment" : isCustomer ? "customer" : isAi ? "ai" : "staff",
           visible: true,
           createdAt: absoluteTime(normalizedMessage.created_at),
           channelLabel: channelLabel(normalizedMessage.channel || selectedConversation?.channel),
+          postUrl: commentConversationPostUrl(selectedConversation || normalizedMessage),
           mediaUrls: [
             normalizedMessage.image_url,
             normalizedMessage.media_url,
