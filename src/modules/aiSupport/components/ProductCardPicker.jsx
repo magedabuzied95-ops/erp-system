@@ -600,6 +600,8 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       maxPrice: selectedLinkMaxPrice,
       url,
     });
+    console.log("availableBySizeUrl", url);
+    console.log("availableBySizeMessage", message);
     setSubmitting(true);
     setError("");
     try {

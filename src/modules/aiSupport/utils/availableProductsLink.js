@@ -65,10 +65,11 @@ export const buildAvailableProductsMessage = (filters = {}, url = "") => {
     clean(filters.minPrice) ? `أقل سعر ${clean(filters.minPrice)}` : "",
     clean(filters.maxPrice) ? `أعلى سعر ${clean(filters.maxPrice)}` : "",
   ]);
+  const finalUrl = clean(url) || buildAvailableProductsUrl(filters);
   const parts = [
     sizeText ? `دي كل الموديلات المتاحة ${sizeLabel} ${sizeText}` : "دي كل الموديلات المتاحة",
-    selectedFilters.length ? `الفلتر: ${selectedFilters.join(" / ")}` : "",
-    clean(url),
+    selectedFilters.length ? `الفلاتر: ${selectedFilters.join(" / ")}` : "",
+    finalUrl ? `افتح المنتجات من هنا:\n${finalUrl}` : "",
   ].filter(Boolean);
   return parts.join("\n");
 };
