@@ -847,6 +847,7 @@ app.use("/api/public/products", publicProductsRoutes);
 app.use("/api/storefront", storefrontRoutes);
 app.use("/api/shipping", shippingRoutes);
 app.get("/shop/product/:identifier", getPublicProductSharePage);
+app.get("/share/product/:identifier", getPublicProductSharePage);
 app.get("/api/website/products/:slug/og-image", getPublicProductOgImage);
 app.get("/api/website/products/:slug/share-meta", getPublicProductShareMetadata);
 app.use("/api/website", liveActivityRoutes);

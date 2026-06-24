@@ -276,7 +276,7 @@ const withSocialMetadata = async (product = {}, req = null) => {
       image_width: OG_IMAGE_WIDTH,
       image_height: OG_IMAGE_HEIGHT,
       twitter_card: "summary_large_image",
-      url: buildAbsolutePublicUrl(req, productPagePath(product)),
+      url: buildAbsolutePublicUrl(req, `/share/product/${firstText(product.slug, product.canonical_slug, product.id)}`),
     },
   };
 };

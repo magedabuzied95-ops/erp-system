@@ -1252,7 +1252,7 @@ const attachSocialMetadata = async (product = {}, req = null) => {
       image_width: OG_IMAGE_WIDTH,
       image_height: OG_IMAGE_HEIGHT,
       twitter_card: "summary_large_image",
-      url: buildAbsolutePublicUrl(req, `/shop/product/${pageSlug}`),
+      url: buildAbsolutePublicUrl(req, `/share/product/${pageSlug}`),
     },
   };
 };
