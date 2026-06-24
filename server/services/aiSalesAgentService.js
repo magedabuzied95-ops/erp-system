@@ -51,6 +51,7 @@ import { isLikelyMessageLikeName, resolveMessengerConversationDisplayName } from
 let schemaReadyPromise = null;
 let aiInboxSchemaReadyPromise = null;
 let aiInboxSchemaEnsured = false;
+let metaIntegrationServiceModulePromise = null;
 const aiPipelineDebugCache = new Map();
 
 const text = (value = "") => String(value ?? "").trim();
@@ -1389,6 +1390,112 @@ const buildCustomerProfilePayload = ({ conversation = {}, memories = [] } = {}) 
   };
 };
 
+const getMetaIntegrationServiceModule = async () => {
+  if (!metaIntegrationServiceModulePromise) {
+    metaIntegrationServiceModulePromise = import("./metaIntegrationService.js");
+  }
+  return metaIntegrationServiceModulePromise;
+};
+
+const shouldRefreshMessengerInboxProfile = (conversation = {}) => {
+  const sourceChannel = lower(conversation.channel || conversation.session_channel || conversation.source || "");
+  if (!isMessengerConversationChannel(sourceChannel)) return false;
+  const sessionId = text(conversation.session_id || conversation.conversation_key || conversation.external_conversation_id || "");
+  const externalConversationId = text(conversation.external_conversation_id || "");
+  const customerName = text(conversation.customer_name || conversation.display_name || conversation.participant_name || "");
+  const avatarUrl = text(
+    conversation.customer_avatar_url ||
+    conversation.profile_pic_url ||
+    conversation.customer_profile?.avatar_url ||
+    conversation.channel_metadata?.messenger_profile?.profile_pic ||
+    conversation.channel_metadata?.messenger_profile?.profile_pic_url ||
+    ""
+  );
+  return !isHumanReadableDisplayName(customerName, { sessionId, externalConversationId }) || !avatarUrl;
+};
+
+const hydrateMessengerInboxConversation = async ({ tenantId, conversation = {} } = {}) => {
+  if (!shouldRefreshMessengerInboxProfile(conversation)) return conversation;
+  const sessionId = text(conversation.session_id || conversation.conversation_key || conversation.external_conversation_id || "");
+  const externalConversationId = text(conversation.external_conversation_id || sessionId || "");
+  const externalCustomerId = text(conversation.external_customer_id || conversation.customer_profile?.external_customer_id || "");
+  if (!sessionId || !externalConversationId || !externalCustomerId) return conversation;
+  const pageId = text(
+    conversation.channel_metadata?.page_id ||
+    conversation.channel_metadata?.facebook_page_id ||
+    conversation.channel_metadata?.resolved_page_id ||
+    conversation.channel_metadata?.recipient_page_id ||
+    ""
+  );
+  try {
+    const { refreshMessengerProfileForConversation } = await getMetaIntegrationServiceModule();
+    const refreshed = await refreshMessengerProfileForConversation({
+      tenantId,
+      conversationId: externalConversationId,
+      externalCustomerId,
+      pageId,
+      dryRun: false,
+    });
+    const refreshedName = text(refreshed?.customer_name || refreshed?.display_name || "");
+    const refreshedAvatar = text(refreshed?.customer_avatar_url || "");
+    const refreshedProfile = refreshed?.customer_profile && typeof refreshed.customer_profile === "object" ? refreshed.customer_profile : {};
+    if (!refreshedName && !refreshedAvatar) return conversation;
+    const messengerProfile = {
+      ...((conversation.channel_metadata || {}).messenger_profile || {}),
+      ...refreshedProfile,
+      first_name: text(refreshedProfile.first_name || conversation.first_name || ""),
+      last_name: text(refreshedProfile.last_name || conversation.last_name || ""),
+      name: refreshedName || text(refreshedProfile.name || conversation.customer_name || ""),
+      display_name: refreshedName || text(refreshedProfile.display_name || conversation.display_name || conversation.customer_name || ""),
+      profile_pic: refreshedAvatar || text(refreshedProfile.profile_pic || conversation.customer_avatar_url || ""),
+      profile_pic_url: refreshedAvatar || text(refreshedProfile.profile_pic_url || conversation.customer_avatar_url || ""),
+      profile_fetched_at: text(refreshedProfile.profile_fetched_at || new Date().toISOString()),
+    };
+    const customerProfile = {
+      ...(conversation.customer_profile || {}),
+      ...refreshedProfile,
+      name: refreshedName || text((conversation.customer_profile || {}).name || conversation.customer_name || ""),
+      display_name: refreshedName || text((conversation.customer_profile || {}).display_name || conversation.customer_name || ""),
+      avatar_url: refreshedAvatar || text((conversation.customer_profile || {}).avatar_url || conversation.customer_avatar_url || ""),
+      profile_pic_url: refreshedAvatar || text((conversation.customer_profile || {}).profile_pic_url || conversation.customer_avatar_url || ""),
+      external_customer_id: externalCustomerId || text((conversation.customer_profile || {}).external_customer_id || ""),
+      source_channel: conversation.channel || conversation.source || (conversation.customer_profile || {}).source_channel || "",
+    };
+    const customerAvatarUrl = refreshedAvatar || text(conversation.customer_avatar_url || conversation.profile_pic_url || "");
+    return {
+      ...conversation,
+      customer_name: refreshedName || text(conversation.customer_name || ""),
+      display_name: refreshedName || text(conversation.display_name || ""),
+      participant_name: refreshedName || text(conversation.participant_name || ""),
+      sender_name: refreshedName || text(conversation.sender_name || ""),
+      profile_name: refreshedName || text(conversation.profile_name || ""),
+      contact_name: refreshedName || text(conversation.contact_name || ""),
+      customer_avatar_url: customerAvatarUrl,
+      profile_pic_url: customerAvatarUrl,
+      profile_id: refreshed?.customer_profile_id || conversation.profile_id || conversation.customer_profile_id || null,
+      customer_profile_id: refreshed?.customer_profile_id || conversation.customer_profile_id || conversation.profile_id || null,
+      first_name: text(refreshedProfile.first_name || conversation.first_name || ""),
+      last_name: text(refreshedProfile.last_name || conversation.last_name || ""),
+      channel_metadata: {
+        ...(conversation.channel_metadata || {}),
+        page_id: pageId || text((conversation.channel_metadata || {}).page_id || ""),
+        facebook_page_id: pageId || text((conversation.channel_metadata || {}).facebook_page_id || ""),
+        resolved_page_id: pageId || text((conversation.channel_metadata || {}).resolved_page_id || ""),
+        messenger_profile: messengerProfile,
+      },
+      customer_profile: customerProfile,
+    };
+  } catch (error) {
+    console.warn("messenger_inbox_profile_hydration_failed", {
+      tenant_id: tenantId,
+      conversation_id: externalConversationId,
+      session_id: sessionId,
+      message: error?.message || "Messenger inbox profile hydration failed",
+    });
+    return conversation;
+  }
+};
+
 const extractFirstName = (name = "") => text(name).split(/\s+/).filter(Boolean)[0] || "";
 
 const summarizeProducts = (products = []) =>
@@ -2553,6 +2660,10 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
     const conversationFollowups = followupsBySession.get(conversation.session_id) || [];
     const currentStateRow = salesStateByConversation.get(conversation.session_id) || null;
     const existingJourneyEvents = salesJourneyEventsByConversation.get(conversation.session_id) || [];
+    const hydratedConversation = await hydrateMessengerInboxConversation({ tenantId, conversation });
+    if (hydratedConversation && hydratedConversation !== conversation) {
+      Object.assign(conversation, hydratedConversation);
+    }
     const leadType = leadTypeFrom({
       memoryScore: conversation.memory_score,
       sentiment: conversation.customer_sentiment,
