@@ -17273,6 +17273,14 @@ export const sendMetaInboxOutboundMessage = async ({
     safeMessage = "";
   }
   const cards = await resolveProductCardLinks(normalizeProductCards(productCards, { limit: productCardLimit }), { tenantId: scopedTenantId });
+  console.info("product_card_send_service_entered", {
+    tenant_id: scopedTenantId,
+    conversation_id: conversationId || "",
+    requested_channel: channel || "",
+    resolved_channel: normalizedChannel,
+    has_product_cards: cards.length > 0,
+    has_image_url: cards.some((card) => Boolean(card.image_url || card.image || card.main_image)),
+  });
   if (!scopedTenantId || !safeRecipientId || (!safeMessage && !cards.length)) {
     throw Object.assign(new Error("tenant_id, recipient id, and message are required"), { status: 400, code: "META_SEND_INPUT_REQUIRED" });
   }
@@ -17598,6 +17606,10 @@ export const sendMetaInboxOutboundMessage = async ({
           console.info("messenger_product_card_payload", {
             tenant_id: scopedTenantId,
             conversation_id: conversationId || "",
+            resolved_channel: normalizedChannel,
+            has_product_cards: cards.length > 0,
+            has_image_url: Boolean(productImageUrl),
+            sender_function_name: productImageUrl ? "postMetaPageMessage" : "postMetaMessage",
             product_id: product.product_id || product.id || null,
             title: productTitle,
             image_url: productImageUrl,
@@ -17621,7 +17633,9 @@ export const sendMetaInboxOutboundMessage = async ({
             console.info("messenger_product_card_send_success", {
               tenant_id: scopedTenantId,
               conversation_id: conversationId || "",
+              resolved_channel: normalizedChannel,
               product_id: product.product_id || product.id || null,
+              sender_function_name: "postMetaPageMessage",
               delivery_mode: "generic_template",
               image_url: productImageUrl,
               message_id: imageMessageId || "",
@@ -17630,7 +17644,9 @@ export const sendMetaInboxOutboundMessage = async ({
             console.warn("messenger_product_card_send_failed", {
               tenant_id: scopedTenantId,
               conversation_id: conversationId || "",
+              resolved_channel: normalizedChannel,
               product_id: product.product_id || product.id || null,
+              sender_function_name: "postMetaPageMessage",
               delivery_mode: "generic_template",
               image_url: productImageUrl,
               message: error?.message || "",
@@ -17647,7 +17663,9 @@ export const sendMetaInboxOutboundMessage = async ({
             console.info("messenger_product_card_send_success", {
               tenant_id: scopedTenantId,
               conversation_id: conversationId || "",
+              resolved_channel: normalizedChannel,
               product_id: product.product_id || product.id || null,
+              sender_function_name: "postMetaImageMessage",
               delivery_mode: "image_attachment",
               image_url: productImageUrl,
               message_id: imageMessageId || "",
@@ -17656,7 +17674,9 @@ export const sendMetaInboxOutboundMessage = async ({
             console.warn("messenger_product_card_send_failed", {
               tenant_id: scopedTenantId,
               conversation_id: conversationId || "",
+              resolved_channel: normalizedChannel,
               product_id: product.product_id || product.id || null,
+              sender_function_name: "postMetaImageMessage",
               delivery_mode: "image_attachment",
               image_url: productImageUrl,
               message: error?.message || "",
@@ -17671,7 +17691,9 @@ export const sendMetaInboxOutboundMessage = async ({
             console.info("messenger_product_card_send_success", {
               tenant_id: scopedTenantId,
               conversation_id: conversationId || "",
+              resolved_channel: normalizedChannel,
               product_id: product.product_id || product.id || null,
+              sender_function_name: "postMetaMessage",
               delivery_mode: "text_fallback",
               image_url: productImageUrl,
               message_id: meta?.message_id || "",

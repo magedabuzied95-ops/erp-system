@@ -4189,6 +4189,13 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
     return sendError(res, Object.assign(new Error("product_cards are required"), { status: 400 }), "product_cards are required");
   }
 
+  console.info("product_card_send_route_entered", {
+    tenant_id: tenantId,
+    conversation_id: conversationId,
+    has_product_cards: productCards.length > 0,
+    has_image_url: productCards.some((card) => Boolean(card.image_url || card.image || card.main_image)),
+  });
+
   let conversation = null;
   try {
     const resolved = await resolveProductCardSendConversation({ tenantId, conversationId });
@@ -4213,6 +4220,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
     console.info("[product-card-send route]", {
       channel,
       safeChannel,
+      resolved_channel: safeChannel,
       conversationId,
       selectedConversation: {
         id: conversation.id || null,
@@ -4311,6 +4319,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
           conversationId,
           facebookPageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
           instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
+          productCards,
         });
         deliveryStatus = sendResult?.delivery_status || (sendResult.sent ? "sent" : "failed");
         if (deliveryStatus === "failed" && !deliveryError) {
