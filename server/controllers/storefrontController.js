@@ -47,7 +47,7 @@ import {
 import { buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils/orderItemInsert.js";
 import { normalizeOrderLifecycleStatus, normalizeShippingLifecycleStatus } from "../../shared/orderStatus.js";
 
-const DEFAULT_TENANT_ID = 1;
+export const DEFAULT_TENANT_ID = 1;
 const LOW_STOCK_LIMIT = 2;
 const isEnabledSetting = (value) => value === true || value === 1 || ["1", "true", "yes", "on"].includes(String(value || "").trim().toLowerCase());
 
@@ -1408,7 +1408,7 @@ const productAudienceSearchSql = `
   )
 `;
 
-const storefrontProductsSql = `
+export const storefrontProductsSql = `
     ${catalogQuery}
       AND ($2 = '' OR LOWER(CONCAT_WS(' ', p.name, p.sku, p.barcode, p.gender, p.product_type, c.name, b.name, pv.size, pv.color, pv.sku, pv.article_code, pv.edition_name, pv.edition_slug)) LIKE '%' || $2 || '%' OR ${productAudienceSearchSql})
       AND ($3 = '' OR LOWER(CONCAT_WS(' ', c.name, p.gender, p.product_type)) LIKE '%' || $3 || '%' OR EXISTS (SELECT 1 FROM product_audiences pa_category WHERE pa_category.product_id = p.id AND pa_category.audience LIKE '%' || $3 || '%'))
@@ -1472,7 +1472,7 @@ const storefrontProductsSqlWithoutVisibility = storefrontProductsSql.replace(
   "\n"
 );
 
-const queryProductsWithSql = async (sql, tenantId, q, category, filters, saleOnly, limit, offset) => {
+export const queryProductsWithSql = async (sql, tenantId, q, category, filters, saleOnly, limit, offset) => {
   const params = [tenantId, q, category, filters.brand || "", saleOnly, Boolean(filters.offerStory), filters.gender, filters.productType, filters.grade, filters.size || "", Boolean(filters.inStock), filters.quality || [], limit, offset];
   try {
     return await db.query(sql, params);
@@ -1483,10 +1483,10 @@ const queryProductsWithSql = async (sql, tenantId, q, category, filters, saleOnl
   }
 };
 
-const queryProducts = async (tenantId, q, category, filters, saleOnly, limit, offset) =>
+export const queryProducts = async (tenantId, q, category, filters, saleOnly, limit, offset) =>
   queryProductsWithSql(storefrontProductsSql, tenantId, q, category, filters, saleOnly, limit, offset);
 
-const queryProductsWithoutVisibility = async (tenantId, q, category, filters, saleOnly, limit, offset) =>
+export const queryProductsWithoutVisibility = async (tenantId, q, category, filters, saleOnly, limit, offset) =>
   queryProductsWithSql(storefrontProductsSqlWithoutVisibility, tenantId, q, category, filters, saleOnly, limit, offset);
 
 const queryProductsByIds = async (tenantId, productIds = [], pricingSettings = STOREFRONT_PRICING_DEFAULTS) => {

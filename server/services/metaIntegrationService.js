@@ -4643,6 +4643,16 @@ const metaAppConfig = () => ({
   appSecret: text(process.env.META_APP_SECRET || process.env.FACEBOOK_APP_SECRET),
 });
 
+const getMetaAppAccessTokenForDebug = () => {
+  const directToken = text(process.env.META_APP_ACCESS_TOKEN || process.env.FACEBOOK_APP_ACCESS_TOKEN);
+  if (directToken) return { token: directToken, source: "app_access_token" };
+  const { appId, appSecret } = metaAppConfig();
+  if (appId && appSecret) {
+    return { token: `${appId}|${appSecret}`, source: "app_id_secret" };
+  }
+  return { token: "", source: "" };
+};
+
 const redirectUriFor = (req = null) => {
   const configured = text(process.env.META_REDIRECT_URI);
   if (configured) return configured;
@@ -6069,6 +6079,60 @@ export const resubscribeMetaPageFeedDebug = async ({ tenantId } = {}) => {
       requested_fields: requestedFields,
       graph_response: null,
       graph_error: errorPayload,
+    };
+  }
+};
+
+export const getMetaAppModeDebugStatus = async () => {
+  const { appId } = metaAppConfig();
+  const { token, source } = getMetaAppAccessTokenForDebug();
+
+  if (!appId) {
+    return {
+      success: false,
+      app_id: "",
+      app_name: "",
+      is_live: null,
+      graph_error: "Meta app id is missing",
+    };
+  }
+
+  if (!token) {
+    return {
+      success: false,
+      app_id: appId,
+      app_name: "",
+      is_live: null,
+      graph_error: "Meta app access token is missing",
+    };
+  }
+
+  try {
+    const payload = await callMetaGet({
+      endpoint: `/${encodeURIComponent(appId)}`,
+      token,
+      params: { fields: "id,name,is_live" },
+    });
+    return {
+      success: true,
+      app_id: text(payload?.id || appId),
+      app_name: text(payload?.name || ""),
+      is_live: payload?.is_live ?? null,
+      graph_error: null,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      app_id: appId,
+      app_name: "",
+      is_live: null,
+      graph_error: {
+        message: error?.message || "Unable to load Meta app mode",
+        status: error?.status || null,
+        code: error?.meta?.code || error?.code || "",
+        subcode: error?.meta?.error_subcode || "",
+        token_source: source,
+      },
     };
   }
 };

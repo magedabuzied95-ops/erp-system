@@ -550,7 +550,7 @@ const { ensureAiInboxLeadActionsSchema } = await import("./services/aiInboxLeadA
 const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueTasks, sendUpcomingTaskDueReminders } = await import("./services/staffTasksService.js");
 const { processStaffTaskEmailQueue } = await import("./services/staffTaskEmailNotificationService.js");
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
-const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug } = await import("./services/metaIntegrationService.js");
+const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug, getMetaAppModeDebugStatus } = await import("./services/metaIntegrationService.js");
 const { ensureSystemSettingsSchema } = await import("./services/settingsService.js");
 const { ensureSocialAutomationSettingsSchema } = await import("./services/socialAutomationSettingsService.js");
 
@@ -743,6 +743,21 @@ app.post("/api/debug/meta-resubscribe-page-feed", async (req, res) => {
     return res.status(error?.status || 500).json({
       success: false,
       message: error?.message || "Failed to resubscribe page feed",
+    });
+  }
+});
+app.get("/api/debug/meta-app-mode", async (req, res) => {
+  try {
+    const data = await getMetaAppModeDebugStatus();
+    return res.json({ success: true, data, ...data });
+  } catch (error) {
+    console.error("[meta-app-mode-debug] load failed", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+    });
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to load Meta app mode debug status",
     });
   }
 });

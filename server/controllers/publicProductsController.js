@@ -22,6 +22,11 @@ import { formatCurrency } from "../../src/shared/lib/currency.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 import { normalizeAttributionPlatform } from "../utils/marketingAttribution.js";
 import { isMirrorProduct, mirrorProductTitle, slugifyEdition } from "../utils/mirrorProduct.js";
+import {
+  DEFAULT_TENANT_ID,
+  queryProductsWithSql,
+  storefrontProductsSql,
+} from "./storefrontController.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -722,7 +727,7 @@ const buildShareAvailablePreviewPngBuffer = async ({ req = null, filters = {}, p
   return sharp(Buffer.from(svg, "utf8")).png().toBuffer();
 };
 
-const buildShareAvailableWhereClause = () => `
+const buildShareAvailableWhereClause = ({ includeSizes = true } = {}) => `
   WHERE ${publicProductVisibilityClause}
     AND (
       COALESCE(array_length($1::text[], 1), 0) = 0
@@ -759,9 +764,11 @@ const buildShareAvailableWhereClause = () => `
         WHERE pv_stock.product_id = p.id
           AND pv_stock.is_active IS DISTINCT FROM FALSE
           AND pv_stock.deleted_at IS NULL
-          AND COALESCE(pv_stock.stock, 0) > 0
+        AND COALESCE(pv_stock.stock, 0) > 0
       )
     )
+    ${includeSizes
+      ? `
     AND (
       COALESCE(array_length($7::text[], 1), 0) = 0
       OR EXISTS (
@@ -774,6 +781,8 @@ const buildShareAvailableWhereClause = () => `
           AND ($6::boolean = FALSE OR COALESCE(pv_size.stock, 0) > 0)
       )
     )
+    `
+      : ""}
 `;
 
 const loadShareAvailableProducts = async (filters = {}) => {
@@ -783,55 +792,96 @@ const loadShareAvailableProducts = async (filters = {}) => {
   const brand = normalizeShareFilterValue(filters.brand || "");
   const minPrice = normalizeSharePriceValue(filters.minPrice);
   const maxPrice = normalizeSharePriceValue(filters.maxPrice);
-  const inStock = filters.inStock === false ? false : true;
-  const genderValues = gender ? [gender] : [];
-  const params = [genderValues, type, brand, minPrice, maxPrice, inStock, normalizedSizes];
-  const countResult = await db.query(
-    `
-    SELECT COUNT(DISTINCT p.id)::int AS total
-    FROM products p
-    LEFT JOIN brands b ON b.id = p.brand_id
-    ${buildShareAvailableWhereClause()}
-    `,
-    params
+  const storefrontFilters = {
+    brand,
+    gender,
+    productType: type,
+    grade: "",
+    quality: [],
+    size: "",
+    inStock: false,
+    offerStory: false,
+  };
+  const storefrontQueryParams = [
+    DEFAULT_TENANT_ID,
+    "",
+    "",
+    storefrontFilters.brand || "",
+    false,
+    Boolean(storefrontFilters.offerStory),
+    storefrontFilters.gender,
+    storefrontFilters.productType,
+    storefrontFilters.grade,
+    storefrontFilters.size || "",
+    Boolean(storefrontFilters.inStock),
+    storefrontFilters.quality || [],
+    1000,
+    0,
+  ];
+  console.log("[share-available-query-debug]", {
+    filters,
+    normalizedSizes,
+    generatedSql: storefrontProductsSql,
+    params: storefrontQueryParams,
+    source: "storefrontController.queryProductsWithSql",
+  });
+  const rowsResult = await queryProductsWithSql(
+    storefrontProductsSql,
+    DEFAULT_TENANT_ID,
+    "",
+    "",
+    storefrontFilters,
+    false,
+    1000,
+    0
   );
-  const rowsResult = await db.query(
-    `
-    SELECT
-      p.id,
-      p.name,
-      p.slug,
-      p.canonical_slug,
-      p.image_url,
-      p.photo_url,
-      p.thumbnail_url,
-      p.price,
-      p.sale_price,
-      p.selling_price,
-      p.original_price,
-      p.compare_at_price,
-      p.gender,
-      p.product_type,
-      p.brand,
-      p.brand_id,
-      b.name AS brand_name,
-      b.slug AS brand_slug,
-      COALESCE((SELECT jsonb_agg(pa.audience ORDER BY pa.audience) FROM product_audiences pa WHERE pa.product_id = p.id), '[]'::jsonb) AS audiences
-    FROM products p
-    LEFT JOIN brands b ON b.id = p.brand_id
-    ${buildShareAvailableWhereClause()}
-    ORDER BY p.id DESC
-    LIMIT 4
-    `,
-    params
-  );
-  const products = rowsResult.rows.map((row) => ({
+  const rawProducts = rowsResult.rows.map((row) => ({
     ...row,
     image_url: firstPublicImageCandidate(row.image_url, row.photo_url, row.thumbnail_url),
     public_image_url: firstPublicImageCandidate(row.image_url, row.photo_url, row.thumbnail_url),
     audiences: Array.isArray(row.audiences) ? row.audiences : [],
+    variants: Array.isArray(row.variants) ? row.variants : [],
   }));
-  return { count: Number(countResult.rows?.[0]?.total || 0), products };
+  const priceFilteredProducts = rawProducts.filter((product) => {
+    const price = Number(product.sale_price || product.selling_price || product.price || product.regular_price || product.compare_at_price || 0) || 0;
+    if (minPrice !== null && price < minPrice) {
+      return false;
+    }
+    if (maxPrice !== null && price > maxPrice) {
+      return false;
+    }
+    return true;
+  });
+  const countBefore = priceFilteredProducts.length;
+  const sizeFilteredProducts = normalizedSizes.length
+    ? priceFilteredProducts.filter((product) => {
+        const productSizes = new Set(
+          (Array.isArray(product.variants) ? product.variants : [])
+            .map((variant) => String(variant?.size || "").trim())
+            .filter(Boolean)
+            .map((size) => size.toLowerCase())
+        );
+        return normalizedSizes.some((size) => productSizes.has(String(size).trim().toLowerCase()));
+      })
+    : priceFilteredProducts;
+  const countAfter = sizeFilteredProducts.length;
+  console.log("[share-available-query-result]", {
+    countBefore,
+    countAfter,
+    firstFiveProducts: sizeFilteredProducts.slice(0, 5).map((product) => ({
+      id: product.id,
+      name: product.name,
+      public_image_url: product.public_image_url || "",
+      image_url: product.image_url || "",
+      sizes: Array.isArray(product.variants) ? product.variants.map((variant) => variant?.size).filter(Boolean) : [],
+    })),
+  });
+  return {
+    countBefore,
+    countAfter,
+    count: countAfter,
+    products: sizeFilteredProducts,
+  };
 };
 
 const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = [], count = 0 } = {}) => {
@@ -1115,7 +1165,7 @@ export const getPublicAvailableOgDebugSvg = async (req, res) => {
     await ensurePublicProductEditionSchema();
     await ensureProductVariantImagesSchema();
     const filters = normalizeShareAvailableFilters(req.query || {});
-    const { count, products } = await loadShareAvailableProducts(filters);
+    const { count, countBefore, countAfter, products } = await loadShareAvailableProducts(filters);
     const svg = buildShareAvailablePreviewSvg({ req, filters, products, count });
     const firstImageProduct = products.find((product) => normalizeImageUrlCandidate(product.public_image_url || product.image_url || "")) || null;
     const primaryImage = normalizeImageUrlCandidate(firstImageProduct?.public_image_url || firstImageProduct?.image_url || "");
@@ -1127,6 +1177,8 @@ export const getPublicAvailableOgDebugSvg = async (req, res) => {
         primaryImage,
         firstImageProductId: firstImageProduct?.id || null,
         firstImageProductName: firstImageProduct?.name || "",
+        countBefore,
+        countAfter,
         productsCount: Array.isArray(products) ? products.length : 0,
         firstFiveProducts: (Array.isArray(products) ? products : []).slice(0, 5).map((product) => ({
           id: product.id,
@@ -1175,6 +1227,8 @@ export const getPublicAvailableOgDebugSvg = async (req, res) => {
         primaryImage,
         firstImageProductId: firstImageProduct?.id || null,
         firstImageProductName: firstImageProduct?.name || "",
+        countBefore: 0,
+        countAfter: 0,
         productsCount: 0,
         firstFiveProducts: [],
         svgImageCount,
