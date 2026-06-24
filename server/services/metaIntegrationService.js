@@ -5888,6 +5888,95 @@ export const getMetaPagePostsDebugStatus = async ({ tenantId, limit = 20 } = {})
   }
 };
 
+export const getMetaPageSubscriptionsDebugStatus = async ({ tenantId } = {}) => {
+  const scopedTenantId = numberOrNull(tenantId);
+  const row = await getMetaIntegrationConfig({ tenantId: scopedTenantId });
+  const token = row ? getTokenForConfig(row) : "";
+  const pageId = text(row?.facebook_page_id || row?.page_id || "");
+
+  console.log("META_PAGE_SUBSCRIPTIONS_DEBUG_START", {
+    tenant_id: scopedTenantId,
+    page_id: pageId,
+    token_present: Boolean(token),
+  });
+
+  if (!pageId) {
+    const errorPayload = {
+      message: "Facebook page id is missing",
+      status: null,
+      code: "",
+      subcode: "",
+    };
+    console.error("META_PAGE_SUBSCRIPTIONS_DEBUG_ERROR", {
+      tenant_id: scopedTenantId,
+      page_id: pageId,
+      graph_error: errorPayload,
+    });
+    return {
+      success: false,
+      page_id: "",
+      data: null,
+      graph_error: errorPayload,
+    };
+  }
+
+  if (!token) {
+    const errorPayload = {
+      message: "Page access token is missing",
+      status: null,
+      code: "",
+      subcode: "",
+    };
+    console.error("META_PAGE_SUBSCRIPTIONS_DEBUG_ERROR", {
+      tenant_id: scopedTenantId,
+      page_id: pageId,
+      graph_error: errorPayload,
+    });
+    return {
+      success: false,
+      page_id: pageId,
+      data: null,
+      graph_error: errorPayload,
+    };
+  }
+
+  try {
+    const payload = await callMetaGet({
+      endpoint: `/${encodeURIComponent(pageId)}/subscribed_apps`,
+      token,
+      params: {},
+    });
+    console.log("META_PAGE_SUBSCRIPTIONS_DEBUG_SUCCESS", {
+      tenant_id: scopedTenantId,
+      page_id: pageId,
+    });
+    return {
+      success: true,
+      page_id: pageId,
+      data: payload,
+      graph_error: null,
+    };
+  } catch (error) {
+    const errorPayload = {
+      message: error?.message || "Unable to load page subscriptions",
+      status: error?.status || null,
+      code: error?.meta?.code || error?.code || "",
+      subcode: error?.meta?.error_subcode || "",
+    };
+    console.error("META_PAGE_SUBSCRIPTIONS_DEBUG_ERROR", {
+      tenant_id: scopedTenantId,
+      page_id: pageId,
+      graph_error: errorPayload,
+    });
+    return {
+      success: false,
+      page_id: pageId,
+      data: null,
+      graph_error: errorPayload,
+    };
+  }
+};
+
 export const getMetaCapabilities = async ({ tenantId, req = null, live = true } = {}) => {
   const row = await getMetaIntegrationConfig({ tenantId });
   const config = row ? sanitizeConfig(row) : defaultPublicConfig(tenantId);
