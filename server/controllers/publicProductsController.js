@@ -497,6 +497,38 @@ const renderStorefrontShellMissingHtml = ({ req, title = "Product", message = "T
 </html>`;
 };
 
+const normalizeImageUrlCandidate = (value = "") => {
+  const raw = value && typeof value === "object"
+    ? String(
+        value.image_url ||
+        value.imageUrl ||
+        value.url ||
+        value.path ||
+        value.preview ||
+        value.src ||
+        value.image ||
+        value.photo_url ||
+        value.thumbnail_url ||
+        value.main_image ||
+        value.mainImage ||
+        ""
+      ).trim()
+    : String(value || "").trim();
+  if (!raw || raw.startsWith("data:") || raw.startsWith("blob:")) return "";
+  const resolved = resolvePublicProductImageUrl(raw, {
+    baseUrl: process.env.STORE_FRONT_URL || process.env.PUBLIC_APP_URL || process.env.FRONTEND_URL || "",
+  });
+  return String(resolved || "").replace(/^http:\/\//i, "https://").trim();
+};
+
+const firstPublicImageCandidate = (...values) => {
+  for (const value of values.flat(Infinity)) {
+    const resolved = normalizeImageUrlCandidate(value);
+    if (resolved) return resolved;
+  }
+  return "";
+};
+
 const loadStorefrontShell = async () => {
   if (!storefrontShellPromise) {
     storefrontShellPromise = (async () => {
@@ -530,7 +562,7 @@ const loadStorefrontShell = async () => {
   return storefrontShellPromise;
 };
 
-const getSelectedPublicProductImage = ({ product = {}, variants = [], query = {} } = {}) => {
+const getSelectedPublicProductImage = ({ product = {}, variants = [], colorImages = [], query = {} } = {}) => {
   const normalizedVariant = String(query.variant || query.variantId || query.variant_id || "").trim();
   const normalizedColor = String(query.color || query.colorName || query.color_name || "").trim().toLowerCase();
   const normalizedSize = String(query.size || query.sizeLabel || "").trim().toLowerCase();
@@ -541,11 +573,27 @@ const getSelectedPublicProductImage = ({ product = {}, variants = [], query = {}
     variants.find((variant) => variant.primary_image_url || variant.image_url) ||
     null;
 
-  const rawImage = selectedVariant?.primary_image_url || selectedVariant?.image_url || product.public_image_url || product.image_url || product.image || product.photo_url || product.thumbnail_url || "";
-  const resolved = resolvePublicProductImageUrl(rawImage, { baseUrl: process.env.STORE_FRONT_URL || process.env.PUBLIC_APP_URL || process.env.FRONTEND_URL || "" });
-  if (resolved) return resolved.replace(/^http:\/\//i, "https://");
-  const fallback = resolvePublicProductImageUrl(product.public_image_url || product.image_url || product.image || "", { baseUrl: process.env.STORE_FRONT_URL || process.env.PUBLIC_APP_URL || process.env.FRONTEND_URL || "" });
-  return fallback.replace(/^http:\/\//i, "https://");
+  const firstColorImage = (Array.isArray(colorImages) ? colorImages : []).find((color) => normalizeImageUrlCandidate(color?.primary_image_url || color?.image_url));
+  const imageCandidates = [
+    selectedVariant?.primary_image_url,
+    selectedVariant?.image_url,
+    selectedVariant?.color_image_url,
+    selectedVariant?.images?.[0]?.image_url,
+    selectedVariant?.images?.[0]?.url,
+    firstColorImage?.primary_image_url,
+    firstColorImage?.image_url,
+    product.main_image,
+    product.main_image_url,
+    product.public_image_url,
+    product.image_url,
+    product.image,
+    product.photo_url,
+    product.thumbnail_url,
+    Array.isArray(product.images) ? product.images[0] : "",
+    Array.isArray(product.gallery_images) ? product.gallery_images[0] : "",
+    Array.isArray(product.color_images) ? product.color_images[0]?.image_url || product.color_images[0]?.url || "" : "",
+  ];
+  return firstPublicImageCandidate(imageCandidates);
 };
 
 const renderProductShareHtml = async ({ req, product, imageUrl, description }) => {
@@ -745,9 +793,15 @@ export const getPublicProductSharePage = async (req, res) => {
     );
     attachGroupedColorImages(deriveColorGroupsFromVariants(normalizedVariants), imageBundle);
 
-    const selectedImage = getSelectedPublicProductImage({ product: row, variants: normalizedVariants, query: req.query || {} });
+    const selectedImage = getSelectedPublicProductImage({ product: row, variants: normalizedVariants, colorImages, query: req.query || {} });
     const normalizedProduct = normalizeProductRow({ ...row, image_url: selectedImage, public_image_url: selectedImage });
     const description = buildProductShareDescription({ product: normalizedProduct, variants: normalizedVariants, query: req.query || {} });
+    console.log("[product-share-og]", {
+      productId: normalizedProduct.id,
+      title: firstText(normalizedProduct.meta_title, normalizedProduct.seo_title, normalizedProduct.name, "Product"),
+      imageUrl: selectedImage,
+      finalOgImage: selectedImage || "",
+    });
     const html = await renderProductShareHtml({
       req,
       product: normalizedProduct,
