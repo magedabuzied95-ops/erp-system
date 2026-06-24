@@ -1006,6 +1006,51 @@ export const getPublicAvailableOgImage = async (req, res) => {
     const ogTitle = filters.sizes?.length > 1 ? `المتاح بالمقاسات ${filters.sizes.join("، ")}` : `المتاح بالمقاس ${filters.sizes?.[0] || ""}`.trim();
     const ogDescription = `${ogProductsCount} موديل متاح الآن في M1 Store`;
     const ogImageUrl = buildShareAvailableOgImageUrl(req, filters, "png");
+    const routeBranch = ogImageUrls[0] ? "single-product" : (buildShareAvailableFallbackImageUrl(req) ? "fallback" : "empty");
+    const selectedImage = ogImageUrls[0] || buildShareAvailableFallbackImageUrl(req) || "";
+    const selectedTitle = ogTitle;
+    console.log("ogImageHandlerReached", {
+      imageGeneratorVersion: "V2",
+      routeHandler: "getPublicAvailableOgImage",
+      sourceFile: "server/controllers/publicProductsController.js",
+      routeBranch,
+      matchedProductsCount: count,
+      ogProductsCount,
+      selectedImage,
+      selectedTitle,
+      requestedUrl: req?.originalUrl || req?.url || "",
+    });
+    if (selectedImage) {
+      try {
+        const response = await fetch(selectedImage, { method: "GET" });
+        const contentType = response.headers.get("content-type") || "";
+        const contentLength = response.headers.get("content-length") || "";
+        console.log("[share-available-image-fetch]", {
+          imageFetchStatus: response.status,
+          imageContentType: contentType,
+          imageContentLength: contentLength,
+          selectedImage,
+        });
+      } catch (error) {
+        console.error("[share-available-image-fetch:error]", {
+          selectedImage,
+          message: error?.message,
+          stack: error?.stack,
+        });
+      }
+    } else {
+      console.log("[share-available-image-missing]", {
+        selectedImage: "",
+        selectedTitle,
+        routeBranch,
+        firstProducts: products.slice(0, 5).map((product) => ({
+          id: product.id,
+          name: product.name,
+          public_image_url: product.public_image_url || "",
+          image_url: product.image_url || "",
+        })),
+      });
+    }
     const png = await buildShareAvailablePreviewPngBuffer({ req, filters, products, count: ogProductsCount });
     console.log("shareAvailableTargetUrl", buildShareAvailableTargetUrl(req, filters));
     console.log("[share-available]", {
@@ -1019,9 +1064,9 @@ export const getPublicAvailableOgImage = async (req, res) => {
       imageGeneratorVersion: "V2",
       routeHandler: "getPublicAvailableOgImage",
       sourceFile: "server/controllers/publicProductsController.js",
-      routeBranch: ogImageUrls[0] ? "single-product" : (buildShareAvailableFallbackImageUrl(req) ? "fallback" : "empty"),
-      selectedTitle: ogTitle,
-      selectedImage: ogImageUrls[0] || buildShareAvailableFallbackImageUrl(req) || "",
+      routeBranch,
+      selectedTitle,
+      selectedImage,
       finalTargetUrl: buildShareAvailableTargetUrl(req, filters),
     });
     res.setHeader("Content-Type", "image/png");
