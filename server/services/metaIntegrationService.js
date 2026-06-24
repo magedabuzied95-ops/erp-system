@@ -43,6 +43,7 @@ import {
 import {
   ensureSocialCommentAutomationSchema,
   extractSocialCommentWebhookEvents,
+  materializeSocialCommentInboxConversation,
   storeSocialCommentAutomationRuns,
 } from "./socialCommentAutomationService.js";
 import {
@@ -6286,6 +6287,34 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
                 post_id: text(post.id || ""),
                 comment_id: commentId,
               });
+              const materialization = await materializeSocialCommentInboxConversation({
+                tenantId: safeTenantId,
+                event: event,
+                updateRunLink: true,
+              }).catch((error) => {
+                totals.errors += 1;
+                console.error("META_COMMENTS_POLL_ERROR", {
+                  tenant_id: safeTenantId,
+                  page_id: pageId,
+                  post_id: text(post.id || ""),
+                  comment_id: commentId,
+                  message: error?.message || "Unable to materialize duplicate polled comment",
+                  status: error?.status || null,
+                  code: error?.meta?.code || error?.code || "",
+                  subcode: error?.meta?.error_subcode || "",
+                });
+                return null;
+              });
+              if (materialization?.materialized) {
+                totals.comments_saved += 1;
+                console.log("META_COMMENTS_POLL_COMMENT_SAVED", {
+                  tenant_id: safeTenantId,
+                  page_id: pageId,
+                  post_id: text(post.id || ""),
+                  comment_id: commentId,
+                  materialized_from_duplicate: true,
+                });
+              }
               continue;
             }
 

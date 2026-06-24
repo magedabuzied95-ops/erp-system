@@ -656,6 +656,161 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
   }
 };
 
+const resolveSocialCommentInboxMaterializationState = async ({ tenantId = null, sessionId = "", commentId = "" } = {}) => {
+  const safeTenantId = Number(tenantId);
+  const safeSessionId = text(sessionId);
+  const safeCommentId = text(commentId);
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safeSessionId || !safeCommentId) {
+    return {
+      tenant_id: safeTenantId || null,
+      session_id: safeSessionId,
+      comment_id: safeCommentId,
+      message_exists: false,
+      session_exists: false,
+      conversation_exists: false,
+      fully_materialized: false,
+      last_message: "",
+    };
+  }
+
+  const [messageResult, sessionResult, conversationResult] = await Promise.all([
+    db.query(
+      `
+      SELECT id, session_id, message_text, customer_message, last_message
+      FROM ai_support_messages
+      WHERE tenant_id = $1::bigint
+        AND session_id = $2::text
+        AND (
+          external_message_id = $3::text
+          OR dedupe_key = $3::text
+        )
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+      `,
+      [safeTenantId, safeSessionId, safeCommentId]
+    ),
+    db.query(
+      `
+      SELECT session_id, last_message
+      FROM ai_support_sessions
+      WHERE tenant_id = $1::bigint
+        AND session_id = $2::text
+      LIMIT 1
+      `,
+      [safeTenantId, safeSessionId]
+    ),
+    db.query(
+      `
+      SELECT external_conversation_id, last_message
+      FROM ai_channel_conversations
+      WHERE tenant_id = $1::bigint
+        AND external_conversation_id = $2::text
+      LIMIT 1
+      `,
+      [safeTenantId, safeSessionId]
+    ),
+  ]);
+
+  const messageRow = messageResult.rows[0] || null;
+  const sessionRow = sessionResult.rows[0] || null;
+  const conversationRow = conversationResult.rows[0] || null;
+  return {
+    tenant_id: safeTenantId,
+    session_id: safeSessionId,
+    comment_id: safeCommentId,
+    message_exists: Boolean(messageRow),
+    session_exists: Boolean(sessionRow),
+    conversation_exists: Boolean(conversationRow),
+    fully_materialized: Boolean(messageRow && sessionRow && conversationRow),
+    last_message:
+      messageRow?.message_text ||
+      messageRow?.customer_message ||
+      messageRow?.last_message ||
+      sessionRow?.last_message ||
+      conversationRow?.last_message ||
+      "",
+  };
+};
+
+export const materializeSocialCommentInboxConversation = async ({
+  tenantId = null,
+  event = {},
+  suggestedReply = "",
+  updateRunLink = true,
+} = {}) => {
+  const safeTenantId = Number(tenantId);
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0) {
+    return {
+      tenant_id: null,
+      session_id: "",
+      comment_id: text(event.comment_id || ""),
+      platform: text(event.platform || "facebook") === "instagram" ? "instagram" : "facebook",
+      channel: text(event.platform || "facebook") === "instagram" ? "instagram_comment" : "facebook_comment",
+      already_materialized: false,
+      materialized: false,
+      wrote_inbox: false,
+      run_link_updated: false,
+      reason: "invalid_tenant",
+    };
+  }
+
+  const platform = text(event.platform || "facebook") === "instagram" ? "instagram" : "facebook";
+  const channel = platform === "instagram" ? "instagram_comment" : "facebook_comment";
+  const sessionId = socialCommentConversationId({
+    platform,
+    postId: event.post_id,
+    commenterId: event.commenter_id,
+    rootCommentId: event.root_comment_id,
+    commentId: event.comment_id,
+  });
+  const commentId = text(event.comment_id || "");
+  const state = await resolveSocialCommentInboxMaterializationState({
+    tenantId: safeTenantId,
+    sessionId,
+    commentId,
+  });
+  const shouldUpsert = Boolean(text(suggestedReply || "")) || !state.fully_materialized;
+  let conversation = null;
+  if (shouldUpsert) {
+    conversation = await upsertSocialCommentLeadConversation({
+      tenantId: safeTenantId,
+      event,
+      suggestedReply,
+    });
+  }
+
+  const resolvedSessionId = conversation?.session_id || sessionId;
+  let runLinkUpdated = false;
+  if (updateRunLink && resolvedSessionId && commentId) {
+    const runLinkResult = await db.query(
+      `
+      UPDATE social_comment_automation_runs
+      SET inbox_conversation_id = COALESCE(NULLIF(inbox_conversation_id, ''), $3::text),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = $1::bigint
+        AND platform = $2::text
+        AND comment_id = $4::text
+      `,
+      [safeTenantId, platform, resolvedSessionId, commentId]
+    );
+    runLinkUpdated = Number(runLinkResult.rowCount || 0) > 0;
+  }
+
+  return {
+    ...state,
+    tenant_id: safeTenantId,
+    session_id: resolvedSessionId,
+    platform,
+    channel,
+    already_materialized: state.fully_materialized,
+    materialized: Boolean(shouldUpsert && !state.fully_materialized && conversation?.session_id),
+    wrote_inbox: Boolean(shouldUpsert),
+    run_link_updated: runLinkUpdated,
+    conversation,
+    suggested_reply: text(suggestedReply || ""),
+  };
+};
+
 const resolveSocialCommentTenantAutomationSettings = async ({ tenantId = null } = {}) => {
   const safeTenantId = Number(tenantId);
   if (!Number.isFinite(safeTenantId) || safeTenantId <= 0) {

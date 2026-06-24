@@ -551,7 +551,7 @@ const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueT
 const { processStaffTaskEmailQueue } = await import("./services/staffTaskEmailNotificationService.js");
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
 const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug, getMetaAppModeDebugStatus, runMetaCommentsPollingScan, startMetaCommentsPollingScheduler, listMetaWebhookRawEvents, clearMetaWebhookRawEvents } = await import("./services/metaIntegrationService.js");
-const { socialCommentConversationId } = await import("./services/socialCommentAutomationService.js");
+const { socialCommentConversationId, materializeSocialCommentInboxConversation } = await import("./services/socialCommentAutomationService.js");
 const { ensureSystemSettingsSchema } = await import("./services/settingsService.js");
 const { ensureSocialAutomationSettingsSchema } = await import("./services/socialAutomationSettingsService.js");
 
@@ -1029,6 +1029,98 @@ app.get("/api/debug/ai-inbox-comment-conversations", async (req, res) => {
     return res.status(error?.status || 500).json({
       success: false,
       message: error?.message || "Failed to load AI inbox comment conversations",
+    });
+  }
+});
+app.post("/api/debug/meta-backfill-comment-inbox", async (req, res) => {
+  try {
+    const tenantId = Number(req.query?.tenant_id || req.body?.tenant_id || req.user?.tenant_id || 1) || 1;
+    console.log("META_COMMENT_INBOX_BACKFILL_START", {
+      tenant_id: tenantId,
+      limit: 200,
+    });
+
+    const runsResult = await db.query(
+      `
+      SELECT *
+      FROM social_comment_automation_runs
+      WHERE tenant_id = $1::bigint
+      ORDER BY created_at DESC, id DESC
+      LIMIT 200
+      `,
+      [tenantId]
+    );
+
+    const totals = {
+      scanned: runsResult.rows?.length || 0,
+      materialized: 0,
+      already_materialized: 0,
+      skipped: 0,
+      errors: 0,
+    };
+
+    for (const row of runsResult.rows || []) {
+      const channel = String(row.channel || "").toLowerCase();
+      const platform = String(row.platform || (channel.includes("instagram") ? "instagram" : channel.includes("facebook") ? "facebook" : "")).toLowerCase();
+      const commentId = String(row.comment_id || "").trim();
+      if (!commentId || !["facebook", "instagram"].includes(platform)) {
+        totals.skipped += 1;
+        continue;
+      }
+
+      try {
+        const materialization = await materializeSocialCommentInboxConversation({
+          tenantId,
+          event: {
+            ...row,
+            platform,
+          },
+          updateRunLink: true,
+        });
+
+        if (materialization?.already_materialized) {
+          totals.already_materialized += 1;
+          console.log("META_COMMENT_INBOX_BACKFILL_ALREADY_EXISTS", {
+            tenant_id: tenantId,
+            platform,
+            comment_id: commentId,
+            conversation_id: materialization.session_id || "",
+          });
+        } else if (materialization?.materialized || materialization?.wrote_inbox) {
+          totals.materialized += 1;
+          console.log("META_COMMENT_INBOX_BACKFILL_MATERIALIZED", {
+            tenant_id: tenantId,
+            platform,
+            comment_id: commentId,
+            conversation_id: materialization.session_id || "",
+          });
+        } else {
+          totals.skipped += 1;
+        }
+      } catch (error) {
+        totals.errors += 1;
+        console.error("META_COMMENT_INBOX_BACKFILL_ERROR", {
+          tenant_id: tenantId,
+          platform,
+          comment_id: commentId,
+          message: error?.message || String(error),
+        });
+      }
+    }
+
+    return res.json({
+      success: true,
+      tenant_id: tenantId,
+      ...totals,
+    });
+  } catch (error) {
+    console.error("[meta-comment-inbox-backfill-debug] load failed", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+    });
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to backfill meta comment inbox",
     });
   }
 });
