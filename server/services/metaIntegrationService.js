@@ -44,6 +44,7 @@ import {
   extractSocialCommentWebhookEvents,
   storeSocialCommentAutomationRuns,
 } from "./socialCommentAutomationService.js";
+import { getMetaWebhookStatus as getMarketingCommentWebhookStatus } from "./marketingCommentAutomationService.js";
 import {
   normalizeProductCards,
   productCardReplyText,
@@ -5621,6 +5622,64 @@ export const getMetaWebhookHealth = async ({ tenantId, req = null } = {}) => {
     last_retry: lastRetry?.updated_at || lastRetry?.created_at || null,
     event_throughput_24h: events.rows.filter((event) => new Date(event.created_at).getTime() >= Date.now() - 86400000).length,
     recent_events: events.rows.slice(0, 10),
+  };
+};
+
+export const getMetaWebhookDebugStatus = async ({ tenantId, req = null } = {}) => {
+  const scopedTenantId = numberOrNull(tenantId);
+  const [integrationStatus, commentWebhookStatus, socialCommentEvents, marketingCommentEvents] = await Promise.all([
+    getMetaIntegrationStatus({ tenantId: scopedTenantId, req }),
+    getMarketingCommentWebhookStatus(scopedTenantId),
+    safeDb(
+      `
+      SELECT created_at
+      FROM social_comment_automation_runs
+      WHERE tenant_id = $1
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+      `,
+      [scopedTenantId]
+    ),
+    safeDb(
+      `
+      SELECT created_at, processed_at
+      FROM marketing_comment_events
+      WHERE business_id = $1::bigint
+      ORDER BY COALESCE(processed_at, created_at) DESC, id DESC
+      LIMIT 1
+      `,
+      [scopedTenantId]
+    ),
+  ]);
+
+  const config = integrationStatus?.config || {};
+  const subscribedFields = Array.from(
+    new Set([
+      ...(Array.isArray(integrationStatus?.subscribed_apps?.subscribed_fields) ? integrationStatus.subscribed_apps.subscribed_fields : []),
+      ...(Array.isArray(integrationStatus?.setup_completion?.subscribed_fields) ? integrationStatus.setup_completion.subscribed_fields : []),
+      ...(Array.isArray(commentWebhookStatus?.subscribed_fields) ? commentWebhookStatus.subscribed_fields : []),
+    ])
+  ).filter(Boolean);
+  const lastCommentEventAt = socialCommentEvents.rows[0]?.created_at || marketingCommentEvents.rows[0]?.processed_at || marketingCommentEvents.rows[0]?.created_at || null;
+  const lastCommentSavedAt = marketingCommentEvents.rows[0]?.processed_at || marketingCommentEvents.rows[0]?.created_at || null;
+
+  return {
+    tenant_id: scopedTenantId,
+    facebook_page_id: config.facebook_page_id || "",
+    instagram_business_account_id: config.instagram_business_account_id || "",
+    verify_token_configured: Boolean(config.verify_token_configured),
+    verify_token_masked: config.verify_token_masked || "",
+    webhook_url: commentWebhookStatus?.webhook_url || integrationStatus?.webhook_url || "",
+    subscribed_fields: subscribedFields,
+    last_comment_event_at: lastCommentEventAt,
+    last_comment_saved_at: lastCommentSavedAt,
+    comment_webhook_status: commentWebhookStatus || {},
+    meta_integration_status: {
+      overall_status: integrationStatus?.overall_status || "",
+      subscribed_apps: integrationStatus?.subscribed_apps || {},
+      setup_completion: integrationStatus?.setup_completion || {},
+      checklist: integrationStatus?.checklist || {},
+    },
   };
 };
 

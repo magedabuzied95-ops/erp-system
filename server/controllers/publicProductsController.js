@@ -855,26 +855,31 @@ const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = []
       <stop offset="0%" stop-color="#111827" />
       <stop offset="100%" stop-color="#0f172a" />
     </linearGradient>
+    <linearGradient id="textGradient" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#f4e8bf" />
+    </linearGradient>
   </defs>
   <rect width="1200" height="630" rx="36" fill="url(#frameGradient)" />
   <rect x="48" y="48" width="1104" height="534" rx="34" fill="#ffffff" opacity="0.03" stroke="rgba(255,255,255,0.12)" />
-  <text x="600" y="118" text-anchor="middle" fill="#f8fafc" font-size="38" font-weight="800" font-family="Arial, sans-serif">V2 TEST</text>
-  <text x="600" y="172" text-anchor="middle" fill="#f4e8bf" font-size="40" font-weight="900" font-family="Arial, sans-serif">${selectedTitle}</text>
-  <text x="600" y="220" text-anchor="middle" fill="#e5e7eb" font-size="24" font-weight="700" font-family="Arial, sans-serif">افتح كل المنتجات المتاحة الآن في M1 Store</text>
-  <text x="1110" y="92" text-anchor="end" fill="#f8fafc" opacity="0.7" font-size="18" font-weight="700" font-family="Arial, sans-serif">${imageGeneratorVersion}</text>
+  <text x="92" y="112" fill="url(#textGradient)" font-size="48" font-weight="900" font-family="Arial, sans-serif">${selectedTitle}</text>
+  <text x="92" y="156" fill="#e5e7eb" font-size="24" font-weight="700" font-family="Arial, sans-serif">افتح كل المنتجات المتاحة الآن في M1 Store</text>
   ${selectedImage
     ? `
       <g>
-        <rect x="356" y="260" width="488" height="280" rx="28" fill="#ffffff" opacity="0.08" stroke="rgba(255,255,255,0.16)" />
-        <image href="${escapeHtml(selectedImage)}" x="356" y="260" width="488" height="280" preserveAspectRatio="xMidYMid meet" />
+        <rect x="58" y="190" width="560" height="360" rx="30" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.14)" />
+        <image href="${escapeHtml(selectedImage)}" x="78" y="210" width="520" height="320" preserveAspectRatio="xMidYMid meet" />
       </g>
     `
     : `
       <g>
-        <rect x="356" y="260" width="488" height="280" rx="28" fill="#e5e7eb" opacity="0.14" stroke="rgba(255,255,255,0.18)" />
-        <text x="600" y="405" text-anchor="middle" fill="#ffffff" font-size="34" font-weight="800" font-family="Arial, sans-serif">NO IMAGE</text>
+        <rect x="58" y="190" width="560" height="360" rx="30" fill="#e5e7eb" opacity="0.14" stroke="rgba(255,255,255,0.18)" />
+        <text x="338" y="375" text-anchor="middle" fill="#ffffff" font-size="34" font-weight="800" font-family="Arial, sans-serif">NO IMAGE</text>
       </g>
     `}
+  <text x="700" y="252" fill="#f8fafc" font-size="34" font-weight="800" font-family="Arial, sans-serif">M1 Store</text>
+  <text x="700" y="300" fill="#dbe4f0" font-size="22" font-weight="700" font-family="Arial, sans-serif">Preview</text>
+  <text x="700" y="356" fill="#f4e8bf" font-size="26" font-weight="800" font-family="Arial, sans-serif">${selectedTitle}</text>
 </svg>`;
 };
 
