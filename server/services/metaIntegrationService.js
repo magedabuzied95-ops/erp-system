@@ -4095,6 +4095,7 @@ const metaAutoReplyPauseChannelLabel = (channel = "") => {
   return normalized.includes("instagram") ? "instagram" : "messenger";
 };
 const adapterChannel = (channel = "") => (channel === "instagram" ? AI_AGENT_CHANNELS.INSTAGRAM : AI_AGENT_CHANNELS.FACEBOOK_MESSENGER);
+const normalizeMetaAccountId = (value = "") => text(value).replace(/[^\d]/g, "");
 
 let schemaReadyPromise = null;
 
@@ -6645,6 +6646,8 @@ const repairMetaWebhookEnabledForConfig = async (row = {}) => {
 };
 
 const logMetaWebhookNoConfig = async ({ pageId = "", instagramBusinessAccountId = "", strictRows = 0, fallbackRows = 0 } = {}) => {
+  const normalizedPageId = normalizeMetaAccountId(pageId);
+  const normalizedIgId = normalizeMetaAccountId(instagramBusinessAccountId);
   const known = await db.query(
     `
     SELECT id, tenant_id, facebook_page_id, instagram_business_account_id, webhook_enabled, status, updated_at
@@ -6657,13 +6660,27 @@ const logMetaWebhookNoConfig = async ({ pageId = "", instagramBusinessAccountId 
   ).catch(() => ({ rows: [] }));
   console.warn("[meta-webhook] webhook_no_config", {
     incoming_facebook_page_id: maskIdForLog(pageId),
+    incoming_facebook_page_id_raw: text(pageId),
+    incoming_facebook_page_id_type: typeof pageId,
+    incoming_facebook_page_id_normalized: maskIdForLog(normalizedPageId),
+    incoming_facebook_page_id_length: text(pageId).length,
+    incoming_facebook_page_id_normalized_length: normalizedPageId.length,
     incoming_instagram_business_account_id: maskIdForLog(instagramBusinessAccountId),
+    incoming_instagram_business_account_id_raw: text(instagramBusinessAccountId),
+    incoming_instagram_business_account_id_type: typeof instagramBusinessAccountId,
+    incoming_instagram_business_account_id_normalized: maskIdForLog(normalizedIgId),
+    incoming_instagram_business_account_id_length: text(instagramBusinessAccountId).length,
+    incoming_instagram_business_account_id_normalized_length: normalizedIgId.length,
     strict_rows: strictRows,
     fallback_rows: fallbackRows,
     known_configs: (known.rows || []).map((row) => ({
       config_id: row.id || null,
       tenant_id: row.tenant_id || null,
       facebook_page_id: maskIdForLog(row.facebook_page_id),
+      facebook_page_id_raw: text(row.facebook_page_id || ""),
+      facebook_page_id_length: text(row.facebook_page_id || "").length,
+      facebook_page_id_normalized: maskIdForLog(normalizeMetaAccountId(row.facebook_page_id || "")),
+      facebook_page_id_normalized_length: normalizeMetaAccountId(row.facebook_page_id || "").length,
       instagram_business_account_id: maskIdForLog(row.instagram_business_account_id),
       webhook_enabled: row.webhook_enabled === true,
       status: row.status || "",
@@ -6674,24 +6691,40 @@ const logMetaWebhookNoConfig = async ({ pageId = "", instagramBusinessAccountId 
 export const findMetaConfigForAccount = async ({ pageId = "", instagramBusinessAccountId = "" } = {}) => {
   await ensureMetaIntegrationSchema();
   const page = text(pageId);
+  const pageNormalized = normalizeMetaAccountId(page);
   const ig = text(instagramBusinessAccountId);
+  const igNormalized = normalizeMetaAccountId(ig);
+  console.log("[meta-webhook] config lookup inputs", {
+    incoming_facebook_page_id_raw: page,
+    incoming_facebook_page_id_type: typeof pageId,
+    incoming_facebook_page_id_normalized: pageNormalized,
+    incoming_facebook_page_id_length: page.length,
+    incoming_facebook_page_id_normalized_length: pageNormalized.length,
+    incoming_instagram_business_account_id_raw: ig,
+    incoming_instagram_business_account_id_type: typeof instagramBusinessAccountId,
+    incoming_instagram_business_account_id_normalized: igNormalized,
+    incoming_instagram_business_account_id_length: ig.length,
+    incoming_instagram_business_account_id_normalized_length: igNormalized.length,
+  });
   const strict = await db.query(
     `
     SELECT *
     FROM meta_integration_configs
     WHERE webhook_enabled = TRUE
       AND (
-        NULLIF($1::text, '') IS NOT NULL AND TRIM(facebook_page_id::text) = $1
-        OR NULLIF($2::text, '') IS NOT NULL AND TRIM(instagram_business_account_id::text) = $2
+        NULLIF($1::text, '') IS NOT NULL AND REGEXP_REPLACE(COALESCE(facebook_page_id::text, ''), '[^0-9]', '', 'g') = $1
+        OR NULLIF($2::text, '') IS NOT NULL AND REGEXP_REPLACE(COALESCE(instagram_business_account_id::text, ''), '[^0-9]', '', 'g') = $2
       )
     ORDER BY updated_at DESC
     `,
-    [page, ig]
+    [pageNormalized, igNormalized]
   );
   if (strict.rows[0]) {
     console.log("[meta-webhook] config lookup", {
       incoming_facebook_page_id: maskIdForLog(page),
+      incoming_facebook_page_id_normalized: maskIdForLog(pageNormalized),
       incoming_instagram_business_account_id: maskIdForLog(ig),
+      incoming_instagram_business_account_id_normalized: maskIdForLog(igNormalized),
       strict_rows: strict.rows.length,
       fallback_rows: 0,
       match_mode: "strict",
@@ -6703,13 +6736,51 @@ export const findMetaConfigForAccount = async ({ pageId = "", instagramBusinessA
     return strict.rows[0];
   }
 
+  const relaxed = await db.query(
+    `
+    SELECT *
+    FROM meta_integration_configs
+    WHERE (
+        NULLIF($1::text, '') IS NOT NULL AND REGEXP_REPLACE(COALESCE(facebook_page_id::text, ''), '[^0-9]', '', 'g') = $1
+        OR NULLIF($2::text, '') IS NOT NULL AND REGEXP_REPLACE(COALESCE(instagram_business_account_id::text, ''), '[^0-9]', '', 'g') = $2
+      )
+    ORDER BY updated_at DESC
+    `,
+    [pageNormalized, igNormalized]
+  );
+  if (relaxed.rows.length === 1) {
+    const row = relaxed.rows[0];
+    const repaired = await repairMetaWebhookEnabledForConfig(row).catch((error) => {
+      console.warn("[meta-webhook] webhook_enabled repair failed", {
+        matched_config_id: row?.id || null,
+        matched_tenant_id: row?.tenant_id || null,
+        message: error?.message || "unknown",
+      });
+      return row;
+    });
+    console.log("[meta-webhook] config lookup", {
+      incoming_facebook_page_id: maskIdForLog(page),
+      incoming_facebook_page_id_normalized: maskIdForLog(pageNormalized),
+      incoming_instagram_business_account_id: maskIdForLog(ig),
+      incoming_instagram_business_account_id_normalized: maskIdForLog(igNormalized),
+      strict_rows: strict.rows.length,
+      fallback_rows: 0,
+      match_mode: "relaxed_repaired",
+      matched_config_id: row?.id || null,
+      matched_tenant_id: row?.tenant_id || null,
+      webhook_enabled_before: row?.webhook_enabled === true,
+      webhook_enabled_after: repaired?.webhook_enabled === true,
+    });
+    return repaired || row;
+  }
+
   const fallback = await db.query(
     `
     SELECT *
     FROM meta_integration_configs
     WHERE (
-        NULLIF($1::text, '') IS NOT NULL AND TRIM(facebook_page_id::text) = $1
-        OR NULLIF($2::text, '') IS NOT NULL AND TRIM(instagram_business_account_id::text) = $2
+        NULLIF($1::text, '') IS NOT NULL AND REGEXP_REPLACE(COALESCE(facebook_page_id::text, ''), '[^0-9]', '', 'g') = $1
+        OR NULLIF($2::text, '') IS NOT NULL AND REGEXP_REPLACE(COALESCE(instagram_business_account_id::text, ''), '[^0-9]', '', 'g') = $2
       )
       AND page_access_token_encrypted IS NOT NULL
       AND page_access_token_encrypted <> ''
@@ -6717,7 +6788,7 @@ export const findMetaConfigForAccount = async ({ pageId = "", instagramBusinessA
       AND LOWER(COALESCE(status, '')) NOT IN ('invalid','token_expired','revoked','error')
     ORDER BY updated_at DESC
     `,
-    [page, ig]
+    [pageNormalized, igNormalized]
   );
   if (fallback.rows.length === 1) {
     const row = fallback.rows[0];
@@ -6731,7 +6802,9 @@ export const findMetaConfigForAccount = async ({ pageId = "", instagramBusinessA
     });
     console.log("[meta-webhook] config lookup", {
       incoming_facebook_page_id: maskIdForLog(page),
+      incoming_facebook_page_id_normalized: maskIdForLog(pageNormalized),
       incoming_instagram_business_account_id: maskIdForLog(ig),
+      incoming_instagram_business_account_id_normalized: maskIdForLog(igNormalized),
       strict_rows: strict.rows.length,
       fallback_rows: fallback.rows.length,
       match_mode: "fallback_repaired",
