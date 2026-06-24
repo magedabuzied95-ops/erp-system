@@ -4047,7 +4047,7 @@ const fetchMetaPagePostsForPolling = async ({ pageId, token }) => {
     endpoint: `/${encodeURIComponent(text(pageId))}/posts`,
     token,
     params: {
-      fields: "id,created_time,permalink_url",
+      fields: "id,message,created_time,permalink_url,full_picture,caption",
       limit: "20",
     },
   });
@@ -4072,13 +4072,20 @@ const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {}
   const commenterId = text(comment.from?.id || "");
   const commenterName = text(comment.from?.name || "");
   const originalCommentText = text(comment.message || "");
+  const postPermalink = text(post.permalink_url || "");
+  const postMessage = text(post.message || "");
+  const postCaption = text(post.caption || "");
   const createdTime = text(comment.created_time || new Date().toISOString());
   return {
     tenant_id: tenantId,
     platform: "facebook",
     channel: "facebook_comment",
     post_id: text(post.id || ""),
-    post_permalink: text(post.permalink_url || ""),
+    post_permalink: postPermalink,
+    post_permalink_url: postPermalink,
+    post_message: postMessage,
+    post_caption: postCaption,
+    post_created_time: text(post.created_time || ""),
     comment_id: commentId,
     parent_comment_id: parentCommentId,
     root_comment_id: parentCommentId || commentId,
@@ -4086,6 +4093,8 @@ const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {}
     commenter_name: commenterName,
     commenter_profile_picture_url: text(comment.from?.profile_pic || comment.from?.picture || ""),
     original_comment_text: originalCommentText,
+    comment_created_time: createdTime,
+    comment_url: postPermalink && commentId ? `${postPermalink}${postPermalink.includes("?") ? "&" : "?"}comment_id=${encodeURIComponent(commentId)}` : "",
     classification_label: null,
     classification_score: null,
     action_taken: "ingested",
@@ -4100,6 +4109,11 @@ const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {}
       page_id: text(pageId || ""),
       post,
       comment,
+      post_message: postMessage,
+      post_caption: postCaption,
+      post_created_time: text(post.created_time || ""),
+      comment_created_time: createdTime,
+      comment_url: postPermalink && commentId ? `${postPermalink}${postPermalink.includes("?") ? "&" : "?"}comment_id=${encodeURIComponent(commentId)}` : "",
     },
     processed_at: createdTime,
   };
@@ -6260,6 +6274,12 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
           totals.comments_seen += 1;
           const commenterId = text(comment.from?.id || "");
           const commentId = text(comment.id || "");
+          const event = buildMetaPolledCommentEvent({
+            tenantId: safeTenantId,
+            pageId,
+            post,
+            comment,
+          });
           console.log("META_COMMENTS_POLL_COMMENT_SEEN", {
             tenant_id: safeTenantId,
             page_id: pageId,
@@ -6289,7 +6309,7 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
               });
               const materialization = await materializeSocialCommentInboxConversation({
                 tenantId: safeTenantId,
-                event: event,
+                event,
                 updateRunLink: true,
               }).catch((error) => {
                 totals.errors += 1;
@@ -6318,12 +6338,6 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
               continue;
             }
 
-            const event = buildMetaPolledCommentEvent({
-              tenantId: safeTenantId,
-              pageId,
-              post,
-              comment,
-            });
             await storeSocialCommentAutomationRuns({ tenantId: safeTenantId, events: [event] });
             totals.comments_saved += 1;
             console.log("META_COMMENTS_POLL_COMMENT_SAVED", {

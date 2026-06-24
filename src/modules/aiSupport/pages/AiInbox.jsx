@@ -379,7 +379,7 @@ const channelBadgeLabel = (value = "") => {
   if (key.includes("whatsapp")) return "واتساب";
   if (key.includes("facebook_comment")) return "تعليق فيسبوك";
   if (key.includes("instagram_comment")) return "تعليق إنستجرام";
-  if (key.includes("instagram")) return "إنستجرام";
+  if (key.includes("instagram")) return "إنستجرام DM";
   if (key.includes("facebook") && key.includes("messenger")) return "ماسنجر";
   if (key.includes("facebook")) return "فيسبوك";
   if (key.includes("messenger")) return "ماسنجر";
@@ -387,7 +387,20 @@ const channelBadgeLabel = (value = "") => {
   return "الكل";
 };
 const isConversationAiEnabled = (conversation = {}) => conversation?.ai_enabled !== false;
-const fixedChannelOrder = ["whatsapp", "messenger", "facebook_comment", "instagram_comment", "instagram", "web"];
+const conversationChannelAliases = ["whatsapp", "facebook_messenger", "messenger", "facebook", "instagram", "instagram_dm", "web_chat", "web"];
+const socialCommentChannelAliases = ["facebook_comment", "instagram_comment"];
+const isSocialCommentChannel = (value = "") => {
+  const key = clean(value).toLowerCase();
+  return socialCommentChannelAliases.some((alias) => key === alias || key.includes(alias));
+};
+const isConversationChannel = (value = "") => {
+  const key = clean(value).toLowerCase();
+  if (!key) return false;
+  if (isSocialCommentChannel(key)) return false;
+  return conversationChannelAliases.some((alias) => key === alias || key.includes(alias));
+};
+const conversationChannelOrder = ["whatsapp", "messenger", "instagram", "web"];
+const socialCommentChannelOrder = ["facebook_comment", "instagram_comment"];
 const normalizeConversationChannel = (conversation = {}) => {
   const raw = clean(conversation?.channel || conversation?.source || conversation?.provider || conversation?.platform || "");
   const key = raw.toLowerCase();
@@ -537,12 +550,18 @@ const isCommentConversation = (conversation = {}) => {
 
 const commentConversationPostUrl = (conversation = {}) =>
   firstNonEmpty(
+    conversation?.channel_metadata?.comment_url,
+    conversation?.channel_metadata?.post_permalink_url,
     conversation?.channel_metadata?.post_permalink,
     conversation?.channel_metadata?.permalink_url,
     conversation?.channel_metadata?.post_url,
+    conversation?.metadata?.comment_url,
+    conversation?.metadata?.post_permalink_url,
     conversation?.metadata?.post_permalink,
     conversation?.metadata?.permalink_url,
     conversation?.metadata?.post_url,
+    conversation?.comment_url,
+    conversation?.post_permalink_url,
     conversation?.post_permalink,
     conversation?.permalink_url,
     conversation?.post_url,
@@ -554,9 +573,12 @@ const isLeadThreadConversation = (conversation = {}) => isCommentConversation(co
 const leadConversationDisplayName = (conversation = {}) => {
   const profile = conversation?.customer_profile || {};
   return firstNonEmpty(
+    conversation.customer_profile?.name,
     profile.name,
     [profile.first_name, profile.last_name].map(clean).filter(Boolean).join(" "),
     conversation.customer_name,
+    conversation.channel_metadata?.commenter_name,
+    conversation.metadata?.commenter_name,
     conversation.sender_name,
     conversation.external_customer_id,
     conversation.phone,
@@ -627,6 +649,8 @@ const getConversationDisplayName = (conversation = {}) => {
   const fullName = [source.first_name || profile.first_name, source.last_name || profile.last_name].map(clean).filter(Boolean).join(" ");
   return firstNonEmpty(
     source.customer_name,
+    source.channel_metadata?.commenter_name,
+    source.metadata?.commenter_name,
     fullName,
     source.customer?.name,
     profile.name,
@@ -1375,7 +1399,7 @@ function LeadQuickActionsBar({
           {isComment ? (
             <button type="button" onClick={onSendCommentReply} disabled={busy || isClosed} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-2.5 text-[11px] font-black text-violet-100 disabled:opacity-50">
               <MessageSquareText className="h-3.5 w-3.5" />
-              رد على الكومنت
+              رد على التعليق
             </button>
           ) : null}
           <button type="button" onClick={onSendPrivateMessage} disabled={busy || isClosed} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[11px] font-black text-cyan-100 disabled:opacity-50">
@@ -1434,7 +1458,7 @@ function CommentReplyDraftPanel({ draftText = "", onLoadDraft, onCopyDraft, load
     <div className="rounded-2xl border border-violet-300/15 bg-violet-300/8 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-100">مسودة رد على الكومنت</div>
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-100">مسودة رد على التعليق</div>
           <div className="mt-1 text-xs text-slate-400">يمكنك تحميل المسودة إلى المحرر ثم تعديلها قبل الإرسال.</div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -1445,7 +1469,7 @@ function CommentReplyDraftPanel({ draftText = "", onLoadDraft, onCopyDraft, load
             className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-[11px] font-black text-violet-100 disabled:opacity-50"
           >
             <MessageSquareText className="h-3.5 w-3.5" />
-            رد على الكومنت
+            رد على التعليق
           </button>
           <button
             type="button"
@@ -1674,7 +1698,7 @@ function ManualReplyComposer({
                   className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-violet-300/20 bg-violet-400/10 px-2.5 text-[10px] font-black text-violet-100 disabled:opacity-50"
                 >
                   <MessageSquareText className="h-3.5 w-3.5" />
-                  رد على الكومنت
+                  رد على التعليق
                 </button>
               ) : null}
               <button
@@ -2955,7 +2979,7 @@ export default function AiInbox() {
   const [correctionModal, setCorrectionModal] = useState({ open: false, draft: buildReplyCorrectionDraft() });
   const [correctionSaving, setCorrectionSaving] = useState(false);
   const [leadFunnelExpanded, setLeadFunnelExpanded] = useState(false);
-  const [isFullscreenConversation, setIsFullscreenConversation] = useState(false);
+  const [isConversationExpanded, setIsConversationExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState({ tone: "", text: "" });
@@ -3603,6 +3627,7 @@ export default function AiInbox() {
           createdAt: absoluteTime(normalizedMessage.created_at),
           channelLabel: channelLabel(normalizedMessage.channel || selectedConversation?.channel),
           postUrl: commentConversationPostUrl(selectedConversation || normalizedMessage),
+          conversationMetadata: selectedConversation?.channel_metadata || selectedConversation?.metadata || {},
           mediaUrls: [
             normalizedMessage.image_url,
             normalizedMessage.media_url,
@@ -3629,33 +3654,11 @@ export default function AiInbox() {
         !["token_expired", "expired", "invalid", "revoked", "error"].includes(clean(selectedChannelStatus.token_status || selectedChannelStatus.token_health_status).toLowerCase()))
   );
   const selectedMessagingActive = Boolean(selectedChannelStatus.live_operational || selectedChannelStatus.effective_enabled || selectedChannelStatus.messaging_active);
-  const fullscreenConversation = Boolean(isFullscreenConversation && selectedConversation && inboxSection === "conversations");
-  const handleToggleConversationFullscreen = useCallback(async () => {
-    const doc = typeof document !== "undefined" ? document : null;
-    if (!doc) {
-      setIsFullscreenConversation((current) => !current);
-      return;
-    }
-    if (isFullscreenConversation) {
-      setIsFullscreenConversation(false);
-      if (doc.fullscreenElement) {
-        try {
-          await doc.exitFullscreen?.();
-        } catch (error) {
-          console.warn("[AiInbox][fullscreen-exit-failed]", error?.message || error);
-        }
-      }
-      return;
-    }
-    setIsFullscreenConversation(true);
-    if (doc.documentElement?.requestFullscreen) {
-      try {
-        await doc.documentElement.requestFullscreen();
-      } catch (error) {
-        console.warn("[AiInbox][fullscreen-enter-failed]", error?.message || error);
-      }
-    }
-  }, [isFullscreenConversation]);
+  const conversationExpanded = Boolean(isConversationExpanded && selectedConversation && inboxSection === "conversations");
+  const fullscreenConversation = conversationExpanded;
+  const handleToggleConversationExpansion = useCallback(() => {
+    setIsConversationExpanded((current) => !current);
+  }, []);
   const canViewAiDebug = useMemo(() => canViewAiDebugPanel(getCurrentUser?.() || {}), []);
   const openProductCardPicker = useCallback((options = {}) => {
     setProductCardPickerConfig({
@@ -4007,26 +4010,6 @@ export default function AiInbox() {
       setLeadActionLoading("");
     }
   }, [headers, patchConversation, selectedConversation?.conversation_key, selectedConversation?.session_id, tenantId]);
-
-  useEffect(() => {
-    const doc = typeof document !== "undefined" ? document : null;
-    if (!doc) return undefined;
-    const syncFullscreenState = () => {
-      const active = Boolean(doc.fullscreenElement);
-      setIsFullscreenConversation(active);
-    };
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape" && doc.fullscreenElement) {
-        syncFullscreenState();
-      }
-    };
-    doc.addEventListener("fullscreenchange", syncFullscreenState);
-    doc.addEventListener("keydown", handleKeyDown);
-    return () => {
-      doc.removeEventListener("fullscreenchange", syncFullscreenState);
-      doc.removeEventListener("keydown", handleKeyDown);
-    };
-  }, []);
 
   const debugMessengerProfile = async () => {
     if (!selectedConversation?.session_id) return;
@@ -4968,7 +4951,7 @@ export default function AiInbox() {
         onChange={patchReplyCorrection}
         onSave={saveReplyCorrection}
       />
-      <div className={`${fullscreenConversation ? "fixed inset-0 z-[9999] flex h-[100dvh] max-w-none flex-col overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] p-0 md:p-0" : "mx-auto flex h-[100dvh] max-w-[96rem] flex-col gap-2 overflow-hidden p-2 md:p-3"}`}>
+      <div className={`${conversationExpanded ? "conversation-expanded fixed inset-0 z-[9999] flex h-[100vh] w-[100vw] max-w-none flex-col overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] p-0 md:p-0" : "mx-auto flex h-[100dvh] max-w-[96rem] flex-col gap-2 overflow-hidden p-2 md:p-3"}`}>
         <section className={`${fullscreenConversation ? "hidden" : "shrink-0"} rounded-3xl border border-white/10 bg-white/[0.055] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.2)] backdrop-blur`}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
@@ -5132,21 +5115,11 @@ export default function AiInbox() {
                   </button>
                 </div>
               </div>
-              <div className="xl:hidden">
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  <button type="button" onClick={() => setChannelFilter("all")} className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black ${channelFilter === "all" ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white"}`}>الكل</button>
-                  {channelSummaries.channels.map((channel) => (
-                    <button key={channel.key} type="button" onClick={() => setChannelFilter(channel.key)} className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black ${channelFilter === channel.key ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white"}`}>
-                      {channel.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex flex-col gap-3">
-                <label className="relative min-w-0">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                  <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث عن العميل أو المعرّف الخارجي أو الهاتف أو الرسالة" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
-                </label>
+	              <div className="flex flex-col gap-3">
+	                <label className="relative min-w-0">
+	                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+	                  <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث عن العميل أو المعرّف الخارجي أو الهاتف أو الرسالة" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
+	                </label>
                 <div className="flex flex-wrap items-center gap-2">
                   <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
                     <ArrowUpDown className="h-4 w-4 text-slate-500" />
@@ -5157,41 +5130,9 @@ export default function AiInbox() {
                     </select>
                   </label>
                 </div>
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {filters.map((item) => (
-                    <button key={item.key} type="button" onClick={() => setFilter(item.key)} className={`h-9 shrink-0 rounded-xl px-3 text-[11px] font-black transition ${filter === item.key ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"}`}>
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">مرشحات العملاء المحتملين</span>
-                  <div className="flex gap-2 overflow-x-auto pb-1">
-                    {leadFilters.map((item) => (
-                      <button
-                        key={item.key}
-                        type="button"
-                        onClick={() => setLeadFilter(item.key)}
-                        className={`h-9 shrink-0 rounded-xl px-3 text-[11px] font-black transition ${
-                          leadFilter === item.key
-                            ? item.key === "ready_to_buy"
-                              ? "bg-emerald-300 text-slate-950"
-                              : item.key === "hot"
-                                ? "bg-rose-300 text-slate-950"
-                                : item.key === "warm"
-                                  ? "bg-amber-300 text-slate-950"
-                                  : "bg-cyan-300 text-slate-950"
-                            : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
-                        }`}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="min-h-0 flex-1 overflow-hidden pr-1">
+	              </div>
+	            </div>
+	            <div className="min-h-0 flex-1 overflow-hidden pr-1">
               {loading && !conversations.length ? <LoadingBlock text="جارٍ تحميل المحادثات..." /> : null}
               {filteredConversations.length ? (
                 <VirtualList
@@ -5232,11 +5173,11 @@ export default function AiInbox() {
                     onReturnToAi={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "return")}
                     onClose={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "close")}
                     onOpenTools={() => setToolsTab("customer")}
-                    isFullscreenConversation={fullscreenConversation}
-                    onToggleFullscreen={handleToggleConversationFullscreen}
+                    isFullscreenConversation={conversationExpanded}
+                    onToggleFullscreen={handleToggleConversationExpansion}
                     showBack
                   />
-                  {fullscreenConversation ? null : (
+                  {conversationExpanded ? null : (
                     <LeadQuickActionsBar
                     conversation={selectedConversation}
                     employees={employees}
@@ -5474,8 +5415,8 @@ export default function AiInbox() {
                     onReturnToAi={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "return")}
                     onClose={() => updateConversationAction("close")}
                     onOpenTools={() => setProfileOpen(true)}
-                    isFullscreenConversation={fullscreenConversation}
-                    onToggleFullscreen={handleToggleConversationFullscreen}
+                    isFullscreenConversation={conversationExpanded}
+                    onToggleFullscreen={handleToggleConversationExpansion}
                   />
                   <LeadQuickActionsBar
                     conversation={safeConversation}
@@ -5721,21 +5662,11 @@ export default function AiInbox() {
             {inboxSection === "conversations" ? (
               <>
                 {loading && !conversations.length ? <LoadingBlock text="جارٍ تحميل المحادثات..." /> : null}
-                <div className="block">
-                  <div className="flex gap-2 overflow-x-auto pb-1">
-                    <button type="button" onClick={() => setChannelFilter("all")} className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black ${channelFilter === "all" ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white"}`}>الكل</button>
-                    {channelSummaries.channels.map((channel) => (
-                      <button key={channel.key} type="button" onClick={() => setChannelFilter(channel.key)} className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black ${channelFilter === channel.key ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white"}`}>
-                        {channel.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex flex-col gap-3">
-                  <label className="relative min-w-0">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                    <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث عن العميل أو المعرف الخارجي أو الهاتف أو الرسالة" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
-                  </label>
+	                <div className="flex flex-col gap-3">
+	                  <label className="relative min-w-0">
+	                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+	                    <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث عن العميل أو المعرف الخارجي أو الهاتف أو الرسالة" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
+	                  </label>
                   <div className="flex flex-wrap items-center gap-2">
                     <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
                       <ArrowUpDown className="h-4 w-4 text-slate-500" />
@@ -5746,40 +5677,8 @@ export default function AiInbox() {
                       </select>
                     </label>
                   </div>
-                  <div className="flex gap-2 overflow-x-auto pb-1">
-                    {filters.map((item) => (
-                      <button key={item.key} type="button" onClick={() => setFilter(item.key)} className={`h-9 shrink-0 rounded-xl px-3 text-[11px] font-black transition ${filter === item.key ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"}`}>
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">مرشحات العملاء المحتملين</span>
-                    <div className="flex gap-2 overflow-x-auto pb-1">
-                      {leadFilters.map((item) => (
-                        <button
-                          key={item.key}
-                          type="button"
-                          onClick={() => setLeadFilter(item.key)}
-                          className={`h-9 shrink-0 rounded-xl px-3 text-[11px] font-black transition ${
-                            leadFilter === item.key
-                              ? item.key === "ready_to_buy"
-                                ? "bg-emerald-300 text-slate-950"
-                                : item.key === "hot"
-                                  ? "bg-rose-300 text-slate-950"
-                                  : item.key === "warm"
-                                    ? "bg-amber-300 text-slate-950"
-                                    : "bg-cyan-300 text-slate-950"
-                              : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
-                          }`}
-                        >
-                          {item.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <div className="min-h-0 flex-1 overflow-hidden pr-1">
+	                </div>
+	                <div className="min-h-0 flex-1 overflow-hidden pr-1">
                   {loading && !conversations.length ? <LoadingBlock text="جارٍ تحميل المحادثات..." /> : null}
                   {filteredConversations.length ? (
                     <VirtualList
@@ -5844,4 +5743,5 @@ function LoadingBlock({ text }) {
 function EmptyBlock({ text }) {
   return <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">{text}</div>;
 }
+
 

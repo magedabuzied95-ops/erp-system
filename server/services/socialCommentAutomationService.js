@@ -10,6 +10,7 @@ import {
   DEFAULT_SOCIAL_AUTOMATION_SETTINGS,
   getSocialAutomationSettings,
 } from "./socialAutomationSettingsService.js";
+import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -371,17 +372,116 @@ const resolveSocialCommentAvatarUrl = (event = {}) =>
       ""
   );
 
+const resolveSocialCommentPostMessage = (event = {}) =>
+  text(
+    event.post_message ||
+      event.post_caption ||
+      event.raw_payload?.post?.message ||
+      event.raw_payload?.post?.caption ||
+      event.raw_payload?.value?.post?.message ||
+      event.raw_payload?.value?.post?.caption ||
+      ""
+  );
+
+const resolveSocialCommentPostCreatedTime = (event = {}) =>
+  text(
+    event.post_created_time ||
+      event.raw_payload?.post?.created_time ||
+      event.raw_payload?.value?.post?.created_time ||
+      event.raw_payload?.post?.updated_time ||
+      event.raw_payload?.value?.post?.updated_time ||
+      event.comment_created_time ||
+      event.raw_payload?.comment?.created_time ||
+      event.raw_payload?.value?.created_time ||
+      event.processed_at ||
+      ""
+  );
+
 const resolveSocialCommentPostPermalink = (event = {}) =>
   text(
     event.post_permalink ||
+      event.post_permalink_url ||
       event.permalink_url ||
       event.post_url ||
+      event.comment_url ||
       event.raw_payload?.post_permalink ||
+      event.raw_payload?.post_permalink_url ||
       event.raw_payload?.permalink_url ||
       event.raw_payload?.post_url ||
+      event.raw_payload?.comment_url ||
       event.raw_payload?.permalink ||
       ""
   );
+
+const resolveSocialCommentCustomerProfileId = async ({ tenantId = null, event = {} } = {}) => {
+  const safeTenantId = Number(tenantId);
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0) return null;
+
+  const commenterId = text(event.commenter_id || event.from?.id || event.raw_payload?.comment?.from?.id || "");
+  if (!commenterId) return null;
+
+  try {
+    await ensureAiSalesAgentSchema();
+  } catch (error) {
+    socialCommentsError("[social-comments] ensure sales schema failed", {
+      tenant_id: safeTenantId,
+      commenter_id: commenterId,
+      message: error?.message || "",
+    });
+  }
+
+  const existing = await db.query(
+    `
+    SELECT id
+    FROM ai_customer_profiles
+    WHERE tenant_id = $1::bigint
+      AND COALESCE(external_customer_id, '') = $2::text
+    ORDER BY id ASC
+    LIMIT 1
+    `,
+    [safeTenantId, commenterId]
+  ).catch(() => ({ rows: [] }));
+  if (existing.rows?.[0]?.id) return existing.rows[0].id;
+
+  const commenterName = resolveSocialCommentCustomerName(event);
+  const nameParts = commenterName.split(/\s+/).filter(Boolean);
+  const firstName = nameParts[0] || commenterName || "Customer";
+  const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+  const inserted = await db.query(
+    `
+    INSERT INTO ai_customer_profiles (
+      tenant_id,
+      first_name,
+      last_name,
+      source_channel,
+      external_customer_id,
+      display_name,
+      facebook_name,
+      messenger_name,
+      customer_name,
+      last_seen_at,
+      updated_at
+    )
+    VALUES ($1, $2, $3, 'facebook', $4, $5, $5, $5, $5, NOW(), NOW())
+    RETURNING id
+    `,
+    [
+      safeTenantId,
+      firstName,
+      lastName,
+      commenterId,
+      commenterName,
+    ]
+  ).catch((error) => {
+    socialCommentsError("[social-comments] profile upsert failed", {
+      tenant_id: safeTenantId,
+      commenter_id: commenterId,
+      message: error?.message || "",
+    });
+    return { rows: [] };
+  });
+  return inserted.rows?.[0]?.id || null;
+};
 
 const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}, suggestedReply = "" } = {}) => {
   const safeTenantId = Number(tenantId);
@@ -404,37 +504,58 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
     const commenterName = resolveSocialCommentCustomerName(event);
     const commenterId = text(event.commenter_id || "");
     const commenterProfilePictureUrl = resolveSocialCommentAvatarUrl(event);
+    const customerProfileId = await resolveSocialCommentCustomerProfileId({ tenantId: safeTenantId, event });
     const postPermalink = resolveSocialCommentPostPermalink(event);
     const postId = text(event.post_id || "");
+    const postMessage = resolveSocialCommentPostMessage(event);
+    const postCreatedTime = text(resolveSocialCommentPostCreatedTime(event) || "");
+    const commentCreatedTime = text(
+      event.comment_created_time ||
+      event.raw_payload?.comment?.created_time ||
+      event.raw_payload?.value?.created_time ||
+      event.processed_at ||
+      ""
+    );
+    const commentUrl = text(event.comment_url || event.raw_payload?.comment_url || "");
     const metadata = {
-    thread_kind: threadKind,
-    platform,
-    post_id: postId,
-    post_permalink: postPermalink,
-    comment_id: text(event.comment_id || ""),
-    root_comment_id: text(event.root_comment_id || event.comment_id || ""),
-    parent_comment_id: text(event.parent_comment_id || ""),
-    commenter_id: commenterId,
-    commenter_name: commenterName,
-    commenter_profile_picture_url: text(event.commenter_profile_picture_url || ""),
-    original_comment_text: commentText,
-    classification_label: text(event.classification_label || ""),
-    classification_score: Number(event.classification_score || 0),
-    lead: {
-      lead_score: Number(COMMENT_LEAD_SCORE[event.classification_label] || 0),
-      lead_temperature: socialCommentLeadTemperature(event.classification_label),
-      lead_reasons: [text(event.classification_label || "")].filter(Boolean),
-      recommended_sales_action: "continue_conversation",
-      suggested_reply: text(suggestedReply || ""),
-    },
-    automation_state: {
-      like_status: text(event.like_status || "skipped") || "skipped",
-      public_reply_status: text(event.public_reply_status || "skipped") || "skipped",
-      dm_status: text(event.dm_status || "skipped") || "skipped",
-      overall_status: text(event.action_taken || "classified_only") || "classified_only",
-      updated_at: new Date().toISOString(),
-    },
-  };
+      thread_kind: threadKind,
+      platform,
+      channel,
+      thread_kind_label: threadKind,
+      post_id: postId,
+      post_permalink_url: postPermalink,
+      post_permalink: postPermalink,
+      post_url: postPermalink,
+      post_message: postMessage,
+      post_caption: text(event.post_caption || ""),
+      post_created_time: postCreatedTime,
+      comment_id: text(event.comment_id || ""),
+      comment_url: commentUrl || (postPermalink && event.comment_id ? `${postPermalink}${postPermalink.includes("?") ? "&" : "?"}comment_id=${encodeURIComponent(text(event.comment_id || ""))}` : ""),
+      comment_created_time: commentCreatedTime,
+      root_comment_id: text(event.root_comment_id || event.comment_id || ""),
+      parent_comment_id: text(event.parent_comment_id || ""),
+      commenter_id: commenterId,
+      commenter_name: commenterName,
+      commenter_profile_picture_url: text(event.commenter_profile_picture_url || ""),
+      customer_profile_id: customerProfileId || null,
+      original_comment_text: commentText,
+      classification_label: text(event.classification_label || ""),
+      classification_score: Number(event.classification_score || 0),
+      lead: {
+        lead_score: Number(COMMENT_LEAD_SCORE[event.classification_label] || 0),
+        lead_temperature: socialCommentLeadTemperature(event.classification_label),
+        lead_reasons: [text(event.classification_label || "")].filter(Boolean),
+        recommended_sales_action: "continue_conversation",
+        suggested_reply: text(suggestedReply || ""),
+      },
+      automation_state: {
+        like_status: text(event.like_status || "skipped") || "skipped",
+        public_reply_status: text(event.public_reply_status || "skipped") || "skipped",
+        dm_status: text(event.dm_status || "skipped") || "skipped",
+        overall_status: text(event.action_taken || "classified_only") || "classified_only",
+        updated_at: new Date().toISOString(),
+      },
+    };
 
     console.log("META_COMMENT_INBOX_SAVE_START", {
       tenant_id: safeTenantId,
@@ -455,11 +576,12 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       channel,
       thread_kind,
       customer_name,
+      external_customer_id,
       customer_avatar_url,
       last_message,
       updated_at
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
     ON CONFLICT (tenant_id, session_id) DO UPDATE SET
       source = EXCLUDED.source,
       channel = EXCLUDED.channel,
@@ -470,6 +592,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
           THEN COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_support_sessions.customer_name)
         ELSE ai_support_sessions.customer_name
       END,
+      external_customer_id = COALESCE(NULLIF(EXCLUDED.external_customer_id, ''), ai_support_sessions.external_customer_id),
       customer_avatar_url = CASE
         WHEN COALESCE(NULLIF(ai_support_sessions.customer_avatar_url, ''), '') = ''
           THEN COALESCE(NULLIF(EXCLUDED.customer_avatar_url, ''), ai_support_sessions.customer_avatar_url)
@@ -479,7 +602,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       updated_at = NOW()
     RETURNING id
     `,
-      [safeTenantId, sessionId, channel, channel, threadKind, commenterName, commenterProfilePictureUrl, commentText]
+      [safeTenantId, sessionId, channel, channel, threadKind, commenterName, commenterId, commenterProfilePictureUrl, commentText]
     );
 
     console.log("META_COMMENT_INBOX_CONVERSATION_UPSERTED", {
@@ -504,11 +627,12 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       customer_name,
       customer_avatar_url,
       last_message,
+      customer_profile_id,
       metadata,
       last_message_at,
       updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, NOW(), NOW())
     ON CONFLICT (tenant_id, channel, external_conversation_id) DO UPDATE SET
       external_customer_id = COALESCE(NULLIF(EXCLUDED.external_customer_id, ''), ai_channel_conversations.external_customer_id),
       thread_kind = COALESCE(NULLIF(EXCLUDED.thread_kind, ''), ai_channel_conversations.thread_kind),
@@ -524,11 +648,12 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
         ELSE ai_channel_conversations.customer_avatar_url
       END,
       last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_channel_conversations.last_message),
+      customer_profile_id = COALESCE(EXCLUDED.customer_profile_id, ai_channel_conversations.customer_profile_id),
       metadata = ai_channel_conversations.metadata || EXCLUDED.metadata,
       last_message_at = NOW(),
       updated_at = NOW()
       `,
-      [safeTenantId, channel, sessionId, commenterId, threadKind, commenterName, commenterProfilePictureUrl, commentText, JSON.stringify(metadata)]
+      [safeTenantId, channel, sessionId, commenterId, threadKind, commenterName, customerProfileId || null, commenterProfilePictureUrl, commentText, JSON.stringify(metadata)]
     );
 
     const inboundMessage = await db.query(
@@ -1477,6 +1602,8 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
   const channel = normalizedChannel(platform);
   const postId = firstText(value.post_id, value.media_id, value.id, entry.id);
   const postPermalink = firstText(value.permalink_url, value.post_permalink, value.permalink, value.link, value.url);
+  const postMessage = firstText(value.post_message, value.post_caption, value.post?.message, value.post?.caption);
+  const postCreatedTime = firstText(value.post_created_time, value.post?.created_time, value.post?.updated_time);
   const commenterId = firstText(value.from?.id, value.from?.username, value.sender_id, value.user_id, value.commenter_id, value.author_id);
   const commenterName = firstText(value.from?.name, value.from?.username, value.username, value.commenter_name, value.author_name, value.from?.full_name);
   const commenterProfilePictureUrl = firstText(
@@ -1503,6 +1630,7 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
   });
   const parentCommentId = firstText(value.parent_id, value.parent_comment_id, value.parent?.id);
   const rootCommentId = firstText(value.root_comment_id, value.root_id, value.thread_root_id, value.thread_id, value.parent_id, value.parent_comment_id) || commentId;
+  const commentUrl = postPermalink && commentId ? `${postPermalink}${postPermalink.includes("?") ? "&" : "?"}comment_id=${encodeURIComponent(commentId)}` : "";
   const classification = classifySocialCommentIntent(originalCommentText);
   const pageId = firstText(entry.id, value.page_id, value.metadata?.page_id, value.account_id);
   console.log("[COMMENT_EVENT_PARSED]", {
@@ -1520,7 +1648,13 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
     channel,
     post_id: postId,
     post_permalink: postPermalink,
+    post_permalink_url: postPermalink,
+    post_message: postMessage,
+    post_caption: firstText(value.post_caption, value.post?.caption),
+    post_created_time: postCreatedTime || "",
     comment_id: commentId,
+    comment_created_time: timestamp,
+    comment_url: commentUrl,
     parent_comment_id: parentCommentId,
     root_comment_id: rootCommentId,
     commenter_id: commenterId,
@@ -1547,6 +1681,11 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
       platform,
       channel,
       comment_id: commentId,
+      post_message: postMessage,
+      post_caption: firstText(value.post_caption, value.post?.caption),
+      post_created_time: postCreatedTime || "",
+      comment_created_time: timestamp,
+      comment_url: commentUrl,
     },
     processed_at: new Date().toISOString(),
   };
@@ -1588,6 +1727,12 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       commenter_name: text(event.commenter_name || ""),
       commenter_profile_picture_url: text(event.commenter_profile_picture_url || ""),
       original_comment_text: text(event.original_comment_text || ""),
+      post_message: text(event.post_message || ""),
+      post_caption: text(event.post_caption || ""),
+      post_created_time: text(event.post_created_time || ""),
+      comment_created_time: text(event.comment_created_time || ""),
+      comment_url: text(event.comment_url || ""),
+      post_permalink_url: text(event.post_permalink_url || event.post_permalink || ""),
       classification_label: event.classification_label ?? null,
       classification_score: event.classification_score ?? null,
       action_taken: event.action_taken ?? "ingested",
@@ -1597,7 +1742,21 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       inbox_conversation_id: event.inbox_conversation_id ?? null,
       error_code: event.error_code ?? null,
       automation_state: event.automation_state && typeof event.automation_state === "object" ? event.automation_state : {},
-      raw_payload: event.raw_payload && typeof event.raw_payload === "object" ? event.raw_payload : { raw_payload: event.raw_payload ?? null },
+      raw_payload: {
+        ...(event.raw_payload && typeof event.raw_payload === "object" ? event.raw_payload : { raw_payload: event.raw_payload ?? null }),
+        post_message: text(event.post_message || ""),
+        post_caption: text(event.post_caption || ""),
+        post_created_time: text(event.post_created_time || ""),
+        comment_created_time: text(event.comment_created_time || ""),
+        comment_url: text(event.comment_url || ""),
+        post_permalink_url: text(event.post_permalink_url || event.post_permalink || ""),
+      },
+      post_message: text(event.post_message || ""),
+      post_caption: text(event.post_caption || ""),
+      post_created_time: text(event.post_created_time || ""),
+      comment_created_time: text(event.comment_created_time || ""),
+      comment_url: text(event.comment_url || ""),
+      post_permalink_url: text(event.post_permalink_url || event.post_permalink || ""),
       processed_at: event.processed_at ? new Date(event.processed_at).toISOString() : new Date().toISOString(),
     };
 
