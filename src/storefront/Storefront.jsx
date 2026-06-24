@@ -968,6 +968,280 @@ const offerStoryProductGradeValues = (product = {}) => {
   visit(product.conditions);
   return Array.from(seen);
 };
+const offerStoryColorKeyFromValue = (value = "") => normalizeOfferStoryProductTypeValue(value) || storefrontLabelKey(value);
+const offerStoryColorNameFromValue = (value = "") => cleanDisplayText(
+  String(value || "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+) || "";
+const offerStoryColorImageFromEntry = (entry = {}) => compactImageValue(
+  entry.image_url ||
+    entry.image ||
+    entry.photo_url ||
+    entry.thumbnail_url ||
+    entry.preview ||
+    entry.url ||
+    entry.src ||
+    entry.color_image ||
+    entry.colorImage ||
+    ""
+);
+const offerStoryValueLooksLikeImage = (value = "") => {
+  const text = String(value || "").trim();
+  if (!text) return false;
+  if (/^data:image\//i.test(text)) return true;
+  if (/^https?:\/\//i.test(text) || /^\/(?!\/)/.test(text) || /^\.\.?\//.test(text)) {
+    return /\.(avif|gif|jpe?g|png|svg|webp)(\?.*)?$/i.test(text) || text.includes("://");
+  }
+  return false;
+};
+const offerStoryReadColorEntries = (source = {}) => {
+  const entries = [];
+  const pushEntry = (value, hints = {}) => {
+    if (value === null || value === undefined) return;
+    if (Array.isArray(value)) {
+      value.forEach((item) => pushEntry(item, hints));
+      return;
+    }
+    if (typeof value === "string" || typeof value === "number") {
+      const text = String(value).trim();
+      if (!text) return;
+      const key = offerStoryColorKeyFromValue(hints.key || hints.color || text);
+      const color = offerStoryColorNameFromValue(hints.color || hints.key || text);
+      entries.push({
+        key,
+        color,
+        image: offerStoryValueLooksLikeImage(text) ? compactImageValue(text) : "",
+        variants: [],
+        source: null,
+      });
+      return;
+    }
+    if (typeof value !== "object") return;
+
+    const hasDescriptor = Boolean(
+      value.color ||
+      value.color_name ||
+      value.colorName ||
+      value.color_slug ||
+      value.colorSlug ||
+      value.name ||
+      value.title ||
+      value.label ||
+      value.value ||
+      value.key ||
+      value.image_url ||
+      value.image ||
+      value.photo_url ||
+      value.thumbnail_url ||
+      value.preview ||
+      value.color_image ||
+      value.colorImage ||
+      value.variants ||
+      value.items
+    );
+
+    if (!hasDescriptor) {
+      Object.entries(value).forEach(([dictKey, dictValue]) => {
+        pushEntry(dictValue, {
+          key: dictKey,
+          color: dictKey,
+        });
+      });
+      return;
+    }
+
+    const colorValue = firstTextValue(
+      value.color,
+      value.color_name,
+      value.colorName,
+      value.color_slug,
+      value.colorSlug,
+      value.name,
+      value.title,
+      value.label,
+      value.value,
+      value.key,
+      hints.color,
+      hints.key
+    );
+    const key = offerStoryColorKeyFromValue(
+      firstTextValue(
+        value.color_key,
+        value.colorKey,
+        value.key,
+        value.slug,
+        value.color,
+        value.color_name,
+        value.name,
+        value.title,
+        value.label,
+        value.value,
+        hints.key,
+        hints.color
+      )
+    );
+    const variants = [
+      ...(Array.isArray(value.variants) ? value.variants : []),
+      ...(Array.isArray(value.items) ? value.items : []),
+    ];
+    entries.push({
+      key,
+      color: offerStoryColorNameFromValue(colorValue || hints.color || key),
+      image: offerStoryColorImageFromEntry(value) || compactImageValue(hints.image || ""),
+      variants,
+      source: value,
+    });
+  };
+
+  pushEntry(source.color_cards);
+  pushEntry(source.colors);
+  pushEntry(source.available_colors);
+  pushEntry(source.images_by_color);
+  pushEntry(source.colorImages);
+
+  return entries;
+};
+const offerStoryBuildStoryItems = (product = {}) => {
+  const baseProduct = { ...product };
+  const variants = Array.isArray(baseProduct.variants) ? baseProduct.variants.filter(Boolean) : [];
+  const groups = new Map();
+  const ensureGroup = (key, fallback = {}) => {
+    const normalizedKey = String(key || "").trim().toLowerCase() || "default";
+    if (!groups.has(normalizedKey)) {
+      groups.set(normalizedKey, {
+        key: normalizedKey,
+        color: cleanDisplayText(fallback.color || fallback.name || fallback.label || fallback.key || "Default") || "Default",
+        image: compactImageValue(fallback.image || fallback.image_url || ""),
+        variants: [],
+        source: fallback.source || null,
+      });
+    }
+    const group = groups.get(normalizedKey);
+    if (!group.color && (fallback.color || fallback.name || fallback.label)) group.color = cleanDisplayText(fallback.color || fallback.name || fallback.label) || group.color;
+    if (!group.image && (fallback.image || fallback.image_url)) group.image = compactImageValue(fallback.image || fallback.image_url || "");
+    if (!group.source && fallback.source) group.source = fallback.source;
+    return group;
+  };
+  const addVariantToGroup = (variant = {}, fallbackKey = "") => {
+    if (!variant || typeof variant !== "object") return;
+    const variantKey = String(variantColorKey(variant) || fallbackKey || "").trim().toLowerCase() || "default";
+    const group = ensureGroup(variantKey, {
+      color: variantColorName(variant),
+      image: variantPrimaryImage(variant),
+    });
+    if (!group.image) group.image = variantPrimaryImage(variant);
+    group.variants.push(variant);
+  };
+  const colorEntries = offerStoryReadColorEntries(baseProduct);
+
+  colorEntries.forEach((entry) => {
+    const group = ensureGroup(entry.key, {
+      color: entry.color,
+      image: entry.image,
+      source: entry.source,
+    });
+    if (entry.image && !group.image) group.image = entry.image;
+    if (entry.source && !group.source) group.source = entry.source;
+    (Array.isArray(entry.variants) ? entry.variants : []).forEach((variant) => addVariantToGroup(variant, entry.key));
+  });
+
+  variants.forEach((variant) => addVariantToGroup(variant));
+
+  if (!groups.size && variants.length) {
+    const fallbackVariant = firstDisplayVariant(variants);
+    const group = ensureGroup("default", {
+      color: variantColorName(fallbackVariant) || "Default",
+      image: variantPrimaryImage(fallbackVariant) || imageFor(baseProduct.image_url || baseProduct.image || baseProduct.gallery_images?.[0] || ""),
+    });
+    variants.forEach((variant) => group.variants.push(variant));
+    if (!group.image) group.image = variantPrimaryImage(fallbackVariant) || imageFor(baseProduct.image_url || baseProduct.image || baseProduct.gallery_images?.[0] || "");
+  }
+
+  if (!groups.size) {
+    groups.set("default", {
+      key: "default",
+      color: "Default",
+      image: compactImageValue(imageFor(baseProduct.image_url || baseProduct.image || baseProduct.gallery_images?.[0] || "")),
+      variants: variants.slice(),
+      source: null,
+    });
+  }
+
+  const storyItems = Array.from(groups.values())
+    .map((group) => {
+      const groupVariants = Array.isArray(group.variants) ? group.variants.filter(Boolean) : [];
+      const seenVariantKeys = new Set();
+      const uniqueGroupVariants = groupVariants.filter((variant, index) => {
+        const key = String(variant?.id || variant?.variant_id || variant?.edition_slug || variant?.sku || `${variant?.color || ""}:${variant?.size || ""}:${index}`).trim();
+        if (!key || seenVariantKeys.has(key)) return false;
+        seenVariantKeys.add(key);
+        return true;
+      });
+      const sizes = sortProductSizes(
+        Array.from(
+          new Set(
+            uniqueGroupVariants.flatMap((variant) => {
+              const stockValue =
+                variant?.stock ?? variant?.quantity ?? variant?.inventory_stock ?? variant?.available_stock ?? variant?.qty ?? variant?.available_qty;
+              const hasStockField = stockValue !== undefined && stockValue !== null && String(stockValue).trim() !== "";
+              if (hasStockField && Number(stockValue) <= 0) return [];
+              const sizeValue = String(variant?.size || variant?.variant_size || variant?.selected_size || "").trim();
+              return sizeValue ? [sizeValue] : [];
+            })
+          )
+        )
+      );
+      const fallbackSizes = sizes.length ? sizes : sortProductSizes(
+        Array.from(
+          new Set(
+            [
+              ...(Array.isArray(group.source?.sizes) ? group.source.sizes : []),
+              ...(Array.isArray(group.source?.available_sizes) ? group.source.available_sizes : []),
+              ...(Array.isArray(group.source?.availableSizes) ? group.source.availableSizes : []),
+            ].map((size) => String(size || "").trim()).filter(Boolean)
+          )
+        )
+      );
+      const storyVariant = offerStoryMatchingVariant({ variants: uniqueGroupVariants }, fallbackSizes[0] || "");
+      const image = compactImageValue(
+        group.image ||
+          variantImage(storyVariant) ||
+          variantImage(firstDisplayVariant(uniqueGroupVariants)) ||
+          imageFor(baseProduct.image_url || baseProduct.image || baseProduct.gallery_images?.[0] || "")
+      );
+      const colorLabel = group.color && group.color !== "Default" ? group.color : "";
+      const baseName = cleanDisplayText(baseProduct.name || baseProduct.title || "");
+      const name = colorLabel ? `${baseName} - ${colorLabel}` : baseName;
+      return {
+        ...baseProduct,
+        ...group.source,
+        product: baseProduct,
+        productId: baseProduct.id || baseProduct.product_id || "",
+        color: colorLabel || group.color || "",
+        colorKey: group.key,
+        name,
+        title: name,
+        image,
+        image_url: image,
+        variant_image_url: image,
+        sizes: fallbackSizes,
+        variants: uniqueGroupVariants,
+        storyVariant,
+        selected_variant_id: storyVariant?.id || baseProduct.selected_variant_id || baseProduct.display_variant_id || "",
+        display_variant_id: storyVariant?.id || baseProduct.display_variant_id || "",
+        color_key: group.key,
+        display_color_key: group.key,
+        display_color: colorLabel || group.color || "",
+        typeValues: offerStoryProductTypeValues(baseProduct),
+        gradeValues: offerStoryProductGradeValues(baseProduct),
+      };
+    })
+    .filter((item) => item && ((Array.isArray(item.variants) && item.variants.length > 0) || !variants.length || item.color || item.display_color));
+
+  return sortStorefrontColorCardsByModel(storyItems);
+};
 const extractOfferSizes = (product = {}) => {
   const seen = new Set();
   const addSize = (value, { respectStock = false, stockValue } = {}) => {
@@ -1066,12 +1340,12 @@ const offerStoryProductMatches = (product = {}, selectedSize = "", selectedType 
   if (!isStorefrontVisibleOfferProduct(product)) return false;
   const sizeKey = String(selectedSize || "").trim().toLowerCase();
   if (sizeKey) {
-    const sizeValues = extractOfferSizes(product).map((value) => String(value || "").trim().toLowerCase());
+    const sizeValues = (Array.isArray(product?.sizes) && product.sizes.length ? product.sizes : extractOfferSizes(product)).map((value) => String(value || "").trim().toLowerCase());
     if (!sizeValues.includes(sizeKey)) return false;
   }
   const typeKey = String(selectedType || "").trim().toLowerCase();
   if (typeKey) {
-    const typeValues = offerStoryProductTypeValues(product).map((value) => String(value || "").trim().toLowerCase());
+    const typeValues = (Array.isArray(product?.typeValues) && product.typeValues.length ? product.typeValues : offerStoryProductTypeValues(product)).map((value) => String(value || "").trim().toLowerCase());
     if (!typeValues.includes(typeKey)) return false;
   }
   const gradeKey = String(selectedGrade || "").trim().toLowerCase();
@@ -3754,10 +4028,11 @@ function OfferStoryBubble({ label, count, active, onClick, compact = false }) {
   );
 }
 
-function OfferStorySlide({ product, index, total, selectedSize, lang, onPrev, onNext, onViewProduct, onTouchStart, onTouchEnd }) {
-  const variant = offerStoryMatchingVariant(product, selectedSize);
-  const imageSrc = variantImage(variant) || imageFor(product.image_url || product.image || product.gallery_images?.[0] || "");
-  const sizeChips = extractOfferSizes(product);
+function OfferStorySlide({ storyItem, index, total, selectedSize, lang, onPrev, onNext, onViewProduct, onTouchStart, onTouchEnd }) {
+  const product = storyItem || {};
+  const variant = storyItem?.storyVariant || offerStoryMatchingVariant(product, selectedSize);
+  const imageSrc = storyItem?.image || variantImage(variant) || imageFor(product.image_url || product.image || product.gallery_images?.[0] || "");
+  const sizeChips = Array.isArray(storyItem?.sizes) && storyItem.sizes.length ? storyItem.sizes : extractOfferSizes(product);
   const stock = Number(variant?.stock || 0) || productStock(product);
   const priceInfo = offerStoryPriceInfo(product);
   return (
@@ -3832,6 +4107,9 @@ function OfferStoryViewer() {
   const offerProducts = useMemo(() => (
     normalizedProducts.filter((product) => isStorefrontVisibleOfferProduct(product))
   ), [normalizedProducts]);
+  const storyItems = useMemo(() => (
+    offerProducts.flatMap((product) => offerStoryBuildStoryItems(product))
+  ), [offerProducts]);
   const hasOfferProducts = offerProducts.length > 0;
 
   useEffect(() => {
@@ -3846,6 +4124,13 @@ function OfferStoryViewer() {
           original_price: product.original_price,
         });
       });
+      console.log("[offer-story-items]", storyItems.map((item) => ({
+        productId: item.productId,
+        color: item.color,
+        name: item.name,
+        sizes: item.sizes,
+        image: item.image,
+      })));
       console.log("[offer-story-filter-check]", normalizedProducts.map((product) => ({
         id: product.id,
         name: product.name,
@@ -3854,7 +4139,7 @@ function OfferStoryViewer() {
         is_storefront_visible: product.is_storefront_visible,
         storefront_visible: product.storefront_visible,
       })));
-      console.log("[offer-story-final-products]", offerProducts.length, offerProducts.map((product) => ({
+      console.log("[offer-story-final-products]", storyItems.length, storyItems.map((product) => ({
         id: product.id,
         name: product.name,
         sizes: product.sizes,
@@ -3863,32 +4148,33 @@ function OfferStoryViewer() {
         extracted: extractOfferSizes(product),
       })));
     }
-  }, [normalizedProducts, offerProducts]);
+  }, [normalizedProducts, offerProducts, storyItems]);
 
   const availableSizes = useMemo(() => {
     return sortProductSizes(
       Array.from(
         new Set(
-          offerProducts.flatMap((product) => extractOfferSizes(product))
+          storyItems.flatMap((product) => Array.isArray(product.sizes) && product.sizes.length ? product.sizes : extractOfferSizes(product))
         )
       )
     );
-  }, [offerProducts]);
+  }, [storyItems]);
   const sizeCounts = useMemo(() => {
     const map = new Map();
-    offerProducts.forEach((product) => {
-      extractOfferSizes(product).forEach((size) => {
+    storyItems.forEach((product) => {
+      const sizes = Array.isArray(product.sizes) && product.sizes.length ? product.sizes : extractOfferSizes(product);
+      sizes.forEach((size) => {
         const key = String(size || "").trim();
         if (!key) return;
         map.set(key, (map.get(key) || 0) + 1);
       });
     });
     return map;
-  }, [offerProducts]);
+  }, [storyItems]);
 
   const productsForSize = useMemo(
-    () => offerProducts.filter((product) => !selectedSize || offerStoryProductMatches(product, selectedSize)),
-    [selectedSize, offerProducts]
+    () => storyItems.filter((product) => !selectedSize || offerStoryProductMatches(product, selectedSize)),
+    [selectedSize, storyItems]
   );
 
   const typeOptions = useMemo(() => {
@@ -3931,7 +4217,7 @@ function OfferStoryViewer() {
     if (currentIndex >= storyProducts.length) setCurrentIndex(0);
   }, [currentIndex, storyProducts.length]);
 
-  const hasAnyProducts = storyProducts.length > 0 || offerProducts.length > 0;
+  const hasAnyProducts = storyProducts.length > 0 || storyItems.length > 0;
   const currentStory = storyProducts[currentIndex] || storyProducts[0] || null;
 
   useEffect(() => {
@@ -4137,7 +4423,7 @@ function OfferStoryViewer() {
           ) : hasAnyProducts && currentStory ? (
             <div className="flex h-full min-h-0">
               <OfferStorySlide
-                product={currentStory}
+                storyItem={currentStory}
                 index={currentIndex}
                 total={storyProducts.length}
                 selectedSize={selectedSize}
