@@ -601,29 +601,38 @@ const getSelectedPublicProductImage = ({ product = {}, variants = [], colorImage
 };
 
 const renderProductShareHtml = async ({ req, product, imageUrl, description }) => {
-  const shell = await loadStorefrontShell();
-  if (!shell) return null;
   const title = escapeHtml(firstText(product.meta_title, product.seo_title, product.name, "Product"));
   const descriptionText = escapeHtml(description || firstText(product.seo_description, product.description_en, product.description_ar, product.description, product.name));
   const absoluteUrl = escapeHtml(buildAbsolutePublicUrl(req, req.originalUrl || req.url || `/shop/product/${product.slug || product.canonical_slug || product.id || ""}`));
   const absoluteImage = escapeHtml((imageUrl || "").replace(/^http:\/\//i, "https://"));
-  const metaBlock = `
-    <title>${title}</title>
+  const productPath = escapeHtml(req.originalUrl || req.url || `/shop/product/${product.slug || product.canonical_slug || product.id || ""}`);
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta property="og:title" content="${title}" />
     <meta property="og:description" content="${descriptionText}" />
     <meta property="og:image" content="${absoluteImage}" />
     <meta property="og:image:secure_url" content="${absoluteImage}" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta property="og:type" content="product" />
     <meta property="og:url" content="${absoluteUrl}" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="${title}" />
-    <meta name="twitter:description" content="${descriptionText}" />
     <meta name="twitter:image" content="${absoluteImage}" />
-  `;
-  const normalizedShell = shell.replace(/<title>[\s\S]*?<\/title>/i, "").replace("</head>", `${metaBlock}\n  </head>`);
-  return normalizedShell.includes('<div id="root"></div>')
-    ? normalizedShell
-    : normalizedShell.replace("</body>", '<div id="root"></div></body>');
+    <title>${title}</title>
+    <meta http-equiv="refresh" content="1;url=${absoluteUrl}" />
+  </head>
+  <body style="margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0b0f19;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;">
+    <main style="max-width:720px;padding:24px;text-align:center;line-height:1.6;">
+      <p style="margin:0 0 16px;font-size:18px;">Opening product page...</p>
+      <p style="margin:0 0 20px;opacity:.8;">${descriptionText}</p>
+      <a href="${productPath}" style="display:inline-block;padding:12px 18px;border-radius:999px;background:#fff;color:#0b0f19;text-decoration:none;font-weight:700;">Open product</a>
+    </main>
+    <script>setTimeout(function(){window.location.href=${JSON.stringify(String(absoluteUrl))};}, 1000);</script>
+  </body>
+</html>`;
 };
 
 export const getPublicProductById = async (req, res) => {
