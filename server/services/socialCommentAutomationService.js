@@ -316,10 +316,21 @@ const buildSocialCommentSuggestedReply = ({ classificationLabel = "", commenterN
   return `رد مقترح: ${text(originalCommentText) || "تم استلام تعليقك."}${linkHint}`;
 };
 
-const socialCommentConversationId = ({ platform = "", rootCommentId = "", commentId = "" } = {}) => {
-  const root = text(rootCommentId || commentId);
+export const socialCommentConversationId = ({
+  platform = "",
+  postId = "",
+  commenterId = "",
+  rootCommentId = "",
+  commentId = "",
+} = {}) => {
   const normalizedPlatform = text(platform) === "instagram" ? "instagram" : "facebook";
-  return `social_comment:${normalizedPlatform}:${root}`;
+  const safePostId = text(postId || "");
+  const safeCommenterId = text(commenterId || "");
+  if (safePostId && safeCommenterId) {
+    return `${normalizedPlatform}_comment:${safePostId}:${safeCommenterId}`;
+  }
+  const fallbackRoot = text(rootCommentId || commentId);
+  return `social_comment:${normalizedPlatform}:${fallbackRoot}`;
 };
 
 const socialCommentLeadTemperature = (classificationLabel = "") => COMMENT_LEAD_TEMPERATURE[classificationLabel] || "cold";
@@ -330,16 +341,24 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
   await ensureAiSupportLogSchema();
   await ensureAiChannelAdapterSchema();
 
-  const platform = text(event.platform || "facebook") === "instagram" ? "instagram" : "facebook";
-  const channel = platform === "instagram" ? "instagram_comment" : "facebook_comment";
-  const sessionId = socialCommentConversationId({ platform, rootCommentId: event.root_comment_id, commentId: event.comment_id });
-  const threadKind = "comment";
-  const commentText = text(event.original_comment_text);
-  const commenterName = text(event.commenter_name) || "Customer";
-  const commenterId = text(event.commenter_id || "");
-  const postPermalink = text(event.post_permalink || "");
-  const postId = text(event.post_id || "");
-  const metadata = {
+  try {
+    const platform = text(event.platform || "facebook") === "instagram" ? "instagram" : "facebook";
+    const channel = platform === "instagram" ? "instagram_comment" : "facebook_comment";
+    const sessionId = socialCommentConversationId({
+      platform,
+      postId: event.post_id,
+      commenterId: event.commenter_id,
+      rootCommentId: event.root_comment_id,
+      commentId: event.comment_id,
+    });
+    const threadKind = "comment";
+    const commentText = text(event.original_comment_text);
+    const commenterName = text(event.commenter_name) || "Customer";
+    const commenterId = text(event.commenter_id || "");
+    const commenterProfilePictureUrl = text(event.commenter_profile_picture_url || "");
+    const postPermalink = text(event.post_permalink || "");
+    const postId = text(event.post_id || "");
+    const metadata = {
     thread_kind: threadKind,
     platform,
     post_id: postId,
@@ -369,204 +388,272 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
     },
   };
 
-  const sessionResult = await db.query(
-    `
-    INSERT INTO ai_support_sessions (
-      tenant_id,
+    console.log("META_COMMENT_INBOX_SAVE_START", {
+      tenant_id: safeTenantId,
+      platform,
+      channel,
+      post_id: postId,
+      comment_id: text(event.comment_id || ""),
+      commenter_id: commenterId,
+      conversation_id: sessionId,
+    });
+
+    const sessionResult = await db.query(
+      `
+      INSERT INTO ai_support_sessions (
+        tenant_id,
       session_id,
       source,
       channel,
       thread_kind,
       customer_name,
+      customer_avatar_url,
       last_message,
       updated_at
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
     ON CONFLICT (tenant_id, session_id) DO UPDATE SET
       source = EXCLUDED.source,
       channel = EXCLUDED.channel,
       thread_kind = COALESCE(NULLIF(EXCLUDED.thread_kind, ''), ai_support_sessions.thread_kind),
       customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_support_sessions.customer_name),
+      customer_avatar_url = COALESCE(NULLIF(EXCLUDED.customer_avatar_url, ''), ai_support_sessions.customer_avatar_url),
       last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_support_sessions.last_message),
       updated_at = NOW()
     RETURNING id
     `,
-    [safeTenantId, sessionId, channel, channel, threadKind, commenterName, commentText]
-  );
+      [safeTenantId, sessionId, channel, channel, threadKind, commenterName, commenterProfilePictureUrl, commentText]
+    );
 
-  await db.query(
-    `
-    INSERT INTO ai_channel_conversations (
-      tenant_id,
+    console.log("META_COMMENT_INBOX_CONVERSATION_UPSERTED", {
+      tenant_id: safeTenantId,
+      platform,
       channel,
+      post_id: postId,
+      comment_id: text(event.comment_id || ""),
+      commenter_id: commenterId,
+      conversation_id: sessionId,
+      session_ref_id: sessionResult.rows[0]?.id || null,
+    });
+
+    await db.query(
+      `
+      INSERT INTO ai_channel_conversations (
+        tenant_id,
+        channel,
       external_conversation_id,
       external_customer_id,
       thread_kind,
       customer_name,
+      customer_avatar_url,
       last_message,
       metadata,
       last_message_at,
       updated_at
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, NOW(), NOW())
-    ON CONFLICT (tenant_id, channel, external_conversation_id) DO UPDATE SET
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, NOW(), NOW())
+      ON CONFLICT (tenant_id, channel, external_conversation_id) DO UPDATE SET
       external_customer_id = COALESCE(NULLIF(EXCLUDED.external_customer_id, ''), ai_channel_conversations.external_customer_id),
       thread_kind = COALESCE(NULLIF(EXCLUDED.thread_kind, ''), ai_channel_conversations.thread_kind),
       customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_channel_conversations.customer_name),
+      customer_avatar_url = COALESCE(NULLIF(EXCLUDED.customer_avatar_url, ''), ai_channel_conversations.customer_avatar_url),
       last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_channel_conversations.last_message),
       metadata = ai_channel_conversations.metadata || EXCLUDED.metadata,
       last_message_at = NOW(),
       updated_at = NOW()
-    `,
-    [safeTenantId, channel, sessionId, commenterId, threadKind, commenterName, commentText, JSON.stringify(metadata)]
-  );
+      `,
+      [safeTenantId, channel, sessionId, commenterId, threadKind, commenterName, commenterProfilePictureUrl, commentText, JSON.stringify(metadata)]
+    );
 
-  const inboundMessage = await db.query(
-    `
-    INSERT INTO ai_support_messages (
-      session_ref_id,
-      tenant_id,
-      session_id,
+    const inboundMessage = await db.query(
+      `
+      INSERT INTO ai_support_messages (
+        session_ref_id,
+        tenant_id,
+        session_id,
       channel,
       customer_name,
+      customer_avatar_url,
       last_message,
       message_text,
       customer_message,
-      ai_answer,
-      confidence,
-      needs_human_support,
-      sources_used,
-      suggested_products,
-      visual_attachments,
-      suggested_actions,
-      detected_intent,
-      fallback_reason,
-      message_type,
-      staff_message,
-      sender_type,
-      manual_message,
-      external_message_id,
-      dedupe_key,
-      source_path,
-      insert_source
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $6, $6, '', 0.98, TRUE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, $7, '', 'comment_inbound', '', 'customer', FALSE, $8, $9, $10, $11)
-    ON CONFLICT (tenant_id, session_id, dedupe_key) WHERE dedupe_key <> '' DO UPDATE SET
-      customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_support_messages.customer_name),
-      last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_support_messages.last_message),
-      message_text = COALESCE(NULLIF(EXCLUDED.message_text, ''), ai_support_messages.message_text),
-      customer_message = COALESCE(NULLIF(EXCLUDED.customer_message, ''), ai_support_messages.customer_message)
-    RETURNING *
-    `,
-    [
-      sessionResult.rows[0]?.id || null,
-      safeTenantId,
-      sessionId,
+        ai_answer,
+        confidence,
+        needs_human_support,
+        sources_used,
+        suggested_products,
+        visual_attachments,
+        suggested_actions,
+        detected_intent,
+        fallback_reason,
+        message_type,
+        staff_message,
+        sender_type,
+        manual_message,
+        external_message_id,
+        dedupe_key,
+        source_path,
+        insert_source
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $7, '', 0.98, TRUE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, $8, '', 'comment_inbound', '', 'customer', FALSE, $9, $10, $11, $12)
+      ON CONFLICT (tenant_id, session_id, dedupe_key) WHERE dedupe_key <> '' DO NOTHING
+      RETURNING *
+      `,
+      [
+        sessionResult.rows[0]?.id || null,
+        safeTenantId,
+        sessionId,
+        channel,
+        commenterName,
+        commenterProfilePictureUrl,
+        commentText,
+        text(event.classification_label || ""),
+        text(event.comment_id || ""),
+        text(event.comment_id || ""),
+        "social_comment_automation",
+        "social_comment_lead",
+      ]
+    );
+
+    if (inboundMessage.rows[0]) {
+      console.log("META_COMMENT_INBOX_MESSAGE_SAVED", {
+        tenant_id: safeTenantId,
+        platform,
+        channel,
+        post_id: postId,
+        comment_id: text(event.comment_id || ""),
+        commenter_id: commenterId,
+        conversation_id: sessionId,
+        message_id: inboundMessage.rows[0]?.id || null,
+      });
+    } else {
+      console.log("META_COMMENT_INBOX_DUPLICATE", {
+        tenant_id: safeTenantId,
+        platform,
+        channel,
+        post_id: postId,
+        comment_id: text(event.comment_id || ""),
+        commenter_id: commenterId,
+        conversation_id: sessionId,
+      });
+    }
+
+    const suggestedMessage = text(suggestedReply || "");
+
+    let suggestionResult = { rows: [] };
+    if (suggestedMessage) {
+      suggestionResult = await db.query(
+        `
+        INSERT INTO ai_support_messages (
+          session_ref_id,
+          tenant_id,
+          session_id,
+        channel,
+        customer_name,
+        customer_avatar_url,
+        last_message,
+        message_text,
+        customer_message,
+          ai_answer,
+          confidence,
+          needs_human_support,
+          sources_used,
+          suggested_products,
+          visual_attachments,
+          suggested_actions,
+          detected_intent,
+          fallback_reason,
+          message_type,
+          staff_message,
+          sender_type,
+          manual_message,
+          external_message_id,
+          dedupe_key,
+          source_path,
+          insert_source,
+          delivery_status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $7, '', $8, 0.88, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'comment_suggestion', '', 'comment_suggestion', '', 'ai', FALSE, $9, $10, $11, $12, 'draft')
+        ON CONFLICT (tenant_id, session_id, dedupe_key) WHERE dedupe_key <> '' DO UPDATE SET
+          ai_answer = COALESCE(NULLIF(EXCLUDED.ai_answer, ''), ai_support_messages.ai_answer),
+          last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_support_messages.last_message),
+          message_text = COALESCE(NULLIF(EXCLUDED.message_text, ''), ai_support_messages.message_text)
+        RETURNING *
+        `,
+        [
+          sessionResult.rows[0]?.id || null,
+          safeTenantId,
+          sessionId,
+          channel,
+          commenterName,
+          commenterProfilePictureUrl,
+          commentText,
+          suggestedMessage,
+          `${text(event.comment_id || "")}:suggested`,
+          `${text(event.comment_id || "")}:suggested`,
+          "social_comment_automation",
+          "social_comment_suggestion",
+        ]
+      );
+    }
+
+    await db.query(
+      `
+      UPDATE ai_support_sessions
+      SET
+        last_message = $3,
+        channel = $4,
+        thread_kind = $5,
+        updated_at = NOW()
+      WHERE tenant_id = $1 AND session_id = $2
+      `,
+      [safeTenantId, sessionId, commentText, channel, threadKind]
+    );
+
+    emitToRooms([`tenant:${safeTenantId}`], "ai_inbox:message", {
+      tenant_id: safeTenantId,
+      session_id: sessionId,
+      message: inboundMessage.rows[0] || suggestionResult.rows[0] || null,
+      at: new Date().toISOString(),
+    });
+    emitToRooms([`tenant:${safeTenantId}`], "ai_inbox:refresh", {
+      tenant_id: safeTenantId,
+      session_id: sessionId,
+      at: new Date().toISOString(),
+    });
+
+    return {
+      session_id: sessionId,
+      thread_kind: threadKind,
       channel,
-      commenterName,
-      commentText,
-      text(event.classification_label || ""),
-      text(event.comment_id || ""),
-      text(event.comment_id || ""),
-      "social_comment_automation",
-      "social_comment_lead",
-    ]
-  );
-
-  const suggestedMessage = text(suggestedReply || buildSocialCommentSuggestedReply({
-    classificationLabel: event.classification_label,
-    commenterName,
-    originalCommentText: commentText,
-    postPermalink,
-  }));
-
-  const suggestionResult = await db.query(
-    `
-    INSERT INTO ai_support_messages (
-      session_ref_id,
-      tenant_id,
-      session_id,
-      channel,
-      customer_name,
-      last_message,
-      message_text,
-      customer_message,
-      ai_answer,
-      confidence,
-      needs_human_support,
-      sources_used,
-      suggested_products,
-      visual_attachments,
-      suggested_actions,
-      detected_intent,
-      fallback_reason,
-      message_type,
-      staff_message,
-      sender_type,
-      manual_message,
-      external_message_id,
-      dedupe_key,
-      source_path,
-      insert_source,
-      delivery_status
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $6, '', $7, 0.88, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'comment_suggestion', '', 'comment_suggestion', '', 'ai', FALSE, $8, $9, $10, $11, 'draft')
-    ON CONFLICT (tenant_id, session_id, dedupe_key) WHERE dedupe_key <> '' DO UPDATE SET
-      ai_answer = COALESCE(NULLIF(EXCLUDED.ai_answer, ''), ai_support_messages.ai_answer),
-      last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_support_messages.last_message),
-      message_text = COALESCE(NULLIF(EXCLUDED.message_text, ''), ai_support_messages.message_text)
-    RETURNING *
-    `,
-    [
-      sessionResult.rows[0]?.id || null,
-      safeTenantId,
-      sessionId,
-      channel,
-      commenterName,
-      commentText,
-      suggestedMessage,
-      `${text(event.comment_id || "")}:suggested`,
-      `${text(event.comment_id || "")}:suggested`,
-      "social_comment_automation",
-      "social_comment_suggestion",
-    ]
-  );
-
-  await db.query(
-    `
-    UPDATE ai_support_sessions
-    SET
-      last_message = $3,
-      channel = $4,
-      thread_kind = $5,
-      updated_at = NOW()
-    WHERE tenant_id = $1 AND session_id = $2
-    `,
-    [safeTenantId, sessionId, commentText, channel, threadKind]
-  );
-
-  emitToRooms([`tenant:${safeTenantId}`], "ai_inbox:message", {
-    tenant_id: safeTenantId,
-    session_id: sessionId,
-    message: inboundMessage.rows[0] || suggestionResult.rows[0] || null,
-    at: new Date().toISOString(),
-  });
-  emitToRooms([`tenant:${safeTenantId}`], "ai_inbox:refresh", {
-    tenant_id: safeTenantId,
-    session_id: sessionId,
-    at: new Date().toISOString(),
-  });
-
-  return {
-    session_id: sessionId,
-    thread_kind: threadKind,
-    channel,
-    lead_score: Number(COMMENT_LEAD_SCORE[event.classification_label] || 0),
-    suggested_reply: suggestedMessage,
-    message: inboundMessage.rows[0] || null,
-    suggested_message: suggestionResult.rows[0] || null,
-    metadata,
-  };
+      lead_score: Number(COMMENT_LEAD_SCORE[event.classification_label] || 0),
+      suggested_reply: suggestedMessage,
+      message: inboundMessage.rows[0] || null,
+      suggested_message: suggestionResult.rows[0] || null,
+      duplicate: !inboundMessage.rows[0],
+      metadata,
+    };
+  } catch (error) {
+    console.error("META_COMMENT_INBOX_SAVE_ERROR", {
+      tenant_id: safeTenantId,
+      platform: text(event.platform || "facebook"),
+      channel: text(event.channel || (text(event.platform) === "instagram" ? "instagram_comment" : "facebook_comment")),
+      post_id: text(event.post_id || ""),
+      comment_id: text(event.comment_id || ""),
+      commenter_id: text(event.commenter_id || ""),
+      conversation_id: text(
+        socialCommentConversationId({
+          platform: event.platform,
+          postId: event.post_id,
+          commenterId: event.commenter_id,
+          rootCommentId: event.root_comment_id,
+          commentId: event.comment_id,
+        })
+      ),
+      message: error?.message || String(error),
+    });
+    throw error;
+  }
 };
 
 const resolveSocialCommentTenantAutomationSettings = async ({ tenantId = null } = {}) => {
@@ -1370,6 +1457,33 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       from_id: storedRow.commenter_id || "",
       text_length: String(storedRow.original_comment_text || "").length,
     });
+    try {
+      const materialized = await upsertSocialCommentLeadConversation({
+        tenantId: storedRow.tenant_id,
+        event: storedRow,
+        suggestedReply: "",
+      });
+      if (materialized?.session_id) {
+        storedRow.inbox_conversation_id = materialized.session_id;
+        await db.query(
+          `
+          UPDATE social_comment_automation_runs
+          SET inbox_conversation_id = $3::text,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE tenant_id = $1::bigint AND platform = $2::text AND comment_id = $4::text
+          `,
+          [storedRow.tenant_id, storedRow.platform, materialized.session_id, storedRow.comment_id]
+        );
+      }
+    } catch (error) {
+      socialCommentsError("[social-comments] inbox conversation materialize failed", {
+        tenant_id: storedRow.tenant_id,
+        platform: storedRow.platform,
+        comment_id: storedRow.comment_id,
+        message: error?.message || "",
+      });
+      storedRow.error_code = storedRow.error_code || "comment_inbox_materialization_failed";
+    }
     if (COMMENT_THREAD_LABELS.has(storedRow.classification_label)) {
       try {
         const materialized = await upsertSocialCommentLeadConversation({

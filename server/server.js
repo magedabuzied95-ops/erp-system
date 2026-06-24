@@ -551,6 +551,7 @@ const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueT
 const { processStaffTaskEmailQueue } = await import("./services/staffTaskEmailNotificationService.js");
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
 const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug, getMetaAppModeDebugStatus, runMetaCommentsPollingScan, startMetaCommentsPollingScheduler, listMetaWebhookRawEvents, clearMetaWebhookRawEvents } = await import("./services/metaIntegrationService.js");
+const { socialCommentConversationId } = await import("./services/socialCommentAutomationService.js");
 const { ensureSystemSettingsSchema } = await import("./services/settingsService.js");
 const { ensureSocialAutomationSettingsSchema } = await import("./services/socialAutomationSettingsService.js");
 
@@ -832,6 +833,130 @@ app.post("/api/debug/meta-poll-comments-once", async (req, res) => {
     return res.status(error?.status || 500).json({
       success: false,
       message: error?.message || "Failed to poll comments once",
+    });
+  }
+});
+app.get("/api/debug/meta-comment-inbox-status", async (req, res) => {
+  try {
+    const tenantId = Number(req.query?.tenant_id || req.user?.tenant_id || 1) || 1;
+    const commentId = String(req.query?.comment_id || "").trim();
+    if (!commentId) {
+      return res.status(400).json({
+        success: false,
+        message: "comment_id is required",
+      });
+    }
+
+    const socialRunResult = await db.query(
+      `
+      SELECT *
+      FROM social_comment_automation_runs
+      WHERE tenant_id = $2::bigint
+        AND comment_id = $1::text
+      ORDER BY updated_at DESC, id DESC
+      LIMIT 1
+      `,
+      [commentId, tenantId]
+    );
+    const socialRun = socialRunResult.rows[0] || null;
+    const messageCandidateResult = await db.query(
+      `
+      SELECT session_id, message_text, customer_message, last_message, created_at
+      FROM ai_support_messages
+      WHERE tenant_id = $2::bigint
+        AND (
+          external_message_id = $1::text
+          OR dedupe_key = $1::text
+        )
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+      `,
+      [commentId, tenantId]
+    );
+    const messageCandidate = messageCandidateResult.rows[0] || null;
+    const derivedConversationId = messageCandidate?.session_id || socialRun?.inbox_conversation_id || socialCommentConversationId({
+      platform: socialRun?.platform || (String(socialRun?.channel || "").includes("instagram") ? "instagram" : "facebook"),
+      postId: socialRun?.post_id || "",
+      commenterId: socialRun?.commenter_id || "",
+      rootCommentId: socialRun?.root_comment_id || "",
+      commentId,
+    });
+
+    const sessionResult = derivedConversationId
+      ? await db.query(
+        `
+        SELECT session_id, last_message, customer_name, customer_avatar_url, channel, thread_kind
+        FROM ai_support_sessions
+        WHERE tenant_id = $2::bigint
+          AND session_id = $1::text
+        LIMIT 1
+        `,
+        [derivedConversationId, tenantId]
+      )
+      : { rows: [] };
+
+    const channelResult = derivedConversationId
+      ? await db.query(
+        `
+        SELECT external_conversation_id, customer_name, last_message, customer_avatar_url, channel, thread_kind
+        FROM ai_channel_conversations
+        WHERE tenant_id = $2::bigint
+          AND external_conversation_id = $1::text
+        LIMIT 1
+        `,
+        [derivedConversationId, tenantId]
+      )
+      : { rows: [] };
+
+    const messageResult = derivedConversationId
+      ? await db.query(
+        `
+        SELECT id, session_id, message_text, customer_message, last_message, sender_type, external_message_id, provider_message_id, created_at
+        FROM ai_support_messages
+        WHERE tenant_id = $3::bigint
+          AND (
+            session_id = $1::text
+            OR external_message_id = $2::text
+            OR dedupe_key = $2::text
+          )
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+        `,
+        [derivedConversationId, commentId, tenantId]
+      )
+      : { rows: [] };
+
+    const lastMessageRow = messageResult.rows[0] || null;
+
+    return res.json({
+      success: true,
+      tenant_id: tenantId,
+      comment_id: commentId,
+      exists_in_social_runs: Boolean(socialRun),
+      exists_in_ai_channel_conversations: Boolean(channelResult.rows[0]),
+      exists_in_ai_support_sessions: Boolean(sessionResult.rows[0]),
+      exists_in_ai_messages: Boolean(lastMessageRow || messageCandidate),
+      conversation_id: derivedConversationId || "",
+      session_id: sessionResult.rows[0]?.session_id || channelResult.rows[0]?.external_conversation_id || derivedConversationId || "",
+      last_message:
+        lastMessageRow?.message_text ||
+        lastMessageRow?.customer_message ||
+        lastMessageRow?.last_message ||
+        messageCandidate?.message_text ||
+        messageCandidate?.customer_message ||
+        messageCandidate?.last_message ||
+        sessionResult.rows[0]?.last_message ||
+        channelResult.rows[0]?.last_message ||
+        "",
+    });
+  } catch (error) {
+    console.error("[meta-comment-inbox-status-debug] load failed", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+    });
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to load meta comment inbox status",
     });
   }
 });
