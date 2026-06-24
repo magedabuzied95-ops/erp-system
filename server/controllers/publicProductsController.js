@@ -870,10 +870,9 @@ const buildShareAvailablePreviewSvg = ({ filters = {}, products = [], count = 0 
 };
 
 const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "", targetUrl = "", products = [] } = {}) => {
-  const hasMatches = Number(count || 0) > 0;
   const sizeLabel = filters.sizes?.length > 1 ? `المتاح بالمقاسات ${filters.sizes.join("، ")}` : `المتاح بالمقاس ${filters.sizes?.[0] || ""}`.trim();
-  const title = escapeHtml(hasMatches ? (sizeLabel || "المتاح بالمقاس") : "لا توجد منتجات مطابقة حالياً");
-  const description = escapeHtml(hasMatches ? `${count} موديل متاح دلوقتي في M1 Store` : "جرّب مقاساً أو فلتراً آخر");
+  const title = escapeHtml(sizeLabel || "المتاح بالمقاس");
+  const description = escapeHtml(Number(count || 0) > 0 ? `${count} موديل متاح دلوقتي في M1 Store` : "افتح المنتجات المتاحة الآن في M1 Store");
   const absoluteUrl = escapeHtml(buildAbsolutePublicUrl(req, req.originalUrl || req.url || "/share/available"));
   const absoluteImage = escapeHtml(ogImageUrl || buildShareAvailableFallbackImageUrl(req));
   const fallbackTarget = escapeHtml(targetUrl || buildShareAvailableTargetUrl(req, filters));
@@ -913,7 +912,7 @@ const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "
       <section class="card">
         <h1 style="margin:0 0 12px;font-size:34px;">${title}</h1>
         <p style="margin:0 0 8px;font-size:18px;opacity:.92;">${description}</p>
-        <p style="margin:0 0 18px;opacity:.72;">الرابط هيفتح تلقائيًا خلال ثانية. لو ما فتحش، استخدم الزر بالأسفل.</p>
+        <p style="margin:0 0 18px;opacity:.72;">الرابط هيفتح المنتجات تلقائيًا خلال ثانية. لو ما فتحش، استخدم الزر بالأسفل.</p>
         <a href="${fallbackTarget}">فتح المنتجات</a>
         ${productsPreview ? `<ul>${productsPreview}</ul>` : ""}
       </section>
