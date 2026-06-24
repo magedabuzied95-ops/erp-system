@@ -3291,8 +3291,17 @@ export default function AiInbox() {
   }, [toast.text]);
 
   const conversations = asArray(inbox.conversations);
+  const conversationPanelConversations = useMemo(
+    () => conversations.filter((conversation) => isConversationChannel(normalizeConversationChannel(conversation))),
+    [conversations]
+  );
+  const socialCommentPanelConversations = useMemo(
+    () => conversations.filter((conversation) => isSocialCommentChannel(normalizeConversationChannel(conversation))),
+    [conversations]
+  );
+  const activePanelConversations = inboxSection === "social_comments" ? socialCommentPanelConversations : conversationPanelConversations;
   const filteredConversations = useMemo(() => {
-    const items = [...conversations];
+    const items = [...activePanelConversations];
     const matchesLeadFilter = (conversation = {}) => {
       const temperature = conversationLeadTemperature(conversation);
       if (leadFilter === "all") return true;
@@ -3318,11 +3327,11 @@ export default function AiInbox() {
       return clean(b.session_id).localeCompare(clean(a.session_id));
     });
     return sorted;
-  }, [channelFilter, conversations, leadFilter, leadSort]);
+  }, [activePanelConversations, channelFilter, leadFilter, leadSort]);
   const channelSummaries = useMemo(() => {
     const buckets = new Map();
-    const totalUnread = conversations.reduce((sum, conversation) => sum + Number(conversation.unread_count || conversation.unread || 0), 0);
-    for (const conversation of conversations) {
+    const totalUnread = activePanelConversations.reduce((sum, conversation) => sum + Number(conversation.unread_count || conversation.unread || 0), 0);
+    for (const conversation of activePanelConversations) {
       const key = normalizeConversationChannel(conversation);
       const existing = buckets.get(key) || {
         key,
@@ -3336,10 +3345,10 @@ export default function AiInbox() {
       buckets.set(key, existing);
     }
     return {
-      all: { key: "all", label: "All", count: conversations.length, unread: totalUnread, tone: "zinc" },
+      all: { key: "all", label: "All", count: activePanelConversations.length, unread: totalUnread, tone: "zinc" },
       channels: [...buckets.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)),
     };
-  }, [conversations]);
+  }, [activePanelConversations]);
   const leadPipelineSummary = useMemo(() => {
     const counts = {
       new: 0,
@@ -3354,7 +3363,7 @@ export default function AiInbox() {
       instagram_comment: 0,
       messenger: 0,
     };
-    for (const conversation of conversations) {
+    for (const conversation of activePanelConversations) {
       const status = conversationLeadStatus(conversation);
       counts[status] = (counts[status] || 0) + 1;
       const sourceKey = leadSourceKey(conversation);
@@ -3378,19 +3387,22 @@ export default function AiInbox() {
         { key: "messenger", label: "Messenger" },
       ],
     };
-  }, [conversations]);
+  }, [activePanelConversations]);
   const fixedChannelSummaries = useMemo(() => {
     const byKey = new Map(channelSummaries.channels.map((item) => [item.key, item]));
 
-    return fixedChannelOrder.map((key) => ({
+    const order = inboxSection === "social_comments" ? socialCommentChannelOrder : conversationChannelOrder;
+    return order.map((key) => ({
       key,
       label: channelBadgeLabel(key),
       count: Number(byKey.get(key)?.count || 0),
       unread: Number(byKey.get(key)?.unread || 0),
       tone: byKey.get(key)?.tone || "zinc",
     }));
-  }, [channelSummaries.channels]);
-  const realMetaCount = conversations.filter((item) => item.is_live_meta || isMetaChannel(item.channel || item.source)).length;
+  }, [channelSummaries.channels, inboxSection]);
+  const realMetaCount = conversationPanelConversations.filter((item) => item.is_live_meta || isMetaChannel(item.channel || item.source)).length;
+  const conversationPanelCount = conversationPanelConversations.length;
+  const socialCommentsPanelCount = socialCommentPanelConversations.length;
   const selectedConversation = useMemo(
     () => conversations.find((item) => item.conversation_key === selectedSessionId || clean(item.id || item.conversation_id || "") === clean(selectedSessionId)) ||
       (selectedConversationCacheRef.current?.conversation_key === selectedSessionId ? selectedConversationCacheRef.current : null) ||
