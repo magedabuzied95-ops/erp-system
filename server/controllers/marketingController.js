@@ -30,6 +30,7 @@ import {
   getMarketingConversations as getMarketingLeadConversations,
   getMetaWebhookStatus as getMarketingMetaWebhookStatus,
   processMetaWebhookPayload,
+  recordMetaWebhookRequest,
   saveLinksForPublishedPost,
   simulateCommentAutomation as simulateMarketingCommentAutomation,
   updateAutoReplyRule as updateMarketingAutoReplyRule,
@@ -5536,15 +5537,21 @@ export const verifyMetaMarketingWebhook = async (req, res) => {
 };
 
 export const receiveMetaMarketingWebhook = async (req, res) => {
+  const payload = req.body || {};
+  console.log("META_WEBHOOK_REQUEST_RECEIVED", {
+    object: String(payload.object || "").trim().toLowerCase(),
+    entries_count: Array.isArray(payload.entry) ? payload.entry.length : 0,
+  });
   try {
+    await ensureMarketingSchema();
+    await recordMetaWebhookRequest({ payload });
     const signature = verifyMetaSignature(req);
     if (!signature.valid) {
       console.warn("[meta-webhook] invalid signature rejected", { reason: signature.reason });
       return res.status(401).json({ success: false, message: "Invalid Meta webhook signature" });
     }
 
-    await ensureMarketingSchema();
-    const result = await processMetaWebhookPayload(req.body || {});
+    const result = await processMetaWebhookPayload(payload);
     res.status(200).json({ success: true, ...result });
   } catch (error) {
     console.error("[meta-webhook] processing error", error);

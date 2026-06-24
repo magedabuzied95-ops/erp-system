@@ -44,7 +44,11 @@ import {
   extractSocialCommentWebhookEvents,
   storeSocialCommentAutomationRuns,
 } from "./socialCommentAutomationService.js";
-import { getMetaWebhookStatus as getMarketingCommentWebhookStatus } from "./marketingCommentAutomationService.js";
+import {
+  countMarketingCommentEventsLast24h,
+  countMarketingWebhookRequestsLast24h,
+  getMetaWebhookStatus as getMarketingCommentWebhookStatus,
+} from "./marketingCommentAutomationService.js";
 import {
   normalizeProductCards,
   productCardReplyText,
@@ -5627,7 +5631,7 @@ export const getMetaWebhookHealth = async ({ tenantId, req = null } = {}) => {
 
 export const getMetaWebhookDebugStatus = async ({ tenantId, req = null } = {}) => {
   const scopedTenantId = numberOrNull(tenantId);
-  const [integrationStatus, commentWebhookStatus, socialCommentEvents, marketingCommentEvents] = await Promise.all([
+  const [integrationStatus, commentWebhookStatus, socialCommentEvents, marketingCommentEvents, webhookRequestsLast24h, commentEventsLast24h] = await Promise.all([
     getMetaIntegrationStatus({ tenantId: scopedTenantId, req }),
     getMarketingCommentWebhookStatus(scopedTenantId),
     safeDb(
@@ -5650,6 +5654,8 @@ export const getMetaWebhookDebugStatus = async ({ tenantId, req = null } = {}) =
       `,
       [scopedTenantId]
     ),
+    countMarketingWebhookRequestsLast24h(scopedTenantId).catch(() => 0),
+    countMarketingCommentEventsLast24h(scopedTenantId).catch(() => 0),
   ]);
 
   const config = integrationStatus?.config || {};
@@ -5673,6 +5679,8 @@ export const getMetaWebhookDebugStatus = async ({ tenantId, req = null } = {}) =
     subscribed_fields: subscribedFields,
     last_comment_event_at: lastCommentEventAt,
     last_comment_saved_at: lastCommentSavedAt,
+    webhook_requests_last_24h: Number(webhookRequestsLast24h || 0),
+    comment_events_last_24h: Number(commentEventsLast24h || 0),
     comments_delivery_mode: commentWebhookStatus?.comments_delivery_mode || (subscribedFields.includes("feed") ? "facebook_feed" : "webhook"),
     comments_delivery_ready: Boolean(commentWebhookStatus?.comments_delivery_ready ?? subscribedFields.includes("feed")),
     comment_webhook_status: commentWebhookStatus || {},

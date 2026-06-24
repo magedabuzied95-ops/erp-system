@@ -36,6 +36,46 @@ const pickFirstText = (...values) => {
   return "";
 };
 
+const recordMarketingWebhookRequest = async ({ businessId = null, object = "", entriesCount = 0 } = {}) => {
+  await db.query(
+    `
+    INSERT INTO marketing_meta_webhook_requests (
+      business_id,
+      object,
+      entries_count
+    )
+    VALUES ($1::bigint, $2::varchar, $3::int)
+    `,
+    [businessId || null, trimString(object) || "", Number(entriesCount || 0)]
+  );
+};
+
+export const countMarketingWebhookRequestsLast24h = async (businessId) => {
+  const result = await db.query(
+    `
+    SELECT COUNT(*)::int AS count
+    FROM marketing_meta_webhook_requests
+    WHERE business_id = $1::bigint
+      AND created_at >= NOW() - INTERVAL '24 hours'
+    `,
+    [businessId || 1]
+  );
+  return Number(result.rows[0]?.count || 0);
+};
+
+export const countMarketingCommentEventsLast24h = async (businessId) => {
+  const result = await db.query(
+    `
+    SELECT COUNT(*)::int AS count
+    FROM marketing_comment_events
+    WHERE business_id = $1::bigint
+      AND created_at >= NOW() - INTERVAL '24 hours'
+    `,
+    [businessId || 1]
+  );
+  return Number(result.rows[0]?.count || 0);
+};
+
 const getPublicBackendUrl = () => trimString(process.env.PUBLIC_BACKEND_URL).replace(/\/+$/g, "");
 const getMetaAppAccessToken = () => {
   const appId = trimString(process.env.META_APP_ID || process.env.FACEBOOK_APP_ID);
@@ -907,6 +947,16 @@ export const processMetaWebhookPayload = async (payload = {}) => {
     else processed += 1;
   }
   return { received: events.length, processed, skipped };
+};
+
+export const recordMetaWebhookRequest = async ({ payload = {} } = {}) => {
+  const object = trimString(payload.object).toLowerCase();
+  const entries = Array.isArray(payload.entry) ? payload.entry : [];
+  const entriesCount = entries.length;
+  const entryId = entries[0]?.id || "";
+  const businessId = await findBusinessIdForEntry({ entryId });
+  await recordMarketingWebhookRequest({ businessId, object, entriesCount });
+  return { businessId, object, entriesCount };
 };
 
 export const getMetaWebhookStatus = async (businessId) => {

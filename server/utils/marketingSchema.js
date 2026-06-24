@@ -933,6 +933,23 @@ const statements = [
     ON marketing_comment_events (business_id, created_at DESC);
   `,
   `
+  CREATE TABLE IF NOT EXISTS marketing_meta_webhook_requests (
+    id BIGSERIAL PRIMARY KEY,
+    business_id BIGINT NULL REFERENCES tenants(id) ON DELETE SET NULL,
+    object VARCHAR(40) NOT NULL DEFAULT '',
+    entries_count INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_marketing_meta_webhook_requests_business_created
+    ON marketing_meta_webhook_requests (business_id, created_at DESC);
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_marketing_meta_webhook_requests_created
+    ON marketing_meta_webhook_requests (created_at DESC);
+  `,
+  `
   CREATE TABLE IF NOT EXISTS marketing_conversations (
     id BIGSERIAL PRIMARY KEY,
     business_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
