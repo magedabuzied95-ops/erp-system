@@ -27,11 +27,24 @@ import db from "../database/db.js";
 import { sendEmployeePortalPush } from "../services/employeePortalPushService.js";
 
 export const getTasks = async (req, res) => {
+  const timerLabel = "staff-tasks-list";
+  console.time(timerLabel);
   try {
+    console.log("[staff-tasks-controller] getTasks:start", {
+      requestId: req.id || null,
+      userId: req.user?.id || null,
+      tenantId: resolveTaskTenantId(req),
+    });
     const tasks = await listStaffTasks(req.query || {}, req.user || {});
+    console.log("[staff-tasks-controller] getTasks:done", {
+      requestId: req.id || null,
+      count: Array.isArray(tasks) ? tasks.length : 0,
+    });
     return res.json({ success: true, tasks });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message || "Failed to load staff tasks" });
+  } finally {
+    console.timeEnd(timerLabel);
   }
 };
 
@@ -229,14 +242,28 @@ export const deleteTask = async (req, res) => {
 };
 
 export const getDashboard = async (req, res) => {
+  const timerLabel = "staff-tasks-dashboard";
+  console.time(timerLabel);
   try {
+    console.log("[staff-tasks-controller] getDashboard:start", {
+      requestId: req.id || null,
+      userId: req.user?.id || null,
+      tenantId: resolveTaskTenantId(req),
+      branchId: req.query?.branch_id || req.query?.branchId || null,
+    });
     const dashboard = await getStaffTaskDashboard({
       tenantId: resolveTaskTenantId(req),
       branchId: req.query?.branch_id || req.query?.branchId || null,
     });
+    console.log("[staff-tasks-controller] getDashboard:done", {
+      requestId: req.id || null,
+      total: dashboard?.summary?.total ?? null,
+    });
     return res.json({ success: true, dashboard });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message || "Failed to load task dashboard" });
+  } finally {
+    console.timeEnd(timerLabel);
   }
 };
 

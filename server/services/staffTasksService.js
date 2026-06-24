@@ -1867,31 +1867,38 @@ export const createStaffTask = async (payload = {}, actor = {}) => {
 export const listStaffTasks = async (filters = {}, user = {}) => {
   await ensureStaffTasksSchema();
   const tenantId = filters.tenantId ?? resolveTaskTenantId(user);
-  await generateDueTaskInstancesFromTemplates({ tenantId }).catch((error) => {
-    console.warn("[staff-tasks] recurring generation skipped", error.message);
-  });
-  await markDueTasksOverdue({ tenantId }).catch((error) => {
-    console.warn("[staff-tasks] overdue update skipped", error.message);
+  console.time("staff-tasks-service:list");
+  console.log("[staff-tasks-service] list:start", {
+    tenantId,
+    branchId: filters.branch_id || filters.branchId || null,
+    status: filters.status || null,
+    today: filters.today || filters.view || null,
+    employeeId: filters.employee_id || filters.employeeId || null,
   });
   const params = [tenantId];
   const clauses = ["($1::bigint IS NULL OR sta.tenant_id = $1::bigint)"];
   if (filters.status) {
+    console.log("[staff-tasks-service] list:step status");
     params.push(String(filters.status).split(",").map((item) => item.trim()).filter(Boolean));
     clauses.push(`sta.status = ANY($${params.length}::text[])`);
   }
   if (filters.today === "true" || filters.view === "today") {
+    console.log("[staff-tasks-service] list:step today");
     params.push(dateKey());
     clauses.push(`sta.assigned_date = $${params.length}::date`);
   }
   if (filters.priority) {
+    console.log("[staff-tasks-service] list:step priority");
     params.push(String(filters.priority).split(",").map((item) => item.trim()).filter(Boolean));
     clauses.push(`sta.priority = ANY($${params.length}::text[])`);
   }
   if (filters.assignee === "me") {
+    console.log("[staff-tasks-service] list:step assignee=me");
     const employee = await resolveEmployeeForUser(user, tenantId);
     params.push(employee?.id || 0);
     clauses.push(`sta.current_assignee_id = $${params.length}`);
   } else if (filters.employee_id || filters.employeeId) {
+    console.log("[staff-tasks-service] list:step employee filter");
     params.push(filters.employee_id || filters.employeeId);
     if (filters.include_branch_unassigned && (filters.branch_id || filters.branchId)) {
       params.push(filters.branch_id || filters.branchId);
@@ -1901,10 +1908,12 @@ export const listStaffTasks = async (filters = {}, user = {}) => {
     }
   }
   if (filters.branch_id || filters.branchId) {
+    console.log("[staff-tasks-service] list:step branch");
     params.push(filters.branch_id || filters.branchId);
     clauses.push(`sta.branch_id = $${params.length}`);
   }
   if (filters.assigned_date || filters.assignedDate) {
+    console.log("[staff-tasks-service] list:step assigned_date");
     const assignedDate = String(filters.assigned_date || filters.assignedDate).toLowerCase();
     if (assignedDate === "today") {
       params.push(dateKey());
@@ -1915,26 +1924,41 @@ export const listStaffTasks = async (filters = {}, user = {}) => {
     }
   }
   if (filters.search) {
+    console.log("[staff-tasks-service] list:step search");
     params.push(`%${text(filters.search).toLowerCase()}%`);
     clauses.push(`LOWER(CONCAT_WS(' ', sta.title, sta.description, sta.task_type, e.full_name, p.name)) LIKE $${params.length}`);
   }
   const limit = Math.min(Math.max(Number(filters.limit || 80), 1), 200);
+  console.log("[staff-tasks-service] list:before-query", {
+    tenantId,
+    limit,
+    clauseCount: clauses.length,
+    paramsPreview: params.map((value) => (Array.isArray(value) ? `[array:${value.length}]` : value)),
+  });
   params.push(limit);
-  const result = await db.query(
-    `
-    SELECT ${taskSelect}
-    FROM staff_task_assignments sta
-    ${taskJoins}
-    WHERE ${clauses.join(" AND ")}
-    ORDER BY
-      CASE sta.priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
-      sta.due_at NULLS LAST,
-      sta.id DESC
-    LIMIT $${params.length}
-    `,
-    params
-  );
-  return result.rows.map(normalizeTaskRow);
+  try {
+    const result = await db.query(
+      `
+      SELECT ${taskSelect}
+      FROM staff_task_assignments sta
+      ${taskJoins}
+      WHERE ${clauses.join(" AND ")}
+      ORDER BY
+        CASE sta.priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+        sta.due_at NULLS LAST,
+        sta.id DESC
+      LIMIT $${params.length}
+      `,
+      params
+    );
+    console.log("[staff-tasks-service] list:query-result", {
+      rowCount: result.rowCount,
+      firstIds: result.rows.slice(0, 5).map((row) => row.id),
+    });
+    return result.rows.map(normalizeTaskRow);
+  } finally {
+    console.timeEnd("staff-tasks-service:list");
+  }
 };
 
 export const listStaffTaskTemplates = async (filters = {}, user = {}) => {
@@ -3276,8 +3300,15 @@ export const getStaffTaskDashboard = async ({ tenantId = null, branchId = null }
   await ensureStaffTasksSchema();
   const safeBranchId = numberOrNull(branchId);
   const attendanceDate = dateKey();
-  const [summary, byEmployee, recent, history] = await Promise.all([
-    db.query(
+  console.time("staff-tasks-service:dashboard");
+  console.log("[staff-tasks-service] dashboard:start", {
+    tenantId,
+    branchId: safeBranchId,
+    attendanceDate,
+  });
+  try {
+    const [summary, byEmployee, recent, history] = await Promise.all([
+      db.query(
       `
       SELECT
         COUNT(*)::int AS total,
@@ -3289,8 +3320,8 @@ export const getStaffTaskDashboard = async ({ tenantId = null, branchId = null }
       WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
       `,
       [tenantId, OPEN_STATUSES]
-    ),
-    db.query(
+      ),
+      db.query(
       `
       WITH open_tasks AS (
         SELECT current_assignee_id AS employee_id, COUNT(*)::int AS open_count
@@ -3373,8 +3404,8 @@ export const getStaffTaskDashboard = async ({ tenantId = null, branchId = null }
       LIMIT 30
       `,
       [tenantId, OPEN_STATUSES, safeBranchId, attendanceDate]
-    ),
-    db.query(
+      ),
+      db.query(
       `
       SELECT ${taskSelect}
       FROM staff_task_assignments sta
@@ -3384,8 +3415,8 @@ export const getStaffTaskDashboard = async ({ tenantId = null, branchId = null }
       LIMIT 20
       `,
       [tenantId]
-    ),
-    db.query(
+      ),
+      db.query(
       `
       SELECT h.*, COALESCE(u.name, '') AS actor_name, COALESCE(e.full_name, '') AS employee_name
       FROM staff_task_history h
@@ -3396,12 +3427,22 @@ export const getStaffTaskDashboard = async ({ tenantId = null, branchId = null }
       LIMIT 30
       `,
       [tenantId]
-    ),
-  ]);
-  return {
-    summary: summary.rows[0] || { total: 0, open: 0, completed: 0, overdue: 0, urgent: 0 },
-    byEmployee: byEmployee.rows,
-    recentTasks: recent.rows.map(normalizeTaskRow),
-    history: history.rows,
-  };
+      ),
+    ]);
+    console.log("[staff-tasks-service] dashboard:done", {
+      tenantId,
+      branchId: safeBranchId,
+      summary: summary.rows[0] || null,
+      recentCount: recent.rowCount,
+      historyCount: history.rowCount,
+    });
+    return {
+      summary: summary.rows[0] || { total: 0, open: 0, completed: 0, overdue: 0, urgent: 0 },
+      byEmployee: byEmployee.rows,
+      recentTasks: recent.rows.map(normalizeTaskRow),
+      history: history.rows,
+    };
+  } finally {
+    console.timeEnd("staff-tasks-service:dashboard");
+  }
 };
