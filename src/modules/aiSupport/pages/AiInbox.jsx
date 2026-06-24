@@ -651,13 +651,13 @@ const leadConversationDisplayName = (conversation = {}) => {
   );
 };
 
-const buildLeadPrivateMessageText = (conversation = {}) => {
-  const name = leadConversationDisplayName(conversation);
+const buildLeadPrivateMessageText = (conversation = {}, comment = {}) => {
+  const name = clean(comment?.commenter_name || leadConversationDisplayName(conversation));
   return `مرحباً${name ? ` ${name}` : ""}، أرسلت لك التفاصيل في الخاص.`;
 };
 
-const buildLeadCommentReplyText = (conversation = {}) => {
-  const name = leadConversationDisplayName(conversation);
+const buildLeadCommentReplyText = (conversation = {}, comment = {}) => {
+  const name = clean(comment?.commenter_name || leadConversationDisplayName(conversation));
   return `شكراً${name ? ` ${name}` : ""}، أرسلنا لك التفاصيل في الخاص.`;
 };
 
@@ -3581,7 +3581,21 @@ export default function AiInbox() {
       null,
     [selectedSocialCommentId, socialCommentPanelConversations]
   );
-  const selectedConversation = inboxSection === "social_comments" ? selectedSocialComment : selectedConversationThread;
+  const isSocialMode = inboxSection === "social_comments";
+  const isConversationMode = inboxSection === "conversations";
+  const activeMainItem = isSocialMode
+    ? (selectedSocialComment || visibleSocialComments[0] || null)
+    : (selectedConversationThread || visibleConversations[0] || null);
+  const selectedConversation = activeMainItem;
+  useEffect(() => {
+    console.log("[ai-inbox-section]", {
+      inboxSection,
+      visibleConversations: visibleConversations.length,
+      visibleSocialComments: visibleSocialComments.length,
+      selectedConversationId: selectedConversation?.id,
+      selectedSocialCommentId: selectedSocialComment?.id,
+    });
+  }, [inboxSection, selectedConversation?.id, selectedSocialComment?.id, visibleConversations.length, visibleSocialComments.length]);
   useEffect(() => {
     if (inboxSection === "social_comments") {
       const nextSelected = visibleSocialComments[0] || null;
@@ -4629,7 +4643,7 @@ export default function AiInbox() {
 
   const sendLeadPrivateMessage = async (targetComment = null) => {
     if (!selectedConversation?.session_id) return;
-    const defaultMessage = buildLeadPrivateMessageText(selectedConversation);
+    const defaultMessage = buildLeadPrivateMessageText(selectedConversation, targetComment || {});
     const message = clean(replyText || defaultMessage);
     if (!message) return;
     setLeadActionLoading("private_message");
@@ -4662,7 +4676,7 @@ export default function AiInbox() {
       setError("تعذر تحديد التعليق المطلوب");
       return;
     }
-    const message = clean(replyText || buildLeadCommentReplyText(selectedConversation));
+    const message = clean(replyText || buildLeadCommentReplyText(selectedConversation, targetComment || {}));
     if (!message) return;
     setLeadActionLoading("comment_reply");
     try {
@@ -5410,7 +5424,7 @@ export default function AiInbox() {
 	          </aside>
 
           <main className={`flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden ${fullscreenConversation ? "h-full rounded-none border-0 bg-transparent p-0 shadow-none" : "rounded-3xl border border-white/10 bg-white/[0.045] p-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)]"} ${mobileView === "chat" ? "flex" : "hidden md:flex"}`}>
-            {selectedConversation ? (
+            {activeMainItem ? (
               <div className={`${fullscreenConversation ? "flex h-full min-h-0 flex-1 gap-0 overflow-hidden" : "flex min-h-0 flex-1 gap-2 overflow-hidden"}`}>
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                   <InboxChatHeader
@@ -5450,11 +5464,14 @@ export default function AiInbox() {
                   <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40">
                     <div ref={transcriptScrollRef} className="min-h-0 flex-1 overflow-y-auto p-4">
                       <Transcript
+                        conversation={selectedConversation}
                         rows={selectedTranscriptRows}
                         events={selectedTranscriptEvents}
                         loadingOlder={olderMessagesLoading}
                         onLoadOlder={loadOlderMessages}
                         onOpenCorrection={openReplyCorrection}
+                        onReplyComment={sendLeadCommentReplyQuick}
+                        onPrivateMessage={sendLeadPrivateMessage}
                         olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
                       />
                     </div>
@@ -5519,7 +5536,7 @@ export default function AiInbox() {
                 ) : null}
               </div>
             ) : (
-              <EmptyBlock text="اختر محادثة لعرض سجلها." />
+              <EmptyBlock text="لا توجد محادثات حاليًا" />
             )}
           </main>
         </section>
@@ -5668,7 +5685,7 @@ export default function AiInbox() {
             </aside>
 
             <main className="min-w-0 space-y-2">
-              {selectedConversation ? (
+              {activeMainItem ? (
                 <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-2.5 shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
                   <InboxChatHeader
                     conversation={safeConversation}
@@ -5760,11 +5777,14 @@ export default function AiInbox() {
                       </div>
                       <div ref={transcriptScrollRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1">
                         <Transcript
+                          conversation={selectedConversation}
                           rows={selectedTranscriptRows}
                           events={selectedTranscriptEvents}
                           loadingOlder={olderMessagesLoading}
                           onLoadOlder={loadOlderMessages}
                           onOpenCorrection={openReplyCorrection}
+                          onReplyComment={sendLeadCommentReplyQuick}
+                          onPrivateMessage={sendLeadPrivateMessage}
                           olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
                         />
                       </div>
@@ -5795,7 +5815,7 @@ export default function AiInbox() {
                   </div>
                 </div>
               ) : (
-                <EmptyBlock text="اختر تعليقًا لعرضه." />
+                <EmptyBlock text="لا توجد تعليقات سوشيال حاليًا" />
               )}
             </main>
           </section>
@@ -5815,7 +5835,7 @@ export default function AiInbox() {
 
           <main className="min-w-0 space-y-2">
             <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-2.5 shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
-              {selectedConversation ? (
+              {activeMainItem ? (
                 <>
                   <InboxChatHeader
                     conversation={safeConversation}
@@ -6026,11 +6046,14 @@ export default function AiInbox() {
                         </div>
                         <div ref={transcriptScrollRef} className="min-h-0 flex-1 overflow-y-auto pr-1">
                           <Transcript
+                            conversation={selectedConversation}
                             rows={selectedTranscriptRows}
                             events={selectedTranscriptEvents}
                             loadingOlder={olderMessagesLoading}
                             onLoadOlder={loadOlderMessages}
                             onOpenCorrection={openReplyCorrection}
+                            onReplyComment={sendLeadCommentReplyQuick}
+                            onPrivateMessage={sendLeadPrivateMessage}
                             olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
                           />
                         </div>
@@ -6064,7 +6087,7 @@ export default function AiInbox() {
                     </div>
                   </div>
                 </>
-              ) : <EmptyBlock text="اختر محادثة لعرض سجلها." />}
+              ) : <EmptyBlock text={isSocialMode ? "لا توجد تعليقات سوشيال حاليًا" : "لا توجد محادثات حاليًا"} />}
             </div>
           </main>
 
