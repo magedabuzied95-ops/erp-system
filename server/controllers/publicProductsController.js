@@ -734,7 +734,6 @@ const buildShareAvailableWhereClause = () => `
     AND (
       $2 = ''
       OR LOWER(TRIM(COALESCE(p.product_type, ''))) = LOWER(TRIM($2))
-      OR LOWER(TRIM(COALESCE(p.product_type_name, ''))) = LOWER(TRIM($2))
     )
     AND (
       $3 = ''
