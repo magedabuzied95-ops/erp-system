@@ -854,31 +854,30 @@ const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = []
       <stop offset="0%" stop-color="#111827" />
       <stop offset="100%" stop-color="#0f172a" />
     </linearGradient>
-    <linearGradient id="textGradient" x1="0" x2="1" y1="0" y2="0">
-      <stop offset="0%" stop-color="#ffffff" />
-      <stop offset="100%" stop-color="#f4e8bf" />
-    </linearGradient>
   </defs>
   <rect width="1200" height="630" rx="36" fill="url(#frameGradient)" />
-  <rect x="48" y="48" width="1104" height="534" rx="34" fill="#ffffff" opacity="0.03" stroke="rgba(255,255,255,0.12)" />
-  <text x="92" y="112" fill="url(#textGradient)" font-size="48" font-weight="900" font-family="Arial, sans-serif">${selectedTitle}</text>
-  <text x="92" y="156" fill="#e5e7eb" font-size="24" font-weight="700" font-family="Arial, sans-serif">افتح كل المنتجات المتاحة الآن في M1 Store</text>
+  <rect x="48" y="48" width="1104" height="534" rx="34" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.12)" />
+  <rect x="72" y="72" width="1056" height="486" rx="28" fill="rgba(255,255,255,0.02)" />
+  <g>
+    <rect x="86" y="88" width="420" height="454" rx="28" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.14)" />
+    <text x="116" y="134" fill="#f4e8bf" font-size="20" font-weight="800" font-family="Arial, sans-serif">M1 Store</text>
+    <text x="116" y="184" fill="#ffffff" font-size="52" font-weight="900" font-family="Arial, sans-serif">${selectedTitle}</text>
+    <text x="116" y="232" fill="#e5e7eb" font-size="24" font-weight="700" font-family="Arial, sans-serif">افتح كل المنتجات المتاحة الآن في M1 Store</text>
+    <text x="116" y="276" fill="#cbd5e1" font-size="18" font-weight="700" font-family="Arial, sans-serif">المقاس المتاح الآن يظهر مباشرة داخل المتجر</text>
+  </g>
   ${selectedImage
     ? `
       <g>
-        <rect x="58" y="190" width="560" height="360" rx="30" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.14)" />
-        <image href="${escapeHtml(selectedImage)}" x="78" y="210" width="520" height="320" preserveAspectRatio="xMidYMid meet" />
+        <rect x="540" y="88" width="580" height="454" rx="28" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.14)" />
+        <image href="${escapeHtml(selectedImage)}" x="568" y="116" width="524" height="398" preserveAspectRatio="xMidYMid meet" />
       </g>
     `
     : `
       <g>
-        <rect x="58" y="190" width="560" height="360" rx="30" fill="#e5e7eb" opacity="0.14" stroke="rgba(255,255,255,0.18)" />
-        <text x="338" y="375" text-anchor="middle" fill="#ffffff" font-size="34" font-weight="800" font-family="Arial, sans-serif">NO IMAGE</text>
+        <rect x="540" y="88" width="580" height="454" rx="28" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.14)" />
+        <text x="830" y="320" text-anchor="middle" fill="#ffffff" font-size="38" font-weight="800" font-family="Arial, sans-serif">NO IMAGE</text>
       </g>
     `}
-  <text x="700" y="252" fill="#f8fafc" font-size="34" font-weight="800" font-family="Arial, sans-serif">M1 Store</text>
-  <text x="700" y="300" fill="#dbe4f0" font-size="22" font-weight="700" font-family="Arial, sans-serif">Preview</text>
-  <text x="700" y="356" fill="#f4e8bf" font-size="26" font-weight="800" font-family="Arial, sans-serif">${selectedTitle}</text>
 </svg>`;
 };
 
