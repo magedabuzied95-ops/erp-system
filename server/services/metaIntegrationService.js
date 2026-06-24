@@ -4900,7 +4900,21 @@ const getGrantedPermissions = async ({ token }) => {
         ...(Array.isArray(data.scopes) ? data.scopes : []),
         ...(Array.isArray(data.granular_scopes) ? data.granular_scopes.map((scope) => scope?.scope) : []),
       ];
-      const granted = [...new Set(scopes.map(text).filter(Boolean))];
+      const granted = [...new Set(
+        [
+          ...(Array.isArray(data.scopes) ? data.scopes : []),
+          ...(Array.isArray(data.granular_scopes) ? data.granular_scopes.filter((scope) => text(scope?.status || "").toLowerCase() === "granted").map((scope) => scope?.scope) : []),
+        ].map(text).filter(Boolean)
+      )];
+      const declined = [...new Set(
+        Array.isArray(data.granular_scopes)
+          ? data.granular_scopes
+              .filter((scope) => text(scope?.status || "").toLowerCase() && text(scope?.status || "").toLowerCase() !== "granted")
+              .map((scope) => scope?.scope)
+              .map(text)
+              .filter(Boolean)
+          : []
+      )];
       console.log("[meta-permissions] meta_permissions_live_check_result", {
         granted,
         source: "debug_token",
@@ -4908,6 +4922,8 @@ const getGrantedPermissions = async ({ token }) => {
       });
       return {
         granted,
+        declined,
+        all_scopes: [...new Set(scopes.map(text).filter(Boolean))],
         checked_at: nowIso(),
         is_valid: data.is_valid !== false,
         expires_at: data.expires_at ? new Date(Number(data.expires_at) * 1000).toISOString() : null,
@@ -4926,6 +4942,11 @@ const getGrantedPermissions = async ({ token }) => {
     });
     return {
       granted,
+      declined: (Array.isArray(payload?.data) ? payload.data : [])
+        .filter((permission) => permission?.status && permission.status !== "granted")
+        .map((permission) => text(permission.permission))
+        .filter(Boolean),
+      all_scopes: granted,
       checked_at: nowIso(),
       is_valid: true,
       check_failed: false,
@@ -4937,6 +4958,8 @@ const getGrantedPermissions = async ({ token }) => {
     });
     return {
       granted: [],
+      declined: [],
+      all_scopes: [],
       checked_at: nowIso(),
       is_valid: undefined,
       check_failed: true,
@@ -5415,6 +5438,27 @@ export const verifyMetaWebhookEnablement = async ({ tenantId } = {}) => {
   }
 };
 
+const getPageTasks = async ({ pageId = "", token = "" } = {}) => {
+  const safePageId = text(pageId);
+  const safeToken = text(token);
+  if (!safePageId || !safeToken) return [];
+  try {
+    const payload = await callMetaGet({
+      endpoint: `/${encodeURIComponent(safePageId)}`,
+      token: safeToken,
+      params: { fields: "id,name,tasks" },
+    });
+    const tasks = Array.isArray(payload?.tasks) ? payload.tasks : [];
+    return [...new Set(tasks.map(text).filter(Boolean))];
+  } catch (error) {
+    console.warn("[meta-permissions] page_tasks_fetch_failed", {
+      page_id: maskIdForLog(safePageId),
+      message: error?.message || "Unable to fetch page tasks",
+    });
+    return [];
+  }
+};
+
 const buildMissingItems = (items = []) => items.filter((item) => !item.done).map((item) => item.label);
 
 const hasPageTokenAndPage = (config = {}) => Boolean(config.page_access_token_configured && config.facebook_page_id);
@@ -5714,6 +5758,26 @@ export const getMetaWebhookDebugStatus = async ({ tenantId, req = null } = {}) =
       setup_completion: integrationStatus?.setup_completion || {},
       checklist: integrationStatus?.checklist || {},
     },
+  };
+};
+
+export const getMetaPermissionsDebugStatus = async ({ tenantId, req = null } = {}) => {
+  const scopedTenantId = numberOrNull(tenantId);
+  const row = await getMetaIntegrationConfig({ tenantId: scopedTenantId });
+  const config = row ? sanitizeConfig(row) : defaultPublicConfig(scopedTenantId);
+  const token = row ? getTokenForConfig(row) : "";
+  const permissions = await getGrantedPermissions({ token });
+  const pageId = text(config.facebook_page_id || config.page_id);
+  const pageTasks = await getPageTasks({ pageId, token });
+  const granted = Array.isArray(permissions.granted) ? permissions.granted : [];
+  const allScopes = [...new Set(granted)];
+  const declined = Array.isArray(permissions.declined) ? permissions.declined : [];
+  return {
+    tenant_id: scopedTenantId,
+    granted_permissions: allScopes,
+    declined_permissions: declined,
+    page_tasks: pageTasks,
+    page_access_token_scopes: allScopes,
   };
 };
 

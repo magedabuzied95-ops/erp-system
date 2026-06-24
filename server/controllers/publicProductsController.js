@@ -844,15 +844,36 @@ const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = []
   const selectedImage = primaryImage || fallbackImage || "";
   const routeBranch = primaryImage ? "single-product" : fallbackImage ? "fallback" : "empty";
   const selectedTitle = title || "المتاح بالمقاس";
+  const imageTag = selectedImage
+    ? `<image href="${escapeHtml(selectedImage)}" x="86" y="286" width="1028" height="248" preserveAspectRatio="xMidYMid meet" />`
+    : "";
   console.log("[share-available-og-image]", {
     routeHandler: "getPublicAvailableOgImage",
     sourceFile: "server/controllers/publicProductsController.js",
     imageGeneratorVersion,
     routeBranch,
     selectedTitle,
+    primaryImage,
     selectedImage,
+    firstImageProductId: firstImageProduct?.id || null,
+    firstImageProductName: firstImageProduct?.name || "",
+    imageTagPreview: imageTag.slice(0, 300),
     requestedUrl: req?.originalUrl || req?.url || "",
   });
+  if (!primaryImage) {
+    console.log("[share-available-og-image-no-primary-image]", {
+      firstProducts: products.slice(0, 5).map((product) => ({
+        id: product.id,
+        name: product.name,
+        public_image_url: product.public_image_url || "",
+        image_url: product.image_url || "",
+      })),
+    });
+  } else {
+    console.log("[share-available-og-image-primary-image]", {
+      primaryImage,
+    });
+  }
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg" direction="rtl" xml:lang="ar">
   <defs>
@@ -868,7 +889,7 @@ const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = []
   <text x="92" y="254" fill="#cbd5e1" font-size="18" font-weight="700" font-family="Arial, sans-serif">المقاس المتاح الآن يظهر مباشرة داخل المتجر</text>
   ${selectedImage
     ? `
-      <image href="${escapeHtml(selectedImage)}" x="86" y="286" width="1028" height="248" preserveAspectRatio="xMidYMid meet" />
+      ${imageTag}
     `
     : `
       <text x="600" y="410" text-anchor="middle" fill="#ffffff" font-size="42" font-weight="900" font-family="Arial, sans-serif">NO IMAGE</text>
