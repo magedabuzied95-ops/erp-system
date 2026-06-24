@@ -2855,7 +2855,7 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
       name,
       name,
       name,
-      jsonValue(normalizeMessengerProfileRecord({
+      json(normalizeMessengerProfileRecord({
         firstName,
         lastName,
         displayName: name,
@@ -2926,7 +2926,7 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
       psid,
       profilePic,
       numberOrNull(profileId),
-      jsonValue(normalizeMessengerProfileRecord({
+      json(normalizeMessengerProfileRecord({
         firstName,
         lastName,
         displayName: name,
