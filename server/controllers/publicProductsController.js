@@ -711,8 +711,8 @@ const buildShareAvailableOgImageUrl = (req, filters = {}, format = "png") => {
   return new URL(`${suffix}${params.toString() ? `?${params.toString()}` : ""}`, publicBaseUrl).toString();
 };
 
-const buildShareAvailablePreviewPngBuffer = async ({ filters = {}, products = [], count = 0 } = {}) => {
-  const svg = buildShareAvailablePreviewSvg({ filters, products, count });
+const buildShareAvailablePreviewPngBuffer = async ({ req = null, filters = {}, products = [], count = 0 } = {}) => {
+  const svg = buildShareAvailablePreviewSvg({ req, filters, products, count });
   return sharp(Buffer.from(svg, "utf8")).png().toBuffer();
 };
 
@@ -829,60 +829,16 @@ const loadShareAvailableProducts = async (filters = {}) => {
   return { count: Number(countResult.rows?.[0]?.total || 0), products };
 };
 
-const buildShareAvailablePreviewSvg = ({ filters = {}, products = [], count = 0 } = {}) => {
-  const effectiveCount = Number(count || 0) > 0 ? Number(count || 0) : products.length;
+const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = [], count = 0 } = {}) => {
   const sizeLabel = filters.sizes?.length > 1
     ? `المتاح بالمقاسات ${filters.sizes.join("، ")}`
     : `المتاح بالمقاس ${filters.sizes?.[0] || ""}`.trim();
   const title = escapeHtml(sizeLabel || "المتاح بالمقاس");
-  const countLabel = escapeHtml(`${effectiveCount} ${effectiveCount === 1 ? "موديل متاح الآن" : "موديلات متاحة الآن"}`);
   const storeLabel = escapeHtml("M1 Store");
-  const imageProducts = products
-    .map((product) => ({
-      ...product,
-      image: normalizeImageUrlCandidate(product.public_image_url || product.image_url || ""),
-    }))
-    .filter((product) => Boolean(product.image))
-    .slice(0, 4);
-  const visibleCards = imageProducts.length || (products.length ? 1 : 0);
-  const cardLayout = (countItems = 0, index = 0) => {
-    if (countItems <= 1) return { x: 72, y: 214, w: 1056, h: 296 };
-    if (countItems === 2) return { x: 72 + index * 532, y: 214, w: 516, h: 296 };
-    if (countItems === 3) {
-      if (index < 2) return { x: 72 + index * 532, y: 210, w: 516, h: 198 };
-      return { x: 342, y: 420, w: 516, h: 170 };
-    }
-    return { x: 72 + (index % 2) * 520, y: 220 + Math.floor(index / 2) * 172, w: 504, h: 150 };
-  };
-  const cards = imageProducts.map((product, index) => {
-    const { x, y, w, h } = cardLayout(imageProducts.length, index);
-    return `
-      <g>
-        <clipPath id="cardClip${index}">
-          <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="30" />
-        </clipPath>
-        <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="30" fill="#ffffff" opacity="0.10" />
-        <image href="${escapeHtml(product.image)}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid slice" clip-path="url(#cardClip${index})" />
-      </g>
-    `;
-  }).join("");
-  const fallbackCard = !cards && products.length
-    ? `
-      <g>
-        <clipPath id="cardClipFallback">
-          <rect x="72" y="212" width="1056" height="300" rx="30" />
-        </clipPath>
-        <rect x="72" y="212" width="1056" height="300" rx="30" fill="#ffffff" opacity="0.10" />
-        <rect x="72" y="212" width="1056" height="300" rx="30" fill="url(#overlayGradient)" opacity="0.08" />
-      </g>
-    `
-    : "";
-  const gradients = Array.from({ length: 4 }, (_, index) => `
-    <linearGradient id="cardGradient${index}" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0%" stop-color="#2a2f3f" />
-      <stop offset="100%" stop-color="#151a25" />
-    </linearGradient>
-  `).join("");
+  const firstImageProduct = products.find((product) => normalizeImageUrlCandidate(product.public_image_url || product.image_url || "")) || null;
+  const primaryImage = normalizeImageUrlCandidate(firstImageProduct?.public_image_url || firstImageProduct?.image_url || "");
+  const fallbackImage = buildShareAvailableFallbackImageUrl(req) || "";
+  const heroImage = primaryImage || fallbackImage;
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg" direction="rtl" xml:lang="ar">
   <defs>
@@ -899,17 +855,22 @@ const buildShareAvailablePreviewSvg = ({ filters = {}, products = [], count = 0 
       <stop offset="0%" stop-color="#000000" stop-opacity="0" />
       <stop offset="100%" stop-color="#000000" stop-opacity="0.35" />
     </linearGradient>
-    ${gradients}
   </defs>
   <rect width="1200" height="630" rx="36" fill="url(#bgGradient)" />
   <circle cx="1060" cy="88" r="180" fill="#d4af37" opacity="0.10" />
   <circle cx="112" cy="540" r="220" fill="#ffffff" opacity="0.05" />
   <rect x="56" y="46" width="160" height="40" rx="20" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.14)" />
   <text x="136" y="73" text-anchor="middle" fill="#f7f3e8" font-size="22" font-weight="700" font-family="Arial, sans-serif">M1 Store</text>
-  <text x="60" y="126" fill="#ffffff" font-size="52" font-weight="900" font-family="Arial, sans-serif">${title}</text>
-  <text x="60" y="176" fill="#f4e8bf" font-size="28" font-weight="700" font-family="Arial, sans-serif">${countLabel}</text>
-  ${fallbackCard}
-  ${cards}
+  <text x="60" y="124" fill="#ffffff" font-size="52" font-weight="900" font-family="Arial, sans-serif">${title}</text>
+  <text x="60" y="170" fill="#f4e8bf" font-size="28" font-weight="700" font-family="Arial, sans-serif">افتح كل المنتجات المتاحة الآن في M1 Store</text>
+  <g>
+    <clipPath id="heroClip">
+      <rect x="84" y="214" width="1032" height="312" rx="34" />
+    </clipPath>
+    <rect x="84" y="214" width="1032" height="312" rx="34" fill="#ffffff" opacity="0.08" />
+    <rect x="84" y="214" width="1032" height="312" rx="34" fill="url(#overlayGradient)" opacity="0.06" />
+    <image href="${escapeHtml(heroImage)}" x="84" y="214" width="1032" height="312" preserveAspectRatio="xMidYMid slice" clip-path="url(#heroClip)" />
+  </g>
   <text x="60" y="594" fill="#d8e1f0" font-size="26" font-weight="700" font-family="Arial, sans-serif">${storeLabel}</text>
 </svg>`;
 };
@@ -1023,7 +984,7 @@ export const getPublicAvailableOgImage = async (req, res) => {
       .filter(Boolean);
     const ogTitle = filters.sizes?.length > 1 ? `المتاح بالمقاسات ${filters.sizes.join("، ")}` : `المتاح بالمقاس ${filters.sizes?.[0] || ""}`.trim();
     const ogDescription = `${ogProductsCount} موديل متاح الآن في M1 Store`;
-    const png = await buildShareAvailablePreviewPngBuffer({ filters, products, count: ogProductsCount });
+    const png = await buildShareAvailablePreviewPngBuffer({ req, filters, products, count: ogProductsCount });
     console.log("shareAvailableTargetUrl", buildShareAvailableTargetUrl(req, filters));
     console.log("[share-available]", {
       query: req.query,
@@ -1048,6 +1009,7 @@ export const getPublicAvailableOgImage = async (req, res) => {
     const targetUrl = buildShareAvailableTargetUrl(req, filters);
     const ogProductsCount = 0;
     const svg = buildShareAvailableFallbackSvg({
+      req,
       title: filters.sizes?.length ? `المتاح بالمقاس ${filters.sizes.join("، ")}` : "المتاح بالمقاس",
       description: "جرّب مقاساً أو فلتراً آخر",
       targetUrl,
