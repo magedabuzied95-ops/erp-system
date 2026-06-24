@@ -325,6 +325,7 @@ const updateWebhookByRecordId = async ({ current, webhookRecord, desiredUrl }) =
   };
 
   const updateCandidates = [
+    `/webhook/set/${encodeURIComponent(current.instanceName)}`,
     "/webhook/instance",
     "/webhook/instance/",
     `/webhook/instance/${encodeURIComponent(current.instanceName)}`,
@@ -346,13 +347,18 @@ const updateWebhookByRecordId = async ({ current, webhookRecord, desiredUrl }) =
       return { response, path, webhookId };
     } catch (error) {
       lastError = error;
+      console.warn("[evolution-webhook-sync:webhook-update-failed]", {
+        endpoint: path,
+        status: error?.status || "",
+        message: error?.message || String(error),
+      });
       logWebhookResponse("[evolution-webhook-sync:webhook-response]", error?.data || {});
     }
   }
 
   const error = lastError || new Error("Unable to update Evolution webhook");
-  error.recreateInstruction = `If Evolution rejects /webhook/instance, recreate qr-test2 after setting WEBHOOK_GLOBAL_URL=${desiredUrl} and restart the instance/container.`;
-  throw error;
+  error.recreateInstruction = `If Evolution rejects the webhook update routes, recreate qr-test2 after setting WEBHOOK_GLOBAL_URL=${desiredUrl} and restart the instance/container.`;
+  return { response: null, path: "", webhookId, error };
 };
 
 export const syncEvolutionWebhookOnStartup = async () => {
@@ -452,6 +458,21 @@ export const syncEvolutionWebhookOnStartup = async () => {
       webhookRecord: currentWebhook,
       desiredUrl,
     });
+
+    if (updateResult?.error) {
+      console.warn("[evolution-webhook-sync:nonfatal-update-failed]", {
+        instanceName: current.instanceName,
+        webhook_url: desiredUrl,
+        message: updateResult.error?.message || String(updateResult.error),
+        status: updateResult.error?.status || "",
+      });
+      return {
+        skipped: false,
+        updated: false,
+        matched: false,
+        error: updateResult.error?.message || "Unable to update Evolution webhook",
+      };
+    }
 
     const refreshedWebhook = await readWebhookRecord(current);
     const refreshedUrl = String(refreshedWebhook?.url || "").trim();
