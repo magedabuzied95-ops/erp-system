@@ -831,18 +831,14 @@ const loadShareAvailableProducts = async (filters = {}) => {
 
 const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = [], count = 0 } = {}) => {
   const imageGeneratorVersion = "V2";
-  const sizeLabel = filters.sizes?.length > 1
-    ? `المتاح بالمقاسات ${filters.sizes.join("، ")}`
-    : `المتاح بالمقاس ${filters.sizes?.[0] || ""}`.trim();
-  const title = escapeHtml(sizeLabel || "المتاح بالمقاس");
-  const storeLabel = escapeHtml("M1 Store");
+  const sizeValue = filters.sizes?.[0] || "";
+  const title = escapeHtml(`المتاح بالمقاس ${sizeValue}`.trim() || "المتاح بالمقاس");
   const firstImageProduct = products.find((product) => normalizeImageUrlCandidate(product.public_image_url || product.image_url || "")) || null;
   const primaryImage = normalizeImageUrlCandidate(firstImageProduct?.public_image_url || firstImageProduct?.image_url || "");
   const fallbackImage = buildShareAvailableFallbackImageUrl(req) || "";
-  const heroImage = primaryImage || fallbackImage;
+  const selectedImage = primaryImage || fallbackImage || "";
   const routeBranch = primaryImage ? "single-product" : fallbackImage ? "fallback" : "empty";
   const selectedTitle = title || "المتاح بالمقاس";
-  const selectedImage = heroImage || "";
   console.log("[share-available-og-image]", {
     routeHandler: "getPublicAvailableOgImage",
     sourceFile: "server/controllers/publicProductsController.js",
@@ -855,37 +851,30 @@ const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = []
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg" direction="rtl" xml:lang="ar">
   <defs>
-    <linearGradient id="bgGradient" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0%" stop-color="#0c1220" />
-      <stop offset="55%" stop-color="#101828" />
-      <stop offset="100%" stop-color="#18111b" />
-    </linearGradient>
-    <linearGradient id="goldGlow" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0%" stop-color="#f5d97a" />
-      <stop offset="100%" stop-color="#d4af37" />
-    </linearGradient>
-    <linearGradient id="overlayGradient" x1="0" x2="0" y1="0" y2="1">
-      <stop offset="0%" stop-color="#000000" stop-opacity="0" />
-      <stop offset="100%" stop-color="#000000" stop-opacity="0.35" />
+    <linearGradient id="frameGradient" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#111827" />
+      <stop offset="100%" stop-color="#0f172a" />
     </linearGradient>
   </defs>
-  <rect width="1200" height="630" rx="36" fill="url(#bgGradient)" />
-  <circle cx="1060" cy="88" r="180" fill="#d4af37" opacity="0.10" />
-  <circle cx="112" cy="540" r="220" fill="#ffffff" opacity="0.05" />
-  <rect x="56" y="46" width="160" height="40" rx="20" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.14)" />
-  <text x="136" y="73" text-anchor="middle" fill="#f7f3e8" font-size="22" font-weight="700" font-family="Arial, sans-serif">M1 Store</text>
-  <text x="60" y="124" fill="#ffffff" font-size="52" font-weight="900" font-family="Arial, sans-serif">${selectedTitle}</text>
-  <text x="60" y="170" fill="#f4e8bf" font-size="28" font-weight="700" font-family="Arial, sans-serif">افتح كل المنتجات المتاحة الآن في M1 Store</text>
-  <text x="1110" y="500" text-anchor="end" fill="#ffffff" opacity="0.65" font-size="20" font-weight="700" font-family="Arial, sans-serif">${imageGeneratorVersion}</text>
-  <g>
-    <clipPath id="heroClip">
-      <rect x="84" y="214" width="1032" height="312" rx="34" />
-    </clipPath>
-    <rect x="84" y="214" width="1032" height="312" rx="34" fill="#ffffff" opacity="0.08" />
-    <rect x="84" y="214" width="1032" height="312" rx="34" fill="url(#overlayGradient)" opacity="0.06" />
-    <image href="${escapeHtml(heroImage)}" x="84" y="214" width="1032" height="312" preserveAspectRatio="xMidYMid slice" clip-path="url(#heroClip)" />
-  </g>
-  <text x="60" y="594" fill="#d8e1f0" font-size="26" font-weight="700" font-family="Arial, sans-serif">${storeLabel}</text>
+  <rect width="1200" height="630" rx="36" fill="url(#frameGradient)" />
+  <rect x="48" y="48" width="1104" height="534" rx="34" fill="#ffffff" opacity="0.03" stroke="rgba(255,255,255,0.12)" />
+  <text x="600" y="118" text-anchor="middle" fill="#f8fafc" font-size="38" font-weight="800" font-family="Arial, sans-serif">V2 TEST</text>
+  <text x="600" y="172" text-anchor="middle" fill="#f4e8bf" font-size="40" font-weight="900" font-family="Arial, sans-serif">${selectedTitle}</text>
+  <text x="600" y="220" text-anchor="middle" fill="#e5e7eb" font-size="24" font-weight="700" font-family="Arial, sans-serif">افتح كل المنتجات المتاحة الآن في M1 Store</text>
+  <text x="1110" y="92" text-anchor="end" fill="#f8fafc" opacity="0.7" font-size="18" font-weight="700" font-family="Arial, sans-serif">${imageGeneratorVersion}</text>
+  ${selectedImage
+    ? `
+      <g>
+        <rect x="356" y="260" width="488" height="280" rx="28" fill="#ffffff" opacity="0.08" stroke="rgba(255,255,255,0.16)" />
+        <image href="${escapeHtml(selectedImage)}" x="356" y="260" width="488" height="280" preserveAspectRatio="xMidYMid meet" />
+      </g>
+    `
+    : `
+      <g>
+        <rect x="356" y="260" width="488" height="280" rx="28" fill="#e5e7eb" opacity="0.14" stroke="rgba(255,255,255,0.18)" />
+        <text x="600" y="405" text-anchor="middle" fill="#ffffff" font-size="34" font-weight="800" font-family="Arial, sans-serif">NO IMAGE</text>
+      </g>
+    `}
 </svg>`;
 };
 
@@ -987,6 +976,19 @@ export const getPublicAvailableSharePage = async (req, res) => {
 };
 
 export const getPublicAvailableOgImage = async (req, res) => {
+  res.setHeader("X-OG-Image-Version", "V2");
+  res.setHeader("X-Route-Handler", "getPublicAvailableOgImage");
+  res.setHeader("X-Source-File", "server/controllers/publicProductsController.js");
+  console.log("ogImageHandlerReached", {
+    imageGeneratorVersion: "V2",
+    routeHandler: "getPublicAvailableOgImage",
+    sourceFile: "server/controllers/publicProductsController.js",
+    routeBranch: "unknown",
+    matchedProductsCount: null,
+    selectedImage: "",
+    selectedTitle: "",
+    requestedUrl: req?.originalUrl || req?.url || "",
+  });
   try {
     await ensurePublicProductEditionSchema();
     await ensureProductVariantImagesSchema();
@@ -1019,7 +1021,6 @@ export const getPublicAvailableOgImage = async (req, res) => {
     });
     res.setHeader("Content-Type", "image/png");
     res.setHeader("Cache-Control", "public, max-age=300");
-    res.setHeader("X-OG-Image-Version", "V2");
     return res.status(200).send(png);
   } catch (error) {
     console.error("[share-available]", {
@@ -1039,7 +1040,6 @@ export const getPublicAvailableOgImage = async (req, res) => {
     const png = await sharp(Buffer.from(svg, "utf8")).png().toBuffer();
     res.setHeader("Content-Type", "image/png");
     res.setHeader("Cache-Control", "public, max-age=300");
-    res.setHeader("X-OG-Image-Version", "V2");
     return res.status(200).send(png);
   }
 };
