@@ -1317,33 +1317,37 @@ export const saveStaffTaskTemplate = async (payload = {}, actor = {}) => {
           AND ($25::bigint IS NULL OR tenant_id = $25::bigint)
         RETURNING *
         `,
-        [
-          data.title,
-          data.description,
-          data.titleAr,
-          data.descriptionAr,
-          data.taskType,
-          data.priority,
-          data.deadlineMinutes,
-          data.frequency,
-          data.branchId,
-          data.templateKind,
-          data.isOpeningDayTask,
-          JSON.stringify(data.weekdays),
-          data.dayOfMonth,
-          data.requiresCheckin,
-          data.requiresPhoto,
-          data.requiresQr,
-          data.requiresGps,
-          data.autoAssignEnabled,
-          data.assignmentStrategy,
-          data.autoAssignMode,
-          data.fixedEmployeeId,
-          JSON.stringify(data.checklistItems),
-          JSON.stringify(recurringRule),
-          id,
-          data.tenantId,
-        ]
+        (() => {
+          const values = [
+            data.title,
+            data.description,
+            data.titleAr,
+            data.descriptionAr,
+            data.taskType,
+            data.priority,
+            data.deadlineMinutes,
+            data.branchId,
+            data.frequency,
+            data.templateKind,
+            data.isOpeningDayTask,
+            JSON.stringify(data.weekdays),
+            data.dayOfMonth,
+            data.requiresCheckin,
+            data.requiresPhoto,
+            data.requiresQr,
+            data.requiresGps,
+            data.autoAssignEnabled,
+            data.assignmentStrategy,
+            data.autoAssignMode,
+            data.fixedEmployeeId,
+            JSON.stringify(data.checklistItems),
+            JSON.stringify(recurringRule),
+            id,
+            data.tenantId,
+          ];
+          console.log("SQL PARAMS", { step: "saveStaffTaskTemplate:update", values });
+          return values;
+        })()
       )
     : await db.query(
         `
@@ -1357,7 +1361,8 @@ export const saveStaffTaskTemplate = async (payload = {}, actor = {}) => {
         VALUES ($1::bigint,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::integer,$9::text,'operations',$10::bigint,$9::text,$11::text,$12::boolean,$13::jsonb,$14::integer,$15::boolean,$16::boolean,$17::boolean,$18::boolean,$16::boolean,$17::boolean,$18::boolean,$19::boolean,$20::text,$21::text,$22::bigint,$23::jsonb,$24::jsonb,$25::bigint)
         RETURNING *
         `,
-        [
+        (() => {
+          const values = [
           data.tenantId,
           data.title,
           data.description,
@@ -1383,7 +1388,10 @@ export const saveStaffTaskTemplate = async (payload = {}, actor = {}) => {
           JSON.stringify(data.checklistItems),
           JSON.stringify(recurringRule),
           data.createdBy,
-        ]
+          ];
+          console.log("SQL PARAMS", { step: "saveStaffTaskTemplate:insert", values });
+          return values;
+        })()
       );
   const template = result.rows[0];
   console.log("[task-template-save]", {
