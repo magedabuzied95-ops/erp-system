@@ -2478,6 +2478,27 @@ const safeMessengerDisplayName = ({ firstName = "", lastName = "", fallback = ""
   });
   return isUnsafeMessengerStoredName(resolved) ? "" : resolved;
 };
+const resolveMessengerProfileFetchPageId = ({ message = {}, config = {}, facebookPageId = "" } = {}) => {
+  const psid = text(message.external_customer_id || message.raw?.sender_psid || message.raw?.customer_psid || "");
+  const candidates = [
+    facebookPageId,
+    config.facebook_page_id,
+    config.page_id,
+    config.resolved_page_id,
+    message.raw?.page_id,
+    message.raw?.resolved_page_id,
+    message.raw?.recipient_page_id,
+    message.raw?.metadata?.page_id,
+    message.raw?.metadata?.resolved_page_id,
+    message.channel_metadata?.page_id,
+    message.channel_metadata?.resolved_page_id,
+    message.channel_metadata?.account_id,
+  ]
+    .map(text)
+    .filter(Boolean)
+    .filter((value) => value !== psid);
+  return candidates[0] || "";
+};
 let messengerProfileStorageRepairPromise = null;
 const repairMessengerStoredNames = async () => {
   if (!messengerProfileStorageRepairPromise) {
@@ -2493,8 +2514,6 @@ const repairMessengerStoredNames = async () => {
                 THEN concat_ws(' ', metadata->'messenger_profile'->>'first_name', metadata->'messenger_profile'->>'last_name')
               WHEN COALESCE(NULLIF(metadata->'customer_profile'->>'name', ''), '') <> '' AND (metadata->'customer_profile'->>'name' !~* $1)
                 THEN metadata->'customer_profile'->>'name'
-              WHEN COALESCE(NULLIF(external_customer_id, ''), '') <> ''
-                THEN external_customer_id
               ELSE customer_name
             END,
             updated_at = NOW()
@@ -2525,8 +2544,6 @@ const repairMessengerStoredNames = async () => {
         SET customer_name = CASE
               WHEN COALESCE(NULLIF(c.customer_name, ''), '') <> '' AND c.customer_name !~* $1
                 THEN c.customer_name
-              WHEN COALESCE(NULLIF(c.external_customer_id, ''), '') <> ''
-                THEN c.external_customer_id
               ELSE s.customer_name
             END,
             updated_at = NOW()
@@ -2562,8 +2579,6 @@ const repairMessengerStoredNames = async () => {
                 THEN s.customer_name
               WHEN COALESCE(NULLIF(c.customer_name, ''), '') <> '' AND c.customer_name !~* $1
                 THEN c.customer_name
-              WHEN COALESCE(NULLIF(c.external_customer_id, ''), '') <> ''
-                THEN c.external_customer_id
               ELSE m.customer_name
             END
         FROM ai_support_sessions s
@@ -2969,13 +2984,30 @@ const enrichMessengerProfile = async ({ message, config, facebookPageId = "", in
     conversation_id: message.external_conversation_id,
   });
   try {
-    const { token } = await resolveMetaSendConfig({
-      tenantId: config.tenant_id,
-      channel: normalizedChannel,
-      facebookPageId: facebookPageId || config.facebook_page_id || message.raw?.page_id || "",
-      instagramBusinessAccountId,
-      preferredConfigId: config.id || null,
-    });
+    const resolvedFacebookPageId = resolveMessengerProfileFetchPageId({ message, config, facebookPageId });
+    let tokenResolution = null;
+    try {
+      tokenResolution = await resolveMetaSendConfig({
+        tenantId: config.tenant_id,
+        channel: normalizedChannel,
+        facebookPageId: resolvedFacebookPageId,
+        instagramBusinessAccountId,
+        preferredConfigId: config.id || null,
+      });
+    } catch (lookupError) {
+      if (resolvedFacebookPageId) {
+        tokenResolution = await resolveMetaSendConfig({
+          tenantId: config.tenant_id,
+          channel: normalizedChannel,
+          facebookPageId: "",
+          instagramBusinessAccountId,
+          preferredConfigId: config.id || null,
+        });
+      } else {
+        throw lookupError;
+      }
+    }
+    const { token, config: resolvedConfig, source: tokenSource } = tokenResolution;
     const payload = await callMetaGet({
       endpoint: `/${encodeURIComponent(psid)}`,
       token,
@@ -2983,7 +3015,8 @@ const enrichMessengerProfile = async ({ message, config, facebookPageId = "", in
     });
     console.log("messenger_profile_graph_response", {
       tenant_id: config.tenant_id,
-      config_id: config.id || null,
+      config_id: resolvedConfig?.id || config.id || null,
+      token_source: tokenSource || "",
       psid: maskIdForLog(psid),
       conversation_id: message.external_conversation_id,
       first_name: text(payload.first_name),
@@ -3016,7 +3049,8 @@ const enrichMessengerProfile = async ({ message, config, facebookPageId = "", in
     });
     console.log("messenger_profile_fetch_success", {
       tenant_id: config.tenant_id,
-      config_id: config.id || null,
+      config_id: resolvedConfig?.id || config.id || null,
+      token_source: tokenSource || "",
       psid: maskIdForLog(psid),
       conversation_id: message.external_conversation_id,
       has_name: Boolean(persisted?.name),
@@ -3059,6 +3093,119 @@ const enrichMessengerProfile = async ({ message, config, facebookPageId = "", in
       raw: { ...(message.raw || {}), messenger_profile: cached || null },
     };
   }
+};
+
+export const repairMessengerProfileCaptures = async ({
+  tenantId,
+  limit = 100,
+  conversationIds = [],
+  pageId = "",
+  dryRun = false,
+} = {}) => {
+  const scopedTenantId = numberOrNull(tenantId);
+  if (!scopedTenantId) {
+    throw Object.assign(new Error("tenant_id is required"), { status: 400, code: "MESSENGER_PROFILE_REPAIR_TENANT_REQUIRED" });
+  }
+  await ensureMessengerProfileStorage();
+  const safeLimit = Math.max(1, Math.min(500, Number(limit) || 100));
+  const safeConversationIds = [...new Set(asArray(conversationIds).map(text).filter(Boolean))];
+  const rows = await db.query(
+    `
+    SELECT
+      c.tenant_id,
+      c.external_conversation_id,
+      c.external_customer_id,
+      c.customer_name,
+      c.customer_avatar_url,
+      c.metadata,
+      s.customer_name AS session_customer_name,
+      s.customer_avatar_url AS session_customer_avatar_url
+    FROM ai_channel_conversations c
+    LEFT JOIN ai_support_sessions s
+      ON s.tenant_id = c.tenant_id
+      AND s.session_id = c.external_conversation_id
+    WHERE c.tenant_id = $1
+      AND c.channel IN ('facebook_messenger', 'facebook', 'messenger')
+      AND (
+        c.customer_name = ''
+        OR c.customer_name ~ '^[0-9]+$'
+        OR LOWER(c.customer_name) = 'customer'
+        OR LOWER(c.customer_name) = 'unknown customer'
+      )
+      AND ($3::text[] IS NULL OR c.external_conversation_id = ANY($3::text[]))
+    ORDER BY c.updated_at ASC, c.id ASC
+    LIMIT $2
+    `,
+    [scopedTenantId, safeLimit, safeConversationIds.length ? safeConversationIds : null]
+  );
+  const results = [];
+  for (const row of rows.rows) {
+    const psid = text(row.external_customer_id || row.external_conversation_id.split(":").pop() || "");
+    if (!psid) continue;
+    const resolvedPageId = resolveMessengerProfileFetchPageId({
+      message: {
+        external_customer_id: psid,
+        raw: {
+          page_id: row.metadata?.page_id || "",
+          resolved_page_id: row.metadata?.resolved_page_id || "",
+          recipient_page_id: row.metadata?.recipient_page_id || "",
+          metadata: row.metadata || {},
+        },
+      },
+      config: { facebook_page_id: pageId || "" },
+      facebookPageId: pageId || "",
+    });
+    const message = {
+      channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+      external_conversation_id: row.external_conversation_id,
+      external_customer_id: psid,
+      customer_name: text(row.customer_name || ""),
+      customer_avatar_url: text(row.customer_avatar_url || row.session_customer_avatar_url || ""),
+      raw: {
+        page_id: resolvedPageId,
+        resolved_page_id: resolvedPageId,
+        sender_psid: psid,
+        customer_psid: psid,
+        messenger_profile: row.metadata?.messenger_profile || null,
+      },
+    };
+    if (dryRun) {
+      results.push({
+        conversation_id: row.external_conversation_id,
+        external_customer_id: psid,
+        page_id: resolvedPageId,
+        dry_run: true,
+      });
+      continue;
+    }
+    try {
+      const enriched = await enrichMessengerProfile({
+        message,
+        config: { tenant_id: scopedTenantId, facebook_page_id: resolvedPageId || pageId || "" },
+        facebookPageId: resolvedPageId || pageId || "",
+        forceRefresh: true,
+      });
+      results.push({
+        conversation_id: row.external_conversation_id,
+        external_customer_id: psid,
+        page_id: resolvedPageId || pageId || "",
+        has_name: Boolean(text(enriched?.customer_name || enriched?.display_name || "")),
+        has_avatar: Boolean(text(enriched?.customer_avatar_url || "")),
+      });
+    } catch (error) {
+      results.push({
+        conversation_id: row.external_conversation_id,
+        external_customer_id: psid,
+        page_id: resolvedPageId || pageId || "",
+        error: error?.message || "Messenger profile repair failed",
+      });
+    }
+  }
+  return {
+    tenant_id: scopedTenantId,
+    processed: results.length,
+    results,
+  };
 };
 
 export const syncMessengerProfileForConversation = async ({ tenantId, conversationId = "", externalCustomerId = "" } = {}) => {
