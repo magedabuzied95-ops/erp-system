@@ -604,6 +604,7 @@ const commentThreadCommentCount = (conversation = {}) =>
   Number(
     conversation?.channel_metadata?.comments_count ||
       conversation?.metadata?.comments_count ||
+      (Array.isArray(conversation?.messages) ? conversation.messages.filter((message) => clean(message?.message_type).toLowerCase() === "comment_inbound" || clean(message?.thread_kind).toLowerCase() === "comment").length : 0) ||
       conversation?.message_count ||
       conversation?.channel_metadata?.comment_count ||
       0
@@ -3235,8 +3236,8 @@ export default function AiInbox() {
           count: items.length,
           error: "",
         });
-        if (activeSection === "social_comments" && !activeSocialCommentSelectedId && items[0]?.conversation_key) {
-          setSelectedSocialCommentId(items[0].conversation_key);
+        if (activeSection === "social_comments" && !activeSocialCommentSelectedId && items[0]) {
+          setSelectedSocialCommentId(socialCommentIdentity(items[0]));
           setSelectedSessionId("");
         }
       } catch (socialCommentsError) {
@@ -3489,10 +3490,12 @@ export default function AiInbox() {
     () => (inboxSection === "conversations" ? filteredConversations : []),
     [filteredConversations, inboxSection]
   );
-  const visibleSocialComments = useMemo(
-    () => (inboxSection === "social_comments" ? filteredConversations : []),
-    [filteredConversations, inboxSection]
-  );
+  const visibleSocialComments = useMemo(() => {
+    if (inboxSection !== "social_comments") return [];
+    return [...asArray(socialComments.items)]
+      .filter((item) => labelMatchesFilter(item, socialCommentsFilter))
+      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  }, [inboxSection, socialComments.items, socialCommentsFilter]);
   const channelSummaries = useMemo(() => {
     const buckets = new Map();
     const totalUnread = activePanelConversations.reduce((sum, conversation) => sum + Number(conversation.unread_count || conversation.unread || 0), 0);
@@ -3567,7 +3570,7 @@ export default function AiInbox() {
   }, [channelSummaries.channels, inboxSection]);
   const realMetaCount = conversationPanelConversations.filter((item) => item.is_live_meta || isMetaChannel(item.channel || item.source)).length;
   const conversationPanelCount = conversationPanelConversations.length;
-  const socialCommentsPanelCount = socialCommentPanelConversations.length;
+  const socialCommentsPanelCount = asArray(socialComments.items).length;
   const selectedConversationThread = useMemo(
     () => conversations.find((item) => item.conversation_key === selectedSessionId || clean(item.id || item.conversation_id || "") === clean(selectedSessionId)) ||
       (selectedConversationCacheRef.current?.conversation_key === selectedSessionId ? selectedConversationCacheRef.current : null) ||
@@ -3575,11 +3578,12 @@ export default function AiInbox() {
       null,
     [conversations, selectedSessionId]
   );
+  const socialCommentIdentity = useCallback((item = {}) => clean(item.id || item.comment_id || `${item.platform || "social"}:${item.comment_id || item.post_id || ""}`), []);
   const selectedSocialComment = useMemo(
-    () => socialCommentPanelConversations.find((item) => item.conversation_key === selectedSocialCommentId || clean(item.id || item.conversation_id || "") === clean(selectedSocialCommentId)) ||
-      socialCommentPanelConversations[0] ||
+    () => visibleSocialComments.find((item) => socialCommentIdentity(item) === clean(selectedSocialCommentId)) ||
+      visibleSocialComments[0] ||
       null,
-    [selectedSocialCommentId, socialCommentPanelConversations]
+    [selectedSocialCommentId, socialCommentIdentity, visibleSocialComments]
   );
   const isSocialMode = inboxSection === "social_comments";
   const isConversationMode = inboxSection === "conversations";
@@ -3600,13 +3604,13 @@ export default function AiInbox() {
     if (inboxSection === "social_comments") {
       const nextSelected = visibleSocialComments[0] || null;
       const selectedKey = clean(selectedSocialCommentIdRef.current);
-      const hasActiveSelection = selectedKey && visibleSocialComments.some((item) => item.conversation_key === selectedKey);
+      const hasActiveSelection = selectedKey && visibleSocialComments.some((item) => socialCommentIdentity(item) === selectedKey);
       if (!visibleSocialComments.length) {
         if (selectedSocialCommentIdRef.current) setSelectedSocialCommentId("");
         return;
       }
-      if (!hasActiveSelection && nextSelected?.conversation_key) {
-        setSelectedSocialCommentId(nextSelected.conversation_key);
+      if (!hasActiveSelection && socialCommentIdentity(nextSelected)) {
+        setSelectedSocialCommentId(socialCommentIdentity(nextSelected));
         setSelectedSessionId("");
         setMobileView("chat");
       }
@@ -3624,7 +3628,7 @@ export default function AiInbox() {
       setSelectedSessionId(nextSelected.conversation_key);
       setSelectedSocialCommentId("");
     }
-  }, [inboxSection, visibleConversations, visibleSocialComments]);
+  }, [inboxSection, socialCommentIdentity, visibleConversations, visibleSocialComments]);
   const selectedConversationRouteId = useMemo(
     () => clean(selectedConversation?.session_id || selectedConversation?.conversation_key || selectedConversation?.conversation_id || selectedConversation?.id || ""),
     [selectedConversation]
@@ -5197,6 +5201,11 @@ export default function AiInbox() {
         onSave={saveReplyCorrection}
       />
       <div className={`${conversationExpanded ? "conversation-expanded fixed inset-0 z-[9999] flex h-[100vh] w-[100vw] max-w-none flex-col overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] p-0 md:p-0" : "mx-auto flex h-[100dvh] max-w-[96rem] flex-col gap-2 overflow-hidden p-2 md:p-3"}`}>
+        {process.env.NODE_ENV !== "production" ? (
+          <div data-debug-ai-inbox-section style={{ display: "none" }}>
+            {inboxSection}:{visibleConversations.length}:{visibleSocialComments.length}
+          </div>
+        ) : null}
         <section className={`${fullscreenConversation ? "hidden" : "shrink-0"} rounded-3xl border border-white/10 bg-white/[0.055] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.2)] backdrop-blur`}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
@@ -5309,7 +5318,7 @@ export default function AiInbox() {
           ) : null}
         </section>
 
-        <section className={`${inboxSection === "social_comments" ? "hidden" : fullscreenConversation ? "flex min-h-0 flex-1 gap-0 overflow-hidden" : "flex min-h-0 flex-1 gap-2 overflow-hidden"}`}>
+        <section className={`${fullscreenConversation ? "flex min-h-0 flex-1 gap-0 overflow-hidden" : "flex min-h-0 flex-1 gap-2 overflow-hidden"}`}>
           <div className={`${fullscreenConversation ? "hidden" : "hidden xl:block"} w-[72px] shrink-0`}>
             <InboxChannelSidebar
               channels={fixedChannelSummaries}
@@ -5350,7 +5359,7 @@ export default function AiInbox() {
 	                    type="button"
 	                    onClick={() => {
 	                      setInboxSection("social_comments");
-	                      setSelectedSocialCommentId(socialCommentPanelConversations[0]?.conversation_key || "");
+	                      setSelectedSocialCommentId(socialCommentIdentity(visibleSocialComments[0] || {}));
 	                      setSelectedSessionId("");
 	                      setMobileView("chat");
 	                    }}
@@ -5424,7 +5433,113 @@ export default function AiInbox() {
 	          </aside>
 
           <main className={`flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden ${fullscreenConversation ? "h-full rounded-none border-0 bg-transparent p-0 shadow-none" : "rounded-3xl border border-white/10 bg-white/[0.045] p-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)]"} ${mobileView === "chat" ? "flex" : "hidden md:flex"}`}>
-            {activeMainItem ? (
+            {isSocialMode ? (
+              <div className={`${fullscreenConversation ? "flex h-full min-h-0 flex-1 gap-0 overflow-hidden" : "flex min-h-0 flex-1 gap-2 overflow-hidden"}`}>
+                <aside className="flex min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-2 md:w-[340px] md:max-w-[340px]">
+                  <SocialCommentsPanel
+                    items={socialComments.items}
+                    loading={socialComments.loading}
+                    error={socialComments.error}
+                    filter={socialCommentsFilter}
+                    debugInfo={socialCommentsDebug}
+                    selectedItemId={socialCommentIdentity(selectedSocialComment)}
+                    onSelectItem={(item) => {
+                      const nextKey = socialCommentIdentity(item);
+                      if (nextKey) {
+                        setSelectedSocialCommentId(nextKey);
+                        setSelectedSessionId("");
+                        setMobileView("chat");
+                      }
+                    }}
+                    onFilterChange={setSocialCommentsFilter}
+                    onRefresh={() => void loadAll({ silent: true })}
+                  />
+                </aside>
+
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
+                  {selectedSocialComment ? (
+                    <>
+                      <div className="shrink-0 rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">
+                              <MessageSquareText className="h-4 w-4" />
+                              تعليقات السوشيال
+                            </div>
+                            <div className="mt-1 text-xl font-black text-white">{clean(selectedSocialComment.commenter_name) || "مستخدم مجهول"}</div>
+                            <div className="mt-1 text-sm text-slate-400">{clean(selectedSocialComment.platform || selectedSocialComment.channel || "social")}</div>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {clean(selectedSocialComment.post_permalink || selectedSocialComment.permalink_url) ? (
+                              <a href={clean(selectedSocialComment.post_permalink || selectedSocialComment.permalink_url)} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100">
+                                <ExternalLink className="h-4 w-4" />
+                                فتح البوست
+                              </a>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40 p-3">
+                        <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+                          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">نص التعليق</div>
+                          <div className="mt-2 whitespace-pre-wrap text-sm leading-7 text-white">
+                            {clean(selectedSocialComment.original_comment_text || selectedSocialComment.text || selectedSocialComment.message) || "بدون نص"}
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-slate-400">
+                            {selectedSocialComment.post_id ? <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">post_id: {selectedSocialComment.post_id}</span> : null}
+                            {selectedSocialComment.comment_id ? <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">comment_id: {selectedSocialComment.comment_id}</span> : null}
+                            {selectedSocialComment.created_at ? <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">{absoluteTime(selectedSocialComment.created_at)}</span> : null}
+                          </div>
+                        </div>
+
+                        <div className="grid gap-2 lg:grid-cols-3">
+                          <button type="button" disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-xs font-black text-violet-100 disabled:opacity-60">
+                            <MessageSquareText className="h-4 w-4" />
+                            رد على التعليق
+                          </button>
+                          <button type="button" disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-60">
+                            <MessageSquareText className="h-4 w-4" />
+                            إرسال رسالة خاصة
+                          </button>
+                          {clean(selectedSocialComment.post_permalink || selectedSocialComment.permalink_url) ? (
+                            <a href={clean(selectedSocialComment.post_permalink || selectedSocialComment.permalink_url)} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100">
+                              <ExternalLink className="h-4 w-4" />
+                              فتح البوست
+                            </a>
+                          ) : (
+                            <button type="button" disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 disabled:opacity-60">
+                              <ExternalLink className="h-4 w-4" />
+                              فتح البوست
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">مسودة رد</div>
+                          <textarea
+                            value={replyText}
+                            onChange={(event) => setReplyText(event.target.value)}
+                            placeholder="اكتب ردًا على التعليق..."
+                            className="mt-2 h-28 w-full resize-none rounded-2xl border border-white/10 bg-slate-950/80 p-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600"
+                          />
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <button type="button" disabled className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-xs font-black text-white disabled:opacity-60">
+                              إرسال الرد
+                            </button>
+                            <button type="button" disabled className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-xs font-black text-white disabled:opacity-60">
+                              حفظ مسودة
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <EmptyBlock text="لا توجد تعليقات سوشيال حاليًا" />
+                  )}
+                </div>
+              </div>
+            ) : activeMainItem ? (
               <div className={`${fullscreenConversation ? "flex h-full min-h-0 flex-1 gap-0 overflow-hidden" : "flex min-h-0 flex-1 gap-2 overflow-hidden"}`}>
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                   <InboxChatHeader
