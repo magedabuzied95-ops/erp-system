@@ -3413,6 +3413,18 @@ export default function AiInbox() {
       null,
     [conversations, selectedSessionId]
   );
+  useEffect(() => {
+    const activeList = inboxSection === "social_comments" ? socialCommentPanelConversations : conversationPanelConversations;
+    if (!activeList.length) return;
+    const selectedKey = selectedConversation?.conversation_key || "";
+    const hasActiveSelection = activeList.some((item) => item.conversation_key === selectedKey);
+    if (!hasActiveSelection) {
+      setSelectedSessionId(activeList[0].conversation_key);
+      if (inboxSection === "social_comments") {
+        setMobileView("chat");
+      }
+    }
+  }, [conversationPanelConversations, inboxSection, selectedConversation?.conversation_key, socialCommentPanelConversations]);
   const selectedConversationRouteId = useMemo(
     () => clean(selectedConversation?.session_id || selectedConversation?.conversation_key || selectedConversation?.conversation_id || selectedConversation?.id || ""),
     [selectedConversation]
@@ -5079,7 +5091,7 @@ export default function AiInbox() {
           ) : null}
         </section>
 
-        <section className={`${fullscreenConversation ? "flex min-h-0 flex-1 gap-0 overflow-hidden" : "flex min-h-0 flex-1 gap-2 overflow-hidden"}`}>
+        <section className={`${inboxSection === "social_comments" ? "hidden" : fullscreenConversation ? "flex min-h-0 flex-1 gap-0 overflow-hidden" : "flex min-h-0 flex-1 gap-2 overflow-hidden"}`}>
           <div className={`${fullscreenConversation ? "hidden" : "hidden xl:block"} w-[72px] shrink-0`}>
             <InboxChannelSidebar
               channels={fixedChannelSummaries}
@@ -5414,7 +5426,168 @@ export default function AiInbox() {
           </div>
         </section>
 
-        <section dir="ltr" className={`grid min-h-0 flex-1 gap-3 overflow-hidden ${fullscreenConversation ? "xl:grid-cols-1" : "xl:grid-cols-[minmax(0,18%)_minmax(0,62%)_minmax(0,20%)]"}`}>
+        {inboxSection === "social_comments" ? (
+          <section dir="ltr" className="grid min-h-0 flex-1 gap-3 overflow-hidden grid-cols-1 xl:grid-cols-[minmax(0,24%)_minmax(0,76%)]">
+            <aside className="min-w-0 space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
+              <SectionTitle icon={MessageSquareText} title="تعليقات السوشيال" action={<Pill tone="zinc">{filteredConversations.length} ظاهرة</Pill>} />
+              <div className="min-h-0 flex-1 overflow-hidden pr-1">
+                {loading && !conversations.length ? <LoadingBlock text="جارٍ تحميل التعليقات..." /> : null}
+                {filteredConversations.length ? (
+                  <VirtualList
+                    items={filteredConversations}
+                    estimateSize={96}
+                    className="h-full overflow-x-hidden pr-1"
+                    itemKey={(item) => item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`}
+                    renderItem={(item) => (
+                      <div className="pb-2">
+                        <ConversationListItem
+                          item={item}
+                          unseen={unseenSessions.includes(item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
+                          active={selectedConversation?.conversation_key === (item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
+                          onSelect={handleSelectConversation}
+                        />
+                      </div>
+                    )}
+                  />
+                ) : !loading ? <EmptyBlock text="لا توجد تعليقات حقيقية تطابق المرشحات المحددة." /> : null}
+              </div>
+            </aside>
+
+            <main className="min-w-0 space-y-2">
+              {selectedConversation ? (
+                <div className="rounded-3xl border border-white/10 bg-white/[0.045] p-2.5 shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
+                  <InboxChatHeader
+                    conversation={safeConversation}
+                    channelStatus={selectedChannelStatus}
+                    loading={loading}
+                    leadStatus={conversationLeadStatus(safeConversation)}
+                    onLeadStatusChange={updateLeadStatus}
+                    leadStatusLoading={leadActionLoading === "lead_status"}
+                    onToggleAi={toggleAiEnabled}
+                    onAssign={() => updateConversationAction("assign")}
+                    onTakeover={() => updateConversationAction("takeover")}
+                    onReturnToAi={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "return")}
+                    onClose={() => updateConversationAction("close")}
+                    onOpenTools={() => setProfileOpen(true)}
+                    isFullscreenConversation={false}
+                    onToggleFullscreen={handleToggleConversationExpansion}
+                    showBack
+                  />
+                  <LeadQuickActionsBar
+                    conversation={safeConversation}
+                    employees={employees}
+                    selectedEmployeeId={leadAssignEmployeeId}
+                    onSelectedEmployeeIdChange={setLeadAssignEmployeeId}
+                    onCreateCustomer={createLeadCustomer}
+                    onCreateOpportunity={createLeadOpportunity}
+                    onSendPrivateMessage={sendLeadPrivateMessage}
+                    onSendCommentReply={sendLeadCommentReplyQuick}
+                    onOpenProductPicker={() => openProductCardPicker()}
+                    onOpenAvailableBySizePicker={() => openProductCardPicker({ sizeMode: true, allowMultiple: true })}
+                    onAssignEmployee={assignLeadEmployee}
+                    busy={Boolean(leadActionLoading || loading || productCardSending || availableBySizeSending)}
+                  />
+                  {isCommentConversation(selectedConversation || {}) ? (
+                    <CommentAutomationBadges automationState={selectedConversation?.channel_metadata?.automation_state || selectedConversation?.automation_state || {}} />
+                  ) : null}
+
+                  <div className="mt-1.5 grid gap-1.5 rounded-2xl border border-white/10 bg-slate-950/60 p-2 text-[11px] sm:grid-cols-3">
+                    <div><span className="text-slate-500">الويب هوك</span><div className={selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "سليم" : "فشل"}</div></div>
+                    <div><span className="text-slate-500">Token</span><div className={selectedTokenActive ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedTokenActive ? "نشط" : "منتهي"}</div></div>
+                    <div><span className="text-slate-500">Messaging</span><div className={selectedMessagingActive ? "font-black text-emerald-100" : "font-black text-slate-300"}>{selectedMessagingActive ? "نشط" : "غير نشط"}</div></div>
+                    {safeConversation.escalation_reason || safeConversation.last_escalation_keyword ? (
+                      <div className="sm:col-span-3">
+                        <span className="text-slate-500">التصعيد</span>
+                        <div className="font-black text-amber-100">
+                          {safeConversation.escalation_reason || "يحتاج تدخلًا بشريًا"}
+                          {safeConversation.last_escalation_keyword ? ` / ${safeConversation.last_escalation_keyword}` : ""}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-1.5 grid gap-1.5 rounded-2xl border border-white/10 bg-slate-950/65 p-2 lg:grid-cols-4">
+                    <Info label="درجة العميل المحتمل" value={conversationLeadScore(safeConversation)} />
+                    <Info label="حرارة العميل" value={conversationLeadTemperature(safeConversation)} />
+                    <Info label="الإجراء الموصى به" value={conversationRecommendedSalesAction(safeConversation)} />
+                    <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3 lg:col-span-4">
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">أسباب العميل المحتمل</div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {conversationLeadReasons(safeConversation).length ? conversationLeadReasons(safeConversation).map((reason) => <Pill key={reason} tone="zinc">{reason.replace(/_/g, " ")}</Pill>) : <span className="text-sm text-slate-500">لا توجد أسباب بعد</span>}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-1.5">
+                    <SalesIntelligencePanel
+                      conversation={selectedConversation}
+                      recommendationIntel={recommendations.sessionId === safeConversation.session_id ? recommendations.intelligence : null}
+                      salesCloserPlan={salesCloser.sessionId === safeConversation.session_id ? salesCloser.plan : {}}
+                    />
+                  </div>
+
+                  <ConversationActions
+                    conversation={selectedConversation}
+                    channelStatus={selectedChannelStatus}
+                    loading={loading}
+                    assignName={currentAssignName}
+                    onAssignNameChange={updateAssignName}
+                    onAction={updateConversationAction}
+                  />
+
+                  <div className="mt-2 flex min-h-0 flex-col gap-2">
+                    <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-2">
+                      <div className="mb-1 flex items-center justify-between gap-3">
+                        <div>
+                          <h3 className="text-sm font-black leading-5">تعليق السوشيال</h3>
+                          <p className="text-[11px] leading-4.5 text-slate-400">سجل التعليق وردوده وأحداثه المرتبطة.</p>
+                        </div>
+                        {selectedConversation?.messages?.length ? <Pill tone="zinc">{selectedConversation.messages.length} رسالة</Pill> : null}
+                      </div>
+                      <div ref={transcriptScrollRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1">
+                        <Transcript
+                          rows={selectedTranscriptRows}
+                          events={selectedTranscriptEvents}
+                          loadingOlder={olderMessagesLoading}
+                          onLoadOlder={loadOlderMessages}
+                          onOpenCorrection={openReplyCorrection}
+                          olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
+                        />
+                      </div>
+                    </div>
+                    <div className="sticky bottom-0 z-20">
+                      <ManualReplyComposer
+                        conversation={{ ...safeConversation, live_sending_available: Boolean(selectedChannelStatus.effective_enabled) || isMetaChannel(safeConversation.channel || safeConversation.source) }}
+                        value={replyText}
+                        onChange={setReplyText}
+                        onSend={() => sendCurrentReply()}
+                        onSaveDraft={saveDraftReply}
+                        onOpenProductPicker={() => openProductCardPicker()}
+                        onLoadDraft={(text) => setReplyText(text)}
+                        onCopyDraft={copySuggestedReply}
+                        commentDraftText={latestCommentReplyDraft}
+                        isCommentConversation={isCommentConversation(selectedConversation || {})}
+                        loading={loading || productCardSending || availableBySizeSending}
+                        validationSummary={activeAiReplyValidation}
+                        confidenceEngineSummary={activeAiReplyConfidence}
+                        aiSuggestionText={activeAiSuggestionText}
+                        aiSuggestionVisible={aiSuggestionVisible}
+                        aiSuggestionEditing={editingAiDraft}
+                        onEditAiSuggestion={handleEditAiSuggestion}
+                        onApproveAiSuggestion={handleApproveAiSuggestion}
+                        onDismissAiSuggestion={handleDismissAiSuggestion}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <EmptyBlock text="اختر تعليقًا لعرضه." />
+              )}
+            </main>
+          </section>
+        ) : null}
+
+        <section dir="ltr" className={`${inboxSection === "social_comments" ? "hidden" : ""} grid min-h-0 flex-1 gap-3 overflow-hidden ${fullscreenConversation ? "xl:grid-cols-1" : "xl:grid-cols-[minmax(0,18%)_minmax(0,62%)_minmax(0,20%)]"}`}>
           {!fullscreenConversation && profileOpen ? (
             <aside className="hidden min-w-0 space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-3 xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100vh-15rem)] xl:flex-col xl:overflow-y-auto xl:w-full xl:max-w-none">
               <CustomerProfilePanel
