@@ -7554,6 +7554,45 @@ const postMetaImageMessage = async ({ token, recipientId, imageUrl, sendContext 
   return payload;
 };
 
+const buildMessengerGenericTemplatePayload = ({ recipientId = "", product = {} } = {}) => {
+  const title = text(product.name || product.title || product.product_name || "");
+  const imageUrl = text(product.image_url || product.image || product.main_image || "");
+  const subtitleParts = [
+    text(product.color || ""),
+    text(product.size || ""),
+    text(product.price ? `EGP ${Number(product.price).toFixed(2)}` : ""),
+  ].filter(Boolean);
+  const productUrl = text(product.product_url || product.url || product.storefront_url || product.share_url || "");
+  return {
+    recipient: { id: recipientId },
+    messaging_type: "RESPONSE",
+    message: {
+      attachment: {
+        type: "template",
+        payload: {
+          template_type: "generic",
+          elements: [
+            {
+              title: title.slice(0, 80) || "Product",
+              image_url: imageUrl || undefined,
+              subtitle: subtitleParts.join(" • ").slice(0, 80) || undefined,
+              buttons: productUrl
+                ? [
+                    {
+                      type: "web_url",
+                      url: productUrl,
+                      title: "عرض المنتج",
+                    },
+                  ]
+                : [],
+            },
+          ],
+        },
+      },
+    },
+  };
+};
+
 const imageAttachmentUrls = (attachments = []) =>
   (Array.isArray(attachments) ? attachments : [])
     .map((attachment) => text(extractImageUrlFromAttachment(attachment)))
@@ -17541,63 +17580,121 @@ export const sendMetaInboxOutboundMessage = async ({
   const productCardMessages = [];
   if (cards.length) {
     try {
-    for (const product of cards) {
-      console.log("ai_inbox_selected_product_card", {
-        tenant_id: scopedTenantId,
-        config_id: config.id || null,
-        channel: normalizedChannel,
-        conversation_id: conversationId || "",
-        selected_product_id: product.product_id || product.id || null,
-        image_url_exists: Boolean(product.image_url),
-        product_link_generated: product.product_url || product.url || "",
-      });
-      let imageMessageId = "";
-      if (product.image_url) {
-        try {
-          const imageResult = await postMetaImageMessage({ token, recipientId: safeRecipientId, imageUrl: product.image_url, sendContext });
-          imageResults.push(imageResult);
-          imageMessageId = imageResult?.message_id || "";
-          console.log("ai_inbox_messenger_send_image_success", {
+      for (const product of cards) {
+        console.log("ai_inbox_selected_product_card", {
+          tenant_id: scopedTenantId,
+          config_id: config.id || null,
+          channel: normalizedChannel,
+          conversation_id: conversationId || "",
+          selected_product_id: product.product_id || product.id || null,
+          image_url_exists: Boolean(product.image_url),
+          product_link_generated: product.product_url || product.url || "",
+        });
+        let imageMessageId = "";
+        const productTitle = text(product.name || product.title || product.product_name || "");
+        const productImageUrl = text(product.image_url || product.image || product.main_image || "");
+        const productUrl = text(product.product_url || product.url || product.storefront_url || product.share_url || "");
+        if (normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) {
+          console.info("messenger_product_card_payload", {
             tenant_id: scopedTenantId,
-            config_id: config.id || null,
-            channel: normalizedChannel,
             conversation_id: conversationId || "",
-            selected_product_id: product.product_id || product.id || null,
-            image_url: product.image_url,
-          });
-        } catch (error) {
-          console.warn("ai_inbox_messenger_send_image_failure", {
-            tenant_id: scopedTenantId,
-            config_id: config.id || null,
-            channel: normalizedChannel,
-            conversation_id: conversationId || "",
-            selected_product_id: product.product_id || product.id || null,
-            image_url: product.image_url,
-            status: error?.status || "",
-            message: error?.message || "Meta image send failed",
+            product_id: product.product_id || product.id || null,
+            title: productTitle,
+            image_url: productImageUrl,
+            subtitle: productCardReplyText(product),
+            product_url: productUrl,
           });
         }
+
+        let cardDelivered = false;
+        let messengerTemplateSucceeded = false;
+        if (normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER && productImageUrl) {
+          try {
+            const templateResult = await postMetaPageMessage({
+              config: { ...config, channel: normalizedChannel },
+              payload: buildMessengerGenericTemplatePayload({ recipientId: safeRecipientId, product }),
+            });
+            imageResults.push(templateResult);
+            imageMessageId = templateResult?.message_id || "";
+            cardDelivered = true;
+            messengerTemplateSucceeded = true;
+            console.info("messenger_product_card_send_success", {
+              tenant_id: scopedTenantId,
+              conversation_id: conversationId || "",
+              product_id: product.product_id || product.id || null,
+              delivery_mode: "generic_template",
+              image_url: productImageUrl,
+              message_id: imageMessageId || "",
+            });
+          } catch (error) {
+            console.warn("messenger_product_card_send_failed", {
+              tenant_id: scopedTenantId,
+              conversation_id: conversationId || "",
+              product_id: product.product_id || product.id || null,
+              delivery_mode: "generic_template",
+              image_url: productImageUrl,
+              message: error?.message || "",
+              status: error?.status || "",
+            });
+          }
+        }
+        if (!cardDelivered && normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER && productImageUrl) {
+          try {
+            const imageResult = await postMetaImageMessage({ token, recipientId: safeRecipientId, imageUrl: productImageUrl, sendContext });
+            imageResults.push(imageResult);
+            imageMessageId = imageResult?.message_id || "";
+            cardDelivered = true;
+            console.info("messenger_product_card_send_success", {
+              tenant_id: scopedTenantId,
+              conversation_id: conversationId || "",
+              product_id: product.product_id || product.id || null,
+              delivery_mode: "image_attachment",
+              image_url: productImageUrl,
+              message_id: imageMessageId || "",
+            });
+          } catch (error) {
+            console.warn("messenger_product_card_send_failed", {
+              tenant_id: scopedTenantId,
+              conversation_id: conversationId || "",
+              product_id: product.product_id || product.id || null,
+              delivery_mode: "image_attachment",
+              image_url: productImageUrl,
+              message: error?.message || "",
+              status: error?.status || "",
+            });
+          }
+        }
+        const cardReplyText = productCardReplyText(product);
+        if (cardReplyText && (normalizedChannel !== AI_AGENT_CHANNELS.FACEBOOK_MESSENGER ? true : !messengerTemplateSucceeded)) {
+          meta = await postMetaMessage({ token, recipientId: safeRecipientId, messageText: cardReplyText, sendContext });
+          if (normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) {
+            console.info("messenger_product_card_send_success", {
+              tenant_id: scopedTenantId,
+              conversation_id: conversationId || "",
+              product_id: product.product_id || product.id || null,
+              delivery_mode: "text_fallback",
+              image_url: productImageUrl,
+              message_id: meta?.message_id || "",
+            });
+          }
+          cardDelivered = true;
+        }
+        productCardMessages.push({
+          message_id: meta?.message_id || imageMessageId || "",
+          meta_mid: meta?.message_id || imageMessageId || "",
+          image_message_id: imageMessageId,
+          image_mid: imageMessageId,
+          product_id: product.product_id || product.id || null,
+          variant_id: product.variant_id || null,
+          title: product.name || product.title || "",
+          color: product.color || "",
+          sizes: product.sizes || product.available_sizes || [],
+          price: product.price || null,
+          image_url: product.image_url || "",
+          product_url: product.product_url || product.url || "",
+        });
       }
-      const cardReplyText = productCardReplyText(product);
-      if (cardReplyText) {
-        meta = await postMetaMessage({ token, recipientId: safeRecipientId, messageText: cardReplyText, sendContext });
-      }
-    productCardMessages.push({
-        message_id: meta?.message_id || "",
-        meta_mid: meta?.message_id || "",
-        image_message_id: imageMessageId,
-        image_mid: imageMessageId,
-        product_id: product.product_id || product.id || null,
-        variant_id: product.variant_id || null,
-        title: product.name || product.title || "",
-        color: product.color || "",
-        sizes: product.sizes || product.available_sizes || [],
-        price: product.price || null,
-        image_url: product.image_url || "",
-        product_url: product.product_url || product.url || "",
-      });
-    }
-    if ((Array.isArray(suggestedActions) ? suggestedActions : []).length) {
+      if ((Array.isArray(suggestedActions) ? suggestedActions : []).length) {
       meta = await postMetaMessage({ token, recipientId: safeRecipientId, messageText: META_COMMERCE_ACTION_FALLBACK, sendContext });
       console.log("ai_inbox_suggested_action_generated", {
         tenant_id: scopedTenantId,
