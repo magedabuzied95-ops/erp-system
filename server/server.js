@@ -785,6 +785,24 @@ app.use(express.json({
 }));
 
 app.use((req, res, next) => {
+  if (
+    req.method === "POST" &&
+    String(req.path || "").includes("/meta")
+  ) {
+    console.log("META_ANY_POST", {
+      path: req.path,
+      headers: {
+        "x-hub-signature-256": req.headers["x-hub-signature-256"],
+        "user-agent": req.headers["user-agent"],
+      },
+      body: req.body,
+    });
+  }
+
+  next();
+});
+
+app.use((req, res, next) => {
   const json = res.json.bind(res);
   res.json = (body) => {
     res.set("Content-Type", "application/json; charset=utf-8");
