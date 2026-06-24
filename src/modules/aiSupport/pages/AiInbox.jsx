@@ -3586,7 +3586,10 @@ export default function AiInbox() {
       null,
     [conversations, selectedSessionId]
   );
-  const socialCommentIdentity = useCallback((item = {}) => clean(item.id || item.comment_id || `${item.platform || "social"}:${item.comment_id || item.post_id || ""}`), []);
+  const socialCommentIdentity = useCallback((item) => {
+    const safeItem = item || {};
+    return clean(safeItem.id || safeItem.comment_id || `${safeItem.platform || "social"}:${safeItem.comment_id || safeItem.post_id || ""}`);
+  }, []);
   const selectedSocialComment = useMemo(
     () => visibleSocialComments.find((item) => socialCommentIdentity(item) === clean(selectedSocialCommentId)) ||
       visibleSocialComments[0] ||
@@ -3599,15 +3602,21 @@ export default function AiInbox() {
     ? (selectedSocialComment || visibleSocialComments[0] || null)
     : (selectedConversationThread || visibleConversations[0] || null);
   const selectedConversation = activeMainItem;
+  const getActiveItemId = useCallback(() => {
+    if (isSocialMode) return clean(selectedSocialComment?.id || selectedSocialComment?.comment_id || "");
+    return clean(selectedConversationThread?.id || selectedConversationThread?.conversation_id || selectedConversationThread?.session_id || "");
+  }, [isSocialMode, selectedConversationThread?.conversation_id, selectedConversationThread?.id, selectedConversationThread?.session_id, selectedSocialComment?.comment_id, selectedSocialComment?.id]);
+  const activeItemId = getActiveItemId();
   useEffect(() => {
     console.log("[ai-inbox-section]", {
       inboxSection,
       visibleConversations: visibleConversations.length,
       visibleSocialComments: visibleSocialComments.length,
-      selectedConversationId: selectedConversation?.id,
-      selectedSocialCommentId: selectedSocialComment?.id,
+      selectedConversationId: isSocialMode ? "" : selectedConversation?.id || "",
+      selectedSocialCommentId: isSocialMode ? selectedSocialComment?.id || "" : "",
+      activeItemId,
     });
-  }, [inboxSection, selectedConversation?.id, selectedSocialComment?.id, visibleConversations.length, visibleSocialComments.length]);
+  }, [activeItemId, inboxSection, isSocialMode, selectedConversation?.id, selectedSocialComment?.id, visibleConversations.length, visibleSocialComments.length]);
   useEffect(() => {
     if (inboxSection === "social_comments") {
       const nextSelected = visibleSocialComments[0] || null;
@@ -5450,7 +5459,7 @@ export default function AiInbox() {
                     error={socialComments.error}
                     filter={socialCommentsFilter}
                     debugInfo={socialCommentsDebug}
-                    selectedItemId={socialCommentIdentity(selectedSocialComment)}
+                    selectedItemId={activeItemId}
                     onSelectItem={(item) => {
                       const nextKey = socialCommentIdentity(item);
                       if (nextKey) {
