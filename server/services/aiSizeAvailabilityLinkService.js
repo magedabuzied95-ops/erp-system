@@ -86,7 +86,9 @@ export const detectSizeAvailabilityIntent = (message = "") => {
 };
 
 export const storefrontBaseUrl = () =>
-  text(process.env.STORE_FRONT_URL).replace(/\/+$/g, "") ||
+  text(process.env.STOREFRONT_URL).replace(/\/+$/g, "") ||
+  text(process.env.PUBLIC_STOREFRONT_URL).replace(/\/+$/g, "") ||
+  text(process.env.VITE_STOREFRONT_URL).replace(/\/+$/g, "") ||
   getPublicAppUrl();
 
 export const buildSizeAvailabilityStorefrontUrl = ({ size, gender = "", query = "", quality = "" } = {}) => {

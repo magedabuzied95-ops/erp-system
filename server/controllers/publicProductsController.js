@@ -685,7 +685,10 @@ const buildShareAvailableTargetUrl = (req, filters = {}) => {
   if (filters.q) params.set("q", filters.q);
   if (filters.quality) params.set("quality", filters.quality);
   params.set("inStock", filters.inStock === false ? "0" : "1");
-  return buildAbsolutePublicUrl(req, `/shop/products${params.toString() ? `?${params.toString()}` : ""}`);
+  const pathname = `/shop/products${params.toString() ? `?${params.toString()}` : ""}`;
+  const publicBaseUrl = getPublicAppUrl() || DEFAULT_PUBLIC_APP_URL;
+  const targetUrl = publicBaseUrl ? new URL(pathname, publicBaseUrl).toString() : pathname;
+  return targetUrl;
 };
 
 const buildShareAvailableFallbackImageUrl = (req) => buildAbsolutePublicUrl(req, "/favicon.svg");
@@ -894,6 +897,7 @@ const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "
     <meta property="og:url" content="${absoluteUrl}" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="${absoluteImage}" />
+    <link rel="canonical" href="${fallbackTarget}" />
     <meta http-equiv="refresh" content="1;url=${fallbackTarget}" />
     <style>
       body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(135deg, #0c1220, #18111b); color: #fff; }
@@ -941,6 +945,7 @@ export const getPublicAvailableSharePage = async (req, res) => {
     const { count, products } = await loadShareAvailableProducts(filters);
     const targetUrl = buildShareAvailableTargetUrl(req, filters);
     const ogImageUrl = shareAvailableOgImageUrl(req, filters);
+    console.log("shareAvailableTargetUrl", targetUrl);
     console.log("[share-available]", {
       query: req.query,
       matchedProductsCount: count,
@@ -979,6 +984,7 @@ export const getPublicAvailableOgImage = async (req, res) => {
     const filters = normalizeShareAvailableFilters(req.query || {});
     const { count, products } = await loadShareAvailableProducts(filters);
     const svg = buildShareAvailablePreviewSvg({ filters, products, count });
+    console.log("shareAvailableTargetUrl", buildShareAvailableTargetUrl(req, filters));
     console.log("[share-available]", {
       query: req.query,
       matchedProductsCount: count,

@@ -8,6 +8,9 @@ const publicOnly = (value = "") => {
 };
 
 export const getPublicAppUrl = () =>
+  publicOnly(process.env.STOREFRONT_URL) ||
+  publicOnly(process.env.PUBLIC_STOREFRONT_URL) ||
+  publicOnly(process.env.VITE_STOREFRONT_URL) ||
   publicOnly(process.env.PUBLIC_APP_URL) ||
   publicOnly(process.env.FRONTEND_URL) ||
   publicOnly(process.env.VITE_PUBLIC_APP_URL);
