@@ -41,6 +41,7 @@ import {
   markMessageProcessingStatus,
 } from "./aiMessageDeduplication.js";
 import {
+  ensureSocialCommentAutomationSchema,
   extractSocialCommentWebhookEvents,
   storeSocialCommentAutomationRuns,
 } from "./socialCommentAutomationService.js";
@@ -48,7 +49,10 @@ import {
   countMarketingCommentEventsLast24h,
   countMarketingWebhookRequestsLast24h,
   getMetaWebhookStatus as getMarketingCommentWebhookStatus,
+  clearMetaWebhookRawEvents,
+  listMetaWebhookRawEvents,
   recordMetaWebhookRequest,
+  recordMetaWebhookRawEvent,
 } from "./marketingCommentAutomationService.js";
 import {
   normalizeProductCards,
@@ -87,6 +91,7 @@ import {
 
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || "v20.0";
 const GRAPH_BASE_URL = `https://graph.facebook.com/${GRAPH_VERSION}`;
+const META_COMMENTS_POLL_INTERVAL_MS = 120 * 1000;
 const META_OAUTH_SCOPES = [
   "pages_show_list",
   "pages_read_engagement",
@@ -4015,6 +4020,108 @@ const callMetaPostForm = async ({ endpoint, token, body = {} }) => {
   return payload;
 };
 
+const loadMetaCommentPollingConfigs = async ({ tenantId = null } = {}) => {
+  const params = [];
+  const filters = [];
+  const scopedTenantId = numberOrNull(tenantId);
+  if (scopedTenantId) {
+    params.push(scopedTenantId);
+    filters.push(`tenant_id = $${params.length}::bigint`);
+  }
+  const whereSql = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
+  const result = await db.query(
+    `
+    SELECT id, tenant_id, facebook_page_id, page_name, page_access_token_encrypted, status, webhook_enabled, subscribed_apps_verified
+    FROM meta_integration_configs
+    ${whereSql}
+    ORDER BY tenant_id ASC, updated_at DESC, id DESC
+    `,
+    params
+  );
+  return (result.rows || []).filter((row) => Boolean(text(row.facebook_page_id)) && Boolean(text(row.page_access_token_encrypted)));
+};
+
+const fetchMetaPagePostsForPolling = async ({ pageId, token }) => {
+  const payload = await callMetaGet({
+    endpoint: `/${encodeURIComponent(text(pageId))}/posts`,
+    token,
+    params: {
+      fields: "id,created_time,permalink_url",
+      limit: "20",
+    },
+  });
+  return Array.isArray(payload?.data) ? payload.data.slice(0, 20) : [];
+};
+
+const fetchMetaPostCommentsForPolling = async ({ postId, token }) => {
+  const payload = await callMetaGet({
+    endpoint: `/${encodeURIComponent(text(postId))}/comments`,
+    token,
+    params: {
+      fields: "id,message,from,created_time,parent",
+      limit: "50",
+    },
+  });
+  return Array.isArray(payload?.data) ? payload.data.slice(0, 50) : [];
+};
+
+const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {} } = {}) => {
+  const commentId = text(comment.id || "");
+  const parentCommentId = text(comment.parent?.id || comment.parent_id || "");
+  const commenterId = text(comment.from?.id || "");
+  const commenterName = text(comment.from?.name || "");
+  const originalCommentText = text(comment.message || "");
+  const createdTime = text(comment.created_time || new Date().toISOString());
+  return {
+    tenant_id: tenantId,
+    platform: "facebook",
+    channel: "facebook_comment",
+    post_id: text(post.id || ""),
+    post_permalink: text(post.permalink_url || ""),
+    comment_id: commentId,
+    parent_comment_id: parentCommentId,
+    root_comment_id: parentCommentId || commentId,
+    commenter_id: commenterId,
+    commenter_name: commenterName,
+    commenter_profile_picture_url: text(comment.from?.profile_pic || comment.from?.picture || ""),
+    original_comment_text: originalCommentText,
+    classification_label: null,
+    classification_score: null,
+    action_taken: "ingested",
+    public_reply_status: null,
+    dm_status: null,
+    like_status: null,
+    inbox_conversation_id: null,
+    error_code: null,
+    automation_state: {},
+    raw_payload: {
+      source: "meta_comment_poll",
+      page_id: text(pageId || ""),
+      post,
+      comment,
+    },
+    processed_at: createdTime,
+  };
+};
+
+const commentAlreadyInSocialRuns = async ({ tenantId, platform = "facebook", commentId = "" } = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeCommentId = text(commentId);
+  if (!safeTenantId || !safeCommentId) return false;
+  const result = await db.query(
+    `
+    SELECT 1
+    FROM social_comment_automation_runs
+    WHERE tenant_id = $1::bigint
+      AND platform = $2::text
+      AND comment_id = $3::text
+    LIMIT 1
+    `,
+    [safeTenantId, text(platform || "facebook"), safeCommentId]
+  );
+  return Boolean(result.rows?.length);
+};
+
 const maskSecret = (value = "") => {
   const safe = text(value);
   if (!safe) return "";
@@ -6081,6 +6188,189 @@ export const resubscribeMetaPageFeedDebug = async ({ tenantId } = {}) => {
       graph_error: errorPayload,
     };
   }
+};
+
+export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "scheduler" } = {}) => {
+  await ensureSocialCommentAutomationSchema();
+  const configs = await loadMetaCommentPollingConfigs({ tenantId });
+  const totals = {
+    posts_checked: 0,
+    comments_seen: 0,
+    comments_saved: 0,
+    duplicates: 0,
+    errors: 0,
+  };
+
+  for (const config of configs) {
+    const safeTenantId = numberOrNull(config.tenant_id);
+    const pageId = text(config.facebook_page_id || "");
+    let token = "";
+    try {
+      token = getTokenForConfig(config);
+    } catch (error) {
+      totals.errors += 1;
+      console.error("META_COMMENTS_POLL_ERROR", {
+        tenant_id: safeTenantId,
+        page_id: pageId,
+        message: error?.message || "Unable to decrypt page token",
+        status: error?.status || null,
+        code: error?.code || "",
+        subcode: error?.subcode || "",
+      });
+      continue;
+    }
+    if (!safeTenantId || !pageId || !token) continue;
+
+    console.log("META_COMMENTS_POLL_START", {
+      tenant_id: safeTenantId,
+      page_id: pageId,
+      source,
+      token_present: Boolean(token),
+    });
+
+    try {
+      const posts = await fetchMetaPagePostsForPolling({ pageId, token });
+      totals.posts_checked += posts.length;
+      console.log("META_COMMENTS_POLL_POSTS_LOADED", {
+        tenant_id: safeTenantId,
+        page_id: pageId,
+        posts_checked: posts.length,
+      });
+
+      for (const post of posts) {
+        let comments = [];
+        try {
+          comments = await fetchMetaPostCommentsForPolling({ postId: post.id, token });
+        } catch (error) {
+          totals.errors += 1;
+          console.error("META_COMMENTS_POLL_ERROR", {
+            tenant_id: safeTenantId,
+            page_id: pageId,
+            post_id: text(post.id || ""),
+            message: error?.message || "Unable to load post comments",
+            status: error?.status || null,
+            code: error?.meta?.code || error?.code || "",
+            subcode: error?.meta?.error_subcode || "",
+          });
+          continue;
+        }
+
+        for (const comment of comments) {
+          totals.comments_seen += 1;
+          const commenterId = text(comment.from?.id || "");
+          const commentId = text(comment.id || "");
+          console.log("META_COMMENTS_POLL_COMMENT_SEEN", {
+            tenant_id: safeTenantId,
+            page_id: pageId,
+            post_id: text(post.id || ""),
+            comment_id: commentId,
+            from_id: commenterId,
+            text_length: text(comment.message || "").length,
+          });
+
+          if (commenterId && commenterId === pageId) {
+            continue;
+          }
+
+          try {
+            const alreadyStored = await commentAlreadyInSocialRuns({
+              tenantId: safeTenantId,
+              platform: "facebook",
+              commentId,
+            });
+            if (alreadyStored) {
+              totals.duplicates += 1;
+              console.log("META_COMMENTS_POLL_COMMENT_DUPLICATE", {
+                tenant_id: safeTenantId,
+                page_id: pageId,
+                post_id: text(post.id || ""),
+                comment_id: commentId,
+              });
+              continue;
+            }
+
+            const event = buildMetaPolledCommentEvent({
+              tenantId: safeTenantId,
+              pageId,
+              post,
+              comment,
+            });
+            await storeSocialCommentAutomationRuns({ tenantId: safeTenantId, events: [event] });
+            totals.comments_saved += 1;
+            console.log("META_COMMENTS_POLL_COMMENT_SAVED", {
+              tenant_id: safeTenantId,
+              page_id: pageId,
+              post_id: text(post.id || ""),
+              comment_id: commentId,
+            });
+          } catch (error) {
+            totals.errors += 1;
+            console.error("META_COMMENTS_POLL_ERROR", {
+              tenant_id: safeTenantId,
+              page_id: pageId,
+              post_id: text(post.id || ""),
+              comment_id: commentId,
+              message: error?.message || "Unable to save polled comment",
+              status: error?.status || null,
+              code: error?.meta?.code || error?.code || "",
+              subcode: error?.meta?.error_subcode || "",
+            });
+          }
+        }
+      }
+    } catch (error) {
+      totals.errors += 1;
+      console.error("META_COMMENTS_POLL_ERROR", {
+        tenant_id: safeTenantId,
+        page_id: pageId,
+        message: error?.message || "Unable to poll comments",
+        status: error?.status || null,
+        code: error?.meta?.code || error?.code || "",
+        subcode: error?.meta?.error_subcode || "",
+      });
+    }
+  }
+
+  return totals;
+};
+
+let metaCommentsPollingSchedulerStarted = false;
+let metaCommentsPollingSchedulerTimer = null;
+let metaCommentsPollingSchedulerRunning = false;
+
+export const startMetaCommentsPollingScheduler = () => {
+  if (metaCommentsPollingSchedulerStarted) return;
+  metaCommentsPollingSchedulerStarted = true;
+
+  const runOnce = async () => {
+    if (metaCommentsPollingSchedulerRunning) return;
+    metaCommentsPollingSchedulerRunning = true;
+    try {
+      await runMetaCommentsPollingScan({ source: "scheduler" });
+    } catch (error) {
+      console.error("[meta-comments-poll] scheduler scan error", {
+        message: error?.message || String(error),
+        stack: error?.stack || "",
+      });
+    } finally {
+      metaCommentsPollingSchedulerRunning = false;
+    }
+  };
+
+  console.log("[meta-comments-poll] scheduler started", { intervalMs: META_COMMENTS_POLL_INTERVAL_MS });
+  void runOnce();
+  metaCommentsPollingSchedulerTimer = setInterval(() => {
+    void runOnce();
+  }, META_COMMENTS_POLL_INTERVAL_MS);
+};
+
+export const stopMetaCommentsPollingScheduler = () => {
+  if (metaCommentsPollingSchedulerTimer) {
+    clearInterval(metaCommentsPollingSchedulerTimer);
+    metaCommentsPollingSchedulerTimer = null;
+  }
+  metaCommentsPollingSchedulerStarted = false;
+  metaCommentsPollingSchedulerRunning = false;
 };
 
 export const getMetaAppModeDebugStatus = async () => {
@@ -18503,6 +18793,22 @@ export const sendMetaInboxOutboundMessage = async ({
 
 export const processMetaWebhook = async ({ req } = {}) => {
   const payload = req.body || {};
+  await recordMetaWebhookRawEvent({ req, payload, tenantId: 1 })
+    .then((event) => {
+      console.log("META_RAW_WEBHOOK_CAPTURED", {
+        id: event?.id || null,
+        received_at: event?.received_at || null,
+        path: event?.path || "",
+        object: event?.object || "",
+        has_comment_like: event?.has_comment_like === true,
+      });
+    })
+    .catch((error) => {
+      console.warn("META_RAW_WEBHOOK_CAPTURE_FAILED", {
+        message: error?.message || "unknown",
+        code: error?.code || "",
+      });
+    });
   console.log("META_WEBHOOK_REQUEST_RECEIVED", {
     object: text(payload.object || "").toLowerCase(),
     entries_count: Array.isArray(payload.entry) ? payload.entry.length : 0,

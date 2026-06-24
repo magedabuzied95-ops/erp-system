@@ -1,5 +1,6 @@
 import db from "../database/db.js";
 import { getPublishingAccessToken, validateMetaToken } from "./metaTokenService.js";
+import ensureMarketingSchema from "../utils/marketingSchema.js";
 
 const GRAPH_API_VERSION = "v19.0";
 const GRAPH_API_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
@@ -34,6 +35,168 @@ const pickFirstText = (...values) => {
     if (normalized) return normalized;
   }
   return "";
+};
+
+const META_WEBHOOK_SECRET_KEYS = new Set([
+  "access_token",
+  "app_secret",
+  "appsecret_proof",
+  "authorization",
+  "client_secret",
+  "code",
+  "password",
+  "refresh_token",
+  "secret",
+  "signed_request",
+  "token",
+  "verify_token",
+  "webhook_secret",
+]);
+
+const sanitizeMetaWebhookPayload = (value, depth = 0) => {
+  if (value === null || value === undefined) return value;
+  if (depth > 6) return Array.isArray(value) ? [] : {};
+  if (Array.isArray(value)) return value.slice(0, 200).map((item) => sanitizeMetaWebhookPayload(item, depth + 1));
+  if (typeof value !== "object") return value;
+  const result = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (META_WEBHOOK_SECRET_KEYS.has(normalizeWebhookField(key))) continue;
+    result[key] = sanitizeMetaWebhookPayload(item, depth + 1);
+  }
+  return result;
+};
+
+const collectMetaWebhookRawEventData = (payload = {}) => {
+  const entries = Array.isArray(payload.entry) ? payload.entry : [];
+  const fields = [];
+  const itemTypes = [];
+  const verbs = [];
+  let hasCommentLike = false;
+
+  for (const entry of entries) {
+    const changes = Array.isArray(entry?.changes) ? entry.changes : [];
+    for (const change of changes) {
+      const field = normalizeWebhookField(change?.field);
+      const item = normalizeWebhookField(change?.value?.item);
+      const verb = normalizeWebhookField(change?.value?.verb);
+      const postId = trimString(change?.value?.post_id);
+      const commentId = trimString(change?.value?.comment_id);
+      const parentId = trimString(change?.value?.parent_id);
+      const message = trimString(change?.value?.message);
+      if (field) {
+        fields.push(field);
+        if (field.includes("comment")) hasCommentLike = true;
+      }
+      if (item) itemTypes.push(item);
+      if (verb) verbs.push(verb);
+      if (field?.includes("comment") || item === "comment" || commentId || parentId || (message && postId)) {
+        hasCommentLike = true;
+      }
+    }
+    const messaging = Array.isArray(entry?.messaging) ? entry.messaging : [];
+    for (const messageEvent of messaging) {
+      const message = messageEvent?.message || {};
+      if (trimString(messageEvent?.postback?.title || "") || trimString(message?.mid || "") || trimString(message?.text || "")) {
+        // keep payload context below
+      }
+      if (trimString(message?.post_id || "") || trimString(message?.comment_id || "") || trimString(message?.parent_id || "")) {
+        hasCommentLike = true;
+      }
+    }
+  }
+
+  return {
+    fields: [...new Set(fields)],
+    itemTypes: [...new Set(itemTypes)],
+    verbs: [...new Set(verbs)],
+    hasCommentLike,
+    payload: sanitizeMetaWebhookPayload(payload),
+    bodyPreview: JSON.stringify(sanitizeMetaWebhookPayload(payload)).slice(0, 3000),
+  };
+};
+
+export const recordMetaWebhookRawEvent = async ({ req = null, payload = {}, tenantId = 1 } = {}) => {
+  await ensureMarketingSchema();
+  const entries = Array.isArray(payload?.entry) ? payload.entry : [];
+  const eventData = collectMetaWebhookRawEventData(payload);
+  const payloadRecord = {
+    timestamp: new Date().toISOString(),
+    path: trimString(req?.originalUrl || req?.url || ""),
+    method: trimString(req?.method || ""),
+    headers: {
+      user_agent: trimString(req?.headers?.["user-agent"] || ""),
+      has_x_hub_signature_256: Boolean(req?.headers?.["x-hub-signature-256"]),
+    },
+    body_preview: eventData.bodyPreview,
+    object: trimString(payload?.object || ""),
+    entry_ids: entries.map((entry) => trimString(entry?.id)).filter(Boolean),
+    changes: entries.flatMap((entry) =>
+      (Array.isArray(entry?.changes) ? entry.changes : []).map((change) => ({
+        field: trimString(change?.field),
+        value: {
+          item: trimString(change?.value?.item),
+          verb: trimString(change?.value?.verb),
+          post_id: trimString(change?.value?.post_id),
+          comment_id: trimString(change?.value?.comment_id),
+          parent_id: trimString(change?.value?.parent_id),
+          message: trimString(change?.value?.message),
+        },
+      }))
+    ),
+    messaging_keys: entries.flatMap((entry) => {
+      const messaging = Array.isArray(entry?.messaging) ? entry.messaging : [];
+      return messaging.flatMap((messageEvent = {}) => Object.keys(messageEvent || {}));
+    }),
+    ...eventData,
+  };
+  const result = await db.query(
+    `
+    INSERT INTO meta_webhook_raw_events (
+      tenant_id,
+      path,
+      object,
+      fields,
+      item_types,
+      verbs,
+      has_comment_like,
+      payload
+    )
+    VALUES ($1::int, $2::text, $3::text, $4::text[], $5::text[], $6::text[], $7::boolean, $8::jsonb)
+    RETURNING id, received_at
+    `,
+    [
+      Number(tenantId || 1) || 1,
+      payloadRecord.path,
+      payloadRecord.object,
+      eventData.fields,
+      eventData.itemTypes,
+      eventData.verbs,
+      eventData.hasCommentLike,
+      JSON.stringify(payloadRecord),
+    ]
+  );
+  return { id: result.rows[0]?.id || null, received_at: result.rows[0]?.received_at || null, ...payloadRecord };
+};
+
+export const listMetaWebhookRawEvents = async ({ limit = 20 } = {}) => {
+  await ensureMarketingSchema();
+  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 20));
+  const result = await db.query(
+    `
+    SELECT id, tenant_id, received_at, path, object, fields, item_types, verbs, has_comment_like, payload
+    FROM meta_webhook_raw_events
+    ORDER BY received_at DESC, id DESC
+    LIMIT $1
+    `,
+    [safeLimit]
+  );
+  return result.rows || [];
+};
+
+export const clearMetaWebhookRawEvents = async () => {
+  await ensureMarketingSchema();
+  await db.query(`DELETE FROM meta_webhook_raw_events`);
+  return { cleared: true };
 };
 
 const recordMarketingWebhookRequest = async ({ businessId = null, object = "", entriesCount = 0 } = {}) => {

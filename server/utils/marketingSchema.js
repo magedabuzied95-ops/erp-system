@@ -950,6 +950,28 @@ const statements = [
     ON marketing_meta_webhook_requests (created_at DESC);
   `,
   `
+  CREATE TABLE IF NOT EXISTS meta_webhook_raw_events (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL DEFAULT 1,
+    received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    path TEXT NOT NULL DEFAULT '',
+    object TEXT NOT NULL DEFAULT '',
+    fields TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    item_types TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    verbs TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    has_comment_like BOOLEAN NOT NULL DEFAULT FALSE,
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb
+  );
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_meta_webhook_raw_events_received_at
+    ON meta_webhook_raw_events (received_at DESC);
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_meta_webhook_raw_events_tenant_received_at
+    ON meta_webhook_raw_events (tenant_id, received_at DESC);
+  `,
+  `
   CREATE TABLE IF NOT EXISTS marketing_conversations (
     id BIGSERIAL PRIMARY KEY,
     business_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

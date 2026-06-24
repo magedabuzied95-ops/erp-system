@@ -550,7 +550,7 @@ const { ensureAiInboxLeadActionsSchema } = await import("./services/aiInboxLeadA
 const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueTasks, sendUpcomingTaskDueReminders } = await import("./services/staffTasksService.js");
 const { processStaffTaskEmailQueue } = await import("./services/staffTaskEmailNotificationService.js");
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
-const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug, getMetaAppModeDebugStatus } = await import("./services/metaIntegrationService.js");
+const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug, getMetaAppModeDebugStatus, runMetaCommentsPollingScan, startMetaCommentsPollingScheduler, listMetaWebhookRawEvents, clearMetaWebhookRawEvents } = await import("./services/metaIntegrationService.js");
 const { ensureSystemSettingsSchema } = await import("./services/settingsService.js");
 const { ensureSocialAutomationSettingsSchema } = await import("./services/socialAutomationSettingsService.js");
 
@@ -664,6 +664,64 @@ app.get("/api/debug/meta-webhook-status", async (req, res) => {
     });
   }
 });
+app.get("/api/debug/meta-webhook-raw-events", async (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(100, Number(req.query?.limit || 20) || 20));
+    const events = await listMetaWebhookRawEvents({ limit });
+    return res.json({
+      success: true,
+      count: events.length,
+      events: events.map((event) => ({
+        received_at: event.received_at || null,
+        path: event.path || "",
+        object: event.object || "",
+        fields: Array.isArray(event.fields) ? event.fields : [],
+        item_types: Array.isArray(event.item_types) ? event.item_types : [],
+        verbs: Array.isArray(event.verbs) ? event.verbs : [],
+        has_comment_like: event.has_comment_like === true,
+        payload_preview: {
+          timestamp: event.payload?.timestamp || null,
+          path: event.payload?.path || event.path || "",
+          method: event.payload?.method || "",
+          headers: event.payload?.headers || {},
+          object: event.payload?.object || event.object || "",
+          entry_ids: Array.isArray(event.payload?.entry_ids) ? event.payload.entry_ids : [],
+          fields: Array.isArray(event.fields) ? event.fields : [],
+          item_types: Array.isArray(event.item_types) ? event.item_types : [],
+          verbs: Array.isArray(event.verbs) ? event.verbs : [],
+          has_comment_like: event.has_comment_like === true,
+          body_preview: event.payload?.body_preview || "",
+          changes: Array.isArray(event.payload?.changes) ? event.payload.changes : [],
+          messaging_keys: Array.isArray(event.payload?.messaging_keys) ? event.payload.messaging_keys : [],
+        },
+      })),
+    });
+  } catch (error) {
+    console.error("[meta-webhook-raw-events] load failed", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+    });
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to load meta webhook raw events",
+    });
+  }
+});
+app.post("/api/debug/meta-webhook-raw-events/clear", async (req, res) => {
+  try {
+    const result = await clearMetaWebhookRawEvents();
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    console.error("[meta-webhook-raw-events] clear failed", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+    });
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to clear meta webhook raw events",
+    });
+  }
+});
 app.get("/api/debug/meta-permissions", async (req, res) => {
   try {
     const tenantId = Number(req.query?.tenant_id || req.user?.tenant_id || 1) || 1;
@@ -758,6 +816,22 @@ app.get("/api/debug/meta-app-mode", async (req, res) => {
     return res.status(error?.status || 500).json({
       success: false,
       message: error?.message || "Failed to load Meta app mode debug status",
+    });
+  }
+});
+app.post("/api/debug/meta-poll-comments-once", async (req, res) => {
+  try {
+    const tenantId = Number(req.query?.tenant_id || req.user?.tenant_id || 1) || 1;
+    const data = await runMetaCommentsPollingScan({ tenantId, source: "manual" });
+    return res.json({ success: true, data, ...data });
+  } catch (error) {
+    console.error("[meta-comments-poll-debug] load failed", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+    });
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to poll comments once",
     });
   }
 });
@@ -1369,6 +1443,7 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
       registerBackgroundJobHandlers();
       registerMarketingJobHandlers();
       startMetaTokenRefreshScheduler();
+      startMetaCommentsPollingScheduler();
       startMarketingAnalyticsSyncScheduler();
       startMarketingAttributionSyncScheduler();
       startAiMarketingAutomationRunner();
