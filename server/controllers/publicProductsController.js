@@ -856,23 +856,16 @@ const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = []
     </linearGradient>
   </defs>
   <rect width="1200" height="630" rx="36" fill="url(#frameGradient)" />
-  <rect x="48" y="48" width="1104" height="534" rx="34" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.12)" />
   <text x="92" y="112" fill="#f4e8bf" font-size="20" font-weight="800" font-family="Arial, sans-serif">M1 Store</text>
   <text x="92" y="178" fill="#ffffff" font-size="54" font-weight="900" font-family="Arial, sans-serif">${selectedTitle}</text>
   <text x="92" y="220" fill="#e5e7eb" font-size="24" font-weight="700" font-family="Arial, sans-serif">افتح كل المنتجات المتاحة الآن في M1 Store</text>
   <text x="92" y="254" fill="#cbd5e1" font-size="18" font-weight="700" font-family="Arial, sans-serif">المقاس المتاح الآن يظهر مباشرة داخل المتجر</text>
   ${selectedImage
     ? `
-      <g>
-        <rect x="86" y="286" width="1028" height="248" rx="30" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.14)" />
-        <image href="${escapeHtml(selectedImage)}" x="118" y="306" width="964" height="208" preserveAspectRatio="xMidYMid meet" />
-      </g>
+      <image href="${escapeHtml(selectedImage)}" x="86" y="286" width="1028" height="248" preserveAspectRatio="xMidYMid meet" />
     `
     : `
-      <g>
-        <rect x="86" y="286" width="1028" height="248" rx="30" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.14)" />
-        <text x="600" y="418" text-anchor="middle" fill="#ffffff" font-size="38" font-weight="800" font-family="Arial, sans-serif">NO IMAGE</text>
-      </g>
+      <text x="600" y="410" text-anchor="middle" fill="#ffffff" font-size="42" font-weight="900" font-family="Arial, sans-serif">NO IMAGE</text>
     `}
 </svg>`;
 };
