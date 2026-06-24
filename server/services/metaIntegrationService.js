@@ -2478,13 +2478,37 @@ const safeMessengerDisplayName = ({ firstName = "", lastName = "", fallback = ""
   });
   return isUnsafeMessengerStoredName(resolved) ? "" : resolved;
 };
-const resolveMessengerProfileFetchPageId = ({ message = {}, config = {}, facebookPageId = "" } = {}) => {
+const resolveMessengerPageIdCandidate = (value = "", psid = "") => {
+  const candidate = text(value);
+  const safePsid = text(psid);
+  if (!candidate) return "";
+  if (safePsid && candidate === safePsid) return "";
+  return candidate;
+};
+const getTenantDefaultMessengerPageId = async ({ tenantId, psid = "" } = {}) => {
+  const scopedTenantId = numberOrNull(tenantId);
+  if (!scopedTenantId) return "";
+  const result = await db.query(
+    `
+    SELECT facebook_page_id, page_name
+    FROM meta_integration_configs
+    WHERE tenant_id = $1
+      AND COALESCE(facebook_page_id, '') <> ''
+    ORDER BY
+      CASE WHEN page_access_token_encrypted <> '' THEN 0 ELSE 1 END,
+      CASE WHEN COALESCE(token_expires_at, NOW() + INTERVAL '1 day') > NOW() THEN 0 ELSE 1 END,
+      CASE WHEN LOWER(COALESCE(status, '')) IN ('fully_connected','active','connected','saved') THEN 0 ELSE 1 END,
+      updated_at DESC,
+      id DESC
+    LIMIT 1
+    `,
+    [scopedTenantId]
+  ).catch(() => ({ rows: [] }));
+  return resolveMessengerPageIdCandidate(result.rows[0]?.facebook_page_id || "", psid);
+};
+const resolveMessengerProfileFetchPageId = async ({ message = {}, config = {}, facebookPageId = "", tenantId = null } = {}) => {
   const psid = text(message.external_customer_id || message.raw?.sender_psid || message.raw?.customer_psid || "");
   const candidates = [
-    facebookPageId,
-    config.facebook_page_id,
-    config.page_id,
-    config.resolved_page_id,
     message.raw?.page_id,
     message.raw?.resolved_page_id,
     message.raw?.recipient_page_id,
@@ -2493,11 +2517,18 @@ const resolveMessengerProfileFetchPageId = ({ message = {}, config = {}, faceboo
     message.channel_metadata?.page_id,
     message.channel_metadata?.resolved_page_id,
     message.channel_metadata?.account_id,
+    facebookPageId,
+    config.facebook_page_id,
+    config.page_id,
+    config.resolved_page_id,
   ]
     .map(text)
-    .filter(Boolean)
-    .filter((value) => value !== psid);
-  return candidates[0] || "";
+    .filter(Boolean);
+  for (const candidate of candidates) {
+    const resolved = resolveMessengerPageIdCandidate(candidate, psid);
+    if (resolved) return resolved;
+  }
+  return await getTenantDefaultMessengerPageId({ tenantId, psid });
 };
 let messengerProfileStorageRepairPromise = null;
 const repairMessengerStoredNames = async () => {
@@ -2743,7 +2774,7 @@ const getCachedMessengerProfile = async ({ tenantId, channel, conversationId, ps
   };
 };
 
-const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid, profile = {} } = {}) => {
+const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid, pageId = "", profile = {} } = {}) => {
   const firstName = text(profile.first_name);
   const lastName = text(profile.last_name);
   const candidateName = messengerDisplayName({
@@ -2849,7 +2880,7 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
         metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
           'messenger_profile',
           COALESCE(metadata->'messenger_profile', '{}'::jsonb) || $7::jsonb
-        ),
+        ) || CASE WHEN $8::text <> '' THEN jsonb_build_object('page_id', $8::text, 'facebook_page_id', $8::text) ELSE '{}'::jsonb END,
         updated_at = NOW()
     WHERE tenant_id = $1
       AND (
@@ -2872,6 +2903,7 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
         externalCustomerId: psid,
         profilePic,
       }).customer_profile),
+      resolveMessengerPageIdCandidate(pageId, psid),
     ]
   ).catch(() => ({ rows: [] }));
   console.log("messenger_profile_avatar_saved", {
@@ -2984,7 +3016,12 @@ const enrichMessengerProfile = async ({ message, config, facebookPageId = "", in
     conversation_id: message.external_conversation_id,
   });
   try {
-    const resolvedFacebookPageId = resolveMessengerProfileFetchPageId({ message, config, facebookPageId });
+    const resolvedFacebookPageId = await resolveMessengerProfileFetchPageId({
+      message,
+      config,
+      facebookPageId,
+      tenantId: config.tenant_id,
+    });
     let tokenResolution = null;
     try {
       tokenResolution = await resolveMetaSendConfig({
@@ -3045,6 +3082,7 @@ const enrichMessengerProfile = async ({ message, config, facebookPageId = "", in
       channel: normalizedChannel,
       conversationId: message.external_conversation_id,
       psid,
+      pageId: resolvedFacebookPageId,
       profile,
     });
     console.log("messenger_profile_fetch_success", {
@@ -3142,19 +3180,42 @@ export const repairMessengerProfileCaptures = async ({
   for (const row of rows.rows) {
     const psid = text(row.external_customer_id || row.external_conversation_id.split(":").pop() || "");
     if (!psid) continue;
-    const resolvedPageId = resolveMessengerProfileFetchPageId({
+    let resolvedPageId = text(pageId);
+    if (!resolvedPageId) {
+      resolvedPageId = await getTenantDefaultMessengerPageId({ tenantId: scopedTenantId, psid });
+    }
+    resolvedPageId = resolveMessengerPageIdCandidate(resolvedPageId, psid);
+    if (!resolvedPageId) {
+      results.push({
+        conversation_id: row.external_conversation_id,
+        external_customer_id: psid,
+        error: "Messenger page id could not be resolved without using the PSID.",
+      });
+      continue;
+    }
+    const candidateResolvedPageId = await resolveMessengerProfileFetchPageId({
       message: {
         external_customer_id: psid,
         raw: {
-          page_id: row.metadata?.page_id || "",
+          page_id: row.metadata?.page_id || resolvedPageId || "",
           resolved_page_id: row.metadata?.resolved_page_id || "",
           recipient_page_id: row.metadata?.recipient_page_id || "",
           metadata: row.metadata || {},
         },
       },
-      config: { facebook_page_id: pageId || "" },
-      facebookPageId: pageId || "",
+      config: { facebook_page_id: resolvedPageId },
+      facebookPageId: resolvedPageId,
+      tenantId: scopedTenantId,
     });
+    resolvedPageId = candidateResolvedPageId || resolvedPageId;
+    if (resolvedPageId === psid) {
+      results.push({
+        conversation_id: row.external_conversation_id,
+        external_customer_id: psid,
+        error: "Resolved page id matched the PSID and was rejected.",
+      });
+      continue;
+    }
     const message = {
       channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
       external_conversation_id: row.external_conversation_id,
@@ -3164,6 +3225,7 @@ export const repairMessengerProfileCaptures = async ({
       raw: {
         page_id: resolvedPageId,
         resolved_page_id: resolvedPageId,
+        recipient_page_id: resolvedPageId,
         sender_psid: psid,
         customer_psid: psid,
         messenger_profile: row.metadata?.messenger_profile || null,
@@ -3181,8 +3243,8 @@ export const repairMessengerProfileCaptures = async ({
     try {
       const enriched = await enrichMessengerProfile({
         message,
-        config: { tenant_id: scopedTenantId, facebook_page_id: resolvedPageId || pageId || "" },
-        facebookPageId: resolvedPageId || pageId || "",
+        config: { tenant_id: scopedTenantId, facebook_page_id: resolvedPageId },
+        facebookPageId: resolvedPageId,
         forceRefresh: true,
       });
       results.push({
@@ -3245,7 +3307,28 @@ export const syncMessengerProfileForConversation = async ({ tenantId, conversati
   if (!psid) {
     throw Object.assign(new Error("Messenger PSID is missing for this conversation."), { status: 400, code: "MESSENGER_PSID_MISSING" });
   }
-  const facebookPageId = text(row.channel_metadata?.page_id || row.channel_metadata?.resolved_page_id || row.channel_metadata?.account_id);
+  const configuredPageId = text(row.channel_metadata?.page_id || row.channel_metadata?.resolved_page_id || row.channel_metadata?.account_id);
+  const facebookPageId = await resolveMessengerProfileFetchPageId({
+    message: {
+      external_customer_id: psid,
+      raw: {
+        page_id: configuredPageId,
+        resolved_page_id: text(row.channel_metadata?.resolved_page_id || ""),
+        recipient_page_id: text(row.channel_metadata?.recipient_page_id || ""),
+        metadata: row.channel_metadata || {},
+      },
+      channel_metadata: row.channel_metadata || {},
+    },
+    config: { facebook_page_id: configuredPageId },
+    facebookPageId: configuredPageId,
+    tenantId: scopedTenantId,
+  });
+  if (!facebookPageId) {
+    throw Object.assign(new Error("Messenger page id could not be resolved"), {
+      status: 400,
+      code: "MESSENGER_PAGE_ID_INVALID",
+    });
+  }
   console.log("messenger_profile_manual_sync_start", {
     tenant_id: scopedTenantId,
     conversation_id: safeConversationId,
@@ -3297,6 +3380,7 @@ export const syncMessengerProfileForConversation = async ({ tenantId, conversati
       metadata: {
         ...(row.channel_metadata || {}),
         page_id: facebookPageId,
+        facebook_page_id: facebookPageId,
         channel: "facebook",
         sender_psid: psid,
         customer_psid: psid,
@@ -3426,32 +3510,78 @@ export const debugMessengerProfileForConversation = async ({ tenantId, conversat
   if (!psid) {
     throw Object.assign(new Error("Messenger PSID is missing for this conversation."), { status: 400, code: "MESSENGER_PSID_MISSING" });
   }
-  const facebookPageId = text(row.channel_metadata?.page_id || row.channel_metadata?.resolved_page_id || row.channel_metadata?.account_id);
+  const senderPsid = psid;
+  const configuredPageId = text(row.channel_metadata?.page_id || row.channel_metadata?.resolved_page_id || row.channel_metadata?.account_id);
+  const pageId = await resolveMessengerProfileFetchPageId({
+    message: {
+      external_customer_id: psid,
+      raw: {
+        page_id: configuredPageId,
+        resolved_page_id: text(row.channel_metadata?.resolved_page_id || ""),
+        recipient_page_id: text(row.channel_metadata?.recipient_page_id || ""),
+        metadata: row.channel_metadata || {},
+      },
+      channel_metadata: row.channel_metadata || {},
+    },
+    config: { facebook_page_id: configuredPageId },
+    facebookPageId: configuredPageId,
+    tenantId: scopedTenantId,
+  });
+  if (!pageId) {
+    console.error("messenger_profile_debug_invalid_page_id", {
+      tenant_id: scopedTenantId,
+      conversation_id: safeConversationId,
+      sender_psid: maskIdForLog(senderPsid),
+      configured_page_id: maskIdForLog(configuredPageId),
+      page_id: "",
+      message: "Messenger page id could not be resolved without reusing the PSID.",
+    });
+    throw Object.assign(new Error("Messenger page id could not be resolved"), {
+      status: 400,
+      code: "MESSENGER_PAGE_ID_INVALID",
+      debugProfile: {
+        sender_psid: senderPsid,
+        page_id: "",
+        config_id: null,
+        token_found: false,
+        graph_status: 400,
+        graph_error: { message: "Messenger page id could not be resolved without reusing the PSID." },
+        first_name: "",
+        last_name: "",
+        profile_pic: "",
+        raw_graph_response: null,
+      },
+    });
+  }
   const { token, config, source } = await resolveMetaSendConfig({
     tenantId: scopedTenantId,
     channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
-    facebookPageId,
+    facebookPageId: pageId,
     preferredConfigId: null,
   });
-  const resolvedPageId = text(facebookPageId || config?.facebook_page_id || config?.page_id);
+  const resolvedPageId = text(pageId || config?.facebook_page_id || config?.page_id);
   console.log("messenger_profile_debug_start", {
     tenant_id: scopedTenantId,
     conversation_id: safeConversationId,
     psid: maskIdForLog(psid),
-    facebook_page_id: maskIdForLog(facebookPageId),
+    facebook_page_id: maskIdForLog(pageId),
+    sender_psid: maskIdForLog(senderPsid),
+    page_id: maskIdForLog(pageId),
     token_source: source,
     config_id: config?.id || null,
   });
   console.log("messenger_profile_debug_graph_request", {
     tenant_id: scopedTenantId,
     conversation_id: safeConversationId,
+    sender_psid: senderPsid,
+    page_id: pageId,
     resolved_psid: psid,
     resolved_page_id: resolvedPageId,
     config_id: config?.id || null,
     token_found: Boolean(text(token)),
     token_source: source,
-    endpoint: `/${psid}`,
-    fields: "first_name,last_name,profile_pic",
+    endpoint: `/${psid}?fields=first_name,last_name,name,profile_pic`,
+    fields: "first_name,last_name,name,profile_pic",
   });
   let graphPayload = null;
   let graphStatus = 200;
@@ -3459,7 +3589,7 @@ export const debugMessengerProfileForConversation = async ({ tenantId, conversat
     graphPayload = await callMetaGet({
       endpoint: `/${encodeURIComponent(psid)}`,
       token,
-      params: { fields: "first_name,last_name,profile_pic" },
+      params: { fields: "first_name,last_name,name,profile_pic" },
     });
   } catch (error) {
     graphStatus = error?.status || 500;
@@ -3529,6 +3659,7 @@ export const debugMessengerProfileForConversation = async ({ tenantId, conversat
       channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
       conversationId: safeConversationId,
       psid,
+      pageId,
       profile,
     });
     channelConversation = await upsertChannelConversationMapping({
@@ -3541,7 +3672,8 @@ export const debugMessengerProfileForConversation = async ({ tenantId, conversat
       customerProfileId: persisted?.id || row.customer_profile_id || null,
       metadata: {
         ...(row.channel_metadata || {}),
-        page_id: facebookPageId,
+        page_id: pageId,
+        facebook_page_id: pageId,
         channel: "facebook",
         profile_pic: profile.profile_pic,
         customer_profile: {
@@ -6345,6 +6477,12 @@ const logIncomingToInbox = async ({ message, config }) => {
   await ensureMessengerProfileStorage();
   const sessionId = message.external_conversation_id;
   const channel = channelAlias(message.channel);
+  const resolvedPageId = await resolveMessengerProfileFetchPageId({
+    message,
+    config,
+    facebookPageId: message.raw?.page_id || message.raw?.resolved_page_id || "",
+    tenantId: config.tenant_id,
+  });
   const customerName = text(message.customer_name);
   const customerAvatarUrl = text(message.customer_avatar_url || message.raw?.messenger_profile?.profile_pic || "");
   const lastMessage = text(message.message_text) || "[attachment]";
@@ -6376,7 +6514,7 @@ const logIncomingToInbox = async ({ message, config }) => {
     customer_psid: message.raw?.customer_psid || message.external_customer_id || "",
     resolved_sender_id: message.raw?.sender_psid || message.external_customer_id || "",
     resolved_customer_id: message.external_customer_id || "",
-    resolved_page_id: message.raw?.page_id || "",
+    resolved_page_id: resolvedPageId || message.raw?.page_id || "",
     external_message_id: externalMessageId || null,
     provider_message_id: providerMessageId || null,
     dedupe_key: dedupeKey,
@@ -17463,10 +17601,16 @@ export const processMetaWebhook = async ({ req } = {}) => {
   const messages = extractMetaWebhookMessages({ body: req.body, tenantId: config.tenant_id }).filter((message) => message.message_text || message.attachments?.length);
   const results = [];
   for (const incomingMessage of messages) {
-    const message = await enrichMessengerProfile({
+    const resolvedPageId = await resolveMessengerProfileFetchPageId({
       message: incomingMessage,
       config,
       facebookPageId: pageIds[0] || "",
+      tenantId: config.tenant_id,
+    });
+    const message = await enrichMessengerProfile({
+      message: incomingMessage,
+      config,
+      facebookPageId: resolvedPageId || pageIds[0] || "",
       instagramBusinessAccountId: instagramBusinessAccountIds[0] || "",
     });
     assignInboundMessageLifecycle(message);
@@ -17540,7 +17684,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
       patch: {
         last_webhook_received_at: nowIso(),
         last_inbound_meta_mid: message.external_message_id || "",
-        page_id_present: Boolean(config.facebook_page_id || pageIds[0]),
+        page_id_present: Boolean(resolvedPageId || config.facebook_page_id || pageIds[0]),
         page_access_token_present: Boolean(config.page_access_token_encrypted),
         page_subscribed_status: config.subscribed_apps_verified === true ? "subscribed" : config.webhook_enabled === true ? "webhook_enabled" : "unknown",
       },
@@ -17555,14 +17699,15 @@ export const processMetaWebhook = async ({ req } = {}) => {
         status: "received",
         metadata: {
           channel: alias,
-          page_id: pageIds[0] || "",
+          page_id: resolvedPageId || pageIds[0] || "",
+          facebook_page_id: resolvedPageId || pageIds[0] || "",
           instagram_business_account_id: instagramBusinessAccountIds[0] || "",
           external_message_id: message.external_message_id || "",
           sender_psid: message.raw?.sender_psid || message.external_customer_id || "",
           customer_psid: message.raw?.customer_psid || message.external_customer_id || "",
           resolved_sender_id: message.raw?.sender_psid || message.external_customer_id || "",
           resolved_customer_id: message.external_customer_id || "",
-          resolved_page_id: message.raw?.page_id || pageIds[0] || "",
+          resolved_page_id: resolvedPageId || message.raw?.page_id || pageIds[0] || "",
           messenger_profile: message.raw?.messenger_profile || null,
           dedupe_key: message.dedupe_key || inboxResult?.dedupe_key || "",
         },
@@ -17596,9 +17741,10 @@ export const processMetaWebhook = async ({ req } = {}) => {
       customerAvatarUrl: message.customer_avatar_url,
       customerProfileId: message.customer_profile_id || null,
       metadata: {
-        page_id: config.facebook_page_id || pageIds[0] || "",
+        page_id: resolvedPageId || config.facebook_page_id || pageIds[0] || "",
+        facebook_page_id: resolvedPageId || config.facebook_page_id || pageIds[0] || "",
         instagram_business_account_id: config.instagram_business_account_id || "",
-        account_id: pageIds[0] || instagramBusinessAccountIds[0] || "",
+        account_id: resolvedPageId || pageIds[0] || instagramBusinessAccountIds[0] || "",
         channel: alias,
         sender_psid: message.raw?.sender_psid || message.external_customer_id || "",
         customer_psid: message.raw?.customer_psid || message.external_customer_id || "",
