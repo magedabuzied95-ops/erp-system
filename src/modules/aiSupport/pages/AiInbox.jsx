@@ -336,6 +336,9 @@ const shortText = (value = "", limit = 140) => {
 const isMetaChannel = (value = "") => ["facebook_messenger", "instagram"].includes(clean(value).toLowerCase());
 const isFacebookMessengerChannel = (value = "") => ["facebook_messenger", "facebook", "messenger"].includes(clean(value).toLowerCase());
 const isWhatsappChannel = (value = "") => clean(value).toLowerCase() === "whatsapp";
+const socialCommentsDebugEnabled = () =>
+  import.meta.env.DEV ||
+  ["1", "true", "yes", "on"].includes(String(import.meta.env.VITE_AI_SUPPORT_SOCIAL_COMMENTS_DEBUG || import.meta.env.VITE_AI_SUPPORT_DEBUG || "").toLowerCase());
 const canViewAiDebugPanel = (user = {}) => {
   const role = clean(user.role || user.role_name || user.user_role || user.type).toLowerCase();
   return Boolean(
@@ -3005,10 +3008,12 @@ export default function AiInbox() {
       }
 
       const socialCommentsRequestUrl = `/api/ai-inbox/social-comments/recent?tenant_id=${encodeURIComponent(tenantId)}&limit=50`;
-      console.info("[ai-support] social_comments_request", {
-        request_url: socialCommentsRequestUrl,
-        tenant_id: tenantId,
-      });
+      if (socialCommentsDebugEnabled()) {
+        console.info("[ai-support] social_comments_request", {
+          request_url: socialCommentsRequestUrl,
+          tenant_id: tenantId,
+        });
+      }
       try {
         const socialCommentsPayload = await api.get("/ai-inbox/social-comments/recent", {
           params: { tenant_id: tenantId, limit: 50 },
@@ -3018,12 +3023,14 @@ export default function AiInbox() {
         if (seq !== requestSeqRef.current) return;
         const items = asArray(socialCommentsPayload.items);
         const status = Number(socialCommentsPayload?.__status || 200) || 200;
-        console.info("[ai-support] social_comments_response", {
-          request_url: socialCommentsRequestUrl,
-          tenant_id: tenantId,
-          status,
-          count: items.length,
-        });
+        if (socialCommentsDebugEnabled()) {
+          console.info("[ai-support] social_comments_response", {
+            request_url: socialCommentsRequestUrl,
+            tenant_id: tenantId,
+            status,
+            count: items.length,
+          });
+        }
         setSocialComments({ items, loading: false, error: "" });
         setSocialCommentsDebug({
           request_url: socialCommentsRequestUrl,
@@ -3036,12 +3043,14 @@ export default function AiInbox() {
         if (seq !== requestSeqRef.current) return;
         const status = Number(socialCommentsError?.status || socialCommentsError?.responseBody?.status || 0) || "";
         const message = socialCommentsError?.responseBody?.message || socialCommentsError?.message || "تعذر تحميل تعليقات السوشيال";
-        console.error("[ai-support] social_comments_request_failed", {
-          request_url: socialCommentsRequestUrl,
-          tenant_id: tenantId,
-          status,
-          error: message,
-        });
+        if (socialCommentsDebugEnabled()) {
+          console.error("[ai-support] social_comments_request_failed", {
+            request_url: socialCommentsRequestUrl,
+            tenant_id: tenantId,
+            status,
+            error: message,
+          });
+        }
         setSocialComments({ items: [], loading: false, error: message });
         setSocialCommentsDebug({
           request_url: socialCommentsRequestUrl,

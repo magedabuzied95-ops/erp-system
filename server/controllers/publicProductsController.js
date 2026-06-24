@@ -830,11 +830,12 @@ const loadShareAvailableProducts = async (filters = {}) => {
 };
 
 const buildShareAvailablePreviewSvg = ({ filters = {}, products = [], count = 0 } = {}) => {
+  const effectiveCount = Number(count || 0) > 0 ? Number(count || 0) : products.length;
   const sizeLabel = filters.sizes?.length > 1
     ? `المتاح بالمقاسات ${filters.sizes.join("، ")}`
     : `المتاح بالمقاس ${filters.sizes?.[0] || ""}`.trim();
   const title = escapeHtml(sizeLabel || "المتاح بالمقاس");
-  const countLabel = escapeHtml(`${count} ${count === 1 ? "موديل متاح الآن" : "موديلات متاحة الآن"}`);
+  const countLabel = escapeHtml(`${effectiveCount} ${effectiveCount === 1 ? "موديل متاح الآن" : "موديلات متاحة الآن"}`);
   const storeLabel = escapeHtml("M1 Store");
   const imageProducts = products
     .map((product) => ({
@@ -843,14 +844,15 @@ const buildShareAvailablePreviewSvg = ({ filters = {}, products = [], count = 0 
     }))
     .filter((product) => Boolean(product.image))
     .slice(0, 4);
+  const visibleCards = imageProducts.length || (products.length ? 1 : 0);
   const cardLayout = (countItems = 0, index = 0) => {
-    if (countItems <= 1) return { x: 56, y: 210, w: 1088, h: 302 };
-    if (countItems === 2) return { x: 56 + index * 556, y: 210, w: 528, h: 302 };
+    if (countItems <= 1) return { x: 72, y: 214, w: 1056, h: 296 };
+    if (countItems === 2) return { x: 72 + index * 532, y: 214, w: 516, h: 296 };
     if (countItems === 3) {
-      if (index < 2) return { x: 56 + index * 556, y: 198, w: 528, h: 220 };
-      return { x: 336, y: 438, w: 528, h: 146 };
+      if (index < 2) return { x: 72 + index * 532, y: 210, w: 516, h: 198 };
+      return { x: 342, y: 420, w: 516, h: 170 };
     }
-    return { x: 56 + (index % 2) * 528, y: 206 + Math.floor(index / 2) * 186, w: 500, h: 160 };
+    return { x: 72 + (index % 2) * 520, y: 220 + Math.floor(index / 2) * 172, w: 504, h: 150 };
   };
   const cards = imageProducts.map((product, index) => {
     const { x, y, w, h } = cardLayout(imageProducts.length, index);
@@ -864,6 +866,17 @@ const buildShareAvailablePreviewSvg = ({ filters = {}, products = [], count = 0 
       </g>
     `;
   }).join("");
+  const fallbackCard = !cards && products.length
+    ? `
+      <g>
+        <clipPath id="cardClipFallback">
+          <rect x="72" y="212" width="1056" height="300" rx="30" />
+        </clipPath>
+        <rect x="72" y="212" width="1056" height="300" rx="30" fill="#ffffff" opacity="0.10" />
+        <rect x="72" y="212" width="1056" height="300" rx="30" fill="url(#overlayGradient)" opacity="0.08" />
+      </g>
+    `
+    : "";
   const gradients = Array.from({ length: 4 }, (_, index) => `
     <linearGradient id="cardGradient${index}" x1="0" x2="1" y1="0" y2="1">
       <stop offset="0%" stop-color="#2a2f3f" />
@@ -893,8 +906,9 @@ const buildShareAvailablePreviewSvg = ({ filters = {}, products = [], count = 0 
   <circle cx="112" cy="540" r="220" fill="#ffffff" opacity="0.05" />
   <rect x="56" y="46" width="160" height="40" rx="20" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.14)" />
   <text x="136" y="73" text-anchor="middle" fill="#f7f3e8" font-size="22" font-weight="700" font-family="Arial, sans-serif">M1 Store</text>
-  <text x="60" y="160" fill="#ffffff" font-size="58" font-weight="900" font-family="Arial, sans-serif">${title}</text>
-  <text x="60" y="208" fill="#f4e8bf" font-size="28" font-weight="700" font-family="Arial, sans-serif">${countLabel}</text>
+  <text x="60" y="126" fill="#ffffff" font-size="52" font-weight="900" font-family="Arial, sans-serif">${title}</text>
+  <text x="60" y="176" fill="#f4e8bf" font-size="28" font-weight="700" font-family="Arial, sans-serif">${countLabel}</text>
+  ${fallbackCard}
   ${cards}
   <text x="60" y="594" fill="#d8e1f0" font-size="26" font-weight="700" font-family="Arial, sans-serif">${storeLabel}</text>
 </svg>`;
@@ -1003,11 +1017,21 @@ export const getPublicAvailableOgImage = async (req, res) => {
     await ensureProductVariantImagesSchema();
     const filters = normalizeShareAvailableFilters(req.query || {});
     const { count, products } = await loadShareAvailableProducts(filters);
-    const png = await buildShareAvailablePreviewPngBuffer({ filters, products, count });
+    const ogProductsCount = Number(count || 0) > 0 ? Number(count || 0) : products.length;
+    const ogImageUrls = products
+      .map((product) => normalizeImageUrlCandidate(product.public_image_url || product.image_url || ""))
+      .filter(Boolean);
+    const ogTitle = filters.sizes?.length > 1 ? `المتاح بالمقاسات ${filters.sizes.join("، ")}` : `المتاح بالمقاس ${filters.sizes?.[0] || ""}`.trim();
+    const ogDescription = `${ogProductsCount} موديل متاح الآن في M1 Store`;
+    const png = await buildShareAvailablePreviewPngBuffer({ filters, products, count: ogProductsCount });
     console.log("shareAvailableTargetUrl", buildShareAvailableTargetUrl(req, filters));
     console.log("[share-available]", {
       query: req.query,
       matchedProductsCount: count,
+      ogProductsCount,
+      ogImageUrls,
+      ogTitle,
+      ogDescription,
       ogImageUrl: "png-generated",
       finalTargetUrl: buildShareAvailableTargetUrl(req, filters),
     });
@@ -1022,6 +1046,7 @@ export const getPublicAvailableOgImage = async (req, res) => {
     });
     const filters = normalizeShareAvailableFilters(req.query || {});
     const targetUrl = buildShareAvailableTargetUrl(req, filters);
+    const ogProductsCount = 0;
     const svg = buildShareAvailableFallbackSvg({
       title: filters.sizes?.length ? `المتاح بالمقاس ${filters.sizes.join("، ")}` : "المتاح بالمقاس",
       description: "جرّب مقاساً أو فلتراً آخر",
