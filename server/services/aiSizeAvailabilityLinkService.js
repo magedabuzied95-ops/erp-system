@@ -97,7 +97,7 @@ export const buildSizeAvailabilityStorefrontUrl = ({ size, gender = "", query = 
   if (size) params.set("size", size);
   if (quality) params.set("quality", quality);
   params.set("inStock", "1");
-  return `${base || ""}/shop/products?${params.toString().replace(/\+/g, "%20")}`;
+  return `${base || ""}/share/available?${params.toString().replace(/\+/g, "%20")}`;
 };
 
 export const resolvePendingSizeBrowseQuality = ({ memory = {}, message = "", now = Date.now() } = {}) => {

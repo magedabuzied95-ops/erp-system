@@ -1,4 +1,4 @@
-import db from "../database/db.js";
+﻿import db from "../database/db.js";
 import { access, readFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
@@ -27,9 +27,9 @@ const __dirname = path.dirname(__filename);
 
 const normalizeAudienceValue = (value = "") => {
   const normalized = String(value || "").trim().toLowerCase();
-  if (["men", "man", "male", "mens", "رجال", "رجالي"].includes(normalized)) return "men";
-  if (["women", "woman", "female", "ladies", "lady", "نساء", "نسائي", "حريمي"].includes(normalized)) return "women";
-  if (["kids", "kid", "children", "child", "boys", "girls", "اطفال", "أطفال", "طفل"].includes(normalized)) return "kids";
+  if (["men", "man", "male", "mens", "ط±ط¬ط§ظ„", "ط±ط¬ط§ظ„ظٹ"].includes(normalized)) return "men";
+  if (["women", "woman", "female", "ladies", "lady", "ظ†ط³ط§ط،", "ظ†ط³ط§ط¦ظٹ", "ط­ط±ظٹظ…ظٹ"].includes(normalized)) return "women";
+  if (["kids", "kid", "children", "child", "boys", "girls", "ط§ط·ظپط§ظ„", "ط£ط·ظپط§ظ„", "ط·ظپظ„"].includes(normalized)) return "kids";
   return "";
 };
 
@@ -635,6 +635,342 @@ const renderProductShareHtml = async ({ req, product, imageUrl, description }) =
 </html>`;
 };
 
+const parseShareParamList = (value = "") =>
+  Array.isArray(value)
+    ? value.flatMap((item) => parseShareParamList(item))
+    : String(value || "")
+        .split(",")
+        .map((item) => String(item || "").trim())
+        .filter(Boolean);
+
+const normalizeShareFilterValue = (value = "") => String(value || "").trim();
+
+const normalizeSharePriceValue = (value = "") => {
+  const text = String(value || "").trim();
+  if (!text) return null;
+  const numeric = Number(text);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+const normalizeShareAvailableFilters = (query = {}) => {
+  const sizes = [...new Set(
+    parseShareParamList(query.size || query.sizes).map((item) => String(item).trim()).filter(Boolean)
+  )].sort((a, b) => {
+    const left = Number(a);
+    const right = Number(b);
+    if (Number.isFinite(left) && Number.isFinite(right)) return left - right;
+    return a.localeCompare(b, "ar");
+  });
+  return {
+    sizes,
+    gender: normalizeShareFilterValue(query.gender || query.audience || query.target_audience),
+    type: normalizeShareFilterValue(query.type || query.product_type || query.productType),
+    brand: normalizeShareFilterValue(query.brand || query.brandId || query.brand_id),
+    minPrice: normalizeSharePriceValue(query.minPrice || query.min_price),
+    maxPrice: normalizeSharePriceValue(query.maxPrice || query.max_price),
+    inStock: String(query.inStock || query.in_stock || query.stock || "1").trim() !== "0",
+    quality: normalizeShareFilterValue(query.quality || ""),
+    q: normalizeShareFilterValue(query.q || ""),
+  };
+};
+
+const buildShareAvailableTargetUrl = (req, filters = {}) => {
+  const params = new URLSearchParams();
+  parseShareParamList(filters.sizes).forEach((size) => params.append("size", size));
+  if (filters.gender) params.set("gender", filters.gender);
+  if (filters.type) params.set("type", filters.type);
+  if (filters.brand) params.set("brand", filters.brand);
+  if (filters.minPrice !== null && filters.minPrice !== undefined && filters.minPrice !== "") params.set("min_price", String(filters.minPrice));
+  if (filters.maxPrice !== null && filters.maxPrice !== undefined && filters.maxPrice !== "") params.set("max_price", String(filters.maxPrice));
+  if (filters.q) params.set("q", filters.q);
+  if (filters.quality) params.set("quality", filters.quality);
+  params.set("inStock", filters.inStock === false ? "0" : "1");
+  return buildAbsolutePublicUrl(req, `/shop/products${params.toString() ? `?${params.toString()}` : ""}`);
+};
+
+const buildShareAvailableWhereClause = () => `
+  WHERE ${publicProductVisibilityClause}
+    AND (
+      COALESCE(array_length($1::text[], 1), 0) = 0
+      OR EXISTS (
+        SELECT 1
+        FROM product_audiences pa_filter
+        WHERE pa_filter.product_id = p.id
+          AND pa_filter.audience = ANY($1::text[])
+      )
+      OR (
+        NOT EXISTS (SELECT 1 FROM product_audiences pa_any WHERE pa_any.product_id = p.id)
+        AND LOWER(TRIM(COALESCE(p.gender, ''))) = ANY($1::text[])
+      )
+    )
+    AND (
+      $2 = ''
+      OR LOWER(TRIM(COALESCE(p.product_type, ''))) = LOWER(TRIM($2))
+      OR LOWER(TRIM(COALESCE(p.product_type_name, ''))) = LOWER(TRIM($2))
+    )
+    AND (
+      $3 = ''
+      OR LOWER(TRIM(COALESCE(b.slug, ''))) = LOWER(TRIM($3))
+      OR LOWER(TRIM(COALESCE(b.name, ''))) = LOWER(TRIM($3))
+      OR LOWER(TRIM(COALESCE(p.brand, ''))) = LOWER(TRIM($3))
+      OR TRIM(COALESCE(p.brand_id::text, '')) = TRIM($3)
+    )
+    AND ($4::numeric IS NULL OR COALESCE(NULLIF(p.sale_price, 0), NULLIF(p.selling_price, 0), NULLIF(p.price, 0), 0) >= $4::numeric)
+    AND ($5::numeric IS NULL OR COALESCE(NULLIF(p.sale_price, 0), NULLIF(p.selling_price, 0), NULLIF(p.price, 0), 0) <= $5::numeric)
+    AND (
+      $6::boolean = FALSE
+      OR COALESCE(p.stock, 0) > 0
+      OR EXISTS (
+        SELECT 1
+        FROM product_variants pv_stock
+        WHERE pv_stock.product_id = p.id
+          AND pv_stock.is_active IS DISTINCT FROM FALSE
+          AND pv_stock.deleted_at IS NULL
+          AND COALESCE(pv_stock.stock, 0) > 0
+      )
+    )
+    AND (
+      COALESCE(array_length($7::text[], 1), 0) = 0
+      OR EXISTS (
+        SELECT 1
+        FROM product_variants pv_size
+        WHERE pv_size.product_id = p.id
+          AND pv_size.is_active IS DISTINCT FROM FALSE
+          AND pv_size.deleted_at IS NULL
+          AND LOWER(TRIM(COALESCE(pv_size.size, ''))) = ANY($7::text[])
+          AND ($6::boolean = FALSE OR COALESCE(pv_size.stock, 0) > 0)
+      )
+    )
+`;
+
+const loadShareAvailableProducts = async (filters = {}) => {
+  const normalizedSizes = parseShareParamList(filters.sizes).map((item) => String(item).trim()).filter(Boolean);
+  const gender = normalizeAudienceValue(filters.gender || "") ? normalizeAudienceValue(filters.gender || "") : normalizeShareFilterValue(filters.gender || "");
+  const type = normalizeShareFilterValue(filters.type || "");
+  const brand = normalizeShareFilterValue(filters.brand || "");
+  const minPrice = normalizeSharePriceValue(filters.minPrice);
+  const maxPrice = normalizeSharePriceValue(filters.maxPrice);
+  const inStock = filters.inStock === false ? false : true;
+  const genderValues = gender ? [gender] : [];
+  const params = [genderValues, type, brand, minPrice, maxPrice, inStock, normalizedSizes];
+  const countResult = await db.query(
+    `
+    SELECT COUNT(DISTINCT p.id)::int AS total
+    FROM products p
+    LEFT JOIN brands b ON b.id = p.brand_id
+    ${buildShareAvailableWhereClause()}
+    `,
+    params
+  );
+  const rowsResult = await db.query(
+    `
+    SELECT
+      p.id,
+      p.name,
+      p.slug,
+      p.canonical_slug,
+      p.image_url,
+      p.photo_url,
+      p.thumbnail_url,
+      p.price,
+      p.sale_price,
+      p.selling_price,
+      p.original_price,
+      p.compare_at_price,
+      p.gender,
+      p.product_type,
+      p.brand,
+      p.brand_id,
+      b.name AS brand_name,
+      b.slug AS brand_slug,
+      COALESCE((SELECT jsonb_agg(pa.audience ORDER BY pa.audience) FROM product_audiences pa WHERE pa.product_id = p.id), '[]'::jsonb) AS audiences
+    FROM products p
+    LEFT JOIN brands b ON b.id = p.brand_id
+    ${buildShareAvailableWhereClause()}
+    ORDER BY p.id DESC
+    LIMIT 4
+    `,
+    params
+  );
+  const products = rowsResult.rows.map((row) => ({
+    ...row,
+    image_url: firstPublicImageCandidate(row.image_url, row.photo_url, row.thumbnail_url),
+    public_image_url: firstPublicImageCandidate(row.image_url, row.photo_url, row.thumbnail_url),
+    audiences: Array.isArray(row.audiences) ? row.audiences : [],
+  }));
+  return { count: Number(countResult.rows?.[0]?.total || 0), products };
+};
+
+const buildShareAvailablePreviewSvg = ({ filters = {}, products = [], count = 0 } = {}) => {
+  const sizeLabel = filters.sizes?.length > 1 ? `ط§ظ„ظ…طھط§ط­ ط¨ط§ظ„ظ…ظ‚ط§ط³ط§طھ ${filters.sizes.join("طŒ ")}` : `ط§ظ„ظ…طھط§ط­ ط¨ط§ظ„ظ…ظ‚ط§ط³ ${filters.sizes?.[0] || ""}`.trim();
+  const title = escapeHtml(sizeLabel || "ط§ظ„ظ…طھط§ط­ ط¨ط§ظ„ظ…ظ‚ط§ط³");
+  const countLabel = escapeHtml(`${count} ${count === 1 ? "ظ…ظˆط¯ظٹظ„ ظ…طھط§ط­" : "ظ…ظˆط¯ظٹظ„ ظ…طھط§ط­ ط¯ظ„ظˆظ‚طھظٹ"}`);
+  const storeLabel = escapeHtml("M1 Store");
+  const cards = Array.from({ length: 4 }, (_, index) => {
+    const product = products[index] || {};
+    const image = normalizeImageUrlCandidate(product.public_image_url || product.image_url || "");
+    const x = 56 + (index % 2) * 528;
+    const y = 188 + Math.floor(index / 2) * 184;
+    const cardTitle = escapeHtml(firstText(product.name, product.slug, `Product ${index + 1}`));
+    const imageBlock = image
+      ? `<image href="${escapeHtml(image)}" x="${x}" y="${y}" width="500" height="160" preserveAspectRatio="xMidYMid slice" clip-path="url(#cardClip${index})" />`
+      : `<rect x="${x}" y="${y}" width="500" height="160" rx="28" fill="url(#cardGradient${index})" />`;
+    return `
+      <g>
+        <clipPath id="cardClip${index}">
+          <rect x="${x}" y="${y}" width="500" height="160" rx="28" />
+        </clipPath>
+        <rect x="${x}" y="${y}" width="500" height="160" rx="28" fill="#ffffff" opacity="0.18" />
+        ${imageBlock}
+        <rect x="${x}" y="${y}" width="500" height="160" rx="28" fill="url(#overlayGradient)" opacity="0.18" />
+        <text x="${x + 26}" y="${y + 136}" fill="#ffffff" font-size="28" font-weight="800" font-family="Arial, sans-serif">${cardTitle}</text>
+      </g>
+    `;
+  }).join("");
+  const gradients = Array.from({ length: 4 }, (_, index) => `
+    <linearGradient id="cardGradient${index}" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#2a2f3f" />
+      <stop offset="100%" stop-color="#151a25" />
+    </linearGradient>
+  `).join("");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0c1220" />
+      <stop offset="55%" stop-color="#101828" />
+      <stop offset="100%" stop-color="#18111b" />
+    </linearGradient>
+    <linearGradient id="goldGlow" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#f5d97a" />
+      <stop offset="100%" stop-color="#d4af37" />
+    </linearGradient>
+    <linearGradient id="overlayGradient" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.35" />
+    </linearGradient>
+    ${gradients}
+  </defs>
+  <rect width="1200" height="630" rx="36" fill="url(#bgGradient)" />
+  <circle cx="1060" cy="88" r="180" fill="#d4af37" opacity="0.09" />
+  <circle cx="112" cy="540" r="220" fill="#ffffff" opacity="0.04" />
+  <text x="60" y="94" fill="#f7f3e8" font-size="30" font-weight="700" font-family="Arial, sans-serif">M1 Store</text>
+  <text x="60" y="154" fill="#ffffff" font-size="56" font-weight="900" font-family="Arial, sans-serif">${title}</text>
+  <text x="60" y="196" fill="#f4e8bf" font-size="28" font-weight="700" font-family="Arial, sans-serif">${countLabel}</text>
+  <rect x="980" y="56" width="160" height="52" rx="26" fill="url(#goldGlow)" />
+  <text x="1060" y="90" text-anchor="middle" fill="#111111" font-size="24" font-weight="900" font-family="Arial, sans-serif">LIVE</text>
+  ${cards}
+  <text x="60" y="594" fill="#d8e1f0" font-size="26" font-weight="700" font-family="Arial, sans-serif">${storeLabel}</text>
+</svg>`;
+};
+
+const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "", targetUrl = "", products = [] } = {}) => {
+  const sizeLabel = filters.sizes?.length > 1 ? `ط§ظ„ظ…طھط§ط­ ط¨ط§ظ„ظ…ظ‚ط§ط³ط§طھ ${filters.sizes.join("طŒ ")}` : `ط§ظ„ظ…طھط§ط­ ط¨ط§ظ„ظ…ظ‚ط§ط³ ${filters.sizes?.[0] || ""}`.trim();
+  const title = escapeHtml(sizeLabel || "ط§ظ„ظ…طھط§ط­ ط¨ط§ظ„ظ…ظ‚ط§ط³");
+  const description = escapeHtml(`${count} ${count === 1 ? "ظ…ظˆط¯ظٹظ„ ظ…طھط§ط­" : "ظ…ظˆط¯ظٹظ„ط§طھ ظ…طھط§ط­ط©"} ط¯ظ„ظˆظ‚طھظٹ ظپظٹ M1 Store`);
+  const absoluteUrl = escapeHtml(buildAbsolutePublicUrl(req, req.originalUrl || req.url || "/share/available"));
+  const absoluteImage = escapeHtml(ogImageUrl);
+  const fallbackTarget = escapeHtml(targetUrl || buildShareAvailableTargetUrl(req, filters));
+  const productsPreview = products
+    .slice(0, 4)
+    .map((product) => `<li>${escapeHtml(firstText(product.name, product.slug, "Product"))}</li>`)
+    .join("");
+  return `<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>${title}</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="${title}" />
+    <meta property="og:description" content="${description}" />
+    <meta property="og:image" content="${absoluteImage}" />
+    <meta property="og:image:secure_url" content="${absoluteImage}" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:url" content="${absoluteUrl}" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="${absoluteImage}" />
+    <meta http-equiv="refresh" content="1;url=${fallbackTarget}" />
+    <style>
+      body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(135deg, #0c1220, #18111b); color: #fff; }
+      main { min-height: 100vh; display: grid; place-items: center; padding: 24px; text-align: center; }
+      .card { width: min(100%, 760px); border-radius: 28px; padding: 28px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 24px 60px rgba(0,0,0,.24); }
+      a { color: #111; display: inline-block; padding: 12px 20px; border-radius: 999px; background: linear-gradient(135deg, #f5d97a, #d4af37); text-decoration: none; font-weight: 800; }
+      ul { list-style: none; padding: 0; margin: 18px 0 0; display: grid; gap: 8px; }
+      li { opacity: .9; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="card">
+        <h1 style="margin:0 0 12px;font-size:34px;">${title}</h1>
+        <p style="margin:0 0 8px;font-size:18px;opacity:.92;">${description}</p>
+        <p style="margin:0 0 18px;opacity:.72;">الرابط هيفتح تلقائيًا خلال ثانية. لو ما فتحش، استخدم الزر بالأسفل.</p>
+        <a href="${fallbackTarget}">فتح المنتجات</a>
+        ${productsPreview ? `<ul>${productsPreview}</ul>` : ""}
+      </section>
+    </main>
+    <script>setTimeout(function(){window.location.href=${JSON.stringify(String(targetUrl || fallbackTarget))};}, 1000);</script>
+  </body>
+</html>`;
+};
+
+const shareAvailableOgImageUrl = (req, filters = {}) => {
+  const params = new URLSearchParams();
+  parseShareParamList(filters.sizes).forEach((size) => params.append("size", size));
+  if (filters.gender) params.set("gender", filters.gender);
+  if (filters.type) params.set("type", filters.type);
+  if (filters.brand) params.set("brand", filters.brand);
+  if (filters.minPrice !== null && filters.minPrice !== undefined && filters.minPrice !== "") params.set("min_price", String(filters.minPrice));
+  if (filters.maxPrice !== null && filters.maxPrice !== undefined && filters.maxPrice !== "") params.set("max_price", String(filters.maxPrice));
+  if (filters.q) params.set("q", filters.q);
+  if (filters.quality) params.set("quality", filters.quality);
+  params.set("inStock", filters.inStock === false ? "0" : "1");
+  return buildAbsolutePublicUrl(req, `/share/available/og-image${params.toString() ? `?${params.toString()}` : ""}`);
+};
+
+export const getPublicAvailableSharePage = async (req, res) => {
+  try {
+    await ensurePublicProductEditionSchema();
+    await ensureProductVariantImagesSchema();
+    const filters = normalizeShareAvailableFilters(req.query || {});
+    const { count, products } = await loadShareAvailableProducts(filters);
+    const targetUrl = buildShareAvailableTargetUrl(req, filters);
+    const ogImageUrl = shareAvailableOgImageUrl(req, filters);
+    const html = renderShareAvailableHtml({ req, filters, count, ogImageUrl, targetUrl, products });
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    return res.status(200).type("html").send(html);
+  } catch (error) {
+    console.error("[public-products] share available page error", error);
+    return res.status(500).type("html").send(
+      renderStorefrontShellMissingHtml({
+        req,
+        title: "Available products page unavailable",
+        message: "Failed to render available products preview.",
+      })
+    );
+  }
+};
+
+export const getPublicAvailableOgImage = async (req, res) => {
+  try {
+    await ensurePublicProductEditionSchema();
+    await ensureProductVariantImagesSchema();
+    const filters = normalizeShareAvailableFilters(req.query || {});
+    const { count, products } = await loadShareAvailableProducts(filters);
+    const svg = buildShareAvailablePreviewSvg({ filters, products, count });
+    res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=300");
+    return res.status(200).send(svg);
+  } catch (error) {
+    console.error("[public-products] share available og image error", error);
+    return res.status(500).type("text/plain").send("Failed to render preview image");
+  }
+};
+
 export const getPublicProductById = async (req, res) => {
   try {
     await ensurePublicProductEditionSchema();
@@ -911,4 +1247,6 @@ export const logPublicMarketingEvent = async (req, res) => {
     res.status(500).json({ success: false, message: error.message || "Failed to log public event" });
   }
 };
+
+
 

@@ -13,6 +13,14 @@
       "destination": "https://erp-system-0qhp.onrender.com/share/product/$1"
     },
     {
+      "source": "/share/available",
+      "destination": "https://erp-system-0qhp.onrender.com/share/available"
+    },
+    {
+      "source": "/share/available/(.*)",
+      "destination": "https://erp-system-0qhp.onrender.com/share/available/$1"
+    },
+    {
       "source": "/assets/(.*)",
       "destination": "/assets/$1"
     },

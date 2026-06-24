@@ -1,0 +1,76 @@
+const clean = (value = "") => String(value ?? "").trim();
+
+const uniqueTextValues = (values = []) =>
+  [...new Set(values.map((item) => clean(item)).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ar"));
+
+const uniqueSizeValues = (values = []) =>
+  [...new Set(values.map((item) => clean(item)).filter(Boolean))].sort((a, b) => {
+    const left = Number(a);
+    const right = Number(b);
+    if (Number.isFinite(left) && Number.isFinite(right)) return left - right;
+    return a.localeCompare(b, "ar");
+  });
+
+const normalizeSizes = (sizes = []) => {
+  const list = Array.isArray(sizes) ? sizes : [sizes];
+  return uniqueSizeValues(
+    list.flatMap((item) => {
+      const text = clean(item);
+      if (!text) return [];
+      return text.split(",").map((part) => clean(part)).filter(Boolean);
+    })
+  );
+};
+
+const normalizeFilterValue = (value = "") => {
+  const text = clean(value);
+  if (!text) return "";
+  if (text.toLowerCase() === "all") return "";
+  return text;
+};
+
+export const buildAvailableProductsUrl = ({
+  sizes = [],
+  gender = "",
+  type = "",
+  brand = "",
+  minPrice = "",
+  maxPrice = "",
+} = {}) => {
+  const params = new URLSearchParams();
+  normalizeSizes(sizes).forEach((size) => params.append("size", size));
+  const normalizedGender = normalizeFilterValue(gender);
+  const normalizedType = normalizeFilterValue(type);
+  const normalizedBrand = normalizeFilterValue(brand);
+  if (normalizedGender) params.set("gender", normalizedGender);
+  if (normalizedType) params.set("type", normalizedType);
+  if (normalizedBrand) params.set("brand", normalizedBrand);
+  if (clean(minPrice)) params.set("min_price", clean(minPrice));
+  if (clean(maxPrice)) params.set("max_price", clean(maxPrice));
+  params.set("inStock", "1");
+  const query = params.toString();
+  const path = `/share/available${query ? `?${query}` : ""}`;
+  if (typeof window === "undefined") return path;
+  return `${window.location.origin}${path}`;
+};
+
+export const buildAvailableProductsMessage = (filters = {}, url = "") => {
+  const sizes = normalizeSizes(filters.sizes);
+  const sizeLabel = sizes.length > 1 ? "المقاسات" : "المقاس";
+  const sizeText = sizes.length ? sizes.join("، ") : "";
+  const selectedFilters = uniqueTextValues([
+    normalizeFilterValue(filters.gender),
+    normalizeFilterValue(filters.type),
+    normalizeFilterValue(filters.brand),
+    clean(filters.minPrice) ? `أقل سعر ${clean(filters.minPrice)}` : "",
+    clean(filters.maxPrice) ? `أعلى سعر ${clean(filters.maxPrice)}` : "",
+  ]);
+  const parts = [
+    sizeText ? `دي كل الموديلات المتاحة ${sizeLabel} ${sizeText}` : "دي كل الموديلات المتاحة",
+    selectedFilters.length ? `الفلتر: ${selectedFilters.join(" / ")}` : "",
+    clean(url),
+  ].filter(Boolean);
+  return parts.join("\n");
+};
+
+export const normalizeAvailableProductsSizes = normalizeSizes;

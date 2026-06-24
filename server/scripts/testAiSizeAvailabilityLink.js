@@ -11,9 +11,9 @@ import {
 process.env.STORE_FRONT_URL = "https://store.example.com";
 
 const cases = [
-  ["المتاح 43 مستورد فيتنامي", { size: "43", gender: "", query: "", quality: "vietnamese_import", path: "/shop/products?size=43&quality=vietnamese_import&inStock=1" }],
-  ["مقاس 42 رجالي مصري", { size: "42", gender: "men", query: "", quality: "egyptian", path: "/shop/products?gender=men&size=42&quality=egyptian&inStock=1" }],
-  ["وريني جوردن فور مقاس 42 ميرور", { size: "42", gender: "", query: "Jordan 4", quality: "mirror", path: "/shop/products?q=Jordan%204&size=42&quality=mirror&inStock=1" }],
+  ["المتاح 43 مستورد فيتنامي", { size: "43", gender: "", query: "", quality: "vietnamese_import", path: "/share/available?size=43&quality=vietnamese_import&inStock=1" }],
+  ["مقاس 42 رجالي مصري", { size: "42", gender: "men", query: "", quality: "egyptian", path: "/share/available?gender=men&size=42&quality=egyptian&inStock=1" }],
+  ["وريني جوردن فور مقاس 42 ميرور", { size: "42", gender: "", query: "Jordan 4", quality: "mirror", path: "/share/available?q=Jordan%204&size=42&quality=mirror&inStock=1" }],
 ];
 
 for (const [message, expected] of cases) {
@@ -37,7 +37,7 @@ assert.equal(pendingMirror.detected, true);
 assert.equal(pendingMirror.quality, "mirror");
 assert.equal(
   buildSizeAvailabilityStorefrontUrl({ size: "43", quality: pendingMirror.quality }),
-  "https://store.example.com/shop/products?size=43&quality=mirror&inStock=1"
+  "https://store.example.com/share/available?size=43&quality=mirror&inStock=1"
 );
 
 const pendingAll = detectSizeBrowseQuality("الكل");
@@ -45,7 +45,7 @@ assert.equal(pendingAll.detected, true);
 assert.equal(pendingAll.quality, "");
 assert.equal(
   buildSizeAvailabilityStorefrontUrl({ size: "43", quality: pendingAll.quality }),
-  "https://store.example.com/shop/products?size=43&inStock=1"
+  "https://store.example.com/share/available?size=43&inStock=1"
 );
 
 const pendingMirrorFlow = resolvePendingSizeBrowseQuality({
@@ -61,7 +61,7 @@ const pendingMirrorFlow = resolvePendingSizeBrowseQuality({
 assert.equal(pendingMirrorFlow.locked, true);
 assert.equal(pendingMirrorFlow.handled, true);
 assert.equal(pendingMirrorFlow.otherIntentsSkipped, true);
-assert.equal(pendingMirrorFlow.url, "https://store.example.com/shop/products?size=43&quality=mirror&inStock=1");
+assert.equal(pendingMirrorFlow.url, "https://store.example.com/share/available?size=43&quality=mirror&inStock=1");
 
 const pendingEgyptianMenFlow = resolvePendingSizeBrowseQuality({
   memory: {
@@ -74,7 +74,7 @@ const pendingEgyptianMenFlow = resolvePendingSizeBrowseQuality({
   message: "مصري",
 });
 assert.equal(pendingEgyptianMenFlow.locked, true);
-assert.equal(pendingEgyptianMenFlow.url, "https://store.example.com/shop/products?gender=men&size=42&quality=egyptian&inStock=1");
+assert.equal(pendingEgyptianMenFlow.url, "https://store.example.com/share/available?gender=men&size=42&quality=egyptian&inStock=1");
 
 const noPendingMirrorFlow = resolvePendingSizeBrowseQuality({
   memory: {},

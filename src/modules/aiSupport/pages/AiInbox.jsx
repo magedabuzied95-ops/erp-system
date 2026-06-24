@@ -14,7 +14,6 @@ import {
   Clock3,
   CreditCard,
   Flame,
-  Globe,
   Handshake,
   EyeOff,
   Info as InfoIcon,
@@ -973,6 +972,10 @@ function InboxChannelSidebar({ channels = [], allUnread = 0, activeChannel = "al
   const channelIcon = (key, active = false) => {
     const baseIconClass = "h-6 w-6";
     const iconClass = active ? "drop-shadow-[0_0_10px_rgba(34,211,238,0.45)]" : "";
+    const commentBaseClass = `relative inline-flex h-6 w-6 items-center justify-center ${iconClass}`;
+    const commentGlyphClass = `h-6 w-6 ${active ? "text-white" : "text-white/90"}`;
+    const commentBadgeClass = `absolute -right-0.5 -bottom-0.5 h-3.5 w-3.5 ${active ? "drop-shadow-[0_0_8px_rgba(34,211,238,0.35)]" : ""}`;
+
     if (key === "all") {
       return <MessageSquareText className={`${baseIconClass} ${iconClass}`} />;
     }
@@ -988,8 +991,27 @@ function InboxChannelSidebar({ channels = [], allUnread = 0, activeChannel = "al
     if (key === "facebook") {
       return <FaFacebookF className={`${baseIconClass} ${active ? "text-blue-300" : "text-blue-300/90"} ${iconClass}`} aria-hidden="true" />;
     }
+    if (key === "facebook_comment") {
+      return (
+        <span className={commentBaseClass} aria-hidden="true">
+          <MessageSquareText className={`${commentGlyphClass} ${active ? "text-blue-100" : "text-blue-100/90"}`} />
+          <FaFacebookF className={`${commentBadgeClass} ${active ? "text-blue-300" : "text-blue-300/90"}`} />
+        </span>
+      );
+    }
+    if (key === "instagram_comment") {
+      return (
+        <span className={commentBaseClass} aria-hidden="true">
+          <MessageSquareText className={`${commentGlyphClass} ${active ? "text-pink-100" : "text-pink-100/90"}`} />
+          <FaInstagram className={`${commentBadgeClass} ${active ? "text-pink-300" : "text-pink-300/90"}`} />
+        </span>
+      );
+    }
+    if (key === "web") {
+      return <MessageSquareText className={`${baseIconClass} ${active ? "text-slate-100" : "text-slate-300"} ${iconClass}`} aria-hidden="true" />;
+    }
     return (
-      <Globe className={`${baseIconClass} ${active ? "text-slate-100" : "text-slate-300"} ${iconClass}`} aria-hidden="true" />
+      <MessageSquareText className={`${baseIconClass} ${active ? "text-slate-100" : "text-slate-300"} ${iconClass}`} aria-hidden="true" />
     );
   };
 

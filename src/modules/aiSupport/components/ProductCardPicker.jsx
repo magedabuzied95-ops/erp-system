@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { CheckCircle2, Loader2, Search, ShoppingBag, Square, X } from "lucide-react";
 
 import { getPosSellableProducts } from "../../pos/services/posProductsApi";
+import { buildAvailableProductsMessage, buildAvailableProductsUrl } from "../utils/availableProductsLink";
 import { formatCurrency } from "../../../shared/lib/currency";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -89,6 +90,79 @@ const productSizes = (product = {}, color = "") => {
     return lower(variant.color || variant.color_name || variant.variant_color) === normalizedColor;
   });
   return uniqueSizeValues(variants.map((variant) => variant.size || variant.size_name || variant.variant_size));
+};
+
+const productGenderValues = (product = {}) =>
+  uniqueTextValues([
+    product.gender,
+    product.genders,
+    product.audience,
+    product.audiences,
+    product.product_audience,
+    product.product_audiences,
+    ...asArray(product.variants).flatMap((variant) => [variant.gender, variant.genders, variant.audience, variant.audiences]),
+  ]);
+
+const productTypeValues = (product = {}) =>
+  uniqueTextValues([
+    product.category,
+    product.category_name,
+    product.categoryName,
+    product.product_type,
+    product.productType,
+    product.type,
+    product.product_type_name,
+    ...asArray(product.variants).flatMap((variant) => [
+      variant.category,
+      variant.category_name,
+      variant.product_type,
+      variant.type,
+      variant.product_type_name,
+    ]),
+  ]);
+
+const buildAvailableBySizeUrl = ({
+  sizes = [],
+  gender = "",
+  type = "",
+  brand = "",
+  minPrice = "",
+  maxPrice = "",
+} = {}) => {
+  const params = new URLSearchParams();
+  uniqueSizeValues(Array.isArray(sizes) ? sizes : [sizes]).forEach((size) => params.append("size", size));
+  if (clean(gender) && lower(gender) !== "all") params.set("gender", clean(gender));
+  if (clean(type) && lower(type) !== "all") params.set("type", clean(type));
+  if (clean(brand) && lower(brand) !== "all") params.set("brand", clean(brand));
+  if (clean(minPrice)) params.set("min_price", clean(minPrice));
+  if (clean(maxPrice)) params.set("max_price", clean(maxPrice));
+  params.set("inStock", "1");
+  const path = `/shop/products${params.toString() ? `?${params.toString()}` : ""}`;
+  if (typeof window === "undefined") return path;
+  return `${window.location.origin}${path}`;
+};
+
+const buildAvailableBySizeMessage = ({
+  sizes = [],
+  gender = "",
+  type = "",
+  brand = "",
+  minPrice = "",
+  maxPrice = "",
+  url = "",
+} = {}) => {
+  const selectedSizes = uniqueSizeValues(Array.isArray(sizes) ? sizes : [sizes]);
+  const sizeText = selectedSizes.length > 1 ? `المقاسات ${selectedSizes.join("، ")}` : `المقاس ${selectedSizes[0] || ""}`;
+  const filters = [gender, type, brand, clean(minPrice) ? `أقل سعر ${clean(minPrice)}` : "", clean(maxPrice) ? `أعلى سعر ${clean(maxPrice)}` : ""]
+    .map((value) => clean(value))
+    .filter(Boolean);
+  return [
+    `دي كل الموديلات المتاحة بالمقاس${selectedSizes.length > 1 ? "ات" : ""} ${sizeText.replace(/^المقاسات?\s*/, "")}`.trim(),
+    filters.length ? `الفلاتر: ${filters.join(" / ")}` : "",
+    url,
+  ]
+    .filter(Boolean)
+    .join("\n");
 };
 
 const findMatchingVariant = (product = {}, color = "", size = "") => {
@@ -220,7 +294,7 @@ const matchesQuery = (product = {}, query = "") => {
   return searchable.some((item) => lower(item).includes(normalized));
 };
 
-export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = false, allowMultiple = false, mode = "" }) {
+export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLink, sizeMode = false, allowMultiple = false, mode = "" }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -233,6 +307,12 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
   const [selectedSize, setSelectedSize] = useState("");
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [selectedSizeCards, setSelectedSizeCards] = useState([]);
+  const [selectedLinkSizes, setSelectedLinkSizes] = useState([]);
+  const [selectedLinkGender, setSelectedLinkGender] = useState("all");
+  const [selectedLinkType, setSelectedLinkType] = useState("all");
+  const [selectedLinkBrand, setSelectedLinkBrand] = useState("all");
+  const [selectedLinkMinPrice, setSelectedLinkMinPrice] = useState("");
+  const [selectedLinkMaxPrice, setSelectedLinkMaxPrice] = useState("");
   const previousOpenRef = useRef(false);
   const isDesktopViewport = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true;
   const inlineFullscreenMode = mode === "inlineFullscreen" || !isDesktopViewport;
@@ -270,7 +350,27 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
     });
   }, [brand, category, products, search]);
 
-  const availableSizes = useMemo(() => availableSizesForProducts(filteredProducts), [filteredProducts]);
+  const sizeLinkFilteredProducts = useMemo(() => {
+    if (!sizeMode) return [];
+    const searchValue = clean(search);
+    const selectedBrandValue = lower(selectedLinkBrand);
+    const selectedTypeValue = lower(selectedLinkType);
+    const selectedGenderValue = lower(selectedLinkGender);
+    const minPriceValue = clean(selectedLinkMinPrice) ? Number(selectedLinkMinPrice) : null;
+    const maxPriceValue = clean(selectedLinkMaxPrice) ? Number(selectedLinkMaxPrice) : null;
+    return products.filter((product) => {
+      if (selectedBrandValue !== "all" && lower(product.brand || product.brand_name) !== selectedBrandValue) return false;
+      if (selectedTypeValue !== "all" && !productTypeValues(product).map(lower).includes(selectedTypeValue)) return false;
+      if (selectedGenderValue !== "all" && !productGenderValues(product).map(lower).includes(selectedGenderValue)) return false;
+      if (!matchesQuery(product, searchValue)) return false;
+      const price = productFacetPrice(product);
+      if (minPriceValue !== null && Number.isFinite(minPriceValue) && price < minPriceValue) return false;
+      if (maxPriceValue !== null && Number.isFinite(maxPriceValue) && price > maxPriceValue) return false;
+      return true;
+    });
+  }, [products, search, selectedLinkBrand, selectedLinkGender, selectedLinkMaxPrice, selectedLinkMinPrice, selectedLinkType, sizeMode]);
+
+  const availableSizes = useMemo(() => availableSizesForProducts(sizeMode ? sizeLinkFilteredProducts : filteredProducts), [filteredProducts, sizeLinkFilteredProducts, sizeMode]);
   const isSizeSelectionStep = Boolean(sizeMode && !selectedSize);
   const visibleProducts = useMemo(() => {
     if (!sizeMode || !selectedSize) return filteredProducts;
@@ -310,6 +410,8 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
 
   const brandOptions = useMemo(() => uniqueTextValues(products.map((product) => product.brand || product.brand_name)), [products]);
   const categoryOptions = useMemo(() => uniqueTextValues(products.map((product) => product.category || product.category_name)), [products]);
+  const typeOptions = useMemo(() => uniqueTextValues(products.flatMap((product) => productTypeValues(product))), [products]);
+  const genderOptions = useMemo(() => ["all", "men", "women", "kids"], []);
 
   useEffect(() => {
     const openedNow = open && !previousOpenRef.current;
@@ -321,6 +423,12 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
       setSelectedColor("");
       setSelectedSize("");
       setSelectedSizeCards([]);
+      setSelectedLinkSizes([]);
+      setSelectedLinkGender("all");
+      setSelectedLinkType("all");
+      setSelectedLinkBrand("all");
+      setSelectedLinkMinPrice("");
+      setSelectedLinkMaxPrice("");
       return;
     }
     if (!visibleProducts.length) {
@@ -402,6 +510,13 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
   }, [availableSizes, open, selectedSize, sizeMode]);
 
   useEffect(() => {
+    if (!open || !sizeMode) return;
+    if (availableSizes.length === 1 && !selectedLinkSizes.length) {
+      setSelectedLinkSizes([availableSizes[0]]);
+    }
+  }, [availableSizes, open, selectedLinkSizes.length, sizeMode]);
+
+  useEffect(() => {
     if (!open) return;
     setSelectedProductIds((current) => current.filter((id) => visibleProducts.some((product) => String(product.product_id || product.id || "") === String(id))));
   }, [open, visibleProducts]);
@@ -466,23 +581,183 @@ export default function ProductCardPicker({ open, onClose, onSubmit, sizeMode = 
 
   const submitSelectionWithSizeMode = useCallback(async () => {
     console.info("[ProductCardPicker] submit started");
-    const cards = selectedSizeCards
-      .map((card) => card.payload || buildProductCardPayload(card.product, card.variant))
-      .filter((card) => card.product_name || card.product_id || card.storefront_url);
-    const payloadCards = cards.length ? cards : [];
-    if (!payloadCards.length || submitting) return;
+    const sizes = uniqueSizeValues(selectedLinkSizes);
+    if (!sizes.length || submitting) return;
+    const url = buildAvailableProductsUrl({
+      sizes,
+      gender: selectedLinkGender,
+      type: selectedLinkType,
+      brand: selectedLinkBrand,
+      minPrice: selectedLinkMinPrice,
+      maxPrice: selectedLinkMaxPrice,
+    });
+    const message = buildAvailableProductsMessage({
+      sizes,
+      gender: selectedLinkGender !== "all" ? selectedLinkGender : "",
+      type: selectedLinkType !== "all" ? selectedLinkType : "",
+      brand: selectedLinkBrand !== "all" ? selectedLinkBrand : "",
+      minPrice: selectedLinkMinPrice,
+      maxPrice: selectedLinkMaxPrice,
+      url,
+    });
     setSubmitting(true);
     setError("");
     try {
-      await onSubmit?.(payloadCards);
+      if (onSubmitLink) await onSubmitLink({ url, message, sizes, gender: selectedLinkGender, type: selectedLinkType, brand: selectedLinkBrand, minPrice: selectedLinkMinPrice, maxPrice: selectedLinkMaxPrice });
+      else await onSubmit?.([{ url, storefront_url: url, product_url: url, share_url: url, name: message, product_name: message }]);
     } catch (err) {
-      setError(err?.message || "طھط¹ط°ط± ط¥ط±ط³ط§ظ„ ط§ظ„ظ…ظ†طھط¬");
+      setError(err?.message || "تعذر إرسال الرابط");
     } finally {
       setSubmitting(false);
     }
-  }, [onSubmit, selectedSizeCards, submitting]);
+  }, [onSubmit, onSubmitLink, selectedLinkBrand, selectedLinkGender, selectedLinkMaxPrice, selectedLinkMinPrice, selectedLinkSizes, selectedLinkType, submitting]);
 
   if (!open || typeof document === "undefined") return null;
+
+  if (sizeMode) {
+    const normalizedSelectedSizes = uniqueSizeValues(selectedLinkSizes);
+    const selectedLinkUrl = buildAvailableProductsUrl({
+      sizes: normalizedSelectedSizes,
+      gender: selectedLinkGender,
+      type: selectedLinkType,
+      brand: selectedLinkBrand,
+      minPrice: selectedLinkMinPrice,
+      maxPrice: selectedLinkMaxPrice,
+    });
+    const selectedLinkMessage = buildAvailableProductsMessage({
+      sizes: normalizedSelectedSizes,
+      gender: selectedLinkGender !== "all" ? selectedLinkGender : "",
+      type: selectedLinkType !== "all" ? selectedLinkType : "",
+      brand: selectedLinkBrand !== "all" ? selectedLinkBrand : "",
+      minPrice: selectedLinkMinPrice,
+      maxPrice: selectedLinkMaxPrice,
+      url: selectedLinkUrl,
+    });
+    const matchingCount = sizeLinkFilteredProducts.filter((product) =>
+      normalizedSelectedSizes.length ? normalizedSelectedSizes.some((size) => productHasAvailableSize(product, size)) : false
+    ).length;
+
+    const sizeContent = (
+      <div
+        className={inlineFullscreenMode ? "fixed inset-x-0 bottom-0 top-0 z-[99999] isolate overflow-hidden bg-white" : "fixed inset-0 z-[99999] isolate overflow-hidden bg-black/70 backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-4"}
+        style={{ position: "fixed", inset: 0, top: 0, left: 0, right: 0, bottom: 0, width: "100vw", height: "100dvh", zIndex: 2147483647, isolation: "isolate" }}
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) onClose?.();
+        }}
+      >
+        <div className="absolute inset-0 bg-black/70" aria-hidden="true" />
+        <section
+          className={inlineFullscreenMode ? "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none bg-white text-slate-900" : "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-[640px] min-w-0 flex-col overflow-hidden rounded-none border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)] sm:mx-auto sm:h-auto sm:max-h-[85dvh] sm:rounded-[1.35rem]"}
+          style={{ position: "relative", inset: "auto", width: "100%", height: "auto", maxHeight: "85dvh", margin: 0, borderRadius: "1.35rem" }}
+          onMouseDown={(event) => event.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ai-product-card-picker-title"
+          dir="rtl"
+        >
+          <div className={inlineFullscreenMode ? "flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3" : "sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-white/10 bg-slate-950/95 px-4 py-3 backdrop-blur"}>
+            <div className="min-w-0">
+              <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>AI INBOX</div>
+              <h3 id="ai-product-card-picker-title" className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>المتاح بالمقاس</h3>
+              <p className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-zinc-500"}>اختر المقاس أو المقاسات ثم فلتر بالبراند أو النوع أو الجنس أو السعر، وسنرسل رابطًا واحدًا للمتجر.</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className={inlineFullscreenMode ? "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-900" : "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white"}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className={inlineFullscreenMode ? "flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-white p-4" : "flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-slate-950 p-4"}>
+            <div className={inlineFullscreenMode ? "rounded-3xl border border-slate-200 bg-slate-50 p-4" : "rounded-3xl border border-white/10 bg-white/[0.04] p-4"}>
+              <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>Sizes</div>
+              <div className={inlineFullscreenMode ? "mt-2 text-lg font-black text-slate-900" : "mt-2 text-lg font-black text-white"}>اختر المقاس أو المقاسات</div>
+              <div className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-slate-400"}>المتجر سيُفتح مع الفلاتر المحددة تلقائيًا.</div>
+              <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+                {availableSizes.length ? availableSizes.map((size) => {
+                  const active = normalizedSelectedSizes.includes(size);
+                  return (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => {
+                        setSelectedLinkSizes((current) => (
+                          current.includes(size) ? current.filter((item) => item !== size) : [...current, size]
+                        ));
+                      }}
+                      className={inlineFullscreenMode ? `min-h-12 rounded-2xl border px-3 py-2 text-sm font-black transition ${active ? "border-cyan-300/40 bg-cyan-50 text-cyan-900" : "border-slate-200 bg-white text-slate-900 hover:border-cyan-300/30 hover:bg-cyan-50"}` : `min-h-12 rounded-2xl border px-3 py-2 text-sm font-black transition ${active ? "border-cyan-300/40 bg-cyan-300/15 text-cyan-100" : "border-white/10 bg-black/30 text-white hover:border-cyan-300/30 hover:bg-cyan-300/10"}`}
+                    >
+                      {size}
+                    </button>
+                  );
+                }) : (
+                  <div className={inlineFullscreenMode ? "col-span-full rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-sm font-semibold text-slate-500" : "col-span-full rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm font-semibold text-slate-500"}>
+                    لا توجد مقاسات متاحة حاليًا
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className={inlineFullscreenMode ? "flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3" : "flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3"}>
+                <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Gender</span>
+                <select value={selectedLinkGender} onChange={(event) => setSelectedLinkGender(event.target.value)} className={inlineFullscreenMode ? "min-w-0 flex-1 bg-transparent text-xs font-black text-slate-900 outline-none" : "min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none"}>
+                  {genderOptions.map((option) => <option key={option} value={option}>{option === "all" ? "الكل" : option}</option>)}
+                </select>
+              </label>
+              <label className={inlineFullscreenMode ? "flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3" : "flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3"}>
+                <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Type</span>
+                <select value={selectedLinkType} onChange={(event) => setSelectedLinkType(event.target.value)} className={inlineFullscreenMode ? "min-w-0 flex-1 bg-transparent text-xs font-black text-slate-900 outline-none" : "min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none"}>
+                  <option value="all">الكل</option>
+                  {typeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </label>
+              <label className={inlineFullscreenMode ? "flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3" : "flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3"}>
+                <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Brand</span>
+                <select value={selectedLinkBrand} onChange={(event) => setSelectedLinkBrand(event.target.value)} className={inlineFullscreenMode ? "min-w-0 flex-1 bg-transparent text-xs font-black text-slate-900 outline-none" : "min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none"}>
+                  <option value="all">الكل</option>
+                  {brandOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <label className={inlineFullscreenMode ? "flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3" : "flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3"}>
+                  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Min</span>
+                  <input value={selectedLinkMinPrice} onChange={(event) => setSelectedLinkMinPrice(event.target.value)} inputMode="numeric" placeholder="0" className={inlineFullscreenMode ? "min-w-0 flex-1 bg-transparent text-xs font-black text-slate-900 outline-none" : "min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none"} />
+                </label>
+                <label className={inlineFullscreenMode ? "flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3" : "flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3"}>
+                  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Max</span>
+                  <input value={selectedLinkMaxPrice} onChange={(event) => setSelectedLinkMaxPrice(event.target.value)} inputMode="numeric" placeholder="0" className={inlineFullscreenMode ? "min-w-0 flex-1 bg-transparent text-xs font-black text-slate-900 outline-none" : "min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none"} />
+                </label>
+              </div>
+            </div>
+
+            <div className={inlineFullscreenMode ? "rounded-3xl border border-slate-200 bg-white p-4" : "rounded-3xl border border-white/10 bg-white/[0.04] p-4"}>
+              <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>Preview</div>
+              <div className={inlineFullscreenMode ? "mt-2 text-base font-black text-slate-900" : "mt-2 text-base font-black text-white"}>{normalizedSelectedSizes.length ? `سيتم البحث عن ${normalizedSelectedSizes.join("، ")}` : "اختر المقاس أولًا"}</div>
+              <div className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-slate-400"}>النتائج المطابقة: {matchingCount}</div>
+            </div>
+          </div>
+
+          <div className={inlineFullscreenMode ? "sticky bottom-0 z-20 shrink-0 border-t border-slate-200 bg-white px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-3" : "sticky bottom-0 z-10 shrink-0 border-t border-white/10 bg-slate-950/95 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur"}>
+            <button
+              type="button"
+              onClick={() => void submitSelectionWithSizeMode()}
+              disabled={submitting || !normalizedSelectedSizes.length}
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-300 text-sm font-semibold text-slate-950 disabled:opacity-50"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              إرسال الرابط
+            </button>
+            {!normalizedSelectedSizes.length ? <div className="mt-2 text-xs text-slate-500">اختر المقاس أولًا.</div> : null}
+          </div>
+        </section>
+      </div>
+    );
+
+    return inlineFullscreenMode ? sizeContent : createPortal(sizeContent, document.body);
+  }
 
   const content = (
     <div

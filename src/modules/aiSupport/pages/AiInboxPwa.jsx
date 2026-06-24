@@ -2952,16 +2952,16 @@ export default function AiInboxPwa() {
   }, []);
 
   const sendAvailableBySizeCards = useCallback(
-    async (cards = []) => {
+    async ({ message = "" } = {}) => {
       setAvailableBySizeSending(true);
       try {
-        await sendProductCards(cards);
+        await sendManualReply(message);
       } finally {
         setAvailableBySizeSending(false);
         closeAvailableBySizePicker();
       }
     },
-    [closeAvailableBySizePicker, sendProductCards]
+    [closeAvailableBySizePicker, sendManualReply]
   );
 
   const openImagePicker = useCallback(() => {
@@ -3720,7 +3720,7 @@ export default function AiInboxPwa() {
         <ProductCardPicker
           open={availableBySizePickerConfig.open}
           onClose={closeAvailableBySizePicker}
-          onSubmit={sendAvailableBySizeCards}
+          onSubmitLink={sendAvailableBySizeCards}
           sizeMode={availableBySizePickerConfig.sizeMode}
           allowMultiple={availableBySizePickerConfig.allowMultiple}
           mode="inlineFullscreen"
