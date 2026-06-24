@@ -1,5 +1,5 @@
 import { memo, useMemo } from "react";
-import { Bot, Sparkles, UserCheck } from "lucide-react";
+import { Bot, ExternalLink, MessageSquareText, Sparkles, UserCheck } from "lucide-react";
 
 import ProductCardMessage from "./ProductCardMessage";
 
@@ -27,6 +27,28 @@ const imageUrlsForMessage = (message = {}) =>
   ]
     .map((value) => clean(value))
     .filter(Boolean);
+
+const commentThreadPostTitle = (message = {}) =>
+  clean(
+    message.post_message ||
+      message.post_caption ||
+      message.post_title ||
+      message.post_name ||
+      message.post_text ||
+      message.post_body ||
+      message.caption ||
+      ""
+  );
+
+const commentThreadPostTime = (message = {}) =>
+  clean(
+    message.post_created_time ||
+      message.comment_created_time ||
+      message.created_time ||
+      message.post_time ||
+      message.post_date ||
+      ""
+  );
 
 function LinkifiedText({ text = "", className = "" }) {
   const value = String(text || "");
@@ -61,6 +83,9 @@ function TranscriptMessage({
     clean(message.message_type).toLowerCase() === "comment_inbound" ||
     (clean(message.thread_kind).toLowerCase() === "comment" && ["customer", "user", "client"].includes(clean(message.sender_type).toLowerCase()));
   const postUrl = clean(safeRow.postUrl || message.post_permalink || message.permalink_url || message.post_url || message.metadata?.post_permalink || message.metadata?.permalink_url || message.channel_metadata?.post_permalink || message.channel_metadata?.permalink_url);
+  const postTitle = commentThreadPostTitle(message) || clean(message.post_permalink_url || message.metadata?.post_message || message.metadata?.post_caption || "");
+  const postTime = commentThreadPostTime(message);
+  const sourceLabel = clean(message.channel_label || channelLabel || (clean(message.channel).includes("instagram") ? "Instagram Comment" : "Facebook Comment")) || (clean(message.channel).includes("instagram") ? "Instagram Comment" : "Facebook Comment");
   const commentLabel = clean(message.channel_label || channelLabel || (clean(message.channel).includes("instagram") ? "Instagram Comment" : "Facebook Comment")) || (clean(message.channel).includes("instagram") ? "Instagram Comment" : "Facebook Comment");
   if (!safeRow.visible) return null;
 
@@ -133,15 +158,31 @@ function TranscriptMessage({
               <span className="text-slate-400">/</span>
               <span>{createdAt}</span>
             </div>
-            <LinkifiedText text={message.customer_message || message.message_text || message.text || message.body} className="mt-3 text-[16px] leading-8 text-white" />
-            {postUrl ? (
-              <div className="mt-3">
-                <a href={postUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-[11px] font-black text-emerald-100">
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  فتح البوست
-                </a>
+            {(postTitle || postUrl || postTime) ? (
+              <div className="mt-3 rounded-2xl border border-white/10 bg-slate-950/55 p-3">
+                <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">
+                  <span>{sourceLabel}</span>
+                  {postTime ? (
+                    <>
+                      <span className="text-slate-500">/</span>
+                      <span>{postTime}</span>
+                    </>
+                  ) : null}
+                </div>
+                {postTitle ? (
+                  <div className="mt-2 line-clamp-2 text-[13px] font-bold leading-6 text-slate-50">{postTitle}</div>
+                ) : null}
+                {postUrl ? (
+                  <div className="mt-2">
+                    <a href={postUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-[11px] font-black text-emerald-100">
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      فتح البوست
+                    </a>
+                  </div>
+                ) : null}
               </div>
             ) : null}
+            <LinkifiedText text={message.customer_message || message.message_text || message.text || message.body} className="mt-3 text-[16px] leading-8 text-white" />
           </div>
         </div>
       );
