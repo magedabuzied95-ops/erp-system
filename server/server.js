@@ -1082,11 +1082,24 @@ app.post("/api/debug/meta-backfill-comment-inbox", async (req, res) => {
       skipped: 0,
       errors: 0,
     };
+    const errorsSample = [];
+
+    const pushErrorSample = ({ comment_id, post_id, message, code, detail }) => {
+      if (errorsSample.length >= 5) return;
+      errorsSample.push({
+        comment_id: String(comment_id || ""),
+        post_id: String(post_id || ""),
+        message: String(message || ""),
+        code: String(code || ""),
+        detail: String(detail || ""),
+      });
+    };
 
     for (const row of runsResult.rows || []) {
       const channel = String(row.channel || "").toLowerCase();
       const platform = String(row.platform || (channel.includes("instagram") ? "instagram" : channel.includes("facebook") ? "facebook" : "")).toLowerCase();
       const commentId = String(row.comment_id || "").trim();
+      const postId = String(row.post_id || row.parent_post_id || row.media_id || row.object_id || "").trim();
       if (!commentId || !["facebook", "instagram"].includes(platform)) {
         totals.skipped += 1;
         continue;
@@ -1123,6 +1136,13 @@ app.post("/api/debug/meta-backfill-comment-inbox", async (req, res) => {
         }
       } catch (error) {
         totals.errors += 1;
+        pushErrorSample({
+          comment_id: commentId,
+          post_id: postId,
+          message: error?.message || String(error),
+          code: error?.code || error?.statusCode || error?.name || "",
+          detail: error?.detail || error?.hint || error?.cause?.message || "",
+        });
         console.error("META_COMMENT_INBOX_BACKFILL_ERROR", {
           tenant_id: tenantId,
           platform,
@@ -1136,6 +1156,7 @@ app.post("/api/debug/meta-backfill-comment-inbox", async (req, res) => {
       success: true,
       tenant_id: tenantId,
       ...totals,
+      errors_sample: errorsSample,
     });
   } catch (error) {
     console.error("[meta-comment-inbox-backfill-debug] load failed", {
