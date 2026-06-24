@@ -113,6 +113,20 @@ const productUrl = (product = {}) => {
     ["color", color],
   ]);
 };
+const productSharePath = (product = {}) => {
+  const identifier = productRouteIdentifier(product);
+  return identifier ? `/share/product/${encodeURIComponent(identifier)}` : "/share/product";
+};
+const productShareUrl = (product = {}, variant = null, shareVersion = Date.now()) => {
+  const path = appendProductUrlParams(productSharePath(product), [
+    ["variant", variant?.id || variant?.variant_id || product.selected_variant_id || product.display_variant_id || ""],
+    ["color", variant?.color || variant?.color_key || product.color_key || product.display_color_key || ""],
+    ["size", variant?.size || product.selected_size || ""],
+    ["v", shareVersion || Date.now()],
+  ]);
+  if (typeof window === "undefined") return path;
+  return `${window.location.origin}${path}`;
+};
 
 const resetStorefrontViewportScroll = () => {
   if (typeof window === "undefined" || typeof document === "undefined") return;
@@ -10961,6 +10975,7 @@ export {
   productAudienceValues,
   productCardKey,
   productFromDetailsResponse,
+  productShareUrl,
   productToSocialMeta,
   productHasAvailableSize,
   resolveStorefrontPrice,

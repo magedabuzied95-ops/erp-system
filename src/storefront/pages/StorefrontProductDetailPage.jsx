@@ -23,6 +23,7 @@ import {
   mirrorProductTitle,
   money,
   productFromDetailsResponse,
+  productShareUrl,
   productToSocialMeta,
   resolveStorefrontPrice,
   sfText,
@@ -411,7 +412,8 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     submitVariant(safeActiveVariant, qty, "buy");
   };
   const shareProduct = async () => {
-    const url = typeof window !== "undefined" ? window.location.href : "";
+    const shareVersion = Date.now();
+    const url = productShareUrl(product, safeActiveVariant, shareVersion);
     const sharePayload = { url };
     try {
       if (navigator.share) {
