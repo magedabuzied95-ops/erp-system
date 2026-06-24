@@ -960,6 +960,78 @@ app.get("/api/debug/meta-comment-inbox-status", async (req, res) => {
     });
   }
 });
+app.get("/api/debug/ai-inbox-comment-conversations", async (req, res) => {
+  try {
+    const tenantId = Number(req.query?.tenant_id || req.user?.tenant_id || 1) || 1;
+    const result = await db.query(
+      `
+      SELECT
+        s.session_id,
+        s.channel AS session_channel,
+        s.thread_kind AS session_thread_kind,
+        s.customer_name AS session_customer_name,
+        s.last_message AS session_last_message,
+        s.updated_at AS session_updated_at,
+        c.external_conversation_id,
+        c.channel AS conversation_channel,
+        c.thread_kind AS conversation_thread_kind,
+        c.customer_name AS conversation_customer_name,
+        c.last_message AS conversation_last_message,
+        c.metadata AS conversation_metadata,
+        c.last_message_at AS conversation_last_message_at,
+        COALESCE(c.metadata->>'platform', CASE WHEN c.channel = 'instagram_comment' OR s.channel = 'instagram_comment' THEN 'instagram' ELSE 'facebook' END) AS platform,
+        COALESCE(c.external_conversation_id, s.session_id) AS conversation_id,
+        (
+          SELECT COUNT(*)::int
+          FROM ai_support_messages m
+          WHERE m.tenant_id = s.tenant_id
+            AND m.session_id = s.session_id
+        ) AS message_count
+      FROM ai_support_sessions s
+      LEFT JOIN ai_channel_conversations c
+        ON c.tenant_id = s.tenant_id
+       AND c.external_conversation_id = s.session_id
+      WHERE s.tenant_id = $1::bigint
+        AND (
+          s.thread_kind = 'comment'
+          OR s.channel IN ('facebook_comment', 'instagram_comment')
+          OR s.session_id LIKE 'facebook_comment:%'
+          OR s.session_id LIKE 'instagram_comment:%'
+          OR c.thread_kind = 'comment'
+          OR c.channel IN ('facebook_comment', 'instagram_comment')
+        )
+      ORDER BY COALESCE(c.last_message_at, s.updated_at) DESC, s.updated_at DESC, s.session_id DESC
+      LIMIT 20
+      `,
+      [tenantId]
+    );
+    return res.json({
+      success: true,
+      tenant_id: tenantId,
+      count: result.rowCount || 0,
+      conversations: (result.rows || []).map((row) => ({
+        conversation_id: row.conversation_id || "",
+        session_id: row.session_id || "",
+        channel: row.conversation_channel || row.session_channel || "",
+        thread_kind: row.conversation_thread_kind || row.session_thread_kind || "",
+        platform: row.platform || "",
+        message_count: Number(row.message_count || 0),
+        last_message: row.conversation_last_message || row.session_last_message || "",
+        conversation_exists: Boolean(row.external_conversation_id),
+        session_exists: Boolean(row.session_id),
+      })),
+    });
+  } catch (error) {
+    console.error("[ai-inbox-comment-conversations-debug] load failed", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+    });
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to load AI inbox comment conversations",
+    });
+  }
+});
 app.get("/debug/evolution-instance-events", async (req, res) => {
   try {
     const data = await getEvolutionInstanceEventsDebug();

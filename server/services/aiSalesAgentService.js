@@ -867,6 +867,31 @@ const whatsappInboxGroupFilterSql = (sessionAlias = "s", conversationAlias = "c"
   )
 `;
 
+const logAiInboxConversationFilterDebug = ({
+  requestedFilter = "all",
+  requestedChannelFilter = "",
+  rowsBeforeFilter = 0,
+  rowsAfterFilter = 0,
+  conversations = [],
+  phase = "summary",
+} = {}) => {
+  const items = asArray(conversations);
+  console.info("AI_INBOX_CONVERSATION_FILTER_DEBUG", {
+    phase,
+    requested_filter: text(requestedFilter || "all"),
+    requested_channel: text(requestedChannelFilter || ""),
+    resolved_channels: [...new Set(items.map((item) => text(item.channel || item.session_channel || item.source || item.provider || item.platform || "")))].filter(Boolean),
+    resolved_thread_kinds: [...new Set(items.map((item) => text(item.thread_kind || item.channel_metadata?.thread_kind || "")))].filter(Boolean),
+    rows_before_filter: Number(rowsBeforeFilter || 0),
+    rows_after_filter: Number(rowsAfterFilter || 0),
+    sample_rows: items.slice(0, 5).map((item) => ({
+      channel: text(item.channel || item.session_channel || item.source || item.provider || item.platform || ""),
+      thread_kind: text(item.thread_kind || item.channel_metadata?.thread_kind || ""),
+      conversation_id: text(item.conversation_id || item.session_id || item.conversation_key || item.external_conversation_id || ""),
+    })),
+  });
+};
+
 export const normalizeInboxMessage = (row = {}) => ({
   id: row.id,
   session_id: row.session_id,
@@ -1954,7 +1979,7 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
   };
 };
 
-export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search = "", messageLimit = 30, summaryOnly = false } = {}) => {
+export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 50, search = "", messageLimit = 30, summaryOnly = false } = {}) => {
   const loadAiInboxStartedAt = Date.now();
   await ensureAiSalesAgentSchema();
   await ensureAiConversationMemorySchema();
@@ -1963,6 +1988,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
   const params = [tenantId, Math.min(1000, Math.max(1, int(limit, 50)))];
   const inboxMessageLimit = summaryOnly ? 1 : Math.min(100, Math.max(1, int(messageLimit, 30)));
   const normalizedFilter = lower(filter || "all");
+  const normalizedChannelFilter = lower(channelFilter || "");
   const searchTerm = text(search);
   clauses.push(whatsappInboxGroupFilterSql("s", "c"));
   if (normalizedFilter === "hot_leads") clauses.push("(COALESCE(o.draft_count, 0) > 0 OR COALESCE(p.memory_score, 0) >= 75)");
@@ -1977,6 +2003,24 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
   if (["instagram", "instagram_dm"].includes(normalizedFilter)) clauses.push("COALESCE(c.channel, s.channel, s.source) = 'instagram'");
   if (normalizedFilter === "ai_replied") clauses.push("COALESCE(m.ai_answer, '') <> ''");
   if (normalizedFilter === "unread") clauses.push("(m.sender_type = 'customer' OR m.needs_human_support = TRUE OR s.status = 'human_takeover')");
+  if (normalizedChannelFilter === "facebook_comment") {
+    clauses.push("(COALESCE(c.channel, s.channel, s.source) = 'facebook_comment' OR COALESCE(c.thread_kind, s.thread_kind, '') = 'comment')");
+  }
+  if (normalizedChannelFilter === "instagram_comment") {
+    clauses.push("(COALESCE(c.channel, s.channel, s.source) = 'instagram_comment' OR COALESCE(c.thread_kind, s.thread_kind, '') = 'comment')");
+  }
+  if (normalizedChannelFilter === "facebook_messenger") {
+    clauses.push("COALESCE(c.channel, s.channel, s.source) = 'facebook_messenger'");
+  }
+  if (normalizedChannelFilter === "instagram") {
+    clauses.push("COALESCE(c.channel, s.channel, s.source) = 'instagram'");
+  }
+  if (normalizedChannelFilter === "whatsapp") {
+    clauses.push("COALESCE(c.channel, s.channel, s.source) = 'whatsapp'");
+  }
+  if (normalizedChannelFilter === "web_chat") {
+    clauses.push("(COALESCE(c.channel, s.channel, s.source) IN ('web_chat', 'web'))");
+  }
   if (searchTerm) {
     params.push(`%${searchTerm.toLowerCase()}%`);
     const idx = params.length;
@@ -2212,6 +2256,14 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
         anyFullMessages: false,
       };
     }));
+    logAiInboxConversationFilterDebug({
+      phase: "summary",
+      requestedFilter: normalizedFilter,
+      requestedChannelFilter: normalizedChannelFilter,
+      rowsBeforeFilter: summaryResult.rowCount,
+      rowsAfterFilter: conversations.length,
+      conversations: summaryResult.rows,
+    });
     logAiInboxTiming({
       phase: "inbox_summary_build",
       startedAt: summaryStartedAt,
@@ -2358,6 +2410,14 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
     params
   );
   const conversations = normalizeAndMergeInboxConversations(result.rows);
+  logAiInboxConversationFilterDebug({
+    phase: "full",
+    requestedFilter: normalizedFilter,
+    requestedChannelFilter: normalizedChannelFilter,
+    rowsBeforeFilter: result.rowCount,
+    rowsAfterFilter: conversations.length,
+    conversations: result.rows,
+  });
   const sessionIds = conversations.map((item) => item.session_id).filter(Boolean);
   const profileIds = conversations.map((item) => item.profile_id).filter(Boolean);
   const messageTotalsBySession = new Map();

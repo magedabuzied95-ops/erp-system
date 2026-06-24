@@ -2979,7 +2979,7 @@ export default function AiInbox() {
     setError("");
     try {
       const [inboxPayload, draftsPayload, analyticsPayload, channelPayload, globalAiPayload, employeesPayload] = await Promise.all([
-        api.get("/ai-inbox/conversations", { params: { tenant_id: tenantId, filter, search: debouncedSearch, limit: 50, message_limit: 30 }, headers, perfComponent: "AiInbox.conversations" }),
+        api.get("/ai-inbox/conversations", { params: { tenant_id: tenantId, filter, channel_filter: channelFilter, search: debouncedSearch, limit: 50, message_limit: 30 }, headers, perfComponent: "AiInbox.conversations" }),
         api.get("/ai-agent/orders/drafts", { params: { tenant_id: tenantId, limit: 50 }, headers, perfComponent: "AiInbox.drafts" }),
         api.get("/ai-agent/analytics", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.analytics" }),
         api.get("/ai-agent/channels/status", { params: { tenant_id: tenantId }, headers, perfComponent: "AiInbox.channels" }).catch(() => ({ channels: {} })),
@@ -3077,7 +3077,7 @@ export default function AiInbox() {
         }
       }
     }
-  }, [debouncedSearch, filter, headers, tenantId]);
+  }, [channelFilter, debouncedSearch, filter, headers, tenantId]);
 
   const scheduleRefresh = useCallback(
     (source = "unknown", { silent = true, delay = 750 } = {}) => {
@@ -5061,7 +5061,8 @@ export default function AiInbox() {
               channels={fixedChannelSummaries}
               allUnread={channelSummaries.all.unread}
               activeChannel={channelFilter}
-              onSelectChannel={(value) => {
+            onSelectChannel={(value) => {
+                setInboxSection("conversations");
                 setChannelFilter(value);
                 setMobileView("list");
               }}

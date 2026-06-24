@@ -2053,6 +2053,7 @@ router.get("/inbox", protect, permit("settings", "view"), async (req, res) => {
     const inbox = await loadAiInbox({
       tenantId,
       filter: String(req.query?.filter || "all"),
+      channelFilter: String(req.query?.channel_filter || req.query?.channel || ""),
       search: String(req.query?.search || ""),
       limit: req.query?.limit,
       messageLimit: req.query?.message_limit,
@@ -2069,6 +2070,7 @@ router.get("/conversations", protect, permit("settings", "view"), async (req, re
     const inbox = await loadAiInbox({
       tenantId,
       filter: String(req.query?.filter || "all"),
+      channelFilter: String(req.query?.channel_filter || req.query?.channel || ""),
       search: String(req.query?.search || ""),
       limit: req.query?.limit,
       messageLimit: req.query?.message_limit,
