@@ -37,7 +37,27 @@ router.get("/templates", protect, permit("staff_tasks", "view"), getTaskTemplate
 router.put("/templates/:id", protect, permit("staff_tasks", "manage"), updateTaskTemplate);
 router.get("/my", protect, permit("staff_tasks", "view"), getMyTasks);
 router.get("/dashboard", protect, permit("staff_tasks", "view"), getDashboard);
-router.post("/", protect, permit("staff_tasks", "create"), createTask);
+router.post(
+  "/",
+  protect,
+  permit("staff_tasks", "create"),
+  (req, res, next) => {
+    console.time("staff-tasks-create-route");
+    console.log("CREATE TASK START");
+    console.log("[staff-tasks-route] POST /api/staff-tasks", {
+      requestId: req.id || null,
+      userId: req.user?.id || null,
+      tenantId: req.user?.tenant_id || req.user?.tenantId || null,
+    });
+    console.log(req.body);
+    console.log("STEP 1");
+    res.once("finish", () => {
+      console.timeEnd("staff-tasks-create-route");
+    });
+    next();
+  },
+  createTask
+);
 router.put("/:id", protect, permit("staff_tasks", "manage"), updateTask);
 router.patch("/:id", protect, permit("staff_tasks", "manage"), updateTask);
 router.patch("/:id/status", protect, permit("staff_tasks", "update"), updateTaskStatus);

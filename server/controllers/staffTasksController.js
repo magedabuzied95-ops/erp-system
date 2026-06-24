@@ -180,14 +180,33 @@ export const updatePortalSettings = async (req, res) => {
 };
 
 export const createTask = async (req, res) => {
+  const timerLabel = "staff-tasks-create-controller";
+  console.time(timerLabel);
   try {
+    console.log("STEP 2");
+    console.log("[staff-tasks-controller] createTask:start", {
+      requestId: req.id || null,
+      userId: req.user?.id || null,
+      tenantId: resolveTaskTenantId(req),
+      body: req.body || {},
+    });
     const result = await createStaffTask(req.body || {}, req.user || {});
+    console.log("STEP 3");
+    console.log("[staff-tasks-controller] createTask:done", {
+      requestId: req.id || null,
+      duplicate: Boolean(result?.duplicate),
+      taskId: result?.task?.id || null,
+    });
     if (result.duplicate) {
       return res.status(200).json({ success: true, duplicate: true, task: null, message: "Duplicate task assignment prevented" });
     }
     return res.status(201).json({ success: true, task: result.task });
   } catch (error) {
+    console.error("[staff-tasks-controller] createTask:error", error);
+    console.error(error);
     return res.status(500).json({ success: false, message: error.message || "Failed to create staff task" });
+  } finally {
+    console.timeEnd(timerLabel);
   }
 };
 

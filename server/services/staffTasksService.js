@@ -1,4 +1,4 @@
-import db from "../database/db.js";
+﻿import db from "../database/db.js";
 import crypto from "node:crypto";
 import { emitStaffTaskEvent } from "../utils/socket.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
@@ -428,17 +428,17 @@ export const ensureStaffTasksSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`
     UPDATE staff_task_templates
     SET title_ar = CASE title
-        WHEN 'Opening display walkthrough' THEN 'مراجعة عرض واجهة المحل'
-        WHEN 'Opening readiness checklist' THEN 'قائمة تجهيز افتتاح الفرع'
-        WHEN 'Mirror cleaning' THEN 'تنظيف مرايات العملاء'
-        WHEN 'Glass cleaning' THEN 'تنظيف الزجاج والكاونتر'
+        WHEN 'Opening display walkthrough' THEN 'ظ…ط±ط§ط¬ط¹ط© ط¹ط±ط¶ ظˆط§ط¬ظ‡ط© ط§ظ„ظ…ط­ظ„'
+        WHEN 'Opening readiness checklist' THEN 'ظ‚ط§ط¦ظ…ط© طھط¬ظ‡ظٹط² ط§ظپطھطھط§ط­ ط§ظ„ظپط±ط¹'
+        WHEN 'Mirror cleaning' THEN 'طھظ†ط¸ظٹظپ ظ…ط±ط§ظٹط§طھ ط§ظ„ط¹ظ…ظ„ط§ط،'
+        WHEN 'Glass cleaning' THEN 'طھظ†ط¸ظٹظپ ط§ظ„ط²ط¬ط§ط¬ ظˆط§ظ„ظƒط§ظˆظ†طھط±'
         ELSE title_ar
       END,
       description_ar = CASE description
-        WHEN 'Review entrance displays and make sure top-selling items are visible and correctly arranged.' THEN 'راجع واجهة المحل وتأكد إن المنتجات الأكثر مبيعًا ظاهرة ومتنسقة بشكل صحيح.'
-        WHEN 'Confirm branch opening readiness, cash area, lights, and customer area before active sales.' THEN 'تأكد من جاهزية الفرع والكاونتر والإضاءة ومنطقة العملاء قبل بدء البيع.'
-        WHEN 'Clean customer mirrors and fitting area mirrors, then report any damaged fixtures.' THEN 'نضف مرايات العملاء ومنطقة القياس، وبلغ عن أي تلف في التجهيزات.'
-        WHEN 'Clean front glass, display glass, and counters without blocking customer movement.' THEN 'نضف زجاج الواجهة وفاترينات العرض والكاونتر من غير ما تعطل حركة العملاء.'
+        WHEN 'Review entrance displays and make sure top-selling items are visible and correctly arranged.' THEN 'ط±ط§ط¬ط¹ ظˆط§ط¬ظ‡ط© ط§ظ„ظ…ط­ظ„ ظˆطھط£ظƒط¯ ط¥ظ† ط§ظ„ظ…ظ†طھط¬ط§طھ ط§ظ„ط£ظƒط«ط± ظ…ط¨ظٹط¹ظ‹ط§ ط¸ط§ظ‡ط±ط© ظˆظ…طھظ†ط³ظ‚ط© ط¨ط´ظƒظ„ طµط­ظٹط­.'
+        WHEN 'Confirm branch opening readiness, cash area, lights, and customer area before active sales.' THEN 'طھط£ظƒط¯ ظ…ظ† ط¬ط§ظ‡ط²ظٹط© ط§ظ„ظپط±ط¹ ظˆط§ظ„ظƒط§ظˆظ†طھط± ظˆط§ظ„ط¥ط¶ط§ط،ط© ظˆظ…ظ†ط·ظ‚ط© ط§ظ„ط¹ظ…ظ„ط§ط، ظ‚ط¨ظ„ ط¨ط¯ط، ط§ظ„ط¨ظٹط¹.'
+        WHEN 'Clean customer mirrors and fitting area mirrors, then report any damaged fixtures.' THEN 'ظ†ط¶ظپ ظ…ط±ط§ظٹط§طھ ط§ظ„ط¹ظ…ظ„ط§ط، ظˆظ…ظ†ط·ظ‚ط© ط§ظ„ظ‚ظٹط§ط³طŒ ظˆط¨ظ„ط؛ ط¹ظ† ط£ظٹ طھظ„ظپ ظپظٹ ط§ظ„طھط¬ظ‡ظٹط²ط§طھ.'
+        WHEN 'Clean front glass, display glass, and counters without blocking customer movement.' THEN 'ظ†ط¶ظپ ط²ط¬ط§ط¬ ط§ظ„ظˆط§ط¬ظ‡ط© ظˆظپط§طھط±ظٹظ†ط§طھ ط§ظ„ط¹ط±ط¶ ظˆط§ظ„ظƒط§ظˆظ†طھط± ظ…ظ† ط؛ظٹط± ظ…ط§ طھط¹ط·ظ„ ط­ط±ظƒط© ط§ظ„ط¹ظ…ظ„ط§ط،.'
         ELSE description_ar
       END
     WHERE title_ar IS NULL OR title_ar = '' OR description_ar IS NULL OR description_ar = ''
@@ -446,17 +446,17 @@ export const ensureStaffTasksSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`
     UPDATE staff_task_assignments
     SET title_ar = CASE title
-        WHEN 'Opening display walkthrough' THEN 'مراجعة عرض واجهة المحل'
-        WHEN 'Opening readiness checklist' THEN 'قائمة تجهيز افتتاح الفرع'
-        WHEN 'Mirror cleaning' THEN 'تنظيف مرايات العملاء'
-        WHEN 'Glass cleaning' THEN 'تنظيف الزجاج والكاونتر'
+        WHEN 'Opening display walkthrough' THEN 'ظ…ط±ط§ط¬ط¹ط© ط¹ط±ط¶ ظˆط§ط¬ظ‡ط© ط§ظ„ظ…ط­ظ„'
+        WHEN 'Opening readiness checklist' THEN 'ظ‚ط§ط¦ظ…ط© طھط¬ظ‡ظٹط² ط§ظپطھطھط§ط­ ط§ظ„ظپط±ط¹'
+        WHEN 'Mirror cleaning' THEN 'طھظ†ط¸ظٹظپ ظ…ط±ط§ظٹط§طھ ط§ظ„ط¹ظ…ظ„ط§ط،'
+        WHEN 'Glass cleaning' THEN 'طھظ†ط¸ظٹظپ ط§ظ„ط²ط¬ط§ط¬ ظˆط§ظ„ظƒط§ظˆظ†طھط±'
         ELSE title_ar
       END,
       description_ar = CASE description
-        WHEN 'Review entrance displays and make sure top-selling items are visible and correctly arranged.' THEN 'راجع واجهة المحل وتأكد إن المنتجات الأكثر مبيعًا ظاهرة ومتنسقة بشكل صحيح.'
-        WHEN 'Confirm branch opening readiness, cash area, lights, and customer area before active sales.' THEN 'تأكد من جاهزية الفرع والكاونتر والإضاءة ومنطقة العملاء قبل بدء البيع.'
-        WHEN 'Clean customer mirrors and fitting area mirrors, then report any damaged fixtures.' THEN 'نضف مرايات العملاء ومنطقة القياس، وبلغ عن أي تلف في التجهيزات.'
-        WHEN 'Clean front glass, display glass, and counters without blocking customer movement.' THEN 'نضف زجاج الواجهة وفاترينات العرض والكاونتر من غير ما تعطل حركة العملاء.'
+        WHEN 'Review entrance displays and make sure top-selling items are visible and correctly arranged.' THEN 'ط±ط§ط¬ط¹ ظˆط§ط¬ظ‡ط© ط§ظ„ظ…ط­ظ„ ظˆطھط£ظƒط¯ ط¥ظ† ط§ظ„ظ…ظ†طھط¬ط§طھ ط§ظ„ط£ظƒط«ط± ظ…ط¨ظٹط¹ظ‹ط§ ط¸ط§ظ‡ط±ط© ظˆظ…طھظ†ط³ظ‚ط© ط¨ط´ظƒظ„ طµط­ظٹط­.'
+        WHEN 'Confirm branch opening readiness, cash area, lights, and customer area before active sales.' THEN 'طھط£ظƒط¯ ظ…ظ† ط¬ط§ظ‡ط²ظٹط© ط§ظ„ظپط±ط¹ ظˆط§ظ„ظƒط§ظˆظ†طھط± ظˆط§ظ„ط¥ط¶ط§ط،ط© ظˆظ…ظ†ط·ظ‚ط© ط§ظ„ط¹ظ…ظ„ط§ط، ظ‚ط¨ظ„ ط¨ط¯ط، ط§ظ„ط¨ظٹط¹.'
+        WHEN 'Clean customer mirrors and fitting area mirrors, then report any damaged fixtures.' THEN 'ظ†ط¶ظپ ظ…ط±ط§ظٹط§طھ ط§ظ„ط¹ظ…ظ„ط§ط، ظˆظ…ظ†ط·ظ‚ط© ط§ظ„ظ‚ظٹط§ط³طŒ ظˆط¨ظ„ط؛ ط¹ظ† ط£ظٹ طھظ„ظپ ظپظٹ ط§ظ„طھط¬ظ‡ظٹط²ط§طھ.'
+        WHEN 'Clean front glass, display glass, and counters without blocking customer movement.' THEN 'ظ†ط¶ظپ ط²ط¬ط§ط¬ ط§ظ„ظˆط§ط¬ظ‡ط© ظˆظپط§طھط±ظٹظ†ط§طھ ط§ظ„ط¹ط±ط¶ ظˆط§ظ„ظƒط§ظˆظ†طھط± ظ…ظ† ط؛ظٹط± ظ…ط§ طھط¹ط·ظ„ ط­ط±ظƒط© ط§ظ„ط¹ظ…ظ„ط§ط،.'
         ELSE description_ar
       END
     WHERE title_ar IS NULL OR title_ar = '' OR description_ar IS NULL OR description_ar = ''
@@ -881,20 +881,20 @@ export const resolveEmployeeForUser = async (user = {}, tenantId = null, clientO
 };
 
 const TASK_STATUS_LABELS_AR = {
-  pending: "قيد التنفيذ",
-  in_progress: "قيد التنفيذ",
-  manager_review: "معلقة",
-  overdue: "معلقة",
-  reassigned: "معلقة",
-  completed: "مكتملة",
-  cancelled: "ملغاة",
+  pending: "ظ‚ظٹط¯ ط§ظ„طھظ†ظپظٹط°",
+  in_progress: "ظ‚ظٹط¯ ط§ظ„طھظ†ظپظٹط°",
+  manager_review: "ظ…ط¹ظ„ظ‚ط©",
+  overdue: "ظ…ط¹ظ„ظ‚ط©",
+  reassigned: "ظ…ط¹ظ„ظ‚ط©",
+  completed: "ظ…ظƒطھظ…ظ„ط©",
+  cancelled: "ظ…ظ„ط؛ط§ط©",
 };
 
 const TASK_PRIORITY_LABELS_AR = {
-  low: "منخفضة",
-  medium: "متوسطة",
-  high: "عالية",
-  critical: "عالية جدا",
+  low: "ظ…ظ†ط®ظپط¶ط©",
+  medium: "ظ…طھظˆط³ط·ط©",
+  high: "ط¹ط§ظ„ظٹط©",
+  critical: "ط¹ط§ظ„ظٹط© ط¬ط¯ط§",
 };
 
 const normalizeTaskRow = (row = {}) => ({
@@ -1092,7 +1092,7 @@ export const markDueTasksOverdue = async ({ tenantId = null } = {}) => {
     }).catch(() => {});
     await sendTaskOverduePush(task);
     await emitTaskRealtime("task_overdue", task, {
-      title: "مهمة متأخرة",
+      title: "ظ…ظ‡ظ…ط© ظ…طھط£ط®ط±ط©",
       message: taskTitleAr(task),
       metadata: { due_at: task.due_at, escalated: true },
     });
@@ -1103,10 +1103,10 @@ export const markDueTasksOverdue = async ({ tenantId = null } = {}) => {
       type: "staff_task_overdue_escalation",
       category: "staff_tasks",
       priority: task.priority || "high",
-      title: "تصعيد مهمة متأخرة",
+      title: "طھطµط¹ظٹط¯ ظ…ظ‡ظ…ط© ظ…طھط£ط®ط±ط©",
       message: taskTitleAr(task),
       action_url: "/staff/tasks",
-      action_label: "مراجعة المهمة",
+      action_label: "ظ…ط±ط§ط¬ط¹ط© ط§ظ„ظ…ظ‡ظ…ط©",
       entity_type: "staff_task",
       entity_id: String(task.id),
       metadata: { task_id: task.id, due_at: task.due_at, employee_id: task.current_assignee_id },
@@ -1170,10 +1170,10 @@ const notifyTaskAssignment = async (client, task, assignee, eventType = "task_as
     type: eventType,
     category: "staff_tasks",
     priority: task.priority,
-    title: eventType === "task_reassigned" ? "تم إعادة تعيين مهمة" : "تم تعيين مهمة جديدة",
+    title: eventType === "task_reassigned" ? "طھظ… ط¥ط¹ط§ط¯ط© طھط¹ظٹظٹظ† ظ…ظ‡ظ…ط©" : "طھظ… طھط¹ظٹظٹظ† ظ…ظ‡ظ…ط© ط¬ط¯ظٹط¯ط©",
     message: taskTitleAr(task),
     action_url: "/staff/tasks",
-    action_label: "فتح المهام",
+    action_label: "ظپطھط­ ط§ظ„ظ…ظ‡ط§ظ…",
     entity_type: "staff_task",
     entity_id: String(task.id),
     metadata: {
@@ -1215,10 +1215,10 @@ const emitTaskRealtime = async (eventType, task = {}, options = {}) => {
     type: `staff_task_${eventType}`,
     category: "staff_tasks",
     priority: task.priority || "medium",
-    title: options.title || "تحديث مهمة",
-    message: options.message || taskTitleAr(task) || "تم تحديث مهمة",
+    title: options.title || "طھط­ط¯ظٹط« ظ…ظ‡ظ…ط©",
+    message: options.message || taskTitleAr(task) || "طھظ… طھط­ط¯ظٹط« ظ…ظ‡ظ…ط©",
     action_url: "/staff/tasks",
-    action_label: "فتح المهام",
+    action_label: "ظپطھط­ ط§ظ„ظ…ظ‡ط§ظ…",
     entity_type: "staff_task",
     entity_id: String(task.id),
     metadata: {
@@ -1729,29 +1729,51 @@ export const assignWaitingRecurringTasksForCheckIn = async ({ tenantId, branchId
 
 export const createStaffTask = async (payload = {}, actor = {}) => {
   await ensureStaffTasksSchema();
+  console.time("staff-tasks-service:create");
+  console.log("[staff-tasks-service] create:start", {
+    actorId: actor?.id || null,
+    tenantId: payload.tenantId ?? payload.tenant_id ?? resolveTaskTenantId(actor),
+    templateId: payload.template_id ?? payload.templateId ?? null,
+    frequency: payload.frequency ?? payload.recurring_rule?.frequency ?? payload.recurringRule?.frequency ?? payload.metadata?.recurring_rule?.frequency ?? null,
+    templateKind: payload.template_kind ?? payload.templateKind ?? payload.metadata?.template_kind ?? null,
+  });
   const frequency = normalizeFrequency(payload.frequency ?? payload.recurring_rule?.frequency ?? payload.recurringRule?.frequency ?? payload.metadata?.recurring_rule?.frequency);
   const saveAsTemplate = booleanValue(payload.save_as_template ?? payload.saveAsTemplate, frequency !== "one_time");
   if (saveAsTemplate && frequency !== "one_time" && !payload.force_instance) {
     try {
+      console.log("[staff-tasks-service] create:step save_template");
       const template = await saveStaffTaskTemplate({ ...payload, frequency }, actor);
+      console.log("[staff-tasks-service] create:step generate_instance", {
+        templateId: template?.id || null,
+        tenantId: template?.tenant_id || null,
+      });
       const generated = await generateDueTaskInstancesFromTemplates({ tenantId: template.tenant_id, templateId: template.id, actor });
+      console.log("[staff-tasks-service] create:done recurring", {
+        templateId: template?.id || null,
+        generatedCount: Array.isArray(generated?.created) ? generated.created.length : 0,
+      });
       return { duplicate: false, template, task: generated.created[0] || null, generated };
     } catch (error) {
       logStaffTaskCreateFailure({ step: "save_recurring_template_or_generate_instance", payload, error });
+      console.error("[staff-tasks-service] create:recurring:error", error);
+      console.error(error);
       throw error;
     }
   }
   const client = await db.connect();
   let sqlStep = "begin";
   try {
+    console.log("[staff-tasks-service] create:step begin");
     await client.query("BEGIN");
     sqlStep = "resolve_payload";
+    console.log("[staff-tasks-service] create:step resolve_payload");
     const tenantId = payload.tenantId ?? payload.tenant_id ?? resolveTaskTenantId(actor);
     const priority = TASK_PRIORITIES.has(text(payload.priority).toLowerCase()) ? text(payload.priority).toLowerCase() : "medium";
     let assignee = null;
     const allowUnassigned = booleanValue(payload.allow_unassigned ?? payload.allowUnassigned, true);
     const requestedEmployeeId = numberOrNull(payload.current_assignee_id ?? payload.currentAssigneeId ?? payload.employee_id ?? payload.employeeId);
     if (requestedEmployeeId) {
+      console.log("[staff-tasks-service] create:step resolve_assignee");
       const employeeResult = await client.query(
         `SELECT e.*, u.email AS user_email FROM employees e LEFT JOIN users u ON u.id = e.user_id WHERE e.id = $1 AND ($2::bigint IS NULL OR e.tenant_id = $2::bigint) LIMIT 1`,
         [requestedEmployeeId, tenantId]
@@ -1767,7 +1789,7 @@ export const createStaffTask = async (payload = {}, actor = {}) => {
     const sourceRefId = nullableText(payload.source_ref_id ?? payload.sourceRefId);
     const dueAt = payload.due_at || payload.dueAt || new Date(Date.now() + deadlineMinutes * 60 * 1000).toISOString();
     const assignedDate = dateKey(payload.assigned_date ?? payload.assignedDate);
-    const title = text(payload.title || "مهمة تشغيلية");
+    const title = text(payload.title || "ظ…ظ‡ظ…ط© طھط´ط؛ظٹظ„ظٹط©");
     const description = text(payload.description);
     const titleAr = text(payload.task_title_ar ?? payload.title_ar ?? payload.titleAr ?? title);
     const descriptionAr = text(payload.task_description_ar ?? payload.description_ar ?? payload.descriptionAr ?? description);
@@ -1779,6 +1801,12 @@ export const createStaffTask = async (payload = {}, actor = {}) => {
     const assignmentEventId = numberOrNull(payload.assignment_event_id ?? payload.assignmentEventId);
     const autoAssignMode = normalizeAutoAssignMode(payload.auto_assign_mode ?? payload.autoAssignMode ?? metadata.auto_assign_mode ?? metadata.assignment_strategy);
     sqlStep = "insert_staff_task_assignment";
+    console.log("[staff-tasks-service] create:step insert", {
+      tenantId,
+      templateId: numberOrNull(payload.template_id ?? payload.templateId),
+      assigneeId: assignee?.id || null,
+      priority,
+    });
     const result = await client.query(
       `
       INSERT INTO staff_task_assignments (
@@ -1828,6 +1856,7 @@ export const createStaffTask = async (payload = {}, actor = {}) => {
     }
     const task = result.rows[0];
     sqlStep = "log_task_history";
+    console.log("[staff-tasks-service] create:step history");
     await logTaskHistory(client, {
       tenantId,
       taskId: task.id,
@@ -1846,21 +1875,38 @@ export const createStaffTask = async (payload = {}, actor = {}) => {
       [tenantId, actor?.id || null, task.id, JSON.stringify({ title: task.title, title_ar: taskTitleAr(task), assignee_id: assignee?.id || null })]
     );
     sqlStep = "commit";
+    console.log("[staff-tasks-service] create:step commit");
     await client.query("COMMIT");
-    if (assignee) await notifyTaskAssignment(db, task, assignee);
-    await emitTaskRealtime("task_created", task, {
-      persist: false,
-      title: "تم تعيين مهمة جديدة",
-      message: taskTitleAr(task),
-      metadata: { assignee_id: assignee?.id || null },
+    const postCommitSideEffects = async () => {
+      console.log("[staff-tasks-service] create:step post_commit_side_effects");
+      if (assignee) {
+        console.log("[staff-tasks-service] create:step notify_assignment");
+        await notifyTaskAssignment(db, task, assignee);
+      }
+      console.log("[staff-tasks-service] create:step emit_realtime");
+      await emitTaskRealtime("task_created", task, {
+        persist: false,
+        title: "طھظ… طھط¹ظٹظٹظ† ظ…ظ‡ظ…ط© ط¬ط¯ظٹط¯ط©",
+        message: taskTitleAr(task),
+        metadata: { assignee_id: assignee?.id || null },
+      });
+      console.log("[staff-tasks-service] create:step post_commit_done");
+    };
+    void postCommitSideEffects().catch((sideEffectError) => {
+      console.error("[staff-tasks-service] create:post_commit:error", sideEffectError);
+      console.error(sideEffectError);
     });
+    console.log("[staff-tasks-service] create:returning");
     return { duplicate: false, task: normalizeTaskRow({ ...task, assignee_name: assignee?.full_name || "", assignee_email: assignee?.email || assignee?.user_email || "" }) };
   } catch (error) {
     await client.query("ROLLBACK");
     logStaffTaskCreateFailure({ step: sqlStep, payload, error });
+    console.error("[staff-tasks-service] create:error", error);
+    console.error(error);
     throw error;
   } finally {
     client.release();
+    console.timeEnd("staff-tasks-service:create");
   }
 };
 
@@ -2092,7 +2138,7 @@ export const updateStaffTaskDetails = async (taskId, payload = {}, actor = {}) =
     await client.query("COMMIT");
     const normalized = normalizeTaskRow({ ...updated, assignee_name: nextAssignee?.full_name || "" });
     await emitTaskRealtime("task_updated", normalized, {
-      title: "تم تحديث المهمة",
+      title: "طھظ… طھط­ط¯ظٹط« ط§ظ„ظ…ظ‡ظ…ط©",
       message: taskTitleAr(normalized),
       metadata: { details_updated: true },
     });
@@ -2174,22 +2220,22 @@ export const updateStaffTaskStatus = async (taskId, payload = {}, actor = {}) =>
     await client.query("COMMIT");
     const updatedTask = normalizeTaskRow(result.rows[0]);
     await emitTaskRealtime("task_updated", updatedTask, {
-      title: "تم تحديث المهمة",
+      title: "طھظ… طھط­ط¯ظٹط« ط§ظ„ظ…ظ‡ظ…ط©",
       message: taskTitleAr(updatedTask),
       metadata: { from_status: task.status, to_status: nextStatus, from_priority: task.priority, to_priority: nextPriority },
     });
     if (task.status !== nextStatus) {
       await emitTaskRealtime(nextStatus === "completed" ? "task_completed" : "task_status_changed", updatedTask, {
         persist: nextStatus !== "completed",
-        title: nextStatus === "completed" ? "تم إكمال المهمة" : "تم تغيير حالة المهمة",
-        message: `${taskTitleAr(updatedTask)} - الحالة الآن ${nextStatus}`,
+        title: nextStatus === "completed" ? "طھظ… ط¥ظƒظ…ط§ظ„ ط§ظ„ظ…ظ‡ظ…ط©" : "طھظ… طھط؛ظٹظٹط± ط­ط§ظ„ط© ط§ظ„ظ…ظ‡ظ…ط©",
+        message: `${taskTitleAr(updatedTask)} - ط§ظ„ط­ط§ظ„ط© ط§ظ„ط¢ظ† ${nextStatus}`,
         metadata: { from_status: task.status, to_status: nextStatus },
       });
     }
     if (task.priority !== nextPriority) {
       await emitTaskRealtime("task_priority_changed", updatedTask, {
-        title: "تم تغيير أولوية المهمة",
-        message: `${taskTitleAr(updatedTask)} - الأولوية الآن ${nextPriority}`,
+        title: "طھظ… طھط؛ظٹظٹط± ط£ظˆظ„ظˆظٹط© ط§ظ„ظ…ظ‡ظ…ط©",
+        message: `${taskTitleAr(updatedTask)} - ط§ظ„ط£ظˆظ„ظˆظٹط© ط§ظ„ط¢ظ† ${nextPriority}`,
         metadata: { from_priority: task.priority, to_priority: nextPriority },
       });
     }
@@ -2289,14 +2335,14 @@ export const redistributeTasks = async ({ tenantId = null, employeeId = null, re
       await notifyTaskAssignment(db, item.task, item.assignee, "task_reassigned");
       await emitTaskRealtime("task_updated", item.task, {
         persist: false,
-        title: "تم إعادة تعيين المهمة",
+        title: "طھظ… ط¥ط¹ط§ط¯ط© طھط¹ظٹظٹظ† ط§ظ„ظ…ظ‡ظ…ط©",
         message: taskTitleAr(item.task),
         metadata: { assignee_id: item.assignee.id, reason },
       });
       await emitTaskRealtime("task_status_changed", item.task, {
         persist: false,
-        title: "تم إعادة تعيين المهمة",
-        message: `${taskTitleAr(item.task)} - تم إعادة تعيينها`,
+        title: "طھظ… ط¥ط¹ط§ط¯ط© طھط¹ظٹظٹظ† ط§ظ„ظ…ظ‡ظ…ط©",
+        message: `${taskTitleAr(item.task)} - طھظ… ط¥ط¹ط§ط¯ط© طھط¹ظٹظٹظ†ظ‡ط§`,
         metadata: { to_status: "reassigned", reason },
       });
     }
@@ -2348,7 +2394,7 @@ export const addStaffTaskComment = async (taskId, payload = {}, actor = {}) => {
     await client.query("COMMIT");
     const comment = result.rows[0];
     await emitTaskRealtime("task_comment_added", task, {
-      title: "تمت إضافة تعليق على المهمة",
+      title: "طھظ…طھ ط¥ط¶ط§ظپط© طھط¹ظ„ظٹظ‚ ط¹ظ„ظ‰ ط§ظ„ظ…ظ‡ظ…ط©",
       message: taskTitleAr(task),
       metadata: { comment_id: comment.id },
     });
@@ -2391,7 +2437,7 @@ export const deleteStaffTask = async (taskId, actor = {}) => {
     await client.query(`DELETE FROM staff_task_assignments WHERE id = $1`, [task.id]);
     await client.query("COMMIT");
     await emitTaskRealtime("task_deleted", task, {
-      title: "تم حذف المهمة",
+      title: "طھظ… ط­ط°ظپ ط§ظ„ظ…ظ‡ظ…ط©",
       message: taskTitleAr(task),
       metadata: { deleted: true },
     });
@@ -2450,10 +2496,10 @@ export const assignDailyInventoryCountTasks = async ({ tenantId = null, actor = 
     const variantLabel = row.sku || row.variant_id;
     const result = await createStaffTask({
       tenantId,
-      title: `جرد يومي للمخزون: ${row.product_name}`,
-      description: `راجع المخزون الفعلي للمنتج ${variantLabel}. المخزون الحالي: ${row.stock}. المبيعات خلال 30 يوم: ${row.sold_30d}.`,
-      title_ar: `جرد يومي للمخزون: ${row.product_name}`,
-      description_ar: `راجع المخزون الفعلي للمنتج ${variantLabel}. المخزون الحالي: ${row.stock}. المبيعات خلال 30 يوم: ${row.sold_30d}.`,
+      title: `ط¬ط±ط¯ ظٹظˆظ…ظٹ ظ„ظ„ظ…ط®ط²ظˆظ†: ${row.product_name}`,
+      description: `ط±ط§ط¬ط¹ ط§ظ„ظ…ط®ط²ظˆظ† ط§ظ„ظپط¹ظ„ظٹ ظ„ظ„ظ…ظ†طھط¬ ${variantLabel}. ط§ظ„ظ…ط®ط²ظˆظ† ط§ظ„ط­ط§ظ„ظٹ: ${row.stock}. ط§ظ„ظ…ط¨ظٹط¹ط§طھ ط®ظ„ط§ظ„ 30 ظٹظˆظ…: ${row.sold_30d}.`,
+      title_ar: `ط¬ط±ط¯ ظٹظˆظ…ظٹ ظ„ظ„ظ…ط®ط²ظˆظ†: ${row.product_name}`,
+      description_ar: `ط±ط§ط¬ط¹ ط§ظ„ظ…ط®ط²ظˆظ† ط§ظ„ظپط¹ظ„ظٹ ظ„ظ„ظ…ظ†طھط¬ ${variantLabel}. ط§ظ„ظ…ط®ط²ظˆظ† ط§ظ„ط­ط§ظ„ظٹ: ${row.stock}. ط§ظ„ظ…ط¨ظٹط¹ط§طھ ط®ظ„ط§ظ„ 30 ظٹظˆظ…: ${row.sold_30d}.`,
       task_type: "daily_inventory_count",
       source_module: "warehouse",
       source_ref_type: "product_variant",
@@ -2516,20 +2562,20 @@ const dailyAttendanceTaskPlan = [
     tasks: [
       {
         key: "opening_readiness",
-        title: "قائمة تجهيز افتتاح الفرع",
-        description: "تأكد من جاهزية الفرع والكاونتر والإضاءة ومنطقة العملاء قبل بدء البيع.",
-        title_ar: "قائمة تجهيز افتتاح الفرع",
-        description_ar: "تأكد من جاهزية الفرع والكاونتر والإضاءة ومنطقة العملاء قبل بدء البيع.",
+        title: "ظ‚ط§ط¦ظ…ط© طھط¬ظ‡ظٹط² ط§ظپطھطھط§ط­ ط§ظ„ظپط±ط¹",
+        description: "طھط£ظƒط¯ ظ…ظ† ط¬ط§ظ‡ط²ظٹط© ط§ظ„ظپط±ط¹ ظˆط§ظ„ظƒط§ظˆظ†طھط± ظˆط§ظ„ط¥ط¶ط§ط،ط© ظˆظ…ظ†ط·ظ‚ط© ط§ظ„ط¹ظ…ظ„ط§ط، ظ‚ط¨ظ„ ط¨ط¯ط، ط§ظ„ط¨ظٹط¹.",
+        title_ar: "ظ‚ط§ط¦ظ…ط© طھط¬ظ‡ظٹط² ط§ظپطھطھط§ط­ ط§ظ„ظپط±ط¹",
+        description_ar: "طھط£ظƒط¯ ظ…ظ† ط¬ط§ظ‡ط²ظٹط© ط§ظ„ظپط±ط¹ ظˆط§ظ„ظƒط§ظˆظ†طھط± ظˆط§ظ„ط¥ط¶ط§ط،ط© ظˆظ…ظ†ط·ظ‚ط© ط§ظ„ط¹ظ…ظ„ط§ط، ظ‚ط¨ظ„ ط¨ط¯ط، ط§ظ„ط¨ظٹط¹.",
         task_type: "opening",
         priority: "high",
         deadlineMinutes: 90,
       },
       {
         key: "opening_display_walkthrough",
-        title: "مراجعة عرض واجهة المحل",
-        description: "راجع واجهة المحل وتأكد إن المنتجات الأكثر مبيعًا ظاهرة ومتنسقة بشكل صحيح.",
-        title_ar: "مراجعة عرض واجهة المحل",
-        description_ar: "راجع واجهة المحل وتأكد إن المنتجات الأكثر مبيعًا ظاهرة ومتنسقة بشكل صحيح.",
+        title: "ظ…ط±ط§ط¬ط¹ط© ط¹ط±ط¶ ظˆط§ط¬ظ‡ط© ط§ظ„ظ…ط­ظ„",
+        description: "ط±ط§ط¬ط¹ ظˆط§ط¬ظ‡ط© ط§ظ„ظ…ط­ظ„ ظˆطھط£ظƒط¯ ط¥ظ† ط§ظ„ظ…ظ†طھط¬ط§طھ ط§ظ„ط£ظƒط«ط± ظ…ط¨ظٹط¹ظ‹ط§ ط¸ط§ظ‡ط±ط© ظˆظ…طھظ†ط³ظ‚ط© ط¨ط´ظƒظ„ طµط­ظٹط­.",
+        title_ar: "ظ…ط±ط§ط¬ط¹ط© ط¹ط±ط¶ ظˆط§ط¬ظ‡ط© ط§ظ„ظ…ط­ظ„",
+        description_ar: "ط±ط§ط¬ط¹ ظˆط§ط¬ظ‡ط© ط§ظ„ظ…ط­ظ„ ظˆطھط£ظƒط¯ ط¥ظ† ط§ظ„ظ…ظ†طھط¬ط§طھ ط§ظ„ط£ظƒط«ط± ظ…ط¨ظٹط¹ظ‹ط§ ط¸ط§ظ‡ط±ط© ظˆظ…طھظ†ط³ظ‚ط© ط¨ط´ظƒظ„ طµط­ظٹط­.",
         task_type: "opening",
         priority: "medium",
         deadlineMinutes: 120,
@@ -2541,20 +2587,20 @@ const dailyAttendanceTaskPlan = [
     tasks: [
       {
         key: "mirror_cleaning",
-        title: "تنظيف مرايات العملاء",
-        description: "نضف مرايات العملاء ومنطقة القياس، وبلغ عن أي تلف في التجهيزات.",
-        title_ar: "تنظيف مرايات العملاء",
-        description_ar: "نضف مرايات العملاء ومنطقة القياس، وبلغ عن أي تلف في التجهيزات.",
+        title: "طھظ†ط¸ظٹظپ ظ…ط±ط§ظٹط§طھ ط§ظ„ط¹ظ…ظ„ط§ط،",
+        description: "ظ†ط¶ظپ ظ…ط±ط§ظٹط§طھ ط§ظ„ط¹ظ…ظ„ط§ط، ظˆظ…ظ†ط·ظ‚ط© ط§ظ„ظ‚ظٹط§ط³طŒ ظˆط¨ظ„ط؛ ط¹ظ† ط£ظٹ طھظ„ظپ ظپظٹ ط§ظ„طھط¬ظ‡ظٹط²ط§طھ.",
+        title_ar: "طھظ†ط¸ظٹظپ ظ…ط±ط§ظٹط§طھ ط§ظ„ط¹ظ…ظ„ط§ط،",
+        description_ar: "ظ†ط¶ظپ ظ…ط±ط§ظٹط§طھ ط§ظ„ط¹ظ…ظ„ط§ط، ظˆظ…ظ†ط·ظ‚ط© ط§ظ„ظ‚ظٹط§ط³طŒ ظˆط¨ظ„ط؛ ط¹ظ† ط£ظٹ طھظ„ظپ ظپظٹ ط§ظ„طھط¬ظ‡ظٹط²ط§طھ.",
         task_type: "branch_cleaning",
         priority: "medium",
         deadlineMinutes: 180,
       },
       {
         key: "glass_cleaning",
-        title: "تنظيف الزجاج والكاونتر",
-        description: "نضف زجاج الواجهة وفاترينات العرض والكاونتر من غير ما تعطل حركة العملاء.",
-        title_ar: "تنظيف الزجاج والكاونتر",
-        description_ar: "نضف زجاج الواجهة وفاترينات العرض والكاونتر من غير ما تعطل حركة العملاء.",
+        title: "طھظ†ط¸ظٹظپ ط§ظ„ط²ط¬ط§ط¬ ظˆط§ظ„ظƒط§ظˆظ†طھط±",
+        description: "ظ†ط¶ظپ ط²ط¬ط§ط¬ ط§ظ„ظˆط§ط¬ظ‡ط© ظˆظپط§طھط±ظٹظ†ط§طھ ط§ظ„ط¹ط±ط¶ ظˆط§ظ„ظƒط§ظˆظ†طھط± ظ…ظ† ط؛ظٹط± ظ…ط§ طھط¹ط·ظ„ ط­ط±ظƒط© ط§ظ„ط¹ظ…ظ„ط§ط،.",
+        title_ar: "طھظ†ط¸ظٹظپ ط§ظ„ط²ط¬ط§ط¬ ظˆط§ظ„ظƒط§ظˆظ†طھط±",
+        description_ar: "ظ†ط¶ظپ ط²ط¬ط§ط¬ ط§ظ„ظˆط§ط¬ظ‡ط© ظˆظپط§طھط±ظٹظ†ط§طھ ط§ظ„ط¹ط±ط¶ ظˆط§ظ„ظƒط§ظˆظ†طھط± ظ…ظ† ط؛ظٹط± ظ…ط§ طھط¹ط·ظ„ ط­ط±ظƒط© ط§ظ„ط¹ظ…ظ„ط§ط،.",
         task_type: "branch_cleaning",
         priority: "medium",
         deadlineMinutes: 180,
@@ -2892,10 +2938,10 @@ const assignBranchHotProductStockCounts = async ({ tenantId, branchId, attendanc
       tenantId,
       branch_id: branchId,
       employee_id: assignee.id,
-      title: `جرد منتج سريع البيع: ${row.product_name}`,
-      description: `عد مخزون الفرع للمنتج ${variantLabel}. المبيعات خلال 30 يوم: ${row.sold_qty}.`,
-      title_ar: `جرد منتج سريع البيع: ${row.product_name}`,
-      description_ar: `عد مخزون الفرع للمنتج ${variantLabel}. المبيعات خلال 30 يوم: ${row.sold_qty}.`,
+      title: `ط¬ط±ط¯ ظ…ظ†طھط¬ ط³ط±ظٹط¹ ط§ظ„ط¨ظٹط¹: ${row.product_name}`,
+      description: `ط¹ط¯ ظ…ط®ط²ظˆظ† ط§ظ„ظپط±ط¹ ظ„ظ„ظ…ظ†طھط¬ ${variantLabel}. ط§ظ„ظ…ط¨ظٹط¹ط§طھ ط®ظ„ط§ظ„ 30 ظٹظˆظ…: ${row.sold_qty}.`,
+      title_ar: `ط¬ط±ط¯ ظ…ظ†طھط¬ ط³ط±ظٹط¹ ط§ظ„ط¨ظٹط¹: ${row.product_name}`,
+      description_ar: `ط¹ط¯ ظ…ط®ط²ظˆظ† ط§ظ„ظپط±ط¹ ظ„ظ„ظ…ظ†طھط¬ ${variantLabel}. ط§ظ„ظ…ط¨ظٹط¹ط§طھ ط®ظ„ط§ظ„ 30 ظٹظˆظ…: ${row.sold_qty}.`,
       task_type: "daily_inventory_count",
       source_module: ATTENDANCE_TASK_SOURCE,
       source_ref_type: "branch_hot_product_count",
@@ -2980,7 +3026,7 @@ const rebalanceBranchAttendanceTasks = async ({ tenantId, branchId, attendanceDa
         toStatus: "pending",
         fromEmployeeId: task.current_assignee_id,
         toEmployeeId: nextAssignee.id,
-        note: "إعادة توزيع بعد تسجيل الحضور بالـ QR",
+        note: "ط¥ط¹ط§ط¯ط© طھظˆط²ظٹط¹ ط¨ط¹ط¯ طھط³ط¬ظٹظ„ ط§ظ„ط­ط¶ظˆط± ط¨ط§ظ„ظ€ QR",
       });
       reassigned.push({ task: updated.rows[0], assignee: nextAssignee });
     }
@@ -3038,10 +3084,10 @@ const notifyEmployeeTaskDigest = async ({ tenantId, branchId, employeeId, attend
     type: "staff_tasks_available",
     category: "staff_tasks",
     priority: "medium",
-    title: "قائمة مهامك جاهزة",
-    message: `لديك ${tasks.length} مهمة مخصصة لك اليوم.`,
+    title: "ظ‚ط§ط¦ظ…ط© ظ…ظ‡ط§ظ…ظƒ ط¬ط§ظ‡ط²ط©",
+    message: `ظ„ط¯ظٹظƒ ${tasks.length} ظ…ظ‡ظ…ط© ظ…ط®طµطµط© ظ„ظƒ ط§ظ„ظٹظˆظ….`,
     action_url: "/staff/tasks",
-    action_label: "فتح المهام",
+    action_label: "ظپطھط­ ط§ظ„ظ…ظ‡ط§ظ…",
     entity_type: "staff_task_digest",
     entity_id: `${employeeId}:${attendanceDate}`,
     metadata: {
@@ -3073,10 +3119,10 @@ const notifyEmployeeTaskDigest = async ({ tenantId, branchId, employeeId, attend
       dedupeKey,
       JSON.stringify({
         dedupe_key: dedupeKey,
-        subject: "مهام الفرع جاهزة",
+        subject: "ظ…ظ‡ط§ظ… ط§ظ„ظپط±ط¹ ط¬ط§ظ‡ط²ط©",
         assignee_name: employee.full_name,
-        subject_ar: "مهام الفرع جاهزة",
-        message: "تم تحديث قائمة مهامك بعد تسجيل الحضور بالـ QR.",
+        subject_ar: "ظ…ظ‡ط§ظ… ط§ظ„ظپط±ط¹ ط¬ط§ظ‡ط²ط©",
+        message: "طھظ… طھط­ط¯ظٹط« ظ‚ط§ط¦ظ…ط© ظ…ظ‡ط§ظ…ظƒ ط¨ط¹ط¯ طھط³ط¬ظٹظ„ ط§ظ„ط­ط¶ظˆط± ط¨ط§ظ„ظ€ QR.",
         tasks: tasks.slice(0, 20).map((task) => ({
           id: task.id,
           title: task.title,
@@ -3105,10 +3151,10 @@ const notifyManagerAttendanceTaskState = async ({ tenantId, branchId, attendance
       type: "staff_tasks_redistributed",
       category: "staff_tasks",
       priority: "medium",
-      title: "تم إعادة توزيع مهام الفرع",
-      message: `تم إعادة توزيع ${redistributedCount} مهمة بعد تسجيل الحضور بالـ QR.`,
+      title: "طھظ… ط¥ط¹ط§ط¯ط© طھظˆط²ظٹط¹ ظ…ظ‡ط§ظ… ط§ظ„ظپط±ط¹",
+      message: `طھظ… ط¥ط¹ط§ط¯ط© طھظˆط²ظٹط¹ ${redistributedCount} ظ…ظ‡ظ…ط© ط¨ط¹ط¯ طھط³ط¬ظٹظ„ ط§ظ„ط­ط¶ظˆط± ط¨ط§ظ„ظ€ QR.`,
       action_url: "/staff/tasks",
-      action_label: "مراجعة المهام",
+      action_label: "ظ…ط±ط§ط¬ط¹ط© ط§ظ„ظ…ظ‡ط§ظ…",
       entity_type: "staff_task_rebalance",
       entity_id: `${branchId}:${attendanceDate}`,
       metadata: { branch_id: branchId, attendance_date: attendanceDate, redistributed_count: redistributedCount },
@@ -3123,10 +3169,10 @@ const notifyManagerAttendanceTaskState = async ({ tenantId, branchId, attendance
       type: "staffing_low",
       category: "staff_tasks",
       priority: "high",
-      title: "عدد الموظفين في الفرع منخفض",
-      message: `تم تسجيل حضور ${presentCount} موظف فقط في هذا الفرع.`,
+      title: "ط¹ط¯ط¯ ط§ظ„ظ…ظˆط¸ظپظٹظ† ظپظٹ ط§ظ„ظپط±ط¹ ظ…ظ†ط®ظپط¶",
+      message: `طھظ… طھط³ط¬ظٹظ„ ط­ط¶ظˆط± ${presentCount} ظ…ظˆط¸ظپ ظپظ‚ط· ظپظٹ ظ‡ط°ط§ ط§ظ„ظپط±ط¹.`,
       action_url: "/attendance/today",
-      action_label: "مراجعة الحضور",
+      action_label: "ظ…ط±ط§ط¬ط¹ط© ط§ظ„ط­ط¶ظˆط±",
       entity_type: "staffing_low",
       entity_id: `${branchId}:${attendanceDate}`,
       metadata: { branch_id: branchId, attendance_date: attendanceDate, present_count: presentCount, threshold: STAFFING_LOW_THRESHOLD },
@@ -3245,14 +3291,14 @@ export const reassignOverdueTasks = async ({ tenantId = null, actor = null } = {
   for (const task of overdue.rows) {
     await sendTaskOverduePush(task);
     await emitTaskRealtime("task_overdue", task, {
-      title: "مهمة متأخرة",
+      title: "ظ…ظ‡ظ…ط© ظ…طھط£ط®ط±ط©",
       message: taskTitleAr(task),
       metadata: { due_at: task.due_at },
     });
     await emitTaskRealtime("task_status_changed", task, {
       persist: false,
-      title: "تم تحديث حالة المهمة",
-      message: `${taskTitleAr(task)} أصبحت متأخرة`,
+      title: "طھظ… طھط­ط¯ظٹط« ط­ط§ظ„ط© ط§ظ„ظ…ظ‡ظ…ط©",
+      message: `${taskTitleAr(task)} ط£طµط¨ط­طھ ظ…طھط£ط®ط±ط©`,
       metadata: { to_status: "overdue" },
     });
   }
@@ -3288,7 +3334,7 @@ export const sendUpcomingTaskDueReminders = async ({ tenantId = null, minutesBef
   for (const task of result.rows) {
     await sendTaskUpdatedPush(normalizeTaskRow(task), { event: "due_reminder" }).catch(() => {});
     await emitTaskRealtime("task_due_reminder", task, {
-      title: "تذكير بمهمة قريبة",
+      title: "طھط°ظƒظٹط± ط¨ظ…ظ‡ظ…ط© ظ‚ط±ظٹط¨ط©",
       message: taskTitleAr(task),
       metadata: { due_at: task.due_at },
     });
@@ -3446,3 +3492,5 @@ export const getStaffTaskDashboard = async ({ tenantId = null, branchId = null }
     console.timeEnd("staff-tasks-service:dashboard");
   }
 };
+
+
