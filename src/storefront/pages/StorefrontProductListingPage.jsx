@@ -538,6 +538,20 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
       manufacturer_brand: product.manufacturer_brand,
     })));
   }, [catalogProducts]);
+  useEffect(() => {
+    if (!import.meta.env.DEV || !(saleView || offerStoryQuery)) return;
+    console.log("[offer-story-listing-catalog]", {
+      requestUrl: `/storefront/products?${new URLSearchParams(productsApiParams).toString()}`,
+      catalogCount: catalogProducts.length,
+      sample: catalogProducts.slice(0, 5).map((product) => ({
+        id: product.id,
+        name: product.name,
+        is_offer_story: product.is_offer_story,
+        is_storefront_visible: product.is_storefront_visible,
+        active: product.active,
+      })),
+    });
+  }, [catalogProducts, offerStoryQuery, productsApiParams, saleView]);
   const catalogFilters = useMemo(
     () => ({
       gender,
@@ -847,6 +861,37 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
   };
   const showEmptyResults = !loading && !orderedFilteredProducts.length;
   const showGuidedProducts = Boolean(selectedGender && selectedGrade && selectedProductType);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || !(saleView || offerStoryQuery)) return;
+    console.log("[offer-story-rendered]", {
+      catalogCount: catalogProducts.length,
+      filteredCount: orderedFilteredProducts.length,
+      renderedCount: orderedFilteredProducts.length,
+      hasActiveCatalogFilters,
+      activeFilters: {
+        gender,
+        category,
+        brand,
+        productType,
+        grade,
+        color,
+        size,
+        selectedSizes,
+        inStock,
+        saleView,
+        lastSizes,
+        q,
+      },
+      sample: orderedFilteredProducts.slice(0, 5).map((product) => ({
+        id: product.id,
+        name: product.name,
+        is_offer_story: product.is_offer_story,
+        is_storefront_visible: product.is_storefront_visible,
+        active: product.active,
+      })),
+    });
+  }, [catalogProducts.length, gender, category, brand, productType, grade, color, size, selectedSizes, inStock, saleView, lastSizes, q, hasActiveCatalogFilters, orderedFilteredProducts, offerStoryQuery]);
 
   return (
     <section className="mx-auto max-w-7xl px-3 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+2.25rem)] pt-2.5 md:px-4 md:py-5">

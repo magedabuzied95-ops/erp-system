@@ -2,11 +2,11 @@ import { api } from "../../../shared/api/api";
 
 export const staffTasksApi = {
   bootstrap: () => api.get("/staff-tasks/bootstrap"),
-  list: (params = {}) => api.get("/staff-tasks", { params }),
-  templates: (params = {}) => api.get("/staff-tasks/templates", { params }),
+  list: (params = {}, options = {}) => api.get("/staff-tasks", { params, ...options }),
+  templates: (params = {}, options = {}) => api.get("/staff-tasks/templates", { params, ...options }),
   updateTemplate: (id, payload) => api.put(`/staff-tasks/templates/${id}`, payload),
   my: (params = {}) => api.get("/staff-tasks/my", { params }),
-  dashboard: (params = {}) => api.get("/staff-tasks/dashboard", { params }),
+  dashboard: (params = {}, options = {}) => api.get("/staff-tasks/dashboard", { params, ...options }),
   create: (payload) => api.post("/staff-tasks", payload),
   update: (id, payload) => api.put(`/staff-tasks/${id}`, payload),
   updateStatus: (id, payload) => api.patch(`/staff-tasks/${id}/status`, payload),
@@ -20,6 +20,6 @@ export const staffTasksApi = {
   employeePortal: (token, options = {}) => api.get("/staff-tasks/employee-portal", { ...options, params: { token } }),
   updateEmployeePortalStatus: (token, id, payload) => api.patch(`/staff-tasks/employee-portal/tasks/${id}/status`, { ...payload, token }),
   completeEmployeePortalTask: (token, id, payload = {}) => api.post(`/staff-tasks/employee-portal/tasks/${id}/complete`, { ...payload, token, status: "completed" }),
-  getPortalSettings: () => api.get("/staff-tasks/portal-settings"),
+  getPortalSettings: (options = {}) => api.get("/staff-tasks/portal-settings", options),
   updatePortalSettings: (payload) => api.put("/staff-tasks/portal-settings", payload),
 };

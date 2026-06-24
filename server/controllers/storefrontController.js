@@ -2289,6 +2289,7 @@ const storefrontQualityAliases = (quality = "") => {
 export const listProducts = async (req, res) => {
   const startedAt = Date.now();
   try {
+    console.log("[storefront-products-hit]", req.originalUrl || req.url || "", req.query || {});
     res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     res.set("Pragma", "no-cache");
     res.set("Expires", "0");
@@ -2341,6 +2342,45 @@ export const listProducts = async (req, res) => {
         ? Math.min(Math.max(limit + offset + 500, 1000), 5000)
         : limit;
       const queryOffset = shouldOrderAfterExpansion ? 0 : offset;
+      if (process.env.NODE_ENV !== "production" && effectiveOfferStoryOnly) {
+        const debugLimit = Math.max(candidateLimit, 1000);
+        const [beforeOfferStory, afterOfferStoryBeforeVisibility, afterVisibility] = await Promise.all([
+          queryProductsWithoutVisibility(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: false }, effectiveSaleOnly, debugLimit, 0),
+          queryProductsWithoutVisibility(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: true }, effectiveSaleOnly, debugLimit, 0),
+          queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: true }, effectiveSaleOnly, debugLimit, 0),
+        ]);
+        const dbCheck = await db.query(
+          `
+          SELECT
+            p.id,
+            p.name,
+            p.is_offer_story,
+            p.is_storefront_visible,
+            p.is_active,
+            p.stock
+          FROM products p
+          WHERE COALESCE(p.is_offer_story, FALSE) = TRUE
+          ORDER BY p.id DESC
+          LIMIT 20
+          `
+        );
+        const visibleIds = new Set(afterVisibility.rows.map((row) => String(row.id)));
+        const excludedDueToVisibility = afterOfferStoryBeforeVisibility.rows
+          .filter((row) => !visibleIds.has(String(row.id)))
+          .map((row) => ({
+            id: row.id,
+            name: row.name,
+            is_storefront_visible: row.is_storefront_visible,
+          }));
+        console.debug("[storefront-products-debug-offer-story]", {
+          requestQuery: req.query || {},
+          total_before_offer_story_filter: beforeOfferStory.rows.length,
+          total_after_offer_story_filter: afterOfferStoryBeforeVisibility.rows.length,
+          total_after_is_storefront_visible_filter: afterVisibility.rows.length,
+          offer_story_db_check: dbCheck.rows,
+          excluded_due_to_is_storefront_visible: excludedDueToVisibility,
+        });
+      }
       let result = await queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset);
       let usedTenantFallback = false;
       if (!result.rows.length && tenantId !== null) {
@@ -2348,6 +2388,25 @@ export const listProducts = async (req, res) => {
         if (fallback.rows.length) {
           result = fallback;
           usedTenantFallback = true;
+        }
+      }
+      if (effectiveOfferStoryOnly && !result.rows.length) {
+        const isDbOfferStory = (value) => value === true || value === 1 || String(value || "").toLowerCase() === "true";
+        const isDbStorefrontVisible = (value) => value === true || value === 1 || value === undefined || value === null || String(value || "").trim() === "" || String(value || "").toLowerCase() === "true";
+        let relaxedResult = await queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: false }, effectiveSaleOnly, candidateLimit, queryOffset);
+        if (!relaxedResult.rows.length && tenantId !== null) {
+          relaxedResult = await queryProducts(null, q, category, { brand, gender, productType, grade, quality, size, inStock, offerStory: false }, effectiveSaleOnly, candidateLimit, queryOffset);
+        }
+        const relaxedRows = relaxedResult.rows.filter((row) => isDbOfferStory(row.is_offer_story) && isDbStorefrontVisible(row.is_storefront_visible));
+        if (relaxedRows.length) {
+          result = { ...relaxedResult, rows: relaxedRows };
+          usedTenantFallback = true;
+          console.warn("[storefront-offer-story-fallback]", {
+            tenantId,
+            requestQuery: req.query || {},
+            relaxed_rows: relaxedResult.rows.length,
+            filtered_rows: relaxedRows.length,
+          });
         }
       }
       let products = result.rows.map((row) => normalizeProduct(row, pricingSettings));

@@ -411,8 +411,11 @@ export const mergeProductRecord = (product, variant = null) => {
     wholesale_price: hasVariant ? mergedVariant.wholesale_price ?? meta.wholesale_price ?? product.wholesale_price ?? 0 : product.wholesale_price ?? meta.wholesale_price ?? 0,
     category: meta.category || product.category || "Uncategorized",
     brand: meta.brand || product.brand || "Unbranded",
-    is_offer_story: meta.is_offer_story ?? product.is_offer_story ?? false,
-    is_storefront_visible: meta.is_storefront_visible ?? product.is_storefront_visible ?? true,
+    is_offer_story: product.is_offer_story ?? meta.is_offer_story ?? false,
+    is_storefront_visible:
+      product.is_storefront_visible === undefined || product.is_storefront_visible === null
+        ? meta.is_storefront_visible ?? true
+        : product.is_storefront_visible,
     image_url: mergedVariant.image_url || meta.image_url || product.image_url || "",
     status,
     active,

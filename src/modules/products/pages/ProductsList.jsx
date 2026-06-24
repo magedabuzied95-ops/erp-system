@@ -1369,12 +1369,37 @@ function ProductsList() {
     setSelectedProduct((prev) => (prev?.id === id ? { ...prev, active, is_active: active, status } : prev));
   };
 
-  const updateLocalOfferStory = (id, isOfferStory) => {
+  const updateLocalOfferStory = (id, snapshotOrValue) => {
     const item = rows.find((row) => row.id === id);
     if (!item) return;
-    upsertProductMeta({ ...item, is_offer_story: isOfferStory });
-    setRows((prev) => prev.map((row) => (row.id === id ? { ...row, is_offer_story: isOfferStory } : row)));
-    setSelectedProduct((prev) => (prev?.id === id ? { ...prev, is_offer_story: isOfferStory } : prev));
+    const nextIsOfferStory =
+      snapshotOrValue && typeof snapshotOrValue === "object"
+        ? snapshotOrValue.is_offer_story === true || String(snapshotOrValue.is_offer_story || "").trim().toLowerCase() === "true"
+        : Boolean(snapshotOrValue);
+    const nextVisible =
+      snapshotOrValue && typeof snapshotOrValue === "object"
+        ? snapshotOrValue.is_storefront_visible === true ||
+          String(snapshotOrValue.is_storefront_visible ?? "").trim().toLowerCase() === "true" ||
+          snapshotOrValue.is_storefront_visible === undefined ||
+          snapshotOrValue.is_storefront_visible === null ||
+          snapshotOrValue.is_storefront_visible === ""
+        : item.is_storefront_visible;
+    const nextActive =
+      snapshotOrValue && typeof snapshotOrValue === "object"
+        ? snapshotOrValue.active === true || snapshotOrValue.is_active === true
+        : item.active;
+    const nextName = snapshotOrValue && typeof snapshotOrValue === "object" ? snapshotOrValue.name || item.name : item.name;
+    const nextRow = {
+      ...item,
+      ...(snapshotOrValue && typeof snapshotOrValue === "object" ? snapshotOrValue : {}),
+      name: nextName,
+      is_offer_story: nextIsOfferStory,
+      is_storefront_visible: nextVisible,
+      active: nextActive,
+      is_active: nextActive,
+    };
+    setRows((prev) => prev.map((row) => (row.id === id ? nextRow : row)));
+    setSelectedProduct((prev) => (prev?.id === id ? { ...prev, ...nextRow } : prev));
   };
 
   const updateLocalStorefrontVisibility = (id, isStorefrontVisible) => {
@@ -1422,8 +1447,10 @@ function ProductsList() {
     if (!row?.id) return;
     const nextOfferStory = !Boolean(row.is_offer_story);
     try {
-      await updateProductStatus(row.id, { is_offer_story: nextOfferStory });
-      updateLocalOfferStory(row.id, nextOfferStory);
+      const response = await updateProductStatus(row.id, { is_offer_story: nextOfferStory });
+      const snapshot = response?.db_snapshot || response?.product || response?.data || response || null;
+      console.log("[products:list] offer story update response", { rowId: row.id, response, snapshot });
+      updateLocalOfferStory(row.id, snapshot || nextOfferStory);
       toast.success(nextOfferStory ? t("products.toasts.addedToOffers", "Added to offers") : t("products.toasts.removedFromOffers", "Removed from offers"));
       await loadProducts();
     } catch (err) {

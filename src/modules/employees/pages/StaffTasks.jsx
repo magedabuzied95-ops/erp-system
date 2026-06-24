@@ -382,26 +382,35 @@ function StaffTasks() {
   const dailyTemplates = useMemo(() => templates.filter((template) => String(template.template_kind || "").toLowerCase() === "daily"), [templates]);
   const weeklyTemplates = useMemo(() => templates.filter((template) => String(template.template_kind || "").toLowerCase() === "weekly"), [templates]);
 
+  useEffect(() => {
+    if (error) {
+      console.log("StaffTasks Error:", error);
+    }
+  }, [error]);
+
   const refresh = useCallback(async () => {
     try {
       setError("");
       setLoading((current) => (current ? current : true));
-      const [dashboardRes, tasksRes, templatesRes, settingsRes] = await Promise.all([
-        staffTasksApi.dashboard({ branch_id: branchFilter }),
-        staffTasksApi.list({ limit: 120, today: todayOnly ? "true" : "", branch_id: branchFilter }),
-        staffTasksApi.templates({ limit: 200, branch_id: branchFilter }).catch(() => ({ templates: [] })),
-        staffTasksApi.getPortalSettings().catch(() => null),
+      const [dashboardResult, tasksResult, templatesResult, settingsResult] = await Promise.allSettled([
+        staffTasksApi.dashboard({ branch_id: branchFilter }, { debugLabel: "staff-tasks-dashboard" }),
+        staffTasksApi.list({ limit: 120, today: todayOnly ? "true" : "", branch_id: branchFilter }, { debugLabel: "staff-tasks-list" }),
+        staffTasksApi.templates({ limit: 200, branch_id: branchFilter }, { debugLabel: "staff-tasks-templates" }),
+        staffTasksApi.getPortalSettings({ debugLabel: "staff-tasks-portal-settings" }),
       ]);
-      const nextDashboard = dashboardRes.dashboard || null;
-      const nextTasks = tasksRes.tasks || [];
-      const nextTemplates = templatesRes?.templates || [];
+      if (dashboardResult.status === "rejected") throw new Error(`[staff-tasks/dashboard] ${dashboardResult.reason?.message || tr("failedToLoad")}`);
+      if (tasksResult.status === "rejected") throw new Error(`[staff-tasks/list] ${tasksResult.reason?.message || tr("failedToLoad")}`);
+      const nextDashboard = dashboardResult.value.dashboard || null;
+      const nextTasks = tasksResult.value.tasks || [];
+      const nextTemplates = templatesResult.status === "fulfilled" ? templatesResult.value?.templates || [] : [];
       setDashboard((current) => (sameJson(current, nextDashboard) ? current : nextDashboard));
       setTasks((current) => (sameJson(current, nextTasks) ? current : nextTasks));
       setTemplates((current) => (sameJson(current, nextTemplates) ? current : nextTemplates));
-      if (settingsRes?.settings) {
-        setPortalSettings((current) => (sameJson(current, settingsRes.settings) ? current : settingsRes.settings));
+      if (settingsResult.status === "fulfilled" && settingsResult.value?.settings) {
+        setPortalSettings((current) => (sameJson(current, settingsResult.value.settings) ? current : settingsResult.value.settings));
       }
     } catch (loadError) {
+      console.error("[staff-tasks] refresh failed", loadError);
       setError(loadError?.message || tr("failedToLoad"));
     } finally {
       setLoading((current) => (current ? false : current));

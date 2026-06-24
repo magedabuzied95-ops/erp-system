@@ -3449,6 +3449,8 @@ export const updateProductStatus = async (req, res) => {
       values
     );
 
+    const refreshed = updated.rows[0] ? normalizeProductRow(updated.rows[0]) : null;
+
     console.log("[products-status-toggle]", {
       product_id: productId,
       previous_status: currentStatus,
@@ -3457,12 +3459,35 @@ export const updateProductStatus = async (req, res) => {
       is_offer_story: offerStoryProvided ? (req.body?.is_offer_story === true || String(req.body?.is_offer_story || "").toLowerCase() === "true") : null,
       is_storefront_visible: storefrontVisibleProvided ? (req.body?.is_storefront_visible === true || String(req.body?.is_storefront_visible || "").toLowerCase() === "true") : null,
       affected_rows: updated.rowCount,
+      db_snapshot: refreshed
+        ? {
+            id: refreshed.id,
+            name: refreshed.name,
+            is_offer_story: refreshed.is_offer_story,
+            is_storefront_visible: refreshed.is_storefront_visible,
+            active: refreshed.active,
+          }
+        : null,
     });
 
     return res.json({
       success: true,
-      data: normalizeProductRow(updated.rows[0]),
-      product: normalizeProductRow(updated.rows[0]),
+      data: refreshed,
+      product: refreshed,
+      db_snapshot: refreshed
+        ? {
+            id: refreshed.id,
+            name: refreshed.name,
+            is_offer_story: refreshed.is_offer_story,
+            is_storefront_visible: refreshed.is_storefront_visible,
+            active: refreshed.active,
+          }
+        : null,
+      id: refreshed?.id,
+      name: refreshed?.name,
+      is_offer_story: refreshed?.is_offer_story,
+      is_storefront_visible: refreshed?.is_storefront_visible,
+      active: refreshed?.active,
     });
   } catch (error) {
     console.error("[products-status-toggle] failed", {

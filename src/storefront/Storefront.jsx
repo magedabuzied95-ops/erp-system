@@ -73,6 +73,7 @@ import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocatio
 import { VirtualGrid, VirtualList } from "../shared/components/VirtualList";
 import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "./lib/sizeGuide";
+import { sortProductSizes } from "../modules/products/lib/variantBulkSizes";
 import instaPayLogoWebp from "../assets/payments/instapay.webp";
 import instaPayLogo from "../assets/payments/instapay.png";
 import vodafoneCashLogoWebp from "../assets/payments/vodafone-cash.webp";
@@ -323,7 +324,7 @@ const useProducts = (params = {}, { ttlMs = STOREFRONT_PRODUCTS_CACHE_TTL_MS } =
   const randomSeedRef = useRef(`${Date.now()}-${Math.random()}`);
   const queryKey = JSON.stringify(params);
   const offerStoryValue = String(params?.offer_story ?? params?.offerStory ?? "").trim().toLowerCase();
-  const hasOfferStoryFilter = offerStoryValue && !["0", "false", "no", "off"].includes(offerStoryValue);
+  const hasOfferStoryFilter = Boolean(offerStoryValue && !["0", "false", "no", "off"].includes(offerStoryValue));
   const effectiveTtlMs = hasOfferStoryFilter ? 0 : ttlMs;
   const queryString = useMemo(() => {
     const query = new URLSearchParams();
@@ -346,7 +347,7 @@ const useProducts = (params = {}, { ttlMs = STOREFRONT_PRODUCTS_CACHE_TTL_MS } =
   const requestUrl = `/storefront/products${queryString ? `?${queryString}` : ""}`;
   const cachedProductsData = getCachedStorefrontGetData(requestUrl, { ttlMs: effectiveTtlMs });
   const [state, setState] = useState(() => {
-    const initialProducts = Array.isArray(cachedProductsData?.products) ? cachedProductsData.products : [];
+    const initialProducts = extractStorefrontProductsFromResponse(cachedProductsData);
     return cachedProductsData ? { loading: false, error: "", products: initialProducts } : { loading: true, error: "", products: [] };
   });
   const hasCachedInitialDataRef = useRef(Boolean(cachedProductsData));
@@ -360,17 +361,25 @@ const useProducts = (params = {}, { ttlMs = STOREFRONT_PRODUCTS_CACHE_TTL_MS } =
     }
     if (import.meta.env.DEV) {
       const requestParams = new URLSearchParams(queryString);
-        console.debug("[storefront-random-seed]", {
-          seed: requestParams.get("random_seed") || "",
-          sort: requestParams.get("sort") || "",
-          url: requestUrl,
-          ttlMs: effectiveTtlMs,
-        });
-      }
+      console.debug("[storefront-random-seed]", {
+        seed: requestParams.get("random_seed") || "",
+        sort: requestParams.get("sort") || "",
+        url: requestUrl,
+        ttlMs: effectiveTtlMs,
+      });
+    }
     cachedStorefrontGet(requestUrl, { ttlMs: effectiveTtlMs })
       .then((data) => {
-        const products = Array.isArray(data.products) ? data.products : [];
+        const products = extractStorefrontProductsFromResponse(data);
         if (import.meta.env.DEV) {
+          console.log("[offer-story-raw-response]", requestUrl, data);
+          console.log("[offer-story-normalized]", products.length, products.map((product) => ({
+            id: product?.id,
+            name: product?.name,
+            is_offer_story: product?.is_offer_story,
+            is_storefront_visible: product?.is_storefront_visible,
+            active: product?.active,
+          })));
           console.debug("[storefront-color-card-response]", products.map((product) => ({
             card_id: product?.card_id,
             parent_product_id: product?.parent_product_id,
@@ -900,6 +909,178 @@ const isOfferStory = (product = {}) =>
   String(product?.is_offer_story || "").toLowerCase() === "true" ||
   product?.isOfferStory === true ||
   String(product?.isOfferStory || "").toLowerCase() === "true";
+const isStorefrontVisibleOfferProduct = (product = {}) =>
+  product?.is_storefront_visible !== false &&
+  String(product?.is_storefront_visible || "").trim().toLowerCase() !== "false";
+const normalizeOfferStoryProductTypeValue = (value = "") => {
+  const normalized = storefrontLabelKey(value);
+  if (["bag", "bags", "handbag", "handbags", "شنط", "شنطة", "شنطتي", "حقائب", "حقيبة", "حقيبه"].includes(normalized)) return "bags";
+  if (["croc", "crocs", "كروكس"].includes(normalized)) return "crocs";
+  if (["slipper", "slippers", "slide", "slides", "سليبر", "شباشب"].includes(normalized)) return "slippers";
+  if (["sneaker", "sneakers", "سنيكرز"].includes(normalized)) return "sneakers";
+  if (["shoe", "shoes", "أحذية", "حذاء", "احذية"].includes(normalized)) return "shoes";
+  if (["running", "run", "رياضي", "جري"].includes(normalized)) return "running";
+  if (["casual shoe", "casual shoes", "casual", "كاجوال", "كاجوال شوز"].includes(normalized)) return "casualshoes";
+  return normalized.replace(/[\s_-]+/g, "");
+};
+const offerStoryProductTypeValues = (product = {}) => {
+  const seen = new Set();
+  const visit = (value) => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (value === null || value === undefined) return;
+    String(value)
+      .split(/[,\n|]+/)
+      .map((entry) => normalizeOfferStoryProductTypeValue(entry))
+      .filter(Boolean)
+      .forEach((entry) => seen.add(entry));
+  };
+  visit(product.product_type);
+  visit(product.productType);
+  visit(product.type);
+  visit(product.category);
+  visit(product.categories);
+  visit(product.tags);
+  visit(product.labels);
+  visit(product.classifications);
+  return Array.from(seen);
+};
+const offerStoryProductGradeValues = (product = {}) => {
+  const seen = new Set();
+  const visit = (value) => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (value === null || value === undefined) return;
+    String(value)
+      .split(/[,\n|/]+/)
+      .map((entry) => String(entry || "").trim())
+      .filter(Boolean)
+      .forEach((entry) => seen.add(entry));
+  };
+  visit(product.grade);
+  visit(product.grades);
+  visit(product.quality);
+  visit(product.condition);
+  visit(product.conditions);
+  return Array.from(seen);
+};
+const extractOfferSizes = (product = {}) => {
+  const seen = new Set();
+  const addSize = (value, { respectStock = false, stockValue } = {}) => {
+    const normalized = String(value || "").trim();
+    if (!normalized) return;
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) return;
+    if (respectStock && Number.isFinite(Number(stockValue)) && Number(stockValue) <= 0) return;
+    seen.add(key);
+  };
+  const visit = (value, options = {}) => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => visit(item, options));
+      return;
+    }
+    if (value && typeof value === "object") {
+      const objectValues = [
+        value.size,
+        value.eu,
+        value.label,
+        value.value,
+        value.name,
+        value.variant_size,
+        value.selected_size,
+        value.available_size,
+        value.available_sizes,
+      ];
+      objectValues.forEach((entry) => visit(entry, options));
+      return;
+    }
+    String(value || "")
+      .split(/[,\n|]+/)
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+      .forEach((entry) => {
+        const normalized = entry.replace(/\s*[(-].*$/, "").trim() || entry;
+        addSize(normalized, options);
+      });
+  };
+
+  const walkVariantCollection = (collection, options = {}) => {
+    (Array.isArray(collection) ? collection : []).forEach((entry) => {
+      if (!entry || typeof entry !== "object") return;
+      const stockValue =
+        entry.stock ?? entry.quantity ?? entry.inventory_stock ?? entry.available_stock ?? entry.qty ?? entry.available_qty;
+      const hasStockField = stockValue !== undefined && stockValue !== null && String(stockValue).trim() !== "";
+      visit(
+        [
+          entry.size,
+          entry.variant_size,
+          entry.selected_size,
+          entry.eu,
+          entry.label,
+          entry.value,
+          entry.size_label,
+        ],
+        { respectStock: hasStockField, stockValue }
+      );
+      visit(entry.options, options);
+      visit(entry.sizes, options);
+      visit(entry.items, options);
+      visit(entry.variants, options);
+      visit(entry.color_cards, options);
+    });
+  };
+
+  walkVariantCollection(product?.variants);
+  walkVariantCollection(product?.color_cards);
+  walkVariantCollection(product?.variant_matrix);
+  walkVariantCollection(product?.inventory_variants);
+  walkVariantCollection(product?.available_options);
+
+  visit(product?.sizes);
+  visit(product?.available_sizes);
+  visit(product?.availableSizes);
+  visit(product?.size);
+  visit(product?.selected_size);
+  visit(product?.variant_size);
+  visit(product?.variant_matrix);
+  visit(product?.inventory_variants);
+  visit(product?.available_options);
+  visit(product?.color_cards);
+
+  return sortProductSizes(Array.from(seen));
+};
+const offerStoryProductSizes = (product = {}) => extractOfferSizes(product);
+const offerStoryMatchingVariant = (product = {}, selectedSize = "") => {
+  const variants = Array.isArray(product?.variants) ? product.variants : [];
+  const targetSize = String(selectedSize || "").trim().toLowerCase();
+  const candidates = targetSize
+    ? variants.filter((variant) => String(variant?.size || "").trim().toLowerCase() === targetSize && variantHasStock(variant))
+    : variants.filter((variant) => variantHasStock(variant));
+  return candidates[0] || firstDisplayVariant(variants) || null;
+};
+const offerStoryProductMatches = (product = {}, selectedSize = "", selectedType = "", selectedGrade = "") => {
+  if (!isStorefrontVisibleOfferProduct(product)) return false;
+  const sizeKey = String(selectedSize || "").trim().toLowerCase();
+  if (sizeKey) {
+    const sizeValues = extractOfferSizes(product).map((value) => String(value || "").trim().toLowerCase());
+    if (!sizeValues.includes(sizeKey)) return false;
+  }
+  const typeKey = String(selectedType || "").trim().toLowerCase();
+  if (typeKey) {
+    const typeValues = offerStoryProductTypeValues(product).map((value) => String(value || "").trim().toLowerCase());
+    if (!typeValues.includes(typeKey)) return false;
+  }
+  const gradeKey = String(selectedGrade || "").trim().toLowerCase();
+  if (gradeKey) {
+    const gradeValues = offerStoryProductGradeValues(product).map((value) => String(value || "").trim().toLowerCase());
+    if (!gradeValues.includes(gradeKey)) return false;
+  }
+  return true;
+};
 const LAST_PIECE_MAX_STOCK = 3;
 const sellableVariantStock = (variant = {}) => {
   const stock = Number(variant.stock);
@@ -1174,6 +1355,19 @@ const cachedStorefrontGet = (url, { ttlMs = STOREFRONT_GET_CACHE_TTL_MS } = {}) 
     });
   storefrontGetInFlight.set(url, request);
   return request;
+};
+const extractStorefrontProductsFromResponse = (response) => {
+  if (Array.isArray(response)) return response;
+  if (!response || typeof response !== "object") return [];
+  if (Array.isArray(response.products)) return response.products;
+  if (Array.isArray(response.items)) return response.items;
+  if (Array.isArray(response.data)) return response.data;
+  if (response.data && typeof response.data === "object") {
+    if (Array.isArray(response.data.products)) return response.data.products;
+    if (Array.isArray(response.data.items)) return response.data.items;
+    if (Array.isArray(response.data.data)) return response.data.data;
+  }
+  return [];
 };
 const getCachedStorefrontGetData = (url, { ttlMs = STOREFRONT_GET_CACHE_TTL_MS } = {}) => {
   const cached = storefrontGetCache.get(url);
@@ -1776,7 +1970,7 @@ const featuredCategoryDefinitions = [
     subtitleEn: "Selected discounts and high-value picks for a limited time.",
     subtitleAr: "خصومات مختارة وقطع عالية القيمة لفترة محدودة.",
     query: "offers sale discount عروض",
-    href: "/shop/products?offer_story=true",
+    href: "/shop/offers",
     examples: ["Sale", "Discount", "Offers", "Best Price"],
     test: (product, text) => isOfferStory(product) || /(?:^|\b)(offer|offers|sale|discount|خصم|عروض?)(?:\b|$)/i.test(text),
     icon: BadgePercent,
@@ -2299,7 +2493,7 @@ const mainHomeCategoryCards = [
     titleEn: "Offers",
     subtitleAr: "عروض الموسم",
     subtitleEn: "Season offers",
-    href: "/shop/products?offer_story=true",
+    href: "/shop/offers",
     test: (product) => isOfferStory(product),
     icon: BadgePercent,
   },
@@ -3118,7 +3312,7 @@ function HomePage(props) {
       {showHomeProductSections ? (
         <>
           <HomeProductSection title={sfText("storefront.nav.new")} subtitle={sfText("storefront.home.newSubtitle")} viewAllTo="/shop/products?sort=newest" loading={loading || storefrontHome.loading} products={homeSections.newArrivals} railType="new" tone="new" {...props} />
-          <HomeProductSection title={sfText("storefront.nav.sale")} subtitle={sfText("storefront.home.saleSubtitle")} viewAllTo="/shop/products?offer_story=true" loading={saleLoading && !homeSections.sale.length} products={homeSections.sale} railType="sale" tone="sale" {...props} />
+    <HomeProductSection title={sfText("storefront.nav.sale")} subtitle={sfText("storefront.home.saleSubtitle")} viewAllTo="/shop/offers" loading={saleLoading && !homeSections.sale.length} products={homeSections.sale} railType="sale" tone="sale" {...props} />
           <HomeProductSection title={sfText("storefront.home.lastSizes")} subtitle={sfText("storefront.home.productOfWeekEmpty")} viewAllTo="/shop/products?lastSizes=true" loading={loading || storefrontHome.loading} products={homeSections.lastSizes} railType="last-size" tone="last" {...props} />
           <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "الأكثر طلبًا" : "Trending"} subtitle={normalizeLanguage(lang) === "ar" ? "اختيارات رائجة مع أحدث المنتجات كخيار بديل." : "Popular picks, with newest products as fallback."} viewAllTo="/shop/products?sort=trending" loading={loading || storefrontHome.loading} products={homeSections.trending} railType="trending" tone="trending" {...props} />
         </>
@@ -3464,6 +3658,445 @@ function LastPieceEmpty({ text }) {
       <Sparkles className="mx-auto h-7 w-7 text-[#f8e7b3]" />
       <p className="mt-3 text-sm font-black text-white/70">{text}</p>
     </div>
+  );
+}
+
+function OfferStoryEmptyState({ title, text, actionLabel, onAction }) {
+  return (
+    <div className="grid place-items-center rounded-[1.5rem] border border-white/12 bg-white/[0.08] p-6 text-center backdrop-blur">
+      <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-[#f8e7b3]/20 bg-[#d4af37]/10 text-[#f8e7b3]">
+        <BadgePercent className="h-7 w-7" />
+      </div>
+      <h3 className="mt-4 text-xl font-black text-white">{title}</h3>
+      <p className="mx-auto mt-2 max-w-md text-sm font-bold leading-6 text-white/66">{text}</p>
+      {onAction ? (
+        <button
+          type="button"
+          onClick={onAction}
+          className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full border border-[#f8e7b3]/20 bg-[#f8e7b3] px-5 py-3 text-sm font-black text-stone-950 transition hover:bg-[#f3d77a] active:scale-[0.98]"
+        >
+          {actionLabel}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function OfferStoryBubble({ label, count, active, onClick, compact = false }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative overflow-hidden rounded-full border px-3 py-2.5 text-center font-black transition active:scale-[0.98] ${
+        active
+          ? "border-[#f8e7b3]/55 bg-[#f8e7b3] text-stone-950 shadow-[0_18px_34px_rgba(248,231,179,0.18)]"
+          : "border-white/10 bg-white/[0.06] text-white hover:border-[#f8e7b3]/35 hover:bg-[#f8e7b3]/10"
+      } ${compact ? "min-h-11 text-sm" : "min-h-14 text-[0.95rem] md:min-h-16 md:text-base"}`}
+    >
+      <span className="block truncate">{label}</span>
+      {Number.isFinite(Number(count)) ? <span className={`mt-0.5 block text-[10px] font-black ${active ? "text-stone-800" : "text-white/45"}`}>{count} {Number(count) === 1 ? "موديل" : "موديلات"}</span> : null}
+    </button>
+  );
+}
+
+function OfferStorySlide({ product, index, total, selectedSize, lang, onPrev, onNext, onViewProduct, onTouchStart, onTouchEnd }) {
+  const variant = offerStoryMatchingVariant(product, selectedSize);
+  const sellingPrice = displaySellingPrice(product, variant);
+  const comparePrice = displayComparePrice(product, variant);
+  const imageSrc = variantImage(variant) || imageFor(product.image_url || product.image || product.gallery_images?.[0] || "");
+  const sizeChips = extractOfferSizes(product);
+  const stock = Number(variant?.stock || 0) || productStock(product);
+  return (
+    <div
+      className="relative isolate flex h-full min-h-[72dvh] overflow-hidden rounded-[2rem] border border-white/10 bg-black shadow-[0_28px_90px_rgba(0,0,0,0.45)] md:min-h-[76dvh]"
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.14)_0%,rgba(0,0,0,0.03)_18%,rgba(0,0,0,0.22)_68%,rgba(0,0,0,0.64)_100%)]" />
+      <div className="absolute inset-x-0 top-0 z-30 px-2 pt-3 md:px-2.5 md:pt-4">
+        <div className="flex items-start justify-between gap-2">
+          <button type="button" onClick={onPrev} className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/14 bg-black/30 text-white backdrop-blur transition active:scale-95" aria-label="السابق">
+            <ChevronLeft className="h-5 w-5 rotate-180" />
+          </button>
+          <div className="min-w-0 flex-1 px-2 pt-1">
+            <div className="flex gap-1.5">
+              {Array.from({ length: total }).map((_, itemIndex) => (
+                <span key={itemIndex} className={`h-1 flex-1 overflow-hidden rounded-full ${itemIndex === index ? "bg-white/22 after:block after:h-full after:w-full after:rounded-full after:bg-[#f8e7b3] after:content-['']" : itemIndex < index ? "bg-[#f8e7b3]" : "bg-white/16"}`} />
+              ))}
+            </div>
+          </div>
+          <button type="button" onClick={() => onViewProduct(variant)} className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/14 bg-black/30 text-white backdrop-blur transition active:scale-95" aria-label="عرض المنتج">
+            <ExternalLink className="h-4.5 w-4.5" />
+          </button>
+        </div>
+      </div>
+      <button type="button" onClick={onPrev} className="absolute inset-y-0 left-0 z-10 w-[22%] min-w-16" aria-label="السابق" />
+      <button type="button" onClick={onNext} className="absolute inset-y-0 right-0 z-10 w-[22%] min-w-16" aria-label="التالي" />
+      <div className="relative z-20 flex h-full w-full flex-col px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[3.25rem] md:px-5 md:pt-[3.5rem]">
+        <div className="flex min-h-0 flex-[1.55] items-center justify-center">
+          <div className="flex h-full w-full max-w-[58rem] items-center justify-center rounded-[1.5rem] bg-white/100 p-3 shadow-[0_18px_60px_rgba(0,0,0,0.22)] md:p-4">
+            <img
+              src={imageSrc}
+              onError={fallbackProductImage}
+              alt={product.name}
+              className="h-full w-full max-h-[44dvh] aspect-square object-contain"
+              loading="eager"
+              decoding="async"
+            />
+          </div>
+        </div>
+        <div className="mx-auto mt-4 flex w-full max-w-2xl flex-[1] min-h-0 flex-col">
+          <div className="min-w-0">
+            <h3 className="line-clamp-2 text-lg font-black leading-6 text-white md:text-2xl md:leading-7">{product.name}</h3>
+            <p className="mt-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/48">{product.brand_name || product.brand || ""}</p>
+            <div className="mt-2 flex items-end gap-2">
+              <span className="text-2xl font-black text-white md:text-4xl">{money(sellingPrice)}</span>
+              {comparePrice > sellingPrice ? <span className="pb-1 text-sm font-bold text-white/40 line-through md:text-base">{money(comparePrice)}</span> : null}
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {sizeChips.map((size) => (
+              <span key={size} className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${String(size) === String(selectedSize) ? "border-[#f8e7b3]/40 bg-[#f8e7b3] text-stone-950" : "border-white/12 bg-black/30 text-white/86"}`}>
+                {size}
+              </span>
+            ))}
+          </div>
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => onViewProduct(variant)}
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#f8e7b3]/25 bg-[#f8e7b3] px-5 py-3 text-sm font-black text-stone-950 transition hover:bg-[#f3d77a] active:scale-[0.98]"
+            >
+              عرض المنتج
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OfferStoryViewer() {
+  const navigate = useNavigate();
+  const { i18n } = useTranslation();
+  const lang = normalizeLanguage(i18n.language || i18n.resolvedLanguage || "ar");
+  const offerStoryQuery = useProducts({ offer_story: 1, sort: "newest", limit: 500 }, { ttlMs: 0 });
+  const [selectedSize, setSelectedSize] = useState("");
+  const [selectedType, setSelectedType] = useState("");
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const touchStartXRef = useRef(0);
+  const touchEndXRef = useRef(0);
+
+  const normalizedProducts = useMemo(() => (
+    uniqueProductsByIdentity(offerStoryQuery.products || [])
+      .filter((product) => Boolean(product?.id && product?.name))
+  ), [offerStoryQuery.products]);
+  const offerProducts = useMemo(() => (
+    normalizedProducts.filter((product) => isStorefrontVisibleOfferProduct(product))
+  ), [normalizedProducts]);
+  const hasOfferProducts = offerProducts.length > 0;
+
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log("[offer-story-filter-check]", normalizedProducts.map((product) => ({
+        id: product.id,
+        name: product.name,
+        is_offer_story: product.is_offer_story,
+        isOfferStory: product.isOfferStory,
+        is_storefront_visible: product.is_storefront_visible,
+        storefront_visible: product.storefront_visible,
+      })));
+      console.log("[offer-story-final-products]", offerProducts.length, offerProducts.map((product) => ({
+        id: product.id,
+        name: product.name,
+        sizes: product.sizes,
+        variantsCount: Array.isArray(product.variants) ? product.variants.length : 0,
+        firstVariant: Array.isArray(product.variants) ? product.variants[0] || null : null,
+        extracted: extractOfferSizes(product),
+      })));
+    }
+  }, [normalizedProducts, offerProducts]);
+
+  const availableSizes = useMemo(() => {
+    return sortProductSizes(
+      Array.from(
+        new Set(
+          offerProducts.flatMap((product) => extractOfferSizes(product))
+        )
+      )
+    );
+  }, [offerProducts]);
+  const sizeCounts = useMemo(() => {
+    const map = new Map();
+    offerProducts.forEach((product) => {
+      extractOfferSizes(product).forEach((size) => {
+        const key = String(size || "").trim();
+        if (!key) return;
+        map.set(key, (map.get(key) || 0) + 1);
+      });
+    });
+    return map;
+  }, [offerProducts]);
+
+  const productsForSize = useMemo(
+    () => offerProducts.filter((product) => !selectedSize || offerStoryProductMatches(product, selectedSize)),
+    [selectedSize, offerProducts]
+  );
+
+  const typeOptions = useMemo(() => {
+    const map = new Map();
+    productsForSize.forEach((product) => {
+      offerStoryProductTypeValues(product).forEach((typeValue) => {
+        const key = String(typeValue || "").trim().toLowerCase();
+        if (!key) return;
+        if (!map.has(key)) {
+          map.set(key, { value: key, label: getProductTypeLabel(key, lang), count: 0 });
+        }
+        map.get(key).count += 1;
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, lang, { numeric: true }));
+  }, [lang, productsForSize]);
+
+  const stage = !selectedSize ? "size" : !selectedType ? "type" : "story";
+
+  const storyProducts = useMemo(() => (
+    sortStorefrontColorCardsByModel(
+      productsForSize.filter((product) => !selectedType || offerStoryProductMatches(product, selectedSize, selectedType))
+    )
+  ), [productsForSize, selectedSize, selectedType]);
+  const isLoading = Boolean(offerStoryQuery.loading);
+  const loadError = offerStoryQuery.error || "";
+
+  useEffect(() => {
+    setCurrentIndex(0);
+  }, [selectedSize, selectedType]);
+
+  useEffect(() => {
+    if (currentIndex >= storyProducts.length) setCurrentIndex(0);
+  }, [currentIndex, storyProducts.length]);
+
+  const hasAnyProducts = storyProducts.length > 0 || offerProducts.length > 0;
+  const currentStory = storyProducts[currentIndex] || storyProducts[0] || null;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") navigate("/shop");
+      if (stage !== "story") return;
+      if (event.key === "ArrowLeft") setCurrentIndex((index) => Math.max(0, index - 1));
+      if (event.key === "ArrowRight") setCurrentIndex((index) => Math.min(Math.max(storyProducts.length - 1, 0), index + 1));
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [navigate, stage, storyProducts.length]);
+
+  const goPrev = () => {
+    if (stage === "size") return navigate("/shop");
+    if (stage === "type") return setSelectedSize("");
+    setCurrentIndex((index) => Math.max(0, index - 1));
+  };
+
+  const goNext = () => {
+    if (stage === "size" || stage === "type") return;
+    setCurrentIndex((index) => {
+      if (index >= Math.max(storyProducts.length - 1, 0)) {
+        setSelectedType("");
+        return 0;
+      }
+      return Math.min(Math.max(storyProducts.length - 1, 0), index + 1);
+    });
+  };
+
+  const handleTouchStart = (event) => {
+    touchStartXRef.current = event.changedTouches?.[0]?.screenX ?? 0;
+  };
+
+  const handleTouchEnd = (event) => {
+    touchEndXRef.current = event.changedTouches?.[0]?.screenX ?? 0;
+    const delta = touchStartXRef.current - touchEndXRef.current;
+    if (Math.abs(delta) < 48) return;
+    if (delta > 0) goNext();
+    else goPrev();
+  };
+
+  const openProduct = (variant = null) => {
+    if (!currentStory) return;
+    const url = appendProductUrlParams(productUrl(currentStory), [
+      ["variant", variant?.edition_slug || variant?.id || ""],
+      ["size", selectedSize || variant?.size || ""],
+      ["color", variant?.color || variant?.color_key || ""],
+    ]);
+    navigate(url);
+  };
+
+  const closeStory = useCallback(() => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate("/shop");
+  }, [navigate]);
+
+  const storyProgressTotal = Math.max(stage === "story" ? storyProducts.length : 1, 1);
+  const storyProgressIndex = stage === "story" ? currentIndex : 0;
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[2000] overflow-hidden bg-[linear-gradient(180deg,#040404_0%,#101010_45%,#040404_100%)] text-white" dir="rtl">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(212,175,55,0.22),transparent_24%),radial-gradient(circle_at_82%_10%,rgba(248,231,179,0.12),transparent_18%)]" />
+      <div className="relative flex h-[100dvh] w-[100vw] flex-col px-3 pb-[calc(0.8rem+env(safe-area-inset-bottom))] pt-[calc(env(safe-area-inset-top,12px)+0.35rem)] md:px-5">
+        <div className="flex items-start gap-3">
+          <button type="button" onClick={closeStory} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/12 bg-white/8 text-white transition active:scale-95" aria-label="إغلاق">
+            <X className="h-5 w-5" />
+          </button>
+          <div className="flex-1 pt-1">
+            <div className="flex gap-1.5">
+              {Array.from({ length: storyProgressTotal }).map((_, itemIndex) => (
+                <span key={itemIndex} className={`h-1 flex-1 overflow-hidden rounded-full ${itemIndex === storyProgressIndex ? "bg-white/22 after:block after:h-full after:w-full after:rounded-full after:bg-[#f8e7b3] after:content-['']" : itemIndex < storyProgressIndex ? "bg-[#f8e7b3]" : "bg-white/16"}`} />
+              ))}
+            </div>
+          </div>
+          {stage === "story" ? (
+            <button type="button" onClick={goPrev} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/12 bg-white/8 text-white transition active:scale-95" aria-label="رجوع">
+              <ChevronLeft className="h-5 w-5 rotate-180" />
+            </button>
+          ) : (
+            <div className="h-11 w-11 shrink-0" />
+          )}
+        </div>
+
+        <div className="min-h-0 flex-1 pt-2 md:pt-3">
+          {isLoading && !offerProducts.length ? (
+            <div className="grid h-full min-h-[52vh] place-items-center">
+              <div className="text-center">
+                <div className="mx-auto h-14 w-14 animate-pulse rounded-full border border-[#f8e7b3]/30 bg-[#f8e7b3]/12" />
+                <p className="mt-4 text-sm font-black text-white/70">جاري تحميل العروض</p>
+              </div>
+            </div>
+          ) : loadError && !offerProducts.length ? (
+            <div className="flex h-full items-center justify-center">
+              <OfferStoryEmptyState
+                title="تعذر تحميل العروض"
+                text={String(loadError || "حدث خطأ أثناء تحميل العروض")}
+                actionLabel="العودة للرئيسية"
+                onAction={() => navigate("/shop")}
+              />
+            </div>
+          ) : stage === "size" ? (
+            <div className="flex h-full min-h-0 flex-col justify-start pt-0">
+              <div className="mx-auto max-w-2xl text-center">
+                <h2 className="text-2xl font-black md:text-4xl">اختر مقاسك</h2>
+                <p className="mt-1 text-sm font-bold text-white/58 md:text-base">المقاسات المتاحة داخل عروض المتجر</p>
+              </div>
+              {availableSizes.length > 0 ? (
+                <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+                  {availableSizes.map((size) => (
+                    <OfferStoryBubble
+                      key={size}
+                      label={size}
+                      count={sizeCounts.get(size) || 0}
+                      active={false}
+                      onClick={() => {
+                        setSelectedSize(size);
+                        setSelectedType("");
+                        setCurrentIndex(0);
+                      }}
+                    />
+                  ))}
+                </div>
+              ) : null}
+              {!availableSizes.length && hasOfferProducts ? (
+                <div className="mt-6 rounded-[1.4rem] border border-[#f8e7b3]/18 bg-[linear-gradient(145deg,rgba(212,175,55,0.10),rgba(255,255,255,0.03))] p-5 text-center shadow-[0_14px_30px_rgba(0,0,0,0.18)]">
+                  <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-[#f8e7b3]/20 bg-[#f8e7b3]/10 text-[#f8e7b3]">
+                    <BadgePercent className="h-7 w-7" />
+                  </div>
+                  <h3 className="mt-4 text-lg font-black text-white">تم العثور على 7 منتجات عروض</h3>
+                  <p className="mt-2 text-sm font-bold leading-6 text-white/72">
+                    لكن لم يتم العثور على أي مقاسات داخل بيانات المنتج.
+                  </p>
+                  <p className="mt-2 text-xs font-bold leading-5 text-white/50">
+                    يرجى التحقق من `variants` أو `color_cards` أو `variant_matrix` أو `inventory_variants` أو `available_options` داخل بيانات المنتج.
+                  </p>
+                </div>
+              ) : null}
+              {!availableSizes.length && !hasOfferProducts ? (
+                <div className="mt-8">
+                  <OfferStoryEmptyState
+                    title="لا توجد عروض متاحة الآن"
+                    text="لم نتمكن من العثور على منتجات عروض صالحة للعرض في المتجر."
+                    actionLabel="العودة للرئيسية"
+                    onAction={() => navigate("/shop")}
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : stage === "type" ? (
+            <div className="flex h-full min-h-0 flex-col justify-start pt-0">
+              <div className="mx-auto max-w-2xl text-center">
+                <h2 className="text-2xl font-black md:text-4xl">اختر نوع المنتج</h2>
+                <p className="mt-1 text-sm font-bold text-white/58 md:text-base">المقاس المختار: {selectedSize}</p>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                {typeOptions.map((option) => (
+                  <OfferStoryBubble
+                    key={option.value}
+                    label={option.label}
+                    count={option.count}
+                    active={false}
+                    compact
+                    onClick={() => {
+                      setSelectedType(option.value);
+                      setCurrentIndex(0);
+                    }}
+                  />
+                ))}
+              </div>
+              {!typeOptions.length ? (
+                <div className="mt-8">
+                  <OfferStoryEmptyState
+                    title="لا توجد أنواع لهذا المقاس"
+                    text="جرّب مقاساً آخر من نفس العروض."
+                    actionLabel="رجوع"
+                    onAction={() => setSelectedSize("")}
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : hasAnyProducts && currentStory ? (
+            <div className="flex h-full min-h-0">
+              <OfferStorySlide
+                product={currentStory}
+                index={currentIndex}
+                total={storyProducts.length}
+                selectedSize={selectedSize}
+                lang={lang}
+                onPrev={() => setCurrentIndex((index) => Math.max(0, index - 1))}
+                onNext={goNext}
+                onViewProduct={openProduct}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+              />
+            </div>
+          ) : (
+            <div className="flex h-full items-center justify-center">
+              <OfferStoryEmptyState
+                title="لا توجد عروض متاحة"
+                text="لا توجد منتجات مطابقة للمقاس أو النوع الحاليين."
+                actionLabel="إعادة التصفية"
+                onAction={() => {
+                  setSelectedSize("");
+                  setSelectedType("");
+                  setCurrentIndex(0);
+                }}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 
@@ -4109,7 +4742,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
   ];
   const navItems = [
     { label: t("storefront.nav.categories"), to: "/shop/products" },
-    { label: t("storefront.nav.sale"), to: "/shop/products?offer_story=true" },
+    { label: t("storefront.nav.sale"), to: "/shop/offers" },
     { label: t("storefront.nav.new"), to: "/shop/products?sort=new" },
     { label: t("storefront.nav.men"), to: "/shop/products?gender=men" },
     { label: t("storefront.nav.women"), to: "/shop/products?gender=women" },
@@ -9004,7 +9637,7 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
   const currentLanguage = normalizeLanguage(storefrontI18n.resolvedLanguage || storefrontI18n.language || "en");
   const isCheckoutFlow = /^\/shop\/(checkout|success|confirm)/.test(path) || /^\/c\/[^/]+/.test(path);
   const isVisible = /^(\/shop(\/|$)|\/c\/[^/]+)/.test(path) && !isCheckoutFlow;
-  const saleHref = "/shop/products?offer_story=true";
+  const saleHref = "/shop/offers";
   const scrollToTop = useCallback(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
@@ -9034,8 +9667,8 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
   ];
   const isActive = (item) => {
     if (item.id === "home") return path === "/shop";
-    if (item.id === "categories") return path === "/shop/products" || path === saleHref || categoriesOpen;
-    if (item.id === "sale") return path === "/shop/sale" || path === saleHref || (path === "/shop/products" && new URLSearchParams(search).get("offer_story") === "true");
+    if (item.id === "categories") return path === "/shop/products" || categoriesOpen;
+    if (item.id === "sale") return path === "/shop/offers" || path === "/shop/sale";
     if (item.id === "wishlist") return path === "/shop/wishlist";
     if (item.id === "account") return path === "/shop/account";
     return false;
@@ -9767,7 +10400,18 @@ function Storefront() {
   const hideMobileBottomNav = /^\/shop\/(checkout|success|confirm)/.test(location.pathname || "") || /^\/c\/[^/]+/.test(location.pathname || "");
   const showMobileBottomNav = routeReady && !hideMobileBottomNav && !cartDrawerOpen && !mobileMenuOpen;
   const isCheckoutPage = (location.pathname || "").replace(/\/+$/, "") === "/shop/checkout";
-  const hideFloatingWhatsApp = cartDrawerOpen || mobileMenuOpen || isCheckoutPage;
+  const isOfferStoryPage = (location.pathname || "").startsWith("/shop/offers") || (location.pathname || "").startsWith("/shop/sale");
+  const hideFloatingWhatsApp = cartDrawerOpen || mobileMenuOpen || isCheckoutPage || isOfferStoryPage;
+
+  useEffect(() => {
+    if (!isOfferStoryPage || typeof document === "undefined") return undefined;
+    const { body } = document;
+    const previousOverflow = body.style.overflow;
+    body.style.overflow = "hidden";
+    return () => {
+      body.style.overflow = previousOverflow;
+    };
+  }, [isOfferStoryPage]);
 
   const components = useMemo(() => ({
     EmptyState,
@@ -9790,19 +10434,21 @@ function Storefront() {
 
   return (
     <>
-      <Header
-        cartCount={cartCount}
-        wishlistCount={wishlistCount}
-        onCart={() => navigate("/shop/cart")}
-        effectiveTheme={themeMode}
-        onToggleTheme={toggleThemeMode}
-        brandName={storefrontBrandSettings.brandName}
-        brandTagline={storefrontBrandSettings.brandTagline}
-        brandLogoUrl={storefrontBrandSettings.brandLogoUrl}
-        quickActionLinks={quickActionLinks}
-        mobileMenuOpen={mobileMenuOpen}
-        setMobileMenuOpen={setMobileMenuOpen}
-      />
+      {!isOfferStoryPage ? (
+        <Header
+          cartCount={cartCount}
+          wishlistCount={wishlistCount}
+          onCart={() => navigate("/shop/cart")}
+          effectiveTheme={themeMode}
+          onToggleTheme={toggleThemeMode}
+          brandName={storefrontBrandSettings.brandName}
+          brandTagline={storefrontBrandSettings.brandTagline}
+          brandLogoUrl={storefrontBrandSettings.brandLogoUrl}
+          quickActionLinks={quickActionLinks}
+          mobileMenuOpen={mobileMenuOpen}
+          setMobileMenuOpen={setMobileMenuOpen}
+        />
+      ) : null}
       <Routes>
       <Route
         index
@@ -9813,8 +10459,12 @@ function Storefront() {
         element={<LazyStorefrontProductListingPage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} />}
       />
       <Route
+        path="offers"
+        element={<OfferStoryViewer />}
+      />
+      <Route
         path="sale"
-        element={<LazyStorefrontProductListingPage sale wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} />}
+        element={<OfferStoryViewer />}
       />
       <Route
         path="product/:identifier"
@@ -9877,13 +10527,15 @@ function Storefront() {
         element={<HomePage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} themeMode={themeMode} />}
       />
       </Routes>
-      <CartDrawer
-        open={cartDrawerOpen}
-        onClose={() => setCartDrawerOpen(false)}
-        cart={cart}
-        updateCart={updateCart}
-        removeFromCart={removeFromCart}
-      />
+      {!isOfferStoryPage ? (
+        <CartDrawer
+          open={cartDrawerOpen}
+          onClose={() => setCartDrawerOpen(false)}
+          cart={cart}
+          updateCart={updateCart}
+          removeFromCart={removeFromCart}
+        />
+      ) : null}
       {!hideFloatingWhatsApp ? (
         <a
           href="https://wa.me/201000659301"
@@ -9895,7 +10547,7 @@ function Storefront() {
           <FaWhatsapp className="h-[24px] w-[24px] text-white" />
         </a>
       ) : null}
-      {showMobileBottomNav ? (
+      {showMobileBottomNav && !isOfferStoryPage ? (
         <MobileBottomNav cartCount={cartCount} quickActionLinks={quickActionLinks} publicStoreSettings={publicStoreSettings} />
       ) : null}
     </>
