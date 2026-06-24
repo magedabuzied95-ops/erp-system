@@ -363,7 +363,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       if (selectedTypeValue !== "all" && !productTypeValues(product).map(lower).includes(selectedTypeValue)) return false;
       if (selectedGenderValue !== "all" && !productGenderValues(product).map(lower).includes(selectedGenderValue)) return false;
       if (!matchesQuery(product, searchValue)) return false;
-      const price = productFacetPrice(product);
+      const price = Number(product?.price ?? product?.final_price ?? product?.sale_price ?? product?.selling_price ?? 0) || 0;
       if (minPriceValue !== null && Number.isFinite(minPriceValue) && price < minPriceValue) return false;
       if (maxPriceValue !== null && Number.isFinite(maxPriceValue) && price > maxPriceValue) return false;
       return true;
