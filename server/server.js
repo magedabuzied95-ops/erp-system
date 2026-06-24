@@ -550,7 +550,7 @@ const { ensureAiInboxLeadActionsSchema } = await import("./services/aiInboxLeadA
 const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueTasks, sendUpcomingTaskDueReminders } = await import("./services/staffTasksService.js");
 const { processStaffTaskEmailQueue } = await import("./services/staffTaskEmailNotificationService.js");
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
-const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus } = await import("./services/metaIntegrationService.js");
+const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug } = await import("./services/metaIntegrationService.js");
 const { ensureSystemSettingsSchema } = await import("./services/settingsService.js");
 const { ensureSocialAutomationSettingsSchema } = await import("./services/socialAutomationSettingsService.js");
 
@@ -727,6 +727,22 @@ app.get("/api/debug/meta-page-subscriptions", async (req, res) => {
     return res.status(error?.status || 500).json({
       success: false,
       message: error?.message || "Failed to load Meta page subscriptions debug status",
+    });
+  }
+});
+app.post("/api/debug/meta-resubscribe-page-feed", async (req, res) => {
+  try {
+    const tenantId = Number(req.body?.tenant_id || req.query?.tenant_id || req.user?.tenant_id || 1) || 1;
+    const data = await resubscribeMetaPageFeedDebug({ tenantId });
+    return res.json({ success: true, data, ...data });
+  } catch (error) {
+    console.error("[meta-resubscribe-page-feed-debug] load failed", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+    });
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to resubscribe page feed",
     });
   }
 });

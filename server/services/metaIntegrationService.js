@@ -5977,6 +5977,102 @@ export const getMetaPageSubscriptionsDebugStatus = async ({ tenantId } = {}) => 
   }
 };
 
+export const resubscribeMetaPageFeedDebug = async ({ tenantId } = {}) => {
+  const scopedTenantId = numberOrNull(tenantId);
+  const row = await getMetaIntegrationConfig({ tenantId: scopedTenantId });
+  const token = row ? getTokenForConfig(row) : "";
+  const pageId = text(row?.facebook_page_id || row?.page_id || "");
+  const requestedFields = "messages,messaging_postbacks,messaging_optins,messaging_referrals,message_deliveries,message_reads,message_echoes,feed";
+
+  console.log("META_RESUBSCRIBE_PAGE_FEED_START", {
+    tenant_id: scopedTenantId,
+    page_id: pageId,
+    token_present: Boolean(token),
+    requested_fields: requestedFields,
+  });
+
+  if (!pageId) {
+    const errorPayload = {
+      message: "Facebook page id is missing",
+      status: null,
+      code: "",
+      subcode: "",
+    };
+    console.error("META_RESUBSCRIBE_PAGE_FEED_ERROR", {
+      tenant_id: scopedTenantId,
+      page_id: pageId,
+      graph_error: errorPayload,
+    });
+    return {
+      success: false,
+      page_id: "",
+      requested_fields: requestedFields,
+      graph_response: null,
+      graph_error: errorPayload,
+    };
+  }
+
+  if (!token) {
+    const errorPayload = {
+      message: "Page access token is missing",
+      status: null,
+      code: "",
+      subcode: "",
+    };
+    console.error("META_RESUBSCRIBE_PAGE_FEED_ERROR", {
+      tenant_id: scopedTenantId,
+      page_id: pageId,
+      graph_error: errorPayload,
+    });
+    return {
+      success: false,
+      page_id: pageId,
+      requested_fields: requestedFields,
+      graph_response: null,
+      graph_error: errorPayload,
+    };
+  }
+
+  try {
+    const graphResponse = await callMetaPostForm({
+      endpoint: `/${encodeURIComponent(pageId)}/subscribed_apps`,
+      token,
+      body: { subscribed_fields: requestedFields },
+    });
+    console.log("META_RESUBSCRIBE_PAGE_FEED_SUCCESS", {
+      tenant_id: scopedTenantId,
+      page_id: pageId,
+      requested_fields: requestedFields,
+    });
+    return {
+      success: true,
+      page_id: pageId,
+      requested_fields: requestedFields,
+      graph_response: graphResponse,
+      graph_error: null,
+    };
+  } catch (error) {
+    const errorPayload = {
+      message: error?.message || "Unable to resubscribe page feed",
+      status: error?.status || null,
+      code: error?.meta?.code || error?.code || "",
+      subcode: error?.meta?.error_subcode || "",
+    };
+    console.error("META_RESUBSCRIBE_PAGE_FEED_ERROR", {
+      tenant_id: scopedTenantId,
+      page_id: pageId,
+      graph_error: errorPayload,
+    });
+    return {
+      success: false,
+      page_id: pageId,
+      requested_fields: requestedFields,
+      graph_response: null,
+      graph_error: errorPayload,
+    };
+  }
+};
+
 export const getMetaCapabilities = async ({ tenantId, req = null, live = true } = {}) => {
   const row = await getMetaIntegrationConfig({ tenantId });
   const config = row ? sanitizeConfig(row) : defaultPublicConfig(tenantId);
