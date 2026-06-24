@@ -785,13 +785,21 @@ const buildShareAvailableWhereClause = ({ includeSizes = true } = {}) => `
       : ""}
 `;
 
-const loadShareAvailableProducts = async (filters = {}) => {
+const shareTenantFromRequest = (req = {}) => {
+  const tenantId = Number(req.headers?.["x-tenant-id"] || req.query?.tenant_id || req.body?.tenant_id || DEFAULT_TENANT_ID);
+  return Number.isFinite(tenantId) && tenantId > 0 ? tenantId : DEFAULT_TENANT_ID;
+};
+
+const loadShareAvailableProducts = async (req = {}, filters = {}) => {
   const normalizedSizes = parseShareParamList(filters.sizes).map((item) => String(item).trim()).filter(Boolean);
   const gender = normalizeAudienceValue(filters.gender || "") ? normalizeAudienceValue(filters.gender || "") : normalizeShareFilterValue(filters.gender || "");
   const type = normalizeShareFilterValue(filters.type || "");
   const brand = normalizeShareFilterValue(filters.brand || "");
   const minPrice = normalizeSharePriceValue(filters.minPrice);
   const maxPrice = normalizeSharePriceValue(filters.maxPrice);
+  const tenantId = shareTenantFromRequest(req);
+  const branchId = normalizeShareFilterValue(filters.branchId || filters.branch_id || "");
+  const language = normalizeShareFilterValue(filters.language || filters.lang || filters.locale || "");
   const storefrontFilters = {
     brand,
     gender,
@@ -803,7 +811,7 @@ const loadShareAvailableProducts = async (filters = {}) => {
     offerStory: false,
   };
   const storefrontQueryParams = [
-    DEFAULT_TENANT_ID,
+    tenantId,
     "",
     "",
     storefrontFilters.brand || "",
@@ -819,15 +827,27 @@ const loadShareAvailableProducts = async (filters = {}) => {
     0,
   ];
   console.log("[share-available-query-debug]", {
+    requestUrl: req.originalUrl || req.url || "",
     filters,
+    tenantId,
+    branchId,
+    language,
+    storefrontFilters,
     normalizedSizes,
+    inStock: storefrontFilters.inStock,
+    size: storefrontFilters.size,
     generatedSql: storefrontProductsSql,
     params: storefrontQueryParams,
     source: "storefrontController.queryProductsWithSql",
   });
+  const directRowsResult = await db.query(storefrontProductsSql, storefrontQueryParams);
+  console.log("[share-available-query-direct]", {
+    rowCount: directRowsResult.rowCount,
+    firstIds: directRowsResult.rows.slice(0, 5).map((row) => row.id),
+  });
   const rowsResult = await queryProductsWithSql(
     storefrontProductsSql,
-    DEFAULT_TENANT_ID,
+    tenantId,
     "",
     "",
     storefrontFilters,
@@ -835,6 +855,10 @@ const loadShareAvailableProducts = async (filters = {}) => {
     1000,
     0
   );
+  console.log("[share-available-query-helper]", {
+    rowCount: rowsResult.rowCount,
+    firstIds: rowsResult.rows.slice(0, 5).map((row) => row.id),
+  });
   const rawProducts = rowsResult.rows.map((row) => ({
     ...row,
     image_url: firstPublicImageCandidate(row.image_url, row.photo_url, row.thumbnail_url),
@@ -1009,7 +1033,7 @@ export const getPublicAvailableSharePage = async (req, res) => {
     await ensurePublicProductEditionSchema();
     await ensureProductVariantImagesSchema();
     const filters = normalizeShareAvailableFilters(req.query || {});
-    const { count, products } = await loadShareAvailableProducts(filters);
+    const { count, products } = await loadShareAvailableProducts(req, filters);
     const targetUrl = buildShareAvailableTargetUrl(req, filters);
     const ogImageUrl = buildShareAvailableOgImageUrl(req, filters, "png");
     console.log("shareAvailableTargetUrl", targetUrl);
@@ -1062,7 +1086,7 @@ export const getPublicAvailableOgImage = async (req, res) => {
     await ensurePublicProductEditionSchema();
     await ensureProductVariantImagesSchema();
     const filters = normalizeShareAvailableFilters(req.query || {});
-    const { count, products } = await loadShareAvailableProducts(filters);
+    const { count, products } = await loadShareAvailableProducts(req, filters);
     const ogProductsCount = Number(count || 0) > 0 ? Number(count || 0) : products.length;
     const ogImageUrls = products
       .map((product) => normalizeImageUrlCandidate(product.public_image_url || product.image_url || ""))
@@ -1165,7 +1189,7 @@ export const getPublicAvailableOgDebugSvg = async (req, res) => {
     await ensurePublicProductEditionSchema();
     await ensureProductVariantImagesSchema();
     const filters = normalizeShareAvailableFilters(req.query || {});
-    const { count, countBefore, countAfter, products } = await loadShareAvailableProducts(filters);
+    const { count, countBefore, countAfter, products } = await loadShareAvailableProducts(req, filters);
     const svg = buildShareAvailablePreviewSvg({ req, filters, products, count });
     const firstImageProduct = products.find((product) => normalizeImageUrlCandidate(product.public_image_url || product.image_url || "")) || null;
     const primaryImage = normalizeImageUrlCandidate(firstImageProduct?.public_image_url || firstImageProduct?.image_url || "");
