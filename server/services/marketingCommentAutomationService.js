@@ -608,11 +608,13 @@ const upsertConversation = async ({ event, productId, matchedKeyword, leadScore 
 export const processCommentEvent = async (event = {}) => {
   devLog("[meta-webhook] comment received", {
     platform: event.platform,
+    tenant_id: event.businessId ?? null,
     post_id: event.postId,
     media_id: event.mediaId,
     comment_id: event.commentId,
     commenter_id: event.userPlatformId,
     commenter_name: event.username,
+    text_length: String(event.message || "").length,
   });
 
   const inserted = await db.query(

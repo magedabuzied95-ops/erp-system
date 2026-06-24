@@ -240,6 +240,15 @@ const COMMENT_AUTOMATION_MIN_SCORE = 0.9;
 const COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT = "تم إرسال التفاصيل في رسالة خاصة ";
 
 const featureFlagEnabled = (value = "") => ["1", "true", "yes", "on"].includes(text(value).toLowerCase());
+const socialCommentsDebugEnabled = () =>
+  process.env.NODE_ENV !== "production" ||
+  featureFlagEnabled(process.env.SOCIAL_COMMENTS_DEBUG || process.env.AI_SUPPORT_SOCIAL_COMMENTS_DEBUG || "");
+const socialCommentsLog = (...args) => {
+  if (socialCommentsDebugEnabled()) console.info(...args);
+};
+const socialCommentsError = (...args) => {
+  if (socialCommentsDebugEnabled()) console.error(...args);
+};
 
 const getSocialCommentAutomationFlags = () => ({
   like: featureFlagEnabled(process.env.SOCIAL_COMMENTS_AUTO_LIKE || "false"),
@@ -1381,7 +1390,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
           storedRow.inbox_conversation_id = automationResult.row.inbox_conversation_id || storedRow.inbox_conversation_id;
         }
       } catch (error) {
-        console.error("[social-comments] lead conversation materialize failed", {
+        socialCommentsError("[social-comments] lead conversation materialize failed", {
           tenant_id: storedRow.tenant_id,
           platform: storedRow.platform,
           comment_id: storedRow.comment_id,
@@ -1405,18 +1414,107 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
   return stored;
 };
 
+const mapMarketingStatusToClassificationLabel = (row = {}) => {
+  const status = text(row.status || "").toLowerCase();
+  if (status === "ignored") return "ignore";
+  if (status === "failed" || status === "manual_follow_up") return "human_review";
+  if (status === "simulated") return "lead_inbox";
+  if (status === "processed") return "lead_inbox";
+  return "human_review";
+};
+
+const mapMarketingLeadScoreToClassificationScore = (row = {}) => {
+  const score = text(row.lead_score || "").toLowerCase();
+  if (score === "high") return 0.95;
+  if (score === "medium") return 0.8;
+  if (score === "low") return 0.65;
+  return 0.7;
+};
+
+const mapMarketingCommentEventToRecentRow = (row = {}) => ({
+  id: `marketing:${row.id ?? row.comment_id ?? crypto.randomUUID()}`,
+  tenant_id: row.business_id ?? row.tenant_id ?? null,
+  platform: text(row.platform || "facebook") || "facebook",
+  channel: text(row.platform || "").toLowerCase() === "instagram" ? "instagram_comment" : "facebook_comment",
+  post_id: text(row.post_id || ""),
+  post_permalink: text(row.raw_payload?.post_permalink || row.raw_payload?.post_url || row.raw_payload?.permalink || ""),
+  comment_id: text(row.comment_id || ""),
+  commenter_name: text(row.username || row.commenter_name || ""),
+  commenter_profile_picture_url: text(row.raw_payload?.profile_picture_url || row.raw_payload?.commenter_profile_picture_url || ""),
+  original_comment_text: text(row.message || row.original_comment_text || ""),
+  classification_label: mapMarketingStatusToClassificationLabel(row),
+  classification_score: mapMarketingLeadScoreToClassificationScore(row),
+  action_taken: text(row.status || "ingested"),
+  public_reply_status: row.automation_actions?.public_reply?.status || null,
+  dm_status: row.automation_actions?.private_reply?.status || null,
+  like_status: row.automation_actions?.liked?.status || null,
+  inbox_conversation_id: text(row.inbox_conversation_id || row.raw_payload?.inbox_conversation_id || ""),
+  error_code: text(row.error_message || row.error_code || ""),
+  automation_state: row.automation_actions && typeof row.automation_actions === "object" ? row.automation_actions : {},
+  raw_payload: row.raw_payload && typeof row.raw_payload === "object" ? row.raw_payload : { raw_payload: row.raw_payload ?? null },
+  processed_at: row.processed_at || row.updated_at || row.created_at || new Date().toISOString(),
+  created_at: row.created_at || row.processed_at || row.updated_at || new Date().toISOString(),
+  updated_at: row.updated_at || row.processed_at || row.created_at || new Date().toISOString(),
+});
+
 export const listRecentSocialCommentAutomationRuns = async ({ tenantId = null, limit = 50 } = {}) => {
   await ensureSocialCommentAutomationSchema();
   const safeLimit = Math.min(200, Math.max(1, Number(limit) || 50));
-  const result = await db.query(
-    `
-    SELECT *
-    FROM social_comment_automation_runs
-    WHERE tenant_id = $1
-    ORDER BY created_at DESC, id DESC
-    LIMIT $2
-    `,
-    [tenantId, safeLimit]
-  );
-  return result.rows;
+  const [automationRunsResult, marketingEventsResult] = await Promise.all([
+    db.query(
+      `
+      SELECT *
+      FROM social_comment_automation_runs
+      WHERE tenant_id = $1
+      ORDER BY created_at DESC, id DESC
+      LIMIT $2
+      `,
+      [tenantId, safeLimit]
+    ),
+    db.query(
+      `
+      SELECT *
+      FROM marketing_comment_events
+      WHERE business_id = $1::bigint
+      ORDER BY created_at DESC, id DESC
+      LIMIT $2
+      `,
+      [tenantId, safeLimit]
+    ).catch((error) => {
+      socialCommentsError("[social-comments] marketing events query failed", {
+        tenant_id: tenantId,
+        message: error?.message || "",
+      });
+      return { rows: [] };
+    }),
+  ]);
+
+  const automationRows = automationRunsResult.rows || [];
+  const marketingRows = (marketingEventsResult.rows || []).map(mapMarketingCommentEventToRecentRow);
+  const combinedRows = [...automationRows, ...marketingRows];
+  socialCommentsLog("[social-comments] recent pipeline counts", {
+    tenant_id: tenantId,
+    total_rows_before_filters: automationRows.length + marketingRows.length,
+    rows_after_tenant_filter: automationRows.length + marketingRows.length,
+    rows_after_status_channel_filters: combinedRows.length,
+    social_runs_rows: automationRows.length,
+    marketing_rows: marketingRows.length,
+  });
+
+  const deduped = [];
+  const seen = new Set();
+  for (const row of combinedRows) {
+    const dedupeKey = `${text(row.platform || "")}:${text(row.comment_id || "")}`;
+    if (!row.comment_id || seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    deduped.push(row);
+  }
+
+  deduped.sort((a, b) => {
+    const timeDelta = new Date(b.created_at || b.processed_at || 0).getTime() - new Date(a.created_at || a.processed_at || 0).getTime();
+    if (timeDelta !== 0) return timeDelta;
+    return text(String(b.id || "")).localeCompare(text(String(a.id || "")));
+  });
+
+  return deduped.slice(0, safeLimit);
 };

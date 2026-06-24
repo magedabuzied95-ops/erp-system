@@ -117,6 +117,7 @@ import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabic
 
 const router = express.Router();
 const ERP_PERF_DEBUG = ["1", "true", "yes", "on"].includes(String(process.env.ERP_PERF_DEBUG || "").toLowerCase());
+const SOCIAL_COMMENTS_DEBUG = process.env.NODE_ENV !== "production" || ["1", "true", "yes", "on"].includes(String(process.env.SOCIAL_COMMENTS_DEBUG || process.env.AI_SUPPORT_SOCIAL_COMMENTS_DEBUG || "").toLowerCase());
 const perfLog = (...args) => {
   if (ERP_PERF_DEBUG) console.log(...args);
 };
@@ -2104,19 +2105,23 @@ router.get("/social-comments/recent", protect, permit("settings", "view"), async
   try {
     const tenantId = toTenantId(req);
     const limit = Math.min(50, Math.max(1, Number(req.query?.limit || 50) || 50));
-    console.log("[social-comments] recent request", {
-      tenant_id: tenantId,
-      user_id: req.user?.id ?? req.user?.user_id ?? null,
-      user_role: req.user?.role ?? req.user?.userType ?? null,
-      limit,
-    });
+    if (SOCIAL_COMMENTS_DEBUG) {
+      console.info("[social-comments] recent request", {
+        tenant_id: tenantId,
+        user_id: req.user?.id ?? req.user?.user_id ?? null,
+        user_role: req.user?.role ?? req.user?.userType ?? null,
+        limit,
+      });
+    }
     const rows = await listRecentSocialCommentAutomationRuns({ tenantId, limit });
-    console.log("[social-comments] recent response", {
-      tenant_id: tenantId,
-      user_id: req.user?.id ?? req.user?.user_id ?? null,
-      user_role: req.user?.role ?? req.user?.userType ?? null,
-      rows_count: rows.length,
-    });
+    if (SOCIAL_COMMENTS_DEBUG) {
+      console.info("[social-comments] recent response", {
+        tenant_id: tenantId,
+        user_id: req.user?.id ?? req.user?.user_id ?? null,
+        user_role: req.user?.role ?? req.user?.userType ?? null,
+        rows_count: rows.length,
+      });
+    }
     return res.json({
       success: true,
       items: rows.map((row) => ({
