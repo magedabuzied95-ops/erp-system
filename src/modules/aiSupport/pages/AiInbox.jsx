@@ -4173,14 +4173,12 @@ export default function AiInbox() {
     });
     const activeDraft = selectedConversation?.ai_reply_draft || selectedConversation?.last_ai_reply_draft || null;
     const validationState = normalizeValidationSummary(
-      aiReply.validation ||
       selectedConversation?.last_ai_reply_validation ||
       activeDraft?.validation ||
       activeDraft?.metadata?.validation ||
       {}
     );
     const confidenceState = normalizeConfidenceEngineSummary(
-      aiReply.confidence_engine ||
       selectedConversation?.last_ai_reply_confidence_engine ||
       activeDraft?.confidence_engine ||
       activeDraft?.metadata?.confidence_engine ||
@@ -4194,7 +4192,7 @@ export default function AiInbox() {
       ...asArray(confidenceState.reasons).map((item) => clean(item)),
       ...Object.entries(confidenceState.riskFlags || {}).filter(([, value]) => Boolean(value)).map(([key]) => clean(key)),
     ].filter(Boolean);
-    const takeoverWarnings = selectedConversation?.conversation_status === "human_takeover" ? ["المحادثة في وضع human takeover"] : [];
+    const takeoverWarnings = selectedConversation?.conversation_status === "human_takeover" ? ["Conversation is in human takeover"] : [];
     const sendWarnings = [...new Set([...validationWarnings, ...confidenceWarnings, ...takeoverWarnings])].slice(0, 5);
     const warningCount = sendWarnings.length;
     console.info("[ai-support] sendWarnings", {
