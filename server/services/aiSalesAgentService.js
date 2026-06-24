@@ -53,6 +53,7 @@ let aiInboxSchemaReadyPromise = null;
 let aiInboxSchemaEnsured = false;
 let metaIntegrationServiceModulePromise = null;
 const aiPipelineDebugCache = new Map();
+const DEBUG_MESSENGER_INBOX_CONVERSATION_ID = "facebook_messenger:5036593356360590";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -1436,6 +1437,20 @@ const hydrateMessengerInboxConversation = async ({ tenantId, conversation = {} }
       pageId,
       dryRun: false,
     });
+    if (externalConversationId === DEBUG_MESSENGER_INBOX_CONVERSATION_ID) {
+      console.log("messenger_inbox_profile_refresh_result", {
+        tenant_id: tenantId,
+        conversation_id: externalConversationId,
+        session_id: sessionId,
+        external_customer_id: externalCustomerId,
+        page_id: pageId,
+        refreshed_name: text(refreshed?.customer_name || refreshed?.display_name || ""),
+        refreshed_avatar: text(refreshed?.customer_avatar_url || ""),
+        refreshed_profile_name: text(refreshed?.customer_profile?.name || ""),
+        refreshed_profile_avatar: text(refreshed?.customer_profile?.avatar_url || refreshed?.customer_profile?.profile_pic_url || ""),
+        updated_rows: Number(refreshed?.updated_rows || 0),
+      });
+    }
     const refreshedName = text(refreshed?.customer_name || refreshed?.display_name || "");
     const refreshedAvatar = text(refreshed?.customer_avatar_url || "");
     const refreshedProfile = refreshed?.customer_profile && typeof refreshed.customer_profile === "object" ? refreshed.customer_profile : {};
@@ -1462,7 +1477,7 @@ const hydrateMessengerInboxConversation = async ({ tenantId, conversation = {} }
       source_channel: conversation.channel || conversation.source || (conversation.customer_profile || {}).source_channel || "",
     };
     const customerAvatarUrl = refreshedAvatar || text(conversation.customer_avatar_url || conversation.profile_pic_url || "");
-    return {
+    const hydratedConversation = {
       ...conversation,
       customer_name: refreshedName || text(conversation.customer_name || ""),
       display_name: refreshedName || text(conversation.display_name || ""),
@@ -1485,6 +1500,18 @@ const hydrateMessengerInboxConversation = async ({ tenantId, conversation = {} }
       },
       customer_profile: customerProfile,
     };
+    if (externalConversationId === DEBUG_MESSENGER_INBOX_CONVERSATION_ID) {
+      console.log("messenger_inbox_profile_hydration_applied", {
+        tenant_id: tenantId,
+        conversation_id: externalConversationId,
+        session_id: sessionId,
+        customer_name: text(hydratedConversation.customer_name || ""),
+        customer_avatar_url: text(hydratedConversation.customer_avatar_url || ""),
+        customer_profile_name: text(hydratedConversation.customer_profile?.name || ""),
+        customer_profile_avatar: text(hydratedConversation.customer_profile?.avatar_url || hydratedConversation.customer_profile?.profile_pic_url || ""),
+      });
+    }
+    return hydratedConversation;
   } catch (error) {
     console.warn("messenger_inbox_profile_hydration_failed", {
       tenant_id: tenantId,
@@ -2697,6 +2724,19 @@ export const loadAiInbox = async ({ tenantId, filter = "all", limit = 50, search
       },
       memories,
     });
+    if (text(conversation.external_conversation_id || conversation.session_id || "") === DEBUG_MESSENGER_INBOX_CONVERSATION_ID) {
+      console.log("messenger_inbox_final_response_row", {
+        tenant_id: tenantId,
+        conversation_id: conversation.external_conversation_id || conversation.session_id || "",
+        session_id: conversation.session_id || "",
+        customer_name: text(customerProfile.name || ""),
+        customer_avatar_url: text(customerProfile.avatar_url || ""),
+        customer_profile_name: text(customerProfile.name || ""),
+        customer_profile_avatar: text(customerProfile.avatar_url || ""),
+        top_level_customer_name: text(conversation.customer_name || ""),
+        top_level_customer_avatar_url: text(conversation.customer_avatar_url || ""),
+      });
+    }
     const conversationAiMemory = buildDashboardAiMemory(conversation);
     const rememberedProducts = productsFromDashboardMemory(conversationAiMemory);
     const selectedProduct = conversation.current_product || conversation.product || conversation.channel_metadata?.current_product || conversation.channel_metadata?.last_viewed_product || rememberedProducts[0] || null;

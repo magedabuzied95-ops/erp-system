@@ -3603,6 +3603,37 @@ export const syncMessengerProfileForConversation = async ({ tenantId, conversati
       psid,
       profileId: message.customer_profile_id || channelConversation?.customer_profile_id || null,
     });
+    if (safeConversationId === "facebook_messenger:5036593356360590") {
+      const debugRows = await db.query(
+        `
+        SELECT
+          c.customer_name AS channel_customer_name,
+          c.customer_avatar_url AS channel_customer_avatar_url,
+          c.metadata AS channel_metadata,
+          s.customer_name AS session_customer_name,
+          s.customer_avatar_url AS session_customer_avatar_url
+        FROM ai_channel_conversations c
+        LEFT JOIN ai_support_sessions s
+          ON s.tenant_id = c.tenant_id
+          AND s.session_id = c.external_conversation_id
+        WHERE c.tenant_id = $1
+          AND c.external_conversation_id = $2
+        LIMIT 1
+        `,
+        [scopedTenantId, safeConversationId]
+      ).catch(() => ({ rows: [] }));
+      console.log("messenger_profile_refresh_db_readback", {
+        tenant_id: scopedTenantId,
+        conversation_id: safeConversationId,
+        psid: maskIdForLog(psid),
+        channel_customer_name: text(debugRows.rows[0]?.channel_customer_name),
+        channel_customer_avatar_url: text(debugRows.rows[0]?.channel_customer_avatar_url),
+        session_customer_name: text(debugRows.rows[0]?.session_customer_name),
+        session_customer_avatar_url: text(debugRows.rows[0]?.session_customer_avatar_url),
+        channel_metadata_messenger_profile_name: text(debugRows.rows[0]?.channel_metadata?.messenger_profile?.name),
+        channel_metadata_messenger_profile_avatar: text(debugRows.rows[0]?.channel_metadata?.messenger_profile?.profile_pic || debugRows.rows[0]?.channel_metadata?.messenger_profile?.profile_pic_url || ""),
+      });
+    }
     console.log("messenger_profile_avatar_saved", {
       tenant_id: scopedTenantId,
       conversation_id: safeConversationId,
