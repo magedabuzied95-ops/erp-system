@@ -2,6 +2,7 @@ import db from "../database/db.js";
 import { access, readFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   attachGroupedColorImages,
   attachVariantImages,
@@ -20,6 +21,9 @@ import { formatCurrency } from "../../src/shared/lib/currency.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 import { normalizeAttributionPlatform } from "../utils/marketingAttribution.js";
 import { isMirrorProduct, mirrorProductTitle, slugifyEdition } from "../utils/mirrorProduct.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const normalizeAudienceValue = (value = "") => {
   const normalized = String(value || "").trim().toLowerCase();
@@ -791,7 +795,7 @@ export const getPublicProductSharePage = async (req, res) => {
       })),
       imageBundle
     );
-    attachGroupedColorImages(deriveColorGroupsFromVariants(normalizedVariants), imageBundle);
+    const colorImages = attachGroupedColorImages(deriveColorGroupsFromVariants(normalizedVariants), imageBundle);
 
     const selectedImage = getSelectedPublicProductImage({ product: row, variants: normalizedVariants, colorImages, query: req.query || {} });
     const normalizedProduct = normalizeProductRow({ ...row, image_url: selectedImage, public_image_url: selectedImage });
