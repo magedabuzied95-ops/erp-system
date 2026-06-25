@@ -192,7 +192,6 @@ export const listSocialPublisherMetaAccounts = async ({ tenantId } = {}) => {
           instagram_business_account_id,
           instagram_username,
           page_access_token_encrypted,
-          page_access_token,
           token_status,
           token_health_status,
           status,
@@ -211,7 +210,6 @@ export const listSocialPublisherMetaAccounts = async ({ tenantId } = {}) => {
           instagram_account_id AS instagram_business_account_id,
           ''::text AS instagram_username,
           COALESCE(page_access_token, access_token_encrypted, '') AS page_access_token_encrypted,
-          ''::text AS page_access_token,
           token_status,
           token_status AS token_health_status,
           CASE WHEN is_connected THEN 'connected' ELSE 'not_connected' END AS status,
@@ -264,7 +262,7 @@ export const listSocialPublisherMetaAccounts = async ({ tenantId } = {}) => {
       instagram_business_account_id: instagramAccountId,
       instagram_username: instagramUsername,
       token_status: trimString(row.token_status || row.token_health_status || row.status || ""),
-      connected: Boolean(trimString(row.page_access_token_encrypted || row.page_access_token || "")),
+      connected: Boolean(trimString(row.page_access_token_encrypted || "")),
       updated_at: row.updated_at || null,
     };
     if (pageId && !pageMap.has(pageId)) pageMap.set(pageId, pageOption);
