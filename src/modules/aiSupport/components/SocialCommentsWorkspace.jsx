@@ -31,19 +31,20 @@ const absoluteTime = (value) => {
 
 const normalizeComment = (raw) => {
   const comment = raw || {};
+  const metadata = comment.metadata && typeof comment.metadata === "object" && !Array.isArray(comment.metadata) ? comment.metadata : {};
   return {
-    id: clean(comment.comment_id || comment.id || comment.external_message_id || comment.provider_message_id || ""),
-    message: clean(comment.customer_message || comment.message || comment.text || comment.message_text || comment.original_comment_text || ""),
-    customerName: clean(comment.commenter_name || comment.customer_name || "عميل"),
-    customerAvatar: clean(comment.avatar || comment.customer_avatar || comment.customer_avatar_url || comment.commenter_profile_picture_url || comment.avatar_url || comment.profile_pic || ""),
-    classification: clean(comment.classification_label || comment.classification || comment.intent || "Question"),
-    replyStatus: clean(comment.reply_status || "pending"),
-    createdTime: clean(comment.created_time || comment.created_at || comment.processed_at || ""),
-    metadata: comment.metadata && typeof comment.metadata === "object" && !Array.isArray(comment.metadata) ? comment.metadata : {},
-    postId: clean(comment.post_id || comment.conversation_post_id || comment.thread_post_id || ""),
-    platform: clean(comment.platform || ""),
-    permalink: clean(comment.permalink_url || comment.comment_url || ""),
-    replyText: clean(comment.reply_text || comment.rendered_reply || ""),
+    id: clean(comment.comment_id || comment.id || comment.external_message_id || comment.provider_message_id || metadata.comment_id || ""),
+    message: clean(comment.customer_message || comment.message || comment.text || comment.message_text || comment.original_comment_text || metadata.customer_message || metadata.message || ""),
+    customerName: clean(comment.commenter_name || comment.customer_name || metadata.commenter_name || metadata.customer_name || "عميل"),
+    customerAvatar: clean(comment.avatar || comment.customer_avatar || comment.customer_avatar_url || comment.commenter_profile_picture_url || comment.avatar_url || comment.profile_pic || metadata.avatar || metadata.customer_avatar || ""),
+    classification: clean(comment.classification_label || comment.classification || comment.intent || metadata.classification_label || metadata.classification || metadata.intent || "Question"),
+    replyStatus: clean(comment.reply_status || metadata.reply_status || "pending"),
+    createdTime: clean(comment.created_time || comment.created_at || comment.processed_at || metadata.created_time || metadata.created_at || metadata.processed_at || ""),
+    metadata,
+    postId: clean(comment.post_id || comment.conversation_post_id || comment.thread_post_id || metadata.post_id || ""),
+    platform: clean(comment.platform || metadata.platform || ""),
+    permalinkUrl: clean(comment.permalink_url || comment.comment_url || metadata.permalink_url || metadata.comment_url || ""),
+    replyText: clean(comment.reply_text || comment.rendered_reply || metadata.reply_text || metadata.rendered_reply || ""),
     raw: comment,
   };
 };
@@ -53,50 +54,36 @@ const normalizePost = (raw) => {
   const metadata = post.metadata && typeof post.metadata === "object" && !Array.isArray(post.metadata) ? post.metadata : {};
   const attachmentImage = getAttachmentImage(post);
   return {
-    id: clean(post.id || post.conversation_id || post.session_id || post.post_id || ""),
-    post_id: clean(post.post_id || post.id || metadata.post_id || ""),
-    conversation_id: clean(post.conversation_id || post.session_id || post.conversation_key || post.thread_id || ""),
-    session_id: clean(post.session_id || ""),
-    platform: clean(post.platform || "facebook").toLowerCase(),
-    thumbnail: clean(
-      post.post_thumbnail ||
-        post.thumbnail_url ||
-      post.post_full_picture ||
-        post.full_picture ||
-        post.picture ||
-        attachmentImage ||
-        post.attachment_image ||
-        post.product_image_url ||
-        post.product_image ||
-        ""
-    ),
-    caption: clean(post.post_caption || post.post_message || post.last_message || post.post_text || post.message || metadata.post_caption || metadata.post_message || ""),
-    permalink: clean(post.post_permalink || post.post_permalink_url || post.permalink_url || post.post_url || metadata.post_permalink || metadata.post_permalink_url || metadata.permalink_url || ""),
-    commentsCount: Number(post.comments_count || post.comment_count || post.total_comments || 0),
-    newCount: Number(post.new_comments_count || post.unread_comments_count || 0),
-    lastActivity: clean(post.last_activity_at || post.last_comment_at || post.last_message_at || post.updated_at || post.created_at || ""),
-    autoReply: clean(post.auto_reply_status || post.auto_reply_mode || post.auto_reply_enabled || post.template_enabled || ""),
-    needsReply: Number(post.new_comments_count || post.unread_comments_count || 0) > 0,
-    productName: clean(post.product_name || post.name || ""),
-    productPrice: clean(post.product_price || post.price || ""),
-    productSalePrice: clean(post.product_sale_price || post.sale_price || ""),
-    productSizes: clean(post.product_sizes || post.sizes || ""),
-    productColors: clean(post.product_colors || post.colors || ""),
-    productStock: clean(post.product_stock || post.stock || ""),
-    productVariantCount: clean(post.product_variant_count || post.variant_count || ""),
-    productLink: clean(post.product_link || post.product_storefront_url || post.product_url || ""),
-    storeAddress: clean(post.store_address || ""),
-    shippingTime: clean(post.shipping_time || ""),
-    message: clean(post.message || ""),
-    lastComment: clean(post.last_comment || post.last_message || ""),
+    id: clean(post.post_id || post.id || post.conversation_id || post.session_id || metadata.post_id || ""),
+    postId: clean(post.post_id || post.id || metadata.post_id || ""),
+    conversationId: clean(post.conversation_id || post.session_id || post.conversation_key || post.thread_id || metadata.conversation_id || ""),
+    sessionId: clean(post.session_id || metadata.session_id || ""),
+    platform: clean(post.platform || metadata.platform || "facebook").toLowerCase(),
+    caption: clean(post.caption || post.post_caption || post.post_message || post.message || post.last_message || post.post_text || metadata.post_caption || metadata.post_message || metadata.caption || metadata.message || "منشور بدون نص"),
+    thumbnailUrl: post.thumbnail_url || post.post_thumbnail || post.post_full_picture || post.attachment_image || post.full_picture || metadata.thumbnail_url || metadata.post_thumbnail || metadata.post_full_picture || attachmentImage || post.picture || post.product_image_url || post.product_image || null,
+    permalinkUrl: clean(post.permalink_url || post.post_permalink || post.post_permalink_url || post.post_url || metadata.permalink_url || metadata.post_permalink || metadata.post_permalink_url || metadata.post_url || ""),
+    commentsCount: Number(post.comments_count || post.comment_count || post.total_comments || metadata.comments_count || 0),
+    newCount: Number(post.new_comments_count || post.unread_comments_count || metadata.new_comments_count || 0),
+    lastActivity: clean(post.last_activity_at || post.last_comment_at || post.last_message_at || post.updated_at || post.created_at || metadata.last_activity_at || ""),
+    autoReplyEnabled: Boolean(post.auto_reply_enabled || post.template_enabled || post.auto_reply_mode || metadata.auto_reply_enabled || metadata.template_enabled || metadata.auto_reply_mode),
+    productName: clean(post.product_name || metadata.product_name || ""),
+    productPrice: clean(post.product_price || metadata.product_price || ""),
+    productSalePrice: clean(post.product_sale_price || metadata.product_sale_price || ""),
+    productSizes: clean(post.product_sizes || metadata.product_sizes || ""),
+    productColors: clean(post.product_colors || metadata.product_colors || ""),
+    productStock: clean(post.product_stock || metadata.product_stock || ""),
+    productVariantCount: clean(post.product_variant_count || metadata.product_variant_count || ""),
+    productLink: clean(post.product_link || post.product_storefront_url || post.product_url || metadata.product_link || metadata.product_storefront_url || metadata.product_url || ""),
+    storeAddress: clean(post.store_address || metadata.store_address || ""),
+    shippingTime: clean(post.shipping_time || metadata.shipping_time || ""),
     attachmentImage,
     raw: post,
   };
 };
 
-const postKey = (item = {}) => clean(normalizePost(item).conversation_id || normalizePost(item).post_id || normalizePost(item).id);
+const postKey = (item = {}) => clean(item?.conversationId || item?.postId || item?.id || "");
 
-const commentKey = (item = {}) => clean(normalizeComment(item).id);
+const commentKey = (item = {}) => clean(item?.id || "");
 
 const platformMeta = (platform = "") => {
   const key = clean(platform).toLowerCase();
@@ -129,7 +116,7 @@ const getAttachmentImage = (post = {}) => {
   return "";
 };
 
-const getPostImage = (post = {}) => clean(normalizePost(post).thumbnail || getAttachmentImage(post));
+const getPostImage = (post = {}) => clean(normalizePost(post).thumbnailUrl || "");
 
 const getPostCaption = (post = {}) => clean(normalizePost(post).caption);
 
@@ -155,8 +142,9 @@ const labelText = (value = "") => {
 };
 
 const summaryBucketLabel = (comment = {}) => {
-  const classification = clean(getCommentClassification(comment)).toLowerCase();
-  const text = getCommentText(comment);
+  const normalized = normalizeComment(comment);
+  const classification = clean(normalized.classification).toLowerCase();
+  const text = normalized.message;
   const haystack = `${classification} ${text}`.toLowerCase();
   if (classification === "lead_price" || /(price|سعر|ثمن|كام|بكام)/i.test(haystack)) return "price";
   if (classification === "lead_size" || /(size|مقاس|المقاس)/i.test(haystack)) return "size";
@@ -176,8 +164,8 @@ const getCommentTags = (comment = {}) => {
   if (bucket === "details" || bucket === "question") tags.add("Question");
   if (bucket === "ready") tags.add("Lead");
   if (bucket === "spam") tags.add("Spam");
-  if (clean(getCommentClassification(comment)).toLowerCase() === "human_review") tags.add("Review");
-  if (clean(getCommentClassification(comment)).toLowerCase() === "lead_inbox") tags.add("Lead");
+  if (clean(normalized.classification).toLowerCase() === "human_review") tags.add("Review");
+  if (clean(normalized.classification).toLowerCase() === "lead_inbox") tags.add("Lead");
   return Array.from(tags).slice(0, 4);
 };
 
@@ -296,7 +284,7 @@ function SocialCommentsWorkspace({
       setSelectedCommentKey("");
       return;
     }
-    const nextSelected =
+      const nextSelected =
       visibleComments.find((comment) => comment.id === clean(selectedCommentKey)) ||
       visibleComments[0] ||
       null;
@@ -316,7 +304,7 @@ function SocialCommentsWorkspace({
         sizes: selectFirst(activePostDetails?.productSizes, ""),
         colors: selectFirst(activePostDetails?.productColors, ""),
         product_link: selectFirst(activePostDetails?.productLink, ""),
-        post_link: selectFirst(activePostDetails?.permalink, ""),
+        post_link: selectFirst(activePostDetails?.permalinkUrl, ""),
         store_address: selectFirst(activePostDetails?.storeAddress, ""),
         shipping_time: selectFirst(activePostDetails?.shippingTime, ""),
       }),
@@ -324,13 +312,13 @@ function SocialCommentsWorkspace({
   );
 
   const suggestedReply = previewReply || activeSuggestedReply || "";
-  const activePostImage = clean(activePostDetails?.thumbnail || "");
+  const activePostImage = activePostDetails?.thumbnailUrl ? clean(activePostDetails.thumbnailUrl) : "";
   const activePostCaption = clean(activePostDetails?.caption || "");
-  const activePostLink = clean(activePostDetails?.permalink || "");
+  const activePostLink = clean(activePostDetails?.permalinkUrl || "");
   const activePlatform = platformMeta(activePostDetails?.platform || activePost?.platform || "");
   const activePostPlatform = clean(activePostDetails?.platform || activePost?.platform || "facebook").toLowerCase();
-  const activePostPostId = clean(activePostDetails?.post_id || activePostDetails?.id || activePostKey);
-  const activePostConversationId = clean(activePostDetails?.conversation_id || activePostDetails?.session_id || activePostDetails?.id || activePostKey);
+  const activePostPostId = clean(activePostDetails?.postId || activePostDetails?.id || activePostKey);
+  const activePostConversationId = clean(activePostDetails?.conversationId || activePostDetails?.sessionId || activePostDetails?.id || activePostKey);
   const activeTemplateEnabled = Boolean(activeTemplate?.enabled);
 
   useEffect(() => {
@@ -647,7 +635,7 @@ function SocialCommentsWorkspace({
                 const key = postKey(post);
                 const active = activePostKey === key;
                 const meta = platformMeta(post.platform);
-                const thumb = post.thumbnail;
+                const thumb = post.thumbnailUrl;
                 return (
                   <article
                     key={key}

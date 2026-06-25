@@ -212,6 +212,56 @@ const commentAutomationMessageLabel = (messageType = "") => {
   return "";
 };
 
+const normalizeSocialCommentPost = (raw) => {
+  const post = raw || {};
+  const metadata = post.metadata && typeof post.metadata === "object" && !Array.isArray(post.metadata) ? post.metadata : {};
+  return {
+    id: String(post.post_id || post.id || post.conversation_id || post.session_id || metadata.post_id || ""),
+    postId: String(post.post_id || post.id || metadata.post_id || ""),
+    conversationId: String(post.conversation_id || post.session_id || post.conversation_key || post.thread_id || metadata.conversation_id || ""),
+    sessionId: String(post.session_id || metadata.session_id || ""),
+    platform: String(post.platform || metadata.platform || "facebook").toLowerCase(),
+    caption: String(post.caption || post.post_caption || post.post_message || post.message || post.last_message || post.post_text || metadata.post_caption || metadata.post_message || metadata.caption || metadata.message || "منشور بدون نص").trim(),
+    thumbnailUrl: post.thumbnail_url || post.post_thumbnail || post.post_full_picture || post.attachment_image || post.full_picture || metadata.thumbnail_url || metadata.post_thumbnail || metadata.post_full_picture || post.image_url || post.product_image_url || post.product_image || null,
+    permalinkUrl: String(post.permalink_url || post.post_permalink || post.post_permalink_url || post.post_url || metadata.permalink_url || metadata.post_permalink || metadata.post_permalink_url || metadata.post_url || "").trim(),
+    commentsCount: Number(post.comments_count || post.comment_count || post.total_comments || metadata.comments_count || 0),
+    newCount: Number(post.new_comments_count || post.unread_comments_count || metadata.new_comments_count || 0),
+    lastActivity: String(post.last_activity_at || post.last_comment_at || post.last_message_at || post.updated_at || post.created_at || metadata.last_activity_at || "").trim(),
+    autoReplyEnabled: Boolean(post.auto_reply_enabled || post.template_enabled || post.auto_reply_mode || metadata.auto_reply_enabled || metadata.template_enabled || metadata.auto_reply_mode),
+    productName: String(post.product_name || metadata.product_name || "").trim(),
+    productPrice: String(post.product_price || metadata.product_price || "").trim(),
+    productSalePrice: String(post.product_sale_price || metadata.product_sale_price || "").trim(),
+    productSizes: String(post.product_sizes || metadata.product_sizes || "").trim(),
+    productColors: String(post.product_colors || metadata.product_colors || "").trim(),
+    productStock: String(post.product_stock || metadata.product_stock || "").trim(),
+    productVariantCount: String(post.product_variant_count || metadata.product_variant_count || "").trim(),
+    productLink: String(post.product_link || post.product_storefront_url || post.product_url || metadata.product_link || metadata.product_storefront_url || metadata.product_url || "").trim(),
+    storeAddress: String(post.store_address || metadata.store_address || "").trim(),
+    shippingTime: String(post.shipping_time || metadata.shipping_time || "").trim(),
+    raw: post,
+  };
+};
+
+const normalizeSocialCommentThreadComment = (raw) => {
+  const comment = raw || {};
+  const metadata = comment.metadata && typeof comment.metadata === "object" && !Array.isArray(comment.metadata) ? comment.metadata : {};
+  return {
+    id: String(comment.comment_id || comment.id || comment.external_message_id || comment.provider_message_id || metadata.comment_id || "").trim(),
+    message: String(comment.customer_message || comment.message || comment.text || comment.message_text || comment.original_comment_text || metadata.customer_message || metadata.message || "").trim(),
+    customerName: String(comment.commenter_name || comment.customer_name || metadata.commenter_name || metadata.customer_name || "عميل").trim(),
+    customerAvatar: String(comment.avatar || comment.customer_avatar || comment.customer_avatar_url || comment.commenter_profile_picture_url || comment.avatar_url || comment.profile_pic || metadata.avatar || metadata.customer_avatar || "").trim(),
+    classification: String(comment.classification_label || comment.classification || comment.intent || metadata.classification_label || metadata.classification || metadata.intent || "Question").trim(),
+    replyStatus: String(comment.reply_status || metadata.reply_status || "pending").trim(),
+    createdTime: String(comment.created_time || comment.created_at || comment.processed_at || metadata.created_time || metadata.created_at || metadata.processed_at || "").trim(),
+    metadata,
+    postId: String(comment.post_id || comment.conversation_post_id || comment.thread_post_id || metadata.post_id || "").trim(),
+    platform: String(comment.platform || metadata.platform || "").trim(),
+    permalinkUrl: String(comment.permalink_url || comment.comment_url || metadata.permalink_url || metadata.comment_url || "").trim(),
+    replyText: String(comment.reply_text || comment.rendered_reply || metadata.reply_text || metadata.rendered_reply || "").trim(),
+    raw: comment,
+  };
+};
+
 const isSocialPostSummary = (item = {}) =>
   Object.prototype.hasOwnProperty.call(item, "comments_count") ||
   Object.prototype.hasOwnProperty.call(item, "new_comments_count") ||
@@ -3261,7 +3311,7 @@ export default function AiInbox() {
           }).catch(() => ({ settings: null })),
         ]);
         if (seq !== requestSeqRef.current) return;
-        const items = asArray(postsPayload.posts || postsPayload.items);
+        const items = asArray(postsPayload.posts || postsPayload.items).filter(Boolean).map((item) => normalizeSocialCommentPost(item));
         const status = Number(postsPayload?.__status || 200) || 200;
         if (socialCommentsDebugEnabled()) {
           console.info("[ai-support] social_comments_response", {
@@ -3632,12 +3682,12 @@ export default function AiInbox() {
   const socialCommentIdentity = useCallback((item) => {
     const safeItem = item || {};
     return clean(
-      safeItem.conversation_id ||
-      safeItem.session_id ||
-      safeItem.post_id ||
+      safeItem.conversationId ||
+      safeItem.sessionId ||
+      safeItem.postId ||
       safeItem.id ||
-      safeItem.comment_id ||
-      `${safeItem.platform || "social"}:${safeItem.post_id || safeItem.comment_id || ""}`
+      safeItem.commentId ||
+      `${safeItem.platform || "social"}:${safeItem.postId || safeItem.commentId || ""}`
     );
   }, []);
   const selectedSocialComment = useMemo(
@@ -3656,6 +3706,20 @@ export default function AiInbox() {
       ? (selectedConversationThread || visibleConversations[0] || null)
       : null;
   const selectedConversation = isConversationMode ? activeMainItem : null;
+  const selectedSocialCommentPost = useMemo(
+    () => normalizeSocialCommentPost(selectedSocialComment || {}),
+    [selectedSocialComment]
+  );
+  const selectedSocialThreadPost = useMemo(
+    () => normalizeSocialCommentPost(selectedSocialThread?.post || selectedSocialComment || {}),
+    [selectedSocialThread?.post, selectedSocialComment]
+  );
+  const selectedSocialThreadComments = useMemo(
+    () => asArray(selectedSocialThread?.comments).filter(Boolean).map((comment) => normalizeSocialCommentThreadComment(comment)),
+    [selectedSocialThread?.comments]
+  );
+  const selectedSocialCommentPostId = clean(selectedSocialCommentPost.postId || selectedSocialCommentPost.conversationId || selectedSocialCommentPost.id || "");
+  const selectedSocialCommentPlatform = clean(selectedSocialCommentPost.platform || "facebook");
   useEffect(() => {
     if (!isSocialMode) {
       if (selectedSocialThread.post || selectedSocialThread.comments.length) {
@@ -3663,7 +3727,7 @@ export default function AiInbox() {
       }
       return;
     }
-    const postId = clean(selectedSocialComment?.post_id || selectedSocialComment?.conversation_id || selectedSocialComment?.id || "");
+    const postId = selectedSocialCommentPostId;
     if (!postId) {
       setSelectedSocialThread({ post: null, comments: [], loading: false, error: "" });
       return;
@@ -3681,7 +3745,7 @@ export default function AiInbox() {
     }));
     void (async () => {
       try {
-        const platformValue = clean(selectedSocialComment?.platform || "");
+        const platformValue = selectedSocialCommentPlatform;
         const [threadPayload, templatePayload] = await Promise.all([
           api.get(`/social-comments/posts/${encodeURIComponent(postId)}/comments`, {
             params: {
@@ -3702,8 +3766,8 @@ export default function AiInbox() {
         ]);
         if (cancelled) return;
         setSelectedSocialThread({
-          post: threadPayload.post || selectedSocialComment || null,
-          comments: asArray(threadPayload.comments),
+          post: normalizeSocialCommentPost(threadPayload.post || selectedSocialCommentPost || null),
+          comments: asArray(threadPayload.comments).filter(Boolean).map((comment) => normalizeSocialCommentThreadComment(comment)),
           loading: false,
           error: "",
         });
@@ -3715,7 +3779,7 @@ export default function AiInbox() {
       } catch (error) {
         if (cancelled) return;
         setSelectedSocialThread({
-          post: selectedSocialComment || null,
+          post: selectedSocialCommentPost,
           comments: [],
           loading: false,
           error: error?.message || "تعذر تحميل تفاصيل البوست",
@@ -3730,7 +3794,7 @@ export default function AiInbox() {
     return () => {
       cancelled = true;
     };
-  }, [headers, isSocialMode, selectedSocialComment?.conversation_id, selectedSocialComment?.id, selectedSocialComment?.platform, selectedSocialComment?.post_id, tenantId]);
+  }, [headers, isSocialMode, selectedSocialCommentPlatform, selectedSocialCommentPost, selectedSocialCommentPostId, tenantId]);
   const saveSocialReplySettings = async () => {
     try {
       const payload = await api.post(
@@ -5630,7 +5694,7 @@ export default function AiInbox() {
         onTemplateChange={setSelectedSocialTemplate}
         onSaveTemplate={saveSocialPostTemplate}
         onCommentAction={handleSocialCommentAction}
-        selectedPostId={clean(selectedSocialComment?.id || selectedSocialComment?.conversation_id || selectedSocialComment?.post_id || "")}
+        selectedPostId={selectedSocialCommentPostId}
         actionLoading={socialCommentActionLoading}
       />
   );
@@ -5943,7 +6007,7 @@ export default function AiInbox() {
                     onTemplateChange={setSelectedSocialTemplate}
                     onSaveTemplate={saveSocialPostTemplate}
                     onCommentAction={handleSocialCommentAction}
-                    selectedPostId={clean(selectedSocialComment?.id || selectedSocialComment?.conversation_id || selectedSocialComment?.post_id || "")}
+                    selectedPostId={selectedSocialCommentPostId}
                     actionLoading={socialCommentActionLoading}
                   />
                 </div>
@@ -5962,12 +6026,12 @@ export default function AiInbox() {
                               <MessageSquareText className="h-4 w-4" />
                               تعليقات السوشيال
                             </div>
-                            <div className="mt-1 text-xl font-black text-white">{clean(selectedSocialComment.commenter_name) || "مستخدم مجهول"}</div>
-                            <div className="mt-1 text-sm text-slate-400">{clean(selectedSocialComment.platform || selectedSocialComment.channel || "social")}</div>
+                            <div className="mt-1 text-xl font-black text-white">{clean(selectedSocialCommentPost.customerName) || "مستخدم مجهول"}</div>
+                            <div className="mt-1 text-sm text-slate-400">{clean(selectedSocialCommentPost.platform || "social")}</div>
                           </div>
                           <div className="flex flex-wrap gap-2">
-                            {clean(selectedSocialComment.post_permalink || selectedSocialComment.permalink_url) ? (
-                              <a href={clean(selectedSocialComment.post_permalink || selectedSocialComment.permalink_url)} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100">
+                            {clean(selectedSocialCommentPost.permalinkUrl) ? (
+                              <a href={clean(selectedSocialCommentPost.permalinkUrl)} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100">
                                 <ExternalLink className="h-4 w-4" />
                                 فتح البوست
                               </a>
@@ -5980,12 +6044,12 @@ export default function AiInbox() {
                         <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
                           <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">نص التعليق</div>
                           <div className="mt-2 whitespace-pre-wrap text-sm leading-7 text-white">
-                            {clean(selectedSocialComment.original_comment_text || selectedSocialComment.text || selectedSocialComment.message) || "بدون نص"}
+                            {clean(selectedSocialCommentPost.message) || "بدون نص"}
                           </div>
                           <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-slate-400">
-                            {selectedSocialComment.post_id ? <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">post_id: {selectedSocialComment.post_id}</span> : null}
-                            {selectedSocialComment.comment_id ? <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">comment_id: {selectedSocialComment.comment_id}</span> : null}
-                            {selectedSocialComment.created_at ? <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">{absoluteTime(selectedSocialComment.created_at)}</span> : null}
+                            {selectedSocialCommentPost.postId ? <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">post_id: {selectedSocialCommentPost.postId}</span> : null}
+                            {selectedSocialCommentPost.id ? <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">comment_id: {selectedSocialCommentPost.id}</span> : null}
+                            {selectedSocialCommentPost.createdTime ? <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">{absoluteTime(selectedSocialCommentPost.createdTime)}</span> : null}
                           </div>
                         </div>
 
@@ -5998,8 +6062,8 @@ export default function AiInbox() {
                             <MessageSquareText className="h-4 w-4" />
                             إرسال رسالة خاصة
                           </button>
-                          {clean(selectedSocialComment.post_permalink || selectedSocialComment.permalink_url) ? (
-                            <a href={clean(selectedSocialComment.post_permalink || selectedSocialComment.permalink_url)} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100">
+                          {clean(selectedSocialCommentPost.permalinkUrl) ? (
+                            <a href={clean(selectedSocialCommentPost.permalinkUrl)} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100">
                               <ExternalLink className="h-4 w-4" />
                               فتح البوست
                             </a>
@@ -6351,9 +6415,9 @@ export default function AiInbox() {
                   <div className="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
                     <div className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70">
                       <div className="aspect-[4/3] w-full bg-slate-900">
-                        {clean(selectedSocialThread.post?.thumbnail_url || selectedSocialComment.thumbnail_url) ? (
+                        {clean(selectedSocialThreadPost.thumbnailUrl || selectedSocialCommentPost.thumbnailUrl) ? (
                           <img
-                            src={clean(selectedSocialThread.post?.thumbnail_url || selectedSocialComment.thumbnail_url)}
+                            src={clean(selectedSocialThreadPost.thumbnailUrl || selectedSocialCommentPost.thumbnailUrl)}
                             alt=""
                             className="h-full w-full object-cover"
                           />
@@ -6362,12 +6426,12 @@ export default function AiInbox() {
                       <div className="p-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
-                            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">{clean(selectedSocialComment.platform).toLowerCase().includes("instagram") ? "Instagram Post" : "Facebook Post"}</div>
-                            <h2 className="mt-1 text-xl font-black text-white">{clean(selectedSocialThread.post?.post_caption || selectedSocialComment.post_caption || selectedSocialComment.post_message || selectedSocialComment.last_message || "Post")}</h2>
+                            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">{clean(selectedSocialCommentPost.platform).toLowerCase().includes("instagram") ? "Instagram Post" : "Facebook Post"}</div>
+                            <h2 className="mt-1 text-xl font-black text-white">{clean(selectedSocialThreadPost.caption || selectedSocialCommentPost.caption || "Post")}</h2>
                           </div>
-                          {clean(selectedSocialComment.post_permalink || selectedSocialComment.post_permalink_url || selectedSocialComment.permalink_url || selectedSocialComment.post_url) ? (
+                          {clean(selectedSocialThreadPost.permalinkUrl || selectedSocialCommentPost.permalinkUrl) ? (
                             <a
-                              href={clean(selectedSocialComment.post_permalink || selectedSocialComment.post_permalink_url || selectedSocialComment.permalink_url || selectedSocialComment.post_url)}
+                              href={clean(selectedSocialThreadPost.permalinkUrl || selectedSocialCommentPost.permalinkUrl)}
                               target="_blank"
                               rel="noreferrer"
                               className="inline-flex h-10 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-sm font-black text-cyan-100"
@@ -6381,23 +6445,23 @@ export default function AiInbox() {
                         <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
                             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Product</div>
-                          <div className="mt-1 text-sm font-black text-white">{clean(selectedSocialThread.post?.product_name || selectedSocialComment.product_name || "Not linked")}</div>
+                          <div className="mt-1 text-sm font-black text-white">{clean(selectedSocialThreadPost.productName || selectedSocialCommentPost.productName || "Not linked")}</div>
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
                             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Price</div>
-                            <div className="mt-1 text-sm font-black text-white">{clean(selectedSocialThread.post?.product_price || selectedSocialComment.product_price || "") || "-"}</div>
+                            <div className="mt-1 text-sm font-black text-white">{clean(selectedSocialThreadPost.productPrice || selectedSocialCommentPost.productPrice || "") || "-"}</div>
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
                             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Sale</div>
-                            <div className="mt-1 text-sm font-black text-white">{clean(selectedSocialThread.post?.product_sale_price || selectedSocialComment.product_sale_price || "") || "-"}</div>
+                            <div className="mt-1 text-sm font-black text-white">{clean(selectedSocialThreadPost.productSalePrice || selectedSocialCommentPost.productSalePrice || "") || "-"}</div>
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
                             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Sizes</div>
-                            <div className="mt-1 text-sm font-black text-white">{clean(selectedSocialThread.post?.product_sizes || selectedSocialComment.product_sizes || "") || "-"}</div>
+                            <div className="mt-1 text-sm font-black text-white">{clean(selectedSocialThreadPost.productSizes || selectedSocialCommentPost.productSizes || "") || "-"}</div>
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
                             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Colors</div>
-                            <div className="mt-1 text-sm font-black text-white">{clean(selectedSocialThread.post?.product_colors || selectedSocialComment.product_colors || "") || "-"}</div>
+                            <div className="mt-1 text-sm font-black text-white">{clean(selectedSocialThreadPost.productColors || selectedSocialCommentPost.productColors || "") || "-"}</div>
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
                             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Stock</div>
@@ -6423,8 +6487,8 @@ export default function AiInbox() {
                       <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
                         <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Post status</div>
                         <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-black">
-                          <Pill tone={selectedSocialComment.new_comments_count > 0 ? "amber" : "zinc"}>{Number(selectedSocialComment.comments_count || 0)} comments</Pill>
-                          <Pill tone={selectedSocialComment.new_comments_count > 0 ? "amber" : "emerald"}>{Number(selectedSocialComment.new_comments_count || 0)} new</Pill>
+                          <Pill tone={selectedSocialCommentPost.newCount > 0 ? "amber" : "zinc"}>{Number(selectedSocialCommentPost.commentsCount || 0)} comments</Pill>
+                          <Pill tone={selectedSocialCommentPost.newCount > 0 ? "amber" : "emerald"}>{Number(selectedSocialCommentPost.newCount || 0)} new</Pill>
                           <Pill tone={socialReplySettings.generic_enabled ? "emerald" : "zinc"}>{socialReplySettings.generic_enabled ? "Auto Reply ON" : "Auto Reply OFF"}</Pill>
                         </div>
                         {selectedSocialThread.loading ? <LoadingBlock text="جارٍ تحميل التعليقات..." /> : null}
@@ -6501,9 +6565,9 @@ export default function AiInbox() {
                             type="button"
                             onClick={async () => {
                               try {
-                                const payload = await api.post(`/social-comments/posts/${encodeURIComponent(selectedSocialComment.post_id || selectedSocialComment.conversation_id || "")}/template`, {
+                                const payload = await api.post(`/social-comments/posts/${encodeURIComponent(selectedSocialCommentPost.postId || selectedSocialCommentPost.conversationId || "")}/template`, {
                                   tenant_id: tenantId,
-                                  platform: clean(selectedSocialComment.platform || "facebook"),
+                                  platform: clean(selectedSocialCommentPost.platform || "facebook"),
                                   ...selectedSocialTemplate.template,
                                 }, { headers, perfComponent: "AiInbox.socialPostTemplateSave" });
                                 setSelectedSocialTemplate({
@@ -6526,8 +6590,8 @@ export default function AiInbox() {
                               try {
                                 const payload = await api.post(`/social-comments/comments/${encodeURIComponent(clean(selectedSocialThread.comments[0]?.comment_id || ""))}/auto-reply-preview`, {
                                   tenant_id: tenantId,
-                                  platform: clean(selectedSocialComment.platform || "facebook"),
-                                  post_id: clean(selectedSocialComment.post_id || selectedSocialComment.conversation_id || ""),
+                                  platform: clean(selectedSocialCommentPost.platform || "facebook"),
+                                  post_id: clean(selectedSocialCommentPost.postId || selectedSocialCommentPost.conversationId || ""),
                                 }, { headers, perfComponent: "AiInbox.socialCommentPreview" });
                                 setToast({ tone: "emerald", text: payload?.preview?.rendered_reply ? "تم توليد معاينة الرد" : "No preview available" });
                               } catch (previewError) {
@@ -6552,26 +6616,26 @@ export default function AiInbox() {
                           {selectedSocialThread.comments.length ? <Pill tone="zinc">{selectedSocialThread.comments.length} تعليق</Pill> : null}
                         </div>
                         <div className="mt-3 max-h-[32rem] space-y-2 overflow-y-auto pr-1">
-                          {selectedSocialThread.comments.length ? selectedSocialThread.comments.map((comment) => {
-                            const commentKey = clean(comment.comment_id || comment.id || "");
-                            const status = clean(comment.reply_status || comment.auto_reply_mode || comment.like_status || "not replied");
+                          {selectedSocialThreadComments.length ? selectedSocialThreadComments.map((comment) => {
+                            const commentKey = clean(comment.id || "");
+                            const status = clean(comment.replyStatus || "not replied");
                             return (
                               <div key={commentKey || comment.id} className="rounded-2xl border border-white/10 bg-slate-950/70 p-3">
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="flex min-w-0 items-center gap-2">
                                     <div className="h-10 w-10 overflow-hidden rounded-full border border-white/10 bg-white/[0.04]">
-                                      {clean(comment.commenter_profile_picture_url || comment.customer_avatar_url || "") ? (
-                                        <img src={clean(comment.commenter_profile_picture_url || comment.customer_avatar_url || "")} alt="" className="h-full w-full object-cover" />
+                                      {clean(comment.customerAvatar || "") ? (
+                                        <img src={clean(comment.customerAvatar || "")} alt="" className="h-full w-full object-cover" />
                                       ) : null}
                                     </div>
                                     <div className="min-w-0">
-                                      <div className="truncate text-sm font-black text-white">{clean(comment.customer_name || comment.commenter_name || "Customer")}</div>
-                                      <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">{absoluteTime(comment.created_at)}</div>
+                                      <div className="truncate text-sm font-black text-white">{clean(comment.customerName || "Customer")}</div>
+                                      <div className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">{absoluteTime(comment.createdTime)}</div>
                                     </div>
                                   </div>
                                   <Pill tone={status === "sent" ? "emerald" : status === "failed" ? "rose" : "zinc"}>{status.replace(/_/g, " ")}</Pill>
                                 </div>
-                                <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-200">{clean(comment.customer_message || comment.message_text || comment.last_message || "")}</div>
+                                <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-200">{clean(comment.message || "")}</div>
                                 <div className="mt-3 flex flex-wrap gap-2">
                                   <button
                                     type="button"
@@ -6579,8 +6643,8 @@ export default function AiInbox() {
                                       try {
                                         await api.post(`/social-comments/comments/${encodeURIComponent(commentKey)}/auto-reply-send`, {
                                           tenant_id: tenantId,
-                                          platform: clean(selectedSocialComment.platform || "facebook"),
-                                          post_id: clean(selectedSocialComment.post_id || selectedSocialComment.conversation_id || ""),
+                                          platform: clean(selectedSocialCommentPost.platform || "facebook"),
+                                          post_id: clean(selectedSocialCommentPost.postId || selectedSocialCommentPost.conversationId || ""),
                                         }, { headers, perfComponent: "AiInbox.socialCommentReply" });
                                         void loadAll({ silent: true });
                                       } catch (replyError) {
@@ -6603,8 +6667,8 @@ export default function AiInbox() {
                                       try {
                                         await api.post(`/social-comments/comments/${encodeURIComponent(commentKey)}/ignore`, {
                                           tenant_id: tenantId,
-                                          platform: clean(selectedSocialComment.platform || "facebook"),
-                                          post_id: clean(selectedSocialComment.post_id || selectedSocialComment.conversation_id || ""),
+                                          platform: clean(selectedSocialCommentPost.platform || "facebook"),
+                                          post_id: clean(selectedSocialCommentPost.postId || selectedSocialCommentPost.conversationId || ""),
                                           reason: "ignore",
                                         }, { headers, perfComponent: "AiInbox.socialCommentIgnore" });
                                         void loadAll({ silent: true });

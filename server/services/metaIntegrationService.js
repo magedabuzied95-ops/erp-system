@@ -4158,12 +4158,15 @@ const inferMetaPostMediaType = (post = {}, attachmentDetails = {}) => {
 const extractMetaPostGraphFieldPresence = (post = {}) => {
   const fields = [
     ["message", post.message],
+    ["description", post.description],
     ["caption", post.caption],
     ["permalink_url", post.permalink_url],
     ["thumbnail_url", post.thumbnail_url],
     ["full_picture", post.full_picture],
     ["picture", post.picture],
     ["source", post.source],
+    ["media_url", post.media_url],
+    ["media_type", post.media_type],
     ["attachments", post.attachments],
     ["child_attachments", post.child_attachments],
   ].filter(([, value]) => {
