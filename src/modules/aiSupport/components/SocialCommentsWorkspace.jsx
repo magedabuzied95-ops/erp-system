@@ -26,24 +26,28 @@ const absoluteTime = (value) => {
   return date.toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" });
 };
 
-const postKey = (item = {}) =>
+const postKey = (item = {}) => {
+  const source = item || {};
   clean(
-    item.conversation_id ||
-      item.session_id ||
-      item.post_id ||
-      item.id ||
-      item.comment_id ||
-      `${item.platform || "social"}:${item.post_id || item.id || item.comment_id || ""}`
+    source.conversation_id ||
+      source.session_id ||
+      source.post_id ||
+      source.id ||
+      source.comment_id ||
+      `${source.platform || "social"}:${source.post_id || source.id || source.comment_id || ""}`
   );
+};
 
-const commentKey = (item = {}) =>
-  clean(
-    item.comment_id ||
-      item.id ||
-      item.external_message_id ||
-      item.provider_message_id ||
-      `${item.platform || "social"}:${item.created_at || ""}:${item.message_text || item.customer_message || item.text || ""}`
+const commentKey = (item = {}) => {
+  const source = item || {};
+  return clean(
+    source.comment_id ||
+      source.id ||
+      source.external_message_id ||
+      source.provider_message_id ||
+      `${source.platform || "social"}:${source.created_at || ""}:${source.message_text || source.customer_message || source.text || ""}`
   );
+};
 
 const platformMeta = (platform = "") => {
   const key = clean(platform).toLowerCase();
@@ -194,7 +198,7 @@ function SocialCommentsWorkspace({
 }) {
   const posts = useMemo(
     () =>
-      [...(Array.isArray(items) ? items : [])].sort(
+      [...(Array.isArray(items) ? items.filter(Boolean) : [])].sort(
         (left, right) =>
           new Date(right.last_activity_at || right.last_comment_at || right.last_message_at || right.updated_at || right.created_at || 0).getTime() -
           new Date(left.last_activity_at || left.last_comment_at || left.last_message_at || left.updated_at || left.created_at || 0).getTime()
@@ -206,7 +210,7 @@ function SocialCommentsWorkspace({
   const activePostKey = clean(selectedPostId || postKey(activePost));
   const activeThread = selectedThread || { post: null, comments: [], loading: false, error: "" };
   const activeTemplate = selectedTemplate?.template || null;
-  const comments = Array.isArray(activeThread.comments) ? activeThread.comments : [];
+  const comments = Array.isArray(activeThread.comments) ? activeThread.comments.filter(Boolean) : [];
 
   const dashboard = useMemo(() => {
     const totalComments = posts.reduce((sum, post) => sum + Number(post.comments_count || 0), 0);
