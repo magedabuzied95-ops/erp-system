@@ -4118,6 +4118,23 @@ const extractMetaPostAttachmentDetails = (post = {}) => {
   };
 };
 
+const extractReelIdFromPermalink = (value = "") => {
+  const permalink = text(value);
+  if (!permalink) return "";
+  const patterns = [
+    /facebook\.com\/reel\/(\d+)/i,
+    /facebook\.com\/reels\/(\d+)/i,
+    /facebook\.com\/watch\/\?v=(\d+)/i,
+    /instagram\.com\/reel\/([A-Za-z0-9_-]+)/i,
+    /instagram\.com\/reels\/([A-Za-z0-9_-]+)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = permalink.match(pattern);
+    if (match?.[1]) return text(match[1]);
+  }
+  return "";
+};
+
 const extractMetaPostAttachmentImage = (post = {}) => {
   const details = extractMetaPostAttachmentDetails(post);
   const directSources = [
@@ -4143,6 +4160,7 @@ const extractMetaPostGraphFieldPresence = (post = {}) => {
     ["message", post.message],
     ["caption", post.caption],
     ["permalink_url", post.permalink_url],
+    ["thumbnail_url", post.thumbnail_url],
     ["full_picture", post.full_picture],
     ["picture", post.picture],
     ["source", post.source],
@@ -4159,6 +4177,7 @@ const extractMetaPostGraphFieldPresence = (post = {}) => {
 const normalizeMetaPostPreview = (post = {}) => {
   const attachmentDetails = extractMetaPostAttachmentDetails(post);
   const graphFieldsPresent = extractMetaPostGraphFieldPresence(post);
+  const graphThumbnailUrl = text(post.thumbnail_url || "");
   const fullPicture = text(post.full_picture || post.picture || "");
   const picture = text(post.picture || "");
   const sourceUrl = text(post.source || "");
@@ -4168,8 +4187,10 @@ const normalizeMetaPostPreview = (post = {}) => {
   const postCaption = text(post.caption || postMessage || "");
   const mediaType = inferMetaPostMediaType(post, attachmentDetails);
   const postType = text(post.type || post.media_type || mediaType || "");
-  const thumbnailUrl = attachmentImage || fullPicture || picture || (/(video|reel)/.test(mediaType) ? sourceUrl : "");
-  const thumbnailSource = attachmentDetails.thumbnailSource || (attachmentImage ? "attachments.media.image.src" : fullPicture ? "full_picture" : picture ? "picture" : sourceUrl ? "source" : "");
+  const thumbnailUrl = graphThumbnailUrl || attachmentImage || fullPicture || picture || (/(video|reel)/.test(mediaType) ? sourceUrl : "");
+  const thumbnailSource = graphThumbnailUrl
+    ? "thumbnail_url"
+    : attachmentDetails.thumbnailSource || (attachmentImage ? "attachments.media.image.src" : fullPicture ? "full_picture" : picture ? "picture" : sourceUrl ? "source" : "");
   const reasonIfMissing = thumbnailUrl
     ? ""
     : mediaType === "video" || mediaType === "reel"
@@ -4202,7 +4223,7 @@ const normalizeMetaPostPreview = (post = {}) => {
   };
 };
 
-export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = "", pageId = "" } = {}) => {
+export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = "", pageId = "", permalinkUrl = "" } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safePostId = text(postId);
   if (!safeTenantId || !safePostId) return null;
@@ -4214,33 +4235,83 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
   }
   const token = getTokenForConfig(row);
   if (!token) return null;
-  const fields = "id,message,caption,permalink_url,full_picture,picture,source,attachments{media,type,url,title,description,subattachments},child_attachments";
-  const fetchPreview = async (candidatePostId) => {
-    const payload = await callMetaGet({
-      endpoint: `/${encodeURIComponent(text(candidatePostId))}`,
-      token,
-      params: { fields },
-    });
-    return normalizeMetaPostPreview(payload || {});
-  };
+  const fields = "id,message,caption,permalink_url,thumbnail_url,source,picture,full_picture,media_url,media_type,attachments{media,type,url,title,description,subattachments},child_attachments";
+  const reelIdFromPermalink = extractReelIdFromPermalink(permalinkUrl);
+  const shortPostId = safePostId.includes("_") ? safePostId.split("_").slice(1).join("_") || safePostId.split("_").pop() || "" : "";
+  const candidateIds = Array.from(new Set([safePostId, reelIdFromPermalink, shortPostId].filter(Boolean)));
+  const errors = [];
+  let primaryPreview = null;
+  let reelPreview = null;
+  let objectIdPreview = null;
 
-  const primaryPreview = await fetchPreview(safePostId).catch(() => null);
-  const shouldFallbackToShortId = safePostId.includes("_") && (!primaryPreview || !primaryPreview.thumbnail_url || primaryPreview.reason_if_missing);
-  if (!shouldFallbackToShortId) return primaryPreview;
+  for (const candidatePostId of candidateIds) {
+    try {
+      const payload = await callMetaGet({
+        endpoint: `/${encodeURIComponent(text(candidatePostId))}`,
+        token,
+        params: { fields },
+      });
+      const preview = normalizeMetaPostPreview(payload || {});
+      if (candidatePostId === reelIdFromPermalink) reelPreview = preview;
+      if (candidatePostId === safePostId || candidatePostId === shortPostId) objectIdPreview = preview;
+      if (!primaryPreview) primaryPreview = preview;
+      if (preview?.thumbnail_url) {
+        primaryPreview = preview;
+        break;
+      }
+    } catch (error) {
+      errors.push({
+        candidate_id: candidatePostId,
+        message: text(error?.message || "Graph fetch failed"),
+        code: text(error?.code || error?.response?.data?.error?.code || ""),
+      });
+    }
+  }
 
-  const shortPostId = safePostId.split("_").slice(1).join("_") || safePostId.split("_").pop() || "";
-  if (!shortPostId || shortPostId === safePostId) return primaryPreview;
-  const fallbackPreview = await fetchPreview(shortPostId).catch(() => null);
-  if (!fallbackPreview) return primaryPreview;
+  const bestPreview = primaryPreview || objectIdPreview || reelPreview || null;
+  if (!bestPreview) {
+    return {
+      id: safePostId,
+      post_id: safePostId,
+      message: "",
+      caption: "",
+      permalink_url: text(permalinkUrl || ""),
+      full_picture: "",
+      picture: "",
+      source: "",
+      attachment_image: "",
+      post_thumbnail: "",
+      thumbnail_url: null,
+      thumbnail_source: "missing",
+      media_type: "",
+      post_type: "",
+      post_message: "",
+      post_caption: "",
+      attachments: [],
+      child_attachments: [],
+      graph_fields_present: [],
+      attachments_shape: { count: 0, child_count: 0, has_media: false, has_subattachments: false, types: [] },
+      full_picture_present: false,
+      attachment_image_present: false,
+      reason_if_missing: errors.length ? "graph_errors" : "no_image_sources_found",
+      tried_ids: candidateIds,
+      graph_errors_sample: errors.slice(0, 5),
+      reel_id_from_permalink: reelIdFromPermalink,
+      reel_thumbnail_present: Boolean(reelPreview?.thumbnail_url),
+      object_id_thumbnail_present: Boolean(objectIdPreview?.thumbnail_url),
+    };
+  }
 
-  const bestPreview = fallbackPreview.thumbnail_url && !primaryPreview?.thumbnail_url ? fallbackPreview : primaryPreview || fallbackPreview;
-  if (!bestPreview) return primaryPreview;
   return {
-    ...primaryPreview,
-    ...fallbackPreview,
-    thumbnail_url: fallbackPreview.thumbnail_url || primaryPreview?.thumbnail_url || "",
-    thumbnail_source: fallbackPreview.thumbnail_source || primaryPreview?.thumbnail_source || "",
-    reason_if_missing: fallbackPreview.reason_if_missing || primaryPreview?.reason_if_missing || "",
+    ...bestPreview,
+    thumbnail_url: bestPreview.thumbnail_url || null,
+    thumbnail_source: bestPreview.thumbnail_url ? bestPreview.thumbnail_source || "graph" : "missing",
+    reason_if_missing: bestPreview.thumbnail_url ? "" : bestPreview.reason_if_missing || "no_image_sources_found",
+    tried_ids: candidateIds,
+    graph_errors_sample: errors.slice(0, 5),
+    reel_id_from_permalink: reelIdFromPermalink,
+    reel_thumbnail_present: Boolean(reelPreview?.thumbnail_url),
+    object_id_thumbnail_present: Boolean(objectIdPreview?.thumbnail_url),
   };
 };
 
