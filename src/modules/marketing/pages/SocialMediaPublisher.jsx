@@ -14,6 +14,7 @@ import {
   Wand2,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 
 import {
   createSocialPublisherPost,
@@ -63,6 +64,7 @@ const statusLabel = (value) => {
 const safeArray = (value) => (Array.isArray(value) ? value : []);
 
 export default function SocialMediaPublisher() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [publishingId, setPublishingId] = useState(null);
@@ -336,10 +338,10 @@ export default function SocialMediaPublisher() {
                           <button
                             key={platform.key}
                             type="button"
-                            disabled={platform.key === "tiktok"}
+                            disabled={Boolean(platform.disabled)}
                             onClick={() => togglePlatform(platform.key)}
                             className={[
-                              "flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-start transition",
+                              "flex w-full items-start justify-between gap-3 rounded-2xl border px-3 py-3 text-start transition",
                               platform.disabled
                                 ? "cursor-not-allowed border-white/5 bg-white/[0.03] text-slate-500"
                                 : checked
@@ -347,19 +349,19 @@ export default function SocialMediaPublisher() {
                                   : "border-white/10 bg-white/[0.03] text-slate-200 hover:border-white/20 hover:bg-white/[0.06]",
                             ].join(" ")}
                           >
-                            <span className="flex items-center gap-2">
-                              <Icon className="h-4 w-4" />
-                              <span className="text-sm font-semibold">{platform.label}</span>
+                            <span className="flex min-w-0 flex-1 items-start gap-2">
+                              <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                              <span className="min-w-0 space-y-0.5">
+                                <span className="block text-sm font-semibold">{platform.label}</span>
+                                {platform.disabled ? <span className="block text-xs text-slate-400">{platform.helper}</span> : null}
+                              </span>
                             </span>
-                            <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{platform.disabled ? platform.subtitle : checked ? "Selected" : "Off"}</span>
+                            <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                              {platform.disabled ? platform.subtitle : checked ? "Selected" : "Off"}
+                            </span>
                           </button>
                         );
-                        })}
-                      {platformOptions.some((platform) => platform.disabled) ? (
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3 text-sm text-slate-400">
-                          Connect TikTok لاحقًا
-                        </div>
-                      ) : null}
+                      })}
                     </div>
                   </div>
 
@@ -400,12 +402,6 @@ export default function SocialMediaPublisher() {
                   </div>
                 </label>
 
-                <div className="hidden space-y-2 md:block">
-                  <span className="text-sm font-semibold text-slate-200">TikTok</span>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-400">
-                    Connect TikTok لاحقًا
-                  </div>
-                </div>
               </div>
 
               <div className="sticky bottom-0 z-20 mt-2 grid grid-cols-2 gap-2 border-t border-white/10 bg-[#07111f]/96 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-4 backdrop-blur md:static md:flex md:items-center md:justify-end md:gap-3 md:bg-transparent md:px-0 md:pb-0 md:pt-4">
