@@ -5686,24 +5686,7 @@ export default function AiInbox() {
                 </div>
                 <div className={`hidden ${fullscreenConversation ? "flex h-full min-h-0 flex-1 gap-0 overflow-hidden" : "flex min-h-0 flex-1 gap-2 overflow-hidden"}`}>
                 <aside className="flex min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-2 md:w-[340px] md:max-w-[340px]">
-                  <SocialCommentsPanel
-                    items={socialComments.items}
-                    loading={socialComments.loading}
-                    error={socialComments.error}
-                    filter={socialCommentsFilter}
-                    debugInfo={socialCommentsDebug}
-                    selectedItemId={activeItemId}
-                    onSelectItem={(item) => {
-                      const nextKey = socialCommentIdentity(item);
-                      if (nextKey) {
-                        setSelectedSocialCommentId(nextKey);
-                        setSelectedSessionId("");
-                        setMobileView("chat");
-                      }
-                    }}
-                    onFilterChange={setSocialCommentsFilter}
-                    onRefresh={() => void loadAll({ silent: true })}
-                  />
+                  {null}
                 </aside>
 
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
@@ -6096,23 +6079,7 @@ export default function AiInbox() {
                 </div>
               </div>
 
-              <SocialCommentsPanel
-                mode="posts"
-                items={visibleSocialComments}
-                loading={loading || socialComments.loading}
-                error={socialComments.error}
-                filter={socialCommentsFilter}
-                debugInfo={socialCommentsDebug}
-                selectedItemId={clean(selectedSocialComment?.id || selectedSocialComment?.conversation_id || selectedSocialComment?.post_id || "")}
-                onSelectItem={(item, itemKey) => {
-                  setSelectedSocialCommentId(itemKey);
-                  setSelectedSessionId("");
-                  setSelectedSocialThread({ post: null, comments: [], loading: true, error: "" });
-                  setMobileView("chat");
-                }}
-                onFilterChange={setSocialCommentsFilter}
-                onRefresh={() => void loadAll({ silent: true })}
-              />
+              {null}
             </aside>
 
             <main className="min-h-0 min-w-0 space-y-3 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-3 shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
