@@ -5611,48 +5611,6 @@ export default function AiInbox() {
 
 	          <aside className={`${isSocialMode ? "hidden" : ""} flex min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)] md:w-[300px] md:max-w-[300px] xl:w-[20%] xl:max-w-[20%] ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
 	            <div className="shrink-0 space-y-3">
-	              <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-2">
-	                <div className="grid grid-cols-2 gap-2">
-	                  <button
-	                    type="button"
-	                    onClick={() => {
-	                      setInboxSection("conversations");
-	                      setSelectedSessionId(conversationPanelConversations[0]?.conversation_key || "");
-	                      setSelectedSocialCommentId("");
-	                      setMobileView("list");
-	                    }}
-	                    className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
-	                      inboxSection === "conversations"
-	                        ? "bg-cyan-300 text-slate-950"
-	                        : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
-	                    }`}
-	                  >
-                      <span>AI Inbox</span>
-	                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${inboxSection === "conversations" ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
-	                      {conversationPanelCount}
-	                    </span>
-	                  </button>
-	                  <button
-	                    type="button"
-	                    onClick={() => {
-	                      setInboxSection("social_comments");
-	                      setSelectedSocialCommentId(socialCommentIdentity(visibleSocialComments[0] || {}));
-	                      setSelectedSessionId("");
-	                      setMobileView("chat");
-	                    }}
-	                    className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
-	                      inboxSection === "social_comments"
-	                        ? "bg-cyan-300 text-slate-950"
-	                        : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
-	                    }`}
-	                  >
-                    <span>Social Comments</span>
-	                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${inboxSection === "social_comments" ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
-	                      {socialCommentsPanelCount}
-	                    </span>
-	                  </button>
-	                </div>
-	              </div>
 	              {inboxSection === "conversations" ? (
 	                <div className="flex flex-col gap-3">
 	                  <label className="relative min-w-0">
