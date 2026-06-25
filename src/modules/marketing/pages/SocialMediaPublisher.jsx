@@ -66,6 +66,14 @@ const statusLabel = (value) => {
 };
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
+const resolveFacebookPageDisplayLabel = (page = {}) => page?.facebook_page_name || page?.page_name || "Facebook Page";
+const resolveInstagramAccountDisplayLabel = (account = {}) => account?.instagram_username || account?.instagram_account_name || "Instagram Business Account";
+const renderAccountCardValue = (label, value) => (
+  <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white">
+    <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{label}</div>
+    <div className="mt-1 font-semibold">{value}</div>
+  </div>
+);
 
 export default function SocialMediaPublisher() {
   const { t } = useTranslation();
@@ -280,8 +288,8 @@ export default function SocialMediaPublisher() {
 
   const hasFacebookAccount = Boolean(selectedFacebookPageId);
   const hasInstagramAccount = Boolean(selectedInstagramAccountId);
-  const selectedFacebookPageLabel = selectedFacebookPage?.facebook_page_name || selectedFacebookPage?.page_name || selectedFacebookPageId || "";
-  const selectedInstagramAccountLabel = selectedInstagramAccount?.instagram_username || selectedInstagramAccount?.instagram_account_id || selectedInstagramAccountId || "";
+  const selectedFacebookPageLabel = selectedFacebookPage ? resolveFacebookPageDisplayLabel(selectedFacebookPage) : "Facebook Page";
+  const selectedInstagramAccountLabel = selectedInstagramAccount ? resolveInstagramAccountDisplayLabel(selectedInstagramAccount) : "Instagram Business Account";
   const canPublishSelectedAccounts = Boolean(hasFacebookAccount && (!platforms.instagram || hasInstagramAccount));
 
   useEffect(() => {
@@ -704,7 +712,15 @@ export default function SocialMediaPublisher() {
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-2">
                     <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Facebook</div>
-                    {facebookPages.length ? (
+                    {facebookPages.length === 1 ? (
+                      <div className="space-y-2">
+                        {renderAccountCardValue("Selected page", resolveFacebookPageDisplayLabel(facebookPages[0]))}
+                        <div className="flex items-center gap-2 text-xs font-semibold text-emerald-200">
+                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-400/15">✓</span>
+                          Connected page
+                        </div>
+                      </div>
+                    ) : facebookPages.length > 1 ? (
                       <select
                         value={selectedFacebookPageId}
                         onChange={(event) => handleFacebookPageChange(event.target.value)}
@@ -712,20 +728,28 @@ export default function SocialMediaPublisher() {
                       >
                         {facebookPages.map((page) => (
                           <option key={page.facebook_page_id} value={page.facebook_page_id}>
-                            {page.facebook_page_name || page.facebook_page_id}
+                            {resolveFacebookPageDisplayLabel(page)}
                           </option>
                         ))}
                       </select>
                     ) : (
                       <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
-                        Not selected
+                        Facebook Page
                       </div>
                     )}
                   </div>
 
                   <div className="space-y-2">
                     <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Instagram</div>
-                    {instagramAccounts.length ? (
+                    {instagramAccounts.length === 1 ? (
+                      <div className="space-y-2">
+                        {renderAccountCardValue("Selected account", resolveInstagramAccountDisplayLabel(instagramAccounts[0]))}
+                        <div className="flex items-center gap-2 text-xs font-semibold text-emerald-200">
+                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-400/15">✓</span>
+                          Connected account
+                        </div>
+                      </div>
+                    ) : instagramAccounts.length > 1 ? (
                       <select
                         value={selectedInstagramAccountId}
                         onChange={(event) => handleInstagramAccountChange(event.target.value)}
@@ -733,13 +757,13 @@ export default function SocialMediaPublisher() {
                       >
                         {instagramAccounts.map((account) => (
                           <option key={account.instagram_account_id} value={account.instagram_account_id}>
-                            {account.instagram_username || account.instagram_account_id}
+                            {resolveInstagramAccountDisplayLabel(account)}
                           </option>
                         ))}
                       </select>
                     ) : (
                       <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
-                        Not selected
+                        Instagram Business Account
                       </div>
                     )}
                   </div>
@@ -983,11 +1007,11 @@ export default function SocialMediaPublisher() {
                       <div className="space-y-3 text-sm">
                         <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
                           <span className="text-slate-400">Facebook</span>
-                          <span className="font-semibold text-white">{selectedFacebookPageLabel || "Not selected"}</span>
+                          <span className="font-semibold text-white">{selectedFacebookPageLabel}</span>
                         </div>
                         <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
                           <span className="text-slate-400">Instagram</span>
-                          <span className="font-semibold text-white">{selectedInstagramAccountLabel || "Not selected"}</span>
+                          <span className="font-semibold text-white">{selectedInstagramAccountLabel}</span>
                         </div>
                       </div>
 
