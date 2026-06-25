@@ -3649,6 +3649,7 @@ export default function AiInbox() {
   const isSocialMode = inboxSection === "social_comments";
   const isConversationMode = inboxSection === "conversations";
   const isAnalyticsMode = inboxSection === "analytics";
+  const isAutomationMode = inboxSection === "automation";
   const activeMainItem = isSocialMode
     ? (selectedSocialComment || visibleSocialComments[0] || null)
     : isConversationMode
@@ -5391,7 +5392,7 @@ export default function AiInbox() {
   }, []);
 
   const renderModeTabs = () => (
-    <div className="mt-3 flex flex-wrap gap-2">
+    <div className="mt-3 inline-flex max-w-full flex-wrap gap-2">
       <button
         type="button"
         onClick={() => {
@@ -5423,7 +5424,7 @@ export default function AiInbox() {
             ? "bg-cyan-300 text-slate-950"
             : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
         }`}
-      >
+        >
         <span>AI Inbox</span>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${isConversationMode ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
           {conversationPanelCount}
@@ -5443,57 +5444,60 @@ export default function AiInbox() {
             ? "bg-cyan-300 text-slate-950"
             : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
         }`}
-      >
+        >
         <span>Social Comments</span>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${isSocialMode ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
           {socialCommentsPanelCount}
         </span>
       </button>
+      <button
+        type="button"
+        onClick={() => {
+          setInboxSection("automation");
+          setSelectedSocialCommentId("");
+          setSelectedSocialThread({ post: null, comments: [], loading: false, error: "" });
+          setSelectedSessionId("");
+          setMobileView("list");
+        }}
+        className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
+          isAutomationMode
+            ? "bg-cyan-300 text-slate-950"
+            : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
+        }`}
+      >
+        <span>⚙ Automation</span>
+      </button>
     </div>
   );
 
   const renderCompactHeader = () => (
-    <section className="shrink-0 rounded-3xl border border-white/10 bg-white/[0.055] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.2)] backdrop-blur">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <section className="shrink-0 rounded-3xl border border-white/10 bg-white/[0.055] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100">
             <Bot className="h-4 w-4" />
             AI Social Media Center
           </div>
-          <div className="mt-1 text-lg font-black text-white">AI Social Media Center</div>
-          {renderModeTabs()}
+          <div className="mt-1 text-base font-black text-white">AI Social Media Center</div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={toggleGlobalAiAssistant}
-            disabled={aiAssistantGlobalSaving}
-            className={`inline-flex h-9 items-center justify-center gap-2 rounded-2xl px-3 text-xs font-black transition disabled:opacity-50 ${
-              aiAssistantGlobalEnabled
-                ? "bg-emerald-300 text-slate-950"
-                : "border border-rose-300/20 bg-rose-400/10 text-rose-100"
-            }`}
-          >
-            <Bot className="h-4 w-4" />
-            {aiAssistantGlobalEnabled ? "AI Assistant Global ON" : "AI Assistant Global OFF"}
-          </button>
-          <button type="button" onClick={() => setConsoleOpen(true)} className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.07] px-3 text-xs font-black text-slate-100">
-            <Brain className="h-4 w-4" />
-            سجلات الذكاء الاصطناعي
-          </button>
-          <button type="button" onClick={() => void loadAll({ silent: true })} disabled={loading} className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl bg-cyan-300 px-3 text-xs font-black text-slate-950 disabled:opacity-50">
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            تحديث
-          </button>
-        </div>
+        {renderModeTabs()}
       </div>
-      {!aiAssistantGlobalEnabled ? (
-        <div className="mt-3 inline-flex max-w-full items-center gap-2 rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100">
-          مساعد الذكاء الاصطناعي متوقف على كل المحادثات.
-        </div>
-      ) : null}
-      {error ? <div className="mt-3 rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
     </section>
+  );
+
+  const renderAutomationWorkspace = () => (
+    <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-4 shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
+      <div className="max-w-xl rounded-[24px] border border-white/10 bg-slate-950/55 p-6 text-center">
+        <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-cyan-100">
+          <Sparkles className="h-4 w-4" />
+          Automation
+        </div>
+        <div className="mt-2 text-2xl font-black text-white">قريبًا</div>
+        <p className="mt-2 text-sm leading-7 text-slate-300">
+          هذا التبويب محجوز لاحقًا لإعدادات الأتمتة العامة بدون تغيير أي منطق backend حالي.
+        </p>
+      </div>
+    </div>
   );
 
   const renderAnalyticsWorkspace = () => {
@@ -5607,8 +5611,7 @@ export default function AiInbox() {
   };
 
   const renderSocialCommentsWorkspaceFrame = () => (
-    <div className="min-h-0 flex-1 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
-      <SocialCommentsWorkspace
+    <SocialCommentsWorkspace
         items={visibleSocialComments}
         loading={loading || socialComments.loading}
         error={socialComments.error}
@@ -5630,7 +5633,6 @@ export default function AiInbox() {
         selectedPostId={clean(selectedSocialComment?.id || selectedSocialComment?.conversation_id || selectedSocialComment?.post_id || "")}
         actionLoading={socialCommentActionLoading}
       />
-    </div>
   );
 
   if (isAnalyticsMode) {
@@ -5661,7 +5663,7 @@ export default function AiInbox() {
             </div>
           </div>
         ) : null}
-        <div className="mx-auto flex h-[100dvh] max-w-[96rem] flex-col gap-2 overflow-hidden p-2 md:p-3">
+        <div className="flex h-[100dvh] w-full min-w-0 flex-col gap-2 overflow-hidden p-2 md:p-3">
           {renderCompactHeader()}
           {renderAnalyticsWorkspace()}
         </div>
@@ -5697,9 +5699,29 @@ export default function AiInbox() {
             </div>
           </div>
         ) : null}
-        <div className="mx-auto flex h-[100dvh] max-w-[96rem] flex-col gap-2 overflow-hidden p-2 md:p-3">
+        <div className="flex h-[100dvh] w-full min-w-0 flex-col gap-2 overflow-hidden p-2 md:p-3">
           {renderCompactHeader()}
           {renderSocialCommentsWorkspaceFrame()}
+        </div>
+      </div>
+    );
+  }
+
+  if (isAutomationMode) {
+    return (
+      <div dir="rtl" className="min-h-[100dvh] overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)] [padding-top:env(safe-area-inset-top)]">
+        {toast.text ? (
+          <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur ${
+            toast.tone === "rose"
+              ? "border-rose-300/20 bg-rose-400/15 text-rose-100"
+              : toast.tone === "cyan"
+                ? "border-cyan-300/20 bg-cyan-400/15 text-cyan-100"
+                : "border-emerald-300/20 bg-emerald-400/15 text-emerald-100"
+          }`}>{toast.text}</div>
+        ) : null}
+        <div className="flex h-[100dvh] w-full min-w-0 flex-col gap-2 overflow-hidden p-2 md:p-3">
+          {renderCompactHeader()}
+          {renderAutomationWorkspace()}
         </div>
       </div>
     );
@@ -5757,7 +5779,7 @@ export default function AiInbox() {
         onChange={patchReplyCorrection}
         onSave={saveReplyCorrection}
       />
-      <div className={`${conversationExpanded ? "conversation-expanded fixed inset-0 z-[9999] flex h-[100vh] w-[100vw] max-w-none flex-col overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] p-0 md:p-0" : "mx-auto flex h-[100dvh] max-w-[96rem] flex-col gap-2 overflow-hidden p-2 md:p-3"}`}>
+      <div className={`${conversationExpanded ? "conversation-expanded fixed inset-0 z-[9999] flex h-[100vh] w-[100vw] max-w-none flex-col overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] p-0 md:p-0" : "flex h-[100dvh] w-full min-w-0 flex-col gap-2 overflow-hidden p-2 md:p-3"}`}>
         {process.env.NODE_ENV !== "production" ? (
           <div data-debug-ai-inbox-section style={{ display: "none" }}>
             {inboxSection}:{visibleConversations.length}:{visibleSocialComments.length}

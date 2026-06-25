@@ -68,10 +68,23 @@ router.get(
   async (req, res) => {
     try {
       const tenantId = getTenantId(req, req.user?.tenant_id) || 1;
+      console.log("[social-publisher-meta-accounts] route_entered", {
+        tenant: tenantId,
+        user_id: req.user?.id || req.user?.user_id || null,
+      });
       const accounts = await listSocialPublisherMetaAccounts({ tenantId });
+      console.log("[social-publisher-meta-accounts] route_success", {
+        tenant: tenantId,
+        pages_count: Array.isArray(accounts?.pages) ? accounts.pages.length : null,
+        instagram_count: Array.isArray(accounts?.instagram_accounts) ? accounts.instagram_accounts.length : null,
+      });
       res.json({ success: true, data: accounts });
     } catch (error) {
-      console.error("[social-publisher] meta accounts failed", { message: error?.message, stack: error?.stack });
+      console.error("[social-publisher-meta-accounts] route_failed", {
+        message: error?.message || "unknown",
+        code: error?.code || "",
+        stack: error?.stack || "",
+      });
       res.status(500).json({ success: false, message: error?.message || "Failed to load social publisher meta accounts" });
     }
   }

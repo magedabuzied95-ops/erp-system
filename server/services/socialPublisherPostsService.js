@@ -173,52 +173,66 @@ export const getSocialPublisherPostRow = async ({ tenantId, id } = {}) => {
 
 export const listSocialPublisherMetaAccounts = async ({ tenantId } = {}) => {
   await ensureMarketingSchema();
-  const result = await db.query(
-    `
-    WITH meta_rows AS (
-      SELECT
-        id,
-        facebook_page_id,
-        facebook_page_name,
-        page_name,
-        instagram_business_account_id,
-        instagram_username,
-        page_access_token_encrypted,
-        page_access_token,
-        token_status,
-        token_health_status,
-        status,
-        updated_at
-      FROM meta_integration_configs
-      WHERE tenant_id = $1::integer
-        AND COALESCE(facebook_page_id, '') <> ''
-      ORDER BY updated_at DESC, id DESC
-    ),
-    marketing_row AS (
-      SELECT
-        NULL::bigint AS id,
-        page_id AS facebook_page_id,
-        ''::text AS facebook_page_name,
-        ''::text AS page_name,
-        instagram_account_id AS instagram_business_account_id,
-        ''::text AS instagram_username,
-        COALESCE(page_access_token, access_token_encrypted, '') AS page_access_token_encrypted,
-        ''::text AS page_access_token,
-        token_status,
-        token_status AS token_health_status,
-        CASE WHEN is_connected THEN 'connected' ELSE 'not_connected' END AS status,
-        updated_at
-      FROM marketing_settings
-      WHERE tenant_id = $1::integer
-        AND COALESCE(page_id, '') <> ''
-      LIMIT 1
-    )
-    SELECT * FROM meta_rows
-    UNION ALL
-    SELECT * FROM marketing_row
-    `,
-    [tenantId]
-  );
+  const scopedTenantId = Number(tenantId || 1) || 1;
+  console.log("[social-publisher-meta-accounts] start", { tenant: scopedTenantId });
+
+  let result;
+  try {
+    result = await db.query(
+      `
+      WITH meta_rows AS (
+        SELECT
+          id,
+          facebook_page_id,
+          facebook_page_name,
+          page_name,
+          instagram_business_account_id,
+          instagram_username,
+          page_access_token_encrypted,
+          page_access_token,
+          token_status,
+          token_health_status,
+          status,
+          updated_at
+        FROM meta_integration_configs
+        WHERE tenant_id = $1::integer
+          AND COALESCE(facebook_page_id, '') <> ''
+        ORDER BY updated_at DESC, id DESC
+      ),
+      marketing_row AS (
+        SELECT
+          NULL::bigint AS id,
+          page_id AS facebook_page_id,
+          ''::text AS facebook_page_name,
+          ''::text AS page_name,
+          instagram_account_id AS instagram_business_account_id,
+          ''::text AS instagram_username,
+          COALESCE(page_access_token, access_token_encrypted, '') AS page_access_token_encrypted,
+          ''::text AS page_access_token,
+          token_status,
+          token_status AS token_health_status,
+          CASE WHEN is_connected THEN 'connected' ELSE 'not_connected' END AS status,
+          updated_at
+        FROM marketing_settings
+        WHERE tenant_id = $1::integer
+          AND COALESCE(page_id, '') <> ''
+        LIMIT 1
+      )
+      SELECT * FROM meta_rows
+      UNION ALL
+      SELECT * FROM marketing_row
+      `,
+      [tenantId]
+    );
+  } catch (error) {
+    console.error("[social-publisher-meta-accounts] meta rows query failed", {
+      tenant: scopedTenantId,
+      message: error?.message || "unknown",
+      code: error?.code || "",
+      stack: error?.stack || "",
+    });
+    throw error;
+  }
 
   const pageMap = new Map();
   const instagramMap = new Map();
@@ -263,7 +277,18 @@ export const listSocialPublisherMetaAccounts = async ({ tenantId } = {}) => {
 
   const pages = Array.from(pageMap.values());
   const instagramAccounts = Array.from(instagramMap.values());
-  const metaStatus = await getMetaIntegrationStatus({ tenantId }).catch(() => null);
+  let metaStatus = null;
+  try {
+    metaStatus = await getMetaIntegrationStatus({ tenantId });
+  } catch (error) {
+    console.error("[social-publisher-meta-accounts] meta integration status lookup failed", {
+      tenant: scopedTenantId,
+      message: error?.message || "unknown",
+      code: error?.code || "",
+      stack: error?.stack || "",
+    });
+    metaStatus = null;
+  }
   const metaConfig = metaStatus?.config || {};
   const metaPageId = trimString(metaConfig.facebook_page_id || metaConfig.page_id || "");
   const metaPageName = trimString(metaConfig.facebook_page_name || metaConfig.page_name || metaPageId);
@@ -301,7 +326,7 @@ export const listSocialPublisherMetaAccounts = async ({ tenantId } = {}) => {
       ""
   );
 
-  return {
+  const response = {
     selected: {
       facebook_page_id: selectedPageId,
       facebook_page_name: pages.find((item) => item.facebook_page_id === selectedPageId)?.facebook_page_name || metaPageName || "",
@@ -327,6 +352,14 @@ export const listSocialPublisherMetaAccounts = async ({ tenantId } = {}) => {
       status: metaStatus?.overall_status || metaConfig?.status || "",
     },
   };
+  console.log("[social-publisher-meta-accounts]", {
+    tenant: scopedTenantId,
+    metaIntegrationStatus: metaStatus?.overall_status || null,
+    meta_config: response.meta_config,
+    pages: response.pages,
+    instagram_accounts: response.instagram_accounts,
+  });
+  return response;
 };
 
 export const publishSocialPublisherPostRow = async ({ tenantId, id } = {}) => {
