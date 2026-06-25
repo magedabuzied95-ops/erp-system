@@ -237,6 +237,18 @@ const normalizeCommentDmLogRow = (row = {}) => ({
   updated_at: row.updated_at || null,
 });
 
+const TIKTOK_PUBLISHING_NOT_CONNECTED_MESSAGE = "TikTok publishing is not connected yet.";
+const DISABLED_MARKETING_CHANNELS = new Set(["tiktok"]);
+
+const assertMarketingChannelIsEnabled = (channel = "") => {
+  const normalized = String(channel || "").trim().toLowerCase();
+  if (DISABLED_MARKETING_CHANNELS.has(normalized)) {
+    const error = new Error(TIKTOK_PUBLISHING_NOT_CONNECTED_MESSAGE);
+    error.status = 400;
+    throw error;
+  }
+};
+
 const CONTENT_DRAFT_STATUSES = new Set(["draft", "pending_approval", "approved", "scheduled", "published", "failed", "rejected"]);
 
 const normalizePlatforms = (value) => {
@@ -2636,6 +2648,7 @@ const publishAndPersist = async (postId, tenantId) => {
     throw error;
   }
 
+  assertMarketingChannelIsEnabled(post.channel);
   console.log("[publish] saved post channel", { post_id: postId, channel: post.channel || null });
   const settings = await getSettingsRow(tenantId);
   const result = await publishPostService(post, settings);
@@ -5058,6 +5071,7 @@ export const createPost = async (req, res) => {
     await ensureMarketingSchema();
     const tenantId = getTenantScope(req);
     const payload = req.body || {};
+    assertMarketingChannelIsEnabled(payload.channel);
     const result = await db.query(
       `
       INSERT INTO marketing_posts (
@@ -5104,6 +5118,7 @@ export const updatePost = async (req, res) => {
     await ensureMarketingSchema();
     const tenantId = getTenantScope(req);
     const payload = req.body || {};
+    assertMarketingChannelIsEnabled(payload.channel);
     const result = await db.query(
       `
       UPDATE marketing_posts

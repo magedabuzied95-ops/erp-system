@@ -6,6 +6,7 @@ import { ensureAiSupportLogSchema } from "./aiSupportLogService.js";
 import { ensureAiChannelAdapterSchema } from "./aiChannelAdapterService.js";
 import { appendAutomationSupportTranscript } from "./aiSupportLogService.js";
 import { likeComment, replyToComment, sendPrivateReply } from "./marketingCommentAutomationService.js";
+import { processSocialCommentAutoReply } from "./socialCommentsCenterService.js";
 import {
   DEFAULT_SOCIAL_AUTOMATION_SETTINGS,
   getSocialAutomationSettings,
@@ -2011,6 +2012,24 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
           [storedRow.tenant_id, storedRow.platform, storedRow.error_code, storedRow.comment_id]
         ).catch(() => {});
       }
+    }
+    try {
+      await processSocialCommentAutoReply({
+        tenantId: storedRow.tenant_id,
+        platform: storedRow.platform,
+        postId: storedRow.post_id,
+        commentId: storedRow.comment_id,
+        comment: storedRow,
+        post: storedRow,
+        force: false,
+      });
+    } catch (error) {
+      socialCommentsError("[social-comments] auto reply processing failed", {
+        tenant_id: storedRow.tenant_id,
+        platform: storedRow.platform,
+        comment_id: storedRow.comment_id,
+        message: error?.message || "",
+      });
     }
     stored.push(storedRow);
   }

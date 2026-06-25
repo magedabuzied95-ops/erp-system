@@ -50,6 +50,7 @@ export default function MarketingDashboard() {
 
   const quickActions = [
     { label: t("marketing.dashboard.quickActions.createPost"), to: "/marketing/posts", icon: Pencil, permission: "marketing.create" },
+    { label: t("marketing.dashboard.quickActions.socialPublisher", { defaultValue: "Social Media Publisher" }), to: "/marketing/social-media-publisher", icon: Megaphone, permission: "marketing.view" },
     { label: t("marketing.dashboard.quickActions.createCampaign"), to: "/marketing/campaigns", icon: CalendarClock, permission: "marketing.create" },
     { label: t("marketing.dashboard.quickActions.analytics"), to: "/marketing/analytics", icon: BarChart3, permission: "marketing.view" },
     { label: t("marketing.dashboard.quickActions.attribution"), to: "/marketing/attribution", icon: Sparkles, permission: "marketing.view" },

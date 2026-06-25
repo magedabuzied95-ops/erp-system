@@ -155,6 +155,35 @@ const statements = [
     ON marketing_posts (tenant_id, scheduled_at DESC);
   `,
   `
+  CREATE TABLE IF NOT EXISTS social_publisher_posts (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL DEFAULT 1,
+    caption TEXT NOT NULL DEFAULT '',
+    media_url TEXT NOT NULL DEFAULT '',
+    media_type VARCHAR(20) NOT NULL DEFAULT 'image',
+    platforms JSONB NOT NULL DEFAULT '[]'::jsonb,
+    status VARCHAR(30) NOT NULL DEFAULT 'draft',
+    scheduled_at TIMESTAMP NULL,
+    published_at TIMESTAMP NULL,
+    error_message TEXT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+  );
+  `,
+  `
+  ALTER TABLE IF EXISTS social_publisher_posts
+    ADD COLUMN IF NOT EXISTS media_type VARCHAR(20) NOT NULL DEFAULT 'image',
+    ADD COLUMN IF NOT EXISTS platforms JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'draft',
+    ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS published_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS error_message TEXT NULL;
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_social_publisher_posts_tenant_created
+    ON social_publisher_posts (tenant_id, created_at DESC, id DESC);
+  `,
+  `
   CREATE TABLE IF NOT EXISTS marketing_content_drafts (
     id BIGSERIAL PRIMARY KEY,
     tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

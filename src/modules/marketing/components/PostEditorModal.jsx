@@ -20,6 +20,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 
 const defaultPost = {
@@ -911,6 +912,8 @@ export default function PostEditorModal({
     };
   }, [form.caption, form.channel, form.image_url, hashtags.length, scheduledAt]);
   const scheduledBadgeLabel = formatScheduledBadge(scheduledAt || form.scheduled_at);
+  const isTikTokChannel = String(form.channel || "").trim().toLowerCase() === "tiktok";
+  const disabledPublishingMessage = "TikTok publishing is not connected yet.";
 
   useEffect(() => {
     if (!previewTabIds.includes(activePreview)) {
@@ -967,6 +970,10 @@ export default function PostEditorModal({
   };
 
   const handleSubmit = async (action) => {
+    if (isTikTokChannel) {
+      toast.error(disabledPublishingMessage);
+      return;
+    }
     const payload = {
       ...form,
       hashtags: hashtags.join(" "),
@@ -985,8 +992,8 @@ export default function PostEditorModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[1500] flex items-end justify-center bg-black/75 p-2 backdrop-blur-md transition-opacity duration-200 md:items-center md:p-4">
-      <div className="flex max-h-[96vh] w-full max-w-[1480px] animate-[fadeIn_180ms_ease-out] flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b1020] shadow-2xl shadow-black/50 ring-1 ring-cyan-400/10">
+    <div className="fixed inset-0 z-[1500] flex items-stretch justify-center overflow-hidden bg-black/75 p-0 backdrop-blur-md transition-opacity duration-200 md:items-center md:p-4">
+      <div className="flex h-[100dvh] w-full max-w-[1480px] animate-[fadeIn_180ms_ease-out] flex-col overflow-hidden rounded-none border border-white/10 bg-[#0b1020] shadow-2xl shadow-black/50 ring-1 ring-cyan-400/10 md:h-auto md:max-h-[96vh] md:rounded-[30px]">
         <div className="flex flex-col gap-4 border-b border-white/10 bg-white/[0.03] px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-sm font-semibold text-cyan-200">
@@ -1004,8 +1011,8 @@ export default function PostEditorModal({
           </button>
         </div>
 
-        <div className="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[390px_minmax(0,1fr)] xl:grid-cols-[410px_minmax(520px,1fr)_310px]">
-          <div className="space-y-5 border-b border-white/10 p-4 md:p-5 lg:border-b-0 lg:border-r">
+        <div className="grid min-h-0 flex-1 overflow-y-auto overflow-x-hidden lg:grid-cols-[390px_minmax(0,1fr)] xl:grid-cols-[410px_minmax(520px,1fr)_310px]">
+          <div className="order-1 space-y-5 border-b border-white/10 p-4 md:p-5 lg:border-b-0 lg:border-r">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
               <label className="space-y-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.posts.headers.channel")}</span>
@@ -1016,10 +1023,18 @@ export default function PostEditorModal({
                 >
                   <option value="facebook">{t("marketing.social.platforms.facebook")}</option>
                   <option value="instagram">{t("marketing.social.platforms.instagram")}</option>
+                  <option value="tiktok" disabled>TikTok - Coming Soon</option>
                   <option value="whatsapp">{t("marketing.social.platforms.whatsapp")}</option>
                   <option value="all">{t("marketing.social.allChannels")}</option>
                 </select>
               </label>
+              {isTikTokChannel ? (
+                <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                  <div className="font-black text-white">TikTok</div>
+                  <div className="mt-1 font-semibold">Coming Soon</div>
+                  <div className="mt-1 text-xs text-amber-100/90">Connect TikTok لاحقًا</div>
+                </div>
+              ) : null}
               <label className="space-y-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.posts.headers.title")}</span>
                 <input
@@ -1059,6 +1074,38 @@ export default function PostEditorModal({
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex items-center gap-2 text-sm font-black text-white">
+                <ImageIcon className="h-4 w-4 text-cyan-300" />
+                {t("marketing.social.media.title")}
+              </div>
+              <div className="relative">
+                <ImageIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <input
+                  value={form.image_url || ""}
+                  onChange={(event) => updateField("image_url", event.target.value)}
+                  placeholder="https://..."
+                  className="w-full rounded-2xl border border-white/10 bg-slate-950/80 py-3 pl-10 pr-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400/40"
+                />
+              </div>
+              {mediaUrls.length ? (
+                <div className="grid grid-cols-4 gap-2">
+                  {mediaUrls.map((url, index) => (
+                    <button
+                      key={url}
+                      type="button"
+                      onClick={() => selectMainImage(url)}
+                      className={`group relative aspect-square overflow-hidden rounded-2xl border transition ${
+                        form.image_url === url ? "border-cyan-300 shadow-lg shadow-cyan-500/20" : "border-white/10 hover:border-white/30"
+                      }`}
+                    >
+                      <img src={url} alt={t("marketing.social.media.itemAlt", { index: index + 1 })} className="h-full w-full object-cover transition group-hover:scale-105" />
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
             <label className="space-y-2">
@@ -1124,40 +1171,9 @@ export default function PostEditorModal({
               </div>
             </div>
 
-            <div className="space-y-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
-              <div className="flex items-center gap-2 text-sm font-black text-white">
-                <ImageIcon className="h-4 w-4 text-cyan-300" />
-                {t("marketing.social.media.title")}
-              </div>
-              <div className="relative">
-                <ImageIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <input
-                  value={form.image_url || ""}
-                  onChange={(event) => updateField("image_url", event.target.value)}
-                  placeholder="https://..."
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950/80 py-3 pl-10 pr-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400/40"
-                />
-              </div>
-              {mediaUrls.length ? (
-                <div className="grid grid-cols-4 gap-2">
-                  {mediaUrls.map((url, index) => (
-                    <button
-                      key={url}
-                      type="button"
-                      onClick={() => selectMainImage(url)}
-                      className={`group relative aspect-square overflow-hidden rounded-2xl border transition ${
-                        form.image_url === url ? "border-cyan-300 shadow-lg shadow-cyan-500/20" : "border-white/10 hover:border-white/30"
-                      }`}
-                    >
-                      <img src={url} alt={t("marketing.social.media.itemAlt", { index: index + 1 })} className="h-full w-full object-cover transition group-hover:scale-105" />
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
           </div>
 
-          <div className="min-w-0 space-y-4 bg-[#070b16] p-4 md:p-5">
+          <div className="order-2 min-w-0 space-y-4 border-b border-white/10 bg-[#070b16] p-4 md:p-5 lg:border-b-0 lg:border-r">
             <div className="flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/70 p-1">
               {visiblePreviewTabs.map((tab) => (
                 <button
@@ -1202,7 +1218,7 @@ export default function PostEditorModal({
             ) : null}
           </div>
 
-          <div className="space-y-4 border-t border-white/10 bg-white/[0.03] p-4 md:p-5 xl:border-l xl:border-t-0">
+          <div className="order-3 space-y-4 bg-white/[0.03] p-4 md:p-5 xl:border-l xl:border-t-0">
             <div className="grid grid-cols-2 gap-3 xl:grid-cols-1">
               <StatCard icon={Users} label={t("marketing.social.stats.estimatedReach")} value={stats.reach} tone="cyan" />
               <StatCard icon={Clock3} label={t("marketing.social.stats.bestPostingTime")} value={stats.time} tone="emerald" />
@@ -1282,7 +1298,7 @@ export default function PostEditorModal({
               ))}
             </div>
 
-            <div className="grid gap-3">
+            <div className="hidden gap-3 md:grid">
               {scheduledBadgeLabel ? (
                 <div className="mb-1 flex w-full">
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/25 bg-cyan-400/10 px-3 py-1.5 text-xs font-black text-cyan-100">
@@ -1294,7 +1310,7 @@ export default function PostEditorModal({
               {onSaveDraft ? (
                 <button
                   type="button"
-                  disabled={saving}
+                  disabled={saving || isTikTokChannel}
                   onClick={() => handleSubmit("save")}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition hover:-translate-y-0.5 hover:bg-emerald-400 disabled:opacity-60"
                 >
@@ -1305,7 +1321,7 @@ export default function PostEditorModal({
               {onPublish ? (
                 <button
                   type="button"
-                  disabled={saving}
+                  disabled={saving || isTikTokChannel}
                   onClick={() => handleSubmit("publish")}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-white/10 disabled:opacity-60"
                 >
@@ -1316,7 +1332,7 @@ export default function PostEditorModal({
               {onSchedule ? (
                 <button
                   type="button"
-                  disabled={saving || (!scheduledAt && !form.scheduled_at)}
+                  disabled={saving || isTikTokChannel || (!scheduledAt && !form.scheduled_at)}
                   onClick={() => handleSubmit("schedule")}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-black text-cyan-100 shadow-lg shadow-cyan-500/10 transition hover:-translate-y-0.5 hover:bg-cyan-500/20 disabled:opacity-60"
                 >
@@ -1325,6 +1341,49 @@ export default function PostEditorModal({
                 </button>
               ) : null}
             </div>
+          </div>
+        </div>
+
+        <div className="sticky bottom-0 z-20 border-t border-white/10 bg-[#0b1020]/96 px-4 py-3 backdrop-blur-md md:hidden">
+          {scheduledBadgeLabel ? (
+            <div className="mb-3 inline-flex rounded-full border border-cyan-300/25 bg-cyan-400/10 px-3 py-1.5 text-xs font-black text-cyan-100">
+              {scheduledBadgeLabel}
+            </div>
+          ) : null}
+          <div className="grid grid-cols-2 gap-2">
+            {onPublish ? (
+              <button
+                type="button"
+                disabled={saving || isTikTokChannel}
+                onClick={() => handleSubmit("publish")}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition hover:bg-white/10 disabled:opacity-60"
+              >
+                <Send className="h-4 w-4" />
+                {t("marketing.social.publishNow")}
+              </button>
+            ) : null}
+            {onSchedule ? (
+              <button
+                type="button"
+                disabled={saving || isTikTokChannel || (!scheduledAt && !form.scheduled_at)}
+                onClick={() => handleSubmit("schedule")}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-black text-cyan-100 shadow-lg shadow-cyan-500/10 transition hover:bg-cyan-500/20 disabled:opacity-60"
+              >
+                <CalendarClock className="h-4 w-4" />
+                {t("marketing.calendar.schedule")}
+              </button>
+            ) : null}
+            {onSaveDraft ? (
+              <button
+                type="button"
+                disabled={saving || isTikTokChannel}
+                onClick={() => handleSubmit("save")}
+                className="col-span-2 inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:opacity-60"
+              >
+                <Save className="h-4 w-4" />
+                {t("marketing.approval.saveDraft")}
+              </button>
+            ) : null}
           </div>
         </div>
       </div>

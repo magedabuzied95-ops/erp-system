@@ -216,6 +216,19 @@ export const scheduleStoryEverywhere = async (postId, body) => unwrapItem(await 
 export const publishProductStoryEverywhere = async (productId, body = {}) => unwrapItem(await api.post(`/marketing/story/publish-product/${productId}`, body));
 export const scheduleProductStoryEverywhere = async (productId, body) => unwrapItem(await api.post(`/marketing/story/schedule-product/${productId}`, body));
 
+export const getSocialPublisherPosts = async (params = {}, options = {}) => {
+  const query = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      query.set(key, value);
+    }
+  });
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return unwrapArray(await api.get(`/social-publisher/posts${suffix}`, options));
+};
+export const createSocialPublisherPost = async (body) => unwrapItem(await api.post("/social-publisher/posts", body));
+export const publishSocialPublisherPost = async (id) => unwrapItem(await api.post(`/social-publisher/posts/${id}/publish`, {}));
+
 export const getMarketingSettings = async () => {
   try {
     return unwrapItem(await api.get("/marketing/settings"));

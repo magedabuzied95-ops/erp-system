@@ -225,10 +225,30 @@
     "status": {
       "draft": "Draft",
       "scheduled": "Scheduled",
+      "publishing": "Publishing",
       "published": "Published",
       "partialSuccess": "Partial success",
       "failed": "Failed"
     }
+  },
+  "socialHistory": {
+    "eyebrow": "Social Media Publisher",
+    "title": "Simple History",
+    "subtitle": "Latest 20 publish operations across Facebook and Instagram.",
+    "refresh": "Refresh history",
+    "loading": "Loading history...",
+    "emptyTitle": "No history yet",
+    "emptyDescription": "Publish a post to see the latest activity here.",
+    "count": "{{count}} recent operations",
+    "mediaType": "Media type",
+    "scheduledAt": "Scheduled at",
+    "publishedAt": "Published at",
+    "error": "Error",
+    "notAvailable": "Not available",
+    "noPlatforms": "No platforms",
+    "untitled": "Untitled operation",
+    "image": "Image",
+    "video": "Video"
   },
   "templates": {
     "eyebrow": "Templates",

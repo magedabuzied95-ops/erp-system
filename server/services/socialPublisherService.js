@@ -99,6 +99,8 @@ const getPostImageUrls = (post = {}) => {
   return validPublicImageUrls;
 };
 
+const getPostMediaType = (post = {}) => trimString(post.media_type || post.mediaType).toLowerCase();
+
 const getPageId = (settings = {}) => trimString(settings.facebook_page_id || settings.page_id);
 const getInstagramAccountId = (settings = {}) => trimString(settings.instagram_account_id);
 const logMetaRequest = ({ target, mode, imageUrl }) => {
@@ -342,9 +344,11 @@ export const publishInstagramPost = async ({ post, settings, accessToken }) => {
   const instagramAccountId = getInstagramAccountId(settings);
   const message = buildMessage(post);
   const imageUrls = getPostImageUrls(post);
+  const mediaType = getPostMediaType(post);
 
   console.log("[instagram] ig account id", { instagram_account_id: instagramAccountId || null });
   console.log("[instagram] image count", { image_count: imageUrls.length });
+  console.log("[instagram] media type", { media_type: mediaType || "image" });
 
   if (!instagramAccountId) {
     return {
@@ -355,6 +359,60 @@ export const publishInstagramPost = async ({ post, settings, accessToken }) => {
       platform_post_id: null,
       published_at: null,
     };
+  }
+
+  if (mediaType === "video" && imageUrls.length === 1) {
+    try {
+      const videoUrl = imageUrls[0];
+      const mediaContainer = await callMeta({
+        endpoint: `/${encodeURIComponent(instagramAccountId)}/media`,
+        mode: "instagram.video",
+        imageUrl: videoUrl,
+        params: {
+          media_type: "VIDEO",
+          video_url: videoUrl,
+          caption: message,
+          access_token: accessToken,
+        },
+      });
+      const creationId = trimString(mediaContainer?.id);
+      console.log("[instagram] video media container id", { media_container_id: creationId || null });
+
+      if (!creationId) {
+        return {
+          success: false,
+          status: "failed",
+          error_message: "Instagram video container response did not include id.",
+          external_post_id: null,
+          platform_post_id: null,
+          published_at: null,
+          meta_response: mediaContainer,
+          mode: "instagram_video",
+        };
+      }
+
+      const publishResponse = await callMeta({
+        endpoint: `/${encodeURIComponent(instagramAccountId)}/media_publish`,
+        mode: "instagram.video_publish",
+        params: {
+          creation_id: creationId,
+          access_token: accessToken,
+        },
+      });
+      console.log("[instagram] video media_publish response", publishResponse);
+      return publishResult({ payload: publishResponse, mode: "instagram_video" });
+    } catch (error) {
+      return {
+        success: false,
+        status: "failed",
+        error_message: error?.message || "Instagram video publish failed",
+        external_post_id: null,
+        platform_post_id: null,
+        published_at: null,
+        meta_response: error?.metaResponse || null,
+        mode: "instagram_video",
+      };
+    }
   }
 
   if (!imageUrls.length) {
@@ -530,6 +588,7 @@ export const publishInstagramPost = async ({ post, settings, accessToken }) => {
 export const publishFacebookPost = async ({ post, settings, accessToken }) => {
   const pageId = getPageId(settings);
   const message = buildMessage(post);
+  const mediaType = getPostMediaType(post);
 
   if (!pageId) {
     return { success: false, status: "failed", error_message: "Facebook page ID is not configured.", external_post_id: null, platform_post_id: null, published_at: null };
@@ -538,6 +597,21 @@ export const publishFacebookPost = async ({ post, settings, accessToken }) => {
   const imageUrls = getPostImageUrls(post);
 
   try {
+    if (mediaType === "video" && imageUrls.length === 1) {
+      const videoUrl = imageUrls[0];
+      const payload = await callMeta({
+        endpoint: `/${encodeURIComponent(pageId)}/videos`,
+        mode: "videos",
+        imageUrl: videoUrl,
+        params: {
+          file_url: videoUrl,
+          description: message,
+          access_token: accessToken,
+        },
+      });
+      return publishResult({ payload, mode: "video" });
+    }
+
     if (imageUrls.length === 1) {
       const imageUrl = imageUrls[0];
       const payload = await callMeta({

@@ -38,6 +38,7 @@ import { formatCurrency } from "../../../shared/lib/currency";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
 import { getPosSellableProducts } from "../../pos/services/posProductsApi";
 import TranscriptMessage from "../components/TranscriptMessage";
+import SocialCommentsPanel from "../components/SocialCommentsPanel";
 import ProductCardPicker from "../components/ProductCardPicker";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -688,6 +689,28 @@ const conversationHydrationState = (conversation = {}) => {
   return messages.length > 1 || conversation.older_messages_available === false;
 };
 
+const isSocialPostSummary = (item = {}) =>
+  Object.prototype.hasOwnProperty.call(item, "comments_count") ||
+  Object.prototype.hasOwnProperty.call(item, "new_comments_count") ||
+  Object.prototype.hasOwnProperty.call(item, "last_comment_text") ||
+  Object.prototype.hasOwnProperty.call(item, "post_full_picture") ||
+  Object.prototype.hasOwnProperty.call(item, "full_picture");
+
+const socialPostMatchesFilter = (item = {}, filter = "all") => {
+  if (filter === "all") return true;
+  if (!isSocialPostSummary(item)) return true;
+  const platform = clean(item.platform).toLowerCase();
+  if (filter === "facebook") return platform === "facebook" || platform === "facebook_comment";
+  if (filter === "instagram") return platform === "instagram" || platform === "instagram_comment";
+  if (filter === "needs_human" || filter === "needs_reply") return Number(item.new_comments_count || 0) > 0 || clean(item.reply_status || item.auto_reply_mode).toLowerCase() !== "sent";
+  if (filter === "ai_replied" || filter === "replied") return clean(item.reply_status || item.auto_reply_mode || item.session_status).toLowerCase() === "sent";
+  if (filter === "unread") return Number(item.new_comments_count || 0) > 0;
+  if (filter === "auto_reply_on") return Boolean(item.auto_reply_enabled || item.template_enabled || item.generic_enabled);
+  return true;
+};
+
+const socialPostSortValue = (item = {}) => new Date(item.last_activity_at || item.last_comment_at || item.last_message_at || item.updated_at || item.created_at || 0).getTime() || 0;
+
 const mergeConversationSummaryRefresh = (currentConversation = {}, nextConversation = {}) => {
   if (!currentConversation) return nextConversation;
 
@@ -1044,7 +1067,8 @@ const findVariant = (product = {}, color = "", size = "") => {
 };
 
 const NAV_ITEMS = [
-  { key: "conversations", label: "Conversations", icon: MessageCircleMore },
+  { key: "conversations", label: "AI Inbox", icon: MessageCircleMore },
+  { key: "social_comments", label: "Social Comments", icon: MessageSquareText },
   { key: "leads", label: "Leads", icon: Layers3 },
   { key: "more", label: "More", icon: MoreHorizontal },
 ];
@@ -1933,6 +1957,19 @@ export default function AiInboxPwa() {
   const [userIsNearBottom, setUserIsNearBottom] = useState(true);
   const [aiAssistantGlobalEnabled, setAiAssistantGlobalEnabled] = useState(true);
   const [aiAssistantGlobalSaving, setAiAssistantGlobalSaving] = useState(false);
+  const [socialComments, setSocialComments] = useState({ items: [], loading: false, error: "" });
+  const [socialReplySettings, setSocialReplySettings] = useState({
+    generic_enabled: false,
+    generic_like_enabled: true,
+    generic_reply_enabled: true,
+    generic_template: "",
+    mode: "manual_approval",
+  });
+  const [selectedSocialThread, setSelectedSocialThread] = useState({ post: null, comments: [], loading: false, error: "" });
+  const [selectedSocialTemplate, setSelectedSocialTemplate] = useState({ template: null, loading: false, error: "" });
+  const [socialCommentsFilter, setSocialCommentsFilter] = useState("all");
+  const [socialCommentsDebug, setSocialCommentsDebug] = useState({ request_url: "", tenant_id: "", status: "", count: "", error: "" });
+  const [socialActionLoading, setSocialActionLoading] = useState("");
   const mainScrollRef = useRef(null);
   const conversationHeaderRef = useRef(null);
   const menuButtonRef = useRef(null);
@@ -1962,17 +1999,23 @@ export default function AiInboxPwa() {
     const value = new URLSearchParams(location.search).get("tab");
     return NAV_ITEMS.some((item) => item.key === value) ? value : "conversations";
   }, [location.search]);
+  const socialPostParam = useMemo(() => clean(new URLSearchParams(location.search).get("postId")), [location.search]);
+  const inboxSection = tab;
+  const isConversationMode = inboxSection === "conversations";
+  const isSocialMode = inboxSection === "social_comments";
 
   const updateUrlState = useCallback(
-    ({ nextConversationId = conversationParam, nextTab = tab, replace = false } = {}) => {
+    ({ nextConversationId = conversationParam, nextPostId = socialPostParam, nextTab = tab, replace = false } = {}) => {
       const searchParams = new URLSearchParams(location.search);
       if (nextTab && nextTab !== "conversations") searchParams.set("tab", nextTab);
       else searchParams.delete("tab");
+      if (nextTab === "social_comments" && nextPostId) searchParams.set("postId", nextPostId);
+      else searchParams.delete("postId");
       const searchText = searchParams.toString();
-      const nextPath = nextConversationId ? `/inbox/${encodeConversationId(nextConversationId)}` : "/inbox";
+      const nextPath = nextTab === "social_comments" ? "/inbox" : nextConversationId ? `/inbox/${encodeConversationId(nextConversationId)}` : "/inbox";
       navigate(`${nextPath}${searchText ? `?${searchText}` : ""}`, { replace });
     },
-    [conversationParam, location.search, navigate, tab]
+    [conversationParam, location.search, navigate, socialPostParam, tab]
   );
 
   const patchConversation = useCallback((targetId, updater) => {
@@ -2086,6 +2129,55 @@ export default function AiInboxPwa() {
         });
         setAiAssistantGlobalEnabled(globalAiPayload?.ai_assistant_global_enabled !== false);
 
+        if (!silent) setSocialComments((current) => ({ ...current, loading: true, error: "" }));
+        if (!silent) setSocialCommentsDebug((current) => ({ ...current, error: "" }));
+
+        const socialCommentsRequestUrl = `/api/social-comments/posts?tenant_id=${encodeURIComponent(tenantId)}&limit=50`;
+        try {
+          const [postsPayload, settingsPayload] = await Promise.all([
+            api.get("/social-comments/posts", {
+              params: { tenant_id: tenantId, limit: 50 },
+              headers,
+              perfComponent: "AiInboxPwa.socialCommentsPosts",
+            }),
+            api.get("/social-comments/auto-reply/settings", {
+              params: { tenant_id: tenantId },
+              headers,
+              perfComponent: "AiInboxPwa.socialCommentsSettings",
+            }).catch(() => ({ settings: null })),
+          ]);
+          if (seq !== requestSeqRef.current) return;
+          const items = asArray(postsPayload.posts || postsPayload.items);
+          const status = Number(postsPayload?.__status || 200) || 200;
+          setSocialComments({ items, loading: false, error: "" });
+          setSocialReplySettings({
+            generic_enabled: Boolean(settingsPayload?.settings?.generic_enabled),
+            generic_like_enabled: settingsPayload?.settings?.generic_like_enabled !== false,
+            generic_reply_enabled: settingsPayload?.settings?.generic_reply_enabled !== false,
+            generic_template: clean(settingsPayload?.settings?.generic_template || ""),
+            mode: clean(settingsPayload?.settings?.mode || "manual_approval") || "manual_approval",
+          });
+          setSocialCommentsDebug({
+            request_url: socialCommentsRequestUrl,
+            tenant_id: tenantId,
+            status,
+            count: items.length,
+            error: "",
+          });
+        } catch (socialCommentsError) {
+          if (seq !== requestSeqRef.current) return;
+          const status = Number(socialCommentsError?.status || socialCommentsError?.responseBody?.status || 0) || "";
+          const message = socialCommentsError?.responseBody?.message || socialCommentsError?.message || "تعذر تحميل منشورات التعليقات";
+          setSocialComments({ items: [], loading: false, error: message });
+          setSocialCommentsDebug({
+            request_url: socialCommentsRequestUrl,
+            tenant_id: tenantId,
+            status,
+            count: 0,
+            error: message,
+          });
+        }
+
         if (conversationParam) {
           const normalizedConversationParam = normalizeConversationSessionId(conversationParam);
           const exists = nextConversations.some(
@@ -2101,7 +2193,7 @@ export default function AiInboxPwa() {
           }
         }
       } catch (loadError) {
-        setError(loadError?.message || "Failed to load AI Inbox");
+        setError(loadError?.message || "Failed to load AI Social Media Center");
       } finally {
         if (!silent) setLoading(false);
         refreshInFlightRef.current = false;
@@ -2186,7 +2278,7 @@ export default function AiInboxPwa() {
 
   useEffect(() => {
     if (typeof document !== "undefined") {
-      document.title = buildPageTitle("AI Inbox");
+      document.title = buildPageTitle("AI Social Media Center");
       document.documentElement.style.backgroundColor = "#f8fafc";
       document.body.style.backgroundColor = "#f8fafc";
     }
@@ -2390,6 +2482,109 @@ export default function AiInboxPwa() {
     () => clean(selectedConversation?.session_id || selectedConversation?.conversation_key || selectedConversation?.conversation_id || selectedConversation?.id || ""),
     [selectedConversation]
   );
+  const socialPostIdentity = useCallback((item = {}) => {
+    const safeItem = item || {};
+    return clean(
+      safeItem.conversation_id ||
+      safeItem.session_id ||
+      safeItem.post_id ||
+      safeItem.id ||
+      safeItem.comment_id ||
+      `${safeItem.platform || "social"}:${safeItem.post_id || safeItem.comment_id || ""}`
+    );
+  }, []);
+  const visibleSocialPosts = useMemo(() => {
+    if (!isSocialMode) return [];
+    return [...asArray(socialComments.items)]
+      .filter((item) => socialPostMatchesFilter(item, socialCommentsFilter))
+      .sort((a, b) => socialPostSortValue(b) - socialPostSortValue(a));
+  }, [isSocialMode, socialComments.items, socialCommentsFilter]);
+  const selectedSocialPost = useMemo(() => {
+    if (!isSocialMode) return null;
+    if (socialPostParam) {
+      return visibleSocialPosts.find((item) => socialPostIdentity(item) === socialPostParam) || socialComments.items.find((item) => socialPostIdentity(item) === socialPostParam) || null;
+    }
+    return visibleSocialPosts[0] || socialComments.items[0] || null;
+  }, [isSocialMode, socialComments.items, socialPostIdentity, socialPostParam, visibleSocialPosts]);
+
+  useEffect(() => {
+    if (!isSocialMode) return;
+    if (socialPostParam) return;
+    const fallbackPost = visibleSocialPosts[0] || socialComments.items[0];
+    const nextPostId = socialPostIdentity(fallbackPost || {});
+    if (!nextPostId) return;
+    updateUrlState({ nextTab: "social_comments", nextConversationId: "", nextPostId, replace: true });
+  }, [isSocialMode, socialComments.items, socialPostIdentity, socialPostParam, updateUrlState, visibleSocialPosts]);
+
+  useEffect(() => {
+    if (!isSocialMode) {
+      if (selectedSocialThread.post || selectedSocialThread.comments.length || selectedSocialTemplate.template) {
+        setSelectedSocialThread({ post: null, comments: [], loading: false, error: "" });
+        setSelectedSocialTemplate({ template: null, loading: false, error: "" });
+      }
+      return undefined;
+    }
+    const postId = clean(selectedSocialPost?.post_id || selectedSocialPost?.conversation_id || selectedSocialPost?.id || "");
+    if (!postId) {
+      setSelectedSocialThread({ post: null, comments: [], loading: false, error: "" });
+      setSelectedSocialTemplate({ template: null, loading: false, error: "" });
+      return undefined;
+    }
+    let cancelled = false;
+    setSelectedSocialThread((current) => ({ ...current, loading: true, error: "" }));
+    setSelectedSocialTemplate((current) => ({ ...current, loading: true, error: "" }));
+    void (async () => {
+      try {
+        const platformValue = clean(selectedSocialPost?.platform || "");
+        const [threadPayload, templatePayload] = await Promise.all([
+          api.get(`/social-comments/posts/${encodeURIComponent(postId)}/comments`, {
+            params: {
+              tenant_id: tenantId,
+              platform: platformValue,
+            },
+            headers,
+            perfComponent: "AiInboxPwa.socialCommentThread",
+          }),
+          api.get(`/social-comments/posts/${encodeURIComponent(postId)}/template`, {
+            params: {
+              tenant_id: tenantId,
+              platform: platformValue,
+            },
+            headers,
+            perfComponent: "AiInboxPwa.socialCommentTemplate",
+          }).catch(() => ({ template: null })),
+        ]);
+        if (cancelled) return;
+        setSelectedSocialThread({
+          post: threadPayload.post || selectedSocialPost || null,
+          comments: asArray(threadPayload.comments),
+          loading: false,
+          error: "",
+        });
+        setSelectedSocialTemplate({
+          template: templatePayload.template || null,
+          loading: false,
+          error: "",
+        });
+      } catch (error) {
+        if (cancelled) return;
+        setSelectedSocialThread({
+          post: selectedSocialPost || null,
+          comments: [],
+          loading: false,
+          error: error?.message || "تعذر تحميل تفاصيل البوست",
+        });
+        setSelectedSocialTemplate({
+          template: null,
+          loading: false,
+          error: error?.message || "تعذر تحميل القالب",
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [headers, isSocialMode, selectedSocialPost?.conversation_id, selectedSocialPost?.id, selectedSocialPost?.platform, selectedSocialPost?.post_id, socialPostParam, tenantId]);
 
   const activeAiReplyDraft = useMemo(
     () => selectedConversation?.ai_reply_draft || selectedConversation?.last_ai_reply_draft || null,
@@ -3407,6 +3602,87 @@ export default function AiInboxPwa() {
     }
   }, [headers, loadConversations, patchConversation, selectedConversation, tenantId]);
 
+  const saveSocialReplySettings = useCallback(async () => {
+    setSocialActionLoading("global_settings");
+    try {
+      await api.post(
+        "/social-comments/auto-reply/settings",
+        {
+          tenant_id: tenantId,
+          ...socialReplySettings,
+        },
+        { headers, perfComponent: "AiInboxPwa.socialReplySettings" }
+      );
+      toast.success("تم حفظ إعدادات الرد التلقائي العامة");
+      await loadConversations({ silent: true });
+    } catch (err) {
+      toast.error(err?.message || "تعذر حفظ إعدادات الرد التلقائي العامة");
+    } finally {
+      setSocialActionLoading("");
+    }
+  }, [headers, loadConversations, socialReplySettings, tenantId]);
+
+  const saveSelectedSocialTemplate = useCallback(async () => {
+    const postId = clean(selectedSocialPost?.post_id || selectedSocialPost?.conversation_id || selectedSocialPost?.id || "");
+    if (!postId) return;
+    setSocialActionLoading("post_template");
+    try {
+      await api.post(
+        `/social-comments/posts/${encodeURIComponent(postId)}/template`,
+        {
+          tenant_id: tenantId,
+          platform: clean(selectedSocialPost?.platform || "facebook"),
+          ...(selectedSocialTemplate.template || {}),
+        },
+        { headers, perfComponent: "AiInboxPwa.socialPostTemplate" }
+      );
+      toast.success("تم حفظ قالب الرد لهذا البوست");
+      await loadConversations({ silent: true });
+    } catch (err) {
+      toast.error(err?.message || "تعذر حفظ قالب الرد لهذا البوست");
+    } finally {
+      setSocialActionLoading("");
+    }
+  }, [headers, loadConversations, selectedSocialPost?.conversation_id, selectedSocialPost?.id, selectedSocialPost?.platform, selectedSocialPost?.post_id, selectedSocialTemplate.template, tenantId]);
+
+  const sendSelectedSocialCommentAction = useCallback(async (comment, action = "reply") => {
+    const commentId = clean(comment?.comment_id || comment?.id || "");
+    if (!commentId) return;
+    const postId = clean(selectedSocialPost?.post_id || selectedSocialPost?.conversation_id || selectedSocialPost?.id || comment?.post_id || "");
+    const platform = clean(selectedSocialPost?.platform || comment?.platform || "facebook");
+    setSocialActionLoading(`${action}:${commentId}`);
+    try {
+      if (action === "ignore") {
+        await api.post(
+          `/social-comments/comments/${encodeURIComponent(commentId)}/ignore`,
+          {
+            tenant_id: tenantId,
+            platform,
+            post_id: postId,
+          },
+          { headers, perfComponent: "AiInboxPwa.socialCommentIgnore" }
+        );
+        toast.success("تم تجاهل التعليق");
+      } else {
+        await api.post(
+          `/social-comments/comments/${encodeURIComponent(commentId)}/auto-reply-send`,
+          {
+            tenant_id: tenantId,
+            platform,
+            post_id: postId,
+          },
+          { headers, perfComponent: "AiInboxPwa.socialCommentReply" }
+        );
+        toast.success("تم تجهيز/إرسال الرد على التعليق");
+      }
+      await loadConversations({ silent: true });
+    } catch (err) {
+      toast.error(err?.message || "تعذر تنفيذ إجراء التعليق");
+    } finally {
+      setSocialActionLoading("");
+    }
+  }, [headers, loadConversations, selectedSocialPost?.conversation_id, selectedSocialPost?.id, selectedSocialPost?.platform, selectedSocialPost?.post_id, tenantId]);
+
   const installApp = useCallback(async () => {
     if (!installPrompt) return;
     await installPrompt.prompt();
@@ -3414,9 +3690,9 @@ export default function AiInboxPwa() {
     setInstallPrompt(null);
   }, [installPrompt]);
 
-  const contentScreen = Boolean(selectedConversation);
-  const fullscreenConversation = Boolean(isFullscreenConversation && contentScreen && tab === "conversations");
-  const showComposer = contentScreen && tab === "conversations";
+  const contentScreen = isConversationMode && Boolean(selectedConversation);
+  const fullscreenConversation = Boolean(isFullscreenConversation && contentScreen);
+  const showComposer = contentScreen;
   const selectedMeta = channelMeta(selectedConversation?.channel || selectedConversation?.source || "");
   const SelectedChannelIcon = selectedMeta.icon;
   const currentLeadStatus = conversationLeadStatus(selectedConversation || {});
@@ -3432,6 +3708,371 @@ export default function AiInboxPwa() {
   const isRtlLayout =
     typeof document !== "undefined" &&
     ((document.documentElement.dir || document.body?.dir || "").toLowerCase() === "rtl");
+
+  const renderSocialCommentsWorkspace = () => {
+    const selectedPost = selectedSocialPost || null;
+    const postImage = clean(
+      selectedPost?.post_full_picture ||
+      selectedPost?.full_picture ||
+      selectedPost?.product_image_url ||
+      selectedPost?.product_image ||
+      selectedPost?.thumbnail_url ||
+      selectedPost?.image_url
+    );
+    const postCaption = clean(
+      selectedPost?.post_caption ||
+      selectedPost?.post_message ||
+      selectedPost?.last_message ||
+      selectedPost?.post_text ||
+      ""
+    );
+    const postLink = clean(
+      selectedPost?.post_permalink ||
+      selectedPost?.post_permalink_url ||
+      selectedPost?.permalink_url ||
+      selectedPost?.post_url ||
+      ""
+    );
+    const platformLabel = clean(selectedPost?.platform || "facebook");
+    const commentCount = Number(selectedPost?.comments_count || 0);
+    const newCommentCount = Number(selectedPost?.new_comments_count || 0);
+    const selectedTemplate = selectedSocialTemplate.template || null;
+    const templateText = clean(selectedTemplate?.template || "");
+    const templateMode = clean(selectedTemplate?.mode || socialReplySettings.mode || "manual_approval") || "manual_approval";
+    const templateEnabled = Boolean(selectedTemplate?.enabled);
+    const genericTemplateText = clean(socialReplySettings.generic_template || "");
+
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-2">
+        <section className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">AI Social Media Center PWA</div>
+              <div className="mt-1 text-lg font-black text-slate-900">Social Comments</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadConversations({ silent: true })}
+              disabled={loading}
+              className="inline-flex h-9 items-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-black text-white disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+              Refresh
+            </button>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Facebook</div>
+              <div className="mt-1 text-xl font-black text-slate-900">{socialComments.items.filter((item) => clean(item.platform).toLowerCase().includes("facebook")).length}</div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Instagram</div>
+              <div className="mt-1 text-xl font-black text-slate-900">{socialComments.items.filter((item) => clean(item.platform).toLowerCase().includes("instagram")).length}</div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">New comments</div>
+              <div className="mt-1 text-xl font-black text-slate-900">{newCommentCount}</div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Needs reply</div>
+              <div className="mt-1 text-xl font-black text-slate-900">{socialComments.items.filter((item) => socialPostMatchesFilter(item, "needs_reply")).length}</div>
+            </div>
+          </div>
+        </section>
+
+        <div className="grid min-h-0 flex-1 gap-2 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+          <aside className="min-h-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-2 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-slate-950/5 p-3">
+              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Global Auto Reply System</div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSocialReplySettings((current) => ({ ...current, generic_enabled: !current.generic_enabled }))}
+                  className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-black ${socialReplySettings.generic_enabled ? "bg-emerald-300 text-slate-950" : "border border-slate-200 bg-white text-slate-700"}`}
+                >
+                  {socialReplySettings.generic_enabled ? "ON" : "OFF"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSocialReplySettings((current) => ({ ...current, generic_like_enabled: !current.generic_like_enabled }))}
+                  className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-black ${socialReplySettings.generic_like_enabled ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" : "border border-slate-200 bg-white text-slate-700"}`}
+                >
+                  Like {socialReplySettings.generic_like_enabled ? "ON" : "OFF"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSocialReplySettings((current) => ({ ...current, generic_reply_enabled: !current.generic_reply_enabled }))}
+                  className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-black ${socialReplySettings.generic_reply_enabled ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" : "border border-slate-200 bg-white text-slate-700"}`}
+                >
+                  Reply {socialReplySettings.generic_reply_enabled ? "ON" : "OFF"}
+                </button>
+                <select
+                  value={socialReplySettings.mode}
+                  onChange={(event) => setSocialReplySettings((current) => ({ ...current, mode: event.target.value }))}
+                  className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700"
+                >
+                  <option value="off">off</option>
+                  <option value="draft">draft</option>
+                  <option value="manual_approval">manual_approval</option>
+                  <option value="full_auto">full_auto</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={saveSocialReplySettings}
+                  disabled={socialActionLoading === "global_settings"}
+                  className="inline-flex h-9 items-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-black text-white disabled:opacity-50"
+                >
+                  {socialActionLoading === "global_settings" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Save
+                </button>
+              </div>
+              <textarea
+                value={socialReplySettings.generic_template}
+                onChange={(event) => setSocialReplySettings((current) => ({ ...current, generic_template: event.target.value }))}
+                rows={4}
+                placeholder="Generic auto reply template"
+                className="mt-3 w-full rounded-2xl border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-900 outline-none"
+              />
+              <div className="mt-2 text-[11px] font-semibold text-slate-500">
+                Mode: {socialReplySettings.mode} · Like: {socialReplySettings.generic_like_enabled ? "ON" : "OFF"} · Reply: {socialReplySettings.generic_reply_enabled ? "ON" : "OFF"}
+              </div>
+            </div>
+
+            <div className="mt-2 min-h-0 overflow-hidden">
+              <SocialCommentsPanel
+                items={socialComments.items}
+                loading={socialComments.loading}
+                error={socialComments.error}
+                filter={socialCommentsFilter}
+                debugInfo={socialCommentsDebug}
+                mode="posts"
+                selectedItemId={socialPostIdentity(selectedPost || {})}
+                onSelectItem={(item) => {
+                  const nextPostId = socialPostIdentity(item);
+                  if (!nextPostId) return;
+                  updateUrlState({ nextTab: "social_comments", nextConversationId: "", nextPostId });
+                }}
+                onFilterChange={setSocialCommentsFilter}
+                onRefresh={() => void loadConversations({ silent: true })}
+              />
+            </div>
+          </aside>
+
+          <div className="min-h-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-2 shadow-sm">
+            {selectedPost ? (
+              <div className="flex min-h-0 h-full flex-col gap-2">
+                <div className="rounded-2xl border border-slate-200 bg-slate-950/5 p-3">
+                  <div className="flex flex-wrap items-start gap-3">
+                    <div className="h-28 w-28 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+                      {postImage ? <img src={postImage} alt="" className="h-full w-full object-cover" loading="lazy" /> : null}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Post Preview</div>
+                      <h2 className="mt-1 line-clamp-3 text-lg font-black text-slate-900">{postCaption || "Post"}</h2>
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-500">
+                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{platformLabel}</span>
+                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{commentCount} comments</span>
+                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{newCommentCount} new</span>
+                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{clean(selectedSocialThread?.post?.reply_status || selectedPost?.reply_status || selectedPost?.auto_reply_mode || "manual")}</span>
+                      </div>
+                      {postLink ? (
+                        <a href={postLink} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-black text-white">
+                          <ExternalLink className="h-4 w-4" />
+                          Open post
+                        </a>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-950/5 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Linked Product</div>
+                    <button type="button" className="inline-flex h-8 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-600" disabled>
+                      <ShoppingBag className="h-4 w-4" />
+                      Send Product
+                    </button>
+                  </div>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-2.5">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Name</div>
+                      <div className="mt-1 text-sm font-black text-slate-900">{clean(selectedPost?.product_name || "—")}</div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-2.5">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Price</div>
+                      <div className="mt-1 text-sm font-black text-slate-900">{clean(selectedPost?.product_price || "—") || "—"}</div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-2.5">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Sale price</div>
+                      <div className="mt-1 text-sm font-black text-slate-900">{clean(selectedPost?.product_sale_price || "—") || "—"}</div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-2.5">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Sizes</div>
+                      <div className="mt-1 text-sm font-black text-slate-900">{clean(selectedPost?.product_sizes || "—") || "—"}</div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-2.5">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Colors</div>
+                      <div className="mt-1 text-sm font-black text-slate-900">{clean(selectedPost?.product_colors || "—") || "—"}</div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-2.5">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Stock</div>
+                      <div className="mt-1 text-sm font-black text-slate-900">{clean(selectedPost?.product_stock || selectedPost?.stock || "—") || "—"}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-950/5 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Post Auto Reply Template</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-700">Template mode: {templateMode}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={saveSelectedSocialTemplate}
+                      disabled={socialActionLoading === "post_template"}
+                      className="inline-flex h-9 items-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-black text-white disabled:opacity-50"
+                    >
+                      {socialActionLoading === "post_template" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      Save
+                    </button>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSocialTemplate((current) => ({ ...current, template: { ...(current.template || {}), enabled: !templateEnabled } }))}
+                      className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-black ${templateEnabled ? "bg-emerald-300 text-slate-950" : "border border-slate-200 bg-white text-slate-700"}`}
+                    >
+                      {templateEnabled ? "Enabled" : "Disabled"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSocialTemplate((current) => ({ ...current, template: { ...(current.template || {}), like_enabled: !(current.template?.like_enabled ?? true) } }))}
+                      className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-black ${(selectedTemplate?.like_enabled ?? true) ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" : "border border-slate-200 bg-white text-slate-700"}`}
+                    >
+                      Like {selectedTemplate?.like_enabled === false ? "OFF" : "ON"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSocialTemplate((current) => ({ ...current, template: { ...(current.template || {}), reply_enabled: !(current.template?.reply_enabled ?? true) } }))}
+                      className={`inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-black ${(selectedTemplate?.reply_enabled ?? true) ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" : "border border-slate-200 bg-white text-slate-700"}`}
+                    >
+                      Reply {selectedTemplate?.reply_enabled === false ? "OFF" : "ON"}
+                    </button>
+                    <select
+                      value={templateMode}
+                      onChange={(event) => setSelectedSocialTemplate((current) => ({ ...current, template: { ...(current.template || {}), mode: event.target.value } }))}
+                      className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700"
+                    >
+                      <option value="off">off</option>
+                      <option value="draft">draft</option>
+                      <option value="manual_approval">manual_approval</option>
+                      <option value="full_auto">full_auto</option>
+                    </select>
+                  </div>
+                  <textarea
+                    value={templateText}
+                    onChange={(event) => setSelectedSocialTemplate((current) => ({ ...current, template: { ...(current.template || {}), template: event.target.value } }))}
+                    rows={4}
+                    placeholder="Template for this post"
+                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-900 outline-none"
+                  />
+                  <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-700">
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Preview</div>
+                    <div className="mt-2 whitespace-pre-wrap">{templateText || genericTemplateText || "No template text yet."}</div>
+                  </div>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-slate-950/5 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Comments Timeline</div>
+                      <div className="mt-1 text-sm font-semibold text-slate-700">{selectedSocialThread.comments.length} comments</div>
+                    </div>
+                    {selectedSocialThread.loading ? <Loader2 className="h-4 w-4 animate-spin text-slate-500" /> : null}
+                  </div>
+                  {selectedSocialThread.error ? (
+                    <div className="mt-2 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">{selectedSocialThread.error}</div>
+                  ) : null}
+                  <div className="mt-2 min-h-0 flex-1 overflow-y-auto space-y-2 pr-1">
+                    {!selectedSocialThread.loading && !selectedSocialThread.comments.length ? (
+                      <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+                        لا توجد تعليقات سوشيال حاليًا
+                      </div>
+                    ) : null}
+                    {selectedSocialThread.comments.map((comment) => {
+                      const commentId = clean(comment.comment_id || comment.id || "");
+                      const commentText = clean(comment.original_comment_text || comment.comment_text || comment.message_text || comment.text || comment.message || "");
+                      const commenterName = clean(comment.commenter_name || comment.customer_name || comment.from_name || "مستخدم مجهول");
+                      const commenterAvatar = clean(comment.customer_avatar_url || comment.avatar_url || comment.profile_pic || "");
+                      const commentTime = clean(comment.created_at || "");
+                      const commentStatus = clean(comment.classification_label || comment.reply_status || comment.auto_reply_mode || "pending");
+                      const actionBusy = socialActionLoading === `reply:${commentId}` || socialActionLoading === `ignore:${commentId}`;
+                      return (
+                        <article key={commentId || comment.created_at || commentText} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                          <div className="flex items-start gap-3">
+                            {commenterAvatar ? (
+                              <img src={commenterAvatar} alt={commenterName} className="h-11 w-11 shrink-0 rounded-full object-cover ring-1 ring-slate-200" loading="lazy" />
+                            ) : (
+                              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                                <UserRound className="h-5 w-5" />
+                              </span>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="truncate text-sm font-black text-slate-900">{commenterName}</div>
+                                  <div className="mt-1 text-[11px] font-semibold text-slate-500">{commentTime || "—"}</div>
+                                </div>
+                                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{commentStatus}</span>
+                              </div>
+                              <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{commentText || "بدون نص"}</div>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => void sendSelectedSocialCommentAction(comment, "reply")}
+                                  disabled={actionBusy}
+                                  className="inline-flex h-9 items-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-black text-white disabled:opacity-50"
+                                >
+                                  {socialActionLoading === `reply:${commentId}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                                  رد على التعليق
+                                </button>
+                                <button type="button" disabled className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-500 disabled:opacity-60">
+                                  <MessageSquareText className="h-4 w-4" />
+                                  إرسال رسالة خاصة
+                                </button>
+                                <button type="button" disabled className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-500 disabled:opacity-60">
+                                  <ShoppingBag className="h-4 w-4" />
+                                  إنشاء Lead
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void sendSelectedSocialCommentAction(comment, "ignore")}
+                                  disabled={actionBusy}
+                                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-50"
+                                >
+                                  <ShieldBan className="h-4 w-4" />
+                                  تجاهل
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid min-h-[20rem] place-items-center rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
+                لا توجد تعليقات سوشيال حاليًا
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="h-dvh overflow-hidden bg-slate-50 text-slate-900">
@@ -3673,7 +4314,7 @@ export default function AiInboxPwa() {
           <header className="border-b border-slate-200 bg-slate-50/95 px-2.5 pb-2 pt-[max(0.65rem,env(safe-area-inset-top))] backdrop-blur">
             <div className="space-y-2.5">
               <div>
-                <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">AI Inbox</h1>
+                <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">AI Social Media Center</h1>
               </div>
               <label className="relative block">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -3711,7 +4352,7 @@ export default function AiInboxPwa() {
             </div>
           ) : null}
 
-          {tab === "conversations" ? (
+          {isConversationMode ? (
             contentScreen ? (
               <OptimizedTranscript
                 conversation={selectedConversation}
@@ -3722,7 +4363,7 @@ export default function AiInboxPwa() {
                 onReplyComment={sendLeadCommentReply}
                 onPrivateMessage={sendLeadPrivateMessage}
               />
-          ) : loading ? (
+            ) : loading ? (
               <div className="grid min-h-60 place-items-center rounded-3xl border border-slate-200 bg-white shadow-sm">
                 <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
               </div>
@@ -3747,6 +4388,8 @@ export default function AiInboxPwa() {
                 No conversations match the current filters.
               </div>
             )
+          ) : isSocialMode ? (
+            renderSocialCommentsWorkspace()
           ) : null}
 
           {tab === "leads" ? (

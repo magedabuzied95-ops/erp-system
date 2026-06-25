@@ -496,6 +496,7 @@ const { default: attendanceRoutes } = await import("./routes/attendance.js");
 const { default: adminAttendanceRoutes } = await import("./routes/adminAttendance.js");
 const { default: shiftsRoutes } = await import("./routes/shifts.js");
 const { default: marketingRoutes } = await import("./routes/marketing.js");
+const { default: socialPublisherRoutes } = await import("./routes/socialPublisher.js");
 const { default: aiMarketingCenterRoutes } = await import("./routes/aiMarketingCenter.js");
 const { default: couponsRoutes } = await import("./routes/coupons.js");
 const { default: dashboardRoutes } = await import("./routes/dashboard.js");
@@ -538,6 +539,7 @@ const { default: aiRoutes } = await import("./routes/ai.js");
 const { default: aiV2Routes } = await import("./routes/aiV2.js");
 const { default: aiSupportRoutes } = await import("./routes/aiSupport.js");
 const { default: aiAgentOrderRoutes } = await import("./routes/aiAgentOrders.js");
+const { default: socialCommentsRoutes } = await import("./routes/socialComments.js");
 const { default: metaIntegrationRoutes, metaWebhookRoutes, handleMetaWebhookVerification, handleMetaWebhookSelfTest } = await import("./routes/metaIntegration.js");
 const { getMetaWebhookUrl, getPublicAppUrl } = await import("./utils/publicUrl.js");
 const { default: smartWarehouseRoutes } = await import("./routes/smartWarehouse.js");
@@ -1461,6 +1463,14 @@ console.log("Marketing routes mounted", {
   routeCount: registeredMarketingEndpoints.length,
 });
 console.log("[server] registered marketing endpoints", registeredMarketingEndpoints);
+app.use("/api/social-publisher", socialPublisherRoutes);
+const registeredSocialPublisherEndpoints = collectRouterEndpoints(socialPublisherRoutes, "/api/social-publisher");
+console.log("[social-publisher] mounted at /api/social-publisher");
+console.log("[server] social publisher routes mounted", {
+  prefix: "/api/social-publisher",
+  routeCount: registeredSocialPublisherEndpoints.length,
+  routes: registeredSocialPublisherEndpoints,
+});
 app.use("/api/coupons", couponsRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/roles", rolesRoutes);
@@ -1535,6 +1545,7 @@ app.use("/api/ai/v2", aiV2Routes);
 app.use("/api/ai-support", aiSupportRoutes);
 app.use("/api/ai-agent", aiAgentOrderRoutes);
 app.use("/api/ai-inbox", aiAgentOrderRoutes);
+app.use("/api/social-comments", socialCommentsRoutes);
 const registeredAiAgentEndpoints = collectRouterEndpoints(aiAgentOrderRoutes, "/api/ai-agent");
 const registeredAiInboxEndpoints = collectRouterEndpoints(aiAgentOrderRoutes, "/api/ai-inbox");
 const aiDebugInboxRoute = "GET /api/ai-inbox/conversations/:conversationId/ai-debug";

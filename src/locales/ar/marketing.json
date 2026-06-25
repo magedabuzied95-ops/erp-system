@@ -225,10 +225,30 @@
     "status": {
       "draft": "Draft",
       "scheduled": "Scheduled",
+      "publishing": "Publishing",
       "published": "Published",
       "partialSuccess": "Partial success",
       "failed": "Failed"
     }
+  },
+  "socialHistory": {
+    "eyebrow": "Social Media Publisher",
+    "title": "Simple History",
+    "subtitle": "آخر 20 عملية نشر فقط على Facebook و Instagram.",
+    "refresh": "تحديث السجل",
+    "loading": "جارٍ تحميل السجل...",
+    "emptyTitle": "لا توجد عمليات بعد",
+    "emptyDescription": "انشر أي محتوى لتظهر أحدث العمليات هنا.",
+    "count": "{{count}} عملية حديثة",
+    "mediaType": "نوع الوسائط",
+    "scheduledAt": "وقت الجدولة",
+    "publishedAt": "وقت النشر",
+    "error": "خطأ",
+    "notAvailable": "غير متاح",
+    "noPlatforms": "لا توجد منصات",
+    "untitled": "عملية بدون عنوان",
+    "image": "صورة",
+    "video": "فيديو"
   },
   "templates": {
     "eyebrow": "Templates",
