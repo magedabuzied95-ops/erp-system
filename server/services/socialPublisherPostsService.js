@@ -208,8 +208,6 @@ export const listSocialPublisherMetaAccounts = async ({ tenantId } = {}) => {
           instagram_account_id AS instagram_business_account_id,
           ''::text AS instagram_username,
           COALESCE(page_access_token, access_token_encrypted, '') AS page_access_token_encrypted,
-          token_status,
-          token_status AS token_health_status,
           CASE WHEN is_connected THEN 'connected' ELSE 'not_connected' END AS status,
           updated_at
         FROM marketing_settings

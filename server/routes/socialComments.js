@@ -183,7 +183,7 @@ router.post("/comments/:commentId/ignore", protect, permit("settings", "edit"), 
   }
 });
 
-debugRouter.post("/enrich-post-media", protect, permit("settings", "edit"), async (req, res) => {
+const handleEnrichPostMediaDebug = async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const platform = String(req.query?.platform || req.body?.platform || "").trim();
@@ -205,7 +205,10 @@ debugRouter.post("/enrich-post-media", protect, permit("settings", "edit"), asyn
     });
     return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to enrich social comment post media" });
   }
-});
+};
+
+debugRouter.get("/enrich-post-media", handleEnrichPostMediaDebug);
+debugRouter.post("/enrich-post-media", handleEnrichPostMediaDebug);
 
 export default router;
 export { debugRouter as socialCommentsDebugRoutes };

@@ -90,10 +90,15 @@ const getPostImage = (post = {}) =>
 const getPostCaption = (post = {}) =>
   clean(post.post_caption || post.post_message || post.last_message || post.post_text || post.message || "");
 
+const getCommentClassification = (comment) => {
+  if (!comment) return "Question";
+  return clean(comment.classification_label || comment.classification || comment.intent || comment.reply_status || comment.auto_reply_mode || "Question");
+};
+
 const getCommentText = (comment = {}) =>
   clean(comment.customer_message || comment.message_text || comment.original_comment_text || comment.text || comment.message || "");
 
-const classifyComment = (comment = {}) => clean(comment.classification_label || comment.reply_status || comment.auto_reply_mode || "pending");
+const classifyComment = (comment = {}) => clean(getCommentClassification(comment) || "pending");
 
 const labelText = (value = "") => {
   const key = clean(value).toLowerCase();
@@ -111,7 +116,7 @@ const labelText = (value = "") => {
 };
 
 const summaryBucketLabel = (comment = {}) => {
-  const classification = clean(comment.classification_label || "").toLowerCase();
+  const classification = clean(getCommentClassification(comment)).toLowerCase();
   const text = getCommentText(comment);
   const haystack = `${classification} ${text}`.toLowerCase();
   if (classification === "lead_price" || /(price|سعر|ثمن|كام|بكام)/i.test(haystack)) return "price";
@@ -132,8 +137,8 @@ const getCommentTags = (comment = {}) => {
   if (bucket === "details" || bucket === "question") tags.add("Question");
   if (bucket === "ready") tags.add("Lead");
   if (bucket === "spam") tags.add("Spam");
-  if (clean(comment.classification_label || "").toLowerCase() === "human_review") tags.add("Review");
-  if (clean(comment.classification_label || "").toLowerCase() === "lead_inbox") tags.add("Lead");
+  if (clean(getCommentClassification(comment)).toLowerCase() === "human_review") tags.add("Review");
+  if (clean(getCommentClassification(comment)).toLowerCase() === "lead_inbox") tags.add("Lead");
   return Array.from(tags).slice(0, 4);
 };
 
