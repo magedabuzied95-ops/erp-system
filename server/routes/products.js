@@ -15,7 +15,7 @@ import {
 } from "../controllers/productsController.js";
 import { generateAiProductDataController } from "../controllers/aiProductDataController.js";
 import { suggestMirrorEditionName } from "../controllers/editionSuggestionsController.js";
-import { generateProductDescription } from "../services/openaiProductDescriptionService.js";
+import { generateProductDescription, generateSocialPublisherCaption } from "../services/openaiProductDescriptionService.js";
 
 const router = express.Router();
 
@@ -65,6 +65,43 @@ router.post("/generate-description", protect, async (req, res) => {
       message: process.env.NODE_ENV === "production" ? "Product description generation failed" : error?.message || "Product description generation failed",
       arabic_description: "",
       english_description: "",
+    });
+  }
+});
+router.post("/generate-social-caption", protect, async (req, res) => {
+  const startedAt = Date.now();
+  const requestId = `social-caption-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  try {
+    console.log("[products] generate-social-caption start", {
+      requestId,
+      productName: req.body?.current?.product_name || req.body?.current?.name || req.body?.product_name || req.body?.name || "",
+    });
+    const result = await generateSocialPublisherCaption({
+      ...(req.body || {}),
+      request_id: requestId,
+    });
+    console.log("[products] generate-social-caption end", {
+      requestId,
+      source: result.source,
+      durationMs: Date.now() - startedAt,
+    });
+    res.json({
+      success: true,
+      caption: result.caption || "",
+      source: result.source,
+      error: result.error,
+    });
+  } catch (error) {
+    console.error("[products] generate-social-caption failed", {
+      requestId,
+      durationMs: Date.now() - startedAt,
+      message: error?.message,
+      stack: error?.stack,
+    });
+    res.status(500).json({
+      success: false,
+      message: process.env.NODE_ENV === "production" ? "Social caption generation failed" : error?.message || "Social caption generation failed",
+      caption: "",
     });
   }
 });

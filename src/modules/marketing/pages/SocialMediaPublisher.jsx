@@ -27,6 +27,7 @@ import {
   startMetaOAuth,
   publishSocialPublisherPost,
 } from "../services/marketingApi";
+import { generateSocialPublisherCaption, getProductsWithVariants } from "../../products/services/productsApi";
 import { hasPermission } from "../../permissions/lib/rbacStore";
 
 const formatDateTime = (value) => {
@@ -81,6 +82,86 @@ const buildCatalogCaption = (product = {}) => {
   const priceLine = priceValue > 0 ? `السعر: ${formatCompactCurrency(priceValue)} ج.م` : "";
   return [name, priceLine, "متوفر الآن", "اطلب الآن"].filter(Boolean).join("\n");
 };
+const normalizeTextValue = (value) => String(value || "").trim();
+const normalizeListValue = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map(normalizeTextValue).filter(Boolean);
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (!text) return [];
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) return parsed.map(normalizeTextValue).filter(Boolean);
+    } catch {
+      // Fall through to split text.
+    }
+    return text
+      .split(/[,\n|]+/)
+      .map(normalizeTextValue)
+      .filter(Boolean);
+  }
+  return [normalizeTextValue(value)].filter(Boolean);
+};
+const uniqueTextList = (...values) => Array.from(new Set(values.flatMap((value) => normalizeListValue(value)).filter(Boolean)));
+const formatPriceForCaption = (value) => {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number) || number <= 0) return "";
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(number);
+};
+const computeDiscountPercent = (originalPrice, currentPrice) => {
+  const original = Number(originalPrice || 0);
+  const current = Number(currentPrice || 0);
+  if (!Number.isFinite(original) || !Number.isFinite(current) || original <= 0 || current <= 0 || current >= original) return "";
+  return `${Math.max(1, Math.round(((original - current) / original) * 100))}%`;
+};
+const buildAiCaptionProductContext = (product = {}) => {
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const availableSizes = uniqueTextList(
+    product.available_sizes,
+    product.sizes,
+    variants.map((variant) => variant.fixed_size_label || variant.size_label || variant.size_name || variant.size || ""),
+    variants.map((variant) => variant.size || "")
+  );
+  const colors = uniqueTextList(
+    product.colors,
+    product.color_names,
+    variants.map((variant) => variant.color || variant.color_name || variant.name || ""),
+    Array.isArray(product.color_images) ? product.color_images.map((item) => item?.color || item?.color_name || "").filter(Boolean) : []
+  );
+  const features = uniqueTextList(product.features, product.feature_list, product.highlights, product.benefits);
+  const materials = uniqueTextList(product.materials, product.material, product.fabric, product.upper_material);
+  const brand = normalizeTextValue(product.brand_name || product.brand || product.manufacturer_name || product.manufacturer || "");
+  const category = normalizeTextValue(product.category_name || product.category || product.department || "");
+  const productType = normalizeTextValue(product.product_type || product.productType || product.type || "");
+  const gender = normalizeTextValue(product.gender || product.audience_gender || product.target_gender || "");
+  const audience = normalizeTextValue(product.audience || product.target_audience || "");
+  const description = normalizeTextValue(product.description || product.product_description || product.long_description || "");
+  const shortDescription = normalizeTextValue(product.short_description || product.shortDescription || product.summary || product.meta_description || "");
+  const originalPrice = Number(product.price || product.original_price || product.regular_price || product.selling_price || 0);
+  const currentPrice = Number(product.sale_price || product.current_price || product.discount_price || product.price || product.selling_price || 0);
+  const stock = Number(product.stock_quantity ?? product.stock ?? product.quantity ?? 0);
+  const discountPercent = computeDiscountPercent(originalPrice, currentPrice);
+  const productUrl = normalizeTextValue(product.product_url || "");
+  return {
+    product_name: normalizeTextValue(product.name || product.product_name || ""),
+    brand,
+    category,
+    product_type: productType,
+    gender,
+    audience,
+    description,
+    short_description: shortDescription,
+    features,
+    materials,
+    colors,
+    available_sizes: availableSizes,
+    current_price: currentPrice > 0 ? formatPriceForCaption(currentPrice) : "",
+    original_price: originalPrice > 0 ? formatPriceForCaption(originalPrice) : "",
+    discount_percent: discountPercent,
+    stock: Number.isFinite(stock) ? String(stock) : "",
+    product_url: productUrl,
+  };
+};
 const renderAccountCardValue = (label, value) => (
   <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white">
     <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{label}</div>
@@ -115,6 +196,11 @@ export default function SocialMediaPublisher() {
   const [productCatalogLoading, setProductCatalogLoading] = useState(false);
   const [productCatalogQuery, setProductCatalogQuery] = useState("");
   const [productCatalogResults, setProductCatalogResults] = useState([]);
+  const [aiTemplateOpen, setAiTemplateOpen] = useState(false);
+  const [aiTemplateLoading, setAiTemplateLoading] = useState(false);
+  const [aiTemplateCaption, setAiTemplateCaption] = useState("");
+  const [aiTemplateError, setAiTemplateError] = useState("");
+  const [aiTemplateSource, setAiTemplateSource] = useState("");
   const [metaConnectOpen, setMetaConnectOpen] = useState(false);
   const [metaConnectLoading, setMetaConnectLoading] = useState(false);
   const mediaInputRef = useRef(null);
@@ -316,6 +402,9 @@ export default function SocialMediaPublisher() {
     setSelectedCatalogProduct(nextProduct);
     setCreateSource("catalog");
     setCaption(buildCatalogCaption(nextProduct));
+    setAiTemplateCaption("");
+    setAiTemplateError("");
+    setAiTemplateSource("");
     if (!mediaFile && nextProduct.image_url) {
       setMediaPreview(nextProduct.image_url);
       setMediaType("image");
@@ -333,6 +422,84 @@ export default function SocialMediaPublisher() {
       setCaption("");
     }
     setCreateSource("device");
+    setAiTemplateCaption("");
+    setAiTemplateError("");
+    setAiTemplateSource("");
+    closeAiTemplateModal();
+  };
+
+  const closeAiTemplateModal = () => {
+    setAiTemplateOpen(false);
+    setAiTemplateLoading(false);
+    setAiTemplateError("");
+    setAiTemplateSource("");
+  };
+
+  const loadSelectedCatalogProductDetails = async () => {
+    if (!selectedCatalogProduct?.id) return null;
+    const response = await getProductsWithVariants({
+      params: {
+        productId: selectedCatalogProduct.id,
+        refresh: Date.now(),
+      },
+      timeoutMs: 30000,
+    });
+    const products = safeArray(response);
+    const resolved =
+      products.find((item) => String(item?.id || item?.product_id || "") === String(selectedCatalogProduct.id)) ||
+      products[0] ||
+      {};
+    return {
+      ...selectedCatalogProduct,
+      ...resolved,
+      image_url: resolved.image_url || resolved.product_image_url || selectedCatalogProduct.image_url || "",
+      product_url: resolved.product_url || selectedCatalogProduct.product_url || "",
+    };
+  };
+
+  const generateNewCollectionCaption = async ({ force = false } = {}) => {
+    if (!selectedCatalogProduct?.id) {
+      toast.error("Select a product first");
+      return;
+    }
+    setAiTemplateOpen(true);
+    setAiTemplateLoading(true);
+    setAiTemplateError("");
+    try {
+      const productDetails = await loadSelectedCatalogProductDetails();
+      const aiContext = buildAiCaptionProductContext(productDetails || selectedCatalogProduct);
+      const result = await generateSocialPublisherCaption(
+        {
+          current: aiContext,
+          product_id: selectedCatalogProduct.id,
+          template: "new_collection",
+          force: Boolean(force),
+        },
+        { timeoutMs: 45000 }
+      );
+      const nextCaption = String(result?.caption || "").trim() || buildCatalogCaption(selectedCatalogProduct);
+      setAiTemplateCaption(nextCaption);
+      setAiTemplateSource(String(result?.source || "LOCAL_FALLBACK"));
+      if (String(result?.source || "").toUpperCase() !== "OPENAI") {
+        setAiTemplateError(result?.error || "AI caption generation used fallback text.");
+      } else if (!nextCaption) {
+        setAiTemplateError("No caption returned.");
+      } else {
+        setAiTemplateError("");
+      }
+    } catch (error) {
+      const message = error?.message || "Failed to generate caption";
+      setAiTemplateError(message);
+      toast.error(message);
+    } finally {
+      setAiTemplateLoading(false);
+    }
+  };
+
+  const useAiTemplateCaption = () => {
+    if (!aiTemplateCaption.trim()) return;
+    setCaption(aiTemplateCaption);
+    setAiTemplateOpen(false);
   };
 
   useEffect(() => {
@@ -403,6 +570,10 @@ export default function SocialMediaPublisher() {
     setScheduledAt("");
     setMediaFile(null);
     setSelectedCatalogProduct(null);
+    setAiTemplateCaption("");
+    setAiTemplateError("");
+    setAiTemplateSource("");
+    closeAiTemplateModal();
     setMediaType("image");
     setPlatforms({ facebook: true, instagram: false, tiktok: false });
     setCreateSource("device");
@@ -757,6 +928,13 @@ export default function SocialMediaPublisher() {
                         className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.08]"
                       >
                         Clear product
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAiTemplateOpen(true)}
+                        className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100 transition hover:border-amber-300/35 hover:bg-amber-400/15"
+                      >
+                        ✨ Generate AI Caption
                       </button>
                     </div>
                   </div>
@@ -1241,6 +1419,109 @@ export default function SocialMediaPublisher() {
             </div>,
           document.body
         )
+        : null}
+
+      {aiTemplateOpen
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm md:items-center md:p-4"
+              role="presentation"
+              onClick={closeAiTemplateModal}
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Templates"
+                className="flex h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[#07111f] text-white shadow-2xl shadow-black/60 md:h-[86vh] md:rounded-[2rem]"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4 md:px-6">
+                  <div className="min-w-0">
+                    <div className="text-sm font-black uppercase tracking-[0.22em] text-amber-100">Templates</div>
+                    <div className="text-xs text-slate-400">Choose a caption template for the selected product.</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeAiTemplateModal}
+                    className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <div className="grid flex-1 gap-4 overflow-y-auto p-4 md:grid-cols-[280px_minmax(0,1fr)] md:p-6">
+                  <div className="space-y-3">
+                    <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">Available templates</div>
+                    <button
+                      type="button"
+                      onClick={() => void generateNewCollectionCaption()}
+                      disabled={!selectedCatalogProduct || aiTemplateLoading}
+                      className="w-full rounded-[1.6rem] border border-amber-400/25 bg-amber-400/10 p-4 text-start transition hover:border-amber-300/35 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.03] disabled:text-slate-500"
+                    >
+                      <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-100">NEW COLLECTION</div>
+                      <div className="mt-2 text-base font-black text-white">New Collection</div>
+                      <div className="mt-2 text-sm leading-6 text-slate-300">
+                        Premium caption generated from the selected ERP product only.
+                      </div>
+                    </button>
+                  </div>
+
+                  <div className="flex min-h-0 flex-col rounded-[1.6rem] border border-white/10 bg-white/[0.03]">
+                    <div className="border-b border-white/10 px-4 py-4 md:px-5">
+                      <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">Preview</div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {selectedCatalogProduct ? selectedCatalogProduct.name : "Select a product first"}
+                      </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto px-4 py-4 md:px-5">
+                      {aiTemplateLoading ? (
+                        <div className="flex h-full min-h-[220px] items-center justify-center rounded-[1.25rem] border border-white/10 bg-black/20 text-sm text-slate-400">
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Generating caption...
+                        </div>
+                      ) : aiTemplateCaption ? (
+                        <pre className="whitespace-pre-wrap break-words rounded-[1.25rem] border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm leading-7 text-emerald-50">
+                          {aiTemplateCaption}
+                        </pre>
+                      ) : (
+                        <div className="rounded-[1.25rem] border border-white/10 bg-black/20 p-4 text-sm leading-7 text-slate-400">
+                          Pick the template card to generate a caption from the selected product.
+                        </div>
+                      )}
+                      {aiTemplateError ? <div className="mt-3 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{aiTemplateError}</div> : null}
+                      {aiTemplateSource ? <div className="mt-3 text-xs uppercase tracking-[0.18em] text-slate-500">Source: {aiTemplateSource}</div> : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2 border-t border-white/10 px-4 py-4 md:px-5">
+                      <button
+                        type="button"
+                        onClick={useAiTemplateCaption}
+                        disabled={!aiTemplateCaption.trim()}
+                        className="rounded-2xl bg-emerald-400 px-4 py-2 text-sm font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+                      >
+                        Use Caption
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void generateNewCollectionCaption({ force: true })}
+                        disabled={!selectedCatalogProduct || aiTemplateLoading}
+                        className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:text-slate-500"
+                      >
+                        Regenerate
+                      </button>
+                      <button
+                        type="button"
+                        onClick={closeAiTemplateModal}
+                        className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
         : null}
 
       {productCatalogOpen

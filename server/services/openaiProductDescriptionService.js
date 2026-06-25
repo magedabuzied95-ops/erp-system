@@ -41,6 +41,15 @@ const productDescriptionSchema = {
   },
 };
 
+const socialCaptionSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["caption"],
+  properties: {
+    caption: { type: "string" },
+  },
+};
+
 const compactContext = (input = {}) => {
   const current = input.current || input;
   return {
@@ -56,6 +65,29 @@ const compactContext = (input = {}) => {
     grade: cleanText(current.grade || input.grade),
     selling_vibe: cleanText(current.selling_vibe || current.vibe || input.selling_vibe || input.vibe),
     tone: cleanText(input.tone || input.prompt_customization || current.prompt_customization),
+  };
+};
+
+const compactSocialCaptionContext = (input = {}) => {
+  const current = input.current || input;
+  return {
+    product_name: cleanText(current.product_name || current.name || input.product_name || input.name),
+    brand: cleanText(current.brand || current.brand_name || current.manufacturer || input.brand || input.brand_name || input.manufacturer),
+    category: cleanText(current.category || current.category_name || input.category || input.category_name),
+    product_type: cleanText(current.product_type || current.productType || input.product_type || input.productType),
+    gender: cleanText(current.gender || input.gender),
+    audience: cleanText(current.audience || input.audience),
+    description: cleanText(current.description || input.description),
+    short_description: cleanText(current.short_description || current.shortDescription || input.short_description || input.shortDescription),
+    features: normalizeList(current.features || current.feature_list || input.features || input.feature_list),
+    materials: normalizeList(current.materials || current.material || input.materials || input.material),
+    colors: normalizeList(current.colors || current.color_list || input.colors || input.color_list),
+    available_sizes: normalizeList(current.available_sizes || current.sizes || input.available_sizes || input.sizes),
+    current_price: cleanText(current.current_price || current.sale_price || current.price || input.current_price || input.sale_price || input.price),
+    original_price: cleanText(current.original_price || current.price || input.original_price || input.price),
+    discount_percent: cleanText(current.discount_percent || input.discount_percent),
+    stock: cleanText(current.stock || current.stock_quantity || input.stock || input.stock_quantity),
+    product_url: cleanText(current.product_url || input.product_url),
   };
 };
 
@@ -136,12 +168,78 @@ const buildPrompt = (context = {}, target = "all") => {
     .join("\n");
 };
 
+const buildSocialCaptionPrompt = (context = {}) => [
+  "Write a premium social media caption for a luxury footwear store.",
+  "Return strict JSON only with key caption.",
+  "The caption must be short, premium, and suitable for Facebook and Instagram.",
+  "Maximum length: 1200 characters.",
+  "Use emojis moderately.",
+  "Do not repeat the same word excessively.",
+  "Do not invent information that is not provided.",
+  "Always follow this order when available:",
+  "NEW COLLECTION",
+  "Product name",
+  "A strong opening line",
+  "Top 3 or 4 features from the supplied product data only",
+  "Current price",
+  "If a discount exists, show original price then current price",
+  "If sizes exist, show them",
+  "If colors exist, show them",
+  "CTA",
+  "Product URL",
+  "3 to 5 relevant hashtags",
+  "Use Arabic copy for the caption body, but keep NEW COLLECTION exactly as written.",
+  "Omit any section whose data is missing.",
+  `Product context:\n${JSON.stringify(context, null, 2)}`,
+]
+  .filter(Boolean)
+  .join("\n");
+
 const normalizeGenerated = (raw = {}, fallback = {}, target = "all") => {
   const targets = requestedTargets(target);
   return {
     arabic_description: targets.arabic ? cleanText(raw.arabic_description || raw.description_ar) || fallback.arabic_description : "",
     english_description: targets.english ? cleanText(raw.english_description || raw.description_en) || fallback.english_description : "",
   };
+};
+
+const normalizeSocialCaptionGenerated = (raw = {}, fallback = "") => {
+  const caption = cleanText(raw.caption || raw.post_caption || raw.social_caption || raw.text);
+  return caption || fallback;
+};
+
+const buildSocialCaptionFallback = (context = {}) => {
+  const lines = [];
+  const name = cleanText(context.product_name) || cleanText(context.name) || "NEW COLLECTION";
+  const brand = cleanText(context.brand);
+  const category = cleanText(context.category || context.product_type);
+  const description = cleanText(context.description || context.short_description);
+  const features = normalizeList(context.features).slice(0, 4);
+  const materials = normalizeList(context.materials).slice(0, 2);
+  const colors = normalizeList(context.colors).slice(0, 5);
+  const sizes = normalizeList(context.available_sizes).slice(0, 10);
+  const currentPrice = cleanText(context.current_price || context.price || "");
+  const originalPrice = cleanText(context.original_price || "");
+  const discount = cleanText(context.discount_percent || "");
+  const stock = cleanText(context.stock || "");
+  const url = cleanText(context.product_url || "");
+
+  lines.push("NEW COLLECTION");
+  lines.push(name);
+  if (brand || category) lines.push([brand, category].filter(Boolean).join(" • "));
+  if (description) lines.push(description);
+  features.forEach((feature) => lines.push(`• ${feature}`));
+  if (materials.length) lines.push(`المواد: ${materials.join("، ")}`);
+  if (colors.length) lines.push(`الألوان: ${colors.join("، ")}`);
+  if (sizes.length) lines.push(`المقاسات: ${sizes.join("، ")}`);
+  if (currentPrice) {
+    lines.push(originalPrice && originalPrice !== currentPrice ? `السعر: ${originalPrice} -> ${currentPrice}` : `السعر: ${currentPrice}`);
+  }
+  if (discount) lines.push(`الخصم: ${discount}`);
+  if (stock) lines.push(`المتاح: ${stock}`);
+  if (url) lines.push(url);
+  lines.push("#NewCollection #Fashion #Footwear");
+  return lines.filter(Boolean).join("\n").trim();
 };
 
 export const generateProductDescription = async (input = {}) => {
@@ -210,6 +308,77 @@ export const generateProductDescription = async (input = {}) => {
     });
     return {
       ...normalizeGenerated({}, fallback, target),
+      source: "LOCAL_FALLBACK",
+      error: process.env.NODE_ENV === "production" ? undefined : error?.message || "OpenAI request failed",
+    };
+  }
+};
+
+export const generateSocialPublisherCaption = async (input = {}) => {
+  const context = compactSocialCaptionContext(input);
+  const fallback = buildSocialCaptionFallback(context);
+  const requestId = cleanText(input.request_id) || `social-caption-${Date.now()}`;
+
+  if (!process.env.OPENAI_API_KEY) {
+    console.warn("[social-caption] OPENAI_API_KEY missing; using fallback", { requestId });
+    return {
+      caption: fallback,
+      source: "LOCAL_FALLBACK",
+    };
+  }
+
+  const startedAt = Date.now();
+  try {
+    console.log("[social-caption] OpenAI request start", {
+      requestId,
+      model: process.env.OPENAI_PRODUCT_DESCRIPTION_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL,
+    });
+
+    const response = await getClient().responses.create(
+      {
+        model: process.env.OPENAI_PRODUCT_DESCRIPTION_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL,
+        instructions: "You are an expert luxury ecommerce social media copywriter.",
+        input: buildSocialCaptionPrompt(context),
+        text: {
+          format: {
+            type: "json_schema",
+            name: "social_caption",
+            strict: true,
+            schema: socialCaptionSchema,
+          },
+          verbosity: "medium",
+        },
+      },
+      {
+        timeout: positiveNumber(process.env.OPENAI_PRODUCT_DESCRIPTION_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
+        maxRetries: 0,
+      }
+    );
+
+    const parsed = JSON.parse(response.output_text || "{}");
+    const caption = normalizeSocialCaptionGenerated(parsed, fallback);
+    console.log("[social-caption] OpenAI request end", {
+      requestId,
+      durationMs: Date.now() - startedAt,
+      status: response?.status || "completed",
+    });
+
+    return {
+      caption,
+      source: "OPENAI",
+    };
+  } catch (error) {
+    console.error("[social-caption] OpenAI request failed", {
+      requestId,
+      durationMs: Date.now() - startedAt,
+      name: error?.name,
+      status: error?.status,
+      code: error?.code,
+      type: error?.type,
+      message: error?.message,
+    });
+    return {
+      caption: fallback,
       source: "LOCAL_FALLBACK",
       error: process.env.NODE_ENV === "production" ? undefined : error?.message || "OpenAI request failed",
     };

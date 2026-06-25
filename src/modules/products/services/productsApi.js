@@ -276,6 +276,11 @@ export const generateProductDescription = async (body) => {
   return response?.data || response || null;
 };
 
+export const generateSocialPublisherCaption = async (body) => {
+  const response = await api.post("/products/generate-social-caption", body, { timeoutMs: 45000 });
+  return response?.data || response || null;
+};
+
 export const deleteProduct = async (id) => api.delete(`/products/${id}`);
 
 export const getBrands = async () => unwrapArray(await api.get("/brands"));
