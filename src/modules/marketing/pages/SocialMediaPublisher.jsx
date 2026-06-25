@@ -31,16 +31,16 @@ const formatDateTime = (value) => {
 };
 
 const platformOptions = [
-  { key: "facebook", label: "Facebook", icon: Share2, tone: "blue" },
-  { key: "instagram", label: "Instagram", icon: Camera, tone: "pink" },
+  { key: "facebook", labelKey: "marketing.social.platforms.facebook", icon: Share2, tone: "blue" },
+  { key: "instagram", labelKey: "marketing.social.platforms.instagram", icon: Camera, tone: "pink" },
   {
     key: "tiktok",
-    label: "TikTok",
+    labelKey: "marketing.social.platforms.tiktok",
     icon: ShieldAlert,
     tone: "slate",
     disabled: true,
-    subtitle: "Coming Soon",
-    helper: "Connect TikTok لاحقًا",
+    subtitleKey: "marketing.socialPublisher.tiktokComingSoon",
+    helperKey: "marketing.socialPublisher.connectTikTokLater",
   },
 ];
 
@@ -79,6 +79,8 @@ export default function SocialMediaPublisher() {
   const mediaInputRef = useRef(null);
   const canCreate = hasPermission("marketing.create");
   const canPublish = hasPermission("marketing.publish");
+  const previewTitle = caption.trim() || "Your caption will appear here";
+  const previewSubtitle = mediaFile ? `${mediaType.toUpperCase()} ready` : "No media selected";
 
   const selectedPlatforms = useMemo(
     () => platformOptions.filter((platform) => platforms[platform.key] && platform.key !== "tiktok").map((platform) => platform.key),
@@ -152,7 +154,7 @@ export default function SocialMediaPublisher() {
 
   const blockTikTokPayload = () => {
     if (!hasDisabledTikTok) return false;
-    toast.error("TikTok publishing is not connected yet.");
+    toast.error(t("marketing.socialPublisher.tiktokNotConnected"));
     return true;
   };
 
@@ -172,12 +174,12 @@ export default function SocialMediaPublisher() {
 
   const handlePublishNow = async () => {
     if (!canCreate || !canPublish) {
-      toast.error("You do not have permission to publish");
+      toast.error(t("marketing.common.permissionPublish"));
       return;
     }
     if (blockTikTokPayload()) return;
     if (!selectedPlatforms.length) {
-      toast.error("Select at least one platform");
+      toast.error(t("marketing.socialPublisher.selectAtLeastOnePlatform"));
       return;
     }
 
@@ -185,11 +187,11 @@ export default function SocialMediaPublisher() {
     try {
       const created = await createSocialPublisherPost(buildPayload());
       const published = await publishSocialPublisherPost(created.id);
-      toast.success(published?.message || "Published successfully");
+      toast.success(published?.message || t("marketing.socialPublisher.publishedSuccessfully"));
       resetComposer();
       await loadPosts();
     } catch (err) {
-      toast.error(err?.message || "Failed to publish post");
+      toast.error(err?.message || t("marketing.socialPublisher.publishFailed"));
       await loadPosts();
     } finally {
       setSaving(false);
@@ -198,16 +200,16 @@ export default function SocialMediaPublisher() {
 
   const handleSchedule = async () => {
     if (!canCreate) {
-      toast.error("You do not have permission to create marketing posts");
+      toast.error(t("marketing.common.permissionCreate"));
       return;
     }
     if (blockTikTokPayload()) return;
     if (!selectedPlatforms.length) {
-      toast.error("Select at least one platform");
+      toast.error(t("marketing.socialPublisher.selectAtLeastOnePlatform"));
       return;
     }
     if (!scheduledAt) {
-      toast.error("Choose a schedule time");
+      toast.error(t("marketing.socialPublisher.chooseScheduleTime"));
       return;
     }
 
@@ -216,12 +218,12 @@ export default function SocialMediaPublisher() {
       const payload = buildPayload();
       payload.set("status", "scheduled");
       const saved = await createSocialPublisherPost(payload);
-      toast.success("Post scheduled");
+      toast.success(t("marketing.socialPublisher.postScheduled"));
       resetComposer();
       await loadPosts();
       return saved;
     } catch (err) {
-      toast.error(err?.message || "Failed to schedule post");
+      toast.error(err?.message || t("marketing.socialPublisher.scheduleFailed"));
     } finally {
       setSaving(false);
     }
@@ -229,25 +231,73 @@ export default function SocialMediaPublisher() {
 
   const handlePublishFromHistory = async (post) => {
     if (!canPublish) {
-      toast.error("You do not have permission to publish");
+      toast.error(t("marketing.common.permissionPublish"));
       return;
     }
     const platformsWithNoTiktok = safeArray(post.platforms).filter((platform) => String(platform || "").trim().toLowerCase() !== "tiktok");
     if (safeArray(post.platforms).length !== platformsWithNoTiktok.length) {
-      toast.error("TikTok publishing is not connected yet.");
+      toast.error(t("marketing.socialPublisher.tiktokNotConnected"));
       return;
     }
     setPublishingId(post.id);
     try {
       const result = await publishSocialPublisherPost(post.id);
-      toast.success(result?.message || "Published successfully");
+      toast.success(result?.message || t("marketing.socialPublisher.publishedSuccessfully"));
       await loadPosts();
     } catch (err) {
-      toast.error(err?.message || "Failed to publish post");
+      toast.error(err?.message || t("marketing.socialPublisher.publishFailed"));
     } finally {
       setPublishingId(null);
     }
   };
+
+  const renderPreviewCard = (platformName, accentClass, platformHint) => (
+    <article className={`rounded-3xl border ${accentClass} bg-slate-950/70 p-4 shadow-lg shadow-black/15`}>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-black text-white">{platformName}</div>
+          <div className="text-xs text-slate-400">{platformHint}</div>
+        </div>
+        <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+          Live
+        </span>
+      </div>
+      <div className="overflow-hidden rounded-3xl border border-white/10 bg-black/40">
+        <div className="aspect-[1.15/1] bg-gradient-to-br from-slate-900 via-slate-950 to-black">
+          {mediaPreview ? (
+            mediaType === "video" ? (
+              <video src={mediaPreview} controls className="h-full w-full object-contain bg-black" />
+            ) : (
+              <img src={mediaPreview} alt={`${platformName} preview media`} className="h-full w-full object-contain bg-black" />
+            )
+          ) : (
+            <div className="flex h-full items-center justify-center p-6 text-center text-slate-500">
+              <div className="space-y-2">
+                <ImageIcon className="mx-auto h-10 w-10 text-slate-600" />
+                <div className="text-sm font-semibold">Media preview will show here</div>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="space-y-3 border-t border-white/10 p-4">
+          <div className="flex items-center gap-2">
+            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-amber-300 to-amber-500" />
+            <div className="min-w-0">
+              <div className="truncate text-sm font-bold text-white">{platformName}</div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Sponsored</div>
+            </div>
+          </div>
+          <p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">{previewTitle}</p>
+          <div className="flex flex-wrap gap-2 text-[11px] text-slate-400">
+            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">{previewSubtitle}</span>
+            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">
+              Platforms: {selectedPlatforms.length ? selectedPlatforms.join(", ") : "none"}
+            </span>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
 
   return (
     <div className="min-h-full w-full overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.12),_transparent_32%),linear-gradient(180deg,#07111f_0%,#050816_100%)] text-white">
@@ -257,37 +307,37 @@ export default function SocialMediaPublisher() {
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-100">
                 <Wand2 className="h-3.5 w-3.5" />
-                Marketing
+                {t("marketing.socialPublisher.eyebrow")}
               </div>
-              <h1 className="text-3xl font-black tracking-tight md:text-4xl">Social Media Publisher</h1>
+              <h1 className="text-3xl font-black tracking-tight md:text-4xl">{t("marketing.socialPublisher.title")}</h1>
               <p className="max-w-3xl text-sm leading-6 text-slate-300">
-                Publish manually to Facebook and Instagram, with TikTok marked as coming soon.
+                {t("marketing.socialPublisher.subtitle")}
               </p>
             </div>
             <div className="flex flex-wrap gap-2 text-xs text-slate-300">
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Facebook</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Instagram</span>
-              <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-amber-100">TikTok Coming Soon</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">{t("marketing.social.platforms.facebook")}</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">{t("marketing.social.platforms.instagram")}</span>
+              <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-amber-100">{t("marketing.socialPublisher.tiktokComingSoon")}</span>
             </div>
           </div>
         </section>
 
         {error ? <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
 
-        <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,8fr)_minmax(0,4fr)]">
           <section className="min-w-0 rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/25">
             <div className="mb-4 flex items-center gap-3">
               <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-2 text-amber-100">
                 <Upload className="h-5 w-5" />
               </div>
-              <div>
-                <h2 className="text-lg font-black">Create a post</h2>
-                <p className="text-sm text-slate-400">Upload media, write a caption, choose platforms, then publish or schedule.</p>
+              <div className="min-w-0">
+                <h2 className="text-lg font-black">{t("marketing.socialPublisher.uploadTitle")}</h2>
+                <p className="text-sm text-slate-400">{t("marketing.socialPublisher.uploadHint")}</p>
               </div>
             </div>
 
-            <div className="space-y-4">
-              <label className="block rounded-3xl border border-dashed border-white/15 bg-black/20 p-4 transition hover:border-amber-400/30">
+            <div className="space-y-5 pb-28 md:pb-6">
+              <label className="block cursor-pointer rounded-[2rem] border border-dashed border-amber-400/25 bg-black/20 p-4 transition hover:border-amber-400/45 hover:bg-black/25">
                 <input
                   ref={mediaInputRef}
                   type="file"
@@ -295,40 +345,47 @@ export default function SocialMediaPublisher() {
                   onChange={handleMediaChange}
                   className="hidden"
                 />
-                <div className="flex min-h-40 items-center justify-center gap-4 text-center">
+                <div className="flex min-h-[240px] items-center justify-center text-center">
                   {mediaPreview ? (
                     mediaType === "video" ? (
-                      <video src={mediaPreview} controls className="max-h-60 w-full max-w-2xl rounded-2xl object-contain bg-black" />
+                      <video src={mediaPreview} controls className="max-h-[320px] w-full rounded-[1.75rem] bg-black object-contain shadow-2xl shadow-black/30" />
                     ) : (
-                      <img src={mediaPreview} alt="Selected media preview" className="max-h-60 w-full max-w-2xl rounded-2xl object-contain bg-black" />
+                      <img src={mediaPreview} alt="Selected media preview" className="max-h-[320px] w-full rounded-[1.75rem] bg-black object-contain shadow-2xl shadow-black/30" />
                     )
                   ) : (
-                    <div className="space-y-2 text-slate-300">
-                      <ImageIcon className="mx-auto h-10 w-10 text-amber-200" />
-                      <div className="text-sm font-semibold">Upload image or video</div>
-                      <div className="text-xs text-slate-500">Click to select media from your device</div>
+                    <div className="space-y-3 px-4">
+                      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-amber-400/20 bg-amber-400/10 text-amber-100">
+                        <ImageIcon className="h-8 w-8" />
+                      </div>
+                      <div>
+                        <div className="text-base font-bold text-white">{t("marketing.socialPublisher.uploadMediaTitle")}</div>
+                        <div className="mt-1 text-sm text-slate-400">{t("marketing.socialPublisher.uploadMediaHint")}</div>
+                      </div>
                     </div>
                   )}
                 </div>
               </label>
 
-              <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
+              <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
                 <label className="space-y-2">
-                  <span className="text-sm font-semibold text-slate-200">Caption</span>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-slate-200">{t("marketing.socialPublisher.caption")}</span>
+                    <span className="text-xs text-slate-500">{caption.length} chars</span>
+                  </div>
                   <textarea
                     value={caption}
                     onChange={(event) => setCaption(event.target.value)}
-                    rows={10}
+                    rows={6}
                     placeholder="Write your post caption..."
-                    className="min-h-56 w-full rounded-3xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-amber-400/40"
+                    className="min-h-[150px] w-full rounded-[1.75rem] border border-white/10 bg-slate-950/70 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-500 focus:border-amber-400/40 focus:ring-2 focus:ring-amber-400/10"
                   />
                 </label>
 
                 <div className="space-y-3">
-                  <div className="rounded-3xl border border-white/10 bg-slate-950/60 p-4">
+                  <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/60 p-4">
                     <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-200">
                       <Send className="h-4 w-4 text-amber-200" />
-                      Platforms
+                      {t("marketing.socialPublisher.platforms")}
                     </div>
                     <div className="space-y-3">
                       {platformOptions.map((platform) => {
@@ -349,15 +406,15 @@ export default function SocialMediaPublisher() {
                                   : "border-white/10 bg-white/[0.03] text-slate-200 hover:border-white/20 hover:bg-white/[0.06]",
                             ].join(" ")}
                           >
-                            <span className="flex min-w-0 flex-1 items-start gap-2">
+                              <span className="flex min-w-0 flex-1 items-start gap-2">
                               <Icon className="mt-0.5 h-4 w-4 shrink-0" />
                               <span className="min-w-0 space-y-0.5">
-                                <span className="block text-sm font-semibold">{platform.label}</span>
-                                {platform.disabled ? <span className="block text-xs text-slate-400">{platform.helper}</span> : null}
+                                <span className="block text-sm font-semibold">{t(platform.labelKey)}</span>
+                                {platform.disabled ? <span className="block text-xs text-slate-400">{t(platform.helperKey)}</span> : null}
                               </span>
                             </span>
                             <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                              {platform.disabled ? platform.subtitle : checked ? "Selected" : "Off"}
+                              {platform.disabled ? t(platform.subtitleKey) : checked ? "Selected" : "Off"}
                             </span>
                           </button>
                         );
@@ -365,32 +422,48 @@ export default function SocialMediaPublisher() {
                     </div>
                   </div>
 
-                  <div className="rounded-3xl border border-white/10 bg-slate-950/60 p-4">
+                  <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/60 p-4">
                     <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-200">
                       <Video className="h-4 w-4 text-amber-200" />
-                      Media details
+                      {t("marketing.socialPublisher.preview")}
                     </div>
                     <div className="space-y-2 text-sm text-slate-300">
                       <div className="flex items-center justify-between">
-                        <span>Type</span>
+                        <span>{t("marketing.socialPublisher.previewType")}</span>
                         <span className="font-semibold text-white">{mediaFile ? mediaType : "none"}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span>Platforms</span>
+                        <span>{t("marketing.socialPublisher.platforms")}</span>
                         <span className="font-semibold text-white">{selectedPlatforms.length ? selectedPlatforms.join(", ") : "-"}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span>Status</span>
-                        <span className="font-semibold text-white">Draft</span>
+                        <span>{t("marketing.socialPublisher.status")}</span>
+                        <span className="font-semibold text-white">{t("marketing.socialPublisher.draft")}</span>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
 
+              <section className="space-y-3 rounded-[1.9rem] border border-white/10 bg-white/[0.03] p-4">
+                <div className="flex items-center gap-2">
+                  <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-2 text-cyan-100">
+                    <ImageIcon className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-black text-white">{t("marketing.socialPublisher.preview")}</div>
+                    <div className="text-xs text-slate-400">{t("marketing.socialPublisher.previewSubtitle")}</div>
+                  </div>
+                </div>
+                <div className="grid gap-4 xl:grid-cols-2">
+                  {renderPreviewCard(t("marketing.socialPublisher.facebookPreview"), "border-[#1877F2]/20", t("marketing.socialPublisher.facebookPreviewHint"))}
+                  {renderPreviewCard(t("marketing.socialPublisher.instagramPreview"), "border-fuchsia-400/20", t("marketing.socialPublisher.instagramPreviewHint"))}
+                </div>
+              </section>
+
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="space-y-2">
-                  <span className="text-sm font-semibold text-slate-200">Schedule</span>
+                  <span className="text-sm font-semibold text-slate-200">{t("marketing.socialPublisher.schedule")}</span>
                   <div className="relative">
                     <CalendarClock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                     <input
@@ -402,6 +475,12 @@ export default function SocialMediaPublisher() {
                   </div>
                 </label>
 
+                <div className="space-y-2">
+                  <span className="text-sm font-semibold text-slate-200">TikTok</span>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-400">
+                    {t("marketing.socialPublisher.connectTikTokLater")}
+                  </div>
+                </div>
               </div>
 
               <div className="sticky bottom-0 z-20 mt-2 grid grid-cols-2 gap-2 border-t border-white/10 bg-[#07111f]/96 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-4 backdrop-blur md:static md:flex md:items-center md:justify-end md:gap-3 md:bg-transparent md:px-0 md:pb-0 md:pt-4">
@@ -412,7 +491,7 @@ export default function SocialMediaPublisher() {
                   className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
-                  Schedule
+                  {t("marketing.socialPublisher.schedule")}
                 </button>
                 <button
                   type="button"
@@ -421,7 +500,7 @@ export default function SocialMediaPublisher() {
                   className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  Publish Now
+                  {t("marketing.socialPublisher.publishNow")}
                 </button>
               </div>
             </div>
@@ -434,8 +513,8 @@ export default function SocialMediaPublisher() {
                   <History className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-black">{t("marketing.socialHistory.title")}</h2>
-                  <p className="text-sm text-slate-400">{t("marketing.socialHistory.subtitle")}</p>
+                  <h2 className="text-lg font-black">{t("marketing.socialPublisher.history")}</h2>
+                  <p className="text-sm text-slate-400">{t("marketing.socialPublisher.historySubtitle")}</p>
                 </div>
               </div>
               <button
@@ -444,79 +523,74 @@ export default function SocialMediaPublisher() {
                 className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
               >
                 <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                {t("marketing.socialHistory.refresh")}
+                Refresh
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 break-words">
               {loading ? (
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-400">
-                  {t("marketing.socialHistory.loading")}
+                  Loading history...
                 </div>
               ) : historyPosts.length === 0 ? (
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-400">
-                  {t("marketing.socialHistory.emptyDescription")}
+                  {t("marketing.socialPublisher.noHistory")}
                 </div>
               ) : (
-                historyPosts.map((post) => {
-                  const previewLabel = post.media_type === "video" ? t("marketing.socialHistory.video") : t("marketing.socialHistory.image");
+                historyPosts.slice(0, 20).map((post) => {
+                  const previewLabel = post.media_type === "video" ? "Video" : "Image";
                   const isBusy = publishingId === post.id;
                   const canPublishAgain = post.status === "draft" || post.status === "failed" || post.status === "scheduled" || post.status === "partial_success";
                   return (
-                    <article key={post.id} className="rounded-3xl border border-white/10 bg-slate-950/50 p-4">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="flex min-w-0 gap-3">
-                          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-slate-300">
-                            {post.media_url ? (
-                              post.media_type === "video" ? <Video className="h-5 w-5" /> : <ImageIcon className="h-5 w-5" />
-                            ) : (
-                              <ImageIcon className="h-5 w-5" />
-                            )}
-                          </div>
-                          <div className="min-w-0 space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
-                                {previewLabel}
-                              </span>
-                              <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${statusStyles[post.status] || statusStyles.draft}`}>
-                                {statusLabel(post.status)}
-                              </span>
-                            </div>
-                            <p className="line-clamp-3 text-sm leading-6 text-slate-100">{post.caption || t("marketing.socialHistory.untitled")}</p>
-                            <div className="flex flex-wrap gap-2 text-xs text-slate-400">
-                              {safeArray(post.platforms).map((platform) => (
-                                <span key={platform} className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">
-                                  {platform}
-                                </span>
-                              ))}
-                              <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">
-                                Created {formatDateTime(post.created_at)}
-                              </span>
-                              {post.scheduled_at ? <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">Scheduled {formatDateTime(post.scheduled_at)}</span> : null}
-                              {post.published_at ? <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">Published {formatDateTime(post.published_at)}</span> : null}
-                            </div>
-                            {post.error_message ? (
-                              <div className="flex items-start gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
-                                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                                <span>{post.error_message}</span>
-                              </div>
-                            ) : null}
-                          </div>
+                    <article key={post.id} className="rounded-3xl border border-white/10 bg-slate-950/50 p-3">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-slate-300">
+                          {post.media_url ? (
+                            post.media_type === "video" ? <Video className="h-4 w-4" /> : <ImageIcon className="h-4 w-4" />
+                          ) : (
+                            <ImageIcon className="h-4 w-4" />
+                          )}
                         </div>
-
-                        <div className="flex items-center gap-2 sm:flex-col sm:items-end">
-                          {canPublishAgain ? (
-                            <button
-                              type="button"
-                              onClick={() => handlePublishFromHistory(post)}
-                              disabled={isBusy || !canPublish}
-                              className="inline-flex items-center gap-2 rounded-2xl bg-amber-400 px-3 py-2 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                              Publish
-                            </button>
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+                              {previewLabel}
+                            </span>
+                            <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${statusStyles[post.status] || statusStyles.draft}`}>
+                              {statusLabel(post.status)}
+                            </span>
+                          </div>
+                          <p className="line-clamp-2 break-words text-sm leading-6 text-slate-100">{post.caption || "No caption yet"}</p>
+                          <div className="flex flex-wrap gap-2 text-[11px] text-slate-400">
+                            {safeArray(post.platforms).map((platform) => (
+                              <span key={platform} className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 break-all">
+                                {platform}
+                              </span>
+                            ))}
+                            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">Created {formatDateTime(post.created_at)}</span>
+                          </div>
+                          {post.error_message ? (
+                            <div className="flex items-start gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-100 break-words">
+                              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                              <span>{post.error_message}</span>
+                            </div>
                           ) : null}
                         </div>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between gap-3 border-t border-white/5 pt-3">
+                        <div className="min-w-0 text-xs text-slate-500">{post.scheduled_at ? `Scheduled ${formatDateTime(post.scheduled_at)}` : post.published_at ? `Published ${formatDateTime(post.published_at)}` : "Draft"}</div>
+                        {canPublishAgain ? (
+                          <button
+                            type="button"
+                            onClick={() => handlePublishFromHistory(post)}
+                            disabled={isBusy || !canPublish}
+                            className="inline-flex items-center gap-2 rounded-2xl bg-amber-400 px-3 py-2 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                            {t("marketing.socialPublisher.publishNow")}
+                          </button>
+                        ) : null}
                       </div>
                     </article>
                   );
