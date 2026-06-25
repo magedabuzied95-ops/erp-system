@@ -76,6 +76,7 @@ export default function SocialMediaPublisher() {
   const [mediaPreview, setMediaPreview] = useState("");
   const [mediaType, setMediaType] = useState("image");
   const [platforms, setPlatforms] = useState({ facebook: true, instagram: false, tiktok: false });
+  const [createSource, setCreateSource] = useState("device");
   const mediaInputRef = useRef(null);
   const canCreate = hasPermission("marketing.create");
   const canPublish = hasPermission("marketing.publish");
@@ -136,6 +137,7 @@ export default function SocialMediaPublisher() {
     setMediaFile(null);
     setMediaType("image");
     setPlatforms({ facebook: true, instagram: false, tiktok: false });
+    setCreateSource("device");
     if (mediaInputRef.current) {
       mediaInputRef.current.value = "";
     }
@@ -252,23 +254,23 @@ export default function SocialMediaPublisher() {
   };
 
   const renderPreviewCard = (platformName, accentClass, platformHint) => (
-    <article className={`rounded-3xl border ${accentClass} bg-slate-950/70 p-4 shadow-lg shadow-black/15`}>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <div className="text-sm font-black text-white">{platformName}</div>
+    <article className={`min-h-[560px] rounded-[2rem] border ${accentClass} bg-slate-950/70 p-5 shadow-xl shadow-black/20`}>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-base font-black text-white">{platformName}</div>
           <div className="text-xs text-slate-400">{platformHint}</div>
         </div>
         <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
-          Live
+          Preview
         </span>
       </div>
-      <div className="overflow-hidden rounded-3xl border border-white/10 bg-black/40">
-        <div className="aspect-[1.15/1] bg-gradient-to-br from-slate-900 via-slate-950 to-black">
+      <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-black/40">
+        <div className="aspect-[4/5] bg-gradient-to-br from-slate-900 via-slate-950 to-black">
           {mediaPreview ? (
             mediaType === "video" ? (
-              <video src={mediaPreview} controls className="h-full w-full object-contain bg-black" />
+              <video src={mediaPreview} controls className="h-full w-full object-cover bg-black" />
             ) : (
-              <img src={mediaPreview} alt={`${platformName} preview media`} className="h-full w-full object-contain bg-black" />
+              <img src={mediaPreview} alt={`${platformName} preview media`} className="h-full w-full object-cover bg-black" />
             )
           ) : (
             <div className="flex h-full items-center justify-center p-6 text-center text-slate-500">
@@ -279,20 +281,29 @@ export default function SocialMediaPublisher() {
             </div>
           )}
         </div>
-        <div className="space-y-3 border-t border-white/10 p-4">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-amber-300 to-amber-500" />
-            <div className="min-w-0">
-              <div className="truncate text-sm font-bold text-white">{platformName}</div>
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Sponsored</div>
+        <div className="space-y-4 border-t border-white/10 p-5">
+          <div className="flex items-center gap-3">
+            <div className="h-11 w-11 rounded-full bg-gradient-to-br from-amber-300 via-orange-400 to-amber-500" />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-black text-white">M1 Store</div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Publishing account</div>
+            </div>
+            <div className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+              {platformName}
             </div>
           </div>
-          <p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">{previewTitle}</p>
+          <p className="whitespace-pre-wrap text-sm leading-6 text-slate-100">{previewTitle}</p>
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-slate-300">
+            <div className="flex items-center gap-4">
+              <span className="font-semibold text-white">1.2K likes</span>
+              <span>84 comments</span>
+              <span>21 shares</span>
+            </div>
+            <span className="text-slate-500">{previewSubtitle}</span>
+          </div>
           <div className="flex flex-wrap gap-2 text-[11px] text-slate-400">
-            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">{previewSubtitle}</span>
-            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">
-              Platforms: {selectedPlatforms.length ? selectedPlatforms.join(", ") : "none"}
-            </span>
+            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">Page: M1 Store</span>
+            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">Platforms: {selectedPlatforms.length ? selectedPlatforms.join(", ") : "none"}</span>
           </div>
         </div>
       </div>
@@ -324,8 +335,8 @@ export default function SocialMediaPublisher() {
 
         {error ? <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,8fr)_minmax(0,4fr)]">
-          <section className="min-w-0 rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/25">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <section className="min-w-0 rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/25 xl:max-h-[420px] xl:overflow-hidden">
             <div className="mb-4 flex items-center gap-3">
               <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-2 text-amber-100">
                 <Upload className="h-5 w-5" />
@@ -337,7 +348,53 @@ export default function SocialMediaPublisher() {
             </div>
 
             <div className="space-y-5 pb-28 md:pb-6">
-              <label className="block cursor-pointer rounded-[2rem] border border-dashed border-amber-400/25 bg-black/20 p-4 transition hover:border-amber-400/45 hover:bg-black/25">
+              <section className="space-y-3 rounded-[1.9rem] border border-white/10 bg-white/[0.03] p-4">
+                <div className="flex items-center gap-2">
+                  <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-2 text-amber-100">
+                    <Upload className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-black text-white">Create Post From</div>
+                    <div className="text-xs text-slate-400">Choose how you want to start this post.</div>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-3">
+                  <button
+                    type="button"
+                    onClick={() => setCreateSource("device")}
+                    className={[
+                      "rounded-[1.5rem] border p-4 text-start transition",
+                      createSource === "device"
+                        ? "border-amber-400/30 bg-amber-400/10 text-amber-100 shadow-lg shadow-amber-400/10"
+                        : "border-white/10 bg-slate-950/60 text-slate-200 hover:border-white/20 hover:bg-white/[0.05]",
+                    ].join(" ")}
+                  >
+                    <div className="text-sm font-black text-white">Upload From Device</div>
+                    <div className="mt-2 text-xs text-slate-400">Active now</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled
+                    className="cursor-not-allowed rounded-[1.5rem] border border-white/5 bg-white/[0.03] p-4 text-start text-slate-500 opacity-70"
+                  >
+                    <div className="text-sm font-black">Product Catalog</div>
+                    <div className="mt-2 text-xs text-slate-500">Coming Soon</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled
+                    className="cursor-not-allowed rounded-[1.5rem] border border-white/5 bg-white/[0.03] p-4 text-start text-slate-500 opacity-70"
+                  >
+                    <div className="text-sm font-black">AI Marketing</div>
+                    <div className="mt-2 text-xs text-slate-500">Coming Soon</div>
+                  </button>
+                </div>
+              </section>
+
+              <label className="block cursor-pointer rounded-[2rem] border border-dashed border-amber-400/25 bg-black/20 p-5 transition hover:border-amber-400/45 hover:bg-black/25">
                 <input
                   ref={mediaInputRef}
                   type="file"
@@ -345,20 +402,20 @@ export default function SocialMediaPublisher() {
                   onChange={handleMediaChange}
                   className="hidden"
                 />
-                <div className="flex min-h-[240px] items-center justify-center text-center">
+                <div className="flex min-h-[280px] items-center justify-center text-center">
                   {mediaPreview ? (
                     mediaType === "video" ? (
-                      <video src={mediaPreview} controls className="max-h-[320px] w-full rounded-[1.75rem] bg-black object-contain shadow-2xl shadow-black/30" />
+                      <video src={mediaPreview} controls className="max-h-[360px] w-full rounded-[1.75rem] bg-black object-contain shadow-2xl shadow-black/30" />
                     ) : (
-                      <img src={mediaPreview} alt="Selected media preview" className="max-h-[320px] w-full rounded-[1.75rem] bg-black object-contain shadow-2xl shadow-black/30" />
+                      <img src={mediaPreview} alt="Selected media preview" className="max-h-[360px] w-full rounded-[1.75rem] bg-black object-contain shadow-2xl shadow-black/30" />
                     )
                   ) : (
                     <div className="space-y-3 px-4">
-                      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl border border-amber-400/20 bg-amber-400/10 text-amber-100">
-                        <ImageIcon className="h-8 w-8" />
+                      <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl border border-amber-400/20 bg-amber-400/10 text-amber-100">
+                        <ImageIcon className="h-9 w-9" />
                       </div>
                       <div>
-                        <div className="text-base font-bold text-white">{t("marketing.socialPublisher.uploadMediaTitle")}</div>
+                        <div className="text-lg font-bold text-white">{t("marketing.socialPublisher.uploadMediaTitle")}</div>
                         <div className="mt-1 text-sm text-slate-400">{t("marketing.socialPublisher.uploadMediaHint")}</div>
                       </div>
                     </div>
@@ -366,7 +423,7 @@ export default function SocialMediaPublisher() {
                 </div>
               </label>
 
-              <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+              <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <label className="space-y-2">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm font-semibold text-slate-200">{t("marketing.socialPublisher.caption")}</span>
@@ -375,9 +432,9 @@ export default function SocialMediaPublisher() {
                   <textarea
                     value={caption}
                     onChange={(event) => setCaption(event.target.value)}
-                    rows={6}
+                    rows={7}
                     placeholder="Write your post caption..."
-                    className="min-h-[150px] w-full rounded-[1.75rem] border border-white/10 bg-slate-950/70 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-500 focus:border-amber-400/40 focus:ring-2 focus:ring-amber-400/10"
+                    className="min-h-[170px] w-full rounded-[1.75rem] border border-white/10 bg-slate-950/70 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-500 focus:border-amber-400/40 focus:ring-2 focus:ring-amber-400/10"
                   />
                 </label>
 
@@ -422,30 +479,10 @@ export default function SocialMediaPublisher() {
                     </div>
                   </div>
 
-                  <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/60 p-4">
-                    <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-200">
-                      <Video className="h-4 w-4 text-amber-200" />
-                      {t("marketing.socialPublisher.preview")}
-                    </div>
-                    <div className="space-y-2 text-sm text-slate-300">
-                      <div className="flex items-center justify-between">
-                        <span>{t("marketing.socialPublisher.previewType")}</span>
-                        <span className="font-semibold text-white">{mediaFile ? mediaType : "none"}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>{t("marketing.socialPublisher.platforms")}</span>
-                        <span className="font-semibold text-white">{selectedPlatforms.length ? selectedPlatforms.join(", ") : "-"}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>{t("marketing.socialPublisher.status")}</span>
-                        <span className="font-semibold text-white">{t("marketing.socialPublisher.draft")}</span>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
 
-              <section className="space-y-3 rounded-[1.9rem] border border-white/10 bg-white/[0.03] p-4">
+              <section className="space-y-4 rounded-[2rem] border border-white/10 bg-white/[0.035] p-5 md:p-6">
                 <div className="flex items-center gap-2">
                   <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-2 text-cyan-100">
                     <ImageIcon className="h-4 w-4" />
@@ -453,6 +490,21 @@ export default function SocialMediaPublisher() {
                   <div>
                     <div className="text-sm font-black text-white">{t("marketing.socialPublisher.preview")}</div>
                     <div className="text-xs text-slate-400">{t("marketing.socialPublisher.previewSubtitle")}</div>
+                  </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/50 p-4">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Publishing Account</div>
+                    <div className="mt-3 space-y-3 text-sm">
+                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                        <span className="text-slate-400">Facebook</span>
+                        <span className="font-semibold text-white">M1 Store</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                        <span className="text-slate-400">Instagram</span>
+                        <span className="font-semibold text-white">M1 Store</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div className="grid gap-4 xl:grid-cols-2">
@@ -527,7 +579,7 @@ export default function SocialMediaPublisher() {
               </button>
             </div>
 
-            <div className="space-y-3 break-words">
+            <div className="space-y-3 break-words xl:max-h-[340px] xl:overflow-y-auto xl:pr-1">
               {loading ? (
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-400">
                   Loading history...
