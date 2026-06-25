@@ -304,13 +304,28 @@ export const listSocialPublisherMetaAccounts = async ({ tenantId } = {}) => {
   return {
     selected: {
       facebook_page_id: selectedPageId,
+      facebook_page_name: pages.find((item) => item.facebook_page_id === selectedPageId)?.facebook_page_name || metaPageName || "",
       instagram_account_id: selectedInstagramAccountId,
+      instagram_username:
+        instagramAccounts.find((item) => item.instagram_account_id === selectedInstagramAccountId)?.instagram_username ||
+        metaInstagramUsername ||
+        "",
     },
     pages,
+    facebook_pages: pages,
     instagram_accounts: instagramAccounts,
+    instagramBusinessAccounts: instagramAccounts,
     has_facebook: pages.length > 0,
     has_instagram: instagramAccounts.length > 0,
     meta_integration_connected: Boolean(metaStatus?.overall_status && ["connected", "fully_connected", "active", "saved", "partially_connected"].includes(String(metaStatus.overall_status || "").toLowerCase())),
+    meta_connected: Boolean(metaStatus?.overall_status && ["connected", "fully_connected", "active", "saved", "partially_connected"].includes(String(metaStatus.overall_status || "").toLowerCase())),
+    meta_config: {
+      facebook_page_id: metaPageId,
+      facebook_page_name: metaPageName,
+      instagram_business_account_id: metaInstagramId,
+      instagram_username: metaInstagramUsername,
+      status: metaStatus?.overall_status || metaConfig?.status || "",
+    },
   };
 };
 

@@ -152,8 +152,32 @@ export default function SocialMediaPublisher() {
   }, []);
 
   const applyMetaAccounts = (data = {}) => {
-    const pages = safeArray(data.pages);
-    const accounts = safeArray(data.instagram_accounts);
+    const pages = safeArray(data.pages || data.facebook_pages || data.facebookPages);
+    const accounts = safeArray(data.instagram_accounts || data.instagramBusinessAccounts || data.instagram_business_accounts);
+    const selected = data.selected || {};
+    const selectedPageId = String(selected.facebook_page_id || data.facebook_page_id || data.meta_config?.facebook_page_id || pages[0]?.facebook_page_id || "").trim();
+    const selectedInstagramId = String(
+      selected.instagram_account_id ||
+        selected.instagram_business_account_id ||
+        data.instagram_business_account_id ||
+        data.meta_config?.instagram_business_account_id ||
+        accounts.find((account) => account.facebook_page_id === selectedPageId)?.instagram_account_id ||
+        accounts[0]?.instagram_account_id ||
+        ""
+    ).trim();
+    const pageMatch = pages.find((page) => page.facebook_page_id === selectedPageId) || null;
+    const instagramMatch = accounts.find((account) => account.instagram_account_id === selectedInstagramId) || null;
+    const resolvedFacebook = pageMatch?.facebook_page_name || pageMatch?.page_name || data.facebook_page_name || data.meta_config?.facebook_page_name || selectedPageId || "";
+    const resolvedInstagram = instagramMatch?.instagram_username || instagramMatch?.instagram_account_name || data.instagram_username || data.meta_config?.instagram_username || selectedInstagramId || "";
+    console.log("[social-publisher-accounts-sync]", {
+      meta_connected: Boolean(data.meta_connected || data.meta_integration_connected),
+      selected,
+      pages_count: pages.length,
+      instagram_count: accounts.length,
+      resolvedFacebook,
+      resolvedInstagram,
+      raw_response: data,
+    });
     console.log("[social-publisher-accounts]", {
       stage: "apply",
       response_raw: data,
@@ -167,17 +191,8 @@ export default function SocialMediaPublisher() {
     });
     setFacebookPages(pages);
     setInstagramAccounts(accounts);
-    const nextPageId = String(data.selected?.facebook_page_id || pages[0]?.facebook_page_id || "").trim();
-    const pageMatch = pages.find((page) => page.facebook_page_id === nextPageId) || null;
-    const nextInstagramId = String(
-      data.selected?.instagram_account_id ||
-        pageMatch?.instagram_business_account_id ||
-        accounts.find((account) => account.facebook_page_id === nextPageId)?.instagram_account_id ||
-        accounts[0]?.instagram_account_id ||
-        ""
-    ).trim();
-    setSelectedFacebookPageId(nextPageId);
-    setSelectedInstagramAccountId(nextInstagramId);
+    setSelectedFacebookPageId(selectedPageId);
+    setSelectedInstagramAccountId(selectedInstagramId);
   };
 
   const loadMetaAccounts = async () => {
@@ -193,6 +208,7 @@ export default function SocialMediaPublisher() {
         response_raw: accountsData || null,
         integration_status: integrationData?.overall_status || integrationData?.config?.status || null,
         integration_connected: Boolean(integrationData?.overall_status && ["connected", "fully_connected", "active", "saved", "partially_connected"].includes(String(integrationData.overall_status || "").toLowerCase())),
+        selected: accountsData?.selected || null,
       });
       applyMetaAccounts(accountsData || {});
       setMetaIntegrationStatus(integrationData || null);
@@ -734,7 +750,11 @@ export default function SocialMediaPublisher() {
                   <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1">Instagram: {selectedInstagramAccountLabel || "Not selected"}</span>
                 </div>
 
-                {metaAccountsEmpty ? (
+                {!metaAccountsEmpty && hasFacebookAccount && !hasInstagramAccount ? (
+                  <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                    Facebook connected, Instagram business account not found.
+                  </div>
+                ) : metaAccountsEmpty ? (
                   <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
                     Meta accounts are not selected yet. Manage the connection from Marketing Settings, then refresh accounts here.
                   </div>
