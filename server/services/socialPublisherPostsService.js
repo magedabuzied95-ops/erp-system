@@ -359,6 +359,62 @@ export const listSocialPublisherMetaAccounts = async ({ tenantId } = {}) => {
   return response;
 };
 
+export const searchSocialPublisherProducts = async ({ tenantId, query = "", limit = 20 } = {}) => {
+  await ensureMarketingSchema();
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 50));
+  const normalizedQuery = trimString(query);
+  const values = [tenantId, safeLimit];
+  let searchSql = "";
+  if (normalizedQuery) {
+    values.push(`%${normalizedQuery.replace(/[%_]/g, "\\$&")}%`);
+    searchSql = `
+      AND (
+        p.name ILIKE $3 ESCAPE '\\'
+        OR COALESCE(p.sku, '') ILIKE $3 ESCAPE '\\'
+        OR COALESCE(p.barcode, '') ILIKE $3 ESCAPE '\\'
+        OR COALESCE(p.slug, '') ILIKE $3 ESCAPE '\\'
+        OR COALESCE(p.canonical_slug, '') ILIKE $3 ESCAPE '\\'
+      )
+    `;
+  }
+
+  const result = await db.query(
+    `
+    SELECT
+      p.id,
+      p.name,
+      COALESCE(NULLIF(p.image_url, ''), '') AS image_url,
+      COALESCE(NULLIF(p.sale_price, 0), 0)::numeric AS sale_price,
+      COALESCE(NULLIF(p.selling_price, 0), NULLIF(p.regular_price, 0), NULLIF(p.price, 0), 0)::numeric AS price,
+      COALESCE(p.stock, 0)::int AS stock_quantity,
+      CASE
+        WHEN COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, ''), '') <> '' THEN
+          '/shop/product/' || COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, ''))
+        ELSE
+          '/shop/product/' || p.id::text
+      END AS product_url
+    FROM products p
+    WHERE p.tenant_id = $1::bigint
+      AND COALESCE(p.is_active, TRUE) = TRUE
+      AND COALESCE(p.status, 'active') <> 'deleted'
+      ${searchSql}
+    ORDER BY p.updated_at DESC, p.id DESC
+    LIMIT $2
+    `,
+    values
+  );
+
+  return (result.rows || []).map((row) => ({
+    id: row.id,
+    name: row.name || "",
+    image_url: row.image_url || "",
+    price: Number(row.price || 0),
+    sale_price: Number(row.sale_price || 0),
+    stock_quantity: Number(row.stock_quantity || 0),
+    product_url: row.product_url || "",
+  }));
+};
+
 export const publishSocialPublisherPostRow = async ({ tenantId, id } = {}) => {
   await ensureMarketingSchema();
   const post = await getSocialPublisherPostRow({ tenantId, id });

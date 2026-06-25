@@ -7,6 +7,7 @@ import {
   Image as ImageIcon,
   Loader2,
   RefreshCcw,
+  Search,
   Send,
   Share2,
   ShieldAlert,
@@ -22,6 +23,7 @@ import {
   getSocialPublisherMetaAccounts,
   getMetaIntegrationStatus,
   getSocialPublisherPosts,
+  getSocialPublisherProducts,
   startMetaOAuth,
   publishSocialPublisherPost,
 } from "../services/marketingApi";
@@ -68,6 +70,17 @@ const statusLabel = (value) => {
 const safeArray = (value) => (Array.isArray(value) ? value : []);
 const resolveFacebookPageDisplayLabel = (page = {}) => page?.facebook_page_name || page?.page_name || "Facebook Page";
 const resolveInstagramAccountDisplayLabel = (account = {}) => account?.instagram_username || account?.instagram_account_name || "Instagram Business Account";
+const formatCompactCurrency = (value) => {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number) || number <= 0) return "";
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(number);
+};
+const buildCatalogCaption = (product = {}) => {
+  const name = String(product?.name || "").trim();
+  const priceValue = Number(product?.sale_price || product?.price || 0);
+  const priceLine = priceValue > 0 ? `السعر: ${formatCompactCurrency(priceValue)} ج.م` : "";
+  return [name, priceLine, "متوفر الآن", "اطلب الآن"].filter(Boolean).join("\n");
+};
 const renderAccountCardValue = (label, value) => (
   <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white">
     <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{label}</div>
@@ -97,16 +110,22 @@ export default function SocialMediaPublisher() {
   const [instagramAccounts, setInstagramAccounts] = useState([]);
   const [selectedFacebookPageId, setSelectedFacebookPageId] = useState("");
   const [selectedInstagramAccountId, setSelectedInstagramAccountId] = useState("");
+  const [selectedCatalogProduct, setSelectedCatalogProduct] = useState(null);
+  const [productCatalogOpen, setProductCatalogOpen] = useState(false);
+  const [productCatalogLoading, setProductCatalogLoading] = useState(false);
+  const [productCatalogQuery, setProductCatalogQuery] = useState("");
+  const [productCatalogResults, setProductCatalogResults] = useState([]);
   const [metaConnectOpen, setMetaConnectOpen] = useState(false);
   const [metaConnectLoading, setMetaConnectLoading] = useState(false);
   const mediaInputRef = useRef(null);
+  const productCatalogSearchRef = useRef(null);
   const metaConnectPopupRef = useRef(null);
   const metaConnectTimeoutRef = useRef(null);
   const metaConnectClosedIntervalRef = useRef(null);
   const canCreate = hasPermission("marketing.create");
   const canPublish = hasPermission("marketing.publish");
   const previewTitle = caption.trim() || "Your caption will appear here";
-  const previewSubtitle = mediaFile ? `${mediaType.toUpperCase()} ready` : "No media selected";
+  const previewSubtitle = mediaFile ? `${mediaType.toUpperCase()} ready` : selectedCatalogProduct ? "Catalog product selected" : "No media selected";
 
   const selectedPlatforms = useMemo(
     () => platformOptions.filter((platform) => platforms[platform.key] && platform.key !== "tiktok").map((platform) => platform.key),
@@ -114,6 +133,7 @@ export default function SocialMediaPublisher() {
   );
 
   const hasDisabledTikTok = Boolean(platforms.tiktok);
+  const hasCatalogProduct = Boolean(selectedCatalogProduct);
   const selectedFacebookPage = useMemo(
     () => facebookPages.find((page) => page.facebook_page_id === selectedFacebookPageId) || null,
     [facebookPages, selectedFacebookPageId]
@@ -127,6 +147,15 @@ export default function SocialMediaPublisher() {
       ["connected", "fully_connected", "active", "saved", "partially_connected"].includes(String(metaIntegrationStatus.overall_status || "").toLowerCase())
   );
   const metaAccountsEmpty = !facebookPages.length && !instagramAccounts.length;
+  const resolvedMediaPreview = mediaPreview || selectedCatalogProduct?.image_url || "";
+  const selectedCatalogProductDiscount = useMemo(() => {
+    if (!selectedCatalogProduct) return "";
+    const price = Number(selectedCatalogProduct.price || 0);
+    const salePrice = Number(selectedCatalogProduct.sale_price || 0);
+    if (!Number.isFinite(price) || !Number.isFinite(salePrice) || price <= 0 || salePrice <= 0 || salePrice >= price) return "";
+    const percent = Math.max(1, Math.round(((price - salePrice) / price) * 100));
+    return `-${percent}%`;
+  }, [selectedCatalogProduct]);
 
   const historyPosts = useMemo(
     () =>
@@ -239,6 +268,73 @@ export default function SocialMediaPublisher() {
     loadMetaAccounts();
   }, []);
 
+  const loadCatalogProducts = async ({ query = "" } = {}) => {
+    setProductCatalogLoading(true);
+    try {
+      const data = await getSocialPublisherProducts({ q: query, limit: 20 }, { suppressErrorStatuses: [400, 403, 404, 500] });
+      setProductCatalogResults(safeArray(data));
+    } catch (error) {
+      console.error("[social-publisher-catalog] load failed", error);
+      setProductCatalogResults([]);
+    } finally {
+      setProductCatalogLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!productCatalogOpen) return undefined;
+    const timeout = window.setTimeout(() => {
+      void loadCatalogProducts({ query: productCatalogQuery });
+    }, 200);
+    return () => window.clearTimeout(timeout);
+  }, [productCatalogOpen, productCatalogQuery]);
+
+  useEffect(() => {
+    if (!productCatalogOpen) return;
+    if (productCatalogSearchRef.current) {
+      productCatalogSearchRef.current.focus?.();
+    }
+  }, [productCatalogOpen]);
+
+  const openProductCatalog = () => {
+    setCreateSource("catalog");
+    setProductCatalogOpen(true);
+  };
+
+  const closeProductCatalog = () => setProductCatalogOpen(false);
+
+  const applyCatalogProduct = (product = {}) => {
+    const nextProduct = {
+      id: product.id || null,
+      name: product.name || "",
+      image_url: product.image_url || "",
+      price: Number(product.price || 0),
+      sale_price: Number(product.sale_price || 0),
+      stock_quantity: Number(product.stock_quantity || 0),
+      product_url: product.product_url || "",
+    };
+    setSelectedCatalogProduct(nextProduct);
+    setCreateSource("catalog");
+    setCaption(buildCatalogCaption(nextProduct));
+    if (!mediaFile && nextProduct.image_url) {
+      setMediaPreview(nextProduct.image_url);
+      setMediaType("image");
+    }
+    setProductCatalogOpen(false);
+  };
+
+  const clearCatalogProduct = () => {
+    const wasAutoCaption = selectedCatalogProduct ? caption.trim() === buildCatalogCaption(selectedCatalogProduct).trim() : false;
+    setSelectedCatalogProduct(null);
+    if (!mediaFile) {
+      setMediaPreview("");
+    }
+    if (wasAutoCaption) {
+      setCaption("");
+    }
+    setCreateSource("device");
+  };
+
   useEffect(() => {
     const refreshOnReturn = () => {
       if (document.visibilityState !== "visible") return;
@@ -306,6 +402,7 @@ export default function SocialMediaPublisher() {
     setCaption("");
     setScheduledAt("");
     setMediaFile(null);
+    setSelectedCatalogProduct(null);
     setMediaType("image");
     setPlatforms({ facebook: true, instagram: false, tiktok: false });
     setCreateSource("device");
@@ -318,6 +415,7 @@ export default function SocialMediaPublisher() {
     const file = event.target.files?.[0] || null;
     setMediaFile(file);
     setMediaType(file?.type?.startsWith("video/") ? "video" : "image");
+    if (file) setCreateSource("device");
   };
 
   const togglePlatform = (key) => {
@@ -336,6 +434,12 @@ export default function SocialMediaPublisher() {
     formData.append("caption", caption);
     formData.append("platforms", JSON.stringify(selectedPlatforms));
     formData.append("media_type", mediaType);
+    if (selectedCatalogProduct?.id) {
+      formData.append("product_id", String(selectedCatalogProduct.id));
+    }
+    if (!mediaFile && selectedCatalogProduct?.image_url) {
+      formData.append("media_url", selectedCatalogProduct.image_url);
+    }
     formData.append(
       "publish_settings",
       JSON.stringify({
@@ -478,11 +582,11 @@ export default function SocialMediaPublisher() {
       </div>
       <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-black/40">
         <div className="aspect-[4/5] bg-gradient-to-br from-slate-900 via-slate-950 to-black">
-          {mediaPreview ? (
+          {resolvedMediaPreview ? (
             mediaType === "video" ? (
-              <video src={mediaPreview} controls className="h-full w-full object-cover bg-black" />
+              <video src={resolvedMediaPreview} controls className="h-full w-full object-cover bg-black" />
             ) : (
-              <img src={mediaPreview} alt={`${platformName} preview media`} className="h-full w-full object-cover bg-black" />
+              <img src={resolvedMediaPreview} alt={`${platformName} preview media`} className="h-full w-full object-cover bg-black" />
             )
           ) : (
             <div className="flex h-full items-center justify-center p-6 text-center text-slate-500">
@@ -588,11 +692,11 @@ export default function SocialMediaPublisher() {
 
                   <button
                     type="button"
-                    disabled
-                    className="cursor-not-allowed rounded-[1.5rem] border border-white/5 bg-white/[0.03] p-4 text-start text-slate-500 opacity-70"
+                    onClick={openProductCatalog}
+                    className="rounded-[1.5rem] border border-emerald-400/20 bg-emerald-400/10 p-4 text-start text-emerald-50 transition hover:border-emerald-300/35 hover:bg-emerald-400/15"
                   >
                     <div className="text-sm font-black">Product Catalog</div>
-                    <div className="mt-2 text-xs text-slate-500">Coming Soon</div>
+                    <div className="mt-2 text-xs text-emerald-100/80">Select from ERP products</div>
                   </button>
 
                   <button
@@ -604,6 +708,59 @@ export default function SocialMediaPublisher() {
                     <div className="mt-2 text-xs text-slate-500">Coming Soon</div>
                   </button>
                 </div>
+
+                {hasCatalogProduct ? (
+                  <div className="rounded-[1.5rem] border border-emerald-400/20 bg-emerald-400/10 p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+                        {selectedCatalogProduct.image_url ? (
+                          <img src={selectedCatalogProduct.image_url} alt={selectedCatalogProduct.name || "Selected product"} className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-slate-500">
+                            <ImageIcon className="h-6 w-6" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="truncate text-sm font-black text-white">{selectedCatalogProduct.name || "Selected product"}</div>
+                          {selectedCatalogProductDiscount ? (
+                            <span className="rounded-full border border-emerald-300/20 bg-emerald-300/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-100">
+                              {selectedCatalogProductDiscount}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="mt-1 text-xs text-emerald-100/80">
+                          {selectedCatalogProduct.sale_price > 0 ? (
+                            <span className="font-semibold">Sale {formatCompactCurrency(selectedCatalogProduct.sale_price)} EGP</span>
+                          ) : selectedCatalogProduct.price > 0 ? (
+                            <span className="font-semibold">Price {formatCompactCurrency(selectedCatalogProduct.price)} EGP</span>
+                          ) : (
+                            <span className="font-semibold">Price not available</span>
+                          )}
+                          <span className="mx-2">•</span>
+                          <span>{Number(selectedCatalogProduct.stock_quantity || 0) > 0 ? `${selectedCatalogProduct.stock_quantity} in stock` : "Out of stock"}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={openProductCatalog}
+                        className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/[0.08]"
+                      >
+                        Change product
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearCatalogProduct}
+                        className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.08]"
+                      >
+                        Clear product
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </section>
 
               <label className="block cursor-pointer rounded-[2rem] border border-dashed border-amber-400/25 bg-black/20 p-5 transition hover:border-amber-400/45 hover:bg-black/25">
@@ -615,11 +772,11 @@ export default function SocialMediaPublisher() {
                   className="hidden"
                 />
                 <div className="flex min-h-[280px] items-center justify-center text-center">
-                  {mediaPreview ? (
+                  {resolvedMediaPreview ? (
                     mediaType === "video" ? (
-                      <video src={mediaPreview} controls className="max-h-[360px] w-full rounded-[1.75rem] bg-black object-contain shadow-2xl shadow-black/30" />
+                      <video src={resolvedMediaPreview} controls className="max-h-[360px] w-full rounded-[1.75rem] bg-black object-contain shadow-2xl shadow-black/30" />
                     ) : (
-                      <img src={mediaPreview} alt="Selected media preview" className="max-h-[360px] w-full rounded-[1.75rem] bg-black object-contain shadow-2xl shadow-black/30" />
+                      <img src={resolvedMediaPreview} alt="Selected media preview" className="max-h-[360px] w-full rounded-[1.75rem] bg-black object-contain shadow-2xl shadow-black/30" />
                     )
                   ) : (
                     <div className="space-y-3 px-4">
@@ -1084,6 +1241,119 @@ export default function SocialMediaPublisher() {
             </div>,
           document.body
         )
+        : null}
+
+      {productCatalogOpen
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm md:items-center md:p-4"
+              role="presentation"
+              onClick={closeProductCatalog}
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Select Product"
+                className="flex h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[#07111f] text-white shadow-2xl shadow-black/60 md:h-[86vh] md:rounded-[2rem]"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4 md:px-6">
+                  <div className="min-w-0">
+                    <div className="text-sm font-black uppercase tracking-[0.22em] text-emerald-100">Select Product</div>
+                    <div className="text-xs text-slate-400">Choose a product from ERP and autofill the post draft.</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeProductCatalog}
+                    className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <div className="border-b border-white/5 px-4 py-4 md:px-6">
+                  <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                    <Search className="h-4 w-4 text-slate-400" />
+                    <input
+                      ref={productCatalogSearchRef}
+                      value={productCatalogQuery}
+                      onChange={(event) => setProductCatalogQuery(event.target.value)}
+                      placeholder="Search products..."
+                      className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6">
+                  {productCatalogLoading ? (
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-400">
+                      Loading products...
+                    </div>
+                  ) : productCatalogResults.length === 0 ? (
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-400">
+                      No products found.
+                    </div>
+                  ) : (
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      {productCatalogResults.map((product) => {
+                        const isSelected = String(product.id || "") === String(selectedCatalogProduct?.id || "");
+                        const productPrice = Number(product.sale_price || product.price || 0);
+                        return (
+                          <article
+                            key={product.id}
+                            className={[
+                              "overflow-hidden rounded-[1.5rem] border p-3 transition",
+                              isSelected ? "border-emerald-400/35 bg-emerald-400/10" : "border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.05]",
+                            ].join(" ")}
+                          >
+                            <div className="flex gap-3">
+                              <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+                                {product.image_url ? (
+                                  <img src={product.image_url} alt={product.name || "Product"} className="h-full w-full object-cover" />
+                                ) : (
+                                  <div className="flex h-full w-full items-center justify-center text-slate-500">
+                                    <ImageIcon className="h-6 w-6" />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <div className="line-clamp-2 text-sm font-black text-white">{product.name || "Unnamed product"}</div>
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">
+                                    {productPrice > 0 ? `${formatCompactCurrency(productPrice)} EGP` : "Price N/A"}
+                                  </span>
+                                  {Number(product.sale_price || 0) > 0 && Number(product.sale_price || 0) < Number(product.price || 0) ? (
+                                    <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-emerald-100">
+                                      Sale {formatCompactCurrency(product.sale_price)} EGP
+                                    </span>
+                                  ) : null}
+                                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">
+                                    {Number(product.stock_quantity || 0) > 0 ? `${product.stock_quantity} in stock` : "Out of stock"}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-slate-500 break-all">{product.product_url || ""}</div>
+                              </div>
+                            </div>
+                            <div className="mt-3 flex items-center justify-between gap-2">
+                              <span className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{isSelected ? "Selected" : "Ready"}</span>
+                              <button
+                                type="button"
+                                onClick={() => applyCatalogProduct(product)}
+                                className="rounded-2xl bg-emerald-400 px-3 py-2 text-xs font-black text-slate-950 transition hover:bg-emerald-300"
+                              >
+                                Select
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
         : null}
 
       {metaConnectOpen ? null : null}

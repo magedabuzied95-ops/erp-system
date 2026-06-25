@@ -4223,6 +4223,89 @@ const normalizeMetaPostPreview = (post = {}) => {
   };
 };
 
+const normalizeMetaReelPreview = (post = {}) => {
+  const attachmentDetails = extractMetaPostAttachmentDetails(post);
+  const graphFieldsPresent = extractMetaPostGraphFieldPresence(post);
+  const graphThumbnailUrl = text(post.thumbnail_url || "");
+  const picture = text(post.picture || "");
+  const sourceUrl = text(post.source || "");
+  const mediaUrl = text(post.media_url || "");
+  const attachmentImage = attachmentDetails.attachmentImage || "";
+  const permalinkUrl = text(post.permalink_url || post.permalink || "");
+  const reelDescription = text(post.description || post.caption || post.message || "");
+  const mediaType = inferMetaPostMediaType({ ...post, type: post.media_type || post.type || "reel" }, attachmentDetails) || "reel";
+  const thumbnailUrl = graphThumbnailUrl || picture || attachmentImage || mediaUrl || sourceUrl || "";
+  const thumbnailSource = graphThumbnailUrl
+    ? "thumbnail_url"
+    : picture
+      ? "picture"
+      : attachmentDetails.thumbnailSource || attachmentImage
+        ? "attachments.media.image.src"
+        : mediaUrl
+          ? "media_url"
+          : sourceUrl
+            ? "source"
+            : "";
+  const reasonIfMissing = thumbnailUrl
+    ? ""
+    : mediaType === "video" || mediaType === "reel"
+      ? "video_or_reel_without_thumbnail"
+      : "no_image_sources_found";
+  return {
+    id: text(post.id || ""),
+    post_id: text(post.id || ""),
+    message: reelDescription,
+    description: reelDescription,
+    caption: reelDescription,
+    permalink_url: permalinkUrl,
+    full_picture: text(post.full_picture || picture || ""),
+    picture,
+    source: sourceUrl,
+    media_url: mediaUrl,
+    attachment_image: attachmentImage,
+    post_thumbnail: thumbnailUrl || null,
+    thumbnail_url: thumbnailUrl || null,
+    thumbnail_source: thumbnailSource || "missing",
+    media_type: mediaType,
+    post_type: text(post.type || post.media_type || mediaType || "reel"),
+    post_message: reelDescription,
+    post_caption: reelDescription,
+    attachments: asArray(post.attachments?.data || post.attachments || post.child_attachments?.data || post.child_attachments || []),
+    child_attachments: asArray(post.child_attachments?.data || post.child_attachments || []),
+    graph_fields_present: graphFieldsPresent,
+    attachments_shape: attachmentDetails.attachmentsShape,
+    full_picture_present: Boolean(text(post.full_picture || picture || "")),
+    attachment_image_present: Boolean(attachmentImage),
+    reason_if_missing: reasonIfMissing,
+  };
+};
+
+const fetchMetaPostMediaCandidate = async ({ candidatePostId = "", token } = {}) => {
+  const candidateId = text(candidatePostId);
+  if (!candidateId || !token) return null;
+  const payload = await callMetaGet({
+    endpoint: `/${encodeURIComponent(candidateId)}`,
+    token,
+    params: {
+      fields: "id,message,caption,permalink_url,full_picture,picture,source,attachments{media,type,url,title,description,subattachments},child_attachments",
+    },
+  });
+  return normalizeMetaPostPreview(payload || {});
+};
+
+const fetchMetaReelMediaCandidate = async ({ candidateReelId = "", token } = {}) => {
+  const candidateId = text(candidateReelId);
+  if (!candidateId || !token) return null;
+  const payload = await callMetaGet({
+    endpoint: `/${encodeURIComponent(candidateId)}`,
+    token,
+    params: {
+      fields: "id,description,permalink_url,thumbnail_url,source,picture,media_url,media_type",
+    },
+  });
+  return normalizeMetaReelPreview(payload || {});
+};
+
 export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = "", pageId = "", permalinkUrl = "" } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safePostId = text(postId);
@@ -4235,10 +4318,14 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
   }
   const token = getTokenForConfig(row);
   if (!token) return null;
-  const fields = "id,message,caption,permalink_url,thumbnail_url,source,picture,full_picture,media_url,media_type,attachments{media,type,url,title,description,subattachments},child_attachments";
   const reelIdFromPermalink = extractReelIdFromPermalink(permalinkUrl);
   const shortPostId = safePostId.includes("_") ? safePostId.split("_").slice(1).join("_") || safePostId.split("_").pop() || "" : "";
-  const candidateIds = Array.from(new Set([safePostId, reelIdFromPermalink, shortPostId].filter(Boolean)));
+  const candidateIds = [
+    ...new Set([safePostId, shortPostId].filter(Boolean)),
+  ];
+  if (reelIdFromPermalink && !candidateIds.includes(reelIdFromPermalink)) {
+    candidateIds.push(reelIdFromPermalink);
+  }
   const errors = [];
   let primaryPreview = null;
   let reelPreview = null;
@@ -4246,14 +4333,12 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
 
   for (const candidatePostId of candidateIds) {
     try {
-      const payload = await callMetaGet({
-        endpoint: `/${encodeURIComponent(text(candidatePostId))}`,
-        token,
-        params: { fields },
-      });
-      const preview = normalizeMetaPostPreview(payload || {});
-      if (candidatePostId === reelIdFromPermalink) reelPreview = preview;
-      if (candidatePostId === safePostId || candidatePostId === shortPostId) objectIdPreview = preview;
+      const isReelCandidate = text(candidatePostId) === text(reelIdFromPermalink);
+      const preview = isReelCandidate
+        ? await fetchMetaReelMediaCandidate({ candidateReelId: candidatePostId, token })
+        : await fetchMetaPostMediaCandidate({ candidatePostId, token });
+      if (isReelCandidate) reelPreview = preview;
+      if (!isReelCandidate && (candidatePostId === safePostId || candidatePostId === shortPostId)) objectIdPreview = preview;
       if (!primaryPreview) primaryPreview = preview;
       if (preview?.thumbnail_url) {
         primaryPreview = preview;
@@ -4279,12 +4364,14 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
       full_picture: "",
       picture: "",
       source: "",
+      media_url: "",
       attachment_image: "",
       post_thumbnail: "",
       thumbnail_url: null,
       thumbnail_source: "missing",
       media_type: "",
       post_type: "",
+      description: "",
       post_message: "",
       post_caption: "",
       attachments: [],

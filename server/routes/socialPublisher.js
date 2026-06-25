@@ -11,6 +11,7 @@ import {
   getSocialPublisherPostRow,
   listSocialPublisherMetaAccounts,
   listSocialPublisherPosts,
+  searchSocialPublisherProducts,
   publishSocialPublisherPostRow,
 } from "../services/socialPublisherPostsService.js";
 
@@ -60,6 +61,28 @@ const resolveMediaType = (req) => {
   const explicit = String(req.body?.media_type || req.body?.mediaType || "").trim().toLowerCase();
   return explicit === "video" ? "video" : "image";
 };
+
+router.get(
+  "/products/search",
+  protect,
+  permit("marketing", "view"),
+  async (req, res) => {
+    try {
+      const tenantId = getTenantId(req, req.user?.tenant_id) || 1;
+      const q = String(req.query?.q || req.query?.query || "").trim();
+      const limit = Number(req.query?.limit || 20);
+      const products = await searchSocialPublisherProducts({ tenantId, query: q, limit });
+      res.json({ success: true, data: products });
+    } catch (error) {
+      console.error("[social-publisher] product search failed", {
+        message: error?.message || "unknown",
+        code: error?.code || "",
+        stack: error?.stack || "",
+      });
+      res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to search social publisher products" });
+    }
+  }
+);
 
 router.get(
   "/meta-accounts",

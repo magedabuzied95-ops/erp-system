@@ -29,18 +29,74 @@ const absoluteTime = (value) => {
   return date.toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" });
 };
 
-const postKey = (item = {}) =>
-  clean(
-    item?.conversation_id ||
-      item?.session_id ||
-      item?.post_id ||
-      item?.id ||
-      item?.comment_id ||
-      `${item?.platform || "social"}:${item?.post_id || item?.id || item?.comment_id || ""}`
-  );
+const normalizeComment = (raw) => {
+  const comment = raw || {};
+  return {
+    id: clean(comment.comment_id || comment.id || comment.external_message_id || comment.provider_message_id || ""),
+    message: clean(comment.customer_message || comment.message || comment.text || comment.message_text || comment.original_comment_text || ""),
+    customerName: clean(comment.commenter_name || comment.customer_name || "عميل"),
+    customerAvatar: clean(comment.avatar || comment.customer_avatar || comment.customer_avatar_url || comment.commenter_profile_picture_url || comment.avatar_url || comment.profile_pic || ""),
+    classification: clean(comment.classification_label || comment.classification || comment.intent || "Question"),
+    replyStatus: clean(comment.reply_status || "pending"),
+    createdTime: clean(comment.created_time || comment.created_at || comment.processed_at || ""),
+    metadata: comment.metadata && typeof comment.metadata === "object" && !Array.isArray(comment.metadata) ? comment.metadata : {},
+    postId: clean(comment.post_id || comment.conversation_post_id || comment.thread_post_id || ""),
+    platform: clean(comment.platform || ""),
+    permalink: clean(comment.permalink_url || comment.comment_url || ""),
+    replyText: clean(comment.reply_text || comment.rendered_reply || ""),
+    raw: comment,
+  };
+};
 
-const commentKey = (item = {}) =>
-  clean(item?.comment_id || item?.id || item?.external_message_id || item?.provider_message_id || "");
+const normalizePost = (raw) => {
+  const post = raw || {};
+  const metadata = post.metadata && typeof post.metadata === "object" && !Array.isArray(post.metadata) ? post.metadata : {};
+  const attachmentImage = getAttachmentImage(post);
+  return {
+    id: clean(post.id || post.conversation_id || post.session_id || post.post_id || ""),
+    post_id: clean(post.post_id || post.id || metadata.post_id || ""),
+    conversation_id: clean(post.conversation_id || post.session_id || post.conversation_key || post.thread_id || ""),
+    session_id: clean(post.session_id || ""),
+    platform: clean(post.platform || "facebook").toLowerCase(),
+    thumbnail: clean(
+      post.post_thumbnail ||
+        post.thumbnail_url ||
+      post.post_full_picture ||
+        post.full_picture ||
+        post.picture ||
+        attachmentImage ||
+        post.attachment_image ||
+        post.product_image_url ||
+        post.product_image ||
+        ""
+    ),
+    caption: clean(post.post_caption || post.post_message || post.last_message || post.post_text || post.message || metadata.post_caption || metadata.post_message || ""),
+    permalink: clean(post.post_permalink || post.post_permalink_url || post.permalink_url || post.post_url || metadata.post_permalink || metadata.post_permalink_url || metadata.permalink_url || ""),
+    commentsCount: Number(post.comments_count || post.comment_count || post.total_comments || 0),
+    newCount: Number(post.new_comments_count || post.unread_comments_count || 0),
+    lastActivity: clean(post.last_activity_at || post.last_comment_at || post.last_message_at || post.updated_at || post.created_at || ""),
+    autoReply: clean(post.auto_reply_status || post.auto_reply_mode || post.auto_reply_enabled || post.template_enabled || ""),
+    needsReply: Number(post.new_comments_count || post.unread_comments_count || 0) > 0,
+    productName: clean(post.product_name || post.name || ""),
+    productPrice: clean(post.product_price || post.price || ""),
+    productSalePrice: clean(post.product_sale_price || post.sale_price || ""),
+    productSizes: clean(post.product_sizes || post.sizes || ""),
+    productColors: clean(post.product_colors || post.colors || ""),
+    productStock: clean(post.product_stock || post.stock || ""),
+    productVariantCount: clean(post.product_variant_count || post.variant_count || ""),
+    productLink: clean(post.product_link || post.product_storefront_url || post.product_url || ""),
+    storeAddress: clean(post.store_address || ""),
+    shippingTime: clean(post.shipping_time || ""),
+    message: clean(post.message || ""),
+    lastComment: clean(post.last_comment || post.last_message || ""),
+    attachmentImage,
+    raw: post,
+  };
+};
+
+const postKey = (item = {}) => clean(normalizePost(item).conversation_id || normalizePost(item).post_id || normalizePost(item).id);
+
+const commentKey = (item = {}) => clean(normalizeComment(item).id);
 
 const platformMeta = (platform = "") => {
   const key = clean(platform).toLowerCase();
@@ -73,30 +129,13 @@ const getAttachmentImage = (post = {}) => {
   return "";
 };
 
-const getPostImage = (post = {}) =>
-  clean(
-    post.post_full_picture ||
-      post.attachment_image ||
-      post.post_thumbnail ||
-      post.full_picture ||
-      post.product_image_url ||
-      post.product_image ||
-      post.thumbnail_url ||
-      post.image_url ||
-      post.image ||
-      getAttachmentImage(post)
-  );
+const getPostImage = (post = {}) => clean(normalizePost(post).thumbnail || getAttachmentImage(post));
 
-const getPostCaption = (post = {}) =>
-  clean(post.post_caption || post.post_message || post.last_message || post.post_text || post.message || "");
+const getPostCaption = (post = {}) => clean(normalizePost(post).caption);
 
-const getCommentClassification = (comment) => {
-  if (!comment) return "Question";
-  return clean(comment.classification_label || comment.classification || comment.intent || comment.reply_status || comment.auto_reply_mode || "Question");
-};
+const getCommentClassification = (comment) => normalizeComment(comment).classification || "Question";
 
-const getCommentText = (comment = {}) =>
-  clean(comment.customer_message || comment.message_text || comment.original_comment_text || comment.text || comment.message || "");
+const getCommentText = (comment = {}) => normalizeComment(comment).message;
 
 const classifyComment = (comment = {}) => clean(getCommentClassification(comment) || "pending");
 
@@ -170,21 +209,20 @@ function SocialCommentsWorkspace({
   onRefresh,
   onSelectPost,
 }) {
-  const posts = useMemo(
+  const normalizedPosts = useMemo(
     () =>
-      [...(Array.isArray(items) ? items.filter(Boolean) : [])].sort(
-        (left, right) =>
-          new Date(right.last_activity_at || right.last_comment_at || right.last_message_at || right.updated_at || right.created_at || 0).getTime() -
-          new Date(left.last_activity_at || left.last_comment_at || left.last_message_at || left.updated_at || left.created_at || 0).getTime()
-      ),
+      [...(Array.isArray(items) ? items.filter(Boolean) : [])]
+        .map((post) => normalizePost(post))
+        .sort((left, right) => new Date(right.lastActivity || 0).getTime() - new Date(left.lastActivity || 0).getTime()),
     [items]
   );
 
-  const activePost = selectedPost || posts[0] || null;
+  const activePost = normalizePost(selectedPost || normalizedPosts[0] || null);
   const activePostKey = clean(postKey(activePost));
   const activeThread = selectedThread || { post: null, comments: [], loading: false, error: "" };
-  const comments = Array.isArray(activeThread.comments) ? activeThread.comments.filter(Boolean) : [];
-  const activePostDetails = activeThread.post || activePost || null;
+  const comments = useMemo(() => (Array.isArray(activeThread.comments) ? activeThread.comments.filter(Boolean) : []), [activeThread.comments]);
+  const normalizedComments = useMemo(() => comments.map((comment) => normalizeComment(comment)).filter(Boolean), [comments]);
+  const activePostDetails = normalizePost(activeThread.post || activePost || null);
 
   const [selectedCommentKey, setSelectedCommentKey] = useState("");
   const [replyDraft, setReplyDraft] = useState("");
@@ -229,9 +267,7 @@ function SocialCommentsWorkspace({
   useEffect(() => {
     setTemplateDraft(selectedTemplate?.template || null);
   }, [
-    selectedPost?.id,
-    selectedPost?.post_id,
-    selectedPost?.conversation_id,
+    selectedPost,
     selectedTemplate?.template?.enabled,
     selectedTemplate?.template?.like_enabled,
     selectedTemplate?.template?.reply_enabled,
@@ -248,9 +284,9 @@ function SocialCommentsWorkspace({
 
   const activeTemplate = templateDraft || selectedTemplate?.template || null;
   const currentGlobalSettings = globalDraft || globalSettings;
-  const visibleComments = comments.filter((comment) => !ignoredCommentKeys.has(commentKey(comment)));
+  const visibleComments = normalizedComments.filter((comment) => !ignoredCommentKeys.has(comment.id));
   const selectedVisibleComment =
-    visibleComments.find((comment) => commentKey(comment) === clean(selectedCommentKey)) ||
+    visibleComments.find((comment) => comment.id === clean(selectedCommentKey)) ||
     visibleComments[0] ||
     null;
   const actionableComment = selectedVisibleComment || null;
@@ -261,10 +297,10 @@ function SocialCommentsWorkspace({
       return;
     }
     const nextSelected =
-      visibleComments.find((comment) => commentKey(comment) === clean(selectedCommentKey)) ||
+      visibleComments.find((comment) => comment.id === clean(selectedCommentKey)) ||
       visibleComments[0] ||
       null;
-    const nextKey = commentKey(nextSelected || {});
+    const nextKey = clean(nextSelected?.id || "");
     if (nextKey && nextKey !== selectedCommentKey) {
       setSelectedCommentKey(nextKey);
     }
@@ -273,28 +309,28 @@ function SocialCommentsWorkspace({
   const activeSuggestedReply = useMemo(
     () =>
       templatePreviewText(activeTemplate || { template: currentGlobalSettings.generic_template || "" }, {
-        customer_name: selectFirst(actionableComment?.commenter_name, actionableComment?.customer_name, "Customer"),
-        product_name: selectFirst(activePostDetails?.product_name, activePostDetails?.name, ""),
-        price: selectFirst(activePostDetails?.product_price, activePostDetails?.price, ""),
-        sale_price: selectFirst(activePostDetails?.product_sale_price, activePostDetails?.sale_price, ""),
-        sizes: selectFirst(activePostDetails?.product_sizes, activePostDetails?.sizes, ""),
-        colors: selectFirst(activePostDetails?.product_colors, activePostDetails?.colors, ""),
-        product_link: selectFirst(activePostDetails?.product_storefront_url, activePostDetails?.product_link, activePostDetails?.product_url, ""),
-        post_link: selectFirst(activePostDetails?.post_permalink, activePostDetails?.post_permalink_url, activePostDetails?.permalink_url, activePostDetails?.post_url),
-        store_address: selectFirst(activePostDetails?.store_address, ""),
-        shipping_time: selectFirst(activePostDetails?.shipping_time, ""),
+        customer_name: selectFirst(actionableComment?.customerName, "Customer"),
+        product_name: selectFirst(activePostDetails?.productName, ""),
+        price: selectFirst(activePostDetails?.productPrice, ""),
+        sale_price: selectFirst(activePostDetails?.productSalePrice, ""),
+        sizes: selectFirst(activePostDetails?.productSizes, ""),
+        colors: selectFirst(activePostDetails?.productColors, ""),
+        product_link: selectFirst(activePostDetails?.productLink, ""),
+        post_link: selectFirst(activePostDetails?.permalink, ""),
+        store_address: selectFirst(activePostDetails?.storeAddress, ""),
+        shipping_time: selectFirst(activePostDetails?.shippingTime, ""),
       }),
     [actionableComment, activePostDetails, activeTemplate, currentGlobalSettings.generic_template]
   );
 
   const suggestedReply = previewReply || activeSuggestedReply || "";
-  const activePostImage = getPostImage(activePostDetails);
-  const activePostCaption = getPostCaption(activePostDetails);
-  const activePostLink = selectFirst(activePostDetails?.post_permalink, activePostDetails?.post_permalink_url, activePostDetails?.permalink_url, activePostDetails?.post_url);
+  const activePostImage = clean(activePostDetails?.thumbnail || "");
+  const activePostCaption = clean(activePostDetails?.caption || "");
+  const activePostLink = clean(activePostDetails?.permalink || "");
   const activePlatform = platformMeta(activePostDetails?.platform || activePost?.platform || "");
   const activePostPlatform = clean(activePostDetails?.platform || activePost?.platform || "facebook").toLowerCase();
   const activePostPostId = clean(activePostDetails?.post_id || activePostDetails?.id || activePostKey);
-  const activePostConversationId = clean(activePostDetails?.conversation_id || activePostDetails?.session_id || activePostDetails?.conversation_key || activePostDetails?.id || activePostKey);
+  const activePostConversationId = clean(activePostDetails?.conversation_id || activePostDetails?.session_id || activePostDetails?.id || activePostKey);
   const activeTemplateEnabled = Boolean(activeTemplate?.enabled);
 
   useEffect(() => {
@@ -424,7 +460,7 @@ function SocialCommentsWorkspace({
   };
 
   const handlePreviewReply = async () => {
-    const commentId = clean(actionableComment?.comment_id || actionableComment?.id || actionableComment?.external_message_id || actionableComment?.provider_message_id || "");
+    const commentId = clean(actionableComment?.id || "");
     if (!commentId) {
       notify("amber", "اختر تعليقًا أولًا");
       return;
@@ -451,7 +487,7 @@ function SocialCommentsWorkspace({
   };
 
   const submitReply = async (comment = actionableComment, replyText = replyDraft) => {
-    const commentId = clean(comment?.comment_id || comment?.id || comment?.external_message_id || comment?.provider_message_id || "");
+    const commentId = clean(comment?.id || "");
     const messageText = clean(replyText || suggestedReply);
     if (!commentId) {
       notify("amber", "اختر تعليقًا للرد");
@@ -477,7 +513,7 @@ function SocialCommentsWorkspace({
 
   const submitPrivateMessage = async (comment = actionableComment, messageText = replyDraft || suggestedReply) => {
     const conversationId = clean(activePostConversationId || activePostPostId);
-    const commentId = clean(comment?.comment_id || comment?.id || comment?.external_message_id || comment?.provider_message_id || "");
+    const commentId = clean(comment?.id || "");
     const finalMessage = clean(messageText);
     if (!conversationId) {
       notify("amber", "تعذر تحديد المحادثة الخاصة لهذا البوست");
@@ -505,7 +541,7 @@ function SocialCommentsWorkspace({
   };
 
   const handleIgnoreComment = async (comment = actionableComment) => {
-    const commentId = clean(comment?.comment_id || comment?.id || comment?.external_message_id || comment?.provider_message_id || "");
+    const commentId = clean(comment?.id || "");
     if (!commentId) {
       notify("amber", "اختر تعليقًا للتجاهل");
       return;
@@ -537,7 +573,7 @@ function SocialCommentsWorkspace({
   };
 
   const handleCreateLead = async (comment = actionableComment) => {
-    const commentId = clean(comment?.comment_id || comment?.id || comment?.external_message_id || comment?.provider_message_id || "");
+    const commentId = clean(comment?.id || "");
     setLeadLoadingKey(commentId || "lead");
     try {
       notify("amber", "سيتم ربطها بالـ CRM لاحقًا");
@@ -602,26 +638,26 @@ function SocialCommentsWorkspace({
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto p-2">
-            {!posts.length && !loading ? (
+            {!normalizedPosts.length && !loading ? (
               <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-500">لا توجد منشورات بعد</div>
             ) : null}
 
             <div className="space-y-2">
-              {posts.map((post) => {
+              {normalizedPosts.map((post) => {
                 const key = postKey(post);
                 const active = activePostKey === key;
                 const meta = platformMeta(post.platform);
-                const thumb = getPostImage(post);
+                const thumb = post.thumbnail;
                 return (
                   <article
                     key={key}
                     role={onSelectPost ? "button" : undefined}
                     tabIndex={onSelectPost ? 0 : undefined}
-                    onClick={onSelectPost ? () => onSelectPost(post, key) : undefined}
+                    onClick={onSelectPost ? () => onSelectPost(post.raw, key) : undefined}
                     onKeyDown={
                       onSelectPost
                         ? (event) => {
-                            if (event.key === "Enter" || event.key === " ") onSelectPost(post, key);
+                            if (event.key === "Enter" || event.key === " ") onSelectPost(post.raw, key);
                           }
                         : undefined
                     }
@@ -642,19 +678,19 @@ function SocialCommentsWorkspace({
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
-                            <div className="line-clamp-2 text-sm font-black text-white">{getPostCaption(post) || "Post"}</div>
+                            <div className="line-clamp-2 text-sm font-black text-white">{post.caption || "Post"}</div>
                           </div>
                           <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${meta.className}`}>{meta.label}</span>
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-300">
-                          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{Number(post.comments_count || 0)} comments</span>
-                          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{Number(post.new_comments_count || 0)} new</span>
-                          {Number(post.new_comments_count || 0) > 0 ? <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">Needs reply</span> : null}
+                          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{post.commentsCount} comments</span>
+                          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{post.newCount} new</span>
+                          {post.needsReply ? <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">Needs reply</span> : null}
                         </div>
                         <div className="mt-2 text-[11px] font-medium text-slate-400">
                           <span className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1">
                             <Clock3 className="h-3.5 w-3.5" />
-                            {absoluteTime(post.last_activity_at || post.last_comment_at || post.last_message_at || post.updated_at || post.created_at)}
+                            {absoluteTime(post.lastActivity)}
                           </span>
                         </div>
                       </div>
@@ -716,16 +752,16 @@ function SocialCommentsWorkspace({
                       <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePlatform.className}`}>{activePlatform.label}</span>
                     </div>
 
-                    {activePostDetails?.product_name || activePostDetails?.product_price || activePostDetails?.product_sale_price || activePostDetails?.product_sizes || activePostDetails?.product_colors ? (
+                    {activePostDetails?.productName || activePostDetails?.productPrice || activePostDetails?.productSalePrice || activePostDetails?.productSizes || activePostDetails?.productColors ? (
                       <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-3">
                         <div className="flex items-center justify-between gap-2">
                           <div>
                             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">ERP Product Card</div>
-                            <div className="mt-1 text-sm font-black text-white">{selectFirst(activePostDetails?.product_name, "Linked product")}</div>
+                            <div className="mt-1 text-sm font-black text-white">{selectFirst(activePostDetails?.productName, "Linked product")}</div>
                           </div>
-                          {selectFirst(activePostDetails?.product_link, activePostDetails?.product_storefront_url) ? (
+                          {selectFirst(activePostDetails?.productLink) ? (
                             <a
-                              href={selectFirst(activePostDetails?.product_link, activePostDetails?.product_storefront_url)}
+                              href={selectFirst(activePostDetails?.productLink)}
                               target="_blank"
                               rel="noreferrer"
                               className="inline-flex h-8 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100"
@@ -736,12 +772,12 @@ function SocialCommentsWorkspace({
                           ) : null}
                         </div>
                         <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                          <InfoChip label="Price" value={selectFirst(activePostDetails?.product_price, activePostDetails?.price, "—")} />
-                          <InfoChip label="Sale" value={selectFirst(activePostDetails?.product_sale_price, activePostDetails?.sale_price, "—")} />
-                          <InfoChip label="Sizes" value={selectFirst(activePostDetails?.product_sizes, activePostDetails?.sizes, "—")} />
-                          <InfoChip label="Colors" value={selectFirst(activePostDetails?.product_colors, activePostDetails?.colors, "—")} />
-                          <InfoChip label="Stock" value={selectFirst(activePostDetails?.product_stock, activePostDetails?.stock, "—")} />
-                          <InfoChip label="Variants" value={selectFirst(activePostDetails?.product_variant_count, activePostDetails?.variant_count, "—")} />
+                          <InfoChip label="Price" value={selectFirst(activePostDetails?.productPrice, "—")} />
+                          <InfoChip label="Sale" value={selectFirst(activePostDetails?.productSalePrice, "—")} />
+                          <InfoChip label="Sizes" value={selectFirst(activePostDetails?.productSizes, "—")} />
+                          <InfoChip label="Colors" value={selectFirst(activePostDetails?.productColors, "—")} />
+                          <InfoChip label="Stock" value={selectFirst(activePostDetails?.productStock, "—")} />
+                          <InfoChip label="Variants" value={selectFirst(activePostDetails?.productVariantCount, "—")} />
                         </div>
                       </div>
                     ) : null}
@@ -768,12 +804,11 @@ function SocialCommentsWorkspace({
                       </div>
                     ) : null}
 
-                    {visibleComments.map((rawComment) => {
-                      const comment = rawComment || {};
-                      const key = commentKey(comment);
-                      const status = clean(classifyComment(comment));
-                      const avatar = selectFirst(comment.commenter_profile_picture_url, comment.customer_avatar_url, comment.avatar_url, comment.profile_pic);
-                      const name = selectFirst(comment.customer_name, comment.commenter_name, comment.from_name, "Customer");
+                    {visibleComments.map((comment) => {
+                      const key = comment.id;
+                      const status = clean(getCommentClassification(comment));
+                      const avatar = comment.customerAvatar;
+                      const name = comment.customerName;
                       const text = getCommentText(comment) || "بدون نص";
                       const tags = getCommentTags(comment);
                       const busy = isBusy(key);
@@ -781,7 +816,7 @@ function SocialCommentsWorkspace({
 
                       return (
                         <article
-                          key={key || `${comment.created_at || ""}:${name}`}
+                          key={key || `${comment.createdTime || ""}:${name}`}
                           role="button"
                           tabIndex={0}
                           onClick={() => setSelectedCommentKey(key)}
@@ -807,7 +842,7 @@ function SocialCommentsWorkspace({
                                   <div className="truncate text-sm font-black text-white">{name}</div>
                                   <div className="mt-1 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-300">
                                     <Clock3 className="h-3.5 w-3.5" />
-                                    {absoluteTime(comment.created_at)}
+                                    {absoluteTime(comment.createdTime)}
                                   </div>
                                 </div>
                                 <span
@@ -968,7 +1003,7 @@ function SocialCommentsWorkspace({
                     <SidebarRow label="Most Asked Question" value={labelText(summaryBucketLabel(actionableComment))} icon={<Sparkles className="h-4 w-4 text-cyan-100" />} />
                     <SidebarRow label="Suggested Reply" value={suggestedReply || "No suggestion yet."} icon={<MessageSquareText className="h-4 w-4 text-emerald-100" />} />
                     <SidebarRow label="Lead Intent" value={`${visibleComments.filter((item) => getCommentTags(item).includes("Lead")).length} leads / ${visibleComments.filter((item) => getCommentTags(item).includes("Price")).length} price / ${visibleComments.filter((item) => getCommentTags(item).includes("Size")).length} size`} icon={<ThumbsUp className="h-4 w-4 text-violet-100" />} />
-                    <SidebarRow label="Customer Summary" value={selectFirst(actionableComment?.customer_name, actionableComment?.commenter_name, activePostDetails?.customer_name, "Customer")} icon={<UserRound className="h-4 w-4 text-amber-100" />} />
+                    <SidebarRow label="Customer Summary" value={selectFirst(actionableComment?.customerName, activePostDetails?.customerName, "Customer")} icon={<UserRound className="h-4 w-4 text-amber-100" />} />
                     <SidebarRow label="Auto Reply Status" value={currentGlobalSettings.generic_enabled ? "Global ON" : "Global OFF"} icon={<Bot className="h-4 w-4 text-sky-100" />} />
                   </div>
                 </div>
