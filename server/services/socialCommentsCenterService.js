@@ -150,6 +150,8 @@ const resolvePostThumbnailDetails = (row = {}) => {
     ["post_full_picture", row.post_full_picture || metadata.post_full_picture || metadata.full_picture || ""],
     ["attachment_image", row.attachment_image || metadata.attachment_image || ""],
     ["full_picture", row.full_picture || metadata.full_picture || ""],
+    ["picture", row.picture || metadata.picture || ""],
+    ["source", row.source || metadata.source || ""],
   ];
 
   for (const [source, value] of directSources) {
@@ -286,6 +288,12 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       thumbnail_url: currentDetails.thumbnail_url,
       thumbnail_source: currentDetails.thumbnail_source,
       has_thumbnail: currentDetails.has_thumbnail,
+      post_type: text(safeRow.post_type || metadata.post_type || ""),
+      media_type: text(safeRow.media_type || metadata.media_type || ""),
+      graph_fields_present: asArray(safeRow.graph_fields_present || metadata.graph_fields_present || []),
+      attachments_shape: metadataObject(safeRow.attachments_shape || metadata.attachments_shape || {}),
+      full_picture_present: Boolean(safeRow.full_picture_present ?? metadata.full_picture_present),
+      attachment_image_present: Boolean(safeRow.attachment_image_present ?? metadata.attachment_image_present),
       graph_enriched: false,
       reason_if_missing: currentDetails.reason_if_missing || "",
     };
@@ -305,6 +313,15 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     const nextMetadata = {
       ...metadata,
       post_id: postId,
+      post_type: graphPost.post_type || safeRow.post_type || metadata.post_type || "",
+      media_type: graphPost.media_type || safeRow.media_type || metadata.media_type || "",
+      graph_fields_present: asArray(graphPost.graph_fields_present || metadata.graph_fields_present || []),
+      attachments_shape: metadataObject(graphPost.attachments_shape || metadata.attachments_shape || {}),
+      full_picture_present: Boolean(graphPost.full_picture_present ?? safeRow.full_picture_present ?? metadata.full_picture_present),
+      attachment_image_present: Boolean(graphPost.attachment_image_present ?? safeRow.attachment_image_present ?? metadata.attachment_image_present),
+      picture: graphPost.picture || safeRow.picture || metadata.picture || "",
+      source: graphPost.source || safeRow.source || metadata.source || "",
+      child_attachments: asArray(graphPost.child_attachments || safeRow.child_attachments || metadata.child_attachments || []),
       post_full_picture: graphPost.full_picture || graphPost.post_full_picture || safeRow.post_full_picture || "",
       attachment_image: graphPost.attachment_image || safeRow.attachment_image || "",
       post_thumbnail: graphPost.post_thumbnail || safeRow.post_thumbnail || "",
@@ -324,7 +341,10 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       post_permalink_url: nextMetadata.post_permalink_url,
       permalink_url: nextMetadata.post_permalink_url || safeRow.permalink_url || "",
       full_picture: graphPost.full_picture || safeRow.full_picture || "",
+      picture: graphPost.picture || safeRow.picture || "",
+      source: graphPost.source || safeRow.source || "",
       attachments: asArray(graphPost.attachments || safeRow.attachments || []),
+      child_attachments: asArray(graphPost.child_attachments || safeRow.child_attachments || []),
       metadata: nextMetadata,
     };
     const nextDetails = resolvePostThumbnailDetails(mergedRow);
@@ -348,6 +368,12 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       thumbnail_url: nextDetails.thumbnail_url,
       thumbnail_source: nextDetails.thumbnail_source,
       has_thumbnail: nextDetails.has_thumbnail,
+      post_type: nextMetadata.post_type,
+      media_type: nextMetadata.media_type,
+      graph_fields_present: nextMetadata.graph_fields_present,
+      attachments_shape: nextMetadata.attachments_shape,
+      full_picture_present: nextMetadata.full_picture_present,
+      attachment_image_present: nextMetadata.attachment_image_present,
       graph_enriched: true,
       reason_if_missing: nextDetails.reason_if_missing || "",
     };
@@ -357,6 +383,12 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       thumbnail_url: currentDetails.thumbnail_url,
       thumbnail_source: currentDetails.thumbnail_source,
       has_thumbnail: currentDetails.has_thumbnail,
+      post_type: text(safeRow.post_type || metadata.post_type || ""),
+      media_type: text(safeRow.media_type || metadata.media_type || ""),
+      graph_fields_present: asArray(safeRow.graph_fields_present || metadata.graph_fields_present || []),
+      attachments_shape: metadataObject(safeRow.attachments_shape || metadata.attachments_shape || {}),
+      full_picture_present: Boolean(safeRow.full_picture_present ?? metadata.full_picture_present),
+      attachment_image_present: Boolean(safeRow.attachment_image_present ?? metadata.attachment_image_present),
       graph_enriched: false,
       reason_if_missing: currentDetails.reason_if_missing || "graph_error",
     };
@@ -810,6 +842,7 @@ const backfillSocialCommentPostMedia = async ({ tenantId = null, platform = "", 
       enriched: 0,
       already_had_image: 0,
       still_missing: 0,
+      missing_sample: [],
       errors_sample: [],
     };
   }
@@ -907,6 +940,7 @@ const backfillSocialCommentPostMedia = async ({ tenantId = null, platform = "", 
   );
 
   const errorsSample = [];
+  const missingSample = [];
   let enriched = 0;
   let alreadyHadImage = 0;
   let stillMissing = 0;
@@ -919,9 +953,56 @@ const backfillSocialCommentPostMedia = async ({ tenantId = null, platform = "", 
         if (!resolved?.graph_enriched) alreadyHadImage += 1;
       } else {
         stillMissing += 1;
+        if (missingSample.length < 5) {
+          missingSample.push({
+            post_id: text(resolved?.post_id || row.post_id || row.metadata?.post_id || row.conversation_id || ""),
+            permalink_url: text(
+              resolved?.post_permalink_url ||
+                resolved?.post_permalink ||
+                resolved?.permalink_url ||
+                row.post_permalink_url ||
+                row.post_permalink ||
+                row.permalink_url ||
+                row.metadata?.post_permalink_url ||
+                row.metadata?.post_permalink ||
+                row.metadata?.permalink_url ||
+                ""
+            ),
+            post_type: text(resolved?.post_type || row.post_type || row.metadata?.post_type || ""),
+            graph_fields_present: asArray(resolved?.graph_fields_present || row.graph_fields_present || row.metadata?.graph_fields_present || []),
+            attachments_shape: metadataObject(resolved?.attachments_shape || row.attachments_shape || row.metadata?.attachments_shape || {}),
+            media_type: text(resolved?.media_type || row.media_type || row.metadata?.media_type || ""),
+            full_picture_present: Boolean(resolved?.full_picture_present ?? row.full_picture_present ?? row.metadata?.full_picture_present),
+            attachment_image_present: Boolean(resolved?.attachment_image_present ?? row.attachment_image_present ?? row.metadata?.attachment_image_present),
+            thumbnail_url: text(resolved?.thumbnail_url || row.thumbnail_url || row.metadata?.thumbnail_url || ""),
+            reason_if_missing: text(resolved?.reason_if_missing || row.reason_if_missing || row.metadata?.reason_if_missing || ""),
+          });
+        }
       }
     } catch (error) {
       stillMissing += 1;
+      if (missingSample.length < 5) {
+        missingSample.push({
+          post_id: text(row.post_id || row.metadata?.post_id || row.conversation_id || ""),
+          permalink_url: text(
+            row.post_permalink_url ||
+              row.post_permalink ||
+              row.permalink_url ||
+              row.metadata?.post_permalink_url ||
+              row.metadata?.post_permalink ||
+              row.metadata?.permalink_url ||
+              ""
+          ),
+          post_type: text(row.post_type || row.metadata?.post_type || ""),
+          graph_fields_present: asArray(row.graph_fields_present || row.metadata?.graph_fields_present || []),
+          attachments_shape: metadataObject(row.attachments_shape || row.metadata?.attachments_shape || {}),
+          media_type: text(row.media_type || row.metadata?.media_type || ""),
+          full_picture_present: Boolean(row.full_picture_present ?? row.metadata?.full_picture_present),
+          attachment_image_present: Boolean(row.attachment_image_present ?? row.metadata?.attachment_image_present),
+          thumbnail_url: text(row.thumbnail_url || row.metadata?.thumbnail_url || ""),
+          reason_if_missing: text(error?.message || "enrich_error"),
+        });
+      }
       if (errorsSample.length < 5) {
         errorsSample.push({
           conversation_id: text(row.conversation_id || ""),
@@ -939,6 +1020,7 @@ const backfillSocialCommentPostMedia = async ({ tenantId = null, platform = "", 
     enriched,
     already_had_image: alreadyHadImage,
     still_missing: stillMissing,
+    missing_sample: missingSample,
     errors_sample: errorsSample,
   };
 };

@@ -4066,37 +4066,139 @@ const fetchMetaPostCommentsForPolling = async ({ postId, token }) => {
   return Array.isArray(payload?.data) ? payload.data.slice(0, 50) : [];
 };
 
-const extractMetaPostAttachmentImage = (post = {}) => {
-  const attachments = asArray(post.attachments?.data || post.attachments || post.attachment?.data || post.attachment || []);
+const extractMetaPostAttachmentDetails = (post = {}) => {
+  const attachments = asArray(post.attachments?.data || post.attachments || post.attachment?.data || post.attachment || post.child_attachments?.data || post.child_attachments || []);
+  let attachmentImage = "";
+  let thumbnailSource = "";
+  let mediaType = text(post.type || post.media_type || "").toLowerCase();
+  const attachmentTypes = [];
   for (const attachment of attachments) {
+    const attachmentType = text(attachment?.type || attachment?.media_type || attachment?.media?.type || "").toLowerCase();
+    if (attachmentType) attachmentTypes.push(attachmentType);
+    if (!mediaType && attachmentType) mediaType = attachmentType;
     const mediaImage = attachment?.media?.image?.src || attachment?.media?.image_url || attachment?.media?.source || "";
-    if (text(mediaImage)) return text(mediaImage);
+    if (text(mediaImage) && !attachmentImage) {
+      attachmentImage = text(mediaImage);
+      thumbnailSource = attachment?.media?.image?.src
+        ? "attachments.media.image.src"
+        : attachment?.media?.image_url
+          ? "attachments.media.image_url"
+          : "attachments.media.source";
+    }
     const subattachments = asArray(attachment?.subattachments?.data || attachment?.subattachments || []);
     for (const subattachment of subattachments) {
+      const subType = text(subattachment?.type || subattachment?.media_type || subattachment?.media?.type || "").toLowerCase();
+      if (subType) attachmentTypes.push(subType);
+      if (!mediaType && subType) mediaType = subType;
       const subImage = subattachment?.media?.image?.src || subattachment?.media?.image_url || subattachment?.media?.source || "";
-      if (text(subImage)) return text(subImage);
+      if (text(subImage) && !attachmentImage) {
+        attachmentImage = text(subImage);
+        thumbnailSource = subattachment?.media?.image?.src
+          ? "attachments.subattachments.media.image.src"
+          : subattachment?.media?.image_url
+            ? "attachments.subattachments.media.image_url"
+            : "attachments.subattachments.media.source";
+      }
     }
   }
-  return "";
+  const uniqueAttachmentTypes = Array.from(new Set(attachmentTypes.filter(Boolean)));
+  const childAttachments = asArray(post.child_attachments?.data || post.child_attachments || []);
+  const shape = {
+    count: attachments.length,
+    child_count: childAttachments.length,
+    has_media: attachments.some((attachment) => Boolean(attachment?.media)),
+    has_subattachments: attachments.some((attachment) => asArray(attachment?.subattachments?.data || attachment?.subattachments || []).length > 0),
+    types: uniqueAttachmentTypes,
+  };
+  return {
+    attachmentImage,
+    thumbnailSource,
+    mediaType: mediaType || (uniqueAttachmentTypes.find((type) => type) || ""),
+    attachmentsShape: shape,
+  };
+};
+
+const extractMetaPostAttachmentImage = (post = {}) => {
+  const details = extractMetaPostAttachmentDetails(post);
+  const directSources = [
+    post.full_picture,
+    post.picture,
+    post.source,
+    details.attachmentImage,
+  ];
+  return text(directSources.find((value) => text(value)) || "");
+};
+
+const inferMetaPostMediaType = (post = {}, attachmentDetails = {}) => {
+  const type = text(post.type || post.media_type || attachmentDetails.mediaType || "").toLowerCase();
+  if (!type) return "";
+  if (/(reel|video)/.test(type)) return type.includes("reel") ? "reel" : "video";
+  if (/(photo|image|picture)/.test(type)) return "photo";
+  if (/(link|status|album|carousel)/.test(type)) return type;
+  return type;
+};
+
+const extractMetaPostGraphFieldPresence = (post = {}) => {
+  const fields = [
+    ["message", post.message],
+    ["caption", post.caption],
+    ["permalink_url", post.permalink_url],
+    ["full_picture", post.full_picture],
+    ["picture", post.picture],
+    ["source", post.source],
+    ["attachments", post.attachments],
+    ["child_attachments", post.child_attachments],
+  ].filter(([, value]) => {
+    if (Array.isArray(value)) return value.length > 0;
+    if (value && typeof value === "object") return Object.keys(value).length > 0;
+    return text(value).length > 0;
+  }).map(([field]) => field);
+  return fields;
 };
 
 const normalizeMetaPostPreview = (post = {}) => {
-  const fullPicture = text(post.full_picture || "");
-  const attachmentImage = extractMetaPostAttachmentImage(post);
+  const attachmentDetails = extractMetaPostAttachmentDetails(post);
+  const graphFieldsPresent = extractMetaPostGraphFieldPresence(post);
+  const fullPicture = text(post.full_picture || post.picture || "");
+  const picture = text(post.picture || "");
+  const sourceUrl = text(post.source || "");
+  const attachmentImage = attachmentDetails.attachmentImage || "";
   const permalinkUrl = text(post.permalink_url || post.permalink || "");
   const postMessage = text(post.message || "");
   const postCaption = text(post.caption || postMessage || "");
+  const mediaType = inferMetaPostMediaType(post, attachmentDetails);
+  const postType = text(post.type || post.media_type || mediaType || "");
+  const thumbnailUrl = attachmentImage || fullPicture || picture || (/(video|reel)/.test(mediaType) ? sourceUrl : "");
+  const thumbnailSource = attachmentDetails.thumbnailSource || (attachmentImage ? "attachments.media.image.src" : fullPicture ? "full_picture" : picture ? "picture" : sourceUrl ? "source" : "");
+  const reasonIfMissing = thumbnailUrl
+    ? ""
+    : mediaType === "video" || mediaType === "reel"
+      ? "video_or_reel_without_thumbnail"
+      : "no_image_sources_found";
   return {
     id: text(post.id || ""),
+    post_id: text(post.id || ""),
     message: postMessage,
     caption: postCaption,
     permalink_url: permalinkUrl,
     full_picture: fullPicture,
+    picture,
+    source: sourceUrl,
     attachment_image: attachmentImage,
-    post_thumbnail: attachmentImage || fullPicture || "",
+    post_thumbnail: thumbnailUrl,
+    thumbnail_url: thumbnailUrl,
+    thumbnail_source: thumbnailSource,
+    media_type: mediaType,
+    post_type: postType,
     post_message: postMessage,
     post_caption: postCaption,
-    attachments: asArray(post.attachments?.data || post.attachments || []),
+    attachments: asArray(post.attachments?.data || post.attachments || post.child_attachments?.data || post.child_attachments || []),
+    child_attachments: asArray(post.child_attachments?.data || post.child_attachments || []),
+    graph_fields_present: graphFieldsPresent,
+    attachments_shape: attachmentDetails.attachmentsShape,
+    full_picture_present: Boolean(fullPicture),
+    attachment_image_present: Boolean(attachmentImage),
+    reason_if_missing: reasonIfMissing,
   };
 };
 
@@ -4112,14 +4214,34 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
   }
   const token = getTokenForConfig(row);
   if (!token) return null;
-  const payload = await callMetaGet({
-    endpoint: `/${encodeURIComponent(safePostId)}`,
-    token,
-    params: {
-      fields: "id,message,caption,permalink_url,full_picture,attachments{media,type,url,title,description}",
-    },
-  });
-  return normalizeMetaPostPreview(payload);
+  const fields = "id,message,caption,permalink_url,full_picture,picture,source,attachments{media,type,url,title,description,subattachments},child_attachments";
+  const fetchPreview = async (candidatePostId) => {
+    const payload = await callMetaGet({
+      endpoint: `/${encodeURIComponent(text(candidatePostId))}`,
+      token,
+      params: { fields },
+    });
+    return normalizeMetaPostPreview(payload || {});
+  };
+
+  const primaryPreview = await fetchPreview(safePostId).catch(() => null);
+  const shouldFallbackToShortId = safePostId.includes("_") && (!primaryPreview || !primaryPreview.thumbnail_url || primaryPreview.reason_if_missing);
+  if (!shouldFallbackToShortId) return primaryPreview;
+
+  const shortPostId = safePostId.split("_").slice(1).join("_") || safePostId.split("_").pop() || "";
+  if (!shortPostId || shortPostId === safePostId) return primaryPreview;
+  const fallbackPreview = await fetchPreview(shortPostId).catch(() => null);
+  if (!fallbackPreview) return primaryPreview;
+
+  const bestPreview = fallbackPreview.thumbnail_url && !primaryPreview?.thumbnail_url ? fallbackPreview : primaryPreview || fallbackPreview;
+  if (!bestPreview) return primaryPreview;
+  return {
+    ...primaryPreview,
+    ...fallbackPreview,
+    thumbnail_url: fallbackPreview.thumbnail_url || primaryPreview?.thumbnail_url || "",
+    thumbnail_source: fallbackPreview.thumbnail_source || primaryPreview?.thumbnail_source || "",
+    reason_if_missing: fallbackPreview.reason_if_missing || primaryPreview?.reason_if_missing || "",
+  };
 };
 
 const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {} } = {}) => {
