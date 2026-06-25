@@ -3648,10 +3648,13 @@ export default function AiInbox() {
   );
   const isSocialMode = inboxSection === "social_comments";
   const isConversationMode = inboxSection === "conversations";
+  const isAnalyticsMode = inboxSection === "analytics";
   const activeMainItem = isSocialMode
     ? (selectedSocialComment || visibleSocialComments[0] || null)
-    : (selectedConversationThread || visibleConversations[0] || null);
-  const selectedConversation = activeMainItem;
+    : isConversationMode
+      ? (selectedConversationThread || visibleConversations[0] || null)
+      : null;
+  const selectedConversation = isConversationMode ? activeMainItem : null;
   useEffect(() => {
     if (!isSocialMode) {
       if (selectedSocialThread.post || selectedSocialThread.comments.length) {
@@ -3849,6 +3852,10 @@ export default function AiInbox() {
         setSelectedSessionId("");
         setMobileView("chat");
       }
+      return;
+    }
+
+    if (inboxSection !== "conversations") {
       return;
     }
 
@@ -5383,6 +5390,321 @@ export default function AiInbox() {
     setReplyText(composed);
   }, []);
 
+  const renderModeTabs = () => (
+    <div className="mt-3 flex flex-wrap gap-2">
+      <button
+        type="button"
+        onClick={() => {
+          setInboxSection("analytics");
+          setSelectedSocialCommentId("");
+          setSelectedSocialThread({ post: null, comments: [], loading: false, error: "" });
+          setSelectedSessionId("");
+          setMobileView("list");
+        }}
+        className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
+          isAnalyticsMode
+            ? "bg-cyan-300 text-slate-950"
+            : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
+        }`}
+      >
+        <span>Analytics</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setInboxSection("conversations");
+          setSelectedSocialCommentId("");
+          setSelectedSocialThread({ post: null, comments: [], loading: false, error: "" });
+          setSelectedSessionId(conversationPanelConversations[0]?.conversation_key || "");
+          setMobileView("list");
+        }}
+        className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
+          isConversationMode
+            ? "bg-cyan-300 text-slate-950"
+            : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
+        }`}
+      >
+        <span>AI Inbox</span>
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${isConversationMode ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
+          {conversationPanelCount}
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setInboxSection("social_comments");
+          setSelectedSocialCommentId(socialCommentIdentity(visibleSocialComments[0] || {}));
+          setSelectedSessionId("");
+          setSelectedSocialThread({ post: null, comments: [], loading: false, error: "" });
+          setMobileView("chat");
+        }}
+        className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
+          isSocialMode
+            ? "bg-cyan-300 text-slate-950"
+            : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
+        }`}
+      >
+        <span>Social Comments</span>
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${isSocialMode ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
+          {socialCommentsPanelCount}
+        </span>
+      </button>
+    </div>
+  );
+
+  const renderCompactHeader = () => (
+    <section className="shrink-0 rounded-3xl border border-white/10 bg-white/[0.055] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.2)] backdrop-blur">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100">
+            <Bot className="h-4 w-4" />
+            AI Social Media Center
+          </div>
+          <div className="mt-1 text-lg font-black text-white">AI Social Media Center</div>
+          {renderModeTabs()}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={toggleGlobalAiAssistant}
+            disabled={aiAssistantGlobalSaving}
+            className={`inline-flex h-9 items-center justify-center gap-2 rounded-2xl px-3 text-xs font-black transition disabled:opacity-50 ${
+              aiAssistantGlobalEnabled
+                ? "bg-emerald-300 text-slate-950"
+                : "border border-rose-300/20 bg-rose-400/10 text-rose-100"
+            }`}
+          >
+            <Bot className="h-4 w-4" />
+            {aiAssistantGlobalEnabled ? "AI Assistant Global ON" : "AI Assistant Global OFF"}
+          </button>
+          <button type="button" onClick={() => setConsoleOpen(true)} className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.07] px-3 text-xs font-black text-slate-100">
+            <Brain className="h-4 w-4" />
+            سجلات الذكاء الاصطناعي
+          </button>
+          <button type="button" onClick={() => void loadAll({ silent: true })} disabled={loading} className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl bg-cyan-300 px-3 text-xs font-black text-slate-950 disabled:opacity-50">
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            تحديث
+          </button>
+        </div>
+      </div>
+      {!aiAssistantGlobalEnabled ? (
+        <div className="mt-3 inline-flex max-w-full items-center gap-2 rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100">
+          مساعد الذكاء الاصطناعي متوقف على كل المحادثات.
+        </div>
+      ) : null}
+      {error ? <div className="mt-3 rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
+    </section>
+  );
+
+  const renderAnalyticsWorkspace = () => {
+    const analyticsValue = (...paths) => {
+      for (const path of paths) {
+        if (!path) continue;
+        const segments = String(path).split(".");
+        let current = analytics;
+        for (const segment of segments) {
+          current = current?.[segment];
+          if (current === undefined || current === null) break;
+        }
+        if (current !== undefined && current !== null && current !== "") return current;
+      }
+      return null;
+    };
+    const totalComments = asArray(socialComments.items).reduce((sum, item) => sum + Number(item.comments_count || item.comment_count || 0), 0);
+    const newComments = asArray(socialComments.items).reduce((sum, item) => sum + Number(item.new_comments_count || item.new_count || 0), 0);
+    const needsReply = asArray(socialComments.items).filter((item) => Number(item.new_comments_count || item.new_count || 0) > 0).length;
+    const replied = asArray(socialComments.items).filter((item) => clean(item.reply_status || item.auto_reply_mode || item.session_status).toLowerCase() === "sent").length;
+    const replyRate = Number(analyticsValue("reply_rate", "replyRate", "performance.reply_rate", "metrics.reply_rate") || 0);
+    const revenue = analyticsValue("revenue", "total_revenue", "performance.revenue", "metrics.revenue");
+    const performance = analyticsValue("performance.score", "performance_score", "score", "metrics.performance_score");
+    const engagement = analyticsValue("engagement_rate", "engagementRate", "performance.engagement_rate", "metrics.engagement_rate");
+    const cards = [
+      { label: "Total conversations", value: conversations.length, tone: "cyan" },
+      { label: "Unread / needs support", value: conversations.filter((item) => item.unread || item.needs_human_support).length, tone: "amber" },
+      { label: "Reply rate", value: `${Number.isFinite(replyRate) ? replyRate.toFixed(0) : 0}%`, tone: "emerald" },
+      { label: "Auto reply", value: aiAssistantGlobalEnabled ? "ON" : "OFF", tone: aiAssistantGlobalEnabled ? "emerald" : "rose" },
+      { label: "Comment stats", value: `${totalComments} / ${newComments} new`, tone: "violet" },
+      { label: "Revenue", value: revenue ? money(revenue) : "—", tone: "emerald" },
+      { label: "Needs reply", value: needsReply, tone: "amber" },
+      { label: "Replied", value: replied, tone: "cyan" },
+      { label: "Performance", value: performance ? `${Number(performance).toFixed(0)}%` : "—", tone: "zinc" },
+      { label: "Engagement", value: engagement ? `${Number(engagement).toFixed(0)}%` : "—", tone: "violet" },
+    ];
+
+    return (
+      <div className="min-h-0 flex-1 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
+        <div className="grid min-h-0 gap-3 overflow-hidden xl:grid-cols-[minmax(0,1.35fr)_minmax(0,0.95fr)]">
+          <section className="min-h-0 space-y-3 overflow-hidden">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {cards.map((card) => (
+                <div key={card.label} className="rounded-3xl border border-white/10 bg-slate-950/55 p-3">
+                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{card.label}</div>
+                  <div className={`mt-1.5 text-2xl font-black ${card.tone === "emerald" ? "text-emerald-100" : card.tone === "amber" ? "text-amber-100" : card.tone === "rose" ? "text-rose-100" : card.tone === "violet" ? "text-violet-100" : card.tone === "cyan" ? "text-cyan-100" : "text-white"}`}>{card.value}</div>
+                </div>
+              ))}
+            </div>
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+              <div className="rounded-3xl border border-white/10 bg-slate-950/55 p-3">
+                <SectionTitle icon={ArrowUpRight} title="Sales journey" action={<Pill tone="zinc">{leadPipelineSummary.total}</Pill>} />
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  {leadPipelineSummary.funnel.map((item) => (
+                    <div key={item.key} className={`rounded-2xl border px-3 py-2 ${leadStatusTone(item.key) === "rose" ? "border-rose-300/20 bg-rose-400/10 text-rose-100" : leadStatusTone(item.key) === "amber" ? "border-amber-300/20 bg-amber-400/10 text-amber-100" : leadStatusTone(item.key) === "violet" ? "border-violet-300/20 bg-violet-400/10 text-violet-100" : "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"}`}>
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] opacity-80">{item.label}</div>
+                      <div className="mt-1 text-xl font-black leading-none">{leadPipelineSummary.counts[item.key] || 0}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 grid gap-2 md:grid-cols-3">
+                  {leadPipelineSummary.sourceOrder.map((item) => (
+                    <div key={item.key} className="rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{item.label}</div>
+                      <div className="mt-1 text-base font-black text-white">{leadPipelineSummary.sourceCounts[item.key] || 0}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="rounded-3xl border border-white/10 bg-slate-950/55 p-3">
+                  <SectionTitle icon={Sparkles} title="Performance snapshot" />
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <InfoCard label="Reply rate" value={replyRate ? `${replyRate.toFixed(0)}%` : "—"} />
+                    <InfoCard label="Revenue" value={revenue ? money(revenue) : "—"} />
+                    <InfoCard label="Performance" value={performance ? `${Number(performance).toFixed(0)}%` : "—"} />
+                    <InfoCard label="Engagement" value={engagement ? `${Number(engagement).toFixed(0)}%` : "—"} />
+                  </div>
+                </div>
+                <div className="rounded-3xl border border-white/10 bg-slate-950/55 p-3">
+                  <SectionTitle icon={MessageSquareText} title="Comment stats" />
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <InfoCard label="Comments" value={totalComments} />
+                    <InfoCard label="New" value={newComments} />
+                    <InfoCard label="Needs reply" value={needsReply} />
+                    <InfoCard label="Replied" value={replied} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+          <aside className="space-y-3 overflow-hidden">
+            <div className="rounded-3xl border border-white/10 bg-slate-950/55 p-3">
+              <SectionTitle icon={Bot} title="Workspace focus" />
+              <div className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                <p>Analytics now owns every KPI, performance, reply rate, lead funnel, and revenue summary.</p>
+                <p>AI Inbox stays dedicated to WhatsApp, Messenger, Instagram DM, and Web Chat only.</p>
+                <p>Social Comments becomes a dedicated post-thread workspace for comments only.</p>
+              </div>
+            </div>
+            <div className="rounded-3xl border border-white/10 bg-slate-950/55 p-3">
+              <SectionTitle icon={ShieldBan} title="Operational note" />
+              <div className="mt-3 text-sm leading-6 text-slate-300">
+                The yellow assistant warning is only shown when the setting is actually off.
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    );
+  };
+
+  const renderSocialCommentsWorkspaceFrame = () => (
+    <div className="min-h-0 flex-1 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
+      <SocialCommentsWorkspace
+        items={visibleSocialComments}
+        loading={loading || socialComments.loading}
+        error={socialComments.error}
+        selectedPost={selectedSocialComment}
+        selectedThread={selectedSocialThread}
+        selectedTemplate={selectedSocialTemplate}
+        globalSettings={socialReplySettings}
+        onRefresh={() => void loadAll({ silent: true })}
+        onSelectPost={(item, itemKey) => {
+          setSelectedSocialCommentId(itemKey);
+          setSelectedSessionId("");
+          setMobileView("chat");
+        }}
+        onGlobalSettingsChange={setSocialReplySettings}
+        onSaveGlobalSettings={saveSocialReplySettings}
+        onTemplateChange={setSelectedSocialTemplate}
+        onSaveTemplate={saveSocialPostTemplate}
+        onCommentAction={handleSocialCommentAction}
+        selectedPostId={clean(selectedSocialComment?.id || selectedSocialComment?.conversation_id || selectedSocialComment?.post_id || "")}
+        actionLoading={socialCommentActionLoading}
+      />
+    </div>
+  );
+
+  if (isAnalyticsMode) {
+    return (
+      <div dir="rtl" className="min-h-[100dvh] overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)] [padding-top:env(safe-area-inset-top)]">
+        {toast.text ? (
+          <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur ${
+            toast.tone === "rose"
+              ? "border-rose-300/20 bg-rose-400/15 text-rose-100"
+              : toast.tone === "cyan"
+                ? "border-cyan-300/20 bg-cyan-400/15 text-cyan-100"
+                : "border-emerald-300/20 bg-emerald-400/15 text-emerald-100"
+          }`}>{toast.text}</div>
+        ) : null}
+        {consoleOpen ? (
+          <div className="fixed inset-0 z-40 bg-slate-950/70 p-3 backdrop-blur-sm md:p-6">
+            <div className="ml-auto flex h-full w-full max-w-3xl flex-col rounded-3xl bg-slate-950 p-4 shadow-2xl ring-1 ring-white/10">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-black uppercase tracking-[0.14em] text-cyan-100">Developer Console</div>
+                  <div className="text-xs text-slate-500">Live AI operational logs</div>
+                </div>
+                <button type="button" onClick={() => setConsoleOpen(false)} className="h-9 rounded-xl bg-white/[0.07] px-3 text-xs font-black text-slate-100 ring-1 ring-white/10">Close</button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <AILiveLogs tenantId={tenantId} headers={headers} enabled={consoleOpen} />
+              </div>
+            </div>
+          </div>
+        ) : null}
+        <div className="mx-auto flex h-[100dvh] max-w-[96rem] flex-col gap-2 overflow-hidden p-2 md:p-3">
+          {renderCompactHeader()}
+          {renderAnalyticsWorkspace()}
+        </div>
+      </div>
+    );
+  }
+
+  if (isSocialMode) {
+    return (
+      <div dir="rtl" className="min-h-[100dvh] overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)] [padding-top:env(safe-area-inset-top)]">
+        {toast.text ? (
+          <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur ${
+            toast.tone === "rose"
+              ? "border-rose-300/20 bg-rose-400/15 text-rose-100"
+              : toast.tone === "cyan"
+                ? "border-cyan-300/20 bg-cyan-400/15 text-cyan-100"
+                : "border-emerald-300/20 bg-emerald-400/15 text-emerald-100"
+          }`}>{toast.text}</div>
+        ) : null}
+        {consoleOpen ? (
+          <div className="fixed inset-0 z-40 bg-slate-950/70 p-3 backdrop-blur-sm md:p-6">
+            <div className="ml-auto flex h-full w-full max-w-3xl flex-col rounded-3xl bg-slate-950 p-4 shadow-2xl ring-1 ring-white/10">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-black uppercase tracking-[0.14em] text-cyan-100">Developer Console</div>
+                  <div className="text-xs text-slate-500">Live AI operational logs</div>
+                </div>
+                <button type="button" onClick={() => setConsoleOpen(false)} className="h-9 rounded-xl bg-white/[0.07] px-3 text-xs font-black text-slate-100 ring-1 ring-white/10">Close</button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <AILiveLogs tenantId={tenantId} headers={headers} enabled={consoleOpen} />
+              </div>
+            </div>
+          </div>
+        ) : null}
+        <div className="mx-auto flex h-[100dvh] max-w-[96rem] flex-col gap-2 overflow-hidden p-2 md:p-3">
+          {renderCompactHeader()}
+          {renderSocialCommentsWorkspaceFrame()}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div dir="rtl" className="min-h-[100dvh] overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)] [padding-top:env(safe-area-inset-top)]">
       {toast.text ? (
@@ -5441,90 +5763,9 @@ export default function AiInbox() {
             {inboxSection}:{visibleConversations.length}:{visibleSocialComments.length}
           </div>
         ) : null}
-      <section className={`${fullscreenConversation ? "hidden" : "shrink-0"} rounded-3xl border border-white/10 bg-white/[0.055] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.2)] backdrop-blur`}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100">
-                <Bot className="h-4 w-4" />
-                AI Social Media Center
-              </div>
-              <div className="mt-1 text-xl font-black text-white">مركز قيادة المبيعات</div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInboxSection("conversations");
-                    setSelectedSocialCommentId("");
-                    setSelectedSocialThread({ post: null, comments: [], loading: false, error: "" });
-                    setSelectedSessionId(conversationPanelConversations[0]?.conversation_key || "");
-                    setMobileView("list");
-                  }}
-                  className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
-                    inboxSection === "conversations"
-                      ? "bg-cyan-300 text-slate-950"
-                      : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
-                  }`}
-                >
-                  <span>AI Inbox</span>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${inboxSection === "conversations" ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
-                    {conversationPanelCount}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInboxSection("social_comments");
-                    setSelectedSocialCommentId(socialCommentIdentity(visibleSocialComments[0] || {}));
-                    setSelectedSessionId("");
-                    setSelectedSocialThread({ post: null, comments: [], loading: false, error: "" });
-                    setMobileView("chat");
-                  }}
-                  className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
-                    inboxSection === "social_comments"
-                      ? "bg-cyan-300 text-slate-950"
-                      : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
-                  }`}
-                >
-                  <span>Social Comments</span>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${inboxSection === "social_comments" ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
-                    {socialCommentsPanelCount}
-                  </span>
-                </button>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={toggleGlobalAiAssistant}
-                  disabled={aiAssistantGlobalSaving}
-                  className={`inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-3 text-xs font-black transition disabled:opacity-50 ${
-                  aiAssistantGlobalEnabled
-                    ? "bg-emerald-300 text-slate-950"
-                    : "border border-rose-300/20 bg-rose-400/10 text-rose-100"
-                }`}
-              >
-                <Bot className="h-4 w-4" />
-                {aiAssistantGlobalEnabled ? "AI Assistant Global ON" : "AI Assistant Global OFF"}
-              </button>
-              <button type="button" onClick={() => setConsoleOpen(true)} className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.07] px-3 text-xs font-black text-slate-100">
-                <Brain className="h-4 w-4" />
-                سجلات الذكاء الاصطناعي
-              </button>
-              <button type="button" onClick={loadAll} disabled={loading} className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-cyan-300 px-3 text-xs font-black text-slate-950 disabled:opacity-50">
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                تحديث
-              </button>
-            </div>
-          </div>
-          {!aiAssistantGlobalEnabled ? (
-            <div className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-sm font-black text-amber-100">
-              مساعد الذكاء الاصطناعي متوقف على كل المحادثات.
-            </div>
-          ) : null}
-          {error ? <div className="mt-3 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
-        </section>
+      {renderCompactHeader()}
 
-        <details className={`${fullscreenConversation || isSocialMode ? "hidden" : "shrink-0"} rounded-3xl border border-white/10 bg-white/[0.045] shadow-[0_14px_40px_rgba(0,0,0,0.16)]`}>
+        <details className="hidden rounded-3xl border border-white/10 bg-white/[0.045] shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
             <div>
               <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">مؤشرات مركز المبيعات</div>
@@ -5543,7 +5784,7 @@ export default function AiInbox() {
           </div>
         </details>
 
-        <section className={`${fullscreenConversation || isSocialMode ? "hidden" : "shrink-0"} rounded-3xl border border-white/10 bg-white/[0.045] p-2.5 shadow-[0_14px_40px_rgba(0,0,0,0.16)]`}>
+        <section className="hidden rounded-3xl border border-white/10 bg-white/[0.045] p-2.5 shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
