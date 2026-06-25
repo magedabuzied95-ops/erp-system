@@ -768,7 +768,8 @@ function SocialCommentsWorkspace({
                       </div>
                     ) : null}
 
-                    {visibleComments.map((comment) => {
+                    {visibleComments.map((rawComment) => {
+                      const comment = rawComment || {};
                       const key = commentKey(comment);
                       const status = clean(classifyComment(comment));
                       const avatar = selectFirst(comment.commenter_profile_picture_url, comment.customer_avatar_url, comment.avatar_url, comment.profile_pic);
