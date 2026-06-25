@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarClock,
@@ -77,6 +78,7 @@ export default function SocialMediaPublisher() {
   const [mediaType, setMediaType] = useState("image");
   const [platforms, setPlatforms] = useState({ facebook: true, instagram: false, tiktok: false });
   const [createSource, setCreateSource] = useState("device");
+  const [previewOpen, setPreviewOpen] = useState(false);
   const mediaInputRef = useRef(null);
   const canCreate = hasPermission("marketing.create");
   const canPublish = hasPermission("marketing.publish");
@@ -482,37 +484,6 @@ export default function SocialMediaPublisher() {
                 </div>
               </div>
 
-              <section className="space-y-4 rounded-[2rem] border border-white/10 bg-white/[0.035] p-5 md:p-6">
-                <div className="flex items-center gap-2">
-                  <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-2 text-cyan-100">
-                    <ImageIcon className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-black text-white">{t("marketing.socialPublisher.preview")}</div>
-                    <div className="text-xs text-slate-400">{t("marketing.socialPublisher.previewSubtitle")}</div>
-                  </div>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/50 p-4">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Publishing Account</div>
-                    <div className="mt-3 space-y-3 text-sm">
-                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
-                        <span className="text-slate-400">Facebook</span>
-                        <span className="font-semibold text-white">M1 Store</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
-                        <span className="text-slate-400">Instagram</span>
-                        <span className="font-semibold text-white">M1 Store</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="grid gap-4 xl:grid-cols-2">
-                  {renderPreviewCard(t("marketing.socialPublisher.facebookPreview"), "border-[#1877F2]/20", t("marketing.socialPublisher.facebookPreviewHint"))}
-                  {renderPreviewCard(t("marketing.socialPublisher.instagramPreview"), "border-fuchsia-400/20", t("marketing.socialPublisher.instagramPreviewHint"))}
-                </div>
-              </section>
-
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="space-y-2">
                   <span className="text-sm font-semibold text-slate-200">{t("marketing.socialPublisher.schedule")}</span>
@@ -535,7 +506,36 @@ export default function SocialMediaPublisher() {
                 </div>
               </div>
 
-              <div className="sticky bottom-0 z-20 mt-2 grid grid-cols-2 gap-2 border-t border-white/10 bg-[#07111f]/96 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-4 backdrop-blur md:static md:flex md:items-center md:justify-end md:gap-3 md:bg-transparent md:px-0 md:pb-0 md:pt-4">
+              <div className="grid gap-3 md:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={() => setPreviewOpen(true)}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300/40 hover:bg-cyan-400/15"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                  {t("marketing.socialPublisher.preview")}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSchedule}
+                  disabled={saving || !canCreate || !selectedPlatforms.length}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
+                  {t("marketing.socialPublisher.schedule")}
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePublishNow}
+                  disabled={saving || !canCreate || !canPublish || !selectedPlatforms.length}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {t("marketing.socialPublisher.publishNow")}
+                </button>
+              </div>
+
+              <div className="sticky bottom-0 z-20 mt-2 grid grid-cols-2 gap-2 border-t border-white/10 bg-[#07111f]/96 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-4 backdrop-blur md:hidden">
                 <button
                   type="button"
                   onClick={handleSchedule}
@@ -652,6 +652,120 @@ export default function SocialMediaPublisher() {
           </section>
         </div>
       </div>
+
+      {previewOpen
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/70 p-0 backdrop-blur-sm md:items-center md:p-4"
+              role="presentation"
+              onClick={() => setPreviewOpen(false)}
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Preview post"
+                className="flex h-full w-full max-w-6xl flex-col overflow-hidden bg-[#07111f] text-white shadow-2xl shadow-black/60 md:h-[92vh] md:rounded-[2rem] md:border md:border-white/10"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 md:px-6">
+                  <div className="min-w-0">
+                    <div className="text-sm font-black uppercase tracking-[0.22em] text-amber-100">{t("marketing.socialPublisher.preview")}</div>
+                    <div className="text-xs text-slate-400">{t("marketing.socialPublisher.previewSubtitle")}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewOpen(false)}
+                    className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6">
+                  <div className="grid gap-4 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+                    <div className="space-y-3 rounded-[1.75rem] border border-white/10 bg-slate-950/60 p-4">
+                      <div className="text-sm font-black text-white">Publishing Account</div>
+                      <div className="space-y-3 text-sm">
+                        <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                          <span className="text-slate-400">Facebook</span>
+                          <span className="font-semibold text-white">M1 Store</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                          <span className="text-slate-400">Instagram</span>
+                          <span className="font-semibold text-white">M1 Store</span>
+                        </div>
+                      </div>
+
+                      <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-4">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Post Details</div>
+                        <div className="mt-3 space-y-2 text-sm text-slate-300">
+                          <div className="flex items-center justify-between gap-3">
+                            <span>Media</span>
+                            <span className="font-semibold text-white">{mediaFile ? mediaType : "none"}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span>Platforms</span>
+                            <span className="font-semibold text-white">{selectedPlatforms.length ? selectedPlatforms.join(", ") : "-"}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span>Status</span>
+                            <span className="font-semibold text-white">Draft</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {renderPreviewCard(
+                          t("marketing.socialPublisher.facebookPreview"),
+                          "border-[#1877F2]/20",
+                          t("marketing.socialPublisher.facebookPreviewHint")
+                        )}
+                        {renderPreviewCard(
+                          t("marketing.socialPublisher.instagramPreview"),
+                          "border-fuchsia-400/20",
+                          t("marketing.socialPublisher.instagramPreviewHint")
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="sticky bottom-0 border-t border-white/10 bg-[#07111f]/98 px-4 py-4 backdrop-blur md:px-6">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <button
+                      type="button"
+                      onClick={handleSchedule}
+                      disabled={saving || !canCreate || !selectedPlatforms.length}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
+                      {t("marketing.socialPublisher.schedule")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handlePublishNow}
+                      disabled={saving || !canCreate || !canPublish || !selectedPlatforms.length}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      {t("marketing.socialPublisher.publishNow")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewOpen(false)}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1]"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }
