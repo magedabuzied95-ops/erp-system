@@ -268,7 +268,7 @@ function SocialCommentsWorkspace({
 
   return (
     <section className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] text-white shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
-      <div className="grid h-full min-h-0 w-full min-w-0 gap-3 p-3 min-[1280px]:grid-cols-[320px_minmax(0,1fr)_360px]">
+      <div className="grid h-full min-h-0 w-full min-w-0 gap-3 p-3 min-[1024px]:grid-cols-[320px_minmax(0,1fr)] min-[1280px]:grid-cols-[320px_minmax(0,1fr)_360px]">
         <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/55">
           <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-3">
             <div className="min-w-0">
@@ -665,7 +665,7 @@ function SocialCommentsWorkspace({
                 </div>
               </section>
 
-              <aside className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/55 p-3">
+              <aside className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/55 p-3 min-[1024px]:col-span-2 min-[1280px]:col-span-1">
                 <div className="rounded-[22px] border border-white/10 bg-slate-950/70 p-3">
                   <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">AI Assistant</div>
                   <div className="mt-2 space-y-2 text-sm text-slate-200">

@@ -172,6 +172,9 @@ export const getSocialPublisherPostRow = async ({ tenantId, id } = {}) => {
 };
 
 export const listSocialPublisherMetaAccounts = async ({ tenantId } = {}) => {
+  console.log("[social-publisher-meta-accounts-service-hit]", {
+    tenant: Number(tenantId || 1) || 1,
+  });
   await ensureMarketingSchema();
   const scopedTenantId = Number(tenantId || 1) || 1;
   console.log("[social-publisher-meta-accounts] start", { tenant: scopedTenantId });

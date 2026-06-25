@@ -66,6 +66,11 @@ router.get(
   protect,
   permit("marketing", "view"),
   async (req, res) => {
+    console.log("[social-publisher-meta-accounts-route-hit]", {
+      tenant: getTenantId(req, req.user?.tenant_id) || 1,
+      user_id: req.user?.id || req.user?.user_id || null,
+      url: req.originalUrl || req.url || "",
+    });
     try {
       const tenantId = getTenantId(req, req.user?.tenant_id) || 1;
       console.log("[social-publisher-meta-accounts] route_entered", {
