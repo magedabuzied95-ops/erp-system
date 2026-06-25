@@ -194,23 +194,23 @@ function SocialCommentsWorkspace({
   };
 
   return (
-    <section className="min-h-0 flex-1 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <section className="min-h-0 flex-1 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100">
-            <MessageSquareText className="h-4 w-4" />
+            <MessageSquareText className="h-3.5 w-3.5" />
             AI Social Media Center
           </div>
-          <div className="mt-1 text-[22px] font-black text-white">Social Comments</div>
-          <div className="mt-1 text-sm text-slate-400">Post-based workspace for comments, auto replies, and summaries.</div>
+          <div className="mt-1 text-[18px] font-black text-white">Social Comments</div>
+          <div className="mt-0.5 text-xs text-slate-400">Post-based workspace for comments, auto replies, and summaries.</div>
         </div>
         <button
           type="button"
           onClick={onRefresh}
           disabled={loading}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-cyan-300 px-4 text-sm font-black text-slate-950 disabled:opacity-50"
+          className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl bg-cyan-300 px-3 text-xs font-black text-slate-950 disabled:opacity-50"
         >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
           تحديث
         </button>
       </div>
@@ -221,32 +221,32 @@ function SocialCommentsWorkspace({
         </div>
       ) : null}
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
           <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Total comments</div>
-          <div className="mt-2 text-3xl font-black text-white">{dashboard.totalComments}</div>
+          <div className="mt-1.5 text-2xl font-black text-white">{dashboard.totalComments}</div>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
           <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">New comments</div>
-          <div className="mt-2 text-3xl font-black text-cyan-100">{dashboard.newComments}</div>
+          <div className="mt-1.5 text-2xl font-black text-cyan-100">{dashboard.newComments}</div>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
           <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Needs reply</div>
-          <div className="mt-2 text-3xl font-black text-amber-100">{dashboard.needsReply}</div>
+          <div className="mt-1.5 text-2xl font-black text-amber-100">{dashboard.needsReply}</div>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
           <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Replied</div>
-          <div className="mt-2 text-3xl font-black text-violet-100">{dashboard.replied}</div>
+          <div className="mt-1.5 text-2xl font-black text-violet-100">{dashboard.replied}</div>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
           <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Auto reply status</div>
-          <div className="mt-2 text-2xl font-black text-emerald-100">{globalSettings.generic_enabled ? "ON" : "OFF"}</div>
-          <div className="mt-1 text-xs font-semibold text-slate-400">Mode: {clean(globalSettings.mode || "manual_approval")}</div>
+          <div className="mt-1.5 text-xl font-black text-emerald-100">{globalSettings.generic_enabled ? "ON" : "OFF"}</div>
+          <div className="mt-1 text-[11px] font-semibold text-slate-400">Mode: {clean(globalSettings.mode || "manual_approval")}</div>
         </div>
       </div>
 
-      <div className="mt-4 grid min-h-0 gap-3 xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)_minmax(0,360px)]">
-        <aside className="min-h-0 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/55 p-3">
+      <div className="mt-3 grid min-h-0 gap-2 xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)_minmax(0,340px)]">
+        <aside className="min-h-0 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/55 p-2.5">
           <div className="flex items-center justify-between gap-2">
             <div>
               <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Posts</div>
@@ -264,7 +264,7 @@ function SocialCommentsWorkspace({
             ) : null}
           </div>
 
-          <div className="mt-3 max-h-[38rem] space-y-2 overflow-y-auto pr-1 xl:max-h-[calc(100vh-21rem)]">
+          <div className="mt-2.5 max-h-[34rem] space-y-2 overflow-y-auto pr-1 xl:max-h-[calc(100vh-19rem)]">
             {!posts.length && !loading ? (
               <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-500">
                 لا توجد منشورات متاحة حاليًا
@@ -327,25 +327,25 @@ function SocialCommentsWorkspace({
 
         <main className="min-h-0 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-3 shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
           {activePost ? (
-            <div className="flex min-h-0 h-full flex-col gap-3">
+            <div className="flex min-h-0 h-full flex-col gap-2.5">
               <div className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70">
                 <div className="aspect-[16/10] w-full bg-slate-900">
                   {getPostImage(activePost) ? <img src={getPostImage(activePost)} alt="" className="h-full w-full object-cover" loading="lazy" /> : <div className="grid h-full w-full place-items-center text-slate-500"><ImageIcon className="h-12 w-12" /></div>}
                 </div>
-                <div className="p-4">
+                <div className="p-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">
                         {clean(activePost.platform).toLowerCase().includes("instagram") ? "Instagram Post" : "Facebook Post"}
                       </div>
-                      <h2 className="mt-1 line-clamp-3 text-xl font-black text-white">{getPostCaption(activePost) || "Post"}</h2>
+                      <h2 className="mt-1 line-clamp-3 text-lg font-black text-white">{getPostCaption(activePost) || "Post"}</h2>
                     </div>
                     {clean(activePost.post_permalink || activePost.post_permalink_url || activePost.permalink_url || activePost.post_url) ? (
                       <a
                         href={clean(activePost.post_permalink || activePost.post_permalink_url || activePost.permalink_url || activePost.post_url)}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex h-10 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-sm font-black text-cyan-100"
+                        className="inline-flex h-9 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100"
                       >
                         فتح البوست
                         <ExternalLink className="h-4 w-4" />
@@ -353,7 +353,7 @@ function SocialCommentsWorkspace({
                     ) : null}
                   </div>
 
-                  <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                     <InfoCard label="Platform" value={platformMeta(activePost.platform).label} />
                     <InfoCard label="Comments" value={Number(activePost.comments_count || 0)} />
                     <InfoCard label="New" value={Number(activePost.new_comments_count || 0)} />
@@ -364,8 +364,8 @@ function SocialCommentsWorkspace({
                 </div>
               </div>
 
-              <div className="flex min-h-0 flex-1 flex-col gap-3 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
-                <section className="min-h-0 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/55 p-3">
+              <div className="flex min-h-0 flex-1 flex-col gap-2.5 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,340px)]">
+                <section className="min-h-0 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/55 p-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <div>
                       <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Comments Timeline</div>
@@ -376,7 +376,7 @@ function SocialCommentsWorkspace({
                   {activeThread.error ? (
                     <div className="mt-3 rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{activeThread.error}</div>
                   ) : null}
-                  <div className="mt-3 max-h-[28rem] space-y-2 overflow-y-auto pr-1 xl:max-h-[calc(100vh-29rem)]">
+                  <div className="mt-2.5 max-h-[24rem] space-y-2 overflow-y-auto pr-1 xl:max-h-[calc(100vh-24rem)]">
                     {!comments.length && !activeThread.loading ? (
                       <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-500">
                         لا توجد تعليقات سوشيال حاليًا

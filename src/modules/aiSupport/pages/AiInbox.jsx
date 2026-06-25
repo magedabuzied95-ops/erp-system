@@ -60,7 +60,7 @@ import AIStatusBadge from "../../../components/ai/AIStatusBadge";
 import AILiveLogs from "../../../components/ai/AILiveLogs";
 import TranscriptMessage from "../components/TranscriptMessage";
 import ProductCardPicker from "../components/ProductCardPicker";
-import SocialCommentsWorkspace from "../components/SocialCommentsWorkspace";
+import SocialCommentsWorkspace from "../components/SocialCommentsWorkspace.jsx";
 import { useTenant } from "../../saas/context/TenantContext";
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -5441,7 +5441,7 @@ export default function AiInbox() {
             {inboxSection}:{visibleConversations.length}:{visibleSocialComments.length}
           </div>
         ) : null}
-        <section className={`${fullscreenConversation ? "hidden" : "shrink-0"} rounded-3xl border border-white/10 bg-white/[0.055] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.2)] backdrop-blur`}>
+      <section className={`${fullscreenConversation ? "hidden" : "shrink-0"} rounded-3xl border border-white/10 bg-white/[0.055] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.2)] backdrop-blur`}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100">
@@ -5449,6 +5449,48 @@ export default function AiInbox() {
                 AI Social Media Center
               </div>
               <div className="mt-1 text-xl font-black text-white">مركز قيادة المبيعات</div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInboxSection("conversations");
+                    setSelectedSocialCommentId("");
+                    setSelectedSocialThread({ post: null, comments: [], loading: false, error: "" });
+                    setSelectedSessionId(conversationPanelConversations[0]?.conversation_key || "");
+                    setMobileView("list");
+                  }}
+                  className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
+                    inboxSection === "conversations"
+                      ? "bg-cyan-300 text-slate-950"
+                      : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
+                  }`}
+                >
+                  <span>AI Inbox</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${inboxSection === "conversations" ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
+                    {conversationPanelCount}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInboxSection("social_comments");
+                    setSelectedSocialCommentId(socialCommentIdentity(visibleSocialComments[0] || {}));
+                    setSelectedSessionId("");
+                    setSelectedSocialThread({ post: null, comments: [], loading: false, error: "" });
+                    setMobileView("chat");
+                  }}
+                  className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-black transition ${
+                    inboxSection === "social_comments"
+                      ? "bg-cyan-300 text-slate-950"
+                      : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
+                  }`}
+                >
+                  <span>Social Comments</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${inboxSection === "social_comments" ? "bg-slate-950/15 text-slate-950" : "bg-white/10 text-slate-200"}`}>
+                    {socialCommentsPanelCount}
+                  </span>
+                </button>
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
                 <button
@@ -5482,7 +5524,7 @@ export default function AiInbox() {
           {error ? <div className="mt-3 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
         </section>
 
-        <details className={`${fullscreenConversation ? "hidden" : "shrink-0"} rounded-3xl border border-white/10 bg-white/[0.045] shadow-[0_14px_40px_rgba(0,0,0,0.16)]`}>
+        <details className={`${fullscreenConversation || isSocialMode ? "hidden" : "shrink-0"} rounded-3xl border border-white/10 bg-white/[0.045] shadow-[0_14px_40px_rgba(0,0,0,0.16)]`}>
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
             <div>
               <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">مؤشرات مركز المبيعات</div>
@@ -5501,7 +5543,7 @@ export default function AiInbox() {
           </div>
         </details>
 
-        <section className={`${fullscreenConversation ? "hidden" : "shrink-0"} rounded-3xl border border-white/10 bg-white/[0.045] p-2.5 shadow-[0_14px_40px_rgba(0,0,0,0.16)]`}>
+        <section className={`${fullscreenConversation || isSocialMode ? "hidden" : "shrink-0"} rounded-3xl border border-white/10 bg-white/[0.045] p-2.5 shadow-[0_14px_40px_rgba(0,0,0,0.16)]`}>
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -5567,7 +5609,7 @@ export default function AiInbox() {
             />
           </div>
 
-	          <aside className={`flex min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)] md:w-[300px] md:max-w-[300px] xl:w-[20%] xl:max-w-[20%] ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
+	          <aside className={`${isSocialMode ? "hidden" : ""} flex min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)] md:w-[300px] md:max-w-[300px] xl:w-[20%] xl:max-w-[20%] ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
 	            <div className="shrink-0 space-y-3">
 	              <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-2">
 	                <div className="grid grid-cols-2 gap-2">
