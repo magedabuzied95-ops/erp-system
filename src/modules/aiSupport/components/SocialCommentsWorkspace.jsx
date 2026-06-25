@@ -56,12 +56,15 @@ const platformMeta = (platform = "") => {
 const getPostImage = (post = {}) =>
   clean(
     post.post_full_picture ||
+      post.attachment_image ||
+      post.post_thumbnail ||
       post.full_picture ||
       post.product_image_url ||
       post.product_image ||
       post.thumbnail_url ||
       post.image_url ||
-      post.image
+      post.image ||
+      getAttachmentImage(post)
   );
 
 const getPostCaption = (post = {}) =>
@@ -111,6 +114,58 @@ const templatePreviewText = (template = {}, context = {}) => {
     const key = (leftKey || rightKey || "").toLowerCase();
     return clean(context[key] ?? context[key.replace(/_([a-z])/g, (_m, letter) => letter.toUpperCase())] ?? "");
   });
+};
+
+const getAttachmentImage = (post = {}) => {
+  const attachments = Array.isArray(post.attachments?.data)
+    ? post.attachments.data
+    : Array.isArray(post.attachments)
+      ? post.attachments
+      : Array.isArray(post.attachment?.data)
+        ? post.attachment.data
+        : Array.isArray(post.attachment)
+          ? post.attachment
+          : [];
+  for (const attachment of attachments) {
+    const image =
+      attachment?.media?.image?.src ||
+      attachment?.media?.image_url ||
+      attachment?.media?.source ||
+      attachment?.subattachments?.data?.[0]?.media?.image?.src ||
+      attachment?.subattachments?.data?.[0]?.media?.image_url ||
+      attachment?.subattachments?.[0]?.media?.image?.src ||
+      attachment?.subattachments?.[0]?.media?.image_url ||
+      "";
+    if (clean(image)) return clean(image);
+  }
+  return "";
+};
+
+const getCommentBucket = (comment = {}) => {
+  const classification = clean(comment.classification_label || comment.reply_status || comment.auto_reply_mode || "").toLowerCase();
+  const textValue = clean(comment.customer_message || comment.message_text || comment.original_comment_text || comment.text || comment.message || "");
+  const haystack = `${classification} ${textValue}`.toLowerCase();
+  if (classification === "lead_price" || /(price|سعر|ثمن|بكام|كم)/i.test(haystack)) return "Price";
+  if (classification === "lead_size" || /(size|مقاس|المقاس)/i.test(haystack)) return "Size";
+  if (classification === "lead_shipping" || /(shipping|شحن|توصيل)/i.test(haystack)) return "Shipping";
+  if (classification === "lead_details" || /(details|تفاصيل|معلومات)/i.test(haystack)) return "Question";
+  if (classification === "lead_inbox" || /(جاهز|buy|order|عاوز|أريد|طلب)/i.test(haystack)) return "Lead";
+  if (classification === "ignore" || classification === "engagement_only") return "Spam";
+  return "Question";
+};
+
+const getCommentTags = (comment = {}) => {
+  const tags = new Set();
+  const bucket = getCommentBucket(comment);
+  if (bucket) tags.add(bucket);
+  const classification = clean(comment.classification_label || "").toLowerCase();
+  if (classification === "human_review") tags.add("Question");
+  if (classification === "lead_inbox") tags.add("Lead");
+  if (classification === "ignore") tags.add("Spam");
+  if (/(price|سعر|ثمن|بكام|كم)/i.test(clean(comment.customer_message || comment.message_text || comment.original_comment_text || comment.text || comment.message || ""))) tags.add("Price");
+  if (/(size|مقاس|المقاس)/i.test(clean(comment.customer_message || comment.message_text || comment.original_comment_text || comment.text || comment.message || ""))) tags.add("Size");
+  if (/(shipping|شحن|توصيل)/i.test(clean(comment.customer_message || comment.message_text || comment.original_comment_text || comment.text || comment.message || ""))) tags.add("Shipping");
+  return Array.from(tags).slice(0, 4);
 };
 
 function SocialCommentsWorkspace({
@@ -175,6 +230,14 @@ function SocialCommentsWorkspace({
     return { mostFrequentQuestion, priceQuestions, sizeQuestions, readyCustomers, buckets };
   }, [comments]);
 
+  const suggestionTemplate = activeTemplate || { template: globalSettings.generic_template || "" };
+  const suggestedReply = templatePreviewText(suggestionTemplate, postContext);
+  const templateUsed = activeTemplate?.enabled
+    ? "Post template"
+    : globalSettings.generic_enabled
+      ? "Generic template"
+      : "Manual reply";
+
   const postContext = {
     customer_name: clean(comments[0]?.commenter_name || comments[0]?.customer_name || "Customer"),
     product_name: clean(activePost?.product_name || ""),
@@ -221,31 +284,30 @@ function SocialCommentsWorkspace({
         </div>
       ) : null}
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Total comments</div>
-          <div className="mt-1.5 text-2xl font-black text-white">{dashboard.totalComments}</div>
+      <div className="mt-3 grid gap-2 md:grid-cols-5">
+        <div className="rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2.5">
+          <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Total</div>
+          <div className="mt-1 text-lg font-black text-white">{dashboard.totalComments}</div>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">New comments</div>
-          <div className="mt-1.5 text-2xl font-black text-cyan-100">{dashboard.newComments}</div>
+        <div className="rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2.5">
+          <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">New</div>
+          <div className="mt-1 text-lg font-black text-cyan-100">{dashboard.newComments}</div>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Needs reply</div>
-          <div className="mt-1.5 text-2xl font-black text-amber-100">{dashboard.needsReply}</div>
+        <div className="rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2.5">
+          <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Needs reply</div>
+          <div className="mt-1 text-lg font-black text-amber-100">{dashboard.needsReply}</div>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Replied</div>
-          <div className="mt-1.5 text-2xl font-black text-violet-100">{dashboard.replied}</div>
+        <div className="rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2.5">
+          <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Replied</div>
+          <div className="mt-1 text-lg font-black text-violet-100">{dashboard.replied}</div>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-3">
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Auto reply status</div>
-          <div className="mt-1.5 text-xl font-black text-emerald-100">{globalSettings.generic_enabled ? "ON" : "OFF"}</div>
-          <div className="mt-1 text-[11px] font-semibold text-slate-400">Mode: {clean(globalSettings.mode || "manual_approval")}</div>
+        <div className="rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2.5">
+          <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Auto reply</div>
+          <div className="mt-1 text-base font-black text-emerald-100">{globalSettings.generic_enabled ? "ON" : "OFF"}</div>
         </div>
       </div>
 
-      <div className="mt-3 grid min-h-0 gap-2 xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)_minmax(0,340px)]">
+      <div className="mt-3 grid min-h-0 gap-2 xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)_minmax(0,360px)]">
         <aside className="min-h-0 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/55 p-2.5">
           <div className="flex items-center justify-between gap-2">
             <div>
@@ -293,8 +355,19 @@ function SocialCommentsWorkspace({
                   }`}
                 >
                   <div className="flex gap-3">
-                    <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
-                      {thumb ? <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" /> : <div className="grid h-full w-full place-items-center text-slate-500"><ImageIcon className="h-5 w-5" /></div>}
+                    <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
+                      {thumb ? (
+                        <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" />
+                      ) : (
+                        <div className="grid h-full w-full place-items-center bg-gradient-to-br from-cyan-400/10 via-slate-950 to-slate-900 text-slate-400">
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.05] ring-1 ring-white/10">
+                              <ImageIcon className="h-4 w-4" />
+                            </span>
+                            <span className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">No image</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
@@ -329,8 +402,21 @@ function SocialCommentsWorkspace({
           {activePost ? (
             <div className="flex min-h-0 h-full flex-col gap-2.5">
               <div className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70">
-                <div className="aspect-[16/10] w-full bg-slate-900">
-                  {getPostImage(activePost) ? <img src={getPostImage(activePost)} alt="" className="h-full w-full object-cover" loading="lazy" /> : <div className="grid h-full w-full place-items-center text-slate-500"><ImageIcon className="h-12 w-12" /></div>}
+                <div className="max-h-[24rem] w-full overflow-hidden bg-slate-900">
+                  <div className="aspect-[16/9] w-full">
+                    {getPostImage(activePost) ? (
+                      <img src={getPostImage(activePost)} alt="" className="h-full w-full object-cover" loading="lazy" />
+                    ) : (
+                      <div className="grid h-full w-full place-items-center bg-gradient-to-br from-cyan-400/10 via-slate-950 to-slate-900 text-slate-500">
+                        <div className="flex flex-col items-center gap-3">
+                          <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-white/[0.05] ring-1 ring-white/10">
+                            <Sparkles className="h-6 w-6 text-cyan-100" />
+                          </span>
+                          <span className="text-sm font-black uppercase tracking-[0.16em] text-slate-400">No preview image</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="p-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -388,6 +474,7 @@ function SocialCommentsWorkspace({
                       const avatar = clean(comment.commenter_profile_picture_url || comment.customer_avatar_url || comment.avatar_url || comment.profile_pic || "");
                       const name = clean(comment.customer_name || comment.commenter_name || comment.from_name || "Customer");
                       const text = clean(comment.customer_message || comment.message_text || comment.original_comment_text || comment.text || comment.message || "بدون نص");
+                      const tags = getCommentTags(comment);
                       const actionBusy = actionLoading === key;
                       return (
                         <article key={key || `${comment.created_at || ""}:${name}`} className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
@@ -413,6 +500,23 @@ function SocialCommentsWorkspace({
                                 </span>
                               </div>
                               <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">{text}</div>
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {tags.map((tag) => (
+                                  <span key={tag} className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${
+                                    tag === "Price"
+                                      ? "border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
+                                      : tag === "Size"
+                                        ? "border-violet-300/20 bg-violet-400/10 text-violet-100"
+                                        : tag === "Shipping"
+                                          ? "border-amber-300/20 bg-amber-400/10 text-amber-100"
+                                          : tag === "Lead"
+                                            ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
+                                            : "border-white/10 bg-white/[0.04] text-slate-300"
+                                  }`}>
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
                               <div className="mt-3 flex flex-wrap gap-2">
                                 <button
                                   type="button"
@@ -460,6 +564,44 @@ function SocialCommentsWorkspace({
                 </section>
 
                 <aside className="space-y-3">
+                  <div className="rounded-3xl border border-white/10 bg-slate-950/55 p-3">
+                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">AI Assistant</div>
+                    <div className="mt-3 space-y-2 text-sm text-slate-200">
+                      <SummaryLine label="Most asked question" value={labelText(aiSummary.mostFrequentQuestion)} icon={<Sparkles className="h-4 w-4 text-cyan-100" />} />
+                      <SummaryLine label="Suggested reply" value={suggestedReply || "No suggestion yet."} icon={<MessageSquareText className="h-4 w-4 text-emerald-100" />} />
+                      <SummaryLine label="Lead intent" value={`${aiSummary.readyCustomers} ready / ${aiSummary.priceQuestions} price / ${aiSummary.sizeQuestions} size`} icon={<ThumbsUp className="h-4 w-4 text-violet-100" />} />
+                      <SummaryLine label="Template used" value={templateUsed} icon={<Send className="h-4 w-4 text-amber-100" />} />
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!suggestedReply) return;
+                          navigator?.clipboard?.writeText?.(suggestedReply).catch(() => {});
+                        }}
+                        disabled={!suggestedReply}
+                        className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
+                      >
+                        <MessageSquareText className="h-4 w-4" />
+                        Copy suggested reply
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const firstComment = comments[0];
+                          if (firstComment && onCommentAction) {
+                            onCommentAction(firstComment, "reply");
+                          }
+                        }}
+                        disabled={!comments.length || !onCommentAction}
+                        className="inline-flex h-9 items-center gap-2 rounded-xl bg-cyan-300 px-3 text-xs font-black text-slate-950 disabled:opacity-50"
+                      >
+                        <Send className="h-4 w-4" />
+                        Send to top comment
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="rounded-3xl border border-white/10 bg-slate-950/55 p-3">
                     <div className="flex items-center justify-between gap-2">
                       <div>
@@ -580,7 +722,7 @@ function SocialCommentsWorkspace({
                     <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
                       <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Preview</div>
                       <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">
-                        {templatePreviewText(activeTemplate || {}, postContext) || "No template text yet."}
+                        {suggestedReply || "No template text yet."}
                       </div>
                     </div>
                   </div>

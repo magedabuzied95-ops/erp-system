@@ -1,6 +1,7 @@
 import db from "../database/db.js";
 import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 import { ensureAiSupportLogSchema } from "./aiSupportLogService.js";
+import { fetchMetaPostPreviewDetails } from "./metaIntegrationService.js";
 import { likeComment, replyToComment, renderTemplate } from "./marketingCommentAutomationService.js";
 
 const text = (value = "") => String(value ?? "").trim();
@@ -84,6 +85,111 @@ const isInstagram = (value = "") => normalizePlatform(value) === "instagram";
 const isFacebook = (value = "") => normalizePlatform(value) === "facebook";
 
 const cleanCommentText = (value = "") => text(value);
+
+const metadataObject = (value = {}) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
+
+const resolvePostPreviewImage = (row = {}) => {
+  const metadata = metadataObject(row.metadata || {});
+  const direct = text(
+    row.post_full_picture ||
+      row.attachment_image ||
+      row.post_thumbnail ||
+      row.product_image_url ||
+      row.product_image ||
+      row.thumbnail_url ||
+      row.image_url ||
+      row.image ||
+      metadata.post_full_picture ||
+      metadata.attachment_image ||
+      metadata.post_thumbnail ||
+      metadata.full_picture ||
+      metadata.thumbnail_url ||
+      metadata.image_url ||
+      metadata.image ||
+      ""
+  );
+  if (direct) return direct;
+  const attachments = asArray(metadata.attachments || row.attachments || []);
+  for (const attachment of attachments) {
+    const image =
+      attachment?.media?.image?.src ||
+      attachment?.media?.image_url ||
+      attachment?.media?.source ||
+      attachment?.subattachments?.data?.[0]?.media?.image?.src ||
+      attachment?.subattachments?.data?.[0]?.media?.image_url ||
+      "";
+    if (text(image)) return text(image);
+  }
+  return "";
+};
+
+const resolvePostPreviewCaption = (row = {}) => {
+  const metadata = metadataObject(row.metadata || {});
+  return text(
+    row.post_caption ||
+      row.post_message ||
+      row.last_message ||
+      row.post_text ||
+      row.message ||
+      metadata.post_caption ||
+      metadata.post_message ||
+      metadata.caption ||
+      metadata.message ||
+      ""
+  );
+};
+
+const resolvePostPreviewLink = (row = {}) => {
+  const metadata = metadataObject(row.metadata || {});
+  return text(
+    row.post_permalink ||
+      row.post_permalink_url ||
+      row.permalink_url ||
+      row.post_url ||
+      metadata.post_permalink ||
+      metadata.post_permalink_url ||
+      metadata.permalink_url ||
+      metadata.post_url ||
+      ""
+  );
+};
+
+const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform = "" } = {}) => {
+  const safeRow = { ...(row || {}) };
+  const metadata = metadataObject(safeRow.metadata || {});
+  const postId = text(safeRow.post_id || safeRow.conversation_id || metadata.post_id || "");
+  const pageId = text(metadata.page_id || metadata.facebook_page_id || "");
+  const needsImage = !resolvePostPreviewImage(safeRow) || !resolvePostPreviewCaption(safeRow) || !resolvePostPreviewLink(safeRow);
+  if (!tenantId || !postId || !needsImage) return safeRow;
+  try {
+    const graphPost = await fetchMetaPostPreviewDetails({ tenantId, postId, pageId }).catch(() => null);
+    if (!graphPost) return safeRow;
+    const nextMetadata = {
+      ...metadata,
+      post_id: postId,
+      post_full_picture: graphPost.full_picture || graphPost.post_full_picture || safeRow.post_full_picture || "",
+      attachment_image: graphPost.attachment_image || safeRow.attachment_image || "",
+      post_thumbnail: graphPost.post_thumbnail || safeRow.post_thumbnail || "",
+      post_caption: graphPost.post_caption || graphPost.caption || safeRow.post_caption || "",
+      post_message: graphPost.post_message || graphPost.message || safeRow.post_message || "",
+      post_permalink_url: graphPost.permalink_url || safeRow.post_permalink_url || safeRow.permalink_url || "",
+    };
+    return {
+      ...safeRow,
+      post_full_picture: nextMetadata.post_full_picture,
+      attachment_image: nextMetadata.attachment_image,
+      post_thumbnail: nextMetadata.post_thumbnail || nextMetadata.post_full_picture || nextMetadata.attachment_image || "",
+      post_caption: nextMetadata.post_caption,
+      post_message: nextMetadata.post_message,
+      post_permalink: nextMetadata.post_permalink_url,
+      post_permalink_url: nextMetadata.post_permalink_url,
+      permalink_url: nextMetadata.post_permalink_url || safeRow.permalink_url || "",
+      metadata: nextMetadata,
+    };
+  } catch {
+    return safeRow;
+  }
+};
 
 const getSocialAutoReplySettings = async ({ tenantId = null } = {}) => {
   const safeTenantId = toTenantId(tenantId);
@@ -256,6 +362,13 @@ const loadSocialCommentPost = async ({ tenantId = null, platform = "", postId = 
       c.last_message,
       c.last_message_at,
       c.read_at AS conversation_read_at,
+      COALESCE(c.metadata->>'post_full_picture', c.metadata->>'full_picture', '') AS post_full_picture,
+      COALESCE(c.metadata->>'attachment_image', '') AS attachment_image,
+      COALESCE(c.metadata->>'post_thumbnail', c.metadata->>'thumbnail_url', '') AS post_thumbnail,
+      COALESCE(c.metadata->>'post_caption', c.metadata->>'post_message', c.metadata->>'caption', '') AS post_caption,
+      COALESCE(c.metadata->>'post_message', c.metadata->>'message', '') AS post_message,
+      COALESCE(c.metadata->>'post_permalink_url', c.metadata->>'post_permalink', c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS post_permalink_url,
+      COALESCE(c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS permalink_url,
       c.metadata,
       s.read_at AS session_read_at,
       s.status AS session_status,
@@ -344,7 +457,8 @@ const loadSocialCommentPost = async ({ tenantId = null, platform = "", postId = 
     `,
     [safeTenantId, safePostId, normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment"]
   );
-  return result.rows?.[0] || null;
+  const row = result.rows?.[0] || null;
+  return row ? await enrichSocialCommentPostRow({ tenantId: safeTenantId, row, platform: normalizedPlatform }) : null;
 };
 
 const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 50 } = {}) => {
@@ -370,6 +484,13 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
       c.last_message,
       c.last_message_at,
       c.read_at AS conversation_read_at,
+      COALESCE(c.metadata->>'post_full_picture', c.metadata->>'full_picture', '') AS post_full_picture,
+      COALESCE(c.metadata->>'attachment_image', '') AS attachment_image,
+      COALESCE(c.metadata->>'post_thumbnail', c.metadata->>'thumbnail_url', '') AS post_thumbnail,
+      COALESCE(c.metadata->>'post_caption', c.metadata->>'post_message', c.metadata->>'caption', '') AS post_caption,
+      COALESCE(c.metadata->>'post_message', c.metadata->>'message', '') AS post_message,
+      COALESCE(c.metadata->>'post_permalink_url', c.metadata->>'post_permalink', c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS post_permalink_url,
+      COALESCE(c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS permalink_url,
       c.metadata,
       s.read_at AS session_read_at,
       s.status AS session_status,
@@ -465,7 +586,7 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     `,
     [safeTenantId, safeLimit]
   );
-  return result.rows || [];
+  return Promise.all((result.rows || []).map((row) => enrichSocialCommentPostRow({ tenantId: safeTenantId, row, platform: normalizedPlatform })));
 };
 
 const listSocialCommentThreadComments = async ({ tenantId = null, platform = "", postId = "" } = {}) => {
@@ -612,6 +733,13 @@ const getSocialCommentPostByCommentId = async ({ tenantId = null, platform = "",
       c.customer_avatar_url,
       c.last_message,
       c.last_message_at,
+      COALESCE(c.metadata->>'post_full_picture', c.metadata->>'full_picture', '') AS post_full_picture,
+      COALESCE(c.metadata->>'attachment_image', '') AS attachment_image,
+      COALESCE(c.metadata->>'post_thumbnail', c.metadata->>'thumbnail_url', '') AS post_thumbnail,
+      COALESCE(c.metadata->>'post_caption', c.metadata->>'post_message', c.metadata->>'caption', '') AS post_caption,
+      COALESCE(c.metadata->>'post_message', c.metadata->>'message', '') AS post_message,
+      COALESCE(c.metadata->>'post_permalink_url', c.metadata->>'post_permalink', c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS post_permalink_url,
+      COALESCE(c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS permalink_url,
       c.metadata,
       s.read_at AS session_read_at,
       s.status AS session_status,
@@ -631,7 +759,8 @@ const getSocialCommentPostByCommentId = async ({ tenantId = null, platform = "",
     `,
     [safeTenantId, safeCommentId, normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment"]
   );
-  return result.rows?.[0] || null;
+  const row = result.rows?.[0] || null;
+  return row ? await enrichSocialCommentPostRow({ tenantId: safeTenantId, row, platform: normalizedPlatform }) : null;
 };
 
 const getSocialCommentCommentByCommentId = async ({ tenantId = null, platform = "", commentId = "" } = {}) => {

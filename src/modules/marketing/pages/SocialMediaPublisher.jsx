@@ -20,7 +20,9 @@ import { useTranslation } from "react-i18next";
 import {
   createSocialPublisherPost,
   getSocialPublisherMetaAccounts,
+  getMetaIntegrationStatus,
   getSocialPublisherPosts,
+  startMetaOAuth,
   publishSocialPublisherPost,
 } from "../services/marketingApi";
 import { hasPermission } from "../../permissions/lib/rbacStore";
@@ -81,11 +83,19 @@ export default function SocialMediaPublisher() {
   const [createSource, setCreateSource] = useState("device");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [metaAccountsLoading, setMetaAccountsLoading] = useState(true);
+  const [metaIntegrationLoading, setMetaIntegrationLoading] = useState(true);
+  const [metaIntegrationStatus, setMetaIntegrationStatus] = useState(null);
   const [facebookPages, setFacebookPages] = useState([]);
   const [instagramAccounts, setInstagramAccounts] = useState([]);
   const [selectedFacebookPageId, setSelectedFacebookPageId] = useState("");
   const [selectedInstagramAccountId, setSelectedInstagramAccountId] = useState("");
+  const [metaConnectOpen, setMetaConnectOpen] = useState(false);
+  const [metaConnectLoading, setMetaConnectLoading] = useState(false);
+  const [metaConnectSection, setMetaConnectSection] = useState("facebook");
   const mediaInputRef = useRef(null);
+  const metaConnectPopupRef = useRef(null);
+  const metaConnectTimeoutRef = useRef(null);
+  const metaConnectClosedIntervalRef = useRef(null);
   const canCreate = hasPermission("marketing.create");
   const canPublish = hasPermission("marketing.publish");
   const previewTitle = caption.trim() || "Your caption will appear here";
@@ -105,6 +115,11 @@ export default function SocialMediaPublisher() {
     () => instagramAccounts.find((account) => account.instagram_account_id === selectedInstagramAccountId) || null,
     [instagramAccounts, selectedInstagramAccountId]
   );
+  const metaIntegrationConnected = Boolean(
+    metaIntegrationStatus?.overall_status &&
+      ["connected", "fully_connected", "active", "saved", "partially_connected"].includes(String(metaIntegrationStatus.overall_status || "").toLowerCase())
+  );
+  const metaAccountsEmpty = !facebookPages.length && !instagramAccounts.length;
 
   const historyPosts = useMemo(
     () =>
@@ -157,18 +172,37 @@ export default function SocialMediaPublisher() {
 
   const loadMetaAccounts = async () => {
     setMetaAccountsLoading(true);
+    setMetaIntegrationLoading(true);
     try {
-      const data = await getSocialPublisherMetaAccounts({ suppressErrorStatuses: [400, 403, 404, 409, 500] });
-      applyMetaAccounts(data || {});
+      const [accountsData, integrationData] = await Promise.all([
+        getSocialPublisherMetaAccounts({ suppressErrorStatuses: [400, 403, 404, 409, 500] }),
+        getMetaIntegrationStatus({ suppressErrorStatuses: [400, 403, 404, 409, 500] }).catch(() => null),
+      ]);
+      applyMetaAccounts(accountsData || {});
+      setMetaIntegrationStatus(integrationData || null);
     } catch {
       applyMetaAccounts({});
+      setMetaIntegrationStatus(null);
     } finally {
       setMetaAccountsLoading(false);
+      setMetaIntegrationLoading(false);
     }
   };
 
   useEffect(() => {
     loadMetaAccounts();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (metaConnectTimeoutRef.current) {
+        window.clearTimeout(metaConnectTimeoutRef.current);
+      }
+      if (metaConnectClosedIntervalRef.current) {
+        window.clearInterval(metaConnectClosedIntervalRef.current);
+      }
+      metaConnectPopupRef.current?.close?.();
+    };
   }, []);
 
   const handleFacebookPageChange = (pageId) => {
@@ -333,8 +367,60 @@ export default function SocialMediaPublisher() {
     }
   };
 
-  const openMetaSettings = (section) => {
-    window.location.assign(`/marketing/settings#marketing-settings-${section}`);
+  const clearMetaConnectWatchers = () => {
+    if (metaConnectTimeoutRef.current) {
+      window.clearTimeout(metaConnectTimeoutRef.current);
+      metaConnectTimeoutRef.current = null;
+    }
+    if (metaConnectClosedIntervalRef.current) {
+      window.clearInterval(metaConnectClosedIntervalRef.current);
+      metaConnectClosedIntervalRef.current = null;
+    }
+  };
+
+  const openAdvancedMetaSettings = () => {
+    setMetaConnectOpen(false);
+    window.location.assign("/marketing/settings#marketing-settings-facebook");
+  };
+
+  const openMetaConnectModal = (section = "facebook") => {
+    setMetaConnectSection(section);
+    setMetaConnectOpen(true);
+  };
+
+  const handleConnectMeta = async () => {
+    clearMetaConnectWatchers();
+    setMetaConnectLoading(true);
+    try {
+      const result = await startMetaOAuth();
+      const authUrl = result?.auth_url || "";
+      if (!authUrl) {
+        throw new Error("Meta OAuth URL was not returned");
+      }
+      const popup = window.open(authUrl, "meta-oauth", "width=720,height=760,menubar=no,toolbar=no,status=no");
+      if (!popup) {
+        setMetaConnectLoading(false);
+        window.location.href = authUrl;
+        return;
+      }
+      metaConnectPopupRef.current = popup;
+      metaConnectTimeoutRef.current = window.setTimeout(() => {
+        clearMetaConnectWatchers();
+        setMetaConnectLoading(false);
+        toast.error("Meta connection timed out. You can try again.");
+      }, 180000);
+      metaConnectClosedIntervalRef.current = window.setInterval(() => {
+        if (!metaConnectPopupRef.current?.closed) return;
+        clearMetaConnectWatchers();
+        setMetaConnectLoading(false);
+        loadMetaAccounts().catch(() => {});
+      }, 600);
+      popup.focus?.();
+    } catch (err) {
+      clearMetaConnectWatchers();
+      setMetaConnectLoading(false);
+      toast.error(err?.message || "Unable to start Meta OAuth");
+    }
   };
 
   const handlePublishFromHistory = async (post) => {
@@ -594,7 +680,7 @@ export default function SocialMediaPublisher() {
                     <div className="text-sm font-black text-white">Publishing Account</div>
                     <div className="text-xs text-slate-400">Choose the connected Facebook page and Instagram account.</div>
                   </div>
-                  {metaAccountsLoading ? (
+                  {metaAccountsLoading || metaIntegrationLoading ? (
                     <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">Loading</span>
                   ) : hasFacebookAccount ? (
                     <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-100">Connected</span>
@@ -621,7 +707,7 @@ export default function SocialMediaPublisher() {
                     ) : (
                       <button
                         type="button"
-                        onClick={() => openMetaSettings("facebook")}
+                        onClick={() => openMetaConnectModal("facebook")}
                         className="inline-flex w-full items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm font-semibold text-amber-100 transition hover:border-amber-300/40 hover:bg-amber-400/15"
                       >
                         Connect Facebook
@@ -646,7 +732,7 @@ export default function SocialMediaPublisher() {
                     ) : (
                       <button
                         type="button"
-                        onClick={() => openMetaSettings("instagram")}
+                        onClick={() => openMetaConnectModal("instagram")}
                         className="inline-flex w-full items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm font-semibold text-amber-100 transition hover:border-amber-300/40 hover:bg-amber-400/15"
                       >
                         Connect Instagram
@@ -936,6 +1022,102 @@ export default function SocialMediaPublisher() {
                     >
                       Close
                     </button>
+                  </div>
+                </div>
+              </div>
+            </div>,
+          document.body
+        )
+        : null}
+
+      {metaConnectOpen
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm md:items-center md:p-4"
+              role="presentation"
+              onClick={() => setMetaConnectOpen(false)}
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Connect Meta"
+                className="w-full max-w-2xl rounded-[2rem] border border-white/10 bg-[#07111f] p-5 text-white shadow-2xl shadow-black/60"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-black uppercase tracking-[0.22em] text-amber-100">Connect Facebook &amp; Instagram</div>
+                    <h3 className="mt-2 text-2xl font-black">Connect Meta from here</h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">
+                      Use the same Meta OAuth flow already used in Marketing Settings, then return here and refresh accounts.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMetaConnectOpen(false)}
+                    className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                  {[
+                    ["1", "Link Meta account", "Connect using the existing Meta OAuth flow."],
+                    ["2", "Pick page", "Choose the Facebook page and related Instagram business account."],
+                    ["3", "Refresh accounts", "Come back here and press Refresh Accounts."],
+                  ].map(([step, title, description]) => (
+                    <div key={step} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                      <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Step {step}</div>
+                      <div className="mt-2 text-sm font-black text-white">{title}</div>
+                      <div className="mt-2 text-sm leading-6 text-slate-400">{description}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {metaIntegrationConnected && metaAccountsEmpty ? (
+                  <div className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                    Meta is connected, but no Facebook/Instagram accounts were found. Try Refresh Accounts or reconnect Meta.
+                  </div>
+                ) : null}
+
+                <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={handleConnectMeta}
+                    disabled={metaConnectLoading}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#1877f2] px-4 py-3 text-sm font-black text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {metaConnectLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Connect Meta
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => loadMetaAccounts()}
+                    disabled={metaAccountsLoading || metaIntegrationLoading}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300/40 hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {metaAccountsLoading || metaIntegrationLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                    Refresh Accounts
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openAdvancedMetaSettings}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1]"
+                  >
+                    Open Advanced Settings
+                  </button>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-sm text-slate-300">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-semibold text-white">Selected source</span>
+                    <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                      {metaConnectSection}
+                    </span>
+                  </div>
+                  <div className="mt-2 text-slate-400">
+                    Facebook and Instagram selections stay inside this publisher. Advanced Meta Settings are still available for troubleshooting.
                   </div>
                 </div>
               </div>

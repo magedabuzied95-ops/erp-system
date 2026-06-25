@@ -4066,22 +4066,82 @@ const fetchMetaPostCommentsForPolling = async ({ postId, token }) => {
   return Array.isArray(payload?.data) ? payload.data.slice(0, 50) : [];
 };
 
+const extractMetaPostAttachmentImage = (post = {}) => {
+  const attachments = asArray(post.attachments?.data || post.attachments || post.attachment?.data || post.attachment || []);
+  for (const attachment of attachments) {
+    const mediaImage = attachment?.media?.image?.src || attachment?.media?.image_url || attachment?.media?.source || "";
+    if (text(mediaImage)) return text(mediaImage);
+    const subattachments = asArray(attachment?.subattachments?.data || attachment?.subattachments || []);
+    for (const subattachment of subattachments) {
+      const subImage = subattachment?.media?.image?.src || subattachment?.media?.image_url || subattachment?.media?.source || "";
+      if (text(subImage)) return text(subImage);
+    }
+  }
+  return "";
+};
+
+const normalizeMetaPostPreview = (post = {}) => {
+  const fullPicture = text(post.full_picture || "");
+  const attachmentImage = extractMetaPostAttachmentImage(post);
+  const permalinkUrl = text(post.permalink_url || post.permalink || "");
+  const postMessage = text(post.message || "");
+  const postCaption = text(post.caption || postMessage || "");
+  return {
+    id: text(post.id || ""),
+    message: postMessage,
+    caption: postCaption,
+    permalink_url: permalinkUrl,
+    full_picture: fullPicture,
+    attachment_image: attachmentImage,
+    post_thumbnail: attachmentImage || fullPicture || "",
+    post_message: postMessage,
+    post_caption: postCaption,
+    attachments: asArray(post.attachments?.data || post.attachments || []),
+  };
+};
+
+export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = "", pageId = "" } = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safePostId = text(postId);
+  if (!safeTenantId || !safePostId) return null;
+  const row = await getMetaIntegrationConfig({ tenantId: safeTenantId });
+  if (!row) return null;
+  const configuredPageId = text(row.facebook_page_id || "");
+  if (text(pageId) && configuredPageId && text(pageId) !== configuredPageId) {
+    return null;
+  }
+  const token = getTokenForConfig(row);
+  if (!token) return null;
+  const payload = await callMetaGet({
+    endpoint: `/${encodeURIComponent(safePostId)}`,
+    token,
+    params: {
+      fields: "id,message,caption,permalink_url,full_picture,attachments{media,type,url,title,description}",
+    },
+  });
+  return normalizeMetaPostPreview(payload);
+};
+
 const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {} } = {}) => {
   const commentId = text(comment.id || "");
   const parentCommentId = text(comment.parent?.id || comment.parent_id || "");
   const commenterId = text(comment.from?.id || "");
   const commenterName = text(comment.from?.name || "");
   const originalCommentText = text(comment.message || "");
-  const postPermalink = text(post.permalink_url || "");
+  const postPermalink = text(post.permalink_url || post.permalink || "");
   const postMessage = text(post.message || "");
-  const postCaption = text(post.caption || "");
+  const postCaption = text(post.caption || post.message || "");
+  const attachmentImage = extractMetaPostAttachmentImage(post);
+  const fullPicture = text(post.full_picture || attachmentImage || "");
   const createdTime = text(comment.created_time || new Date().toISOString());
   return {
     tenant_id: tenantId,
     platform: "facebook",
     channel: "facebook_comment",
     post_id: text(post.id || ""),
-    post_full_picture: text(post.full_picture || ""),
+    post_full_picture: fullPicture,
+    attachment_image: attachmentImage,
+    post_thumbnail: attachmentImage || fullPicture || "",
     post_permalink: postPermalink,
     post_permalink_url: postPermalink,
     post_message: postMessage,
@@ -4110,7 +4170,9 @@ const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {}
       page_id: text(pageId || ""),
       post,
       comment,
-      post_full_picture: text(post.full_picture || ""),
+      post_full_picture: fullPicture,
+      attachment_image: attachmentImage,
+      post_thumbnail: attachmentImage || fullPicture || "",
       post_message: postMessage,
       post_caption: postCaption,
       post_created_time: text(post.created_time || ""),
@@ -6255,6 +6317,17 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
       });
 
       for (const post of posts) {
+        const enrichedPost = await fetchMetaPostPreviewDetails({ tenantId: safeTenantId, postId: post.id, pageId }).catch(() => null);
+        const resolvedPost = enrichedPost
+          ? {
+              ...post,
+              ...enrichedPost,
+              full_picture: enrichedPost.full_picture || enrichedPost.post_full_picture || post.full_picture || "",
+              caption: enrichedPost.caption || enrichedPost.post_caption || post.caption || "",
+              message: enrichedPost.message || enrichedPost.post_message || post.message || "",
+              permalink_url: enrichedPost.permalink_url || post.permalink_url || "",
+            }
+          : post;
         let comments = [];
         try {
           comments = await fetchMetaPostCommentsForPolling({ postId: post.id, token });
@@ -6279,7 +6352,7 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
           const event = buildMetaPolledCommentEvent({
             tenantId: safeTenantId,
             pageId,
-            post,
+            post: resolvedPost,
             comment,
           });
           console.log("META_COMMENTS_POLL_COMMENT_SEEN", {
@@ -6331,21 +6404,21 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
                 totals.comments_saved += 1;
                 console.log("META_COMMENTS_POLL_COMMENT_SAVED", {
                   tenant_id: safeTenantId,
-                  page_id: pageId,
-                  post_id: text(post.id || ""),
-                  comment_id: commentId,
-                  materialized_from_duplicate: true,
-                });
-              }
-              continue;
+                page_id: pageId,
+                post_id: text(resolvedPost.id || post.id || ""),
+                comment_id: commentId,
+                materialized_from_duplicate: true,
+              });
             }
+            continue;
+          }
 
             await storeSocialCommentAutomationRuns({ tenantId: safeTenantId, events: [event] });
             totals.comments_saved += 1;
             console.log("META_COMMENTS_POLL_COMMENT_SAVED", {
               tenant_id: safeTenantId,
               page_id: pageId,
-              post_id: text(post.id || ""),
+              post_id: text(resolvedPost.id || post.id || ""),
               comment_id: commentId,
             });
           } catch (error) {

@@ -378,6 +378,9 @@ const resolveSocialCommentPostMessage = (event = {}) =>
       event.post_caption ||
       event.raw_payload?.post?.message ||
       event.raw_payload?.post?.caption ||
+      event.raw_payload?.post?.post_message ||
+      event.raw_payload?.post?.post_caption ||
+      event.raw_payload?.post?.caption ||
       event.raw_payload?.value?.post?.message ||
       event.raw_payload?.value?.post?.caption ||
       ""
@@ -387,8 +390,14 @@ const resolveSocialCommentPostFullPicture = (event = {}) =>
   text(
     event.post_full_picture ||
       event.full_picture ||
+      event.attachment_image ||
+      event.post_thumbnail ||
       event.raw_payload?.post?.full_picture ||
+      event.raw_payload?.post?.attachment_image ||
+      event.raw_payload?.post?.post_thumbnail ||
       event.raw_payload?.value?.post?.full_picture ||
+      event.raw_payload?.value?.post?.attachment_image ||
+      event.raw_payload?.value?.post?.post_thumbnail ||
       ""
   );
 
