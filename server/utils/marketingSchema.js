@@ -162,6 +162,7 @@ const statements = [
     media_url TEXT NOT NULL DEFAULT '',
     media_type VARCHAR(20) NOT NULL DEFAULT 'image',
     platforms JSONB NOT NULL DEFAULT '[]'::jsonb,
+    publish_settings JSONB NOT NULL DEFAULT '{}'::jsonb,
     status VARCHAR(30) NOT NULL DEFAULT 'draft',
     scheduled_at TIMESTAMP NULL,
     published_at TIMESTAMP NULL,
@@ -174,6 +175,7 @@ const statements = [
   ALTER TABLE IF EXISTS social_publisher_posts
     ADD COLUMN IF NOT EXISTS media_type VARCHAR(20) NOT NULL DEFAULT 'image',
     ADD COLUMN IF NOT EXISTS platforms JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS publish_settings JSONB NOT NULL DEFAULT '{}'::jsonb,
     ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'draft',
     ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP NULL,
     ADD COLUMN IF NOT EXISTS published_at TIMESTAMP NULL,

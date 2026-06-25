@@ -551,6 +551,7 @@ const { ensureAiSalesAgentSchema } = await import("./services/aiSalesAgentServic
 const { ensureAiInboxLeadActionsSchema } = await import("./services/aiInboxLeadActionsService.js");
 const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueTasks, sendUpcomingTaskDueReminders } = await import("./services/staffTasksService.js");
 const { processStaffTaskEmailQueue } = await import("./services/staffTaskEmailNotificationService.js");
+const { runDueSocialPublisherPublishes } = await import("./services/socialPublisherPostsService.js");
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
 const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug, getMetaAppModeDebugStatus, runMetaCommentsPollingScan, startMetaCommentsPollingScheduler, listMetaWebhookRawEvents, clearMetaWebhookRawEvents } = await import("./services/metaIntegrationService.js");
 const { socialCommentConversationId, materializeSocialCommentInboxConversation } = await import("./services/socialCommentAutomationService.js");
@@ -1804,6 +1805,17 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
       backgroundIntervals.add(storyInterval);
       safeRunDueStoryPublishes();
 
+      const safeRunDueSocialPublisherPublishes = () => {
+        void runDueSocialPublisherPublishes().catch((error) => {
+          console.error("[server] social publisher scheduled publish error", error);
+        });
+      };
+      const socialPublisherInterval = setInterval(() => {
+        safeRunDueSocialPublisherPublishes();
+      }, 60 * 1000);
+      backgroundIntervals.add(socialPublisherInterval);
+      safeRunDueSocialPublisherPublishes();
+
       const taskInterval = setInterval(() => {
         void processStaffTaskEmailQueue().catch((error) => {
           console.error("[server] staff task email queue error", error);
@@ -1824,6 +1836,7 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
       });
       console.log("[server] staff task schedulers started");
       console.log("[server] story scheduler started");
+      console.log("[server] social publisher scheduler started");
     } catch (error) {
       failures.push({
         step: "background_startup_jobs",

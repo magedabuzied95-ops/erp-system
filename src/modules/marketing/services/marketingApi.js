@@ -226,6 +226,7 @@ export const getSocialPublisherPosts = async (params = {}, options = {}) => {
   const suffix = query.toString() ? `?${query.toString()}` : "";
   return unwrapArray(await api.get(`/social-publisher/posts${suffix}`, options));
 };
+export const getSocialPublisherMetaAccounts = async (options = {}) => unwrapItem(await api.get("/social-publisher/meta-accounts", options));
 export const createSocialPublisherPost = async (body) => unwrapItem(await api.post("/social-publisher/posts", body));
 export const publishSocialPublisherPost = async (id) => unwrapItem(await api.post(`/social-publisher/posts/${id}/publish`, {}));
 

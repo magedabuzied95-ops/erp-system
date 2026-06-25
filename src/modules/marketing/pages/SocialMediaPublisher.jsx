@@ -19,6 +19,7 @@ import { useTranslation } from "react-i18next";
 
 import {
   createSocialPublisherPost,
+  getSocialPublisherMetaAccounts,
   getSocialPublisherPosts,
   publishSocialPublisherPost,
 } from "../services/marketingApi";
@@ -79,6 +80,11 @@ export default function SocialMediaPublisher() {
   const [platforms, setPlatforms] = useState({ facebook: true, instagram: false, tiktok: false });
   const [createSource, setCreateSource] = useState("device");
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [metaAccountsLoading, setMetaAccountsLoading] = useState(true);
+  const [facebookPages, setFacebookPages] = useState([]);
+  const [instagramAccounts, setInstagramAccounts] = useState([]);
+  const [selectedFacebookPageId, setSelectedFacebookPageId] = useState("");
+  const [selectedInstagramAccountId, setSelectedInstagramAccountId] = useState("");
   const mediaInputRef = useRef(null);
   const canCreate = hasPermission("marketing.create");
   const canPublish = hasPermission("marketing.publish");
@@ -91,6 +97,14 @@ export default function SocialMediaPublisher() {
   );
 
   const hasDisabledTikTok = Boolean(platforms.tiktok);
+  const selectedFacebookPage = useMemo(
+    () => facebookPages.find((page) => page.facebook_page_id === selectedFacebookPageId) || null,
+    [facebookPages, selectedFacebookPageId]
+  );
+  const selectedInstagramAccount = useMemo(
+    () => instagramAccounts.find((account) => account.instagram_account_id === selectedInstagramAccountId) || null,
+    [instagramAccounts, selectedInstagramAccountId]
+  );
 
   const historyPosts = useMemo(
     () =>
@@ -122,6 +136,67 @@ export default function SocialMediaPublisher() {
   useEffect(() => {
     loadPosts();
   }, []);
+
+  const applyMetaAccounts = (data = {}) => {
+    const pages = safeArray(data.pages);
+    const accounts = safeArray(data.instagram_accounts);
+    setFacebookPages(pages);
+    setInstagramAccounts(accounts);
+    const nextPageId = String(data.selected?.facebook_page_id || pages[0]?.facebook_page_id || "").trim();
+    const pageMatch = pages.find((page) => page.facebook_page_id === nextPageId) || null;
+    const nextInstagramId = String(
+      data.selected?.instagram_account_id ||
+        pageMatch?.instagram_business_account_id ||
+        accounts.find((account) => account.facebook_page_id === nextPageId)?.instagram_account_id ||
+        accounts[0]?.instagram_account_id ||
+        ""
+    ).trim();
+    setSelectedFacebookPageId(nextPageId);
+    setSelectedInstagramAccountId(nextInstagramId);
+  };
+
+  const loadMetaAccounts = async () => {
+    setMetaAccountsLoading(true);
+    try {
+      const data = await getSocialPublisherMetaAccounts({ suppressErrorStatuses: [400, 403, 404, 409, 500] });
+      applyMetaAccounts(data || {});
+    } catch {
+      applyMetaAccounts({});
+    } finally {
+      setMetaAccountsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMetaAccounts();
+  }, []);
+
+  const handleFacebookPageChange = (pageId) => {
+    const nextPageId = String(pageId || "").trim();
+    const nextPage = facebookPages.find((page) => page.facebook_page_id === nextPageId) || null;
+    setSelectedFacebookPageId(nextPageId);
+    if (nextPage?.instagram_business_account_id) {
+      setSelectedInstagramAccountId(nextPage.instagram_business_account_id);
+      return;
+    }
+    const matchedInstagram = instagramAccounts.find((account) => account.facebook_page_id === nextPageId);
+    setSelectedInstagramAccountId(matchedInstagram?.instagram_account_id || "");
+  };
+
+  const handleInstagramAccountChange = (instagramAccountId) => {
+    const nextInstagramId = String(instagramAccountId || "").trim();
+    setSelectedInstagramAccountId(nextInstagramId);
+    const matchedPage = facebookPages.find((page) => page.instagram_business_account_id === nextInstagramId);
+    if (matchedPage) {
+      setSelectedFacebookPageId(matchedPage.facebook_page_id);
+    }
+  };
+
+  const hasFacebookAccount = Boolean(selectedFacebookPageId);
+  const hasInstagramAccount = Boolean(selectedInstagramAccountId);
+  const selectedFacebookPageLabel = selectedFacebookPage?.facebook_page_name || selectedFacebookPage?.page_name || selectedFacebookPageId || "";
+  const selectedInstagramAccountLabel = selectedInstagramAccount?.instagram_username || selectedInstagramAccount?.instagram_account_id || selectedInstagramAccountId || "";
+  const canPublishSelectedAccounts = Boolean(hasFacebookAccount && (!platforms.instagram || hasInstagramAccount));
 
   useEffect(() => {
     if (!mediaFile) {
@@ -167,6 +242,15 @@ export default function SocialMediaPublisher() {
     formData.append("caption", caption);
     formData.append("platforms", JSON.stringify(selectedPlatforms));
     formData.append("media_type", mediaType);
+    formData.append(
+      "publish_settings",
+      JSON.stringify({
+        facebook_page_id: selectedFacebookPageId,
+        facebook_page_name: selectedFacebookPageLabel,
+        instagram_account_id: selectedInstagramAccountId,
+        instagram_username: selectedInstagramAccountLabel,
+      })
+    );
     if (scheduledAt) {
       formData.append("scheduled_at", scheduledAt);
     }
@@ -184,6 +268,14 @@ export default function SocialMediaPublisher() {
     if (blockTikTokPayload()) return;
     if (!selectedPlatforms.length) {
       toast.error(t("marketing.socialPublisher.selectAtLeastOnePlatform"));
+      return;
+    }
+    if (!hasFacebookAccount) {
+      toast.error("Connect Facebook first");
+      return;
+    }
+    if (selectedPlatforms.includes("instagram") && !hasInstagramAccount) {
+      toast.error("Connect Instagram first");
       return;
     }
 
@@ -216,6 +308,14 @@ export default function SocialMediaPublisher() {
       toast.error(t("marketing.socialPublisher.chooseScheduleTime"));
       return;
     }
+    if (!hasFacebookAccount) {
+      toast.error("Connect Facebook first");
+      return;
+    }
+    if (selectedPlatforms.includes("instagram") && !hasInstagramAccount) {
+      toast.error("Connect Instagram first");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -231,6 +331,10 @@ export default function SocialMediaPublisher() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const openMetaSettings = (section) => {
+    window.location.assign(`/marketing/settings#marketing-settings-${section}`);
   };
 
   const handlePublishFromHistory = async (post) => {
@@ -287,8 +391,8 @@ export default function SocialMediaPublisher() {
           <div className="flex items-center gap-3">
             <div className="h-11 w-11 rounded-full bg-gradient-to-br from-amber-300 via-orange-400 to-amber-500" />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-black text-white">M1 Store</div>
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Publishing account</div>
+              <div className="truncate text-sm font-black text-white">{selectedFacebookPageLabel || "No Facebook page selected"}</div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{selectedInstagramAccountLabel || "No Instagram account selected"}</div>
             </div>
             <div className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
               {platformName}
@@ -304,7 +408,7 @@ export default function SocialMediaPublisher() {
             <span className="text-slate-500">{previewSubtitle}</span>
           </div>
           <div className="flex flex-wrap gap-2 text-[11px] text-slate-400">
-            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">Page: M1 Store</span>
+            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">Page: {selectedFacebookPageLabel || "Not selected"}</span>
             <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">Platforms: {selectedPlatforms.length ? selectedPlatforms.join(", ") : "none"}</span>
           </div>
         </div>
@@ -479,10 +583,83 @@ export default function SocialMediaPublisher() {
                         );
                       })}
                     </div>
-                  </div>
-
                 </div>
+
               </div>
+              </div>
+
+              <section className="space-y-3 rounded-[1.75rem] border border-white/10 bg-slate-950/50 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-black text-white">Publishing Account</div>
+                    <div className="text-xs text-slate-400">Choose the connected Facebook page and Instagram account.</div>
+                  </div>
+                  {metaAccountsLoading ? (
+                    <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">Loading</span>
+                  ) : hasFacebookAccount ? (
+                    <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-100">Connected</span>
+                  ) : (
+                    <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-100">Needs connect</span>
+                  )}
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="space-y-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Facebook</span>
+                    {facebookPages.length ? (
+                      <select
+                        value={selectedFacebookPageId}
+                        onChange={(event) => handleFacebookPageChange(event.target.value)}
+                        className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/40"
+                      >
+                        {facebookPages.map((page) => (
+                          <option key={page.facebook_page_id} value={page.facebook_page_id}>
+                            {page.facebook_page_name || page.facebook_page_id}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => openMetaSettings("facebook")}
+                        className="inline-flex w-full items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm font-semibold text-amber-100 transition hover:border-amber-300/40 hover:bg-amber-400/15"
+                      >
+                        Connect Facebook
+                      </button>
+                    )}
+                  </label>
+
+                  <label className="space-y-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Instagram</span>
+                    {instagramAccounts.length ? (
+                      <select
+                        value={selectedInstagramAccountId}
+                        onChange={(event) => handleInstagramAccountChange(event.target.value)}
+                        className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/40"
+                      >
+                        {instagramAccounts.map((account) => (
+                          <option key={account.instagram_account_id} value={account.instagram_account_id}>
+                            {account.instagram_username || account.instagram_account_id}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => openMetaSettings("instagram")}
+                        className="inline-flex w-full items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm font-semibold text-amber-100 transition hover:border-amber-300/40 hover:bg-amber-400/15"
+                      >
+                        Connect Instagram
+                      </button>
+                    )}
+                  </label>
+                </div>
+
+                <div className="flex flex-wrap gap-2 text-[11px] text-slate-400">
+                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1">Facebook: {selectedFacebookPageLabel || "Not selected"}</span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1">Instagram: {selectedInstagramAccountLabel || "Not selected"}</span>
+                </div>
+              </section>
 
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="space-y-2">
@@ -518,7 +695,7 @@ export default function SocialMediaPublisher() {
                 <button
                   type="button"
                   onClick={handleSchedule}
-                  disabled={saving || !canCreate || !selectedPlatforms.length}
+                  disabled={saving || !canCreate || !selectedPlatforms.length || !hasFacebookAccount || (selectedPlatforms.includes("instagram") && !hasInstagramAccount)}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
@@ -527,7 +704,7 @@ export default function SocialMediaPublisher() {
                 <button
                   type="button"
                   onClick={handlePublishNow}
-                  disabled={saving || !canCreate || !canPublish || !selectedPlatforms.length}
+                  disabled={saving || !canCreate || !canPublish || !selectedPlatforms.length || !hasFacebookAccount || (selectedPlatforms.includes("instagram") && !hasInstagramAccount)}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -539,7 +716,7 @@ export default function SocialMediaPublisher() {
                 <button
                   type="button"
                   onClick={handleSchedule}
-                  disabled={saving || !canCreate || !selectedPlatforms.length}
+                  disabled={saving || !canCreate || !selectedPlatforms.length || !hasFacebookAccount || (selectedPlatforms.includes("instagram") && !hasInstagramAccount)}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
@@ -548,7 +725,7 @@ export default function SocialMediaPublisher() {
                 <button
                   type="button"
                   onClick={handlePublishNow}
-                  disabled={saving || !canCreate || !canPublish || !selectedPlatforms.length}
+                  disabled={saving || !canCreate || !canPublish || !selectedPlatforms.length || !hasFacebookAccount || (selectedPlatforms.includes("instagram") && !hasInstagramAccount)}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -688,11 +865,11 @@ export default function SocialMediaPublisher() {
                       <div className="space-y-3 text-sm">
                         <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
                           <span className="text-slate-400">Facebook</span>
-                          <span className="font-semibold text-white">M1 Store</span>
+                          <span className="font-semibold text-white">{selectedFacebookPageLabel || "Not selected"}</span>
                         </div>
                         <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
                           <span className="text-slate-400">Instagram</span>
-                          <span className="font-semibold text-white">M1 Store</span>
+                          <span className="font-semibold text-white">{selectedInstagramAccountLabel || "Not selected"}</span>
                         </div>
                       </div>
 
@@ -737,7 +914,7 @@ export default function SocialMediaPublisher() {
                     <button
                       type="button"
                       onClick={handleSchedule}
-                      disabled={saving || !canCreate || !selectedPlatforms.length}
+                      disabled={saving || !canCreate || !selectedPlatforms.length || !hasFacebookAccount || (selectedPlatforms.includes("instagram") && !hasInstagramAccount)}
                       className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />}
@@ -746,7 +923,7 @@ export default function SocialMediaPublisher() {
                     <button
                       type="button"
                       onClick={handlePublishNow}
-                      disabled={saving || !canCreate || !canPublish || !selectedPlatforms.length}
+                      disabled={saving || !canCreate || !canPublish || !selectedPlatforms.length || !hasFacebookAccount || (selectedPlatforms.includes("instagram") && !hasInstagramAccount)}
                       className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

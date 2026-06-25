@@ -9,6 +9,7 @@ import { getTenantId } from "../utils/requestScope.js";
 import {
   createSocialPublisherPostRow,
   getSocialPublisherPostRow,
+  listSocialPublisherMetaAccounts,
   listSocialPublisherPosts,
   publishSocialPublisherPostRow,
 } from "../services/socialPublisherPostsService.js";
@@ -61,6 +62,22 @@ const resolveMediaType = (req) => {
 };
 
 router.get(
+  "/meta-accounts",
+  protect,
+  permit("marketing", "view"),
+  async (req, res) => {
+    try {
+      const tenantId = getTenantId(req, req.user?.tenant_id) || 1;
+      const accounts = await listSocialPublisherMetaAccounts({ tenantId });
+      res.json({ success: true, data: accounts });
+    } catch (error) {
+      console.error("[social-publisher] meta accounts failed", { message: error?.message, stack: error?.stack });
+      res.status(500).json({ success: false, message: error?.message || "Failed to load social publisher meta accounts" });
+    }
+  }
+);
+
+router.get(
   "/posts",
   protect,
   permit("marketing", "view"),
@@ -91,12 +108,19 @@ router.post(
       const platforms = req.body?.platforms || [];
       const scheduledAt = req.body?.scheduled_at || req.body?.scheduledAt || null;
       const status = String(req.body?.status || "").trim() || (scheduledAt ? "scheduled" : "draft");
+      let publishSettings = {};
+      try {
+        publishSettings = req.body?.publish_settings ? JSON.parse(String(req.body.publish_settings)) : {};
+      } catch {
+        publishSettings = {};
+      }
       const post = await createSocialPublisherPostRow({
         tenantId,
         caption,
         mediaUrl,
         mediaType,
         platforms,
+        publishSettings,
         status,
         scheduledAt,
       });
