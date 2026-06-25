@@ -230,14 +230,6 @@ function SocialCommentsWorkspace({
     return { mostFrequentQuestion, priceQuestions, sizeQuestions, readyCustomers, buckets };
   }, [comments]);
 
-  const suggestionTemplate = activeTemplate || { template: globalSettings.generic_template || "" };
-  const suggestedReply = templatePreviewText(suggestionTemplate, postContext);
-  const templateUsed = activeTemplate?.enabled
-    ? "Post template"
-    : globalSettings.generic_enabled
-      ? "Generic template"
-      : "Manual reply";
-
   const postContext = {
     customer_name: clean(comments[0]?.commenter_name || comments[0]?.customer_name || "Customer"),
     product_name: clean(activePost?.product_name || ""),
@@ -250,6 +242,14 @@ function SocialCommentsWorkspace({
     store_address: clean(activePost?.store_address || ""),
     shipping_time: clean(activePost?.shipping_time || ""),
   };
+
+  const suggestionTemplate = activeTemplate || { template: globalSettings.generic_template || "" };
+  const suggestedReply = templatePreviewText(suggestionTemplate, postContext);
+  const templateUsed = activeTemplate?.enabled
+    ? "Post template"
+    : globalSettings.generic_enabled
+      ? "Generic template"
+      : "Manual reply";
 
   const renderCommentAction = (comment, action) => {
     if (!onCommentAction) return;
