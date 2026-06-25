@@ -192,8 +192,6 @@ export const listSocialPublisherMetaAccounts = async ({ tenantId } = {}) => {
           instagram_business_account_id,
           instagram_username,
           page_access_token_encrypted,
-          token_status,
-          token_health_status,
           status,
           updated_at
         FROM meta_integration_configs
@@ -261,7 +259,7 @@ export const listSocialPublisherMetaAccounts = async ({ tenantId } = {}) => {
       facebook_page_name: pageName,
       instagram_business_account_id: instagramAccountId,
       instagram_username: instagramUsername,
-      token_status: trimString(row.token_status || row.token_health_status || row.status || ""),
+      token_status: trimString(row.status || ""),
       connected: Boolean(trimString(row.page_access_token_encrypted || "")),
       updated_at: row.updated_at || null,
     };

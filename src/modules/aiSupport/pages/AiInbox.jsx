@@ -6351,9 +6351,9 @@ export default function AiInbox() {
                   <div className="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
                     <div className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70">
                       <div className="aspect-[4/3] w-full bg-slate-900">
-                        {clean(selectedSocialThread.post?.post_full_picture || selectedSocialComment.post_full_picture || selectedSocialComment.full_picture || selectedSocialComment.product_image_url) ? (
+                        {clean(selectedSocialThread.post?.thumbnail_url || selectedSocialComment.thumbnail_url) ? (
                           <img
-                            src={clean(selectedSocialThread.post?.post_full_picture || selectedSocialComment.post_full_picture || selectedSocialComment.full_picture || selectedSocialComment.product_image_url)}
+                            src={clean(selectedSocialThread.post?.thumbnail_url || selectedSocialComment.thumbnail_url)}
                             alt=""
                             className="h-full w-full object-cover"
                           />
@@ -6381,7 +6381,7 @@ export default function AiInbox() {
                         <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
                             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Product</div>
-                            <div className="mt-1 text-sm font-black text-white">{clean(selectedSocialThread.post?.product_name || selectedSocialComment.product_name || "Not linked")}</div>
+                          <div className="mt-1 text-sm font-black text-white">{clean(selectedSocialThread.post?.product_name || selectedSocialComment.product_name || "Not linked")}</div>
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
                             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Price</div>

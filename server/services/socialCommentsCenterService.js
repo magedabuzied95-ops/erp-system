@@ -88,40 +88,140 @@ const cleanCommentText = (value = "") => text(value);
 
 const metadataObject = (value = {}) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
 
-const resolvePostPreviewImage = (row = {}) => {
-  const metadata = metadataObject(row.metadata || {});
-  const direct = text(
-    row.post_full_picture ||
-      row.attachment_image ||
-      row.post_thumbnail ||
-      row.product_image_url ||
-      row.product_image ||
-      row.thumbnail_url ||
-      row.image_url ||
-      row.image ||
-      metadata.post_full_picture ||
-      metadata.attachment_image ||
-      metadata.post_thumbnail ||
-      metadata.full_picture ||
-      metadata.thumbnail_url ||
-      metadata.image_url ||
-      metadata.image ||
-      ""
-  );
-  if (direct) return direct;
-  const attachments = asArray(metadata.attachments || row.attachments || []);
-  for (const attachment of attachments) {
+const SOCIAL_COMMENT_THUMBNAIL_PLACEHOLDER =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='18' fill='%23f3f4f6'/%3E%3Cpath d='M18 67l17-17 11 11 9-9 23 23H18z' fill='%23d1d5db'/%3E%3Ccircle cx='37' cy='35' r='7' fill='%23d1d5db'/%3E%3C/svg%3E";
+
+const firstImageValue = (...values) => {
+  for (const value of values) {
+    if (Array.isArray(value)) {
+      const nested = firstImageValue(...value);
+      if (nested) return nested;
+      continue;
+    }
+    if (value && typeof value === "object") {
+      const nested = firstImageValue(
+        value.image_url,
+        value.url,
+        value.path,
+        value.src,
+        value.preview,
+        value.secure_url,
+        value.thumbnail_url,
+        value.image?.src,
+        value.image?.url,
+        value.media?.image?.src,
+        value.media?.image_url,
+        value.media?.source
+      );
+      if (nested) return nested;
+      continue;
+    }
+    const candidate = text(value);
+    if (candidate) return candidate;
+  }
+  return "";
+};
+
+const extractAttachmentThumbnail = (attachments = []) => {
+  const safeAttachments = asArray(attachments);
+  for (const attachment of safeAttachments) {
     const image =
       attachment?.media?.image?.src ||
       attachment?.media?.image_url ||
       attachment?.media?.source ||
       attachment?.subattachments?.data?.[0]?.media?.image?.src ||
       attachment?.subattachments?.data?.[0]?.media?.image_url ||
+      attachment?.subattachments?.data?.[0]?.media?.source ||
+      attachment?.subattachments?.[0]?.media?.image?.src ||
+      attachment?.subattachments?.[0]?.media?.image_url ||
+      attachment?.subattachments?.[0]?.media?.source ||
       "";
     if (text(image)) return text(image);
   }
   return "";
 };
+
+const resolvePostThumbnailDetails = (row = {}) => {
+  const metadata = metadataObject(row.metadata || {});
+  const attachments = asArray(metadata.attachments || row.attachments || []);
+
+  const directSources = [
+    ["post_thumbnail", row.post_thumbnail || metadata.post_thumbnail || metadata.thumbnail_url || ""],
+    ["post_full_picture", row.post_full_picture || metadata.post_full_picture || metadata.full_picture || ""],
+    ["attachment_image", row.attachment_image || metadata.attachment_image || ""],
+    ["full_picture", row.full_picture || metadata.full_picture || ""],
+  ];
+
+  for (const [source, value] of directSources) {
+    const image = text(value);
+    if (image) {
+      return {
+        thumbnail_url: image,
+        thumbnail_source: source,
+        has_thumbnail: true,
+        reason_if_missing: "",
+        graph_enriched: false,
+      };
+    }
+  }
+
+  const attachmentImage = extractAttachmentThumbnail(attachments);
+  if (attachmentImage) {
+    return {
+      thumbnail_url: attachmentImage,
+      thumbnail_source: "attachments.media.image.src",
+      has_thumbnail: true,
+      reason_if_missing: "",
+      graph_enriched: false,
+    };
+  }
+
+  const productImage = firstImageValue(
+    row.product_image_url,
+    row.product_image,
+    metadata.product_image_url,
+    metadata.product_image
+  );
+  if (productImage) {
+    return {
+      thumbnail_url: productImage,
+      thumbnail_source: "product_image",
+      has_thumbnail: true,
+      reason_if_missing: "",
+      graph_enriched: false,
+    };
+  }
+
+  const productGalleryImage = firstImageValue(
+    row.product_gallery_images,
+    row.product_variant_images,
+    row.gallery_images,
+    row.product_images,
+    metadata.product_gallery_images,
+    metadata.product_variant_images,
+    metadata.gallery_images,
+    metadata.product_images
+  );
+  if (productGalleryImage) {
+    return {
+      thumbnail_url: productGalleryImage,
+      thumbnail_source: "product_images[0]",
+      has_thumbnail: true,
+      reason_if_missing: "",
+      graph_enriched: false,
+    };
+  }
+
+  return {
+    thumbnail_url: SOCIAL_COMMENT_THUMBNAIL_PLACEHOLDER,
+    thumbnail_source: "placeholder",
+    has_thumbnail: false,
+    reason_if_missing: "no_image_sources_found",
+    graph_enriched: false,
+  };
+};
+
+const resolvePostPreviewImage = (row = {}) => resolvePostThumbnailDetails(row).thumbnail_url;
 
 const resolvePostPreviewCaption = (row = {}) => {
   const metadata = metadataObject(row.metadata || {});
@@ -154,16 +254,54 @@ const resolvePostPreviewLink = (row = {}) => {
   );
 };
 
+const persistSocialCommentPostMedia = async ({ tenantId = null, channel = "", conversationId = "", metadata = {} } = {}) => {
+  const safeTenantId = toTenantId(tenantId);
+  const safeChannel = text(channel);
+  const safeConversationId = text(conversationId);
+  const safeMetadata = metadataObject(metadata);
+  if (!safeTenantId || !safeChannel || !safeConversationId || !Object.keys(safeMetadata).length) return;
+  await db.query(
+    `
+    UPDATE ai_channel_conversations
+    SET metadata = COALESCE(metadata, '{}'::jsonb) || $4::jsonb,
+        updated_at = NOW()
+    WHERE tenant_id = $1::bigint
+      AND channel = $2::text
+      AND external_conversation_id = $3::text
+    `,
+    [safeTenantId, safeChannel, safeConversationId, JSON.stringify(safeMetadata)]
+  ).catch(() => {});
+};
+
 const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform = "" } = {}) => {
   const safeRow = { ...(row || {}) };
   const metadata = metadataObject(safeRow.metadata || {});
   const postId = text(safeRow.post_id || safeRow.conversation_id || metadata.post_id || "");
   const pageId = text(metadata.page_id || metadata.facebook_page_id || "");
-  const needsImage = !resolvePostPreviewImage(safeRow) || !resolvePostPreviewCaption(safeRow) || !resolvePostPreviewLink(safeRow);
-  if (!tenantId || !postId || !needsImage) return safeRow;
+  const currentDetails = resolvePostThumbnailDetails(safeRow);
+  const needsGraph = !currentDetails.has_thumbnail || !resolvePostPreviewCaption(safeRow) || !resolvePostPreviewLink(safeRow);
+  if (!tenantId || !postId || !needsGraph) {
+    return {
+      ...safeRow,
+      thumbnail_url: currentDetails.thumbnail_url,
+      thumbnail_source: currentDetails.thumbnail_source,
+      has_thumbnail: currentDetails.has_thumbnail,
+      graph_enriched: false,
+      reason_if_missing: currentDetails.reason_if_missing || "",
+    };
+  }
   try {
     const graphPost = await fetchMetaPostPreviewDetails({ tenantId, postId, pageId }).catch(() => null);
-    if (!graphPost) return safeRow;
+    if (!graphPost) {
+      return {
+        ...safeRow,
+        thumbnail_url: currentDetails.thumbnail_url,
+        thumbnail_source: currentDetails.thumbnail_source,
+        has_thumbnail: currentDetails.has_thumbnail,
+        graph_enriched: false,
+        reason_if_missing: currentDetails.reason_if_missing || "graph_unavailable",
+      };
+    }
     const nextMetadata = {
       ...metadata,
       post_id: postId,
@@ -173,8 +311,9 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       post_caption: graphPost.post_caption || graphPost.caption || safeRow.post_caption || "",
       post_message: graphPost.post_message || graphPost.message || safeRow.post_message || "",
       post_permalink_url: graphPost.permalink_url || safeRow.post_permalink_url || safeRow.permalink_url || "",
+      attachments: asArray(graphPost.attachments || metadata.attachments || safeRow.attachments || []),
     };
-    return {
+    const mergedRow = {
       ...safeRow,
       post_full_picture: nextMetadata.post_full_picture,
       attachment_image: nextMetadata.attachment_image,
@@ -184,10 +323,43 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       post_permalink: nextMetadata.post_permalink_url,
       post_permalink_url: nextMetadata.post_permalink_url,
       permalink_url: nextMetadata.post_permalink_url || safeRow.permalink_url || "",
+      full_picture: graphPost.full_picture || safeRow.full_picture || "",
+      attachments: asArray(graphPost.attachments || safeRow.attachments || []),
       metadata: nextMetadata,
     };
+    const nextDetails = resolvePostThumbnailDetails(mergedRow);
+    const nextPersistedMetadata = {
+      ...nextMetadata,
+      thumbnail_url: nextDetails.thumbnail_url,
+      thumbnail_source: nextDetails.thumbnail_source,
+      has_thumbnail: nextDetails.has_thumbnail,
+      graph_enriched: true,
+      reason_if_missing: nextDetails.reason_if_missing || "",
+    };
+    await persistSocialCommentPostMedia({
+      tenantId,
+      channel: safeRow.channel || (normalizePlatform(platform) === "instagram" ? "instagram_comment" : "facebook_comment"),
+      conversationId: safeRow.conversation_id || safeRow.external_conversation_id || "",
+      metadata: nextPersistedMetadata,
+    });
+    return {
+      ...mergedRow,
+      metadata: nextPersistedMetadata,
+      thumbnail_url: nextDetails.thumbnail_url,
+      thumbnail_source: nextDetails.thumbnail_source,
+      has_thumbnail: nextDetails.has_thumbnail,
+      graph_enriched: true,
+      reason_if_missing: nextDetails.reason_if_missing || "",
+    };
   } catch {
-    return safeRow;
+    return {
+      ...safeRow,
+      thumbnail_url: currentDetails.thumbnail_url,
+      thumbnail_source: currentDetails.thumbnail_source,
+      has_thumbnail: currentDetails.has_thumbnail,
+      graph_enriched: false,
+      reason_if_missing: currentDetails.reason_if_missing || "graph_error",
+    };
   }
 };
 
@@ -369,6 +541,7 @@ const loadSocialCommentPost = async ({ tenantId = null, platform = "", postId = 
       COALESCE(c.metadata->>'post_message', c.metadata->>'message', '') AS post_message,
       COALESCE(c.metadata->>'post_permalink_url', c.metadata->>'post_permalink', c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS post_permalink_url,
       COALESCE(c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS permalink_url,
+      COALESCE(c.metadata->>'thumbnail_url', '') AS thumbnail_url,
       c.metadata,
       s.read_at AS session_read_at,
       s.status AS session_status,
@@ -385,6 +558,8 @@ const loadSocialCommentPost = async ({ tenantId = null, platform = "", postId = 
       prod.product_price,
       prod.product_sale_price,
       prod.product_image_url,
+      prod.product_gallery_images,
+      prod.product_variant_images,
       prod.product_storefront_url,
       prod.product_sizes,
       prod.product_colors,
@@ -429,6 +604,23 @@ const loadSocialCommentPost = async ({ tenantId = null, platform = "", postId = 
         p.price AS product_price,
         p.sale_price AS product_sale_price,
         p.image_url AS product_image_url,
+        p.gallery_images AS product_gallery_images,
+        COALESCE((
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'id', vi.id,
+              'image_url', vi.image_url,
+              'color_name', vi.color_name,
+              'color_value', vi.color_value,
+              'sort_order', vi.sort_order,
+              'is_primary', vi.is_primary
+            )
+            ORDER BY vi.is_primary DESC, vi.sort_order ASC, vi.id ASC
+          )
+          FROM product_variant_images vi
+          WHERE vi.product_id = ppl.product_id
+            AND NULLIF(TRIM(vi.image_url), '') IS NOT NULL
+        ), '[]'::jsonb) AS product_variant_images,
         COALESCE(ppl.media_id, '') AS product_storefront_url,
         COALESCE(
           (SELECT string_agg(DISTINCT NULLIF(v.size, ''), ', ' ORDER BY NULLIF(v.size, ''))
@@ -491,6 +683,7 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
       COALESCE(c.metadata->>'post_message', c.metadata->>'message', '') AS post_message,
       COALESCE(c.metadata->>'post_permalink_url', c.metadata->>'post_permalink', c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS post_permalink_url,
       COALESCE(c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS permalink_url,
+      COALESCE(c.metadata->>'thumbnail_url', '') AS thumbnail_url,
       c.metadata,
       s.read_at AS session_read_at,
       s.status AS session_status,
@@ -507,6 +700,8 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
       prod.product_price,
       prod.product_sale_price,
       prod.product_image_url,
+      prod.product_gallery_images,
+      prod.product_variant_images,
       prod.product_storefront_url,
       prod.product_sizes,
       prod.product_colors,
@@ -551,6 +746,23 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
         p.price AS product_price,
         p.sale_price AS product_sale_price,
         p.image_url AS product_image_url,
+        p.gallery_images AS product_gallery_images,
+        COALESCE((
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'id', vi.id,
+              'image_url', vi.image_url,
+              'color_name', vi.color_name,
+              'color_value', vi.color_value,
+              'sort_order', vi.sort_order,
+              'is_primary', vi.is_primary
+            )
+            ORDER BY vi.is_primary DESC, vi.sort_order ASC, vi.id ASC
+          )
+          FROM product_variant_images vi
+          WHERE vi.product_id = ppl.product_id
+            AND NULLIF(TRIM(vi.image_url), '') IS NOT NULL
+        ), '[]'::jsonb) AS product_variant_images,
         COALESCE(ppl.media_id, '') AS product_storefront_url,
         COALESCE(
           (SELECT string_agg(DISTINCT NULLIF(v.size, ''), ', ' ORDER BY NULLIF(v.size, ''))
@@ -587,6 +799,148 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     [safeTenantId, safeLimit]
   );
   return Promise.all((result.rows || []).map((row) => enrichSocialCommentPostRow({ tenantId: safeTenantId, row, platform: normalizedPlatform })));
+};
+
+const backfillSocialCommentPostMedia = async ({ tenantId = null, platform = "", limit = 200 } = {}) => {
+  const safeTenantId = toTenantId(tenantId);
+  const safeLimit = Math.min(500, Math.max(1, Number(limit) || 200));
+  if (!safeTenantId) {
+    return {
+      scanned: 0,
+      enriched: 0,
+      already_had_image: 0,
+      still_missing: 0,
+      errors_sample: [],
+    };
+  }
+  await ensureSocialCommentsCenterSchema();
+  const normalizedPlatform = lower(platform);
+  const platformClause = normalizedPlatform === "facebook" || normalizedPlatform === "instagram"
+    ? `AND c.channel = '${normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment"}'`
+    : "";
+  const result = await db.query(
+    `
+    SELECT
+      c.tenant_id,
+      c.channel,
+      CASE WHEN c.channel = 'instagram_comment' THEN 'instagram' ELSE 'facebook' END AS platform,
+      c.thread_kind,
+      c.external_conversation_id AS conversation_id,
+      c.external_customer_id,
+      c.customer_name,
+      c.customer_avatar_url,
+      c.last_message,
+      c.last_message_at,
+      c.read_at AS conversation_read_at,
+      COALESCE(c.metadata->>'post_full_picture', c.metadata->>'full_picture', '') AS post_full_picture,
+      COALESCE(c.metadata->>'attachment_image', '') AS attachment_image,
+      COALESCE(c.metadata->>'post_thumbnail', c.metadata->>'thumbnail_url', '') AS post_thumbnail,
+      COALESCE(c.metadata->>'post_caption', c.metadata->>'post_message', c.metadata->>'caption', '') AS post_caption,
+      COALESCE(c.metadata->>'post_message', c.metadata->>'message', '') AS post_message,
+      COALESCE(c.metadata->>'post_permalink_url', c.metadata->>'post_permalink', c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS post_permalink_url,
+      COALESCE(c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS permalink_url,
+      COALESCE(c.metadata->>'thumbnail_url', '') AS thumbnail_url,
+      c.metadata,
+      prod.product_id,
+      prod.product_name,
+      prod.product_price,
+      prod.product_sale_price,
+      prod.product_image_url,
+      prod.product_gallery_images,
+      prod.product_variant_images,
+      prod.product_storefront_url,
+      prod.product_sizes,
+      prod.product_colors
+    FROM ai_channel_conversations c
+    LEFT JOIN LATERAL (
+      SELECT
+        ppl.product_id,
+        p.name AS product_name,
+        p.price AS product_price,
+        p.sale_price AS product_sale_price,
+        p.image_url AS product_image_url,
+        p.gallery_images AS product_gallery_images,
+        COALESCE((
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'id', vi.id,
+              'image_url', vi.image_url,
+              'color_name', vi.color_name,
+              'color_value', vi.color_value,
+              'sort_order', vi.sort_order,
+              'is_primary', vi.is_primary
+            )
+            ORDER BY vi.is_primary DESC, vi.sort_order ASC, vi.id ASC
+          )
+          FROM product_variant_images vi
+          WHERE vi.product_id = ppl.product_id
+            AND NULLIF(TRIM(vi.image_url), '') IS NOT NULL
+        ), '[]'::jsonb) AS product_variant_images,
+        COALESCE(ppl.media_id, '') AS product_storefront_url,
+        COALESCE(
+          (SELECT string_agg(DISTINCT NULLIF(v.size, ''), ', ' ORDER BY NULLIF(v.size, ''))
+           FROM product_variants v
+           WHERE v.tenant_id = c.tenant_id AND v.product_id = ppl.product_id),
+          ''
+        ) AS product_sizes,
+        COALESCE(
+          (SELECT string_agg(DISTINCT NULLIF(v.color, ''), ', ' ORDER BY NULLIF(v.color, ''))
+           FROM product_variants v
+           WHERE v.tenant_id = c.tenant_id AND v.product_id = ppl.product_id),
+          ''
+        ) AS product_colors
+      FROM marketing_post_product_links ppl
+      LEFT JOIN products p ON p.id = ppl.product_id
+      WHERE ppl.business_id = c.tenant_id
+        AND ppl.platform = CASE WHEN c.channel = 'instagram_comment' THEN 'instagram' ELSE 'facebook' END
+        AND ppl.post_id = c.metadata->>'post_id'
+      ORDER BY ppl.created_at DESC, ppl.id DESC
+      LIMIT 1
+    ) prod ON TRUE
+    WHERE c.tenant_id = $1::bigint
+      AND c.thread_kind = 'comment'
+      ${platformClause}
+    ORDER BY c.updated_at DESC, c.id DESC
+    LIMIT $2
+    `,
+    [safeTenantId, safeLimit]
+  );
+
+  const errorsSample = [];
+  let enriched = 0;
+  let alreadyHadImage = 0;
+  let stillMissing = 0;
+  const rows = result.rows || [];
+  for (const row of rows) {
+    try {
+      const resolved = await enrichSocialCommentPostRow({ tenantId: safeTenantId, row, platform: normalizedPlatform });
+      if (resolved?.graph_enriched) enriched += 1;
+      if (resolved?.has_thumbnail) {
+        if (!resolved?.graph_enriched) alreadyHadImage += 1;
+      } else {
+        stillMissing += 1;
+      }
+    } catch (error) {
+      stillMissing += 1;
+      if (errorsSample.length < 5) {
+        errorsSample.push({
+          conversation_id: text(row.conversation_id || ""),
+          post_id: text(row.post_id || row.metadata?.post_id || ""),
+          message: text(error?.message || "Unknown error"),
+          code: text(error?.code || ""),
+          detail: text(error?.detail || error?.stack || ""),
+        });
+      }
+    }
+  }
+
+  return {
+    scanned: rows.length,
+    enriched,
+    already_had_image: alreadyHadImage,
+    still_missing: stillMissing,
+    errors_sample: errorsSample,
+  };
 };
 
 const listSocialCommentThreadComments = async ({ tenantId = null, platform = "", postId = "" } = {}) => {
@@ -740,6 +1094,7 @@ const getSocialCommentPostByCommentId = async ({ tenantId = null, platform = "",
       COALESCE(c.metadata->>'post_message', c.metadata->>'message', '') AS post_message,
       COALESCE(c.metadata->>'post_permalink_url', c.metadata->>'post_permalink', c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS post_permalink_url,
       COALESCE(c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS permalink_url,
+      COALESCE(c.metadata->>'thumbnail_url', '') AS thumbnail_url,
       c.metadata,
       s.read_at AS session_read_at,
       s.status AS session_status,
@@ -971,6 +1326,7 @@ export {
   getSocialPostAutoReplyTemplate,
   saveSocialPostAutoReplyTemplate,
   listSocialCommentPosts,
+  backfillSocialCommentPostMedia,
   listSocialCommentThreadComments,
   loadSocialCommentPost,
   getSocialCommentPostByCommentId,

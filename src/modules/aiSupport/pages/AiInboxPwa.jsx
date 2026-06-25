@@ -3711,14 +3711,7 @@ export default function AiInboxPwa() {
 
   const renderSocialCommentsWorkspace = () => {
     const selectedPost = selectedSocialPost || null;
-    const postImage = clean(
-      selectedPost?.post_full_picture ||
-      selectedPost?.full_picture ||
-      selectedPost?.product_image_url ||
-      selectedPost?.product_image ||
-      selectedPost?.thumbnail_url ||
-      selectedPost?.image_url
-    );
+    const postImage = clean(selectedPost?.thumbnail_url || "");
     const postCaption = clean(
       selectedPost?.post_caption ||
       selectedPost?.post_message ||

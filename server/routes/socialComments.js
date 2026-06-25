@@ -7,6 +7,7 @@ import {
   getSocialCommentPostByCommentId,
   getSocialPostAutoReplyTemplate,
   ignoreSocialComment,
+  backfillSocialCommentPostMedia,
   listSocialCommentPosts,
   listSocialCommentThreadComments,
   loadSocialCommentPost,
@@ -17,6 +18,7 @@ import {
 } from "../services/socialCommentsCenterService.js";
 
 const router = express.Router();
+const debugRouter = express.Router();
 
 const toTenantId = (req) => Number(req.query?.tenant_id || req.body?.tenant_id || req.headers["x-tenant-id"] || 1) || 1;
 
@@ -29,7 +31,27 @@ router.get("/posts", protect, permit("settings", "view"), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const platform = String(req.query?.platform || "").trim();
+    if (String(req.query?.debug || "") === "1") {
+      console.log("[social-comments-posts-route-hit]", {
+        tenant_id: tenantId,
+        platform,
+      });
+    }
     const posts = await listSocialCommentPosts({ tenantId, platform, limit: req.query?.limit || 50 });
+    if (String(req.query?.debug || "") === "1") {
+      console.log("[social-comments-posts-debug]", {
+        tenant_id: tenantId,
+        platform,
+        total: posts.length,
+        sample: posts.slice(0, 3).map((post) => ({
+          post_id: post.post_id || post.conversation_id || "",
+          has_thumbnail: Boolean(post.has_thumbnail),
+          thumbnail_source: post.thumbnail_source || "",
+          graph_enriched: Boolean(post.graph_enriched),
+          reason_if_missing: post.reason_if_missing || "",
+        })),
+      });
+    }
     return res.json({ success: true, posts, total: posts.length });
   } catch (error) {
     return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to load social comment posts" });
@@ -161,4 +183,29 @@ router.post("/comments/:commentId/ignore", protect, permit("settings", "edit"), 
   }
 });
 
+debugRouter.post("/enrich-post-media", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const platform = String(req.query?.platform || req.body?.platform || "").trim();
+    console.log("[social-comments-enrich-post-media-route-hit]", {
+      tenant_id: tenantId,
+      platform,
+      limit: req.query?.limit || req.body?.limit || 200,
+    });
+    const result = await backfillSocialCommentPostMedia({
+      tenantId,
+      platform,
+      limit: req.query?.limit || req.body?.limit || 200,
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    console.error("[social-comments-enrich-post-media:error]", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+    });
+    return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to enrich social comment post media" });
+  }
+});
+
 export default router;
+export { debugRouter as socialCommentsDebugRoutes };

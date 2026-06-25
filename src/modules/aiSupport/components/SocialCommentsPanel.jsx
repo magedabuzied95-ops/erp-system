@@ -184,7 +184,7 @@ function SocialCommentsPanel({
               if (mode === "posts") {
                 const title = clean(item.post_message || item.post_caption || item.last_message || item.last_comment_text || "منشور بدون نص");
                 const subtitle = clean(item.last_comment_text || item.last_message || item.post_caption || item.post_message || "");
-                const thumb = clean(item.post_full_picture || item.full_picture || item.product_image_url || item.product_image || item.thumbnail_url || item.image_url);
+                const thumb = clean(item.thumbnail_url || "");
                 return (
                   <article
                     key={itemKey}

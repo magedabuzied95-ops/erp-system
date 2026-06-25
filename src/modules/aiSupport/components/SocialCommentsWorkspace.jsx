@@ -12,10 +12,13 @@ import {
   Send,
   ShieldBan,
   Sparkles,
+  ShoppingBag,
   ThumbsUp,
   UserRound,
-  ShoppingBag,
 } from "lucide-react";
+import toast from "react-hot-toast";
+
+import { api } from "../../../shared/api/api";
 
 const clean = (value = "") => String(value ?? "").trim();
 
@@ -26,34 +29,22 @@ const absoluteTime = (value) => {
   return date.toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" });
 };
 
-const postKey = (item = {}) => {
-  const source = item || {};
-  return clean(
-    source.conversation_id ||
-      source.session_id ||
-      source.post_id ||
-      source.id ||
-      source.comment_id ||
-      `${source.platform || "social"}:${source.post_id || source.id || source.comment_id || ""}`
+const postKey = (item = {}) =>
+  clean(
+    item?.conversation_id ||
+      item?.session_id ||
+      item?.post_id ||
+      item?.id ||
+      item?.comment_id ||
+      `${item?.platform || "social"}:${item?.post_id || item?.id || item?.comment_id || ""}`
   );
-};
 
-const commentKey = (item = {}) => {
-  const source = item || {};
-  return clean(
-    source.comment_id ||
-      source.id ||
-      source.external_message_id ||
-      source.provider_message_id ||
-      `${source.platform || "social"}:${source.created_at || ""}:${source.message_text || source.customer_message || source.text || ""}`
-  );
-};
+const commentKey = (item = {}) =>
+  clean(item?.comment_id || item?.id || item?.external_message_id || item?.provider_message_id || "");
 
 const platformMeta = (platform = "") => {
   const key = clean(platform).toLowerCase();
-  if (key.includes("instagram")) {
-    return { label: "Instagram", className: "border-rose-300/20 bg-rose-400/10 text-rose-100" };
-  }
+  if (key.includes("instagram")) return { label: "Instagram", className: "border-rose-300/20 bg-rose-400/10 text-rose-100" };
   return { label: "Facebook", className: "border-cyan-300/20 bg-cyan-400/10 text-cyan-100" };
 };
 
@@ -98,8 +89,6 @@ const getPostImage = (post = {}) =>
 
 const getPostCaption = (post = {}) =>
   clean(post.post_caption || post.post_message || post.last_message || post.post_text || post.message || "");
-
-const getLastCommentText = (post = {}) => clean(post.last_comment_text || post.last_message || "");
 
 const getCommentText = (comment = {}) =>
   clean(comment.customer_message || comment.message_text || comment.original_comment_text || comment.text || comment.message || "");
@@ -175,13 +164,6 @@ function SocialCommentsWorkspace({
   },
   onRefresh,
   onSelectPost,
-  onGlobalSettingsChange,
-  onSaveGlobalSettings,
-  onTemplateChange,
-  onSaveTemplate,
-  onCommentAction,
-  selectedPostId = "",
-  actionLoading = "",
 }) {
   const posts = useMemo(
     () =>
@@ -194,77 +176,405 @@ function SocialCommentsWorkspace({
   );
 
   const activePost = selectedPost || posts[0] || null;
-  const activePostKey = clean(selectedPostId || postKey(activePost));
+  const activePostKey = clean(postKey(activePost));
   const activeThread = selectedThread || { post: null, comments: [], loading: false, error: "" };
   const comments = Array.isArray(activeThread.comments) ? activeThread.comments.filter(Boolean) : [];
-  const activeComment = comments[0] || null;
   const activePostDetails = activeThread.post || activePost || null;
-  const activeTemplate = selectedTemplate?.template || null;
 
+  const [selectedCommentKey, setSelectedCommentKey] = useState("");
   const [replyDraft, setReplyDraft] = useState("");
-
-  const dashboard = useMemo(() => {
-    const totalComments = posts.reduce((sum, post) => sum + Number(post.comments_count || 0), 0);
-    const newComments = posts.reduce((sum, post) => sum + Number(post.new_comments_count || 0), 0);
-    const needsReply = posts.filter((post) => Number(post.new_comments_count || 0) > 0 || clean(post.reply_status || post.auto_reply_mode || post.session_status).toLowerCase() !== "sent").length;
-    const replied = posts.filter((post) => clean(post.reply_status || post.auto_reply_mode || post.session_status).toLowerCase() === "sent").length;
-    const autoReplyOn = posts.filter((post) => Boolean(post.auto_reply_enabled || post.template_enabled || post.generic_enabled)).length;
-    return { totalComments, newComments, needsReply, replied, autoReplyOn };
-  }, [posts]);
-
-  const aiSummary = useMemo(() => {
-    const buckets = { price: 0, size: 0, shipping: 0, details: 0, ready: 0, spam: 0, question: 0 };
-    for (const comment of comments) {
-      buckets[summaryBucketLabel(comment)] += 1;
-    }
-    const entries = Object.entries(buckets).sort((left, right) => right[1] - left[1]);
-    const mostFrequentQuestion = entries.find(([, value]) => value > 0)?.[0] || "question";
-    return {
-      mostFrequentQuestion,
-      priceQuestions: buckets.price,
-      sizeQuestions: buckets.size,
-      readyCustomers: buckets.ready,
-      questionCount: buckets.question,
-      spamCount: buckets.spam,
-    };
-  }, [comments]);
-
-  const activePostImage = getPostImage(activePostDetails);
-  const activePostCaption = getPostCaption(activePostDetails);
-  const activePostLink = selectFirst(
-    activePostDetails?.post_permalink,
-    activePostDetails?.post_permalink_url,
-    activePostDetails?.permalink_url,
-    activePostDetails?.post_url
-  );
-  const activePlatform = platformMeta(activePostDetails?.platform || activePost?.platform || "");
-  const activeTemplateEnabled = Boolean(activeTemplate?.enabled);
-  const suggestedReply = templatePreviewText(
-    activeTemplate || { template: globalSettings.generic_template || "" },
-    {
-      customer_name: selectFirst(activeComment?.commenter_name, activeComment?.customer_name, "Customer"),
-      product_name: selectFirst(activePostDetails?.product_name, activePostDetails?.name, ""),
-      price: selectFirst(activePostDetails?.product_price, activePostDetails?.price, ""),
-      sale_price: selectFirst(activePostDetails?.product_sale_price, activePostDetails?.sale_price, ""),
-      sizes: selectFirst(activePostDetails?.product_sizes, activePostDetails?.sizes, ""),
-      colors: selectFirst(activePostDetails?.product_colors, activePostDetails?.colors, ""),
-      product_link: selectFirst(activePostDetails?.product_storefront_url, activePostDetails?.product_link, activePostDetails?.product_url, ""),
-      post_link: activePostLink,
-      store_address: selectFirst(activePostDetails?.store_address, ""),
-      shipping_time: selectFirst(activePostDetails?.shipping_time, ""),
-    }
-  );
+  const [previewReply, setPreviewReply] = useState("");
+  const [ignoredCommentKeys, setIgnoredCommentKeys] = useState(() => new Set());
+  const [refreshing, setRefreshing] = useState(false);
+  const [openingPost, setOpeningPost] = useState(false);
+  const [savingGlobal, setSavingGlobal] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [replyLoadingKey, setReplyLoadingKey] = useState("");
+  const [privateMessageLoadingKey, setPrivateMessageLoadingKey] = useState("");
+  const [ignoreLoadingKey, setIgnoreLoadingKey] = useState("");
+  const [leadLoadingKey, setLeadLoadingKey] = useState("");
+  const [globalDraft, setGlobalDraft] = useState(() => ({
+    generic_enabled: false,
+    generic_like_enabled: true,
+    generic_reply_enabled: true,
+    generic_template: "",
+    mode: "manual_approval",
+    ...(globalSettings || {}),
+  }));
+  const [templateDraft, setTemplateDraft] = useState(() => selectedTemplate?.template || null);
 
   useEffect(() => {
-    setReplyDraft(suggestedReply || "");
-  }, [selectedPostId, suggestedReply]);
+    setGlobalDraft({
+      generic_enabled: false,
+      generic_like_enabled: true,
+      generic_reply_enabled: true,
+      generic_template: "",
+      mode: "manual_approval",
+      ...(globalSettings || {}),
+    });
+  }, [
+    globalSettings?.generic_enabled,
+    globalSettings?.generic_like_enabled,
+    globalSettings?.generic_reply_enabled,
+    globalSettings?.generic_template,
+    globalSettings?.mode,
+  ]);
 
-  const renderCommentAction = (comment, action) => {
-    if (!onCommentAction) return;
-    onCommentAction(comment, action);
+  useEffect(() => {
+    setTemplateDraft(selectedTemplate?.template || null);
+  }, [
+    selectedPost?.id,
+    selectedPost?.post_id,
+    selectedPost?.conversation_id,
+    selectedTemplate?.template?.enabled,
+    selectedTemplate?.template?.like_enabled,
+    selectedTemplate?.template?.reply_enabled,
+    selectedTemplate?.template?.mode,
+    selectedTemplate?.template?.template,
+  ]);
+
+  useEffect(() => {
+    setIgnoredCommentKeys(new Set());
+    setSelectedCommentKey("");
+    setPreviewReply("");
+    setReplyDraft("");
+  }, [activePostKey]);
+
+  const activeTemplate = templateDraft || selectedTemplate?.template || null;
+  const currentGlobalSettings = globalDraft || globalSettings;
+  const visibleComments = comments.filter((comment) => !ignoredCommentKeys.has(commentKey(comment)));
+  const selectedVisibleComment =
+    visibleComments.find((comment) => commentKey(comment) === clean(selectedCommentKey)) ||
+    visibleComments[0] ||
+    null;
+  const actionableComment = selectedVisibleComment || null;
+
+  useEffect(() => {
+    if (!visibleComments.length) {
+      setSelectedCommentKey("");
+      return;
+    }
+    const nextSelected =
+      visibleComments.find((comment) => commentKey(comment) === clean(selectedCommentKey)) ||
+      visibleComments[0] ||
+      null;
+    const nextKey = commentKey(nextSelected || {});
+    if (nextKey && nextKey !== selectedCommentKey) {
+      setSelectedCommentKey(nextKey);
+    }
+  }, [selectedCommentKey, visibleComments]);
+
+  const activeSuggestedReply = useMemo(
+    () =>
+      templatePreviewText(activeTemplate || { template: currentGlobalSettings.generic_template || "" }, {
+        customer_name: selectFirst(actionableComment?.commenter_name, actionableComment?.customer_name, "Customer"),
+        product_name: selectFirst(activePostDetails?.product_name, activePostDetails?.name, ""),
+        price: selectFirst(activePostDetails?.product_price, activePostDetails?.price, ""),
+        sale_price: selectFirst(activePostDetails?.product_sale_price, activePostDetails?.sale_price, ""),
+        sizes: selectFirst(activePostDetails?.product_sizes, activePostDetails?.sizes, ""),
+        colors: selectFirst(activePostDetails?.product_colors, activePostDetails?.colors, ""),
+        product_link: selectFirst(activePostDetails?.product_storefront_url, activePostDetails?.product_link, activePostDetails?.product_url, ""),
+        post_link: selectFirst(activePostDetails?.post_permalink, activePostDetails?.post_permalink_url, activePostDetails?.permalink_url, activePostDetails?.post_url),
+        store_address: selectFirst(activePostDetails?.store_address, ""),
+        shipping_time: selectFirst(activePostDetails?.shipping_time, ""),
+      }),
+    [actionableComment, activePostDetails, activeTemplate, currentGlobalSettings.generic_template]
+  );
+
+  const suggestedReply = previewReply || activeSuggestedReply || "";
+  const activePostImage = getPostImage(activePostDetails);
+  const activePostCaption = getPostCaption(activePostDetails);
+  const activePostLink = selectFirst(activePostDetails?.post_permalink, activePostDetails?.post_permalink_url, activePostDetails?.permalink_url, activePostDetails?.post_url);
+  const activePlatform = platformMeta(activePostDetails?.platform || activePost?.platform || "");
+  const activePostPlatform = clean(activePostDetails?.platform || activePost?.platform || "facebook").toLowerCase();
+  const activePostPostId = clean(activePostDetails?.post_id || activePostDetails?.id || activePostKey);
+  const activePostConversationId = clean(activePostDetails?.conversation_id || activePostDetails?.session_id || activePostDetails?.conversation_key || activePostDetails?.id || activePostKey);
+  const activeTemplateEnabled = Boolean(activeTemplate?.enabled);
+
+  useEffect(() => {
+    setReplyDraft(activeSuggestedReply || "");
+    setPreviewReply("");
+  }, [activePostKey, activeSuggestedReply]);
+
+  const isBusy = (key) =>
+    Boolean(
+      key &&
+        (replyLoadingKey === key ||
+          privateMessageLoadingKey === key ||
+          ignoreLoadingKey === key ||
+          leadLoadingKey === key)
+    );
+
+  const notify = (tone, text) => {
+    const message = clean(text);
+    if (!message) return;
+    if (tone === "rose") return toast.error(message);
+    if (tone === "amber") return toast(message, { icon: "⚠️" });
+    if (tone === "emerald") return toast.success(message);
+    return toast(message);
   };
 
-  const firstMatchingComment = (predicate) => comments.find(predicate) || activeComment || null;
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.resolve(onRefresh?.());
+      notify("emerald", "تم تحديث التعليقات");
+    } catch (error) {
+      notify("rose", error?.message || "تعذر تحديث التعليقات");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleOpenPost = () => {
+    if (!activePostLink) {
+      notify("amber", "لا يوجد رابط بوست لفتحه");
+      return;
+    }
+    setOpeningPost(true);
+    try {
+      const opened = window.open(activePostLink, "_blank", "noopener,noreferrer");
+      if (!opened) {
+        notify("amber", "تعذر فتح الرابط، تحقق من إعدادات المتصفح");
+        return;
+      }
+      notify("emerald", "تم فتح البوست");
+    } catch {
+      notify("rose", "تعذر فتح البوست");
+    } finally {
+      window.setTimeout(() => setOpeningPost(false), 200);
+    }
+  };
+
+  const handleCopySuggestedReply = async () => {
+    const textToCopy = clean(suggestedReply || replyDraft);
+    if (!textToCopy) {
+      notify("amber", "لا يوجد رد مقترح للنسخ");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      notify("emerald", "تم نسخ الرد المقترح");
+    } catch {
+      setReplyDraft(textToCopy);
+      notify("amber", "تعذر النسخ، تم وضع النص في مربع الرد");
+    }
+  };
+
+  const handleSaveGlobalSettings = async () => {
+    if (clean(currentGlobalSettings.mode) === "full_auto") {
+      const confirmed = window.confirm("Full Auto يفعّل الرد الكامل تلقائيًا. هل تريد المتابعة؟");
+      if (!confirmed) {
+        notify("amber", "تم إلغاء حفظ Full Auto");
+        return;
+      }
+    }
+    setSavingGlobal(true);
+    try {
+      const payload = await api.post("/social-comments/auto-reply/settings", currentGlobalSettings);
+      setGlobalDraft({
+        generic_enabled: Boolean(payload?.settings?.generic_enabled),
+        generic_like_enabled: payload?.settings?.generic_like_enabled !== false,
+        generic_reply_enabled: payload?.settings?.generic_reply_enabled !== false,
+        generic_template: clean(payload?.settings?.generic_template || ""),
+        mode: clean(payload?.settings?.mode || "manual_approval") || "manual_approval",
+      });
+      notify("emerald", "تم حفظ إعدادات الرد التلقائي");
+      await Promise.resolve(onRefresh?.());
+    } catch (error) {
+      notify("rose", error?.message || "تعذر حفظ الإعدادات");
+    } finally {
+      setSavingGlobal(false);
+    }
+  };
+
+  const handleSaveTemplate = async () => {
+    const postId = clean(activePostPostId);
+    if (!postId) {
+      notify("amber", "اختر بوستًا أولًا");
+      return;
+    }
+    if (clean(activeTemplate?.mode) === "full_auto") {
+      const confirmed = window.confirm("Full Auto يفعّل الرد الكامل تلقائيًا لهذا البوست. هل تريد المتابعة؟");
+      if (!confirmed) {
+        notify("amber", "تم إلغاء حفظ Full Auto");
+        return;
+      }
+    }
+    setSavingTemplate(true);
+    try {
+      const payload = await api.post(`/social-comments/posts/${encodeURIComponent(postId)}/template`, {
+        platform: activePostPlatform || "facebook",
+        ...(activeTemplate || {}),
+      });
+      setTemplateDraft(payload?.template || null);
+      notify("emerald", "تم حفظ قالب البوست");
+      await Promise.resolve(onRefresh?.());
+    } catch (error) {
+      notify("rose", error?.message || "تعذر حفظ قالب البوست");
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
+  const handlePreviewReply = async () => {
+    const commentId = clean(actionableComment?.comment_id || actionableComment?.id || actionableComment?.external_message_id || actionableComment?.provider_message_id || "");
+    if (!commentId) {
+      notify("amber", "اختر تعليقًا أولًا");
+      return;
+    }
+    setPreviewLoading(true);
+    try {
+      const payload = await api.post(`/social-comments/comments/${encodeURIComponent(commentId)}/auto-reply-preview`, {
+        platform: activePostPlatform || "facebook",
+        post_id: activePostPostId,
+      });
+      const renderedReply = clean(payload?.preview?.rendered_reply || payload?.preview?.renderedReply || "");
+      if (renderedReply) {
+        setPreviewReply(renderedReply);
+        setReplyDraft(renderedReply);
+        notify("emerald", "تم توليد معاينة الرد");
+      } else {
+        notify("amber", "لا توجد معاينة متاحة");
+      }
+    } catch (error) {
+      notify("rose", error?.message || "تعذر توليد المعاينة");
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const submitReply = async (comment = actionableComment, replyText = replyDraft) => {
+    const commentId = clean(comment?.comment_id || comment?.id || comment?.external_message_id || comment?.provider_message_id || "");
+    const messageText = clean(replyText || suggestedReply);
+    if (!commentId) {
+      notify("amber", "اختر تعليقًا للرد");
+      return;
+    }
+    if (!messageText) {
+      notify("amber", "اكتب الرد أولًا");
+      return;
+    }
+    setReplyLoadingKey(commentId);
+    try {
+      await api.post(`/ai-inbox/comments/${encodeURIComponent(commentId)}/reply`, {
+        reply_text: messageText,
+      });
+      notify("emerald", "تم إرسال الرد");
+      await Promise.resolve(onRefresh?.());
+    } catch (error) {
+      notify("rose", error?.message || "تعذر إرسال الرد");
+    } finally {
+      setReplyLoadingKey("");
+    }
+  };
+
+  const submitPrivateMessage = async (comment = actionableComment, messageText = replyDraft || suggestedReply) => {
+    const conversationId = clean(activePostConversationId || activePostPostId);
+    const commentId = clean(comment?.comment_id || comment?.id || comment?.external_message_id || comment?.provider_message_id || "");
+    const finalMessage = clean(messageText);
+    if (!conversationId) {
+      notify("amber", "تعذر تحديد المحادثة الخاصة لهذا البوست");
+      return;
+    }
+    if (!finalMessage) {
+      notify("amber", "اكتب رسالة خاصة أولًا");
+      return;
+    }
+    setPrivateMessageLoadingKey(commentId || conversationId);
+    try {
+      await api.post(`/ai-inbox/inbox/${encodeURIComponent(conversationId)}/private-message`, {
+        message: finalMessage,
+        comment_id: commentId,
+        platform: activePostPlatform || "facebook",
+        post_id: activePostPostId,
+      });
+      notify("emerald", "تم إرسال الرسالة الخاصة");
+      await Promise.resolve(onRefresh?.());
+    } catch (error) {
+      notify("rose", error?.message || "إرسال رسالة خاصة من التعليق يحتاج صلاحية/دعم Meta، استخدم فتح البوست مؤقتًا.");
+    } finally {
+      setPrivateMessageLoadingKey("");
+    }
+  };
+
+  const handleIgnoreComment = async (comment = actionableComment) => {
+    const commentId = clean(comment?.comment_id || comment?.id || comment?.external_message_id || comment?.provider_message_id || "");
+    if (!commentId) {
+      notify("amber", "اختر تعليقًا للتجاهل");
+      return;
+    }
+    setIgnoreLoadingKey(commentId);
+    setIgnoredCommentKeys((current) => {
+      const next = new Set(current);
+      next.add(commentId);
+      return next;
+    });
+    try {
+      await api.post(`/social-comments/comments/${encodeURIComponent(commentId)}/ignore`, {
+        platform: activePostPlatform || "facebook",
+        post_id: activePostPostId,
+        reason: "ignore",
+      });
+      notify("emerald", "تم تجاهل التعليق");
+      await Promise.resolve(onRefresh?.());
+    } catch (error) {
+      setIgnoredCommentKeys((current) => {
+        const next = new Set(current);
+        next.delete(commentId);
+        return next;
+      });
+      notify("rose", error?.message || "تعذر تجاهل التعليق");
+    } finally {
+      setIgnoreLoadingKey("");
+    }
+  };
+
+  const handleCreateLead = async (comment = actionableComment) => {
+    const commentId = clean(comment?.comment_id || comment?.id || comment?.external_message_id || comment?.provider_message_id || "");
+    setLeadLoadingKey(commentId || "lead");
+    try {
+      notify("amber", "سيتم ربطها بالـ CRM لاحقًا");
+    } finally {
+      window.setTimeout(() => setLeadLoadingKey(""), 150);
+    }
+  };
+
+  const handleSendProduct = () => {
+    notify("amber", "الميزة قيد التجهيز");
+  };
+
+  const firstMatchingComment = (predicate) => visibleComments.find(predicate) || actionableComment || null;
+
+  const renderCommentTags = (comment = {}) => {
+    const tags = getCommentTags(comment);
+    if (!tags.length) return null;
+    return (
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {tags.map((tag) => (
+          <span
+            key={tag}
+            className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${
+              tag === "Price"
+                ? "border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
+                : tag === "Size"
+                  ? "border-violet-300/20 bg-violet-400/10 text-violet-100"
+                  : tag === "Shipping"
+                    ? "border-amber-300/20 bg-amber-400/10 text-amber-100"
+                    : tag === "Lead"
+                      ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
+                      : tag === "Review"
+                        ? "border-sky-300/20 bg-sky-400/10 text-sky-100"
+                        : "border-white/10 bg-white/[0.04] text-slate-300"
+            }`}
+          >
+            {tag}
+          </span>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <section className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] text-white shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
@@ -277,20 +587,18 @@ function SocialCommentsWorkspace({
             </div>
             <button
               type="button"
-              onClick={onRefresh}
-              disabled={loading}
+              onClick={() => void handleRefresh()}
+              disabled={loading || refreshing}
               className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-[11px] font-black text-slate-100 disabled:opacity-50"
             >
-              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              {loading || refreshing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
               Refresh
             </button>
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto p-2">
             {!posts.length && !loading ? (
-              <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-500">
-                لا توجد منشورات بعد
-              </div>
+              <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-500">لا توجد منشورات بعد</div>
             ) : null}
 
             <div className="space-y-2">
@@ -313,9 +621,7 @@ function SocialCommentsWorkspace({
                         : undefined
                     }
                     className={`rounded-2xl border p-3 transition ${
-                      active
-                        ? "border-cyan-300/40 bg-cyan-300/10 ring-1 ring-cyan-300/20"
-                        : "border-white/10 bg-white/[0.04] hover:border-white/20 hover:bg-white/[0.06]"
+                      active ? "border-cyan-300/40 bg-cyan-300/10 ring-1 ring-cyan-300/20" : "border-white/10 bg-white/[0.04] hover:border-white/20 hover:bg-white/[0.06]"
                     }`}
                   >
                     <div className="flex gap-3">
@@ -333,16 +639,12 @@ function SocialCommentsWorkspace({
                           <div className="min-w-0 flex-1">
                             <div className="line-clamp-2 text-sm font-black text-white">{getPostCaption(post) || "Post"}</div>
                           </div>
-                          <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${meta.className}`}>
-                            {meta.label}
-                          </span>
+                          <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${meta.className}`}>{meta.label}</span>
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-300">
                           <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{Number(post.comments_count || 0)} comments</span>
                           <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{Number(post.new_comments_count || 0)} new</span>
-                          {Number(post.new_comments_count || 0) > 0 ? (
-                            <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">Needs reply</span>
-                          ) : null}
+                          {Number(post.new_comments_count || 0) > 0 ? <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">Needs reply</span> : null}
                         </div>
                         <div className="mt-2 text-[11px] font-medium text-slate-400">
                           <span className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1">
@@ -370,21 +672,19 @@ function SocialCommentsWorkspace({
                   </div>
                   <h2 className="mt-1 line-clamp-2 text-lg font-black text-white">{activePostCaption || "اختر منشورًا من القائمة"}</h2>
                 </div>
-                {activePostLink ? (
-                  <a
-                    href={activePostLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex h-9 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100"
-                  >
-                    Open Post
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                ) : null}
+                <button
+                  type="button"
+                  onClick={handleOpenPost}
+                  disabled={!activePostLink || openingPost}
+                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"
+                >
+                  {openingPost ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+                  Open Post
+                </button>
               </div>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3 min-[1280px]:grid min-[1280px]:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
+            <div className="grid min-h-0 flex-1 gap-3 p-3 min-[1280px]:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
               <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
                 <div className="overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/70">
                   <div className="flex h-[260px] items-center justify-center overflow-hidden bg-slate-900 min-[1600px]:h-[320px]">
@@ -401,28 +701,14 @@ function SocialCommentsWorkspace({
                       </div>
                     )}
                   </div>
+
                   <div className="space-y-3 p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100">{activePlatform.label} Post</div>
                         <p className="mt-1 whitespace-pre-wrap text-sm leading-7 text-slate-200">{activePostCaption || "لا يوجد وصف للمنشور"}</p>
                       </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePlatform.className}`}>
-                          {activePlatform.label}
-                        </span>
-                        {activePostLink ? (
-                          <a
-                            href={activePostLink}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200"
-                          >
-                            Open
-                            <ExternalLink className="h-4 w-4" />
-                          </a>
-                        ) : null}
-                      </div>
+                      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePlatform.className}`}>{activePlatform.label}</span>
                     </div>
 
                     {activePostDetails?.product_name || activePostDetails?.product_price || activePostDetails?.product_sale_price || activePostDetails?.product_sizes || activePostDetails?.product_colors ? (
@@ -432,7 +718,7 @@ function SocialCommentsWorkspace({
                             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">ERP Product Card</div>
                             <div className="mt-1 text-sm font-black text-white">{selectFirst(activePostDetails?.product_name, "Linked product")}</div>
                           </div>
-                          {activePostDetails?.product_link || activePostDetails?.product_storefront_url ? (
+                          {selectFirst(activePostDetails?.product_link, activePostDetails?.product_storefront_url) ? (
                             <a
                               href={selectFirst(activePostDetails?.product_link, activePostDetails?.product_storefront_url)}
                               target="_blank"
@@ -461,7 +747,7 @@ function SocialCommentsWorkspace({
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Comments Timeline</div>
-                      <div className="mt-1 text-sm font-black text-white">{comments.length} comments</div>
+                      <div className="mt-1 text-sm font-black text-white">{visibleComments.length} comments</div>
                     </div>
                     {activeThread.loading ? <Loader2 className="h-4 w-4 animate-spin text-slate-300" /> : null}
                   </div>
@@ -471,27 +757,35 @@ function SocialCommentsWorkspace({
                   ) : null}
 
                   <div className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1">
-                    {!comments.length && !activeThread.loading ? (
+                    {!visibleComments.length && !activeThread.loading ? (
                       <div className="grid min-h-[18rem] place-items-center rounded-[22px] border border-dashed border-white/10 bg-white/[0.02] p-6 text-center text-sm text-slate-500">
                         لا توجد تعليقات لعرضها الآن
                       </div>
                     ) : null}
 
-                    {comments.map((comment) => {
+                    {visibleComments.map((comment) => {
                       const key = commentKey(comment);
                       const status = clean(classifyComment(comment));
-                      const avatar = selectFirst(
-                        comment.commenter_profile_picture_url,
-                        comment.customer_avatar_url,
-                        comment.avatar_url,
-                        comment.profile_pic
-                      );
+                      const avatar = selectFirst(comment.commenter_profile_picture_url, comment.customer_avatar_url, comment.avatar_url, comment.profile_pic);
                       const name = selectFirst(comment.customer_name, comment.commenter_name, comment.from_name, "Customer");
                       const text = getCommentText(comment) || "بدون نص";
                       const tags = getCommentTags(comment);
-                      const actionBusy = actionLoading === key;
+                      const busy = isBusy(key);
+                      const selected = key === selectedCommentKey;
+
                       return (
-                        <article key={key || `${comment.created_at || ""}:${name}`} className="rounded-[22px] border border-white/10 bg-slate-950/65 p-3">
+                        <article
+                          key={key || `${comment.created_at || ""}:${name}`}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setSelectedCommentKey(key)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") setSelectedCommentKey(key);
+                          }}
+                          className={`rounded-[22px] border p-3 transition ${
+                            selected ? "border-cyan-300/40 bg-cyan-300/10" : "border-white/10 bg-slate-950/65 hover:border-white/20 hover:bg-slate-950/75"
+                          }`}
+                        >
                           <div className="flex items-start gap-3">
                             {avatar ? (
                               <img src={avatar} alt={name} className="h-11 w-11 shrink-0 rounded-full object-cover ring-1 ring-white/10" loading="lazy" />
@@ -500,6 +794,7 @@ function SocialCommentsWorkspace({
                                 <UserRound className="h-5 w-5" />
                               </span>
                             )}
+
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-start justify-between gap-2">
                                 <div className="min-w-0">
@@ -523,63 +818,55 @@ function SocialCommentsWorkspace({
                               </div>
 
                               <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">{text}</div>
-
-                              <div className="mt-2 flex flex-wrap gap-1.5">
-                                {tags.map((tag) => (
-                                  <span
-                                    key={tag}
-                                    className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${
-                                      tag === "Price"
-                                        ? "border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
-                                        : tag === "Size"
-                                          ? "border-violet-300/20 bg-violet-400/10 text-violet-100"
-                                          : tag === "Shipping"
-                                            ? "border-amber-300/20 bg-amber-400/10 text-amber-100"
-                                            : tag === "Lead"
-                                              ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
-                                              : "border-white/10 bg-white/[0.04] text-slate-300"
-                                    }`}
-                                  >
-                                    {tag}
-                                  </span>
-                                ))}
-                              </div>
+                              {renderCommentTags(comment)}
 
                               <div className="mt-3 flex flex-wrap gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => renderCommentAction(comment, "reply")}
-                                  disabled={!onCommentAction || actionBusy}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    void submitReply(comment, replyDraft || suggestedReply);
+                                  }}
+                                  disabled={busy || !clean(replyDraft || suggestedReply)}
                                   className="inline-flex h-9 items-center gap-2 rounded-xl bg-cyan-300 px-3 text-xs font-black text-slate-950 disabled:opacity-50"
                                 >
-                                  {actionBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                                  {replyLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                                   Reply
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => renderCommentAction(comment, "private_message")}
-                                  disabled={!onCommentAction}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    void submitPrivateMessage(comment, replyDraft || suggestedReply);
+                                  }}
+                                  disabled={busy || !clean(replyDraft || suggestedReply)}
                                   className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
                                 >
-                                  <MessageCircle className="h-4 w-4" />
+                                  {privateMessageLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
                                   Private Message
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => renderCommentAction(comment, "lead")}
-                                  disabled={!onCommentAction}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    void handleCreateLead(comment);
+                                  }}
+                                  disabled={busy}
                                   className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
                                 >
-                                  <ShoppingBag className="h-4 w-4" />
-                                  Lead
+                                  {leadLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
+                                  Create Lead
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => renderCommentAction(comment, "ignore")}
-                                  disabled={!onCommentAction}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    void handleIgnoreComment(comment);
+                                  }}
+                                  disabled={busy}
                                   className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-300 disabled:opacity-50"
                                 >
-                                  <ShieldBan className="h-4 w-4" />
+                                  {ignoreLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldBan className="h-4 w-4" />}
                                   Ignore
                                 </button>
                               </div>
@@ -590,32 +877,34 @@ function SocialCommentsWorkspace({
                     })}
                   </div>
 
-                  <div className="rounded-[22px] border border-white/10 bg-slate-950/70 p-3">
+                  <div className="rounded-[24px] border border-white/10 bg-slate-950/70 p-3">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Reply Composer</div>
-                        <div className="mt-1 text-sm font-black text-white">Draft a reply for the selected post</div>
+                        <div className="mt-1 text-sm font-black text-white">Draft a reply for the selected comment</div>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
-                          onClick={() => setReplyDraft(suggestedReply || "")}
-                          className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-[11px] font-black text-slate-200"
+                          onClick={() => void handlePreviewReply()}
+                          disabled={previewLoading || !actionableComment}
+                          className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-[11px] font-black text-slate-200 disabled:opacity-50"
                         >
-                          <Sparkles className="h-3.5 w-3.5" />
-                          Use suggested
+                          {previewLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                          Preview Reply
                         </button>
                         <button
                           type="button"
-                          onClick={() => navigator?.clipboard?.writeText?.(replyDraft || "").catch(() => {})}
-                          disabled={!replyDraft}
+                          onClick={() => void handleCopySuggestedReply()}
+                          disabled={!clean(suggestedReply)}
                           className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-[11px] font-black text-slate-200 disabled:opacity-50"
                         >
                           <MessageSquareText className="h-3.5 w-3.5" />
-                          Copy
+                          Copy suggested reply
                         </button>
                       </div>
                     </div>
+
                     <textarea
                       value={replyDraft}
                       onChange={(event) => setReplyDraft(event.target.value)}
@@ -623,57 +912,58 @@ function SocialCommentsWorkspace({
                       className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-950/70 p-3 text-sm text-white outline-none"
                       placeholder="Reply draft"
                     />
+
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button
                         type="button"
-                        onClick={() => {
-                          if (!activeComment || !onCommentAction) return;
-                          onCommentAction(activeComment, "reply");
-                        }}
-                        disabled={!activeComment || !onCommentAction}
+                        onClick={() => void submitReply(actionableComment, previewReply || suggestedReply || replyDraft)}
+                        disabled={!actionableComment || !clean(previewReply || suggestedReply || replyDraft) || Boolean(replyLoadingKey)}
                         className="inline-flex h-10 items-center gap-2 rounded-xl bg-cyan-300 px-4 text-sm font-black text-slate-950 disabled:opacity-50"
                       >
-                        <Send className="h-4 w-4" />
-                        Reply now
+                        {replyLoadingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        Send suggested reply
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          if (!activeComment || !onCommentAction) return;
-                          onCommentAction(activeComment, "private_message");
-                        }}
-                        disabled={!activeComment || !onCommentAction}
+                        onClick={() => void submitPrivateMessage(actionableComment, previewReply || suggestedReply || replyDraft)}
+                        disabled={!actionableComment || !clean(previewReply || suggestedReply || replyDraft) || Boolean(privateMessageLoadingKey)}
                         className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black text-slate-200 disabled:opacity-50"
                       >
-                        <MessageCircle className="h-4 w-4" />
+                        {privateMessageLoadingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
                         Private Message
                       </button>
                       <button
                         type="button"
                         onClick={() => {
-                          if (!replyDraft) return;
-                          navigator?.clipboard?.writeText?.(replyDraft).catch(() => {});
+                          if (!replyDraft && !suggestedReply) {
+                            notify("amber", "لا يوجد رد للنسخ");
+                            return;
+                          }
+                          navigator.clipboard.writeText(replyDraft || suggestedReply).then(
+                            () => notify("emerald", "تم نسخ الرد"),
+                            () => notify("amber", "تعذر النسخ، انسخ يدويًا")
+                          );
                         }}
-                        disabled={!replyDraft}
+                        disabled={!clean(replyDraft || suggestedReply)}
                         className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black text-slate-200 disabled:opacity-50"
                       >
                         <MessageSquareText className="h-4 w-4" />
-                        Copy draft
+                        Copy suggested reply
                       </button>
                     </div>
                   </div>
                 </div>
               </section>
 
-              <aside className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/55 p-3 min-[1024px]:col-span-2 min-[1280px]:col-span-1">
+              <aside className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/55 p-3">
                 <div className="rounded-[22px] border border-white/10 bg-slate-950/70 p-3">
                   <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">AI Assistant</div>
                   <div className="mt-2 space-y-2 text-sm text-slate-200">
-                    <SidebarRow label="Most Asked Question" value={labelText(aiSummary.mostFrequentQuestion)} icon={<Sparkles className="h-4 w-4 text-cyan-100" />} />
+                    <SidebarRow label="Most Asked Question" value={labelText(summaryBucketLabel(actionableComment))} icon={<Sparkles className="h-4 w-4 text-cyan-100" />} />
                     <SidebarRow label="Suggested Reply" value={suggestedReply || "No suggestion yet."} icon={<MessageSquareText className="h-4 w-4 text-emerald-100" />} />
-                    <SidebarRow label="Lead Intent" value={`${aiSummary.readyCustomers} ready / ${aiSummary.priceQuestions} price / ${aiSummary.sizeQuestions} size`} icon={<ThumbsUp className="h-4 w-4 text-violet-100" />} />
-                    <SidebarRow label="Customer Summary" value={selectFirst(activeComment?.customer_name, activeComment?.commenter_name, activePostDetails?.customer_name, "Customer")} icon={<UserRound className="h-4 w-4 text-amber-100" />} />
-                    <SidebarRow label="Auto Reply Status" value={globalSettings.generic_enabled ? "Global ON" : "Global OFF"} icon={<Bot className="h-4 w-4 text-sky-100" />} />
+                    <SidebarRow label="Lead Intent" value={`${visibleComments.filter((item) => getCommentTags(item).includes("Lead")).length} leads / ${visibleComments.filter((item) => getCommentTags(item).includes("Price")).length} price / ${visibleComments.filter((item) => getCommentTags(item).includes("Size")).length} size`} icon={<ThumbsUp className="h-4 w-4 text-violet-100" />} />
+                    <SidebarRow label="Customer Summary" value={selectFirst(actionableComment?.customer_name, actionableComment?.commenter_name, activePostDetails?.customer_name, "Customer")} icon={<UserRound className="h-4 w-4 text-amber-100" />} />
+                    <SidebarRow label="Auto Reply Status" value={currentGlobalSettings.generic_enabled ? "Global ON" : "Global OFF"} icon={<Bot className="h-4 w-4 text-sky-100" />} />
                   </div>
                 </div>
 
@@ -685,36 +975,36 @@ function SocialCommentsWorkspace({
                     </div>
                     <button
                       type="button"
-                      onClick={onSaveGlobalSettings}
-                      disabled={!onSaveGlobalSettings}
+                      onClick={() => void handleSaveGlobalSettings()}
+                      disabled={savingGlobal}
                       className="inline-flex h-8 items-center gap-2 rounded-xl bg-cyan-300 px-3 text-[11px] font-black text-slate-950 disabled:opacity-50"
                     >
-                      <Send className="h-3.5 w-3.5" />
-                      Save
+                      {savingGlobal ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                      Save Global Template
                     </button>
                   </div>
 
                   <div className="mt-3 flex flex-wrap gap-2">
                     <TogglePill
                       label="Enabled"
-                      active={globalSettings.generic_enabled}
-                      onClick={() => onGlobalSettingsChange?.((current) => ({ ...current, generic_enabled: !current.generic_enabled }))}
+                      active={currentGlobalSettings.generic_enabled}
+                      onClick={() => setGlobalDraft((current) => ({ ...current, generic_enabled: !current.generic_enabled }))}
                     />
                     <TogglePill
-                      label={`Like ${globalSettings.generic_like_enabled ? "ON" : "OFF"}`}
-                      active={globalSettings.generic_like_enabled}
-                      onClick={() => onGlobalSettingsChange?.((current) => ({ ...current, generic_like_enabled: !current.generic_like_enabled }))}
+                      label={`Like ${currentGlobalSettings.generic_like_enabled ? "ON" : "OFF"}`}
+                      active={currentGlobalSettings.generic_like_enabled}
+                      onClick={() => setGlobalDraft((current) => ({ ...current, generic_like_enabled: !current.generic_like_enabled }))}
                     />
                     <TogglePill
-                      label={`Reply ${globalSettings.generic_reply_enabled ? "ON" : "OFF"}`}
-                      active={globalSettings.generic_reply_enabled}
-                      onClick={() => onGlobalSettingsChange?.((current) => ({ ...current, generic_reply_enabled: !current.generic_reply_enabled }))}
+                      label={`Reply ${currentGlobalSettings.generic_reply_enabled ? "ON" : "OFF"}`}
+                      active={currentGlobalSettings.generic_reply_enabled}
+                      onClick={() => setGlobalDraft((current) => ({ ...current, generic_reply_enabled: !current.generic_reply_enabled }))}
                     />
                   </div>
 
                   <select
-                    value={globalSettings.mode || "manual_approval"}
-                    onChange={(event) => onGlobalSettingsChange?.((current) => ({ ...current, mode: event.target.value }))}
+                    value={currentGlobalSettings.mode || "manual_approval"}
+                    onChange={(event) => setGlobalDraft((current) => ({ ...current, mode: event.target.value }))}
                     className="mt-3 h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-black text-white outline-none"
                   >
                     <option value="off">Off</option>
@@ -724,8 +1014,8 @@ function SocialCommentsWorkspace({
                   </select>
 
                   <textarea
-                    value={globalSettings.generic_template || ""}
-                    onChange={(event) => onGlobalSettingsChange?.((current) => ({ ...current, generic_template: event.target.value }))}
+                    value={currentGlobalSettings.generic_template || ""}
+                    onChange={(event) => setGlobalDraft((current) => ({ ...current, generic_template: event.target.value }))}
                     rows={4}
                     className="mt-3 w-full rounded-xl border border-white/10 bg-slate-950/70 p-3 text-sm text-white outline-none"
                     placeholder="Global auto reply template"
@@ -741,12 +1031,12 @@ function SocialCommentsWorkspace({
                     </div>
                     <button
                       type="button"
-                      onClick={onSaveTemplate}
-                      disabled={!onSaveTemplate}
+                      onClick={() => void handleSaveTemplate()}
+                      disabled={savingTemplate}
                       className="inline-flex h-8 items-center gap-2 rounded-xl bg-cyan-300 px-3 text-[11px] font-black text-slate-950 disabled:opacity-50"
                     >
-                      <Send className="h-3.5 w-3.5" />
-                      Save
+                      {savingTemplate ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                      Save Post Template
                     </button>
                   </div>
 
@@ -755,9 +1045,9 @@ function SocialCommentsWorkspace({
                       label={activeTemplateEnabled ? "Enabled" : "Disabled"}
                       active={activeTemplateEnabled}
                       onClick={() =>
-                        onTemplateChange?.((current) => ({
-                          ...current,
-                          template: { ...(current.template || {}), enabled: !activeTemplateEnabled },
+                        setTemplateDraft((current) => ({
+                          ...(current || {}),
+                          enabled: !activeTemplateEnabled,
                         }))
                       }
                     />
@@ -765,9 +1055,9 @@ function SocialCommentsWorkspace({
                       label={`Like ${activeTemplate?.like_enabled !== false ? "ON" : "OFF"}`}
                       active={activeTemplate?.like_enabled !== false}
                       onClick={() =>
-                        onTemplateChange?.((current) => ({
-                          ...current,
-                          template: { ...(current.template || {}), like_enabled: !(current.template?.like_enabled !== false) },
+                        setTemplateDraft((current) => ({
+                          ...(current || {}),
+                          like_enabled: !(current?.like_enabled !== false),
                         }))
                       }
                     />
@@ -775,9 +1065,9 @@ function SocialCommentsWorkspace({
                       label={`Reply ${activeTemplate?.reply_enabled !== false ? "ON" : "OFF"}`}
                       active={activeTemplate?.reply_enabled !== false}
                       onClick={() =>
-                        onTemplateChange?.((current) => ({
-                          ...current,
-                          template: { ...(current.template || {}), reply_enabled: !(current.template?.reply_enabled !== false) },
+                        setTemplateDraft((current) => ({
+                          ...(current || {}),
+                          reply_enabled: !(current?.reply_enabled !== false),
                         }))
                       }
                     />
@@ -786,9 +1076,9 @@ function SocialCommentsWorkspace({
                   <select
                     value={activeTemplate?.mode || "manual_approval"}
                     onChange={(event) =>
-                      onTemplateChange?.((current) => ({
-                        ...current,
-                        template: { ...(current.template || {}), mode: event.target.value },
+                      setTemplateDraft((current) => ({
+                        ...(current || {}),
+                        mode: event.target.value,
                       }))
                     }
                     className="mt-3 h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm font-black text-white outline-none"
@@ -802,9 +1092,9 @@ function SocialCommentsWorkspace({
                   <textarea
                     value={activeTemplate?.template || ""}
                     onChange={(event) =>
-                      onTemplateChange?.((current) => ({
-                        ...current,
-                        template: { ...(current.template || {}), template: event.target.value },
+                      setTemplateDraft((current) => ({
+                        ...(current || {}),
+                        template: event.target.value,
                       }))
                     }
                     rows={5}
@@ -813,39 +1103,29 @@ function SocialCommentsWorkspace({
                   />
 
                   <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Preview</div>
-                    <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">
-                      {suggestedReply || "No template text yet."}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Preview</div>
+                      <button
+                        type="button"
+                        onClick={() => void handlePreviewReply()}
+                        disabled={previewLoading || !actionableComment}
+                        className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-[11px] font-black text-slate-200 disabled:opacity-50"
+                      >
+                        {previewLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                        Preview Reply
+                      </button>
                     </div>
+                    <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">{suggestedReply || "No template text yet."}</div>
                   </div>
-
-                  {selectedTemplate?.loading ? <div className="mt-3 text-xs text-slate-500">جارٍ تحميل القالب...</div> : null}
-                  {selectedTemplate?.error ? <div className="mt-2 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-xs font-bold text-rose-100">{selectedTemplate.error}</div> : null}
                 </div>
 
                 <div className="rounded-[22px] border border-white/10 bg-slate-950/70 p-3">
                   <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Quick Actions</div>
                   <div className="mt-3 grid gap-2">
-                    <QuickActionButton
-                      label="Reply All Price Questions"
-                      onClick={() => renderCommentAction(firstMatchingComment((comment) => getCommentTags(comment).includes("Price")), "reply")}
-                      disabled={!onCommentAction}
-                    />
-                    <QuickActionButton
-                      label="Reply All Size Questions"
-                      onClick={() => renderCommentAction(firstMatchingComment((comment) => getCommentTags(comment).includes("Size")), "reply")}
-                      disabled={!onCommentAction}
-                    />
-                    <QuickActionButton
-                      label="Create Leads"
-                      onClick={() => renderCommentAction(firstMatchingComment((comment) => getCommentTags(comment).includes("Lead")), "lead")}
-                      disabled={!onCommentAction}
-                    />
-                    <QuickActionButton
-                      label="Send Product"
-                      onClick={() => renderCommentAction(firstMatchingComment(() => true), "private_message")}
-                      disabled={!onCommentAction}
-                    />
+                    <QuickActionButton label="Reply All Price Questions" onClick={() => void submitReply(firstMatchingComment((comment) => getCommentTags(comment).includes("Price")), replyDraft || suggestedReply)} disabled={!firstMatchingComment((comment) => getCommentTags(comment).includes("Price")) || !clean(replyDraft || suggestedReply)} />
+                    <QuickActionButton label="Reply All Size Questions" onClick={() => void submitReply(firstMatchingComment((comment) => getCommentTags(comment).includes("Size")), replyDraft || suggestedReply)} disabled={!firstMatchingComment((comment) => getCommentTags(comment).includes("Size")) || !clean(replyDraft || suggestedReply)} />
+                    <QuickActionButton label="Create Leads" onClick={() => void handleCreateLead(firstMatchingComment((comment) => getCommentTags(comment).includes("Lead")))} disabled={!firstMatchingComment((comment) => getCommentTags(comment).includes("Lead"))} />
+                    <QuickActionButton label="Send Product" onClick={() => void handleSendProduct()} />
                   </div>
                 </div>
               </aside>
