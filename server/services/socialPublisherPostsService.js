@@ -1,5 +1,6 @@
 import db from "../database/db.js";
 import { ensureMarketingSchema } from "../utils/marketingSchema.js";
+import { getMetaIntegrationStatus } from "./metaIntegrationService.js";
 import { publishPost as publishMetaPost } from "./socialPublisherService.js";
 
 const trimString = (value) => String(value || "").trim();
@@ -262,9 +263,38 @@ export const listSocialPublisherMetaAccounts = async ({ tenantId } = {}) => {
 
   const pages = Array.from(pageMap.values());
   const instagramAccounts = Array.from(instagramMap.values());
-  selectedPageId = trimString(selectedSettings?.page_id || pages[0]?.facebook_page_id || "");
+  const metaStatus = await getMetaIntegrationStatus({ tenantId }).catch(() => null);
+  const metaConfig = metaStatus?.config || {};
+  const metaPageId = trimString(metaConfig.facebook_page_id || metaConfig.page_id || "");
+  const metaPageName = trimString(metaConfig.facebook_page_name || metaConfig.page_name || metaPageId);
+  const metaInstagramId = trimString(metaConfig.instagram_business_account_id || metaConfig.instagram_account_id || "");
+  const metaInstagramUsername = trimString(metaConfig.instagram_username || metaInstagramId);
+
+  if (!pages.length && metaPageId) {
+    pages.push({
+      facebook_page_id: metaPageId,
+      facebook_page_name: metaPageName || metaPageId,
+      instagram_business_account_id: metaInstagramId,
+      instagram_username: metaInstagramUsername,
+      token_status: trimString(metaConfig.token_status || metaConfig.status || ""),
+      connected: Boolean(metaConfig.page_access_token_configured || metaConfig.page_access_token_masked),
+      updated_at: metaConfig.updated_at || null,
+    });
+  }
+
+  if (!instagramAccounts.length && metaInstagramId) {
+    instagramAccounts.push({
+      instagram_account_id: metaInstagramId,
+      instagram_username: metaInstagramUsername || metaInstagramId,
+      facebook_page_id: metaPageId,
+      facebook_page_name: metaPageName || metaPageId,
+    });
+  }
+
+  selectedPageId = trimString(selectedSettings?.page_id || metaPageId || pages[0]?.facebook_page_id || "");
   selectedInstagramAccountId = trimString(
     selectedSettings?.instagram_account_id ||
+      metaInstagramId ||
       instagramAccounts.find((item) => item.facebook_page_id === selectedPageId)?.instagram_account_id ||
       pages.find((item) => item.facebook_page_id === selectedPageId)?.instagram_business_account_id ||
       instagramAccounts[0]?.instagram_account_id ||
@@ -280,6 +310,7 @@ export const listSocialPublisherMetaAccounts = async ({ tenantId } = {}) => {
     instagram_accounts: instagramAccounts,
     has_facebook: pages.length > 0,
     has_instagram: instagramAccounts.length > 0,
+    meta_integration_connected: Boolean(metaStatus?.overall_status && ["connected", "fully_connected", "active", "saved", "partially_connected"].includes(String(metaStatus.overall_status || "").toLowerCase())),
   };
 };
 

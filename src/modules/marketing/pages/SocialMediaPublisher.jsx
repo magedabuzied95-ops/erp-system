@@ -155,6 +155,17 @@ export default function SocialMediaPublisher() {
   const applyMetaAccounts = (data = {}) => {
     const pages = safeArray(data.pages);
     const accounts = safeArray(data.instagram_accounts);
+    console.log("[social-publisher-accounts]", {
+      stage: "apply",
+      response_raw: data,
+      pages_count: pages.length,
+      instagram_accounts_count: accounts.length,
+      selected: data.selected || null,
+      has_facebook: Boolean(data.has_facebook),
+      has_instagram: Boolean(data.has_instagram),
+      meta_integration_connected: Boolean(data.meta_integration_connected),
+      reason: !pages.length ? "no_facebook_pages" : !accounts.length ? "no_instagram_accounts" : "ok",
+    });
     setFacebookPages(pages);
     setInstagramAccounts(accounts);
     const nextPageId = String(data.selected?.facebook_page_id || pages[0]?.facebook_page_id || "").trim();
@@ -178,9 +189,21 @@ export default function SocialMediaPublisher() {
         getSocialPublisherMetaAccounts({ suppressErrorStatuses: [400, 403, 404, 409, 500] }),
         getMetaIntegrationStatus({ suppressErrorStatuses: [400, 403, 404, 409, 500] }).catch(() => null),
       ]);
+      console.log("[social-publisher-accounts]", {
+        stage: "load",
+        response_raw: accountsData || null,
+        integration_status: integrationData?.overall_status || integrationData?.config?.status || null,
+        integration_connected: Boolean(integrationData?.overall_status && ["connected", "fully_connected", "active", "saved", "partially_connected"].includes(String(integrationData.overall_status || "").toLowerCase())),
+      });
       applyMetaAccounts(accountsData || {});
       setMetaIntegrationStatus(integrationData || null);
     } catch {
+      console.log("[social-publisher-accounts]", {
+        stage: "load_failed",
+        response_raw: null,
+        integration_status: null,
+        integration_connected: false,
+      });
       applyMetaAccounts({});
       setMetaIntegrationStatus(null);
     } finally {
@@ -192,6 +215,20 @@ export default function SocialMediaPublisher() {
   useEffect(() => {
     loadMetaAccounts();
   }, []);
+
+  useEffect(() => {
+    const refreshOnReturn = () => {
+      if (document.visibilityState !== "visible") return;
+      if (metaAccountsLoading || metaIntegrationLoading) return;
+      loadMetaAccounts().catch(() => {});
+    };
+    window.addEventListener("focus", refreshOnReturn);
+    document.addEventListener("visibilitychange", refreshOnReturn);
+    return () => {
+      window.removeEventListener("focus", refreshOnReturn);
+      document.removeEventListener("visibilitychange", refreshOnReturn);
+    };
+  }, [metaAccountsLoading, metaIntegrationLoading]);
 
   useEffect(() => {
     return () => {
