@@ -60,7 +60,7 @@ import AIStatusBadge from "../../../components/ai/AIStatusBadge";
 import AILiveLogs from "../../../components/ai/AILiveLogs";
 import TranscriptMessage from "../components/TranscriptMessage";
 import ProductCardPicker from "../components/ProductCardPicker";
-import SocialCommentsPanel from "../components/SocialCommentsPanel";
+import SocialCommentsWorkspace from "../components/SocialCommentsWorkspace";
 import { useTenant } from "../../saas/context/TenantContext";
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -3142,6 +3142,7 @@ export default function AiInbox() {
   });
   const [selectedSocialThread, setSelectedSocialThread] = useState({ post: null, comments: [], loading: false, error: "" });
   const [selectedSocialTemplate, setSelectedSocialTemplate] = useState({ template: null, loading: false, error: "" });
+  const [socialCommentActionLoading, setSocialCommentActionLoading] = useState("");
   const [socialCommentsFilter, setSocialCommentsFilter] = useState("all");
   const [socialCommentsDebug, setSocialCommentsDebug] = useState({ request_url: "", tenant_id: "", status: "", count: "", error: "" });
   const [inboxSection, setInboxSection] = useState("conversations");
@@ -3726,6 +3727,99 @@ export default function AiInbox() {
       cancelled = true;
     };
   }, [headers, isSocialMode, selectedSocialComment?.conversation_id, selectedSocialComment?.id, selectedSocialComment?.platform, selectedSocialComment?.post_id, tenantId]);
+  const saveSocialReplySettings = async () => {
+    try {
+      const payload = await api.post(
+        "/social-comments/auto-reply/settings",
+        {
+          tenant_id: tenantId,
+          ...socialReplySettings,
+        },
+        { headers, perfComponent: "AiInbox.socialReplySettings" }
+      );
+      setSocialReplySettings({
+        generic_enabled: Boolean(payload?.settings?.generic_enabled),
+        generic_like_enabled: payload?.settings?.generic_like_enabled !== false,
+        generic_reply_enabled: payload?.settings?.generic_reply_enabled !== false,
+        generic_template: clean(payload?.settings?.generic_template || ""),
+        mode: clean(payload?.settings?.mode || "manual_approval") || "manual_approval",
+      });
+      setToast({ tone: "emerald", text: "تم حفظ إعدادات الرد التلقائي" });
+    } catch (saveError) {
+      setToast({ tone: "rose", text: saveError?.message || "تعذر حفظ الإعدادات" });
+    }
+  };
+  const saveSocialPostTemplate = async () => {
+    const postId = clean(selectedSocialComment?.post_id || selectedSocialComment?.conversation_id || selectedSocialComment?.id || "");
+    if (!postId) return;
+    try {
+      const payload = await api.post(
+        `/social-comments/posts/${encodeURIComponent(postId)}/template`,
+        {
+          tenant_id: tenantId,
+          platform: clean(selectedSocialComment?.platform || "facebook"),
+          ...selectedSocialTemplate.template,
+        },
+        { headers, perfComponent: "AiInbox.socialPostTemplateSave" }
+      );
+      setSelectedSocialTemplate({
+        template: payload.template || null,
+        loading: false,
+        error: "",
+      });
+      setToast({ tone: "emerald", text: "تم حفظ قالب البوست" });
+      await loadAll({ silent: true });
+    } catch (templateError) {
+      setToast({ tone: "rose", text: templateError?.message || "تعذر حفظ قالب البوست" });
+    }
+  };
+  const handleSocialCommentAction = async (comment = {}, action = "") => {
+    const commentId = clean(comment?.comment_id || comment?.id || comment?.external_message_id || comment?.provider_message_id || "");
+    if (!commentId) return;
+    const postId = clean(selectedSocialComment?.post_id || selectedSocialComment?.conversation_id || selectedSocialComment?.id || comment?.post_id || comment?.conversation_id || "");
+    const platformValue = clean(selectedSocialComment?.platform || comment?.platform || "facebook");
+    setSocialCommentActionLoading(`${action}:${commentId}`);
+    try {
+      if (action === "reply") {
+        await api.post(
+          `/social-comments/comments/${encodeURIComponent(commentId)}/auto-reply-send`,
+          {
+            tenant_id: tenantId,
+            platform: platformValue,
+            post_id: postId,
+          },
+          { headers, perfComponent: "AiInbox.socialCommentReply" }
+        );
+        await loadAll({ silent: true });
+        return;
+      }
+      if (action === "ignore") {
+        await api.post(
+          `/social-comments/comments/${encodeURIComponent(commentId)}/ignore`,
+          {
+            tenant_id: tenantId,
+            platform: platformValue,
+            post_id: postId,
+            reason: "ignore",
+          },
+          { headers, perfComponent: "AiInbox.socialCommentIgnore" }
+        );
+        await loadAll({ silent: true });
+        return;
+      }
+      if (action === "private_message") {
+        setToast({ tone: "amber", text: "إرسال الرسالة الخاصة غير مفعّل بعد في هذه الواجهة" });
+        return;
+      }
+      if (action === "lead") {
+        setToast({ tone: "amber", text: "إنشاء Lead من التعليق غير مفعّل بعد في هذه الواجهة" });
+      }
+    } catch (error) {
+      setToast({ tone: "rose", text: error?.message || "تعذر تنفيذ الإجراء" });
+    } finally {
+      setSocialCommentActionLoading("");
+    }
+  };
   const getActiveItemId = useCallback(() => {
     if (isSocialMode) return clean(selectedSocialComment?.conversation_id || selectedSocialComment?.session_id || selectedSocialComment?.post_id || selectedSocialComment?.id || "");
     return clean(selectedConversationThread?.id || selectedConversationThread?.conversation_id || selectedConversationThread?.session_id || "");
@@ -5559,23 +5653,38 @@ export default function AiInbox() {
 	                    />
 	                  ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? "لا توجد رسائل Meta حقيقية بعد. بيانات العرض مخفية كي تبقى محادثات الويبهوك الحية واضحة." : "لا توجد محادثات حقيقية تطابق المرشحات المحددة."} /> : null}
 	                </>
-	              ) : (
-	                <SocialCommentsPanel
-	                  items={socialComments.items}
-	                  loading={socialComments.loading}
-	                  error={socialComments.error}
-	                  filter={socialCommentsFilter}
-	                  debugInfo={socialCommentsDebug}
-	                  onFilterChange={setSocialCommentsFilter}
-	                  onRefresh={() => void loadAll({ silent: true })}
-	                />
-	              )}
+	              ) : null}
 	            </div>
 	          </aside>
 
           <main className={`flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden ${fullscreenConversation ? "h-full rounded-none border-0 bg-transparent p-0 shadow-none" : "rounded-3xl border border-white/10 bg-white/[0.045] p-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)]"} ${mobileView === "chat" ? "flex" : "hidden md:flex"}`}>
             {isSocialMode ? (
-              <div className={`${fullscreenConversation ? "flex h-full min-h-0 flex-1 gap-0 overflow-hidden" : "flex min-h-0 flex-1 gap-2 overflow-hidden"}`}>
+              <>
+                <div className="flex min-h-0 flex-1 overflow-hidden">
+                  <SocialCommentsWorkspace
+                    items={visibleSocialComments}
+                    loading={loading || socialComments.loading}
+                    error={socialComments.error}
+                    selectedPost={selectedSocialComment}
+                    selectedThread={selectedSocialThread}
+                    selectedTemplate={selectedSocialTemplate}
+                    globalSettings={socialReplySettings}
+                    onRefresh={() => void loadAll({ silent: true })}
+                    onSelectPost={(item, itemKey) => {
+                      setSelectedSocialCommentId(itemKey);
+                      setSelectedSessionId("");
+                      setMobileView("chat");
+                    }}
+                    onGlobalSettingsChange={setSocialReplySettings}
+                    onSaveGlobalSettings={saveSocialReplySettings}
+                    onTemplateChange={setSelectedSocialTemplate}
+                    onSaveTemplate={saveSocialPostTemplate}
+                    onCommentAction={handleSocialCommentAction}
+                    selectedPostId={clean(selectedSocialComment?.id || selectedSocialComment?.conversation_id || selectedSocialComment?.post_id || "")}
+                    actionLoading={socialCommentActionLoading}
+                  />
+                </div>
+                <div className={`hidden ${fullscreenConversation ? "flex h-full min-h-0 flex-1 gap-0 overflow-hidden" : "flex min-h-0 flex-1 gap-2 overflow-hidden"}`}>
                 <aside className="flex min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-2 md:w-[340px] md:max-w-[340px]">
                   <SocialCommentsPanel
                     items={socialComments.items}
@@ -5680,6 +5789,7 @@ export default function AiInbox() {
                   )}
                 </div>
               </div>
+              </>
             ) : activeMainItem ? (
               <div className={`${fullscreenConversation ? "flex h-full min-h-0 flex-1 gap-0 overflow-hidden" : "flex min-h-0 flex-1 gap-2 overflow-hidden"}`}>
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -6609,19 +6719,7 @@ export default function AiInbox() {
                   ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? "لا توجد رسائل Meta حقيقية بعد. بيانات العرض مخفية كي تبقى محادثات الويبهوك الحية واضحة." : "لا توجد محادثات حقيقية تطابق المرشحات المحددة."} /> : null}
                 </div>
               </>
-            ) : (
-              <div className="min-h-0 flex-1 overflow-hidden pr-1">
-                <SocialCommentsPanel
-                  items={socialComments.items}
-                  loading={socialComments.loading}
-                  error={socialComments.error}
-                  filter={socialCommentsFilter}
-                  debugInfo={socialCommentsDebug}
-                  onFilterChange={setSocialCommentsFilter}
-                  onRefresh={() => void loadAll({ silent: true })}
-                />
-              </div>
-            )}
+            ) : null}
           </aside>
         </section>
       </div>
