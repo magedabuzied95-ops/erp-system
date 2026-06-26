@@ -309,6 +309,20 @@ const loadSocialPublisherFallbackMedia = async ({ tenantId = null, postId = "", 
   const candidateIds = Array.from(new Set([safePostId, extractedPermalinkObjectId].filter((value) => Boolean(value) && !String(value).includes(":"))));
   const candidatePermalinks = Array.from(new Set([safePermalinkUrl].filter(Boolean)));
   if (!candidateIds.length && !candidatePermalinks.length) return null;
+  const conditions = [];
+  const values = [safeTenantId];
+  let paramIndex = 2;
+  if (candidateIds.length) {
+    conditions.push(`(platform_post_id = ANY($${paramIndex}::text[]) OR NULLIF(metadata->>'platform_post_id', '') = ANY($${paramIndex}::text[]) OR NULLIF(metadata->>'external_post_id', '') = ANY($${paramIndex}::text[]) OR NULLIF(metadata->>'post_id', '') = ANY($${paramIndex}::text[]))`);
+    values.push(candidateIds);
+    paramIndex += 1;
+  }
+  if (candidatePermalinks.length) {
+    conditions.push(`(NULLIF(metadata->>'permalink_url', '') = ANY($${paramIndex}::text[]) OR NULLIF(metadata->>'post_permalink_url', '') = ANY($${paramIndex}::text[]) OR NULLIF(metadata->>'post_url', '') = ANY($${paramIndex}::text[]))`);
+    values.push(candidatePermalinks);
+    paramIndex += 1;
+  }
+  if (!conditions.length) return null;
   const result = await db.query(
     `
     SELECT
@@ -319,19 +333,11 @@ const loadSocialPublisherFallbackMedia = async ({ tenantId = null, postId = "", 
       COALESCE(NULLIF(metadata->>'permalink_url', ''), NULLIF(metadata->>'post_permalink_url', ''), NULLIF(metadata->>'post_url', ''), NULLIF(metadata->>'external_post_url', '')) AS metadata_permalink_url
     FROM ai_marketing_content_queue
     WHERE tenant_id = $1::bigint
-      AND (
-        (${candidateIds.length ? "platform_post_id = ANY($2::text[])" : "FALSE"})
-        OR (${candidateIds.length ? "NULLIF(metadata->>'platform_post_id', '') = ANY($2::text[])" : "FALSE"})
-        OR (${candidateIds.length ? "NULLIF(metadata->>'external_post_id', '') = ANY($2::text[])" : "FALSE"})
-        OR (${candidateIds.length ? "NULLIF(metadata->>'post_id', '') = ANY($2::text[])" : "FALSE"})
-        OR (${candidatePermalinks.length ? "NULLIF(metadata->>'permalink_url', '') = ANY($3::text[])" : "FALSE"})
-        OR (${candidatePermalinks.length ? "NULLIF(metadata->>'post_permalink_url', '') = ANY($3::text[])" : "FALSE"})
-        OR (${candidatePermalinks.length ? "NULLIF(metadata->>'post_url', '') = ANY($3::text[])" : "FALSE"})
-      )
+      AND (${conditions.join(" OR ")})
     ORDER BY updated_at DESC, created_at DESC, id DESC
     LIMIT 1
     `,
-    [safeTenantId, candidateIds, candidatePermalinks]
+    values
   ).catch(() => ({ rows: [] }));
   const row = result.rows?.[0] || null;
   if (!row) return null;
@@ -357,6 +363,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
   if (!tenantId || !postId || !needsGraph) {
     return {
       ...safeRow,
+      had_thumbnail_before: currentHasThumbnail,
       thumbnail_url: currentDetails.thumbnail_url,
       thumbnail_source: currentDetails.thumbnail_source,
       has_thumbnail: currentDetails.has_thumbnail,
@@ -414,9 +421,11 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
         return {
           ...safeRow,
           metadata: fallbackMetadata,
+          had_thumbnail_before: currentHasThumbnail,
           thumbnail_url: fallbackMedia.thumbnail_url,
           thumbnail_source: fallbackMedia.thumbnail_source,
           has_thumbnail: true,
+          thumbnail_saved: true,
           post_type: text(safeRow.post_type || metadata.post_type || ""),
           media_type: text(safeRow.media_type || metadata.media_type || ""),
           graph_fields_present: asArray(safeRow.graph_fields_present || metadata.graph_fields_present || []),
@@ -438,8 +447,9 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
           object_id_thumbnail_present: false,
         };
       }
-      return {
+        return {
         ...safeRow,
+        had_thumbnail_before: currentHasThumbnail,
         thumbnail_url: currentDetails.thumbnail_url,
         thumbnail_source: currentDetails.thumbnail_source,
         has_thumbnail: currentDetails.has_thumbnail,
@@ -514,6 +524,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     return {
       ...mergedRow,
       metadata: nextPersistedMetadata,
+      had_thumbnail_before: currentHasThumbnail,
       thumbnail_url: nextDetails.thumbnail_url,
       thumbnail_source: nextDetails.thumbnail_source,
       has_thumbnail: nextDetails.has_thumbnail,
@@ -541,6 +552,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
   } catch {
     return {
       ...safeRow,
+      had_thumbnail_before: currentHasThumbnail,
       thumbnail_url: currentDetails.thumbnail_url,
       thumbnail_source: currentDetails.thumbnail_source,
       has_thumbnail: currentDetails.has_thumbnail,
@@ -1119,11 +1131,14 @@ const backfillSocialCommentPostMedia = async ({ tenantId = null, platform = "", 
   let stillMissing = 0;
   const rows = result.rows || [];
   const pushMissingSample = (sourceRow = {}, resolved = null, reason = "") => {
-    const postId = text(resolved?.post_id || sourceRow.post_id || sourceRow.metadata?.post_id || sourceRow.conversation_id || "");
-    if (!postId || missingSamplePostIds.has(postId) || missingSample.length >= 5) return;
-    missingSamplePostIds.add(postId);
+    const normalizedPostId = text(resolved?.normalized_post_id || resolved?.post_id || sourceRow.post_id || sourceRow.metadata?.post_id || sourceRow.conversation_id || "");
+    const sourcePostId = text(sourceRow.post_id || sourceRow.metadata?.post_id || sourceRow.conversation_id || "");
+    const dedupeKey = normalizedPostId || sourcePostId;
+    if (!dedupeKey || missingSamplePostIds.has(dedupeKey) || missingSample.length >= 5) return;
+    missingSamplePostIds.add(dedupeKey);
     missingSample.push({
-      post_id: postId,
+      normalized_post_id: normalizedPostId,
+      source_post_id: sourcePostId,
       permalink_url: text(
         resolved?.post_permalink_url ||
           resolved?.post_permalink ||
@@ -1136,9 +1151,11 @@ const backfillSocialCommentPostMedia = async ({ tenantId = null, platform = "", 
           sourceRow.metadata?.permalink_url ||
           ""
       ),
-      tried_ids: asArray(resolved?.tried_ids || sourceRow.tried_ids || sourceRow.metadata?.tried_ids || []),
+      tried_graph_ids: asArray(resolved?.tried_graph_ids || sourceRow.tried_graph_ids || sourceRow.metadata?.tried_graph_ids || []),
+      skipped_non_graph_ids: asArray(resolved?.skipped_non_graph_ids || sourceRow.skipped_non_graph_ids || sourceRow.metadata?.skipped_non_graph_ids || []),
       graph_errors_sample: asArray(resolved?.graph_errors_sample || sourceRow.graph_errors_sample || sourceRow.metadata?.graph_errors_sample || []),
       reel_id_from_permalink: text(resolved?.reel_id_from_permalink || sourceRow.reel_id_from_permalink || sourceRow.metadata?.reel_id_from_permalink || ""),
+      extracted_permalink_object_id: text(resolved?.extracted_permalink_object_id || sourceRow.extracted_permalink_object_id || sourceRow.metadata?.extracted_permalink_object_id || ""),
       reel_thumbnail_present: Boolean(resolved?.reel_thumbnail_present ?? sourceRow.reel_thumbnail_present ?? sourceRow.metadata?.reel_thumbnail_present),
       object_id_thumbnail_present: Boolean(resolved?.object_id_thumbnail_present ?? sourceRow.object_id_thumbnail_present ?? sourceRow.metadata?.object_id_thumbnail_present),
       post_type: text(resolved?.post_type || sourceRow.post_type || sourceRow.metadata?.post_type || ""),
@@ -1155,10 +1172,14 @@ const backfillSocialCommentPostMedia = async ({ tenantId = null, platform = "", 
   for (const row of rows) {
     try {
       const resolved = await enrichSocialCommentPostRow({ tenantId: safeTenantId, row, platform: normalizedPlatform });
-      if (resolved?.graph_enriched && text(resolved?.thumbnail_url || "").length) enriched += 1;
-      if (resolved?.has_thumbnail) {
-        if (!resolved?.graph_enriched) alreadyHadImage += 1;
-      } else {
+      const savedThumbnail = isUsableImageUrl(resolved?.thumbnail_url);
+      const hadThumbnailBefore = Boolean(resolved?.had_thumbnail_before);
+      if (savedThumbnail && !hadThumbnailBefore) {
+        enriched += 1;
+      } else if (hadThumbnailBefore) {
+        alreadyHadImage += 1;
+      }
+      if (!savedThumbnail) {
         stillMissing += 1;
         pushMissingSample(row, resolved);
       }

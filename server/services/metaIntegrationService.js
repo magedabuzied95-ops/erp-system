@@ -4334,6 +4334,7 @@ const fetchMetaReelMediaCandidate = async ({ candidateReelId = "", token } = {})
     "id,description,permalink_url,picture,source,media_url,media_type",
   ];
   const errors = [];
+  let lastPreview = null;
   for (const fields of fieldSets) {
     try {
       const payload = await callMetaGet({
@@ -4342,14 +4343,8 @@ const fetchMetaReelMediaCandidate = async ({ candidateReelId = "", token } = {})
         params: { fields },
       });
       const preview = normalizeMetaReelPreview(payload || {});
+      lastPreview = preview || lastPreview;
       if (preview?.thumbnail_url) {
-        return {
-          ...preview,
-          tried_fields: fieldSets,
-          graph_errors_sample: errors.slice(0, 5),
-        };
-      }
-      if (preview) {
         return {
           ...preview,
           tried_fields: fieldSets,
@@ -4365,7 +4360,13 @@ const fetchMetaReelMediaCandidate = async ({ candidateReelId = "", token } = {})
       });
     }
   }
-  return null;
+  return lastPreview
+    ? {
+        ...lastPreview,
+        tried_fields: fieldSets,
+        graph_errors_sample: errors.slice(0, 5),
+      }
+    : null;
 };
 
 export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = "", pageId = "", permalinkUrl = "" } = {}) => {
@@ -4423,6 +4424,8 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
     return {
       id: safePostId,
       post_id: safePostId,
+      normalized_post_id: objectIdFromPermalink || safePostId,
+      source_post_id: safePostId,
       message: "",
       caption: "",
       permalink_url: text(permalinkUrl || ""),
@@ -4459,6 +4462,8 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
 
   return {
     ...bestPreview,
+    normalized_post_id: text(bestPreview.post_id || bestPreview.id || objectIdFromPermalink || safePostId),
+    source_post_id: safePostId,
     thumbnail_url: isUsableGraphMediaUrl(bestPreview.thumbnail_url) ? bestPreview.thumbnail_url : null,
     thumbnail_source: isUsableGraphMediaUrl(bestPreview.thumbnail_url) ? bestPreview.thumbnail_source || "graph" : "missing",
     reason_if_missing: isUsableGraphMediaUrl(bestPreview.thumbnail_url) ? "" : bestPreview.reason_if_missing || "no_image_sources_found",
