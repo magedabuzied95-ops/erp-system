@@ -3,6 +3,7 @@ import multer from "multer";
 import db from "../database/db.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
+import { requireStorefrontCustomerAuth } from "../middleware/storefrontCustomerAuth.js";
 import { ensureBrandsTable } from "../controllers/brandsController.js";
 import {
   accountByPhone,
@@ -35,6 +36,7 @@ import {
   restoreStorefrontCustomerCart,
   setStorefrontCustomerCookie,
 } from "../services/storefrontCustomerSessionService.js";
+import { requestCustomerOtp, verifyCustomerOtp } from "../services/customerOtpAuthService.js";
 
 const router = express.Router();
 const IMAGE_TOO_LARGE_MESSAGE = "\u062d\u062c\u0645 \u0627\u0644\u0635\u0648\u0631\u0629 \u0643\u0628\u064a\u0631. \u0627\u0631\u0641\u0639 \u0635\u0648\u0631\u0629 \u0623\u0635\u063a\u0631";
@@ -305,6 +307,56 @@ router.post("/customer/restore-cart", async (req, res) => {
       code: error?.code || "",
     });
     return res.status(500).json({ success: false, message: "تعذر استرجاع السلة حاليا" });
+  }
+});
+
+router.post("/auth/request-otp", async (req, res) => {
+  try {
+    const tenantId = publicTenantId(req);
+    const result = await requestCustomerOtp({
+      tenantId,
+      phone: req.body?.phone || req.body?.mobile || "",
+    });
+    if (result?.cooldown) {
+      return res.status(429).json({
+        success: false,
+        message: "رجاءً انتظر قليلًا قبل طلب كود جديد",
+        retry_after_seconds: result.retry_after_seconds || 60,
+      });
+    }
+    return res.json({ success: true, sent: true });
+  } catch (error) {
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: "تعذر إرسال كود الدخول حاليًا",
+    });
+  }
+});
+
+router.post("/auth/verify-otp", async (req, res) => {
+  try {
+    const tenantId = publicTenantId(req);
+    const result = await verifyCustomerOtp({
+      tenantId,
+      phone: req.body?.phone || req.body?.mobile || "",
+      otp: req.body?.otp || "",
+    });
+    if (!result?.success) {
+      return res.status(400).json({
+        success: false,
+        message: "كود الدخول غير صحيح أو منتهي",
+      });
+    }
+    return res.json({
+      success: true,
+      token: result.token,
+      customer: { phone: result.customer?.phone || "" },
+    });
+  } catch {
+    return res.status(500).json({
+      success: false,
+      message: "كود الدخول غير صحيح أو منتهي",
+    });
   }
 });
 
