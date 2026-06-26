@@ -2414,6 +2414,11 @@ router.post("/inbox/:conversationId/private-message", protect, permit("settings"
   const conversationId = envText(req.params.conversationId);
   const rawMessageText = String(req.body?.message ?? req.body?.reply ?? req.body?.text ?? "");
   const messageText = envText(rawMessageText);
+  console.warn("[social-comments:private-message-actual-route-entry]", {
+    tenantId,
+    conversationId,
+    body: req.body,
+  });
   console.warn("[social-comments:private-message-route-entry]", {
     tenantId,
     conversationId,

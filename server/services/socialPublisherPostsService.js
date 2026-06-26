@@ -318,7 +318,7 @@ export const createSocialPublisherPostRow = async ({
       published_at,
       error_message
     )
-    VALUES ($1::integer, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8::timestamp, $9::timestamp, $10)
+    VALUES ($1::integer, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9::timestamp, $10::timestamp, $11)
     RETURNING *
     `,
     [
