@@ -44,6 +44,7 @@ import {
 } from "../services/marketingApi";
 import { generateSocialPublisherCaption, getProductsWithVariants } from "../../products/services/productsApi";
 import { hasPermission } from "../../permissions/lib/rbacStore";
+import MarketingStudioHeader from "../components/MarketingStudioHeader";
 
 const formatDateTime = (value) => {
   if (!value) return "-";
@@ -1529,6 +1530,7 @@ export default function SocialMediaPublisher() {
   return (
     <div className="min-h-screen w-full overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.12),_transparent_32%),linear-gradient(180deg,#07111f_0%,#050816_100%)] text-white">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 pb-32 pt-5 md:px-6 md:pb-10 lg:px-8 lg:pb-12">
+        <MarketingStudioHeader />
         <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/25 backdrop-blur">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div className="space-y-2">

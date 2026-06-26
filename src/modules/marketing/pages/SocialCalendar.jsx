@@ -1,6 +1,7 @@
 import { CalendarDays, CheckCircle2, Clock3, Copy, History, LayoutGrid, PenLine, Rocket, Sparkles, Tv2 } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import MarketingStudioHeader from "../components/MarketingStudioHeader";
 
 const pad2 = (value) => String(value).padStart(2, "0");
 
@@ -200,6 +201,7 @@ export default function SocialCalendar() {
   return (
     <div className="min-h-full bg-[#060816] text-white">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
+        <MarketingStudioHeader />
         <section className="overflow-hidden rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_28%),linear-gradient(135deg,rgba(2,6,23,0.98),rgba(15,23,42,0.96))] p-5 shadow-2xl shadow-black/30">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-3">

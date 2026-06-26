@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { AlertTriangle, Bot, CheckCircle2, Clock, Copy, FileText, KeyRound, MessageCircle, PlayCircle, Plus, RefreshCw, Send, Settings2, ShieldCheck, Sparkles, Trash2, Workflow, Zap } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
+import MarketingStudioHeader from "../components/MarketingStudioHeader";
 
 import {
   createCommentDmRule,
@@ -884,6 +885,7 @@ export default function MarketingSettings() {
   return (
     <div className="min-h-full bg-[#060816] text-white">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
+        <MarketingStudioHeader />
         <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 shadow-2xl shadow-black/30">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">

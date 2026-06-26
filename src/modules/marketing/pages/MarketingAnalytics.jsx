@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { getMarketingAnalytics, syncMarketingAnalytics } from "../services/marketingApi";
 import MarketingMetricCard from "../components/MarketingMetricCard";
+import MarketingStudioHeader from "../components/MarketingStudioHeader";
 import { hasPermission } from "../../permissions/lib/rbacStore";
 
 const formatDateTime = (value) => {
@@ -90,6 +91,7 @@ export default function MarketingAnalytics() {
   return (
     <div className="min-h-full w-full overflow-x-hidden bg-[#060816] text-white">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
+        <MarketingStudioHeader />
         <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 shadow-2xl shadow-black/30">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">
